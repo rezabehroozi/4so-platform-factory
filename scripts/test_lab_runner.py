@@ -11,7 +11,7 @@ def main():
     assert g["aiPolicy"]["defaultMode"]=="failure-only"
     assert g["aiPolicy"]["defaultFailurePacketBytes"]==8192 and g["aiPolicy"]["defaultOutputTokens"]==800
     assert {p["id"] for p in g["aiPolicy"]["providers"]} >= {"codex-cli","claude-code","openai-responses","antigravity-command"}
-    assert g["runner"]["currentFullyAutomatedRows"]==["M00"]
+    assert g["runner"]["currentFullyAutomatedRows"]==["M00","M01"]
     fake={"stage":"boom","command":["x","--password=hunter2"],"returnCode":1,"durationSeconds":0,"outputTail":"Authorization: Bearer very-secret-token\npassword=another-secret\n"+"a"*50000,"fingerprint":"f","status":"FAIL"}
     packet=mod.failure_packet(fake,artifact_sha="a"*64)
     assert len(json.dumps(packet,separators=(",",":")).encode()) <= 8192

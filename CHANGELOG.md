@@ -1,3 +1,11 @@
+# 0.0.220 — Lab M01 reboot and inventory authority closure
+
+- close a real Lab SSH execution defect: multi-line remote scripts are now shell-quoted as one `sh -c` program before crossing the OpenSSH command-string boundary, with a regression proving spaces/quotes survive the serialization semantics instead of becoming positional parameters.
+- make physical topology fail closed by rejecting duplicate physical hosts across Lab roles and bind the canonical role/host topology into a stable `serverInventoryDigest` carried by plan, preflight and run results. This prevents one machine from impersonating a multi-node tier and prevents evidence from being silently moved to another inventory.
+- complete deterministic M01 source automation for a single management node: after fresh install and exact-SHA evidence collection, the runner records the pre-reboot boot ID, performs a real host reboot, requires a different boot ID, requires the installer service to return active/enabled, re-runs remote installer verification and re-collects exact-SHA field evidence through the same durable campaign identity. M01 automation is now `IMPLEMENTED`; M02 remains partial and M03 remains pending.
+- add the canonical `examples/lab/lab-execution.example.json`, fix the README execution confirmation from the stale `RUN` value to the actual `RUN_LAB` contract, remove release-numbered paths from the example, and document distinct-host/inventory-digest evidence semantics.
+- preserve Release Gate truth: M01 automation source coverage and any later physical M01 PASS are not by themselves Generated/Installed Runtime, Runtime-Realism or full Exact-SHA Physical Runtime certification for the product.
+
 # 0.0.219 — AI-native operator experience program rebaseline
 
 - Rebased the canonical roadmap to `PROGRAM_PHASE_MODEL_V3` while retaining eight large delivery phases and adding seven cross-cutting product tracks: Operator Experience/UI/UX, AI-Native, MCP/External Agents, Lab/Certification, Security/RBAC/Evidence, Supply Chain/Disconnected and Developer/Agent Experience.

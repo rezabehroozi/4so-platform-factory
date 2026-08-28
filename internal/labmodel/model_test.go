@@ -16,7 +16,7 @@ func TestModelIsCanonicalAndLargePhaseMatrix(t *testing.T) {
 	if guide.AIPolicy.RuntimeAuthority != "UNIFIED_AI_RUNTIME_V1" || guide.AIPolicy.EgressPolicy == "" || guide.AIPolicy.DurableAudit == "" || guide.AIPolicy.ExecutionAuthority == "" {
 		t.Fatalf("AI-native authority contract is incomplete: %#v", guide.AIPolicy)
 	}
-	if guide.Runner.Command != "python3 scripts/lab_runner.py" || len(guide.Runner.CurrentFullyAutomatedRows) != 1 || len(guide.Runner.CurrentPartiallyAutomatedRows) != 2 {
+	if guide.Runner.Command != "python3 scripts/lab_runner.py" || len(guide.Runner.CurrentFullyAutomatedRows) != 2 || guide.Runner.CurrentFullyAutomatedRows[0] != "M00" || guide.Runner.CurrentFullyAutomatedRows[1] != "M01" || len(guide.Runner.CurrentPartiallyAutomatedRows) != 1 || guide.Runner.CurrentPartiallyAutomatedRows[0] != "M02" {
 		t.Fatalf("runner coverage is not explicit: %#v", guide.Runner)
 	}
 	for _, row := range guide.Matrix {

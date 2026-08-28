@@ -1,0 +1,44 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "LabExecution",
+  "metadata": {
+    "name": "factory-import-lab"
+  },
+  "spec": {
+    "releaseArtifact": "/srv/4so/release/4so-platform-factory-release.zip",
+    "bundleDirectory": "/srv/4so/bundle",
+    "serverTier": "current-import-minimum",
+    "ssh": {
+      "user": "root",
+      "identityFile": "/srv/4so/credentials/lab-root-ed25519",
+      "knownHostsFile": "/srv/4so/credentials/lab-known-hosts"
+    },
+    "servers": [
+      {
+        "role": "management-primary",
+        "host": "192.0.2.10"
+      },
+      {
+        "role": "okd-control-1",
+        "host": "192.0.2.21"
+      },
+      {
+        "role": "okd-control-2",
+        "host": "192.0.2.22"
+      },
+      {
+        "role": "okd-control-3",
+        "host": "192.0.2.23"
+      }
+    ],
+    "management": {
+      "publicEndpoint": "https://factory.lab.example"
+    },
+    "ai": {
+      "provider": "none",
+      "maxOutputTokens": 800,
+      "maxTurns": 2,
+      "maxBudgetUSD": 1
+    }
+  }
+}

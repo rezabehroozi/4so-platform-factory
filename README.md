@@ -167,7 +167,7 @@ The coordinated single-node-to-three-node management handoff is exposed through 
 
 ## Physical Lab: give the runner servers and let it install/test
 
-The canonical machine-readable Lab contract is `LAB_CERTIFICATION_MATRIX_V1`; the schema is `schemas/lab-execution.schema.json` and the runner is `scripts/lab_runner.py`.
+The canonical machine-readable Lab contract is `LAB_CERTIFICATION_MATRIX_V1`; the schema is `schemas/lab-execution.schema.json`, the canonical example is `examples/lab/lab-execution.example.json`, and the runner is `scripts/lab_runner.py`.
 
 Always inspect the current guide from the exact checkout you will use:
 
@@ -194,6 +194,8 @@ The deterministic scripts own execution and PASS/FAIL. AI is invoked only after 
 
 If a real OKD cluster already exists, it supplies the target roles; the minimum tier therefore needs only the additional Factory management server. In the current Phase C runner, SSH preflight/install is performed only for management roles. Target roles are retained in the inventory so later Phase D+ target API/Agent certification is bound to an explicit physical topology rather than inferred.
 
+Each physical role must map to a **distinct host**. The runner canonicalizes that topology into `serverInventoryDigest` and binds the digest into the plan, preflight and run result so evidence cannot be moved silently to a different server inventory.
+
 Current management-host lab floor: **4 vCPU, 16 GiB RAM, 100 GiB free disk**. Target requirements are printed by `lab_runner.py guide`; never rely on this README if the machine-readable guide in a newer release differs.
 
 ### SSH preparation
@@ -212,15 +214,15 @@ Do not use `StrictHostKeyChecking=no` in certification input.
 
 ### Example `LabExecution`
 
-Create `/tmp/4so-lab.json` and change paths/hosts to the real environment:
+Start from `examples/lab/lab-execution.example.json` (documentation-only TEST-NET addresses), copy it to `/tmp/4so-lab.json`, then change paths/hosts to the real environment:
 
 ```json
 {
   "apiVersion": "platform.4so.io/v1alpha1",
   "kind": "LabExecution",
-  "metadata": {"name": "factory-0217-import-lab"},
+  "metadata": {"name": "factory-import-lab"},
   "spec": {
-    "releaseArtifact": "/srv/4so/release/4so-platform-factory-0.0.218-ai-native-operator-console-design-foundation.zip",
+    "releaseArtifact": "/srv/4so/release/4so-platform-factory-release.zip",
     "bundleDirectory": "/srv/4so/bundle",
     "serverTier": "current-import-minimum",
     "ssh": {
@@ -261,7 +263,7 @@ mkdir -p /srv/4so/lab-state
 python3 scripts/lab_runner.py run \
   --spec /tmp/4so-lab.json \
   --state-dir /srv/4so/lab-state \
-  --confirmation RUN
+  --confirmation RUN_LAB
 ```
 
 The state directory is evidence/checkpoint data for the run. Keep it with the exact release SHA; do not copy a PASS state to another release artifact.
@@ -287,7 +289,7 @@ The guide and Operator Console are the canonical source for current automation s
 | M12 | load and 24-hour soak | Phase H |
 | M13 | two-cluster/multi-cluster certification | Phase H |
 
-At the current `0.0.218` foundation, **M00 is implemented, M01/M02 are partial, M03 is pending runner wiring, and M04-M13 are phase-gated**. Presence in this table never means the automation is already complete.
+At the current `0.0.220` foundation, **M00 and M01 are implemented, M02 is partial, M03 is pending runner wiring, and M04-M13 are phase-gated**. M01 now requires a real single-node boot-ID change, installer-service recovery, post-reboot installer verification and exact-SHA evidence recollection; it still does not imply four-layer Physical PASS. Presence in this table never means later rows are already executable.
 
 ## Testing with Codex, Claude Code, Antigravity and model APIs
 
