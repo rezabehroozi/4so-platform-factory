@@ -17,22 +17,34 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Reassemble and verify exact local Git bundle
+      - name: Reassemble canonical source and create deterministic root commit
         shell: bash
         run: |
           set -euo pipefail
-          expected="$(tr -d '\r\n' < .bootstrap/EXPECTED_HEAD)"
-          expected_bundle_sha="$(tr -d '\r\n' < .bootstrap/BUNDLE_SHA256)"
-          cat .bootstrap/chunks/* > /tmp/full.bundle.b64
-          base64 -d /tmp/full.bundle.b64 > /tmp/full.bundle
-          test "$(sha256sum /tmp/full.bundle | awk '{print $1}')" = "$expected_bundle_sha"
-          git bundle verify /tmp/full.bundle
-          git fetch /tmp/full.bundle main:refs/remotes/bootstrap/main
-          test "$(git rev-parse refs/remotes/bootstrap/main)" = "$expected"
-          test "$(git ls-tree -r --name-only refs/remotes/bootstrap/main | wc -l)" -eq 600
-          git push --force origin "refs/remotes/bootstrap/main:refs/heads/main"
+          expected_head="$(tr -d '\r\n' < .bootstrap/EXPECTED_HEAD)"
+          expected_tree="$(tr -d '\r\n' < .bootstrap/EXPECTED_TREE)"
+          expected_source_sha="$(tr -d '\r\n' < .bootstrap/SOURCE_SHA256)"
+          cat .bootstrap/chunks/* > /tmp/source.tar.xz.b64
+          base64 -d /tmp/source.tar.xz.b64 > /tmp/source.tar.xz
+          test "$(sha256sum /tmp/source.tar.xz | awk '{print $1}')" = "$expected_source_sha"
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          tar -xJf /tmp/source.tar.xz -C .
+          test "$(find . -name .git -print | wc -l)" -eq 1
+          git add -A
+          tree="$(git write-tree)"
+          test "$tree" = "$expected_tree"
+          test "$(git ls-tree -r --name-only "$tree" | wc -l)" -eq 600
+          export GIT_AUTHOR_NAME='4SO Repository Sync'
+          export GIT_AUTHOR_EMAIL='repository-sync@4so.invalid'
+          export GIT_AUTHOR_DATE='2026-08-28T16:30:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+          export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+          export GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          commit="$(printf '%s\n' 'chore: synchronize complete project repository' | git commit-tree "$tree")"
+          test "$commit" = "$expected_head"
+          git push --force origin "$commit:refs/heads/main"
           remote="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
-          test "$remote" = "$expected"
+          test "$remote" = "$expected_head"
       - name: Dispatch clean-clone repository integrity verification
         env:
           GH_TOKEN: ${{ github.token }}
