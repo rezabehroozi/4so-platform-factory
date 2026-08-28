@@ -24,8 +24,9 @@ jobs:
           expected_head="$(tr -d '\r\n' < .bootstrap/EXPECTED_HEAD)"
           expected_tree="$(tr -d '\r\n' < .bootstrap/EXPECTED_TREE)"
           expected_source_sha="$(tr -d '\r\n' < .bootstrap/SOURCE_SHA256)"
-          test "$(find .bootstrap/chunks -maxdepth 1 -type f -name 'part-*' | wc -l)" -eq 83
-          cat .bootstrap/chunks/part-* > /tmp/source.tar.xz.b64
+          test "$(find .bootstrap/chunks -maxdepth 1 -type f -name 'part-*' | wc -l)" -eq 13
+          test "$(find .bootstrap/remainder -maxdepth 1 -type f -name 'segment-*' | wc -l)" -eq 24
+          cat .bootstrap/chunks/part-{000..012} .bootstrap/remainder/segment-* > /tmp/source.tar.xz.b64
           base64 -d /tmp/source.tar.xz.b64 > /tmp/source.tar.xz
           test "$(sha256sum /tmp/source.tar.xz | awk '{print $1}')" = "$expected_source_sha"
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
