@@ -1,0 +1,11 @@
+ARG GO_BUILD_IMAGE
+ARG RUNTIME_IMAGE
+FROM ${GO_BUILD_IMAGE} AS build
+WORKDIR /src
+COPY . .
+RUN VERSION="$(cat VERSION)" && test -n "$VERSION" && CGO_ENABLED=0 go test ./cmd/platform-agent && \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version=$VERSION" -o /out/platform-agent ./cmd/platform-agent
+FROM ${RUNTIME_IMAGE}
+COPY --from=build /out/platform-agent /platform-agent
+USER nonroot:nonroot
+ENTRYPOINT ["/platform-agent"]

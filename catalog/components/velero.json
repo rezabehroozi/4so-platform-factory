@@ -1,0 +1,97 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "velero"
+  },
+  "spec": {
+    "capabilities": [
+      "backup",
+      "restore"
+    ],
+    "category": "resilience",
+    "certification": {
+      "evidenceDigest": "",
+      "profiles": [],
+      "status": "candidate"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      },
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "conflictsWith": [],
+    "delivery": {
+      "chart": "velero",
+      "repositoryKey": "platform-charts",
+      "type": "helm"
+    },
+    "dependencies": [
+      "ceph-csi-rbd"
+    ],
+    "displayName": "Velero",
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "exclusiveCapabilities": [
+      "backup-controller"
+    ],
+    "mandatory": true,
+    "namespace": "velero",
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "provides": [
+      "backup-controller"
+    ],
+    "readiness": [
+      "deployment/velero",
+      "backupstoragelocation/default"
+    ],
+    "release": "12.1.0",
+    "requiresCapabilities": [
+      "rbd-storage"
+    ],
+    "risk": "high",
+    "rollback": {
+      "strategy": "restore-previous-release-and-preserve-backups"
+    },
+    "settingsSchemaRef": "schemas/settings/velero.schema.json",
+    "source": {
+      "artifactDigest": "",
+      "imageInventoryDigest": "",
+      "licenseManifestDigest": "",
+      "provenance": "required",
+      "resolved": false,
+      "sbom": "required",
+      "signatureVerification": "required",
+      "sourceLockDigest": "",
+      "type": "helm-chart"
+    },
+    "supportTier": "research-candidate",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
+    "wave": 60
+  }
+}

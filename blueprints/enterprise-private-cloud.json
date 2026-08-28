@@ -1,0 +1,152 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformBlueprint",
+  "metadata": {
+    "name": "enterprise-private-cloud",
+    "version": "0.0.1"
+  },
+  "spec": {
+    "certification": {
+      "evidenceRetentionDays": 365,
+      "requiredLevel": "target-runtime"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      }
+    },
+    "components": [
+      {
+        "enabled": true,
+        "name": "argocd"
+      },
+      {
+        "enabled": true,
+        "name": "cilium"
+      },
+      {
+        "enabled": true,
+        "name": "gateway-api"
+      },
+      {
+        "enabled": true,
+        "name": "kgateway"
+      },
+      {
+        "enabled": true,
+        "name": "cert-manager"
+      },
+      {
+        "enabled": true,
+        "name": "external-dns"
+      },
+      {
+        "enabled": true,
+        "name": "external-secrets"
+      },
+      {
+        "enabled": true,
+        "name": "kyverno"
+      },
+      {
+        "enabled": true,
+        "name": "snapshot-controller"
+      },
+      {
+        "enabled": true,
+        "name": "ceph-csi-rbd"
+      },
+      {
+        "enabled": true,
+        "name": "velero"
+      },
+      {
+        "enabled": true,
+        "name": "victoria-metrics"
+      },
+      {
+        "enabled": true,
+        "name": "loki"
+      },
+      {
+        "enabled": true,
+        "name": "alloy"
+      },
+      {
+        "enabled": true,
+        "name": "grafana"
+      },
+      {
+        "enabled": true,
+        "name": "capsule"
+      },
+      {
+        "enabled": true,
+        "name": "metallb",
+        "settings": {
+          "addressPool": "192.0.2.100-192.0.2.120"
+        }
+      },
+      {
+        "enabled": true,
+        "name": "tetragon"
+      }
+    ],
+    "delivery": {
+      "mode": "gitops",
+      "ociRegistry": "platform-zot.platform-system.svc.cluster.local:5000/platform-charts",
+      "repository": "http://platform-forgejo.platform-system.svc.cluster.local:3000/platform/desired-state.git",
+      "revision": "main",
+      "revisionType": "branch"
+    },
+    "description": "Enterprise baseline for imported private-cloud Kubernetes clusters",
+    "governance": {
+      "allowPlaintextSecrets": false,
+      "approvalRequiredFor": [
+        "critical",
+        "high"
+      ],
+      "enforceDigestImages": true
+    },
+    "tenancy": {
+      "deletionPolicy": "approval-and-backup-required",
+      "mode": "namespace",
+      "plans": [
+        "small",
+        "medium",
+        "large"
+      ]
+    },
+    "fieldOwnership": [
+      {
+        "path": "/spec/delivery/repository",
+        "policy": "PROVIDER_ONLY"
+      },
+      {
+        "path": "/spec/delivery/ociRegistry",
+        "policy": "PROVIDER_ONLY"
+      },
+      {
+        "path": "/spec/description",
+        "policy": "PROVIDER_THEN_ENVIRONMENT"
+      },
+      {
+        "path": "/spec/certification/requiredLevel",
+        "policy": "ENVIRONMENT_ONLY"
+      },
+      {
+        "path": "/spec/certification/evidenceRetentionDays",
+        "policy": "ENVIRONMENT_ONLY"
+      }
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "InstallerHostDeployment",
+  "metadata": {
+    "name": "field-installer",
+    "version": "0.0.125"
+  },
+  "spec": {
+    "installerBinary": "/srv/4so-release/bin/linux-amd64/platform-installer",
+    "bundleDirectory": "/srv/4so-bundle",
+    "listen": "0.0.0.0:9443",
+    "executionEnabled": false,
+    "allowInsecureHttp": false,
+    "tls": {
+      "certificateFile": "/srv/4so-secrets/installer.crt",
+      "privateKeyFile": "/srv/4so-secrets/installer.key"
+    },
+    "service": {
+      "enable": true,
+      "start": true
+    },
+    "health": {
+      "path": "/healthz",
+      "serverName": "installer.company.tld",
+      "timeoutSeconds": 60,
+      "intervalMilliseconds": 500
+    },
+    "admission": {
+      "allowDowngrade": false
+    }
+  }
+}

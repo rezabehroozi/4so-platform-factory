@@ -1,0 +1,19 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "InstallerRemoteBootstrap",
+  "metadata": {
+    "name": "primary-installer-host",
+    "version": "0.0.125"
+  },
+  "spec": {
+    "target": {
+      "host": "installer-1.internal.example",
+      "user": "root",
+      "identityFile": "/secure/bootstrap/id_ed25519",
+      "knownHostsFile": "/secure/bootstrap/known_hosts",
+      "root": "/"
+    },
+    "platformctlBinary": "../../bin/linux-amd64/platformctl",
+    "deploymentSpec": "../installer-host/deployment.example.json"
+  }
+}

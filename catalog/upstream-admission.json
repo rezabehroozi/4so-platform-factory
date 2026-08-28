@@ -1,0 +1,179 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "CatalogUpstreamAdmission",
+  "metadata": {
+    "name": "enterprise-private-cloud-upstream-admission"
+  },
+  "spec": {
+    "components": [
+      {
+        "catalogConstraint": "1.11.x",
+        "chart": "alloy",
+        "component": "alloy",
+        "rationale": "Exact chart release selected from the product's admitted 1.11 series; acquisition must still verify upstream index digest, immutable render and image digests.",
+        "selectedVersion": "1.11.0",
+        "source": "https://grafana.github.io/helm-charts",
+        "status": "ready-for-acquisition",
+        "upstreamVersion": "1.11.0"
+      },
+      {
+        "catalogConstraint": "10.2.x",
+        "chart": "argo-cd",
+        "component": "argocd",
+        "rationale": "Latest reviewed patch in the admitted 10.2 series; source acquisition and runtime certification remain separate gates.",
+        "selectedVersion": "10.2.3",
+        "source": "https://argoproj.github.io/argo-helm",
+        "status": "ready-for-acquisition",
+        "upstreamVersion": "10.2.3"
+      },
+      {
+        "catalogConstraint": "0.13.x",
+        "chart": "capsule",
+        "component": "capsule",
+        "rationale": "Exact upstream-supported 0.13 chart selected; OCI content digest must be verified by acquisition tooling.",
+        "selectedVersion": "0.13.11",
+        "source": "oci://ghcr.io/projectcapsule/charts/capsule",
+        "status": "ready-for-acquisition",
+        "upstreamVersion": "0.13.11"
+      },
+      {
+        "catalogConstraint": "3.17.x",
+        "chart": "ceph-csi-rbd",
+        "component": "ceph-csi-rbd",
+        "rationale": "Upstream now recommends the Ceph-CSI Operator for new deployments; do not admit the legacy Helm deployment path until the product-owned storage lifecycle decision is made.",
+        "selectedVersion": "3.17.0",
+        "source": "https://ceph.github.io/csi-charts",
+        "status": "architecture-review-required",
+        "upstreamVersion": "3.17.0"
+      },
+      {
+        "catalogConstraint": "1.21.x",
+        "chart": "cert-manager",
+        "component": "cert-manager",
+        "rationale": "Stable 1.21 patch selected; acquisition remains responsible for chart digest, render and image provenance.",
+        "selectedVersion": "1.21.1",
+        "source": "https://charts.jetstack.io",
+        "status": "ready-for-acquisition",
+        "upstreamVersion": "v1.21.1"
+      },
+      {
+        "catalogConstraint": "1.20.x",
+        "chart": "cilium",
+        "component": "cilium",
+        "rationale": "Cilium 1.20 adopts Gateway API 1.6.1 capabilities while the shipped baseline still pins Gateway API 1.5.1; dependency alignment must be resolved before admission.",
+        "selectedVersion": "1.20.0",
+        "source": "https://helm.cilium.io",
+        "status": "dependency-review-required",
+        "upstreamVersion": "1.20.0"
+      },
+      {
+        "catalogConstraint": "1.21.x",
+        "chart": "external-dns",
+        "component": "external-dns",
+        "rationale": "Exact chart release selected from the admitted 1.21 series; runtime policy remains separately certified.",
+        "selectedVersion": "1.21.1",
+        "source": "https://kubernetes-sigs.github.io/external-dns/",
+        "status": "ready-for-acquisition",
+        "upstreamVersion": "1.21.1"
+      },
+      {
+        "catalogConstraint": "2.8.x",
+        "chart": "external-secrets",
+        "component": "external-secrets",
+        "rationale": "Exact official OCI chart release selected; digest and immutable render remain acquisition gates.",
+        "selectedVersion": "2.8.0",
+        "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
+        "status": "ready-for-acquisition",
+        "upstreamVersion": "2.8.0"
+      },
+      {
+        "catalogConstraint": "12.10.x",
+        "chart": "grafana",
+        "component": "grafana",
+        "rationale": "Official source is known, but no exact 12.10 patch is admitted until upstream metadata is reviewed by the acquisition authority.",
+        "selectedVersion": null,
+        "source": "https://grafana.github.io/helm-charts",
+        "status": "version-selection-required",
+        "upstreamVersion": null
+      },
+      {
+        "catalogConstraint": "2.3.x",
+        "chart": "kgateway",
+        "component": "kgateway",
+        "rationale": "Exact 2.3 candidate exists, but current upstream documentation has moved its Gateway API pairing forward; baseline Gateway API compatibility must be decided before acquisition admission.",
+        "selectedVersion": "2.3.6",
+        "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+        "status": "dependency-review-required",
+        "upstreamVersion": "v2.3.6"
+      },
+      {
+        "catalogConstraint": "3.8.x",
+        "chart": "kyverno",
+        "component": "kyverno",
+        "rationale": "Official source is known, but an exact 3.8 patch has not yet been admitted from authoritative release metadata.",
+        "selectedVersion": null,
+        "source": "https://kyverno.github.io/kyverno/",
+        "status": "version-selection-required",
+        "upstreamVersion": null
+      },
+      {
+        "catalogConstraint": "7.3.x",
+        "chart": "loki",
+        "component": "loki",
+        "rationale": "OSS Loki Helm ownership moved to grafana-community/helm-charts on 2026-03-16 and the community chart uses a new major-version line; the shipped 7.3.x constraint now corresponds to the Grafana Enterprise Logs-maintained chart path. Rebaseline the product-owned OSS Loki delivery contract before immutable acquisition.",
+        "selectedVersion": null,
+        "source": "https://grafana-community.github.io/helm-charts",
+        "status": "architecture-review-required",
+        "upstreamVersion": null
+      },
+      {
+        "catalogConstraint": "0.16.x",
+        "chart": "metallb",
+        "component": "metallb",
+        "rationale": "MetalLB is conditional and exact 0.16 patch admission remains pending; it must not be forced onto targets that already provide load-balancer capability.",
+        "selectedVersion": null,
+        "source": "https://metallb.github.io/metallb",
+        "status": "version-selection-required",
+        "upstreamVersion": null
+      },
+      {
+        "catalogConstraint": "1.7.x",
+        "chart": "tetragon",
+        "component": "tetragon",
+        "rationale": "Exact 1.7 chart selected; optional runtime-security capability remains subject to target capability resolution and runtime certification.",
+        "selectedVersion": "1.7.0",
+        "source": "https://helm.cilium.io",
+        "status": "ready-for-acquisition",
+        "upstreamVersion": "1.7.0"
+      },
+      {
+        "catalogConstraint": "12.1.x",
+        "chart": "velero",
+        "component": "velero",
+        "rationale": "Exact 12.1 chart selected; acquisition and restore-path runtime certification remain separate gates.",
+        "selectedVersion": "12.1.0",
+        "source": "https://vmware-tanzu.github.io/helm-charts/",
+        "status": "ready-for-acquisition",
+        "upstreamVersion": "12.1.0"
+      },
+      {
+        "catalogConstraint": "0.90.x",
+        "chart": "victoria-metrics-k8s-stack",
+        "component": "victoria-metrics",
+        "rationale": "Exact current official 0.90-series chart is inside the shipped catalog constraint; acquisition must still verify upstream digest, immutable render and image provenance.",
+        "selectedVersion": "0.90.2",
+        "source": "https://victoriametrics.github.io/helm-charts/",
+        "status": "ready-for-acquisition",
+        "upstreamVersion": "0.90.2"
+      }
+    ],
+    "policy": {
+      "allowLatestResolution": false,
+      "autoWidenCatalogConstraint": false,
+      "runtimeCertification": "separate-runtime-evidence-required",
+      "sourceAuthority": "official-upstream-only",
+      "sourceResolution": "separate-immutable-acquisition-required",
+      "versionSelection": "exact-semver-no-prerelease"
+    }
+  }
+}

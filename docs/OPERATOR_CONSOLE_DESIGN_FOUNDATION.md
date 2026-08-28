@@ -1,8 +1,8 @@
-# Operator Console design foundation
+# Operator Console design foundation — 4SO Operator Horizon V1
 
 ## Decision
 
-4SO Platform Factory uses **TailAdmin Community Edition** as the external visual/layout reference for the Operator Console while keeping the console implementation, information architecture, workflows, authority semantics, design tokens and product identity owned by 4SO.
+4SO Platform Factory uses the product-owned **4SO Operator Horizon V1** design system. TailAdmin Community Edition is the primary external visual/layout reference for the Operator Console while keeping the console implementation, information architecture, workflows, authority semantics, design tokens and product identity owned by 4SO.
 
 This is deliberately **not** a framework migration. The shipped console remains the embedded browser-native HTML/CSS/JavaScript surface already served by `platform-api`. Tailwind CSS, Alpine.js, React, Next.js, Material UI, Bootstrap and CoreUI are not introduced as runtime dependencies merely to obtain an admin-template look.
 
@@ -86,3 +86,10 @@ This foundation does not change API authority or mutation permissions.
 No TailAdmin PRO asset is used. TailAdmin Community is an MIT-licensed reference. If future implementation copies source rather than independently implementing a pattern, the upstream MIT copyright/license notice must be retained in the repository and release notices/SBOM as appropriate.
 
 CoreUI and AdminMart are evaluation references only and are not current runtime dependencies.
+
+
+## 4SO Operator Horizon V1
+
+The 0.0.219 theme is intentionally not a TailAdmin skin. Its product-owned identity uses a dark operational rail, a cyan→indigo→violet authority signal, compact bordered work surfaces, high-information tables, a command palette, explicit light/dark preference, and restrained motion. CoreUI remains a reference for focus/ARIA/accessibility discipline. AdminMart remains a secondary reference for page composition only. No PRO asset from any template is shipped.
+
+The design is incomplete if a backend capability exists but the Operator Console cannot select, inspect, preview impact, execute an allowed action and inspect evidence truthfully. Every later program phase is therefore bound to the `operator-experience` cross-cutting track in `PROGRAM_PHASE_MODEL_V3`.

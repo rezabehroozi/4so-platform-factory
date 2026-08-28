@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/appliance-bundle-build.schema.json",
+  "title": "4SO Platform Factory Appliance Bundle Build",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "platform.4so.io/v1alpha1"},
+    "kind": {"const": "ApplianceBundleBuild"},
+    "metadata": {
+      "type": "object", "additionalProperties": false, "required": ["version"],
+      "properties": {"version": {"type": "string", "minLength": 1}}
+    },
+    "spec": {
+      "type": "object", "additionalProperties": false, "required": ["rke2", "workloads"],
+      "properties": {
+        "rke2": {
+          "type": "object", "additionalProperties": false,
+          "required": ["version", "installer", "installArtifacts", "imageArchives"],
+          "properties": {
+            "version": {"type": "string", "minLength": 1},
+            "installer": {"$ref": "#/$defs/path"},
+            "installArtifacts": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/path"}},
+            "imageArchives": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/path"}}
+          }
+        },
+        "workloads": {
+          "type": "object", "additionalProperties": false,
+          "required": ["imageArchives", "postgresqlImage", "platformApiImage", "forgejoImage", "zotImage", "keycloakImage", "maintenanceImage", "gitOpsManifest", "cloudNativePGManifest", "ocmManifest", "fleetAgentImage", "runtimeProbeImage"],
+          "properties": {
+            "imageArchives": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/path"}},
+            "postgresqlImage": {"$ref": "#/$defs/image"},
+            "platformApiImage": {"$ref": "#/$defs/image"},
+            "forgejoImage": {"$ref": "#/$defs/image"},
+            "zotImage": {"$ref": "#/$defs/image"},
+            "keycloakImage": {"$ref": "#/$defs/image"},
+            "maintenanceImage": {"$ref": "#/$defs/image"},
+            "gitOpsManifest": {"$ref": "#/$defs/path"},
+            "cloudNativePGManifest": {"$ref": "#/$defs/path"},
+            "ocmManifest": {"$ref": "#/$defs/path"},
+            "fleetAgentImage": {"$ref": "#/$defs/image"},
+            "runtimeProbeImage": {"$ref": "#/$defs/image"}
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+    "image": {"type": "string", "pattern": "^[^\\s@]+@sha256:[a-f0-9]{64}$"}
+  }
+}

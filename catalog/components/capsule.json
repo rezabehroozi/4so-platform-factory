@@ -1,0 +1,96 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "capsule"
+  },
+  "spec": {
+    "capabilities": [
+      "namespace-tenancy",
+      "quota-enforcement"
+    ],
+    "category": "tenancy",
+    "certification": {
+      "evidenceDigest": "",
+      "profiles": [],
+      "status": "candidate"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      },
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "conflictsWith": [],
+    "delivery": {
+      "chart": "capsule",
+      "repositoryKey": "platform-charts",
+      "type": "helm"
+    },
+    "dependencies": [
+      "kyverno"
+    ],
+    "displayName": "Capsule",
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "exclusiveCapabilities": [
+      "tenant-controller"
+    ],
+    "mandatory": true,
+    "namespace": "capsule-system",
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "provides": [
+      "tenant-controller"
+    ],
+    "readiness": [
+      "deployment/capsule-controller-manager"
+    ],
+    "release": "0.13.11",
+    "requiresCapabilities": [
+      "policy-engine"
+    ],
+    "risk": "critical",
+    "rollback": {
+      "strategy": "preserve-tenants-and-restore-controller"
+    },
+    "settingsSchemaRef": "schemas/settings/capsule.schema.json",
+    "source": {
+      "artifactDigest": "",
+      "imageInventoryDigest": "",
+      "licenseManifestDigest": "",
+      "provenance": "required",
+      "resolved": false,
+      "sbom": "required",
+      "signatureVerification": "required",
+      "sourceLockDigest": "",
+      "type": "helm-chart"
+    },
+    "supportTier": "research-candidate",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
+    "wave": 75
+  }
+}

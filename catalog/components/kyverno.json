@@ -1,0 +1,94 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "kyverno"
+  },
+  "spec": {
+    "capabilities": [
+      "admission-policy",
+      "policy-reports"
+    ],
+    "category": "governance",
+    "certification": {
+      "evidenceDigest": "",
+      "profiles": [],
+      "status": "candidate"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      },
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "conflictsWith": [],
+    "delivery": {
+      "chart": "kyverno",
+      "repositoryKey": "platform-charts",
+      "type": "helm"
+    },
+    "dependencies": [
+      "external-secrets"
+    ],
+    "displayName": "Kyverno",
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "exclusiveCapabilities": [
+      "policy-engine"
+    ],
+    "mandatory": true,
+    "namespace": "kyverno",
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "provides": [
+      "policy-engine"
+    ],
+    "readiness": [
+      "deployment/kyverno-admission-controller"
+    ],
+    "release": "3.8.x",
+    "requiresCapabilities": [],
+    "risk": "critical",
+    "rollback": {
+      "strategy": "policy-exception-or-previous-release"
+    },
+    "settingsSchemaRef": "schemas/settings/kyverno.schema.json",
+    "source": {
+      "artifactDigest": "",
+      "imageInventoryDigest": "",
+      "licenseManifestDigest": "",
+      "provenance": "required",
+      "resolved": false,
+      "sbom": "required",
+      "signatureVerification": "required",
+      "sourceLockDigest": "",
+      "type": "helm-chart"
+    },
+    "supportTier": "research-candidate",
+    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "wave": 40
+  }
+}

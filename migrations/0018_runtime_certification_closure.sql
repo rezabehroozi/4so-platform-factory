@@ -1,0 +1,42 @@
+CREATE TABLE runtime_certification_runs (
+  id text PRIMARY KEY,
+  project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  cluster_id text NOT NULL REFERENCES managed_clusters(id) ON DELETE RESTRICT,
+  catalog_release_id text NOT NULL REFERENCES catalog_releases(id) ON DELETE RESTRICT,
+  catalog_revision_id text NOT NULL REFERENCES catalog_revisions(id) ON DELETE RESTRICT,
+  revision bigint NOT NULL CHECK(revision > 0),
+  profile text NOT NULL CHECK(profile IN ('FOUNDATION_V1','TARGET_RUNTIME_V1')),
+  state text NOT NULL CHECK(state IN ('QUEUED','INSTALLING','VERIFYING','SUCCEEDED','BLOCKED','FAILED','REVOKED')),
+  phase text NOT NULL CHECK(phase IN ('INSTALL','VERIFY')),
+  namespace text NOT NULL CHECK(length(trim(namespace)) > 0),
+  inventory_digest text NOT NULL CHECK(inventory_digest LIKE 'sha256:%'),
+  environment_fingerprint text NOT NULL CHECK(environment_fingerprint LIKE 'sha256:%'),
+  manifest_digest text NOT NULL CHECK(manifest_digest LIKE 'sha256:%'),
+  source_lock_digest text NOT NULL CHECK(source_lock_digest LIKE 'sha256:%'),
+  rendered_digest text NOT NULL CHECK(rendered_digest LIKE 'sha256:%'),
+  resource_count integer NOT NULL CHECK(resource_count > 0),
+  checks jsonb NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(checks)='array'),
+  install_checkpoint_digest text NOT NULL DEFAULT '' CHECK(install_checkpoint_digest='' OR install_checkpoint_digest LIKE 'sha256:%'),
+  evidence_digest text NOT NULL DEFAULT '' CHECK(evidence_digest='' OR evidence_digest LIKE 'sha256:%'),
+  requested_by text NOT NULL,
+  idempotency_key text NOT NULL,
+  request_digest text NOT NULL CHECK(request_digest LIKE 'sha256:%'),
+  task_attempt integer NOT NULL DEFAULT 0 CHECK(task_attempt >= 0),
+  started_at timestamptz,
+  install_checkpoint_at timestamptz,
+  finished_at timestamptz,
+  expires_at timestamptz,
+  revoked_by text NOT NULL DEFAULT '',
+  revoked_at timestamptz,
+  last_error text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  CONSTRAINT runtime_certification_checkpoint_shape CHECK ((install_checkpoint_at IS NULL AND install_checkpoint_digest='') OR (install_checkpoint_at IS NOT NULL AND install_checkpoint_digest LIKE 'sha256:%')),
+  CONSTRAINT runtime_certification_success_shape CHECK (state NOT IN ('SUCCEEDED','REVOKED') OR (evidence_digest LIKE 'sha256:%' AND finished_at IS NOT NULL AND expires_at IS NOT NULL)),
+  CONSTRAINT runtime_certification_revoke_shape CHECK ((state='REVOKED' AND revoked_at IS NOT NULL AND revoked_by <> '') OR (state<>'REVOKED' AND revoked_at IS NULL)),
+  CONSTRAINT runtime_certification_expiry_order CHECK(expires_at IS NULL OR (finished_at IS NOT NULL AND expires_at > finished_at))
+);
+CREATE UNIQUE INDEX runtime_certification_project_idempotency ON runtime_certification_runs(project_id,idempotency_key);
+CREATE INDEX runtime_certification_cluster_state_idx ON runtime_certification_runs(cluster_id,state,created_at);
+CREATE INDEX runtime_certification_catalog_idx ON runtime_certification_runs(catalog_release_id,state);
+CREATE INDEX runtime_certification_expiry_idx ON runtime_certification_runs(expires_at) WHERE state='SUCCEEDED';

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "component": "secure-namespace-foundation",
+  "version": "1.0.0",
+  "builder": "4SO Platform Factory release builder",
+  "source": "embedded product-owned manifest bundle",
+  "networkFetchRequired": false,
+  "integrityBoundary": "ARTIFACT-MANIFEST.json + component source digests",
+  "verification": "sha256-pinned-offline"
+}

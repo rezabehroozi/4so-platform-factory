@@ -1,0 +1,30 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: platform-tenant-pod-security
+  annotations:
+    platform.4so.io/template: "true"
+    platform.4so.io/certification: candidate
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-safe-container-security-context
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaceSelector:
+                matchLabels:
+                  platform.4so.io/tenant: "true"
+      validate:
+        message: Tenant containers must run as non-root with a read-only-safe security baseline.
+        foreach:
+          - list: request.object.spec.containers
+            pattern:
+              securityContext:
+                allowPrivilegeEscalation: false
+                privileged: false
+                runAsNonRoot: true
+                capabilities:
+                  drop: [ALL]

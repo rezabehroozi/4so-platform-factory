@@ -1,0 +1,24 @@
+[Unit]
+Description=4SO Platform Factory Bootstrap Installer
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/4so-platform-factory/bundle/bundle.json
+
+[Service]
+Type=simple
+User=root
+Group=root
+UMask=0077
+EnvironmentFile=-/etc/4so-platform-factory/installer.env
+ExecStart=/usr/local/bin/platform-installer
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/etc/rancher /var/lib/rancher /var/lib/4so-platform-installer /opt/4so-platform-factory /usr/local/bin /usr/local/lib/systemd/system /etc/systemd/system /opt/rke2
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_NET_BIND_SERVICE CAP_SETGID CAP_SETUID CAP_SYS_ADMIN
+
+[Install]
+WantedBy=multi-user.target

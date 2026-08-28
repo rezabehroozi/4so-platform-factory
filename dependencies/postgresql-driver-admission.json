@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "component": "postgresql-runtime-adapter",
+  "selectedInterface": "database/sql through the built-in Linux libpq adapter",
+  "clientLibrary": "libpq",
+  "license": "PostgreSQL",
+  "buildGo": "1.23",
+  "status": "runtime-adapter-implemented-live-server-test-pending",
+  "runtimeAdapterBundled": true,
+  "clientLibraryRequiredInRuntimeImage": true,
+  "authorityRuntimeCodeAvailable": true,
+  "liveRuntimeVerified": false,
+  "productionAuthorityReady": false,
+  "remainingRequirements": [
+    "run against PostgreSQL 17 on the installed appliance",
+    "verify migrations and CRUD through the API",
+    "restart the API and confirm persistence",
+    "complete backup and restore before production claim"
+  ]
+}

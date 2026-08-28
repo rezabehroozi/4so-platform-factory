@@ -1,0 +1,7 @@
+ARG POSTGRES_BASE_IMAGE
+FROM ${POSTGRES_BASE_IMAGE}
+ARG POSTGRES_BASE_IMAGE
+RUN case "$POSTGRES_BASE_IMAGE" in *@sha256:*) ;; *) echo "POSTGRES_BASE_IMAGE must be digest-pinned" >&2; exit 1 ;; esac && \
+    apk add --no-cache aws-cli bash ca-certificates coreutils curl gzip jq tar
+USER 65532:65532
+ENTRYPOINT ["/bin/sh"]

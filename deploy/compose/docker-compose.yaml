@@ -1,0 +1,47 @@
+# Local/evaluation Compose profile. The production appliance uses managed Kubernetes
+# Secrets and PostgreSQL authority. One required POSTGRES_PASSWORD value is shared by
+# PostgreSQL and the API DSN so the two services cannot silently diverge.
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?set POSTGRES_IMAGE to a PostgreSQL 17 image@sha256 digest}
+    environment:
+      POSTGRES_DB: platform_factory
+      POSTGRES_USER: platform_factory
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform_factory -d platform_factory"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  platform-api:
+    image: ${PLATFORM_FACTORY_IMAGE:?set PLATFORM_FACTORY_IMAGE to an image@sha256 digest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      PLATFORM_FACTORY_LISTEN: 0.0.0.0:8080
+      PLATFORM_FACTORY_POSTGRES_DSN: postgresql://platform_factory:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/platform_factory?sslmode=disable
+      PLATFORM_FACTORY_OIDC_ENABLED: "true"
+      PLATFORM_FACTORY_OIDC_ISSUER: ${PLATFORM_FACTORY_OIDC_ISSUER:?set PLATFORM_FACTORY_OIDC_ISSUER}
+      PLATFORM_FACTORY_OIDC_INTERNAL_BASE: ${PLATFORM_FACTORY_OIDC_INTERNAL_BASE:-${PLATFORM_FACTORY_OIDC_ISSUER:?set PLATFORM_FACTORY_OIDC_ISSUER}}
+      PLATFORM_FACTORY_OIDC_CLIENT_ID: ${PLATFORM_FACTORY_OIDC_CLIENT_ID:?set PLATFORM_FACTORY_OIDC_CLIENT_ID}
+      PLATFORM_FACTORY_OIDC_REDIRECT_URL: ${PLATFORM_FACTORY_OIDC_REDIRECT_URL:?set PLATFORM_FACTORY_OIDC_REDIRECT_URL}
+      PLATFORM_FACTORY_SESSION_SECRET: ${PLATFORM_FACTORY_SESSION_SECRET:?set PLATFORM_FACTORY_SESSION_SECRET}
+      PLATFORM_FACTORY_CATALOG_SIGNING_PRIVATE_KEY_B64: ${PLATFORM_FACTORY_CATALOG_SIGNING_PRIVATE_KEY_B64:?set PLATFORM_FACTORY_CATALOG_SIGNING_PRIVATE_KEY_B64}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

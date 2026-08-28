@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "component": "secure-namespace-foundation",
+  "version": "1.0.0",
+  "images": [],
+  "reason": "Kubernetes API resources only; this component creates no workload image references."
+}

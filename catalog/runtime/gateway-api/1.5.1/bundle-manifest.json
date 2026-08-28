@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "gateway-api",
+  "version": "1.5.1",
+  "sourceType": "external-tagged-source-set",
+  "bundleKey": "gateway-api/1.5.1",
+  "upstream": {
+    "url": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.1",
+    "revision": "v1.5.1",
+    "artifact": "gateway-api-v1.5.1-official-tag-source-set.zip",
+    "artifactDigest": "sha256:6007c679ec2b427b0c72f0fd724c502c95a341bfbad100ea56ec38c4d6f0d5bb",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:6007c679ec2b427b0c72f0fd724c502c95a341bfbad100ea56ec38c4d6f0d5bb",
+    "component.json": "sha256:5161fc133f14ceaaaee9a2fa9e739b680621f3f0584f409bb3d84e3d82d1a9a3",
+    "image-inventory.json": "sha256:aa6646f495337e710a7f590ec16fef86ca96524b279dc2f75ed928150cdfd5bc",
+    "licenses.json": "sha256:c1fbd4f7fd253613f023c2e4cec373cc0f91d20a5313d9662920d5b6c920c9b1",
+    "provenance.json": "sha256:799a2b50589131dd7eabab13b8843ee619d7724ffc22568d8fd97ba69d069eeb",
+    "render-manifest.json": "sha256:95f7c75e506c77cbb43fc659df92416a0219858e9913153268e73f728d5756f2",
+    "sbom.spdx.json": "sha256:c1119bce72093720870655bb2d315e3e0818e29fb92170faf6b7074f18f8bc39",
+    "source-lock.json": "sha256:6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960"
+  }
+}

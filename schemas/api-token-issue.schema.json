@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/api-token-issue.schema.json",
+  "title": "Scoped API Token Issue Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["expiresAt"],
+  "properties": {
+    "expiresAt": {"type": "string", "format": "date-time"},
+    "permissions": {
+      "type": "array",
+      "items": {"enum": ["read", "operate"]},
+      "uniqueItems": true,
+      "maxItems": 2
+    }
+  }
+}

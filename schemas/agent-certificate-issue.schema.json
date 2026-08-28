@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/agent-certificate-issue.schema.json",
+  "title": "AgentCertificateCSRRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["csrPem"],
+  "properties": {"csrPem": {"type":"string","minLength":64,"maxLength":16384}}
+}

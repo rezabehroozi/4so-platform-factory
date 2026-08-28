@@ -1,0 +1,25 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: platform-approved-image-registry
+  annotations:
+    platform.4so.io/template: "true"
+    platform.4so.io/certification: candidate
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-approved-registry-and-digest
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaceSelector:
+                matchLabels:
+                  platform.4so.io/tenant: "true"
+      validate:
+        message: Every workload image must use the approved registry and a sha256 digest.
+        foreach:
+          - list: request.object.spec.[initContainers, ephemeralContainers, containers][]
+            pattern:
+              image: "${approvedRegistry}/*@sha256:*"

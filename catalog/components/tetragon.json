@@ -1,0 +1,91 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "tetragon"
+  },
+  "spec": {
+    "capabilities": [
+      "runtime-observability"
+    ],
+    "category": "security",
+    "certification": {
+      "evidenceDigest": "",
+      "profiles": [],
+      "status": "candidate"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      },
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "conflictsWith": [],
+    "delivery": {
+      "chart": "tetragon",
+      "repositoryKey": "platform-charts",
+      "type": "helm"
+    },
+    "dependencies": [
+      "cilium"
+    ],
+    "displayName": "Tetragon",
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "exclusiveCapabilities": [],
+    "mandatory": false,
+    "namespace": "tetragon",
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "provides": [
+      "runtime-security-agent"
+    ],
+    "readiness": [
+      "daemonset/tetragon"
+    ],
+    "release": "1.7.0",
+    "requiresCapabilities": [],
+    "risk": "medium",
+    "rollback": {
+      "strategy": "restore-previous-release"
+    },
+    "settingsSchemaRef": "schemas/settings/tetragon.schema.json",
+    "source": {
+      "artifactDigest": "",
+      "imageInventoryDigest": "",
+      "licenseManifestDigest": "",
+      "provenance": "required",
+      "resolved": false,
+      "sbom": "required",
+      "signatureVerification": "required",
+      "sourceLockDigest": "",
+      "type": "helm-chart"
+    },
+    "supportTier": "research-candidate",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
+    "wave": 45
+  }
+}

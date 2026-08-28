@@ -1,0 +1,95 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "snapshot-controller"
+  },
+  "spec": {
+    "displayName": "Snapshot Controller",
+    "category": "storage",
+    "release": "8.5.0",
+    "versionPolicy": "exact-offline-import",
+    "supportTier": "research-candidate",
+    "mandatory": true,
+    "dependencies": [
+      "argocd"
+    ],
+    "provides": [
+      "volume-snapshot-controller"
+    ],
+    "requiresCapabilities": [],
+    "exclusiveCapabilities": [
+      "volume-snapshot-controller"
+    ],
+    "conflictsWith": [],
+    "risk": "high",
+    "capabilities": [
+      "volume-snapshots"
+    ],
+    "namespace": "kube-system",
+    "wave": 50,
+    "settingsSchemaRef": "schemas/settings/snapshot-controller.schema.json",
+    "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "delivery": {
+      "type": "native-manifest",
+      "repositoryKey": "offline-catalog-bundle",
+      "chart": "snapshot-controller/8.5.0"
+    },
+    "source": {
+      "type": "external-tagged-source-set",
+      "resolved": true,
+      "bundleKey": "snapshot-controller/8.5.0",
+      "artifactDigest": "sha256:3ed29faa70298103ce19d9d91aa89c1a7495b3da66cafa6792622ea3b4e0da93",
+      "renderManifestDigest": "sha256:f9aff568fdccc8490c7d5707731c3db392ec79b1daed0c38b4d5f1ee3ac43e30",
+      "sourceLockDigest": "sha256:8d2920686614f056aff9eaab522aee634b2ab392efa1258d81661de584873067",
+      "imageInventoryDigest": "sha256:80fea5253c988d2b725bfc7b64f7e05bf766934c59925ecc73157451bda737de",
+      "licenseManifestDigest": "sha256:8396833bf9363f215891a72c499a7aee0b8bd4c827419f594fe5d8a009d39821",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:9e20fb7d158cd11b7dfce753275d15651f656a6007afddccd7f3454c668dfc07",
+      "provenance": "sha256:ed4ca689491a62c665a5cbc0b4459e73ed5080fe4a446f3047a5e7def273ce83"
+    },
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "readiness": [
+      "deployment/snapshot-controller"
+    ],
+    "rollback": {
+      "strategy": "preserve-crds-and-restore-controller"
+    },
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": null,
+      "evidenceDigest": ""
+    }
+  }
+}

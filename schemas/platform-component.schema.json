@@ -1,0 +1,399 @@
+{
+  "$defs": {
+    "nameArray": {
+      "items": {
+        "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "$id": "https://schemas.4so.io/platform/v1alpha1/platform-component.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "platform.4so.io/v1alpha1"
+    },
+    "kind": {
+      "const": "PlatformComponent"
+    },
+    "metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "spec": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "$ref": "#/$defs/nameArray"
+        },
+        "category": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "certification": {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceDigest": {
+              "type": "string"
+            },
+            "profiles": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/nameArray"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status": {
+              "enum": [
+                "candidate",
+                "render-certified",
+                "ephemeral-runtime-certified",
+                "target-runtime-certified",
+                "upgrade-certified",
+                "revoked",
+                "deprecated"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "profiles",
+            "evidenceDigest"
+          ],
+          "type": "object"
+        },
+        "compatibility": {
+          "additionalProperties": false,
+          "properties": {
+            "architectures": {
+              "items": {
+                "enum": [
+                  "amd64",
+                  "arm64"
+                ]
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "distributionProfiles": {
+              "$ref": "#/$defs/nameArray"
+            },
+            "kubernetes": {
+              "additionalProperties": false,
+              "properties": {
+                "maxVersion": {
+                  "pattern": "^1\\.[0-9]+$",
+                  "type": "string"
+                },
+                "minVersion": {
+                  "pattern": "^1\\.[0-9]+$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "minVersion",
+                "maxVersion"
+              ],
+              "type": "object"
+            },
+            "providers": {
+              "items": {
+                "anyOf": [
+                  {
+                    "const": "*"
+                  },
+                  {
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "kubernetes",
+            "architectures",
+            "distributionProfiles",
+            "providers"
+          ],
+          "type": "object"
+        },
+        "conflictsWith": {
+          "$ref": "#/$defs/nameArray"
+        },
+        "delivery": {
+          "additionalProperties": false,
+          "properties": {
+            "chart": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "repositoryKey": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "helm",
+                "native-manifest"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "repositoryKey",
+            "chart"
+          ],
+          "type": "object"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/nameArray"
+        },
+        "displayName": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "evidenceRequired": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "exclusiveCapabilities": {
+          "$ref": "#/$defs/nameArray"
+        },
+        "mandatory": {
+          "type": "boolean"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "operations": {
+          "additionalProperties": false,
+          "properties": {
+            "install": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "preflight": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "rollback": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "uninstall": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "upgrade": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "verify": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "preflight",
+            "install",
+            "verify",
+            "upgrade",
+            "rollback",
+            "uninstall"
+          ],
+          "type": "object"
+        },
+        "provides": {
+          "$ref": "#/$defs/nameArray"
+        },
+        "readiness": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "release": {
+          "minLength": 1,
+          "not": {
+            "pattern": "(?i)latest"
+          },
+          "type": "string"
+        },
+        "requiresCapabilities": {
+          "$ref": "#/$defs/nameArray"
+        },
+        "risk": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "rollback": {
+          "additionalProperties": false,
+          "properties": {
+            "strategy": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "strategy"
+          ],
+          "type": "object"
+        },
+        "settingsSchemaRef": {
+          "pattern": "^schemas/settings/[a-z0-9-]+\\.schema\\.json$",
+          "type": "string"
+        },
+        "source": {
+          "additionalProperties": false,
+          "properties": {
+            "artifactDigest": {
+              "type": "string"
+            },
+            "imageInventoryDigest": {
+              "type": "string"
+            },
+            "licenseManifestDigest": {
+              "type": "string"
+            },
+            "provenance": {
+              "anyOf": [
+                {
+                  "const": "required"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "resolved": {
+              "type": "boolean"
+            },
+            "sbom": {
+              "anyOf": [
+                {
+                  "const": "required"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "signatureVerification": {
+              "enum": [
+                "required",
+                "sha256-pinned-offline"
+              ],
+              "type": "string"
+            },
+            "sourceLockDigest": {
+              "type": "string"
+            },
+            "type": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "bundleKey": {
+              "type": "string"
+            },
+            "renderManifestDigest": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "resolved",
+            "artifactDigest",
+            "sourceLockDigest",
+            "imageInventoryDigest",
+            "licenseManifestDigest",
+            "signatureVerification",
+            "sbom",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        "supportTier": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "versionPolicy": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "wave": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "displayName",
+        "category",
+        "release",
+        "versionPolicy",
+        "supportTier",
+        "mandatory",
+        "dependencies",
+        "provides",
+        "requiresCapabilities",
+        "exclusiveCapabilities",
+        "conflictsWith",
+        "risk",
+        "capabilities",
+        "namespace",
+        "wave",
+        "settingsSchemaRef",
+        "compatibility",
+        "delivery",
+        "source",
+        "operations",
+        "readiness",
+        "rollback",
+        "evidenceRequired",
+        "certification"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "title": "4SO Platform Component",
+  "type": "object"
+}

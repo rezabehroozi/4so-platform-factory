@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/appliance-bundle.schema.json",
+  "title": "4SO Platform Factory Appliance Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "platform.4so.io/v1alpha1"
+    },
+    "kind": {
+      "const": "ApplianceBundle"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rke2",
+        "airgap",
+        "workloads"
+      ],
+      "properties": {
+        "rke2": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "installer",
+            "installArtifacts",
+            "imageArchives"
+          ],
+          "properties": {
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "installer": {
+              "$ref": "#/$defs/artifact"
+            },
+            "installArtifacts": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/artifact"
+              }
+            },
+            "imageArchives": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/artifact"
+              }
+            }
+          }
+        },
+        "workloads": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "imageArchives",
+            "postgresqlImage",
+            "platformApiImage",
+            "forgejoImage",
+            "zotImage",
+            "keycloakImage",
+            "maintenanceImage",
+            "gitOpsManifest",
+            "cloudNativePGManifest",
+            "ocmManifest",
+            "fleetAgentImage",
+            "runtimeProbeImage"
+          ],
+          "properties": {
+            "imageArchives": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/artifact"
+              }
+            },
+            "postgresqlImage": {
+              "type": "string",
+              "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+            },
+            "platformApiImage": {
+              "type": "string",
+              "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+            },
+            "forgejoImage": {
+              "type": "string",
+              "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+            },
+            "zotImage": {
+              "type": "string",
+              "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+            },
+            "keycloakImage": {
+              "type": "string",
+              "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+            },
+            "maintenanceImage": {
+              "type": "string",
+              "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+            },
+            "gitOpsManifest": {
+              "$ref": "#/$defs/artifact"
+            },
+            "ocmManifest": {
+              "$ref": "#/$defs/artifact"
+            },
+            "fleetAgentImage": {
+              "type": "string",
+              "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+            },
+            "runtimeProbeImage": {
+              "type": "string",
+              "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+            },
+            "cloudNativePGManifest": {
+              "$ref": "#/$defs/artifact"
+            }
+          }
+        },
+        "airgap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "complete",
+            "index",
+            "requiredImages"
+          ],
+          "properties": {
+            "complete": {
+              "const": true
+            },
+            "index": {
+              "$ref": "#/$defs/artifact"
+            },
+            "requiredImages": {
+              "type": "array",
+              "minItems": 8,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "argocd"
+  },
+  "spec": {
+    "capabilities": [
+      "gitops",
+      "applicationset"
+    ],
+    "category": "delivery",
+    "certification": {
+      "evidenceDigest": "",
+      "profiles": [],
+      "status": "candidate"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      },
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "conflictsWith": [],
+    "delivery": {
+      "chart": "argo-cd",
+      "repositoryKey": "platform-charts",
+      "type": "helm"
+    },
+    "dependencies": [],
+    "displayName": "Argo CD",
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "exclusiveCapabilities": [
+      "gitops-controller"
+    ],
+    "mandatory": true,
+    "namespace": "argocd",
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "provides": [
+      "gitops-controller"
+    ],
+    "readiness": [
+      "deployment/argocd-server",
+      "deployment/argocd-repo-server"
+    ],
+    "release": "10.2.3",
+    "requiresCapabilities": [],
+    "risk": "high",
+    "rollback": {
+      "strategy": "restore-last-known-good-release"
+    },
+    "settingsSchemaRef": "schemas/settings/argocd.schema.json",
+    "source": {
+      "artifactDigest": "",
+      "imageInventoryDigest": "",
+      "licenseManifestDigest": "",
+      "provenance": "required",
+      "resolved": false,
+      "sbom": "required",
+      "signatureVerification": "required",
+      "sourceLockDigest": "",
+      "type": "helm-chart"
+    },
+    "supportTier": "research-candidate",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
+    "wave": 10
+  }
+}

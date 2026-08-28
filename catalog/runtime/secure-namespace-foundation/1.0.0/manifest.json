@@ -1,0 +1,102 @@
+[
+  {
+    "apiVersion": "v1",
+    "kind": "Namespace",
+    "metadata": {
+      "name": "${namespace}",
+      "labels": {
+        "app.kubernetes.io/managed-by": "4so-platform-factory",
+        "platform.4so.io/catalog-release-id": "${catalogReleaseId}",
+        "platform.4so.io/component": "secure-namespace-foundation"
+      }
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "ResourceQuota",
+    "metadata": {
+      "name": "4so-baseline-quota",
+      "namespace": "${namespace}",
+      "labels": {
+        "app.kubernetes.io/managed-by": "4so-platform-factory",
+        "platform.4so.io/component": "secure-namespace-foundation"
+      }
+    },
+    "spec": {
+      "hard": {
+        "pods": "50",
+        "requests.cpu": "4",
+        "requests.memory": "8Gi",
+        "limits.cpu": "8",
+        "limits.memory": "16Gi"
+      }
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "LimitRange",
+    "metadata": {
+      "name": "4so-baseline-limits",
+      "namespace": "${namespace}",
+      "labels": {
+        "app.kubernetes.io/managed-by": "4so-platform-factory",
+        "platform.4so.io/component": "secure-namespace-foundation"
+      }
+    },
+    "spec": {
+      "limits": [
+        {
+          "type": "Container",
+          "default": {"cpu": "500m", "memory": "512Mi"},
+          "defaultRequest": {"cpu": "100m", "memory": "128Mi"}
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "networking.k8s.io/v1",
+    "kind": "NetworkPolicy",
+    "metadata": {
+      "name": "4so-default-deny-ingress",
+      "namespace": "${namespace}",
+      "labels": {
+        "app.kubernetes.io/managed-by": "4so-platform-factory",
+        "platform.4so.io/component": "secure-namespace-foundation"
+      }
+    },
+    "spec": {
+      "podSelector": {},
+      "policyTypes": ["Ingress"]
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "ServiceAccount",
+    "metadata": {
+      "name": "4so-baseline-observer",
+      "namespace": "${namespace}",
+      "labels": {
+        "app.kubernetes.io/managed-by": "4so-platform-factory",
+        "platform.4so.io/component": "secure-namespace-foundation"
+      }
+    },
+    "automountServiceAccountToken": false
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "ConfigMap",
+    "metadata": {
+      "name": "4so-catalog-render-revision",
+      "namespace": "${namespace}",
+      "labels": {
+        "app.kubernetes.io/managed-by": "4so-platform-factory",
+        "platform.4so.io/component": "secure-namespace-foundation"
+      }
+    },
+    "data": {
+      "catalogReleaseId": "${catalogReleaseId}",
+      "component": "secure-namespace-foundation",
+      "componentVersion": "1.0.0"
+    }
+  }
+]

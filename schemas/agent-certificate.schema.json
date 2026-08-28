@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/agent-certificate.schema.json",
+  "title": "AgentCertificate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "revision", "clusterId", "serialNumber", "fingerprint", "subject", "state", "notBefore", "notAfter", "issuedBy", "createdAt", "updatedAt"],
+  "properties": {
+    "id": {"type":"string","minLength":1},
+    "revision": {"type":"integer","minimum":1},
+    "clusterId": {"type":"string","minLength":1},
+    "serialNumber": {"type":"string","pattern":"^[0-9a-f]+$"},
+    "fingerprint": {"type":"string","pattern":"^sha256:[0-9a-f]{64}$"},
+    "subject": {"type":"string","minLength":1},
+    "state": {"enum":["ACTIVE","REVOKED"]},
+    "notBefore": {"type":"string","format":"date-time"},
+    "notAfter": {"type":"string","format":"date-time"},
+    "issuedBy": {"type":"string","minLength":1},
+    "revokedBy": {"type":"string"},
+    "revokedAt": {"type":["string","null"],"format":"date-time"},
+    "replacedById": {"type":"string"},
+    "createdAt": {"type":"string","format":"date-time"},
+    "updatedAt": {"type":"string","format":"date-time"}
+  }
+}

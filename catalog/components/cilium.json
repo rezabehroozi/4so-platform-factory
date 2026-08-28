@@ -1,0 +1,96 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "cilium"
+  },
+  "spec": {
+    "capabilities": [
+      "cni",
+      "network-policy",
+      "hubble"
+    ],
+    "category": "networking",
+    "certification": {
+      "evidenceDigest": "",
+      "profiles": [],
+      "status": "candidate"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      },
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "conflictsWith": [],
+    "delivery": {
+      "chart": "cilium",
+      "repositoryKey": "platform-charts",
+      "type": "helm"
+    },
+    "dependencies": [],
+    "displayName": "Cilium",
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "exclusiveCapabilities": [
+      "cni"
+    ],
+    "mandatory": true,
+    "namespace": "kube-system",
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "provides": [
+      "cni",
+      "network-policy-engine",
+      "network-observability"
+    ],
+    "readiness": [
+      "daemonset/cilium",
+      "deployment/cilium-operator"
+    ],
+    "release": "1.20.x",
+    "requiresCapabilities": [],
+    "risk": "critical",
+    "rollback": {
+      "strategy": "provider-specific-cni-rollback"
+    },
+    "settingsSchemaRef": "schemas/settings/cilium.schema.json",
+    "source": {
+      "artifactDigest": "",
+      "imageInventoryDigest": "",
+      "licenseManifestDigest": "",
+      "provenance": "required",
+      "resolved": false,
+      "sbom": "required",
+      "signatureVerification": "required",
+      "sourceLockDigest": "",
+      "type": "helm-chart"
+    },
+    "supportTier": "research-candidate",
+    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "wave": 5
+  }
+}

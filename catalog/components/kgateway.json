@@ -1,0 +1,95 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "kgateway"
+  },
+  "spec": {
+    "capabilities": [
+      "gateway-controller"
+    ],
+    "category": "traffic",
+    "certification": {
+      "evidenceDigest": "",
+      "profiles": [],
+      "status": "candidate"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      },
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "conflictsWith": [],
+    "delivery": {
+      "chart": "kgateway",
+      "repositoryKey": "platform-charts",
+      "type": "helm"
+    },
+    "dependencies": [
+      "gateway-api"
+    ],
+    "displayName": "KGateway",
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "exclusiveCapabilities": [
+      "gateway-controller"
+    ],
+    "mandatory": true,
+    "namespace": "gateway-system",
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "provides": [
+      "gateway-controller"
+    ],
+    "readiness": [
+      "deployment/kgateway"
+    ],
+    "release": "2.3.x",
+    "requiresCapabilities": [
+      "gateway-api-crds"
+    ],
+    "risk": "high",
+    "rollback": {
+      "strategy": "restore-previous-controller-release"
+    },
+    "settingsSchemaRef": "schemas/settings/kgateway.schema.json",
+    "source": {
+      "artifactDigest": "",
+      "imageInventoryDigest": "",
+      "licenseManifestDigest": "",
+      "provenance": "required",
+      "resolved": false,
+      "sbom": "required",
+      "signatureVerification": "required",
+      "sourceLockDigest": "",
+      "type": "helm-chart"
+    },
+    "supportTier": "research-candidate",
+    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "wave": 25
+  }
+}

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="4SO Platform Factory appliance installer">
+  <title>4SO Platform Factory · Appliance Installer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <svg aria-hidden="true" class="icon-sprite" focusable="false"><symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path></symbol><symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"></path></symbol></svg>
+  <div id="nav-scrim" class="nav-scrim" hidden></div>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Installer navigation">
+      <div class="brand"><span class="brand-mark">4SO</span><div><strong>Platform Factory</strong><small>Appliance installer</small></div></div>
+      <nav id="nav" aria-label="Installer navigation">
+        <button class="active" data-page="overview" aria-current="page"><span>01</span><b>Overview</b></button>
+        <button data-page="installation"><span>02</span><b>Installation</b></button>
+        <button data-page="progress"><span>03</span><b>Progress</b></button>
+        <button data-page="health"><span>04</span><b>Platform health</b></button>
+        <button data-page="recovery"><span>05</span><b>Disaster recovery</b></button>
+        <button data-page="lifecycle"><span>06</span><b>Service lifecycle</b></button>
+      </nav>
+      <div class="sidebar-footer"><span id="connection-dot" class="dot offline"></span><span id="connection-label">Not connected</span></div>
+    </aside>
+
+    <main id="main-content" tabindex="-1" aria-busy="false"><div id="route-announcer" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+      <header class="topbar">
+        <button id="menu-toggle" class="icon-button" type="button" aria-label="Toggle menu" aria-controls="sidebar" aria-expanded="false"><svg aria-hidden="true" class="control-icon"><use href="#icon-menu"></use></svg></button>
+        <div><h1 id="page-title">Overview</h1><p id="page-subtitle">Connect with the one-time bootstrap token to inspect or operate this appliance.</p></div>
+        <div class="top-actions"><button id="language-toggle" class="secondary" type="button">فارسی</button><button id="connect-button" class="primary" type="button">Connect</button></div>
+      </header>
+
+      <div id="global-alert" class="global-alert" hidden></div>
+
+      <section id="overview" class="page active">
+        <div class="installer-briefing">
+          <div><span class="eyebrow">Installation authority</span><h2>Appliance readiness and next safe action</h2><p>Review bundle admission, topology, runtime prerequisites and evidence before enabling mutation.</p></div>
+          <div class="hero-state"><span id="overview-state" class="state-pill neutral">NOT STARTED</span><small id="overview-version">Version —</small></div>
+        </div>
+        <div class="metric-grid">
+          <article class="metric"><span>Execution</span><strong id="metric-execution">Unknown</strong><small id="metric-execution-help">Connect to inspect policy</small></article>
+          <article class="metric"><span>Profile</span><strong id="metric-profile">—</strong><small id="metric-profile-help">No installation request</small></article>
+          <article class="metric"><span>Progress</span><strong id="metric-progress">0 / 0</strong><small id="metric-progress-help">No steps executed</small></article>
+          <article class="metric"><span>Evidence</span><strong id="metric-evidence">Pending</strong><small id="metric-evidence-help">Runtime verification not complete</small></article>
+        </div>
+        <div class="two-column">
+          <article class="panel"><div class="panel-heading"><div><h2>Next action</h2><p>Derived from current runtime state; no demo data is shown.</p></div></div><div id="next-action" class="empty-state">Connect with the bootstrap token.</div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>Current run</h2><p>Immutable identifiers and latest failure, when present.</p></div></div><div id="run-summary" class="empty-state">No installation run loaded.</div></article>
+        </div>
+        <article class="panel"><div class="panel-heading"><div><h2>Appliance bundle admission</h2><p>The installer verifies the manifest, bundle lock, every artifact digest and the exact air-gap index before planning can become executable.</p></div><button id="verify-bundle" class="secondary small" type="button">Verify bundle now</button></div><div id="bundle-status" class="details-list"><div class="empty-state">Connect to verify the local bundle.</div></div></article>
+      </section>
+
+      <section id="installation" class="page">
+        <div class="section-intro"><div><h2>Installation request</h2><p>All values are explicit. Credentials are accepted only as secret references, except the dedicated SSH-key vault action.</p></div></div>
+        <form id="installation-form" novalidate>
+          <article class="panel">
+            <div class="panel-heading"><div><h2>1. Deployment profile</h2><p id="profile-help">Load the product-supported profiles after connecting.</p></div></div>
+            <div class="form-grid three">
+              <label><span>Profile</span><select id="profile" required><option value="">Connect to load profiles</option></select></label>
+              <label><span>Connectivity</span><select id="connectivity" required><option value="connected">Connected</option><option value="restricted-egress">Restricted egress</option><option value="disconnected">Disconnected / air-gap</option></select></label>
+              <label><span>Infrastructure</span><select id="provider" required><option value="existing-hosts">Existing Linux hosts</option></select></label>
+            </div>
+            <div id="profile-summary" class="inline-summary">No profile selected.</div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading"><div><h2>2. Infrastructure and access</h2><p>The selected profile controls the required node count and HA topology.</p></div></div>
+            <div class="form-grid three">
+              <label id="nodes-field" class="span-2"><span>Management nodes</span><textarea id="nodes" class="technical compact" placeholder="One IP address or resolvable hostname per line" dir="ltr"></textarea><small>Use exactly three nodes for Production Standard HA.</small></label>
+              <label><span>Credential reference</span><input id="credential-ref" class="technical" required placeholder="secret://installer/ssh-private-key" dir="ltr"><small>Never paste a password or token.</small></label>
+              <label id="ssh-user-field"><span>SSH user</span><input id="ssh-user" class="technical" placeholder="root" dir="ltr"></label>
+              <label><span>Storage class</span><input id="storage-class" class="technical" placeholder="Replicated class for HA" dir="ltr"></label>
+              <label><span>Region</span><input id="region" class="technical" placeholder="Optional infrastructure region" dir="ltr"></label>
+            </div>
+            <div class="form-actions"><button id="open-ssh-key" type="button" class="secondary">Store SSH private key securely</button><button id="open-ssh-known-hosts" type="button" class="secondary">Pin HA host keys</button></div><div id="ssh-trust-status" class="inline-summary">HA SSH trust has not been checked.</div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading"><div><h2>3. Endpoint and TLS</h2><p>The final product endpoint must use HTTPS.</p></div></div>
+            <div class="form-grid three">
+              <label><span>Public endpoint</span><input id="endpoint" type="url" class="technical" required placeholder="https://platform.company.tld" dir="ltr"></label>
+              <label><span>DNS zone</span><input id="dns-zone" class="technical" placeholder="company.tld" dir="ltr"></label>
+              <label><span>TLS mode</span><select id="tls-mode" required><option value="managed-private-ca">Managed private CA</option><option value="bootstrap-self-signed">Bootstrap self-signed</option></select></label>
+              <label id="certificate-field" hidden><span>Certificate secret reference</span><input id="certificate-ref" class="technical" placeholder="secret://tls/platform" dir="ltr"></label>
+              <label><span>Bootstrap administrator email</span><input id="admin-email" type="email" placeholder="administrator@company.tld" dir="ltr"></label>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading"><div><h2>4. Platform services</h2><p>Managed services are the safe default. External modes expose only the fields required by the selected adapter.</p></div></div>
+            <div id="service-editor" class="service-grid"></div>
+          </article>
+
+          <article class="panel">
+            <label class="check-row"><input id="accept-risk" type="checkbox"><span>I reviewed the generated warnings, blockers and rollback boundaries and accept the declared installation risk when required by the profile.</span></label>
+            <div class="form-actions"><button id="create-plan" class="primary" type="submit">Validate and create plan</button><button id="clear-request" class="secondary" type="reset">Clear request</button></div>
+          </article>
+        </form>
+
+        <article id="plan-panel" class="panel" hidden>
+          <div class="panel-heading"><div><h2>Validated plan</h2><p id="plan-summary"></p></div><span id="plan-state" class="state-pill neutral">NOT VALIDATED</span></div>
+          <div id="plan-blockers"></div>
+          <div class="two-column"><div><h3>Execution sequence</h3><div id="plan-steps" class="timeline"></div></div><div><h3>Customer actions</h3><div id="plan-actions"></div><h3>Authority</h3><div id="plan-authority" class="details-list"></div></div></div>
+          <div class="form-actions"><button id="run-preflight" type="button" class="primary">Run host preflight</button><button id="start-installation" type="button" class="danger" disabled>Start installation</button><button id="download-ca" type="button" class="secondary">Download bootstrap CA</button></div>
+        </article>
+
+        <article id="preflight-panel" class="panel" hidden>
+          <div class="panel-heading"><div><h2>Host preflight</h2><p>Read-only checks run before approval and are repeated by Start and Resume.</p></div><span id="preflight-state" class="state-pill neutral">NOT RUN</span></div>
+          <div id="preflight-summary" class="details-list"></div>
+          <div id="preflight-checks" class="timeline"></div>
+        </article>
+      </section>
+
+      <section id="progress" class="page">
+        <div class="section-intro"><div><h2>Execution progress</h2><p>Every step is resumable and health-gated. A failed run resumes from the failed or pending step.</p></div><button id="resume-installation" type="button" class="primary" disabled>Resume failed run</button></div>
+        <article class="panel"><div id="run-progress" class="timeline"><div class="empty-state">No run loaded.</div></div></article>
+        <article class="panel"><div class="panel-heading"><div><h2>Failure diagnostics</h2><p>Capture a verified, tamper-evident snapshot of the failed step and every related runtime authority before changing the environment.</p></div><div class="resource-actions"><button id="download-diagnostics" class="secondary small" type="button">Download diagnostics</button><button id="verify-diagnostics" class="primary small" type="button">Verify diagnostics</button></div></div><div id="diagnostics-status" class="details-list"><div class="empty-state">Diagnostics become available after an installation run exists.</div></div></article>
+      </section>
+
+      <section id="health" class="page">
+        <div class="section-intro"><div><h2>Platform health</h2><p>These cards are sourced from installer runtime evidence, not placeholder metrics.</p></div><button id="refresh-health" type="button" class="secondary">Refresh</button></div>
+        <div class="three-column health-board">
+          <article class="panel"><div class="panel-heading"><div><h2>Installer access security</h2><p>Transport protection, certificate lifetime and bootstrap-token fingerprint.</p></div></div><div id="access-security-status" class="details-list"><div class="empty-state">Connect to inspect installer access.</div></div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>Bundle admission</h2><p>Manifest, lock, indexed files and digest equality.</p></div></div><div id="bundle-health-status" class="details-list"></div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>GitOps handover</h2><p>Desired-state publication and reconciliation.</p></div></div><div id="gitops-status" class="details-list"></div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>Management HA</h2><p>Node readiness and quorum evidence.</p></div></div><div id="ha-status" class="details-list"></div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>Air-gap bundle</h2><p>Local artifact and image completeness.</p></div></div><div id="airgap-status" class="details-list"></div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>Field execution evidence</h2><p>Bundle, preflight, installation, GitOps, HA, air-gap, lifecycle and DR snapshots bound by one digest.</p></div><div class="resource-actions"><button id="download-field-evidence" class="secondary small" type="button">Download report</button><button id="verify-field-evidence" class="primary small" type="button">Verify evidence</button></div></div><div id="field-evidence-status" class="details-list"><div class="empty-state">A report becomes available after an installation run exists.</div></div></article>
+        </div>
+      </section>
+
+      <section id="recovery" class="page">
+        <div class="section-intro"><div><h2>Off-node disaster recovery</h2><p>Backup PostgreSQL authority, Forgejo repositories and zot blobs to the configured S3-compatible destination.</p></div><button id="create-dr-backup" class="primary" type="button">Create appliance backup</button></div>
+        <div class="two-column">
+          <article class="panel"><div class="panel-heading"><div><h2>Available restore points</h2><p>Only completed backups are selectable.</p></div></div><div id="dr-backups" class="resource-list"></div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>Recovery runs</h2><p>Recent backup and restore operations.</p></div></div><div id="dr-runs" class="resource-list"></div></article>
+        </div>
+      </section>
+
+      <section id="lifecycle" class="page">
+        <div class="section-intro"><div><h2>Managed service lifecycle</h2><p>Backup, restore and digest-pinned upgrade for Forgejo, zot and Keycloak.</p></div></div>
+        <article class="panel">
+          <div class="form-grid three">
+            <label><span>Service</span><select id="lifecycle-service"><option value="forgejo">Forgejo Git</option><option value="zot">zot Registry</option><option value="keycloak">Keycloak Identity</option></select></label>
+            <label class="span-2"><span>Upgrade image</span><input id="upgrade-image" class="technical" placeholder="registry/image@sha256:…" dir="ltr"><small>Mutable tags are rejected by the backend.</small></label>
+          </div>
+          <div class="form-actions"><button id="backup-service" type="button" class="primary">Create service backup</button><button id="upgrade-service" type="button" class="danger">Backup and upgrade</button></div>
+        </article>
+        <div class="two-column">
+          <article class="panel"><div class="panel-heading"><div><h2>Service backups</h2><p>Select an existing verified backup to restore.</p></div></div><div id="service-backups" class="resource-list"></div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>Lifecycle runs</h2><p>Recent actions for all managed services.</p></div></div><div id="lifecycle-runs" class="resource-list"></div></article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="connect-dialog" aria-labelledby="connect-dialog-title"><form method="dialog" class="dialog-card"><div class="dialog-heading"><div><h2 id="connect-dialog-title">Connect to installer</h2><p>The token is retained only for this browser tab.</p></div><button value="cancel" class="icon-button" aria-label="Close"><svg aria-hidden="true" class="control-icon"><use href="#icon-close"></use></svg></button></div><label><span>Bootstrap token</span><input id="bootstrap-token" type="password" autocomplete="off" required></label><div id="connect-error" class="field-error" hidden></div><div class="form-actions"><button id="confirm-connect" value="default" type="button" class="primary">Connect</button></div></form></dialog>
+  <dialog id="ssh-dialog" aria-labelledby="ssh-dialog-title"><form method="dialog" class="dialog-card"><div class="dialog-heading"><div><h2 id="ssh-dialog-title">Store HA SSH key</h2><p>The private key is validated, stored mode 0600 and never returned by the API.</p></div><button value="cancel" class="icon-button" aria-label="Close"><svg aria-hidden="true" class="control-icon"><use href="#icon-close"></use></svg></button></div><label><span>OpenSSH private key</span><textarea id="ssh-private-key" class="technical key-input" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" dir="ltr" required></textarea></label><div class="form-actions"><button id="store-ssh-key" type="button" class="primary">Store key</button></div></form></dialog>
+  <dialog id="ssh-known-hosts-dialog" aria-labelledby="ssh-known-hosts-dialog-title"><form method="dialog" class="dialog-card"><div class="dialog-heading"><div><h2 id="ssh-known-hosts-dialog-title">Pin HA host keys</h2><p>Paste trusted OpenSSH known_hosts entries for the remote HA peers. The installer stores only public host keys and shows their SHA256 fingerprints.</p></div><button value="cancel" class="icon-button" aria-label="Close"><svg aria-hidden="true" class="control-icon"><use href="#icon-close"></use></svg></button></div><label><span>Trusted known_hosts entries</span><textarea id="ssh-known-hosts" class="technical key-input" placeholder="10.0.0.12 ssh-ed25519 AAAA…" dir="ltr" required></textarea><small>Use explicit peer IPs or hostnames. Hashed entries, wildcards and unknown key types are rejected.</small></label><div class="form-actions"><button id="store-ssh-known-hosts" type="button" class="primary">Store pinned host keys</button></div></form></dialog>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-message"><form method="dialog" class="dialog-card"><div class="dialog-heading"><div><h2 id="confirm-title">Confirm action</h2><p id="confirm-message"></p></div><button value="cancel" class="icon-button" aria-label="Close"><svg aria-hidden="true" class="control-icon"><use href="#icon-close"></use></svg></button></div><label id="confirm-input-field" hidden><span id="confirm-input-label">Confirmation</span><input id="confirm-input" autocomplete="off"></label><div class="form-actions"><button value="cancel" class="secondary">Cancel</button><button id="confirm-action" type="button" class="danger">Confirm</button></div></form></dialog>
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

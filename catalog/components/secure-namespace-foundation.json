@@ -1,0 +1,100 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "secure-namespace-foundation"
+  },
+  "spec": {
+    "capabilities": [
+      "namespace-governance",
+      "resource-quota",
+      "default-limits",
+      "network-policy"
+    ],
+    "category": "platform-foundation",
+    "certification": {
+      "evidenceDigest": "sha256:5d6f4c6be12bdd882024972481789385f50ea1cc8ae1a2e00f5c5434e4f00f4d",
+      "profiles": [
+        "embedded-render"
+      ],
+      "status": "render-certified"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      },
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "conflictsWith": [],
+    "delivery": {
+      "chart": "secure-namespace-foundation/1.0.0",
+      "repositoryKey": "embedded-runtime-bundle",
+      "type": "native-manifest"
+    },
+    "dependencies": [],
+    "displayName": "Secure Namespace Foundation",
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "render-digest",
+      "source-bundle-integrity"
+    ],
+    "exclusiveCapabilities": [],
+    "mandatory": false,
+    "namespace": "",
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "provides": [
+      "namespace-governance",
+      "resource-quota",
+      "default-limits",
+      "network-policy"
+    ],
+    "readiness": [
+      "namespace/${namespace}",
+      "resourcequota/4so-baseline-quota",
+      "limitrange/4so-baseline-limits",
+      "networkpolicy/4so-default-deny-ingress"
+    ],
+    "release": "1.0.0",
+    "requiresCapabilities": [],
+    "risk": "medium",
+    "rollback": {
+      "strategy": "delete only resources labelled platform.4so.io/component=secure-namespace-foundation; namespace deletion requires separate approval"
+    },
+    "settingsSchemaRef": "schemas/settings/secure-namespace-foundation.schema.json",
+    "source": {
+      "artifactDigest": "sha256:42badd2c4affeefe3ade6f63d832b6d64bd87ee92a85e0b0646aafe0e450676f",
+      "bundleKey": "secure-namespace-foundation/1.0.0",
+      "imageInventoryDigest": "sha256:fca17bf92e4281dce105d37cb0c859163b0a6f0554bb046667c5cad6e9c4491f",
+      "licenseManifestDigest": "sha256:227aa66cf86e22100b1e6450464b91004b295f505551424a1820324f54ee896c",
+      "provenance": "sha256:d896c05986cfb0e076f4be9132db862a73c6a3eea9f41d58c1717ab87bd7bd24",
+      "resolved": true,
+      "sbom": "sha256:97edda95d6114f9ac385f2e4b11dc0afb8d61ed5f12ec29dc37acaef36c08d13",
+      "signatureVerification": "sha256-pinned-offline",
+      "sourceLockDigest": "sha256:155fa19222df71b320488177d1a7c8df9ab8d57b2fbe765e7483309972de77e2",
+      "type": "embedded-native"
+    },
+    "supportTier": "supported",
+    "versionPolicy": "exact-embedded-release",
+    "wave": 1
+  }
+}

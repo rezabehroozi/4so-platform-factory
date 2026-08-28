@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.4so.io/platform-factory/installation-request/v1alpha1",
+  "title": "4SO Platform Factory Installation Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profileId",
+    "connectivity",
+    "infrastructure",
+    "network",
+    "services",
+    "acceptRisk"
+  ],
+  "properties": {
+    "profileId": {
+      "type": "string",
+      "enum": [
+        "evaluation-single-node",
+        "production-standard-ha",
+        "integrated-enterprise"
+      ]
+    },
+    "connectivity": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "restricted-egress",
+        "disconnected"
+      ]
+    },
+    "infrastructure": {
+      "$ref": "#/$defs/infrastructure"
+    },
+    "network": {
+      "$ref": "#/$defs/network"
+    },
+    "services": {
+      "$ref": "#/$defs/services"
+    },
+    "acceptRisk": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "secretRef": {
+      "type": "string",
+      "pattern": "^(secret|vault|external-secret)://[^\\s]+$"
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "managed-internal",
+            "external"
+          ]
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "credentialRef": {
+          "$ref": "#/$defs/secretRef"
+        },
+        "bucket": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        }
+      }
+    },
+    "git": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/service"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "organization": {
+              "type": "string",
+              "minLength": 1
+            },
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "webhookMode": {
+              "type": "string",
+              "enum": [
+                "webhook",
+                "polling",
+                "none"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "identity": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/service"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "issuerUrl": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://"
+            },
+            "clientId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "adminEmail": {
+              "type": "string",
+              "format": "email"
+            }
+          }
+        }
+      ]
+    },
+    "infrastructure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "existingCluster"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "existing-hosts",
+            "existing-kubernetes"
+          ]
+        },
+        "existingCluster": {
+          "type": "boolean"
+        },
+        "nodeAddresses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "credentialRef": {
+          "$ref": "#/$defs/secretRef"
+        },
+        "region": {
+          "type": "string"
+        },
+        "sshUser": {
+          "type": "string",
+          "minLength": 1
+        },
+        "storageClass": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "publicEndpoint",
+        "tlsMode"
+      ],
+      "properties": {
+        "publicEndpoint": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "dnsZone": {
+          "type": "string"
+        },
+        "tlsMode": {
+          "type": "string",
+          "enum": [
+            "bootstrap-self-signed",
+            "managed-acme",
+            "managed-private-ca",
+            "external-certificate"
+          ]
+        },
+        "certificateRef": {
+          "$ref": "#/$defs/secretRef"
+        }
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "git",
+        "registry",
+        "database",
+        "objectStorage",
+        "identity"
+      ],
+      "properties": {
+        "git": {
+          "$ref": "#/$defs/git"
+        },
+        "registry": {
+          "$ref": "#/$defs/service"
+        },
+        "database": {
+          "$ref": "#/$defs/service"
+        },
+        "objectStorage": {
+          "$ref": "#/$defs/service"
+        },
+        "identity": {
+          "$ref": "#/$defs/identity"
+        }
+      }
+    }
+  }
+}

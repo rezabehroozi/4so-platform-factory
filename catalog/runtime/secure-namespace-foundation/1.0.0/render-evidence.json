@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "component": "secure-namespace-foundation",
+  "version": "1.0.0",
+  "level": "render-certified",
+  "checks": [
+    "embedded bundle digests verified",
+    "manifest JSON decoded with no unresolved token after render",
+    "deterministic resource digest generated",
+    "no workload image references present"
+  ],
+  "externalRuntimeCertified": false
+}

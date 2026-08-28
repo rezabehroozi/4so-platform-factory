@@ -1,0 +1,17 @@
+{
+  "$id": "https://schemas.4so.io/platform/v1alpha1/settings/metallb.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "addressPool": {
+      "minLength": 1,
+      "pattern": "^[0-9a-fA-F:.]+-[0-9a-fA-F:.]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "addressPool"
+  ],
+  "title": "metallb settings",
+  "type": "object"
+}

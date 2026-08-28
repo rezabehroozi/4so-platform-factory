@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/fleet-health.schema.json",
+  "title": "4SO Fleet Health",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["clusterId", "projectId", "health", "online", "inventoryState", "kubernetesSupport", "nodeCount", "readyNodes", "capacity", "networking"],
+  "properties": {
+    "clusterId": {"type": "string", "minLength": 1},
+    "projectId": {"type": "string", "minLength": 1},
+    "health": {"enum": ["HEALTHY", "WARNING", "STALE", "CRITICAL"]},
+    "online": {"type": "boolean"},
+    "inventoryState": {"enum": ["FRESH", "STALE", "MISSING"]},
+    "nodeCount": {"type": "integer", "minimum": 0},
+    "readyNodes": {"type": "integer", "minimum": 0},
+    "storageClassCount": {"type": "integer", "minimum": 0},
+    "capacity": {"type": "object"},
+    "networking": {"type": "object"},
+    "kubernetesSupport": {"type": "object", "required": ["status", "source", "policyCapturedAt"]}
+  }
+}

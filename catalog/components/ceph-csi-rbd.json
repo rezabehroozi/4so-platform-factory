@@ -1,0 +1,95 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "ceph-csi-rbd"
+  },
+  "spec": {
+    "capabilities": [
+      "persistent-volumes",
+      "snapshots"
+    ],
+    "category": "storage",
+    "certification": {
+      "evidenceDigest": "",
+      "profiles": [],
+      "status": "candidate"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      },
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "conflictsWith": [],
+    "delivery": {
+      "chart": "ceph-csi-rbd",
+      "repositoryKey": "platform-charts",
+      "type": "helm"
+    },
+    "dependencies": [
+      "snapshot-controller"
+    ],
+    "displayName": "Ceph CSI RBD",
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "exclusiveCapabilities": [],
+    "mandatory": true,
+    "namespace": "ceph-csi-rbd",
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "provides": [
+      "rbd-storage"
+    ],
+    "readiness": [
+      "daemonset/ceph-csi-rbd-nodeplugin",
+      "deployment/ceph-csi-rbd-provisioner"
+    ],
+    "release": "3.17.x",
+    "requiresCapabilities": [
+      "volume-snapshot-controller"
+    ],
+    "risk": "critical",
+    "rollback": {
+      "strategy": "preserve-volumes-and-restore-driver-release"
+    },
+    "settingsSchemaRef": "schemas/settings/ceph-csi-rbd.schema.json",
+    "source": {
+      "artifactDigest": "",
+      "imageInventoryDigest": "",
+      "licenseManifestDigest": "",
+      "provenance": "required",
+      "resolved": false,
+      "sbom": "required",
+      "signatureVerification": "required",
+      "sourceLockDigest": "",
+      "type": "helm-chart"
+    },
+    "supportTier": "research-candidate",
+    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "wave": 55
+  }
+}

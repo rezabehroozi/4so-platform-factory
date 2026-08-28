@@ -1,0 +1,10 @@
+{
+  "component": "snapshot-controller",
+  "version": "8.5.0",
+  "sourceUrl": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.5.0",
+  "sourceRevision": "v8.5.0",
+  "artifactDigest": "sha256:3ed29faa70298103ce19d9d91aa89c1a7495b3da66cafa6792622ea3b4e0da93",
+  "bundleMode": "offline-immutable",
+  "networkFetchRequired": false,
+  "upstreamVerification": "sha256-pinned-offline"
+}

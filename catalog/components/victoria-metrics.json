@@ -1,0 +1,98 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "victoria-metrics"
+  },
+  "spec": {
+    "capabilities": [
+      "metrics",
+      "alerts"
+    ],
+    "category": "observability",
+    "certification": {
+      "evidenceDigest": "",
+      "profiles": [],
+      "status": "candidate"
+    },
+    "compatibility": {
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "kubernetes": {
+        "maxVersion": "1.35",
+        "minVersion": "1.34"
+      },
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "conflictsWith": [],
+    "delivery": {
+      "chart": "victoria-metrics-k8s-stack",
+      "repositoryKey": "platform-charts",
+      "type": "helm"
+    },
+    "dependencies": [
+      "ceph-csi-rbd"
+    ],
+    "displayName": "VictoriaMetrics",
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "exclusiveCapabilities": [
+      "metrics-backend"
+    ],
+    "mandatory": true,
+    "namespace": "monitoring",
+    "operations": {
+      "install": "required",
+      "preflight": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
+    },
+    "provides": [
+      "metrics-backend"
+    ],
+    "readiness": [
+      "statefulset/vmstorage",
+      "deployment/vmselect",
+      "deployment/vminsert"
+    ],
+    "release": "0.90.2",
+    "requiresCapabilities": [
+      "rbd-storage"
+    ],
+    "risk": "high",
+    "rollback": {
+      "strategy": "restore-previous-release-and-preserve-pvcs"
+    },
+    "settingsSchemaRef": "schemas/settings/victoria-metrics.schema.json",
+    "source": {
+      "artifactDigest": "",
+      "imageInventoryDigest": "",
+      "licenseManifestDigest": "",
+      "provenance": "required",
+      "resolved": false,
+      "sbom": "required",
+      "signatureVerification": "required",
+      "sourceLockDigest": "",
+      "type": "helm-chart"
+    },
+    "supportTier": "research-candidate",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
+    "wave": 65
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "binaries": [
+    {
+      "gnuBuildID": "b364555c3e334fa5821dd8bb1acd382e69436b27",
+      "name": "platform-api",
+      "runtimeNeeded": [
+        "libc.so.6",
+        "libpq.so.5"
+      ],
+      "sha256": "801e3f7dc7da2a8b4795ea4c977de1d9188082122666a7c945b5fd9c61d27727",
+      "size": 14346512,
+      "target": "linux-amd64"
+    },
+    {
+      "gnuBuildID": "",
+      "name": "platformctl",
+      "runtimeNeeded": [],
+      "sha256": "bc1d7003a025e520904f60c1bb086cbcb71ec4c95003d5bf51d29fdea3debc04",
+      "size": 8585351,
+      "target": "linux-amd64"
+    },
+    {
+      "gnuBuildID": "",
+      "name": "platform-installer",
+      "runtimeNeeded": [],
+      "sha256": "55d6d2ab67762796ddd4402301c41dea4a51ba7e714c2770bd46b7782f948425",
+      "size": 7426183,
+      "target": "linux-amd64"
+    },
+    {
+      "gnuBuildID": "",
+      "name": "platform-agent",
+      "runtimeNeeded": [],
+      "sha256": "ee5aba96f251d01206eb351b791165c637360b79e1d7c65e3e22cea21a77ec8c",
+      "size": 7798919,
+      "target": "linux-amd64"
+    },
+    {
+      "gnuBuildID": "",
+      "name": "platform-probe",
+      "runtimeNeeded": [],
+      "sha256": "a1a420bb59f396d3e7de80dc5274b916ea397868de46f5b4de25ee2cbe73e260",
+      "size": 2248839,
+      "target": "linux-amd64"
+    }
+  ],
+  "buildContract": {
+    "cgo": true,
+    "externalELFBuildID": "recorded-per-binary",
+    "goBuildIDCleared": true,
+    "stripped": true,
+    "trimpath": true
+  },
+  "buildType": "deterministic-local-release",
+  "created": "2026-01-01T00:00:00Z",
+  "module": "platform.4so.io/factory",
+  "product": "4SO Platform Factory",
+  "releaseName": "lab-certification-ai-mcp-foundation",
+  "schemaVersion": 1,
+  "sourceFileCount": 605,
+  "sourceTreeDigest": "sha256:2cdb3fddd95ecef106013621121dc303e28c24830d9de3a12ed817d354f3d1c8",
+  "version": "0.0.216"
+}

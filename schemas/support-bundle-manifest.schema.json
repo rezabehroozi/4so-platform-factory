@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/support-bundle-manifest.schema.json",
+  "title": "4SO Platform Factory Support Bundle Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "productVersion", "profile", "generatedAt", "scope", "files", "redactions"],
+  "properties": {
+    "schemaVersion": {"const": "support-bundle.v1"},
+    "productVersion": {"type": "string", "minLength": 1},
+    "profile": {"enum": ["fleet-diagnostics", "cluster-diagnostics", "operation-diagnostics"]},
+    "generatedAt": {"type": "string", "format": "date-time"},
+    "scope": {"type": "object"},
+    "redactions": {"type": "integer", "minimum": 0},
+    "files": {
+      "type": "array",
+      "maxItems": 254,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "size"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^[^/].*\\.json$"},
+          "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+          "size": {"type": "integer", "minimum": 0, "maximum": 16777216}
+        }
+      }
+    }
+  }
+}

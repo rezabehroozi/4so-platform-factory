@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/field-diagnostic-report.schema.json",
+  "title": "4SO Platform Factory Field Failure Diagnostic Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "schemaVersion", "metadata", "product", "snapshots", "analysis", "claims"],
+  "properties": {
+    "apiVersion": {"const": "platform.4so.io/v1alpha1"},
+    "kind": {"const": "FieldFailureDiagnosticReport"},
+    "schemaVersion": {"const": 1},
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "generatedAt", "digest"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^diagnostic-[a-f0-9]{20}$"},
+        "generatedAt": {"type": "string", "format": "date-time"},
+        "digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "product": {"type": "object", "required": ["name", "version"], "additionalProperties": false},
+    "snapshots": {"type": "object"},
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "category", "owningLayer", "retryDisposition", "summary", "nextAction", "manualReviewNeeded"],
+      "properties": {
+        "status": {"enum": ["IN_PROGRESS", "FAILED", "SUCCEEDED", "UNKNOWN"]},
+        "category": {"type": "string", "minLength": 1},
+        "owningLayer": {"type": "string", "minLength": 1},
+        "retryDisposition": {"enum": ["NOT_APPLICABLE", "FIX_CAUSE_THEN_RESUME_SAME_RUN", "BLOCKED"]},
+        "summary": {"type": "string", "minLength": 1},
+        "nextAction": {"type": "string", "minLength": 1},
+        "manualReviewNeeded": {"type": "boolean"},
+        "failedStep": {"type": "object"}
+      }
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["diagnosticOnly", "automaticRetry", "runtimeCertified", "haCertified", "productionReady", "liveExecutionDerived"],
+      "properties": {
+        "diagnosticOnly": {"const": true},
+        "automaticRetry": {"const": false},
+        "runtimeCertified": {"const": false},
+        "haCertified": {"const": false},
+        "productionReady": {"const": false},
+        "liveExecutionDerived": {"type": "boolean"}
+      }
+    }
+  },
+  "$defs": {"digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}
+}

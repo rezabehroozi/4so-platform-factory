@@ -1,0 +1,468 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "LabCertificationGuide",
+  "schemaVersion": 2,
+  "authority": "LAB_CERTIFICATION_MATRIX_V1",
+  "principles": [
+    "Deterministic scripts execute tests; AI never decides PASS or Physical PASS.",
+    "Every physical run is bound to the exact release ZIP SHA-256 and freshly collected evidence.",
+    "AI is invoked only for a normalized failure packet after a deterministic stage fails.",
+    "A repair creates a new artifact SHA and invalidates prior physical certification for release purposes.",
+    "Open-source product dependencies are installed by the product installer from immutable bundle inputs; the lab does not replace product ownership with ad-hoc manual installs."
+  ],
+  "serverTiers": [
+    {
+      "id": "current-import-minimum",
+      "displayName": "Current OKD import certification \u2014 minimum",
+      "physicalServers": 4,
+      "roles": [
+        "management-primary",
+        "okd-control-1",
+        "okd-control-2",
+        "okd-control-3"
+      ],
+      "purpose": "One single-node Factory management appliance plus one Compact-3 OKD target for import, reconnect and revocation certification.",
+      "notes": [
+        "The lab runner itself can execute from an operator workstation and is not counted as a server.",
+        "If a real existing OKD cluster is already supplied, only the management server is additional."
+      ],
+      "resourceSummary": [
+        "Management node: 4 vCPU / 16 GiB RAM / 100 GiB free disk (4SO lab floor; above RKE2 minimum to leave headroom for PostgreSQL, Forgejo, zot, Keycloak and control-plane workloads).",
+        "Each OKD control node: 4 vCPU / 16 GiB RAM / 100 GB storage / 300 IOPS minimum; faster etcd storage is recommended."
+      ]
+    },
+    {
+      "id": "production-ha",
+      "displayName": "Production HA certification",
+      "physicalServers": 6,
+      "roles": [
+        "management-1",
+        "management-2",
+        "management-3",
+        "okd-control-1",
+        "okd-control-2",
+        "okd-control-3"
+      ],
+      "purpose": "Three-node Factory management HA plus Compact-3 OKD target.",
+      "notes": [
+        "Covers management-plane quorum/restart/failover in addition to target import."
+      ],
+      "resourceSummary": [
+        "Management node: 4 vCPU / 16 GiB RAM / 100 GiB free disk (4SO lab floor; above RKE2 minimum to leave headroom for PostgreSQL, Forgejo, zot, Keycloak and control-plane workloads).",
+        "Each OKD control node: 4 vCPU / 16 GiB RAM / 100 GB storage / 300 IOPS minimum; faster etcd storage is recommended."
+      ]
+    },
+    {
+      "id": "day2-replacement",
+      "displayName": "Day-2 replacement and failure lab",
+      "physicalServers": 7,
+      "roles": [
+        "management-1",
+        "management-2",
+        "management-3",
+        "okd-control-1",
+        "okd-control-2",
+        "okd-control-3",
+        "target-spare"
+      ],
+      "purpose": "Production HA topology plus a spare target node for add/remove/replace and destructive recovery scenarios.",
+      "notes": [
+        "Recommended once imported Day-2 execution is enabled."
+      ],
+      "resourceSummary": [
+        "Management node: 4 vCPU / 16 GiB RAM / 100 GiB free disk (4SO lab floor; above RKE2 minimum to leave headroom for PostgreSQL, Forgejo, zot, Keycloak and control-plane workloads).",
+        "Each OKD control node: 4 vCPU / 16 GiB RAM / 100 GB storage / 300 IOPS minimum; faster etcd storage is recommended.",
+        "target-spare must meet or exceed the OKD control-node floor before replacement/managed-install tests."
+      ]
+    },
+    {
+      "id": "full-multicluster",
+      "displayName": "Full release certification",
+      "physicalServers": 10,
+      "roles": [
+        "management-1",
+        "management-2",
+        "management-3",
+        "okd-a-1",
+        "okd-a-2",
+        "okd-a-3",
+        "okd-b-1",
+        "okd-b-2",
+        "okd-b-3",
+        "target-spare"
+      ],
+      "purpose": "Management HA, two target clusters, disconnected/upgrade/drift/failure and cross-cluster certification.",
+      "notes": [
+        "Auxiliary DNS/object-storage may be external or hosted on a dedicated lab service; any such dependency must be included in evidence."
+      ],
+      "resourceSummary": [
+        "Management node: 4 vCPU / 16 GiB RAM / 100 GiB free disk (4SO lab floor; above RKE2 minimum to leave headroom for PostgreSQL, Forgejo, zot, Keycloak and control-plane workloads).",
+        "Each OKD control node: 4 vCPU / 16 GiB RAM / 100 GB storage / 300 IOPS minimum; faster etcd storage is recommended.",
+        "target-spare must meet or exceed the OKD control-node floor before replacement/managed-install tests."
+      ]
+    }
+  ],
+  "matrix": [
+    {
+      "id": "M00",
+      "group": "Artifact",
+      "name": "Exact-SHA integrity and provenance",
+      "serverTier": "current-import-minimum",
+      "phase": "C-ai-native-operator-experience-lab-mcp-foundation",
+      "destructive": false,
+      "aiEligible": false,
+      "actions": [
+        "verify archive manifest",
+        "verify SBOM/provenance",
+        "verify binary versions",
+        "bind run to exact SHA"
+      ],
+      "automationStatus": "IMPLEMENTED",
+      "automationDetail": "Exact archive verification, SHA binding, server inventory validation and management-host preflight are automated."
+    },
+    {
+      "id": "M01",
+      "group": "Management install",
+      "name": "Fresh single-node management install",
+      "serverTier": "current-import-minimum",
+      "phase": "C-ai-native-operator-experience-lab-mcp-foundation",
+      "destructive": true,
+      "aiEligible": true,
+      "actions": [
+        "SSH preflight",
+        "stage exact release",
+        "deploy installer",
+        "install managed RKE2/PostgreSQL/Forgejo/zot/Keycloak/control plane",
+        "verify health",
+        "restart and re-verify"
+      ],
+      "automationStatus": "PARTIAL",
+      "automationDetail": "Fresh single-node management installation and exact-artifact field evidence are automated; explicit post-install host/service restart certification is still pending."
+    },
+    {
+      "id": "M02",
+      "group": "Management HA",
+      "name": "Fresh three-node management HA",
+      "serverTier": "production-ha",
+      "phase": "C-ai-native-operator-experience-lab-mcp-foundation",
+      "destructive": true,
+      "aiEligible": true,
+      "actions": [
+        "zero-to-ha handoff",
+        "quorum verification",
+        "service restart",
+        "one management node reboot",
+        "durable operation resume"
+      ],
+      "automationStatus": "PARTIAL",
+      "automationDetail": "Fresh three-node management HA installation is automated; quorum fault/reboot/resume certification is still pending."
+    },
+    {
+      "id": "M03",
+      "group": "Persistence",
+      "name": "PostgreSQL exact-runtime persistence and migration",
+      "serverTier": "current-import-minimum",
+      "phase": "C-ai-native-operator-experience-lab-mcp-foundation",
+      "destructive": true,
+      "aiEligible": true,
+      "actions": [
+        "migration",
+        "CRUD",
+        "API restart",
+        "backup",
+        "restore",
+        "post-restore authority verification"
+      ],
+      "automationStatus": "PENDING",
+      "automationDetail": "The standalone PostgreSQL runtime-certification harness exists, but remote credential-safe wiring into the lab runner is pending."
+    },
+    {
+      "id": "M04",
+      "group": "OKD import",
+      "name": "OKD identity/read-only import",
+      "serverTier": "current-import-minimum",
+      "phase": "D-okd-import-identity-security-certification",
+      "destructive": false,
+      "aiEligible": true,
+      "actions": [
+        "enroll",
+        "detect ClusterVersion",
+        "attest kube-system UID",
+        "inventory",
+        "verify read-only admission",
+        "reconnect"
+      ],
+      "automationStatus": "PENDING_PHASE",
+      "automationDetail": "Scheduled for Phase D after target-cluster API/agent enrollment input is wired into the runner."
+    },
+    {
+      "id": "M05",
+      "group": "OKD security",
+      "name": "Revocation fence and same-UID re-enrollment",
+      "serverTier": "current-import-minimum",
+      "phase": "D-okd-import-identity-security-certification",
+      "destructive": true,
+      "aiEligible": true,
+      "actions": [
+        "issue mutation RBAC",
+        "prove permission",
+        "revoke Hub credential",
+        "apply target RBAC fence",
+        "acknowledge exact fence digest",
+        "same-UID re-enroll",
+        "prove old principal denied"
+      ],
+      "automationStatus": "PENDING_PHASE",
+      "automationDetail": "Scheduled for Phase D after real target-side RBAC fence apply/deny evidence is wired."
+    },
+    {
+      "id": "M06",
+      "group": "Capability ownership",
+      "name": "OKD native capability/health translation",
+      "serverTier": "current-import-minimum",
+      "phase": "E-capability-catalog-blueprint-ai-explainability",
+      "destructive": false,
+      "aiEligible": true,
+      "actions": [
+        "discover OVN",
+        "discover OLM",
+        "discover SCC/RBAC",
+        "translate ClusterOperators",
+        "suppress duplicate stacks",
+        "degraded discovery negative controls"
+      ],
+      "automationStatus": "PENDING_PHASE",
+      "automationDetail": "Scheduled for Phase E."
+    },
+    {
+      "id": "M07",
+      "group": "Day-2",
+      "name": "Imported target lifecycle",
+      "serverTier": "day2-replacement",
+      "phase": "F-day2-managed-compact3-workflow-convergence",
+      "destructive": true,
+      "aiEligible": true,
+      "actions": [
+        "drain",
+        "diagnostics",
+        "add node",
+        "remove node",
+        "replace node",
+        "retry after injected failure",
+        "recovery-required evidence"
+      ],
+      "automationStatus": "PENDING_PHASE",
+      "automationDetail": "Scheduled for Phase F."
+    },
+    {
+      "id": "M08",
+      "group": "Managed install",
+      "name": "Connected managed Compact-3",
+      "serverTier": "production-ha",
+      "phase": "F-day2-managed-compact3-workflow-convergence",
+      "destructive": true,
+      "aiEligible": true,
+      "actions": [
+        "acquire pinned openshift-install/FCOS",
+        "build Agent ISO",
+        "boot provider attach",
+        "one-time boot",
+        "power cycle",
+        "observe install",
+        "converge into normal import authority"
+      ],
+      "automationStatus": "PENDING_PHASE",
+      "automationDetail": "Scheduled for Phase F; requires the pinned openshift-install/FCOS acquisition and BootMediaProvider path."
+    },
+    {
+      "id": "M09",
+      "group": "Disconnected",
+      "name": "Disconnected install and catalog delivery",
+      "serverTier": "full-multicluster",
+      "phase": "G-disconnected-upgrade-recovery-local-ai",
+      "destructive": true,
+      "aiEligible": true,
+      "actions": [
+        "oc-mirror v2 acquisition",
+        "seal mirror inventory",
+        "push to zot",
+        "deny internet egress",
+        "fresh install",
+        "catalog delivery",
+        "prove no hidden internet dependency"
+      ],
+      "automationStatus": "PENDING_PHASE",
+      "automationDetail": "Scheduled for Phase G."
+    },
+    {
+      "id": "M10",
+      "group": "Upgrade",
+      "name": "CVO upgrade/degraded/recovery semantics",
+      "serverTier": "full-multicluster",
+      "phase": "G-disconnected-upgrade-recovery-local-ai",
+      "destructive": true,
+      "aiEligible": true,
+      "actions": [
+        "read supported edge",
+        "admit upgrade",
+        "execute CVO update",
+        "inject degraded operator",
+        "restart during update",
+        "report FAILED/DEGRADED/RECOVERY_REQUIRED",
+        "prove no fake rollback"
+      ],
+      "automationStatus": "PENDING_PHASE",
+      "automationDetail": "Scheduled for Phase G."
+    },
+    {
+      "id": "M11",
+      "group": "Failure/chaos",
+      "name": "Management and target failure controls",
+      "serverTier": "day2-replacement",
+      "phase": "H-full-product-certification-chaos-soak-ux-ai-evals",
+      "destructive": true,
+      "aiEligible": true,
+      "actions": [
+        "kill API",
+        "kill worker",
+        "reboot node",
+        "network interruption",
+        "disk-pressure control",
+        "credential expiry",
+        "partial operation crash",
+        "resume/retry/idempotency"
+      ],
+      "automationStatus": "PENDING_PHASE",
+      "automationDetail": "Scheduled for Phase H."
+    },
+    {
+      "id": "M12",
+      "group": "Load/soak",
+      "name": "High-load and long-running soak",
+      "serverTier": "full-multicluster",
+      "phase": "H-full-product-certification-chaos-soak-ux-ai-evals",
+      "destructive": false,
+      "aiEligible": true,
+      "actions": [
+        "concurrent read workload",
+        "bounded mutation workload",
+        "agent reconnect storm",
+        "operation queue pressure",
+        "24h soak",
+        "memory/FD/goroutine trend",
+        "audit/evidence completeness"
+      ],
+      "automationStatus": "PENDING_PHASE",
+      "automationDetail": "Scheduled for Phase H."
+    },
+    {
+      "id": "M13",
+      "group": "Multi-cluster",
+      "name": "Two-cluster isolation and concurrent lifecycle",
+      "serverTier": "full-multicluster",
+      "phase": "H-full-product-certification-chaos-soak-ux-ai-evals",
+      "destructive": true,
+      "aiEligible": true,
+      "actions": [
+        "import two clusters",
+        "parallel inventory",
+        "project/tenant isolation",
+        "concurrent operations",
+        "one-cluster failure",
+        "prove unaffected cluster continues",
+        "cross-cluster evidence isolation"
+      ],
+      "automationStatus": "PENDING_PHASE",
+      "automationDetail": "Scheduled for Phase H."
+    }
+  ],
+  "aiPolicy": {
+    "defaultMode": "failure-only",
+    "maxFailurePacketBytes": 16384,
+    "maxOutputTokens": 1200,
+    "providers": [
+      {
+        "id": "codex-cli",
+        "use": "bounded source repair worker",
+        "status": "preferred"
+      },
+      {
+        "id": "claude-code",
+        "use": "bounded diagnosis/repair with explicit turn and budget caps",
+        "status": "preferred"
+      },
+      {
+        "id": "openai-responses",
+        "use": "preferred low-token structured failure diagnosis through the unified platformctl AI runtime; use a cost-efficient model first and escalate only after unresolved product-defect classification",
+        "status": "preferred"
+      },
+      {
+        "id": "openai-compatible-chat",
+        "use": "self-hosted/vLLM or compatible endpoint through the unified platformctl AI runtime",
+        "status": "supported"
+      },
+      {
+        "id": "antigravity-command",
+        "use": "interactive/subagent investigation through a custom command adapter",
+        "status": "optional"
+      }
+    ],
+    "defaultFailurePacketBytes": 8192,
+    "defaultOutputTokens": 800,
+    "maxDiagnosisCallsPerFailurePerRun": 1,
+    "runtimeAuthority": "UNIFIED_AI_RUNTIME_V1",
+    "egressPolicy": "central redaction before every provider; bounded JSON context; raw prompts and credentials are not durable authority",
+    "durableAudit": "successful model calls become project-scoped ai_runs with prompt/context/output digests, token usage and redaction count",
+    "executionAuthority": "AI is advisory only; all changes continue through deterministic product plans, RBAC, approvals and durable operations"
+  },
+  "mcp": {
+    "protocol": "2026-07-28",
+    "transport": "streamable-http",
+    "path": "/mcp",
+    "defaultAccess": "read-only",
+    "tools": [
+      "lab_guide",
+      "target_architecture_model",
+      "ai_runtime_policy",
+      "cluster_summary",
+      "operation_status",
+      "ai_run"
+    ],
+    "mutatingTools": [],
+    "permission": "mcp.read",
+    "authorization": "authentication + dedicated capability scope + project authorization for project-scoped resources"
+  },
+  "runner": {
+    "command": "python3 scripts/lab_runner.py",
+    "commands": [
+      "guide",
+      "self-test",
+      "plan",
+      "preflight",
+      "run"
+    ],
+    "currentFullyAutomatedRows": [
+      "M00"
+    ],
+    "currentPartiallyAutomatedRows": [
+      "M01",
+      "M02"
+    ],
+    "currentDeferredRows": [
+      "M03",
+      "M04",
+      "M05",
+      "M06",
+      "M07",
+      "M08",
+      "M09",
+      "M10",
+      "M11",
+      "M12",
+      "M13"
+    ],
+    "targetHostSSHPolicy": "Phase C uses root SSH only for management roles; existing OKD target nodes are not required to permit root SSH for import certification.",
+    "bundlePolicy": "Run requires a verified immutable appliance bundle until canonical automatic digest-locked acquisition is implemented; absence is BLOCKED, never latest-download fallback.",
+    "physicalPassPolicy": "No individual runner stage, AI diagnosis, MCP call or management install alone may produce four-layer Exact-SHA Physical PASS."
+  }
+}

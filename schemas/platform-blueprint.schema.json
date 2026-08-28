@@ -1,0 +1,288 @@
+{
+  "$id": "https://schemas.4so.io/platform/v1alpha1/platform-blueprint.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "platform.4so.io/v1alpha1"
+    },
+    "kind": {
+      "const": "PlatformBlueprint"
+    },
+    "metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "type": "object"
+    },
+    "spec": {
+      "additionalProperties": false,
+      "properties": {
+        "certification": {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceRetentionDays": {
+              "maximum": 3650,
+              "minimum": 30,
+              "type": "integer"
+            },
+            "requiredLevel": {
+              "enum": [
+                "render",
+                "ephemeral-runtime",
+                "target-runtime",
+                "upgrade",
+                "production"
+              ]
+            }
+          },
+          "required": [
+            "requiredLevel",
+            "evidenceRetentionDays"
+          ],
+          "type": "object"
+        },
+        "compatibility": {
+          "additionalProperties": false,
+          "properties": {
+            "architectures": {
+              "items": {
+                "enum": [
+                  "amd64",
+                  "arm64"
+                ]
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "distributionProfiles": {
+              "items": {
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "kubernetes": {
+              "additionalProperties": false,
+              "properties": {
+                "maxVersion": {
+                  "pattern": "^1\\.[0-9]+$",
+                  "type": "string"
+                },
+                "minVersion": {
+                  "pattern": "^1\\.[0-9]+$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "minVersion",
+                "maxVersion"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kubernetes",
+            "architectures",
+            "distributionProfiles"
+          ],
+          "type": "object"
+        },
+        "components": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "name": {
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "type": "string"
+              },
+              "settings": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "name",
+              "enabled"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "delivery": {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "gitops"
+            },
+            "ociRegistry": {
+              "pattern": "^[A-Za-z0-9.-]+(?::[0-9]{1,5})?(?:/[A-Za-z0-9._/-]+)?$",
+              "type": "string"
+            },
+            "repository": {
+              "type": "string",
+              "anyOf": [
+                {
+                  "pattern": "^(https|ssh)://[^@/]+(?:/.*)?$",
+                  "type": "string"
+                },
+                {
+                  "pattern": "^http://[A-Za-z0-9.-]+\\.svc\\.cluster\\.local(?::[0-9]{1,5})?(?:/.*)?$",
+                  "type": "string"
+                }
+              ]
+            },
+            "revision": {
+              "minLength": 1,
+              "not": {
+                "pattern": "(?i)latest"
+              },
+              "type": "string"
+            },
+            "revisionType": {
+              "enum": [
+                "commit",
+                "tag",
+                "branch"
+              ]
+            }
+          },
+          "required": [
+            "mode",
+            "repository",
+            "revision",
+            "revisionType",
+            "ociRegistry"
+          ],
+          "type": "object"
+        },
+        "description": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "governance": {
+          "additionalProperties": false,
+          "properties": {
+            "allowPlaintextSecrets": {
+              "const": false
+            },
+            "approvalRequiredFor": {
+              "items": {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "type": "array",
+              "uniqueItems": true
+            },
+            "enforceDigestImages": {
+              "const": true
+            }
+          },
+          "required": [
+            "approvalRequiredFor",
+            "enforceDigestImages",
+            "allowPlaintextSecrets"
+          ],
+          "type": "object"
+        },
+        "tenancy": {
+          "additionalProperties": false,
+          "properties": {
+            "deletionPolicy": {
+              "const": "approval-and-backup-required"
+            },
+            "mode": {
+              "const": "namespace"
+            },
+            "plans": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "mode",
+            "plans",
+            "deletionPolicy"
+          ],
+          "type": "object"
+        },
+        "fieldOwnership": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^/",
+                "minLength": 2
+              },
+              "policy": {
+                "type": "string",
+                "enum": [
+                  "BLUEPRINT_ONLY",
+                  "PROVIDER_ONLY",
+                  "ENVIRONMENT_ONLY",
+                  "PROVIDER_THEN_ENVIRONMENT"
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "policy"
+            ]
+          }
+        }
+      },
+      "required": [
+        "description",
+        "compatibility",
+        "delivery",
+        "components",
+        "tenancy",
+        "governance",
+        "certification"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "title": "4SO Platform Blueprint",
+  "type": "object"
+}

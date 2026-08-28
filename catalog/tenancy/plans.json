@@ -1,0 +1,89 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "TenantPlanCatalog",
+  "metadata": {
+    "name": "default"
+  },
+  "spec": {
+    "plans": [
+      {
+        "name": "small",
+        "quota": {
+          "requests.cpu": "4",
+          "requests.memory": "8Gi",
+          "limits.cpu": "8",
+          "limits.memory": "16Gi",
+          "persistentvolumeclaims": "10"
+        },
+        "storage": {
+          "classSelector": "default",
+          "requestQuota": "1Ti",
+          "maxPVCSize": "100Gi"
+        },
+        "backup": {
+          "provider": "velero",
+          "schedule": "0 2 * * *",
+          "retention": "336h0m0s"
+        },
+        "security": {
+          "podSecurityLevel": "restricted",
+          "defaultDenyIngress": true,
+          "defaultDenyEgress": true,
+          "allowDNS": true
+        }
+      },
+      {
+        "name": "medium",
+        "quota": {
+          "requests.cpu": "12",
+          "requests.memory": "32Gi",
+          "limits.cpu": "24",
+          "limits.memory": "64Gi",
+          "persistentvolumeclaims": "30"
+        },
+        "storage": {
+          "classSelector": "default",
+          "requestQuota": "1Ti",
+          "maxPVCSize": "100Gi"
+        },
+        "backup": {
+          "provider": "velero",
+          "schedule": "0 2 * * *",
+          "retention": "336h0m0s"
+        },
+        "security": {
+          "podSecurityLevel": "restricted",
+          "defaultDenyIngress": true,
+          "defaultDenyEgress": true,
+          "allowDNS": true
+        }
+      },
+      {
+        "name": "large",
+        "quota": {
+          "requests.cpu": "32",
+          "requests.memory": "96Gi",
+          "limits.cpu": "64",
+          "limits.memory": "192Gi",
+          "persistentvolumeclaims": "100"
+        },
+        "storage": {
+          "classSelector": "default",
+          "requestQuota": "1Ti",
+          "maxPVCSize": "100Gi"
+        },
+        "backup": {
+          "provider": "velero",
+          "schedule": "0 2 * * *",
+          "retention": "336h0m0s"
+        },
+        "security": {
+          "podSecurityLevel": "restricted",
+          "defaultDenyIngress": true,
+          "defaultDenyEgress": true,
+          "allowDNS": true
+        }
+      }
+    ]
+  }
+}

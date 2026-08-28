@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "component": "secure-namespace-foundation",
+  "version": "1.0.0",
+  "sourceType": "embedded-native",
+  "renderer": "json-template-v1",
+  "manifestPath": "runtime/secure-namespace-foundation/1.0.0/manifest.json",
+  "networkFetchRequired": false
+}

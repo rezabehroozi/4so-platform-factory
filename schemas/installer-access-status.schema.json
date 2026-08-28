@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/installer-access-status.schema.json",
+  "title": "Installer Access Status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "productVersion",
+    "installerBinaryDigest",
+    "transport",
+    "token"
+  ],
+  "properties": {
+    "productVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "installerBinaryDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "listen",
+        "transportProtected",
+        "loopbackOnly",
+        "insecureOverride"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "https",
+            "http-loopback",
+            "http-insecure-override"
+          ]
+        },
+        "listen": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transportProtected": {
+          "type": "boolean"
+        },
+        "loopbackOnly": {
+          "type": "boolean"
+        },
+        "insecureOverride": {
+          "type": "boolean"
+        },
+        "certificateFingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "certificateNotBefore": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "certificateNotAfter": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "certificateDnsNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "token": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authentication",
+        "source",
+        "fingerprint",
+        "tokenFile",
+        "rotatedAt"
+      ],
+      "properties": {
+        "authentication": {
+          "const": "bearer-token"
+        },
+        "source": {
+          "enum": [
+            "environment",
+            "existing-file",
+            "generated-file"
+          ]
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{16}$"
+        },
+        "tokenFile": {
+          "const": "bootstrap-token"
+        },
+        "rotatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

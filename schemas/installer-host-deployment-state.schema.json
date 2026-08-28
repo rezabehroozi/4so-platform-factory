@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/installer-host-deployment-state.schema.json",
+  "title": "Installer Host Deployment State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "schemaVersion",
+    "status",
+    "plan",
+    "previous",
+    "activated",
+    "appliedAt",
+    "backupPrepared",
+    "stateDigest"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "platform.4so.io/v1alpha1"
+    },
+    "kind": {
+      "const": "InstallerHostDeploymentState"
+    },
+    "schemaVersion": {
+      "const": 4
+    },
+    "status": {
+      "enum": [
+        "PREPARED",
+        "APPLYING",
+        "RECOVERY_REQUIRED",
+        "APPLIED",
+        "STAGED",
+        "ROLLED_BACK",
+        "RECOVERED"
+      ]
+    },
+    "plan": {
+      "type": "object"
+    },
+    "previous": {
+      "type": "object"
+    },
+    "activated": {
+      "type": "boolean"
+    },
+    "appliedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "rolledBackAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "backupPrepared": {
+      "type": "boolean"
+    },
+    "currentStep": {
+      "type": "string"
+    },
+    "completedSteps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "lastError": {
+      "type": "string"
+    },
+    "recoveryRequired": {
+      "type": "boolean"
+    },
+    "recoveredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "stateDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "readiness": {
+      "type": "object"
+    }
+  }
+}

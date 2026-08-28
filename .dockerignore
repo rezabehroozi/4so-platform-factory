@@ -1,0 +1,7 @@
+.git
+bin
+release
+dist
+.state
+**/__pycache__
+**/*.pyc

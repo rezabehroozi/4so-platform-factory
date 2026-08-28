@@ -1,0 +1,7 @@
+{
+  "images": [
+    {
+      "reference": "registry.k8s.io/sig-storage/snapshot-controller@sha256:74ca61ab13e978f03cf0f336a607281d15f04cda0a38a881306365473b28a3d8"
+    }
+  ]
+}

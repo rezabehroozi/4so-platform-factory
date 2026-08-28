@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "component": "secure-namespace-foundation",
+  "version": "1.0.0",
+  "materials": [
+    {
+      "name": "4SO Platform Factory native manifest bundle",
+      "license": "Proprietary",
+      "licenseFile": "LICENSE.txt"
+    }
+  ]
+}

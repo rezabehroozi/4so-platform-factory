@@ -1,0 +1,8 @@
+Copyright (c) 2026 4SO. All rights reserved.
+
+This source package is proprietary unless a separate written license grants
+additional rights. Evaluation, production use, redistribution, sublicensing,
+and white-label use require the applicable commercial agreement.
+
+Third-party components referenced by this product remain governed by their own
+licenses. See THIRD_PARTY_COMPONENTS.md and generated SBOM/provenance outputs.

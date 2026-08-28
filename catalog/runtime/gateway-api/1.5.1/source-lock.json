@@ -1,0 +1,12 @@
+{
+  "component": "gateway-api",
+  "version": "1.5.1",
+  "sourceType": "external-tagged-source-set",
+  "upstreamUrl": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.1",
+  "upstreamRevision": "v1.5.1",
+  "upstreamArtifact": "gateway-api-v1.5.1-official-tag-source-set.zip",
+  "upstreamArtifactDigest": "sha256:6007c679ec2b427b0c72f0fd724c502c95a341bfbad100ea56ec38c4d6f0d5bb",
+  "networkFetchRequired": false,
+  "renderer": "json-resource-list-v1",
+  "upstreamVerification": "sha256-pinned-offline"
+}

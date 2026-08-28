@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/installer-host-admission-report.schema.json",
+  "title": "Installer Host Admission Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "ready",
+    "mode",
+    "targetOs",
+    "targetArchitecture",
+    "targetVersion",
+    "upgradeMode",
+    "allowDowngrade",
+    "checks",
+    "filesystems",
+    "generatedAt",
+    "digest"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "mode": {
+      "enum": [
+        "live",
+        "staged"
+      ]
+    },
+    "targetOs": {
+      "const": "linux"
+    },
+    "targetArchitecture": {
+      "type": "string",
+      "minLength": 1
+    },
+    "targetVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "existingBinaryVersion": {
+      "type": "string"
+    },
+    "existingBundleVersion": {
+      "type": "string"
+    },
+    "upgradeMode": {
+      "enum": [
+        "INSTALL",
+        "REINSTALL",
+        "UPGRADE",
+        "DOWNGRADE",
+        "REPAIR"
+      ]
+    },
+    "allowDowngrade": {
+      "type": "boolean"
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "summary"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "WARNING",
+              "BLOCKED",
+              "SKIPPED"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "filesystems": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "device",
+          "probePath",
+          "requiredBytes",
+          "availableBytes",
+          "requiredInodes",
+          "availableInodes",
+          "readOnly"
+        ],
+        "properties": {
+          "device": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "probePath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requiredBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "availableBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "requiredInodes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "availableInodes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "readOnly": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

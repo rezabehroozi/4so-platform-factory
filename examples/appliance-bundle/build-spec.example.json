@@ -1,0 +1,38 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ApplianceBundleBuild",
+  "metadata": {
+    "version": "0.0.125",
+    "sourceReleaseDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "spec": {
+    "rke2": {
+      "version": "v1.34.0+rke2r1",
+      "installer": "rke2/install.sh",
+      "installArtifacts": [
+        "rke2/rke2.linux-amd64.tar.gz",
+        "rke2/sha256sum-amd64.txt"
+      ],
+      "imageArchives": [
+        "rke2/rke2-images.linux-amd64.tar.zst"
+      ]
+    },
+    "workloads": {
+      "imageArchives": [
+        "workloads/platform-workloads.oci.tar"
+      ],
+      "postgresqlImage": "registry.example/platform/postgresql@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "platformApiImage": "registry.example/platform/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "forgejoImage": "registry.example/platform/forgejo@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "zotImage": "registry.example/platform/zot@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "keycloakImage": "registry.example/platform/keycloak@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "maintenanceImage": "registry.example/platform/maintenance@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "gitOpsManifest": "manifests/argocd-install.yaml",
+      "cloudNativePGManifest": "manifests/cloudnative-pg-install.yaml",
+      "ocmManifest": "manifests/ocm-install.yaml",
+      "storageManifest": "manifests/replicated-storage-install.yaml",
+      "fleetAgentImage": "registry.example/platform/agent@sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "runtimeProbeImage": "registry.example/platform/probe@sha256:8888888888888888888888888888888888888888888888888888888888888888"
+    }
+  }
+}
