@@ -1,0 +1,113 @@
+     fake={"stage":"boom","command":["x","--password=hunter2"],"returnCode":1,"durationSeconds":0,"outputTail":"Authorization: Bearer very-secret-token\npassword=another-secret\n"+"a"*50000,"fingerprint":"f","status":"FAIL"}
+     packet=mod.failure_packet(fake,artifact_sha="a"*64)
+     assert len(json.dumps(packet,separators=(",",":")).encode()) <= 8192
+diff --git a/tests/test_lab_runner_contract.py b/tests/test_lab_runner_contract.py
+new file mode 100644
+index 0000000..cb4f281
+--- /dev/null
++++ b/tests/test_lab_runner_contract.py
+@@ -0,0 +1,104 @@
++import importlib.util
++import json
++import os
++from pathlib import Path
++import tempfile
++import unittest
++from unittest import mock
++import zipfile
++
++ROOT = Path(__file__).resolve().parents[1]
++SPEC = importlib.util.spec_from_file_location("lab_runner_contract", ROOT / "scripts" / "lab_runner.py")
++lab = importlib.util.module_from_spec(SPEC)
++assert SPEC.loader is not None
++SPEC.loader.exec_module(lab)
++
++
++class LabRunnerContractTests(unittest.TestCase):
++    def _release(self, root: Path) -> Path:
++        version = "9.9.9"
++        name = "test-release"
++        archive = root / "release.zip"
++        prefix = f"4so-platform-factory-{version}-{name}"
++        with zipfile.ZipFile(archive, "w") as zf:
++            zf.writestr(prefix + "/VERSION", version + "\n")
++            zf.writestr(prefix + "/RELEASE-NAME", name + "\n")
++        return archive
++
++    def _spec(self, root: Path) -> dict:
++        identity = root / "id"
++        identity.write_text("dummy-private-key", encoding="utf-8")
++        identity.chmod(0o600)
++        known = root / "known_hosts"
++        known.write_text("example.invalid ssh-ed25519 AAAA\n", encoding="utf-8")
++        return {
++            "apiVersion": "platform.4so.io/v1alpha1",
++            "kind": "LabExecution",
++            "metadata": {"name": "contract-test"},
++            "spec": {
++                "releaseArtifact": str(self._release(root)),
++                "serverTier": "current-import-minimum",
++                "ssh": {"user": "root", "identityFile": str(identity), "knownHostsFile": str(known)},
++                "servers": [
++                    {"role": "management-primary", "host": "mgmt.example.invalid"},
++                    {"role": "okd-control-1", "host": "okd1.example.invalid"},
++                    {"role": "okd-control-2", "host": "okd2.example.invalid"},
++                    {"role": "okd-control-3", "host": "okd3.example.invalid"},
++                ],
++                "ai": {"provider": "none"},
++            },
++        }
++
++    def test_inventory_digest_is_order_independent_and_plan_bound(self):
++        with tempfile.TemporaryDirectory() as td:
++            spec = self._spec(Path(td))
++            body = lab.validate_spec(spec)
++            digest = lab._server_inventory_digest(body)
++            self.assertRegex(digest, r"^sha256:[0-9a-f]{64}$")
++            spec["spec"]["servers"] = list(reversed(spec["spec"]["servers"]))
++            reordered = lab.validate_spec(spec)
++            self.assertEqual(digest, lab._server_inventory_digest(reordered))
++            self.assertEqual(digest, lab.plan_document(spec)["serverInventoryDigest"])
++
++    def test_inventory_rejects_same_physical_host_for_multiple_roles(self):
++        with tempfile.TemporaryDirectory() as td:
++            spec = self._spec(Path(td))
++            spec["spec"]["servers"][1]["host"] = spec["spec"]["servers"][0]["host"].upper()
++            with self.assertRaisesRegex(SystemExit, "distinct host"):
++                lab.validate_spec(spec)
++
++    def test_ssh_remote_script_is_shell_quoted_as_one_c_argument(self):
++        body = {"ssh": {"knownHostsFile": "/tmp/known", "identityFile": "/tmp/id"}}
++        command = lab._ssh_command(body, "example.invalid", "printf '%s\n' 'hello world'")
++        payload = " ".join(command[command.index("--") + 1:])
++        import subprocess
++        result = subprocess.run(["sh", "-c", payload], text=True, capture_output=True, check=False)
++        self.assertEqual(0, result.returncode, result.stderr)
++        self.assertEqual("hello world\n", result.stdout)
++
++    def test_boot_id_parser_requires_real_uuid(self):
++        valid = {"status": "PASS", "outputTail": "boot=01234567-89ab-cdef-0123-456789abcdef\n"}
++        self.assertEqual("01234567-89ab-cdef-0123-456789abcdef", lab._boot_id_from_result(valid))
++        self.assertEqual("", lab._boot_id_from_result({"status": "FAIL", "outputTail": valid["outputTail"]}))
++        self.assertEqual("", lab._boot_id_from_result({"status": "PASS", "outputTail": "not-a-boot-id"}))
++
++    def test_reboot_requires_boot_id_change_and_service_recovery(self):
++        before = "01234567-89ab-cdef-0123-456789abcdef"
++        after = "fedcba98-7654-3210-fedc-ba9876543210"
++        passes = [
++            {"status": "PASS", "outputTail": before, "returnCode": 0},
++            {"status": "PASS", "outputTail": "scheduled", "returnCode": 0},
++            {"status": "FAIL", "outputTail": "ssh down", "returnCode": 255},
++            {"status": "PASS", "outputTail": after, "returnCode": 0},
++            {"status": "PASS", "outputTail": "active", "returnCode": 0},
++        ]
++        body = {"ssh": {"knownHostsFile": "/tmp/known", "identityFile": "/tmp/id"}}
++        with mock.patch.object(lab, "_run", side_effect=passes), mock.patch.object(lab.time, "sleep", return_value=None):
++            results = lab._reboot_management_host(body, "management-primary", "mgmt.example.invalid", timeout=30)
++        self.assertEqual(4, len(results))
++        self.assertTrue(all(item["status"] == "PASS" for item in results))
++        self.assertEqual(after, lab._boot_id_from_result(results[2]))
++
++
++if __name__ == "__main__":
++    unittest.main()
