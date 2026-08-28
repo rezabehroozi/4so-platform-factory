@@ -1,0 +1,77 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index b2b3e88..db29b6f 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -9,6 +9,7 @@ This file is a machine-consumed contributor contract. It intentionally contains
+ - Agent bootstrap bearer enrollment is one-shot; certificate rotation/re-enrollment must use the certificate authority workflow.
+ - Resolved catalog sources must remain exact, offline-verifiable and digest-bound. Helm sources must also retain exact render-generation provenance (toolchain, render semantics and values-file digests). Do not convert an unresolved research source into executable state by setting flags or placeholder digests.
+ - Local/unit/smoke success is not external runtime certification. Never promote a local result into an external/production claim.
++- The deterministic Lab runner owns test execution and PASS/FAIL. AI and MCP are advisory/read-only authority surfaces and can never infer Physical PASS; any AI/agent repair changes the source/artifact identity and requires certification to restart from M00 on the new exact SHA.
+ - Runtime certification scope must match what the run actually installed and verified from immutable source. Target/cluster capability evidence must not be reused as per-component certification for components that were not installed by that run, and source/offline plan metadata must never become execution-ready without durable control-plane certification authority.
+ - Add regression coverage to the existing owner package or smoke suite. Do not create release-numbered validators or require validator churn merely because a version/source file changed.
+ - Operator Console and Bootstrap Installer changes must follow `DESIGN.md`, the canonical product design language. Preserve workflow clarity, runtime truth, accessibility, responsive behavior and the anti-generic enterprise UI constraints documented there.
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index b1bb5b0..4d68363 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,3 +1,11 @@
++# 0.0.220 — Lab M01 reboot and inventory authority closure
++
++- close a real Lab SSH execution defect: multi-line remote scripts are now shell-quoted as one `sh -c` program before crossing the OpenSSH command-string boundary, with a regression proving spaces/quotes survive the serialization semantics instead of becoming positional parameters.
++- make physical topology fail closed by rejecting duplicate physical hosts across Lab roles and bind the canonical role/host topology into a stable `serverInventoryDigest` carried by plan, preflight and run results. This prevents one machine from impersonating a multi-node tier and prevents evidence from being silently moved to another inventory.
++- complete deterministic M01 source automation for a single management node: after fresh install and exact-SHA evidence collection, the runner records the pre-reboot boot ID, performs a real host reboot, requires a different boot ID, requires the installer service to return active/enabled, re-runs remote installer verification and re-collects exact-SHA field evidence through the same durable campaign identity. M01 automation is now `IMPLEMENTED`; M02 remains partial and M03 remains pending.
++- add the canonical `examples/lab/lab-execution.example.json`, fix the README execution confirmation from the stale `RUN` value to the actual `RUN_LAB` contract, remove release-numbered paths from the example, and document distinct-host/inventory-digest evidence semantics.
++- preserve Release Gate truth: M01 automation source coverage and any later physical M01 PASS are not by themselves Generated/Installed Runtime, Runtime-Realism or full Exact-SHA Physical Runtime certification for the product.
++
+ # 0.0.219 — AI-native operator experience program rebaseline
+ 
+ - Rebased the canonical roadmap to `PROGRAM_PHASE_MODEL_V3` while retaining eight large delivery phases and adding seven cross-cutting product tracks: Operator Experience/UI/UX, AI-Native, MCP/External Agents, Lab/Certification, Security/RBAC/Evidence, Supply Chain/Disconnected and Developer/Agent Experience.
+diff --git a/README.md b/README.md
+index 7812224..df39586 100644
+--- a/README.md
++++ b/README.md
+@@ -167,7 +167,7 @@ The coordinated single-node-to-three-node management handoff is exposed through
+ 
+ ## Physical Lab: give the runner servers and let it install/test
+ 
+-The canonical machine-readable Lab contract is `LAB_CERTIFICATION_MATRIX_V1`; the schema is `schemas/lab-execution.schema.json` and the runner is `scripts/lab_runner.py`.
++The canonical machine-readable Lab contract is `LAB_CERTIFICATION_MATRIX_V1`; the schema is `schemas/lab-execution.schema.json`, the canonical example is `examples/lab/lab-execution.example.json`, and the runner is `scripts/lab_runner.py`.
+ 
+ Always inspect the current guide from the exact checkout you will use:
+ 
+@@ -194,6 +194,8 @@ The deterministic scripts own execution and PASS/FAIL. AI is invoked only after
+ 
+ If a real OKD cluster already exists, it supplies the target roles; the minimum tier therefore needs only the additional Factory management server. In the current Phase C runner, SSH preflight/install is performed only for management roles. Target roles are retained in the inventory so later Phase D+ target API/Agent certification is bound to an explicit physical topology rather than inferred.
+ 
++Each physical role must map to a **distinct host**. The runner canonicalizes that topology into `serverInventoryDigest` and binds the digest into the plan, preflight and run result so evidence cannot be moved silently to a different server inventory.
++
+ Current management-host lab floor: **4 vCPU, 16 GiB RAM, 100 GiB free disk**. Target requirements are printed by `lab_runner.py guide`; never rely on this README if the machine-readable guide in a newer release differs.
+ 
+ ### SSH preparation
+@@ -212,15 +214,15 @@ Do not use `StrictHostKeyChecking=no` in certification input.
+ 
+ ### Example `LabExecution`
+ 
+-Create `/tmp/4so-lab.json` and change paths/hosts to the real environment:
++Start from `examples/lab/lab-execution.example.json` (documentation-only TEST-NET addresses), copy it to `/tmp/4so-lab.json`, then change paths/hosts to the real environment:
+ 
+ ```json
+ {
+   "apiVersion": "platform.4so.io/v1alpha1",
+   "kind": "LabExecution",
+-  "metadata": {"name": "factory-0217-import-lab"},
++  "metadata": {"name": "factory-import-lab"},
+   "spec": {
+-    "releaseArtifact": "/srv/4so/release/4so-platform-factory-0.0.218-ai-native-operator-console-design-foundation.zip",
++    "releaseArtifact": "/srv/4so/release/4so-platform-factory-release.zip",
+     "bundleDirectory": "/srv/4so/bundle",
+     "serverTier": "current-import-minimum",
+     "ssh": {
+@@ -261,7 +263,7 @@ mkdir -p /srv/4so/lab-state
+ python3 scripts/lab_runner.py run \
+   --spec /tmp/4so-lab.json \
+   --state-dir /srv/4so/lab-state \
+-  --confirmation RUN
++  --confirmation RUN_LAB
+ ```
+ 
