@@ -1,0 +1,24 @@
+name: bootstrap-write-test
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/bootstrap-write-test.yml']
+permissions:
+  contents: write
+jobs:
+  verify-write:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify repository write token
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'ok\n' > .bootstrap-action-write-ok
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .bootstrap-action-write-ok
+          git commit -m 'chore: verify bootstrap action write permission'
+          git push origin HEAD:main
