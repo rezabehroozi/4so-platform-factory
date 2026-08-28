@@ -1,0 +1,94 @@
+ 		{ID: "E-capability-catalog-blueprint-ai-explainability", Order: 5, Status: ProgramStatusBlocked, Objective: "Compile exact observed target capabilities into one catalog/profile/blueprint model and make every include/suppress/conditional decision explainable in API, Operator Console and advisory AI surfaces.", DependsOn: []string{"D-okd-import-identity-security-certification"}, Blockers: []string{"OKD_INVENTORY_BOUND_CAPABILITY_RESOLUTION_PENDING", "OKD_CLUSTER_OPERATOR_HEALTH_TRANSLATION_PENDING", "OKD_DESIRED_OBSERVED_PROFILE_COMPILER_PENDING", "OKD_CATALOG_EXECUTION_PLAN_PENDING"}, ExitCriteria: []string{"native OKD ownership suppresses duplicate defaults from stored inventory", "desired/observed profile compiler is shared across install/import", "catalog/health decisions are inspectable and AI can explain but not override them"}},
+ 		{ID: "F-day2-managed-compact3-workflow-convergence", Order: 6, Status: ProgramStatusBlocked, Objective: "Deliver imported Day-2 and managed Compact-3 with one durable operation model and complete operator workflows, impact previews, recovery evidence and bounded AI remediation proposals.", DependsOn: []string{"E-capability-catalog-blueprint-ai-explainability"}, Blockers: []string{"OKD_DAY2_ACTION_ROUTING_PENDING", "OKD_ADD_REMOVE_REPLACE_RUNTIME_PENDING", "OKD_DAY2_RUNTIME_CERTIFICATION_PENDING", "OKD_INSTALLER_ACQUISITION_AUTHORITY_PENDING", "OKD_BOOT_MEDIA_PROVIDER_PENDING", "OKD_COMPACT3_INSTALL_RUNTIME_CERTIFICATION_PENDING"}, ExitCriteria: []string{"drain/add/remove/replace/install are durable/fenced/retryable", "every mutation has complete Operator Console journey and evidence", "AI proposes bounded remediation through existing plan/approval/operation contracts only"}},
+diff --git a/scripts/lab_runner.py b/scripts/lab_runner.py
+index f616725..c7ad3ab 100644
+--- a/scripts/lab_runner.py
++++ b/scripts/lab_runner.py
+@@ -165,6 +165,9 @@ def validate_spec(spec: dict[str, Any], *, require_bundle: bool = False) -> dict
+     extras = [role for role in role_map if role not in required]
+     if missing or extras:
+         raise SystemExit(f"server inventory does not match tier {tier}; missing={missing} extras={extras}")
++    canonical_hosts = [host.strip().lower() for host in role_map.values()]
++    if len(set(canonical_hosts)) != len(canonical_hosts):
++        raise SystemExit("lab server inventory must map every physical role to a distinct host; duplicate hosts would invalidate topology evidence")
+     ssh = body.get("ssh")
+     if not isinstance(ssh, dict) or str(ssh.get("user", "root")).strip() != "root":
+         raise SystemExit("lab SSH user must be root")
+@@ -187,6 +190,19 @@ def _server_map(body: dict[str, Any]) -> dict[str, str]:
+     return {str(v["role"]): str(v["host"]) for v in body["servers"]}
+ 
+ 
++def _canonical_server_inventory(body: dict[str, Any]) -> dict[str, Any]:
++    servers = sorted(
++        ({"role": str(item["role"]).strip(), "host": str(item["host"]).strip().lower()} for item in body["servers"]),
++        key=lambda item: item["role"],
++    )
++    return {"serverTier": str(body["serverTier"]).strip(), "servers": servers}
++
++
++def _server_inventory_digest(body: dict[str, Any]) -> str:
++    raw = json.dumps(_canonical_server_inventory(body), sort_keys=True, separators=(",", ":")).encode()
++    return "sha256:" + hashlib.sha256(raw).hexdigest()
++
++
+ def plan_document(spec: dict[str, Any]) -> dict[str, Any]:
+     body = validate_spec(spec)
+     tier = body["serverTier"]
+@@ -198,6 +214,7 @@ def plan_document(spec: dict[str, Any]) -> dict[str, Any]:
+         "authority": "LAB_EXECUTION_PLAN_V1",
+         "serverTier": tier,
+         "releaseSha256": _release_identity(Path(body["releaseArtifact"]).expanduser())[2],
++        "serverInventoryDigest": _server_inventory_digest(body),
+         "servers": _server_map(body),
+         "managementRoles": management_roles,
+         "matrixRows": matrix,
+@@ -215,7 +232,7 @@ def _ssh_command(body: dict[str, Any], host: str, remote: str) -> list[str]:
+         "ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
+         "-o", f"UserKnownHostsFile={Path(ssh['knownHostsFile']).expanduser()}",
+         "-o", "ConnectTimeout=10", "-i", str(Path(ssh["identityFile"]).expanduser()),
+-        f"root@{host}", "--", "sh", "-ceu", remote,
++        f"root@{host}", "--", "sh", "-ceu", shlex.quote(remote),
+     ]
+ 
+ 
+@@ -431,7 +448,7 @@ test -w /var/lib'''
+         if resource_status != "PASS":
+             return {"status":"FAIL","artifactSha256":artifact_sha,"results":results,"ai":diagnose(failure_packet(resource_result, artifact_sha=artifact_sha, server_role=role), body.get("ai"), cwd=ROOT)}
+     deferred_roles = [role for role in _roles_for_tier(body["serverTier"]) if role not in management_roles]
+-    return {"status":"PASS","version":version,"artifactSha256":artifact_sha,"results":results,"preflightCoverage":"MANAGEMENT_HOSTS_AND_EXACT_ARTIFACT","deferredTargetRoles":deferred_roles,"physicalPass":False}
++    return {"status":"PASS","version":version,"artifactSha256":artifact_sha,"serverInventoryDigest":_server_inventory_digest(body),"results":results,"preflightCoverage":"MANAGEMENT_HOSTS_AND_EXACT_ARTIFACT","deferredTargetRoles":deferred_roles,"physicalPass":False}
+ 
+ 
+ def _management_roles(tier: str) -> list[str]:
+@@ -472,10 +489,64 @@ def _post_json(url: str, token: str, path: str, payload: dict[str, Any]) -> dict
+         return json.loads(resp.read(1 << 20))
+ 
+ 
++def _boot_id_from_result(result: dict[str, Any]) -> str:
++    if result.get("status") != "PASS":
++        return ""
++    matches = re.findall(r"\b[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\b", str(result.get("outputTail", "")))
++    return matches[-1].lower() if matches else ""
++
++
++def _reboot_management_host(body: dict[str, Any], role: str, host: str, *, timeout: int = 600) -> list[dict[str, Any]]:
++    results: list[dict[str, Any]] = []
++    before = _run(f"m01-boot-id-before:{role}", _ssh_command(body, host, "cat /proc/sys/kernel/random/boot_id"), cwd=ROOT, timeout=30)
++    results.append(before)
++    before_id = _boot_id_from_result(before)
++    if not before_id:
++        before = {**before, "status": "FAIL", "returnCode": before.get("returnCode", 2) or 2, "outputTail": _tail(str(before.get("outputTail", "")) + "\nmissing parseable boot_id before reboot")}
++        results[-1] = before
++        return results
++    trigger_script = r'''before=$(cat /proc/sys/kernel/random/boot_id)
++printf 'LAB_REBOOT_SCHEDULED boot_id=%s\n' "$before"
++nohup sh -c 'sleep 1; systemctl reboot' >/dev/null 2>&1 &
++'''
++    trigger = _run(f"m01-reboot-trigger:{role}", _ssh_command(body, host, trigger_script), cwd=ROOT, timeout=30)
++    results.append(trigger)
++    if trigger["status"] != "PASS":
++        return results
++    deadline = time.time() + timeout
++    last_probe: dict[str, Any] | None = None
++    while time.time() < deadline:
++        time.sleep(3)
