@@ -165,6 +165,9 @@ def validate_spec(spec: dict[str, Any], *, require_bundle: bool = False) -> dict
     extras = [role for role in role_map if role not in required]
     if missing or extras:
         raise SystemExit(f"server inventory does not match tier {tier}; missing={missing} extras={extras}")
+    canonical_hosts = [host.strip().lower() for host in role_map.values()]
+    if len(set(canonical_hosts)) != len(canonical_hosts):
+        raise SystemExit("lab server inventory must map every physical role to a distinct host; duplicate hosts would invalidate topology evidence")
     ssh = body.get("ssh")
     if not isinstance(ssh, dict) or str(ssh.get("user", "root")).strip() != "root":
         raise SystemExit("lab SSH user must be root")
@@ -187,6 +190,19 @@ def _server_map(body: dict[str, Any]) -> dict[str, str]:
     return {str(v["role"]): str(v["host"]) for v in body["servers"]}
 
 
+def _canonical_server_inventory(body: dict[str, Any]) -> dict[str, Any]:
+    servers = sorted(
+        ({"role": str(item["role"]).strip(), "host": str(item["host"]).strip().lower()} for item in body["servers"]),
+        key=lambda item: item["role"],
+    )
+    return {"serverTier": str(body["serverTier"]).strip(), "servers": servers}
+
+
+def _server_inventory_digest(body: dict[str, Any]) -> str:
+    raw = json.dumps(_canonical_server_inventory(body), sort_keys=True, separators=(",", ":")).encode()
+    return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
 def plan_document(spec: dict[str, Any]) -> dict[str, Any]:
     body = validate_spec(spec)
     tier = body["serverTier"]
@@ -198,6 +214,7 @@ def plan_document(spec: dict[str, Any]) -> dict[str, Any]:
         "authority": "LAB_EXECUTION_PLAN_V1",
         "serverTier": tier,
         "releaseSha256": _release_identity(Path(body["releaseArtifact"]).expanduser())[2],
+        "serverInventoryDigest": _server_inventory_digest(body),
         "servers": _server_map(body),
         "managementRoles": management_roles,
         "matrixRows": matrix,
@@ -215,7 +232,7 @@ def _ssh_command(body: dict[str, Any], host: str, remote: str) -> list[str]:
         "ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
         "-o", f"UserKnownHostsFile={Path(ssh['knownHostsFile']).expanduser()}",
         "-o", "ConnectTimeout=10", "-i", str(Path(ssh["identityFile"]).expanduser()),
-        f"root@{host}", "--", "sh", "-ceu", remote,
+        f"root@{host}", "--", "sh", "-ceu", shlex.quote(remote),
     ]
 
 
@@ -431,7 +448,7 @@ test -w /var/lib'''
         if resource_status != "PASS":
             return {"status":"FAIL","artifactSha256":artifact_sha,"results":results,"ai":diagnose(failure_packet(resource_result, artifact_sha=artifact_sha, server_role=role), body.get("ai"), cwd=ROOT)}
     deferred_roles = [role for role in _roles_for_tier(body["serverTier"]) if role not in management_roles]
-    return {"status":"PASS","version":version,"artifactSha256":artifact_sha,"results":results,"preflightCoverage":"MANAGEMENT_HOSTS_AND_EXACT_ARTIFACT","deferredTargetRoles":deferred_roles,"physicalPass":False}
+    return {"status":"PASS","version":version,"artifactSha256":artifact_sha,"serverInventoryDigest":_server_inventory_digest(body),"results":results,"preflightCoverage":"MANAGEMENT_HOSTS_AND_EXACT_ARTIFACT","deferredTargetRoles":deferred_roles,"physicalPass":False}
 
 
 def _management_roles(tier: str) -> list[str]:
@@ -472,10 +489,64 @@ def _post_json(url: str, token: str, path: str, payload: dict[str, Any]) -> dict
         return json.loads(resp.read(1 << 20))
 
 
+def _boot_id_from_result(result: dict[str, Any]) -> str:
+    if result.get("status") != "PASS":
+        return ""
+    matches = re.findall(r"\b[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\b", str(result.get("outputTail", "")))
+    return matches[-1].lower() if matches else ""
+
+
+def _reboot_management_host(body: dict[str, Any], role: str, host: str, *, timeout: int = 600) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    before = _run(f"m01-boot-id-before:{role}", _ssh_command(body, host, "cat /proc/sys/kernel/random/boot_id"), cwd=ROOT, timeout=30)
+    results.append(before)
+    before_id = _boot_id_from_result(before)
+    if not before_id:
+        before = {**before, "status": "FAIL", "returnCode": before.get("returnCode", 2) or 2, "outputTail": _tail(str(before.get("outputTail", "")) + "\nmissing parseable boot_id before reboot")}
+        results[-1] = before
+        return results
+    trigger_script = r'''before=$(cat /proc/sys/kernel/random/boot_id)
+printf 'LAB_REBOOT_SCHEDULED boot_id=%s\n' "$before"
+nohup sh -c 'sleep 1; systemctl reboot' >/dev/null 2>&1 &
+'''
+    trigger = _run(f"m01-reboot-trigger:{role}", _ssh_command(body, host, trigger_script), cwd=ROOT, timeout=30)
+    results.append(trigger)
+    if trigger["status"] != "PASS":
+        return results
+    deadline = time.time() + timeout
+    last_probe: dict[str, Any] | None = None
+    while time.time() < deadline:
+        time.sleep(3)
+        probe = _run(f"m01-boot-id-after:{role}", _ssh_command(body, host, "cat /proc/sys/kernel/random/boot_id"), cwd=ROOT, timeout=20)
+        last_probe = probe
+        after_id = _boot_id_from_result(probe)
+        if probe["status"] == "PASS" and after_id and after_id != before_id:
+            results.append(probe)
+            service = _run(
+                f"m01-service-after-reboot:{role}",
+                _ssh_command(body, host, "systemctl is-active --quiet 4so-platform-installer.service && systemctl is-enabled --quiet 4so-platform-installer.service"),
+                cwd=ROOT,
+                timeout=30,
+            )
+            results.append(service)
+            return results
+    detail = "host did not return with a different boot_id before reboot timeout"
+    if last_probe and last_probe.get("outputTail"):
+        detail += "; last probe: " + _tail(str(last_probe["outputTail"]), 1200)
+    timeout_result = {
+        "stage": f"m01-reboot-wait:{role}", "command": ["deterministic-boot-id-change"], "returnCode": 4,
+        "durationSeconds": timeout, "outputTail": detail,
+        "fingerprint": _fingerprint(f"m01-reboot-wait:{role}", 4, detail), "status": "FAIL",
+    }
+    results.append(timeout_result)
+    return results
+
+
 def _execute_management_install(spec: dict[str, Any], state_dir: Path) -> dict[str, Any]:
     body = validate_spec(spec, require_bundle=True)
     artifact = Path(body["releaseArtifact"]).expanduser().resolve()
     root_name, version, artifact_sha = _release_identity(artifact)
+    inventory_digest = _server_inventory_digest(body)
     release_root = _safe_extract(artifact, state_dir / "artifact")
     bundle = Path(body["bundleDirectory"]).expanduser().resolve()
     platformctl = release_root / "bin" / "linux-amd64" / "platformctl"
@@ -551,7 +622,49 @@ def _execute_management_install(spec: dict[str, Any], state_dir: Path) -> dict[s
         tunnel.terminate()
         try: tunnel.wait(timeout=5)
         except subprocess.TimeoutExpired: tunnel.kill()
-    return {"status":"PASS","artifactSha256":artifact_sha,"releaseRoot":root_name,"results":results,"evidence":str(evidence),"physicalPass":False,"physicalPassReason":"management install success alone is not the four-layer release Physical PASS"}
+
+    post_restart_evidence = ""
+    m01_restart_certified = False
+    if len(mgmt_roles) == 1:
+        reboot_results = _reboot_management_host(body, primary_role, primary)
+        results.extend(reboot_results)
+        failed_reboot = next((item for item in reboot_results if item.get("status") != "PASS"), None)
+        if failed_reboot is not None:
+            return {"status":"FAIL","artifactSha256":artifact_sha,"serverInventoryDigest":inventory_digest,"results":results,"ai":diagnose(failure_packet(failed_reboot, artifact_sha=artifact_sha, server_role=primary_role, facts=["M01 requires a real boot_id change and installer service recovery"]), body.get("ai"), cwd=release_root)}
+        verify_after = _run("m01-installer-verify-after-reboot", [str(platformctl),"installer-remote","verify","--spec",str(remote_spec_path)], cwd=release_root, timeout=300)
+        results.append(verify_after)
+        if verify_after["status"] != "PASS":
+            return {"status":"FAIL","artifactSha256":artifact_sha,"serverInventoryDigest":inventory_digest,"results":results,"ai":diagnose(failure_packet(verify_after, artifact_sha=artifact_sha, server_role=primary_role, facts=["M01 post-reboot installer verification failed"]), body.get("ai"), cwd=release_root)}
+        # Reuse the same local port because campaign state binds InstallerURL to it.
+        tunnel = subprocess.Popen(tunnel_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        try:
+            deadline = time.time() + 30
+            while time.time() < deadline:
+                try:
+                    req = urllib.request.Request(url+"/healthz", headers={"Authorization":"Bearer "+token})
+                    with urllib.request.urlopen(req, timeout=2) as resp:
+                        if resp.status == 200:
+                            break
+                except Exception:
+                    time.sleep(.5)
+            else:
+                out = tunnel.stdout.read() if tunnel.stdout else ""
+                tunnel_failure={"stage":"m01-installer-tunnel-after-reboot","command":tunnel_cmd,"returnCode":1,"durationSeconds":30,"outputTail":_tail(out),"fingerprint":_fingerprint("m01-installer-tunnel-after-reboot",1,out),"status":"FAIL"}
+                results.append(tunnel_failure)
+                return {"status":"FAIL","artifactSha256":artifact_sha,"serverInventoryDigest":inventory_digest,"results":results,"ai":diagnose(failure_packet(tunnel_failure,artifact_sha=artifact_sha,server_role=primary_role),body.get("ai"),cwd=release_root)}
+            post_path = state_dir / "field-evidence-post-restart.json"
+            post_collect = _run("m01-field-campaign-collect-after-reboot", [str(platformctl),"field-campaign","collect","--state",str(campaign),"--out",str(post_path),"--release-artifact",str(artifact),"--token-file",str(token_file)], cwd=release_root, timeout=300)
+            results.append(post_collect)
+            if post_collect["status"] != "PASS":
+                return {"status":"FAIL","artifactSha256":artifact_sha,"serverInventoryDigest":inventory_digest,"results":results,"ai":diagnose(failure_packet(post_collect,artifact_sha=artifact_sha,server_role=primary_role,facts=["M01 exact-SHA field evidence must remain collectable after host reboot"]),body.get("ai"),cwd=release_root)}
+            post_restart_evidence = str(post_path)
+            m01_restart_certified = True
+        finally:
+            tunnel.terminate()
+            try: tunnel.wait(timeout=5)
+            except subprocess.TimeoutExpired: tunnel.kill()
+
+    return {"status":"PASS","artifactSha256":artifact_sha,"serverInventoryDigest":inventory_digest,"releaseRoot":root_name,"results":results,"evidence":post_restart_evidence or str(evidence),"preRestartEvidence":str(evidence),"m01RestartCertified":m01_restart_certified,"physicalPass":False,"physicalPassReason":"management install success alone is not the four-layer release Physical PASS"}
 
 
 def self_test() -> int:

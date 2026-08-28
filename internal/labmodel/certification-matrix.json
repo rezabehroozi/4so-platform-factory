@@ -118,7 +118,7 @@
         "bind run to exact SHA"
       ],
       "automationStatus": "IMPLEMENTED",
-      "automationDetail": "Exact archive verification, SHA binding, server inventory validation and management-host preflight are automated."
+      "automationDetail": "Exact archive verification, SHA binding, distinct physical server inventory validation/digest binding and management-host preflight are automated."
     },
     {
       "id": "M01",
@@ -136,8 +136,8 @@
         "verify health",
         "restart and re-verify"
       ],
-      "automationStatus": "PARTIAL",
-      "automationDetail": "Fresh single-node management installation and exact-artifact field evidence are automated; explicit post-install host/service restart certification is still pending."
+      "automationStatus": "IMPLEMENTED",
+      "automationDetail": "Fresh single-node management installation, exact-artifact field evidence, real host boot-id change, installer-service recovery, post-reboot installer verification and post-reboot exact-SHA evidence recollection are automated. Physical PASS still requires the independent four-layer release gate."
     },
     {
       "id": "M02",
@@ -442,10 +442,10 @@
       "run"
     ],
     "currentFullyAutomatedRows": [
-      "M00"
+      "M00",
+      "M01"
     ],
     "currentPartiallyAutomatedRows": [
-      "M01",
       "M02"
     ],
     "currentDeferredRows": [
