@@ -1,0 +1,52 @@
+name: source-delta-discovery-0-0-265
+
+on:
+  push:
+    branches: [sync-0.0.221]
+    paths: ['.bootstrap/READY_DISCOVER_0.0.265']
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compare canonical 0.0.265 source manifest with main
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_main="$(tr -d '\r\n' < .bootstrap/EXPECTED_MAIN_0.0.265)"
+          git fetch origin main --quiet
+          test "$(git rev-parse origin/main)" = "$expected_main"
+          cat .bootstrap/manifest-0.0.265/part-* > /tmp/desired.tsv.xz
+          test "$(sha256sum /tmp/desired.tsv.xz | awk '{print $1}')" = "f1ce8c18a286fe3da7c5ed6b44aa8159f694faa99fbee39a78a535ff1f72acb4"
+          xz -dc /tmp/desired.tsv.xz > /tmp/desired.tsv
+          test "$(wc -l < /tmp/desired.tsv)" -eq 631
+          : > /tmp/need.tsv
+          while IFS=$'\t' read -r path sha mode; do
+            if git cat-file -e "${expected_main}:${path}" 2>/dev/null; then
+              got="$(git cat-file blob "${expected_main}:${path}" | sha256sum | awk '{print $1}')"
+              if [ "$got" != "$sha" ]; then
+                printf '%s\t%s\t%s\n' "$path" "$sha" "$mode" >> /tmp/need.tsv
+              fi
+            else
+              printf '%s\t%s\t%s\n' "$path" "$sha" "$mode" >> /tmp/need.tsv
+            fi
+          done < /tmp/desired.tsv
+          cut -f1 /tmp/desired.tsv | LC_ALL=C sort > /tmp/desired.paths
+          git ls-tree -r --name-only "$expected_main" | LC_ALL=C sort > /tmp/main.paths
+          comm -23 /tmp/main.paths /tmp/desired.paths > /tmp/delete.txt
+          mkdir -p .bootstrap/results-0.0.265
+          cp /tmp/need.tsv .bootstrap/results-0.0.265/need.tsv
+          cp /tmp/delete.txt .bootstrap/results-0.0.265/delete.txt
+          printf 'desired=631\nchanged_or_new=%s\ndeleted=%s\n' "$(wc -l < /tmp/need.tsv)" "$(wc -l < /tmp/delete.txt)" > .bootstrap/results-0.0.265/summary.txt
+          git config user.name '4SO Repository Sync'
+          git config user.email 'repository-sync@4so.invalid'
+          git add .bootstrap/results-0.0.265
+          git commit -m 'chore: discover 0.0.265 canonical source delta'
+          git push origin HEAD:refs/heads/sync-0.0.221
