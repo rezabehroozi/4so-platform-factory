@@ -1,0 +1,31 @@
+name: manifest-image-ref-probe
+on:
+  push:
+    branches: [chatgpt]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect immutable upstream manifest image references
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --proto '=https' --tlsv1.2 'https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/install.yaml' -o argocd.yaml
+          test "$(sha256sum argocd.yaml | awk '{print $1}')" = 'a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe'
+          curl -fsSL --proto '=https' --tlsv1.2 'https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.0/cnpg-1.30.0.yaml' -o cnpg.yaml
+          test "$(sha256sum cnpg.yaml | awk '{print $1}')" = 'f8bede43fe4ee0d478c2355b204a36876b2ae4faac60f2a9452280b293da3b88'
+          curl -fsSL --proto '=https' --tlsv1.2 'https://github.com/longhorn/longhorn/releases/download/v1.12.1/longhorn.yaml' -o longhorn.yaml
+          test "$(sha256sum longhorn.yaml | awk '{print $1}')" = '41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd'
+          python3 - <<'PY'
+          import re
+          for fn in ('argocd.yaml','cnpg.yaml','longhorn.yaml'):
+              refs=[]
+              for line in open(fn,encoding='utf-8'):
+                  m=re.match(r'^\s*(?:image|imageName):\s*["\']?([^"\'\s#]+)', line)
+                  if m: refs.append(m.group(1))
+              uniq=sorted(set(refs))
+              mutable=[r for r in uniq if '@sha256:' not in r]
+              print(f'{fn.upper()}_IMAGE_COUNT={len(uniq)}')
+              print(f'{fn.upper()}_MUTABLE_COUNT={len(mutable)}')
+              for r in uniq[:30]: print(f'{fn.upper()}_IMAGE={r}')
+          PY
