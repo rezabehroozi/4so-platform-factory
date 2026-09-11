@@ -109,6 +109,21 @@ class SupplyChainHandoffTests(unittest.TestCase):
         self.assertIn("acquire_release_build_toolchain.py --install", offline)
         self.assertIn("component_runtime_upgrade_matrix.py --write --check", offline)
 
+    def test_generated_repository_paths_use_posix_separators(self):
+        plan = mod.build(ROOT)
+        bad = []
+        def walk(value, trail="root"):
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    walk(item, f"{trail}.{key}")
+            elif isinstance(value, list):
+                for index, item in enumerate(value):
+                    walk(item, f"{trail}[{index}]")
+            elif isinstance(value, str) and "\\" in value:
+                bad.append((trail, value))
+        walk(plan)
+        self.assertEqual([], bad)
+
     def test_committed_plan_matches_canonical_authorities(self):
         path = ROOT / "lab" / "supply-chain-handoff-plan.json"
         plan = json.loads(path.read_text())
