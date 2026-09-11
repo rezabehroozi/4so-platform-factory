@@ -112,6 +112,15 @@ func TestPostgresIntegrationAuthorityIdempotencyScopeAndLeaseFencing(t *testing.
 		t.Fatalf("project-scoped operation page leaked or lost rows: %#v", page)
 	}
 
+	op, err = store.TransitionOperation(ctx, op.ID, op.Revision, controlplane.OperationPlanning, "", "integration-admin")
+	if err != nil {
+		t.Fatalf("transition to planning: %v", err)
+	}
+	op, err = store.TransitionOperation(ctx, op.ID, op.Revision, controlplane.OperationQueued, "", "integration-admin")
+	if err != nil {
+		t.Fatalf("transition to queued: %v", err)
+	}
+
 	now := time.Now().UTC()
 	claim, err := store.ClaimOperation(ctx, op.ID, "worker-a", 2*time.Minute, now)
 	if err != nil {
