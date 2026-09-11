@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import posixpath
 from pathlib import Path
 import platform
 import shutil
@@ -230,19 +231,42 @@ def _safe_tar_extract(archive: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     root = destination.resolve()
     with tarfile.open(archive, "r:xz") as tf:
-        for member in tf.getmembers():
-            candidate = (destination / member.name).resolve()
+        members = tf.getmembers()
+        normalized: dict[str, str] = {}
+        for member in members:
+            name = posixpath.normpath(member.name.replace("\\", "/"))
+            if not name or name in {".", ".."} or name.startswith("../") or name.startswith("/"):
+                raise RuntimeError("BROWSER_BOOTSTRAP_ARCHIVE_PATH_TRAVERSAL")
+            candidate = (destination / name).resolve(strict=False)
             if root not in candidate.parents and candidate != root:
                 raise RuntimeError("BROWSER_BOOTSTRAP_ARCHIVE_PATH_TRAVERSAL")
+            normalized[member.name] = name
+            if member.issym():
+                target = member.linkname.replace("\\", "/")
+                if not target or target.startswith("/"):
+                    raise RuntimeError(f"BROWSER_BOOTSTRAP_ARCHIVE_SYMLINK_TARGET_ESCAPE name={member.name}")
+                resolved_target = posixpath.normpath(posixpath.join(posixpath.dirname(name), target))
+                if resolved_target in {"..", "."} or resolved_target.startswith("../") or resolved_target.startswith("/"):
+                    raise RuntimeError(f"BROWSER_BOOTSTRAP_ARCHIVE_SYMLINK_TARGET_ESCAPE name={member.name}")
+                target_path = (destination / resolved_target).resolve(strict=False)
+                if root not in target_path.parents and target_path != root:
+                    raise RuntimeError(f"BROWSER_BOOTSTRAP_ARCHIVE_SYMLINK_TARGET_ESCAPE name={member.name}")
+            elif member.islnk() or not (member.isdir() or member.isfile()):
+                raise RuntimeError(f"BROWSER_BOOTSTRAP_ARCHIVE_SPECIAL_MEMBER_FORBIDDEN name={member.name}")
+        for member in members:
+            candidate = (destination / normalized[member.name]).resolve(strict=False)
             if member.isdir():
                 candidate.mkdir(parents=True, exist_ok=True)
                 continue
-            if not member.isfile():
-                raise RuntimeError(f"BROWSER_BOOTSTRAP_ARCHIVE_SPECIAL_MEMBER_FORBIDDEN name={member.name}")
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            if member.issym():
+                if candidate.exists() or candidate.is_symlink():
+                    candidate.unlink()
+                os.symlink(member.linkname, candidate)
+                continue
             source = tf.extractfile(member)
             if source is None:
                 raise RuntimeError(f"BROWSER_BOOTSTRAP_ARCHIVE_MEMBER_UNREADABLE name={member.name}")
-            candidate.parent.mkdir(parents=True, exist_ok=True)
             with source, candidate.open("wb") as output:
                 shutil.copyfileobj(source, output)
             candidate.chmod(member.mode & 0o777)
@@ -269,13 +293,15 @@ def _ensure_node(root: Path, os_name: str, arch: str) -> None:
     destination = root / "node"
     local = _node_local_paths(root, os_name, arch)
     assert local is not None
-    if local[0].is_file() and _node_compatible(_run_version([str(local[0]), "--version"])):
+    if all(path.is_file() for path in local) and _node_compatible(_run_version([str(local[0]), "--version"])):
         return
+    if destination.exists():
+        shutil.rmtree(destination)
     if filename.endswith(".zip"):
         _safe_zip_extract(archive, destination)
     else:
         _safe_tar_extract(archive, destination)
-    if not local[0].is_file() or not _node_compatible(_run_version([str(local[0]), "--version"])):
+    if not all(path.is_file() for path in local) or not _node_compatible(_run_version([str(local[0]), "--version"])):
         raise RuntimeError("BROWSER_BOOTSTRAP_NODE_INSTALL_VERIFY_FAILED")
 
 

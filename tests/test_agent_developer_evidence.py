@@ -8,6 +8,7 @@ import unittest
 from unittest import mock
 import hashlib
 import io
+import os
 import tarfile
 import zipfile
 
@@ -101,6 +102,38 @@ class DeveloperEvidenceTests(unittest.TestCase):
             self.assertTrue(chrome and chrome.is_file())
             self.assertTrue(BROWSER_BOOTSTRAP._node_compatible(BROWSER_BOOTSTRAP._run_version([str(node), "--version"])))
             self.assertTrue(BROWSER_BOOTSTRAP._chrome_compatible(BROWSER_BOOTSTRAP._run_version([str(chrome), "--version"])))
+
+    def test_safe_tar_extract_allows_internal_relative_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "node.tar.xz"
+            with tarfile.open(archive, "w:xz") as tf:
+                body = b"#!/bin/sh\necho corepack\n"
+                target = tarfile.TarInfo("node/lib/node_modules/corepack/dist/corepack.js")
+                target.mode = 0o755
+                target.size = len(body)
+                tf.addfile(target, io.BytesIO(body))
+                link = tarfile.TarInfo("node/bin/corepack")
+                link.type = tarfile.SYMTYPE
+                link.linkname = "../lib/node_modules/corepack/dist/corepack.js"
+                tf.addfile(link)
+            out = root / "out"
+            BROWSER_BOOTSTRAP._safe_tar_extract(archive, out)
+            installed = out / "node/bin/corepack"
+            self.assertTrue(installed.is_symlink())
+            self.assertEqual(os.readlink(installed).replace("\\", "/"), "../lib/node_modules/corepack/dist/corepack.js")
+
+    def test_safe_tar_extract_rejects_symlink_escape(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "escape.tar.xz"
+            with tarfile.open(archive, "w:xz") as tf:
+                link = tarfile.TarInfo("node/bin/corepack")
+                link.type = tarfile.SYMTYPE
+                link.linkname = "../../../outside"
+                tf.addfile(link)
+            with self.assertRaisesRegex(RuntimeError, "SYMLINK_TARGET_ESCAPE"):
+                BROWSER_BOOTSTRAP._safe_tar_extract(archive, root / "out")
 
     def test_persian_gate_rejects_arabic_codepoint_and_bidi_override(self):
         with tempfile.TemporaryDirectory() as tmp:
