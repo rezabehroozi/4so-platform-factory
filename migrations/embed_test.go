@@ -299,6 +299,12 @@ func TestFinOpsAuthorityMigrationIsAdditiveAndRollingSafe(t *testing.T) {
 	if m.Version != 70 || m.Compatibility != CompatibilityRollingSafe {
 		t.Fatalf("migration 70 compatibility mismatch: %#v", m)
 	}
+	if strings.Contains(m.SQL, "jsonb_object_length(") {
+		t.Fatal("migration 70 uses non-existent PostgreSQL jsonb_object_length function")
+	}
+	if !strings.Contains(m.SQL, "rates <> '{}'::jsonb") {
+		t.Fatal("migration 70 must reject an empty rate-card object with PostgreSQL-native jsonb comparison")
+	}
 	for _, term := range []string{
 		"CREATE TABLE finops_rate_cards",
 		"CREATE TABLE finops_usage_measurements",
