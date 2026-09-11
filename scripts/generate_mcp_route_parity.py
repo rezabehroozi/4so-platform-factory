@@ -3,6 +3,12 @@ import json,re,sys
 from pathlib import Path
 root=Path(sys.argv[1] if len(sys.argv)>1 else '.').resolve()
 server=(root/'internal/api/server.go').read_text()
+scope_path=root/'internal/api/resource_scope_registry.json'
+scope_registry={}
+if scope_path.is_file():
+    scope_data=json.loads(scope_path.read_text())
+    if scope_data.get('authority')!='RESOURCE_SCOPE_REGISTRY_V1': raise SystemExit('resource scope registry authority mismatch')
+    scope_registry={str(row.get('family') or ''):(str(row.get('scope') or 'UNCLASSIFIED'),str(row.get('status') or 'OWNER_REVIEW_REQUIRED')) for row in scope_data.get('families',[]) if isinstance(row,dict)}
 routes=re.findall(r's\.mux\.HandleFunc\("(GET|POST|PUT|DELETE|PATCH) (/api/v1/[^\"]+)',server)
 
 EXCLUDED_PREFIXES={
@@ -24,7 +30,7 @@ READLIKE_POST={
  '/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/validate','/api/v1/compatibility/evaluate','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/blueprint-releases/compare','/api/v1/installations/plans','/api/v1/notification-routing/preview','/api/v1/external-registry/admission','/api/v1/runtime-closure-reports/verify',
 }
 ADMIN_MARKERS=(
- '/finops/rate-cards', '/identity/saml-brokers','/identity/group-mappings','/identity/admin-jobs/','/compliance/profiles','/compliance/waivers','/catalog-trust-keys','/catalog-releases','/blueprint-releases','/git-providers','/organizations','/service-accounts','/notification-destinations','/notification-routes','/recovery-checkpoints','/backup-policies','/restore-runs/{id}/approve','/upgrade-campaigns/{id}/approve','/upgrade-campaigns/{id}/cancel','/clusters/{id}/revoke','/clusters/{id}/agent-certificates','/cluster-imports/{id}/approve','/cluster-imports/{id}/revoke','/baseline-deployments/{id}/approve','/baseline-deployments/{id}/rollback','/runtime-certifications/{id}/revoke','/tenants/{id}/approve','/tenants/{id}/delete','/provider-profiles','/provider-clusters/{id}/approve','/provider-clusters/{id}/delete','/marketplace/installations/{id}/approve','/marketplace/installations/{id}/uninstall',
+ '/finops/rate-cards','/finops/budget-policies', '/identity/saml-brokers','/identity/group-mappings','/identity/admin-jobs/','/compliance/profiles','/compliance/waivers','/catalog-trust-keys','/catalog-releases','/blueprint-releases','/git-providers','/organizations','/service-accounts','/notification-destinations','/notification-routes','/recovery-checkpoints','/backup-policies','/restore-runs/{id}/approve','/upgrade-campaigns/{id}/approve','/upgrade-campaigns/{id}/cancel','/clusters/{id}/revoke','/clusters/{id}/agent-certificates','/cluster-imports/{id}/approve','/cluster-imports/{id}/revoke','/baseline-deployments/{id}/approve','/baseline-deployments/{id}/rollback','/runtime-certifications/{id}/revoke','/tenants/{id}/approve','/tenants/{id}/delete','/provider-profiles','/provider-clusters/{id}/approve','/provider-clusters/{id}/delete','/marketplace/installations/{id}/approve','/marketplace/installations/{id}/uninstall',
 )
 CONFIRM={
  ('POST','/api/v1/organizations/{id}/memberships/{subject}/revoke'):('X-Confirm-Revoke','revoke-organization-membership'),
@@ -87,7 +93,8 @@ def risk(d,path):
 entries=[]
 for method,path in routes:
     d=disposition(method,path); params=re.findall(r'\{([^}]+)\}',path); conf=CONFIRM.get((method,path))
-    entries.append({'method':method,'path':path,'family':family(path),'action':action(path),'disposition':d,'toolName':tool_name(method,path) if d!='security-excluded' else '', 'risk':risk(d,path),'pathParams':params,'confirmationHeader':conf[0] if conf else '', 'confirmationValue':conf[1] if conf else '', 'exclusionReason':exclusion_reason(method,path) if d=='security-excluded' else '', 'durableJob':d in ('tool-operate','tool-admin'),'idempotencyRequired':d in ('tool-operate','tool-admin')})
+    route_family=family(path); route_scope,route_scope_status=scope_registry.get(route_family,('UNCLASSIFIED','OWNER_REVIEW_REQUIRED'))
+    entries.append({'method':method,'path':path,'family':route_family,'action':action(path),'disposition':d,'toolName':tool_name(method,path) if d!='security-excluded' else '', 'risk':risk(d,path),'pathParams':params,'resourceScope':route_scope,'resourceScopeStatus':route_scope_status,'confirmationHeader':conf[0] if conf else '', 'confirmationValue':conf[1] if conf else '', 'exclusionReason':exclusion_reason(method,path) if d=='security-excluded' else '', 'durableJob':d in ('tool-operate','tool-admin'),'idempotencyRequired':d in ('tool-operate','tool-admin')})
 from collections import Counter
 counts=Counter(e['disposition'] for e in entries)
 out={'authority':'MCP_ROUTE_PARITY_AUTHORITY_V1','source':'internal/api/server.go','routeCount':len(entries),'counts':dict(sorted(counts.items())),'routes':entries}

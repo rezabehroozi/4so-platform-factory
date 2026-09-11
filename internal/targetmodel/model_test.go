@@ -146,7 +146,7 @@ func TestManagementPlaneStorageAuthorityMatchesAcquisitionSourceLock(t *testing.
 
 func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.T) {
 	roadmap := ArchitectureModel().ProgramRoadmap
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V64" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V67" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
 		t.Fatalf("unexpected roadmap authority: %#v", roadmap)
 	}
 	if len(roadmap.Phases) != 39 {
@@ -155,6 +155,9 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	progress := roadmap.Progress
 	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 19 || progress.CorePhaseBlocked != 6 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 76 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
 		t.Fatalf("program progress truth drift: %#v", progress)
+	}
+	if progress.PrePhysicalSoftwarePhases != 35 || progress.PrePhysicalSoftwareClosedPhases != 30 || progress.PrePhysicalSoftwareOpenPhases != 5 || progress.PrePhysicalSoftwareClosurePercent != 85 {
+		t.Fatalf("pre-physical software progress truth drift: %#v", progress)
 	}
 	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "S2-component-runtime-certification-authorities", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "C9-pre-certification-feature-freeze-exact-bundle"} {
 		if !containsString(progress.ExternalClosureOnlyPhaseIDs, id) {
@@ -183,7 +186,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	r0 := byID["R0-release-authority-certification-rebaseline"]
-	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V64", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
+	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V67", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
 		if !containsString(r0.Evidence, evidence) {
 			t.Fatalf("R0 evidence %q missing: %#v", evidence, r0)
 		}
@@ -443,7 +446,7 @@ func TestProgramProgressUnknownBlockerReopensSourceClosure(t *testing.T) {
 
 func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.T) {
 	roadmap := ProgramRoadmapModel()
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V64" {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V67" {
 		t.Fatalf("authority=%s", roadmap.Authority)
 	}
 	byID := map[string]ProgramPhase{}
@@ -460,8 +463,13 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 		}
 	}
 	scopeClosure := byID["J5-resource-scope-owner-closure"]
-	if scopeClosure.Status != ProgramStatusBlocked || !containsString(scopeClosure.Blockers, "RESOURCE_SCOPE_OWNER_CLASSIFICATION_PENDING") {
+	if scopeClosure.Status != ProgramStatusSourceImplemented || len(scopeClosure.Blockers) != 0 {
 		t.Fatalf("scope closure=%+v", scopeClosure)
+	}
+	for _, evidence := range []string{"RESOURCE_SCOPE_OWNER_CLASSIFICATIONS_V1", "RESOURCE_SCOPE_CONSUMER_AUDIT_V1", "PRODUCT_API_RESOURCE_SCOPE_PROPAGATION_V1", "CONSOLE_RESOURCE_SCOPE_FAIL_CLOSED_V1"} {
+		if !containsString(scopeClosure.Evidence, evidence) {
+			t.Fatalf("scope closure evidence missing %s: %+v", evidence, scopeClosure)
+		}
 	}
 	j1 := byID["J1-automation-external-integrations"]
 	for _, blocker := range []string{"TERRAFORM_PROVIDER_PENDING", "CROSSPLANE_PROVIDER_PENDING"} {
@@ -473,6 +481,16 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 	if containsString(i2.DependsOn, "I1-disconnected-okd-core") || i2.RequiredForFeatureFreeze {
 		t.Fatalf("edge software work is incorrectly physically serialized: %+v", i2)
 	}
+	j7 := byID["J7-finops-v2-budget-forecast-rightsizing"]
+	if j7.Status != ProgramStatusSourceImplemented || len(j7.Blockers) != 0 {
+		t.Fatalf("FinOps v2 phase must be source-implemented after durable budget/insight closure: %+v", j7)
+	}
+	for _, evidence := range []string{"FINOPS_BUDGET_POLICY_AUTHORITY_V1", "FINOPS_FORECAST_ANOMALY_RIGHTSIZING_AUTHORITY_V1", "migrations/0073_finops_budget_policy_authority.sql", "POST /api/v1/finops/budget-policies", "GET /api/v1/finops/insights", "operator-console:finops-budget-forecast-rightsizing"} {
+		if !containsString(j7.Evidence, evidence) {
+			t.Fatalf("FinOps v2 evidence missing %s: %+v", evidence, j7)
+		}
+	}
+
 	for _, id := range []string{"H3-public-cloud-provider-adapters", "J3-virtual-cluster-profile", "J6-fleet-reliability-incident-intelligence", "J7-finops-v2-budget-forecast-rightsizing"} {
 		phase := byID[id]
 		if phase.ID == "" || phase.RequiredForFeatureFreeze || phase.DeliveryTier != ProgramTierExpansion {

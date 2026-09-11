@@ -10,6 +10,9 @@ import (
 )
 
 func (s *Server) listGitPullRequests(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireGitAdmin(w, r); !ok {
+		return
+	}
 	items, err := s.store.ListGitPullRequests(r.Context(), r.URL.Query().Get("organization"), r.URL.Query().Get("repository"))
 	if err != nil {
 		writeStoreError(w, err)
@@ -181,6 +184,9 @@ func (s *Server) observeGitRevisionSynchronization(w http.ResponseWriter, r *htt
 }
 
 func (s *Server) getLastKnownGoodGitRevision(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireGitAdmin(w, r); !ok {
+		return
+	}
 	v, err := s.store.GetLastKnownGoodGitRevision(r.Context(), r.URL.Query().Get("organization"), r.URL.Query().Get("repository"), r.URL.Query().Get("branch"))
 	if err != nil {
 		writeStoreError(w, err)

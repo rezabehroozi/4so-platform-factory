@@ -392,12 +392,16 @@
       },
       {
         "family": "finops",
-        "routeCount": 9,
-        "mutationCount": 3,
-        "callableRouteCount": 7,
+        "routeCount": 13,
+        "mutationCount": 4,
+        "callableRouteCount": 11,
         "securityExcludedRouteCount": 2,
         "disposition": "typed-tool-complete",
         "toolNames": [
+          "api_post_finops_budget_policies",
+          "api_get_finops_budget_policies",
+          "api_get_finops_budget_policies_by_id",
+          "api_get_finops_insights",
           "api_post_finops_rate_cards",
           "api_get_finops_rate_cards",
           "api_get_finops_rate_cards_by_id",
@@ -406,7 +410,7 @@
           "api_get_finops_showback",
           "api_get_finops_chargeback_export"
         ],
-        "rationale": "All 7 AI-callable stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler. 2 route(s) remain explicitly security-excluded."
+        "rationale": "All 11 AI-callable stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler. 2 route(s) remain explicitly security-excluded."
       },
       {
         "family": "fleet",

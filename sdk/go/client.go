@@ -22,11 +22,13 @@ import (
 const maxResponseBytes = 1 << 20
 
 type Route struct {
-	Method     string   `json:"method"`
-	Path       string   `json:"path"`
-	Family     string   `json:"family"`
-	PathParams []string `json:"pathParams,omitempty"`
-	Mutation   bool     `json:"mutation"`
+	Method              string   `json:"method"`
+	Path                string   `json:"path"`
+	Family              string   `json:"family"`
+	PathParams          []string `json:"pathParams,omitempty"`
+	Mutation            bool     `json:"mutation"`
+	ResourceScope       string   `json:"resourceScope"`
+	ResourceScopeStatus string   `json:"resourceScopeStatus"`
 }
 
 type Client struct {

@@ -93,6 +93,7 @@ type MemoryStore struct {
 	samlBrokers                  map[string]SAMLBroker
 	identityAdminJobs            map[string]IdentityAdminJob
 	operationRequestPayloads     map[string]OperationRequestPayload
+	finOpsBudgetPolicies         map[string]FinOpsBudgetPolicy
 	finOpsRateCards              map[string]FinOpsRateCard
 	finOpsUsageMeasurements      map[string]FinOpsUsageMeasurement
 	finOpsCapacityObservations   map[string]FinOpsCapacityObservation
@@ -116,7 +117,7 @@ func NewMemoryStoreWith(now func() time.Time, id func(string) string) *MemorySto
 		operations: map[string]Operation{}, steps: map[string]OperationStep{}, stepTraces: map[string]OperationStepTrace{}, compensationSteps: map[string]OperationCompensationStep{}, outbox: map[string]OutboxEvent{}, notificationDestinations: map[string]NotificationDestination{}, notificationRoutes: map[string]NotificationRoute{}, notificationEvents: map[string]NotificationEvent{}, notificationDeliveries: map[string]NotificationDelivery{}, notificationAttempts: map[string]NotificationDeliveryAttempt{},
 		evidence: map[string]EvidenceMetadata{}, evidencePayloads: map[string][]byte{}, idempotency: map[string]string{},
 		clusterImports: map[string]ClusterImport{}, managedClusters: map[string]ManagedCluster{}, clusterMaintenanceProfiles: map[string]ClusterMaintenanceProfile{}, clusterMaintenanceWindows: map[string]ClusterMaintenanceWindow{}, clusterMaintenanceRuns: map[string]ClusterMaintenanceRun{}, agentCertificates: map[string]AgentCertificate{}, clusterInventories: map[string]ClusterInventory{}, baselineDeployments: map[string]BaselineDeployment{}, runtimeVerifications: map[string]RuntimeVerification{}, runtimeCertifications: map[string]RuntimeCertificationRun{}, backupPolicies: map[string]BackupPolicy{}, dataProtectionRuns: map[string]DataProtectionRun{}, recoveryCheckpoints: map[string]RecoveryCheckpoint{}, fleetGroups: map[string]FleetGroup{}, gitCredentials: map[string]GitCredential{}, gitProviders: map[string]GitProvider{}, gitPullRequests: map[string]GitPullRequest{}, managedGitRevisions: map[string]ManagedGitRevision{}, driftScans: map[string]DriftScan{}, upgradeCampaigns: map[string]UpgradeCampaign{},
-		entitlements: map[string]Entitlement{}, oemProfiles: map[string]OEMProfile{}, tenants: map[string]TenantEnvironment{}, providerProfiles: map[string]ProviderProfile{}, providerClusters: map[string]ProviderCluster{}, aiExecutionClaims: map[string]AIExecutionClaim{}, aiRuns: map[string]AIRun{}, marketplaceRecommendations: map[string]MarketplaceRecommendation{}, runtimeClosureCampaigns: map[string]RuntimeClosureCampaign{}, complianceProfiles: map[string]ComplianceProfile{}, complianceScanRuns: map[string]ComplianceScanRun{}, complianceFindings: map[string]ComplianceFindingRecord{}, complianceWaivers: map[string]ComplianceWaiver{}, samlBrokers: map[string]SAMLBroker{}, identityAdminJobs: map[string]IdentityAdminJob{}, operationRequestPayloads: map[string]OperationRequestPayload{}, finOpsRateCards: map[string]FinOpsRateCard{}, finOpsUsageMeasurements: map[string]FinOpsUsageMeasurement{}, finOpsCapacityObservations: map[string]FinOpsCapacityObservation{},
+		entitlements: map[string]Entitlement{}, oemProfiles: map[string]OEMProfile{}, tenants: map[string]TenantEnvironment{}, providerProfiles: map[string]ProviderProfile{}, providerClusters: map[string]ProviderCluster{}, aiExecutionClaims: map[string]AIExecutionClaim{}, aiRuns: map[string]AIRun{}, marketplaceRecommendations: map[string]MarketplaceRecommendation{}, runtimeClosureCampaigns: map[string]RuntimeClosureCampaign{}, complianceProfiles: map[string]ComplianceProfile{}, complianceScanRuns: map[string]ComplianceScanRun{}, complianceFindings: map[string]ComplianceFindingRecord{}, complianceWaivers: map[string]ComplianceWaiver{}, samlBrokers: map[string]SAMLBroker{}, identityAdminJobs: map[string]IdentityAdminJob{}, operationRequestPayloads: map[string]OperationRequestPayload{}, finOpsBudgetPolicies: map[string]FinOpsBudgetPolicy{}, finOpsRateCards: map[string]FinOpsRateCard{}, finOpsUsageMeasurements: map[string]FinOpsUsageMeasurement{}, finOpsCapacityObservations: map[string]FinOpsCapacityObservation{},
 	}
 }
 
@@ -1839,6 +1840,9 @@ func (s *MemoryStore) Snapshot(_ context.Context) (Snapshot, error) {
 	for _, v := range s.identityAdminJobs {
 		snap.IdentityAdminJobs = append(snap.IdentityAdminJobs, v)
 	}
+	for _, v := range s.finOpsBudgetPolicies {
+		snap.FinOpsBudgetPolicies = append(snap.FinOpsBudgetPolicies, cloneFinOpsBudgetPolicy(v))
+	}
 	for _, v := range s.finOpsRateCards {
 		snap.FinOpsRateCards = append(snap.FinOpsRateCards, cloneFinOpsRateCard(v))
 	}
@@ -1942,6 +1946,7 @@ func CanonicalizeSnapshot(s *Snapshot) {
 	sort.Slice(s.ComplianceWaivers, func(i, j int) bool { return s.ComplianceWaivers[i].ID < s.ComplianceWaivers[j].ID })
 	sort.Slice(s.SAMLBrokers, func(i, j int) bool { return s.SAMLBrokers[i].ID < s.SAMLBrokers[j].ID })
 	sort.Slice(s.IdentityAdminJobs, func(i, j int) bool { return s.IdentityAdminJobs[i].ID < s.IdentityAdminJobs[j].ID })
+	sort.Slice(s.FinOpsBudgetPolicies, func(i, j int) bool { return s.FinOpsBudgetPolicies[i].ID < s.FinOpsBudgetPolicies[j].ID })
 	sort.Slice(s.FinOpsRateCards, func(i, j int) bool { return s.FinOpsRateCards[i].ID < s.FinOpsRateCards[j].ID })
 	sort.Slice(s.FinOpsUsageMeasurements, func(i, j int) bool { return s.FinOpsUsageMeasurements[i].ID < s.FinOpsUsageMeasurements[j].ID })
 	sort.Slice(s.FinOpsCapacityObservations, func(i, j int) bool { return s.FinOpsCapacityObservations[i].ID < s.FinOpsCapacityObservations[j].ID })
@@ -2259,6 +2264,39 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	if err := ValidateIdentityAdminSnapshot(organizationsByID, snapshot.SAMLBrokers, snapshot.IdentityAdminJobs); err != nil {
 		return err
 	}
+	finOpsBudgetNames := map[string]string{}
+	for i, original := range snapshot.FinOpsBudgetPolicies {
+		normalized, err := NormalizeFinOpsBudgetPolicy(original)
+		if err != nil {
+			return err
+		}
+		if _, ok := organizationsByID[normalized.OrganizationID]; !ok {
+			return fmt.Errorf("%w: FinOps budget organization %q does not exist", ErrValidation, normalized.OrganizationID)
+		}
+		if normalized.ProjectID != "" {
+			project, ok := projectsByID[normalized.ProjectID]
+			if !ok || project.OrganizationID != normalized.OrganizationID {
+				return fmt.Errorf("%w: FinOps budget project scope is invalid", ErrValidation)
+			}
+		}
+		if original.Digest != "" && original.Digest != normalized.Digest {
+			return fmt.Errorf("%w: FinOps budget %q digest mismatch", ErrValidation, original.ID)
+		}
+		key := normalized.OrganizationID + "\x00" + normalized.ProjectID + "\x00" + normalizeName(normalized.Name) + "\x00" + normalized.Version
+		if existing, ok := finOpsBudgetNames[key]; ok && existing != original.ID {
+			return fmt.Errorf("%w: duplicate FinOps budget name/version", ErrValidation)
+		}
+		finOpsBudgetNames[key] = original.ID
+		for j := 0; j < i; j++ {
+			other, err := NormalizeFinOpsBudgetPolicy(snapshot.FinOpsBudgetPolicies[j])
+			if err != nil {
+				return err
+			}
+			if other.OrganizationID == normalized.OrganizationID && other.ProjectID == normalized.ProjectID && other.Currency == normalized.Currency && finOpsIntervalsOverlap(other.EffectiveFrom, other.EffectiveUntil, normalized.EffectiveFrom, normalized.EffectiveUntil) {
+				return fmt.Errorf("%w: overlapping FinOps budget policies", ErrValidation)
+			}
+		}
+	}
 	finOpsRateCardNames := map[string]string{}
 	for i, original := range snapshot.FinOpsRateCards {
 		normalized, err := NormalizeFinOpsRateCard(original)
@@ -2423,6 +2461,7 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	s.samlBrokers = map[string]SAMLBroker{}
 	s.identityAdminJobs = map[string]IdentityAdminJob{}
 	s.operationRequestPayloads = map[string]OperationRequestPayload{}
+	s.finOpsBudgetPolicies = map[string]FinOpsBudgetPolicy{}
 	s.finOpsRateCards = map[string]FinOpsRateCard{}
 	s.finOpsUsageMeasurements = map[string]FinOpsUsageMeasurement{}
 	s.finOpsCapacityObservations = map[string]FinOpsCapacityObservation{}
@@ -2693,6 +2732,11 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	for _, v := range snapshot.IdentityAdminJobs {
 		s.identityAdminJobs[v.ID] = v
 		s.idempotency["identityAdmin:"+v.OrganizationID+":"+v.IdempotencyKey] = v.ID
+	}
+	for _, v := range snapshot.FinOpsBudgetPolicies {
+		normalized, _ := NormalizeFinOpsBudgetPolicy(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.finOpsBudgetPolicies[v.ID] = cloneFinOpsBudgetPolicy(normalized)
 	}
 	for _, v := range snapshot.FinOpsRateCards {
 		normalized, _ := NormalizeFinOpsRateCard(v)

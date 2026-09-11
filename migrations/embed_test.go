@@ -329,3 +329,27 @@ func TestMCPControlJobRecoveryResolutionMigrationIsAdditiveAndRollingSafe(t *tes
 		}
 	}
 }
+
+func TestFinOpsBudgetPolicyMigrationMakesOrganizationLevelIdentityUnique(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) < 73 {
+		t.Fatalf("expected migration 73, got %d migrations", len(all))
+	}
+	m := all[72]
+	if m.Version != 73 || m.Compatibility != CompatibilityRollingSafe {
+		t.Fatalf("migration 73 compatibility mismatch: %#v", m)
+	}
+	for _, term := range []string{
+		"CREATE TABLE finops_budget_policies",
+		"CREATE UNIQUE INDEX finops_budget_identity_scope_unique",
+		"COALESCE(project_id,'')",
+		"finops_budget_policies_immutable",
+	} {
+		if !strings.Contains(m.SQL, term) {
+			t.Fatalf("migration 73 missing %q", term)
+		}
+	}
+}

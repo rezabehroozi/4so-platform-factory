@@ -8,50 +8,62 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 332,
-  "routeDigest": "sha256:014d1d73e7481321e5df4845cd59f2c45856dbfa6015913cd181df907d43a775",
+  "routeCount": 336,
+  "routeDigest": "sha256:6cb0a8ad13655a388b6e3fd53fdb8e5b523d8d565e184e183008ccf07d882b6e",
   "routes": [
     {
       "family": "version",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/version",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "access",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/access/context",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "access",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/access/resource-scopes",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/identity/authority",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/identity/saml-brokers",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/identity/saml-brokers",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
@@ -60,7 +72,9 @@
       "path": "/api/v1/identity/saml-brokers/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
@@ -69,14 +83,18 @@
       "path": "/api/v1/identity/saml-brokers/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/identity/admin-jobs",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
@@ -85,7 +103,9 @@
       "path": "/api/v1/identity/admin-jobs/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
@@ -94,35 +114,45 @@
       "path": "/api/v1/identity/admin-jobs/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compliance",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/compliance/profiles",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compliance",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/compliance/profiles",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compliance",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/compliance/scans",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compliance",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/compliance/scans",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compliance",
@@ -131,14 +161,18 @@
       "path": "/api/v1/compliance/scans/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compliance",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/compliance/findings",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compliance",
@@ -147,14 +181,18 @@
       "path": "/api/v1/compliance/findings/{fingerprint}/recheck",
       "pathParams": [
         "fingerprint"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compliance",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/compliance/waivers",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compliance",
@@ -163,7 +201,9 @@
       "path": "/api/v1/compliance/waivers/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compliance",
@@ -172,21 +212,27 @@
       "path": "/api/v1/compliance/waivers/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/identity/group-mappings",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/identity/group-mappings",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "identity",
@@ -195,56 +241,72 @@
       "path": "/api/v1/identity/group-mappings/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "security-audit-events",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/security-audit-events",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/catalog/components",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/catalog/summary",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/catalog/runtime-certification-authority",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-governance",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/catalog-governance/signing-identity",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-trust-keys",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/catalog-trust-keys",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-trust-keys",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/catalog-trust-keys",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-trust-keys",
@@ -253,7 +315,9 @@
       "path": "/api/v1/catalog-trust-keys/{id}/impact",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-trust-keys",
@@ -262,21 +326,27 @@
       "path": "/api/v1/catalog-trust-keys/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/catalog-releases",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/catalog-releases",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
@@ -285,7 +355,9 @@
       "path": "/api/v1/catalog-releases/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
@@ -294,7 +366,9 @@
       "path": "/api/v1/catalog-releases/{id}/draft",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
@@ -303,7 +377,9 @@
       "path": "/api/v1/catalog-releases/{id}/review",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
@@ -312,7 +388,9 @@
       "path": "/api/v1/catalog-releases/{id}/request-changes",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
@@ -321,7 +399,9 @@
       "path": "/api/v1/catalog-releases/{id}/publish",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
@@ -330,7 +410,9 @@
       "path": "/api/v1/catalog-releases/{id}/deprecate",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
@@ -339,7 +421,9 @@
       "path": "/api/v1/catalog-releases/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
@@ -348,7 +432,9 @@
       "path": "/api/v1/catalog-releases/{id}/promote",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "catalog-releases",
@@ -357,70 +443,90 @@
       "path": "/api/v1/catalog-releases/{id}/render",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "tenancy",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/tenancy/plans",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprints",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/blueprints/authoring-contract",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprints",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/blueprints/authoring-roundtrip",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprints",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/blueprints/validate",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "compatibility",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/compatibility/evaluate",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "target-architecture-model",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/target-architecture-model",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "mcp",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/mcp/delegation-architecture",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "mcp",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/mcp/trusted-clients",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "mcp",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/mcp/trusted-clients",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "mcp",
@@ -429,28 +535,36 @@
       "path": "/api/v1/mcp/trusted-clients/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "mcp",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/mcp/delegation-grants/preview",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "mcp",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/mcp/delegation-grants",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "mcp",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/mcp/delegation-grants",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "mcp",
@@ -459,49 +573,63 @@
       "path": "/api/v1/mcp/delegation-grants/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "day2-campaign-engine",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/day2-campaign-engine",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "lab",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/lab/guide",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "ai",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/ai/policy",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "ai",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/ai/capabilities",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "ai",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/ai/persian-writing",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "ai",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/ai/control-jobs",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "ai",
@@ -510,7 +638,9 @@
       "path": "/api/v1/ai/control-jobs/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "ai",
@@ -519,21 +649,27 @@
       "path": "/api/v1/ai/control-jobs/{id}/resolve-recovery",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "ai",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/ai/diagnose",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "ai",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/ai/runs",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "ai",
@@ -542,28 +678,36 @@
       "path": "/api/v1/ai/runs/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprints",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/blueprints/resolve",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-overlays",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/blueprint-overlays",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-overlays",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/blueprint-overlays",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-overlays",
@@ -572,21 +716,27 @@
       "path": "/api/v1/blueprint-overlays/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "variable-schemas",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/variable-schemas",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "variable-schemas",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/variable-schemas",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "variable-schemas",
@@ -595,21 +745,27 @@
       "path": "/api/v1/variable-schemas/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "platform-policy-sets",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/platform-policy-sets",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "platform-policy-sets",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/platform-policy-sets",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "platform-policy-sets",
@@ -618,21 +774,27 @@
       "path": "/api/v1/platform-policy-sets/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "platform-templates",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/platform-templates",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "platform-templates",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/platform-templates",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "platform-templates",
@@ -641,7 +803,9 @@
       "path": "/api/v1/platform-templates/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "platform-templates",
@@ -650,21 +814,27 @@
       "path": "/api/v1/platform-templates/{id}/admission",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "workspaces",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/workspaces",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "workspaces",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/workspaces",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "workspaces",
@@ -673,7 +843,9 @@
       "path": "/api/v1/workspaces/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "workspaces",
@@ -682,7 +854,9 @@
       "path": "/api/v1/workspaces/{id}/bindings",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "workspaces",
@@ -691,7 +865,9 @@
       "path": "/api/v1/workspaces/{id}/bindings",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "workspaces",
@@ -701,28 +877,36 @@
       "pathParams": [
         "id",
         "bindingId"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "plans",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/plans",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/blueprint-releases",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/blueprint-releases",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
@@ -731,7 +915,9 @@
       "path": "/api/v1/blueprint-releases/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
@@ -740,7 +926,9 @@
       "path": "/api/v1/blueprint-releases/{id}/draft",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
@@ -749,7 +937,9 @@
       "path": "/api/v1/blueprint-releases/{id}/review",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
@@ -758,7 +948,9 @@
       "path": "/api/v1/blueprint-releases/{id}/request-changes",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
@@ -767,7 +959,9 @@
       "path": "/api/v1/blueprint-releases/{id}/publish",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
@@ -776,7 +970,9 @@
       "path": "/api/v1/blueprint-releases/{id}/deprecate",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
@@ -785,7 +981,9 @@
       "path": "/api/v1/blueprint-releases/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
@@ -794,63 +992,81 @@
       "path": "/api/v1/blueprint-releases/{id}/clone",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "blueprint-releases",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/blueprint-releases/compare",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "installations",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/installations/profiles",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "installations",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/installations/integrations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "installations",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/installations/recovery-authority",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "autopilot",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/autopilot/status",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "installations",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/installations/plans",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "managed-okd-installs",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/managed-okd-installs/runtime",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "managed-okd-installs",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/managed-okd-installs",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "managed-okd-installs",
@@ -859,7 +1075,9 @@
       "path": "/api/v1/managed-okd-installs/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "managed-okd-installs",
@@ -868,28 +1086,36 @@
       "path": "/api/v1/managed-okd-installs/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "git-authority",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/git-authority",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "git-credentials",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/git-credentials",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "git-credentials",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/git-credentials",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "git-credentials",
@@ -898,7 +1124,9 @@
       "path": "/api/v1/git-credentials/{id}/rotate",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "git-credentials",
@@ -907,21 +1135,27 @@
       "path": "/api/v1/git-credentials/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "git-providers",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/git-providers",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "git-providers",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/git-providers",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "git-providers",
@@ -930,35 +1164,45 @@
       "path": "/api/v1/git-providers/{id}/credential",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "system-services",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/system-services",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "system-services",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/system-services/git/repositories",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "system-services",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/system-services/git/revisions",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "system-services",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/system-services/git/revisions",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "system-services",
@@ -967,28 +1211,36 @@
       "path": "/api/v1/system-services/git/revisions/{id}/observe-sync",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "system-services",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/system-services/git/last-known-good",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "system-services",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/system-services/git/last-known-good/rollback",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "system-services",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/system-services/git/pull-requests",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "system-services",
@@ -997,7 +1249,9 @@
       "path": "/api/v1/system-services/git/pull-requests/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "system-services",
@@ -1006,7 +1260,9 @@
       "path": "/api/v1/system-services/git/pull-requests/{id}/merge",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "drift-scans",
@@ -1015,7 +1271,9 @@
       "path": "/api/v1/drift-scans/{id}/adopt-git",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "drift-scans",
@@ -1026,49 +1284,63 @@
         "id",
         "clusterId",
         "fingerprint"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "control-plane",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/control-plane/summary",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/operations/queue-center",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "logs",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/logs",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "control-plane",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/control-plane/attention",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/organizations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/organizations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
@@ -1077,7 +1349,9 @@
       "path": "/api/v1/organizations/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
@@ -1086,7 +1360,9 @@
       "path": "/api/v1/organizations/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
@@ -1095,7 +1371,9 @@
       "path": "/api/v1/organizations/{id}/memberships",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
@@ -1105,7 +1383,9 @@
       "pathParams": [
         "id",
         "subject"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
@@ -1115,21 +1395,27 @@
       "pathParams": [
         "id",
         "subject"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "service-accounts",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/service-accounts",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "service-accounts",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/service-accounts",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "service-accounts",
@@ -1138,7 +1424,9 @@
       "path": "/api/v1/service-accounts/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "service-accounts",
@@ -1147,7 +1435,9 @@
       "path": "/api/v1/service-accounts/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "service-accounts",
@@ -1156,7 +1446,9 @@
       "path": "/api/v1/service-accounts/{id}/tokens",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "service-accounts",
@@ -1165,7 +1457,9 @@
       "path": "/api/v1/service-accounts/{id}/tokens",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "service-accounts",
@@ -1175,7 +1469,9 @@
       "pathParams": [
         "id",
         "tokenId"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "service-accounts",
@@ -1185,35 +1481,45 @@
       "pathParams": [
         "id",
         "tokenId"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "projects",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/projects",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "projects",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/projects",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/operations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/operations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1222,7 +1528,9 @@
       "path": "/api/v1/operations/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1231,7 +1539,9 @@
       "path": "/api/v1/operations/{id}/transition",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1240,7 +1550,9 @@
       "path": "/api/v1/operations/{id}/claim",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1249,7 +1561,9 @@
       "path": "/api/v1/operations/{id}/lease/renew",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1258,7 +1572,9 @@
       "path": "/api/v1/operations/{id}/attempt/start",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1267,7 +1583,9 @@
       "path": "/api/v1/operations/{id}/attempt/verify",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1276,7 +1594,9 @@
       "path": "/api/v1/operations/{id}/attempt/failure",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1285,7 +1605,9 @@
       "path": "/api/v1/operations/{id}/attempt/complete",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1294,7 +1616,9 @@
       "path": "/api/v1/operations/{id}/cancel",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1303,7 +1627,9 @@
       "path": "/api/v1/operations/{id}/cancel/ack",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1312,7 +1638,9 @@
       "path": "/api/v1/operations/{id}/compensation/plan",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1322,7 +1650,9 @@
       "pathParams": [
         "id",
         "stepKey"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1331,7 +1661,9 @@
       "path": "/api/v1/operations/{id}/compensation/start",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1340,7 +1672,9 @@
       "path": "/api/v1/operations/{id}/compensation/claim-next",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1350,7 +1684,9 @@
       "pathParams": [
         "id",
         "stepKey"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1360,7 +1696,9 @@
       "pathParams": [
         "id",
         "stepKey"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1369,7 +1707,9 @@
       "path": "/api/v1/operations/{id}/steps",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1380,7 +1720,9 @@
         "id",
         "phase",
         "stepKey"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "operations",
@@ -1390,56 +1732,110 @@
       "pathParams": [
         "id",
         "evidenceId"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "audit-events",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/audit-events",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-event-types",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/notification-event-types",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-provider-contracts",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/notification-provider-contracts",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-routing",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/notification-routing/preview",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "external-registry",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/external-registry/admission",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "finops",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/finops/budget-policies",
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "finops",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/finops/budget-policies",
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "finops",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/finops/budget-policies/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "finops",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/finops/insights",
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "finops",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/finops/rate-cards",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "finops",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/finops/rate-cards",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "finops",
@@ -1448,63 +1844,81 @@
       "path": "/api/v1/finops/rate-cards/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "finops",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/finops/usage-measurements",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "finops",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/finops/usage-measurements",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "finops",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/finops/capacity-observations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "finops",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/finops/capacity-observations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "finops",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/finops/showback",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "finops",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/finops/chargeback-export",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-destinations",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/notification-destinations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-destinations",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/notification-destinations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-destinations",
@@ -1513,7 +1927,9 @@
       "path": "/api/v1/notification-destinations/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-destinations",
@@ -1522,7 +1938,9 @@
       "path": "/api/v1/notification-destinations/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-destinations",
@@ -1531,21 +1949,27 @@
       "path": "/api/v1/notification-destinations/{id}/disable",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-routes",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/notification-routes",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-routes",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/notification-routes",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-routes",
@@ -1554,7 +1978,9 @@
       "path": "/api/v1/notification-routes/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-routes",
@@ -1563,7 +1989,9 @@
       "path": "/api/v1/notification-routes/{id}/policy-digest",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-routes",
@@ -1572,14 +2000,18 @@
       "path": "/api/v1/notification-routes/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-events",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/notification-events",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-events",
@@ -1588,14 +2020,18 @@
       "path": "/api/v1/notification-events/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-deliveries",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/notification-deliveries",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-deliveries",
@@ -1604,7 +2040,9 @@
       "path": "/api/v1/notification-deliveries/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "notification-deliveries",
@@ -1613,21 +2051,27 @@
       "path": "/api/v1/notification-deliveries/{id}/retry",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "cluster-imports",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/cluster-imports",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "cluster-imports",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/cluster-imports",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "cluster-imports",
@@ -1636,7 +2080,9 @@
       "path": "/api/v1/cluster-imports/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "cluster-imports",
@@ -1645,7 +2091,9 @@
       "path": "/api/v1/cluster-imports/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "cluster-imports",
@@ -1654,14 +2102,18 @@
       "path": "/api/v1/cluster-imports/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/clusters",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1670,7 +2122,9 @@
       "path": "/api/v1/clusters/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1679,7 +2133,9 @@
       "path": "/api/v1/clusters/{id}/mutation-rbac-manifest",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1688,7 +2144,9 @@
       "path": "/api/v1/clusters/{id}/mutation-rbac-manifest",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1697,7 +2155,9 @@
       "path": "/api/v1/clusters/{id}/revocation-rbac-manifest",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1706,7 +2166,9 @@
       "path": "/api/v1/clusters/{id}/revocation-rbac-acknowledgement",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1715,7 +2177,9 @@
       "path": "/api/v1/clusters/{id}/maintenance-profile",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1724,7 +2188,9 @@
       "path": "/api/v1/clusters/{id}/maintenance-profile",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1733,7 +2199,9 @@
       "path": "/api/v1/clusters/{id}/node-lifecycle-authority",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1742,7 +2210,9 @@
       "path": "/api/v1/clusters/{id}/node-lifecycle-plans",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1751,7 +2221,9 @@
       "path": "/api/v1/clusters/{id}/provider-binding",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1760,7 +2232,9 @@
       "path": "/api/v1/clusters/{id}/node-lifecycle-actions",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1769,7 +2243,9 @@
       "path": "/api/v1/clusters/{id}/maintenance-windows",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1778,7 +2254,9 @@
       "path": "/api/v1/clusters/{id}/maintenance-windows",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1788,7 +2266,9 @@
       "pathParams": [
         "id",
         "windowId"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1797,7 +2277,9 @@
       "path": "/api/v1/clusters/{id}/maintenance-runs",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1806,7 +2288,9 @@
       "path": "/api/v1/clusters/{id}/maintenance-runs",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1816,7 +2300,9 @@
       "pathParams": [
         "id",
         "runId"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1826,7 +2312,9 @@
       "pathParams": [
         "id",
         "runId"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1835,7 +2323,9 @@
       "path": "/api/v1/clusters/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1844,7 +2334,9 @@
       "path": "/api/v1/clusters/{id}/agent-certificates",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1854,7 +2346,9 @@
       "pathParams": [
         "id",
         "certId"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1863,7 +2357,9 @@
       "path": "/api/v1/clusters/{id}/timeline",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "clusters",
@@ -1872,14 +2368,18 @@
       "path": "/api/v1/clusters/{id}/workloads",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "workload-log-queries",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/workload-log-queries",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "workload-log-queries",
@@ -1888,49 +2388,63 @@
       "path": "/api/v1/workload-log-queries/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "search",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/search",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "search",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/search/projection/rebuild",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "fleet",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/fleet/health",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "support-bundles",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/support-bundles/profiles",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "support-bundles",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/support-bundles",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "support-bundle-jobs",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/support-bundle-jobs",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "support-bundle-jobs",
@@ -1939,7 +2453,9 @@
       "path": "/api/v1/support-bundle-jobs/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "support-bundle-jobs",
@@ -1948,28 +2464,36 @@
       "path": "/api/v1/support-bundle-jobs/{id}/download",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "baselines",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/baselines",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "baseline-deployments",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/baseline-deployments",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "baseline-deployments",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/baseline-deployments",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "baseline-deployments",
@@ -1978,7 +2502,9 @@
       "path": "/api/v1/baseline-deployments/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "baseline-deployments",
@@ -1988,7 +2514,9 @@
       "pathParams": [
         "id",
         "key"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "baseline-deployments",
@@ -1997,7 +2525,9 @@
       "path": "/api/v1/baseline-deployments/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "baseline-deployments",
@@ -2006,7 +2536,9 @@
       "path": "/api/v1/baseline-deployments/{id}/revalidate",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "baseline-deployments",
@@ -2015,7 +2547,9 @@
       "path": "/api/v1/baseline-deployments/{id}/retry",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "baseline-deployments",
@@ -2024,21 +2558,27 @@
       "path": "/api/v1/baseline-deployments/{id}/rollback",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-certifications",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/runtime-certifications",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-certifications",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/runtime-certifications",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-certifications",
@@ -2047,7 +2587,9 @@
       "path": "/api/v1/runtime-certifications/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-certifications",
@@ -2056,7 +2598,9 @@
       "path": "/api/v1/runtime-certifications/{id}/report",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-certifications",
@@ -2065,21 +2609,27 @@
       "path": "/api/v1/runtime-certifications/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-verifications",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/runtime-verifications",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-verifications",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/runtime-verifications",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-verifications",
@@ -2088,7 +2638,9 @@
       "path": "/api/v1/runtime-verifications/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-verifications",
@@ -2097,7 +2649,9 @@
       "path": "/api/v1/runtime-verifications/{id}/retry",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-verifications",
@@ -2106,21 +2660,27 @@
       "path": "/api/v1/runtime-verifications/{id}/report",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-closure-campaigns",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/runtime-closure-campaigns",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-closure-campaigns",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/runtime-closure-campaigns",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-closure-campaigns",
@@ -2129,7 +2689,9 @@
       "path": "/api/v1/runtime-closure-campaigns/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-closure-campaigns",
@@ -2138,7 +2700,9 @@
       "path": "/api/v1/runtime-closure-campaigns/{id}/advance",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-closure-campaigns",
@@ -2147,7 +2711,9 @@
       "path": "/api/v1/runtime-closure-campaigns/{id}/retry",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-closure-campaigns",
@@ -2156,28 +2722,36 @@
       "path": "/api/v1/runtime-closure-campaigns/{id}/report",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "runtime-closure-reports",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/runtime-closure-reports/verify",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "fleet-groups",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/fleet-groups",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "fleet-groups",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/fleet-groups",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "fleet-groups",
@@ -2186,21 +2760,27 @@
       "path": "/api/v1/fleet-groups/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "drift-scans",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/drift-scans",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "drift-scans",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/drift-scans",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "drift-scans",
@@ -2209,21 +2789,27 @@
       "path": "/api/v1/drift-scans/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "recovery-checkpoints",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/recovery-checkpoints",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "recovery-checkpoints",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/recovery-checkpoints",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "recovery-checkpoints",
@@ -2232,7 +2818,9 @@
       "path": "/api/v1/recovery-checkpoints/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "recovery-checkpoints",
@@ -2241,14 +2829,18 @@
       "path": "/api/v1/recovery-checkpoints/{id}/revoke",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "backup-policies",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/backup-policies",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "backup-policies",
@@ -2257,14 +2849,18 @@
       "path": "/api/v1/backup-policies/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "backup-policies",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/backup-policies",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "backup-policies",
@@ -2273,7 +2869,9 @@
       "path": "/api/v1/backup-policies/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "backup-policies",
@@ -2282,7 +2880,9 @@
       "path": "/api/v1/backup-policies/{id}/enable",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "backup-policies",
@@ -2291,35 +2891,45 @@
       "path": "/api/v1/backup-policies/{id}/disable",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "backup-runs",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/backup-runs",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "restore-runs",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/restore-runs",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "restore-drills",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/restore-drills",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "data-protection-runs",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/data-protection-runs",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "data-protection-runs",
@@ -2328,7 +2938,9 @@
       "path": "/api/v1/data-protection-runs/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "restore-runs",
@@ -2337,21 +2949,27 @@
       "path": "/api/v1/restore-runs/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "upgrade-campaigns",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/upgrade-campaigns",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "upgrade-campaigns",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/upgrade-campaigns",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "upgrade-campaigns",
@@ -2360,7 +2978,9 @@
       "path": "/api/v1/upgrade-campaigns/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "upgrade-campaigns",
@@ -2369,7 +2989,9 @@
       "path": "/api/v1/upgrade-campaigns/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "upgrade-campaigns",
@@ -2378,7 +3000,9 @@
       "path": "/api/v1/upgrade-campaigns/{id}/revalidate",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "upgrade-campaigns",
@@ -2387,7 +3011,9 @@
       "path": "/api/v1/upgrade-campaigns/{id}/pause",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "upgrade-campaigns",
@@ -2396,7 +3022,9 @@
       "path": "/api/v1/upgrade-campaigns/{id}/resume",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "upgrade-campaigns",
@@ -2405,7 +3033,9 @@
       "path": "/api/v1/upgrade-campaigns/{id}/cancel",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "upgrade-campaigns",
@@ -2414,7 +3044,9 @@
       "path": "/api/v1/upgrade-campaigns/{id}/advance",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
@@ -2423,7 +3055,9 @@
       "path": "/api/v1/organizations/{id}/entitlement",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
@@ -2432,7 +3066,9 @@
       "path": "/api/v1/organizations/{id}/entitlement",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
@@ -2441,7 +3077,9 @@
       "path": "/api/v1/organizations/{id}/oem-profile",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "organizations",
@@ -2450,21 +3088,27 @@
       "path": "/api/v1/organizations/{id}/oem-profile",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "tenants",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/tenants",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "tenants",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/tenants",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "tenants",
@@ -2473,7 +3117,9 @@
       "path": "/api/v1/tenants/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "tenants",
@@ -2482,7 +3128,9 @@
       "path": "/api/v1/tenants/{id}/suspend",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "tenants",
@@ -2491,7 +3139,9 @@
       "path": "/api/v1/tenants/{id}/resume",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "tenants",
@@ -2500,7 +3150,9 @@
       "path": "/api/v1/tenants/{id}/resize",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "tenants",
@@ -2509,7 +3161,9 @@
       "path": "/api/v1/tenants/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "tenants",
@@ -2518,7 +3172,9 @@
       "path": "/api/v1/tenants/{id}/delete",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "tenants",
@@ -2527,21 +3183,27 @@
       "path": "/api/v1/tenants/{id}/retry",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-profiles",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/provider-profiles",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-profiles",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/provider-profiles",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-profiles",
@@ -2550,7 +3212,9 @@
       "path": "/api/v1/provider-profiles/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-profiles",
@@ -2559,21 +3223,27 @@
       "path": "/api/v1/provider-profiles/{id}/retry",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-clusters",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/provider-clusters",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-clusters",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/provider-clusters",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-clusters",
@@ -2582,7 +3252,9 @@
       "path": "/api/v1/provider-clusters/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-clusters",
@@ -2591,7 +3263,9 @@
       "path": "/api/v1/provider-clusters/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-clusters",
@@ -2600,7 +3274,9 @@
       "path": "/api/v1/provider-clusters/{id}/scale",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-clusters",
@@ -2609,7 +3285,9 @@
       "path": "/api/v1/provider-clusters/{id}/upgrade",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-clusters",
@@ -2618,7 +3296,9 @@
       "path": "/api/v1/provider-clusters/{id}/delete",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "provider-clusters",
@@ -2627,28 +3307,36 @@
       "path": "/api/v1/provider-clusters/{id}/retry",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "marketplace",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/marketplace/offers",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "marketplace",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/marketplace/installations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "marketplace",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/marketplace/installations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "marketplace",
@@ -2657,7 +3345,9 @@
       "path": "/api/v1/marketplace/installations/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "marketplace",
@@ -2666,7 +3356,9 @@
       "path": "/api/v1/marketplace/installations/{id}/approve",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "marketplace",
@@ -2675,7 +3367,9 @@
       "path": "/api/v1/marketplace/installations/{id}/uninstall",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "marketplace",
@@ -2684,21 +3378,27 @@
       "path": "/api/v1/marketplace/installations/{id}/retry",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "marketplace",
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/marketplace/recommendations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "marketplace",
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/marketplace/recommendations",
-      "pathParams": []
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {
       "family": "marketplace",
@@ -2707,9 +3407,11 @@
       "path": "/api/v1/marketplace/recommendations/{id}",
       "pathParams": [
         "id"
-      ]
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
     }
   ],
   "source": "internal/api/server.go",
-  "version": "0.0.359"
+  "version": "0.0.361"
 }

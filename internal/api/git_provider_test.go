@@ -109,3 +109,29 @@ func TestGitProviderCredentialReferenceRotationRuntime(t *testing.T) {
 	}
 	_ = os.Getenv("PF_GIT_SECRET_A")
 }
+
+func TestManagedGitReadAuthorityRequiresPlatformAdmin(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	s := New("0.0.359", nil, nil, store)
+	h := s.Handler()
+
+	endpoints := []string{
+		"/api/v1/system-services/git/revisions",
+		"/api/v1/system-services/git/pull-requests",
+		"/api/v1/system-services/git/last-known-good?organization=platform&repository=desired-state",
+	}
+	for _, endpoint := range endpoints {
+		t.Run(endpoint+"/anonymous", func(t *testing.T) {
+			w := apiRequest(t, h, http.MethodGet, endpoint, "", nil)
+			if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "ACTOR_REQUIRED") {
+				t.Fatalf("anonymous managed Git authority read must fail closed: %d %s", w.Code, w.Body.String())
+			}
+		})
+		t.Run(endpoint+"/operator", func(t *testing.T) {
+			w := apiRequest(t, h, http.MethodGet, endpoint, "", map[string]string{"X-Actor-ID": "operator", "X-Actor-Role": "platform-operator"})
+			if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "PLATFORM_ADMIN_REQUIRED") {
+				t.Fatalf("platform operator must not read managed Git authority: %d %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}

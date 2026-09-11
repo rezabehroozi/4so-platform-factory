@@ -96,10 +96,10 @@ func TestMCPGeneratedAdministrationToolsAreHiddenFromAPITokens(t *testing.T) {
 
 func TestMCPRouteParityRegistryHasNoUnclassifiedStableRoute(t *testing.T) {
 	registry := loadMCPRouteParityRegistry()
-	if registry.RouteCount != 332 {
+	if registry.RouteCount != 336 {
 		t.Fatalf("unexpected stable route count: %d", registry.RouteCount)
 	}
-	if registry.Counts["tool-read"] != 157 || registry.Counts["tool-operate"] != 63 || registry.Counts["tool-admin"] != 72 || registry.Counts["security-excluded"] != 40 {
+	if registry.Counts["tool-read"] != 160 || registry.Counts["tool-operate"] != 63 || registry.Counts["tool-admin"] != 73 || registry.Counts["security-excluded"] != 40 {
 		t.Fatalf("route parity summary drift: %+v", registry.Counts)
 	}
 	for _, route := range registry.Routes {

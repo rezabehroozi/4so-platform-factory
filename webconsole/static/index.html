@@ -381,6 +381,20 @@
 <div class="inline-summary"><strong>Collector-owned telemetry.</strong> Operators can publish rate cards here, but usage observations come only from trusted collectors. AI and the browser cannot submit billing telemetry.</div>
 <div class="prerequisite" hidden="" id="finops-prerequisite"></div>
 <div class="metric-grid" id="finops-cost-summary"></div>
+<div class="metric-grid" id="finops-insight-summary"></div>
+<details class="action-console"><summary><span class="summary-title">Set a budget guardrail</span><span class="summary-help">Publish an immutable budget policy for the selected organization/project. Forecasts remain unavailable when measured cost evidence is incomplete.</span></summary><div class="action-console-body">
+<article class="panel"><div class="panel-heading"><div><h2>New budget policy</h2><p>Budget limits use integer micro-currency. Warning and critical thresholds are explicit and versioned; recommendations never auto-apply infrastructure changes.</p></div></div><form class="form-grid" id="finops-budget-form" novalidate="">
+<label><span>Organization</span><select id="finops-budget-organization" required=""></select></label>
+<label><span>Project scope</span><select id="finops-budget-project"><option value="">Organization total</option></select></label>
+<label><span>Budget name</span><input dir="ltr" id="finops-budget-name" pattern="[a-z]([a-z0-9-]*[a-z0-9])?" required="" value="monthly"/></label>
+<label><span>Version</span><input dir="ltr" id="finops-budget-version" pattern="[0-9]+\.[0-9]+\.[0-9]+" required="" value="1.0.0"/></label>
+<label><span>Currency</span><input dir="ltr" id="finops-budget-currency" maxlength="3" pattern="[A-Z]{3}" required="" value="USD"/></label>
+<label><span>Effective at</span><input id="finops-budget-effective" required="" type="datetime-local"/></label>
+<label><span>Budget limit · micros</span><input dir="ltr" id="finops-budget-limit" min="1" required="" step="1" type="number" value="1000000000"/></label>
+<label><span>Warning threshold · %</span><input dir="ltr" id="finops-budget-warning" min="0.01" required="" step="0.01" type="number" value="80"/></label>
+<label><span>Critical threshold · %</span><input dir="ltr" id="finops-budget-critical" min="0.02" required="" step="0.01" type="number" value="100"/></label>
+<div class="form-actions span-full"><button class="primary" type="submit">Publish immutable budget</button></div>
+</form></article></div></details>
 <details class="action-console"><summary><span class="summary-title">Publish a rate card</span><span class="summary-help">Create an immutable, organization-scoped price version. Existing observations are never rewritten.</span></summary><div class="action-console-body">
 <article class="panel"><div class="panel-heading"><div><h2>New rate card</h2><p>Prices use integer micro-currency per unit to avoid floating-point billing drift.</p></div></div><form class="form-grid" id="finops-rate-card-form" novalidate="">
 <label><span>Organization</span><select id="finops-rate-card-organization" required=""></select></label>
@@ -394,6 +408,10 @@
 <label><span>Accelerator device-hour · micros</span><input dir="ltr" id="finops-price-accelerator" min="0" required="" step="1" type="number" value="0"/></label>
 <div class="form-actions span-full"><button class="primary" type="submit">Publish immutable rate card</button></div>
 </form></article></div></details>
+<div class="two-column">
+<article class="panel"><div class="panel-heading"><div><h2>Budget policies</h2><p>Immutable guardrails for the selected scope. UNKNOWN means evidence is incomplete, not zero spend.</p></div></div><div class="resource-grid record-list" id="finops-budget-grid"></div></article>
+<article class="panel"><div class="panel-heading"><div><h2>Rightsizing review</h2><p>Evidence-backed review suggestions only. No recommendation changes infrastructure automatically.</p></div></div><div class="resource-grid record-list" id="finops-rightsizing-grid"></div></article>
+</div>
 <div class="two-column">
 <article class="panel"><div class="panel-heading"><div><h2>Rate cards</h2><p>Versioned pricing authority for the selected organization.</p></div></div><div class="resource-grid record-list" id="finops-rate-card-grid"></div></article>
 <article class="panel"><div class="panel-heading"><div><h2>Measured usage</h2><p>Collector observations and explicit telemetry gaps. A gap makes authoritative total cost unavailable.</p></div></div><div class="resource-grid record-list" id="finops-usage-grid"></div></article>

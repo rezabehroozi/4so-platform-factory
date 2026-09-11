@@ -17,6 +17,20 @@ AUTHORITY = "PRODUCT_API_CONTRACT_AUTHORITY_V1"
 SOURCE = "internal/api/server.go"
 ROUTE_RE = re.compile(r's\.mux\.HandleFunc\("(GET|POST|PUT|DELETE|PATCH) (/api/v1/[^\"]+)')
 PARAM_RE = re.compile(r"\{([^}]+)\}")
+SCOPE_REGISTRY = "internal/api/resource_scope_registry.json"
+
+
+def load_scope_registry(root: Path) -> dict[str, tuple[str, str]]:
+    path = root / SCOPE_REGISTRY
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text())
+    if data.get("authority") != "RESOURCE_SCOPE_REGISTRY_V1":
+        raise SystemExit("resource scope registry authority mismatch")
+    return {
+        str(row.get("family") or ""): (str(row.get("scope") or "UNCLASSIFIED"), str(row.get("status") or "OWNER_REVIEW_REQUIRED"))
+        for row in data.get("families", []) if isinstance(row, dict)
+    }
 
 
 def parse_args(argv: list[str]) -> tuple[Path, bool]:
@@ -34,6 +48,7 @@ def parse_args(argv: list[str]) -> tuple[Path, bool]:
 
 def route_rows(root: Path) -> list[dict]:
     server = (root / SOURCE).read_text()
+    scope_registry = load_scope_registry(root)
     rows = []
     seen = set()
     for method, path in ROUTE_RE.findall(server):
@@ -42,12 +57,15 @@ def route_rows(root: Path) -> list[dict]:
             raise SystemExit(f"duplicate Product API route: {method} {path}")
         seen.add(key)
         family = path[len("/api/v1/"):].split("/")[0]
+        scope, scope_status = scope_registry.get(family, ("UNCLASSIFIED", "OWNER_REVIEW_REQUIRED"))
         rows.append({
             "family": family,
             "method": method,
             "mutation": method != "GET",
             "path": path,
             "pathParams": PARAM_RE.findall(path),
+            "resourceScope": scope,
+            "resourceScopeStatus": scope_status,
         })
     return rows
 
@@ -102,7 +120,9 @@ def render_go(rows: list[dict], digest: str) -> str:
             ", Path: " + go_string(row["path"]) +
             ", Family: " + go_string(row["family"]) +
             ", PathParams: " + params +
-            ", Mutation: " + ("true" if row["mutation"] else "false") + "},"
+            ", Mutation: " + ("true" if row["mutation"] else "false") +
+            ", ResourceScope: " + go_string(row["resourceScope"]) +
+            ", ResourceScopeStatus: " + go_string(row["resourceScopeStatus"]) + "},"
         )
     lines += ["}", ""]
     return "\n".join(lines)

@@ -403,3 +403,22 @@ func TestVMwareProviderConsoleContract(t *testing.T) {
 		t.Fatal("console must not collect raw vCenter username/password")
 	}
 }
+
+func TestOperatorConsoleFailsClosedOnUnknownResourceScope(t *testing.T) {
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(jsBytes)
+	for _, contract := range []string{
+		"resourceScopeRegistry",
+		"/api/v1/access/resource-scopes",
+		"assertResourceScopeKnown",
+		"RESOURCE_SCOPE_AUTHORITY_UNAVAILABLE",
+		"RESOURCE_SCOPE_OWNER_REVIEW_REQUIRED",
+	} {
+		if !strings.Contains(js, contract) {
+			t.Fatalf("resource scope console fail-closed contract missing %q", contract)
+		}
+	}
+}

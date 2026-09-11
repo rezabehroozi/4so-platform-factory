@@ -1,0 +1,64 @@
+{
+  "binaries": [
+    {
+      "gnuBuildID": "cbc5fb33d474a2efd3fdf8c6cb9412e14937636a",
+      "name": "platform-api",
+      "runtimeNeeded": [
+        "libc.so.6",
+        "libpq.so.5"
+      ],
+      "sha256": "1b7c7931d62233efffc507ee686256eb6b1181e2721216a74e46d80db0884127",
+      "size": 18788544,
+      "target": "linux-amd64"
+    },
+    {
+      "gnuBuildID": "",
+      "name": "platformctl",
+      "runtimeNeeded": [],
+      "sha256": "a9cdd0b39b1b87364ed230e0501444ab34feb8ba28eeb942524ae502e1b27483",
+      "size": 9293959,
+      "target": "linux-amd64"
+    },
+    {
+      "gnuBuildID": "",
+      "name": "platform-installer",
+      "runtimeNeeded": [],
+      "sha256": "9925f1f6f0bb51db44dff561a3f9004865c2d7f8d0de93f13f07b632221d1bd8",
+      "size": 7708807,
+      "target": "linux-amd64"
+    },
+    {
+      "gnuBuildID": "",
+      "name": "platform-agent",
+      "runtimeNeeded": [],
+      "sha256": "1ab317f894398efd57d4c191e74d8b578a65db6a41c9d8c7b297b3a338fb1330",
+      "size": 8220807,
+      "target": "linux-amd64"
+    },
+    {
+      "gnuBuildID": "",
+      "name": "platform-probe",
+      "runtimeNeeded": [],
+      "sha256": "12e54cea426bfcf49d7d721ab6e2d76e82733cbc4169f31afda1af1978cac7d7",
+      "size": 2248839,
+      "target": "linux-amd64"
+    }
+  ],
+  "buildContract": {
+    "cgo": true,
+    "externalELFBuildID": "recorded-per-binary",
+    "goBuildIDCleared": true,
+    "stripped": true,
+    "trimpath": true
+  },
+  "buildType": "deterministic-local-release",
+  "created": "2026-01-01T00:00:00Z",
+  "goToolchain": "go version go1.23.2 linux/amd64",
+  "module": "platform.4so.io/factory",
+  "product": "4SO Platform Factory",
+  "releaseName": "finops-v2-budget-forecast-rightsizing-v67",
+  "schemaVersion": 1,
+  "sourceFileCount": 961,
+  "sourceTreeDigest": "sha256:7a22a305cae802e532c99de3f2e84ee3ef155a15621891f69558ba6ce548827c",
+  "version": "0.0.361"
+}

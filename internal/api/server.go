@@ -359,6 +359,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/notification-provider-contracts", s.notificationProviderContracts)
 	s.mux.HandleFunc("POST /api/v1/notification-routing/preview", s.previewNotificationRouting)
 	s.mux.HandleFunc("POST /api/v1/external-registry/admission", s.admitExternalRegistry)
+	s.mux.HandleFunc("POST /api/v1/finops/budget-policies", s.createFinOpsBudgetPolicy)
+	s.mux.HandleFunc("GET /api/v1/finops/budget-policies", s.listFinOpsBudgetPolicies)
+	s.mux.HandleFunc("GET /api/v1/finops/budget-policies/{id}", s.getFinOpsBudgetPolicy)
+	s.mux.HandleFunc("GET /api/v1/finops/insights", s.getFinOpsInsights)
 	s.mux.HandleFunc("POST /api/v1/finops/rate-cards", s.createFinOpsRateCard)
 	s.mux.HandleFunc("GET /api/v1/finops/rate-cards", s.listFinOpsRateCards)
 	s.mux.HandleFunc("GET /api/v1/finops/rate-cards/{id}", s.getFinOpsRateCard)
@@ -781,6 +785,9 @@ func (s *Server) publishGitRevision(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listManagedGitRevisions(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireGitAdmin(w, r); !ok {
+		return
+	}
 	items, err := s.store.ListManagedGitRevisions(r.Context(), r.URL.Query().Get("organization"), r.URL.Query().Get("repository"))
 	if err != nil {
 		writeStoreError(w, err)

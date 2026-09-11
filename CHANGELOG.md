@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.361 — J7 FinOps v2 budget, forecast, anomaly and rightsizing source closure
+
+- Advance executable roadmap authority to `PROGRAM_PHASE_MODEL_V67` and close J7 at source/software level; `PROGRAM_PROGRESS_MODEL_V2` now reports **30/35 (85%)** pre-physical Core+Expansion software phases source-closed while Core remains **25/25 (100%)** source-closed and **19/25 (76%)** phase/release-ready.
+- Add immutable `FINOPS_BUDGET_POLICY_AUTHORITY_V1` with Memory/File/PostgreSQL parity, additive rolling-safe migration `0073_finops_budget_policy_authority.sql`, organization/project scope validation, audit/outbox evidence, overlap rejection and nullable-scope-safe identity uniqueness.
+- Add `FINOPS_FORECAST_ANOMALY_RIGHTSIZING_AUTHORITY_V1`: deterministic integer forecast, budget evaluation, measured spend-rate anomaly and CPU/memory rightsizing recommendations; incomplete telemetry/rate coverage fails closed to `UNKNOWN`.
+- Require rightsizing capacity evidence to be at most 24 hours old and keep every recommendation review-only with `automatable=false`; no infrastructure mutation is inferred from FinOps advice.
+- Expose budget/insight routes through Product API contract, generated Go SDK and MCP route parity, and add an Operator Console budget/forecast/anomaly/rightsizing surface with explicit unavailable states and no auto-apply action.
+- Keep J6 Fleet Reliability/Incident/SLO open because durable incident lifecycle and historical SLI/error-budget authority are not yet implemented; no Physical/Exact-SHA or production PASS is claimed.
+
+## 0.0.360
+
+- Closed the software-only Resource Scope owner review at **73/73** stable Product API families using source-backed `RESOURCE_SCOPE_OWNER_CLASSIFICATIONS_V1`; missing or unknown families remain fail-closed rather than inferred from route/table names.
+- Propagated canonical `resourceScope` / `resourceScopeStatus` into the generated Product API contract, Go SDK route catalog and MCP route parity, and added an Operator Console fail-closed guard backed by `/api/v1/access/resource-scopes`.
+- Added repository negative controls for stale/nonexistent scope evidence and drift between the canonical registry, Product API contract and MCP consumers.
+- Fixed an authorization inconsistency in managed-Git global read endpoints: revisions, pull requests and last-known-good revision now require the same platform-admin authority boundary as privileged Git mutations; regression tests cover anonymous and platform-operator denial.
+- Added `PROGRAM_PROGRESS_MODEL_V2` with a deterministic pre-physical software metric that excludes Certification/Physical and Optional phases. Current source/software closure is **29/35 (82%)** across Core+Expansion, while Core source closure remains **25/25 (100%)** and Core phase/release readiness remains **19/25 (76%)**.
+- Advanced J5 `resource-scope-owner-closure` to source-implemented only. This release does **not** claim native PostgreSQL RLS closure, Exact-SHA Physical Runtime PASS, live external MCP-client certification, or production readiness.
+
 ## 0.0.359 — engineering safety: bounded pagination, scope ownership and PostgreSQL behavioral integration
 
 - Advance executable roadmap authority to `PROGRAM_PHASE_MODEL_V64` without inflating mandatory Core truth: source/software closure remains **25/25 (100%)**, Core phase/release closure remains **19/25 (76%)**, and Physical/Exact-SHA certification remains independently unproven and non-blocking for software development.

@@ -6,8 +6,8 @@ import (
 )
 
 const (
-	ProgramAuthorityMethod                = "PROGRAM_PHASE_MODEL_V64"
-	ProgramProgressAuthority              = "PROGRAM_PROGRESS_MODEL_V1"
+	ProgramAuthorityMethod                = "PROGRAM_PHASE_MODEL_V67"
+	ProgramProgressAuthority              = "PROGRAM_PROGRESS_MODEL_V2"
 	CapabilityResolverAuthority           = "TARGET_CAPABILITY_RESOLVER_V1"
 	FeatureCertificationRegistryAuthority = "FEATURE_CERTIFICATION_REGISTRY_V2"
 	FeatureCertificationCoverageAuthority = "FEATURE_CERTIFICATION_CONTRACT_COVERAGE_V1"
@@ -74,19 +74,23 @@ const (
 )
 
 type ProgramProgressSummary struct {
-	Authority                   string         `json:"authority"`
-	CoreRequiredPhases          int            `json:"coreRequiredPhases"`
-	CoreSourceClosedPhases      int            `json:"coreSourceClosedPhases"`
-	CoreSourceOpenPhases        int            `json:"coreSourceOpenPhases"`
-	CorePhaseReady              int            `json:"corePhaseReady"`
-	CorePhaseBlocked            int            `json:"corePhaseBlocked"`
-	CoreSourceClosurePercent    int            `json:"coreSourceClosurePercent"`
-	CorePhaseReadyPercent       int            `json:"corePhaseReadyPercent"`
-	CoreSourceClosureComplete   bool           `json:"coreSourceClosureComplete"`
-	FeatureFreezeReady          bool           `json:"featureFreezeReady"`
-	SourceOpenPhaseIDs          []string       `json:"sourceOpenPhaseIds"`
-	ExternalClosureOnlyPhaseIDs []string       `json:"externalClosureOnlyPhaseIds"`
-	RemainingBlockerClasses     map[string]int `json:"remainingBlockerClasses"`
+	Authority                         string         `json:"authority"`
+	CoreRequiredPhases                int            `json:"coreRequiredPhases"`
+	CoreSourceClosedPhases            int            `json:"coreSourceClosedPhases"`
+	CoreSourceOpenPhases              int            `json:"coreSourceOpenPhases"`
+	CorePhaseReady                    int            `json:"corePhaseReady"`
+	CorePhaseBlocked                  int            `json:"corePhaseBlocked"`
+	CoreSourceClosurePercent          int            `json:"coreSourceClosurePercent"`
+	CorePhaseReadyPercent             int            `json:"corePhaseReadyPercent"`
+	CoreSourceClosureComplete         bool           `json:"coreSourceClosureComplete"`
+	FeatureFreezeReady                bool           `json:"featureFreezeReady"`
+	PrePhysicalSoftwarePhases         int            `json:"prePhysicalSoftwarePhases"`
+	PrePhysicalSoftwareClosedPhases   int            `json:"prePhysicalSoftwareClosedPhases"`
+	PrePhysicalSoftwareOpenPhases     int            `json:"prePhysicalSoftwareOpenPhases"`
+	PrePhysicalSoftwareClosurePercent int            `json:"prePhysicalSoftwareClosurePercent"`
+	SourceOpenPhaseIDs                []string       `json:"sourceOpenPhaseIds"`
+	ExternalClosureOnlyPhaseIDs       []string       `json:"externalClosureOnlyPhaseIds"`
+	RemainingBlockerClasses           map[string]int `json:"remainingBlockerClasses"`
 }
 
 type ProgramRoadmap struct {
@@ -248,10 +252,10 @@ func ProgramRoadmapModel() ProgramRoadmap {
 		{ID: "J2-finops-usage", Order: 28, Status: ProgramStatusSourceImplemented, DeliveryTier: ProgramTierExpansion, RequiredForFeatureFreeze: false, Objective: "Provide measured private-cloud usage/capacity/rate-card authority without representing missing telemetry as zero cost.", DependsOn: []string{"G1-operational-runtime-hardening", "E-certified-platform-template-workspace-foundation"}, ParallelWith: []string{"J1-automation-external-integrations"}, Evidence: []string{"FINOPS_RATE_CARD_AUTHORITY_V1", "FINOPS_USAGE_MEASUREMENT_AUTHORITY_V1", "FINOPS_CAPACITY_OBSERVATION_AUTHORITY_V1", "FINOPS_CHARGEBACK_AUTHORITY_V1", "migrations/0070_finops_usage_ratecard_authority.sql", "POST /api/v1/finops/rate-cards", "POST /api/v1/finops/usage-measurements", "POST /api/v1/finops/capacity-observations", "GET /api/v1/finops/showback", "GET /api/v1/finops/chargeback-export", "MCP_ROUTE_PARITY_AUTHORITY_V1", "operator-console:finops-chargeback"}, ExitCriteria: []string{"rate cards cover CPU, memory, storage and accelerator usage with integer micro-currency arithmetic", "measured usage and capacity observations are immutable, idempotent and organization/project scoped", "missing telemetry or missing rate coverage never becomes a numeric total cost", "chargeback export is deterministic and derived only from measured usage plus versioned rate cards"}},
 		{ID: "J3-virtual-cluster-profile", Order: 29, Status: ProgramStatusBlocked, DeliveryTier: ProgramTierExpansion, RequiredForFeatureFreeze: false, Objective: "Develop virtual-cluster workspace isolation, lifecycle, quota, FinOps and developer-mode contracts before physical certification as a separate product lifecycle target.", DependsOn: []string{"E-certified-platform-template-workspace-foundation", "G2-generalized-day2-campaign-engine"}, ParallelWith: []string{"J1-automation-external-integrations", "J2-finops-usage", "I2-edge-sovereign-extension"}, Blockers: []string{"VIRTUAL_CLUSTER_PROVIDER_PENDING"}},
 		{ID: "J4-product-api-contract-recovery-foundation", Order: 30, Status: ProgramStatusSourceImplemented, DeliveryTier: ProgramTierExpansion, RequiredForFeatureFreeze: false, Objective: "Make Product API automation and ambiguous MCP mutation recovery explicit reusable authorities before Terraform/Crossplane breadth expands.", DependsOn: []string{"C7-ai-mcp-delegated-operations", "R0-release-authority-certification-rebaseline"}, ParallelWith: []string{"J1-automation-external-integrations", "J3-virtual-cluster-profile"}, Evidence: []string{"PRODUCT_API_CONTRACT_AUTHORITY_V1", "RESOURCE_SCOPE_REGISTRY_V1", "MCP_CONTROL_JOB_RECOVERY_AUTHORITY_V1", "OPERATOR_COLLECTION_CURSOR_V1", "POSTGRES_BEHAVIORAL_INTEGRATION_V1", "migrations/0072_mcp_control_job_recovery_resolution.sql", "GET /api/v1/access/resource-scopes", "POST /api/v1/ai/control-jobs/{id}/resolve-recovery", "sdk/product-api-contract.json", "sdk/go", ".github/workflows/repository-integrity.yml"}, ExitCriteria: []string{"every stable Product API route appears in a reproducible route contract", "bounded operator collections use a deterministic opaque cursor with continuation metadata and adapters apply scope/cursor before LIMIT", "production PostgreSQL authority has a real service-container behavioral integration gate for migrations, idempotency, tenant scope and lease fencing", "Go SDK transport never auto-retries mutations or embeds approval/business logic", "RECOVERY_REQUIRED MCP jobs can only be terminally resolved by a human platform-admin from authoritative readback plus evidence", "resource scope audit defaults missing classifications to UNCLASSIFIED instead of guessing"}},
-		{ID: "J5-resource-scope-owner-closure", Order: 31, Status: ProgramStatusBlocked, DeliveryTier: ProgramTierExpansion, RequiredForFeatureFreeze: false, Objective: "Classify every Product API resource family against explicit platform/organization/project/dynamic ownership and use the registry to audit SDK, MCP, Terraform, Crossplane and Console scope behavior.", DependsOn: []string{"J4-product-api-contract-recovery-foundation"}, ParallelWith: []string{"J1-automation-external-integrations", "J3-virtual-cluster-profile"}, Blockers: []string{"RESOURCE_SCOPE_OWNER_CLASSIFICATION_PENDING"}, Evidence: []string{"RESOURCE_SCOPE_REGISTRY_V1", "RESOURCE_SCOPE_OWNER_CLASSIFICATIONS_V1", "GET /api/v1/access/resource-scopes"}, ExitCriteria: []string{"every stable API family is OWNER_CLASSIFIED from source evidence", "no SDK/MCP/IaC client widens an unclassified resource to global scope", "RLS/authorization audits consume the same ownership registry"}},
+		{ID: "J5-resource-scope-owner-closure", Order: 31, Status: ProgramStatusSourceImplemented, DeliveryTier: ProgramTierExpansion, RequiredForFeatureFreeze: false, Objective: "Classify every Product API resource family against explicit platform/organization/project/dynamic ownership and use the registry to audit SDK, MCP, Terraform, Crossplane and Console scope behavior.", DependsOn: []string{"J4-product-api-contract-recovery-foundation"}, ParallelWith: []string{"J1-automation-external-integrations", "J3-virtual-cluster-profile"}, Evidence: []string{"RESOURCE_SCOPE_REGISTRY_V1", "RESOURCE_SCOPE_OWNER_CLASSIFICATIONS_V1", "RESOURCE_SCOPE_CONSUMER_AUDIT_V1", "PRODUCT_API_RESOURCE_SCOPE_PROPAGATION_V1", "CONSOLE_RESOURCE_SCOPE_FAIL_CLOSED_V1", "GET /api/v1/access/resource-scopes", "sdk/product-api-contract.json", "sdk/go/routes_gen.go", "internal/api/mcp_route_parity_registry.json", "scripts/validate_repository.py", "webconsole/static/app.js"}, ExitCriteria: []string{"every stable API family is OWNER_CLASSIFIED from source evidence", "no SDK/MCP/IaC client widens an unclassified resource to global scope", "RLS/authorization audits consume the same ownership registry"}},
 		{ID: "H3-public-cloud-provider-adapters", Order: 32, Status: ProgramStatusBlocked, DeliveryTier: ProgramTierExpansion, RequiredForFeatureFreeze: false, Objective: "Develop AWS, Azure and GCP infrastructure provider adapters over common Product API/provider lifecycle contracts without waiting for physical certification of VMware or bare metal.", DependsOn: []string{"H2-vmware-provider", "J4-product-api-contract-recovery-foundation"}, ParallelWith: []string{"J1-automation-external-integrations", "J3-virtual-cluster-profile"}, Blockers: []string{"AWS_PROVIDER_ADAPTER_PENDING", "AZURE_PROVIDER_ADAPTER_PENDING", "GCP_PROVIDER_ADAPTER_PENDING"}, ExitCriteria: []string{"provider identity, credential-reference, plan/apply/readback/error semantics share one product contract", "unknown external outcome never triggers unsafe automatic replay", "provider-specific credentials remain external-secret references"}},
 		{ID: "J6-fleet-reliability-incident-intelligence", Order: 33, Status: ProgramStatusBlocked, DeliveryTier: ProgramTierExpansion, RequiredForFeatureFreeze: false, Objective: "Add product-level Service Health, Incident, SLO/Error Budget and evidence-linked remediation views over existing telemetry without deploying a duplicate monitoring authority.", DependsOn: []string{"G1-operational-runtime-hardening", "G2-generalized-day2-campaign-engine", "J4-product-api-contract-recovery-foundation"}, ParallelWith: []string{"J7-finops-v2-budget-forecast-rightsizing"}, Blockers: []string{"SERVICE_HEALTH_AUTHORITY_PENDING", "INCIDENT_AUTHORITY_PENDING", "SLO_ERROR_BUDGET_AUTHORITY_PENDING"}},
-		{ID: "J7-finops-v2-budget-forecast-rightsizing", Order: 34, Status: ProgramStatusBlocked, DeliveryTier: ProgramTierExpansion, RequiredForFeatureFreeze: false, Objective: "Extend measured FinOps authority with budget thresholds, forecast, anomaly and rightsizing recommendations while preserving missing-telemetry fail-closed semantics.", DependsOn: []string{"J2-finops-usage", "J4-product-api-contract-recovery-foundation"}, ParallelWith: []string{"J6-fleet-reliability-incident-intelligence"}, Blockers: []string{"FINOPS_BUDGET_POLICY_PENDING", "FINOPS_FORECAST_ANOMALY_PENDING", "FINOPS_RIGHTSIZING_PENDING"}},
+		{ID: "J7-finops-v2-budget-forecast-rightsizing", Order: 34, Status: ProgramStatusSourceImplemented, DeliveryTier: ProgramTierExpansion, RequiredForFeatureFreeze: false, Objective: "Extend measured FinOps authority with immutable budget thresholds, deterministic forecast/anomaly views and evidence-backed review-only rightsizing while preserving missing-telemetry fail-closed semantics.", DependsOn: []string{"J2-finops-usage", "J4-product-api-contract-recovery-foundation"}, ParallelWith: []string{"J6-fleet-reliability-incident-intelligence"}, Evidence: []string{"FINOPS_BUDGET_POLICY_AUTHORITY_V1", "FINOPS_FORECAST_ANOMALY_RIGHTSIZING_AUTHORITY_V1", "migrations/0073_finops_budget_policy_authority.sql", "POST /api/v1/finops/budget-policies", "GET /api/v1/finops/budget-policies", "GET /api/v1/finops/budget-policies/{id}", "GET /api/v1/finops/insights", "MCP_ROUTE_PARITY_AUTHORITY_V1", "operator-console:finops-budget-forecast-rightsizing"}, ExitCriteria: []string{"budget policies are immutable, organization/project scoped and PostgreSQL-backed in production", "forecast and budget projections remain UNKNOWN when measured cost or rate coverage is incomplete", "spend anomaly is derived deterministically from complete measured baseline and recent cost windows", "rightsizing requires fresh project-aggregate capacity plus complete measured demand and is always review-only with automatable=false"}},
 		{ID: "C9-pre-certification-feature-freeze-exact-bundle", Order: 35, Status: ProgramStatusBlocked, DeliveryTier: ProgramTierCoreFreeze, RequiredForFeatureFreeze: true, Objective: "Freeze required product scope and assemble one exact immutable release only after every mandatory DAG branch and certification contract is ready.", DependsOn: []string{c5Phase, "C6-multi-agent-test-autopilot", c7Phase, c7OAuthPhase, c7ParityPhase, c8Phase, fPhase, "S2-component-runtime-certification-authorities", "G3-target-node-maintenance-lifecycle", "G4-data-protection-productization", "G5-enterprise-identity-compliance", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core"}, Blockers: []string{"PRE_CERTIFICATION_REQUIRED_FEATURES_OPEN", "LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING"}, Evidence: []string{"FEATURE_FREEZE_AUTHORITY_V1", FeatureCertificationRegistryAuthority, "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8", "ARTIFACT-MANIFEST.json", "BUILD-PROVENANCE.json", "SBOM.spdx.json"}},
 		{ID: "D-exact-artifact-lab-ai-certification", Order: 36, Status: ProgramStatusDeferred, DeliveryTier: ProgramTierCertification, Objective: "Execute Exact-SHA physical functional certification M00-M10 only after C9 development closure; until then this phase is deferred and never blocks coding, feature hardening or source/runtime-realism validation.", DependsOn: []string{"C9-pre-certification-feature-freeze-exact-bundle"}, Evidence: []string{"LAB_CERTIFICATION_MATRIX_V2", "scripts/lab_runner.py", "LAB_EXACT_RELEASE_EXECUTION_AUTHORITY_V1", "PHYSICAL_CERTIFICATION_DEFERRED_UNTIL_DEVELOPMENT_CLOSURE_V1"}, ExitCriteria: []string{"same exact release executes M00-M10 and all feature contracts requiring physical/integration evidence", "Physical PASS is recorded only from direct exact-SHA evidence"}},
 		{ID: "K-optional-vm-workload-plane", Order: 37, Status: ProgramStatusNotEvaluated, DeliveryTier: ProgramTierOptional, Objective: "Evaluate an optional KubeVirt VM workload plane without blocking required feature freeze.", DependsOn: []string{"J3-virtual-cluster-profile"}, Blockers: []string{"VM_WORKLOAD_PLANE_PRODUCT_DECISION_PENDING"}},
@@ -354,6 +358,30 @@ func programProgressSummary(phases []ProgramPhase, goalReady bool) ProgramProgre
 		out.CorePhaseReadyPercent = out.CorePhaseReady * 100 / out.CoreRequiredPhases
 	}
 	out.CoreSourceClosureComplete = out.CoreSourceOpenPhases == 0 && out.CoreRequiredPhases > 0
+	for _, phase := range phases {
+		if phase.DeliveryTier != ProgramTierCoreFreeze && phase.DeliveryTier != ProgramTierExpansion {
+			continue
+		}
+		out.PrePhysicalSoftwarePhases++
+		sourceClosed := phase.Status == ProgramStatusSourceImplemented
+		if !sourceClosed && len(phase.Blockers) > 0 {
+			sourceClosed = true
+			for _, blocker := range phase.Blockers {
+				if blockerClosureClass(blocker) == "" {
+					sourceClosed = false
+					break
+				}
+			}
+		}
+		if sourceClosed {
+			out.PrePhysicalSoftwareClosedPhases++
+		} else {
+			out.PrePhysicalSoftwareOpenPhases++
+		}
+	}
+	if out.PrePhysicalSoftwarePhases > 0 {
+		out.PrePhysicalSoftwareClosurePercent = out.PrePhysicalSoftwareClosedPhases * 100 / out.PrePhysicalSoftwarePhases
+	}
 	sort.Strings(out.SourceOpenPhaseIDs)
 	sort.Strings(out.ExternalClosureOnlyPhaseIDs)
 	return out

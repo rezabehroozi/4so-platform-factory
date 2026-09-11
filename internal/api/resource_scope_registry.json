@@ -1,10 +1,10 @@
 {
   "authority": "RESOURCE_SCOPE_REGISTRY_V1",
   "classificationAuthority": "RESOURCE_SCOPE_OWNER_CLASSIFICATIONS_V1",
-  "classifiedCount": 42,
+  "classifiedCount": 73,
   "families": [
     {
-      "evidence": "internal/api/access_context.go; effective scope is derived from the authenticated principal and server-side organization/project authorization",
+      "evidence": "internal/api/server.go; effective scope is derived from the authenticated principal and server-side organization/project authorization",
       "family": "access",
       "scope": "DYNAMIC_SCOPED",
       "status": "OWNER_CLASSIFIED"
@@ -22,7 +22,7 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "internal/api/autopilot.go; endpoint exposes platform-owned Autopilot status and does not accept tenant resource identifiers",
+      "evidence": "internal/api/autopilot_status.go; endpoint exposes platform-owned Autopilot status and does not accept tenant resource identifiers",
       "family": "autopilot",
       "scope": "PLATFORM_SCOPED",
       "status": "OWNER_CLASSIFIED"
@@ -46,10 +46,10 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/server.go and internal/baseline; baseline catalog is immutable platform-owned product metadata and accepts no organization/project resource identity",
       "family": "baselines",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/api/blueprint_overlay.go; BlueprintOverlay carries ProjectID and handlers enforce requireProjectAccess",
@@ -64,34 +64,34 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/blueprint_authoring.go and internal/api/blueprint_resolve.go; authoring/validation are platform planning surfaces while resolve binds an explicit ProjectID and enforces requireProjectAccess",
       "family": "blueprints",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/server.go and internal/catalog; component catalog, summary and runtime-certification authority are platform-owned product metadata",
       "family": "catalog",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/catalog_governance.go; signing identity is platform catalog-governance authority and has no tenant resource owner",
       "family": "catalog-governance",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/catalog_governance.go and internal/controlplane/catalog_governance.go; CatalogRelease OrganizationID may be empty for platform releases or set for organization releases and handlers enforce the corresponding authority",
       "family": "catalog-releases",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/catalog_governance.go and internal/controlplane/catalog_governance.go; trust keys support platform-wide ownership when OrganizationID is empty and organization ownership when it is set",
       "family": "catalog-trust-keys",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/api/fleet.go; ClusterImport carries ProjectID and create/list/get/approval paths enforce project access",
@@ -106,16 +106,16 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/compatibility.go; compatibility evaluation is a side-effect-free platform planning calculation over supplied blueprint/target inputs and does not load tenant-owned state",
       "family": "compatibility",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/compliance_scan.go and internal/controlplane/compliance_scan_store.go; profiles, scans, findings and waivers carry ProjectID and handlers enforce project access",
       "family": "compliance",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PROJECT_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/api/server.go; summary/attention resolve the caller accessible organization/project sets before aggregating resources",
@@ -130,7 +130,7 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "internal/api/day2_campaign_engine.go; endpoint exposes the platform-owned campaign engine contract and no tenant resource state",
+      "evidence": "internal/api/day2_campaign.go; endpoint exposes the platform-owned campaign engine contract and no tenant resource state",
       "family": "day2-campaign-engine",
       "scope": "PLATFORM_SCOPED",
       "status": "OWNER_CLASSIFIED"
@@ -142,10 +142,10 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/external_integrations.go; admission accepts OrganizationID plus optional ProjectID, validates project-to-organization ownership when present, otherwise enforces organization access",
       "family": "external-registry",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/api/finops.go; rate cards, usage and showback are explicitly organization/project scoped",
@@ -166,34 +166,34 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/git_provider.go; Git authority inspection is restricted through requireGitAdmin/platform-admin and represents global managed Git authority",
       "family": "git-authority",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/git_provider.go and internal/controlplane/git_provider.go; credential references are global platform authority and every CRUD path is restricted through requireGitAdmin",
       "family": "git-credentials",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/git_provider.go and internal/controlplane/git_provider.go; managed Git provider configuration is global platform authority and requires platform-admin",
       "family": "git-providers",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/identity.go and internal/api/identity_admin.go; platform identity/group-mapping authority coexists with organization-scoped SAML broker/admin-job authority",
       "family": "identity",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/server.go and internal/installation; installation profiles/integrations/recovery model and plan generation are platform bootstrap planning surfaces with no tenant resource identity",
       "family": "installations",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/api/lab.go; lab guide is platform-owned static operational guidance and has no tenant-owned resource identity",
@@ -202,22 +202,22 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/server.go; product log aggregation resolves requestedReadScope and intersects operations/audit/notifications with authorized organization/project ownership",
       "family": "logs",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/managed_okd_install.go; runtime capability inspection is platform-owned while managed install operations bind ProjectID and enforce project access",
       "family": "managed-okd-installs",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/marketplace.go; offers are platform catalog data while installations and recommendations carry ProjectID and enforce project access",
       "family": "marketplace",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/api/mcp_delegation.go; delegation grants are explicitly organization/project scoped and server-side access is checked before grant issuance",
@@ -226,46 +226,46 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/notification.go; delivery authorization is derived from its event/route organization and optional project through requireNotificationResourceAccess",
       "family": "notification-deliveries",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/notification.go and internal/controlplane/notification.go; NotificationDestination carries OrganizationID and handlers require organization access",
       "family": "notification-destinations",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "ORGANIZATION_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/notification.go; event types are platform-owned static notification capability metadata",
       "family": "notification-event-types",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/notification.go and internal/controlplane/notification.go; events carry OrganizationID with optional ProjectID and reads intersect the caller organization/project scope",
       "family": "notification-events",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/notification.go; provider contracts are static platform adapter capability metadata and contain no tenant-owned resource identity",
       "family": "notification-provider-contracts",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/notification.go and internal/controlplane/notification.go; routes carry OrganizationID with optional ProjectID and authorization follows organization/project ownership",
       "family": "notification-routes",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/notification.go; routing preview accepts OrganizationID plus optional ProjectID and validates access and project-to-organization consistency",
       "family": "notification-routing",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/controlplane/model.go; OperationRequest and Operation carry ProjectID and API access resolves authorization through that project",
@@ -280,10 +280,10 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/server.go and internal/plan; plan generation is a side-effect-free calculation over the submitted blueprint and does not read or persist tenant-owned resources",
       "family": "plans",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/controlplane/platform_template.go; PlatformPolicySet carries ProjectID and API handlers authorize that project",
@@ -346,10 +346,10 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/runtime_closure_evidence.go and internal/evidence; report verification validates supplied evidence bytes without loading or mutating tenant state",
       "family": "runtime-closure-reports",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/api/runtime_verification.go; RuntimeVerification carries ProjectID and handlers enforce project access",
@@ -364,46 +364,46 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "internal/api/security_audit.go; security audit chain is platform authority and access is restricted to platform administrative context",
+      "evidence": "internal/api/identity_authority.go; security audit chain is platform authority and access is restricted to platform administrative context",
       "family": "security-audit-events",
       "scope": "PLATFORM_SCOPED",
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "internal/api/service_account.go; service accounts are organization-scoped with optional ProjectID and server-side scope checks",
+      "evidence": "internal/api/service_accounts.go; service accounts are organization-scoped with optional ProjectID and server-side scope checks",
       "family": "service-accounts",
       "scope": "DYNAMIC_SCOPED",
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/support_bundle_async.go; durable support-bundle jobs resolve a canonical ProjectID and GET/download paths enforce project access",
       "family": "support-bundle-jobs",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PROJECT_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/fleet_support.go and internal/api/support_bundle_async.go; profile discovery is platform-owned while bundle collection resolves project/cluster/operation context and enforces project access where tenant state is referenced",
       "family": "support-bundles",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/server.go, internal/api/git_delivery.go and internal/api/git_provider.go; system service/Git delivery authority is platform-owned, with managed Git authority reads and writes restricted through requireGitAdmin where privileged state is exposed",
       "family": "system-services",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "internal/api/architecture_model.go; endpoint exposes platform-owned architecture authority with no tenant resource identity",
+      "evidence": "internal/api/target_model.go; endpoint exposes platform-owned architecture authority with no tenant resource identity",
       "family": "target-architecture-model",
       "scope": "PLATFORM_SCOPED",
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/server.go and internal/tenancy; tenancy plan catalog is platform-owned static product metadata and contains no tenant instance state",
       "family": "tenancy",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PLATFORM_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/api/tenant.go; TenantEnvironment carries ProjectID and all lifecycle handlers require project access",
@@ -418,10 +418,10 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
-      "evidence": "",
+      "evidence": "internal/api/variable_schema.go and internal/controlplane/variable_schema.go; VariableSchema carries ProjectID and create/list/get paths enforce project access",
       "family": "variable-schemas",
-      "scope": "UNCLASSIFIED",
-      "status": "OWNER_REVIEW_REQUIRED"
+      "scope": "PROJECT_SCOPED",
+      "status": "OWNER_CLASSIFIED"
     },
     {
       "evidence": "internal/api/server.go; version is immutable platform build metadata and has no tenant-owned resource state",
@@ -443,7 +443,7 @@
     }
   ],
   "familyCount": 73,
-  "ownerReviewRequiredCount": 31,
+  "ownerReviewRequiredCount": 0,
   "policy": {
     "inferenceAllowed": false,
     "missingClassification": "OWNER_REVIEW_REQUIRED",

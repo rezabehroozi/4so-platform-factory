@@ -135,23 +135,23 @@
       "evidence": [
         {
           "path": "VERSION",
-          "sha256": "sha256:2706447c2eb3169d71c0d0881393cfbd824eb4ae5065545fd06dbf377b955a86",
+          "sha256": "sha256:10180ff1e7b77206fbd7fb1729f5b9a3125a353c6e35930e36e98ae2303bf8ef",
           "size": 8
         }
       ],
       "id": "release.version",
-      "value": "0.0.359"
+      "value": "0.0.361"
     },
     {
       "evidence": [
         {
           "path": "RELEASE-NAME",
-          "sha256": "sha256:cce99bc9db76d99ae3cd1d7de0965bb485b614b5a9c1cf6ee2f6f714c8ca5905",
-          "size": 61
+          "sha256": "sha256:b809fe51963a09b3fc8d16d7038d8c7df86830b594d80028c9f3cbca1fb25649",
+          "size": 42
         }
       ],
       "id": "release.name",
-      "value": "engineering-safety-pagination-scope-postgres-integration-v65"
+      "value": "finops-v2-budget-forecast-rightsizing-v67"
     },
     {
       "evidence": [
@@ -168,19 +168,19 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-roadmap.authority",
-      "value": "PROGRAM_PHASE_MODEL_V64"
+      "value": "PROGRAM_PHASE_MODEL_V67"
     },
     {
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-roadmap.current-phase",
@@ -190,8 +190,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-roadmap.goal-ready",
@@ -206,7 +206,7 @@
         },
         {
           "path": "DESIGN.md",
-          "sha256": "sha256:e159ee24a2b303958fe730a27106239584f47431a1a8a405d4829681d2037a83",
+          "sha256": "sha256:1de2181407592010b28ffaa180bc16c007957e76df03b87aaa3bb46866aa05b6",
           "size": 85830
         }
       ],
@@ -227,7 +227,7 @@
         },
         {
           "path": "DESIGN.md",
-          "sha256": "sha256:e159ee24a2b303958fe730a27106239584f47431a1a8a405d4829681d2037a83",
+          "sha256": "sha256:1de2181407592010b28ffaa180bc16c007957e76df03b87aaa3bb46866aa05b6",
           "size": 85830
         }
       ],
@@ -257,8 +257,8 @@
         },
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "search-projection.boundary",
@@ -291,12 +291,12 @@
       "evidence": [
         {
           "path": "README.md",
-          "sha256": "sha256:f7754a5aac36808abac28e53bb0124ae2fa5eb99d265d9ddb66acea9a8d6bb43",
-          "size": 134197
+          "sha256": "sha256:de31fa3a30e4d2e3bc313a8f6037a4f950f266e1383e614d96751c56e463c703",
+          "size": 134444
         },
         {
           "path": "DESIGN.md",
-          "sha256": "sha256:e159ee24a2b303958fe730a27106239584f47431a1a8a405d4829681d2037a83",
+          "sha256": "sha256:1de2181407592010b28ffaa180bc16c007957e76df03b87aaa3bb46866aa05b6",
           "size": 85830
         }
       ],
@@ -307,8 +307,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.A-architecture-authority-rebaseline",
@@ -323,8 +323,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.B-target-capability-supplychain-foundation",
@@ -341,8 +341,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C1-operator-ia-scope-authority",
@@ -359,8 +359,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C2-console-data-scale-refresh-semantics",
@@ -377,8 +377,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C3-console-action-workflow-evidence-convergence",
@@ -395,8 +395,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C4-console-e2e-ux-certification",
@@ -414,8 +414,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.E-certified-platform-template-workspace-foundation",
@@ -432,8 +432,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C5-installer-production-lifecycle-closure",
@@ -452,8 +452,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C6-multi-agent-test-autopilot",
@@ -472,8 +472,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C7-ai-mcp-delegated-operations",
@@ -490,8 +490,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C7R-mcp-remote-oauth-human-delegation",
@@ -513,8 +513,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C7W-mcp-user-admin-write-parity",
@@ -539,8 +539,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C8-console-operational-completion",
@@ -559,8 +559,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.F-okd-import-capability-certification",
@@ -577,8 +577,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.R0-release-authority-certification-rebaseline",
@@ -595,8 +595,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.S1-exact-supply-chain-acquisition-closure",
@@ -624,8 +624,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.S2-component-runtime-certification-authorities",
@@ -647,8 +647,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.G1-operational-runtime-hardening",
@@ -666,8 +666,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.G2-generalized-day2-campaign-engine",
@@ -684,8 +684,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.G3-target-node-maintenance-lifecycle",
@@ -705,8 +705,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.G4-data-protection-productization",
@@ -724,8 +724,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.G5-enterprise-identity-compliance",
@@ -742,8 +742,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.H1-baremetal-connected-managed-okd",
@@ -764,8 +764,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.H2-vmware-provider",
@@ -785,8 +785,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.I1-disconnected-okd-core",
@@ -806,8 +806,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.I2-edge-sovereign-extension",
@@ -833,8 +833,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.J1-automation-external-integrations",
@@ -859,8 +859,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.J2-finops-usage",
@@ -880,8 +880,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.J3-virtual-cluster-profile",
@@ -905,8 +905,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.J4-product-api-contract-recovery-foundation",
@@ -927,15 +927,13 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.J5-resource-scope-owner-closure",
       "value": {
-        "blockers": [
-          "RESOURCE_SCOPE_OWNER_CLASSIFICATION_PENDING"
-        ],
+        "blockers": [],
         "dependsOn": [
           "J4-product-api-contract-recovery-foundation"
         ],
@@ -943,15 +941,15 @@
           "J1-automation-external-integrations",
           "J3-virtual-cluster-profile"
         ],
-        "status": "blocked"
+        "status": "source-implemented"
       }
     },
     {
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.H3-public-cloud-provider-adapters",
@@ -976,8 +974,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.J6-fleet-reliability-incident-intelligence",
@@ -1002,17 +1000,13 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.J7-finops-v2-budget-forecast-rightsizing",
       "value": {
-        "blockers": [
-          "FINOPS_BUDGET_POLICY_PENDING",
-          "FINOPS_FORECAST_ANOMALY_PENDING",
-          "FINOPS_RIGHTSIZING_PENDING"
-        ],
+        "blockers": [],
         "dependsOn": [
           "J2-finops-usage",
           "J4-product-api-contract-recovery-foundation"
@@ -1020,15 +1014,15 @@
         "parallelWith": [
           "J6-fleet-reliability-incident-intelligence"
         ],
-        "status": "blocked"
+        "status": "source-implemented"
       }
     },
     {
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.C9-pre-certification-feature-freeze-exact-bundle",
@@ -1060,8 +1054,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.D-exact-artifact-lab-ai-certification",
@@ -1078,8 +1072,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.K-optional-vm-workload-plane",
@@ -1098,8 +1092,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.L-optional-accelerator-ai-infrastructure",
@@ -1120,8 +1114,8 @@
       "evidence": [
         {
           "path": "internal/targetmodel/program.go",
-          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
-          "size": 87632
+          "sha256": "sha256:b7ba3686d782e0ec3e8660c4bb21e4ec86166757e356f0d207fa3fdb6ffa4a33",
+          "size": 89827
         }
       ],
       "id": "program-phase.M-full-product-certification-chaos-soak-ux-ai-evals",
@@ -1136,16 +1130,16 @@
     }
   ],
   "derived": true,
-  "digest": "sha256:fe4de15f6ff7c0da13e8f05954ee2c39aca4f0cef04a46243e8fef34a67d13bb",
+  "digest": "sha256:4865e3bc0171c972e7f379e0924d9feae7ccaf421050847d05995c2b23c2ff6a",
   "discardableAndRebuildable": true,
   "notSourceOfTruth": true,
   "release": {
-    "releaseName": "engineering-safety-pagination-scope-postgres-integration-v65",
-    "version": "0.0.359"
+    "releaseName": "finops-v2-budget-forecast-rightsizing-v67",
+    "version": "0.0.361"
   },
   "schemaVersion": 1,
   "sourceAuthorities": {
-    "programRoadmap": "PROGRAM_PHASE_MODEL_V64",
+    "programRoadmap": "PROGRAM_PHASE_MODEL_V67",
     "searchProjection": "SEARCH_PROJECTION_AUTHORITY_V2",
     "targetArchitecture": "TARGET_ARCHITECTURE_MODEL_V1"
   }

@@ -2,11 +2,11 @@
   "authority": "MCP_ROUTE_PARITY_AUTHORITY_V1",
   "counts": {
     "security-excluded": 40,
-    "tool-admin": 72,
+    "tool-admin": 73,
     "tool-operate": 63,
-    "tool-read": 157
+    "tool-read": 160
   },
-  "routeCount": 332,
+  "routeCount": 336,
   "routes": [
     {
       "action": "version",
@@ -20,6 +20,8 @@
       "method": "GET",
       "path": "/api/v1/version",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_version"
     },
@@ -35,6 +37,8 @@
       "method": "GET",
       "path": "/api/v1/access/context",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_access_context"
     },
@@ -50,6 +54,8 @@
       "method": "GET",
       "path": "/api/v1/access/resource-scopes",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_access_resource_scopes"
     },
@@ -65,6 +71,8 @@
       "method": "GET",
       "path": "/api/v1/identity/authority",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_identity_authority"
     },
@@ -80,6 +88,8 @@
       "method": "POST",
       "path": "/api/v1/identity/saml-brokers",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_identity_saml_brokers"
     },
@@ -95,6 +105,8 @@
       "method": "GET",
       "path": "/api/v1/identity/saml-brokers",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_identity_saml_brokers"
     },
@@ -112,6 +124,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_identity_saml_brokers_by_id"
     },
@@ -129,6 +143,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_delete_identity_saml_brokers_by_id"
     },
@@ -144,6 +160,8 @@
       "method": "GET",
       "path": "/api/v1/identity/admin-jobs",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_identity_admin_jobs"
     },
@@ -161,6 +179,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_identity_admin_jobs_by_id"
     },
@@ -178,6 +198,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_identity_admin_jobs_by_id_approve"
     },
@@ -193,6 +215,8 @@
       "method": "POST",
       "path": "/api/v1/compliance/profiles",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_compliance_profiles"
     },
@@ -208,6 +232,8 @@
       "method": "GET",
       "path": "/api/v1/compliance/profiles",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_compliance_profiles"
     },
@@ -223,6 +249,8 @@
       "method": "POST",
       "path": "/api/v1/compliance/scans",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_compliance_scans"
     },
@@ -238,6 +266,8 @@
       "method": "GET",
       "path": "/api/v1/compliance/scans",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_compliance_scans"
     },
@@ -255,6 +285,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_compliance_scans_by_id"
     },
@@ -270,6 +302,8 @@
       "method": "GET",
       "path": "/api/v1/compliance/findings",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_compliance_findings"
     },
@@ -287,6 +321,8 @@
       "pathParams": [
         "fingerprint"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_compliance_findings_by_fingerprint_recheck"
     },
@@ -302,6 +338,8 @@
       "method": "POST",
       "path": "/api/v1/compliance/waivers",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_compliance_waivers"
     },
@@ -319,6 +357,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_compliance_waivers_by_id_approve"
     },
@@ -336,6 +376,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_compliance_waivers_by_id_revoke"
     },
@@ -351,6 +393,8 @@
       "method": "POST",
       "path": "/api/v1/identity/group-mappings",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_identity_group_mappings"
     },
@@ -366,6 +410,8 @@
       "method": "GET",
       "path": "/api/v1/identity/group-mappings",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_identity_group_mappings"
     },
@@ -383,6 +429,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_identity_group_mappings_by_id_revoke"
     },
@@ -398,6 +446,8 @@
       "method": "GET",
       "path": "/api/v1/security-audit-events",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_security_audit_events"
     },
@@ -413,6 +463,8 @@
       "method": "GET",
       "path": "/api/v1/catalog/components",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_catalog_components"
     },
@@ -428,6 +480,8 @@
       "method": "GET",
       "path": "/api/v1/catalog/summary",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_catalog_summary"
     },
@@ -443,6 +497,8 @@
       "method": "GET",
       "path": "/api/v1/catalog/runtime-certification-authority",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_catalog_runtime_certification_authority"
     },
@@ -458,6 +514,8 @@
       "method": "GET",
       "path": "/api/v1/catalog-governance/signing-identity",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_catalog_governance_signing_identity"
     },
@@ -473,6 +531,8 @@
       "method": "POST",
       "path": "/api/v1/catalog-trust-keys",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_catalog_trust_keys"
     },
@@ -488,6 +548,8 @@
       "method": "GET",
       "path": "/api/v1/catalog-trust-keys",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_catalog_trust_keys"
     },
@@ -505,6 +567,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_catalog_trust_keys_by_id_impact"
     },
@@ -522,6 +586,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_catalog_trust_keys_by_id_revoke"
     },
@@ -537,6 +603,8 @@
       "method": "POST",
       "path": "/api/v1/catalog-releases",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_catalog_releases"
     },
@@ -552,6 +620,8 @@
       "method": "GET",
       "path": "/api/v1/catalog-releases",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_catalog_releases"
     },
@@ -569,6 +639,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_catalog_releases_by_id"
     },
@@ -586,6 +658,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_catalog_releases_by_id_draft"
     },
@@ -603,6 +677,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_catalog_releases_by_id_review"
     },
@@ -620,6 +696,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_catalog_releases_by_id_request_changes"
     },
@@ -637,6 +715,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_catalog_releases_by_id_publish"
     },
@@ -654,6 +734,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_catalog_releases_by_id_deprecate"
     },
@@ -671,6 +753,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_catalog_releases_by_id_revoke"
     },
@@ -688,6 +772,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_catalog_releases_by_id_promote"
     },
@@ -705,6 +791,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_catalog_releases_by_id_render"
     },
@@ -720,6 +808,8 @@
       "method": "GET",
       "path": "/api/v1/tenancy/plans",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_tenancy_plans"
     },
@@ -735,6 +825,8 @@
       "method": "GET",
       "path": "/api/v1/blueprints/authoring-contract",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_blueprints_authoring_contract"
     },
@@ -750,6 +842,8 @@
       "method": "POST",
       "path": "/api/v1/blueprints/authoring-roundtrip",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_blueprints_authoring_roundtrip"
     },
@@ -765,6 +859,8 @@
       "method": "POST",
       "path": "/api/v1/blueprints/validate",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_blueprints_validate"
     },
@@ -780,6 +876,8 @@
       "method": "POST",
       "path": "/api/v1/compatibility/evaluate",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_compatibility_evaluate"
     },
@@ -795,6 +893,8 @@
       "method": "GET",
       "path": "/api/v1/target-architecture-model",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_target_architecture_model"
     },
@@ -810,6 +910,8 @@
       "method": "GET",
       "path": "/api/v1/mcp/delegation-architecture",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_mcp_delegation_architecture"
     },
@@ -825,6 +927,8 @@
       "method": "POST",
       "path": "/api/v1/mcp/trusted-clients",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -840,6 +944,8 @@
       "method": "GET",
       "path": "/api/v1/mcp/trusted-clients",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -857,6 +963,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": ""
     },
@@ -872,6 +980,8 @@
       "method": "POST",
       "path": "/api/v1/mcp/delegation-grants/preview",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -887,6 +997,8 @@
       "method": "POST",
       "path": "/api/v1/mcp/delegation-grants",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -902,6 +1014,8 @@
       "method": "GET",
       "path": "/api/v1/mcp/delegation-grants",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -919,6 +1033,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": ""
     },
@@ -934,6 +1050,8 @@
       "method": "GET",
       "path": "/api/v1/day2-campaign-engine",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_day2_campaign_engine"
     },
@@ -949,6 +1067,8 @@
       "method": "GET",
       "path": "/api/v1/lab/guide",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_lab_guide"
     },
@@ -964,6 +1084,8 @@
       "method": "GET",
       "path": "/api/v1/ai/policy",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_ai_policy"
     },
@@ -979,6 +1101,8 @@
       "method": "GET",
       "path": "/api/v1/ai/capabilities",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_ai_capabilities"
     },
@@ -994,6 +1118,8 @@
       "method": "GET",
       "path": "/api/v1/ai/persian-writing",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_ai_persian_writing"
     },
@@ -1009,6 +1135,8 @@
       "method": "GET",
       "path": "/api/v1/ai/control-jobs",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_ai_control_jobs"
     },
@@ -1026,6 +1154,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_ai_control_jobs_by_id"
     },
@@ -1043,6 +1173,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -1058,6 +1190,8 @@
       "method": "POST",
       "path": "/api/v1/ai/diagnose",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_ai_diagnose"
     },
@@ -1073,6 +1207,8 @@
       "method": "GET",
       "path": "/api/v1/ai/runs",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_ai_runs"
     },
@@ -1090,6 +1226,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_ai_runs_by_id"
     },
@@ -1105,6 +1243,8 @@
       "method": "POST",
       "path": "/api/v1/blueprints/resolve",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_blueprints_resolve"
     },
@@ -1120,6 +1260,8 @@
       "method": "POST",
       "path": "/api/v1/blueprint-overlays",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_blueprint_overlays"
     },
@@ -1135,6 +1277,8 @@
       "method": "GET",
       "path": "/api/v1/blueprint-overlays",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_blueprint_overlays"
     },
@@ -1152,6 +1296,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_blueprint_overlays_by_id"
     },
@@ -1167,6 +1313,8 @@
       "method": "POST",
       "path": "/api/v1/variable-schemas",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_variable_schemas"
     },
@@ -1182,6 +1330,8 @@
       "method": "GET",
       "path": "/api/v1/variable-schemas",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_variable_schemas"
     },
@@ -1199,6 +1349,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_variable_schemas_by_id"
     },
@@ -1214,6 +1366,8 @@
       "method": "POST",
       "path": "/api/v1/platform-policy-sets",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_platform_policy_sets"
     },
@@ -1229,6 +1383,8 @@
       "method": "GET",
       "path": "/api/v1/platform-policy-sets",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_platform_policy_sets"
     },
@@ -1246,6 +1402,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_platform_policy_sets_by_id"
     },
@@ -1261,6 +1419,8 @@
       "method": "POST",
       "path": "/api/v1/platform-templates",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_platform_templates"
     },
@@ -1276,6 +1436,8 @@
       "method": "GET",
       "path": "/api/v1/platform-templates",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_platform_templates"
     },
@@ -1293,6 +1455,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_platform_templates_by_id"
     },
@@ -1310,6 +1474,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_platform_templates_by_id_admission"
     },
@@ -1325,6 +1491,8 @@
       "method": "POST",
       "path": "/api/v1/workspaces",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_workspaces"
     },
@@ -1340,6 +1508,8 @@
       "method": "GET",
       "path": "/api/v1/workspaces",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_workspaces"
     },
@@ -1357,6 +1527,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_workspaces_by_id"
     },
@@ -1374,6 +1546,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_workspaces_by_id_bindings"
     },
@@ -1391,6 +1565,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_workspaces_by_id_bindings"
     },
@@ -1409,6 +1585,8 @@
         "id",
         "bindingId"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_workspaces_by_id_bindings_by_bindingid_revoke"
     },
@@ -1424,6 +1602,8 @@
       "method": "POST",
       "path": "/api/v1/plans",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_plans"
     },
@@ -1439,6 +1619,8 @@
       "method": "POST",
       "path": "/api/v1/blueprint-releases",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_blueprint_releases"
     },
@@ -1454,6 +1636,8 @@
       "method": "GET",
       "path": "/api/v1/blueprint-releases",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_blueprint_releases"
     },
@@ -1471,6 +1655,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_blueprint_releases_by_id"
     },
@@ -1488,6 +1674,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_blueprint_releases_by_id_draft"
     },
@@ -1505,6 +1693,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_blueprint_releases_by_id_review"
     },
@@ -1522,6 +1712,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_blueprint_releases_by_id_request_changes"
     },
@@ -1539,6 +1731,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_blueprint_releases_by_id_publish"
     },
@@ -1556,6 +1750,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_blueprint_releases_by_id_deprecate"
     },
@@ -1573,6 +1769,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_blueprint_releases_by_id_revoke"
     },
@@ -1590,6 +1788,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_blueprint_releases_by_id_clone"
     },
@@ -1605,6 +1805,8 @@
       "method": "POST",
       "path": "/api/v1/blueprint-releases/compare",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_blueprint_releases_compare"
     },
@@ -1620,6 +1822,8 @@
       "method": "GET",
       "path": "/api/v1/installations/profiles",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_installations_profiles"
     },
@@ -1635,6 +1839,8 @@
       "method": "GET",
       "path": "/api/v1/installations/integrations",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_installations_integrations"
     },
@@ -1650,6 +1856,8 @@
       "method": "GET",
       "path": "/api/v1/installations/recovery-authority",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_installations_recovery_authority"
     },
@@ -1665,6 +1873,8 @@
       "method": "GET",
       "path": "/api/v1/autopilot/status",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_autopilot_status"
     },
@@ -1680,6 +1890,8 @@
       "method": "POST",
       "path": "/api/v1/installations/plans",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_installations_plans"
     },
@@ -1695,6 +1907,8 @@
       "method": "GET",
       "path": "/api/v1/managed-okd-installs/runtime",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_managed_okd_installs_runtime"
     },
@@ -1710,6 +1924,8 @@
       "method": "POST",
       "path": "/api/v1/managed-okd-installs",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_managed_okd_installs"
     },
@@ -1727,6 +1943,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_managed_okd_installs_by_id"
     },
@@ -1744,6 +1962,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_managed_okd_installs_by_id_approve"
     },
@@ -1759,6 +1979,8 @@
       "method": "GET",
       "path": "/api/v1/git-authority",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_git_authority"
     },
@@ -1774,6 +1996,8 @@
       "method": "POST",
       "path": "/api/v1/git-credentials",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -1789,6 +2013,8 @@
       "method": "GET",
       "path": "/api/v1/git-credentials",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -1806,6 +2032,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -1823,6 +2051,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": ""
     },
@@ -1838,6 +2068,8 @@
       "method": "POST",
       "path": "/api/v1/git-providers",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_git_providers"
     },
@@ -1853,6 +2085,8 @@
       "method": "GET",
       "path": "/api/v1/git-providers",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_git_providers"
     },
@@ -1870,6 +2104,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_git_providers_by_id_credential"
     },
@@ -1885,6 +2121,8 @@
       "method": "GET",
       "path": "/api/v1/system-services",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_system_services"
     },
@@ -1900,6 +2138,8 @@
       "method": "POST",
       "path": "/api/v1/system-services/git/repositories",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_system_services_git_repositories"
     },
@@ -1915,6 +2155,8 @@
       "method": "POST",
       "path": "/api/v1/system-services/git/revisions",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_system_services_git_revisions"
     },
@@ -1930,6 +2172,8 @@
       "method": "GET",
       "path": "/api/v1/system-services/git/revisions",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_system_services_git_revisions"
     },
@@ -1947,6 +2191,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_system_services_git_revisions_by_id_observe_sync"
     },
@@ -1962,6 +2208,8 @@
       "method": "GET",
       "path": "/api/v1/system-services/git/last-known-good",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_system_services_git_last_known_good"
     },
@@ -1977,6 +2225,8 @@
       "method": "POST",
       "path": "/api/v1/system-services/git/last-known-good/rollback",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_system_services_git_last_known_good_rollback"
     },
@@ -1992,6 +2242,8 @@
       "method": "GET",
       "path": "/api/v1/system-services/git/pull-requests",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_system_services_git_pull_requests"
     },
@@ -2009,6 +2261,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_system_services_git_pull_requests_by_id_approve"
     },
@@ -2026,6 +2280,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_system_services_git_pull_requests_by_id_merge"
     },
@@ -2043,6 +2299,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_drift_scans_by_id_adopt_git"
     },
@@ -2062,6 +2320,8 @@
         "clusterId",
         "fingerprint"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_drift_scans_by_id_targets_by_clusterid_findings_by_fingerprint_remediate"
     },
@@ -2077,6 +2337,8 @@
       "method": "GET",
       "path": "/api/v1/control-plane/summary",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_control_plane_summary"
     },
@@ -2092,6 +2354,8 @@
       "method": "GET",
       "path": "/api/v1/operations/queue-center",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_operations_queue_center"
     },
@@ -2107,6 +2371,8 @@
       "method": "GET",
       "path": "/api/v1/logs",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_logs"
     },
@@ -2122,6 +2388,8 @@
       "method": "GET",
       "path": "/api/v1/control-plane/attention",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_control_plane_attention"
     },
@@ -2137,6 +2405,8 @@
       "method": "POST",
       "path": "/api/v1/organizations",
       "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_organizations"
     },
@@ -2152,6 +2422,8 @@
       "method": "GET",
       "path": "/api/v1/organizations",
       "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_organizations"
     },
@@ -2169,6 +2441,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_organizations_by_id"
     },
@@ -2186,6 +2460,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_organizations_by_id"
     },
@@ -2203,6 +2479,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_organizations_by_id_memberships"
     },
@@ -2221,6 +2499,8 @@
         "id",
         "subject"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_organizations_by_id_memberships_by_subject"
     },
@@ -2239,6 +2519,8 @@
         "id",
         "subject"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_organizations_by_id_memberships_by_subject_revoke"
     },
@@ -2254,6 +2536,8 @@
       "method": "POST",
       "path": "/api/v1/service-accounts",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_service_accounts"
     },
@@ -2269,6 +2553,8 @@
       "method": "GET",
       "path": "/api/v1/service-accounts",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_service_accounts"
     },
@@ -2286,6 +2572,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_service_accounts_by_id"
     },
@@ -2303,6 +2591,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_service_accounts_by_id_revoke"
     },
@@ -2320,6 +2610,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2337,6 +2629,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_service_accounts_by_id_tokens"
     },
@@ -2355,6 +2649,8 @@
         "id",
         "tokenId"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": ""
     },
@@ -2373,6 +2669,8 @@
         "id",
         "tokenId"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2388,6 +2686,8 @@
       "method": "POST",
       "path": "/api/v1/projects",
       "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_projects"
     },
@@ -2403,6 +2703,8 @@
       "method": "GET",
       "path": "/api/v1/projects",
       "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_projects"
     },
@@ -2418,6 +2720,8 @@
       "method": "POST",
       "path": "/api/v1/operations",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2433,6 +2737,8 @@
       "method": "GET",
       "path": "/api/v1/operations",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_operations"
     },
@@ -2450,6 +2756,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_operations_by_id"
     },
@@ -2467,6 +2775,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2484,6 +2794,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2501,6 +2813,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2518,6 +2832,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2535,6 +2851,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2552,6 +2870,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2569,6 +2889,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2586,6 +2908,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_operations_by_id_cancel"
     },
@@ -2603,6 +2927,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2620,6 +2946,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2638,6 +2966,8 @@
         "id",
         "stepKey"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2655,6 +2985,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2672,6 +3004,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2690,6 +3024,8 @@
         "id",
         "stepKey"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2708,6 +3044,8 @@
         "id",
         "stepKey"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2725,6 +3063,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2744,6 +3084,8 @@
         "phase",
         "stepKey"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2762,6 +3104,8 @@
         "id",
         "evidenceId"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2777,6 +3121,8 @@
       "method": "GET",
       "path": "/api/v1/audit-events",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_audit_events"
     },
@@ -2792,6 +3138,8 @@
       "method": "GET",
       "path": "/api/v1/notification-event-types",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_event_types"
     },
@@ -2807,6 +3155,8 @@
       "method": "GET",
       "path": "/api/v1/notification-provider-contracts",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_provider_contracts"
     },
@@ -2822,6 +3172,8 @@
       "method": "POST",
       "path": "/api/v1/notification-routing/preview",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_notification_routing_preview"
     },
@@ -2837,8 +3189,80 @@
       "method": "POST",
       "path": "/api/v1/external-registry/admission",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_external_registry_admission"
+    },
+    {
+      "action": "budget-policies",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-admin",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "finops",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/finops/budget-policies",
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "high",
+      "toolName": "api_post_finops_budget_policies"
+    },
+    {
+      "action": "budget-policies",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "finops",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/finops/budget-policies",
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_finops_budget_policies"
+    },
+    {
+      "action": "budget-policies",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "finops",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/finops/budget-policies/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_finops_budget_policies_by_id"
+    },
+    {
+      "action": "insights",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "finops",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/finops/insights",
+      "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_finops_insights"
     },
     {
       "action": "rate-cards",
@@ -2852,6 +3276,8 @@
       "method": "POST",
       "path": "/api/v1/finops/rate-cards",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_finops_rate_cards"
     },
@@ -2867,6 +3293,8 @@
       "method": "GET",
       "path": "/api/v1/finops/rate-cards",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_finops_rate_cards"
     },
@@ -2884,6 +3312,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_finops_rate_cards_by_id"
     },
@@ -2899,6 +3329,8 @@
       "method": "POST",
       "path": "/api/v1/finops/usage-measurements",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2914,6 +3346,8 @@
       "method": "GET",
       "path": "/api/v1/finops/usage-measurements",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_finops_usage_measurements"
     },
@@ -2929,6 +3363,8 @@
       "method": "POST",
       "path": "/api/v1/finops/capacity-observations",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -2944,6 +3380,8 @@
       "method": "GET",
       "path": "/api/v1/finops/capacity-observations",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_finops_capacity_observations"
     },
@@ -2959,6 +3397,8 @@
       "method": "GET",
       "path": "/api/v1/finops/showback",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_finops_showback"
     },
@@ -2974,6 +3414,8 @@
       "method": "GET",
       "path": "/api/v1/finops/chargeback-export",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_finops_chargeback_export"
     },
@@ -2989,6 +3431,8 @@
       "method": "POST",
       "path": "/api/v1/notification-destinations",
       "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_notification_destinations"
     },
@@ -3004,6 +3448,8 @@
       "method": "GET",
       "path": "/api/v1/notification-destinations",
       "pathParams": [],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_destinations"
     },
@@ -3021,6 +3467,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_destinations_by_id"
     },
@@ -3038,6 +3486,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_notification_destinations_by_id"
     },
@@ -3055,6 +3505,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_notification_destinations_by_id_disable"
     },
@@ -3070,6 +3522,8 @@
       "method": "POST",
       "path": "/api/v1/notification-routes",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_notification_routes"
     },
@@ -3085,6 +3539,8 @@
       "method": "GET",
       "path": "/api/v1/notification-routes",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_routes"
     },
@@ -3102,6 +3558,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_routes_by_id"
     },
@@ -3119,6 +3577,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_routes_by_id_policy_digest"
     },
@@ -3136,6 +3596,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_notification_routes_by_id"
     },
@@ -3151,6 +3613,8 @@
       "method": "GET",
       "path": "/api/v1/notification-events",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_events"
     },
@@ -3168,6 +3632,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_events_by_id"
     },
@@ -3183,6 +3649,8 @@
       "method": "GET",
       "path": "/api/v1/notification-deliveries",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_deliveries"
     },
@@ -3200,6 +3668,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_notification_deliveries_by_id"
     },
@@ -3217,6 +3687,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_notification_deliveries_by_id_retry"
     },
@@ -3232,6 +3704,8 @@
       "method": "POST",
       "path": "/api/v1/cluster-imports",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_cluster_imports"
     },
@@ -3247,6 +3721,8 @@
       "method": "GET",
       "path": "/api/v1/cluster-imports",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_cluster_imports"
     },
@@ -3264,6 +3740,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_cluster_imports_by_id"
     },
@@ -3281,6 +3759,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_cluster_imports_by_id_approve"
     },
@@ -3298,6 +3778,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_cluster_imports_by_id_revoke"
     },
@@ -3313,6 +3795,8 @@
       "method": "GET",
       "path": "/api/v1/clusters",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_clusters"
     },
@@ -3330,6 +3814,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_clusters_by_id"
     },
@@ -3347,6 +3833,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -3364,6 +3852,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -3381,6 +3871,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -3398,6 +3890,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -3415,6 +3909,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_put_clusters_by_id_maintenance_profile"
     },
@@ -3432,6 +3928,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_clusters_by_id_maintenance_profile"
     },
@@ -3449,6 +3947,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_clusters_by_id_node_lifecycle_authority"
     },
@@ -3466,6 +3966,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_clusters_by_id_node_lifecycle_plans"
     },
@@ -3483,6 +3985,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_clusters_by_id_provider_binding"
     },
@@ -3500,6 +4004,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_clusters_by_id_node_lifecycle_actions"
     },
@@ -3517,6 +4023,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_clusters_by_id_maintenance_windows"
     },
@@ -3534,6 +4042,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_clusters_by_id_maintenance_windows"
     },
@@ -3552,6 +4062,8 @@
         "id",
         "windowId"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_clusters_by_id_maintenance_windows_by_windowid_cancel"
     },
@@ -3569,6 +4081,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_clusters_by_id_maintenance_runs"
     },
@@ -3586,6 +4100,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_clusters_by_id_maintenance_runs"
     },
@@ -3604,6 +4120,8 @@
         "id",
         "runId"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_clusters_by_id_maintenance_runs_by_runid"
     },
@@ -3622,6 +4140,8 @@
         "id",
         "runId"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_clusters_by_id_maintenance_runs_by_runid_approve"
     },
@@ -3639,6 +4159,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_clusters_by_id_revoke"
     },
@@ -3656,6 +4178,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_clusters_by_id_agent_certificates"
     },
@@ -3674,6 +4198,8 @@
         "id",
         "certId"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_clusters_by_id_agent_certificates_by_certid_revoke"
     },
@@ -3691,6 +4217,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_clusters_by_id_timeline"
     },
@@ -3708,6 +4236,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_clusters_by_id_workloads"
     },
@@ -3723,6 +4253,8 @@
       "method": "POST",
       "path": "/api/v1/workload-log-queries",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_workload_log_queries"
     },
@@ -3740,6 +4272,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_workload_log_queries_by_id"
     },
@@ -3755,6 +4289,8 @@
       "method": "GET",
       "path": "/api/v1/search",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_search"
     },
@@ -3770,6 +4306,8 @@
       "method": "GET",
       "path": "/api/v1/search/projection/rebuild",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_search_projection_rebuild"
     },
@@ -3785,6 +4323,8 @@
       "method": "GET",
       "path": "/api/v1/fleet/health",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_fleet_health"
     },
@@ -3800,6 +4340,8 @@
       "method": "GET",
       "path": "/api/v1/support-bundles/profiles",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_support_bundles_profiles"
     },
@@ -3815,6 +4357,8 @@
       "method": "POST",
       "path": "/api/v1/support-bundles",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_support_bundles"
     },
@@ -3830,6 +4374,8 @@
       "method": "POST",
       "path": "/api/v1/support-bundle-jobs",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_support_bundle_jobs"
     },
@@ -3847,6 +4393,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_support_bundle_jobs_by_id"
     },
@@ -3864,6 +4412,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": ""
     },
@@ -3879,6 +4429,8 @@
       "method": "GET",
       "path": "/api/v1/baselines",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_baselines"
     },
@@ -3894,6 +4446,8 @@
       "method": "POST",
       "path": "/api/v1/baseline-deployments",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_baseline_deployments"
     },
@@ -3909,6 +4463,8 @@
       "method": "GET",
       "path": "/api/v1/baseline-deployments",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_baseline_deployments"
     },
@@ -3926,6 +4482,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_baseline_deployments_by_id"
     },
@@ -3944,6 +4502,8 @@
         "id",
         "key"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_baseline_deployments_by_id_evidence_by_key"
     },
@@ -3961,6 +4521,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_baseline_deployments_by_id_approve"
     },
@@ -3978,6 +4540,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_baseline_deployments_by_id_revalidate"
     },
@@ -3995,6 +4559,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_baseline_deployments_by_id_retry"
     },
@@ -4012,6 +4578,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_baseline_deployments_by_id_rollback"
     },
@@ -4027,6 +4595,8 @@
       "method": "POST",
       "path": "/api/v1/runtime-certifications",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_runtime_certifications"
     },
@@ -4042,6 +4612,8 @@
       "method": "GET",
       "path": "/api/v1/runtime-certifications",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_runtime_certifications"
     },
@@ -4059,6 +4631,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_runtime_certifications_by_id"
     },
@@ -4076,6 +4650,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_runtime_certifications_by_id_report"
     },
@@ -4093,6 +4669,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_runtime_certifications_by_id_revoke"
     },
@@ -4108,6 +4686,8 @@
       "method": "POST",
       "path": "/api/v1/runtime-verifications",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_runtime_verifications"
     },
@@ -4123,6 +4703,8 @@
       "method": "GET",
       "path": "/api/v1/runtime-verifications",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_runtime_verifications"
     },
@@ -4140,6 +4722,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_runtime_verifications_by_id"
     },
@@ -4157,6 +4741,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_runtime_verifications_by_id_retry"
     },
@@ -4174,6 +4760,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_runtime_verifications_by_id_report"
     },
@@ -4189,6 +4777,8 @@
       "method": "POST",
       "path": "/api/v1/runtime-closure-campaigns",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_runtime_closure_campaigns"
     },
@@ -4204,6 +4794,8 @@
       "method": "GET",
       "path": "/api/v1/runtime-closure-campaigns",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_runtime_closure_campaigns"
     },
@@ -4221,6 +4813,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_runtime_closure_campaigns_by_id"
     },
@@ -4238,6 +4832,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_runtime_closure_campaigns_by_id_advance"
     },
@@ -4255,6 +4851,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_runtime_closure_campaigns_by_id_retry"
     },
@@ -4272,6 +4870,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_runtime_closure_campaigns_by_id_report"
     },
@@ -4287,6 +4887,8 @@
       "method": "POST",
       "path": "/api/v1/runtime-closure-reports/verify",
       "pathParams": [],
+      "resourceScope": "PLATFORM_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_runtime_closure_reports_verify"
     },
@@ -4302,6 +4904,8 @@
       "method": "POST",
       "path": "/api/v1/fleet-groups",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_fleet_groups"
     },
@@ -4317,6 +4921,8 @@
       "method": "GET",
       "path": "/api/v1/fleet-groups",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_fleet_groups"
     },
@@ -4334,6 +4940,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_fleet_groups_by_id"
     },
@@ -4349,6 +4957,8 @@
       "method": "POST",
       "path": "/api/v1/drift-scans",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_drift_scans"
     },
@@ -4364,6 +4974,8 @@
       "method": "GET",
       "path": "/api/v1/drift-scans",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_drift_scans"
     },
@@ -4381,6 +4993,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_drift_scans_by_id"
     },
@@ -4396,6 +5010,8 @@
       "method": "POST",
       "path": "/api/v1/recovery-checkpoints",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_recovery_checkpoints"
     },
@@ -4411,6 +5027,8 @@
       "method": "GET",
       "path": "/api/v1/recovery-checkpoints",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_recovery_checkpoints"
     },
@@ -4428,6 +5046,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_recovery_checkpoints_by_id"
     },
@@ -4445,6 +5065,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_recovery_checkpoints_by_id_revoke"
     },
@@ -4460,6 +5082,8 @@
       "method": "POST",
       "path": "/api/v1/backup-policies",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_backup_policies"
     },
@@ -4477,6 +5101,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_backup_policies_by_id"
     },
@@ -4492,6 +5118,8 @@
       "method": "GET",
       "path": "/api/v1/backup-policies",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_backup_policies"
     },
@@ -4509,6 +5137,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_backup_policies_by_id"
     },
@@ -4526,6 +5156,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_backup_policies_by_id_enable"
     },
@@ -4543,6 +5175,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_backup_policies_by_id_disable"
     },
@@ -4558,6 +5192,8 @@
       "method": "POST",
       "path": "/api/v1/backup-runs",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_backup_runs"
     },
@@ -4573,6 +5209,8 @@
       "method": "POST",
       "path": "/api/v1/restore-runs",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_restore_runs"
     },
@@ -4588,6 +5226,8 @@
       "method": "POST",
       "path": "/api/v1/restore-drills",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_restore_drills"
     },
@@ -4603,6 +5243,8 @@
       "method": "GET",
       "path": "/api/v1/data-protection-runs",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_data_protection_runs"
     },
@@ -4620,6 +5262,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_data_protection_runs_by_id"
     },
@@ -4637,6 +5281,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_restore_runs_by_id_approve"
     },
@@ -4652,6 +5298,8 @@
       "method": "POST",
       "path": "/api/v1/upgrade-campaigns",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_upgrade_campaigns"
     },
@@ -4667,6 +5315,8 @@
       "method": "GET",
       "path": "/api/v1/upgrade-campaigns",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_upgrade_campaigns"
     },
@@ -4684,6 +5334,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_upgrade_campaigns_by_id"
     },
@@ -4701,6 +5353,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_upgrade_campaigns_by_id_approve"
     },
@@ -4718,6 +5372,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_upgrade_campaigns_by_id_revalidate"
     },
@@ -4735,6 +5391,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_upgrade_campaigns_by_id_pause"
     },
@@ -4752,6 +5410,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_upgrade_campaigns_by_id_resume"
     },
@@ -4769,6 +5429,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_upgrade_campaigns_by_id_cancel"
     },
@@ -4786,6 +5448,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_upgrade_campaigns_by_id_advance"
     },
@@ -4803,6 +5467,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_organizations_by_id_entitlement"
     },
@@ -4820,6 +5486,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_organizations_by_id_entitlement"
     },
@@ -4837,6 +5505,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_put_organizations_by_id_oem_profile"
     },
@@ -4854,6 +5524,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "ORGANIZATION_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_organizations_by_id_oem_profile"
     },
@@ -4869,6 +5541,8 @@
       "method": "POST",
       "path": "/api/v1/tenants",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_tenants"
     },
@@ -4884,6 +5558,8 @@
       "method": "GET",
       "path": "/api/v1/tenants",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_tenants"
     },
@@ -4901,6 +5577,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_tenants_by_id"
     },
@@ -4918,6 +5596,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_tenants_by_id_suspend"
     },
@@ -4935,6 +5615,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_tenants_by_id_resume"
     },
@@ -4952,6 +5634,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_tenants_by_id_resize"
     },
@@ -4969,6 +5653,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_tenants_by_id_approve"
     },
@@ -4986,6 +5672,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_tenants_by_id_delete"
     },
@@ -5003,6 +5691,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_tenants_by_id_retry"
     },
@@ -5018,6 +5708,8 @@
       "method": "POST",
       "path": "/api/v1/provider-profiles",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_provider_profiles"
     },
@@ -5033,6 +5725,8 @@
       "method": "GET",
       "path": "/api/v1/provider-profiles",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_provider_profiles"
     },
@@ -5050,6 +5744,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_provider_profiles_by_id"
     },
@@ -5067,6 +5763,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_provider_profiles_by_id_retry"
     },
@@ -5082,6 +5780,8 @@
       "method": "POST",
       "path": "/api/v1/provider-clusters",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_provider_clusters"
     },
@@ -5097,6 +5797,8 @@
       "method": "GET",
       "path": "/api/v1/provider-clusters",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_provider_clusters"
     },
@@ -5114,6 +5816,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_provider_clusters_by_id"
     },
@@ -5131,6 +5835,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_provider_clusters_by_id_approve"
     },
@@ -5148,6 +5854,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_provider_clusters_by_id_scale"
     },
@@ -5165,6 +5873,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_provider_clusters_by_id_upgrade"
     },
@@ -5182,6 +5892,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_provider_clusters_by_id_delete"
     },
@@ -5199,6 +5911,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_provider_clusters_by_id_retry"
     },
@@ -5214,6 +5928,8 @@
       "method": "GET",
       "path": "/api/v1/marketplace/offers",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_marketplace_offers"
     },
@@ -5229,6 +5945,8 @@
       "method": "POST",
       "path": "/api/v1/marketplace/installations",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_marketplace_installations"
     },
@@ -5244,6 +5962,8 @@
       "method": "GET",
       "path": "/api/v1/marketplace/installations",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_marketplace_installations"
     },
@@ -5261,6 +5981,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_marketplace_installations_by_id"
     },
@@ -5278,6 +6000,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_marketplace_installations_by_id_approve"
     },
@@ -5295,6 +6019,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_marketplace_installations_by_id_uninstall"
     },
@@ -5312,6 +6038,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_marketplace_installations_by_id_retry"
     },
@@ -5327,6 +6055,8 @@
       "method": "POST",
       "path": "/api/v1/marketplace/recommendations",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_marketplace_recommendations"
     },
@@ -5342,6 +6072,8 @@
       "method": "GET",
       "path": "/api/v1/marketplace/recommendations",
       "pathParams": [],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_marketplace_recommendations"
     },
@@ -5359,6 +6091,8 @@
       "pathParams": [
         "id"
       ],
+      "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_marketplace_recommendations_by_id"
     }

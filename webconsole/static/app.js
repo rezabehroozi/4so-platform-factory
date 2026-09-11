@@ -10,7 +10,7 @@ const state = {
   baselines: [], baselineDeployments: [], verifications: [], closures: [], runtimeCertifications: [],
   fleetGroups: [], driftScans: [], upgradeCampaigns: [], recoveryCheckpoints: [], backupPolicies: [], dataProtectionRuns: [], fleetHealth: null, day2CampaignEngine: null, tenants: [], tenantPlans: [],
   clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], targetNodeLifecycleAuthority: null, currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
-  operations: [], audit: [], queueCenter: null, productLogs: null, workloadLogExplorer: null, workloadLogQuery: null, aiPolicy: {}, aiGuide: {}, aiRuns: [], aiLatestDiagnosis: null, aiServiceAccounts: [], aiAPITokens: {}, autopilotStatus: null, supportProfiles: [], installationRecoveryAuthority: null, notificationDestinations: [], notificationRoutes: [], notificationEvents: [], notificationDeliveries: [], notificationEventTypes: [], notificationProviderContracts: [], notificationRoutingPreview: null, externalRegistryAdmission: null, summary: {}, services: [], version: {}, gitRevisionFiles: {}, accessContext: null, organizationMemberships: [], serviceAccounts: [], apiTokens: {}, identityAuthority: null, oidcGroupMappings: [], securityAudit: [], currentEntitlement: null, currentOEMProfile: null,
+  operations: [], audit: [], queueCenter: null, productLogs: null, workloadLogExplorer: null, workloadLogQuery: null, aiPolicy: {}, aiGuide: {}, aiRuns: [], aiLatestDiagnosis: null, aiServiceAccounts: [], aiAPITokens: {}, autopilotStatus: null, supportProfiles: [], installationRecoveryAuthority: null, notificationDestinations: [], notificationRoutes: [], notificationEvents: [], notificationDeliveries: [], notificationEventTypes: [], notificationProviderContracts: [], notificationRoutingPreview: null, externalRegistryAdmission: null, summary: {}, services: [], version: {}, gitRevisionFiles: {}, accessContext: null, resourceScopeRegistry: null, organizationMemberships: [], serviceAccounts: [], apiTokens: {}, identityAuthority: null, oidcGroupMappings: [], securityAudit: [], currentEntitlement: null, currentOEMProfile: null,
   degradedRequests: [], pageLoading: false, pageLoadController: null, pageLoadGeneration: 0, autoRefreshTimer: null, autoRefreshGeneration: 0, interactionHoldUntil: 0, lastSubmittedForm: null, lastSubmittedAt: 0, sessionRedirectPending: false, sessionRefreshPromise: null, permissionContextReady: false, gitProviders: [], gitCredentials: [], tableSortPreferences: {},
   globalScope: {organizationId: localStorage.getItem('platformScopeOrganization') || '', projectId: localStorage.getItem('platformScopeProject') || ''},
   scopeOrganizations: [], scopeProjects: [], scopeReady: false, scopeTransitioning: false,
@@ -494,6 +494,20 @@ const faDynamic = {
   "Approval required for risk": "نیازمند Approval بر اساس ریسک",
   "Approved release; content and upgrade contract are immutable.": "نسخه تأیید شده است؛ محتوا و قرارداد ارتقا تغییرناپذیرند.",
   "Assurance": "تضمین",
+  "Budget limit · micros": "سقف بودجه · میکروواحد پولی",
+  "Budget limits use integer micro-currency. Warning and critical thresholds are explicit and versioned; recommendations never auto-apply infrastructure changes.": "سقف‌های بودجه با میکروواحد پولیِ عدد صحیح محاسبه می‌شوند. آستانه‌های هشدار و بحرانی صریح و نسخه‌دارند؛ پیشنهادها هیچ تغییر زیرساختی را خودکار اعمال نمی‌کنند.",
+  "Budget name": "نام بودجه",
+  "Budget policies": "سیاست‌های بودجه",
+  "Critical threshold · %": "آستانه بحرانی · ٪",
+  "Evidence-backed review suggestions only. No recommendation changes infrastructure automatically.": "فقط پیشنهادهای بازبینی مبتنی بر شواهد نمایش داده می‌شوند. هیچ پیشنهادی زیرساخت را خودکار تغییر نمی‌دهد.",
+  "Immutable guardrails for the selected scope. UNKNOWN means evidence is incomplete, not zero spend.": "قواعد تغییرناپذیر برای محدوده انتخاب‌شده. UNKNOWN یعنی شواهد کامل نیستند، نه اینکه هزینه صفر است.",
+  "New budget policy": "سیاست بودجه جدید",
+  "Organization total": "کل سازمان",
+  "Publish an immutable budget policy for the selected organization/project. Forecasts remain unavailable when measured cost evidence is incomplete.": "برای سازمان/پروژه انتخاب‌شده یک سیاست بودجه تغییرناپذیر منتشر کنید. تا وقتی شواهد هزینه اندازه‌گیری‌شده کامل نباشد، پیش‌بینی نمایش داده نمی‌شود.",
+  "Publish immutable budget": "انتشار بودجه تغییرناپذیر",
+  "Rightsizing review": "بازبینی اندازه منابع (Rightsizing)",
+  "Set a budget guardrail": "تعیین حد بودجه",
+  "Warning threshold · %": "آستانه هشدار · ٪",
   "Attempts, HTTP result, retry state and dead letters are durable.": "تعداد تلاش‌ها، نتیجهٔ HTTP، وضعیت تلاش مجدد و پیام‌های تحویل‌نشده به‌صورت پایدار ثبت می‌شوند.",
   "Authenticated MCP exposes read-only product context by default and only allow-listed delegated operations when mcp.operate is explicitly granted.": "پس از ورود، MCP فقط اطلاعاتی را نشان می‌دهد که کاربر در محصول مجاز به دیدن آن است. انجام تغییر فقط با دسترسی صریح و از مسیر عملیات پشتیبانی‌شده ممکن است.",
   "Author and save immutable revisions.": "بازنگری‌های تغییرناپذیر را ایجاد و ذخیره کنید.",
@@ -1524,7 +1538,26 @@ function captureMutationOutcome(path,method,body) {
   const outcome=mutationOutcomeCandidate(path,body);if(!outcome)return;
   state.mutationOutcome=outcome;renderMutationOutcome();
 }
+function resourceScopeFamily(path) {
+  const pathname=String(path||'').split('?')[0];
+  if(!pathname.startsWith('/api/v1/'))return '';
+  return pathname.slice('/api/v1/'.length).split('/')[0];
+}
+function assertResourceScopeKnown(path) {
+  const family=resourceScopeFamily(path);if(!family)return;
+  const registry=state.resourceScopeRegistry;
+  if(!registry||registry.authority!=='RESOURCE_SCOPE_REGISTRY_V1'||!Array.isArray(registry.families)){
+    const error=new Error('Resource scope authority is unavailable; retry after session authority refresh.');
+    error.code='RESOURCE_SCOPE_AUTHORITY_UNAVAILABLE';error.status=503;throw error;
+  }
+  const owner=registry.families.find(row=>row.family===family);
+  if(!owner||owner.status!=='OWNER_CLASSIFIED'||owner.scope==='UNCLASSIFIED'){
+    const error=new Error(`Resource family ${family} is awaiting explicit owner review; the console will not widen its scope.`);
+    error.code='RESOURCE_SCOPE_OWNER_REVIEW_REQUIRED';error.status=503;throw error;
+  }
+}
 async function api(path, options = {}) {
+  assertResourceScopeKnown(path);
   const request = {...options, headers: {...(options.headers || {})}};
   const method = String(request.method || 'GET').toUpperCase();
   const bodyObject=request.body!==null&&typeof request.body==='object'&&!Array.isArray(request.body)?request.body:null;
@@ -2011,12 +2044,14 @@ async function syncSessionAuthority({redirectOnUnauthorized=false} = {}) {
       state.session = await authorityJSON('/auth/session');
       state.permissionContextReady=false;
       try{
-        const context=await authorityJSON('/api/v1/access/context');
+        const [context,resourceScopes]=await Promise.all([authorityJSON('/api/v1/access/context'),authorityJSON('/api/v1/access/resource-scopes')]);
         state.accessContext=isPermissionContext(context)?context:null;
-        state.permissionContextReady=!!state.accessContext;
+        state.resourceScopeRegistry=resourceScopes?.authority==='RESOURCE_SCOPE_REGISTRY_V1'&&Array.isArray(resourceScopes?.families)?resourceScopes:null;
+        state.permissionContextReady=!!state.accessContext&&!!state.resourceScopeRegistry;
       }catch(scopeError){
         if(scopeError?.status===401)throw scopeError;
         state.accessContext=null;
+        state.resourceScopeRegistry=null;
         state.permissionContextReady=false;
       }
       await refreshGlobalScopeDirectory();
@@ -2029,6 +2064,7 @@ async function syncSessionAuthority({redirectOnUnauthorized=false} = {}) {
     } catch (error) {
       state.session = null;
       state.accessContext = null;
+      state.resourceScopeRegistry = null;
       state.permissionContextReady=false;
       state.scopeReady=false;
       renderGlobalScope();
@@ -2835,7 +2871,7 @@ async function loadWorkspaces(){
 }
 
 
-const finOpsEndpoints={rateCards:'/api/v1/finops/rate-cards',usage:'/api/v1/finops/usage-measurements',capacity:'/api/v1/finops/capacity-observations',showback:'/api/v1/finops/showback',chargeback:'/api/v1/finops/chargeback-export'};
+const finOpsEndpoints={budgetPolicies:'/api/v1/finops/budget-policies',insights:'/api/v1/finops/insights',rateCards:'/api/v1/finops/rate-cards',usage:'/api/v1/finops/usage-measurements',capacity:'/api/v1/finops/capacity-observations',showback:'/api/v1/finops/showback',chargeback:'/api/v1/finops/chargeback-export'};
 function finOpsMoney(micros,currency){
   if(micros===null||micros===undefined)return 'Cost unavailable';
   const raw=typeof micros==='string'?micros:String(micros);
@@ -2852,6 +2888,27 @@ function finOpsMicrosInput(id){
   if(value>9223372036854775807n)throw new Error('Rate-card price exceeds the supported int64 micro-currency range.');
   if(value>9007199254740991n)throw new Error('Rate-card price exceeds the browser exact-integer range. Use API automation for larger values.');
   return Number(value);
+}
+function finOpsBudgetMicrosInput(id){
+  const raw=$(id).value.trim();
+  if(!/^\d+$/.test(raw)||raw==='0')throw new Error('Budget limit must be a positive integer micro-currency value.');
+  const value=BigInt(raw);
+  if(value>9007199254740991n)throw new Error('Budget limit exceeds the browser exact-integer range. Use API automation for larger values.');
+  return Number(value);
+}
+function finOpsPercentBasisPoints(id){
+  const raw=$(id).value.trim();
+  if(!/^\d+(?:\.\d{1,2})?$/.test(raw))throw new Error('Budget thresholds must be percentages with at most two decimal places.');
+  const [whole,fraction='']=raw.split('.');
+  return Number(BigInt(whole)*100n+BigInt((fraction+'00').slice(0,2)));
+}
+function finOpsInsightWindow(usage){
+  const loaded=finOpsWindow(usage);
+  const observed=loaded?new Date(loaded.to):new Date();
+  const start=loaded?new Date(loaded.from):new Date(Date.UTC(observed.getUTCFullYear(),observed.getUTCMonth(),1));
+  let forecastEnd=new Date(Date.UTC(observed.getUTCFullYear(),observed.getUTCMonth()+1,1));
+  if(forecastEnd<observed)forecastEnd=new Date(observed);
+  return {windowStart:start.toISOString(),observedThrough:observed.toISOString(),forecastEnd:forecastEnd.toISOString()};
 }
 function finOpsUsageComplete(item){
   const metrics=item?.metrics||{};
@@ -2877,12 +2934,18 @@ async function loadFinOps(){
     const organizationId=scopedProject?.organizationId||state.globalScope.organizationId||organizations[0]?.id||'';
     prerequisite($('#finops-prerequisite'),Boolean(organizationId),'Select or create an organization before reviewing FinOps.','workspace','Open organizations & projects');
     setOptions($('#finops-rate-card-organization'),organizations,item=>item.id,item=>`${item.displayName||item.name} · ${item.id}`,'Create an organization first');
-    if(organizationId&&organizations.some(item=>item.id===organizationId))$('#finops-rate-card-organization').value=organizationId;
+    setOptions($('#finops-budget-organization'),organizations,item=>item.id,item=>`${item.displayName||item.name} · ${item.id}`,'Create an organization first');
+    const budgetProjects=projects.filter(item=>item.organizationId===organizationId);
+    setOptions($('#finops-budget-project'),budgetProjects,item=>item.id,item=>`${item.displayName||item.name} · ${item.id}`,'Organization total');
+    if(organizationId&&organizations.some(item=>item.id===organizationId)){ $('#finops-rate-card-organization').value=organizationId; $('#finops-budget-organization').value=organizationId; }
+    if(scopedProject&&budgetProjects.some(item=>item.id===scopedProject.id))$('#finops-budget-project').value=scopedProject.id;
     if(!$('#finops-rate-card-effective').value)$('#finops-rate-card-effective').value=localDateTimeValue(new Date());
-    if(!organizationId){state.finOpsRateCards=[];state.finOpsUsage=[];state.finOpsCostSummary=null;state.finOpsChargeback=null;$('#finops-cost-summary').innerHTML='';$('#finops-rate-card-grid').innerHTML=emptyState('No organization scope','Choose an organization to review rate cards.');$('#finops-usage-grid').innerHTML='';$('#finops-chargeback-grid').innerHTML='';return;}
+    if(!$('#finops-budget-effective').value)$('#finops-budget-effective').value=localDateTimeValue(new Date());
+    if(!organizationId){state.finOpsBudgetPolicies=[];state.finOpsInsights=null;state.finOpsRateCards=[];state.finOpsUsage=[];state.finOpsCostSummary=null;state.finOpsChargeback=null;$('#finops-cost-summary').innerHTML='';$('#finops-insight-summary').innerHTML='';$('#finops-budget-grid').innerHTML=emptyState('No organization scope','Choose an organization to review budget policies.');$('#finops-rightsizing-grid').innerHTML='';$('#finops-rate-card-grid').innerHTML=emptyState('No organization scope','Choose an organization to review rate cards.');$('#finops-usage-grid').innerHTML='';$('#finops-chargeback-grid').innerHTML='';return;}
     const projectId=scopedProject?.organizationId===organizationId?scopedProject.id:'';
     const scopeQuery=projectId?`projectId=${encodeURIComponent(projectId)}`:`organizationId=${encodeURIComponent(organizationId)}`;
-    const [rateCards,usage,capacity]=await Promise.all([
+    const [budgetPolicies,rateCards,usage,capacity]=await Promise.all([
+      softApi(`${finOpsEndpoints.budgetPolicies}?${scopeQuery}`,[],'FinOps budget policies'),
       softApi(`${finOpsEndpoints.rateCards}?organizationId=${encodeURIComponent(organizationId)}`,[],'FinOps rate cards'),
       softApi(`${finOpsEndpoints.usage}?${scopeQuery}&limit=500`,[],'FinOps usage'),
       softApi(`${finOpsEndpoints.capacity}?${scopeQuery}&limit=100`,[],'FinOps capacity')
@@ -2900,17 +2963,29 @@ async function loadFinOps(){
       const exportLink=$('#finops-chargeback-export');
       if(exportLink){exportLink.removeAttribute('href');exportLink.hidden=true;}
     }
-    Object.assign(state,{finOpsRateCards:sortedCards,finOpsUsage:usage,finOpsCapacity:capacity,finOpsCostSummary:showback,finOpsChargeback:showback});
+    const insightWindow=finOpsInsightWindow(usage);
+    const insightCurrency=card?.currency||budgetPolicies[0]?.currency||'USD';
+    const insightQuery=`${scopeQuery}&currency=${encodeURIComponent(insightCurrency)}&windowStart=${encodeURIComponent(insightWindow.windowStart)}&observedThrough=${encodeURIComponent(insightWindow.observedThrough)}&forecastEnd=${encodeURIComponent(insightWindow.forecastEnd)}`;
+    const insights=await softApi(`${finOpsEndpoints.insights}?${insightQuery}`,null,'FinOps insights');
+    Object.assign(state,{finOpsBudgetPolicies:budgetPolicies,finOpsInsights:insights,finOpsRateCards:sortedCards,finOpsUsage:usage,finOpsCapacity:capacity,finOpsCostSummary:showback,finOpsChargeback:showback});
     const missingMeasurements=usage.filter(item=>!finOpsUsageComplete(item)).length;
     const status=showback?.complete?'AVAILABLE':card&&window?'INCOMPLETE':card?'NO USAGE':'NO RATE CARD';
     $('#finops-cost-summary').innerHTML=`<article class="metric-card"><span>Cost status</span><strong>${esc(status)}</strong><small>${missingMeasurements?`${esc(missingMeasurements)} measurement(s) contain missing telemetry`:'No hidden telemetry gap in loaded usage'}</small></article><article class="metric-card"><span>Authoritative total</span><strong>${esc(showback?.complete?finOpsMoney(showback.totalCostMicros,showback.currency):'Cost unavailable')}</strong><small>${showback?`Known subtotal ${esc(finOpsMoney(showback.knownCostMicros,showback.currency))}`:'Measured usage plus a covering rate card is required'}</small></article><article class="metric-card"><span>Usage / capacity</span><strong>${esc(usage.length)} / ${esc(capacity.length)}</strong><small>Trusted collector records only</small></article><article class="metric-card"><span>Rate card</span><strong>${esc(card?`${card.name}@${card.version}`:'Not configured')}</strong><small>${esc(card?.currency||'No pricing authority')}</small></article>`;
+    const forecastReady=insights?.forecast?.status==='READY'&&insights.forecast.projectedCostMicros!==null&&insights.forecast.projectedCostMicros!==undefined;
+    const evaluatedBudgets=insights?.budgets||[];
+    const budgetSeverity=evaluatedBudgets.length?(evaluatedBudgets.find(item=>item.severity==='CRITICAL')?.severity||evaluatedBudgets.find(item=>item.severity==='WARNING')?.severity||evaluatedBudgets[0].severity):'NOT CONFIGURED';
+    $('#finops-insight-summary').innerHTML=`<article class="metric-card"><span>Forecast</span><strong>${esc(forecastReady?finOpsMoney(insights.forecast.projectedCostMicros,insights.currency):'Forecast unavailable')}</strong><small>${esc(forecastReady?`${insights.forecast.confidence} confidence · deterministic linear projection`:insights?.forecast?.reason||'Measured cost evidence is required')}</small></article><article class="metric-card"><span>Budget state</span><strong>${esc(budgetSeverity)}</strong><small>${esc(evaluatedBudgets.length?`${evaluatedBudgets.length} policy evaluation(s)`:'No matching immutable budget policy')}</small></article><article class="metric-card"><span>Spend-rate anomaly</span><strong>${esc(insights?.anomaly?.status==='READY'?insights.anomaly.severity:'Unknown')}</strong><small>${esc(insights?.anomaly?.status==='READY'?`${insights.anomaly.ratioBasisPoints} bp recent/baseline`:insights?.anomaly?.reason||'Insufficient measured history')}</small></article><article class="metric-card"><span>Rightsizing</span><strong>${esc((insights?.rightsizing||[]).filter(item=>item.status==='READY').length)} evidence-backed</strong><small>Review only · never auto-applied</small></article>`;
+    $('#finops-budget-grid').innerHTML=budgetPolicies.length?budgetPolicies.map(item=>{const evaluation=evaluatedBudgets.find(row=>row.policyId===item.id);return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)}@${esc(item.version)}</h3><div class="resource-meta">${badge(item.currency)}${badge(evaluation?.severity||'NOT EVALUATED')}</div></div></div><p>${esc(finOpsMoney(item.limitMicros,item.currency))} budget limit</p><div class="resource-details">${detailRow('Scope',item.projectId||'Organization total',true)}${detailRow('Warning',`${item.warningBasisPoints/100}%`)}${detailRow('Critical',`${item.criticalBasisPoints/100}%`)}${detailRow('Projected',evaluation?.projectedCostMicros!==null&&evaluation?.projectedCostMicros!==undefined?finOpsMoney(evaluation.projectedCostMicros,item.currency):'Forecast unavailable')}${detailRow('Digest',shortDigest(item.digest))}</div></article>`;}).join(''):emptyState('No budget policies','Publish an immutable budget guardrail. Forecasts stay unavailable until measured cost evidence is complete.');
+    const rightsizing=insights?.rightsizing||[];
+    $('#finops-rightsizing-grid').innerHTML=rightsizing.length?rightsizing.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.metric)}</h3><div class="resource-meta">${badge(item.status)}${badge(item.action)}</div></div></div><p>${esc(item.status==='READY'?`${(Number(item.utilizationBasisPoints||0)/100).toFixed(2)}% average utilization`:'Recommendation unavailable')}</p><div class="resource-details">${detailRow('Average demand',item.averageDemandMicros||'—',true)}${detailRow('Capacity',item.capacityMicros||'—',true)}${detailRow('Evidence',item.evidenceObservationId||'—',true)}${detailRow('Automation','Review only · never auto-applied')}</div></article>`).join(''):emptyState('No rightsizing evidence','A fresh project-aggregate capacity observation plus complete measured usage is required.');
     $('#finops-rate-card-grid').innerHTML=sortedCards.length?sortedCards.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)}@${esc(item.version)}</h3><div class="resource-meta">${badge(item.currency)}${item.id===card?.id?badge('LATEST'):''}</div></div></div><p>Effective ${formatDate(item.effectiveFrom)}${item.effectiveUntil?` → ${formatDate(item.effectiveUntil)}`:' · open ended'}</p><div class="resource-details">${Object.entries(item.rates||{}).sort(([a],[b])=>a.localeCompare(b)).map(([metric,price])=>detailRow(metric,`${esc(price)} micros / unit`,true)).join('')}${detailRow('Digest',shortDigest(item.digest))}</div></article>`).join(''):emptyState('No rate cards','Publish an immutable organization rate card to derive cost from measured usage.');
     $('#finops-usage-grid').innerHTML=usage.length?latest(usage,12).map(item=>{const complete=finOpsUsageComplete(item);return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.namespace||item.workspaceId||item.clusterId||item.projectId)}</h3><div class="resource-meta">${badge(complete?'MEASURED':'INCOMPLETE')}${!complete?badge('COST UNAVAILABLE'):''}</div></div></div><p>${esc(finOpsMetricSummary(item)||'No metric data')}</p><div class="resource-details">${detailRow('Project',item.projectId,true)}${detailRow('Cluster',item.clusterId||'—',true)}${detailRow('Window',`${formatDate(item.windowStart)} → ${formatDate(item.windowEnd)}`)}${detailRow('Source',item.source,true)}${detailRow('Digest',shortDigest(item.digest))}</div></article>`;}).join(''):emptyState('No usage observations','Trusted collectors have not reported measured usage yet. Missing telemetry is not treated as zero.');
     const groups=showback?.groups||[];
     $('#finops-chargeback-grid').innerHTML=groups.length?groups.map(group=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(group.key)}</h3><div class="resource-meta">${badge(group.complete?'COMPLETE':'INCOMPLETE')}${group.attributionComplete?badge('ATTRIBUTED'):badge('UNATTRIBUTED')}</div></div></div><p>${esc(group.complete?finOpsMoney(group.totalCostMicros,showback.currency):'Cost unavailable')}</p><div class="resource-details">${detailRow('Known subtotal',finOpsMoney(group.knownCostMicros,showback.currency))}${detailRow('Measurements',group.measurementCount)}${detailRow('Missing telemetry',(group.missingTelemetry||[]).join(', ')||'None')}${detailRow('Missing rates',(group.missingRates||[]).join(', ')||'None')}</div></article>`).join(''):emptyState(card?(window?'No chargeback groups':'No usage window'):'No rate card selected',card?'No complete measured usage falls inside the current scope.':'Publish a rate card before deriving chargeback.');
     $('#finops-rate-card-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;try{const organizationID=$('#finops-rate-card-organization').value;const body={organizationId:organizationID,name:$('#finops-rate-card-name').value.trim(),version:$('#finops-rate-card-version').value.trim(),currency:$('#finops-rate-card-currency').value.trim().toUpperCase(),effectiveFrom:new Date($('#finops-rate-card-effective').value).toISOString(),rates:{CPU_CORE_HOUR:finOpsMicrosInput('#finops-price-cpu'),MEMORY_GIB_HOUR:finOpsMicrosInput('#finops-price-memory'),STORAGE_GIB_HOUR:finOpsMicrosInput('#finops-price-storage'),ACCELERATOR_HOUR:finOpsMicrosInput('#finops-price-accelerator')}};await api(finOpsEndpoints.rateCards,{method:'POST',headers:{'Idempotency-Key':idempotency('finops-rate-card')},body});toast('Immutable FinOps rate card published.');await loadFinOps();}catch(error){toast(error.message,'error');}};
+    $('#finops-budget-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;try{const warning=finOpsPercentBasisPoints('#finops-budget-warning'),critical=finOpsPercentBasisPoints('#finops-budget-critical');if(critical<=warning)throw new Error('Critical budget threshold must be greater than warning threshold.');const body={organizationId:$('#finops-budget-organization').value,projectId:$('#finops-budget-project').value||'',name:$('#finops-budget-name').value.trim(),version:$('#finops-budget-version').value.trim(),currency:$('#finops-budget-currency').value.trim().toUpperCase(),effectiveFrom:new Date($('#finops-budget-effective').value).toISOString(),limitMicros:finOpsBudgetMicrosInput('#finops-budget-limit'),warningBasisPoints:warning,criticalBasisPoints:critical};await api(finOpsEndpoints.budgetPolicies,{method:'POST',headers:{'Idempotency-Key':idempotency('finops-budget-policy')},body});toast('Immutable FinOps budget policy published.');await loadFinOps();}catch(error){toast(error.message,'error');}};
     applyAccessMode($('#finops'));
-  }catch(error){if(error?.name==='AbortError')throw error;$('#finops-cost-summary').innerHTML='';$('#finops-rate-card-grid').innerHTML=errorState('FinOps unavailable',error.message);$('#finops-usage-grid').innerHTML='';$('#finops-chargeback-grid').innerHTML='';}
+  }catch(error){if(error?.name==='AbortError')throw error;$('#finops-cost-summary').innerHTML='';$('#finops-insight-summary').innerHTML='';$('#finops-budget-grid').innerHTML=errorState('FinOps unavailable',error.message);$('#finops-rightsizing-grid').innerHTML='';$('#finops-rate-card-grid').innerHTML=errorState('FinOps unavailable',error.message);$('#finops-usage-grid').innerHTML='';$('#finops-chargeback-grid').innerHTML='';}
 }
 
 async function loadFleet(){

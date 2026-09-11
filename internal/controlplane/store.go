@@ -155,6 +155,9 @@ type Store interface {
 	RetryNotificationDelivery(context.Context, string, int64, string) (NotificationDelivery, error)
 	ListNotificationDeliveryAttempts(context.Context, string) ([]NotificationDeliveryAttempt, error)
 
+	CreateFinOpsBudgetPolicy(context.Context, FinOpsBudgetPolicy, string) (FinOpsBudgetPolicy, error)
+	GetFinOpsBudgetPolicy(context.Context, string) (FinOpsBudgetPolicy, error)
+	ListFinOpsBudgetPolicies(context.Context, string, string) ([]FinOpsBudgetPolicy, error)
 	CreateFinOpsRateCard(context.Context, FinOpsRateCard, string) (FinOpsRateCard, error)
 	GetFinOpsRateCard(context.Context, string) (FinOpsRateCard, error)
 	ListFinOpsRateCards(context.Context, string) ([]FinOpsRateCard, error)
@@ -447,6 +450,7 @@ type Snapshot struct {
 	SAMLBrokers                []SAMLBroker                      `json:"samlBrokers,omitempty"`
 	IdentityAdminJobs          []IdentityAdminJob                `json:"identityAdminJobs,omitempty"`
 	OperationRequestPayloads   []OperationRequestPayload         `json:"operationRequestPayloads,omitempty"`
+	FinOpsBudgetPolicies       []FinOpsBudgetPolicy              `json:"finOpsBudgetPolicies,omitempty"`
 	FinOpsRateCards            []FinOpsRateCard                  `json:"finOpsRateCards,omitempty"`
 	FinOpsUsageMeasurements    []FinOpsUsageMeasurement          `json:"finOpsUsageMeasurements,omitempty"`
 	FinOpsCapacityObservations []FinOpsCapacityObservation       `json:"finOpsCapacityObservations,omitempty"`

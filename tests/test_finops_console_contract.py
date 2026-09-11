@@ -35,6 +35,23 @@ class FinOpsConsoleContractTest(unittest.TestCase):
         self.assertIn('ACCELERATOR_HOUR', js)
         self.assertNotIn('data-finops-manual-usage', html, 'authoritative telemetry must not be manually forged from the console')
 
+    def test_finops_v2_budget_forecast_and_rightsizing_surface_is_fail_closed(self):
+        html = (ROOT / "webconsole/static/index.html").read_text(encoding="utf-8")
+        js = (ROOT / "webconsole/static/app.js").read_text(encoding="utf-8")
+
+        for fragment in (
+            'id="finops-budget-form"',
+            'id="finops-budget-grid"',
+            'id="finops-insight-summary"',
+            'id="finops-rightsizing-grid"',
+        ):
+            self.assertIn(fragment, html)
+        self.assertIn('/api/v1/finops/budget-policies', js)
+        self.assertIn('/api/v1/finops/insights', js)
+        self.assertIn('Forecast unavailable', js)
+        self.assertIn('Review only · never auto-applied', js)
+        self.assertNotIn('Auto-apply rightsizing', html)
+
 
 if __name__ == "__main__":
     unittest.main()

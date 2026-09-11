@@ -768,7 +768,7 @@
       "stagePath": "toolchain/go1.27.1.linux-amd64.tar.gz",
       "version": "go1.27.1"
     },
-    "releaseVersion": "0.0.359",
+    "releaseVersion": "0.0.361",
     "runtimeDependencyTransition": {
       "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
       "ciliumTargetRelease": "1.20.1",
