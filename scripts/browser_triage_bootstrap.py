@@ -220,11 +220,35 @@ def _safe_zip_extract(archive: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     root = destination.resolve()
     with zipfile.ZipFile(archive) as zf:
-        for info in zf.infolist():
-            candidate = (destination / info.filename).resolve()
+        infos = zf.infolist()
+        normalized: dict[str, str] = {}
+        modes: dict[str, int] = {}
+        for info in infos:
+            name = posixpath.normpath(info.filename.replace("\\", "/"))
+            if not name or name in {".", ".."} or name.startswith("../") or name.startswith("/"):
+                raise RuntimeError("BROWSER_BOOTSTRAP_ARCHIVE_PATH_TRAVERSAL")
+            candidate = (destination / name).resolve(strict=False)
             if root not in candidate.parents and candidate != root:
                 raise RuntimeError("BROWSER_BOOTSTRAP_ARCHIVE_PATH_TRAVERSAL")
-        zf.extractall(destination)
+            mode = ((info.external_attr >> 16) & 0xFFFF) if info.create_system == 3 else 0
+            file_type = stat.S_IFMT(mode)
+            is_dir = info.is_dir() or info.filename.endswith("/")
+            if file_type not in {0, stat.S_IFREG, stat.S_IFDIR}:
+                raise RuntimeError(f"BROWSER_BOOTSTRAP_ARCHIVE_SPECIAL_MEMBER_FORBIDDEN name={info.filename}")
+            if (is_dir and file_type == stat.S_IFREG) or (not is_dir and file_type == stat.S_IFDIR):
+                raise RuntimeError(f"BROWSER_BOOTSTRAP_ARCHIVE_SPECIAL_MEMBER_FORBIDDEN name={info.filename}")
+            normalized[info.filename] = name
+            modes[info.filename] = mode & 0o777
+        for info in infos:
+            candidate = destination / normalized[info.filename]
+            if info.is_dir() or info.filename.endswith("/"):
+                candidate.mkdir(parents=True, exist_ok=True)
+            else:
+                candidate.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(info, "r") as source, candidate.open("wb") as output:
+                    shutil.copyfileobj(source, output)
+            if modes[info.filename]:
+                candidate.chmod(modes[info.filename])
 
 
 def _safe_tar_extract(archive: Path, destination: Path) -> None:
