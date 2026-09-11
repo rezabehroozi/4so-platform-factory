@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -115,6 +116,19 @@ func TestInitialOrganizationNameUniquenessUsesValidExpressionIndex(t *testing.T)
 	}
 	if !strings.Contains(sql, "CREATE UNIQUE INDEX organizations_name_key ON organizations(lower(name));") {
 		t.Fatal("initial migration must enforce case-insensitive organization names with an expression index")
+	}
+}
+
+func TestNoMigrationUsesExpressionsInsideUniqueTableConstraints(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid := regexp.MustCompile(`(?i)\bUNIQUE\s*\([^\n;]*\blower\s*\(`)
+	for _, migration := range all {
+		if invalid.MatchString(migration.SQL) {
+			t.Fatalf("migration %d uses an expression inside a UNIQUE table constraint; use a unique expression index", migration.Version)
+		}
 	}
 }
 

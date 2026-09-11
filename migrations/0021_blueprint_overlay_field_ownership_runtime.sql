@@ -13,9 +13,9 @@ CREATE TABLE blueprint_overlays (
     created_by text NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
-    CONSTRAINT blueprint_overlay_identity_unique UNIQUE(project_id, lower(name), version),
     CONSTRAINT blueprint_overlay_changes_array CHECK (jsonb_typeof(changes) = 'array' AND jsonb_array_length(changes) > 0)
 );
+CREATE UNIQUE INDEX blueprint_overlay_identity_unique ON blueprint_overlays(project_id, lower(name), version);
 
 CREATE INDEX blueprint_overlays_project_scope_idx ON blueprint_overlays(project_id, scope, scope_key, name, version);
 CREATE TRIGGER blueprint_overlays_immutable BEFORE UPDATE OR DELETE ON blueprint_overlays

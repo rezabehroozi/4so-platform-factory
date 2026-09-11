@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS platform_policy_sets (
     security jsonb NOT NULL CHECK (jsonb_typeof(security) = 'object'),
     created_by text NOT NULL,
     created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    CONSTRAINT platform_policy_set_identity_unique UNIQUE(project_id, lower(name), version)
+    updated_at timestamptz NOT NULL
 );
+CREATE UNIQUE INDEX platform_policy_set_identity_unique ON platform_policy_sets(project_id, lower(name), version);
 
 CREATE INDEX IF NOT EXISTS platform_policy_sets_project_name_idx
     ON platform_policy_sets(project_id, lower(name), version, id);
@@ -40,9 +40,9 @@ CREATE TABLE IF NOT EXISTS platform_templates (
     impact jsonb NOT NULL CHECK (jsonb_typeof(impact) = 'object'),
     created_by text NOT NULL,
     created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    CONSTRAINT platform_template_identity_unique UNIQUE(project_id, lower(name), version)
+    updated_at timestamptz NOT NULL
 );
+CREATE UNIQUE INDEX platform_template_identity_unique ON platform_templates(project_id, lower(name), version);
 
 CREATE INDEX IF NOT EXISTS platform_templates_project_name_idx
     ON platform_templates(project_id, lower(name), version, id);

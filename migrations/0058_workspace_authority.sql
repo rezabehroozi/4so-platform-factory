@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS workspaces (
     digest text NOT NULL CHECK (digest ~ '^sha256:[0-9a-f]{64}$'),
     created_by text NOT NULL,
     created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    CONSTRAINT workspace_identity_unique UNIQUE(project_id, lower(name))
+    updated_at timestamptz NOT NULL
 );
+CREATE UNIQUE INDEX workspace_identity_unique ON workspaces(project_id, lower(name));
 
 CREATE INDEX IF NOT EXISTS workspaces_project_name_idx
     ON workspaces(project_id, lower(name), id);

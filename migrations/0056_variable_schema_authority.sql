@@ -9,9 +9,9 @@ CREATE TABLE IF NOT EXISTS variable_schemas (
     created_by text NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
-    CONSTRAINT variable_schema_identity_unique UNIQUE(project_id, lower(name), version),
     CONSTRAINT variable_schema_variables_array CHECK (jsonb_typeof(variables) = 'array' AND jsonb_array_length(variables) BETWEEN 1 AND 128)
 );
+CREATE UNIQUE INDEX variable_schema_identity_unique ON variable_schemas(project_id, lower(name), version);
 
 CREATE INDEX IF NOT EXISTS variable_schemas_project_name_idx
     ON variable_schemas(project_id, lower(name), version, id);
