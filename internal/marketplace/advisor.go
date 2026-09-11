@@ -31,10 +31,6 @@ type AdvisoryOutput struct {
 	AIRuntime       *airuntime.Result `json:"aiRuntime,omitempty"`
 }
 
-type Advisor interface {
-	Recommend(context.Context, AdvisoryInput, []Offer) (AdvisoryOutput, error)
-}
-
 type Config struct {
 	Provider        string
 	Endpoint        string
@@ -69,6 +65,13 @@ func NewControlledAdvisor(config Config) *ControlledAdvisor {
 
 func NewRuntimeAdvisor(runtime *airuntime.Runtime) *ControlledAdvisor {
 	return &ControlledAdvisor{runtime: runtime}
+}
+
+// UsesAIRuntime reports whether the canonical advisor will issue a model call
+// for a non-empty eligible offer set. API dispatch authority uses this to
+// durably claim the idempotency key before external provider egress.
+func (a *ControlledAdvisor) UsesAIRuntime() bool {
+	return a != nil && a.configErr == nil && a.runtime != nil && a.runtime.Enabled()
 }
 
 func (a *ControlledAdvisor) Recommend(ctx context.Context, input AdvisoryInput, offers []Offer) (AdvisoryOutput, error) {

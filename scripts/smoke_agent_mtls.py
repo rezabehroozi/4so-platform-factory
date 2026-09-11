@@ -57,7 +57,7 @@ def main():
         td=Path(td); ca=td/'agent-ca.crt'; cakey=td/'agent-ca.key'; servercert=td/'agent-server.crt'; serverkey=td/'agent-server.key'
         subprocess.run([str(ctl),'agent-pki','init','--server-name','localhost','--out-cert',str(ca),'--out-key',str(cakey),'--out-server-cert',str(servercert),'--out-server-key',str(serverkey),'--confirmation','INIT'],cwd=root,check=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
         state=td/'state'/'control-plane.json'; http_port=free_port(); agent_port=free_port()
-        env=os.environ.copy(); env.update({
+        env=os.environ.copy(); env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true'; env.update({
           'PLATFORM_FACTORY_LISTEN':f'127.0.0.1:{http_port}',
           'PLATFORM_FACTORY_STATE_FILE':str(state),
           'PLATFORM_FACTORY_AGENT_LISTEN':f'127.0.0.1:{agent_port}',

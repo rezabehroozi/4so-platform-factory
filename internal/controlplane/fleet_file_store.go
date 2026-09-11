@@ -86,3 +86,9 @@ func (f *FileStore) AcknowledgeManagedClusterTargetRBACRevocation(ctx context.Co
 		return f.MemoryStore.AcknowledgeManagedClusterTargetRBACRevocation(ctx, id, rev, digest, actor)
 	})
 }
+
+func (f *FileStore) BindManagedClusterProvider(ctx context.Context, id string, rev int64, providerClusterID, actor string) (ManagedCluster, error) {
+	return mutate(f, ctx, func() (ManagedCluster, error) {
+		return f.MemoryStore.BindManagedClusterProvider(ctx, id, rev, providerClusterID, actor)
+	})
+}

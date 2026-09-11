@@ -16,19 +16,28 @@ import (
 	"time"
 
 	"platform.4so.io/factory/internal/installation"
+	"platform.4so.io/factory/internal/testsupport"
 )
 
 func makeBundle(t *testing.T, root string) {
 	t.Helper()
+	archivePath := filepath.Join(root, "artifacts/workloads.oci.tar")
+	if err := os.MkdirAll(filepath.Dir(archivePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	refs, err := testsupport.WriteWorkloadOCIArchive(archivePath, testsupport.WorkloadRepositories("registry.local/", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byRepo := testsupport.RefsByRepository(refs)
 	files := map[string][]byte{
 		"artifacts/install.sh":           []byte("#!/bin/sh\nexit 0\n"),
 		"artifacts/rke2.tar.gz":          []byte("rke2"),
 		"artifacts/rke2-images.tar.zst":  []byte("rke2-images"),
-		"artifacts/workloads.tar.zst":    []byte("workloads"),
-		"artifacts/argocd-install.yaml":  []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: argocd\n          image: registry.local/argocd@sha256:" + repeat("1", 64) + "\n"),
-		"artifacts/ocm-install.yaml":     []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: ocm\n          image: registry.local/ocm@sha256:" + repeat("2", 64) + "\n"),
-		"artifacts/cnpg-install.yaml":    []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: cnpg\n          image: registry.local/cnpg@sha256:" + repeat("3", 64) + "\n"),
-		"artifacts/storage-install.yaml": []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: storage\n          image: registry.local/storage@sha256:" + repeat("4", 64) + "\n---\napiVersion: storage.k8s.io/v1\nkind: StorageClass\nmetadata:\n  name: replicated-rwx\n  annotations:\n    platform.4so.io/replicated: \"true\"\nprovisioner: example.storage.csi\n"),
+		"artifacts/argocd-install.yaml":  []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: argocd\n          image: " + byRepo["registry.local/argocd"] + "\n"),
+		"artifacts/ocm-install.yaml":     []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: ocm\n          image: " + byRepo["registry.local/ocm"] + "\n"),
+		"artifacts/cnpg-install.yaml":    []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: cnpg\n          image: " + byRepo["registry.local/cnpg"] + "\n"),
+		"artifacts/storage-install.yaml": []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: storage\n          image: " + byRepo["registry.local/storage"] + "\n---\napiVersion: storage.k8s.io/v1\nkind: StorageClass\nmetadata:\n  name: replicated-rwx\n  annotations:\n    platform.4so.io/replicated: \"true\"\nprovisioner: example.storage.csi\n"),
 	}
 	for name, data := range files {
 		path := filepath.Join(root, name)
@@ -40,31 +49,35 @@ func makeBundle(t *testing.T, root string) {
 		}
 	}
 	digest := func(name string) string {
-		sum := sha256.Sum256(files[name])
+		raw, readErr := os.ReadFile(filepath.Join(root, name))
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		sum := sha256.Sum256(raw)
 		return "sha256:" + hex.EncodeToString(sum[:])
 	}
 	manifest := BundleManifest{APIVersion: "platform.4so.io/v1alpha1", Kind: "ApplianceBundle"}
 	manifest.Metadata.Version = "0.0.16"
+	manifest.Metadata.SourceReleaseDigest = "sha256:" + strings.Repeat("6", 64)
 	manifest.Spec.RKE2.Version = "test"
 	manifest.Spec.RKE2.Installer = Artifact{Path: "artifacts/install.sh", SHA256: digest("artifacts/install.sh")}
 	manifest.Spec.RKE2.InstallArtifacts = []Artifact{{Path: "artifacts/rke2.tar.gz", SHA256: digest("artifacts/rke2.tar.gz")}}
 	manifest.Spec.RKE2.ImageArchives = []Artifact{{Path: "artifacts/rke2-images.tar.zst", SHA256: digest("artifacts/rke2-images.tar.zst")}}
-	manifest.Spec.Workloads.ImageArchives = []Artifact{{Path: "artifacts/workloads.tar.zst", SHA256: digest("artifacts/workloads.tar.zst")}}
-	manifest.Spec.Workloads.PostgreSQLImage = "registry.local/postgres@sha256:" + string(make([]byte, 0))
-	manifest.Spec.Workloads.PostgreSQLImage = "registry.local/postgres@sha256:" + repeat("a", 64)
-	manifest.Spec.Workloads.PlatformAPIImage = "registry.local/platform-api@sha256:" + repeat("b", 64)
-	manifest.Spec.Workloads.ForgejoImage = "registry.local/forgejo@sha256:" + repeat("c", 64)
-	manifest.Spec.Workloads.ZotImage = "registry.local/zot@sha256:" + repeat("d", 64)
-	manifest.Spec.Workloads.KeycloakImage = "registry.local/keycloak@sha256:" + repeat("e", 64)
-	manifest.Spec.Workloads.MaintenanceImage = "registry.local/maintenance@sha256:" + repeat("f", 64)
+	manifest.Spec.Workloads.ImageArchives = []Artifact{{Path: "artifacts/workloads.oci.tar", SHA256: digest("artifacts/workloads.oci.tar")}}
+	manifest.Spec.Workloads.PostgreSQLImage = byRepo["registry.local/postgres"]
+	manifest.Spec.Workloads.PlatformAPIImage = byRepo["registry.local/platform-api"]
+	manifest.Spec.Workloads.ForgejoImage = byRepo["registry.local/forgejo"]
+	manifest.Spec.Workloads.ZotImage = byRepo["registry.local/zot"]
+	manifest.Spec.Workloads.KeycloakImage = byRepo["registry.local/keycloak"]
+	manifest.Spec.Workloads.MaintenanceImage = byRepo["registry.local/maintenance"]
 	manifest.Spec.Workloads.GitOpsManifest = Artifact{Path: "artifacts/argocd-install.yaml", SHA256: digest("artifacts/argocd-install.yaml")}
 	manifest.Spec.Workloads.CloudNativePGManifest = Artifact{Path: "artifacts/cnpg-install.yaml", SHA256: digest("artifacts/cnpg-install.yaml")}
 	manifest.Spec.Workloads.OCMManifest = Artifact{Path: "artifacts/ocm-install.yaml", SHA256: digest("artifacts/ocm-install.yaml")}
 	manifest.Spec.Workloads.StorageManifest = Artifact{Path: "artifacts/storage-install.yaml", SHA256: digest("artifacts/storage-install.yaml")}
-	manifest.Spec.Workloads.FleetAgentImage = "registry.local/platform-agent@sha256:" + repeat("9", 64)
-	manifest.Spec.Workloads.RuntimeProbeImage = "registry.local/platform-probe@sha256:" + repeat("a", 64)
-	images := []string{manifest.Spec.Workloads.PostgreSQLImage, manifest.Spec.Workloads.PlatformAPIImage, manifest.Spec.Workloads.ForgejoImage, manifest.Spec.Workloads.ZotImage, manifest.Spec.Workloads.KeycloakImage, manifest.Spec.Workloads.MaintenanceImage, manifest.Spec.Workloads.FleetAgentImage, manifest.Spec.Workloads.RuntimeProbeImage, "registry.local/argocd@sha256:" + repeat("1", 64), "registry.local/ocm@sha256:" + repeat("2", 64), "registry.local/cnpg@sha256:" + repeat("3", 64), "registry.local/storage@sha256:" + repeat("4", 64)}
-	indexRaw, _ := json.Marshal(map[string]any{"version": "0.0.16", "images": images, "artifacts": []string{"artifacts/install.sh", "artifacts/rke2.tar.gz", "artifacts/rke2-images.tar.zst", "artifacts/workloads.tar.zst", "artifacts/argocd-install.yaml", "artifacts/cnpg-install.yaml", "artifacts/ocm-install.yaml", "artifacts/storage-install.yaml"}})
+	manifest.Spec.Workloads.FleetAgentImage = byRepo["registry.local/platform-agent"]
+	manifest.Spec.Workloads.RuntimeProbeImage = byRepo["registry.local/platform-probe"]
+	images := append([]string(nil), refs...)
+	indexRaw, _ := json.Marshal(map[string]any{"version": "0.0.16", "images": images, "artifacts": []string{"artifacts/install.sh", "artifacts/rke2.tar.gz", "artifacts/rke2-images.tar.zst", "artifacts/workloads.oci.tar", "artifacts/argocd-install.yaml", "artifacts/cnpg-install.yaml", "artifacts/ocm-install.yaml", "artifacts/storage-install.yaml"}})
 	if err := os.WriteFile(filepath.Join(root, "artifacts/airgap-index.json"), indexRaw, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +410,7 @@ func TestBundleLockAdmissionRejectsTamperingAndExtraFiles(t *testing.T) {
 	if err = os.Remove(filepath.Join(root, "unindexed.bin")); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(root, "artifacts", "workloads.tar.zst")
+	path := filepath.Join(root, "artifacts", "workloads.oci.tar")
 	if err = os.WriteFile(path, []byte("tampered"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -550,29 +563,17 @@ func TestSimulatedHAPreflightSurfacesRemoteReadinessBoundary(t *testing.T) {
 
 type statusBlockingSystem struct {
 	*SimulatedSystem
-	mu             sync.Mutex
-	systemctlCalls int
-	blocked        chan struct{}
-	release        chan struct{}
+	blockOnce sync.Once
+	blocked   chan struct{}
+	release   chan struct{}
 }
 
-func (s *statusBlockingSystem) Run(ctx context.Context, name string, args []string, environment map[string]string) error {
-	if name == "systemctl" && slices.Equal(args, []string{"show", "--property=Version", "--value"}) {
-		s.mu.Lock()
-		s.systemctlCalls++
-		call := s.systemctlCalls
-		s.mu.Unlock()
-		if call == 2 {
-			close(s.blocked)
-			select {
-			case <-s.release:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-			return nil
-		}
-	}
-	return s.SimulatedSystem.Run(ctx, name, args, environment)
+func (s *statusBlockingSystem) MkdirAll(path string, mode os.FileMode) error {
+	s.blockOnce.Do(func() {
+		close(s.blocked)
+		<-s.release
+	})
+	return s.SimulatedSystem.MkdirAll(path, mode)
 }
 
 type resumeRejectFreshPreflightSystem struct {
@@ -720,7 +721,7 @@ func TestStatusRemainsReadableWhileBootstrapExecutionIsRunning(t *testing.T) {
 		blocked:         make(chan struct{}),
 		release:         make(chan struct{}),
 	}
-	runner, err := NewRunner(RunnerOptions{Version: "0.0.16", BundleDir: bundle, StateDir: state, Simulation: false, System: system})
+	runner, err := NewRunner(RunnerOptions{Version: "0.0.16", BundleDir: bundle, StateDir: state, Simulation: true, System: system})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -733,7 +734,7 @@ func TestStatusRemainsReadableWhileBootstrapExecutionIsRunning(t *testing.T) {
 	select {
 	case <-system.blocked:
 	case <-time.After(5 * time.Second):
-		t.Fatal("bootstrap did not reach blocked execution preflight")
+		t.Fatal("bootstrap did not reach blocked prepare-host execution")
 	}
 	statusResult := make(chan *Run, 1)
 	statusError := make(chan error, 1)
@@ -1025,7 +1026,7 @@ func TestFoundationManifestsMarkBootstrapOwnedObjects(t *testing.T) {
 		if !strings.Contains(manifest, `platform.4so.io/bootstrap-restart: "initial"`) {
 			t.Fatalf("profile %s is missing durable restart annotation path", request.ProfileID)
 		}
-		for _, want := range []string{"PLATFORM_FACTORY_POSTGRES_MAX_OPEN_CONNS", "PLATFORM_FACTORY_POSTGRES_MAX_IDLE_CONNS", "PLATFORM_FACTORY_POSTGRES_MIGRATION_MODE", "terminationGracePeriodSeconds: 75", "startupProbe", "livenessProbe", "resources:"} {
+		for _, want := range []string{"PLATFORM_FACTORY_POSTGRES_MAX_OPEN_CONNS", "PLATFORM_FACTORY_POSTGRES_MAX_IDLE_CONNS", "PLATFORM_FACTORY_POSTGRES_MIGRATION_MODE", "PLATFORM_FACTORY_SOURCE_RELEASE_DIGEST", "sha256:" + strings.Repeat("6", 64), "terminationGracePeriodSeconds: 75", "startupProbe", "livenessProbe", "resources:"} {
 			if !strings.Contains(manifest, want) {
 				t.Fatalf("profile %s is missing high-load runtime setting %q", request.ProfileID, want)
 			}
@@ -1438,5 +1439,22 @@ func TestFreshInstallIgnoresEmptyOperationalBackupDirectory(t *testing.T) {
 	runner := &Runner{stateDir: stateDir, system: system}
 	if residue := runner.existingBootstrapAuthorityResidue(); len(residue) != 0 {
 		t.Fatalf("empty lifecycle backup directory created at process startup must not block fresh install: %v", residue)
+	}
+}
+
+func TestTLSKeyGeneratorSecurityBoundary(t *testing.T) {
+	productionKey, err := ProductionTLSKeyGenerator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if productionKey.N.BitLen() < 3072 {
+		t.Fatalf("production TLS key strength regressed: %d bits", productionKey.N.BitLen())
+	}
+	simulationKey, err := SimulationTLSKeyGenerator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if simulationKey.N.BitLen() >= productionKey.N.BitLen() {
+		t.Fatalf("simulation key generator must remain test-only cost reduction: simulation=%d production=%d", simulationKey.N.BitLen(), productionKey.N.BitLen())
 	}
 }

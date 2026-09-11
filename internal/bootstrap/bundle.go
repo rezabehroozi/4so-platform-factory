@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"platform.4so.io/factory/internal/durablefile"
+	"platform.4so.io/factory/internal/ociarchive"
 )
 
 var digestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
@@ -213,6 +214,21 @@ func validateBundle(dir string, bundle BundleManifest) error {
 	requiredImages = sortedUnique(requiredImages)
 	if !equalStrings(sortedUnique(bundle.Spec.Airgap.RequiredImages), requiredImages) || len(bundle.Spec.Airgap.RequiredImages) != len(requiredImages) {
 		return fmt.Errorf("air-gap requiredImages must exactly match product and operator/storage manifest images")
+	}
+	archiveImages := []string{}
+	for _, artifact := range bundle.Spec.Workloads.ImageArchives {
+		archivePath, pathErr := safeBundlePath(dir, artifact.Path)
+		if pathErr != nil {
+			return pathErr
+		}
+		inventory, inspectErr := ociarchive.Inspect(archivePath)
+		if inspectErr != nil {
+			return fmt.Errorf("workload OCI archive %q: %w", artifact.Path, inspectErr)
+		}
+		archiveImages = append(archiveImages, inventory.Images...)
+	}
+	if len(archiveImages) != len(requiredImages) || !equalStrings(sortedUnique(archiveImages), requiredImages) {
+		return fmt.Errorf("workload OCI archives must contain exactly all required product and operator/storage images")
 	}
 	return validateAirgapIndex(dir, bundle)
 }

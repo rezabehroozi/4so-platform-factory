@@ -31,7 +31,7 @@ def start_git(state):
     srv=ThreadingHTTPServer(('127.0.0.1',port),H);threading.Thread(target=srv.serve_forever,daemon=True).start();return srv,f'http://127.0.0.1:{port}'
 
 def start_api(binary,state_file,git_url):
-    port=free_port();env=os.environ.copy();env.update({
+    port=free_port();env=os.environ.copy(); env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true';env.update({
       'PLATFORM_FACTORY_LISTEN':f'127.0.0.1:{port}','PLATFORM_FACTORY_STATE_FILE':str(state_file),
       'PLATFORM_FACTORY_AGENT_MTLS_REQUIRED':'false','PLATFORM_FACTORY_INTERNAL_GIT_URL':git_url,
       'PLATFORM_FACTORY_INTERNAL_GIT_USERNAME':'platform-admin','PLATFORM_FACTORY_INTERNAL_GIT_PASSWORD':'secret-a',

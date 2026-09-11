@@ -98,7 +98,7 @@ func (s *PostgresStore) RecordOperationForwardStepCompleted(ctx context.Context,
 		if op.State != controlplane.OperationRunning && op.State != controlplane.OperationVerifying {
 			return controlplane.ErrInvalidTransition
 		}
-		if op.LeaseOwner != worker || op.FenceToken != fence {
+		if !controlplane.OperationLeaseActive(op, worker, fence, utcNow(s.now)) {
 			return controlplane.ErrStaleFence
 		}
 		if op.CompensationPlanDigest == "" {
@@ -207,7 +207,7 @@ func (s *PostgresStore) ClaimNextOperationCompensationStep(ctx context.Context, 
 			return controlplane.ErrInvalidTransition
 		}
 		now := utcNow(s.now)
-		if op.LeaseOwner != worker || op.FenceToken != fence || op.LeaseExpiresAt == nil || !op.LeaseExpiresAt.After(now) {
+		if !controlplane.OperationLeaseActive(op, worker, fence, now) {
 			return controlplane.ErrStaleFence
 		}
 		step, err := scanCompensationStep(tx.QueryRowContext(ctx, `SELECT `+compensationStepColumns+` FROM operation_compensation_steps WHERE operation_id=$1 AND forward_completed=true AND strategy <> 'NONE' AND state='PENDING' ORDER BY forward_order DESC LIMIT 1 FOR UPDATE`, id))
@@ -316,7 +316,7 @@ func (s *PostgresStore) CompleteOperationCompensationStep(ctx context.Context, i
 		if err != nil {
 			return mapDBError(err)
 		}
-		if op.State != controlplane.OperationRollingBack || op.LeaseOwner != worker || op.FenceToken != fence {
+		if op.State != controlplane.OperationRollingBack || !controlplane.OperationLeaseActive(op, worker, fence, utcNow(s.now)) {
 			return controlplane.ErrStaleFence
 		}
 		step, err := scanCompensationStep(tx.QueryRowContext(ctx, `SELECT `+compensationStepColumns+` FROM operation_compensation_steps WHERE operation_id=$1 AND step_key=$2 FOR UPDATE`, id, strings.TrimSpace(stepKey)))
@@ -397,7 +397,7 @@ func (s *PostgresStore) ReportOperationCompensationStepFailure(ctx context.Conte
 		if err != nil {
 			return mapDBError(err)
 		}
-		if op.State != controlplane.OperationRollingBack || op.LeaseOwner != worker || op.FenceToken != fence {
+		if op.State != controlplane.OperationRollingBack || !controlplane.OperationLeaseActive(op, worker, fence, utcNow(s.now)) {
 			return controlplane.ErrStaleFence
 		}
 		step, err := scanCompensationStep(tx.QueryRowContext(ctx, `SELECT `+compensationStepColumns+` FROM operation_compensation_steps WHERE operation_id=$1 AND step_key=$2 FOR UPDATE`, id, strings.TrimSpace(stepKey)))

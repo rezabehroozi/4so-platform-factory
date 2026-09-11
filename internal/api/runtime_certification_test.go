@@ -7,6 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -375,4 +377,126 @@ func containsAll(s string, parts ...string) bool {
 		}
 	}
 	return true
+}
+
+func TestComponentRuntimeCertificationGatewayInstallReadinessPartialAPI(t *testing.T) {
+	ctx := context.Background()
+	store := controlplane.NewMemoryStore()
+	org, err := store.CreateOrganization(ctx, controlplane.Organization{Name: "component-cert-org", DisplayName: "Component Certification"}, "owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "component-cert", DisplayName: "Component Certification"}, "owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cluster, agentToken, _ := seedAPICluster(t, store, project, "component-cert-cluster", 181)
+	components, err := catalog.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New("test", components, slog.New(slog.NewTextHandler(io.Discard, nil)), store)
+	release := seedPublishedRenderCatalogForCertification(t, store, org, s)
+	caps := append(controlplane.RuntimeCertificationRequiredCapabilities(controlplane.RuntimeCertificationComponentV1), controlplane.TargetMutationRBACActiveCapability)
+	cluster, _, err = upsertMutationReadyInventoryForAPITest(t, store, ctx, cluster.ID, credentialDigest(agentToken), cluster.ExternalUID, controlplane.ClusterInventory{ObservedAt: time.Now().UTC(), Distribution: "rke2", Capabilities: caps, KubernetesVersion: "v1.34.9", Digest: digestValue("component-runtime-api-" + cluster.ID)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := s.Handler()
+	body, _ := json.Marshal(map[string]any{"projectId": project.ID, "clusterId": cluster.ID, "catalogReleaseId": release.ID, "profile": "COMPONENT_RUNTIME_V1", "componentName": "gateway-api", "namespace": "4so-component-cert"})
+	w := apiRequest(t, h, http.MethodPost, "/api/v1/runtime-certifications", string(body), map[string]string{"X-Actor-ID": "owner", "Idempotency-Key": "component-runtime-gateway-1"})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create=%d %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Run controlplane.RuntimeCertificationRun `json:"run"`
+	}
+	if err = json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	if created.Run.Profile != controlplane.RuntimeCertificationComponentV1 || created.Run.ComponentName != "gateway-api" || created.Run.ComponentRelease != "1.5.1" || created.Run.ResourceCount != 10 {
+		t.Fatalf("component run identity drift: %+v", created.Run)
+	}
+	w = apiRequest(t, h, http.MethodGet, "/agent/v1/clusters/"+cluster.ID+"/runtime-certification-tasks/next", "", map[string]string{"Authorization": "Bearer " + agentToken})
+	if w.Code != http.StatusOK {
+		t.Fatalf("install task=%d %s", w.Code, w.Body.String())
+	}
+	installTask := decodeBody[controlplane.RuntimeCertificationTask](t, w)
+	if installTask.ComponentName != "gateway-api" || installTask.ComponentRelease != "1.5.1" || installTask.Profile != controlplane.RuntimeCertificationComponentV1 || len(installTask.Resources) != 10 {
+		t.Fatalf("component install task drift: %+v", installTask)
+	}
+	installChecks := []controlplane.RuntimeCheck{{Key: "fresh-install-target", Status: "PASS"}}
+	for i := range installTask.Resources {
+		installChecks = append(installChecks, controlplane.RuntimeCheck{Key: fmt.Sprintf("apply/%d", i+1), Status: "PASS"})
+	}
+	installChecks = append(installChecks, controlplane.RuntimeCheck{Key: "component-failure-control/duplicate-create-conflict", Status: "PASS"})
+	result, _ := json.Marshal(controlplane.RuntimeCertificationResult{Phase: installTask.Phase, TaskFenceToken: installTask.TaskFenceToken, Success: true, InventoryDigest: installTask.InventoryDigest, RenderedDigest: installTask.RenderedDigest, Checks: installChecks})
+	w = apiRequest(t, h, http.MethodPost, "/agent/v1/clusters/"+cluster.ID+"/runtime-certification-tasks/"+installTask.RunID+"/result", string(result), map[string]string{"Authorization": "Bearer " + agentToken, "If-Match": fmt.Sprintf("\"%d\"", installTask.RunRevision)})
+	if w.Code != http.StatusOK {
+		t.Fatalf("install result=%d %s", w.Code, w.Body.String())
+	}
+	w = apiRequest(t, h, http.MethodGet, "/agent/v1/clusters/"+cluster.ID+"/runtime-certification-tasks/next", "", map[string]string{"Authorization": "Bearer " + agentToken})
+	if w.Code != http.StatusOK {
+		t.Fatalf("verify task=%d %s", w.Code, w.Body.String())
+	}
+	verifyTask := decodeBody[controlplane.RuntimeCertificationTask](t, w)
+	verifyChecks := []controlplane.RuntimeCheck{{Key: "durable-install-checkpoint", Status: "PASS"}}
+	for i := range verifyTask.Resources {
+		verifyChecks = append(verifyChecks, controlplane.RuntimeCheck{Key: fmt.Sprintf("verify/%d", i+1), Status: "PASS"})
+		verifyChecks = append(verifyChecks, controlplane.RuntimeCheck{Key: fmt.Sprintf("component-readiness/%d", i+1), Status: "PASS"})
+	}
+	for _, key := range []string{"nodes-ready", "cluster-dns-service", "kubernetes-api-tls"} {
+		verifyChecks = append(verifyChecks, controlplane.RuntimeCheck{Key: key, Status: "PASS"})
+		verifyChecks = append(verifyChecks, controlplane.RuntimeCheck{Key: "component-dependency/" + key, Status: "PASS"})
+	}
+	result, _ = json.Marshal(controlplane.RuntimeCertificationResult{Phase: verifyTask.Phase, TaskFenceToken: verifyTask.TaskFenceToken, Success: true, InventoryDigest: verifyTask.InventoryDigest, RenderedDigest: verifyTask.RenderedDigest, Checks: verifyChecks})
+	w = apiRequest(t, h, http.MethodPost, "/agent/v1/clusters/"+cluster.ID+"/runtime-certification-tasks/"+verifyTask.RunID+"/result", string(result), map[string]string{"Authorization": "Bearer " + agentToken, "If-Match": fmt.Sprintf("\"%d\"", verifyTask.RunRevision)})
+	if w.Code != http.StatusOK {
+		t.Fatalf("verify result=%d %s", w.Code, w.Body.String())
+	}
+	afterVerify := decodeBody[controlplane.RuntimeCertificationRun](t, w)
+	if afterVerify.State != controlplane.RuntimeCertificationVerifying || afterVerify.Phase != controlplane.RuntimeCertificationPhaseFailure {
+		t.Fatalf("after verify=%+v", afterVerify)
+	}
+	w = apiRequest(t, h, http.MethodGet, "/agent/v1/clusters/"+cluster.ID+"/runtime-certification-tasks/next", "", map[string]string{"Authorization": "Bearer " + agentToken})
+	if w.Code != http.StatusOK {
+		t.Fatalf("failure task=%d %s", w.Code, w.Body.String())
+	}
+	failureTask := decodeBody[controlplane.RuntimeCertificationTask](t, w)
+	failureChecks := []controlplane.RuntimeCheck{
+		{Key: "component-failure-recovery/drift-injected", Status: "PASS"},
+		{Key: "component-failure-recovery/reconciled", Status: "PASS"},
+		{Key: "component-failure-recovery/readiness-restored", Status: "PASS"},
+	}
+	result, _ = json.Marshal(controlplane.RuntimeCertificationResult{Phase: failureTask.Phase, TaskFenceToken: failureTask.TaskFenceToken, Success: true, InventoryDigest: failureTask.InventoryDigest, RenderedDigest: failureTask.RenderedDigest, Checks: failureChecks})
+	w = apiRequest(t, h, http.MethodPost, "/agent/v1/clusters/"+cluster.ID+"/runtime-certification-tasks/"+failureTask.RunID+"/result", string(result), map[string]string{"Authorization": "Bearer " + agentToken, "If-Match": fmt.Sprintf("\"%d\"", failureTask.RunRevision)})
+	if w.Code != http.StatusOK {
+		t.Fatalf("failure result=%d %s", w.Code, w.Body.String())
+	}
+	afterFailure := decodeBody[controlplane.RuntimeCertificationRun](t, w)
+	if afterFailure.State != controlplane.RuntimeCertificationVerifying || afterFailure.Phase != controlplane.RuntimeCertificationPhaseRemove {
+		t.Fatalf("after failure=%+v", afterFailure)
+	}
+	w = apiRequest(t, h, http.MethodGet, "/agent/v1/clusters/"+cluster.ID+"/runtime-certification-tasks/next", "", map[string]string{"Authorization": "Bearer " + agentToken})
+	if w.Code != http.StatusOK {
+		t.Fatalf("remove task=%d %s", w.Code, w.Body.String())
+	}
+	removeTask := decodeBody[controlplane.RuntimeCertificationTask](t, w)
+	removeChecks := make([]controlplane.RuntimeCheck, 0, len(removeTask.Resources))
+	for i := range removeTask.Resources {
+		removeChecks = append(removeChecks, controlplane.RuntimeCheck{Key: fmt.Sprintf("component-remove/%d", i+1), Status: "PASS"})
+	}
+	result, _ = json.Marshal(controlplane.RuntimeCertificationResult{Phase: removeTask.Phase, TaskFenceToken: removeTask.TaskFenceToken, Success: true, InventoryDigest: removeTask.InventoryDigest, RenderedDigest: removeTask.RenderedDigest, Checks: removeChecks})
+	w = apiRequest(t, h, http.MethodPost, "/agent/v1/clusters/"+cluster.ID+"/runtime-certification-tasks/"+removeTask.RunID+"/result", string(result), map[string]string{"Authorization": "Bearer " + agentToken, "If-Match": fmt.Sprintf("\"%d\"", removeTask.RunRevision)})
+	if w.Code != http.StatusOK {
+		t.Fatalf("remove result=%d %s", w.Code, w.Body.String())
+	}
+	completed := decodeBody[controlplane.RuntimeCertificationRun](t, w)
+	if completed.State != controlplane.RuntimeCertificationSucceeded || completed.ComponentName != "gateway-api" || completed.Phase != controlplane.RuntimeCertificationPhaseRemove {
+		t.Fatalf("completed=%+v", completed)
+	}
+	w = apiRequest(t, h, http.MethodGet, "/api/v1/runtime-certifications/"+completed.ID+"/report", "", nil)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"fullLifecycleCertified":false`) || !strings.Contains(w.Body.String(), `"lifecycleStagesCertified":["install","readiness","dependency","failure","remove"]`) {
+		t.Fatalf("component report=%d %s", w.Code, w.Body.String())
+	}
 }

@@ -42,6 +42,7 @@ type inventoryInput struct {
 	Capacity                    controlplane.ClusterCapacity                 `json:"capacity"`
 	Certificates                []controlplane.ClusterCertificateObservation `json:"certificates"`
 	Networking                  controlplane.ClusterNetworking               `json:"networking"`
+	WorkloadExplorer            controlplane.ClusterWorkloadExplorer         `json:"workloadExplorer"`
 	APIResources                []controlplane.ClusterAPIResourceObservation `json:"apiResources"`
 	CRDs                        []controlplane.ClusterCRDObservation         `json:"crds"`
 	APIDiscoveryComplete        bool                                         `json:"apiDiscoveryComplete"`
@@ -258,14 +259,26 @@ rules:
   resources: ["pods"]
   verbs: ["get", "list"]
 - apiGroups: [""]
+  resources: ["persistentvolumeclaims", "events"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
   resources: ["namespaces"]
   resourceNames: ["kube-system"]
   verbs: ["get"]
 - apiGroups: ["apps"]
-  resources: ["deployments"]
+  resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+  verbs: ["get", "list"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
   verbs: ["get", "list"]
 - apiGroups: ["storage.k8s.io"]
   resources: ["storageclasses"]
+  verbs: ["get", "list"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["rolebindings", "clusterrolebindings"]
   verbs: ["get", "list"]
 - apiGroups: ["config.openshift.io"]
   resources: ["clusterversions"]
@@ -348,6 +361,8 @@ spec:
         - name: PLATFORM_AGENT_BOOTSTRAP_SECRET
           value: 4so-platform-agent-bootstrap
         - name: PLATFORM_RUNTIME_PROBE_IMAGE
+          value: %s
+        - name: PLATFORM_AGENT_IMAGE
           value: %s%s
         volumeMounts:
         - name: state
@@ -355,7 +370,7 @@ spec:
       volumes:
       - name: state
         emptyDir: {}%s
-`, caBlock, serviceAccountName, base, id, token, serviceAccountName, serviceAccountName, serviceAccountName, image, serviceAccountName, probeImage, caEnv, caVolumeMount, caVolume)
+`, caBlock, serviceAccountName, base, id, token, serviceAccountName, serviceAccountName, serviceAccountName, image, serviceAccountName, probeImage, image, caEnv, caVolumeMount, caVolume)
 }
 
 func renderClusterMutationActivationManifest(clusterID, serviceAccountName, externalUID, inventoryDigest string) string {
@@ -374,6 +389,17 @@ metadata:
   labels:
     platform.4so.io/managed: "true"
     platform.4so.io/cluster-id: %q
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: 4so-platform-node-maintenance
+  labels:
+    platform.4so.io/managed: "true"
+    platform.4so.io/cluster-id: %q
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -402,6 +428,9 @@ rules:
 - apiGroups: ["cluster.x-k8s.io"]
   resources: ["clusters"]
   verbs: ["get", "create", "update", "patch", "delete"]
+- apiGroups: ["cluster.x-k8s.io"]
+  resources: ["machines", "machinesets", "machinedeployments"]
+  verbs: ["get", "list", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -447,6 +476,35 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: 4so-platform-baseline-manager
+subjects:
+- kind: ServiceAccount
+  name: %s
+  namespace: 4so-platform-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: 4so-platform-node-maintenance-job-manager
+  namespace: 4so-platform-node-maintenance
+  annotations:
+    platform.4so.io/inventory-digest: %q
+rules:
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create", "delete"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: 4so-platform-node-maintenance-job-manager
+  namespace: 4so-platform-node-maintenance
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: 4so-platform-node-maintenance-job-manager
 subjects:
 - kind: ServiceAccount
   name: %s
@@ -520,7 +578,7 @@ subjects:
 - kind: ServiceAccount
   name: %s
   namespace: 4so-platform-agent
-`, clusterID, clusterID, clusterID, clusterID, externalUID, inventoryDigest, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName)
+`, clusterID, clusterID, clusterID, clusterID, clusterID, externalUID, inventoryDigest, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName)
 }
 
 // renderClusterRevocationRBACManifest is an idempotent target-side authorization
@@ -618,6 +676,17 @@ roleRef:
 subjects: []
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: 4so-platform-node-maintenance-job-manager
+  namespace: 4so-platform-node-maintenance
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: 4so-platform-node-maintenance-job-manager
+subjects: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: 4so-platform-agent-maintenance-manager
@@ -703,23 +772,25 @@ func (s *Server) revokeClusterImport(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listClusterImports(w http.ResponseWriter, r *http.Request) {
 	projectID := strings.TrimSpace(r.URL.Query().Get("projectId"))
 	if projectID != "" {
-		if _, e := s.requireProjectAccess(r, projectID, organizationRead); e != nil {
-			writeScopeError(w, e)
+		if _, err := s.requireProjectAccess(r, projectID, organizationRead); err != nil {
+			writeScopeError(w, err)
 			return
 		}
 	}
-	v, e := s.store.ListClusterImports(r.Context(), projectID)
-	if e != nil {
-		writeStoreError(w, e)
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.ClusterImport, error)
+	if pager, ok := s.store.(clusterImportPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.ClusterImport, error) {
+			return pager.ListClusterImportsPage(r.Context(), ids, all, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.ClusterImport, error) {
+		return s.store.ListClusterImports(r.Context(), projectID)
+	}, page, func(item controlplane.ClusterImport) string { return item.ProjectID })
+	if err != nil {
+		writeStoreError(w, err)
 		return
 	}
-	allowed, all, e := s.accessibleProjectSet(r)
-	if e != nil {
-		writeStoreError(w, e)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.ClusterImport) string { return item.ProjectID })
-	writeJSON(w, 200, v)
+	writeOperatorCollectionJSON(w, r, 200, v)
 }
 func (s *Server) getClusterImport(w http.ResponseWriter, r *http.Request) {
 	v, e := s.store.GetClusterImport(r.Context(), r.PathValue("id"))
@@ -890,29 +961,31 @@ func (s *Server) acknowledgeClusterTargetRBACRevocation(w http.ResponseWriter, r
 func (s *Server) listManagedClusters(w http.ResponseWriter, r *http.Request) {
 	projectID := strings.TrimSpace(r.URL.Query().Get("projectId"))
 	if projectID != "" {
-		if _, e := s.requireProjectAccess(r, projectID, organizationRead); e != nil {
-			writeScopeError(w, e)
+		if _, err := s.requireProjectAccess(r, projectID, organizationRead); err != nil {
+			writeScopeError(w, err)
 			return
 		}
 	}
-	v, e := s.store.ListManagedClusters(r.Context(), projectID)
-	if e != nil {
-		writeStoreError(w, e)
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.ManagedCluster, error)
+	if pager, ok := s.store.(managedClusterPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.ManagedCluster, error) {
+			return pager.ListManagedClustersPage(r.Context(), ids, all, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.ManagedCluster, error) {
+		return s.store.ListManagedClusters(r.Context(), projectID)
+	}, page, func(item controlplane.ManagedCluster) string { return item.ProjectID })
+	if err != nil {
+		writeStoreError(w, err)
 		return
 	}
-	allowed, all, e := s.accessibleProjectSet(r)
-	if e != nil {
-		writeStoreError(w, e)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.ManagedCluster) string { return item.ProjectID })
 	now := time.Now().UTC()
 	rows := make([]map[string]any, 0, len(v))
 	for _, c := range v {
 		online := c.ConnectionState != "REVOKED" && c.LastSeenAt != nil && now.Sub(*c.LastSeenAt) <= 3*time.Minute
-		rows = append(rows, map[string]any{"cluster": c, "target": targetmodel.ImportedTarget(c.Distribution), "online": online, "inventoryReadOnly": true, "controlledMutationEnabled": controlplane.ClusterTaskClaimAdmittedAt(c, time.Now().UTC()), "mutationScope": "secure-namespace-foundation"})
+		rows = append(rows, map[string]any{"cluster": c, "target": targetmodel.ImportedTarget(c.Distribution), "online": online, "inventoryReadOnly": true, "controlledMutationEnabled": controlplane.ClusterTaskClaimAdmittedAt(c, time.Now().UTC()), "okdImportAdmitted": controlplane.ClusterHasCapability(c, controlplane.OKDImportAdmissionCapability), "reconnect": controlplane.ClusterReconnectAuthority(c, now), "mutationScope": "secure-namespace-foundation"})
 	}
-	writeJSON(w, 200, rows)
+	writeOperatorCollectionJSON(w, r, 200, rows)
 }
 func (s *Server) getManagedCluster(w http.ResponseWriter, r *http.Request) {
 	c, e := s.store.GetManagedCluster(r.Context(), r.PathValue("id"))
@@ -949,8 +1022,11 @@ func (s *Server) getManagedCluster(w http.ResponseWriter, r *http.Request) {
 	identityVerified := clusterHasCapabilityAPI(c.Capabilities, controlplane.TargetIdentityContinuityCapability)
 	activationCurrent := controlplane.ClusterMutationRBACActivationCurrent(c)
 	activeProof := clusterHasCapabilityAPI(c.Capabilities, controlplane.TargetMutationRBACActiveCapability)
-	supportedTarget := targetmodel.SupportedDistribution(c.Distribution)
-	writeJSON(w, 200, map[string]any{"cluster": c, "target": targetmodel.ImportedTarget(c.Distribution), "inventory": inv, "agentCertificates": certificates, "activeAgentCertificates": activeCertificates, "agentAuthentication": agentAuthentication, "online": online, "inventoryReadOnly": true, "identityContinuityVerified": identityVerified, "mutationEnabled": mutationAdmitted, "mutationAdmitted": mutationAdmitted, "mutationRBACActivationIssued": activationCurrent, "mutationRBACActivationRequired": supportedTarget && identityVerified && !activationCurrent, "mutationRBACProofPending": supportedTarget && identityVerified && activationCurrent && !activeProof, "mutationScope": "4so-platform-baseline", "genericMutationEnabled": false})
+	mutationCandidate := controlplane.ClusterMutationAdmissionEligible(c)
+	okdHealth := controlplane.TranslateOKDHealth(inv)
+	targetProfile := controlplane.CompileTargetProfile(inv, nil)
+	reconnect := controlplane.ClusterReconnectAuthority(c, time.Now().UTC())
+	writeJSON(w, 200, map[string]any{"cluster": c, "target": targetmodel.ImportedTarget(c.Distribution), "inventory": inv, "agentCertificates": certificates, "activeAgentCertificates": activeCertificates, "agentAuthentication": agentAuthentication, "online": online, "inventoryReadOnly": true, "identityContinuityVerified": identityVerified, "mutationEnabled": mutationAdmitted, "mutationAdmitted": mutationAdmitted, "mutationRBACActivationIssued": activationCurrent, "mutationRBACActivationRequired": mutationCandidate && identityVerified && !activationCurrent, "mutationRBACProofPending": mutationCandidate && identityVerified && activationCurrent && !activeProof, "okdImportAdmitted": controlplane.ClusterHasCapability(c, controlplane.OKDImportAdmissionCapability), "okdHealth": okdHealth, "targetProfile": targetProfile, "reconnect": reconnect, "mutationScope": "4so-platform-baseline", "genericMutationEnabled": false})
 }
 
 func (s *Server) writeClusterMutationRBACManifest(w http.ResponseWriter, c controlplane.ManagedCluster, imp controlplane.ClusterImport) {
@@ -1063,6 +1139,12 @@ func (s *Server) reportClusterInventory(w http.ResponseWriter, r *http.Request) 
 		sort.Slice(in.CRDs[i].Versions, func(a, b int) bool { return in.CRDs[i].Versions[a].Name < in.CRDs[i].Versions[b].Name })
 	}
 	sort.Slice(in.CRDs, func(i, j int) bool { return in.CRDs[i].Name < in.CRDs[j].Name })
+	workloadExplorer, normalizeErr := controlplane.NormalizeClusterWorkloadExplorer(in.WorkloadExplorer)
+	if normalizeErr != nil {
+		writeError(w, http.StatusUnprocessableEntity, "WORKLOAD_EXPLORER_INVALID", normalizeErr.Error())
+		return
+	}
+	in.WorkloadExplorer = workloadExplorer
 	cluster, e := s.store.GetManagedCluster(r.Context(), r.PathValue("id"))
 	if e != nil {
 		writeStoreError(w, e)
@@ -1074,7 +1156,7 @@ func (s *Server) reportClusterInventory(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusConflict, "CLUSTER_IDENTITY_MISMATCH", "observed kube-system UID does not match the cluster identity bound at import claim")
 		return
 	}
-	inv := controlplane.ClusterInventory{ObservedAt: in.ObservedAt, Distribution: in.Distribution, DistributionEvidenceMethod: in.DistributionEvidenceMethod, DistributionEvidenceUID: in.DistributionEvidenceUID, DistributionEvidenceVersion: in.DistributionEvidenceVersion, KubernetesVersion: in.KubernetesVersion, Nodes: in.Nodes, AddOns: in.AddOns, StorageClasses: in.StorageClasses, Capacity: in.Capacity, Certificates: in.Certificates, Networking: in.Networking, APIResources: in.APIResources, CRDs: in.CRDs, APIDiscoveryComplete: in.APIDiscoveryComplete, CRDDiscoveryComplete: in.CRDDiscoveryComplete, SchemaDiscoveryVersion: in.SchemaDiscoveryVersion, SchemaDiscoveryDigest: in.SchemaDiscoveryDigest, SchemaDiscoveryComplete: in.SchemaDiscoveryComplete, Capabilities: in.Capabilities}
+	inv := controlplane.ClusterInventory{ObservedAt: in.ObservedAt, Distribution: in.Distribution, DistributionEvidenceMethod: in.DistributionEvidenceMethod, DistributionEvidenceUID: in.DistributionEvidenceUID, DistributionEvidenceVersion: in.DistributionEvidenceVersion, KubernetesVersion: in.KubernetesVersion, Nodes: in.Nodes, AddOns: in.AddOns, StorageClasses: in.StorageClasses, Capacity: in.Capacity, Certificates: in.Certificates, Networking: in.Networking, WorkloadExplorer: in.WorkloadExplorer, APIResources: in.APIResources, CRDs: in.CRDs, APIDiscoveryComplete: in.APIDiscoveryComplete, CRDDiscoveryComplete: in.CRDDiscoveryComplete, SchemaDiscoveryVersion: in.SchemaDiscoveryVersion, SchemaDiscoveryDigest: in.SchemaDiscoveryDigest, SchemaDiscoveryComplete: in.SchemaDiscoveryComplete, Capabilities: in.Capabilities}
 	// Identity continuity is a server-owned authority marker. Never trust the
 	// capability if an agent submits it itself. Mixed-version agents without
 	// externalUid remain observable but are normalized to read-only.

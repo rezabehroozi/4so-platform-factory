@@ -22,8 +22,9 @@ type maintenanceWindowInput struct {
 	DrainTimeoutSeconds int       `json:"drainTimeoutSeconds"`
 }
 type maintenanceRunInput struct {
-	WindowID  string   `json:"windowId"`
-	NodeNames []string `json:"nodeNames"`
+	WindowID  string                                 `json:"windowId"`
+	Action    controlplane.TargetNodeLifecycleAction `json:"action,omitempty"`
+	NodeNames []string                               `json:"nodeNames"`
 }
 
 func optionalExpectedRevision(r *http.Request) (int64, error) {
@@ -202,7 +203,7 @@ func (s *Server) createClusterMaintenanceRun(w http.ResponseWriter, r *http.Requ
 	}
 	requestDigest := digestValue(in)
 	opRequest := controlplane.OperationRequest{ProjectID: cluster.ProjectID, Kind: "CLUSTER_MAINTENANCE", TargetRef: "cluster/" + cluster.ID, DesiredRevision: requestDigest, Risk: "high", Class: controlplane.OperationClassMutating}
-	v, op, replay, err := s.store.CreateClusterMaintenanceRunRequest(r.Context(), controlplane.ClusterMaintenanceRun{ProjectID: cluster.ProjectID, ClusterID: cluster.ID, WindowID: strings.TrimSpace(in.WindowID), NodeNames: in.NodeNames, IdempotencyKey: key, RequestDigest: requestDigest}, opRequest, "cluster-maintenance-operation:"+key, actor, r.Header.Get("X-Request-ID"))
+	v, op, replay, err := s.store.CreateClusterMaintenanceRunRequest(r.Context(), controlplane.ClusterMaintenanceRun{ProjectID: cluster.ProjectID, ClusterID: cluster.ID, WindowID: strings.TrimSpace(in.WindowID), Action: in.Action, NodeNames: in.NodeNames, IdempotencyKey: key, RequestDigest: requestDigest}, opRequest, "cluster-maintenance-operation:"+key, actor, r.Header.Get("X-Request-ID"))
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -303,7 +304,7 @@ func (s *Server) nextClusterMaintenanceTask(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusConflict, "MAINTENANCE_LEASE_MISSING", "claimed maintenance operation has no execution lease")
 		return
 	}
-	writeJSON(w, 200, controlplane.ClusterMaintenanceTask{RunID: v.ID, RunRevision: v.Revision, OperationID: op.ID, OperationRevision: op.Revision, OperationFenceToken: op.FenceToken, LeaseExpiresAt: *op.LeaseExpiresAt, ClusterID: v.ClusterID, NodeNames: v.NodeNames, NodeUIDs: v.NodeUIDs, InventoryDigest: v.InventoryDigest, DrainTimeoutSeconds: v.DrainTimeoutSeconds, Method: controlplane.ClusterMaintenanceAuthorityMethod})
+	writeJSON(w, 200, controlplane.ClusterMaintenanceTask{RunID: v.ID, RunRevision: v.Revision, OperationID: op.ID, OperationRevision: op.Revision, OperationFenceToken: op.FenceToken, LeaseExpiresAt: *op.LeaseExpiresAt, ClusterID: v.ClusterID, Action: v.Action, NodeNames: v.NodeNames, NodeUIDs: v.NodeUIDs, InventoryDigest: v.InventoryDigest, DrainTimeoutSeconds: v.DrainTimeoutSeconds, HostActionTimeoutSeconds: v.HostActionTimeoutSeconds, Method: controlplane.ClusterMaintenanceAuthorityMethod})
 }
 func (s *Server) reportClusterMaintenanceTask(w http.ResponseWriter, r *http.Request) {
 	if _, err := s.agentCredentialDigest(r, r.PathValue("id")); err != nil {

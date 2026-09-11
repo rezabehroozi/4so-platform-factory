@@ -35,6 +35,13 @@ func (s *Server) requireCapabilityAuthorization(r *http.Request, permission stri
 	reason := "CAPABILITY_PERMISSION_REQUIRED"
 	if principal.Authentication == "api-token" {
 		allowed = principalHasPermission(principal, permission)
+	} else if principal.Authentication == "mcp-human" {
+		profile := strings.ToUpper(strings.TrimSpace(principal.DelegationAccessProfile))
+		if permission == controlplane.APITokenPermissionMCPRead {
+			allowed = profile == "VIEW" || profile == "OPERATE" || profile == "ADMINISTRATION"
+		} else {
+			allowed = profile == "OPERATE" || profile == "ADMINISTRATION"
+		}
 	} else if allowViewer {
 		allowed = auth.HasAnyRole(principal, "platform-admin", "platform-operator", "platform-viewer")
 		reason = "PRODUCT_ROLE_REQUIRED"
@@ -75,10 +82,13 @@ type aiDiagnosisInput struct {
 
 func (s *Server) getAIPolicy(w http.ResponseWriter, _ *http.Request) {
 	if s.aiRuntime == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"runtimeAuthority": airuntime.RuntimeAuthority, "enabled": false, "provider": airuntime.ProviderNone, "redactionRequired": true, "structuredOutputRequired": true, "rawPromptPersisted": false, "advisoryOnly": true, "canDecidePass": false, "canDecidePhysicalPass": false})
+		writeJSON(w, http.StatusOK, map[string]any{"runtimeAuthority": airuntime.RuntimeAuthority, "providerTransportAuthority": airuntime.ProviderTransportAuthority, "providerDispatchAuthority": controlplane.AIProviderDispatchAuthority, "providerResultCommitAuthority": controlplane.AIProviderResultCommitAuthority, "enabled": false, "provider": airuntime.ProviderNone, "redactionRequired": true, "structuredOutputRequired": true, "rawPromptPersisted": false, "advisoryOnly": true, "canDecidePass": false, "canDecidePhysicalPass": false})
 		return
 	}
-	writeJSON(w, http.StatusOK, s.aiRuntime.Policy())
+	policy := s.aiRuntime.Policy()
+	policy["providerDispatchAuthority"] = controlplane.AIProviderDispatchAuthority
+	policy["providerResultCommitAuthority"] = controlplane.AIProviderResultCommitAuthority
+	writeJSON(w, http.StatusOK, policy)
 }
 
 func (s *Server) diagnoseAI(w http.ResponseWriter, r *http.Request) {
@@ -165,17 +175,58 @@ func (s *Server) diagnoseAI(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "AI_RUNTIME_DISABLED", "no AI provider is configured; deterministic platform operations remain available")
 		return
 	}
+	claim, acquired, e := s.store.ClaimAIExecution(r.Context(), controlplane.AIExecutionClaim{ProjectID: in.ProjectID, Purpose: "operator-diagnosis", IdempotencyKey: key, RequestDigest: requestDigest}, actor)
+	if e != nil {
+		if errors.Is(e, controlplane.ErrIdempotencyConflict) {
+			writeError(w, http.StatusConflict, "AI_IDEMPOTENCY_CONFLICT", "Idempotency-Key already belongs to a different AI diagnosis request")
+		} else {
+			writeStoreError(w, e)
+		}
+		return
+	}
+	if !acquired {
+		switch claim.State {
+		case controlplane.AIExecutionCompleted:
+			existing, getErr := s.store.GetAIRun(r.Context(), claim.AIRunID)
+			if getErr != nil || existing.RequestDigest != requestDigest {
+				writeError(w, http.StatusInternalServerError, "AI_EXECUTION_AUTHORITY_INVALID", "completed AI execution claim is not bound to a valid durable run")
+				return
+			}
+			diagnosis, parseErr := airuntime.ParseDiagnosis(existing.Output)
+			if parseErr != nil {
+				writeError(w, http.StatusInternalServerError, "AI_RUN_OUTPUT_INVALID", "persisted AI run output is invalid")
+				return
+			}
+			setRevisionETag(w, existing.Revision)
+			writeJSON(w, http.StatusOK, map[string]any{"run": existing, "diagnosis": diagnosis, "idempotentReplay": true, "advisoryOnly": true, "executionAllowed": false})
+		case controlplane.AIExecutionDispatched:
+			writeError(w, http.StatusConflict, "AI_EXECUTION_ALREADY_DISPATCHED", "this Idempotency-Key has already been dispatched to the AI provider; it will not be sent again automatically")
+		case controlplane.AIExecutionFailed:
+			writeError(w, http.StatusConflict, "AI_EXECUTION_PREVIOUSLY_FAILED", "this Idempotency-Key already has a terminal failed provider attempt; use a new key to explicitly retry")
+		default:
+			writeError(w, http.StatusInternalServerError, "AI_EXECUTION_AUTHORITY_INVALID", "AI execution claim has an invalid state")
+		}
+		return
+	}
 	generated, e := s.aiRuntime.Generate(r.Context(), airuntime.Request{Purpose: "operator-diagnosis", PromptID: airuntime.PromptOperatorDiagnosis, System: airuntime.DiagnosisSystem(), Input: map[string]any{"contextItems": items, "constraints": []string{"advisory-only", "no mutation authority", "no PASS authority", "no Physical PASS authority"}}, JSONSchema: airuntime.DiagnosisSchema()})
 	if e != nil {
+		if _, failErr := s.store.FailAIExecution(r.Context(), in.ProjectID, key, requestDigest, "PROVIDER_REQUEST_FAILED", actor); failErr != nil {
+			writeStoreError(w, failErr)
+			return
+		}
 		writeError(w, http.StatusBadGateway, "AI_DIAGNOSIS_FAILED", e.Error())
 		return
 	}
 	diagnosis, e := airuntime.ParseDiagnosis(generated.JSON)
 	if e != nil {
+		if _, failErr := s.store.FailAIExecution(r.Context(), in.ProjectID, key, requestDigest, "OUTPUT_REJECTED", actor); failErr != nil {
+			writeStoreError(w, failErr)
+			return
+		}
 		writeError(w, http.StatusBadGateway, "AI_OUTPUT_REJECTED", e.Error())
 		return
 	}
-	run, replay, e := s.store.CreateAIRun(r.Context(), controlplane.AIRun{ProjectID: in.ProjectID, Purpose: generated.Purpose, Provider: generated.Provider, Model: generated.Model, PromptID: generated.PromptID, PromptDigest: generated.PromptDigest, ContextDigest: generated.ContextDigest, OutputDigest: generated.OutputDigest, RedactionCount: generated.RedactionCount, InputBytes: generated.InputBytes, InputTokens: generated.Usage.InputTokens, CachedTokens: generated.Usage.CachedTokens, OutputTokens: generated.Usage.OutputTokens, Output: generated.JSON, LinkedResourceType: linkedType, LinkedResourceID: linkedID, IdempotencyKey: key, RequestDigest: requestDigest, AdvisoryOnly: true}, actor)
+	run, replay, _, e := s.store.FinalizeAIExecution(r.Context(), controlplane.AIRun{ProjectID: in.ProjectID, Purpose: generated.Purpose, Provider: generated.Provider, Model: generated.Model, PromptID: generated.PromptID, PromptDigest: generated.PromptDigest, ContextDigest: generated.ContextDigest, OutputDigest: generated.OutputDigest, RedactionCount: generated.RedactionCount, InputBytes: generated.InputBytes, InputTokens: generated.Usage.InputTokens, CachedTokens: generated.Usage.CachedTokens, OutputTokens: generated.Usage.OutputTokens, Output: generated.JSON, LinkedResourceType: linkedType, LinkedResourceID: linkedID, IdempotencyKey: key, RequestDigest: requestDigest, AdvisoryOnly: true}, actor)
 	if e != nil {
 		writeStoreError(w, e)
 		return
@@ -196,18 +247,18 @@ func (s *Server) listAIRuns(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	values, err := s.store.ListAIRuns(r.Context(), projectID)
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.AIRun, error)
+	if pager, ok := s.store.(aiRunPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.AIRun, error) {
+			return pager.ListAIRunsPage(r.Context(), ids, all, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.AIRun, error) { return s.store.ListAIRuns(r.Context(), projectID) }, page, func(item controlplane.AIRun) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	values = filterProjectScoped(values, allowed, all, func(v controlplane.AIRun) string { return v.ProjectID })
-	writeJSON(w, http.StatusOK, values)
+	writeOperatorCollectionJSON(w, r, http.StatusOK, v)
 }
 
 func (s *Server) getAIRun(w http.ResponseWriter, r *http.Request) {

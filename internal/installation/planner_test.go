@@ -408,3 +408,22 @@ func TestBootstrapPlanDoesNotClaimPostgreSQLRuntimeBeforeDatabaseExists(t *testi
 		t.Fatal("bootstrap authority gate missing from executable appliance plan")
 	}
 }
+
+func TestBootstrapProfilesExposeProductOwnedSizingBaseline(t *testing.T) {
+	profiles := BootstrapProfiles()
+	byID := map[string]DeploymentProfile{}
+	for _, profile := range profiles {
+		byID[profile.ID] = profile
+	}
+	evaluation := byID["evaluation-single-node"].Sizing
+	if evaluation.Authority != "APPLIANCE_SIZING_AUTHORITY_V1" || evaluation.MinimumVCPU < 4 || evaluation.MinimumMemoryGiB < 8 || evaluation.MinimumDiskGiB < 80 || evaluation.MinimumFreeDiskGiB < 60 || evaluation.Status != "SOURCE_ENFORCED_PHYSICAL_TUNING_PENDING" {
+		t.Fatalf("evaluation sizing authority incomplete: %#v", evaluation)
+	}
+	production := byID["production-standard-ha"].Sizing
+	if production.Authority != "APPLIANCE_SIZING_AUTHORITY_V1" || production.Scope != "per-management-node" || production.MinimumVCPU < 8 || production.MinimumMemoryGiB < 16 || production.MinimumDiskGiB < 160 || production.MinimumFreeDiskGiB < 120 {
+		t.Fatalf("production sizing authority incomplete: %#v", production)
+	}
+	if production.RecommendedVCPU < production.MinimumVCPU || production.RecommendedMemoryGiB < production.MinimumMemoryGiB || production.RecommendedDiskGiB < production.MinimumDiskGiB {
+		t.Fatalf("recommended sizing cannot be below minimum: %#v", production)
+	}
+}

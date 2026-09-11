@@ -60,7 +60,7 @@ func (s *PostgresStore) StartOperationAttempt(ctx context.Context, id string, ex
 			return controlplane.ErrInvalidTransition
 		}
 		now := utcNow(s.now)
-		if op.LeaseOwner != worker || op.FenceToken != fence || op.LeaseExpiresAt == nil || !op.LeaseExpiresAt.After(now) {
+		if !controlplane.OperationLeaseActive(op, worker, fence, now) {
 			return controlplane.ErrStaleFence
 		}
 		if err := s.bindDestructiveRecoveryTx(ctx, tx, &op, now); err != nil {
@@ -105,7 +105,7 @@ func (s *PostgresStore) BeginOperationVerification(ctx context.Context, id strin
 		if op.State != controlplane.OperationRunning {
 			return controlplane.ErrInvalidTransition
 		}
-		if op.LeaseOwner != worker || op.FenceToken != fence {
+		if !controlplane.OperationLeaseActive(op, worker, fence, utcNow(s.now)) {
 			return controlplane.ErrStaleFence
 		}
 		now := utcNow(s.now)
@@ -143,7 +143,7 @@ func (s *PostgresStore) ReportOperationFailure(ctx context.Context, id string, e
 		if op.State != controlplane.OperationRunning && op.State != controlplane.OperationVerifying && op.State != controlplane.OperationRollingBack {
 			return controlplane.ErrInvalidTransition
 		}
-		if op.LeaseOwner != worker || op.FenceToken != fence {
+		if !controlplane.OperationLeaseActive(op, worker, fence, utcNow(s.now)) {
 			return controlplane.ErrStaleFence
 		}
 		now := utcNow(s.now)
@@ -193,7 +193,7 @@ func (s *PostgresStore) CompleteOperation(ctx context.Context, id string, expect
 		if op.State != controlplane.OperationVerifying {
 			return fmt.Errorf("%w: operation success requires VERIFYING postconditions", controlplane.ErrPrerequisite)
 		}
-		if op.LeaseOwner != worker || op.FenceToken != fence {
+		if !controlplane.OperationLeaseActive(op, worker, fence, utcNow(s.now)) {
 			return controlplane.ErrStaleFence
 		}
 		now := utcNow(s.now)
@@ -286,7 +286,7 @@ func (s *PostgresStore) AcknowledgeOperationCancellation(ctx context.Context, id
 		if compensatable > 0 {
 			return fmt.Errorf("%w: completed mutating steps require compensation before cancellation can complete", controlplane.ErrPrerequisite)
 		}
-		if op.LeaseOwner != worker || op.FenceToken != fence {
+		if !controlplane.OperationLeaseActive(op, worker, fence, utcNow(s.now)) {
 			return controlplane.ErrStaleFence
 		}
 		now := utcNow(s.now)

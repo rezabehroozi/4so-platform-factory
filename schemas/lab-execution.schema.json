@@ -4,68 +4,258 @@
   "title": "4SO Platform Factory Lab Execution",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
   "properties": {
-    "apiVersion": {"const": "platform.4so.io/v1alpha1"},
-    "kind": {"const": "LabExecution"},
+    "apiVersion": {
+      "const": "platform.4so.io/v1alpha1"
+    },
+    "kind": {
+      "const": "LabExecution"
+    },
     "metadata": {
-      "type": "object", "additionalProperties": false, "required": ["name"],
-      "properties": {"name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"}}
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        }
+      }
     },
     "spec": {
-      "type": "object", "additionalProperties": false,
-      "required": ["releaseArtifact", "serverTier", "ssh", "servers"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "releaseArtifact",
+        "serverTier",
+        "ssh",
+        "servers",
+        "management"
+      ],
       "properties": {
-        "releaseArtifact": {"type": "string", "minLength": 1},
-        "serverTier": {"enum": ["current-import-minimum", "production-ha", "day2-replacement", "full-multicluster"]},
-        "bundleDirectory": {"type": "string", "minLength": 1},
+        "releaseArtifact": {
+          "type": "string",
+          "minLength": 1
+        },
+        "serverTier": {
+          "enum": [
+            "current-import-minimum",
+            "production-ha",
+            "day2-replacement",
+            "full-multicluster"
+          ]
+        },
+        "bundleDirectory": {
+          "type": "string",
+          "minLength": 1
+        },
         "ssh": {
-          "type": "object", "additionalProperties": false, "required": ["identityFile", "knownHostsFile"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "identityFile",
+            "knownHostsFile"
+          ],
           "properties": {
-            "user": {"const": "root", "default": "root"},
-            "identityFile": {"type": "string", "minLength": 1},
-            "knownHostsFile": {"type": "string", "minLength": 1}
+            "user": {
+              "const": "root",
+              "default": "root"
+            },
+            "identityFile": {
+              "type": "string",
+              "minLength": 1
+            },
+            "knownHostsFile": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
         "servers": {
-          "type": "array", "minItems": 1,
+          "type": "array",
+          "minItems": 1,
           "items": {
-            "type": "object", "additionalProperties": false, "required": ["role", "host"],
-            "properties": {"role": {"type": "string", "minLength": 1}, "host": {"type": "string", "minLength": 1}}
-          }
-        },
-        "management": {
-          "type": "object", "additionalProperties": false,
-          "properties": {
-            "publicEndpoint": {"type": "string", "pattern": "^https://"},
-            "dnsZone": {"type": "string"},
-            "storageClass": {"type": "string"},
-            "objectStorage": {
-              "type": "object", "additionalProperties": false,
-              "properties": {
-                "url": {"type": "string", "pattern": "^https://"},
-                "bucket": {"type": "string"},
-                "prefix": {"type": "string"},
-                "region": {"type": "string"},
-                "credentialRef": {"type": "string", "pattern": "^external-secret://"}
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "role",
+              "host"
+            ],
+            "properties": {
+              "role": {
+                "type": "string",
+                "minLength": 1
+              },
+              "host": {
+                "type": "string",
+                "minLength": 1
               }
             }
           }
         },
-        "ai": {
-          "type": "object", "additionalProperties": false,
+        "management": {
+          "type": "object",
+          "additionalProperties": false,
           "properties": {
-            "provider": {"enum": ["none", "codex-cli", "claude-code", "openai-responses", "openai-compatible-chat", "antigravity-command"]},
-            "model": {"type": "string"},
-            "endpoint": {"type": "string"},
-            "apiKeyEnv": {"type": "string", "default": "PLATFORM_FACTORY_AI_API_KEY"},
-            "maxOutputTokens": {"type": "integer", "minimum": 100, "maximum": 1200},
-            "maxTurns": {"type": "integer", "minimum": 1, "maximum": 4},
-            "maxBudgetUSD": {"type": "number", "minimum": 0, "maximum": 20},
-            "command": {"type": "string"}
+            "publicEndpoint": {
+              "type": "string",
+              "pattern": "^https://"
+            },
+            "dnsZone": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253,
+              "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$"
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "objectStorage": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https://"
+                },
+                "bucket": {
+                  "type": "string"
+                },
+                "prefix": {
+                  "type": "string"
+                },
+                "region": {
+                  "type": "string"
+                },
+                "credentialRef": {
+                  "type": "string",
+                  "pattern": "^external-secret://platform-system/[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$"
+                }
+              }
+            },
+            "adminEmail": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 320,
+              "pattern": "^[^\\s@]+@[^\\s@]+$"
+            }
+          },
+          "required": [
+            "adminEmail",
+            "dnsZone"
+          ]
+        },
+        "ai": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "provider": {
+              "enum": [
+                "none",
+                "codex-cli",
+                "claude-code",
+                "openai-responses",
+                "openai-compatible-chat",
+                "antigravity-command"
+              ]
+            },
+            "model": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": "string"
+            },
+            "apiKeyEnv": {
+              "type": "string",
+              "default": "PLATFORM_FACTORY_AI_API_KEY"
+            },
+            "maxOutputTokens": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 1200
+            },
+            "maxTurns": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            },
+            "maxBudgetUSD": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 20
+            },
+            "command": {
+              "type": "string"
+            }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "serverTier": {
+                "enum": [
+                  "production-ha",
+                  "day2-replacement",
+                  "full-multicluster"
+                ]
+              }
+            },
+            "required": [
+              "serverTier"
+            ]
+          },
+          "then": {
+            "properties": {
+              "management": {
+                "required": [
+                  "publicEndpoint",
+                  "objectStorage"
+                ],
+                "properties": {
+                  "objectStorage": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "url",
+                      "bucket",
+                      "credentialRef"
+                    ],
+                    "properties": {
+                      "url": {
+                        "type": "string",
+                        "pattern": "^https://"
+                      },
+                      "bucket": {
+                        "type": "string"
+                      },
+                      "prefix": {
+                        "type": "string"
+                      },
+                      "region": {
+                        "type": "string"
+                      },
+                      "credentialRef": {
+                        "type": "string",
+                        "pattern": "^external-secret://platform-system/[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

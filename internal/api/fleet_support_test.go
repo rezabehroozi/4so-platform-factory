@@ -154,3 +154,90 @@ func TestProjectSupportAuditScopesBeforeGlobalLimit(t *testing.T) {
 		t.Fatalf("project audit was starved by newer foreign global events; got %d scoped events", len(events))
 	}
 }
+
+func TestDurableSupportBundleJobLifecycleAndReplay(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 9, 5, 12, 30, 0, 0, time.UTC)
+	store := controlplane.NewMemoryStoreWith(func() time.Time { return now }, nil)
+	_, _, cluster := seedFleetSupportCluster(t, store, "support-owner", "support-job", now)
+	components, err := catalog.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New("0.0.test", components, slog.Default(), store)
+	principal := auth.Principal{Subject: "support-owner", Roles: []string{"platform-viewer"}}
+	body := `{"profile":"cluster-diagnostics","clusterId":"` + cluster.ID + `"}`
+	create := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/support-bundle-jobs", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", "support-job-stable")
+		req = req.WithContext(auth.WithPrincipal(req.Context(), principal))
+		w := httptest.NewRecorder()
+		s.Handler().ServeHTTP(w, req)
+		return w
+	}
+	w := create()
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("create status=%d body=%s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Operation controlplane.Operation `json:"operation"`
+		Replay    bool                   `json:"replay"`
+	}
+	if err = json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	if created.Operation.State != controlplane.OperationQueued || created.Replay {
+		t.Fatalf("created=%+v", created)
+	}
+
+	// Same request is idempotent before or after execution and must never create
+	// a second ZIP job.
+	w = create()
+	if w.Code != http.StatusOK {
+		t.Fatalf("replay status=%d body=%s", w.Code, w.Body.String())
+	}
+	var replayed struct {
+		Operation controlplane.Operation `json:"operation"`
+		Replay    bool                   `json:"replay"`
+	}
+	if err = json.Unmarshal(w.Body.Bytes(), &replayed); err != nil {
+		t.Fatal(err)
+	}
+	if !replayed.Replay || replayed.Operation.ID != created.Operation.ID {
+		t.Fatalf("replayed=%+v created=%+v", replayed, created)
+	}
+
+	if err = s.ProcessSupportBundleJobsOnce(ctx, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	op, err := store.GetOperation(ctx, created.Operation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if op.State != controlplane.OperationSucceeded || op.Attempt != 1 {
+		t.Fatalf("completed operation=%+v", op)
+	}
+	evidence, err := store.ListEvidence(ctx, op.ID)
+	if err != nil || len(evidence) != 1 || evidence[0].Kind != "support-bundle" || !evidence[0].HasPayload || !evidence[0].Sealed {
+		t.Fatalf("evidence=%+v err=%v", evidence, err)
+	}
+	_, payload, err := store.GetEvidencePayload(ctx, evidence[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verification, verifyErr := supportbundle.Verify(payload); verifyErr != nil || !verification.Valid {
+		t.Fatalf("verification=%+v err=%v", verification, verifyErr)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/support-bundle-jobs/"+op.ID+"/download", nil)
+	req = req.WithContext(auth.WithPrincipal(req.Context(), principal))
+	w = httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "application/zip" {
+		t.Fatalf("download status=%d content-type=%s body=%s", w.Code, w.Header().Get("Content-Type"), w.Body.String())
+	}
+	if !bytes.Equal(w.Body.Bytes(), payload) {
+		t.Fatal("downloaded evidence payload differs from sealed operation evidence")
+	}
+}

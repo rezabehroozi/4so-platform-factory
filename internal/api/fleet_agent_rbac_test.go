@@ -91,8 +91,8 @@ func TestFleetAgentEnrollmentPrincipalIsImportScoped(t *testing.T) {
 
 func TestClusterRevocationRBACManifestNeutersEveryAgentBinding(t *testing.T) {
 	manifest := renderClusterRevocationRBACManifest("clu_revoked", "uid-revoked", "sha256:"+strings.Repeat("d", 64), true)
-	if got := strings.Count(manifest, "subjects: []"); got != 6 {
-		t.Fatalf("revocation fence neutralized %d bindings, want 6\n%s", got, manifest)
+	if got := strings.Count(manifest, "subjects: []"); got != 7 {
+		t.Fatalf("revocation fence neutralized %d bindings, want 7\n%s", got, manifest)
 	}
 	for _, want := range []string{
 		"name: 4so-platform-agent-credential",
@@ -101,6 +101,7 @@ func TestClusterRevocationRBACManifestNeutersEveryAgentBinding(t *testing.T) {
 		"name: 4so-platform-baseline-manager",
 		"name: 4so-platform-agent-maintenance-manager",
 		"name: 4so-platform-agent-tenant-manager",
+		"name: 4so-platform-node-maintenance-job-manager",
 		`clusterId: "clu_revoked"`,
 		`externalUid: "uid-revoked"`,
 		`revoked: "true"`,

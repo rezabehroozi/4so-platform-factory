@@ -29,13 +29,16 @@
     "atomic-resource-audit-outbox",
     "optimistic-revision-contention",
     "idempotency-contention",
+    "ai-run-atomic-result-commit",
     "lease-fencing-contention",
     "outbox-skip-locked-contention",
     "append-only-audit",
     "immutable-evidence",
     "postgres-restart",
+    "ai-run-post-restart-durability",
     "backup-restore",
     "post-restore-invariants",
+    "ai-run-post-restore-durability",
     "cleanup"
   ],
   "certificationRules": {

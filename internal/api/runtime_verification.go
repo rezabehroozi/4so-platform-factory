@@ -69,18 +69,22 @@ func (s *Server) listRuntimeVerifications(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
-	v, err := s.store.ListRuntimeVerifications(r.Context(), projectID, r.URL.Query().Get("clusterId"), r.URL.Query().Get("baselineDeploymentId"))
+	clusterID := strings.TrimSpace(r.URL.Query().Get("clusterId"))
+	baselineID := strings.TrimSpace(r.URL.Query().Get("baselineDeploymentId"))
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.RuntimeVerification, error)
+	if pager, ok := s.store.(runtimeVerificationPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.RuntimeVerification, error) {
+			return pager.ListRuntimeVerificationsPage(r.Context(), ids, all, clusterID, baselineID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.RuntimeVerification, error) {
+		return s.store.ListRuntimeVerifications(r.Context(), projectID, clusterID, baselineID)
+	}, page, func(item controlplane.RuntimeVerification) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.RuntimeVerification) string { return item.ProjectID })
-	writeJSON(w, http.StatusOK, v)
+	writeOperatorCollectionJSON(w, r, http.StatusOK, v)
 }
 func (s *Server) getRuntimeVerification(w http.ResponseWriter, r *http.Request) {
 	v, err := s.store.GetRuntimeVerification(r.Context(), r.PathValue("id"))

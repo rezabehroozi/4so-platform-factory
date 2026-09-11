@@ -155,9 +155,10 @@ func NormalizeProviderCompatibility(profile *ProviderProfile, spec *ProviderClus
 	}
 	spec.Architecture = strings.ToLower(strings.TrimSpace(spec.Architecture))
 	spec.ProvisioningMode = targetmodel.ProvisioningModeFromAdapter(profile.Adapter)
-	if spec.InfrastructureProvider == "" {
-		spec.InfrastructureProvider = targetmodel.InfrastructureUnspecified
+	if profile.InfrastructureProvider == "" {
+		profile.InfrastructureProvider = targetmodel.InfrastructureUnspecified
 	}
+	spec.InfrastructureProvider = profile.InfrastructureProvider
 }
 
 func normalizedCompatibilitySet(in []string) []string {

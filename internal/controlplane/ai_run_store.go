@@ -83,45 +83,6 @@ func ValidateAIRun(v *AIRun) error {
 	return nil
 }
 
-func (s *MemoryStore) CreateAIRun(_ context.Context, v AIRun, actor string) (AIRun, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := ValidateAIRun(&v); err != nil {
-		return AIRun{}, false, err
-	}
-	if _, ok := s.projects[v.ProjectID]; !ok {
-		return AIRun{}, false, ErrNotFound
-	}
-	if v.LinkedResourceType == "operation" {
-		linked, ok := s.operations[v.LinkedResourceID]
-		if !ok || linked.ProjectID != v.ProjectID {
-			return AIRun{}, false, ErrNotFound
-		}
-	}
-	if v.LinkedResourceType == "managedCluster" {
-		linked, ok := s.managedClusters[v.LinkedResourceID]
-		if !ok || linked.ProjectID != v.ProjectID {
-			return AIRun{}, false, ErrNotFound
-		}
-	}
-	for _, existing := range s.aiRuns {
-		if existing.ProjectID == v.ProjectID && existing.IdempotencyKey == v.IdempotencyKey {
-			if existing.RequestDigest != v.RequestDigest {
-				return AIRun{}, false, ErrIdempotencyConflict
-			}
-			return cloneAIRun(existing), true, nil
-		}
-	}
-	now := nowUTC(s.now)
-	v.ResourceMeta = ResourceMeta{ID: s.id("air"), Revision: 1, CreatedAt: now, UpdatedAt: now}
-	v.RequestedBy = strings.TrimSpace(actor)
-	v.AdvisoryOnly = true
-	s.aiRuns[v.ID] = cloneAIRun(v)
-	s.appendAuditLocked(actor, "ai_run.created", "aiRun", v.ID, v.Revision, map[string]any{"projectId": v.ProjectID, "purpose": v.Purpose, "provider": v.Provider, "model": v.Model, "redactionCount": v.RedactionCount, "linkedResourceType": v.LinkedResourceType, "linkedResourceId": v.LinkedResourceID})
-	s.appendOutboxLocked("aiRun", v.ID, "ai_run.created", v)
-	return cloneAIRun(v), false, nil
-}
-
 func (s *MemoryStore) GetAIRun(_ context.Context, id string) (AIRun, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

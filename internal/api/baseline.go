@@ -85,18 +85,21 @@ func (s *Server) listBaselineDeployments(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-	v, err := s.store.ListBaselineDeployments(r.Context(), projectID, r.URL.Query().Get("clusterId"))
+	clusterID := strings.TrimSpace(r.URL.Query().Get("clusterId"))
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.BaselineDeployment, error)
+	if pager, ok := s.store.(baselineDeploymentPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.BaselineDeployment, error) {
+			return pager.ListBaselineDeploymentsPage(r.Context(), ids, all, clusterID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.BaselineDeployment, error) {
+		return s.store.ListBaselineDeployments(r.Context(), projectID, clusterID)
+	}, page, func(item controlplane.BaselineDeployment) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.BaselineDeployment) string { return item.ProjectID })
-	writeJSON(w, http.StatusOK, v)
+	writeOperatorCollectionJSON(w, r, http.StatusOK, v)
 }
 func (s *Server) getBaselineDeployment(w http.ResponseWriter, r *http.Request) {
 	v, err := s.store.GetBaselineDeployment(r.Context(), r.PathValue("id"))

@@ -18,6 +18,7 @@ type createRuntimeCertificationInput struct {
 	ProjectID        string `json:"projectId"`
 	ClusterID        string `json:"clusterId"`
 	CatalogReleaseID string `json:"catalogReleaseId"`
+	ComponentName    string `json:"componentName,omitempty"`
 	Profile          string `json:"profile"`
 	Namespace        string `json:"namespace"`
 }
@@ -27,6 +28,114 @@ type certificationRenderContext struct {
 	RenderedDigest   string
 	SourceLockDigest string
 	Resources        []map[string]any
+}
+
+const (
+	componentRuntimeMaxResources    = 256
+	componentRuntimeMaxPayloadBytes = 4 << 20
+)
+
+func componentRuntimeContract(registry catalog.ComponentRuntimeCertificationRegistry, name string) (catalog.ComponentRuntimeCertificationContract, bool) {
+	for _, contract := range registry.Spec.Components {
+		if contract.Component == name {
+			return contract, true
+		}
+	}
+	return catalog.ComponentRuntimeCertificationContract{}, false
+}
+
+func annotateComponentRuntimeResources(resources []map[string]any, component, releaseID string) ([]map[string]any, error) {
+	if len(resources) == 0 || len(resources) > componentRuntimeMaxResources {
+		return nil, fmt.Errorf("component runtime resource count must be between 1 and %d", componentRuntimeMaxResources)
+	}
+	out := make([]map[string]any, 0, len(resources))
+	for _, resource := range resources {
+		raw, err := json.Marshal(resource)
+		if err != nil {
+			return nil, err
+		}
+		var cloned map[string]any
+		if err = json.Unmarshal(raw, &cloned); err != nil {
+			return nil, err
+		}
+		delete(cloned, "status") // status is observed state, never desired mutation authority.
+		metadata, _ := cloned["metadata"].(map[string]any)
+		if metadata == nil {
+			return nil, fmt.Errorf("component runtime resource metadata is missing")
+		}
+		labels, _ := metadata["labels"].(map[string]any)
+		if labels == nil {
+			labels = map[string]any{}
+			metadata["labels"] = labels
+		}
+		labels["app.kubernetes.io/managed-by"] = "4so-platform-factory"
+		labels["platform.4so.io/component"] = component
+		labels["platform.4so.io/catalog-release-id"] = releaseID
+		labels["platform.4so.io/runtime-certification-profile"] = string(controlplane.RuntimeCertificationComponentV1)
+		out = append(out, cloned)
+	}
+	raw, err := json.Marshal(out)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > componentRuntimeMaxPayloadBytes {
+		return nil, fmt.Errorf("component runtime rendered payload exceeds %d bytes", componentRuntimeMaxPayloadBytes)
+	}
+	return out, nil
+}
+
+func (s *Server) componentRuntimeCertificationRenderContext(r *http.Request, release controlplane.CatalogRelease, componentName, namespace string) (certificationRenderContext, string, error) {
+	if release.State != controlplane.CatalogPublished || release.Channel != controlplane.CatalogChannelRender {
+		return certificationRenderContext{}, "", fmt.Errorf("published RENDER catalog release is required for component runtime certification")
+	}
+	if trust := s.trustStatus(r, release); !trust.Verified {
+		return certificationRenderContext{}, "", fmt.Errorf("catalog trust invalid: %s", trust.Reason)
+	}
+	revision, err := s.store.GetCatalogRevision(r.Context(), release.CurrentRevisionID)
+	if err != nil {
+		return certificationRenderContext{}, "", err
+	}
+	components, err := catalog.ParseReleasePayload(revision.Payload)
+	if err != nil {
+		return certificationRenderContext{}, "", err
+	}
+	componentName = strings.TrimSpace(componentName)
+	component, ok := components[componentName]
+	if !ok {
+		return certificationRenderContext{}, "", fmt.Errorf("component %s is not present in catalog release", componentName)
+	}
+	if !component.Spec.Source.Resolved || !strings.HasPrefix(component.Spec.Source.SourceLockDigest, "sha256:") {
+		return certificationRenderContext{}, "", fmt.Errorf("component %s source is not immutable/resolved", componentName)
+	}
+	registry, err := catalog.LoadComponentRuntimeCertificationRegistry()
+	if err != nil {
+		return certificationRenderContext{}, "", err
+	}
+	if err = catalog.ValidateComponentRuntimeCertificationRegistry(registry, s.components); err != nil {
+		return certificationRenderContext{}, "", err
+	}
+	contract, ok := componentRuntimeContract(registry, componentName)
+	if !ok || contract.Release != component.Spec.Release || contract.SourceBinding.SourceLockDigest != component.Spec.Source.SourceLockDigest || contract.Executor.Profile != string(controlplane.RuntimeCertificationComponentV1) || contract.Executor.Status != "component-install-readiness-dependency-failure-remove-partial" {
+		return certificationRenderContext{}, "", fmt.Errorf("component %s does not have executable COMPONENT_RUNTIME_V1 install/readiness/dependency authority", componentName)
+	}
+	rendered, err := catalog.RenderComponent(component, namespace, release.ID)
+	if err != nil {
+		return certificationRenderContext{}, "", err
+	}
+	resources, err := annotateComponentRuntimeResources(rendered.Resources, componentName, release.ID)
+	if err != nil {
+		return certificationRenderContext{}, "", err
+	}
+	identityRaw, _ := json.Marshal(struct {
+		CatalogReleaseID string           `json:"catalogReleaseId"`
+		Component        string           `json:"component"`
+		Release          string           `json:"release"`
+		SourceLock       string           `json:"sourceLockDigest"`
+		Namespace        string           `json:"namespace"`
+		Resources        []map[string]any `json:"resources"`
+	}{release.ID, componentName, component.Spec.Release, component.Spec.Source.SourceLockDigest, namespace, resources})
+	sum := sha256.Sum256(identityRaw)
+	return certificationRenderContext{Revision: revision, RenderedDigest: "sha256:" + hex.EncodeToString(sum[:]), SourceLockDigest: component.Spec.Source.SourceLockDigest, Resources: resources}, component.Spec.Release, nil
 }
 
 func (s *Server) runtimeCertificationRenderContext(r *http.Request, release controlplane.CatalogRelease, namespace string) (certificationRenderContext, error) {
@@ -106,7 +215,7 @@ func (s *Server) createRuntimeCertification(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
-	in.ProjectID, in.ClusterID, in.CatalogReleaseID, in.Namespace = strings.TrimSpace(in.ProjectID), strings.TrimSpace(in.ClusterID), strings.TrimSpace(in.CatalogReleaseID), strings.TrimSpace(in.Namespace)
+	in.ProjectID, in.ClusterID, in.CatalogReleaseID, in.ComponentName, in.Namespace = strings.TrimSpace(in.ProjectID), strings.TrimSpace(in.ClusterID), strings.TrimSpace(in.CatalogReleaseID), strings.TrimSpace(in.ComponentName), strings.TrimSpace(in.Namespace)
 	profile := controlplane.RuntimeCertificationProfile(strings.ToUpper(strings.TrimSpace(in.Profile)))
 	if profile == "" {
 		profile = controlplane.RuntimeCertificationFoundationV1
@@ -136,17 +245,34 @@ func (s *Server) createRuntimeCertification(w http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
-	rendered, err := s.runtimeCertificationRenderContext(r, release, in.Namespace)
+	var rendered certificationRenderContext
+	componentRelease := ""
+	if profile == controlplane.RuntimeCertificationComponentV1 {
+		if in.ComponentName == "" {
+			writeError(w, http.StatusBadRequest, "COMPONENT_NAME_REQUIRED", "componentName is required for COMPONENT_RUNTIME_V1")
+			return
+		}
+		if in.Namespace == "" {
+			in.Namespace = "4so-component-cert"
+		}
+		rendered, componentRelease, err = s.componentRuntimeCertificationRenderContext(r, release, in.ComponentName, in.Namespace)
+	} else {
+		if in.ComponentName != "" {
+			writeError(w, http.StatusBadRequest, "COMPONENT_NAME_NOT_ALLOWED", "componentName is valid only for COMPONENT_RUNTIME_V1")
+			return
+		}
+		rendered, err = s.runtimeCertificationRenderContext(r, release, in.Namespace)
+	}
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, "RUNTIME_CERTIFICATION_RENDER_INVALID", err.Error())
 		return
 	}
 	requestDigest := digestValue(map[string]any{
-		"projectId": in.ProjectID, "clusterId": in.ClusterID, "catalogReleaseId": in.CatalogReleaseID,
+		"projectId": in.ProjectID, "clusterId": in.ClusterID, "catalogReleaseId": in.CatalogReleaseID, "componentName": in.ComponentName, "componentRelease": componentRelease,
 		"profile": profile, "namespace": in.Namespace, "inventoryDigest": inventory.Digest, "renderedDigest": rendered.RenderedDigest,
 	})
 	run, replay, err := s.store.CreateRuntimeCertification(r.Context(), controlplane.RuntimeCertificationRun{
-		ProjectID: in.ProjectID, ClusterID: in.ClusterID, CatalogReleaseID: release.ID, CatalogRevisionID: rendered.Revision.ID,
+		ProjectID: in.ProjectID, ClusterID: in.ClusterID, CatalogReleaseID: release.ID, CatalogRevisionID: rendered.Revision.ID, ComponentName: in.ComponentName, ComponentRelease: componentRelease,
 		Profile: profile, Namespace: in.Namespace, InventoryDigest: inventory.Digest,
 		EnvironmentFingerprint: controlplane.RuntimeEnvironmentFingerprint(inventory), ManifestDigest: release.ManifestDigest,
 		SourceLockDigest: rendered.SourceLockDigest, RenderedDigest: rendered.RenderedDigest, ResourceCount: len(rendered.Resources),
@@ -165,25 +291,28 @@ func (s *Server) createRuntimeCertification(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) listRuntimeCertifications(w http.ResponseWriter, r *http.Request) {
-	projectID, clusterID := strings.TrimSpace(r.URL.Query().Get("projectId")), strings.TrimSpace(r.URL.Query().Get("clusterId"))
+	projectID := strings.TrimSpace(r.URL.Query().Get("projectId"))
+	clusterID := strings.TrimSpace(r.URL.Query().Get("clusterId"))
 	if projectID != "" {
 		if _, err := s.requireProjectAccess(r, projectID, organizationRead); err != nil {
 			writeScopeError(w, err)
 			return
 		}
 	}
-	items, err := s.store.ListRuntimeCertifications(r.Context(), projectID, clusterID)
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.RuntimeCertificationRun, error)
+	if pager, ok := s.store.(runtimeCertificationPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.RuntimeCertificationRun, error) {
+			return pager.ListRuntimeCertificationsPage(r.Context(), ids, all, clusterID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.RuntimeCertificationRun, error) {
+		return s.store.ListRuntimeCertifications(r.Context(), projectID, clusterID)
+	}, page, func(item controlplane.RuntimeCertificationRun) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	items = filterProjectScoped(items, allowed, all, func(item controlplane.RuntimeCertificationRun) string { return item.ProjectID })
-	writeJSON(w, http.StatusOK, items)
+	writeOperatorCollectionJSON(w, r, http.StatusOK, v)
 }
 
 func (s *Server) getRuntimeCertification(w http.ResponseWriter, r *http.Request) {
@@ -249,7 +378,16 @@ func (s *Server) runtimeCertificationReport(w http.ResponseWriter, r *http.Reque
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"schema": "platform.4so.io/runtime-certification-report/v1", "run": run,
-		"claims":  map[string]any{"profileCertified": run.Profile, "externalLiveCertified": false, "productionReady": false},
+		"claims": map[string]any{
+			"profileCertified": run.Profile, "componentName": run.ComponentName, "componentRelease": run.ComponentRelease,
+			"lifecycleStagesCertified": func() []string {
+				if run.Profile == controlplane.RuntimeCertificationComponentV1 {
+					return []string{"install", "readiness", "dependency", "failure", "remove"}
+				}
+				return nil
+			}(),
+			"fullLifecycleCertified": false, "externalLiveCertified": false, "productionReady": false,
+		},
 		"warning": "This report proves an evidence-bound local/runtime agent run. External lab certification is tracked separately and remains false until executed in an approved environment.",
 	})
 }
@@ -278,8 +416,14 @@ func (s *Server) nextRuntimeCertificationTask(w http.ResponseWriter, r *http.Req
 		writeStoreError(w, err)
 		return
 	}
-	rendered, err := s.runtimeCertificationRenderContext(r, release, run.Namespace)
-	if err != nil || rendered.RenderedDigest != run.RenderedDigest || rendered.SourceLockDigest != run.SourceLockDigest || len(rendered.Resources) != run.ResourceCount {
+	var rendered certificationRenderContext
+	componentRelease := ""
+	if run.Profile == controlplane.RuntimeCertificationComponentV1 {
+		rendered, componentRelease, err = s.componentRuntimeCertificationRenderContext(r, release, run.ComponentName, run.Namespace)
+	} else {
+		rendered, err = s.runtimeCertificationRenderContext(r, release, run.Namespace)
+	}
+	if err != nil || rendered.RenderedDigest != run.RenderedDigest || rendered.SourceLockDigest != run.SourceLockDigest || len(rendered.Resources) != run.ResourceCount || (run.Profile == controlplane.RuntimeCertificationComponentV1 && componentRelease != run.ComponentRelease) {
 		result := controlplane.RuntimeCertificationResult{RunID: run.ID, TaskFenceToken: run.TaskFenceToken, Phase: run.Phase, Success: false, InventoryDigest: run.InventoryDigest, RenderedDigest: run.RenderedDigest, Error: "immutable catalog render context no longer matches certification run"}
 		if _, reportErr := s.store.ReportRuntimeCertificationTask(r.Context(), r.PathValue("id"), agentDigest, run.Revision, result); reportErr != nil {
 			writeStoreError(w, reportErr)
@@ -290,7 +434,7 @@ func (s *Server) nextRuntimeCertificationTask(w http.ResponseWriter, r *http.Req
 	}
 	task := controlplane.RuntimeCertificationTask{
 		RunID: run.ID, RunRevision: run.Revision, TaskFenceToken: run.TaskFenceToken, LeaseExpiresAt: *run.TaskLeaseExpiresAt, Profile: run.Profile, Phase: run.Phase, Namespace: run.Namespace,
-		InventoryDigest: run.InventoryDigest, EnvironmentFingerprint: run.EnvironmentFingerprint, CatalogReleaseID: run.CatalogReleaseID,
+		InventoryDigest: run.InventoryDigest, EnvironmentFingerprint: run.EnvironmentFingerprint, CatalogReleaseID: run.CatalogReleaseID, ComponentName: run.ComponentName, ComponentRelease: run.ComponentRelease,
 		ManifestDigest: run.ManifestDigest, SourceLockDigest: run.SourceLockDigest, RenderedDigest: run.RenderedDigest,
 		InstallCheckpointDigest: run.InstallCheckpointDigest, TaskAttempt: run.TaskAttempt,
 		CleanupToken:            run.CleanupGenerations[len(run.CleanupGenerations)-1].Token,

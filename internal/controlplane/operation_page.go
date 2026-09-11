@@ -2,8 +2,10 @@ package controlplane
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 // ListOperationsPage is the bounded operator-facing collection path for the
@@ -62,4 +64,93 @@ func (s *MemoryStore) listOperationsPageLocked(projectID string, allowedProjects
 		out = out[:limit]
 	}
 	return out
+}
+
+// ListClaimableOperationsByKind is the bounded internal worker queue for
+// operation kinds implemented by control-plane workers (for example durable
+// support-bundle generation). It never claims work itself; ClaimOperation is
+// still the sole lease/fence authority and closes races between replicas.
+func (s *MemoryStore) ListClaimableOperationsByKind(_ context.Context, kind string, at time.Time, limit int) ([]Operation, error) {
+	kind = strings.TrimSpace(kind)
+	if kind == "" || limit <= 0 || limit > 200 {
+		return nil, fmt.Errorf("%w: operation kind and limit 1..200 are required", ErrValidation)
+	}
+	at = at.UTC()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Operation, 0, min(limit, len(s.operations)))
+	for _, op := range s.operations {
+		if op.Kind != kind {
+			continue
+		}
+		eligible := op.State == OperationQueued ||
+			(op.State == OperationRetryWait && op.NextAttemptAt != nil && !op.NextAttemptAt.After(at)) ||
+			(op.State == OperationRunning && (op.LeaseExpiresAt == nil || !op.LeaseExpiresAt.After(at)))
+		if !eligible {
+			continue
+		}
+		out = append(out, op)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		// Retry due time is the effective eligibility boundary; queued work uses
+		// creation time. Stable ID tie-break prevents map iteration drift.
+		ai, aj := out[i].CreatedAt, out[j].CreatedAt
+		if out[i].State == OperationRetryWait && out[i].NextAttemptAt != nil {
+			ai = *out[i].NextAttemptAt
+		}
+		if out[j].State == OperationRetryWait && out[j].NextAttemptAt != nil {
+			aj = *out[j].NextAttemptAt
+		}
+		if !ai.Equal(aj) {
+			return ai.Before(aj)
+		}
+		return out[i].ID < out[j].ID
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// ListClaimableOperationsByKindTargetPrefix is the bounded target-worker queue.
+// Filtering the target prefix before LIMIT prevents unrelated clusters from
+// starving a connected Agent's read-only operation lane.
+func (s *MemoryStore) ListClaimableOperationsByKindTargetPrefix(_ context.Context, kind, targetPrefix string, at time.Time, limit int) ([]Operation, error) {
+	kind, targetPrefix = strings.TrimSpace(kind), strings.TrimSpace(targetPrefix)
+	if kind == "" || targetPrefix == "" || limit <= 0 || limit > 200 {
+		return nil, fmt.Errorf("%w: operation kind, target prefix and limit 1..200 are required", ErrValidation)
+	}
+	at = at.UTC()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Operation, 0, min(limit, len(s.operations)))
+	for _, op := range s.operations {
+		if op.Kind != kind || !strings.HasPrefix(op.TargetRef, targetPrefix) {
+			continue
+		}
+		eligible := op.State == OperationQueued ||
+			(op.State == OperationRetryWait && op.NextAttemptAt != nil && !op.NextAttemptAt.After(at)) ||
+			(op.State == OperationRunning && (op.LeaseExpiresAt == nil || !op.LeaseExpiresAt.After(at)))
+		if !eligible {
+			continue
+		}
+		out = append(out, op)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		ai, aj := out[i].CreatedAt, out[j].CreatedAt
+		if out[i].State == OperationRetryWait && out[i].NextAttemptAt != nil {
+			ai = *out[i].NextAttemptAt
+		}
+		if out[j].State == OperationRetryWait && out[j].NextAttemptAt != nil {
+			aj = *out[j].NextAttemptAt
+		}
+		if !ai.Equal(aj) {
+			return ai.Before(aj)
+		}
+		return out[i].ID < out[j].ID
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
 }

@@ -687,6 +687,51 @@ func (s *MemoryStore) ClaimNotificationHealthScanLease(_ context.Context, worker
 	return true, nil
 }
 
+// ListNotificationHealthCandidates returns a deterministic page of clusters
+// whose health inputs changed after the supplied cursor. Development stores
+// compute the same authority in-memory; PostgreSQL performs it in bounded SQL.
+func (s *MemoryStore) ListNotificationHealthCandidates(_ context.Context, after time.Time, afterID string, limit int) ([]NotificationHealthCandidate, bool, error) {
+	if limit <= 0 || limit > 500 {
+		return nil, false, fmt.Errorf("%w: health candidate limit must be between 1 and 500", ErrValidation)
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	after = after.UTC()
+	afterID = strings.TrimSpace(afterID)
+	changed := make(map[string]time.Time, len(s.managedClusters))
+	for id, cluster := range s.managedClusters {
+		changed[id] = cluster.UpdatedAt.UTC()
+	}
+	for clusterID, inventory := range s.clusterInventories {
+		if inventory.UpdatedAt.After(changed[clusterID]) {
+			changed[clusterID] = inventory.UpdatedAt.UTC()
+		}
+	}
+	for _, cert := range s.agentCertificates {
+		if cert.UpdatedAt.After(changed[cert.ClusterID]) {
+			changed[cert.ClusterID] = cert.UpdatedAt.UTC()
+		}
+	}
+	out := make([]NotificationHealthCandidate, 0, len(changed))
+	for clusterID, changedAt := range changed {
+		if changedAt.Before(after) || (changedAt.Equal(after) && clusterID <= afterID) {
+			continue
+		}
+		out = append(out, NotificationHealthCandidate{ClusterID: clusterID, ChangedAt: changedAt})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ChangedAt.Equal(out[j].ChangedAt) {
+			return out[i].ClusterID < out[j].ClusterID
+		}
+		return out[i].ChangedAt.Before(out[j].ChangedAt)
+	})
+	hasMore := len(out) > limit
+	if hasMore {
+		out = out[:limit]
+	}
+	return out, hasMore, nil
+}
+
 func notificationRetryDelay(attempt int) time.Duration {
 	if attempt < 1 {
 		attempt = 1

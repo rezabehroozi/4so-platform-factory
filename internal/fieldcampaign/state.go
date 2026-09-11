@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"platform.4so.io/factory/internal/bootstrap"
@@ -22,18 +23,24 @@ import (
 )
 
 const (
-	APIVersion            = "platform.4so.io/v1alpha1"
-	Kind                  = "FieldExecutionCampaign"
-	SchemaVersion         = 3
-	ExactSHASchemaVersion = 2
-	LegacySchemaVersion   = 1
+	APIVersion                         = "platform.4so.io/v1alpha1"
+	Kind                               = "FieldExecutionCampaign"
+	SchemaVersion                      = 5
+	PlatformctlBindingSchemaVersion    = 5
+	PrePlatformctlBindingSchemaVersion = 4
+	RuntimeBindingSchemaVersion        = 3
+	ExactSHASchemaVersion              = 2
+	LegacySchemaVersion                = 1
 
 	StatePrepared       = "PREPARED"
 	StateStartRequested = "START_REQUESTED"
 	StateRunning        = "RUNNING"
+	StateInterrupted    = "INTERRUPTED"
 	StateFailed         = "FAILED"
 	StateSucceeded      = "SUCCEEDED"
 )
+
+const maxCampaignStateBytes int64 = 4 * 1024 * 1024
 
 var digestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 
@@ -45,61 +52,63 @@ type Event struct {
 }
 
 type Campaign struct {
-	APIVersion            string                      `json:"apiVersion"`
-	Kind                  string                      `json:"kind"`
-	SchemaVersion         int                         `json:"schemaVersion"`
-	ID                    string                      `json:"id"`
-	InstallerURL          string                      `json:"installerUrl"`
-	Request               installation.InstallRequest `json:"request"`
-	RequestDigest         string                      `json:"requestDigest"`
-	BundleDigest          string                      `json:"bundleDigest"`
-	ReleaseArtifactDigest string                      `json:"releaseArtifactDigest,omitempty"`
-	InstallerBinaryDigest string                      `json:"installerBinaryDigest,omitempty"`
-	PlanID                string                      `json:"planId"`
-	PreflightDigest       string                      `json:"preflightDigest"`
-	ExecutionEnabled      bool                        `json:"executionEnabled"`
-	State                 string                      `json:"state"`
-	RunID                 string                      `json:"runId,omitempty"`
-	RunState              string                      `json:"runState,omitempty"`
-	Simulation            *bool                       `json:"simulation,omitempty"`
-	LastError             string                      `json:"lastError,omitempty"`
-	EvidenceVerified      bool                        `json:"evidenceVerified"`
-	EvidenceReportID      string                      `json:"evidenceReportId,omitempty"`
-	EvidenceDigest        string                      `json:"evidenceDigest,omitempty"`
-	CreatedAt             time.Time                   `json:"createdAt"`
-	UpdatedAt             time.Time                   `json:"updatedAt"`
-	Events                []Event                     `json:"events"`
-	IntegrityDigest       string                      `json:"integrityDigest"`
+	APIVersion              string                      `json:"apiVersion"`
+	Kind                    string                      `json:"kind"`
+	SchemaVersion           int                         `json:"schemaVersion"`
+	ID                      string                      `json:"id"`
+	InstallerURL            string                      `json:"installerUrl"`
+	Request                 installation.InstallRequest `json:"request"`
+	RequestDigest           string                      `json:"requestDigest"`
+	BundleDigest            string                      `json:"bundleDigest"`
+	ReleaseArtifactDigest   string                      `json:"releaseArtifactDigest,omitempty"`
+	InstallerBinaryDigest   string                      `json:"installerBinaryDigest,omitempty"`
+	PlatformctlBinaryDigest string                      `json:"platformctlBinaryDigest,omitempty"`
+	PlanID                  string                      `json:"planId"`
+	PreflightDigest         string                      `json:"preflightDigest"`
+	ExecutionEnabled        bool                        `json:"executionEnabled"`
+	State                   string                      `json:"state"`
+	RunID                   string                      `json:"runId,omitempty"`
+	RunState                string                      `json:"runState,omitempty"`
+	Simulation              *bool                       `json:"simulation,omitempty"`
+	LastError               string                      `json:"lastError,omitempty"`
+	EvidenceVerified        bool                        `json:"evidenceVerified"`
+	EvidenceReportID        string                      `json:"evidenceReportId,omitempty"`
+	EvidenceDigest          string                      `json:"evidenceDigest,omitempty"`
+	CreatedAt               time.Time                   `json:"createdAt"`
+	UpdatedAt               time.Time                   `json:"updatedAt"`
+	Events                  []Event                     `json:"events"`
+	IntegrityDigest         string                      `json:"integrityDigest"`
 }
 
 type digestPayload struct {
-	APIVersion            string                      `json:"apiVersion"`
-	Kind                  string                      `json:"kind"`
-	SchemaVersion         int                         `json:"schemaVersion"`
-	ID                    string                      `json:"id"`
-	InstallerURL          string                      `json:"installerUrl"`
-	Request               installation.InstallRequest `json:"request"`
-	RequestDigest         string                      `json:"requestDigest"`
-	BundleDigest          string                      `json:"bundleDigest"`
-	ReleaseArtifactDigest string                      `json:"releaseArtifactDigest,omitempty"`
-	InstallerBinaryDigest string                      `json:"installerBinaryDigest,omitempty"`
-	PlanID                string                      `json:"planId"`
-	PreflightDigest       string                      `json:"preflightDigest"`
-	ExecutionEnabled      bool                        `json:"executionEnabled"`
-	State                 string                      `json:"state"`
-	RunID                 string                      `json:"runId,omitempty"`
-	RunState              string                      `json:"runState,omitempty"`
-	Simulation            *bool                       `json:"simulation,omitempty"`
-	LastError             string                      `json:"lastError,omitempty"`
-	EvidenceVerified      bool                        `json:"evidenceVerified"`
-	EvidenceReportID      string                      `json:"evidenceReportId,omitempty"`
-	EvidenceDigest        string                      `json:"evidenceDigest,omitempty"`
-	CreatedAt             time.Time                   `json:"createdAt"`
-	UpdatedAt             time.Time                   `json:"updatedAt"`
-	Events                []Event                     `json:"events"`
+	APIVersion              string                      `json:"apiVersion"`
+	Kind                    string                      `json:"kind"`
+	SchemaVersion           int                         `json:"schemaVersion"`
+	ID                      string                      `json:"id"`
+	InstallerURL            string                      `json:"installerUrl"`
+	Request                 installation.InstallRequest `json:"request"`
+	RequestDigest           string                      `json:"requestDigest"`
+	BundleDigest            string                      `json:"bundleDigest"`
+	ReleaseArtifactDigest   string                      `json:"releaseArtifactDigest,omitempty"`
+	InstallerBinaryDigest   string                      `json:"installerBinaryDigest,omitempty"`
+	PlatformctlBinaryDigest string                      `json:"platformctlBinaryDigest,omitempty"`
+	PlanID                  string                      `json:"planId"`
+	PreflightDigest         string                      `json:"preflightDigest"`
+	ExecutionEnabled        bool                        `json:"executionEnabled"`
+	State                   string                      `json:"state"`
+	RunID                   string                      `json:"runId,omitempty"`
+	RunState                string                      `json:"runState,omitempty"`
+	Simulation              *bool                       `json:"simulation,omitempty"`
+	LastError               string                      `json:"lastError,omitempty"`
+	EvidenceVerified        bool                        `json:"evidenceVerified"`
+	EvidenceReportID        string                      `json:"evidenceReportId,omitempty"`
+	EvidenceDigest          string                      `json:"evidenceDigest,omitempty"`
+	CreatedAt               time.Time                   `json:"createdAt"`
+	UpdatedAt               time.Time                   `json:"updatedAt"`
+	Events                  []Event                     `json:"events"`
 }
 
-func New(installerURL string, request installation.InstallRequest, requestDigest, bundleDigest, releaseArtifactDigest, installerBinaryDigest, planID, preflightDigest string, executionEnabled bool, now time.Time) (Campaign, error) {
+func New(installerURL string, request installation.InstallRequest, requestDigest, bundleDigest, releaseArtifactDigest, installerBinaryDigest, platformctlBinaryDigest, planID, preflightDigest string, executionEnabled bool, now time.Time) (Campaign, error) {
 	id, err := randomID()
 	if err != nil {
 		return Campaign{}, err
@@ -108,7 +117,7 @@ func New(installerURL string, request installation.InstallRequest, requestDigest
 	c := Campaign{
 		APIVersion: APIVersion, Kind: Kind, SchemaVersion: SchemaVersion,
 		ID: id, InstallerURL: strings.TrimRight(strings.TrimSpace(installerURL), "/"), Request: request,
-		RequestDigest: requestDigest, BundleDigest: bundleDigest, ReleaseArtifactDigest: strings.TrimSpace(releaseArtifactDigest), InstallerBinaryDigest: strings.TrimSpace(installerBinaryDigest), PlanID: strings.TrimSpace(planID), PreflightDigest: preflightDigest,
+		RequestDigest: requestDigest, BundleDigest: bundleDigest, ReleaseArtifactDigest: strings.TrimSpace(releaseArtifactDigest), InstallerBinaryDigest: strings.TrimSpace(installerBinaryDigest), PlatformctlBinaryDigest: strings.TrimSpace(platformctlBinaryDigest), PlanID: strings.TrimSpace(planID), PreflightDigest: preflightDigest,
 		ExecutionEnabled: executionEnabled, State: StatePrepared, CreatedAt: when, UpdatedAt: when,
 	}
 	c.Events = []Event{{At: when, Action: "prepare", State: StatePrepared, Detail: "bundle, plan and preflight verified; explicit start approval is required"}}
@@ -142,10 +151,10 @@ func allowedTransition(current, next string) bool {
 	case StatePrepared:
 		return next == StateStartRequested
 	case StateStartRequested:
-		return next == StateRunning || next == StateFailed || next == StateSucceeded
+		return next == StateRunning || next == StateInterrupted || next == StateFailed || next == StateSucceeded
 	case StateRunning:
-		return next == StateFailed || next == StateSucceeded
-	case StateFailed:
+		return next == StateInterrupted || next == StateFailed || next == StateSucceeded
+	case StateInterrupted, StateFailed:
 		return next == StateStartRequested
 	default:
 		return false
@@ -165,7 +174,7 @@ func (c *Campaign) Seal() error {
 }
 
 func (c Campaign) Verify() error {
-	if c.APIVersion != APIVersion || c.Kind != Kind || (c.SchemaVersion != SchemaVersion && c.SchemaVersion != ExactSHASchemaVersion && c.SchemaVersion != LegacySchemaVersion) {
+	if c.APIVersion != APIVersion || c.Kind != Kind || (c.SchemaVersion != SchemaVersion && c.SchemaVersion != PrePlatformctlBindingSchemaVersion && c.SchemaVersion != RuntimeBindingSchemaVersion && c.SchemaVersion != ExactSHASchemaVersion && c.SchemaVersion != LegacySchemaVersion) {
 		return errors.New("unsupported field campaign contract")
 	}
 	if strings.TrimSpace(c.ID) == "" || strings.TrimSpace(c.PlanID) == "" {
@@ -180,13 +189,20 @@ func (c Campaign) Verify() error {
 	case SchemaVersion:
 		digests["releaseArtifactDigest"] = c.ReleaseArtifactDigest
 		digests["installerBinaryDigest"] = c.InstallerBinaryDigest
+		digests["platformctlBinaryDigest"] = c.PlatformctlBinaryDigest
+	case PrePlatformctlBindingSchemaVersion, RuntimeBindingSchemaVersion:
+		digests["releaseArtifactDigest"] = c.ReleaseArtifactDigest
+		digests["installerBinaryDigest"] = c.InstallerBinaryDigest
+		if strings.TrimSpace(c.PlatformctlBinaryDigest) != "" {
+			return errors.New("pre-platformctl-binding field campaign must not contain platformctlBinaryDigest")
+		}
 	case ExactSHASchemaVersion:
 		digests["releaseArtifactDigest"] = c.ReleaseArtifactDigest
-		if strings.TrimSpace(c.InstallerBinaryDigest) != "" {
-			return errors.New("schema v2 field campaign must not contain installerBinaryDigest")
+		if strings.TrimSpace(c.InstallerBinaryDigest) != "" || strings.TrimSpace(c.PlatformctlBinaryDigest) != "" {
+			return errors.New("schema v2 field campaign must not contain runtime binary digests")
 		}
 	case LegacySchemaVersion:
-		if strings.TrimSpace(c.ReleaseArtifactDigest) != "" || strings.TrimSpace(c.InstallerBinaryDigest) != "" {
+		if strings.TrimSpace(c.ReleaseArtifactDigest) != "" || strings.TrimSpace(c.InstallerBinaryDigest) != "" || strings.TrimSpace(c.PlatformctlBinaryDigest) != "" {
 			return errors.New("legacy field campaign must not contain exact-release runtime binding")
 		}
 	}
@@ -196,20 +212,20 @@ func (c Campaign) Verify() error {
 		}
 	}
 	switch c.State {
-	case StatePrepared, StateStartRequested, StateRunning, StateFailed, StateSucceeded:
+	case StatePrepared, StateStartRequested, StateRunning, StateInterrupted, StateFailed, StateSucceeded:
 	default:
 		return fmt.Errorf("invalid field campaign state %q", c.State)
 	}
 	if c.CreatedAt.IsZero() || c.UpdatedAt.IsZero() || c.UpdatedAt.Before(c.CreatedAt) || len(c.Events) == 0 {
 		return errors.New("field campaign timeline is incomplete")
 	}
-	if c.State == StateRunning || c.State == StateFailed || c.State == StateSucceeded {
+	if c.State == StateRunning || c.State == StateInterrupted || c.State == StateFailed || c.State == StateSucceeded {
 		if strings.TrimSpace(c.RunID) == "" {
 			return errors.New("observed campaign state requires a run ID")
 		}
 	}
-	if c.State == StateRunning && c.RunState != string(bootstrap.RunRunning) {
-		return errors.New("running campaign must reference a running installation")
+	if (c.State == StateRunning || c.State == StateInterrupted) && c.RunState != string(bootstrap.RunRunning) {
+		return errors.New("running/interrupted campaign must reference a running installation")
 	}
 	if c.State == StateFailed && c.RunState != string(bootstrap.RunFailed) {
 		return errors.New("failed campaign must reference a failed installation")
@@ -245,7 +261,7 @@ func (c Campaign) Verify() error {
 func (c Campaign) computeDigest() (string, error) {
 	payload := digestPayload{
 		APIVersion: c.APIVersion, Kind: c.Kind, SchemaVersion: c.SchemaVersion, ID: c.ID, InstallerURL: c.InstallerURL,
-		Request: c.Request, RequestDigest: c.RequestDigest, BundleDigest: c.BundleDigest, ReleaseArtifactDigest: c.ReleaseArtifactDigest, InstallerBinaryDigest: c.InstallerBinaryDigest, PlanID: c.PlanID, PreflightDigest: c.PreflightDigest,
+		Request: c.Request, RequestDigest: c.RequestDigest, BundleDigest: c.BundleDigest, ReleaseArtifactDigest: c.ReleaseArtifactDigest, InstallerBinaryDigest: c.InstallerBinaryDigest, PlatformctlBinaryDigest: c.PlatformctlBinaryDigest, PlanID: c.PlanID, PreflightDigest: c.PreflightDigest,
 		ExecutionEnabled: c.ExecutionEnabled, State: c.State, RunID: c.RunID, RunState: c.RunState, Simulation: c.Simulation,
 		LastError: c.LastError, EvidenceVerified: c.EvidenceVerified, EvidenceReportID: c.EvidenceReportID, EvidenceDigest: c.EvidenceDigest,
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, Events: c.Events,
@@ -260,9 +276,35 @@ func (c Campaign) computeDigest() (string, error) {
 
 func Load(path string) (Campaign, error) {
 	var c Campaign
-	raw, err := os.ReadFile(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		return c, err
+	}
+	if !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > maxCampaignStateBytes {
+		return c, errors.New("field campaign state must be a bounded regular non-symlink file")
+	}
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return c, fmt.Errorf("open field campaign state safely: %w", err)
+	}
+	defer f.Close()
+	opened, err := f.Stat()
+	if err != nil {
+		return c, err
+	}
+	if !opened.Mode().IsRegular() || opened.Size() <= 0 || opened.Size() > maxCampaignStateBytes || !os.SameFile(info, opened) {
+		return c, errors.New("field campaign state changed while opening")
+	}
+	raw, err := io.ReadAll(io.LimitReader(f, maxCampaignStateBytes+1))
+	if err != nil {
+		return c, err
+	}
+	after, err := f.Stat()
+	if err != nil {
+		return c, err
+	}
+	if len(raw) > int(maxCampaignStateBytes) || int64(len(raw)) != opened.Size() || !os.SameFile(opened, after) || after.Size() != opened.Size() || !after.ModTime().Equal(opened.ModTime()) {
+		return c, errors.New("field campaign state changed while reading")
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()

@@ -89,10 +89,12 @@ const (
 )
 
 const (
-	APITokenPermissionRead       = "read"
-	APITokenPermissionOperate    = "operate"
-	APITokenPermissionMCPRead    = "mcp.read"
-	APITokenPermissionAIDiagnose = "ai.diagnose"
+	APITokenPermissionRead             = "read"
+	APITokenPermissionOperate          = "operate"
+	APITokenPermissionMCPRead          = "mcp.read"
+	APITokenPermissionMCPOperate       = "mcp.operate"
+	APITokenPermissionAIDiagnose       = "ai.diagnose"
+	APITokenPermissionOperationExecute = "operation.execute"
 )
 
 // APIToken persists only a one-way token digest. Raw token material is returned
@@ -663,6 +665,14 @@ type NotificationDeliveryResult struct {
 	DurationMillis int64  `json:"durationMillis,omitempty"`
 }
 
+// NotificationHealthCandidate is the ordered incremental work cursor used by
+// notification health recomputation. ChangedAt is the latest authoritative
+// change across cluster identity, inventory or agent-certificate state.
+type NotificationHealthCandidate struct {
+	ClusterID string
+	ChangedAt time.Time
+}
+
 type EvidenceMetadata struct {
 	ResourceMeta
 	OperationID string             `json:"operationId"`
@@ -734,10 +744,17 @@ type ClusterNode struct {
 }
 
 type ClusterAddOn struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-	Version   string `json:"version,omitempty"`
-	Healthy   bool   `json:"healthy"`
+	Name        string `json:"name"`
+	Namespace   string `json:"namespace"`
+	Version     string `json:"version,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	Healthy     bool   `json:"healthy"`
+	Available   string `json:"available,omitempty"`
+	Progressing string `json:"progressing,omitempty"`
+	Degraded    string `json:"degraded,omitempty"`
+	Upgradeable string `json:"upgradeable,omitempty"`
+	Reason      string `json:"reason,omitempty"`
+	Message     string `json:"message,omitempty"`
 }
 
 type ClusterStorageClass struct {
@@ -799,6 +816,72 @@ type ClusterNetworking struct {
 	GatewayAPI         bool     `json:"gatewayApi"`
 }
 
+const WorkloadExplorerAuthorityMethod = "WORKLOAD_EXPLORER_READ_AUTHORITY_V1"
+
+type ClusterWorkloadObservation struct {
+	Kind            string   `json:"kind"`
+	Namespace       string   `json:"namespace"`
+	Name            string   `json:"name"`
+	DesiredReplicas int      `json:"desiredReplicas,omitempty"`
+	ReadyReplicas   int      `json:"readyReplicas,omitempty"`
+	Succeeded       int      `json:"succeeded,omitempty"`
+	Failed          int      `json:"failed,omitempty"`
+	Images          []string `json:"images,omitempty"`
+}
+
+type ClusterServicePortObservation struct {
+	Name     string `json:"name,omitempty"`
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol,omitempty"`
+}
+
+type ClusterServiceObservation struct {
+	Namespace   string                          `json:"namespace"`
+	Name        string                          `json:"name"`
+	Type        string                          `json:"type"`
+	ClusterIP   string                          `json:"clusterIp,omitempty"`
+	ExternalIPs []string                        `json:"externalIps,omitempty"`
+	Ports       []ClusterServicePortObservation `json:"ports,omitempty"`
+}
+
+type ClusterIngressObservation struct {
+	Namespace string   `json:"namespace"`
+	Name      string   `json:"name"`
+	Class     string   `json:"class,omitempty"`
+	Hosts     []string `json:"hosts,omitempty"`
+	TLSHosts  []string `json:"tlsHosts,omitempty"`
+}
+
+type ClusterPVCObservation struct {
+	Namespace    string `json:"namespace"`
+	Name         string `json:"name"`
+	StorageClass string `json:"storageClass,omitempty"`
+	Phase        string `json:"phase,omitempty"`
+	Requested    string `json:"requested,omitempty"`
+}
+
+type ClusterEventObservation struct {
+	Namespace      string    `json:"namespace"`
+	Type           string    `json:"type,omitempty"`
+	Reason         string    `json:"reason,omitempty"`
+	RegardingKind  string    `json:"regardingKind,omitempty"`
+	RegardingName  string    `json:"regardingName,omitempty"`
+	Message        string    `json:"message,omitempty"`
+	Count          int       `json:"count,omitempty"`
+	LastObservedAt time.Time `json:"lastObservedAt,omitempty"`
+}
+
+type ClusterWorkloadExplorer struct {
+	Authority string                       `json:"authority"`
+	Complete  bool                         `json:"complete"`
+	Truncated bool                         `json:"truncated"`
+	Workloads []ClusterWorkloadObservation `json:"workloads,omitempty"`
+	Services  []ClusterServiceObservation  `json:"services,omitempty"`
+	Ingresses []ClusterIngressObservation  `json:"ingresses,omitempty"`
+	PVCs      []ClusterPVCObservation      `json:"persistentVolumeClaims,omitempty"`
+	Events    []ClusterEventObservation    `json:"events,omitempty"`
+}
+
 type ClusterInventory struct {
 	ResourceMeta
 	ClusterID                   string                          `json:"clusterId"`
@@ -814,6 +897,7 @@ type ClusterInventory struct {
 	Capacity                    ClusterCapacity                 `json:"capacity"`
 	Certificates                []ClusterCertificateObservation `json:"certificates"`
 	Networking                  ClusterNetworking               `json:"networking"`
+	WorkloadExplorer            ClusterWorkloadExplorer         `json:"workloadExplorer"`
 	APIResources                []ClusterAPIResourceObservation `json:"apiResources,omitempty"`
 	CRDs                        []ClusterCRDObservation         `json:"crds,omitempty"`
 	APIDiscoveryComplete        bool                            `json:"apiDiscoveryComplete"`
@@ -869,6 +953,7 @@ type ManagedCluster struct {
 	TargetRBACRevocationAcknowledgedDigest string            `json:"targetRbacRevocationAcknowledgedDigest,omitempty"`
 	TargetRBACRevocationAcknowledgedAt     *time.Time        `json:"targetRbacRevocationAcknowledgedAt,omitempty"`
 	TargetRBACRevocationAcknowledgedBy     string            `json:"targetRbacRevocationAcknowledgedBy,omitempty"`
+	ProviderClusterID                      string            `json:"providerClusterId,omitempty"`
 }
 
 const ClusterMaintenanceAuthorityMethod = "KUBERNETES_NODE_MAINTENANCE_V1"
@@ -927,53 +1012,62 @@ const (
 )
 
 type NodeMaintenanceResult struct {
-	NodeName       string   `json:"nodeName"`
-	Cordoned       bool     `json:"cordoned"`
-	DrainAttempted bool     `json:"drainAttempted"`
-	Drained        bool     `json:"drained"`
-	Uncordoned     bool     `json:"uncordoned"`
-	EvictedPods    []string `json:"evictedPods,omitempty"`
-	SkippedPods    []string `json:"skippedPods,omitempty"`
-	PDBBlockedPods []string `json:"pdbBlockedPods,omitempty"`
-	Error          string   `json:"error,omitempty"`
+	NodeName            string   `json:"nodeName"`
+	Cordoned            bool     `json:"cordoned"`
+	DrainAttempted      bool     `json:"drainAttempted"`
+	Drained             bool     `json:"drained"`
+	Uncordoned          bool     `json:"uncordoned"`
+	EvictedPods         []string `json:"evictedPods,omitempty"`
+	SkippedPods         []string `json:"skippedPods,omitempty"`
+	PDBBlockedPods      []string `json:"pdbBlockedPods,omitempty"`
+	HostActionAttempted bool     `json:"hostActionAttempted,omitempty"`
+	HostActionSucceeded bool     `json:"hostActionSucceeded,omitempty"`
+	HostActionAuthority string   `json:"hostActionAuthority,omitempty"`
+	HostActionEvidence  string   `json:"hostActionEvidence,omitempty"`
+	RebootRequired      bool     `json:"rebootRequired,omitempty"`
+	Error               string   `json:"error,omitempty"`
 }
 
 type ClusterMaintenanceRun struct {
 	ResourceMeta
-	ProjectID           string                     `json:"projectId"`
-	ClusterID           string                     `json:"clusterId"`
-	WindowID            string                     `json:"windowId"`
-	OperationID         string                     `json:"operationId"`
-	State               ClusterMaintenanceRunState `json:"state"`
-	NodeNames           []string                   `json:"nodeNames"`
-	NodeUIDs            map[string]string          `json:"nodeUids"`
-	InventoryDigest     string                     `json:"inventoryDigest"`
-	MaxUnavailable      int                        `json:"maxUnavailable"`
-	DrainTimeoutSeconds int                        `json:"drainTimeoutSeconds"`
-	RequestedBy         string                     `json:"requestedBy"`
-	ApprovedBy          string                     `json:"approvedBy,omitempty"`
-	ApprovedAt          *time.Time                 `json:"approvedAt,omitempty"`
-	StartedAt           *time.Time                 `json:"startedAt,omitempty"`
-	FinishedAt          *time.Time                 `json:"finishedAt,omitempty"`
-	Results             []NodeMaintenanceResult    `json:"results,omitempty"`
-	LastError           string                     `json:"lastError,omitempty"`
-	IdempotencyKey      string                     `json:"idempotencyKey"`
-	RequestDigest       string                     `json:"requestDigest"`
+	ProjectID                string                     `json:"projectId"`
+	ClusterID                string                     `json:"clusterId"`
+	WindowID                 string                     `json:"windowId"`
+	OperationID              string                     `json:"operationId"`
+	State                    ClusterMaintenanceRunState `json:"state"`
+	Action                   TargetNodeLifecycleAction  `json:"action"`
+	NodeNames                []string                   `json:"nodeNames"`
+	NodeUIDs                 map[string]string          `json:"nodeUids"`
+	InventoryDigest          string                     `json:"inventoryDigest"`
+	MaxUnavailable           int                        `json:"maxUnavailable"`
+	DrainTimeoutSeconds      int                        `json:"drainTimeoutSeconds"`
+	HostActionTimeoutSeconds int                        `json:"hostActionTimeoutSeconds,omitempty"`
+	RequestedBy              string                     `json:"requestedBy"`
+	ApprovedBy               string                     `json:"approvedBy,omitempty"`
+	ApprovedAt               *time.Time                 `json:"approvedAt,omitempty"`
+	StartedAt                *time.Time                 `json:"startedAt,omitempty"`
+	FinishedAt               *time.Time                 `json:"finishedAt,omitempty"`
+	Results                  []NodeMaintenanceResult    `json:"results,omitempty"`
+	LastError                string                     `json:"lastError,omitempty"`
+	IdempotencyKey           string                     `json:"idempotencyKey"`
+	RequestDigest            string                     `json:"requestDigest"`
 }
 
 type ClusterMaintenanceTask struct {
-	RunID               string            `json:"runId"`
-	RunRevision         int64             `json:"runRevision"`
-	OperationID         string            `json:"operationId"`
-	OperationRevision   int64             `json:"operationRevision"`
-	OperationFenceToken int64             `json:"operationFenceToken"`
-	LeaseExpiresAt      time.Time         `json:"leaseExpiresAt"`
-	ClusterID           string            `json:"clusterId"`
-	NodeNames           []string          `json:"nodeNames"`
-	NodeUIDs            map[string]string `json:"nodeUids"`
-	InventoryDigest     string            `json:"inventoryDigest"`
-	DrainTimeoutSeconds int               `json:"drainTimeoutSeconds"`
-	Method              string            `json:"method"`
+	RunID                    string                    `json:"runId"`
+	RunRevision              int64                     `json:"runRevision"`
+	OperationID              string                    `json:"operationId"`
+	OperationRevision        int64                     `json:"operationRevision"`
+	OperationFenceToken      int64                     `json:"operationFenceToken"`
+	LeaseExpiresAt           time.Time                 `json:"leaseExpiresAt"`
+	ClusterID                string                    `json:"clusterId"`
+	Action                   TargetNodeLifecycleAction `json:"action"`
+	NodeNames                []string                  `json:"nodeNames"`
+	NodeUIDs                 map[string]string         `json:"nodeUids"`
+	InventoryDigest          string                    `json:"inventoryDigest"`
+	DrainTimeoutSeconds      int                       `json:"drainTimeoutSeconds"`
+	HostActionTimeoutSeconds int                       `json:"hostActionTimeoutSeconds,omitempty"`
+	Method                   string                    `json:"method"`
 }
 
 type ClusterMaintenanceTaskResult struct {
@@ -1243,6 +1337,26 @@ type BaselineTaskResult struct {
 	Error          string                     `json:"error,omitempty"`
 }
 
+type AIExecutionState string
+
+const (
+	AIExecutionDispatched AIExecutionState = "DISPATCHED"
+	AIExecutionCompleted  AIExecutionState = "COMPLETED"
+	AIExecutionFailed     AIExecutionState = "FAILED"
+)
+
+type AIExecutionClaim struct {
+	ResourceMeta
+	ProjectID      string           `json:"projectId"`
+	Purpose        string           `json:"purpose"`
+	IdempotencyKey string           `json:"idempotencyKey"`
+	RequestDigest  string           `json:"requestDigest"`
+	State          AIExecutionState `json:"state"`
+	AIRunID        string           `json:"aiRunId,omitempty"`
+	FailureCode    string           `json:"failureCode,omitempty"`
+	RequestedBy    string           `json:"requestedBy"`
+}
+
 type AIRun struct {
 	ResourceMeta
 	ProjectID          string          `json:"projectId"`
@@ -1354,6 +1468,7 @@ const (
 	RuntimeCertificationFoundationV1    RuntimeCertificationProfile = "FOUNDATION_V1"
 	RuntimeCertificationObservabilityV1 RuntimeCertificationProfile = "OBSERVABILITY_V1"
 	RuntimeCertificationTargetV1        RuntimeCertificationProfile = "TARGET_RUNTIME_V1"
+	RuntimeCertificationComponentV1     RuntimeCertificationProfile = "COMPONENT_RUNTIME_V1"
 )
 
 type RuntimeCertificationState string
@@ -1373,6 +1488,8 @@ type RuntimeCertificationPhase string
 const (
 	RuntimeCertificationPhaseInstall RuntimeCertificationPhase = "INSTALL"
 	RuntimeCertificationPhaseVerify  RuntimeCertificationPhase = "VERIFY"
+	RuntimeCertificationPhaseFailure RuntimeCertificationPhase = "FAILURE_RECOVERY"
+	RuntimeCertificationPhaseRemove  RuntimeCertificationPhase = "REMOVE"
 )
 
 type RuntimeCertificationCleanupGeneration struct {
@@ -1390,6 +1507,8 @@ type RuntimeCertificationRun struct {
 	ClusterID               string                                  `json:"clusterId"`
 	CatalogReleaseID        string                                  `json:"catalogReleaseId"`
 	CatalogRevisionID       string                                  `json:"catalogRevisionId"`
+	ComponentName           string                                  `json:"componentName,omitempty"`
+	ComponentRelease        string                                  `json:"componentRelease,omitempty"`
 	Profile                 RuntimeCertificationProfile             `json:"profile"`
 	State                   RuntimeCertificationState               `json:"state"`
 	Phase                   RuntimeCertificationPhase               `json:"phase"`
@@ -1430,6 +1549,8 @@ type RuntimeCertificationTask struct {
 	InventoryDigest         string                                  `json:"inventoryDigest"`
 	EnvironmentFingerprint  string                                  `json:"environmentFingerprint"`
 	CatalogReleaseID        string                                  `json:"catalogReleaseId"`
+	ComponentName           string                                  `json:"componentName,omitempty"`
+	ComponentRelease        string                                  `json:"componentRelease,omitempty"`
 	ManifestDigest          string                                  `json:"manifestDigest"`
 	SourceLockDigest        string                                  `json:"sourceLockDigest"`
 	RenderedDigest          string                                  `json:"renderedDigest"`
@@ -1704,6 +1825,114 @@ type DriftTaskResult struct {
 	Changes           []BaselinePlanChange `json:"changes,omitempty"`
 	GitObservedDigest string               `json:"gitObservedDigest,omitempty"`
 	Error             string               `json:"error,omitempty"`
+}
+
+type BackupPolicyState string
+
+const (
+	BackupPolicyActive   BackupPolicyState = "ACTIVE"
+	BackupPolicyDisabled BackupPolicyState = "DISABLED"
+)
+
+type BackupPolicy struct {
+	ResourceMeta
+	ProjectID             string            `json:"projectId"`
+	ClusterID             string            `json:"clusterId"`
+	Name                  string            `json:"name"`
+	Provider              string            `json:"provider"`
+	BackupStorageLocation string            `json:"backupStorageLocation"`
+	CredentialRef         string            `json:"credentialRef"`
+	Schedule              string            `json:"schedule"`
+	Retention             string            `json:"retention"`
+	IncludedNamespaces    []string          `json:"includedNamespaces"`
+	DesiredDigest         string            `json:"desiredDigest"`
+	State                 BackupPolicyState `json:"state"`
+	RequestedBy           string            `json:"requestedBy"`
+}
+
+type DataProtectionRunKind string
+
+const (
+	DataProtectionBackup       DataProtectionRunKind = "BACKUP"
+	DataProtectionRestore      DataProtectionRunKind = "RESTORE"
+	DataProtectionRestoreDrill DataProtectionRunKind = "RESTORE_DRILL"
+)
+
+type DataProtectionRunState string
+
+const (
+	DataProtectionRequested        DataProtectionRunState = "REQUESTED"
+	DataProtectionAwaitingApproval DataProtectionRunState = "AWAITING_APPROVAL"
+	DataProtectionQueued           DataProtectionRunState = "QUEUED"
+	DataProtectionRunning          DataProtectionRunState = "RUNNING"
+	DataProtectionSucceeded        DataProtectionRunState = "SUCCEEDED"
+	DataProtectionFailed           DataProtectionRunState = "FAILED"
+)
+
+type DataProtectionRun struct {
+	ResourceMeta
+	Kind                 DataProtectionRunKind  `json:"kind"`
+	State                DataProtectionRunState `json:"state"`
+	ProjectID            string                 `json:"projectId"`
+	ClusterID            string                 `json:"clusterId"`
+	PolicyID             string                 `json:"policyId"`
+	BackupRunID          string                 `json:"backupRunId,omitempty"`
+	RecoveryCheckpointID string                 `json:"recoveryCheckpointId,omitempty"`
+	InventoryDigest      string                 `json:"inventoryDigest"`
+	PolicyDigest         string                 `json:"policyDigest"`
+	SourceBackupName     string                 `json:"sourceBackupName,omitempty"`
+	TargetNamespace      string                 `json:"targetNamespace,omitempty"`
+	VeleroName           string                 `json:"veleroName"`
+	Reference            string                 `json:"reference,omitempty"`
+	EvidenceDigest       string                 `json:"evidenceDigest,omitempty"`
+	Checks               []RuntimeCheck         `json:"checks,omitempty"`
+	RPOSeconds           int64                  `json:"rpoSeconds,omitempty"`
+	RTOSeconds           int64                  `json:"rtoSeconds,omitempty"`
+	IdempotencyKey       string                 `json:"idempotencyKey"`
+	RequestDigest        string                 `json:"requestDigest"`
+	RequestedBy          string                 `json:"requestedBy"`
+	ApprovedBy           string                 `json:"approvedBy,omitempty"`
+	ApprovedAt           *time.Time             `json:"approvedAt,omitempty"`
+	TaskAttempt          int                    `json:"taskAttempt"`
+	TaskFenceToken       int64                  `json:"taskFenceToken"`
+	TaskLeaseExpiresAt   *time.Time             `json:"taskLeaseExpiresAt,omitempty"`
+	StartedAt            *time.Time             `json:"startedAt,omitempty"`
+	FinishedAt           *time.Time             `json:"finishedAt,omitempty"`
+	LastError            string                 `json:"lastError,omitempty"`
+}
+
+type DataProtectionTask struct {
+	RunID                 string                `json:"runId"`
+	RunRevision           int64                 `json:"runRevision"`
+	Kind                  DataProtectionRunKind `json:"kind"`
+	TaskFenceToken        int64                 `json:"taskFenceToken"`
+	LeaseExpiresAt        time.Time             `json:"leaseExpiresAt"`
+	ProjectID             string                `json:"projectId"`
+	ClusterID             string                `json:"clusterId"`
+	PolicyID              string                `json:"policyId"`
+	BackupRunID           string                `json:"backupRunId,omitempty"`
+	InventoryDigest       string                `json:"inventoryDigest"`
+	PolicyDigest          string                `json:"policyDigest"`
+	Provider              string                `json:"provider"`
+	BackupStorageLocation string                `json:"backupStorageLocation"`
+	CredentialRef         string                `json:"credentialRef"`
+	Retention             string                `json:"retention"`
+	IncludedNamespaces    []string              `json:"includedNamespaces"`
+	VeleroName            string                `json:"veleroName"`
+	SourceBackupName      string                `json:"sourceBackupName,omitempty"`
+	TargetNamespace       string                `json:"targetNamespace,omitempty"`
+}
+
+type DataProtectionTaskResult struct {
+	RunID          string         `json:"-"`
+	TaskFenceToken int64          `json:"taskFenceToken"`
+	Success        bool           `json:"success"`
+	Reference      string         `json:"reference,omitempty"`
+	EvidenceDigest string         `json:"evidenceDigest,omitempty"`
+	Checks         []RuntimeCheck `json:"checks,omitempty"`
+	RPOSeconds     int64          `json:"rpoSeconds,omitempty"`
+	RTOSeconds     int64          `json:"rtoSeconds,omitempty"`
+	Error          string         `json:"error,omitempty"`
 }
 
 type RecoveryCheckpointState string
@@ -1983,6 +2212,8 @@ type ProviderProfile struct {
 	DistributionIdentities   []string             `json:"distributionIdentities,omitempty"`
 	ProvisioningMode         string               `json:"provisioningMode,omitempty"`
 	InfrastructureProvider   string               `json:"infrastructureProvider,omitempty"`
+	InfrastructureEndpoint   string               `json:"infrastructureEndpoint,omitempty"`
+	CredentialRef            string               `json:"credentialRef,omitempty"`
 	MaxWorkerReplicas        int                  `json:"maxWorkerReplicas"`
 	State                    ProviderProfileState `json:"state"`
 	DesiredDigest            string               `json:"desiredDigest"`
@@ -2022,43 +2253,62 @@ type ProviderClusterSpec struct {
 	WorkerReplicas         int    `json:"workerReplicas"`
 }
 
+type TargetNodeProviderMutation struct {
+	Authority              string                    `json:"authority"`
+	Action                 TargetNodeLifecycleAction `json:"action"`
+	TargetClusterID        string                    `json:"targetClusterId"`
+	NodeName               string                    `json:"nodeName"`
+	NodeUID                string                    `json:"nodeUid"`
+	InventoryDigest        string                    `json:"inventoryDigest"`
+	WindowID               string                    `json:"windowId"`
+	WindowEndsAt           time.Time                 `json:"windowEndsAt"`
+	MachineName            string                    `json:"machineName,omitempty"`
+	MachineUID             string                    `json:"machineUid,omitempty"`
+	MachineResourceVersion string                    `json:"machineResourceVersion,omitempty"`
+	MachineSetName         string                    `json:"machineSetName,omitempty"`
+	MachineDeploymentName  string                    `json:"machineDeploymentName,omitempty"`
+	EvidenceDigest         string                    `json:"evidenceDigest,omitempty"`
+}
+
 type ProviderCluster struct {
 	ResourceMeta
-	ProjectID              string               `json:"projectId"`
-	ProviderProfileID      string               `json:"providerProfileId"`
-	ManagementClusterID    string               `json:"managementClusterId"`
-	Name                   string               `json:"name"`
-	DisplayName            string               `json:"displayName"`
-	ResourceName           string               `json:"resourceName"`
-	Namespace              string               `json:"namespace"`
-	State                  ProviderClusterState `json:"state"`
-	Desired                ProviderClusterSpec  `json:"desired"`
-	Applied                ProviderClusterSpec  `json:"applied"`
-	DesiredDigest          string               `json:"desiredDigest"`
-	ObservedDigest         string               `json:"observedDigest,omitempty"`
-	PendingAction          string               `json:"pendingAction"`
-	DestructiveOperationID string               `json:"destructiveOperationId,omitempty"`
-	RequestedBy            string               `json:"requestedBy"`
-	ApprovedBy             string               `json:"approvedBy,omitempty"`
-	ApprovedAt             *time.Time           `json:"approvedAt,omitempty"`
-	IdempotencyKey         string               `json:"idempotencyKey"`
-	RequestDigest          string               `json:"requestDigest"`
-	TaskAttempt            int                  `json:"taskAttempt"`
-	TaskFenceToken         int64                `json:"taskFenceToken"`
-	TaskLeaseExpiresAt     *time.Time           `json:"taskLeaseExpiresAt,omitempty"`
-	Phase                  string               `json:"phase,omitempty"`
-	Compatibility          compatauth.Decision  `json:"compatibility"`
-	LastError              string               `json:"lastError,omitempty"`
+	ProjectID              string                     `json:"projectId"`
+	ProviderProfileID      string                     `json:"providerProfileId"`
+	ManagementClusterID    string                     `json:"managementClusterId"`
+	Name                   string                     `json:"name"`
+	DisplayName            string                     `json:"displayName"`
+	ResourceName           string                     `json:"resourceName"`
+	Namespace              string                     `json:"namespace"`
+	State                  ProviderClusterState       `json:"state"`
+	Desired                ProviderClusterSpec        `json:"desired"`
+	Applied                ProviderClusterSpec        `json:"applied"`
+	DesiredDigest          string                     `json:"desiredDigest"`
+	ObservedDigest         string                     `json:"observedDigest,omitempty"`
+	PendingAction          string                     `json:"pendingAction"`
+	DestructiveOperationID string                     `json:"destructiveOperationId,omitempty"`
+	RequestedBy            string                     `json:"requestedBy"`
+	ApprovedBy             string                     `json:"approvedBy,omitempty"`
+	ApprovedAt             *time.Time                 `json:"approvedAt,omitempty"`
+	IdempotencyKey         string                     `json:"idempotencyKey"`
+	RequestDigest          string                     `json:"requestDigest"`
+	TaskAttempt            int                        `json:"taskAttempt"`
+	TaskFenceToken         int64                      `json:"taskFenceToken"`
+	TaskLeaseExpiresAt     *time.Time                 `json:"taskLeaseExpiresAt,omitempty"`
+	Phase                  string                     `json:"phase,omitempty"`
+	Compatibility          compatauth.Decision        `json:"compatibility"`
+	TargetNodeMutation     TargetNodeProviderMutation `json:"targetNodeMutation,omitempty"`
+	LastError              string                     `json:"lastError,omitempty"`
 }
 
 type ProviderProfileTask struct {
-	ProfileID        string    `json:"profileId"`
-	ProfileRevision  int64     `json:"profileRevision"`
-	TaskFenceToken   int64     `json:"taskFenceToken"`
-	LeaseExpiresAt   time.Time `json:"leaseExpiresAt"`
-	Namespace        string    `json:"namespace"`
-	ClusterClassName string    `json:"clusterClassName"`
-	WorkerClassName  string    `json:"workerClassName"`
+	ProfileID              string    `json:"profileId"`
+	ProfileRevision        int64     `json:"profileRevision"`
+	TaskFenceToken         int64     `json:"taskFenceToken"`
+	LeaseExpiresAt         time.Time `json:"leaseExpiresAt"`
+	Namespace              string    `json:"namespace"`
+	ClusterClassName       string    `json:"clusterClassName"`
+	WorkerClassName        string    `json:"workerClassName"`
+	InfrastructureProvider string    `json:"infrastructureProvider,omitempty"`
 }
 
 type ProviderProfileTaskResult struct {
@@ -2071,27 +2321,29 @@ type ProviderProfileTaskResult struct {
 }
 
 type ProviderClusterTask struct {
-	ProviderClusterID string         `json:"providerClusterId"`
-	ClusterRevision   int64          `json:"clusterRevision"`
-	TaskFenceToken    int64          `json:"taskFenceToken"`
-	LeaseExpiresAt    time.Time      `json:"leaseExpiresAt"`
-	Action            string         `json:"action"`
-	Namespace         string         `json:"namespace"`
-	ResourceName      string         `json:"resourceName"`
-	DesiredDigest     string         `json:"desiredDigest,omitempty"`
-	Resource          map[string]any `json:"resource,omitempty"`
+	ProviderClusterID  string                     `json:"providerClusterId"`
+	ClusterRevision    int64                      `json:"clusterRevision"`
+	TaskFenceToken     int64                      `json:"taskFenceToken"`
+	LeaseExpiresAt     time.Time                  `json:"leaseExpiresAt"`
+	Action             string                     `json:"action"`
+	Namespace          string                     `json:"namespace"`
+	ResourceName       string                     `json:"resourceName"`
+	DesiredDigest      string                     `json:"desiredDigest,omitempty"`
+	Resource           map[string]any             `json:"resource,omitempty"`
+	TargetNodeMutation TargetNodeProviderMutation `json:"targetNodeMutation,omitempty"`
 }
 
 type ProviderClusterTaskResult struct {
-	ProviderClusterID string `json:"-"`
-	TaskFenceToken    int64  `json:"taskFenceToken"`
-	Action            string `json:"action"`
-	Success           bool   `json:"success"`
-	Ready             bool   `json:"ready,omitempty"`
-	Deleted           bool   `json:"deleted,omitempty"`
-	ObservedDigest    string `json:"observedDigest,omitempty"`
-	Phase             string `json:"phase,omitempty"`
-	Error             string `json:"error,omitempty"`
+	ProviderClusterID  string                     `json:"-"`
+	TaskFenceToken     int64                      `json:"taskFenceToken"`
+	Action             string                     `json:"action"`
+	Success            bool                       `json:"success"`
+	Ready              bool                       `json:"ready,omitempty"`
+	Deleted            bool                       `json:"deleted,omitempty"`
+	ObservedDigest     string                     `json:"observedDigest,omitempty"`
+	Phase              string                     `json:"phase,omitempty"`
+	Error              string                     `json:"error,omitempty"`
+	TargetNodeMutation TargetNodeProviderMutation `json:"targetNodeMutation,omitempty"`
 }
 
 type RuntimeClosureCampaignState string
@@ -2114,6 +2366,9 @@ type RuntimeClosureCampaign struct {
 	DesiredDigest         string                      `json:"desiredDigest"`
 	ObservedDigest        string                      `json:"observedDigest,omitempty"`
 	EvidenceDigest        string                      `json:"evidenceDigest,omitempty"`
+	EvidenceSchemaVersion int                         `json:"evidenceSchemaVersion,omitempty"`
+	ReleaseArtifactDigest string                      `json:"releaseArtifactDigest,omitempty"`
+	ProducerBinaryDigest  string                      `json:"producerBinaryDigest,omitempty"`
 	NextAction            string                      `json:"nextAction"`
 	Summary               string                      `json:"summary,omitempty"`
 	LastError             string                      `json:"lastError,omitempty"`

@@ -54,15 +54,18 @@ func catalogManifest(components []catalog.Component) ([]byte, map[string]catalog
 	return raw, items, "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-func (s *Server) catalogSigningIdentity(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) catalogSigningIdentityModel() map[string]any {
 	if len(s.catalogSigner) != ed25519.PrivateKeySize {
-		writeJSON(w, http.StatusOK, map[string]any{"available": false, "mode": "disabled", "algorithm": "Ed25519"})
-		return
+		return map[string]any{"available": false, "mode": "disabled", "algorithm": "Ed25519"}
 	}
 	publicKey := s.catalogSigner.Public().(ed25519.PublicKey)
 	encoded := base64.StdEncoding.EncodeToString(publicKey)
 	fingerprint, _ := controlplane.CatalogKeyFingerprint(encoded)
-	writeJSON(w, http.StatusOK, map[string]any{"available": true, "mode": s.catalogSignerMode, "algorithm": "Ed25519", "publicKey": encoded, "fingerprint": fingerprint})
+	return map[string]any{"available": true, "mode": s.catalogSignerMode, "algorithm": "Ed25519", "publicKey": encoded, "fingerprint": fingerprint}
+}
+
+func (s *Server) catalogSigningIdentity(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.catalogSigningIdentityModel())
 }
 
 func (s *Server) createCatalogTrustKey(w http.ResponseWriter, r *http.Request) {

@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -317,6 +319,257 @@ func (r *Runner) verifySystemdOperational(ctx context.Context) error {
 	return nil
 }
 
+func (r *Runner) verifyTimeSynchronization(ctx context.Context) error {
+	raw, err := r.system.Output(ctx, "timedatectl", []string{"show", "--property=NTPSynchronized", "--value"}, nil)
+	if err != nil {
+		return fmt.Errorf("time synchronization status is unavailable: %w", err)
+	}
+	if !strings.EqualFold(strings.TrimSpace(string(raw)), "yes") {
+		return errors.New("host clock is not NTP-synchronized; correct time synchronization before bootstrap")
+	}
+	return nil
+}
+
+func verifyTCPEndpointReachability(ctx context.Context, rawURL string) error {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Hostname() == "" {
+		return fmt.Errorf("invalid service endpoint %q", rawURL)
+	}
+	host := parsed.Hostname()
+	port := parsed.Port()
+	if port == "" {
+		switch strings.ToLower(parsed.Scheme) {
+		case "https":
+			port = "443"
+		case "http":
+			port = "80"
+		default:
+			return fmt.Errorf("service endpoint %q requires an explicit TCP port", rawURL)
+		}
+	}
+	if _, err := strconv.Atoi(port); err != nil {
+		return fmt.Errorf("service endpoint %q has invalid port %q", rawURL, port)
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	if net.ParseIP(host) == nil {
+		if _, err := net.DefaultResolver.LookupHost(probeCtx, host); err != nil {
+			return fmt.Errorf("resolve %s: %w", host, err)
+		}
+	}
+	conn, err := (&net.Dialer{Timeout: 4 * time.Second}).DialContext(probeCtx, "tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		return fmt.Errorf("connect to %s: %w", net.JoinHostPort(host, port), err)
+	}
+	_ = conn.Close()
+	return nil
+}
+
+type hostCapacity struct {
+	VCPU        int
+	MemoryGiB   int
+	DiskGiB     int
+	FreeDiskGiB int
+}
+
+func parsePositiveInt(raw []byte, name string) (int, error) {
+	value, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("%s probe returned invalid value %q", name, strings.TrimSpace(string(raw)))
+	}
+	return value, nil
+}
+
+func (r *Runner) probeHostCapacity(ctx context.Context) (hostCapacity, error) {
+	var capacity hostCapacity
+	cpuRaw, err := r.system.Output(ctx, "getconf", []string{"_NPROCESSORS_ONLN"}, nil)
+	if err != nil {
+		return capacity, fmt.Errorf("probe online CPUs: %w", err)
+	}
+	if capacity.VCPU, err = parsePositiveInt(cpuRaw, "CPU"); err != nil {
+		return capacity, err
+	}
+	memRaw, err := r.system.Output(ctx, "cat", []string{"/proc/meminfo"}, nil)
+	if err != nil {
+		return capacity, fmt.Errorf("probe memory: %w", err)
+	}
+	for _, line := range strings.Split(string(memRaw), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == "MemTotal:" {
+			kib, parseErr := strconv.ParseInt(fields[1], 10, 64)
+			if parseErr != nil || kib <= 0 {
+				return capacity, errors.New("MemTotal is invalid")
+			}
+			capacity.MemoryGiB = int(kib / (1024 * 1024))
+			if capacity.MemoryGiB == 0 {
+				capacity.MemoryGiB = 1
+			}
+			break
+		}
+	}
+	if capacity.MemoryGiB == 0 {
+		return capacity, errors.New("MemTotal is unavailable")
+	}
+	diskRaw, err := r.system.Output(ctx, "df", []string{"-Pk", "/var/lib"}, nil)
+	if err != nil {
+		return capacity, fmt.Errorf("probe /var/lib filesystem capacity: %w", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(diskRaw)), "\n")
+	if len(lines) < 2 {
+		return capacity, errors.New("df capacity output is incomplete")
+	}
+	fields := strings.Fields(lines[len(lines)-1])
+	if len(fields) < 4 {
+		return capacity, errors.New("df capacity output is malformed")
+	}
+	totalKiB, err := strconv.ParseInt(fields[1], 10, 64)
+	if err != nil || totalKiB <= 0 {
+		return capacity, errors.New("filesystem total capacity is invalid")
+	}
+	freeKiB, err := strconv.ParseInt(fields[3], 10, 64)
+	if err != nil || freeKiB < 0 {
+		return capacity, errors.New("filesystem free capacity is invalid")
+	}
+	capacity.DiskGiB = int(totalKiB / (1024 * 1024))
+	capacity.FreeDiskGiB = int(freeKiB / (1024 * 1024))
+	return capacity, nil
+}
+
+func enforceSizing(capacity hostCapacity, sizing installation.ApplianceSizing) error {
+	var failures []string
+	if capacity.VCPU < sizing.MinimumVCPU {
+		failures = append(failures, fmt.Sprintf("vCPU %d < required %d", capacity.VCPU, sizing.MinimumVCPU))
+	}
+	if capacity.MemoryGiB < sizing.MinimumMemoryGiB {
+		failures = append(failures, fmt.Sprintf("memory %d GiB < required %d GiB", capacity.MemoryGiB, sizing.MinimumMemoryGiB))
+	}
+	if capacity.DiskGiB < sizing.MinimumDiskGiB {
+		failures = append(failures, fmt.Sprintf("/var/lib filesystem %d GiB < required %d GiB", capacity.DiskGiB, sizing.MinimumDiskGiB))
+	}
+	if capacity.FreeDiskGiB < sizing.MinimumFreeDiskGiB {
+		failures = append(failures, fmt.Sprintf("/var/lib free space %d GiB < required %d GiB", capacity.FreeDiskGiB, sizing.MinimumFreeDiskGiB))
+	}
+	if len(failures) > 0 {
+		return errors.New(strings.Join(failures, "; "))
+	}
+	return nil
+}
+
+func (r *Runner) verifyFilesystemLocality(ctx context.Context) (string, error) {
+	raw, err := r.system.Output(ctx, "findmnt", []string{"-n", "-o", "FSTYPE", "-T", "/var/lib"}, nil)
+	if err != nil {
+		return "", fmt.Errorf("inspect /var/lib filesystem: %w", err)
+	}
+	fsType := strings.ToLower(strings.TrimSpace(string(raw)))
+	if fsType == "" {
+		return "", errors.New("/var/lib filesystem type is unavailable")
+	}
+	switch fsType {
+	case "nfs", "nfs4", "cifs", "smb3", "9p", "fuse.sshfs", "ceph", "glusterfs":
+		return fsType, fmt.Errorf("/var/lib uses network/distributed filesystem %s; management runtime state requires local block-backed storage", fsType)
+	}
+	return fsType, nil
+}
+
+func (r *Runner) verifyDefaultRoute(ctx context.Context) (string, error) {
+	raw, err := r.system.Output(ctx, "ip", []string{"-4", "route", "show", "default"}, nil)
+	if err != nil {
+		return "", fmt.Errorf("inspect IPv4 default route: %w", err)
+	}
+	line := strings.TrimSpace(strings.Split(string(raw), "\n")[0])
+	if line == "" || !strings.HasPrefix(line, "default") {
+		return "", errors.New("no IPv4 default route is available")
+	}
+	fields := strings.Fields(line)
+	device := ""
+	for i := 0; i+1 < len(fields); i++ {
+		if fields[i] == "dev" {
+			device = fields[i+1]
+			break
+		}
+	}
+	if device == "" {
+		return "", errors.New("default route has no device")
+	}
+	linkRaw, err := r.system.Output(ctx, "ip", []string{"-o", "link", "show", "dev", device}, nil)
+	if err != nil {
+		return "", fmt.Errorf("inspect default-route interface %s: %w", device, err)
+	}
+	mtu := "unknown"
+	linkFields := strings.Fields(string(linkRaw))
+	for i := 0; i+1 < len(linkFields); i++ {
+		if linkFields[i] == "mtu" {
+			mtu = linkFields[i+1]
+			break
+		}
+	}
+	return fmt.Sprintf("default route uses %s with MTU %s", device, mtu), nil
+}
+
+func noProxyCovers(token, host string) bool {
+	token = strings.TrimSpace(strings.ToLower(token))
+	host = strings.Trim(strings.TrimSpace(strings.ToLower(host)), "[]")
+	if token == "*" || token == host {
+		return true
+	}
+	if strings.HasPrefix(token, ".") && strings.HasSuffix(host, token) {
+		return true
+	}
+	if _, network, err := net.ParseCIDR(token); err == nil {
+		if ip := net.ParseIP(host); ip != nil && network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func verifyProxyBypass(request installation.InstallRequest) (string, error) {
+	proxy := strings.TrimSpace(os.Getenv("HTTPS_PROXY"))
+	if proxy == "" {
+		proxy = strings.TrimSpace(os.Getenv("https_proxy"))
+	}
+	if proxy == "" {
+		proxy = strings.TrimSpace(os.Getenv("HTTP_PROXY"))
+	}
+	if proxy == "" {
+		proxy = strings.TrimSpace(os.Getenv("http_proxy"))
+	}
+	if proxy == "" {
+		return "", nil
+	}
+	noProxy := os.Getenv("NO_PROXY")
+	if strings.TrimSpace(noProxy) == "" {
+		noProxy = os.Getenv("no_proxy")
+	}
+	tokens := strings.Split(noProxy, ",")
+	required := []string{"localhost", "127.0.0.1"}
+	required = append(required, request.Infrastructure.NodeAddresses...)
+	if endpoint, err := url.Parse(request.Network.PublicEndpoint); err == nil && endpoint.Hostname() != "" {
+		required = append(required, endpoint.Hostname())
+	}
+	var missing []string
+	for _, host := range required {
+		host = strings.TrimSpace(host)
+		if host == "" {
+			continue
+		}
+		covered := false
+		for _, token := range tokens {
+			if noProxyCovers(token, host) {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			missing = append(missing, host)
+		}
+	}
+	if len(missing) > 0 {
+		return proxy, fmt.Errorf("proxy is configured but NO_PROXY does not cover management-local endpoints: %s", strings.Join(missing, ", "))
+	}
+	return proxy, nil
+}
+
 func (r *Runner) usesLocalHostFilesystem() bool {
 	switch r.system.(type) {
 	case LocalSystem, *LocalSystem:
@@ -391,6 +644,10 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 	plan, planErr := installation.CreateBootstrapPlan(request)
 	if planErr == nil {
 		request = plan.EffectiveRequest
+	}
+	sizing := installation.ApplianceSizing{}
+	if planErr == nil {
+		sizing = plan.Profile.Sizing
 	}
 	report := PreflightReport{
 		APIVersion: PreflightAPIVersion, Kind: PreflightKind, SchemaVersion: PreflightSchema,
@@ -484,10 +741,10 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 			add("ssh-client", "Verify OpenSSH client availability", CheckPassed, "OpenSSH client is available; SCP is not required")
 			probeRun := Run{Request: request}
 			for index, peer := range peers {
-				if _, err := r.system.Output(ctx, "ssh", r.sshArgs(probeRun, peer, haPeerPreflightCommand()), nil); err != nil {
+				if _, err := r.system.Output(ctx, "ssh", r.sshArgs(probeRun, peer, haPeerPreflightCommand(sizing)), nil); err != nil {
 					add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckBlocked, fmt.Sprintf("%s: %v", peer, err))
 				} else {
-					add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckPassed, peer+": pinned SSH connectivity, Linux/root/systemd readiness, clean Kubernetes runtime state and required free ports verified")
+					add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckPassed, peer+": pinned SSH connectivity, Linux/root/systemd/NTP readiness, clean Kubernetes runtime state and required free ports verified")
 				}
 			}
 		}
@@ -519,6 +776,14 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 		add("state-directory", "Validate canonical installer state authority", CheckSkipped, "simulation mode uses an isolated state root")
 		add("existing-installer-state", "Detect stale installer-owned bootstrap authority", CheckSkipped, "simulation mode uses an isolated filesystem")
 		add("systemd", "Verify systemd availability", CheckSkipped, "simulation mode does not execute the host systemd check")
+		add("time-sync", "Verify host time synchronization", CheckSkipped, "simulation mode does not execute the host NTP synchronization check")
+		add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckSkipped, "simulation mode does not inspect physical host capacity")
+		add("filesystem", "Verify local runtime filesystem", CheckSkipped, "simulation mode does not inspect the host filesystem type")
+		add("default-route", "Verify management network route and MTU evidence", CheckSkipped, "simulation mode does not inspect the host network route")
+		add("proxy-bypass", "Verify proxy bypass for management-local endpoints", CheckSkipped, "simulation mode does not inherit host proxy admission")
+		if request.Services.ObjectStorage.Mode == installation.ServiceModeExternal {
+			add("object-storage-reachability", "Verify external object storage endpoint reachability", CheckSkipped, "simulation mode does not execute DNS/TCP endpoint probes")
+		}
 		add("existing-kubernetes", "Detect conflicting Kubernetes runtime residue", CheckSkipped, "simulation mode uses an isolated filesystem")
 		for _, port := range []string{"80", "443", "6443", "9345"} {
 			add("port-"+port, "Verify local port "+port, CheckSkipped, "simulation mode does not reserve host ports")
@@ -540,6 +805,42 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 			add("systemd", "Verify systemd runtime readiness", CheckBlocked, err.Error())
 		} else {
 			add("systemd", "Verify systemd runtime readiness", CheckPassed, "systemd manager is installed, running and reachable")
+		}
+		if err := r.verifyTimeSynchronization(ctx); err != nil {
+			add("time-sync", "Verify host time synchronization", CheckBlocked, err.Error())
+		} else {
+			add("time-sync", "Verify host time synchronization", CheckPassed, "host clock is synchronized before certificates, leases and distributed control-plane state are created")
+		}
+		if capacity, err := r.probeHostCapacity(ctx); err != nil {
+			add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckBlocked, err.Error())
+		} else if err := enforceSizing(capacity, sizing); err != nil {
+			add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckBlocked, err.Error())
+		} else {
+			add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckPassed, fmt.Sprintf("observed %d vCPU, %d GiB memory, %d GiB /var/lib filesystem with %d GiB free; source baseline minimum is %d vCPU, %d GiB memory, %d GiB disk with %d GiB free", capacity.VCPU, capacity.MemoryGiB, capacity.DiskGiB, capacity.FreeDiskGiB, sizing.MinimumVCPU, sizing.MinimumMemoryGiB, sizing.MinimumDiskGiB, sizing.MinimumFreeDiskGiB))
+		}
+		if fsType, err := r.verifyFilesystemLocality(ctx); err != nil {
+			add("filesystem", "Verify local runtime filesystem", CheckBlocked, err.Error())
+		} else {
+			add("filesystem", "Verify local runtime filesystem", CheckPassed, "/var/lib is backed by local filesystem type "+fsType)
+		}
+		if detail, err := r.verifyDefaultRoute(ctx); err != nil {
+			add("default-route", "Verify management network route and MTU evidence", CheckBlocked, err.Error())
+		} else {
+			add("default-route", "Verify management network route and MTU evidence", CheckPassed, detail)
+		}
+		if proxy, err := verifyProxyBypass(request); err != nil {
+			add("proxy-bypass", "Verify proxy bypass for management-local endpoints", CheckBlocked, err.Error())
+		} else if proxy == "" {
+			add("proxy-bypass", "Verify proxy bypass for management-local endpoints", CheckSkipped, "installer process has no HTTP(S) proxy configured")
+		} else {
+			add("proxy-bypass", "Verify proxy bypass for management-local endpoints", CheckPassed, "configured proxy has NO_PROXY coverage for loopback, management nodes and the product endpoint")
+		}
+		if request.Services.ObjectStorage.Mode == installation.ServiceModeExternal {
+			if err := verifyTCPEndpointReachability(ctx, request.Services.ObjectStorage.URL); err != nil {
+				add("object-storage-reachability", "Verify external object storage endpoint reachability", CheckBlocked, err.Error())
+			} else {
+				add("object-storage-reachability", "Verify external object storage endpoint reachability", CheckPassed, "endpoint DNS and TCP connectivity are available before bootstrap mutation; credentialed read/write certification remains a lifecycle gate")
+			}
 		}
 		if residue := r.existingKubernetesResidue(ctx); len(residue) > 0 {
 			add("existing-kubernetes", "Detect conflicting Kubernetes runtime residue", CheckBlocked, "Kubernetes runtime residue is present on a fresh-install host ("+strings.Join(residue, ", ")+"); use the persisted Resume path or explicitly reset the host before starting a new installation")
@@ -568,8 +869,8 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 	return report, nil
 }
 
-func haPeerPreflightCommand() string {
-	return `set -eu; test "$(uname -s)" = Linux; test "$(id -u)" = 0; command -v systemctl >/dev/null 2>&1; test -d /run/systemd/system; systemctl show --property=Version --value >/dev/null 2>&1; for p in /etc/rancher/rke2 /var/lib/rancher/rke2 /usr/local/bin/rke2 /usr/bin/rke2 /usr/local/bin/rke2-uninstall.sh /usr/local/bin/rke2-killall.sh /etc/rancher/k3s /var/lib/rancher/k3s /etc/kubernetes /var/lib/kubelet /usr/local/bin/k3s /usr/bin/k3s /usr/local/bin/kubelet /usr/bin/kubelet /usr/local/bin/kubeadm /usr/bin/kubeadm; do if [ -e "$p" ]; then echo "Kubernetes runtime residue is present: $p" >&2; exit 12; fi; done; for u in rke2-server.service rke2-agent.service k3s.service k3s-agent.service kubelet.service; do if systemctl cat "$u" >/dev/null 2>&1; then echo "Kubernetes systemd unit is already installed: $u" >&2; exit 12; fi; done; command -v ss >/dev/null 2>&1; listeners="$(ss -H -ltn | awk '{print $4}')"; for p in 80 443 6443 9345; do if printf '%s\n' "$listeners" | grep -Eq "(^|:)$p$"; then echo "required port $p is already in use" >&2; exit 13; fi; done`
+func haPeerPreflightCommand(sizing installation.ApplianceSizing) string {
+	return fmt.Sprintf(`set -eu; test "$(uname -s)" = Linux; test "$(id -u)" = 0; command -v systemctl >/dev/null 2>&1; test -d /run/systemd/system; systemctl show --property=Version --value >/dev/null 2>&1; command -v timedatectl >/dev/null 2>&1; test "$(timedatectl show --property=NTPSynchronized --value)" = yes; cpu="$(getconf _NPROCESSORS_ONLN)"; mem_kib="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)"; set -- $(df -Pk /var/lib | tail -1); disk_kib="$2"; free_kib="$4"; test "$cpu" -ge %d || { echo "vCPU $cpu below required %d" >&2; exit 14; }; test "$mem_kib" -ge %d || { echo "memory below required %d GiB" >&2; exit 14; }; test "$disk_kib" -ge %d || { echo "/var/lib filesystem below required %d GiB" >&2; exit 14; }; test "$free_kib" -ge %d || { echo "/var/lib free space below required %d GiB" >&2; exit 14; }; command -v findmnt >/dev/null 2>&1; fs="$(findmnt -n -o FSTYPE -T /var/lib)"; case "$fs" in nfs|nfs4|cifs|smb3|9p|fuse.sshfs|ceph|glusterfs) echo "/var/lib uses unsupported network/distributed filesystem $fs" >&2; exit 15;; esac; command -v ip >/dev/null 2>&1; ip -4 route show default | grep -q '^default '; for p in /etc/rancher/rke2 /var/lib/rancher/rke2 /usr/local/bin/rke2 /usr/bin/rke2 /usr/local/bin/rke2-uninstall.sh /usr/local/bin/rke2-killall.sh /etc/rancher/k3s /var/lib/rancher/k3s /etc/kubernetes /var/lib/kubelet /usr/local/bin/k3s /usr/bin/k3s /usr/local/bin/kubelet /usr/bin/kubelet /usr/local/bin/kubeadm /usr/bin/kubeadm; do if [ -e "$p" ]; then echo "Kubernetes runtime residue is present: $p" >&2; exit 12; fi; done; for u in rke2-server.service rke2-agent.service k3s.service k3s-agent.service kubelet.service; do if systemctl cat "$u" >/dev/null 2>&1; then echo "Kubernetes systemd unit is already installed: $u" >&2; exit 12; fi; done; command -v ss >/dev/null 2>&1; listeners="$(ss -H -ltn | awk '{print $4}')"; for p in 80 443 6443 9345; do if printf '%%s\n' "$listeners" | grep -Eq "(^|:)$p$"; then echo "required port $p is already in use" >&2; exit 13; fi; done`, sizing.MinimumVCPU, sizing.MinimumVCPU, sizing.MinimumMemoryGiB*1024*1024, sizing.MinimumMemoryGiB, sizing.MinimumDiskGiB*1024*1024, sizing.MinimumDiskGiB, sizing.MinimumFreeDiskGiB*1024*1024, sizing.MinimumFreeDiskGiB)
 }
 
 func (r *Runner) writePreflightReport(report PreflightReport) error {

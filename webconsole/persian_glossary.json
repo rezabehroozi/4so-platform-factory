@@ -1,0 +1,35 @@
+{
+  "authority": "PERSIAN_PRODUCT_GLOSSARY_V1",
+  "locale": "fa",
+  "policy": "enterprise-technical-persian; preserve established product and protocol terminology; do not auto-apply pure-Persian substitutions",
+  "preferredTerms": [
+    {"concept": "cluster", "value": "کلاستر", "avoid": ["خوشه"]},
+    {"concept": "node", "value": "نود", "avoid": ["گره رایانشی"]},
+    {"concept": "project", "value": "پروژه", "avoid": []},
+    {"concept": "organization", "value": "سازمان", "avoid": []},
+    {"concept": "operation", "value": "عملیات", "avoid": []},
+    {"concept": "notification", "value": "اعلان", "avoid": ["نوتیفیکیشن"]}
+  ],
+  "protectedTechnicalTerms": [
+    "4SO",
+    "API",
+    "MCP",
+    "Kubernetes",
+    "RKE2",
+    "OKD",
+    "OpenSearch",
+    "PostgreSQL",
+    "Forgejo",
+    "Argo CD",
+    "zot",
+    "Keycloak",
+    "S3",
+    "OIDC",
+    "SAML",
+    "SBOM",
+    "SHA-256",
+    "GitOps"
+  ],
+  "automaticLevel": "safe-only",
+  "externalLexiconShipped": false
+}

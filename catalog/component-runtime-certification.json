@@ -1,0 +1,1064 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ComponentRuntimeCertificationRegistry",
+  "metadata": {
+    "name": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
+  },
+  "spec": {
+    "components": [
+      {
+        "component": "alloy",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "1.11.0",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "argocd",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "10.2.3",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "capsule",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "0.13.11",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "ceph-csi-operator",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "1.0.4",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "ceph-csi-rbd",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "1.0.4",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "cert-manager",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "1.21.1",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "cilium",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "1.20.1",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "external-dns",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "1.21.1",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "external-secrets",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "2.8.0",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "gateway-api",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "component-install-readiness-dependency-failure-remove-partial"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "component-runtime-executable"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "component-runtime-executable"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "component-runtime-executable"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "component-runtime-executable"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "component-runtime-executable"
+          }
+        ],
+        "release": "1.5.1",
+        "sourceBinding": {
+          "resolved": true,
+          "sourceLockDigest": "sha256:6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960",
+          "status": "source-ready"
+        }
+      },
+      {
+        "component": "grafana",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "12.10.0",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "kgateway",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "2.4.1",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "kyverno",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "3.8.2",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "loki",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "18.12.1",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "metallb",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "0.16.1",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "secure-namespace-foundation",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "TARGET_RUNTIME_V1",
+          "status": "foundation-harness-partial"
+        },
+        "lifecycle": [
+          {
+            "authority": "TARGET_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "foundation-harness-executable"
+          },
+          {
+            "authority": "TARGET_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "foundation-harness-executable"
+          },
+          {
+            "authority": "TARGET_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "foundation-harness-executable"
+          },
+          {
+            "authority": "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "not-applicable-first-product-release"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_EXECUTOR_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "pending-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_EXECUTOR_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "pending-component-executor"
+          }
+        ],
+        "release": "1.0.0",
+        "sourceBinding": {
+          "resolved": true,
+          "sourceLockDigest": "sha256:155fa19222df71b320488177d1a7c8df9ab8d57b2fbe765e7483309972de77e2",
+          "status": "source-ready"
+        }
+      },
+      {
+        "component": "snapshot-controller",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "component-install-readiness-dependency-failure-remove-partial"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "component-runtime-executable"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "component-runtime-executable"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "component-runtime-executable"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "component-runtime-executable"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "component-runtime-executable"
+          }
+        ],
+        "release": "8.5.0",
+        "sourceBinding": {
+          "resolved": true,
+          "sourceLockDigest": "sha256:8d2920686614f056aff9eaab522aee634b2ab392efa1258d81661de584873067",
+          "status": "source-ready"
+        }
+      },
+      {
+        "component": "tetragon",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "1.7.0",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "velero",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "12.1.0",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      },
+      {
+        "component": "victoria-metrics",
+        "executor": {
+          "owner": "catalog-component",
+          "profile": "COMPONENT_RUNTIME_V1",
+          "status": "source-gated-component-executor"
+        },
+        "lifecycle": [
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-install-evidence/v1",
+            "name": "install",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-readiness-evidence/v1",
+            "name": "readiness",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-dependency-evidence/v1",
+            "name": "dependency",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1",
+            "evidenceContract": "component-upgrade-evidence/v1",
+            "name": "upgrade",
+            "status": "pending-upgrade-matrix"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-remove-evidence/v1",
+            "name": "remove",
+            "status": "source-gated-component-executor"
+          },
+          {
+            "authority": "COMPONENT_RUNTIME_V1",
+            "evidenceContract": "component-failure-evidence/v1",
+            "name": "failure",
+            "status": "source-gated-component-executor"
+          }
+        ],
+        "release": "0.90.2",
+        "sourceBinding": {
+          "resolved": false,
+          "sourceLockDigest": "",
+          "status": "blocked-source-lock"
+        }
+      }
+    ],
+    "policy": {
+      "executorBinding": "component-owned-no-generic-runtime-certification-claim",
+      "replacementPolicy": "resolved-source-replacement-denied-without-explicit-versioned-migration",
+      "requiredLifecycleStages": [
+        "install",
+        "readiness",
+        "dependency",
+        "upgrade",
+        "remove",
+        "failure"
+      ],
+      "sourceBinding": "exact-component-release-and-source-lock"
+    }
+  }
+}

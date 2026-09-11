@@ -69,7 +69,7 @@
     "readiness": [
       "deployment/kyverno-admission-controller"
     ],
-    "release": "3.8.x",
+    "release": "3.8.2",
     "requiresCapabilities": [],
     "risk": "critical",
     "rollback": {
@@ -88,7 +88,7 @@
       "type": "helm-chart"
     },
     "supportTier": "research-candidate",
-    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
     "wave": 40
   }
 }

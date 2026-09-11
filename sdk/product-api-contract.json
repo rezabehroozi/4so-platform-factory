@@ -1,0 +1,2715 @@
+{
+  "authority": "PRODUCT_API_CONTRACT_AUTHORITY_V1",
+  "generated": true,
+  "policy": {
+    "approvalBypassAllowed": false,
+    "automaticMutationRetryAllowed": false,
+    "businessLogicInGeneratedClientAllowed": false,
+    "durableOperationAuthorityRemainsServerSide": true,
+    "rawCredentialEmbeddingAllowed": false
+  },
+  "routeCount": 332,
+  "routeDigest": "sha256:014d1d73e7481321e5df4845cd59f2c45856dbfa6015913cd181df907d43a775",
+  "routes": [
+    {
+      "family": "version",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/version",
+      "pathParams": []
+    },
+    {
+      "family": "access",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/access/context",
+      "pathParams": []
+    },
+    {
+      "family": "access",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/access/resource-scopes",
+      "pathParams": []
+    },
+    {
+      "family": "identity",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/identity/authority",
+      "pathParams": []
+    },
+    {
+      "family": "identity",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/identity/saml-brokers",
+      "pathParams": []
+    },
+    {
+      "family": "identity",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/identity/saml-brokers",
+      "pathParams": []
+    },
+    {
+      "family": "identity",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/identity/saml-brokers/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "identity",
+      "method": "DELETE",
+      "mutation": true,
+      "path": "/api/v1/identity/saml-brokers/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "identity",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/identity/admin-jobs",
+      "pathParams": []
+    },
+    {
+      "family": "identity",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/identity/admin-jobs/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "identity",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/identity/admin-jobs/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "compliance",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/compliance/profiles",
+      "pathParams": []
+    },
+    {
+      "family": "compliance",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/compliance/profiles",
+      "pathParams": []
+    },
+    {
+      "family": "compliance",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/compliance/scans",
+      "pathParams": []
+    },
+    {
+      "family": "compliance",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/compliance/scans",
+      "pathParams": []
+    },
+    {
+      "family": "compliance",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/compliance/scans/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "compliance",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/compliance/findings",
+      "pathParams": []
+    },
+    {
+      "family": "compliance",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/compliance/findings/{fingerprint}/recheck",
+      "pathParams": [
+        "fingerprint"
+      ]
+    },
+    {
+      "family": "compliance",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/compliance/waivers",
+      "pathParams": []
+    },
+    {
+      "family": "compliance",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/compliance/waivers/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "compliance",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/compliance/waivers/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "identity",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/identity/group-mappings",
+      "pathParams": []
+    },
+    {
+      "family": "identity",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/identity/group-mappings",
+      "pathParams": []
+    },
+    {
+      "family": "identity",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/identity/group-mappings/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "security-audit-events",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/security-audit-events",
+      "pathParams": []
+    },
+    {
+      "family": "catalog",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/catalog/components",
+      "pathParams": []
+    },
+    {
+      "family": "catalog",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/catalog/summary",
+      "pathParams": []
+    },
+    {
+      "family": "catalog",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/catalog/runtime-certification-authority",
+      "pathParams": []
+    },
+    {
+      "family": "catalog-governance",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/catalog-governance/signing-identity",
+      "pathParams": []
+    },
+    {
+      "family": "catalog-trust-keys",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/catalog-trust-keys",
+      "pathParams": []
+    },
+    {
+      "family": "catalog-trust-keys",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/catalog-trust-keys",
+      "pathParams": []
+    },
+    {
+      "family": "catalog-trust-keys",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/catalog-trust-keys/{id}/impact",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "catalog-trust-keys",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/catalog-trust-keys/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "catalog-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/catalog-releases",
+      "pathParams": []
+    },
+    {
+      "family": "catalog-releases",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/catalog-releases",
+      "pathParams": []
+    },
+    {
+      "family": "catalog-releases",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/catalog-releases/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "catalog-releases",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/catalog-releases/{id}/draft",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "catalog-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/catalog-releases/{id}/review",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "catalog-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/catalog-releases/{id}/request-changes",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "catalog-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/catalog-releases/{id}/publish",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "catalog-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/catalog-releases/{id}/deprecate",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "catalog-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/catalog-releases/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "catalog-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/catalog-releases/{id}/promote",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "catalog-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/catalog-releases/{id}/render",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "tenancy",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/tenancy/plans",
+      "pathParams": []
+    },
+    {
+      "family": "blueprints",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/blueprints/authoring-contract",
+      "pathParams": []
+    },
+    {
+      "family": "blueprints",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprints/authoring-roundtrip",
+      "pathParams": []
+    },
+    {
+      "family": "blueprints",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprints/validate",
+      "pathParams": []
+    },
+    {
+      "family": "compatibility",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/compatibility/evaluate",
+      "pathParams": []
+    },
+    {
+      "family": "target-architecture-model",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/target-architecture-model",
+      "pathParams": []
+    },
+    {
+      "family": "mcp",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/mcp/delegation-architecture",
+      "pathParams": []
+    },
+    {
+      "family": "mcp",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/mcp/trusted-clients",
+      "pathParams": []
+    },
+    {
+      "family": "mcp",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/mcp/trusted-clients",
+      "pathParams": []
+    },
+    {
+      "family": "mcp",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/mcp/trusted-clients/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "mcp",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/mcp/delegation-grants/preview",
+      "pathParams": []
+    },
+    {
+      "family": "mcp",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/mcp/delegation-grants",
+      "pathParams": []
+    },
+    {
+      "family": "mcp",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/mcp/delegation-grants",
+      "pathParams": []
+    },
+    {
+      "family": "mcp",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/mcp/delegation-grants/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "day2-campaign-engine",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/day2-campaign-engine",
+      "pathParams": []
+    },
+    {
+      "family": "lab",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/lab/guide",
+      "pathParams": []
+    },
+    {
+      "family": "ai",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/ai/policy",
+      "pathParams": []
+    },
+    {
+      "family": "ai",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/ai/capabilities",
+      "pathParams": []
+    },
+    {
+      "family": "ai",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/ai/persian-writing",
+      "pathParams": []
+    },
+    {
+      "family": "ai",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/ai/control-jobs",
+      "pathParams": []
+    },
+    {
+      "family": "ai",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/ai/control-jobs/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "ai",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/ai/control-jobs/{id}/resolve-recovery",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "ai",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/ai/diagnose",
+      "pathParams": []
+    },
+    {
+      "family": "ai",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/ai/runs",
+      "pathParams": []
+    },
+    {
+      "family": "ai",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/ai/runs/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "blueprints",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprints/resolve",
+      "pathParams": []
+    },
+    {
+      "family": "blueprint-overlays",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprint-overlays",
+      "pathParams": []
+    },
+    {
+      "family": "blueprint-overlays",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/blueprint-overlays",
+      "pathParams": []
+    },
+    {
+      "family": "blueprint-overlays",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/blueprint-overlays/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "variable-schemas",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/variable-schemas",
+      "pathParams": []
+    },
+    {
+      "family": "variable-schemas",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/variable-schemas",
+      "pathParams": []
+    },
+    {
+      "family": "variable-schemas",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/variable-schemas/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "platform-policy-sets",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/platform-policy-sets",
+      "pathParams": []
+    },
+    {
+      "family": "platform-policy-sets",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/platform-policy-sets",
+      "pathParams": []
+    },
+    {
+      "family": "platform-policy-sets",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/platform-policy-sets/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "platform-templates",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/platform-templates",
+      "pathParams": []
+    },
+    {
+      "family": "platform-templates",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/platform-templates",
+      "pathParams": []
+    },
+    {
+      "family": "platform-templates",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/platform-templates/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "platform-templates",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/platform-templates/{id}/admission",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "workspaces",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/workspaces",
+      "pathParams": []
+    },
+    {
+      "family": "workspaces",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/workspaces",
+      "pathParams": []
+    },
+    {
+      "family": "workspaces",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/workspaces/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "workspaces",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/workspaces/{id}/bindings",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "workspaces",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/workspaces/{id}/bindings",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "workspaces",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/workspaces/{id}/bindings/{bindingId}/revoke",
+      "pathParams": [
+        "id",
+        "bindingId"
+      ]
+    },
+    {
+      "family": "plans",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/plans",
+      "pathParams": []
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprint-releases",
+      "pathParams": []
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/blueprint-releases",
+      "pathParams": []
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/blueprint-releases/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/blueprint-releases/{id}/draft",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprint-releases/{id}/review",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprint-releases/{id}/request-changes",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprint-releases/{id}/publish",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprint-releases/{id}/deprecate",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprint-releases/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprint-releases/{id}/clone",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "blueprint-releases",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/blueprint-releases/compare",
+      "pathParams": []
+    },
+    {
+      "family": "installations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/installations/profiles",
+      "pathParams": []
+    },
+    {
+      "family": "installations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/installations/integrations",
+      "pathParams": []
+    },
+    {
+      "family": "installations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/installations/recovery-authority",
+      "pathParams": []
+    },
+    {
+      "family": "autopilot",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/autopilot/status",
+      "pathParams": []
+    },
+    {
+      "family": "installations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/installations/plans",
+      "pathParams": []
+    },
+    {
+      "family": "managed-okd-installs",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/managed-okd-installs/runtime",
+      "pathParams": []
+    },
+    {
+      "family": "managed-okd-installs",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/managed-okd-installs",
+      "pathParams": []
+    },
+    {
+      "family": "managed-okd-installs",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/managed-okd-installs/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "managed-okd-installs",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/managed-okd-installs/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "git-authority",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/git-authority",
+      "pathParams": []
+    },
+    {
+      "family": "git-credentials",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/git-credentials",
+      "pathParams": []
+    },
+    {
+      "family": "git-credentials",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/git-credentials",
+      "pathParams": []
+    },
+    {
+      "family": "git-credentials",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/git-credentials/{id}/rotate",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "git-credentials",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/git-credentials/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "git-providers",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/git-providers",
+      "pathParams": []
+    },
+    {
+      "family": "git-providers",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/git-providers",
+      "pathParams": []
+    },
+    {
+      "family": "git-providers",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/git-providers/{id}/credential",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "system-services",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/system-services",
+      "pathParams": []
+    },
+    {
+      "family": "system-services",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/system-services/git/repositories",
+      "pathParams": []
+    },
+    {
+      "family": "system-services",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/system-services/git/revisions",
+      "pathParams": []
+    },
+    {
+      "family": "system-services",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/system-services/git/revisions",
+      "pathParams": []
+    },
+    {
+      "family": "system-services",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/system-services/git/revisions/{id}/observe-sync",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "system-services",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/system-services/git/last-known-good",
+      "pathParams": []
+    },
+    {
+      "family": "system-services",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/system-services/git/last-known-good/rollback",
+      "pathParams": []
+    },
+    {
+      "family": "system-services",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/system-services/git/pull-requests",
+      "pathParams": []
+    },
+    {
+      "family": "system-services",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/system-services/git/pull-requests/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "system-services",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/system-services/git/pull-requests/{id}/merge",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "drift-scans",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/drift-scans/{id}/adopt-git",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "drift-scans",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/drift-scans/{id}/targets/{clusterId}/findings/{fingerprint}/remediate",
+      "pathParams": [
+        "id",
+        "clusterId",
+        "fingerprint"
+      ]
+    },
+    {
+      "family": "control-plane",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/control-plane/summary",
+      "pathParams": []
+    },
+    {
+      "family": "operations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/operations/queue-center",
+      "pathParams": []
+    },
+    {
+      "family": "logs",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/logs",
+      "pathParams": []
+    },
+    {
+      "family": "control-plane",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/control-plane/attention",
+      "pathParams": []
+    },
+    {
+      "family": "organizations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/organizations",
+      "pathParams": []
+    },
+    {
+      "family": "organizations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/organizations",
+      "pathParams": []
+    },
+    {
+      "family": "organizations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/organizations/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "organizations",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/organizations/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "organizations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/organizations/{id}/memberships",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "organizations",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/organizations/{id}/memberships/{subject}",
+      "pathParams": [
+        "id",
+        "subject"
+      ]
+    },
+    {
+      "family": "organizations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/organizations/{id}/memberships/{subject}/revoke",
+      "pathParams": [
+        "id",
+        "subject"
+      ]
+    },
+    {
+      "family": "service-accounts",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/service-accounts",
+      "pathParams": []
+    },
+    {
+      "family": "service-accounts",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/service-accounts",
+      "pathParams": []
+    },
+    {
+      "family": "service-accounts",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/service-accounts/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "service-accounts",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/service-accounts/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "service-accounts",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/service-accounts/{id}/tokens",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "service-accounts",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/service-accounts/{id}/tokens",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "service-accounts",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/service-accounts/{id}/tokens/{tokenId}/revoke",
+      "pathParams": [
+        "id",
+        "tokenId"
+      ]
+    },
+    {
+      "family": "service-accounts",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/service-accounts/{id}/tokens/{tokenId}/rotate",
+      "pathParams": [
+        "id",
+        "tokenId"
+      ]
+    },
+    {
+      "family": "projects",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/projects",
+      "pathParams": []
+    },
+    {
+      "family": "projects",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/projects",
+      "pathParams": []
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations",
+      "pathParams": []
+    },
+    {
+      "family": "operations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/operations",
+      "pathParams": []
+    },
+    {
+      "family": "operations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/operations/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/transition",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/claim",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/lease/renew",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/attempt/start",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/attempt/verify",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/attempt/failure",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/attempt/complete",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/cancel",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/cancel/ack",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/compensation/plan",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/compensation/forward/{stepKey}/complete",
+      "pathParams": [
+        "id",
+        "stepKey"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/compensation/start",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/compensation/claim-next",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/compensation/{stepKey}/complete",
+      "pathParams": [
+        "id",
+        "stepKey"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/compensation/{stepKey}/failure",
+      "pathParams": [
+        "id",
+        "stepKey"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/steps",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/operations/{id}/steps/{phase}/{stepKey}/trace",
+      "pathParams": [
+        "id",
+        "phase",
+        "stepKey"
+      ]
+    },
+    {
+      "family": "operations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/operations/{id}/evidence/{evidenceId}/payload",
+      "pathParams": [
+        "id",
+        "evidenceId"
+      ]
+    },
+    {
+      "family": "audit-events",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/audit-events",
+      "pathParams": []
+    },
+    {
+      "family": "notification-event-types",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-event-types",
+      "pathParams": []
+    },
+    {
+      "family": "notification-provider-contracts",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-provider-contracts",
+      "pathParams": []
+    },
+    {
+      "family": "notification-routing",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/notification-routing/preview",
+      "pathParams": []
+    },
+    {
+      "family": "external-registry",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/external-registry/admission",
+      "pathParams": []
+    },
+    {
+      "family": "finops",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/finops/rate-cards",
+      "pathParams": []
+    },
+    {
+      "family": "finops",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/finops/rate-cards",
+      "pathParams": []
+    },
+    {
+      "family": "finops",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/finops/rate-cards/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "finops",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/finops/usage-measurements",
+      "pathParams": []
+    },
+    {
+      "family": "finops",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/finops/usage-measurements",
+      "pathParams": []
+    },
+    {
+      "family": "finops",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/finops/capacity-observations",
+      "pathParams": []
+    },
+    {
+      "family": "finops",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/finops/capacity-observations",
+      "pathParams": []
+    },
+    {
+      "family": "finops",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/finops/showback",
+      "pathParams": []
+    },
+    {
+      "family": "finops",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/finops/chargeback-export",
+      "pathParams": []
+    },
+    {
+      "family": "notification-destinations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/notification-destinations",
+      "pathParams": []
+    },
+    {
+      "family": "notification-destinations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-destinations",
+      "pathParams": []
+    },
+    {
+      "family": "notification-destinations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-destinations/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "notification-destinations",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/notification-destinations/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "notification-destinations",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/notification-destinations/{id}/disable",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "notification-routes",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/notification-routes",
+      "pathParams": []
+    },
+    {
+      "family": "notification-routes",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-routes",
+      "pathParams": []
+    },
+    {
+      "family": "notification-routes",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-routes/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "notification-routes",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-routes/{id}/policy-digest",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "notification-routes",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/notification-routes/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "notification-events",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-events",
+      "pathParams": []
+    },
+    {
+      "family": "notification-events",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-events/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "notification-deliveries",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-deliveries",
+      "pathParams": []
+    },
+    {
+      "family": "notification-deliveries",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/notification-deliveries/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "notification-deliveries",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/notification-deliveries/{id}/retry",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "cluster-imports",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/cluster-imports",
+      "pathParams": []
+    },
+    {
+      "family": "cluster-imports",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/cluster-imports",
+      "pathParams": []
+    },
+    {
+      "family": "cluster-imports",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/cluster-imports/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "cluster-imports",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/cluster-imports/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "cluster-imports",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/cluster-imports/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters",
+      "pathParams": []
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/mutation-rbac-manifest",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/mutation-rbac-manifest",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/revocation-rbac-manifest",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/revocation-rbac-acknowledgement",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/maintenance-profile",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/maintenance-profile",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/node-lifecycle-authority",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/node-lifecycle-plans",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/provider-binding",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/node-lifecycle-actions",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/maintenance-windows",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/maintenance-windows",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/maintenance-windows/{windowId}/cancel",
+      "pathParams": [
+        "id",
+        "windowId"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/maintenance-runs",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/maintenance-runs",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/maintenance-runs/{runId}",
+      "pathParams": [
+        "id",
+        "runId"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/maintenance-runs/{runId}/approve",
+      "pathParams": [
+        "id",
+        "runId"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/agent-certificates",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/agent-certificates/{certId}/revoke",
+      "pathParams": [
+        "id",
+        "certId"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/timeline",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/workloads",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "workload-log-queries",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/workload-log-queries",
+      "pathParams": []
+    },
+    {
+      "family": "workload-log-queries",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/workload-log-queries/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "search",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/search",
+      "pathParams": []
+    },
+    {
+      "family": "search",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/search/projection/rebuild",
+      "pathParams": []
+    },
+    {
+      "family": "fleet",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/fleet/health",
+      "pathParams": []
+    },
+    {
+      "family": "support-bundles",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/support-bundles/profiles",
+      "pathParams": []
+    },
+    {
+      "family": "support-bundles",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/support-bundles",
+      "pathParams": []
+    },
+    {
+      "family": "support-bundle-jobs",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/support-bundle-jobs",
+      "pathParams": []
+    },
+    {
+      "family": "support-bundle-jobs",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/support-bundle-jobs/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "support-bundle-jobs",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/support-bundle-jobs/{id}/download",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "baselines",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/baselines",
+      "pathParams": []
+    },
+    {
+      "family": "baseline-deployments",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/baseline-deployments",
+      "pathParams": []
+    },
+    {
+      "family": "baseline-deployments",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/baseline-deployments",
+      "pathParams": []
+    },
+    {
+      "family": "baseline-deployments",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/baseline-deployments/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "baseline-deployments",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/baseline-deployments/{id}/evidence/{key}",
+      "pathParams": [
+        "id",
+        "key"
+      ]
+    },
+    {
+      "family": "baseline-deployments",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/baseline-deployments/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "baseline-deployments",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/baseline-deployments/{id}/revalidate",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "baseline-deployments",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/baseline-deployments/{id}/retry",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "baseline-deployments",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/baseline-deployments/{id}/rollback",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-certifications",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/runtime-certifications",
+      "pathParams": []
+    },
+    {
+      "family": "runtime-certifications",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/runtime-certifications",
+      "pathParams": []
+    },
+    {
+      "family": "runtime-certifications",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/runtime-certifications/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-certifications",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/runtime-certifications/{id}/report",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-certifications",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/runtime-certifications/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-verifications",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/runtime-verifications",
+      "pathParams": []
+    },
+    {
+      "family": "runtime-verifications",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/runtime-verifications",
+      "pathParams": []
+    },
+    {
+      "family": "runtime-verifications",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/runtime-verifications/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-verifications",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/runtime-verifications/{id}/retry",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-verifications",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/runtime-verifications/{id}/report",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-closure-campaigns",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/runtime-closure-campaigns",
+      "pathParams": []
+    },
+    {
+      "family": "runtime-closure-campaigns",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/runtime-closure-campaigns",
+      "pathParams": []
+    },
+    {
+      "family": "runtime-closure-campaigns",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/runtime-closure-campaigns/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-closure-campaigns",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/runtime-closure-campaigns/{id}/advance",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-closure-campaigns",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/runtime-closure-campaigns/{id}/retry",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-closure-campaigns",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/runtime-closure-campaigns/{id}/report",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "runtime-closure-reports",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/runtime-closure-reports/verify",
+      "pathParams": []
+    },
+    {
+      "family": "fleet-groups",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/fleet-groups",
+      "pathParams": []
+    },
+    {
+      "family": "fleet-groups",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/fleet-groups",
+      "pathParams": []
+    },
+    {
+      "family": "fleet-groups",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/fleet-groups/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "drift-scans",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/drift-scans",
+      "pathParams": []
+    },
+    {
+      "family": "drift-scans",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/drift-scans",
+      "pathParams": []
+    },
+    {
+      "family": "drift-scans",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/drift-scans/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "recovery-checkpoints",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/recovery-checkpoints",
+      "pathParams": []
+    },
+    {
+      "family": "recovery-checkpoints",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/recovery-checkpoints",
+      "pathParams": []
+    },
+    {
+      "family": "recovery-checkpoints",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/recovery-checkpoints/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "recovery-checkpoints",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/recovery-checkpoints/{id}/revoke",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "backup-policies",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/backup-policies",
+      "pathParams": []
+    },
+    {
+      "family": "backup-policies",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/backup-policies/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "backup-policies",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/backup-policies",
+      "pathParams": []
+    },
+    {
+      "family": "backup-policies",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/backup-policies/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "backup-policies",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/backup-policies/{id}/enable",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "backup-policies",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/backup-policies/{id}/disable",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "backup-runs",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/backup-runs",
+      "pathParams": []
+    },
+    {
+      "family": "restore-runs",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/restore-runs",
+      "pathParams": []
+    },
+    {
+      "family": "restore-drills",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/restore-drills",
+      "pathParams": []
+    },
+    {
+      "family": "data-protection-runs",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/data-protection-runs",
+      "pathParams": []
+    },
+    {
+      "family": "data-protection-runs",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/data-protection-runs/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "restore-runs",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/restore-runs/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "upgrade-campaigns",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/upgrade-campaigns",
+      "pathParams": []
+    },
+    {
+      "family": "upgrade-campaigns",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/upgrade-campaigns",
+      "pathParams": []
+    },
+    {
+      "family": "upgrade-campaigns",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/upgrade-campaigns/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "upgrade-campaigns",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/upgrade-campaigns/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "upgrade-campaigns",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/upgrade-campaigns/{id}/revalidate",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "upgrade-campaigns",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/upgrade-campaigns/{id}/pause",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "upgrade-campaigns",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/upgrade-campaigns/{id}/resume",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "upgrade-campaigns",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/upgrade-campaigns/{id}/cancel",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "upgrade-campaigns",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/upgrade-campaigns/{id}/advance",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "organizations",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/organizations/{id}/entitlement",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "organizations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/organizations/{id}/entitlement",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "organizations",
+      "method": "PUT",
+      "mutation": true,
+      "path": "/api/v1/organizations/{id}/oem-profile",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "organizations",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/organizations/{id}/oem-profile",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "tenants",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/tenants",
+      "pathParams": []
+    },
+    {
+      "family": "tenants",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/tenants",
+      "pathParams": []
+    },
+    {
+      "family": "tenants",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/tenants/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "tenants",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/tenants/{id}/suspend",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "tenants",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/tenants/{id}/resume",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "tenants",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/tenants/{id}/resize",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "tenants",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/tenants/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "tenants",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/tenants/{id}/delete",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "tenants",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/tenants/{id}/retry",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "provider-profiles",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/provider-profiles",
+      "pathParams": []
+    },
+    {
+      "family": "provider-profiles",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/provider-profiles",
+      "pathParams": []
+    },
+    {
+      "family": "provider-profiles",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/provider-profiles/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "provider-profiles",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/provider-profiles/{id}/retry",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "provider-clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/provider-clusters",
+      "pathParams": []
+    },
+    {
+      "family": "provider-clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/provider-clusters",
+      "pathParams": []
+    },
+    {
+      "family": "provider-clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/provider-clusters/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "provider-clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/provider-clusters/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "provider-clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/provider-clusters/{id}/scale",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "provider-clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/provider-clusters/{id}/upgrade",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "provider-clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/provider-clusters/{id}/delete",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "provider-clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/provider-clusters/{id}/retry",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "marketplace",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/marketplace/offers",
+      "pathParams": []
+    },
+    {
+      "family": "marketplace",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/marketplace/installations",
+      "pathParams": []
+    },
+    {
+      "family": "marketplace",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/marketplace/installations",
+      "pathParams": []
+    },
+    {
+      "family": "marketplace",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/marketplace/installations/{id}",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "marketplace",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/marketplace/installations/{id}/approve",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "marketplace",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/marketplace/installations/{id}/uninstall",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "marketplace",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/marketplace/installations/{id}/retry",
+      "pathParams": [
+        "id"
+      ]
+    },
+    {
+      "family": "marketplace",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/marketplace/recommendations",
+      "pathParams": []
+    },
+    {
+      "family": "marketplace",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/marketplace/recommendations",
+      "pathParams": []
+    },
+    {
+      "family": "marketplace",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/marketplace/recommendations/{id}",
+      "pathParams": [
+        "id"
+      ]
+    }
+  ],
+  "source": "internal/api/server.go",
+  "version": "0.0.359"
+}

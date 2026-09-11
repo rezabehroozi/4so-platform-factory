@@ -20,6 +20,7 @@ var profiles = []DeploymentProfile{
 		SupportedConnectivity: []string{"connected", "restricted-egress", "disconnected"},
 		CustomerInputs:        []string{"one reachable Linux node", "product endpoint", "administrator email"},
 		ManagedServices:       []string{"RKE2", "PostgreSQL", "Forgejo", "zot", "local evidence storage", "identity", "4SO control plane"},
+		Sizing:                ApplianceSizing{Authority: "APPLIANCE_SIZING_AUTHORITY_V1", Status: "SOURCE_ENFORCED_PHYSICAL_TUNING_PENDING", Scope: "single-node-appliance", MinimumVCPU: 4, MinimumMemoryGiB: 8, MinimumDiskGiB: 80, MinimumFreeDiskGiB: 60, RecommendedVCPU: 8, RecommendedMemoryGiB: 16, RecommendedDiskGiB: 150},
 	},
 	{
 		ID: "production-standard-ha", DisplayName: "Production — Standard HA", Default: true,
@@ -28,6 +29,7 @@ var profiles = []DeploymentProfile{
 		SupportedConnectivity: []string{"connected", "restricted-egress", "disconnected"},
 		CustomerInputs:        []string{"three reachable Linux nodes", "product endpoint and DNS ownership", "credential references", "backup destination", "administrator identity"},
 		ManagedServices:       []string{"RKE2 HA", "PostgreSQL HA", "Forgejo", "zot", "S3-compatible evidence/backup storage", "Keycloak", "4SO control plane"},
+		Sizing:                ApplianceSizing{Authority: "APPLIANCE_SIZING_AUTHORITY_V1", Status: "SOURCE_ENFORCED_PHYSICAL_TUNING_PENDING", Scope: "per-management-node", MinimumVCPU: 8, MinimumMemoryGiB: 16, MinimumDiskGiB: 160, MinimumFreeDiskGiB: 120, RecommendedVCPU: 12, RecommendedMemoryGiB: 32, RecommendedDiskGiB: 300},
 	},
 	{
 		ID: "integrated-enterprise", DisplayName: "Enterprise — Existing Services",
@@ -36,6 +38,7 @@ var profiles = []DeploymentProfile{
 		SupportedConnectivity: []string{"connected", "restricted-egress", "disconnected"},
 		CustomerInputs:        []string{"management cluster enrollment reference", "storage class", "product endpoint", "approved external service references"},
 		ManagedServices:       []string{"4SO control plane", "installation authority", "GitOps handover", "certification and evidence"},
+		Sizing:                ApplianceSizing{Authority: "APPLIANCE_SIZING_AUTHORITY_V1", Status: "EXTERNAL_CLUSTER_CAPACITY_OWNED_BY_ADMISSION", Scope: "existing-management-cluster"},
 	},
 }
 

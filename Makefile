@@ -7,7 +7,7 @@ export PLATFORM_FACTORY_DEVELOPMENT_MODE
 
 BUILD_LDFLAGS := -s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version=$(VERSION)
 
-.PHONY: validate test vet race build build-release run smoke smoke-ui release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
+.PHONY: validate test test-postgres-integration vet race build build-release run smoke smoke-ui agent-evidence browser-triage-profile persian-ui-lint release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
 
 validate:
 	$(PYTHON) scripts/validate_repository.py .
@@ -15,8 +15,17 @@ validate:
 test:
 	@set -euo pipefail; packages="$$( $(GO) list ./... )"; while IFS= read -r pkg; do [[ -z "$$pkg" ]] || CGO_ENABLED=1 $(GO) test -count=1 "$$pkg"; done <<< "$$packages"
 	$(PYTHON) -m unittest discover -s tests -p 'test_*.py' -v
+	$(PYTHON) scripts/test_lab_runner.py
+	$(PYTHON) scripts/lab_runner.py self-test
 	$(PYTHON) scripts/catalog_upstream_admission.py
+	$(PYTHON) scripts/upstream_acquisition_toolchain.py --self-test
 	$(PYTHON) scripts/acquire_upstream_helm.py --self-test
+	$(PYTHON) scripts/acquire_upstream_tagged_source.py --self-test
+	$(PYTHON) scripts/acquire_historical_upgrade_batch.py --self-test
+
+test-postgres-integration:
+	@test -n "$$PLATFORM_FACTORY_POSTGRES_TEST_DSN" || (echo "PLATFORM_FACTORY_POSTGRES_TEST_DSN is required" >&2; exit 2)
+	go test -tags=integration ./internal/persistence -run '^TestPostgresIntegration' -count=1 -v
 
 vet:
 	@set -euo pipefail; packages="$$( $(GO) list ./... )"; while IFS= read -r pkg; do [[ -z "$$pkg" ]] || CGO_ENABLED=1 $(GO) vet "$$pkg"; done <<< "$$packages"
@@ -62,6 +71,8 @@ smoke: build
 	$(PYTHON) scripts/smoke_owner_destructive_recovery.py ./bin/platform-api
 	$(PYTHON) scripts/smoke_tenant_resize_protected_delete.py ./bin/platform-api
 	$(PYTHON) scripts/smoke_cluster_maintenance.py ./bin/platform-api
+	$(PYTHON) scripts/smoke_target_node_lifecycle.py ./bin/platform-api
+	$(PYTHON) scripts/smoke_target_node_provider_add.py ./bin/platform-api
 	$(PYTHON) scripts/smoke_oidc_group_authz_audit.py ./bin/platform-api
 	$(PYTHON) scripts/smoke_git_credential_reference.py ./bin/platform-api
 	$(PYTHON) scripts/smoke_git_pull_request_lkg.py ./bin/platform-api
@@ -77,6 +88,7 @@ smoke: build
 	$(PYTHON) scripts/smoke_service_account_token.py ./bin/platform-api
 	$(PYTHON) scripts/smoke_agent_mtls.py ./bin/platform-api ./bin/platformctl
 	$(PYTHON) scripts/smoke_fleet_support.py ./bin/platform-api ./bin/platformctl
+	$(PYTHON) scripts/smoke_workload_logs.py ./bin/platform-api
 	$(PYTHON) scripts/smoke_installer.py ./bin/platform-installer ./bin/platformctl
 	$(PYTHON) scripts/smoke_installer_host.py ./bin/platformctl ./bin/platform-installer
 	$(PYTHON) scripts/smoke_installer_remote.py ./bin/platformctl ./bin/platform-installer
@@ -84,7 +96,22 @@ smoke: build
 smoke-ui:
 	$(PYTHON) scripts/smoke_ui.py .
 	$(PYTHON) scripts/smoke_ui_quality.py
+	$(PYTHON) scripts/persian_ui_lint.py --root .
+	$(PYTHON) scripts/persian_writing_gate.py --root . --write-report
+	$(PYTHON) scripts/console_localization_coverage.py --root .
+	$(PYTHON) scripts/smoke_ui_localization_runtime.py .
 	$(PYTHON) scripts/smoke_ui_live.py ./bin/platform-api .
+
+agent-evidence:
+	mkdir -p .state
+	$(PYTHON) scripts/generate_agent_knowledge.py --check --out .state/agent-knowledge.json
+
+browser-triage-profile:
+	$(PYTHON) scripts/browser_triage_profile.py
+
+persian-ui-lint:
+	$(PYTHON) scripts/persian_ui_lint.py --root .
+	$(PYTHON) scripts/persian_writing_gate.py --root . --write-report
 
 release: clean validate test vet race build-release smoke smoke-ui
 	$(PYTHON) scripts/build_release.py .
@@ -103,7 +130,12 @@ upstream-admission-plan:
 
 upstream-acquisition-self-test:
 	$(PYTHON) scripts/catalog_upstream_admission.py
+	$(PYTHON) scripts/upstream_acquisition_toolchain.py --self-test
 	$(PYTHON) scripts/acquire_upstream_helm.py --self-test
+	$(PYTHON) scripts/acquire_upstream_batch.py --self-test
+	$(PYTHON) scripts/acquire_upstream_tagged_source.py --self-test
+	$(PYTHON) scripts/acquire_historical_upgrade_batch.py --self-test
+	$(PYTHON) scripts/supply_chain_handoff.py --check --status
 
 upstream-acquisition-preflight:
 	$(PYTHON) scripts/catalog_upstream_admission.py

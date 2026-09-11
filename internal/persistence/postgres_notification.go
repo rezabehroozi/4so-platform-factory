@@ -586,6 +586,54 @@ func (s *PostgresStore) ListNotificationDeliveriesPageByScopes(ctx context.Conte
 	return out, rows.Err()
 }
 
+// ListNotificationHealthCandidates pages only clusters whose health inputs
+// changed after the durable/in-process cursor. The query is bounded before
+// materialization so large fleets no longer require a fleet-wide recomputation
+// on every notification health interval.
+func (s *PostgresStore) ListNotificationHealthCandidates(ctx context.Context, after time.Time, afterID string, limit int) ([]controlplane.NotificationHealthCandidate, bool, error) {
+	if limit <= 0 || limit > 500 {
+		return nil, false, fmt.Errorf("%w: health candidate limit must be between 1 and 500", controlplane.ErrValidation)
+	}
+	after = after.UTC()
+	afterID = strings.TrimSpace(afterID)
+	rows, err := s.db.QueryContext(ctx, `
+WITH changed AS (
+  SELECT c.id,
+         GREATEST(
+           c.updated_at,
+           COALESCE((SELECT MAX(i.updated_at) FROM cluster_inventory_snapshots i WHERE i.cluster_id=c.id), c.updated_at),
+           COALESCE((SELECT MAX(a.updated_at) FROM agent_certificates a WHERE a.cluster_id=c.id), c.updated_at)
+         ) AS changed_at
+  FROM managed_clusters c
+)
+SELECT id,changed_at
+FROM changed
+WHERE changed_at > $1 OR (changed_at = $1 AND id > $2)
+ORDER BY changed_at,id
+LIMIT $3`, after, afterID, limit+1)
+	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+	out := make([]controlplane.NotificationHealthCandidate, 0, limit+1)
+	for rows.Next() {
+		var v controlplane.NotificationHealthCandidate
+		if err = rows.Scan(&v.ClusterID, &v.ChangedAt); err != nil {
+			return nil, false, err
+		}
+		v.ChangedAt = v.ChangedAt.UTC()
+		out = append(out, v)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, false, err
+	}
+	hasMore := len(out) > limit
+	if hasMore {
+		out = out[:limit]
+	}
+	return out, hasMore, nil
+}
+
 func (s *PostgresStore) ClaimNotificationHealthScanLease(ctx context.Context, worker string, ttl time.Duration, at time.Time) (bool, error) {
 	worker = strings.TrimSpace(worker)
 	if worker == "" || ttl <= 0 {

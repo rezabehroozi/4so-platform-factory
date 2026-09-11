@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -394,5 +395,56 @@ func TestClusterMaintenanceRunOrderingSurvivesFileStoreRestart(t *testing.T) {
 		if got[i].ID != want {
 			t.Fatalf("maintenance ordering after restart[%d]=%q want %q", i, got[i].ID, want)
 		}
+	}
+}
+
+func TestClusterMaintenanceOSPatchRequiresLiveExecutorAndEvidence(t *testing.T) {
+	now := time.Date(2026, 9, 6, 8, 0, 0, 0, time.UTC)
+	seq := 0
+	store := NewMemoryStoreWith(func() time.Time { return now }, func(prefix string) string { seq++; return fmt.Sprintf("%s_patch_%d", prefix, seq) })
+	ctx := context.Background()
+	project, cluster, agent := seedMaintenanceCluster(t, store, now)
+	if _, err := store.UpsertClusterMaintenanceProfile(ctx, ClusterMaintenanceProfile{ProjectID: project.ID, ClusterID: cluster.ID, Environment: ClusterEnvironmentProduction, DefaultDrainTimeoutSeconds: 120}, 0, "operator"); err != nil {
+		t.Fatal(err)
+	}
+	window, err := store.CreateClusterMaintenanceWindow(ctx, ClusterMaintenanceWindow{ProjectID: project.ID, ClusterID: cluster.ID, Name: "patch", StartsAt: now.Add(-time.Minute), EndsAt: now.Add(2 * time.Hour), MaxUnavailable: 1, DrainTimeoutSeconds: 120}, "operator")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blockedOp := createMaintenanceOperation(t, store, ctx, project, cluster, testDigest(12100))
+	if _, _, err := store.CreateClusterMaintenanceRun(ctx, ClusterMaintenanceRun{ProjectID: project.ID, ClusterID: cluster.ID, WindowID: window.ID, OperationID: blockedOp.ID, Action: TargetNodeActionOSPatch, NodeNames: []string{"worker-1"}, IdempotencyKey: "patch-blocked", RequestDigest: testDigest(12100)}, "requester"); !errors.Is(err, ErrPrerequisite) {
+		t.Fatalf("OS patch without live executor capabilities should fail closed, got %v", err)
+	}
+
+	cluster, _, err = upsertMutationReadyInventoryForTest(t, store, ctx, cluster.ID, agent, cluster.ExternalUID, ClusterInventory{ObservedAt: now.Add(time.Minute), Distribution: "rke2", KubernetesVersion: "1.33.2+rke2r1", Digest: testDigest(12101), Capabilities: []string{TargetMutationRBACActiveCapability, ClusterMaintenanceFencedReportCapability, TargetNodeHostMaintenanceCapability, TargetNodeOSPatchCapability}, Nodes: []ClusterNode{{Name: "worker-1", UID: "node-1", Roles: []string{"worker"}, Ready: true}, {Name: "worker-2", UID: "node-2", Roles: []string{"worker"}, Ready: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	op := createMaintenanceOperation(t, store, ctx, project, cluster, testDigest(12102))
+	run, replay, err := store.CreateClusterMaintenanceRun(ctx, ClusterMaintenanceRun{ProjectID: project.ID, ClusterID: cluster.ID, WindowID: window.ID, OperationID: op.ID, Action: TargetNodeActionOSPatch, NodeNames: []string{"worker-1"}, IdempotencyKey: "patch-admitted", RequestDigest: testDigest(12102)}, "requester")
+	if err != nil || replay || run.Action != TargetNodeActionOSPatch || run.HostActionTimeoutSeconds != 3600 {
+		t.Fatalf("run=%+v replay=%v err=%v", run, replay, err)
+	}
+	run, err = store.ApproveClusterMaintenanceRun(ctx, run.ID, run.Revision, "approver")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimed, claimedOp, err := store.NextClusterMaintenanceTask(ctx, cluster.ID, agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad := ClusterMaintenanceTaskResult{OperationFenceToken: claimedOp.FenceToken, Success: true, Results: []NodeMaintenanceResult{{NodeName: "worker-1", Cordoned: true, DrainAttempted: true, Drained: true, Uncordoned: true}}}
+	if _, _, err := store.ReportClusterMaintenanceTask(ctx, cluster.ID, claimed.ID, claimed.Revision, bad); !errors.Is(err, ErrValidation) {
+		t.Fatalf("missing host action evidence must be rejected, got %v", err)
+	}
+	good := bad
+	good.Results[0].HostActionAttempted = true
+	good.Results[0].HostActionSucceeded = true
+	good.Results[0].HostActionAuthority = "TARGET_NODE_HOST_MAINTENANCE_EXECUTOR_V1"
+	good.Results[0].HostActionEvidence = "Job/4so-os-patch-test@uid:sha256:" + strings.Repeat("a", 64)
+	completed, completedOp, err := store.ReportClusterMaintenanceTask(ctx, cluster.ID, claimed.ID, claimed.Revision, good)
+	if err != nil || completed.State != ClusterMaintenanceSucceeded || completedOp.State != OperationSucceeded {
+		t.Fatalf("completed=%+v op=%+v err=%v", completed, completedOp, err)
 	}
 }

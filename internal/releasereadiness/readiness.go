@@ -37,8 +37,10 @@ type Report struct {
 	PhysicalRuntimeStatus         string                     `json:"physicalRuntimeStatus"`
 	TotalBlockers                 int                        `json:"totalBlockers"`
 	ProductReleaseBlockers        int                        `json:"productReleaseBlockers"`
+	RoadmapFeatureBlockers        int                        `json:"roadmapFeatureBlockers"`
 	DeploymentContextBlockers     int                        `json:"deploymentContextBlockers"`
 	ProductBlockerCodes           map[string]int             `json:"productBlockerCodes"`
+	RoadmapFeatureBlockerCodes    map[string]int             `json:"roadmapFeatureBlockerCodes"`
 	DeploymentContextBlockerCodes map[string]int             `json:"deploymentContextBlockerCodes"`
 	UnclassifiedProductBlockers   int                        `json:"unclassifiedProductBlockers"`
 	EnabledComponents             int                        `json:"enabledComponents"`
@@ -48,10 +50,12 @@ type Report struct {
 }
 
 type AdmissionStats struct {
-	Applicable     int            `json:"applicable"`
-	Ready          int            `json:"readyForAcquisition"`
-	ReviewRequired int            `json:"reviewRequired"`
-	StatusCounts   map[string]int `json:"statusCounts,omitempty"`
+	Applicable          int            `json:"applicable"`
+	Ready               int            `json:"readyForAcquisition"`
+	ReviewRequired      int            `json:"reviewRequired"`
+	RuntimeBlocked      int            `json:"runtimeBlocked"`
+	StatusCounts        map[string]int `json:"statusCounts,omitempty"`
+	RuntimeStatusCounts map[string]int `json:"runtimeStatusCounts,omitempty"`
 }
 
 var sourceCodes = map[string]struct{}{
@@ -105,7 +109,7 @@ func Build(plan domain.DeploymentPlan, admission catalog.UpstreamAdmission, comp
 		}
 	}
 
-	admissionStats := AdmissionStats{StatusCounts: map[string]int{}}
+	admissionStats := AdmissionStats{StatusCounts: map[string]int{}, RuntimeStatusCounts: map[string]int{}}
 	admissionNames := make(map[string]struct{}, len(admission.Spec.Components))
 	for _, row := range admission.Spec.Components {
 		name := strings.TrimSpace(row.Component)
@@ -117,6 +121,11 @@ func Build(plan domain.DeploymentPlan, admission catalog.UpstreamAdmission, comp
 		admissionStats.Applicable++
 		status := strings.TrimSpace(row.Status)
 		admissionStats.StatusCounts[status]++
+		runtimeStatus := strings.TrimSpace(row.RuntimeStatus)
+		admissionStats.RuntimeStatusCounts[runtimeStatus]++
+		if runtimeStatus != "eligible-after-source-resolution" {
+			admissionStats.RuntimeBlocked++
+		}
 		if status == "ready-for-acquisition" {
 			admissionStats.Ready++
 		} else {
@@ -139,9 +148,14 @@ func Build(plan domain.DeploymentPlan, admission catalog.UpstreamAdmission, comp
 	known := mergeCodeSets(sourceCodes, runtimeCodes, deploymentContextCodes, certificationAuthorityCodes)
 	unclassified := countsExcept(plan.Blockers, known)
 
-	productBlockerCodes := mergeCounts(sourceBlockers, runtimeBlockers, authorityBlockers, unclassified)
-	productBlockers := sumCounts(productBlockerCodes)
+	planProductBlockerCodes := mergeCounts(sourceBlockers, runtimeBlockers, authorityBlockers, unclassified)
+	planProductBlockers := sumCounts(planProductBlockerCodes)
 	deploymentContextBlockers := sumCounts(deploymentBlockers)
+	roadmap := targetmodel.ProgramRoadmapModel()
+	roadmapFeatureBlockerCodes := targetmodel.FeatureFreezeBlockerCounts(roadmap)
+	roadmapFeatureBlockers := sumCounts(roadmapFeatureBlockerCodes)
+	productBlockerCodes := mergeCounts(planProductBlockerCodes, roadmapFeatureBlockerCodes)
+	productBlockers := planProductBlockers + roadmapFeatureBlockers
 
 	admissionPhaseStatus := StatusComplete
 	if admissionStats.ReviewRequired > 0 {
@@ -158,7 +172,7 @@ func Build(plan domain.DeploymentPlan, admission catalog.UpstreamAdmission, comp
 	authorityPhaseStatus := StatusPending
 	if sumCounts(authorityBlockers) > 0 {
 		authorityPhaseStatus = StatusBlocked
-	} else if productBlockers == 0 {
+	} else if planProductBlockers == 0 {
 		authorityPhaseStatus = StatusComplete
 	}
 
@@ -171,6 +185,7 @@ func Build(plan domain.DeploymentPlan, admission catalog.UpstreamAdmission, comp
 				"applicable":          admissionStats.Applicable,
 				"readyForAcquisition": admissionStats.Ready,
 				"reviewRequired":      admissionStats.ReviewRequired,
+				"runtimeBlocked":      admissionStats.RuntimeBlocked,
 			},
 		},
 		{
@@ -209,6 +224,12 @@ func Build(plan domain.DeploymentPlan, admission catalog.UpstreamAdmission, comp
 			BlockerCodes: deploymentBlockers,
 		},
 		{
+			ID:           "mandatory-roadmap-feature-freeze",
+			Status:       phaseStatus(roadmapFeatureBlockers),
+			BlockerCount: roadmapFeatureBlockers,
+			BlockerCodes: roadmapFeatureBlockerCodes,
+		},
+		{
 			ID:           "exact-sha-physical-runtime",
 			Status:       StatusNotEvaluated,
 			BlockerCount: 0,
@@ -223,17 +244,19 @@ func Build(plan domain.DeploymentPlan, admission catalog.UpstreamAdmission, comp
 		BlueprintVersion:              plan.BlueprintVersion,
 		PlanStatus:                    plan.Status,
 		DeploymentExecutable:          plan.Executable,
-		ProductReleaseReady:           productBlockers == 0,
+		ProductReleaseReady:           productBlockers == 0 && roadmap.GoalReady,
 		PhysicalRuntimeStatus:         StatusNotEvaluated,
-		TotalBlockers:                 len(plan.Blockers),
+		TotalBlockers:                 len(plan.Blockers) + roadmapFeatureBlockers,
 		ProductReleaseBlockers:        productBlockers,
+		RoadmapFeatureBlockers:        roadmapFeatureBlockers,
 		DeploymentContextBlockers:     deploymentContextBlockers,
 		ProductBlockerCodes:           productBlockerCodes,
+		RoadmapFeatureBlockerCodes:    roadmapFeatureBlockerCodes,
 		DeploymentContextBlockerCodes: deploymentBlockers,
 		UnclassifiedProductBlockers:   sumCounts(unclassified),
 		EnabledComponents:             len(plan.Steps),
 		UpstreamAdmission:             admissionStats,
-		ProgramRoadmap:                targetmodel.ProgramRoadmapModel(),
+		ProgramRoadmap:                roadmap,
 		Phases:                        phases,
 	}, nil
 }

@@ -71,7 +71,7 @@
       "daemonset/cilium",
       "deployment/cilium-operator"
     ],
-    "release": "1.20.x",
+    "release": "1.20.1",
     "requiresCapabilities": [],
     "risk": "critical",
     "rollback": {
@@ -90,7 +90,7 @@
       "type": "helm-chart"
     },
     "supportTier": "research-candidate",
-    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
     "wave": 5
   }
 }

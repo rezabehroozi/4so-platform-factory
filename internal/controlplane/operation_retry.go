@@ -30,6 +30,22 @@ func RetryPolicyForOperationClass(v OperationClass) OperationRetryPolicy {
 	}
 }
 
+// OperationLeaseActive is the shared worker mutation fence. A matching owner
+// and fence token are insufficient after the lease deadline; an expired worker
+// must renew before performing any execution-plane mutation.
+func OperationLeaseActive(op Operation, worker string, fence int64, at time.Time) bool {
+	worker = strings.TrimSpace(worker)
+	at = at.UTC()
+	return worker != "" && fence > 0 && strings.TrimSpace(op.LeaseOwner) == worker && op.FenceToken == fence && op.LeaseExpiresAt != nil && op.LeaseExpiresAt.After(at)
+}
+
+// OperationStepReplayCompatible defines the semantic idempotency identity for a
+// step within one operation attempt. Lease/fence and timestamps may legitimately
+// differ after response loss and re-claim, but state/error content must not.
+func OperationStepReplayCompatible(existing, requested OperationStep) bool {
+	return existing.OperationID == requested.OperationID && existing.Attempt == requested.Attempt && existing.StepKey == requested.StepKey && existing.State == requested.State && strings.TrimSpace(existing.LastError) == strings.TrimSpace(requested.LastError)
+}
+
 func IsRetryableOperationFailure(policy OperationRetryPolicy, class OperationFailureClass) bool {
 	for _, candidate := range policy.RetryableClasses {
 		if candidate == class {
@@ -152,7 +168,7 @@ func (s *MemoryStore) BeginOperationVerification(_ context.Context, id string, e
 	if op.State != OperationRunning {
 		return Operation{}, ErrInvalidTransition
 	}
-	if op.LeaseOwner != worker || op.FenceToken != fence {
+	if !OperationLeaseActive(op, worker, fence, nowUTC(s.now)) {
 		return Operation{}, ErrStaleFence
 	}
 	op.State = OperationVerifying
@@ -177,7 +193,7 @@ func (s *MemoryStore) ReportOperationFailure(_ context.Context, id string, expec
 	if op.State != OperationRunning && op.State != OperationVerifying && op.State != OperationRollingBack {
 		return Operation{}, ErrInvalidTransition
 	}
-	if op.LeaseOwner != worker || op.FenceToken != fence {
+	if !OperationLeaseActive(op, worker, fence, nowUTC(s.now)) {
 		return Operation{}, ErrStaleFence
 	}
 	if !ValidOperationFailureClass(report.Class) || strings.TrimSpace(report.Message) == "" || report.RetryAfterSeconds < 0 {
@@ -220,7 +236,7 @@ func (s *MemoryStore) CompleteOperation(_ context.Context, id string, expected i
 	if op.State != OperationVerifying {
 		return Operation{}, fmt.Errorf("%w: operation success requires VERIFYING postconditions", ErrPrerequisite)
 	}
-	if op.LeaseOwner != worker || op.FenceToken != fence {
+	if !OperationLeaseActive(op, worker, fence, nowUTC(s.now)) {
 		return Operation{}, ErrStaleFence
 	}
 	now := nowUTC(s.now)
@@ -290,7 +306,7 @@ func (s *MemoryStore) AcknowledgeOperationCancellation(_ context.Context, id str
 	if s.hasCompensatableForwardLocked(id) {
 		return Operation{}, fmt.Errorf("%w: completed mutating steps require compensation before cancellation can complete", ErrPrerequisite)
 	}
-	if op.LeaseOwner != worker || op.FenceToken != fence {
+	if !OperationLeaseActive(op, worker, fence, nowUTC(s.now)) {
 		return Operation{}, ErrStaleFence
 	}
 	now := nowUTC(s.now)

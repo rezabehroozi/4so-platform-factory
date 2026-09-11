@@ -142,18 +142,35 @@ func (s *Server) listMarketplaceInstallations(w http.ResponseWriter, r *http.Req
 			return
 		}
 	}
-	items, err := s.store.ListBaselineDeployments(r.Context(), projectID, r.URL.Query().Get("clusterId"))
+	clusterID := strings.TrimSpace(r.URL.Query().Get("clusterId"))
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.BaselineDeployment, error)
+	if pager, ok := s.store.(marketplaceInstallationPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.BaselineDeployment, error) {
+			return pager.ListMarketplaceInstallationsPage(r.Context(), ids, all, clusterID, cursor, limit)
+		}
+	}
+	items, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.BaselineDeployment, error) {
+		values, e := s.store.ListBaselineDeployments(r.Context(), projectID, clusterID)
+		if e != nil {
+			return nil, e
+		}
+		out := make([]controlplane.BaselineDeployment, 0, len(values))
+		for _, item := range values {
+			if item.SourceType == marketplace.SourceType {
+				out = append(out, item)
+			}
+		}
+		return out, nil
+	}, page, func(item controlplane.BaselineDeployment) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	out := []map[string]any{}
+	out := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		if item.SourceType == marketplace.SourceType {
-			out = append(out, marketplaceInstallationView(item))
-		}
+		out = append(out, marketplaceInstallationView(item))
 	}
-	writeJSON(w, http.StatusOK, out)
+	writeOperatorCollectionJSON(w, r, http.StatusOK, out)
 }
 
 func (s *Server) marketplaceInstallation(w http.ResponseWriter, r *http.Request) (controlplane.BaselineDeployment, bool) {
@@ -328,15 +345,53 @@ func (s *Server) createMarketplaceRecommendation(w http.ResponseWriter, r *http.
 		writeStoreError(w, runErr)
 		return
 	} else {
+		modelBacked := advisor.UsesAIRuntime() && len(eligible) > 0
+		if modelBacked {
+			claim, acquired, claimErr := s.store.ClaimAIExecution(r.Context(), controlplane.AIExecutionClaim{ProjectID: in.ProjectID, Purpose: "marketplace-recommendation", IdempotencyKey: aiRunKey, RequestDigest: requestDigest}, actor)
+			if claimErr != nil {
+				if errors.Is(claimErr, controlplane.ErrIdempotencyConflict) {
+					writeError(w, http.StatusConflict, "AI_IDEMPOTENCY_CONFLICT", "durable AI advisory key belongs to a different recommendation request")
+				} else {
+					writeStoreError(w, claimErr)
+				}
+				return
+			}
+			if !acquired {
+				switch claim.State {
+				case controlplane.AIExecutionDispatched:
+					writeError(w, http.StatusConflict, "AI_EXECUTION_ALREADY_DISPATCHED", "this recommendation's AI dispatch has already occurred and will not be sent again automatically")
+				case controlplane.AIExecutionFailed:
+					writeError(w, http.StatusConflict, "AI_EXECUTION_PREVIOUSLY_FAILED", "this recommendation's AI dispatch already failed; use a new Idempotency-Key to explicitly retry")
+				default:
+					writeError(w, http.StatusInternalServerError, "AI_EXECUTION_AUTHORITY_INVALID", "AI execution claim is inconsistent with durable recommendation state")
+				}
+				return
+			}
+		}
 		result, err = advisor.Recommend(r.Context(), marketplace.AdvisoryInput{Objective: in.Objective, KubernetesVersion: cluster.KubernetesVersion, Capabilities: append([]string(nil), cluster.Capabilities...)}, eligible)
 		if err != nil {
+			if modelBacked {
+				if _, failErr := s.store.FailAIExecution(r.Context(), in.ProjectID, aiRunKey, requestDigest, "PROVIDER_REQUEST_FAILED", actor); failErr != nil {
+					writeStoreError(w, failErr)
+					return
+				}
+			}
 			writeError(w, http.StatusBadGateway, "CONTROLLED_AI_ADVISOR_FAILED", err.Error())
 			return
 		}
+		if modelBacked && result.AIRuntime == nil {
+			_, _ = s.store.FailAIExecution(r.Context(), in.ProjectID, aiRunKey, requestDigest, "MODEL_RESULT_MISSING", actor)
+			writeError(w, http.StatusBadGateway, "CONTROLLED_AI_OUTPUT_REJECTED", "model-backed advisor returned no durable AI runtime result")
+			return
+		}
 		if result.AIRuntime != nil {
+			if !modelBacked {
+				writeError(w, http.StatusInternalServerError, "AI_EXECUTION_AUTHORITY_INVALID", "marketplace advisor returned an AI runtime result without declaring provider dispatch authority")
+				return
+			}
 			generated := result.AIRuntime
-			if _, _, err = s.store.CreateAIRun(r.Context(), controlplane.AIRun{ProjectID: in.ProjectID, Purpose: generated.Purpose, Provider: generated.Provider, Model: generated.Model, PromptID: generated.PromptID, PromptDigest: generated.PromptDigest, ContextDigest: generated.ContextDigest, OutputDigest: generated.OutputDigest, RedactionCount: generated.RedactionCount, InputBytes: generated.InputBytes, InputTokens: generated.Usage.InputTokens, CachedTokens: generated.Usage.CachedTokens, OutputTokens: generated.Usage.OutputTokens, Output: generated.JSON, LinkedResourceType: "managedCluster", LinkedResourceID: cluster.ID, IdempotencyKey: aiRunKey, RequestDigest: requestDigest, AdvisoryOnly: true}, actor); err != nil {
-				writeStoreError(w, err)
+			if _, _, _, finalizeErr := s.store.FinalizeAIExecution(r.Context(), controlplane.AIRun{ProjectID: in.ProjectID, Purpose: generated.Purpose, Provider: generated.Provider, Model: generated.Model, PromptID: generated.PromptID, PromptDigest: generated.PromptDigest, ContextDigest: generated.ContextDigest, OutputDigest: generated.OutputDigest, RedactionCount: generated.RedactionCount, InputBytes: generated.InputBytes, InputTokens: generated.Usage.InputTokens, CachedTokens: generated.Usage.CachedTokens, OutputTokens: generated.Usage.OutputTokens, Output: generated.JSON, LinkedResourceType: "managedCluster", LinkedResourceID: cluster.ID, IdempotencyKey: aiRunKey, RequestDigest: requestDigest, AdvisoryOnly: true}, actor); finalizeErr != nil {
+				writeStoreError(w, finalizeErr)
 				return
 			}
 		}
@@ -380,18 +435,21 @@ func (s *Server) listMarketplaceRecommendations(w http.ResponseWriter, r *http.R
 			return
 		}
 	}
-	v, err := s.store.ListMarketplaceRecommendations(r.Context(), projectID, r.URL.Query().Get("clusterId"))
+	clusterID := strings.TrimSpace(r.URL.Query().Get("clusterId"))
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.MarketplaceRecommendation, error)
+	if pager, ok := s.store.(marketplaceRecommendationPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.MarketplaceRecommendation, error) {
+			return pager.ListMarketplaceRecommendationsPage(r.Context(), ids, all, clusterID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.MarketplaceRecommendation, error) {
+		return s.store.ListMarketplaceRecommendations(r.Context(), projectID, clusterID)
+	}, page, func(item controlplane.MarketplaceRecommendation) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.MarketplaceRecommendation) string { return item.ProjectID })
-	writeJSON(w, http.StatusOK, v)
+	writeOperatorCollectionJSON(w, r, http.StatusOK, v)
 }
 
 func (s *Server) getMarketplaceRecommendation(w http.ResponseWriter, r *http.Request) {

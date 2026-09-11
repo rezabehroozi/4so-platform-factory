@@ -436,3 +436,25 @@ func TestInspectRejectsDuplicateManifestJSONKey(t *testing.T) {
 		t.Fatalf("expected duplicate JSON key rejection, got %v", err)
 	}
 }
+
+func TestRequireRunningExecutableBindsActualExecutableBytes(t *testing.T) {
+	actual, err := RunningExecutableDigest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(actual, "sha256:") || len(actual) != len("sha256:")+64 {
+		t.Fatalf("unexpected running executable digest %q", actual)
+	}
+	inspection := Inspection{FileDigests: map[string]string{PlatformctlBinaryPath: strings.TrimPrefix(actual, "sha256:")}}
+	bound, err := inspection.RequireRunningExecutable(PlatformctlBinaryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bound != actual {
+		t.Fatalf("bound digest %q != actual %q", bound, actual)
+	}
+	inspection.FileDigests[PlatformctlBinaryPath] = strings.Repeat("0", 64)
+	if _, err := inspection.RequireRunningExecutable(PlatformctlBinaryPath); err == nil || !strings.Contains(err.Error(), "does not match exact release") {
+		t.Fatalf("expected running executable mismatch, err=%v", err)
+	}
+}

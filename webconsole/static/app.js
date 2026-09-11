@@ -6,30 +6,34 @@ const state = {
   locale: localStorage.getItem('platformLocale') || 'en',
   session: null,
   currentPage: 'overview',
-  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0,
+  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
   baselines: [], baselineDeployments: [], verifications: [], closures: [], runtimeCertifications: [],
-  fleetGroups: [], driftScans: [], upgradeCampaigns: [], recoveryCheckpoints: [], fleetHealth: null, tenants: [], tenantPlans: [],
-  clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
-  operations: [], audit: [], aiPolicy: {}, aiGuide: {}, aiRuns: [], aiLatestDiagnosis: null, notificationDestinations: [], notificationRoutes: [], notificationEvents: [], notificationDeliveries: [], notificationEventTypes: [], summary: {}, services: [], version: {}, gitRevisionFiles: {}, accessContext: null, organizationMemberships: [], serviceAccounts: [], apiTokens: {}, identityAuthority: null, oidcGroupMappings: [], securityAudit: [], currentEntitlement: null, currentOEMProfile: null,
-  degradedRequests: [], pageLoading: false, pageLoadController: null, pageLoadGeneration: 0, autoRefreshTimer: null, autoRefreshGeneration: 0, interactionHoldUntil: 0, lastSubmittedForm: null, lastSubmittedAt: 0, sessionRedirectPending: false, sessionRefreshPromise: null, permissionContextReady: false, gitProviders: [], gitCredentials: [], tableSortPreferences: {}
+  fleetGroups: [], driftScans: [], upgradeCampaigns: [], recoveryCheckpoints: [], backupPolicies: [], dataProtectionRuns: [], fleetHealth: null, day2CampaignEngine: null, tenants: [], tenantPlans: [],
+  clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], targetNodeLifecycleAuthority: null, currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
+  operations: [], audit: [], queueCenter: null, productLogs: null, workloadLogExplorer: null, workloadLogQuery: null, aiPolicy: {}, aiGuide: {}, aiRuns: [], aiLatestDiagnosis: null, aiServiceAccounts: [], aiAPITokens: {}, autopilotStatus: null, supportProfiles: [], installationRecoveryAuthority: null, notificationDestinations: [], notificationRoutes: [], notificationEvents: [], notificationDeliveries: [], notificationEventTypes: [], notificationProviderContracts: [], notificationRoutingPreview: null, externalRegistryAdmission: null, summary: {}, services: [], version: {}, gitRevisionFiles: {}, accessContext: null, organizationMemberships: [], serviceAccounts: [], apiTokens: {}, identityAuthority: null, oidcGroupMappings: [], securityAudit: [], currentEntitlement: null, currentOEMProfile: null,
+  degradedRequests: [], pageLoading: false, pageLoadController: null, pageLoadGeneration: 0, autoRefreshTimer: null, autoRefreshGeneration: 0, interactionHoldUntil: 0, lastSubmittedForm: null, lastSubmittedAt: 0, sessionRedirectPending: false, sessionRefreshPromise: null, permissionContextReady: false, gitProviders: [], gitCredentials: [], tableSortPreferences: {},
+  globalScope: {organizationId: localStorage.getItem('platformScopeOrganization') || '', projectId: localStorage.getItem('platformScopeProject') || ''},
+  scopeOrganizations: [], scopeProjects: [], scopeReady: false, scopeTransitioning: false,
+  mutationOutcome: null, mcpDelegationArchitecture: null, managedOKDRuntime: {configured:false,requestCreationAllowed:false}
 };
 
 const fa = {
-  'nav.platform':'پلتفرم','nav.operate':'عملیات','nav.system':'سیستم','nav.start':'شروع','nav.overview':'نمای کلی','nav.workspace':'سازمان‌ها و پروژه‌ها','nav.infrastructure':'زیرساخت','nav.installation':'برنامه‌ریزی Appliance','nav.clusters':'کلاسترهای متصل','nav.providers':'چرخه عمر Provider','nav.delivery':'تحویل پلتفرم','nav.blueprints':'نسخه‌های Blueprint','nav.marketplace':'مارکت‌پلیس','nav.baselines':'استقرار Baseline','nav.verification':'تأیید Runtime و Closure','nav.fleet':'Fleet و ارتقا','nav.commercial':'تجاری','nav.tenants':'Tenant و OEM','nav.operations':'عملیات','nav.activity':'عملیات و ممیزی','nav.notifications':'اعلان‌ها و مسیریابی','nav.services':'سرویس‌های سیستم','nav.advanced':'پیشرفته','nav.catalog':'کاتالوگ','nav.validator':'ابزار Blueprint',
-  'action.createServiceAccount':'ایجاد Service Account','action.grantAccess':'اعطا / بروزرسانی دسترسی','action.revokeAccess':'لغو دسترسی','action.signout':'خروج','action.refresh':'بازخوانی','action.viewAll':'مشاهده همه','action.createOrg':'ایجاد سازمان','action.createProject':'ایجاد پروژه','action.createPlan':'ساخت برنامه','action.clear':'پاک‌کردن','action.createImport':'ساخت درخواست اتصال','action.copy':'کپی','action.verifyProfile':'تأیید پروفایل','action.createCluster':'ساخت درخواست کلاستر','action.getAdvisory':'دریافت پیشنهاد','action.createInstallPlan':'ساخت برنامه نصب','action.createLivePlan':'ساخت برنامه واقعی','action.runVerification':'اجرای تأیید','action.createClosure':'ساخت Closure Campaign','action.createFleet':'ساخت Fleet','action.applyEntitlement':'اعمال Entitlement','action.saveOEM':'ذخیره پروفایل OEM','action.createTenant':'ایجاد Tenant','action.validate':'اعتبارسنجی','action.cancel':'انصراف','action.confirm':'تأیید','action.saveDraft':'ایجاد Draft','action.resetDraft':'پاک‌کردن ویرایشگر','action.compare':'مقایسه',
-  'overview.authority':'کنترل‌پلین معتبر پلتفرم خصوصی','overview.heading':'آمادگی پلتفرم و اقدام بعدی اپراتور','overview.description':'پیش از تغییر پلتفرم، آمادگی زنده، موانع و عملیات durable را بررسی کنید.','overview.readiness':'آمادگی Journey محصول','overview.readinessHelp':'هر مرحله از داده واقعی API محاسبه می‌شود.','overview.attention':'نیازمند توجه','overview.attentionHelp':'خطاها و پیش‌نیازهای مسدود که نیازمند اقدام اپراتور هستند.','overview.recent':'فعالیت‌های اخیر','overview.recentHelp':'آخرین عملیات durable و رویدادهای ممیزی.',
-  'workspace.automation':'هویت‌های خودکارسازی','workspace.automationHelp':'Service Account و API Token منقضی‌شونده را در محدوده سازمان یا پروژه بسازید. Secret فقط یک‌بار نمایش داده می‌شود و Approval انسانی واگذار نمی‌شود.','workspace.heading':'سازمان‌ها و پروژه‌ها','workspace.description':'مرز مالکیتی موردنیاز همه Workflowهای کلاستر، Tenant، Provider و استقرار را بسازید.','workspace.createOrg':'ایجاد سازمان','workspace.createOrgHelp':'یک نام ماشینی پایدار و نام نمایشی خوانا استفاده کنید.','workspace.createProject':'ایجاد پروژه','workspace.createProjectHelp':'پروژه‌ها منابع و سابقه عملیات را در هر سازمان جدا می‌کنند.','workspace.records':'رکوردهای Workspace','workspace.recordsHelp':'نام نمایشی سازمان را بدون تغییر شناسه منابع ویرایش کنید.','workspace.access':'دسترسی سازمانی','workspace.accessHelp':'محدوده مؤثر دسترسی خود را ببینید و اگر مدیر همان سازمان هستید عضویت را بدون ایجاد Role سراسری مدیریت کنید.',
-  'field.projectScope':'محدوده پروژه','field.productRole':'نقش محصول','field.subject':'Subject','field.organizationRole':'نقش سازمانی','field.machineName':'نام ماشینی','field.displayName':'نام نمایشی','field.organization':'سازمان','field.project':'پروژه','field.profile':'پروفایل','field.connectivity':'نوع اتصال','field.provider':'Provider زیرساخت','field.nodes':'آدرس نودهای مدیریت','field.credentialRef':'مرجع Credential','field.sshUser':'کاربر SSH','field.storageClass':'StorageClass تکرارشونده','field.endpoint':'Endpoint عمومی','field.dnsZone':'زون DNS','field.tlsMode':'حالت TLS','field.certificateRef':'مرجع گواهی','field.adminEmail':'ایمیل مدیر Identity','field.objectStorageMode':'Object Storage','field.objectStorageUrl':'Endpoint سازگار با S3','field.bucket':'Bucket','field.prefix':'Prefix','field.expiration':'انقضای Enrollment','field.managementCluster':'کلاستر مدیریت','field.workerClass':'کلاس Worker','field.defaultVersion':'نسخه پیش‌فرض Kubernetes','field.series':'سری‌های major/minor مجاز','field.maxWorkers':'حداکثر Worker','field.providerProfile':'پروفایل Provider تأییدشده','field.kubernetesVersion':'نسخه Kubernetes','field.controlPlane':'تعداد Control Plane','field.workers':'تعداد Worker','field.cluster':'کلاستر متصل','field.offer':'Offer منتشرشده','field.objective':'هدف پیشنهاد','field.baseline':'نسخه Baseline','field.namespace':'Namespace مقصد','field.baselineDeployment':'استقرار Baseline','field.clusters':'کلاسترهای متصل','field.edition':'Edition','field.brandName':'نام برند','field.productTitle':'عنوان محصول','field.supportUrl':'آدرس پشتیبانی','field.logoRef':'مرجع لوگو','field.accent':'رنگ اصلی','field.locale':'زبان پیش‌فرض','field.customDomain':'دامنه اختصاصی','field.plan':'پلن Tenant','field.blueprintJson':'JSON مربوط به Blueprint','field.blueprintName':'نام Blueprint','field.releaseVersion':'نسخه Release','field.certificationLevel':'سطح Certification موردنیاز','field.description':'توضیحات','field.kubernetesMin':'حداقل Kubernetes','field.kubernetesMax':'حداکثر Kubernetes','field.architectures':'معماری‌ها','field.distributionProfiles':'هویت‌های توزیع','field.repository':'آدرس Repository','field.ociRegistry':'Registry مربوط به OCI','field.revisionType':'نوع Revision','field.revision':'Revision','field.evidenceRetention':'مدت نگهداری Evidence (روز)','field.tenantPlans':'پلن‌های مجاز Tenant','field.upgradeFrom':'Releaseهای مبدا ارتقا','field.leftRelease':'Release سمت چپ','field.rightRelease':'Release سمت راست',
-  'help.machineName':'فقط حروف کوچک، عدد و خط تیره.','help.nodes':'تعداد دقیق بر اساس پروفایل انتخابی کنترل می‌شود.','help.noSecret':'فقط Reference وارد کنید؛ Credential خام را اینجا قرار ندهید.','help.multiSelect':'برای انتخاب چند مورد از Ctrl/Command استفاده کنید.',
-  'installation.heading':'نصب Platform Factory','installation.description':'از ورودی‌های ساختاریافته یک برنامه نصب معتبر بسازید. اجرا در Bootstrap Installer روی Hostهای مدیریت انجام می‌شود.','installation.profile':'پروفایل استقرار','installation.hosts':'Hostها و دسترسی','installation.network':'Endpoint و TLS','installation.backup':'هدف Backup خارج از نود','installation.acceptRisk':'هشدارهای پروفایل و ریسک اعلام‌شده نصب را بررسی و قبول کرده‌ام.','installation.planResult':'برنامه تأییدشده',
-  'clusters.heading':'کلاسترها','clusters.description':'Enrollment مربوط به Agent خروجی را تأیید کنید و بدون ذخیره kubeconfig مشتری، Inventory دریافت کنید.','clusters.newImport':'اتصال کلاستر','clusters.newImportHelp':'درخواست در صورت Claim نشدن خودکار منقضی می‌شود.','clusters.enrollment':'Manifest اتصال','clusters.connected':'کلاسترهای متصل','clusters.connectedHelp':'تازگی، Inventory و Capability از Agent واقعی کلاستر می‌آید.','clusters.imports':'درخواست‌های اتصال','clusters.importsHelp':'هر درخواست را مستقل تأیید یا بررسی کنید.',
-  'providers.heading':'Providerها','providers.description':'یک ClusterClass مجاز را روی کلاستر مدیریت تأیید و سپس کلاستر اختصاصی Approval-bound ایجاد کنید.','providers.profile':'تأیید پروفایل Provider','providers.profileHelp':'فقط ClusterClass موجود و allowlist‌شده قابل پذیرش است.','providers.cluster':'ایجاد کلاستر اختصاصی','providers.clusterHelp':'ساخت تا زمان بررسی مشخصات دقیق توسط Approver در انتظار می‌ماند.','providers.profiles':'پروفایل‌های Provider','providers.profilesHelp':'نتیجه تأیید و Actionهای موجود.','providers.clusters':'کلاسترهای اختصاصی','providers.clustersHelp':'Create، Approve، Scale، Upgrade، Retry و Delete از هر رکورد.',
-  'marketplace.heading':'مارکت‌پلیس و Advisory کنترل‌شده','marketplace.description':'فقط Offerهای منتشرشده با Workflow کامل Baseline قابل نصب‌اند. خروجی Advisory امکان اجرا ندارد.','marketplace.offers':'Offerهای منتشرشده','marketplace.offersHelp':'فقط Offerهایی که Workflow اجرایی پذیرفته‌شده دارند نمایش داده می‌شوند.','marketplace.installations':'نصب‌ها','marketplace.installationsHelp':'Plan، Approval، Retry و Uninstall را از همان رکورد مدیریت کنید.','marketplace.recommendations':'سابقه پیشنهادها','marketplace.recommendationsHelp':'نتایج Advisory ذخیره‌شده همراه با Digestهای Context و Response.',
-  'baselines.heading':'استقرار Baseline تأییدشده','baselines.description':'روی Inventory واقعی Plan بسازید، تغییرات دقیق را مرور و صریحاً تأیید کنید و فقط منابع allowlist‌شده را Apply یا Rollback کنید.','baselines.history':'سابقه استقرار','baselines.historyHelp':'هر رکورد فقط Actionهای معتبر وضعیت فعلی خود را نمایش می‌دهد.',
-  'verification.heading':'تضمین و تأیید Runtime','verification.description':'Probe digest-pinned را اجرا، Checkها را بررسی، Failure موقت را Retry و Evidence موفق را در Campaign قابل Resume متصل کنید.','verification.run':'اجرای Verification','verification.runHelp':'پس از SUCCEEDED شدن Baseline فعال می‌شود.','verification.closure':'ایجاد Closure Campaign','verification.closureHelp':'Authorityهای موجود را بدون دورزدن Approval هماهنگ می‌کند.','verification.reports':'گزارش‌های Runtime','verification.reportsHelp':'Check، Digest، خطا و Retry نتیجه واقعی Agent.','verification.campaigns':'Closure Campaignها','verification.campaignsHelp':'هر بار یک State durable جلو می‌رود و Failure از Action اصلی Resume می‌شود.','verification.verifiedTitle':'Evidence تأییدشده Closure','verification.verifiedMessage':'اعتبارسنجی مستقل Digest موفق بود.','verification.integrityOnly':'این بررسی فقط یکپارچگی Evidence را تأیید می‌کند؛ Runtime Certified، HA Certified و Production Ready همچنان false هستند.',
-  'fleet.health':'سلامت Fleet و پشتیبانی','fleet.healthHelp':'تازگی Inventory، آمادگی نودها، Storage، ظرفیت، شبکه، گواهی‌ها و وضعیت پشتیبانی/EOL آفلاین Kubernetes.','fleet.supportBundle':'بسته پشتیبانی','fleet.supportBundleHelp':'ZIP تشخیصی این پروژه را با Redaction محلی دریافت و با platformctl به‌صورت آفلاین Verify کنید.','fleet.heading':'Fleet','fleet.description':'کلاسترها را گروه‌بندی، Drift واقعی را بخوانید و Baseline تأییدشده را با Canary و Wave محدود Rollout کنید.','fleet.create':'ساخت Fleet Group','fleet.createHelp':'کلاسترهای یک پروژه و سیاست عملیاتی مشترک را انتخاب کنید.','fleet.groups':'Fleet Groupها','fleet.groupsHelp':'Workflow Drift یا Upgrade را از Group شروع کنید.','fleet.scans':'Drift Scanها','fleet.scansHelp':'مقایسه زنده Desired/Observed برای هر کلاستر.','fleet.campaigns':'Upgrade Campaignها','fleet.campaignsHelp':'Approval، Canary، Wave و Halt State قابل مشاهده می‌ماند.',
-  'tenants.heading':'Tenant و برندینگ','tenants.description':'Entitlement تجاری را اعمال، Branding سازمان را تنظیم و Namespace Tenantها را از طریق Agent مدیریت کنید.','tenants.entitlement':'Entitlement تجاری','tenants.entitlementHelp':'Edition محدودیت Tenant و دسترسی OEM را تعیین می‌کند.','tenants.oem':'پروفایل OEM','tenants.oemHelp':'از سازمان انتخاب‌شده Load و در همان ذخیره می‌شود.','tenants.create':'ایجاد Namespace Tenant','tenants.createHelp':'فقط Planهای Authority کاتالوگ Tenant قابل انتخاب‌اند.','tenants.environments':'محیط‌های Tenant','tenants.environmentsHelp':'Suspend، Resume، Retry و Delete فقط در وضعیت معتبر نمایش داده می‌شوند.',
-  'blueprints.heading':'چرخه عمر نسخه‌های Blueprint','blueprints.description':'استاندارد نسخه‌دار پلتفرم را تعریف کنید، Revisionهای immutable را بررسی کنید، Release تأییدشده را منتشر و مسیر ارتقا را صریح نگهداری کنید.','blueprints.author':'ساخت و ویرایش Draft','blueprints.authorHelp':'هر ذخیره یک Revision immutable جدید می‌سازد. محتوای Published درجا قابل ویرایش نیست.','blueprints.compatibility':'سازگاری','blueprints.delivery':'تحویل GitOps','blueprints.tenancy':'Tenant و Evidence','blueprints.components':'اجزای پلتفرم','blueprints.componentsHelp':'اجزای اجباری همراه محصول روشن و قفل هستند؛ اجزای اختیاری انتخاب صریح اپراتور باقی می‌مانند.','blueprints.upgrades':'مبداهای پشتیبانی‌شده ارتقا','blueprints.upgradesHelp':'فقط Releaseهای همان Project و همان خانواده Blueprint مجاز هستند.','blueprints.lifecycle':'چرخه عمر','blueprints.lifecycleHelp':'پس از ورود به Review تغییر محتوا متوقف می‌شود. انتشار خارج از local development به مدیر جداگانه نیاز دارد.','blueprints.compare':'مقایسه Releaseها','blueprints.compareHelp':'Payloadهای immutable ذخیره‌شده را پیش از تعریف مسیر ارتقای بعدی مقایسه کنید.','blueprints.releases':'Releaseهای Blueprint','blueprints.releasesHelp':'فقط Releaseهای معتبر Persistشده نمایش داده می‌شوند و هیچ رکورد Sample یا Synthetic به پنل تزریق نمی‌شود.','operations.heading':'فعالیت و ممیزی','operations.description':'State، Step، Evidence و سابقه append-only Actor را بررسی کنید.','operations.recent':'عملیات اخیر','operations.recentHelp':'رکورد را باز کنید تا Stepها و Evidence مهرشده را ببینید.','operations.audit':'Audit Trail','operations.auditHelp':'آخرین Actionهای Resource همراه Actor و Revision.','services.heading':'Integration و سرویس‌ها','services.description':'وضعیت واقعی قراردادهای Integration برای Git، Registry، Identity و Reconciliation داخلی.','catalog.heading':'Releaseهای کاتالوگ','catalog.description':'Constraint نسخه، Risk، Wave تحویل و Certification از کاتالوگ همراه محصول.','validator.heading':'ابزارهای برنامه‌ریزی Blueprint','validator.description':'رابط پیشرفته planning-only که Resource را Apply یا Source of Truth مخفی ایجاد نمی‌کند.','validator.warning':'این ابزار فقط Planning Result می‌دهد. برای Workflow اجرایی کلاستر از Marketplace یا Baseline Deployment استفاده کنید.','validator.result':'نتیجه Plan'
+  'nav.platform':'پلتفرم','nav.operate':'عملیات','nav.system':'سیستم','nav.start':'شروع','nav.overview':'نمای کلی','nav.workspace':'سازمان‌ها و پروژه‌ها','nav.infrastructure':'زیرساخت','nav.installation':'برنامه‌ریزی نصب','nav.clusters':'کلاسترهای متصل','nav.providers':'چرخه عمر زیرساخت','nav.delivery':'تحویل پلتفرم','nav.blueprints':'نسخه‌های Blueprint','nav.marketplace':'مارکت‌پلیس','nav.baselines':'استقرار Baseline تأییدشده','nav.verification':'تأیید سلامت و بستن شواهد','nav.fleet':'مدیریت ناوگان و ارتقا','nav.commercial':'تجاری','nav.tenants':'Tenantها و برندینگ','nav.operations':'عملیات','nav.activity':'عملیات و ممیزی','nav.notifications':'اعلان‌ها و مسیریابی','nav.services':'سرویس‌های سیستم','nav.advanced':'پیشرفته','nav.catalog':'کاتالوگ','nav.validator':'ابزار برنامه‌ریزی Blueprint',
+  'action.createServiceAccount':'ساخت حساب سرویس','action.grantAccess':'اعطا یا به‌روزرسانی دسترسی','action.revokeAccess':'لغو دسترسی','action.signout':'خروج','action.refresh':'بازخوانی','action.viewAll':'مشاهده همه','action.createOrg':'ایجاد سازمان','action.createProject':'ایجاد پروژه','action.createPlan':'ساخت برنامه','action.clear':'پاک‌کردن','action.createImport':'ساخت درخواست اتصال','action.copy':'کپی','action.verifyProfile':'تأیید پروفایل','action.createCluster':'ساخت درخواست کلاستر','action.getAdvisory':'دریافت پیشنهاد','action.createInstallPlan':'ساخت برنامه نصب','action.createLivePlan':'ساخت برنامه از وضعیت فعلی','action.runVerification':'اجرای بررسی سلامت','action.createClosure':'تکمیل شواهد تأیید','action.createFleet':'ایجاد Fleet','action.applyEntitlement':'اعمال مجوز تجاری','action.saveOEM':'ذخیره تنظیمات برند','action.createTenant':'ایجاد Tenant','action.validate':'اعتبارسنجی','action.cancel':'انصراف','action.confirm':'تأیید','action.saveDraft':'ایجاد پیش‌نویس','action.resetDraft':'پاک‌کردن فرم','action.compare':'مقایسه',
+  'overview.authority':'مرکز کنترل پلتفرم خصوصی','flow.configure':'پیکربندی','flow.configureHelp':'Blueprintها، Baselineها و کاتالوگ','flow.build':'ایجاد یا واردکردن','flow.buildHelp':'پلتفرم‌ها و زیرساخت مقصد','flow.operate':'مدیریت Fleet','flow.operateHelp':'سلامت، مغایرت‌ها، نگه‌داری و ارتقا','flow.prove':'تأیید و بازیابی','flow.proveHelp':'عملیات، شواهد، ممیزی و گواهی‌های فنی','overview.heading':'وضعیت پلتفرم و کار بعدی','overview.description':'پیش از هر تغییر، وضعیت فعلی پلتفرم، موانع و عملیات در حال اجرا را بررسی کنید.','overview.readiness':'آمادگی مراحل راه‌اندازی','overview.readinessHelp':'وضعیت هر مرحله مستقیماً از دادهٔ واقعی API محاسبه می‌شود.','overview.attention':'نیازمند توجه','overview.attentionHelp':'خطاها و پیش‌نیازهایی که برای ادامه نیاز به رسیدگی دارند.','overview.recent':'فعالیت‌های اخیر','overview.recentHelp':'آخرین عملیات ثبت‌شده و رویدادهای ممیزی.',
+  'workspace.automation':'هویت‌های خودکارسازی','workspace.automationHelp':'برای خودکارسازی، حساب سرویس و توکن API زمان‌دار بسازید. مقدار محرمانه فقط یک‌بار نمایش داده می‌شود و اختیار تأیید انسانی هرگز به حساب سرویس منتقل نمی‌شود.','workspace.heading':'سازمان‌ها و پروژه‌ها','workspace.description':'ساختار سازمان و پروژه‌ای را تعریف کنید که کلاسترها، Tenantها، زیرساخت‌ها و استقرارها زیر آن مدیریت می‌شوند.','workspace.createOrg':'ایجاد سازمان','workspace.createOrgHelp':'یک شناسهٔ ثابت برای سیستم و یک نام خوانا برای کاربران وارد کنید.','workspace.createProject':'ایجاد پروژه','workspace.createProjectHelp':'هر پروژه منابع، دسترسی‌ها و سابقهٔ عملیات خود را جدا نگه می‌دارد.','workspace.records':'رکوردهای سازمان و پروژه','workspace.recordsHelp':'می‌توانید نام نمایشی سازمان را بدون تغییر شناسهٔ منابع عوض کنید.','workspace.access':'دسترسی سازمانی','workspace.accessHelp':'دسترسی مؤثر خود را ببینید و اگر مدیر سازمان هستید، عضویت کاربران همان سازمان را بدون اعطای دسترسی سراسری مدیریت کنید.',
+  'field.projectScope':'محدوده پروژه','field.productRole':'نقش محصول','field.subject':'شناسه هویت','field.organizationRole':'نقش سازمانی','field.machineName':'شناسه سیستمی','field.displayName':'نام نمایشی','field.organization':'سازمان','field.project':'پروژه','field.profile':'پروفایل','field.connectivity':'نوع اتصال','field.provider':'ارائه‌دهنده زیرساخت','field.nodes':'آدرس نودهای مدیریت','field.credentialRef':'مرجع اطلاعات دسترسی','field.sshUser':'کاربر SSH','field.storageClass':'StorageClass تکثیرشونده','field.endpoint':'نشانی عمومی','field.dnsZone':'زون DNS','field.tlsMode':'حالت TLS','field.certificateRef':'مرجع گواهی','field.adminEmail':'ایمیل مدیر Identity','field.objectStorageMode':'ذخیره‌سازی شیءگرا','field.objectStorageUrl':'نشانی سرویس سازگار با S3','field.bucket':'مخزن S3','field.prefix':'پیشوند مسیر','field.expiration':'مهلت درخواست اتصال','field.managementCluster':'کلاستر مدیریت','field.workerClass':'کلاس نود کاری','field.defaultVersion':'نسخه پیش‌فرض Kubernetes','field.series':'سری‌های major/minor مجاز','field.infrastructureProvider':'ارائه‌دهنده زیرساخت','field.infrastructureEndpoint':'نشانی vCenter','field.maxWorkers':'حداکثر نود کاری','field.providerProfile':'پروفایل زیرساخت تأییدشده','field.kubernetesVersion':'نسخه Kubernetes','field.controlPlane':'تعداد نود کنترل‌پلین','field.workers':'تعداد Worker','field.cluster':'کلاستر متصل','field.offer':'بسته منتشرشده','field.objective':'هدف پیشنهاد','field.baseline':'نسخه Baseline','field.namespace':'Namespace مقصد','field.baselineDeployment':'استقرار Baseline تأییدشده','field.clusters':'کلاسترهای متصل','field.edition':'Edition','field.brandName':'نام برند','field.productTitle':'عنوان محصول','field.supportUrl':'آدرس پشتیبانی','field.logoRef':'مرجع لوگو','field.accent':'رنگ اصلی','field.locale':'زبان پیش‌فرض','field.customDomain':'دامنه اختصاصی','field.plan':'پلن Tenant','field.blueprintJson':'JSON مربوط به Blueprint','field.blueprintName':'نام Blueprint','field.releaseVersion':'نسخه انتشار','field.certificationLevel':'سطح تأیید فنی موردنیاز','field.description':'توضیحات','field.kubernetesMin':'حداقل Kubernetes','field.kubernetesMax':'حداکثر Kubernetes','field.architectures':'معماری‌ها','field.distributionProfiles':'هویت‌های توزیع','field.repository':'نشانی مخزن','field.ociRegistry':'رجیستری OCI','field.revisionType':'نوع بازنگری','field.revision':'بازنگری','field.evidenceRetention':'مدت نگهداری شواهد (روز)','field.tenantPlans':'پلن‌های مجاز Tenant','field.upgradeFrom':'نسخه‌های مبدأ ارتقا','field.leftRelease':'انتشار سمت چپ','field.rightRelease':'انتشار سمت راست',
+  'help.machineName':'فقط حروف کوچک، عدد و خط تیره.','help.nodes':'تعداد دقیق بر اساس پروفایل انتخابی کنترل می‌شود.','help.noSecret':'فقط مرجع اطلاعات دسترسی را وارد کنید؛ رمز، کلید یا توکن را اینجا وارد نکنید.','help.multiSelect':'برای انتخاب چند مورد از Ctrl/Command استفاده کنید.',
+  'platforms.startHeading':'ایجاد یا اتصال پلتفرم','platforms.startHelp':'هدف خود را انتخاب کنید؛ جزئیات فنی فقط در همان مسیر نمایش داده می‌شوند.','platforms.importTitle':'اتصال کلاستر موجود','platforms.importHelp':'یک کلاستر Kubernetes یا OKD موجود را با اعتبار کوتاه‌عمر متصل کنید.','platforms.importAction':'شروع اتصال ←','platforms.providerTitle':'ساخت از پروفایل زیرساخت','platforms.providerHelp':'یک مقصد اختصاصی RKE2/Kubernetes را از پروفایل زیرساخت تأییدشده بسازید.','platforms.providerAction':'بازکردن پروفایل‌های زیرساخت ←','platforms.okdTitle':'نصب مدیریت‌شده OKD Compact-3','platforms.okdHelp':'سه سرور فیزیکی با Redfish و فایل‌های نصب دقیق و تأییدشده؛ تأیید اجرا همیشه مستقل است.','platforms.okdAction':'پیکربندی نصب مدیریت‌شده ←','platforms.okdSummary':'مسیر پیشرفته سرور فیزیکی: فایل‌های نصب دقیق + سه BMC → تأیید مستقل → عملیات نصب ماندگار و قابل پیگیری.','managedOkd.heading':'درخواست نصب مدیریت‌شده OKD','managedOkd.help':'این فرم فقط مرجع اطلاعات دسترسی را ذخیره می‌کند و رمز BMC، کلید SSH یا kubeconfig نمی‌پذیرد.','managedOkd.identity':'هویت پلتفرم و شبکه','managedOkd.identityHelp':'پروژه مالک و هویت بیرونی کلاستر را مشخص کنید. VIP مربوط به API و Ingress باید متفاوت باشند.','managedOkd.version':'نسخه انتشار مربوط به OKD','managedOkd.clusterName':'نام کلاستر','managedOkd.baseDomain':'دامنه پایه','managedOkd.apiVip':'VIP مربوط به API','managedOkd.ingressVip':'VIP مربوط به Ingress','managedOkd.hardware':'سه سرور فیزیکی','managedOkd.hardwareHelp':'نشانی HTTPS مربوط به Redfish و مسیر دقیق System/VirtualMedia هر BMC را وارد کنید. فقط شناسه مرجع دسترسی را وارد کنید، نه رمز یا کلید واقعی.','managedOkd.hardwareTipTitle':'نکته:','managedOkd.hardwareTip':'اگر هر سه BMC مسیر Redfish یکسان دارند، ابتدا نود ۱ را کامل کنید و فقط همان مسیرها را کپی کنید؛ نشانی BMC و مرجع دسترسی کپی نمی‌شوند.','managedOkd.copyPaths':'کپی مسیرهای Redfish نود ۱','managedOkd.artifacts':'فایل‌های تأییدشده نصب','managedOkd.artifactsHelp':'نشانی HTTPS معتبر و SHA-256 دقیق را وارد کنید. درخواست مهر و قفل می‌شود و تا تأیید یک کاربر مجاز دیگر در انتظار می‌ماند.','managedOkd.reviewTitle':'پیش از ثبت','managedOkd.review1':'ثبت درخواست یک عملیات بحرانی ماندگار و قابل پیگیری می‌سازد و به معنی موفق‌شدن نصب نیست.','managedOkd.review2':'تأیید باید توسط کاربر مجاز دیگری انجام شود.','managedOkd.review3':'پیشرفت و شواهد مهرشده در بخش عملیات قابل پیگیری است.','managedOkd.submit':'ایجاد درخواست نصب نیازمند تأیید','managedOkd.runtimeChecking':'در حال بررسی آمادگی اجرای نصب مدیریت‌شده…','managedOkd.runtimeReady':'اجرای نصب آماده است. درخواست پس از تأیید مستقل وارد صف اجرا می‌شود.','managedOkd.runtimeUnavailable':'اجرای نصب مدیریت‌شده روی این کنترل‌پلین فعال نیست. ابتدا تنظیمات محیط اجرا و فضای کاری دقیق را تکمیل کنید؛ ثبت درخواست از پنل غیرفعال است.','managedOkd.connected':'متصل به اینترنت/منابع بالادستی','managedOkd.disconnected':'بدون دسترسی عمومی','managedOkd.connectivityHelp':'در حالت بدون دسترسی عمومی فقط بستهٔ آرشیوی مهرشدهٔ محلی oc-mirror v2 و رجیستری مدیریت‌شدهٔ محصول استفاده می‌شوند.','managedOkd.mirrorRegistry':'رجیستری داخلی مقصد','managedOkd.imageSetSha':'SHA-256 مربوط به ImageSetConfiguration','managedOkd.inventorySha':'SHA-256 مربوط به فهرست آینه','managedOkd.disconnectedTruth':'بدون بازگشت خودکار به رجیستری عمومی:','managedOkd.disconnectedTruthHelp':'درخواست فقط وقتی پذیرفته می‌شود که محیط اجرای دقیق oc-mirror v2 و بستهٔ آرشیوی محلی مهرشده آماده باشند.','managedOkd.runtimeDisconnectedUnavailable':'اجرای متصل آماده است، اما مسیر بدون دسترسی عمومی هنوز محیط اجرای دقیق oc-mirror v2 را ندارد.','action.continue':'ادامه','action.back':'بازگشت','providers.identityHelp':'روش تأمین زیرساخت و نوع توزیع دو مفهوم جدا هستند: رابط زیرساخت منابع را می‌سازد و Kubernetes یا RKE2 محیط اجرای مقصد را مشخص می‌کند.',
+  'installation.heading':'نصب کنترل‌پلین Platform Factory','installation.description':'این صفحه فقط برای نصب و بازیابی کنترل‌پلین Platform Factory است. برای ساخت یا اتصال کلاسترهای مقصد از بخش «پلتفرم‌ها» استفاده کنید.','installation.profile':'پروفایل استقرار','installation.hosts':'سرورها و دسترسی','installation.network':'نشانی سرویس و TLS','installation.backup':'محل نسخهٔ پشتیبان خارج از نود','installation.acceptRisk':'هشدارها و ریسک‌های این نصب را بررسی کرده‌ام و در صورت نیاز آن‌ها را می‌پذیرم.','installation.planResult':'برنامه تأییدشده',
+  'clusters.heading':'پلتفرم‌های Kubernetes','clusters.description':'یک پلتفرم مدیریت‌شده بسازید یا کلاستر موجود را متصل کنید؛ سپس وضعیت، قابلیت‌ها و عملیات آن را از یک مرجع معتبر دنبال کنید.','clusters.newImport':'اتصال کلاستر','clusters.newImportHelp':'اگر درخواست اتصال در زمان تعیین‌شده استفاده نشود، خودکار منقضی می‌شود.','clusters.enrollment':'فایل اتصال','clusters.connected':'کلاسترهای متصل','clusters.connectedHelp':'تازگی، وضعیت ثبت‌شده و Capability از Agent واقعی کلاستر می‌آید.','clusters.imports':'درخواست‌های اتصال','clusters.importsHelp':'هر درخواست را مستقل تأیید یا بررسی کنید.',
+  'providers.heading':'پروفایل‌های زیرساخت','providers.description':'قابلیت زیرساخت را یک‌بار تأیید کنید و سپس پلتفرم اختصاصی Kubernetes/RKE2 را با مسیر دارای تأیید مستقل بسازید.','providers.profile':'تأیید پروفایل زیرساخت','providers.profileHelp':'فقط ClusterClassهای موجود و ازپیش‌مجاز قابل استفاده هستند.','providers.cluster':'ایجاد کلاستر اختصاصی','providers.clusterHelp':'ساخت تا زمان بررسی مشخصات دقیق توسط تأییدکننده در انتظار می‌ماند.','providers.profiles':'پروفایل‌های زیرساخت','providers.profilesHelp':'نتیجهٔ تأیید و اقدام‌های مجاز.','providers.clusters':'کلاسترهای اختصاصی','providers.clustersHelp':'ایجاد، تأیید، افزایش ظرفیت، ارتقا، تلاش دوباره و حذف را از همان رکورد مدیریت کنید.','providers.infrastructureHelp':'VMware را فقط وقتی انتخاب کنید که ClusterClass تأییدشده از الگوهای CAPV استفاده کند.','providers.vmwareEndpointHelp':'فقط نشانی اصلی HTTPS؛ نام کاربری، رمز عبور، مسیر یا توکن وارد نکنید.','providers.vmwareCredentialHelp':'فقط مرجع ExternalSecret موجود را وارد کنید؛ اطلاعات ورود vCenter در این فرم ثبت نمی‌شود.','providers.infrastructureExternal':'خارجی / نامشخص','providers.infrastructureVMware':'VMware vSphere',
+  'marketplace.heading':'کاتالوگ آمادهٔ استفاده','marketplace.description':'فقط بسته‌های منتشرشده‌ای که مسیر نصب کامل و تأییدشده دارند قابل استقرار هستند. پیشنهادهای مشورتی به‌تنهایی تغییری ایجاد نمی‌کنند.','marketplace.offers':'بسته‌های منتشرشده','marketplace.offersHelp':'فقط بسته‌هایی نمایش داده می‌شوند که مسیر اجرایی معتبر دارند.','marketplace.installations':'نصب‌ها','marketplace.installationsHelp':'برنامه، تأیید، تلاش دوباره و حذف نصب را از همان رکورد مدیریت کنید.','marketplace.recommendations':'سابقه پیشنهادها','marketplace.recommendationsHelp':'نتایج مشورتی ذخیره‌شده، همراه با هشِ زمینه و پاسخ.',
+  'baselines.heading':'استقرار Baseline تأییدشده','baselines.description':'بر اساس وضعیت واقعی کلاستر برنامه بسازید، تغییرات را پیش از اجرا مرور و تأیید کنید و فقط منابع مجاز را اعمال یا بازگردانی کنید.','baselines.history':'سابقه استقرار','baselines.historyHelp':'هر رکورد فقط اقدام‌هایی را نشان می‌دهد که در وضعیت فعلی واقعاً مجاز هستند.',
+  'verification.heading':'بررسی سلامت و شواهد اجرا','verification.description':'بررسی سلامت نسخه‌قفل‌شده را اجرا کنید، نتیجهٔ هر بررسی را ببینید، خطاهای موقت را دوباره امتحان کنید و شواهد موفق را در یک فرایند قابل‌ادامه ثبت کنید.','verification.run':'اجرای بررسی سلامت','verification.runHelp':'پس از موفق‌شدن استقرار Baseline قابل اجرا می‌شود.','verification.closure':'ایجاد دور تکمیل','verification.closureHelp':'مراجع کنترل موجود را بدون دورزدن تأیید هماهنگ می‌کند.','verification.reports':'گزارش‌های اجرای واقعی','verification.reportsHelp':'نتیجهٔ واقعی Agent شامل بررسی، هش، خطا و تلاش دوباره است.','verification.campaigns':'دورهای تکمیل','verification.campaignsHelp':'هر بار یک وضعیت پایدار جلو می‌رود و پس از خطا از همان اقدام اصلی ادامه پیدا می‌کند.','verification.verifiedTitle':'شواهد تأییدشدهٔ تکمیل','verification.verifiedMessage':'اعتبارسنجی مستقل Digest موفق بود.','verification.integrityOnly':'این بررسی فقط یکپارچگی شواهد را تأیید می‌کند؛ تأیید محیط اجرا، تأیید HA و آمادگی تولید هنوز اثبات نشده‌اند.',
+  'fleet.health':'سلامت ناوگان و پشتیبانی فنی','fleet.healthHelp':'تازگی اطلاعات کلاستر، آمادگی نودها، ذخیره‌سازی، ظرفیت، شبکه، گواهی‌ها و وضعیت پشتیبانی نسخهٔ Kubernetes را بررسی کنید.','fleet.supportBundle':'بسته پشتیبانی','fleet.supportBundleHelp':'بستهٔ تشخیصی پروژه را با حذف اطلاعات حساس دریافت کنید و در صورت نیاز با platformctl به‌صورت آفلاین صحت آن را بررسی کنید.','fleet.heading':'ناوگان','fleet.description':'کلاسترها را گروه‌بندی کنید، مغایرت واقعی را ببینید و نسخهٔ پایهٔ تأییدشده را به‌صورت آزمایشی و موج‌به‌موج منتشر کنید.','fleet.create':'ایجاد گروه ناوگان','fleet.createHelp':'کلاسترهای یک پروژه و سیاست عملیاتی مشترک را انتخاب کنید.','fleet.groups':'گروه‌های ناوگان','fleet.groupsHelp':'بررسی مغایرت یا ارتقا را از همان گروه شروع کنید.','fleet.scans':'بررسی‌های مغایرت','fleet.scansHelp':'مقایسهٔ زندهٔ وضعیت مطلوب و مشاهده‌شده برای هر کلاستر.','fleet.campaigns':'کارزارهای ارتقا','fleet.campaignsHelp':'تأیید، مرحلهٔ آزمایشی، موج اجرا و وضعیت توقف قابل مشاهده می‌ماند.',
+  'tenants.heading':'Tenantها و برندینگ','tenants.description':'مجوز تجاری را اعمال، برندسازی سازمان را تنظیم و Namespace Tenantها را از طریق Agent مدیریت کنید.','tenants.entitlement':'مجوز تجاری','tenants.entitlementHelp':'نوع مجوز، تعداد Tenantها و امکانات برندینگ را تعیین می‌کند.','tenants.oem':'تنظیمات برند','tenants.oemHelp':'تنظیمات برند از سازمان انتخاب‌شده خوانده و در همان سازمان ذخیره می‌شود.','tenants.create':'ایجاد Namespace Tenant','tenants.createHelp':'فقط برنامه‌های مجاز کاتالوگ Tenant قابل انتخاب‌اند.','tenants.environments':'محیط‌های Tenant','tenants.environmentsHelp':'تعلیق، ادامه، تلاش دوباره و حذف فقط در وضعیت معتبر نمایش داده می‌شوند.',
+  'blueprints.heading':'چرخه عمر نسخه‌های Blueprint','blueprints.description':'استاندارد نسخه‌دار پلتفرم را تعریف کنید، بازنگری‌های تغییرناپذیر را بررسی کنید، نسخهٔ تأییدشده را منتشر کنید و مسیر ارتقا را روشن نگه دارید.','blueprints.author':'ساخت و ویرایش پیش‌نویس','blueprints.authorHelp':'هر ذخیره یک بازنگری تغییرناپذیر تازه می‌سازد. محتوای منتشرشده درجا ویرایش نمی‌شود.','blueprints.compatibility':'سازگاری','blueprints.delivery':'تحویل GitOps','blueprints.tenancy':'Tenant و Evidence','blueprints.components':'اجزای پلتفرم','blueprints.componentsHelp':'اجزای اجباری همراه محصول روشن و قفل هستند؛ اجزای اختیاری انتخاب صریح اپراتور باقی می‌مانند.','blueprints.upgrades':'مبداهای پشتیبانی‌شده ارتقا','blueprints.upgradesHelp':'فقط انتشارهای همان پروژه و همان خانواده Blueprint مجاز هستند.','blueprints.lifecycle':'چرخه عمر','blueprints.lifecycleHelp':'پس از ورود به بازبینی تغییر محتوا متوقف می‌شود. انتشار خارج از local development به مدیر جداگانه نیاز دارد.','blueprints.compare':'مقایسه انتشارها','blueprints.compareHelp':'محتوای تغییرناپذیر ذخیره‌شده را پیش از تعریف مسیر ارتقای بعدی مقایسه کنید.','blueprints.releases':'انتشارهای Blueprint','blueprints.releasesHelp':'فقط نسخه‌های معتبر ذخیره‌شده نمایش داده می‌شوند و هیچ رکورد نمونه یا ساختگی به پنل افزوده نمی‌شود.','operations.heading':'فعالیت و ممیزی','operations.description':'وضعیت، مرحله، شواهد و سابقهٔ فقط‌افزودنی اقدامات را بررسی کنید.','operations.queueCenter':'مرکز صف عملیات','operations.queueCenterHelp':'فشار عملیات پایدار، تحویل اعلان و صف خروجی تراکنشی را بدون نمایش کنترل‌های اجراکنندهٔ داخلی بررسی کنید.','operations.logCenter':'مرکز لاگ محصول','operations.logCenterHelp':'ردیابی اجرای عملیات مجاز، رویدادهای ممیزی و اعلان‌های اخیر را جست‌وجو کنید. محتوای شواهد و اطلاعات محرمانه در این فهرست نمایش داده نمی‌شود.','operations.logSource':'منبع','operations.logLevel':'سطح','operations.logOperation':'عملیات','operations.logSearch':'جست‌وجو در پنجره بارگذاری‌شده','operations.searchLogs':'جست‌وجوی لاگ','operations.recent':'عملیات اخیر','operations.recentHelp':'رکورد را باز کنید تا مراحل و شواهد مهرشده را ببینید.','operations.audit':'رد ممیزی','operations.auditHelp':'آخرین اقدام‌های هر منبع همراه با اجراکننده و شمارهٔ بازنگری.','operations.targetLogs':'لاگ زندهٔ بارکاری مقصد','operations.targetLogsHelp':'از Agent متصل، نمای لحظه‌ای محدود QUERY/TAIL برای بارکاری موجود در وضعیت ثبت‌شده بگیرید. نتیجه به‌صورت شواهد مهرشده به یک عملیات فقط‌خواندنی متصل می‌شود.','operations.targetProject':'پروژه','operations.targetCluster':'کلاستر','operations.targetWorkload':'بارکاری','operations.targetContainer':'کانتینر اختیاری','operations.targetMode':'حالت','operations.targetSince':'بازه زمانی','operations.targetLimit':'حداکثر خطوط','operations.targetRun':'دریافت لاگ مقصد','services.heading':'یکپارچه‌سازی و سرویس‌ها','services.description':'وضعیت واقعی یکپارچه‌سازی Git، رجیستری، هویت و همگام‌سازی داخلی.','catalog.heading':'انتشارهای کاتالوگ','catalog.description':'محدودیت نسخه، سطح خطر، موج تحویل و وضعیت تأیید فنی از کاتالوگ همراه محصول.','validator.heading':'ابزارهای برنامه‌ریزی Blueprint','validator.description':'این رابط فقط برای برنامه‌ریزی است؛ منبعی را اعمال نمی‌کند و مرجع پنهان نمی‌سازد.','validator.warning':'این ابزار فقط نتیجهٔ برنامه‌ریزی می‌دهد. برای جریان اجرایی کلاستر از Marketplace یا Baseline Deployment استفاده کنید.','validator.result':'نتیجه Plan'
 };
 
 function t(key, fallback = '') { return state.locale === 'fa' ? (fa[key] || fallback || key) : (fallback || key); }
@@ -42,31 +46,209 @@ function applyLocale() {
     if (!el.dataset.en) el.dataset.en = el.textContent;
     el.textContent = state.locale === 'fa' ? (fa[key] || el.dataset.en) : el.dataset.en;
   });
+  localizeDynamicTree(document.body);
+  localizeDynamicAttributes(document.body);
   updateBreadcrumb();
 }
 
 const faDynamic = {
+  "FinOps & chargeback": "مدیریت هزینه و مصرف",
+  "Measured usage · versioned rates": "مصرف اندازه‌گیری‌شده · نرخ‌های نسخه‌دار",
+  "Review measured infrastructure usage and derive showback or chargeback from an immutable rate card. Missing telemetry is always shown as unavailable, never as zero cost.": "مصرف اندازه‌گیری‌شده زیرساخت را بررسی کنید و هزینه را فقط از نرخ‌های نسخه‌دار و تغییرناپذیر محاسبه کنید. دادهٔ اندازه‌گیری‌نشده همیشه ناموجود نشان داده می‌شود و هرگز صفر فرض نمی‌شود.",
+  "Collector-owned telemetry.": "دادهٔ مصرف فقط از جمع‌آورندهٔ مورد اعتماد می‌آید.",
+  "Operators can publish rate cards here, but usage observations come only from trusted collectors. AI and the browser cannot submit billing telemetry.": "اپراتور می‌تواند نرخ‌ها را اینجا منتشر کند، اما دادهٔ مصرف فقط از جمع‌آورنده‌های مورد اعتماد پذیرفته می‌شود. هوش مصنوعی و مرورگر اجازهٔ ثبت دادهٔ مالی اندازه‌گیری‌شده را ندارند.",
+  "Publish a rate card": "انتشار نرخ هزینه",
+  "Create an immutable, organization-scoped price version. Existing observations are never rewritten.": "یک نسخهٔ تغییرناپذیر از نرخ‌ها برای این سازمان بسازید. داده‌های مصرف قبلی بازنویسی نمی‌شوند.",
+  "New rate card": "نرخ هزینهٔ جدید",
+  "Prices use integer micro-currency per unit to avoid floating-point billing drift.": "نرخ‌ها به‌صورت عدد صحیح در واحد یک‌میلیونم پول ثبت می‌شوند تا خطای اعشاری وارد محاسبات مالی نشود.",
+  "Rate card name": "نام نرخ هزینه",
+  "Currency": "واحد پول",
+  "Effective at": "زمان شروع اعتبار",
+  "CPU core-hour · micros": "هزینه هر Core-hour پردازنده · یک‌میلیونم",
+  "Memory GiB-hour · micros": "هزینه هر GiB-hour حافظه · یک‌میلیونم",
+  "Storage GiB-hour · micros": "هزینه هر GiB-hour فضای ذخیره‌سازی · یک‌میلیونم",
+  "Accelerator device-hour · micros": "هزینه هر ساعت شتاب‌دهنده · یک‌میلیونم",
+  "Publish immutable rate card": "انتشار نرخ تغییرناپذیر",
+  "Rate cards": "نرخ‌های هزینه",
+  "Versioned pricing authority for the selected organization.": "نسخه‌های معتبر نرخ هزینه برای سازمان انتخاب‌شده.",
+  "Measured usage": "مصرف اندازه‌گیری‌شده",
+  "Collector observations and explicit telemetry gaps. A gap makes authoritative total cost unavailable.": "داده‌های ثبت‌شدهٔ جمع‌آورنده و کمبودهای صریح اندازه‌گیری. اگر داده‌ای کم باشد، هزینهٔ نهایی معتبر نمایش داده نمی‌شود.",
+  "Chargeback rows": "ریز هزینه‌ها",
+  "Deterministic projection from measured usage plus the selected immutable rate card. Incomplete rows stay visibly incomplete.": "ریز هزینه از مصرف اندازه‌گیری‌شده و نرخ معتبر محاسبه می‌شود. ردیف ناقص همیشه به‌صورت ناقص باقی می‌ماند و صفر فرض نمی‌شود.",
+  "Export CSV": "دریافت CSV",
+  "Delivery adapter contracts": "قراردادهای تحویل اعلان",
+  "Provider capabilities come from backend authority. Raw credential material is never part of the browser contract.": "قابلیت‌های ارائه‌دهنده از مرجع سمت سرور خوانده می‌شوند. اطلاعات محرمانهٔ دسترسی هرگز وارد قرارداد مرورگر نمی‌شود.",
+  "External registry admission": "بررسی پذیرش رجیستری خارجی",
+  "Validate a digest-pinned external OCI reference against the current organization/project scope. This is a read-only admission preview; zot remains the managed registry authority.": "مرجع OCI خارجی با digest ثابت را در محدودهٔ سازمان و پروژه بررسی کنید. این فقط پیش‌نمایش خواندنی پذیرش است و zot همچنان مرجع رجیستری مدیریت‌شده می‌ماند.",
+  "Registry URL": "نشانی رجیستری",
+  "Direction": "جهت انتقال",
+  "Import": "ورود",
+  "Mirror": "همگام‌سازی",
+  "Export": "خروج",
+  "Exact image reference": "مرجع دقیق ایمیج",
+  "Credential reference": "مرجع اطلاعات دسترسی",
+  "Reference only; never enter a token, password, or registry URL with userinfo.": "فقط مرجع اطلاعات دسترسی را وارد کنید؛ توکن، رمز عبور یا نشانی رجیستری دارای نام کاربری را وارد نکنید.",
+  "Preview admission": "بررسی پذیرش",
+  "No registry is configured or mutated.": "هیچ رجیستری پیکربندی یا تغییر داده نمی‌شود.",
+  "Select a global organization/project scope and validate an exact external image reference.": "محدودهٔ سازمان یا پروژه را انتخاب کنید و مرجع دقیق ایمیج خارجی را بررسی کنید.",
+  "EXTERNAL EGRESS": "ارتباط خروجی خارجی",
+  "LOCAL": "محلی",
+  "Authorization": "احراز مجوز",
+  "supported": "پشتیبانی می‌شود",
+  "not used": "استفاده نمی‌شود",
+  "Durable delivery": "تحویل پایدار",
+  "Retry / dead letter": "تلاش مجدد / تحویل ناموفق",
+  "Raw secret material": "اطلاعات محرمانهٔ خام",
+  "ALLOWED": "مجاز",
+  "forbidden": "ممنوع",
+  "Provider contracts unavailable": "قراردادهای ارائه‌دهنده در دسترس نیست",
+  "Notification adapter authority was not returned by the API.": "مرجع آداپتور اعلان از API دریافت نشد.",
+  "Policy digest": "شناسهٔ یکپارچگی سیاست",
+  "Notification route": "مسیر اعلان",
+  "Event patterns": "الگوهای رویداد",
+  "Revision": "بازنگری",
+  "Unavailable": "در دسترس نیست",
+  "Select an organization or project in the global scope first.": "ابتدا سازمان یا پروژه را در محدودهٔ سراسری انتخاب کنید.",
+  "Decision": "تصمیم",
+  "Registry": "رجیستری",
+  "Digest": "شناسهٔ یکپارچگی",
+  "Managed registry authority": "مرجع رجیستری مدیریت‌شده",
+  "Mutable tags": "تگ‌های تغییرپذیر",
+  "Raw credentials": "اطلاعات دسترسی خام",
+  "allowed": "مجاز",
+  "yes": "بله",
+  "no": "خیر",
+  "External registry reference admitted for planning.": "مرجع رجیستری خارجی برای برنامه‌ریزی پذیرفته شد.",
+  "AI control coverage": "پوشش کنترل هوش مصنوعی",
+  "Durable AI control jobs": "عملیات پایدار کنترل هوش مصنوعی",
+  "Every AI-triggered mutation is idempotent and recorded before the canonical product action runs. Retry replays a terminal result and never blindly re-dispatches an indeterminate mutation.": "هر تغییر درخواستی هوش مصنوعی پیش از اجرای اقدام اصلی به‌صورت پایدار و تکرارایمن ثبت می‌شود. تلاش دوباره همان نتیجهٔ نهایی ثبت‌شده را برمی‌گرداند و تغییر را کورکورانه دوباره اجرا نمی‌کند.",
+  "Live MCP/API parity from the router authority. Protected credential, worker-internal and raw-payload routes remain intentionally unavailable to AI.": "پوشش زنده MCP و API مستقیماً از مرجع مسیریابی محصول خوانده می‌شود. مسیرهای اطلاعات دسترسی، اجزای اجرایی داخلی و دادهٔ خام عمداً در اختیار هوش مصنوعی قرار نمی‌گیرند.",
+  "Refresh": "به‌روزرسانی",
+  "Agent ISO": "ایمیج ISO مربوط به Agent",
+  "Application workspaces": "فضاهای کاری اپلیکیشن",
+  "Artifact version": "نسخه فایل نصب",
+  "Control-plane install": "نصب کنترل‌پلین",
+  "Create & manage platforms": "ایجاد و مدیریت پلتفرم",
+  "Create a short-lived enrollment only when onboarding an existing target.": "فقط هنگام اتصال یک کلاستر موجود، درخواست کوتاه‌عمر ایجاد کنید.",
+  "HTTPS URL": "نشانی HTTPS",
+  "Infrastructure profiles": "پروفایل‌های زیرساخت",
+  "Marketplace": "مارکت‌پلیس",
+  "Node 1": "نود ۱",
+  "Node 2": "نود ۲",
+  "Node 3": "نود ۳",
+  "Node ID": "شناسه نود",
+  "Redfish endpoint": "نشانی Redfish",
+  "Release payload": "بسته Release",
+  "START HERE": "از اینجا شروع کنید",
+  "STEP 1 / 3": "مرحله ۱ از ۳",
+  "STEP 2 / 3": "مرحله ۲ از ۳",
+  "STEP 3 / 3": "مرحله ۳ از ۳",
+  "System resource": "مسیر System",
+  "VirtualMedia resource": "مسیر VirtualMedia",
+  "Data protection": "پشتیبان‌گیری و بازیابی",
+  "Schedule evidence-backed backups and run isolated restore drills before disruptive work.": "پشتیبان‌گیری‌های زمان‌بندی‌شده را با شواهد قابل‌بررسی اجرا کنید و پیش از تغییرات حساس، بازیابی آزمایشی را در محیط ایزوله بسنجید.",
+  "Backup policy": "سیاست پشتیبان‌گیری",
+  "Create a project-scoped Velero policy. Only an opaque credential reference is stored; secret material never enters the control plane.": "یک سیاست Velero در محدوده همین پروژه تعریف کنید. فقط مرجع اطلاعات دسترسی ذخیره می‌شود و رمز، کلید یا توکن هرگز وارد کنترل‌پلین نمی‌شود.",
+  "Policy name": "نام سیاست",
+  "Backup storage location": "محل ذخیره نسخه پشتیبان",
+  "Credential reference": "مرجع اطلاعات دسترسی",
+  "Reference only. Do not paste a password, key or token.": "فقط مرجع را وارد کنید؛ رمز، کلید یا توکن را اینجا وارد نکنید.",
+  "UTC schedule": "زمان‌بندی UTC",
+  "Protected namespaces": "Namespaceهای تحت حفاظت",
+  "Comma-separated namespaces. Restore Drill V1 requires a policy with exactly one namespace.": "نام Namespaceها را با ویرگول جدا کنید. در نسخه فعلی، بازیابی آزمایشی فقط برای سیاستی با یک Namespace انجام می‌شود.",
+  "Create backup policy": "ایجاد سیاست پشتیبان‌گیری",
+  "Backup and restore runs": "اجرای پشتیبان‌گیری و بازیابی",
+  "Backups and restore drills run as durable fenced Agent jobs. Direct restore requires a different approver from the requester.": "پشتیبان‌گیری و بازیابی آزمایشی به‌صورت Job پایدار و کنترل‌شده توسط Agent اجرا می‌شوند. بازیابی مستقیم باید توسط فردی غیر از درخواست‌دهنده تأیید شود.",
+  "payments,orders": "payments,orders",
+  "Target node lifecycle readiness": "وضعیت عملیات نود",
+  "Preview node Add, Drain, Remove, Replace, OS Patch, Certificate Renewal and Remediation against the latest inventory. Actions without a real executor remain explicitly blocked.": "پیش از هر تغییر، امکان افزودن، تخلیه، حذف، جایگزینی، به‌روزرسانی سیستم‌عامل، تمدید گواهی و بازیابی نود را بر اساس آخرین وضعیت کلاستر بررسی کنید. هر عملیاتی که اجرای واقعی ندارد غیرفعال می‌ماند.",
+  "No node lifecycle authority": "اطلاعات لازم برای عملیات نود در دسترس نیست",
+  "Connect a cluster with current inventory first.": "ابتدا یک کلاستر با اطلاعات به‌روز متصل کنید.",
+  "Current inventory cannot provide node lifecycle planning authority.": "اطلاعات فعلی کلاستر برای برنامه‌ریزی عملیات نود کافی نیست.",
+  "Required capabilities": "قابلیت‌های لازم",
+  "Missing capabilities": "قابلیت‌های در دسترس نیست",
+  "Development blockers": "کارهای توسعه‌ای باقی‌مانده",
+  "Physical certification": "تأیید در محیط واقعی",
+  "Preview impact": "بررسی اثر تغییر",
+  "Bind provider": "زیرساخت متصل",
+  "Request Add": "درخواست افزودن",
+  "Request Remove": "درخواست حذف",
+  "Request Replace": "درخواست جایگزینی",
+  "Request provider-backed node Remove": "درخواست حذف نود",
+  "Request provider-backed node Replace": "درخواست جایگزینی نود",
+  "Ready worker node": "نود Worker آماده‌به‌کار",
+  "Active maintenance window": "پنجره نگه‌داری باز",
+  "No active maintenance window is available for destructive node lifecycle execution.": "هیچ پنجره نگه‌داری بازی برای اجرای مخرب چرخه عمر نود موجود نیست.",
+  "No Ready worker-only node is available for provider lifecycle execution.": "هیچ نود Worker-only آماده‌ای برای اجرای چرخه عمر زیرساخت موجود نیست.",
+  "Node Remove requested and waiting for independent provider approval.": "درخواست حذف نود ثبت شد و برای تأیید مسئول مستقل ارسال شد.",
+  "Node Replace requested and waiting for independent provider approval.": "درخواست جایگزینی نود ثبت شد و برای تأیید مسئول مستقل ارسال شد.",
+  "Existing provider node lifecycle request reused.": "همین درخواست قبلاً ثبت شده است؛ همان درخواست موجود ادامه داده می‌شود.",
+  "Provider binding": "زیرساخت متصل",
+  "Not bound": "هنوز متصل نشده",
+  "No ACTIVE provider cluster is available for this target project.": "برای این پروژه زیرساخت فعالی برای مدیریت نودها پیدا نشد.",
+  "Bind target to provider cluster": "اتصال کلاستر به زیرساخت مدیریتی",
+  "Provider cluster": "کلاستر زیرساخت",
+  "Bind provider cluster": "اتصال کلاستر زیرساخت",
+  "Provider binding saved.": "زیرساخت متصل ذخیره شد.",
+  "Request provider-backed node Add": "درخواست افزودن نود",
+  "Node Add requested and waiting for independent provider approval.": "درخواست افزودن نود ثبت شد و برای تأیید مسئول مستقل ارسال شد.",
+  "Existing node Add request reused.": "همین درخواست افزودن قبلاً ثبت شده است؛ همان درخواست موجود ادامه داده می‌شود.",
+  "Current inventory has no nodes for lifecycle planning.": "اطلاعات فعلی کلاستر هیچ نودی برای برنامه‌ریزی این عملیات ندارد.",
+  "Preview node lifecycle impact": "بررسی اثر تغییر چرخه عمر نود",
+  "وضعیت ثبت‌شده node": "نود ثبت‌شده",
+  "Target node lifecycle plan": "برنامه عملیات نود",
+  "Authority": "مرجع",
+  "Action": "اقدام",
+  "اجراکننده": "اجراکننده",
+  "Node": "نود",
+  "وضعیت ثبت‌شده": "وضعیت ثبت‌شده",
+  "Plan digest": "شناسهٔ یکپارچگی برنامه",
+  "Impact": "اثر",
+  "Recovery": "بازیابی",
+  "EXECUTABLE": "قابل اجرا",
+  "BLOCKED": "مسدود",
+  "Search console destinations": "جست‌وجوی مقصدهای پنل",
+  "Navigate only — mutations remain inside their authoritative workflow.": "این جست‌وجو فقط شما را به بخش موردنظر می‌برد؛ انجام تغییرات فقط از مسیر تأییدشدهٔ همان بخش ممکن است.",
+  "Search console": "جست‌وجوی پنل",
+  "Refresh current page": "بازخوانی صفحه جاری",
+  "Next action": "اقدام بعدی",
+  "Review next action": "بررسی اقدام بعدی",
+  "Loading scope…": "در حال بارگذاری محدوده…",
+  "Checking session…": "در حال بررسی نشست…",
+  "Loading…": "در حال بارگذاری…",
+  "Confirm action": "تأیید اقدام",
+  "All product logs": "همه لاگ‌های محصول",
+  "Operation traces": "جزئیات اجرای عملیات",
+  "Audit actions": "رویدادهای ممیزی",
+  "Notification events": "رویدادهای اعلان",
+  "All levels": "همه سطح‌ها",
+  "Error": "خطا",
+  "Warning": "هشدار",
+  "Info": "اطلاعات",
+  "Debug": "دیباگ",
+  "All operations": "همه عملیات",
+  "Search logs": "جست‌وجوی لاگ",
   "Create an organization": "ایجاد سازمان",
   "Organizations": "سازمان‌ها",
   "Connected clusters": "کلاسترهای متصل",
-  "Successful baselines": "Baselineهای موفق",
+  "Successful baselines": "استقرارهای موفق Baseline",
   "Needs attention": "نیازمند توجه",
-  "No failed product workflow": "Workflow ناموفق محصول وجود ندارد",
+  "No failed product workflow": "هیچ فرایند ناموفقی ثبت نشده است",
   "Create a project": "ایجاد پروژه",
   "Connect a Kubernetes cluster": "اتصال کلاستر Kubernetes",
-  "Apply the certified baseline": "اعمال Baseline تأییدشده",
-  "Verify runtime health": "بررسی سلامت Runtime",
-  "Close runtime evidence": "بستن شواهد Runtime",
+  "Apply the certified baseline": "استقرار Baseline تأییدشده",
+  "Verify runtime health": "بررسی سلامت سرویس‌ها",
+  "Close runtime evidence": "تکمیل شواهد تأیید",
   "No urgent action": "اقدام فوری وجود ندارد",
   "No activity yet": "هنوز فعالیتی ثبت نشده است",
-  "Create an organization and start the first workflow.": "یک سازمان ایجاد کنید و اولین Workflow را آغاز کنید.",
+  "Create an organization and start the first workflow.": "ابتدا یک سازمان بسازید و سپس اولین کار را شروع کنید.",
   "1. Organization": "۱. سازمان",
   "2. Project": "۲. پروژه",
   "3. Connect infrastructure": "۳. اتصال زیرساخت",
   "No organization selected": "سازمانی انتخاب نشده است",
   "Select an organization to review access.": "برای بررسی دسترسی یک سازمان انتخاب کنید.",
-  "OIDC group mapping authority": "مرجع نگاشت گروه OIDC",
-  "Map identity-provider groups to product and optional organization/project roles. Realm roles are not authoritative.": "گروه‌های Identity Provider را به نقش‌های محصول و در صورت نیاز سازمان/پروژه نگاشت کنید. Realm Role مرجع نهایی نیست.",
+  "OIDC group mapping authority": "تنظیم دسترسی گروه‌های OIDC",
+  "Map identity-provider groups to product and optional organization/project roles. Realm roles are not authoritative.": "گروه‌های سامانهٔ هویت را به نقش‌های محصول و در صورت نیاز به سازمان یا پروژه متصل کنید. نقش‌های Realm به‌تنهایی مجوز دسترسی به محصول نیستند.",
   "OIDC group": "گروه OIDC",
   "Product role": "نقش محصول",
   "Organization scope": "محدوده سازمان",
@@ -75,32 +257,32 @@ const faDynamic = {
   "Project role": "نقش پروژه",
   "Create mapping": "ایجاد نگاشت",
   "No OIDC group mappings": "نگاشت گروه OIDC وجود ندارد",
-  "Create an explicit group mapping before relying on OIDC identities for product access.": "پیش از اتکا به هویت‌های OIDC برای دسترسی محصول، نگاشت گروه صریح ایجاد کنید.",
+  "Create an explicit group mapping before relying on OIDC identities for product access.": "پیش از استفاده از ورود سازمانی، مشخص کنید هر گروه OIDC چه دسترسی‌ای در محصول دارد.",
   "No accessible organization": "سازمان قابل دسترسی وجود ندارد",
   "A platform administrator must create an organization or grant membership.": "مدیر پلتفرم باید سازمان ایجاد کند یا عضویت بدهد.",
   "Infrastructure region": "Region زیرساخت",
   "Platform service integrations": "یکپارچه‌سازی سرویس‌های پلتفرم",
-  "Managed services are the safe default. External modes expose only adapter-supported fields and accept secret references instead of plaintext credentials.": "سرویس‌های مدیریت‌شده پیش‌فرض امن هستند. حالت خارجی فقط فیلدهای پشتیبانی‌شده Adapter را نمایش می‌دهد و به‌جای Credential خام، Secret Reference می‌پذیرد.",
-  "Git desired state": "Desired State گیت",
+  "Managed services are the safe default. External modes expose only adapter-supported fields and accept secret references instead of plaintext credentials.": "سرویس‌های مدیریت‌شده انتخاب پیشنهادی و امن هستند. در حالت خارجی فقط تنظیمات موردنیاز همان اتصال نمایش داده می‌شود و رمز یا کلید خام وارد پنل نمی‌شود.",
+  "Git desired state": "وضعیت مطلوب Git",
   "Mode and provider": "حالت و Provider",
   "PostgreSQL authority": "مرجع PostgreSQL",
-  "Evidence and backup storage": "ذخیره‌سازی Evidence و Backup",
-  "Identity and SSO": "Identity و SSO",
+  "Evidence and backup storage": "ذخیره شواهد و نسخه‌های پشتیبان",
+  "Identity and SSO": "ورود سازمانی و مدیریت هویت",
   "A project is required before a cluster can be connected.": "پیش از اتصال کلاستر باید پروژه ایجاد شود.",
   "Create organization and project": "ایجاد سازمان و پروژه",
   "No connected clusters": "کلاستر متصلی وجود ندارد",
-  "Create and approve an enrollment request, then apply its manifest on the target cluster.": "درخواست Enrollment را ایجاد و تأیید کنید، سپس Manifest آن را روی کلاستر مقصد اعمال کنید.",
+  "Create and approve an enrollment request, then apply its manifest on the target cluster.": "یک درخواست اتصال ایجاد و تأیید کنید، سپس فایل اتصال را روی کلاستر مقصد اعمال کنید.",
   "Cluster environment & maintenance": "محیط کلاستر و نگه‌داری",
-  "Define the cluster environment, open a bounded maintenance window and run disruption-aware node maintenance through the connected agent.": "محیط کلاستر را تعیین کنید، پنجره نگه‌داری محدود باز کنید و نگه‌داری Node را با توجه به اختلال از طریق Agent متصل اجرا کنید.",
+  "Define the cluster environment, open a bounded maintenance window and run disruption-aware node maintenance through the connected agent.": "نوع محیط کلاستر را مشخص کنید، یک بازهٔ زمانی محدود برای نگه‌داری باز کنید و عملیات نود را از طریق Agent متصل و با کنترل اثر سرویس انجام دهید.",
   "Cluster": "کلاستر",
   "Environment": "محیط",
-  "Default drain timeout (seconds)": "مهلت پیش‌فرض Drain (ثانیه)",
+  "Default drain timeout (seconds)": "مهلت پیش‌فرض تخلیه نود (ثانیه)",
   "Save environment profile": "ذخیره پروفایل محیط",
   "Window name": "نام پنجره",
   "Starts": "شروع",
   "Ends": "پایان",
   "Max unavailable": "حداکثر خارج از دسترس",
-  "Drain timeout (seconds)": "مهلت Drain (ثانیه)",
+  "Drain timeout (seconds)": "مهلت تخلیه نود (ثانیه)",
   "Create maintenance window": "ایجاد پنجره نگه‌داری",
   "Maintenance windows": "پنجره‌های نگه‌داری",
   "Maintenance runs": "اجراهای نگه‌داری",
@@ -109,27 +291,27 @@ const faDynamic = {
   "No enrollment requests": "درخواست Enrollment وجود ندارد",
   "A project and connected management cluster are required before provider verification.": "پیش از تأیید Provider، پروژه و کلاستر مدیریت متصل لازم است.",
   "Connect a cluster": "اتصال کلاستر",
-  "ClusterClass": "ClusterClass",
+  "ClusterClass": "کلاس کلاستر (ClusterClass)",
   "Architecture": "معماری",
   "Distribution": "توزیع",
   "A project is required before a Blueprint release can be authored.": "پیش از ایجاد Blueprint Release باید پروژه وجود داشته باشد.",
   "Visual / API authoring parity": "هم‌ارزی ویرایشگر بصری و API",
-  "The visual editor is bound to the same strict Blueprint schema used by the API. Import, export and verify an exact canonical round-trip before saving a release.": "ویرایشگر بصری دقیقاً به همان Schema سخت‌گیرانه Blueprint در API متصل است. پیش از ذخیره Release، Round-trip استاندارد را Import، Export و Verify کنید.",
+  "The visual editor is bound to the same strict Blueprint schema used by the API. Import, export and verify an exact canonical round-trip before saving a release.": "ویرایشگر تصویری از همان Schema رسمی Blueprint در API استفاده می‌کند. پیش از ذخیرهٔ نسخه، واردکردن، خروجی‌گرفتن و بازخوانی مجدد را بررسی کنید تا داده بدون تغییر رفت‌وبرگشت کند.",
   "Export visual JSON": "خروجی JSON بصری",
   "Import JSON into visual editor": "ورود JSON به ویرایشگر بصری",
   "Verify API round-trip": "تأیید Round-trip API",
   "Canonical Blueprint JSON": "JSON استاندارد Blueprint",
   "Overlay & field ownership": "Overlay و مالکیت فیلد",
-  "Create immutable provider/environment overlays. Paths without an explicit ownership rule remain Blueprint-only and cannot be overridden.": "Overlayهای immutable برای Provider/Environment بسازید. Path بدون قانون مالکیت صریح فقط متعلق به Blueprint می‌ماند و Override نمی‌شود.",
+  "Create immutable provider/environment overlays. Paths without an explicit ownership rule remain Blueprint-only and cannot be overridden.": "برای زیرساخت یا محیط، Overlay تغییرناپذیر بسازید. هر مسیری که مالکیت آن صریحاً واگذار نشده باشد فقط در اختیار Blueprint می‌ماند و قابل بازنویسی نیست.",
   "Overlay scope": "محدوده Overlay",
   "Overlay name": "نام Overlay",
   "Version": "نسخه",
   "Scope key": "کلید Scope",
   "Changes": "تغییرات",
-  "Create immutable overlay": "ایجاد Overlay immutable",
+  "Create immutable overlay": "ایجاد لایهٔ تنظیمات تغییرناپذیر",
   "No overlays": "Overlay وجود ندارد",
-  "Create a provider or environment overlay when a Blueprint explicitly delegates fields.": "وقتی Blueprint فیلدی را صریحاً واگذار می‌کند، Overlay مربوط به Provider یا Environment ایجاد کنید.",
-  "Catalog release": "Catalog Release",
+  "Create a provider or environment overlay when a Blueprint explicitly delegates fields.": "وقتی Blueprint فیلدی را صریحاً واگذار می‌کند، لایهٔ تنظیمات زیرساخت یا محیط را ایجاد کنید.",
+  "Catalog release": "Release کاتالوگ",
   "API version": "نسخه API",
   "Kind": "نوع",
   "Source release": "Release مبدا",
@@ -137,8 +319,10 @@ const faDynamic = {
   "Environment overlay": "Overlay مربوط به Environment",
   "Field ownership policy": "سیاست مالکیت فیلد",
   "Rules": "قواعد",
-  "Resolve preview": "پیش‌نمایش Resolve",
+  "Resolve preview": "پیش‌نمایش نتیجهٔ حل تنظیمات",
   "Governance": "حاکمیت",
+  "Admin": "مدیریت",
+  "Blueprints": "Blueprintها",
   "Certification profile details": "جزئیات پروفایل Certification",
   "Runtime certification": "Certification زمان اجرا",
   "Certification runs": "اجراهای Certification",
@@ -147,8 +331,8 @@ const faDynamic = {
   "Compatibility check": "بررسی سازگاری",
   "Evaluate compatibility": "ارزیابی سازگاری",
   "Authentication & authorization audit": "ممیزی احراز هویت و مجوزدهی",
-  "Immutable hash-chained security decisions for authentication, product RBAC and organization/project scope authorization.": "تصمیم‌های امنیتی immutable و زنجیره‌شده با Hash برای احراز هویت، RBAC محصول و مجوزدهی Scope سازمان/پروژه.",
-  "Audit Trail": "ردپای ممیزی",
+  "Immutable hash-chained security decisions for authentication, product RBAC and organization/project scope authorization.": "تصمیم‌های امنیتی تغییرناپذیر و زنجیره‌شده با هش برای احراز هویت، RBAC محصول و مجوزدهی در محدودهٔ سازمان/پروژه.",
+  "رد ممیزی": "ردپای ممیزی",
   "Audit events": "رویدادهای ممیزی",
   "Notifications & action routing": "اعلان‌ها و مسیریابی اقدام",
   "Destinations": "مقصدها",
@@ -163,7 +347,7 @@ const faDynamic = {
   "Ensure desired-state repository": "اطمینان از Repository مربوط به Desired State",
   "Publish signed desired-state revision": "انتشار Revision امضاشده Desired State",
   "Git organization": "سازمان گیت",
-  "Repository": "Repository",
+  "Repository": "مخزن (Repository)",
   "Revision ID": "شناسه Revision",
   "Revision digest": "Digest مربوط به Revision",
   "Delivery mode": "حالت تحویل",
@@ -174,7 +358,7 @@ const faDynamic = {
   "Signed & private catalog governance": "حاکمیت Catalog امضاشده و خصوصی",
   "Governed catalog releases": "Catalog Releaseهای حاکمیتی",
   "Create catalog release": "ایجاد Catalog Release",
-  "Create immutable candidate": "ایجاد Candidate immutable",
+  "Create immutable candidate": "ایجاد گزینهٔ انتشار تغییرناپذیر",
   "Components included in this release": "اجزای این Release",
   "Active trust keys": "کلیدهای اعتماد فعال",
   "Catalog digest": "Digest کاتالوگ",
@@ -193,31 +377,31 @@ const faDynamic = {
   "Connected cluster": "کلاستر متصل",
   "Project": "پروژه",
   "Organization": "سازمان",
-  "No provider profiles": "پروفایل Provider وجود ندارد",
+  "No provider profiles": "پروفایل زیرساخت وجود ندارد",
   "Connect a Cluster API management cluster and verify its admitted ClusterClass.": "یک کلاستر مدیریت Cluster API متصل و ClusterClass پذیرفته‌شده آن را تأیید کنید.",
   "No dedicated clusters": "کلاستر اختصاصی وجود ندارد",
-  "Verify a provider profile and create the first approval-bound cluster request.": "یک پروفایل Provider را تأیید و اولین درخواست کلاستر Approval-bound را ایجاد کنید.",
-  "No published offers": "Offer منتشرشده‌ای وجود ندارد",
+  "Verify a provider profile and create the first approval-bound cluster request.": "یک پروفایل زیرساخت را تأیید و اولین درخواست کلاستر Approval-bound را ایجاد کنید.",
+  "No published offers": "بسته منتشرشده‌ای وجود ندارد",
   "An offer is hidden until its complete runtime workflow is admitted.": "Offer تا زمان پذیرفته‌شدن Workflow کامل Runtime نمایش داده نمی‌شود.",
   "No marketplace installations": "نصب Marketplace وجود ندارد",
   "Select an offer and connected cluster to create the first plan.": "یک Offer و کلاستر متصل انتخاب کنید تا اولین Plan ساخته شود.",
   "No recommendations": "پیشنهادی وجود ندارد",
-  "Enter a concrete objective to request an advisory-only recommendation.": "یک هدف مشخص وارد کنید تا پیشنهاد صرفاً Advisory دریافت شود.",
-  "No baseline deployments": "استقرار Baseline وجود ندارد",
+  "Enter a concrete objective to request an advisory-only recommendation.": "یک هدف مشخص وارد کنید تا پیشنهاد مشورتی دریافت شود.",
+  "No baseline deployments": "استقرار Baseline تأییدشده وجود ندارد",
   "Connect a cluster and create the first live plan.": "یک کلاستر متصل و اولین Plan واقعی را ایجاد کنید.",
   "No runtime verification": "تأیید Runtime وجود ندارد",
-  "Apply a baseline successfully, then run the digest-pinned probe.": "Baseline را موفق Apply و سپس Probe قفل‌شده با Digest را اجرا کنید.",
-  "No closure campaigns": "Closure Campaign وجود ندارد",
-  "Select a baseline deployment and create the first resumable campaign.": "یک استقرار Baseline انتخاب و اولین Campaign قابل Resume را ایجاد کنید.",
+  "Apply a baseline successfully, then run the digest-pinned probe.": "Baseline را با موفقیت اعمال کنید و سپس Probe قفل‌شده به هش را اجرا کنید.",
+  "No closure campaigns": "دور تکمیلی وجود ندارد",
+  "Select a baseline deployment and create the first resumable campaign.": "یک استقرار Baseline تأییدشده انتخاب و اولین Campaign قابل Resume را ایجاد کنید.",
   "No fleet groups": "Fleet Group وجود ندارد",
   "Select connected clusters and create the first fleet group.": "کلاسترهای متصل را انتخاب و اولین Fleet Group را ایجاد کنید.",
   "No drift scans": "Drift Scan وجود ندارد",
-  "Run a live read-only drift scan from a fleet group.": "یک Drift Scan زنده و Read-only از Fleet Group اجرا کنید.",
+  "Run a live read-only drift scan from a fleet group.": "یک بررسی زنده و فقط‌خواندنی از مغایرت‌های گروه ناوگان اجرا کنید.",
   "No upgrade campaigns": "Upgrade Campaign وجود ندارد",
-  "Create an upgrade campaign from an eligible fleet group.": "از Fleet Group واجد شرایط یک Upgrade Campaign بسازید.",
+  "Create an upgrade campaign from an eligible fleet group.": "از گروه ناوگان واجد شرایط یک کارزار ارتقا بسازید.",
   "No tenant environments": "محیط Tenant وجود ندارد",
   "Apply an entitlement and create the first namespace tenant.": "Entitlement را اعمال و اولین Namespace Tenant را ایجاد کنید.",
-  "No durable operations": "عملیات Durable وجود ندارد",
+  "No durable operations": "عملیات پایدار وجود ندارد",
   "Product workflow operations will appear here.": "عملیات Workflowهای واقعی محصول اینجا نمایش داده می‌شوند.",
   "No audit events": "رویداد Audit وجود ندارد",
   "Resource mutations will be recorded here.": "تغییرات Resource اینجا ثبت می‌شوند.",
@@ -229,7 +413,7 @@ const faDynamic = {
   "Inspect": "بررسی",
   "Edit": "ویرایش",
   "Approve": "تأیید",
-  "Approve apply": "تأیید Apply",
+  "Approve apply": "تأیید اعمال",
   "Approve install": "تأیید نصب",
   "Approve campaign": "تأیید Campaign",
   "Advance campaign": "پیشبرد Campaign",
@@ -237,7 +421,7 @@ const faDynamic = {
   "Retry failed step": "تلاش مجدد مرحله ناموفق",
   "Retry verification": "تلاش مجدد تأیید",
   "Verify evidence": "اعتبارسنجی Evidence",
-  "Verified closure evidence": "Evidence تأییدشده Closure",
+  "Verified closure evidence": "شواهد تأییدشدهٔ تکمیل",
   "Independent digest verification passed.": "اعتبارسنجی مستقل Digest موفق بود.",
   "Roll back": "Rollback",
   "Run drift scan": "اجرای Drift Scan",
@@ -256,23 +440,476 @@ const faDynamic = {
   "Unable to load": "بارگذاری ناموفق بود",
   "Approval requires platform-admin.": "تأیید این عملیات نیازمند نقش platform-admin است.",
   "A different platform administrator must approve this request.": "این درخواست باید توسط مدیر پلتفرم دیگری تأیید شود.",
-  "Read-only session": "نشست فقط خواندنی"
+  "Read-only session": "نشست فقط خواندنی",
+  "Skip to main content": "پرش به محتوای اصلی",
+  "Git delivery & last-known-good authority": "مرجع تحویل Git و آخرین نسخه سالم",
+  "Review pending signed pull requests, merge only approved revisions, and inspect the last revision proven healthy by sync observation. Rollback writes the sealed LKG content back to the managed branch and requires a new sync observation.": "درخواست‌های تغییر امضاشده را بررسی کنید، فقط نسخه‌های تأییدشده را ادغام کنید و آخرین نسخه‌ای را که همگام‌سازی موفق آن ثابت شده ببینید. بازگشت، آخرین نسخهٔ سالم را به شاخهٔ مدیریت‌شده برمی‌گرداند و پس از آن باید همگام‌سازی جدید دوباره تأیید شود.",
+  "Pull requests": "Pull Requestها",
+  "Last-known-good revisions": "آخرین Revisionهای سالم",
+  "Git provider & credential authority": "مرجع Git Provider و Credential",
+  "Connect Forgejo from the console using durable credential references. Secret material stays in the referenced runtime secret source and is never persisted by Platform Factory.": "Forgejo را با مرجع امن اطلاعات دسترسی متصل کنید. مقدار محرمانه در محل امن اجرای سرویس باقی می‌ماند و Platform Factory آن را ذخیره نمی‌کند.",
+  "Provider setup & credentials": "راه‌اندازی Provider و Credentialها",
+  "Connect or rotate Forgejo only when configuration changes": "Forgejo را فقط هنگام تغییر پیکربندی متصل یا Rotate کنید",
+  "Repository & publishing actions": "Repository و عملیات انتشار",
+  "Execution authority": "مرجع اجرای عملیات",
+  "Lease owner": "مالک Lease",
+  "Lease expiry": "انقضای Lease",
+  "Fence": "Fence",
+  "Operation executor": "اجراکننده عملیات",
+  // CONSOLE_FULL_LOCALIZATION_V1 — reviewed static and accessibility-copy closure.
+  "0 components": "۰ مؤلفه",
+  "1 hour": "۱ ساعت",
+  "1 · Non-HA": "۱ · بدون HA",
+  "1 · Variable schema": "۱ · Schema متغیرها",
+  "1. Create credential reference": "۱. ایجاد مرجع اطلاعات دسترسی",
+  "15 minutes": "۱۵ دقیقه",
+  "2 · Operating policy set": "۲ · مجموعه سیاست عملیاتی",
+  "2. Connect Forgejo provider": "۲. زیرساخت متصل مربوط به Forgejo",
+  "3 · Certified Platform Template": "۳ · Certified Platform Template",
+  "3 · HA": "۳ · HA",
+  "30 minutes": "۳۰ دقیقه",
+  "4 hours": "۴ ساعت",
+  "5 minutes": "۵ دقیقه",
+  "60 minutes": "۶۰ دقیقه",
+  "A Workspace stores product ownership and exact cluster/namespace bindings. Runtime state remains authoritative on the referenced cluster and is loaded only by downstream read surfaces.": "فضای کاری مالکیت محصول و اتصال‌های دقیق کلاستر/Namespace را نگه می‌دارد. وضعیت واقعی زمان اجرا همچنان روی کلاستر مرجع است و فقط از مسیرهای خواندنی پایین‌دستی بارگذاری می‌شود.",
+  "A template is configuration authority, not runtime truth. Adoption remains blocked until target inventory, disruptive impact and certification evidence are evaluated immediately before execution.": "Template مرجع پیکربندی است، نه حقیقت Runtime. پذیرش تا زمانی مسدود می‌ماند که وضعیت ثبت‌شده مقصد، اثر اختلال و شواهد Certification بلافاصله پیش از اجرا ارزیابی شوند.",
+  "AI / Agent Access Center": "مرکز دسترسی AI / Agent",
+  "AI Control Plane": "Control Plane هوش مصنوعی",
+  "AI Operator": "اپراتور AI",
+  "AI cannot decide deterministic PASS or Exact-SHA Physical PASS.": "AI نمی‌تواند PASS قطعی یا Exact-SHA Physical PASS را تعیین کند.",
+  "AI receives only bounded failure packets after deterministic failures. It cannot decide PASS or Physical PASS.": "هوش مصنوعی فقط پس از خطاهای قطعی، خلاصهٔ محدود و پاک‌سازی‌شدهٔ خطا را دریافت می‌کند و حق اعلام موفقیت تست یا آزمون فیزیکی را ندارد.",
+  "API round-trip parity, canonical JSON and immutable overlay ownership": "هم‌ارزی رفت‌وبرگشت API، JSON مرجع و مالکیت تغییرناپذیر لایهٔ تنظیمات",
+  "Acme Cloud": "ابر Acme",
+  "Actionable events derived from the transactional outbox and fleet health scanner.": "رویدادهای قابل اقدام که از Transactional Outbox و اسکنر سلامت Fleet مشتق می‌شوند.",
+  "Active and revoked cluster/namespace references for the selected Workspace.": "مراجع فعال و لغوشده کلاستر/Namespace برای Workspace انتخاب‌شده.",
+  "Activity & audit": "فعالیت و ممیزی",
+  "Add a mapping only when identity-provider group policy changes.": "فقط زمانی نگاشت اضافه کنید که سیاست گروه Identity Provider تغییر کرده باشد.",
+  "Add explicit file paths and content; the backend records the declared immutable revision digest during publication.": "مسیر و محتوای فایل را صریح اضافه کنید؛ سرور هنگام انتشار، هش بازنگری تغییرناپذیر اعلام‌شده را ثبت می‌کند.",
+  "All accessible projects": "همه پروژه‌های قابل دسترسی",
+  "All projects in organization": "همه پروژه‌های سازمان",
+  "Allow DNS": "اجازه DNS",
+  "Allow plain HTTP for trusted internal/test network": "اجازه HTTP ساده برای شبکه داخلی/آزمایشی مورد اعتماد",
+  "Allow plaintext secrets": "اجازهٔ ذخیره Secret به‌صورت متن ساده",
+  "Allowed target classes": "کلاس‌های مقصد مجاز",
+  "Approval required for risk": "نیازمند Approval بر اساس ریسک",
+  "Approved release; content and upgrade contract are immutable.": "نسخه تأیید شده است؛ محتوا و قرارداد ارتقا تغییرناپذیرند.",
+  "Assurance": "تضمین",
+  "Attempts, HTTP result, retry state and dead letters are durable.": "تعداد تلاش‌ها، نتیجهٔ HTTP، وضعیت تلاش مجدد و پیام‌های تحویل‌نشده به‌صورت پایدار ثبت می‌شوند.",
+  "Authenticated MCP exposes read-only product context by default and only allow-listed delegated operations when mcp.operate is explicitly granted.": "پس از ورود، MCP فقط اطلاعاتی را نشان می‌دهد که کاربر در محصول مجاز به دیدن آن است. انجام تغییر فقط با دسترسی صریح و از مسیر عملیات پشتیبانی‌شده ممکن است.",
+  "Author and save immutable revisions.": "بازنگری‌های تغییرناپذیر را ایجاد و ذخیره کنید.",
+  "Authoritative resource": "منبع مرجع",
+  "Authorization env reference": "مرجع Environment برای Authorization",
+  "Automatic acquisition is fail-closed through the lock shipped inside the exact release. The current production lock is incomplete, so provide a verified digest-locked bundle directory or the runner returns LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING before any network access.": "دریافت خودکار فقط با قفل همان نسخهٔ دقیق انجام می‌شود و در هر ابهام یا خطا متوقف می‌ماند. قفل فعلی برای Production کامل نیست؛ بنابراین یک پوشهٔ بستهٔ تأییدشده و قفل‌شده به هش ارائه کنید، وگرنه اجراکننده پیش از هر دسترسی شبکه‌ای LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING را برمی‌گرداند.",
+  "Autopilot Campaign Center": "مرکز Campaignهای Autopilot",
+  "Back": "بازگشت",
+  "Backup completed at": "Backup تکمیل‌شده در",
+  "Backup provider": "Provider مربوط به Backup",
+  "Backup reference": "مرجع Backup",
+  "Backup required": "Backup الزامی است",
+  "Backup schedule": "زمان‌بندی Backup",
+  "Base URL": "نشانی پایه (URL)",
+  "Basics": "مبانی",
+  "Bind an existing managed cluster namespace. Cross-project cluster references fail closed.": "یک Namespace از کلاستر مدیریت‌شدهٔ موجود را متصل کنید. ارجاع بین‌پروژه‌ای ناسازگار به کلاستر رد می‌شود.",
+  "Bind namespace": "Bind کردن Namespace",
+  "Bind reusable maintenance, backup and pod-security policy without making the template an execution engine.": "سیاست‌های نگه‌داری، نسخهٔ پشتیبان و امنیت Pod را به قالب اضافه کنید، بدون اینکه خود قالب به موتور اجرا تبدیل شود.",
+  "Bind to a published signed catalog when controlled supply-chain governance is required.": "وقتی کنترل زنجیرهٔ تأمین لازم است، آن را به یک کاتالوگ منتشرشده و امضاشده متصل کنید.",
+  "Blueprint authoring progress": "پیشرفت Authoring مربوط به Blueprint",
+  "Bootstrap self-signed": "Bootstrap با گواهی Self-signed",
+  "Branch": "شاخه",
+  "Branch · planning only": "Branch · فقط برای Planning",
+  "Cancel edit": "لغو ویرایش",
+  "Catalog governance actions": "اقدامات حاکمیتی Catalog",
+  "Catalog releases": "Catalog Releaseها",
+  "Certification produced here is local control-plane/agent evidence. External Live Acceptance and Production Ready remain false until an external lab campaign is completed.": "تأییدی که اینجا ساخته می‌شود فقط شواهد محلی کنترل‌پلین و Agent است. پذیرش بیرونی و آمادگی Production تا زمانی که آزمون آزمایشگاهی مربوطه تکمیل نشود تأیید نمی‌شوند.",
+  "Certification profile": "پروفایل Certification",
+  "Certified baselines": "Baselineهای Certified",
+  "Certified composition": "ترکیب Certified",
+  "Checkpoint valid until": "Checkpoint معتبر تا",
+  "Choose authoritative event types and one or more active destinations. Project scope is optional.": "نوع رویداد مرجع و یک یا چند مقصد فعال را انتخاب کنید. محدودهٔ پروژه اختیاری است.",
+  "Choose event scope, type and severity to inspect matching rules and destinations.": "Scope، نوع و Severity رویداد را برای بررسی Ruleها و مقصدهای منطبق انتخاب کنید.",
+  "Choose the ownership scope and immutable release identity before configuring runtime behavior.": "پیش از پیکربندی رفتار زمان اجرا، محدودهٔ مالکیت و هویت تغییرناپذیر نسخه را انتخاب کنید.",
+  "Close": "بستن",
+  "Close search": "بستن جست‌وجو",
+  "Cluster API topology v1beta2": "Topology مربوط به Cluster API v1beta2",
+  "Clusters": "کلاسترها",
+  "Comma-separated canonical target classes. Admission still checks the selected target at use time.": "کلاس‌های مرجع مقصد را با ویرگول جدا کنید. بررسی پذیرش هنگام استفاده همچنان مقصد انتخاب‌شده را ارزیابی می‌کند.",
+  "Commercial & branding settings": "تنظیمات تجاری و Branding",
+  "Component catalog": "Catalog مؤلفه‌ها",
+  "Compose exact immutable authorities. Only published, execution-ready Blueprint releases in the same project are eligible.": "مراجع دقیق و تغییرناپذیر را ترکیب کنید. فقط نسخه‌های منتشرشده و آمادهٔ اجرای Blueprint در همان پروژه مجازند.",
+  "Compose immutable Blueprint releases, typed variables and reusable operating policy. Template admission is source-only until a real target impact preview and the required certification gates are satisfied.": "نسخه‌های تغییرناپذیر Blueprint، متغیرهای نوع‌دار و سیاست عملیاتی قابل استفادهٔ مجدد را ترکیب کنید. پذیرش قالب فقط در سطح سورس است تا زمانی که پیش‌نمایش واقعی اثر روی مقصد و گیت‌های لازم اعتبارسنجی برآورده شوند.",
+  "Composition is immutable; target impact is deliberately not guessed here.": "ترکیب تغییرناپذیر است؛ اثر روی مقصد در این مرحله عمداً حدس زده نمی‌شود.",
+  "Configure routing": "پیکربندی Routing",
+  "Connect Forgejo": "اتصال Forgejo",
+  "Connect cluster": "اتصال کلاستر",
+  "Console destinations retain local delivery history. Webhooks require HTTPS unless explicit internal HTTP is enabled.": "مقصدهای Console تاریخچه Delivery محلی را نگه می‌دارند. Webhookها به HTTPS نیاز دارند مگر HTTP داخلی صریحاً فعال شده باشد.",
+  "Console history": "تاریخچه Console",
+  "Context type": "نوع Context",
+  "Context-bound diagnosis and delegated product operations over authoritative platform state. AI diagnosis stays advisory and redacted; allow-listed MCP mutations require explicit operator scope and never receive PASS, Physical PASS, RBAC escalation or shell authority.": "هوش مصنوعی فقط با دادهٔ مجاز و محدود پلتفرم وضعیت را تحلیل می‌کند و می‌تواند تغییرات پشتیبانی‌شده را درخواست کند. نتیجهٔ تحلیل مشورتی است، اطلاعات حساس حذف می‌شوند و هیچ مدل یا اتصال MCP نمی‌تواند تأیید نهایی، دسترسی بیشتر، Shell یا گواهی اجرای فیزیکی را دور بزند.",
+  "Create OIDC group mapping": "ایجاد نگاشت گروه OIDC",
+  "Create a CANDIDATE release from the authoritative shipped inventory. Higher channels require resolved immutable supply-chain evidence.": "از موجودی رسمی همراه محصول یک نسخهٔ کاندید بسازید. انتشار در سطح‌های بالاتر فقط وقتی مجاز است که منبع و شواهد زنجیرهٔ تأمین دقیق و تغییرناپذیر باشند.",
+  "Create a new deployment only after selecting the target and reviewing the certified baseline.": "فقط پس از انتخاب مقصد و بررسی Baseline تأییدشده یک Deployment جدید ایجاد کنید.",
+  "Create a scoped expiring identity only for automation that needs API access.": "هویت دارای تاریخ انقضا و محدود به دامنهٔ مجاز را فقط برای خودکارسازی‌ای بسازید که به API دسترسی نیاز دارد.",
+  "Create a scoped, server-verified and redacted support bundle for escalation or operator investigation.": "برای ارجاع یا بررسی اپراتور، بستهٔ پشتیبانی محدود و تأییدشده در سرور بسازید که اطلاعات حساس از آن حذف شده باشد.",
+  "Create a short-lived enrollment only when onboarding a new target.": "Enrollment کوتاه‌عمر را فقط هنگام Onboarding یک مقصد جدید ایجاد کنید.",
+  "Create an evidence-bound certification run from a published renderable Catalog release and fresh cluster inventory. FOUNDATION_V1 proves the executable foundation. OBSERVABILITY_V1 executes real Prometheus/VictoriaMetrics-compatible metrics queries, Loki push/query, and Alertmanager fire/query through cluster-agent adapters. TARGET_RUNTIME_V1 actively proves target-cluster DNS, default-deny NetworkPolicy behavior, same-tenant reachability, negative cross-tenant isolation with an explicit-allow positive control, PVC I/O, CSI VolumeSnapshot create/restore, Velero Backup/Restore, and the observability checks when the cluster agent discovers matching executable provider surfaces. It directly installs and certifies only the secure-namespace-foundation harness; other Catalog components require component-specific runtime certification authority before they may enter the RUNTIME channel. Missing or unavailable providers remain BLOCKED.": "از یک نسخهٔ منتشرشده و قابل اجرای کاتالوگ، همراه با وضعیت ثبت‌شدهٔ تازهٔ کلاستر، یک اجرای اعتبارسنجی متصل به شواهد بسازید. FOUNDATION_V1 پایهٔ اجرایی را اثبات می‌کند. OBSERVABILITY_V1 پرس‌وجوهای واقعی Metrics سازگار با Prometheus/VictoriaMetrics، مسیرهای Push/Query در Loki و Fire/Query در Alertmanager را از طریق Adapterهای Cluster Agent اجرا می‌کند. TARGET_RUNTIME_V1 به‌صورت فعال DNS مقصد، رفتار مسدودسازی پیش‌فرض NetworkPolicy، دسترسی درون همان Tenant، جداسازی بین Tenantها با کنترل مثبت صریح، I/O روی PVC، ایجاد و بازیابی CSI VolumeSnapshot، پشتیبان‌گیری و بازیابی با Velero و بررسی‌های Observability را زمانی اثبات می‌کند که Agent سطح اجرایی ارائه‌دهندهٔ لازم را کشف کرده باشد. این پروفایل فقط secure-namespace-foundation را مستقیماً نصب و اعتبارسنجی می‌کند؛ سایر مؤلفه‌های کاتالوگ پیش از ورود به کانال RUNTIME به مرجع اختصاصی اعتبارسنجی زمان اجرا نیاز دارند. اگر ارائه‌دهندهٔ لازم وجود نداشته باشد یا در دسترس نباشد، وضعیت BLOCKED باقی می‌ماند.",
+  "Create automation identity": "ایجاد هویت Automation",
+  "Create desired-state repositories or publish immutable signed revisions": "ایجاد مخزن‌های Desired State یا انتشار بازنگری‌های تغییرناپذیر امضاشده",
+  "Create groups or change the trusted Git drift source only when fleet topology changes.": "فقط هنگام تغییر توپولوژی ناوگان، گروه ایجاد کنید یا منبع مورداعتماد Git برای تشخیص مغایرت را تغییر دهید.",
+  "Create immutable policy set": "ایجاد مجموعه سیاست تغییرناپذیر",
+  "Create immutable template": "ایجاد قالب تغییرناپذیر",
+  "Create immutable variable schema": "ایجاد طرح متغیرهای تغییرناپذیر",
+  "Create or edit destinations and routing only when delivery policy changes.": "مقصدها و Routing را فقط زمانی ایجاد یا ویرایش کنید که سیاست Delivery تغییر کرده باشد.",
+  "Create organization or project": "ایجاد سازمان یا پروژه",
+  "Create platform template": "ایجاد Platform Template",
+  "Create policy set": "ایجاد Policy Set",
+  "Create tenant": "ایجاد Tenant",
+  "Create the stable project-scoped boundary first; add namespace bindings separately.": "ابتدا Boundary پایدار Project-scoped را بسازید؛ Bindingهای Namespace را جداگانه اضافه کنید.",
+  "Create variable schema": "ایجاد Variable Schema",
+  "Create workspace": "ایجاد Workspace",
+  "Creates or verifies a private repository through the configured internal Git adapter.": "یک مخزن خصوصی را از طریق رابط داخلی Git ایجاد یا بررسی می‌کند.",
+  "Credential": "اعتبارنامه",
+  "Cross-cluster team boundary": "Boundary تیم Cross-cluster",
+  "Customer A": "مشتری A",
+  "DEPRECATED / REVOKED": "منسوخ / لغوشده",
+  "Default deny egress": "Default deny برای Egress",
+  "Default deny ingress": "Default deny برای Ingress",
+  "Define supported Kubernetes targets, selected components and the Git/OCI delivery contract.": "مقصدهای Kubernetes پشتیبانی‌شده، مؤلفه‌های انتخابی و قرارداد Delivery مربوط به Git/OCI را تعریف کنید.",
+  "Define typed operator inputs without storing resolved secret values in the template.": "ورودی‌های نوع‌دار اپراتور را بدون ذخیره مقدار حل‌شدهٔ Secret در قالب تعریف کنید.",
+  "Deletion policy": "سیاست حذف",
+  "Deploy certified baseline": "استقرار Baseline تأییدشده تأییدشده",
+  "Deployment automation": "Automation استقرار",
+  "Describe the intended platform standard and operator outcome": "استاندارد موردنظر Platform و نتیجه مورد انتظار Operator را توضیح دهید",
+  "Describe the outcome you need": "نتیجه موردنیاز را توضیح دهید",
+  "Development": "توسعه",
+  "Diagnose authoritative context": "عیب‌یابی بر اساس زمینهٔ مرجع",
+  "Diagnose with AI": "Diagnosis با AI",
+  "Direct commit": "Commit مستقیم",
+  "Disconnected / air-gap": "قطع‌اتصال / Air-gap",
+  "Display name": "نام نمایشی",
+  "Distribution identity": "هویت Distribution",
+  "Do not paste passwords, API keys or private keys. Central redaction is still enforced before provider egress.": "رمز عبور، کلید API یا کلید خصوصی را اینجا وارد نکنید. پیش از ارسال هر داده به سرویس هوش مصنوعی، اطلاعات حساس به‌صورت مرکزی حذف می‌شود.",
+  "Download a redacted project support bundle when troubleshooting or escalating an incident.": "برای عیب‌یابی یا ارجاع مشکل به پشتیبانی، بستهٔ تشخیصی پروژه را با حذف اطلاعات حساس دریافت کنید.",
+  "Download project support bundle": "دانلود Support Bundle پروژه",
+  "Download verified bundle": "دانلود Bundle تأییدشده",
+  "Drift details": "جزئیات Drift",
+  "Durable AI run history": "تاریخچه durable اجرای AI",
+  "Durable INSTALL → VERIFY state with inventory/source-lock/render binding, checkpoint evidence, expiry and explicit BLOCKED/FAILED states.": "فرایند نصب تا بررسی نهایی به‌صورت قابل‌ادامه ثبت می‌شود و به وضعیت کلاستر، قفل منبع و خروجی Render متصل است. نقاط بازیابی، مهلت اعتبار و حالت‌های خطا نیز صریح نگه‌داری می‌شوند.",
+  "Durable operation": "عملیات پایدار",
+  "Edge Cluster 1": "کلاستر Edge ۱",
+  "Enforce digest-pinned images": "الزام تصویرهای قفل‌شده به هش",
+  "English": "انگلیسی",
+  "Ensure repository": "اطمینان از Repository",
+  "Enterprise · 100 tenants + OEM": "Enterprise · ۱۰۰ Tenant + OEM",
+  "Entitlement and OEM presentation are administration settings, not daily tenant operations.": "Entitlement و نمایش OEM تنظیمات Administration هستند، نه عملیات روزمره Tenant.",
+  "Environment reference only. Raw tokens are never accepted by this form.": "فقط مرجع Environment. Token خام هرگز توسط این Form پذیرفته نمی‌شود.",
+  "Environment variable name only; never paste the token here.": "فقط نام متغیر محیطی را وارد کنید؛ توکن را اینجا قرار ندهید.",
+  "Ephemeral runtime": "Runtime موقت",
+  "Evaluate the current authoritative rules before changing routing or sending an event. Preview is read-only and creates no notification event or delivery.": "پیش از تغییر مسیر اعلان‌ها یا ارسال رویداد، قوانین فعلی را بررسی کنید. پیش‌نمایش فقط برای مشاهده است و هیچ اعلان یا ارسال واقعی ایجاد نمی‌کند.",
+  "Evaluate the pasted Blueprint against one concrete Kubernetes target using the same server-side compatibility authority used by Provider lifecycle.": "Blueprint واردشده را برای یک مقصد مشخص Kubernetes با همان مرجع سازگاری سمت سرور که چرخهٔ عمر زیرساخت استفاده می‌کند ارزیابی کنید.",
+  "Event type": "نوع رویداد",
+  "Every line is an exact JSON Pointer and policy. Unlisted paths are BLUEPRINT_ONLY.": "هر خط یک JSON Pointer دقیق و Policy است. Pathهای فهرست‌نشده BLUEPRINT_ONLY هستند.",
+  "Evidence digest": "Digest مربوط به Evidence",
+  "Exact bundle authority": "Authority مربوط به Bundle دقیق",
+  "Exact event types or prefix patterns are evaluated with organization/project and severity scope.": "نوع رویداد یا الگوی پیشوند آن بر اساس محدودهٔ سازمان/پروژه و سطح اهمیت بررسی می‌شود.",
+  "Exact-SHA physical runtime": "Runtime فیزیکی Exact-SHA",
+  "Exact-artifact server sizing, deterministic test matrix and evidence for physical laboratory campaigns. Physical PASS is never inferred from source checks.": "اندازهٔ سرورها، ماتریس تست قطعی و شواهد موردنیاز آزمون آزمایشگاهی را مشخص کنید. موفقیت در بررسی کد هرگز به معنی موفقیت آزمون فیزیکی نیست.",
+  "Existing Kubernetes cluster": "کلاستر Kubernetes موجود",
+  "Existing Linux hosts": "میزبان‌های Linux موجود",
+  "Expert authoring tools": "ابزارهای تخصصی Authoring",
+  "External agent access": "دسترسی Agent خارجی",
+  "External certificate": "Certificate خارجی",
+  "FOUNDATION_V1 · executable foundation": "FOUNDATION_V1 · Foundation اجرایی",
+  "Fleet": "ناوگان",
+  "Fleet configuration": "پیکربندی Fleet",
+  "Fleet overview": "نمای کلی Fleet",
+  "Freeze content for approval or return it for changes.": "محتوا را برای Approval فریز کنید یا برای اصلاح برگردانید.",
+  "Generated / installed runtime": "Runtime تولیدشده / نصب‌شده",
+  "Give the runner exactly the hosts required by the selected tier. Roles are validated before any remote action.": "دقیقاً میزبان‌های موردنیاز سطح انتخاب‌شده را به اجراکننده بدهید. نقش‌ها پیش از هر اقدام راه‌دور اعتبارسنجی می‌شوند.",
+  "Global Operations Search": "جست‌وجوی سراسری عملیات",
+  "Global organization and project scope": "Scope سراسری سازمان و پروژه",
+  "Global organization scope": "Scope سراسری سازمان",
+  "Global project scope": "Scope سراسری پروژه",
+  "Grant or update access": "اعطا یا به‌روزرسانی دسترسی",
+  "Group project-authorized namespaces across managed clusters without copying workload, quota, health or cost state into a second source of truth.": "Namespaceهای مجاز یک پروژه را در چند کلاستر زیر یک فضای کاری گروه‌بندی کنید، بدون اینکه وضعیت Workload، سهمیه، سلامت یا هزینه در یک مرجع دوم کپی شود.",
+  "HMAC secret env reference": "مرجع Secret مربوط به HMAC",
+  "Immutable commit": "Commit تغییرناپذیر",
+  "Import existing": "Import موجود",
+  "Infrastructure providers": "Providerهای زیرساخت",
+  "Infrastructure scope": "Scope زیرساخت",
+  "Inspect desired/observed drift records when investigating configuration convergence.": "برای بررسی همگرایی پیکربندی، رکوردهای Drift مربوط به Desired/Observed را مشاهده کنید.",
+  "Inspect immutable catalog releases and manage signing or promotion governance.": "Releaseهای تغییرناپذیر Catalog را مشاهده و Governance امضا یا Promotion را مدیریت کنید.",
+  "Inspect scoped automation identities, MCP permissions, token expiry and recent authentication activity. Rotation and revocation use the same product authority as Administration.": "حساب‌های خودکارسازی، دسترسی MCP، تاریخ انقضای توکن‌ها و آخرین ورودها را یکجا ببینید. تعویض یا لغو دسترسی از همان سیاست‌های امنیتی بخش مدیریت پیروی می‌کند.",
+  "Install & import": "نصب و Import",
+  "Installer Recovery Center": "مرکز بازیابی Installer",
+  "Installer console URL": "URL کنسول Installer",
+  "Integrations & services": "Integrationها و سرویس‌ها",
+  "Kubernetes": "Kubernetes",
+  "Latest advisory": "آخرین نتیجهٔ مشورتی",
+  "Leave organization/repository empty for baseline-only drift. Git credentials remain server-side and are never entered here.": "برای بررسی مغایرت فقط بر اساس Baseline، سازمان و Repository را خالی بگذارید. اطلاعات دسترسی Git روی سرور باقی می‌ماند و در این فرم وارد نمی‌شود.",
+  "Lifecycle and promotion actions operate only on persisted authority records. Admission blockers are shown instead of being hidden or bypassed.": "اقدام‌های چرخهٔ عمر و ارتقای نسخه فقط روی رکوردهای رسمی ذخیره‌شده اجرا می‌شوند. هر مانع پذیرش به کاربر نشان داده می‌شود و قابل دورزدن نیست.",
+  "Load a cluster workload inventory": "بارگذاری وضعیت ثبت‌شده مربوط به Workloadهای کلاستر",
+  "Loading target architecture authority…": "در حال بارگذاری Authority معماری مقصد…",
+  "Local, derived campaign evidence. It is not product authority and cannot certify Physical PASS.": "این شواهد از اجرای محلی به‌دست آمده‌اند و مرجع نهایی محصول نیستند؛ از آن‌ها نمی‌توان موفقیت آزمون فیزیکی را نتیجه گرفت.",
+  "Low-token AI diagnosis": "تشخیص AI کم‌توکن",
+  "M00–M13 are driven by the same canonical authority consumed by the CLI runner. Destructive and AI-eligible rows are explicit.": "سناریوهای M00 تا M13 از همان مرجع رسمی مورد استفادهٔ Runner اجرا می‌شوند. سناریوهای مخرب و مواردی که AI اجازهٔ تحلیل آن‌ها را دارد به‌صورت صریح مشخص شده‌اند.",
+  "AI account connections": "اتصال حساب هوش مصنوعی",
+  "Human users connect with their organization account, choose where the AI may work, review the requested access and keep every change inside normal approval, job, audit and evidence workflows.": "کاربر با حساب سازمانی خودش وارد می‌شود، سازمان یا پروژهٔ مجاز را انتخاب می‌کند، سطح دسترسی را پیش از اتصال می‌بیند و هر تغییری همچنان از مسیر عادی تأیید، عملیات ثبت‌شده، ممیزی و شواهد انجام می‌شود.",
+  "Sign in with organization account": "ورود با حساب سازمانی",
+  "Choose organization or project": "انتخاب سازمان یا پروژه",
+  "Choose friendly access": "انتخاب نوع دسترسی",
+  "Review and confirm": "مرور و تأیید",
+  "Follow jobs and results": "پیگیری عملیات و نتیجه",
+  "OAuth connection foundation": "زیرساخت اتصال OAuth",
+  "Connection setup is not enabled yet": "اتصال کاربر هنوز فعال نشده است",
+  "OAuth discovery and dedicated MCP audience are implemented. Revocable delegation grants, trusted-client registration and consent management are still required before human connections can be enabled.": "کشف OAuth و audience مستقل MCP آماده شده‌اند. پیش از فعال‌شدن اتصال کاربران، باید مجوزهای قابل‌لغو، ثبت کلاینت‌های مورداعتماد و مدیریت رضایت کاربر نیز تکمیل شوند.",
+  "Advanced connection details": "جزئیات فنی اتصال",
+  "MCP access": "دسترسی MCP",
+  "MCP is read-only by default. Operators can issue separate mcp.operate credentials for allow-listed product operations; role, project, revision, approval and audit boundaries remain enforced.": "MCP به‌صورت پیش‌فرض فقط امکان مشاهده دارد. برای انجام تغییر، دسترسی جداگانه و محدود لازم است و همهٔ قوانین نقش کاربر، پروژه، تأیید و ممیزی همچنان اعمال می‌شوند.",
+  "Machine name": "نام ماشین",
+  "Maintenance & node operations": "Maintenance و عملیات نود",
+  "Managed ACME": "ACME مدیریت‌شده",
+  "Managed Kubernetes Platform": "Platform مدیریت‌شده Kubernetes",
+  "Managed cluster": "کلاستر مدیریت‌شده",
+  "Managed private CA": "CA خصوصی مدیریت‌شده",
+  "Max unavailable (%)": "حداکثر عدم دسترس‌پذیری (%)",
+  "Membership changes are scoped to the selected organization.": "تغییرات Membership به سازمان انتخاب‌شده Scope می‌شوند.",
+  "Minimum severity": "حداقل Severity",
+  "Must be unused for the first INSTALL attempt. Existing namespaces are not overwritten.": "برای اولین تلاش INSTALL باید استفاده‌نشده باشد. Namespaceهای موجود بازنویسی نمی‌شوند.",
+  "Namespace": "فضای نام (Namespace)",
+  "Namespace bindings": "Bindingهای Namespace",
+  "Namespaces owned by the payments platform team": "Namespaceهای متعلق به تیم Platform پرداخت",
+  "Need raw validation, compatibility evaluation or a planning-only result?": "به Validation خام، ارزیابی سازگاری یا نتیجه فقط-Planning نیاز دارید؟",
+  "New secret reference": "مرجع Secret جدید",
+  "No AI diagnosis has been requested in this session.": "در این Session هیچ تشخیص AI درخواست نشده است.",
+  "No action is executed from this result. Verify evidence and use normal product workflows for any change.": "هیچ Actionای از این نتیجه اجرا نمی‌شود. Evidence را Verify کنید و برای هر تغییر از Workflowهای عادی محصول استفاده کنید.",
+  "No direct deploy from a template.": "Deploy مستقیم از Template وجود ندارد.",
+  "No environment overlay": "بدون Overlay مربوط به Environment",
+  "No event or delivery is created.": "هیچ Event یا Delivery ایجاد نمی‌شود.",
+  "No organization delegation": "بدون Delegation سازمان",
+  "No project delegation": "بدون Delegation پروژه",
+  "No provider overlay": "بدون Overlay مربوط به Provider",
+  "No source release": "بدون Source Release",
+  "Notifications": "اعلان‌ها",
+  "OBSERVABILITY_V1 · metrics / logs / alert path": "OBSERVABILITY_V1 · مسیر Metrics / Logs / Alert",
+  "One exact JSON Pointer = JSON value per line. Only paths delegated by the Blueprint ownership policy can resolve.": "هر خط شامل یک JSON Pointer دقیق و مقدار JSON آن است. فقط مسیرهایی قابل تعیین هستند که سیاست مالکیت Blueprint اجازه داده باشد.",
+  "Open only when changing environment policy, maintenance windows or node state.": "فقط هنگام تغییر سیاست محیط، پنجرهٔ نگه‌داری یا وضعیت نود اقدام کنید.",
+  "Open planning tools": "بازکردن ابزارهای Planning",
+  "Open recovery console": "بازکردن کنسول Recovery",
+  "Operations": "عملیات",
+  "Operator · non-approval mutations": "Operator · Mutationهای بدون Approval",
+  "Optional HMAC-SHA256 signing secret reference.": "مرجع اختیاری Secret امضای HMAC-SHA256.",
+  "Optional lineage for a newly-authored release; immutable after creation.": "Lineage اختیاری برای Release تازه Author شده؛ پس از ایجاد تغییرناپذیر است.",
+  "Optional. Compare the last platform-published signed revision with the current Forgejo-compatible Git head and the live revision observed by the cluster agent.": "اختیاری است. آخرین نسخهٔ امضاشدهٔ منتشرشده توسط پلتفرم را با وضعیت فعلی Git و نسخه‌ای که Agent روی کلاستر مشاهده کرده مقایسه کنید.",
+  "Organization admin": "Admin سازمان",
+  "Organization operator": "Operator سازمان",
+  "Organization viewer": "Viewer سازمان",
+  "Organization-wide": "کل سازمان",
+  "Organization-wide event": "رویداد کل سازمان",
+  "Organizations & projects": "سازمان‌ها و پروژه‌ها",
+  "Overview": "نمای کلی",
+  "Payments Team": "تیم پرداخت",
+  "Physical certification": "تأیید در محیط واقعی",
+  "Physical test matrix": "ماتریس تست فیزیکی",
+  "Pilot · 5 tenants": "Pilot · ۵ Tenant",
+  "Plan and preflight are non-destructive. The run command requires an explicit confirmation token.": "ساخت برنامه و پیش‌بررسی هیچ تغییری ایجاد نمی‌کنند. شروع اجرا فقط پس از تأیید صریح مجاز است.",
+  "Planning tools": "ابزارهای Planning",
+  "Platform": "پلتفرم",
+  "Platform Factory workflow": "Workflow مربوط به Platform Factory",
+  "Platform admin": "Admin پلتفرم",
+  "Platform blueprints": "Blueprintهای پلتفرم",
+  "Platform operator": "Operator پلتفرم",
+  "Platform templates": "Templateهای پلتفرم",
+  "Platform viewer": "Viewer پلتفرم",
+  "Platforms": "Platformها",
+  "Pod security": "امنیت Pod",
+  "Policies: BLUEPRINT_ONLY, PROVIDER_ONLY, ENVIRONMENT_ONLY, PROVIDER_THEN_ENVIRONMENT.": "Policyها: BLUEPRINT_ONLY، PROVIDER_ONLY، ENVIRONMENT_ONLY، PROVIDER_THEN_ENVIRONMENT.",
+  "Policy & governance": "Policy و Governance",
+  "Policy set": "مجموعه Policy",
+  "Preview routing": "Preview مسیریابی",
+  "Primary navigation": "Navigation اصلی",
+  "Private organization": "سازمان خصوصی",
+  "Private repository": "Repository خصوصی",
+  "Product ownership boundaries. No workload state is duplicated here.": "مرزهای مالکیت محصول. هیچ Workload stateای اینجا Duplicate نمی‌شود.",
+  "Production": "محیط Production",
+  "Production Fleet": "Fleet مربوط به Production",
+  "Production defaults favor approval, recovery checkpoints and restricted workloads.": "تنظیمات پیشنهادی محیط Production بر تأیید تغییر، نقطهٔ بازیابی و محدودسازی Workloadها تأکید دارد.",
+  "Profile": "پروفایل",
+  "Program tracks & continuation authority": "Trackهای برنامه و Authority ادامه کار",
+  "Project admin": "Admin پروژه",
+  "Project operator": "Operator پروژه",
+  "Project viewer": "Viewer پروژه",
+  "Provider": "ارائه‌دهنده (Provider)",
+  "Provider actions": "Actionهای Provider",
+  "Provider/model, linked authority, prompt/context/output digests, token usage and redaction count. Raw prompts and credentials are not persisted.": "نام سرویس و مدل، مرجع عملیات، شناسه‌های یکپارچگی ورودی و خروجی، میزان مصرف و تعداد موارد حذف‌شدهٔ حساس ثبت می‌شود. متن خام درخواست و اطلاعات محرمانه ذخیره نمی‌شوند.",
+  "Provision a namespace tenant after selecting its owning project, target cluster and plan.": "پس از انتخاب پروژه مالک، کلاستر مقصد و Plan، یک Namespace Tenant را Provision کنید.",
+  "Provisioning adapter": "Adapter مربوط به Provisioning",
+  "Published Blueprint release": "Release منتشرشده Blueprint",
+  "Published RENDER/RUNTIME/PRODUCTION releases can render their exact embedded source bundle into deterministic Kubernetes resources.": "نسخه‌های منتشرشده در سطح RENDER، RUNTIME یا PRODUCTION می‌توانند بستهٔ منبع دقیق خود را به منابع قطعی Kubernetes تبدیل کنند.",
+  "Published renderable Catalog release": "Release قابل Render منتشرشده Catalog",
+  "Pull request (recommended)": "Pull Request (پیشنهادی)",
+  "Pull request mode stages a signed branch and requires explicit approval before merge.": "در حالت Pull Request یک شاخهٔ امضاشده برای بررسی ساخته می‌شود و ادغام آن فقط پس از تأیید صریح انجام می‌شود.",
+  "QUERY · bounded history": "QUERY · تاریخچه محدود",
+  "Question": "پرسش",
+  "Read the effective provider configuration and non-bypassable AI authority limits. Provider reachability is not inferred from configuration alone.": "تنظیمات مؤثر سرویس هوش مصنوعی و محدودیت‌های امنیتی آن را ببینید. در دسترس‌بودن سرویس فقط از روی تنظیمات حدس زده نمی‌شود و با درخواست واقعی بررسی می‌شود.",
+  "Read-only S1 source-selection authority. Review-required rows remain blocked until their exact upstream evidence is accepted; this view never promotes or acquires a component.": "وضعیت انتخاب منبع در S1 فقط برای مشاهده است. مواردی که هنوز نیاز به بررسی دارند تا ثبت شواهد معتبر upstream مسدود می‌مانند و از این صفحه هیچ مؤلفه‌ای دریافت یا ارتقا داده نمی‌شود.",
+  "Read-only source material used to author catalog candidates. These records are not themselves published governed releases.": "این منابع فقط برای ساخت نسخه‌های کاندید Catalog استفاده می‌شوند. خود این رکوردها نسخهٔ منتشرشده و موردتأیید محصول نیستند.",
+  "Recovery checkpoints": "Recovery checkpointها",
+  "Recovery remains on the standalone bootstrap plane so it is available when the product API is unavailable, reset or being reinstalled.": "بازیابی روی بخش مستقل راه‌اندازی باقی می‌ماند تا حتی وقتی API محصول در دسترس نیست، بازنشانی شده یا دوباره نصب می‌شود، امکان بازیابی وجود داشته باشد.",
+  "Reference-only authority.": "Authority فقط-مرجع.",
+  "Register or inspect backup evidence before disruptive maintenance and upgrades.": "پیش از نگه‌داری یا ارتقای مخرب، وجود و اعتبار نسخهٔ پشتیبان را ثبت یا بررسی کنید.",
+  "Register recovery checkpoint": "ثبت Recovery checkpoint",
+  "Register signing trust or create a candidate when changing catalog authority.": "هنگام تغییر مرجع کنترل کاتالوگ، اعتماد به امضا را ثبت کنید یا نسخهٔ نامزد بسازید.",
+  "Register the configured Ed25519 signer as platform-wide or organization-private trust. The private signing key is never returned to the browser.": "امضاکنندهٔ Ed25519 پیکربندی‌شده را برای کل پلتفرم یا فقط یک سازمان مورداعتماد کنید. کلید خصوصی امضا هرگز به مرورگر فرستاده نمی‌شود.",
+  "Register verified backup/recovery evidence against the current cluster inventory before scheduling an upgrade.": "شواهد تأییدشدهٔ پشتیبان‌گیری و بازیابی را پیش از زمان‌بندی ارتقا در برابر وضعیت فعلی کلاستر ثبت کنید.",
+  "Release identity": "هویت Release",
+  "Render": "رندر",
+  "Render target namespace": "Namespace مقصد Render",
+  "Repository name": "نام Repository",
+  "Require approval": "الزام Approval",
+  "Require recovery checkpoint": "الزام Recovery checkpoint",
+  "Required certification": "Certification موردنیاز",
+  "Restricted egress": "Egress محدودشده",
+  "Retention": "نگهداشت",
+  "Retire normally or revoke a release that must no longer be selected.": "نسخه‌ای را که دیگر استفاده نمی‌شود بازنشسته کنید، یا اگر نباید دوباره انتخاب شود دسترسی به آن را لغو کنید.",
+  "Review delivery health and history before changing destinations or routing.": "پیش از تغییر مقصد یا مسیر اعلان، وضعیت سلامت و سابقهٔ ارسال را بررسی کنید.",
+  "Review upgrade lineage and create the immutable draft revision.": "سابقهٔ ارتقا را بررسی کنید و یک پیش‌نویس بازنگری تغییرناپذیر بسازید.",
+  "Revoke active credential": "Revoke کردن Credential فعال",
+  "Risk class": "کلاس Risk",
+  "Rotate credential reference": "Rotate کردن مرجع اطلاعات دسترسی",
+  "Routing preview": "Preview مسیریابی",
+  "Routing rules": "Ruleهای مسیریابی",
+  "Rule name": "نام Rule",
+  "Run a new verification, closure campaign or physical-runtime certification.": "اعتبارسنجی، دور تکمیل یا تأیید زمان اجرای فیزیکی جدید اجرا کنید.",
+  "Run the lab": "اجرای Lab",
+  "Runtime & delivery": "Runtime و Delivery",
+  "Runtime & safety boundary": "مرز Runtime و Safety",
+  "Runtime assurance": "تضمین Runtime",
+  "Runtime-realism negative controls": "Negative Controlهای Runtime-realism",
+  "Scope": "محدوده",
+  "Scope & publish": "Scope و Publish",
+  "Search": "جست‌وجو",
+  "Search operations": "جست‌وجوی عملیات",
+  "Search pages and operator workflows": "جست‌وجوی صفحه‌ها و Workflowهای Operator",
+  "Search the bounded, rebuildable 4SO project projection across clusters, operations, evidence metadata and scoped audit. PostgreSQL is the default bounded backend; OpenSearch is optional for scale and never becomes source of truth.": "نمای محدود و قابل‌بازسازی پروژه 4SO را در کلاسترها، عملیات، فرادادهٔ شواهد و ممیزی محدودشده جست‌وجو کنید. PostgreSQL مرجع پیش‌فرض است؛ OpenSearch برای مقیاس‌پذیری اختیاری است و هرگز مرجع اصلی داده نمی‌شود.",
+  "Secret reference": "مرجع Secret",
+  "Section navigation": "Navigation بخش",
+  "Security policy": "Policy امنیتی",
+  "Select an operation or connected cluster. The platform builds and redacts the context; raw credentials are never entered here.": "یک عملیات یا کلاستر متصل را انتخاب کنید. پلتفرم اطلاعات لازم را جمع‌آوری و داده‌های حساس را حذف می‌کند؛ رمز، کلید یا توکن خام در این بخش وارد نمی‌شود.",
+  "Select level": "انتخاب سطح",
+  "Select one or more active destinations.": "فقط یک یا چند Destination فعال را انتخاب کنید.",
+  "Select only the components that belong to this immutable catalog release. Resolved embedded components are selected by default; unresolved research records remain opt-in.": "فقط Componentهایی را انتخاب کنید که متعلق به این نسخهٔ تغییرناپذیر کاتالوگ هستند. Componentهای درج‌شده و حل‌شده به‌صورت پیش‌فرض انتخاب می‌شوند؛ رکوردهای پژوهشی حل‌نشده فقط با انتخاب صریح وارد می‌شوند.",
+  "Select type": "انتخاب نوع",
+  "Select version": "انتخاب نسخه",
+  "Server tiers": "Tierهای سرور",
+  "Server-side references and operational state only; credential values are never returned.": "فقط مرجع‌های سمت سرور و وضعیت عملیاتی نمایش داده می‌شوند؛ مقدار رمز، کلید یا توکن هرگز به مرورگر برگردانده نمی‌شود.",
+  "Service Provider · 1000 tenants + white-label": "Service Provider · ۱۰۰۰ Tenant + White-label",
+  "Set field ownership, approval, security, tenancy and evidence policy.": "مشخص کنید هر فیلد متعلق به کدام لایه است و سیاست‌های تأیید، امنیت، چندمستاجری و نگه‌داری شواهد را تنظیم کنید.",
+  "Severity": "شدت",
+  "Shipped catalog · legacy binding": "Catalog عرضه‌شده · Binding قدیمی",
+  "Shipped component source inventory": "وضعیت ثبت‌شده مربوط به Source مؤلفه‌های عرضه‌شده",
+  "Signed platform desired state": "Desired State امضاشده Platform",
+  "Signing trust": "اعتماد امضا",
+  "Source semantics": "معنای Source",
+  "Staging": "مرحله Staging",
+  "Start / Overview": "شروع / نمای کلی",
+  "Start assurance workflow": "شروع Workflow تضمین",
+  "Supply-chain releases": "Releaseهای Supply-chain",
+  "Support & Diagnostics Center": "مرکز Support و Diagnostics",
+  "Support & diagnostics": "Support و Diagnostics",
+  "Supported types: STRING, INTEGER, BOOLEAN, STRING_LIST. Unknown values fail closed when resolved.": "نوع‌های پشتیبانی‌شده: STRING، INTEGER، BOOLEAN، STRING_LIST. مقدارهای ناشناخته هنگام حل تنظیمات رد می‌شوند.",
+  "TAIL · bounded latest snapshot": "TAIL · آخرین Snapshot محدود",
+  "TARGET PREVIEW REQUIRED": "پیش‌نمایش مقصد الزامی است",
+  "TARGET_RUNTIME_V1 · target capabilities + foundation harness": "TARGET_RUNTIME_V1 · Capabilityهای مقصد + Foundation harness",
+  "Tag": "برچسب (Tag)",
+  "Target identity is independent from provisioning: Cluster API is a provisioning adapter, while": "هویت مقصد از Provisioning مستقل است: Cluster API یک Provisioning Adapter است، درحالی‌که",
+  "Target runtime": "Runtime مقصد",
+  "Tenancy mode": "حالت Tenancy",
+  "Tenant environments & branding": "Environmentهای Tenant و Branding",
+  "The API validator intentionally rejects unsafe values; the visual editor represents the exact API fields rather than silently hardcoding them.": "اعتبارسنج API مقدارهای ناامن را رد می‌کند. ویرایشگر تصویری نیز همان فیلدهای واقعی API را نشان می‌دهد و هیچ مقدار پنهانی را به‌جای کاربر ثبت نمی‌کند.",
+  "The bootstrap token is entered directly in the Installer Recovery Console and is never stored or proxied by this panel.": "توکن راه‌اندازی فقط در کنسول بازیابی نصب‌کننده وارد می‌شود و این پنل آن را ذخیره یا واسطه‌گری نمی‌کند.",
+  "The canonical product roadmap and its cross-cutting tracks prevent backend-only closure. This is live from the target architecture authority, not copied roadmap prose.": "نقشهٔ راه اصلی محصول و مسیرهای مشترک آن اجازه نمی‌دهند یک قابلیت فقط با آماده‌شدن Backend کامل اعلام شود. این وضعیت مستقیماً از مرجع معماری محصول خوانده می‌شود، نه از متن ثابت مستندات.",
+  "The current maintenance contract enforces one node at a time.": "در وضعیت فعلی، عملیات نگه‌داری فقط روی یک نود در هر لحظه اجرا می‌شود.",
+  "Three-way Git drift source": "Source سه‌طرفه Git Drift",
+  "Timeout (seconds)": "Timeout (ثانیه)",
+  "Toggle color theme": "تغییر Theme رنگ",
+  "Toggle navigation": "باز/بسته کردن Navigation",
+  "Trust configured signer": "اعتماد به Signer پیکربندی‌شده",
+  "Trust key name": "نام Trust Key",
+  "Trust scope": "Scope اعتماد",
+  "Upstream acquisition admission": "Admission مربوط به Upstream Acquisition",
+  "Use as default managed Git provider": "استفاده به‌عنوان Provider پیش‌فرض Managed Git",
+  "Use strict JSON definitions; sensitive variables cannot have defaults.": "از تعریف‌های JSON سخت‌گیرانه استفاده کنید؛ متغیرهای حساس نمی‌توانند مقدار پیش‌فرض داشته باشند.",
+  "Use this only when establishing a new ownership boundary.": "فقط هنگام ایجاد یک مرز مالکیت جدید از این مورد استفاده کنید.",
+  "Username": "نام کاربری",
+  "Variable definitions (JSON array)": "Definitionهای Variable (آرایه JSON)",
+  "Variable schema": "Schema مربوط به Variable",
+  "Verify a profile or provision a dedicated target when infrastructure changes.": "هنگام تغییر زیرساخت، یک Profile را Verify کنید یا مقصد اختصاصی Provision کنید.",
+  "Verify a published Catalog release against fresh cluster inventory and collect evidence for the selected certification profile.": "نسخهٔ منتشرشدهٔ Catalog را با آخرین وضعیت کلاستر بررسی کنید و شواهد لازم برای سطح تأیید انتخاب‌شده را جمع‌آوری کنید.",
+  "Viewer · read only": "Viewer · فقط‌خواندنی",
+  "Visibility": "قابلیت مشاهده",
+  "Webhook": "وب‌هوک",
+  "Webhook endpoint": "Endpoint مربوط به Webhook",
+  "Why did this operation fail, what owner layer should be checked, and what is the safest next verification?": "چرا این عملیات ناموفق شد، مشکل احتمالاً در کدام بخش است و امن‌ترین بررسی بعدی چیست؟",
+  "Workspace": "فضای کاری",
+  "Workspace records": "رکوردهای Workspace",
+  "Workspaces": "Workspaceها",
+  "Your cloud brand": "Brand ابری شما",
+  "are distribution identities. Installer history such as Kubespray is not a distribution identity.": "این موارد هویت توزیع هستند. سابقهٔ نصب‌کننده‌هایی مانند Kubespray هویت توزیع محسوب نمی‌شود.",
+  "event, actor, target, message…": "رویداد، Actor، مقصد، پیام…",
+  "upgrade failure, cluster name, evidence kind…": "خطای Upgrade، نام کلاستر، نوع Evidence…",
+  "vSphere Standard": "استاندارد vSphere",
+  "vsphere or production": "vsphere یا production",
+  "· selected source:": "· Source انتخاب‌شده:",
+  "COMPONENT_RUNTIME_V1 · exact component lifecycle evidence": "COMPONENT_RUNTIME_V1 · شواهد دقیق چرخهٔ عمر مؤلفه",
+  "Component": "مؤلفه",
+  "Create an evidence-bound certification run from a published renderable Catalog release and fresh cluster inventory. FOUNDATION_V1 proves the executable foundation. OBSERVABILITY_V1 executes real metrics, logs and alert paths. TARGET_RUNTIME_V1 proves target-cluster networking, storage, backup/restore and observability capabilities. COMPONENT_RUNTIME_V1 is component-specific: it binds an exact component release and source lock, executes fresh install, readiness/dependency checks, controlled failure/recovery and safe removal, and remains partial until a real admitted version-to-version upgrade is certified. Missing providers or lifecycle authority remain BLOCKED.": "از یک انتشار کاتالوگ منتشرشده و قابل اجرا، همراه با موجودی تازهٔ کلاستر، یک اجرای اعتبارسنجی متصل به شواهد بسازید. FOUNDATION_V1 پایهٔ اجرایی را بررسی می‌کند. OBSERVABILITY_V1 مسیر واقعی متریک‌ها، لاگ و هشدار را می‌آزماید. TARGET_RUNTIME_V1 قابلیت‌های شبکه، ذخیره‌سازی، پشتیبان‌گیری و بازیابی و پایش کلاستر مقصد را بررسی می‌کند. COMPONENT_RUNTIME_V1 مخصوص یک مؤلفهٔ مشخص است: نسخهٔ دقیق و قفل منبع همان مؤلفه را ثبت می‌کند، نصب تازه، آمادگی، وابستگی‌ها، خرابی کنترل‌شده و بازیابی، و حذف امن را اجرا می‌کند. این پروفایل تا زمانی که ارتقای واقعی بین دو نسخهٔ پذیرفته‌شده تأیید نشود، همچنان ناقص می‌ماند. اگر ارائه‌دهنده یا اختیار چرخهٔ عمر موجود نباشد، وضعیت BLOCKED باقی می‌ماند.",
+  "Durable phase state with inventory/source-lock/render binding, fenced checkpoints, evidence, expiry and explicit BLOCKED/FAILED states. Component runs continue through FAILURE_RECOVERY and REMOVE; upgrade remains separately gated.": "وضعیت هر مرحله به‌صورت پایدار همراه با موجودی، قفل منبع، خروجی تولیدشده، قفل اجرایی، نقطهٔ بازیابی، شواهد و زمان انقضا نگه‌داری می‌شود و حالت‌های BLOCKED/FAILED صریح هستند. اجرای مؤلفه پس از بررسی اولیه وارد FAILURE_RECOVERY و سپس REMOVE می‌شود؛ ارتقا همچنان شرط عبور مستقل خود را دارد.",
+  "Must be unused for the first INSTALL attempt. Existing resources are never adopted or overwritten.": "برای اولین تلاش INSTALL، Namespace باید خالی و استفاده‌نشده باشد. منبع موجود هرگز پذیرفته یا بازنویسی نمی‌شود.",
+  "Only source-ready components with an admitted component-owned executor are listed. Upgrade remains independently gated.": "فقط مؤلفه‌هایی نمایش داده می‌شوند که منبع آن‌ها آماده است و اجراکنندهٔ اختصاصی پذیرفته‌شده دارند. ارتقا همچنان شرط عبور مستقل خود را دارد.",
 };
 const dynamicOriginalText = new WeakMap();
+const dynamicOriginalAttributes = new WeakMap();
 let dynamicLocalizationBusy = false;
+const localizedAttributeNames = ['aria-label','placeholder','title'];
+function localizeDynamicText(text) {
+  const value=String(text??'');
+  return state.locale==='fa'?(faDynamic[value]||value):value;
+}
+
 function localizeDynamicTree(root = document.body) {
   if (!root || dynamicLocalizationBusy) return; dynamicLocalizationBusy = true;
   const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
-  for(const node of nodes){const parent=node.parentElement;if(!parent||parent.closest('script,style,pre,code,.technical,[data-i18n]'))continue;const trimmed=node.nodeValue.trim();if(state.locale==='fa'&&faDynamic[trimmed]){dynamicOriginalText.set(node,node.nodeValue);const lead=node.nodeValue.match(/^\s*/)?.[0]||'',trail=node.nodeValue.match(/\s*$/)?.[0]||'';node.nodeValue=lead+faDynamic[trimmed]+trail;}else if(state.locale!=='fa'&&dynamicOriginalText.has(node)){node.nodeValue=dynamicOriginalText.get(node);dynamicOriginalText.delete(node);}}
+  for(const node of nodes){const parent=node.parentElement;if(!parent||parent.closest('script,style,pre,code,.technical,[data-i18n]'))continue;const trimmed=node.nodeValue.trim();if(state.locale==='fa'&&faDynamic[trimmed]){if(!dynamicOriginalText.has(node))dynamicOriginalText.set(node,node.nodeValue);const lead=node.nodeValue.match(/^\s*/)?.[0]||'',trail=node.nodeValue.match(/\s*$/)?.[0]||'';node.nodeValue=lead+faDynamic[trimmed]+trail;}else if(state.locale!=='fa'&&dynamicOriginalText.has(node)){node.nodeValue=dynamicOriginalText.get(node);dynamicOriginalText.delete(node);}}
+  dynamicLocalizationBusy=false;
+}
+function localizeDynamicAttributes(root = document.body) {
+  if (!root || dynamicLocalizationBusy) return; dynamicLocalizationBusy = true;
+  const elements = [root, ...root.querySelectorAll('*')].filter(el => el?.getAttribute && !el.closest?.('.technical'));
+  for (const el of elements) {
+    let originals = dynamicOriginalAttributes.get(el);
+    for (const attr of localizedAttributeNames) {
+      const current = el.getAttribute(attr);
+      if (state.locale === 'fa') {
+        if (!current || !faDynamic[current]) continue;
+        if (!originals) { originals = new Map(); dynamicOriginalAttributes.set(el, originals); }
+        if (!originals.has(attr)) originals.set(attr, current);
+        el.setAttribute(attr, faDynamic[current]);
+      } else if (originals?.has(attr)) {
+        el.setAttribute(attr, originals.get(attr));
+        originals.delete(attr);
+      }
+    }
+    if (originals && originals.size === 0) dynamicOriginalAttributes.delete(el);
+  }
   dynamicLocalizationBusy=false;
 }
 let dynamicLocalizationScheduled=false;
 const dynamicLocalizationObserver=new MutationObserver(()=>{
   if(dynamicLocalizationBusy||state.locale!=='fa'||dynamicLocalizationScheduled)return;
   dynamicLocalizationScheduled=true;
-  requestAnimationFrame(()=>{dynamicLocalizationScheduled=false;localizeDynamicTree(document.body);});
+  requestAnimationFrame(()=>{dynamicLocalizationScheduled=false;localizeDynamicTree(document.body);localizeDynamicAttributes(document.body);});
 });
-dynamicLocalizationObserver.observe(document.body,{subtree:true,childList:true,characterData:true});
+dynamicLocalizationObserver.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:localizedAttributeNames});
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const technical = value => `<span class="technical">${esc(value || '—')}</span>`;
@@ -325,7 +962,9 @@ const apiTokenPermissionProfiles = account => account?.productRole==='platform-o
   {value:'read',label:'Read only'},
   {value:'read,mcp.read',label:'Read + MCP context'},
   {value:'read,mcp.read,ai.diagnose',label:'Read + MCP + AI diagnosis'},
-  {value:'read,operate,mcp.read,ai.diagnose',label:'Full operator automation'}
+  {value:'read,mcp.read,mcp.operate',label:'MCP delegated operator'},
+  {value:'read,operation.execute',label:'Operation executor'},
+  {value:'read,operate,mcp.read,mcp.operate,ai.diagnose,operation.execute',label:'Full operator automation + executor'}
 ] : [
   {value:'read',label:'Read only'},
   {value:'read,mcp.read',label:'Read + MCP context'}
@@ -333,10 +972,11 @@ const apiTokenPermissionProfiles = account => account?.productRole==='platform-o
 const apiTokenPermissionsFromProfile = value => String(value||'read').split(',').map(item=>item.trim()).filter(Boolean);
 const apiTokenPermissionProfileValue = permissions => {
   const values=new Set(permissions||[]);
-  if(values.has('operate')&&values.has('mcp.read')&&values.has('ai.diagnose'))return 'read,operate,mcp.read,ai.diagnose';
+  if(values.has('operate')&&values.has('mcp.read')&&values.has('mcp.operate')&&values.has('ai.diagnose'))return 'read,operate,mcp.read,mcp.operate,ai.diagnose';
+  if(values.has('mcp.operate'))return 'read,mcp.read,mcp.operate';
   if(values.has('ai.diagnose'))return 'read,mcp.read,ai.diagnose';
   if(values.has('mcp.read'))return 'read,mcp.read';
-  if(values.has('operate'))return 'read,operate,mcp.read,ai.diagnose';
+  if(values.has('operate'))return 'read,operate,mcp.read,mcp.operate,ai.diagnose';
   return 'read';
 };
 
@@ -349,6 +989,131 @@ function isPermissionContext(value) {
 function isLocalSession() { return state.session?.sub === 'local-development'; }
 function canOperate() { return isLocalSession() || sessionRoles().includes('platform-admin') || sessionRoles().includes('platform-operator'); }
 function canAdminister() { return isLocalSession() || sessionRoles().includes('platform-admin'); }
+
+function scopeDirectoryProject(projectId) {
+  return state.scopeProjects.find(item=>item.id===projectId)||null;
+}
+function scopeDirectoryOrganization(organizationId) {
+  return state.scopeOrganizations.find(item=>item.id===organizationId)||null;
+}
+function globalScopeProjectIDs() {
+  if(state.globalScope.projectId)return new Set([state.globalScope.projectId]);
+  if(state.globalScope.organizationId)return new Set(state.scopeProjects.filter(item=>item.organizationId===state.globalScope.organizationId).map(item=>item.id));
+  return null;
+}
+function projectBelongsToGlobalScope(projectId) {
+  if(!projectId)return true;
+  if(state.globalScope.projectId)return projectId===state.globalScope.projectId;
+  if(!state.globalScope.organizationId)return true;
+  return scopeDirectoryProject(projectId)?.organizationId===state.globalScope.organizationId;
+}
+function organizationBelongsToGlobalScope(organizationId) {
+  if(!organizationId||!state.globalScope.organizationId)return true;
+  return organizationId===state.globalScope.organizationId;
+}
+function persistGlobalScope() {
+  if(state.globalScope.organizationId)localStorage.setItem('platformScopeOrganization',state.globalScope.organizationId);
+  else localStorage.removeItem('platformScopeOrganization');
+  if(state.globalScope.projectId)localStorage.setItem('platformScopeProject',state.globalScope.projectId);
+  else localStorage.removeItem('platformScopeProject');
+}
+function normalizeGlobalScope() {
+  let organizationId=String(state.globalScope.organizationId||'').trim();
+  let projectId=String(state.globalScope.projectId||'').trim();
+  const fixedProject=String(state.accessContext?.projectId||'').trim();
+  const fixedOrganization=String(state.accessContext?.organizationId||'').trim();
+  if(fixedProject)projectId=fixedProject;
+  if(fixedOrganization)organizationId=fixedOrganization;
+
+  const project=scopeDirectoryProject(projectId);
+  if(projectId&&!project)projectId='';
+  if(projectId){
+    organizationId=scopeDirectoryProject(projectId)?.organizationId||organizationId;
+  }
+  if(organizationId&&!scopeDirectoryOrganization(organizationId))organizationId='';
+  if(projectId&&organizationId&&scopeDirectoryProject(projectId)?.organizationId!==organizationId)projectId='';
+
+  state.globalScope={organizationId,projectId};
+  persistGlobalScope();
+  return state.globalScope;
+}
+function globalScopeRoleLabel() {
+  if(state.globalScope.projectId)return effectiveProjectRole(state.globalScope.projectId)||'project access';
+  if(state.globalScope.organizationId)return effectiveOrganizationRole(state.globalScope.organizationId)||'organization access';
+  return isLocalSession()?'local admin':(state.accessContext?.globalRole||sessionRoles()[0]||'accessible scope');
+}
+function renderGlobalScope() {
+  const root=$('#global-scope'),organization=$('#global-organization-scope'),project=$('#global-project-scope'),status=$('#global-scope-status');
+  if(!root||!organization||!project||!status)return;
+  normalizeGlobalScope();
+  const faScope=state.locale==='fa';
+  root.querySelector('label:first-of-type > span').textContent=faScope?'سازمان':'Organization';
+  root.querySelector('label:nth-of-type(2) > span').textContent=faScope?'پروژه':'Project';
+  const fixedProject=String(state.accessContext?.projectId||'').trim();
+  const fixedOrganization=String(state.accessContext?.organizationId||'').trim();
+  const orgs=state.scopeOrganizations;
+  organization.innerHTML=`<option value="">${esc(faScope?'همه سازمان‌های مجاز':'All accessible organizations')}</option>${orgs.map(item=>`<option value="${esc(item.id)}">${esc(item.displayName||item.name||item.id)}</option>`).join('')}`;
+  organization.value=state.globalScope.organizationId;
+  const projects=state.scopeProjects.filter(item=>!state.globalScope.organizationId||item.organizationId===state.globalScope.organizationId);
+  const orgNames=new Map(state.scopeOrganizations.map(item=>[item.id,item.displayName||item.name||item.id]));
+  const allLabel=state.globalScope.organizationId?(faScope?'همه پروژه‌های این سازمان':'All projects in organization'):(faScope?'همه پروژه‌های مجاز':'All accessible projects');
+  project.innerHTML=`<option value="">${esc(allLabel)}</option>${projects.map(item=>`<option value="${esc(item.id)}">${esc(state.globalScope.organizationId?(item.displayName||item.name||item.id):`${orgNames.get(item.organizationId)||item.organizationId} / ${item.displayName||item.name||item.id}`)}</option>`).join('')}`;
+  project.value=state.globalScope.projectId;
+  organization.disabled=!state.scopeReady||state.scopeTransitioning||Boolean(fixedOrganization||fixedProject);
+  project.disabled=!state.scopeReady||state.scopeTransitioning||Boolean(fixedProject)||projects.length===0;
+  root.dataset.ready=state.scopeReady?'true':'false';
+  const org=scopeDirectoryOrganization(state.globalScope.organizationId),prj=scopeDirectoryProject(state.globalScope.projectId);
+  const allName=faScope?'همه محدوده‌های مجاز':'All accessible';
+  const scopeName=prj?(prj.displayName||prj.name||prj.id):org?(org.displayName||org.name||org.id):allName;
+  status.textContent=state.scopeTransitioning?(faScope?'در حال تغییر محدوده…':'Switching scope…'):state.scopeReady?`${scopeName} · ${globalScopeRoleLabel()}`:(faScope?'محدوده دسترسی در دسترس نیست':'Scope authority unavailable');
+}
+async function refreshGlobalScopeDirectory() {
+  try{
+    const [organizations,projects]=await Promise.all([authorityJSON('/api/v1/organizations'),authorityJSON('/api/v1/projects')]);
+    state.scopeOrganizations=Array.isArray(organizations)?organizations:[];
+    state.scopeProjects=Array.isArray(projects)?projects:[];
+    state.scopeReady=true;
+    normalizeGlobalScope();
+    renderGlobalScope();
+    return true;
+  }catch(error){
+    state.scopeReady=false;
+    state.scopeOrganizations=[];
+    state.scopeProjects=[];
+    renderGlobalScope();
+    return false;
+  }
+}
+async function changeGlobalScope(nextOrganizationId,nextProjectId) {
+  const nextProject=scopeDirectoryProject(nextProjectId);
+  let organizationId=String(nextOrganizationId||'').trim();
+  let projectId=String(nextProjectId||'').trim();
+  if(projectId&&nextProject)organizationId=nextProject.organizationId;
+  if(projectId&&!nextProject)projectId='';
+  if(organizationId&&!scopeDirectoryOrganization(organizationId))organizationId='';
+  if(projectId&&scopeDirectoryProject(projectId)?.organizationId!==organizationId)projectId='';
+  if(organizationId===state.globalScope.organizationId&&projectId===state.globalScope.projectId)return false;
+
+  if(hasUnsavedChanges()){
+    const discarded=await confirmAction('Change organization/project scope?','Changing global scope reloads this page from a different authority boundary and will discard unsaved changes.',true);
+    if(!discarded){renderGlobalScope();return false;}
+  }
+  clearDirtyForms();
+  state.scopeTransitioning=true;
+  state.pageLoadController?.abort();
+  state.globalScope={organizationId,projectId};
+  persistGlobalScope();
+  renderGlobalScope();
+  applyAccessMode();
+  try{
+    await loadPage(state.currentPage,true);
+    return true;
+  }finally{
+    state.scopeTransitioning=false;
+    renderGlobalScope();
+    applyAccessMode();
+  }
+}
 function canApprove(resource) {
   if (isLocalSession()) return true;
   return sessionRoles().includes('platform-admin') && state.session?.sub && state.session.sub !== resource?.requestedBy;
@@ -409,6 +1174,7 @@ function applyKnownMutationScopes() {
   setScopedAccess($('#maintenance-window-form'),{projectId:maintenanceProject});
   setScopedAccess($('#maintenance-window-grid'),{projectId:maintenanceProject});
   setScopedAccess($('#maintenance-run-grid'),{projectId:maintenanceProject});
+  setScopedAccess($('#target-node-lifecycle-grid'),{projectId:maintenanceProject,access:'read'});
 
   const providerProject=$('#provider-project')?.value||'';
   setScopedAccess($('#provider-profile-form'),{projectId:providerProject,requiredGlobalRole:'platform-admin'});
@@ -427,6 +1193,13 @@ function applyKnownMutationScopes() {
   const closureDeployment=state.baselineDeployments.find(item=>item.id===$('#closure-baseline')?.value);
   setScopedAccess($('#closure-form'),{projectId:closureDeployment?.projectId||''});
   setScopedAccess($('#runtime-certification-form'),{projectId:$('#runtime-certification-project')?.value||''});
+  setScopedAccess($('#ai-diagnosis-form'),{projectId:$('#ai-project')?.value||''});
+  setScopedAccess($('#template-schema-form'),{projectId:$('#template-schema-project')?.value||''});
+  setScopedAccess($('#template-policy-form'),{projectId:$('#template-policy-project')?.value||''});
+  setScopedAccess($('#platform-template-form'),{projectId:$('#platform-template-project')?.value||''});
+  setScopedAccess($('#workspace-authority-form'),{projectId:$('#workspace-authority-project')?.value||''});
+  const selectedWorkspace=state.workspaces.find(item=>item.id===$('#workspace-binding-workspace')?.value);
+  setScopedAccess($('#workspace-binding-form'),{projectId:selectedWorkspace?.projectId||''});
 
   setScopedAccess($('#recovery-checkpoint-form'),{projectId:projectForCluster($('#recovery-cluster')?.value||'')});
   setScopedAccess($('#fleet-group-form'),{projectId:$('#fleet-project')?.value||''});
@@ -480,6 +1253,7 @@ function applyKnownMutationScopes() {
 
   $$('[data-git-provider-action],[data-git-pr-action],[data-git-lkg-rollback]').forEach(button=>setScopedAccess(button,{requiredGlobalRole:'platform-admin'}));
   scopeActionElements('[data-blueprint-action]',state.blueprintReleases,(el,item)=>el.dataset.id===item.id,(el,item)=>({projectId:item.projectId||'',access:['request-changes','publish','deprecate','revoke'].includes(el.dataset.blueprintAction)?'admin':'write'}));
+  scopeActionElements('[data-workspace-binding-action]',state.workspaceBindings,(el,item)=>el.dataset.id===item.id,(el,item)=>({projectId:item.projectId||state.workspaces.find(workspace=>workspace.id===item.workspaceId)?.projectId||'',access:el.dataset.workspaceBindingAction==='revoke'?'write':'read'}));
   scopeActionElements('[data-catalog-trust-action]',state.catalogTrustKeys,(el,item)=>el.dataset.id===item.id,(_el,item)=>item.organizationId?({organizationId:item.organizationId,access:'admin'}):({requiredGlobalRole:'platform-admin'}));
   scopeActionElements('[data-catalog-action]',state.catalogReleases,(el,item)=>el.dataset.id===item.id,(el,item)=>{
     const admin=['request-changes','publish','deprecate','revoke'].includes(el.dataset.catalogAction);
@@ -487,23 +1261,83 @@ function applyKnownMutationScopes() {
     return {organizationId:item.organizationId||'',access:admin?'admin':'write'};
   });
 }
+function actionStateUnavailable(resourceType, action, stateValue, detail='') {
+  const suffix=detail?` ${detail}`:'';
+  return `${action} is unavailable while ${resourceType} is ${stateValue||'UNKNOWN'}.${suffix} Refresh authoritative state before retrying.`;
+}
+const statefulMutationActionKeys=new Set([
+  'importAction','providerProfileAction','providerClusterAction','marketplaceAction','baselineAction','verificationAction','certificationAction','closureAction','recoveryAction','upgradeAction','tenantAction',
+  'serviceAccountAction','apiTokenAction','notificationDestinationAction','notificationRouteAction','gitProviderAction','gitCredentialAction','blueprintAction','catalogAction','gitPrAction',
+  'clusterAction','agentCertificateAction','maintenanceWindowAction','maintenanceRunAction','driftAction','fleetAction','workspaceBindingAction','catalogTrustAction','operationAction'
+]);
+function operationalActionStateReason(button) {
+  const find=(items,id)=>items.find(item=>String(item?.id||'')===String(id||''));
+  const action=(name)=>String(button.dataset[name]||'').toLowerCase();
+  let item,a,actionContractHandled=false;
+  if(button.dataset.importAction){actionContractHandled=true;item=find(state.imports,button.dataset.id);a=action('importAction');if(!item)return 'Enrollment request is no longer in the current result set. Refresh before acting.';if(a==='approve'&&item.state!=='PENDING_APPROVAL')return actionStateUnavailable('enrollment request','Approve',item.state);if(a==='revoke'&&!['PENDING_APPROVAL','APPROVED'].includes(item.state))return actionStateUnavailable('enrollment request','Cancel enrollment',item.state);}
+  if(button.dataset.providerProfileAction){actionContractHandled=true;item=find(state.providerProfiles,button.dataset.id);a=action('providerProfileAction');if(!item)return 'Provider profile is no longer in the current result set. Refresh before acting.';if(a==='retry'&&item.state!=='FAILED')return actionStateUnavailable('provider profile','Retry verification',item.state);}
+  if(button.dataset.providerClusterAction){actionContractHandled=true;item=find(state.providerClusters,button.dataset.id);a=action('providerClusterAction');if(!item)return 'Provider cluster is no longer in the current result set. Refresh before acting.';const allowed={approve:['AWAITING_APPROVAL','DELETE_AWAITING_APPROVAL'],scale:['ACTIVE'],upgrade:['ACTIVE'],retry:['FAILED'],delete:['ACTIVE','FAILED','DELETE_AWAITING_APPROVAL','DELETE_QUEUED']};if(allowed[a]&&!allowed[a].includes(item.state))return actionStateUnavailable('provider cluster',a,item.state);if(a==='retry'&&!['PROVISION','SCALE','UPGRADE'].includes(String(item.pendingAction||'')))return actionStateUnavailable('provider cluster','Retry',item.state,'The failed action is not retryable; use a fresh recovery-bound request when required.');}
+  if(button.dataset.marketplaceAction){actionContractHandled=true;item=state.marketplaceInstallations.map(v=>v.installation||v).find(v=>String(v.id)===String(button.dataset.id));a=action('marketplaceAction');if(!item)return 'Marketplace installation is no longer in the current result set. Refresh before acting.';const allowed={approve:['AWAITING_APPROVAL'],retry:['FAILED'],uninstall:['SUCCEEDED','FAILED','ROLLBACK_QUEUED']};if(allowed[a]&&!allowed[a].includes(item.state))return actionStateUnavailable('marketplace installation',a,item.state);if(a==='retry'&&String(item.pendingAction||'')==='ROLLBACK')return actionStateUnavailable('marketplace installation','Retry',item.state,'Rollback failure requires a fresh recovery-bound uninstall request.');}
+  if(button.dataset.baselineAction){actionContractHandled=true;item=find(state.baselineDeployments,button.dataset.id);a=action('baselineAction');if(!item)return 'Baseline deployment is no longer in the current result set. Refresh before acting.';const allowed={approve:['AWAITING_APPROVAL'],revalidate:['AWAITING_APPROVAL','QUEUED'],retry:['FAILED'],rollback:['SUCCEEDED','FAILED','ROLLBACK_QUEUED']};if(allowed[a]&&!allowed[a].includes(item.state))return actionStateUnavailable('baseline deployment',a,item.state);if(a==='approve'&&!planApprovalReady(item))return 'Approval is blocked until impact, rollback and evidence prerequisites are ready.';if(a==='retry'&&String(item.pendingAction||'')==='ROLLBACK')return actionStateUnavailable('baseline deployment','Retry',item.state,'Rollback failure requires a fresh recovery-bound rollback request.');}
+  if(button.dataset.verificationAction){actionContractHandled=true;item=find(state.verifications,button.dataset.id);a=action('verificationAction');if(!item)return 'Runtime verification is no longer in the current result set. Refresh before acting.';if(a==='retry'&&item.state!=='FAILED')return actionStateUnavailable('runtime verification','Retry',item.state);}
+  if(button.dataset.certificationAction){actionContractHandled=true;item=find(state.runtimeCertifications,button.dataset.id);a=action('certificationAction');if(!item)return 'Runtime certification is no longer in the current result set. Refresh before acting.';if(a==='revoke'&&item.state!=='SUCCEEDED')return actionStateUnavailable('runtime certification','Revoke evidence',item.state);}
+  if(button.dataset.closureAction){actionContractHandled=true;item=find(state.closures,button.dataset.id);a=action('closureAction');if(!item)return 'Runtime closure campaign is no longer in the current result set. Refresh before acting.';if(a==='advance'&&['SUCCEEDED','FAILED'].includes(item.state))return actionStateUnavailable('runtime closure campaign','Advance',item.state);if(a==='retry'&&item.state!=='FAILED')return actionStateUnavailable('runtime closure campaign','Retry',item.state);if(a==='verify'&&item.state!=='SUCCEEDED')return actionStateUnavailable('runtime closure campaign','Verify evidence',item.state);}
+  if(button.dataset.recoveryAction){actionContractHandled=true;item=find(state.recoveryCheckpoints,button.dataset.id);a=action('recoveryAction');if(!item)return 'Recovery checkpoint is no longer in the current result set. Refresh before acting.';if(a==='revoke'&&item.state!=='VERIFIED')return actionStateUnavailable('recovery checkpoint','Revoke',item.state);}
+  if(button.dataset.upgradeAction){actionContractHandled=true;item=find(state.upgradeCampaigns,button.dataset.id);a=action('upgradeAction');if(!item)return 'Upgrade campaign is no longer in the current result set. Refresh before acting.';const allowed={approve:['AWAITING_APPROVAL'],revalidate:['AWAITING_APPROVAL','QUEUED','RUNNING','PAUSED'],pause:['RUNNING'],resume:['PAUSED'],advance:['QUEUED','RUNNING','HALTED','PAUSE_REQUESTED','CANCEL_REQUESTED'],cancel:['AWAITING_APPROVAL','QUEUED','RUNNING','HALTED','PAUSE_REQUESTED','PAUSED']};if(allowed[a]&&!allowed[a].includes(item.state))return actionStateUnavailable('upgrade campaign',a,item.state);if(a==='revalidate'&&item.state==='RUNNING'&&(item.targets||[]).some(target=>['PLANNING','APPLYING','VERIFYING','ROLLING_BACK'].includes(target.state)))return 'Revalidation is available only between waves; an active target is still running.';}
+  if(button.dataset.tenantAction){actionContractHandled=true;item=find(state.tenants,button.dataset.id);a=action('tenantAction');if(!item)return 'Tenant is no longer in the current result set. Refresh before acting.';const allowed={resize:['ACTIVE'],suspend:['ACTIVE'],resume:['SUSPENDED'],approve:['RESIZE_AWAITING_APPROVAL','DELETE_AWAITING_APPROVAL'],retry:['FAILED'],delete:['ACTIVE','SUSPENDED','FAILED','DELETE_AWAITING_APPROVAL','DELETE_QUEUED']};if(allowed[a]&&!allowed[a].includes(item.state))return actionStateUnavailable('tenant',a,item.state);if(a==='retry'&&String(item.pendingAction||'')==='DELETE')return actionStateUnavailable('tenant','Retry',item.state,'Protected delete failure requires a fresh recovery-bound delete request.');}
+  if(button.dataset.serviceAccountAction){actionContractHandled=true;item=find(state.serviceAccounts,button.dataset.id);a=action('serviceAccountAction');if(!item)return 'Service account is no longer in the current result set. Refresh before acting.';if(['issue','revoke'].includes(a)&&item.state!=='ACTIVE')return actionStateUnavailable('service account',a,item.state);}
+  if(button.dataset.apiTokenAction){actionContractHandled=true;const account=find(state.serviceAccounts,button.dataset.accountId),token=(state.apiTokens?.[button.dataset.accountId]||[]).find(row=>String(row.id)===String(button.dataset.tokenId));a=action('apiTokenAction');if(!account||!token)return 'API token is no longer in the current result set. Refresh before acting.';if(account.state!=='ACTIVE')return actionStateUnavailable('service account',a,account.state,'Token mutation is unavailable after the owning service account is revoked.');const effective=tokenEffectiveState(token);if(effective!=='ACTIVE')return actionStateUnavailable('API token',a,effective);}
+  if(button.dataset.notificationDestinationAction){actionContractHandled=true;item=find(state.notificationDestinations,button.dataset.id);a=action('notificationDestinationAction');if(!item)return 'Notification destination is no longer in the current result set. Refresh before acting.';if(['edit','disable'].includes(a)&&item.state!=='ACTIVE')return actionStateUnavailable('notification destination',a,item.state);}
+  if(button.dataset.notificationRouteAction){actionContractHandled=true;item=find(state.notificationRoutes,button.dataset.id);if(!item)return 'Notification route is no longer in the current result set. Refresh before acting.';}
+  if(button.dataset.gitProviderAction){actionContractHandled=true;item=find(state.gitProviders,button.dataset.id);a=action('gitProviderAction');if(!item)return 'Git provider is no longer in the current authority response. Refresh before acting.';if(a==='rebind'){const select=$(`[data-git-provider-credential="${item.id}"]`),credentialId=String(select?.value||'');if(!credentialId)return 'Select an active Git credential before rebinding the provider.';if(credentialId===String(item.credentialId||''))return 'This provider already uses the selected credential.';const credential=find(state.gitCredentials,credentialId);if(!credential||credential.state!=='ACTIVE')return 'The selected Git credential is no longer ACTIVE. Refresh credential authority before rebinding.';}}
+  if(button.dataset.gitCredentialAction){actionContractHandled=true;a=action('gitCredentialAction');const form=$('#git-credential-rotate-form'),credential=find(state.gitCredentials,form?.dataset?.credentialId);if(!credential)return 'Active Git credential authority is unavailable. Refresh before acting.';if(a==='revoke'&&credential.state!=='ACTIVE')return actionStateUnavailable('Git credential','Revoke',credential.state);}
+  if(button.dataset.gitLkgRollback){item=find(state.managedGitRevisions,button.dataset.gitLkgRollback);if(!item)return 'Last-known-good revision is no longer in the current result set. Refresh before rollback.';if(!item.lastKnownGood)return 'This revision is no longer marked last-known-good. Refresh before rollback.';const latest=state.managedGitRevisions.filter(row=>row.organization===item.organization&&row.repository===item.repository&&row.branch===item.branch).sort((left,right)=>String(right.updatedAt||right.createdAt||'').localeCompare(String(left.updatedAt||left.createdAt||'')))[0];if(latest&&latest.commitSha===item.commitSha)return 'Desired state already points at this last-known-good commit; rollback would be a no-op.';}
+  if(button.dataset.operationCancel){item=find(state.operations,button.dataset.operationCancel);if(!item)return 'Operation is no longer in the current result set. Refresh before acting.';if(['SUCCEEDED','ROLLED_BACK','CANCELLED'].includes(item.state))return actionStateUnavailable('operation','Cancel',item.state);if(item.state==='CANCEL_REQUESTED')return 'Cancellation is already requested. Inspect the operation for safe-boundary progress and evidence.';}
+  if(button.dataset.blueprintAction){actionContractHandled=true;item=find(state.blueprintReleases,button.dataset.id);a=action('blueprintAction');if(!item)return 'Blueprint release is no longer in the current result set. Refresh before acting.';const allowed={edit:['DRAFT'],review:['DRAFT'],'request-changes':['REVIEW'],publish:['REVIEW'],clone:['PUBLISHED','DEPRECATED','REVOKED'],deprecate:['PUBLISHED'],revoke:['PUBLISHED','DEPRECATED']};if(allowed[a]&&!allowed[a].includes(item.state))return actionStateUnavailable('Blueprint release',a,item.state);}
+  if(button.dataset.catalogAction){actionContractHandled=true;item=find(state.catalogReleases,button.dataset.id);a=action('catalogAction');if(!item)return 'Catalog release is no longer in the current result set. Refresh before acting.';const allowed={refresh:['DRAFT'],review:['DRAFT'],'request-changes':['REVIEW'],publish:['REVIEW'],render:['PUBLISHED'],promote:['PUBLISHED','DEPRECATED'],deprecate:['PUBLISHED'],revoke:['PUBLISHED','DEPRECATED']};if(allowed[a]&&!allowed[a].includes(item.state))return actionStateUnavailable('catalog release',a,item.state);}
+  if(button.dataset.gitPrAction){actionContractHandled=true;item=state.gitPullRequests?.find?.(row=>String(row.id)===String(button.dataset.prId));a=action('gitPrAction');if(!item)return 'Pull request is no longer in the current authority response. Refresh before acting.';if(a==='approve'&&item.state!=='OPEN')return actionStateUnavailable('pull request','Approve',item.state);if(a==='merge'&&item.state!=='APPROVED')return actionStateUnavailable('pull request','Merge',item.state);}
+  if(button.dataset.clusterAction){actionContractHandled=true;const row=state.clusters.find(value=>String((value.cluster||value).id)===String(button.dataset.id));item=row?.cluster||row;a=action('clusterAction');if(!item)return 'Cluster is no longer in the current result set. Refresh before acting.';if(a==='revoke'&&item.connectionState==='REVOKED')return actionStateUnavailable('cluster agent access','Revoke',item.connectionState);}
+  if(button.dataset.agentCertificateAction){actionContractHandled=true;a=action('agentCertificateAction');const certState=String(button.dataset.state||'UNKNOWN');if(a==='revoke'&&certState!=='ACTIVE')return actionStateUnavailable('agent certificate','Revoke',certState);}
+  if(button.dataset.maintenanceWindowAction){actionContractHandled=true;item=find(state.clusterMaintenanceWindows,button.dataset.id);a=action('maintenanceWindowAction');if(!item)return 'Maintenance window is no longer in the current result set. Refresh before acting.';if(['run','cancel'].includes(a)&&item.state!=='ACTIVE')return actionStateUnavailable('maintenance window',a,item.state);}
+  if(button.dataset.maintenanceRunAction){actionContractHandled=true;item=find(state.clusterMaintenanceRuns,button.dataset.id);a=action('maintenanceRunAction');if(!item)return 'Maintenance run is no longer in the current result set. Refresh before acting.';if(a==='approve'&&item.state!=='AWAITING_APPROVAL')return actionStateUnavailable('maintenance run','Approve',item.state);}
+  if(button.dataset.driftAction){actionContractHandled=true;item=find(state.driftScans,button.dataset.scanId);a=action('driftAction');if(!item)return 'Drift scan is no longer in the current result set. Refresh before acting.';const target=(item.targets||[]).find(row=>String(row.clusterId)===String(button.dataset.clusterId));if(!target)return 'Drift target is no longer in the current scan. Refresh before acting.';if(a==='adopt-git'&&!target.git?.adoptable)return 'Trusted Git state is no longer adoptable for this target. Refresh drift evidence before acting.';if(a==='remediate-finding'){const finding=(target.findings||[]).find(row=>String(row.fingerprint)===String(button.dataset.fingerprint));if(!finding)return 'Drift finding is no longer present. Refresh before remediation.';if(finding.remediation?.mode!=='OPERATION'||!finding.remediation?.eligible)return 'This drift finding is no longer eligible for operation-backed remediation.';}}
+  if(button.dataset.fleetAction){actionContractHandled=true;item=find(state.fleetGroups,button.dataset.id);a=action('fleetAction');if(!item)return 'Fleet group is no longer in the current result set. Refresh before acting.';if(!Array.isArray(item.clusterIds)||!item.clusterIds.length)return 'Fleet action is unavailable because the group has no bound clusters.';}
+  if(button.dataset.workspaceBindingAction){actionContractHandled=true;item=find(state.workspaceBindings,button.dataset.id);a=action('workspaceBindingAction');if(!item)return 'Workspace binding is no longer in the current result set. Refresh before acting.';if(a==='revoke'&&item.state!=='ACTIVE')return actionStateUnavailable('workspace binding','Revoke',item.state);}
+  if(button.dataset.catalogTrustAction){actionContractHandled=true;item=find(state.catalogTrustKeys,button.dataset.id);a=action('catalogTrustAction');if(!item)return 'Catalog trust key is no longer in the current result set. Refresh before acting.';if(a==='revoke'&&item.state!=='ACTIVE')return actionStateUnavailable('catalog trust key','Revoke',item.state);}
+  if(button.dataset.operationAction){actionContractHandled=true;item=find(state.operations,button.dataset.id);a=action('operationAction');if(!item)return 'Operation is no longer in the current result set. Refresh before acting.';if(a==='recover'){if(!['FAILED','CANCEL_REQUESTED'].includes(item.state))return actionStateUnavailable('operation','Start recovery',item.state);if(!item.compensationPlanDigest||!(item.compensationStepCount>0))return 'Recovery is unavailable because this operation has no bound compensation plan.';}}
+  if(button.dataset.membershipRevoke){item=state.organizationMemberships.find(row=>String(row.subject)===String(button.dataset.membershipRevoke));if(!item)return 'Organization membership is no longer in the current result set. Refresh before acting.';if(item.state!=='ACTIVE')return actionStateUnavailable('organization membership','Revoke',item.state);}
+  if(button.dataset.oidcMappingRevoke){item=find(state.oidcGroupMappings,button.dataset.oidcMappingRevoke);if(!item)return 'OIDC group mapping is no longer in the current result set. Refresh before acting.';if(item.state!=='ACTIVE')return actionStateUnavailable('OIDC group mapping','Revoke',item.state);}
+  if(button.dataset.orgEdit){item=find(state.organizations,button.dataset.orgEdit);if(!item)return 'Organization is no longer in the current result set. Refresh before editing.';}
+  if(button.dataset.notificationRetryDeadLetter){item=find(state.notificationDeliveries,button.dataset.notificationRetryDeadLetter);if(!item)return 'Notification delivery is no longer in the current result set. Refresh before retrying.';if(item.state!=='DEAD_LETTER')return actionStateUnavailable('notification delivery','Requeue',item.state);}
+  const actionEntry=Object.entries(button.dataset).find(([key])=>key.endsWith('Action'));
+  if(actionEntry&&statefulMutationActionKeys.has(actionEntry[0])&&!actionContractHandled&&!['inspect','view','timeline','bundle','impact'].includes(String(actionEntry[1]||'').toLowerCase()))return `Action-state contract is unavailable for ${actionEntry[0]}. Refresh before acting.`;
+  return '';
+}
 function scopedMutationReason(button) {
   if(!canOperate())return 'Read-only session';
+  if(state.scopeTransitioning)return 'Organization/project scope is changing';
+  if(state.session&&!state.scopeReady)return 'Organization/project scope is unavailable; retry before mutating';
   const adminHolder=button.closest('[data-required-global-role="platform-admin"]');
   if(adminHolder&&!canAdminister())return 'platform-admin is required';
   if(!isLocalSession()&&!canAdminister()&&!state.permissionContextReady)return 'Permission scope is temporarily unavailable';
   const projectHolder=button.closest('[data-project-scope]');
   if(projectHolder){
+    const projectId=projectHolder.dataset.projectScope;
+    if(!projectBelongsToGlobalScope(projectId))return 'Action belongs to a project outside the selected global scope';
     const required=projectHolder.dataset.scopeAccess||'write';
-    const role=effectiveProjectRole(projectHolder.dataset.projectScope);
+    const role=effectiveProjectRole(projectId);
     if(!scopeRoleAllows(role,required))return required==='admin'?'Project administrator access is required':'Project write access is required';
   }
   const organizationHolder=button.closest('[data-organization-scope]');
   if(organizationHolder){
+    const organizationId=organizationHolder.dataset.organizationScope;
+    if(!organizationBelongsToGlobalScope(organizationId))return 'Action belongs to an organization outside the selected global scope';
     const required=organizationHolder.dataset.scopeAccess||'write';
-    const role=effectiveOrganizationRole(organizationHolder.dataset.organizationScope);
+    const role=effectiveOrganizationRole(organizationId);
     if(!scopeRoleAllows(role,required))return required==='admin'?'Organization administrator access is required':'Organization write access is required';
   }
+  const stateReason=operationalActionStateReason(button);
+  if(stateReason)return stateReason;
   return '';
 }
 const explicitMutationKeys=new Set(['operationCancel','membershipRevoke','oidcMappingRevoke','orgEdit','gitLkgRollback','notificationRetryDeadLetter']);
@@ -562,7 +1396,7 @@ function applyAccessMode(root = document) {
 const permissionScopeChangeDrivers=new Set([
   'project-organization','membership-organization','service-account-organization','cluster-project','maintenance-cluster-select',
   'provider-project','blueprint-project','blueprint-overlay-project','marketplace-cluster','baseline-cluster','verification-baseline',
-  'closure-baseline','runtime-certification-project','recovery-cluster','fleet-project','tenant-organization','tenant-project',
+  'closure-baseline','runtime-certification-project','ai-project','template-schema-project','template-policy-project','platform-template-project','recovery-cluster','fleet-project','workspace-authority-project','workspace-binding-workspace','workspace-binding-cluster','tenant-organization','tenant-project',
   'notification-destination-organization','notification-route-organization','notification-route-project','catalog-trust-organization',
   'catalog-release-visibility','catalog-release-organization'
 ]);
@@ -575,14 +1409,132 @@ function invalidateDestructiveConfirmationOnDemotion(previousCanOperate) {
   if(dialog?.open)dialog.close('cancel');
 }
 
+const projectScopedCollectionPaths=new Set([
+  '/api/v1/clusters','/api/v1/cluster-imports','/api/v1/provider-profiles','/api/v1/provider-clusters',
+  '/api/v1/marketplace/installations','/api/v1/marketplace/recommendations','/api/v1/baseline-deployments',
+  '/api/v1/runtime-verifications','/api/v1/runtime-closure-campaigns','/api/v1/runtime-certifications',
+  '/api/v1/recovery-checkpoints','/api/v1/fleet-groups','/api/v1/drift-scans','/api/v1/upgrade-campaigns',
+  '/api/v1/tenants','/api/v1/ai/runs','/api/v1/workspaces','/api/v1/blueprint-releases',
+  '/api/v1/blueprint-overlays','/api/v1/variable-schemas','/api/v1/platform-policy-sets','/api/v1/platform-templates'
+]);
+const boundedOperatorCollectionLimit=100;
+const boundedOperatorCollectionPaths=new Set([
+  '/api/v1/clusters','/api/v1/cluster-imports','/api/v1/provider-profiles','/api/v1/provider-clusters',
+  '/api/v1/marketplace/installations','/api/v1/marketplace/recommendations','/api/v1/baseline-deployments','/api/v1/runtime-verifications','/api/v1/runtime-closure-campaigns','/api/v1/runtime-certifications',
+  '/api/v1/recovery-checkpoints','/api/v1/fleet-groups','/api/v1/drift-scans','/api/v1/upgrade-campaigns',
+  '/api/v1/tenants','/api/v1/ai/runs','/api/v1/workspaces','/api/v1/blueprint-releases','/api/v1/platform-templates'
+]);
+const organizationScopedCollectionPaths=new Set(['/api/v1/service-accounts','/api/v1/notification-destinations']);
+const combinedScopedReadPaths=new Set(['/api/v1/control-plane/summary','/api/v1/control-plane/attention','/api/v1/operations','/api/v1/operations/queue-center','/api/v1/logs','/api/v1/audit-events','/api/v1/notification-routes','/api/v1/notification-events','/api/v1/notification-deliveries']);
+const organizationFilteredResponsePaths=new Set(['/api/v1/organizations','/api/v1/service-accounts','/api/v1/notification-destinations','/api/v1/catalog-trust-keys','/api/v1/catalog-releases']);
+
+function scopeURL(path) {
+  const origin=location.origin&&location.origin!=='null'?location.origin:'http://localhost';
+  return new URL(path,origin);
+}
+function scopedRequestPath(path,method='GET') {
+  if(method!=='GET'||!String(path).startsWith('/api/v1/'))return path;
+  const url=scopeURL(path),pathname=url.pathname;
+  if(boundedOperatorCollectionPaths.has(pathname)&&!url.searchParams.has('limit'))url.searchParams.set('limit',String(boundedOperatorCollectionLimit));
+  if(!state.scopeReady)return `${url.pathname}${url.search}${url.hash}`;
+  if(combinedScopedReadPaths.has(pathname)){
+    if(state.globalScope.organizationId)url.searchParams.set('organizationId',state.globalScope.organizationId);
+    if(state.globalScope.projectId)url.searchParams.set('projectId',state.globalScope.projectId);
+  }else if(projectScopedCollectionPaths.has(pathname)){
+    if(state.globalScope.projectId)url.searchParams.set('projectId',state.globalScope.projectId);
+  }else if(organizationScopedCollectionPaths.has(pathname)){
+    if(state.globalScope.organizationId)url.searchParams.set('organizationId',state.globalScope.organizationId);
+  }else if(pathname==='/api/v1/projects'&&state.globalScope.organizationId){
+    url.searchParams.set('organizationId',state.globalScope.organizationId);
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+function scopedRecordProjectID(item) {
+  return String(item?.projectId||item?.cluster?.projectId||item?.installation?.projectId||item?.deployment?.projectId||item?.verification?.projectId||item?.campaign?.projectId||item?.tenant?.projectId||item?.profile?.projectId||item?.release?.projectId||'').trim();
+}
+function scopedRecordOrganizationID(item) {
+  return String(item?.organizationId||item?.organization?.id||'').trim();
+}
+function applyGlobalScopeResponse(path,body,method='GET') {
+  if(method!=='GET'||!state.scopeReady||!Array.isArray(body)||(!state.globalScope.organizationId&&!state.globalScope.projectId))return body;
+  const pathname=scopeURL(path).pathname;
+  if(pathname==='/api/v1/organizations'){
+    return state.globalScope.organizationId?body.filter(item=>item.id===state.globalScope.organizationId):body;
+  }
+  if(pathname==='/api/v1/projects'){
+    if(state.globalScope.projectId)return body.filter(item=>item.id===state.globalScope.projectId);
+    if(state.globalScope.organizationId)return body.filter(item=>item.organizationId===state.globalScope.organizationId);
+    return body;
+  }
+  if(projectScopedCollectionPaths.has(pathname)){
+    return body.filter(item=>projectBelongsToGlobalScope(scopedRecordProjectID(item)));
+  }
+  if(organizationFilteredResponsePaths.has(pathname)&&state.globalScope.organizationId){
+    return body.filter(item=>{
+      const organizationId=scopedRecordOrganizationID(item);
+      if(pathname==='/api/v1/catalog-releases'&&(item?.visibility==='PLATFORM'||!organizationId))return true;
+      if(pathname==='/api/v1/catalog-trust-keys'&&!organizationId)return true;
+      return organizationId===state.globalScope.organizationId;
+    });
+  }
+  return body;
+}
+function globalScopeRequestError(message) {
+  const error=new Error(message);error.code='GLOBAL_SCOPE_MISMATCH';error.status=409;return error;
+}
+function assertGlobalScopeRequest(path,method,bodyObject) {
+  if(method!=='GET'&&state.session&&!state.scopeReady)throw globalScopeRequestError('Organization/project scope authority is unavailable. Retry before mutating.');
+  if(!state.scopeReady||!String(path).startsWith('/api/v1/'))return;
+  const url=scopeURL(path);
+  const projectId=String(url.searchParams.get('projectId')||bodyObject?.projectId||'').trim();
+  const organizationId=String(url.searchParams.get('organizationId')||bodyObject?.organizationId||'').trim();
+  if(projectId&&!projectBelongsToGlobalScope(projectId))throw globalScopeRequestError('Requested project is outside the selected global scope.');
+  if(organizationId&&!organizationBelongsToGlobalScope(organizationId))throw globalScopeRequestError('Requested organization is outside the selected global scope.');
+  if(method!=='GET'&&state.scopeTransitioning)throw globalScopeRequestError('Organization/project scope is changing. Retry the mutation after the scoped page reloads.');
+}
+
+const operationalMutationPathRules=[
+  [/\/managed-okd-installs(?:\/|$)/,'clusters'],[/\/maintenance-runs(?:\/|$)/,'clusters'],[/\/provider-clusters(?:\/|$)/,'providers'],[/\/marketplace\/installations(?:\/|$)/,'marketplace'],
+  [/\/baseline-deployments(?:\/|$)/,'baselines'],[/\/runtime-verifications(?:\/|$)/,'verification'],[/\/runtime-closure-campaigns(?:\/|$)/,'verification'],
+  [/\/runtime-certifications(?:\/|$)/,'verification'],[/\/upgrade-campaigns(?:\/|$)/,'fleet'],[/\/tenants(?:\/|$)/,'tenants'],
+  [/\/drift-scans\/.+\/remediate(?:\/|$)/,'fleet'],[/\/operations(?:\/|$)/,'operations']
+];
+function mutationOutcomeCandidate(path,body) {
+  if(!body||typeof body!=='object'||Array.isArray(body))return null;
+  const page=operationalMutationPathRules.find(([pattern])=>pattern.test(scopeURL(path).pathname))?.[1];
+  if(!page)return null;
+  const candidates=[body.install?.operation,body.install,body.operation,body.run,body.providerCluster,body.deployment,body.installation,body.campaign,body.tenant,body.verification,body.certification,body];
+  const resource=candidates.find(value=>value&&typeof value==='object'&&(value.id||value.operationId||value.destructiveOperationId));
+  if(!resource)return null;
+  const operation=body.operation&&typeof body.operation==='object'?body.operation:null;
+  return {page,path:scopeURL(path).pathname,id:String(resource.id||operation?.id||''),state:String(resource.state||resource.status||operation?.state||'ACCEPTED'),operationId:String(operation?.id||resource.operationId||resource.destructiveOperationId||''),kind:String(operation?.kind||resource.kind||'operational mutation')};
+}
+function renderMutationOutcome() {
+  const banner=$('#mutation-outcome');if(!banner)return;
+  const outcome=state.mutationOutcome;
+  if(!outcome){banner.hidden=true;banner.innerHTML='';return;}
+  const operationPart=outcome.operationId?` · operation <span class="technical">${esc(outcome.operationId)}</span>`:'';
+  banner.hidden=false;
+  banner.innerHTML=`<div><strong>Request accepted; terminal success is not implied.</strong><span>${badge(outcome.state)} <span class="technical">${esc(outcome.id||outcome.kind)}</span>${operationPart}</span></div><div class="button-row"><button type="button" class="secondary small-button" id="mutation-outcome-view">${outcome.operationId?'View operation':'View authoritative state'}</button><button type="button" class="quiet small-button" id="mutation-outcome-dismiss">Dismiss</button></div>`;
+  banner.querySelector('#mutation-outcome-view').onclick=()=>navigate(outcome.operationId?'operations':outcome.page);
+  banner.querySelector('#mutation-outcome-dismiss').onclick=()=>{state.mutationOutcome=null;renderMutationOutcome();};
+}
+function captureMutationOutcome(path,method,body) {
+  if(!['POST','PUT','PATCH','DELETE'].includes(method))return;
+  const outcome=mutationOutcomeCandidate(path,body);if(!outcome)return;
+  state.mutationOutcome=outcome;renderMutationOutcome();
+}
 async function api(path, options = {}) {
   const request = {...options, headers: {...(options.headers || {})}};
   const method = String(request.method || 'GET').toUpperCase();
+  const bodyObject=request.body!==null&&typeof request.body==='object'&&!Array.isArray(request.body)?request.body:null;
+  path=scopedRequestPath(path,method);
+  assertGlobalScopeRequest(path,method,bodyObject);
   if (method === 'GET' && !request.signal && state.pageLoadController) request.signal = state.pageLoadController.signal;
   const mutation = ['POST','PUT','PATCH','DELETE'].includes(method);
   const submittedForm = mutation && state.lastSubmittedForm && (Date.now()-state.lastSubmittedAt)<500 ? state.lastSubmittedForm : null;
   if (mutation) { state.lastSubmittedForm = null; state.lastSubmittedAt = 0; }
-  const viewerSafePost = ['/api/v1/blueprints/validate','/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/compatibility/evaluate','/api/v1/installations/plans','/api/v1/blueprint-releases/compare','/api/v1/runtime-closure-reports/verify','/api/v1/support-bundles'].includes(path);
+  const viewerSafePost = ['/api/v1/blueprints/validate','/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/compatibility/evaluate','/api/v1/installations/plans','/api/v1/blueprint-releases/compare','/api/v1/runtime-closure-reports/verify','/api/v1/support-bundles','/api/v1/support-bundle-jobs','/api/v1/workload-log-queries'].includes(path);
   if (state.session && ['POST','PUT','PATCH','DELETE'].includes(method) && !viewerSafePost && !canOperate()) {
     // A viewer may have been promoted after this tab loaded. Refresh session
     // authority before blocking a mutation purely from stale client state.
@@ -618,7 +1570,8 @@ async function api(path, options = {}) {
     throw error;
   }
   if (mutation && submittedForm) markFormClean(submittedForm);
-  return body;
+  captureMutationOutcome(path,method,body);
+  return applyGlobalScopeResponse(path,body,method);
 }
 
 async function softApi(path, fallback = [], label = path, options = {}) {
@@ -814,6 +1767,18 @@ function setOptions(select, items, valueFn, labelFn, emptyLabel = 'No eligible o
   if (items.some(item => String(valueFn(item)) === previous)) select.value = previous;
   select.disabled = items.length === 0;
 }
+function setProjectOptions(select, projects, labelFn = item => `${item.displayName||item.name||item.id} · ${item.name||item.id}`, emptyLabel = 'Create a project first') {
+  if(!select)return;
+  setOptions(select,projects,item=>item.id,labelFn,emptyLabel);
+  const scopedProject=String(state.globalScope.projectId||'').trim();
+  if(scopedProject&&projects.some(item=>String(item.id)===scopedProject)){
+    select.value=scopedProject;
+    select.disabled=true;
+    select.dataset.globalScopeBound='true';
+  }else{
+    delete select.dataset.globalScopeBound;
+  }
+}
 
 function prerequisite(element, ok, message, page, action) {
   element.hidden = ok;
@@ -865,24 +1830,58 @@ function planApprovalReady(deployment) {
   const compatibility=deployment?.planImpact?.compatibility||{}; const capability=deployment?.planImpact?.capability||{}; const capabilityRows=capability.checks||[]; const rows=deployment?.planImpact?.api||[]; const rollback=deployment?.planImpact?.rollback||{}; const rollbackRows=rollback.resources||[]; const evidence=deployment?.planImpact?.evidence||{}; const evidenceRows=evidence.artifacts||[]; return deployment?.planImpact?.digest && deployment.planImpact.approvalReady === true && deployment.planImpactDigest === deployment.planImpact.digest && compatibility.status==='PASS' && compatibility.method==='PLATFORM_COMPATIBILITY_MATRIX_V1' && compatibility.digest && compatibility.target?.kubernetesVersion && compatibility.target?.architecture && compatibility.target?.distribution && compatibility.target?.provider && capability.status==='PASS' && capability.method==='CLUSTER_CAPABILITY_PREFLIGHT_V1' && capabilityRows.some(row=>row.required) && capabilityRows.filter(row=>row.required).every(row=>row.status==='PASS') && rows.length>0 && rows.every(row=>row.schema?.status==='PASS' && row.schema?.method==='KUBE_APISERVER_DRY_RUN_STRICT') && rollback.status==='PASS' && rollback.method==='KUBE_ROLLBACK_FEASIBILITY_V1' && rollbackRows.length>0 && rollbackRows.every(row=>row.status==='PASS') && evidence.status==='PASS' && evidence.method==='BASELINE_EVIDENCE_COLLECTION_V1' && evidence.requiredCount>0 && evidenceRows.length===evidence.requiredCount && evidenceRows.every(row=>row.required===true && row.outputLocation && row.retentionDays>=30);
 }
 
+
+const pageGuidance = {
+  overview:{en:['Outcome','Know what is healthy, what is blocked, and the next safe action.','Done when','Attention items have an owner or an explicit next action.'],fa:['خروجی این صفحه','بدانید چه چیزی سالم است، چه چیزی مانع دارد و اقدام امن بعدی چیست.','پایان کار','هر مورد مهم مسئول یا اقدام بعدی مشخص دارد.']},
+  workspace:{en:['Outcome','Set organization/project ownership and scoped access.','Done when','People and automation identities have only the intended scope.'],fa:['خروجی این صفحه','مالکیت سازمان/پروژه و دسترسی محدود را تنظیم کنید.','پایان کار','کاربران و هویت‌های خودکار فقط همان دسترسی موردنیاز را دارند.']},
+  installation:{en:['Outcome','Produce a validated Platform Factory control-plane install plan.','Done when','Topology, access, integrations, TLS and recovery path are validated before bootstrap.'],fa:['خروجی این صفحه','برای کنترل‌پلین Platform Factory یک برنامه نصب معتبر بسازید.','پایان کار','توپولوژی، دسترسی، سرویس‌ها، TLS و مسیر بازیابی پیش از راه‌اندازی تأیید شده‌اند.']},
+  clusters:{en:['Outcome','Create or connect a Kubernetes platform and obtain authoritative inventory.','Done when','The platform is connected and capabilities/inventory are current enough for allowed operations.'],fa:['خروجی این صفحه','یک پلتفرم Kubernetes بسازید یا متصل کنید و موجودی معتبر منابع را بگیرید.','پایان کار','پلتفرم متصل است و موجودی و قابلیت‌های آن برای عملیات مجاز به‌اندازهٔ کافی تازه است.']},
+  providers:{en:['Outcome','Verify reusable infrastructure capability and provision a dedicated target.','Done when','The profile is READY and the requested platform has an authoritative lifecycle state.'],fa:['خروجی این صفحه','قابلیت زیرساخت را تأیید کنید و یک مقصد اختصاصی بسازید.','پایان کار','پروفایل آماده است و پلتفرم درخواستی وضعیت معتبر چرخهٔ عمر دارد.']},
+  templates:{en:['Outcome','Compose reusable schema, policy and platform template authority.','Done when','A versioned template can be selected without re-entering low-level policy.'],fa:['خروجی این صفحه','طرح داده، سیاست و قالب قابل‌استفادهٔ مجدد بسازید.','پایان کار','قالب نسخه‌دار بدون ورود دوبارهٔ تنظیمات سطح پایین قابل انتخاب است.']},
+  blueprints:{en:['Outcome','Publish an immutable platform standard with compatibility and upgrade intent.','Done when','A reviewed release is publishable and its supported upgrade edges are explicit.'],fa:['خروجی این صفحه','استاندارد تغییرناپذیر پلتفرم را همراه با سازگاری و مسیر ارتقا بسازید.','پایان کار','انتشار بررسی‌شده آماده است و مسیرهای ارتقای مجاز صریح هستند.']},
+  marketplace:{en:['Outcome','Install a published offer on an eligible connected platform.','Done when','Plan, approval, execution and uninstall/recovery state remain traceable.'],fa:['خروجی این صفحه','یک بسته منتشرشده را روی پلتفرم واجد شرایط نصب کنید.','پایان کار','برنامه، تأیید، اجرا و وضعیت حذف یا بازیابی قابل پیگیری است.']},
+  baselines:{en:['Outcome','Apply a certified baseline with a truthful impact preview.','Done when','Only admitted resources changed and completion evidence is sealed.'],fa:['خروجی این صفحه','نسخهٔ پایهٔ تأییدشده را با پیش‌نمایش واقعی اثر تغییر اعمال کنید.','پایان کار','فقط منابع مجاز تغییر کرده‌اند و شواهد پایان کار مهرشده است.']},
+  verification:{en:['Outcome','Turn runtime observations into verifiable assurance evidence.','Done when','The verification/certification state is backed by the required evidence.'],fa:['خروجی این صفحه','مشاهدهٔ محیط اجرا را به شواهد قابل‌تأیید تبدیل کنید.','پایان کار','وضعیت بررسی و تأیید فنی با شواهد لازم پشتیبانی می‌شود.']},
+  workspaces:{en:['Outcome','Bind application/team workspaces to the correct namespaces and scope.','Done when','Each workspace binding matches its intended project, cluster and namespace.'],fa:['خروجی این صفحه','فضای کاری تیم یا اپلیکیشن را به Namespace و محدودهٔ درست متصل کنید.','پایان کار','هر اتصال با پروژه، کلاستر و Namespace موردنظر منطبق است.']},
+  finops:{en:['Outcome','Review measured usage and publish versioned rates without inventing missing cost.','Done when','Every total is derived from measured telemetry and an immutable rate card, or explicitly marked unavailable.'],fa:['خروجی این صفحه','مصرف اندازه‌گیری‌شده و نرخ‌های نسخه‌دار را بدون ساختن هزینه برای دادهٔ گمشده بررسی کنید.','پایان کار','هر مبلغ از دادهٔ اندازه‌گیری‌شده و نرخ تغییرناپذیر به‌دست آمده یا صریحاً ناموجود اعلام شده است.']},
+  fleet:{en:['Outcome','Resolve drift or execute a controlled fleet campaign.','Done when','Each target has an explicit desired/observed state and recovery evidence.'],fa:['خروجی این صفحه','مغایرت را رفع کنید یا کارزار کنترل‌شدهٔ ناوگان را اجرا کنید.','پایان کار','هر مقصد وضعیت مطلوب و مشاهده‌شده و شواهد بازیابی مشخص دارد.']},
+  tenants:{en:['Outcome','Create tenant environments with the intended entitlement and branding.','Done when','Namespace lifecycle, plan limits and organization branding agree.'],fa:['خروجی این صفحه','محیط Tenant را با مجوز و برندسازی درست بسازید.','پایان کار','چرخهٔ عمر Namespace، محدودیت برنامه و برندسازی سازمان با هم سازگارند.']},
+  operations:{en:['Outcome','Understand what happened, why, and what recovery action is allowed.','Done when','The operation has a terminal or explicitly recoverable state with evidence.'],fa:['خروجی این صفحه','بفهمید چه اتفاقی افتاده، چرا رخ داده و چه اقدام بازیابی مجاز است.','پایان کار','عملیات به وضعیت نهایی یا وضعیت قابل‌بازیابی روشن همراه با شواهد رسیده است.']},
+  ai:{en:['Outcome','Get context-bound diagnosis without giving the model direct infrastructure authority.','Done when','Advice cites current product context and any mutation remains a normal approval-bound operation.'],fa:['خروجی این صفحه','تشخیص مبتنی بر وضعیت فعلی بگیرید، بدون اینکه هوش مصنوعی دسترسی مستقیم به زیرساخت داشته باشد.','پایان کار','پیشنهاد بر وضعیت فعلی تکیه دارد و هر تغییر از مسیر عادی عملیات و تأیید می‌گذرد.']},
+  lab:{en:['Outcome','Collect exact-SHA physical runtime certification evidence.','Done when','Required matrix cases are executed on the exact artifact and evidence is sealed.'],fa:['خروجی این صفحه','شواهد اجرای فیزیکی را برای همان SHA دقیق جمع‌آوری کنید.','پایان کار','سناریوهای لازم ماتریس روی همان artifact اجرا شده‌اند و شواهد مهرشده‌اند.']},
+  notifications:{en:['Outcome','Route the right operational events to the right destinations.','Done when','Preview matches policy and delivery history confirms the intended route.'],fa:['خروجی این صفحه','رویداد عملیاتی درست را به مقصد درست هدایت کنید.','پایان کار','پیش‌نمایش با سیاست منطبق است و سابقهٔ تحویل مسیر موردنظر را تأیید می‌کند.']},
+  services:{en:['Outcome','Connect product-owned integrations with explicit credential and revision authority.','Done when','Git/service status shows the expected provider, revision and reconciliation state.'],fa:['خروجی این صفحه','یکپارچه‌سازی‌های محصول را با مرجع اطلاعات دسترسی و بازنگری مشخص متصل کنید.','پایان کار','وضعیت سرویس، ارائه‌دهنده، بازنگری و همگام‌سازی مورد انتظار را نشان می‌دهد.']},
+  catalog:{en:['Outcome','Admit a trusted, signed and governed catalog release.','Done when','Upstream source, signature/trust and shipped inventory agree on the release.'],fa:['خروجی این صفحه','انتشار معتبر و امضاشدهٔ کاتالوگ را پس از بررسی سیاست‌ها بپذیرید.','پایان کار','منبع بالادستی، اعتماد به امضا و موجودی همراه محصول همگی همان انتشار را تأیید می‌کنند.']},
+  validator:{en:['Outcome','Get a planning result without changing runtime state.','Done when','Compatibility/validation output is clear enough to continue in an executable workflow.'],fa:['خروجی این صفحه','بدون تغییر محیط اجرا، نتیجهٔ برنامه‌ریزی بگیرید.','پایان کار','نتیجهٔ سازگاری و اعتبارسنجی برای ادامه در جریان اجرایی روشن است.']}
+};
+function renderPageGuidance(){
+  const page=$(`#${state.currentPage}`),intro=page?.querySelector(':scope > .section-intro, :scope > .page-heading, :scope > .operator-briefing'),guide=pageGuidance[state.currentPage];if(!page||!intro||!guide)return;
+  page.querySelector(':scope > .page-outcome-strip')?.remove();
+  const [outcomeLabel,outcome,doneLabel,done]=guide[state.locale==='fa'?'fa':'en'];
+  const node=document.createElement('div');node.className='page-outcome-strip';node.setAttribute('role','note');
+  node.innerHTML=`<div><span class="page-outcome-label">${esc(outcomeLabel)}</span><strong>${esc(outcome)}</strong></div><div><span class="page-outcome-label">${esc(doneLabel)}</span><span>${esc(done)}</span></div>`;
+  intro.insertAdjacentElement('afterend',node);
+}
+
 const pageTitles = {
-  overview:{en:['Home','Overview'],fa:['خانه','نمای کلی']},
-  installation:{en:['Infrastructure','Installation'],fa:['زیرساخت','نصب']},clusters:{en:['Infrastructure','Clusters'],fa:['زیرساخت','کلاسترها']},providers:{en:['Infrastructure','Providers'],fa:['زیرساخت','Providerها']},
-  marketplace:{en:['Delivery','Marketplace'],fa:['تحویل','مارکت‌پلیس']},blueprints:{en:['Delivery','Blueprints'],fa:['تحویل','Blueprintها']},baselines:{en:['Delivery','Certified baselines'],fa:['تحویل','Baselineهای تأییدشده']},catalog:{en:['Delivery','Catalog releases'],fa:['تحویل','Releaseهای کاتالوگ']},validator:{en:['Delivery','Planning tools'],fa:['تحویل','ابزارهای برنامه‌ریزی']},
-  fleet:{en:['Fleet','Fleet overview'],fa:['Fleet','نمای کلی Fleet']},verification:{en:['Fleet','Assurance'],fa:['Fleet','تضمین و تأیید']},
-  operations:{en:['Operations','Activity & audit'],fa:['عملیات','فعالیت و ممیزی']},ai:{en:['Operations','AI Control Plane'],fa:['عملیات','کنترل‌پلین هوش مصنوعی']},lab:{en:['Operations','Lab & Certification'],fa:['عملیات','آزمایشگاه و گواهی']},notifications:{en:['Operations','Notifications'],fa:['عملیات','اعلان‌ها']},
-  workspace:{en:['Administration','Organizations & projects'],fa:['مدیریت','سازمان‌ها و پروژه‌ها']},tenants:{en:['Administration','Tenants & branding'],fa:['مدیریت','Tenant و برندینگ']},services:{en:['Administration','Integrations & services'],fa:['مدیریت','Integration و سرویس‌ها']}
+  overview:{en:['Overview','Platform readiness'],fa:['نمای کلی','آمادگی پلتفرم']},
+  installation:{en:['Platforms','Control-plane install'],fa:['پلتفرم‌ها','نصب کنترل‌پلین']},clusters:{en:['Platforms','Create & manage platforms'],fa:['پلتفرم‌ها','ایجاد و مدیریت پلتفرم']},providers:{en:['Platforms','Infrastructure profiles'],fa:['پلتفرم‌ها','پروفایل‌های زیرساخت']},
+  marketplace:{en:['Blueprints','Marketplace'],fa:['Blueprintها','Marketplace']},blueprints:{en:['Blueprints','Platform blueprints'],fa:['Blueprintها','Blueprintهای پلتفرم']},templates:{en:['Blueprints','Platform templates'],fa:['Blueprintها','قالب‌های پلتفرم']},baselines:{en:['Blueprints','Certified baselines'],fa:['Blueprintها','Baselineهای تأییدشده']},catalog:{en:['Assurance','Supply-chain releases'],fa:['تضمین','انتشارهای زنجیره تأمین']},validator:{en:['Blueprints','Planning tools'],fa:['Blueprintها','ابزارهای برنامه‌ریزی']},
+  fleet:{en:['Fleet','Fleet overview'],fa:['Fleet','نمای کلی Fleet']},workspaces:{en:['Fleet','Application workspaces'],fa:['Fleet','فضاهای کاری اپلیکیشن']},finops:{en:['Fleet','FinOps & chargeback'],fa:['Fleet','هزینه و مصرف']},verification:{en:['Assurance','Runtime assurance'],fa:['تضمین','تضمین Runtime']},
+  operations:{en:['Operations','Activity & audit'],fa:['عملیات','فعالیت و ممیزی']},ai:{en:['Operations','AI Operator'],fa:['عملیات','اپراتور هوش مصنوعی']},lab:{en:['Assurance','Physical certification'],fa:['تضمین','گواهی فیزیکی']},notifications:{en:['Operations','Notifications'],fa:['عملیات','اعلان‌ها']},
+  workspace:{en:['Admin','Organizations & projects'],fa:['مدیریت','سازمان‌ها و پروژه‌ها']},tenants:{en:['Admin','Tenant environments & branding'],fa:['مدیریت','محیط‌های Tenantها و برندینگ']},services:{en:['Admin','Integrations & services'],fa:['مدیریت','یکپارچه‌سازی و سرویس‌ها']}
 };
 const sectionNavigation = {
   home:['overview'],
   infrastructure:['clusters','providers','installation'],
-  delivery:['marketplace','blueprints','baselines','catalog','validator'],
-  fleet:['fleet','verification'],
-  operations:['operations','ai','lab','notifications'],
+  delivery:['blueprints','templates','marketplace','baselines','validator'],
+  fleet:['fleet','workspaces','finops'],
+  operations:['operations','ai','notifications'],
+  assurance:['verification','catalog','lab'],
   administration:['workspace','tenants','services']
 };
 const sectionLabels = {
-  home:{en:'Home',fa:'خانه'}, infrastructure:{en:'Infrastructure',fa:'زیرساخت'}, delivery:{en:'Delivery',fa:'تحویل'}, fleet:{en:'Fleet',fa:'Fleet'}, operations:{en:'Operations',fa:'عملیات'}, administration:{en:'Administration',fa:'مدیریت'}
+  home:{en:'Overview',fa:'نمای کلی'}, infrastructure:{en:'Platforms',fa:'پلتفرم‌ها'}, delivery:{en:'Blueprints',fa:'Blueprintها'}, fleet:{en:'Fleet',fa:'Fleet'}, operations:{en:'Operations',fa:'عملیات'}, assurance:{en:'Assurance',fa:'تضمین'}, administration:{en:'Admin',fa:'مدیریت'}
 };
 function sectionForPage(page){
   return Object.entries(sectionNavigation).find(([,pages])=>pages.includes(page))?.[0] || 'home';
@@ -915,6 +1914,7 @@ function updateBreadcrumb() {
   $('#page-title').textContent = title;
   document.title = `${title} · 4SO Platform Factory`;
   updateNavigationState();
+  renderPageGuidance();
 }
 async function navigate(page) {
   if (!pageTitles[page]) return false;
@@ -972,9 +1972,17 @@ document.addEventListener('keydown',event=>{
   if(event.shiftKey&&(active===first||!$('.sidebar').contains(active))){event.preventDefault();last.focus();}
   else if(!event.shiftKey&&(active===last||!$('.sidebar').contains(active))){event.preventDefault();first.focus();}
 });
+$('#global-organization-scope').addEventListener('change',async event=>{
+  await changeGlobalScope(event.target.value,'');
+});
+$('#global-project-scope').addEventListener('change',async event=>{
+  const projectId=event.target.value;
+  const project=scopeDirectoryProject(projectId);
+  await changeGlobalScope(project?.organizationId||state.globalScope.organizationId,projectId);
+});
 $('#language-toggle').onclick = async () => {
   if(hasUnsavedChanges()&&!await confirmAction('Discard unsaved changes?', 'Changing the console language refreshes this page and will discard unsaved form changes.', true))return;
-  clearDirtyForms();state.locale = state.locale === 'fa' ? 'en' : 'fa'; localStorage.setItem('platformLocale', state.locale); applyLocale(); await loadPage(state.currentPage);
+  clearDirtyForms();state.locale = state.locale === 'fa' ? 'en' : 'fa'; localStorage.setItem('platformLocale', state.locale); applyLocale(); renderGlobalScope(); await loadPage(state.currentPage);
 };
 $('#theme-toggle').onclick = toggleConsoleTheme;
 $('#refresh-current').onclick = async () => {
@@ -1011,6 +2019,7 @@ async function syncSessionAuthority({redirectOnUnauthorized=false} = {}) {
         state.accessContext=null;
         state.permissionContextReady=false;
       }
+      await refreshGlobalScopeDirectory();
       const label = state.session.name || state.session.email || state.session.sub || 'Signed in';
       const role = isLocalSession() ? 'local admin' : (sessionRoles().find(item => ['platform-admin','platform-operator','platform-viewer'].includes(item)) || 'read only');
       $('#session-state').textContent = `${label} · ${role}${state.permissionContextReady||canAdminister()?'':' · permission scope unavailable'}`;
@@ -1021,6 +2030,8 @@ async function syncSessionAuthority({redirectOnUnauthorized=false} = {}) {
       state.session = null;
       state.accessContext = null;
       state.permissionContextReady=false;
+      state.scopeReady=false;
+      renderGlobalScope();
       $('#session-state').textContent = 'Authentication unavailable';
       invalidateDestructiveConfirmationOnDemotion(previousCanOperate);
       applyAccessMode();
@@ -1036,10 +2047,14 @@ async function syncSessionAuthority({redirectOnUnauthorized=false} = {}) {
 async function loadSession() { return syncSessionAuthority(); }
 
 async function loadCore() {
-  const [version, catalog, profiles, organizations, projects, clusters, imports, summary, operations, audit] = await Promise.all([
-    api('/api/v1/version'), softApi('/api/v1/catalog/components',[],'catalog'), softApi('/api/v1/installations/profiles',[],'installation profiles'), softApi('/api/v1/organizations',[],'organizations'), softApi('/api/v1/projects',[],'projects'), softApi('/api/v1/clusters',[],'clusters'), softApi('/api/v1/cluster-imports',[],'cluster imports'), softApi('/api/v1/control-plane/summary',{},'control-plane summary'), softApi('/api/v1/operations?limit=200',[],'operations'), softApi('/api/v1/audit-events?limit=50',[],'audit')
+  const [version, summary, attention, operations, audit] = await Promise.all([
+    api('/api/v1/version'),
+    softApi('/api/v1/control-plane/summary',{},'control-plane summary'),
+    softApi('/api/v1/control-plane/attention?limit=9',[],'operator attention'),
+    softApi('/api/v1/operations?limit=20',[],'operations'),
+    softApi('/api/v1/audit-events?limit=20',[],'audit')
   ]);
-  Object.assign(state, {version, catalog, profiles, organizations, projects, clusters, imports, summary, operations, audit});
+  Object.assign(state, {version, summary, attention, operations, audit});
   $('#release-version').textContent=version.version||'unknown';
 }
 
@@ -1049,33 +2064,25 @@ function operationLabel(operation) { return operation.kind || 'operation'; }
 async function loadOverview() {
   try {
     await loadCore();
-    const [deployments, verifications, closures, tenants, providerProfiles, providerClusters, services] = await Promise.all([
-      softApi('/api/v1/baseline-deployments',[],'baseline deployments'), softApi('/api/v1/runtime-verifications',[],'runtime verifications'), softApi('/api/v1/runtime-closure-campaigns',[],'runtime closures'), softApi('/api/v1/tenants',[],'tenants'), softApi('/api/v1/provider-profiles',[],'provider profiles'), softApi('/api/v1/provider-clusters',[],'provider clusters'), softApi('/api/v1/system-services',[],'system services')
-    ]);
-    Object.assign(state, {baselineDeployments:deployments, verifications, closures, tenants, providerProfiles, providerClusters, services});
-    const connected = state.clusters.filter(row => row.online).length;
-    const failureSources=['baseline deployments','runtime verifications','runtime closures','tenants','provider profiles','provider clusters'];
-    const failed = [...deployments, ...verifications, ...closures, ...tenants, ...providerProfiles, ...providerClusters].filter(item => String(item.state).includes('FAILED')).length;
-    const organizationsUnavailable=sourceUnavailable('organizations');
-    const projectsUnavailable=sourceUnavailable('projects');
-    const clustersUnavailable=sourceUnavailable('clusters');
-    const baselinesUnavailable=sourceUnavailable('baseline deployments');
-    const failureAuthorityPartial=sourceUnavailable(failureSources);
+    const failureSources=['operator attention'];
+    const summaryUnavailable=sourceUnavailable('control-plane summary');
+    const summary=state.summary||{};
+    const connected=Number(summary.connectedClusters||0), managed=Number(summary.managedClusters||0), failed=Number(summary.failedProductWorkflows||0);
     $('#overview-metrics').innerHTML = [
-      ['Organizations', organizationsUnavailable?'—':state.organizations.length, organizationsUnavailable?'Organization authority unavailable':projectsUnavailable?'Project authority unavailable':`${state.projects.length} projects`],
-      ['Connected clusters', clustersUnavailable?'—':connected, clustersUnavailable?'Cluster authority unavailable':`${state.clusters.length - connected} offline or pending`],
-      ['Successful baselines', baselinesUnavailable?'—':deployments.filter(d => d.state === 'SUCCEEDED').length, baselinesUnavailable?'Baseline deployment authority unavailable':`${deployments.length} total deployments`],
-      ['Needs attention', failureAuthorityPartial?(failed?`≥${failed}`:'—'):failed, failureAuthorityPartial?(failed?'Known failed workflows · partial authority':'Failure authorities unavailable'):(failed ? 'Open failed workflows' : 'No failed product workflow')]
+      ['Organizations', summaryUnavailable?'—':Number(summary.organizations||0), summaryUnavailable?'Summary authority unavailable':`${Number(summary.projects||0)} projects`],
+      ['Connected clusters', summaryUnavailable?'—':connected, summaryUnavailable?'Summary authority unavailable':`${Math.max(0,managed-connected)} offline or pending`],
+      ['Successful baselines', summaryUnavailable?'—':Number(summary.successfulBaselineDeployments||0), summaryUnavailable?'Summary authority unavailable':`${Number(summary.baselineDeployments||0)} total deployments`],
+      ['Needs attention', summaryUnavailable?'—':failed, summaryUnavailable?'Summary authority unavailable':(failed ? 'Open failed product workflows' : 'No failed product workflow')]
     ].map(([label,value,detail]) => `<article class="metric-card"><strong>${esc(value)}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></article>`).join('');
 
-    const readinessCheck=(source,done,title,detail,page)=>({unknown:sourceUnavailable(source),done:!sourceUnavailable(source)&&done,title,detail,page});
+    const readinessCheck=(done,title,detail,page)=>({unknown:summaryUnavailable,done:!summaryUnavailable&&done,title,detail,page});
     const checks = [
-      readinessCheck('organizations',state.organizations.length > 0,'Create an organization','Ownership boundary for projects and entitlements','workspace'),
-      readinessCheck('projects',state.projects.length > 0,'Create a project','Resource and operation isolation boundary','workspace'),
-      readinessCheck('clusters',state.clusters.length > 0,'Connect a Kubernetes cluster','Outbound agent enrollment and fresh inventory','clusters'),
-      readinessCheck('baseline deployments',deployments.some(d => d.state === 'SUCCEEDED'),'Apply the certified baseline','Explicit plan review and approval','baselines'),
-      readinessCheck('runtime verifications',verifications.some(v => v.state === 'SUCCEEDED'),'Verify runtime health','Digest-pinned probe and report','verification'),
-      readinessCheck('runtime closures',closures.some(c => c.state === 'SUCCEEDED'),'Close runtime evidence','Bind inventory, baseline and verification digests','verification')
+      readinessCheck(Number(summary.organizations||0)>0,'Create an organization','Ownership boundary for projects and entitlements','workspace'),
+      readinessCheck(Number(summary.projects||0)>0,'Create a project','Resource and operation isolation boundary','workspace'),
+      readinessCheck(Number(summary.managedClusters||0)>0,'Connect a Kubernetes cluster','Outbound agent enrollment and fresh inventory','clusters'),
+      readinessCheck(Number(summary.successfulBaselineDeployments||0)>0,'Apply the certified baseline','Explicit plan review and approval','baselines'),
+      readinessCheck(Number(summary.successfulRuntimeVerifications||0)>0,'Verify runtime health','Digest-pinned probe and report','verification'),
+      readinessCheck(Number(summary.successfulRuntimeClosureCampaigns||0)>0,'Close runtime evidence','Bind inventory, baseline and verification digests','verification')
     ];
     $('#journey-checklist').innerHTML = checks.map(check => `<div class="check-item ${check.done ? 'done' : check.unknown ? 'unknown' : ''}"><span class="check-icon">${check.done ? '✓' : check.unknown ? '?' : '○'}</span><div><strong>${esc(check.title)}</strong><small>${esc(check.detail)}${check.unknown?' Authority unavailable; retry before acting.':''}</small>${!check.done&&!check.unknown ? `<button type="button" class="link-button small-button" data-navigate="${check.page}">Continue</button>` : ''}</div></div>`).join('');
     const next = checks.find(check => !check.done&&!check.unknown);
@@ -1092,14 +2099,9 @@ async function loadOverview() {
       $('#overview-next-action').onclick = () => navigate('operations');
     }
 
-    const attention = [];
-    for (const item of latest([...deployments, ...verifications, ...closures, ...tenants, ...providerProfiles, ...providerClusters]).filter(item => String(item.state).includes('FAILED')).slice(0,6)) {
-      attention.push(`<div class="activity-item"><div class="activity-main"><span class="check-icon">!</span><div><strong>${esc(item.displayName || item.baselineId || item.id)}</strong><small>${esc(item.lastError || 'Workflow failed and can be retried from its record.')}</small></div></div>${badge(item.state)}</div>`);
-    }
-    const offline = state.clusters.filter(row => !row.online).slice(0,3);
-    for (const row of offline) attention.push(`<div class="activity-item"><div class="activity-main"><span class="check-icon">!</span><div><strong>${esc(row.cluster.displayName)}</strong><small>Cluster heartbeat or inventory is stale.</small></div></div>${badge('OFFLINE')}</div>`);
-    const attentionPartial=sourceUnavailable([...failureSources,'clusters']);
-    $('#attention-list').innerHTML = attention.length ? `${attentionPartial?'<div class="warning-banner"><strong>Attention is partial.</strong> One or more failure authorities are unavailable; additional issues may be hidden.</div>':''}${attention.join('')}` : attentionPartial ? unavailableState('Attention data') : emptyState('No urgent action', 'No failed workflow or offline connected cluster is currently reported.');
+    const attentionPartial=sourceUnavailable(failureSources);
+    const attention=(state.attention||[]).map(item=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">!</span><div><strong>${esc(item.displayName||item.id)}</strong><small>${esc(item.message||'Operator attention is required.')}</small></div></div><div class="activity-actions">${badge(item.state)}${item.page?`<button type="button" class="link-button small-button" data-navigate="${esc(item.page)}">Open</button>`:''}</div></div>`);
+    $('#attention-list').innerHTML = attention.length ? `${attentionPartial?'<div class="warning-banner"><strong>Attention is partial.</strong> The bounded attention authority is temporarily unavailable.</div>':''}${attention.join('')}` : attentionPartial ? unavailableState('Attention data') : emptyState('No urgent action', 'No failed workflow or offline connected cluster is currently reported.');
 
     const recent = latest([...state.operations.map(item => ({...item,_type:'operation'})), ...state.audit.map(item => ({...item,_type:'audit'}))]).slice(0,10);
     const activityPartial=sourceUnavailable(['operations','audit']);
@@ -1191,6 +2193,7 @@ $('#oidc-group-mapping-form').onsubmit=async event=>{
   const body={group:$('#oidc-group-name').value.trim(),productRole:$('#oidc-product-role').value};
   if($('#oidc-organization').value){body.organizationId=$('#oidc-organization').value;body.organizationRole=$('#oidc-organization-role').value;}
   if($('#oidc-project').value){body.projectId=$('#oidc-project').value;body.projectRole=$('#oidc-project-role').value;}
+  const scope=[body.organizationId?`organization ${body.organizationId} as ${body.organizationRole}`:'',body.projectId?`project ${body.projectId} as ${body.projectRole}`:''].filter(Boolean).join(' · ')||'no delegated organization/project role';if(!await confirmAction('Create OIDC group mapping',`Map ${body.group} to product role ${body.productRole}; ${scope}. New OIDC requests carrying this group can gain the mapped access immediately.`))return;
   try{await api('/api/v1/identity/group-mappings',{method:'POST',body});$('#oidc-group-name').value='';toast('OIDC group mapping created.');await loadIdentityAuthority();}catch(error){toast(error.message,'error');}
 };
 $('#oidc-group-mapping-grid').onclick=async event=>{
@@ -1219,7 +2222,7 @@ $('#membership-organization').onchange=()=>loadOrganizationMemberships($('#membe
 $('#membership-form').onsubmit=async event=>{
   event.preventDefault(); if(!event.currentTarget.reportValidity()) return;
   const orgId=$('#membership-organization').value, subject=$('#membership-subject').value.trim(); if(!orgId||!subject)return;
-  try { const existing=state.organizationMemberships.find(item=>item.subject===subject);const headers=existing?{'If-Match':`"${existing.revision}"`}:{'If-None-Match':'*'}; await api(`/api/v1/organizations/${encodeURIComponent(orgId)}/memberships/${encodeURIComponent(subject)}`,{method:'PUT',headers,body:{role:$('#membership-role').value}}); $('#membership-subject').value=''; toast('Organization access updated.'); await loadWorkspace(); }
+  try { const existing=state.organizationMemberships.find(item=>item.subject===subject),role=$('#membership-role').value;if(existing&&existing.state==='ACTIVE'&&existing.role===role){toast('Organization membership already has the selected role.','error');return;}const impact=existing?`Change ${subject} from ${existing.role} to ${role}? This changes effective organization access immediately.`:`Grant ${role} organization access to ${subject}?`;if(!await confirmAction(existing?'Change organization access':'Grant organization access',impact,Boolean(existing)))return;const headers=existing?{'If-Match':`"${existing.revision}"`}:{'If-None-Match':'*'}; await api(`/api/v1/organizations/${encodeURIComponent(orgId)}/memberships/${encodeURIComponent(subject)}`,{method:'PUT',headers,body:{role}}); $('#membership-subject').value=''; toast('Organization access updated.'); await loadWorkspace(); }
   catch(error){toast(error.message,'error');}
 };
 $('#membership-grid').onclick=async event=>{
@@ -1269,12 +2272,12 @@ $('#service-account-form').onsubmit=async event=>{
 $('#service-account-grid').onclick=async event=>{
   const accountButton=event.target.closest('[data-service-account-action]');
   if(accountButton){const account=state.serviceAccounts.find(item=>item.id===accountButton.dataset.id);if(!account)return;const action=accountButton.dataset.serviceAccountAction;
-    if(action==='issue'){const options=apiTokenPermissionProfiles(account);const values=await askFields('Issue API token',[{name:'hours',label:'Expires in hours',type:'number',value:24,min:1,max:8784},{name:'permission',label:'Permission profile',type:'select',options}], 'Issue token');if(!values)return;try{const response=await api(`/api/v1/service-accounts/${account.id}/tokens`,{method:'POST',headers:{'Idempotency-Key':idempotency('api-token-issue')},body:{expiresAt:new Date(Date.now()+Number(values.hours)*3600000).toISOString(),permissions:apiTokenPermissionsFromProfile(values.permission)}});showOneTimeAPIToken('API token issued',response);await loadServiceAccounts($('#service-account-organization').value);}catch(error){toast(error.message,'error');}return;}
+    if(action==='issue'){const options=apiTokenPermissionProfiles(account);const values=await askFields('Issue API token',[{name:'hours',label:'Expires in hours',type:'number',value:24,min:1,max:8784},{name:'permission',label:'Permission profile',type:'select',options}], 'Review token');if(!values)return;if(!await confirmAction('Issue API token',`Issue a one-time ${values.permission} token for ${account.displayName} that expires in ${values.hours} hour(s)? The plaintext token is shown only once.`))return;try{const response=await api(`/api/v1/service-accounts/${account.id}/tokens`,{method:'POST',headers:{'Idempotency-Key':idempotency('api-token-issue')},body:{expiresAt:new Date(Date.now()+Number(values.hours)*3600000).toISOString(),permissions:apiTokenPermissionsFromProfile(values.permission)}});showOneTimeAPIToken('API token issued',response);await loadServiceAccounts($('#service-account-organization').value);}catch(error){toast(error.message,'error');}return;}
     if(action==='revoke'){if(!await confirmAction('Revoke service account',`Revoke ${account.displayName} and immediately invalidate every active token?`,true))return;try{await api(`/api/v1/service-accounts/${account.id}/revoke`,{method:'POST',headers:{'If-Match':`"${account.revision}"`,'X-Confirm-Revoke':'revoke-service-account'}});toast('Service account revoked.');await loadServiceAccounts($('#service-account-organization').value);}catch(error){toast(error.message,'error');}return;}
   }
   const tokenButton=event.target.closest('[data-api-token-action]');if(!tokenButton)return;const account=state.serviceAccounts.find(item=>item.id===tokenButton.dataset.accountId);const token=(state.apiTokens[tokenButton.dataset.accountId]||[]).find(item=>item.id===tokenButton.dataset.tokenId);if(!account||!token)return;
   if(tokenButton.dataset.apiTokenAction==='revoke'){if(!await confirmAction('Revoke API token',`Immediately revoke ${token.tokenPrefix}?`,true))return;try{await api(`/api/v1/service-accounts/${account.id}/tokens/${token.id}/revoke`,{method:'POST',headers:{'If-Match':`"${token.revision}"`,'X-Confirm-Revoke':'revoke-api-token'}});toast('API token revoked.');await loadServiceAccounts($('#service-account-organization').value);}catch(error){toast(error.message,'error');}return;}
-  const options=apiTokenPermissionProfiles(account);const values=await askFields('Rotate API token',[{name:'hours',label:'New expiry in hours',type:'number',value:24,min:1,max:8784},{name:'permission',label:'Permission profile',type:'select',options,value:apiTokenPermissionProfileValue(token.permissions)}],'Rotate token');if(!values)return;
+  const options=apiTokenPermissionProfiles(account);const values=await askFields('Rotate API token',[{name:'hours',label:'New expiry in hours',type:'number',value:24,min:1,max:8784},{name:'permission',label:'Permission profile',type:'select',options,value:apiTokenPermissionProfileValue(token.permissions)}],'Review rotation');if(!values)return;if(!await confirmAction('Rotate API token',`Rotate ${token.tokenPrefix}? The current token is invalidated and the replacement ${values.permission} token is shown only once.`,true))return;
   try{const response=await api(`/api/v1/service-accounts/${account.id}/tokens/${token.id}/rotate`,{method:'POST',headers:{'If-Match':`"${token.revision}"`,'X-Confirm-Rotate':'rotate-api-token','Idempotency-Key':idempotency('api-token-rotate')},body:{expiresAt:new Date(Date.now()+Number(values.hours)*3600000).toISOString(),permissions:apiTokenPermissionsFromProfile(values.permission)}});showOneTimeAPIToken('API token rotated',response);await loadServiceAccounts($('#service-account-organization').value);}catch(error){toast(error.message,'error');}
 };
 
@@ -1293,7 +2296,7 @@ const installationServiceDefinitions = {
   objectStorage:{title:'Evidence and backup storage',managed:'local-evidence',fields:['url','credentialRef','bucket','prefix','region']},
   identity:{title:'Identity and SSO',managed:'keycloak',fields:['issuerUrl','clientId','credentialRef','adminEmail']}
 };
-const installationFieldLabels={url:'HTTPS endpoint',credentialRef:'Credential reference',organization:'Organization',repository:'Repository',webhookMode:'Webhook mode',region:'Region',bucket:'Bucket',prefix:'Prefix',issuerUrl:'OIDC issuer URL',clientId:'OIDC client ID',adminEmail:'Bootstrap administrator email'};
+const installationFieldLabels={url:'HTTPS endpoint',credentialRef:'Credential reference',organization:'Organization',repository:'Repository',webhookMode:'Webhook mode',region:'Region',bucket:'مخزن S3',prefix:'پیشوند مسیر',issuerUrl:'OIDC issuer URL',clientId:'OIDC client ID',adminEmail:'Bootstrap administrator email'};
 function installationProvider(id){return String(id||'').replace(/^managed-/,'').replace(/^external-/,'');}
 function renderInstallationServices(){
   $('#installation-service-editor').innerHTML=Object.entries(installationServiceDefinitions).map(([kind,definition])=>{
@@ -1321,7 +2324,9 @@ function selectedProfile() { return state.profiles.find(profile => profile.id ==
 function syncInstallationForm() {
   const profile = selectedProfile();
   if (profile) {
-    $('#installation-profile-summary').innerHTML = `<strong>${esc(profile.displayName)}</strong><br>${esc(profile.description)}<br>Required nodes: ${profile.minNodes}${profile.recommendedNodes !== profile.minNodes ? ` · recommended ${profile.recommendedNodes}` : ''} · ${profile.production ? 'production' : 'evaluation'}`;
+    const sizing=profile.sizing||{},minimum=(sizing.minimumVcpu||sizing.minimumMemoryGiB||sizing.minimumDiskGiB)?`${esc(sizing.minimumVcpu||0)} vCPU / ${esc(sizing.minimumMemoryGiB||0)} GiB RAM / ${esc(sizing.minimumDiskGiB||0)} GiB disk`:'';
+    const recommended=(sizing.recommendedVcpu||sizing.recommendedMemoryGiB||sizing.recommendedDiskGiB)?`${esc(sizing.recommendedVcpu||0)} vCPU / ${esc(sizing.recommendedMemoryGiB||0)} GiB RAM / ${esc(sizing.recommendedDiskGiB||0)} GiB disk`:'';
+    $('#installation-profile-summary').innerHTML = `<strong>${esc(profile.displayName)}</strong><br>${esc(profile.description)}<br>Required nodes: ${profile.minNodes}${profile.recommendedNodes !== profile.minNodes ? ` · recommended ${profile.recommendedNodes}` : ''} · ${profile.production ? 'production' : 'evaluation'}${minimum?`<br><span class="field-label">Sizing baseline</span> ${minimum}${recommended?` · recommended ${recommended}`:''} <span class="technical">${esc(sizing.status||'')}</span>`:''}`;
     const allowed = new Set(profile.supportedConnectivity || []);
     $$('#installation-connectivity option').forEach(option => option.disabled = allowed.size > 0 && !allowed.has(option.value));
     if (allowed.size && !allowed.has($('#installation-connectivity').value)) $('#installation-connectivity').value = [...allowed][0];
@@ -1335,10 +2340,19 @@ function syncInstallationForm() {
   $('#certificate-ref-field').hidden = $('#installation-tls-mode').value !== 'external-certificate';
   $('#installation-certificate-ref').required=!$('#certificate-ref-field').hidden;
 }
+function renderInstallerRecoveryCenter(){
+  const target=$('#installer-recovery-authority'),model=state.installationRecoveryAuthority||{};if(!target)return;
+  if(!model.authority){target.innerHTML=emptyState('Recovery authority unavailable','The standalone Installer Recovery Console authority could not be loaded.');return;}
+  const actions=(model.actions||[]).map(action=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">↳</span><div><strong>${esc(action.category)} · ${esc(action.id)}</strong><small class="technical">${esc(action.method)} ${esc(action.path)} · ${esc(action.description)}</small></div></div><div class="resource-meta">${badge(action.risk||'UNKNOWN')}${action.confirmation?badge('CONFIRMATION'):''}</div></div>`).join('');
+  target.innerHTML=`<div class="resource-details">${detailRow('Authority',model.authority,true)}${detailRow('Bootstrap plane',model.separateBootstrapPlane?'SEPARATE / SURVIVES API OUTAGE':'UNKNOWN')}${detailRow('Credential boundary',model.credentialBoundary||'—')}</div><details><summary>Recovery capabilities · ${(model.actions||[]).length}</summary><div class="activity-list">${actions}</div></details>`;
+}
+$('#installer-recovery-open').onclick=()=>{const raw=$('#installer-recovery-url').value.trim();if(!raw){toast('Enter the Installer Recovery Console URL.','error');return;}try{const url=new URL(raw);if(!['https:','http:'].includes(url.protocol))throw new Error('Only HTTP(S) URLs are allowed.');window.open(url.toString(),'_blank','noopener,noreferrer');}catch(error){toast(error.message||'Invalid Installer URL.','error');}};
+
 async function loadInstallation() {
   try {
-    const [profiles,integrations]=await Promise.all([softApi('/api/v1/installations/profiles',[],'installation profiles'),softApi('/api/v1/installations/integrations',{},'installation integrations')]);
-    state.profiles = profiles; state.installationIntegrations=integrations;
+    const [profiles,integrations,recoveryAuthority]=await Promise.all([softApi('/api/v1/installations/profiles',[],'installation profiles'),softApi('/api/v1/installations/integrations',{},'installation integrations'),softApi('/api/v1/installations/recovery-authority',{},'installer recovery authority')]);
+    state.profiles = profiles; state.installationIntegrations=integrations; state.installationRecoveryAuthority=recoveryAuthority;
+    renderInstallerRecoveryCenter();
     setOptions($('#installation-profile'), state.profiles, item => item.id, item => `${item.displayName}${item.default ? ' · default' : ''}`);
     renderInstallationServices(); syncInstallationForm();
   } catch (error) { $('#installation-profile-summary').innerHTML = errorState(error.message); }
@@ -1374,45 +2388,113 @@ $('#installation-form').onsubmit = async event => {
 async function loadClusterMaintenanceAuthority(clusterId) {
   const generation=++state.maintenanceLoadGeneration;
   if (!clusterId) {
-    state.clusterMaintenanceProfile=null; state.clusterMaintenanceWindows=[]; state.clusterMaintenanceRuns=[]; state.currentMaintenanceClusterId='';
+    state.clusterMaintenanceProfile=null; state.clusterMaintenanceWindows=[]; state.clusterMaintenanceRuns=[]; state.targetNodeLifecycleAuthority=null; state.currentMaintenanceClusterId='';
     $('#maintenance-authority-summary').textContent='Connect a cluster first.';
     $('#maintenance-window-grid').innerHTML=emptyState('No maintenance windows','Connect a cluster and configure its environment profile first.');
     $('#maintenance-run-grid').innerHTML=emptyState('No maintenance runs','Create a bounded maintenance window first.');
+    $('#target-node-lifecycle-grid').innerHTML=emptyState('No node lifecycle authority','Connect a cluster with current inventory first.');
     return;
   }
   let profile=null;
   try { profile=(await api(`/api/v1/clusters/${clusterId}/maintenance-profile`)).profile; } catch(error) { if(error.status!==404) throw error; }
-  const [windowResult,runResult]=await Promise.all([softApi(`/api/v1/clusters/${clusterId}/maintenance-windows`,[],'maintenance windows'),softApi(`/api/v1/clusters/${clusterId}/maintenance-runs`,[],'maintenance runs')]);
+  const clusterRecord=state.clusters.find(row=>(row.cluster||row).id===clusterId),clusterResource=clusterRecord?.cluster||clusterRecord||{},maintenanceProjectId=clusterResource.projectId||'';
+  const [windowResult,runResult,day2CampaignEngine,nodeLifecycleAuthority,providerClusters]=await Promise.all([softApi(`/api/v1/clusters/${clusterId}/maintenance-windows`,[],'maintenance windows'),softApi(`/api/v1/clusters/${clusterId}/maintenance-runs`,[],'maintenance runs'),softApi('/api/v1/day2-campaign-engine',{},'Day-2 campaign engine'),softApi(`/api/v1/clusters/${clusterId}/node-lifecycle-authority`,{actions:[]},'target node lifecycle authority'),maintenanceProjectId?softApi(`/api/v1/provider-clusters?projectId=${encodeURIComponent(maintenanceProjectId)}`,[],'provider clusters'):Promise.resolve([])]);
   if(generation!==state.maintenanceLoadGeneration)return false;
   const profileForm=$('#maintenance-profile-form'),windowForm=$('#maintenance-window-form');
   const profileDirty=dirtyWithin(profileForm),windowDirty=dirtyWithin(windowForm);
-  state.clusterMaintenanceProfile=profile; state.clusterMaintenanceWindows=windowResult.windows||[]; state.clusterMaintenanceRuns=runResult.runs||[]; state.currentMaintenanceClusterId=clusterId;
+  state.clusterMaintenanceProfile=profile; state.clusterMaintenanceWindows=windowResult.windows||[]; state.clusterMaintenanceRuns=runResult.runs||[]; state.targetNodeLifecycleAuthority=nodeLifecycleAuthority?.authority?nodeLifecycleAuthority:null; state.day2CampaignEngine=day2CampaignEngine?.authority?day2CampaignEngine:state.day2CampaignEngine; state.providerClusters=providerClusters||[]; state.currentMaintenanceClusterId=clusterId;
   if(!profileDirty){$('#maintenance-environment').value=profile?.environment||'DEVELOPMENT';$('#maintenance-default-timeout').value=profile?.defaultDrainTimeoutSeconds||300;markFormClean(profileForm);}
   if(!windowDirty){$('#maintenance-window-timeout').value=profile?.defaultDrainTimeoutSeconds||300;markFormClean(windowForm);}
   $('#maintenance-authority-summary').innerHTML=profile?`<strong>${esc(profile.environment)}</strong> · default drain ${esc(profile.defaultDrainTimeoutSeconds)}s · ${esc(state.clusterMaintenanceWindows.filter(w=>w.state==='ACTIVE').length)} active window(s) · inventory-bound approval · maxUnavailable=1`:'<strong>Profile required.</strong> Set the environment and default drain timeout before opening a maintenance window.';
   setIntrinsicDisabled($('#maintenance-window-form').querySelector('button[type="submit"]'), !profile);
+  const lifecycleActions=state.targetNodeLifecycleAuthority?.actions||[];
+  $('#target-node-lifecycle-grid').innerHTML=lifecycleActions.length?lifecycleActions.map(item=>{const add=item.action==='ADD',providerMutation=['REMOVE','REPLACE','CERTIFICATE_RENEWAL','REMEDIATE'].includes(item.action),bindingReady=Boolean(state.targetNodeLifecycleAuthority?.providerBindingReady),bindingId=state.targetNodeLifecycleAuthority?.providerClusterId||'—',bindButton=add&&!bindingReady&&canAdminister()?`<button type="button" class="secondary small-button" data-node-lifecycle-bind="ADD">Bind provider</button>`:'',executeLabel=add?'Request Add':item.action==='REMOVE'?'Request Remove':item.action==='REPLACE'?'Request Replace':item.action==='CERTIFICATE_RENEWAL'?'Request Certificate Renewal':item.action==='REMEDIATE'?'Request Remediation':'',executeButton=(add||providerMutation)&&item.executable&&canAdminister()?`<button type="button" class="primary small-button" data-node-lifecycle-execute="${esc(item.action)}">${executeLabel}</button>`:'';return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(String(item.action||'').replaceAll('_',' '))}</h3><div class="resource-meta">${badge(item.executable?'EXECUTABLE':'BLOCKED')}${badge(item.executor||'unknown')}</div></div></div><div class="resource-details">${(add||providerMutation)?detailRow('Provider binding',bindingReady?bindingId:'Not bound',true):''}${detailRow('Required capabilities',(item.requiredCapabilities||[]).join(', ')||'—',true)}${detailRow('Missing capabilities',(item.missingCapabilities||[]).join(', ')||'—',true)}${detailRow('Development blockers',(item.blockers||[]).join(', ')||'—',true)}${detailRow('Physical certification',state.targetNodeLifecycleAuthority.physicalCertificationStatus||'DEFERRED_UNTIL_DEVELOPMENT_CLOSURE',true)}</div><div class="resource-actions"><button type="button" class="secondary small-button" data-node-lifecycle-plan="${esc(item.action)}">Preview impact</button>${bindButton}${executeButton}</div></article>`}).join(''):emptyState('No node lifecycle authority','Current inventory cannot provide node lifecycle planning authority.');
   $('#maintenance-window-grid').innerHTML=state.clusterMaintenanceWindows.length?latest(state.clusterMaintenanceWindows).map(window=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(window.name)}</h3><div class="resource-meta">${badge(window.state)}${badge('maxUnavailable=1')}</div></div></div><div class="resource-details">${detailRow('Starts',formatDate(window.startsAt))}${detailRow('Ends',formatDate(window.endsAt))}${detailRow('Drain timeout',`${window.drainTimeoutSeconds}s`)}${detailRow('Created by',window.createdBy||'—')}${detailRow('Revision',window.revision)}</div><div class="resource-actions">${window.state==='ACTIVE'?`<button type="button" class="primary small-button" data-maintenance-window-action="run" data-id="${esc(window.id)}">Maintain node</button><button type="button" class="danger small-button" data-maintenance-window-action="cancel" data-id="${esc(window.id)}">Cancel window</button>`:''}</div></article>`).join(''):emptyState('No maintenance windows','Configure the environment profile, then create a bounded maintenance window.');
-  $('#maintenance-run-grid').innerHTML=state.clusterMaintenanceRuns.length?latest(state.clusterMaintenanceRuns).map(run=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc((run.nodeNames||[]).join(', '))}</h3><div class="resource-meta">${badge(run.state)}${run.maxUnavailable?badge(`maxUnavailable=${run.maxUnavailable}`):''}</div></div></div><div class="resource-details">${detailRow('Operation',run.operationId||'—',true)}${detailRow('Inventory',shortDigest(run.inventoryDigest))}${detailRow('Window',run.windowId||'—',true)}${detailRow('Requested by',run.requestedBy||'—')}${detailRow('Approved by',run.approvedBy||'—')}${detailRow('Error',run.lastError||'—')}</div>${(run.results||[]).length?`<details><summary>Node results</summary><div class="activity-list">${run.results.map(row=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${row.unCordoned||row.uncordoned?'✓':'!'}</span><div><strong class="technical">${esc(row.nodeName)}</strong><small>Cordon ${row.cordoned?'PASS':'NO'} · Drain ${row.drained?'PASS':'NO'} · Uncordon ${row.uncordoned?'PASS':'NO'} · evicted ${(row.evictedPods||[]).length} · PDB waits ${(row.pdbBlockedPods||[]).length}</small></div></div></div>`).join('')}</div></details>`:''}<div class="resource-actions">${run.state==='AWAITING_APPROVAL'?approvalControl(run,'Approve maintenance',`data-maintenance-run-action="approve" data-id="${esc(run.id)}" data-revision="${run.revision}"`):''}<button type="button" class="secondary small-button" data-maintenance-run-action="inspect" data-id="${esc(run.id)}">Inspect</button></div></article>`).join(''):emptyState('No maintenance runs','Start maintenance from an active window. Approval is required before the agent can claim work.');
+  $('#maintenance-run-grid').innerHTML=state.clusterMaintenanceRuns.length?latest(state.clusterMaintenanceRuns).map(run=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc((run.nodeNames||[]).join(', '))}</h3><div class="resource-meta">${badge(run.state)}${badge(run.action||'DRAIN')}${run.maxUnavailable?badge(`maxUnavailable=${run.maxUnavailable}`):''}</div></div></div><div class="resource-details">${detailRow('Operation',run.operationId||'—',true)}${detailRow('وضعیت ثبت‌شده',shortDigest(run.inventoryDigest))}${detailRow('Window',run.windowId||'—',true)}${detailRow('Action',run.action||'DRAIN')}${detailRow('Requested by',run.requestedBy||'—')}${detailRow('Approved by',run.approvedBy||'—')}${detailRow('Error',run.lastError||'—')}</div>${(run.results||[]).length?`<details><summary>Node results</summary><div class="activity-list">${run.results.map(row=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${row.unCordoned||row.uncordoned?'✓':'!'}</span><div><strong class="technical">${esc(row.nodeName)}</strong><small>Cordon ${row.cordoned?'PASS':'NO'} · Drain ${row.drained?'PASS':'NO'} · Uncordon ${row.uncordoned?'PASS':'NO'} · evicted ${(row.evictedPods||[]).length} · PDB waits ${(row.pdbBlockedPods||[]).length}${run.action==='OS_PATCH'?` · Host patch ${row.hostActionSucceeded?'PASS':'NO'} · Reboot ${row.rebootRequired?'REQUIRED':'NO'}`:''}</small></div></div></div>`).join('')}</div></details>`:''}<div class="resource-actions">${run.state==='AWAITING_APPROVAL'?approvalControl(run,'Approve maintenance',`data-maintenance-run-action="approve" data-id="${esc(run.id)}" data-revision="${run.revision}"`):''}<button type="button" class="secondary small-button" data-maintenance-run-action="inspect" data-id="${esc(run.id)}">Inspect</button></div></article>`).join(''):emptyState('No maintenance runs','Start maintenance from an active window. Approval is required before the agent can claim work.');
   return true;
 }
 
+
+function managedOKDStage(stage){
+  $$('[data-managed-okd-stage]').forEach(section=>{section.hidden=Number(section.dataset.managedOkdStage)!==Number(stage);});
+  const current=$(`[data-managed-okd-stage="${stage}"]`);current?.querySelector('input,select,textarea')?.focus({preventScroll:true});
+}
+function syncManagedOKDConnectivity(){
+  const mode=$('#managed-okd-connectivity')?.value||'connected',disconnected=mode==='disconnected',fields=$('#managed-okd-disconnected-fields');
+  if(fields){fields.hidden=!disconnected;$$('input',fields).forEach(input=>input.required=disconnected);}
+  const runtime=state.managedOKDRuntime||{},allowed=disconnected?Boolean(runtime.disconnectedRequestAllowed):Boolean(runtime.connectedRequestAllowed??runtime.requestCreationAllowed);
+  const submit=$('#managed-okd-submit');if(submit)setIntrinsicDisabled(submit,(state.projects||[]).length===0||!allowed);
+  const status=$('#managed-okd-runtime-status');
+  if(status){
+    const connected=Boolean(runtime.connectedRequestAllowed??runtime.requestCreationAllowed),disc=Boolean(runtime.disconnectedRequestAllowed);
+    status.classList.toggle('warning-banner',!allowed);
+    if(disconnected&&!disc)status.innerHTML=`<strong>${esc(t('managedOkd.runtimeDisconnectedUnavailable','Connected execution is ready, but the disconnected path does not have an exact oc-mirror v2 runtime.'))}</strong>`;
+    else if(allowed)status.innerHTML=`<strong>${esc(t('managedOkd.runtimeReady','Managed OKD execution is ready. Requests enter execution only after independent approval.'))}</strong>`;
+    else status.innerHTML=`<strong>${esc(t('managedOkd.runtimeUnavailable','Managed OKD execution is not configured on this control plane. Configure the exact runtime/workspace first; request submission is disabled.'))}</strong>`;
+    if(connected&&!disc&&!disconnected)status.innerHTML+=`<br><span>${esc(t('managedOkd.runtimeDisconnectedUnavailable','Connected execution is ready, but the disconnected path does not have an exact oc-mirror v2 runtime.'))}</span>`;
+  }
+}
+$('#managed-okd-connectivity').onchange=syncManagedOKDConnectivity;
+
+function managedOKDStageValid(stage){
+  const current=$(`[data-managed-okd-stage="${stage}"]`);if(!current)return false;
+  for(const control of $$('input,select,textarea',current)){if(!control.checkValidity()){control.reportValidity();control.focus();return false;}}
+  if(Number(stage)===1&&$('#managed-okd-api-vip').value.trim()===$('#managed-okd-ingress-vip').value.trim()){toast('API VIP and Ingress VIP must be different.','error');$('#managed-okd-ingress-vip').focus();return false;}
+  return true;
+}
+function canonicalSHA256Input(value){const digest=String(value||'').trim().toLowerCase();return /^[0-9a-f]{64}$/.test(digest)?`sha256:${digest}`:digest;}
+$$('[data-platform-path]').forEach(button=>button.onclick=async()=>{
+  const path=button.dataset.platformPath;
+  if(path==='provider'){await navigate('providers');return;}
+  const details=path==='okd'?$('#managed-okd-console'):$('#cluster-import-console');if(details){details.open=true;details.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>details.querySelector('input,select,button')?.focus(),180);}
+});
+$$('[data-managed-okd-next]').forEach(button=>button.onclick=()=>{const stage=Number(button.closest('[data-managed-okd-stage]')?.dataset.managedOkdStage||0);if(managedOKDStageValid(stage))managedOKDStage(Number(button.dataset.managedOkdNext));});
+$$('[data-managed-okd-back]').forEach(button=>button.onclick=()=>managedOKDStage(Number(button.dataset.managedOkdBack)));
+$('#managed-okd-copy-paths').onclick=()=>{const system=$('#managed-okd-node-1-system').value.trim(),media=$('#managed-okd-node-1-media').value.trim();if(!system||!media){toast('Enter node 1 System and VirtualMedia resource paths first.','error');return;}for(let i=2;i<=3;i++){ $(`#managed-okd-node-${i}-system`).value=system;$(`#managed-okd-node-${i}-media`).value=media; }toast('Only Redfish resource paths were copied to nodes 2 and 3.');};
+$('#managed-okd-form').onsubmit=async event=>{
+  event.preventDefault();
+  const connectivity=$('#managed-okd-connectivity').value||'connected';
+  const runtimeAllowed=connectivity==='disconnected'?Boolean(state.managedOKDRuntime?.disconnectedRequestAllowed):Boolean(state.managedOKDRuntime?.connectedRequestAllowed??state.managedOKDRuntime?.requestCreationAllowed);
+  if(!runtimeAllowed){toast(connectivity==='disconnected'?t('managedOkd.runtimeDisconnectedUnavailable','Disconnected Managed OKD execution is not configured on this control plane.'):t('managedOkd.runtimeUnavailable','Managed OKD execution is not configured on this control plane.'),'error');return;}
+  if(!managedOKDStageValid(3))return;
+  // The final submit validates all earlier stages too, so programmatic or resumed navigation cannot bypass prerequisites.
+  if(!managedOKDStageValid(1)){managedOKDStage(1);return;}
+  if(!managedOKDStageValid(2)){managedOKDStage(2);return;}
+  const project=state.projects.find(item=>item.id===$('#managed-okd-project').value);if(!project?.organizationId){toast('The selected project has no authoritative organization scope.','error');return;}
+  const targetVersion=$('#managed-okd-version').value.trim();
+  const machines=[1,2,3].map(i=>({id:$(`#managed-okd-node-${i}-id`).value.trim(),endpoint:$(`#managed-okd-node-${i}-endpoint`).value.trim(),credentialRef:$(`#managed-okd-node-${i}-credential`).value.trim(),systemResource:$(`#managed-okd-node-${i}-system`).value.trim(),virtualMediaResource:$(`#managed-okd-node-${i}-media`).value.trim()}));
+  const payload={organizationId:project.organizationId,projectId:project.id,targetVersion,clusterName:$('#managed-okd-name').value.trim(),baseDomain:$('#managed-okd-base-domain').value.trim(),apiVip:$('#managed-okd-api-vip').value.trim(),ingressVip:$('#managed-okd-ingress-vip').value.trim(),connectivity,machines,artifacts:[
+    {name:'release-payload',version:targetVersion,url:$('#managed-okd-release-url').value.trim(),sha256:canonicalSHA256Input($('#managed-okd-release-sha').value)},
+    {name:'fcos',version:$('#managed-okd-fcos-version').value.trim(),url:$('#managed-okd-fcos-url').value.trim(),sha256:canonicalSHA256Input($('#managed-okd-fcos-sha').value)},
+    {name:'agent-iso',version:targetVersion,url:$('#managed-okd-agent-url').value.trim(),sha256:canonicalSHA256Input($('#managed-okd-agent-sha').value)}
+  ]};
+  if(connectivity==='disconnected')payload.disconnected={mirrorRegistry:$('#managed-okd-mirror-registry').value.trim().toLowerCase().replace(/^\/+|\/+$/g,''),imageSetConfigurationSha256:canonicalSHA256Input($('#managed-okd-imageset-sha').value),mirrorInventorySha256:canonicalSHA256Input($('#managed-okd-inventory-sha').value)};
+  try{
+    const result=await api('/api/v1/managed-okd-installs',{method:'POST',headers:{'Idempotency-Key':idempotency('managed-okd-install')},body:payload});
+    const install=result.install||{},op=install.operation||{};const outcome=$('#managed-okd-result');outcome.hidden=false;outcome.innerHTML=`<strong>Request sealed and awaiting independent approval.</strong><br><span class="technical">${esc(op.id||'operation pending')}</span> · ${badge(op.state||'AWAITING_APPROVAL')} · target ${esc(install.clusterName||payload.clusterName)}<div class="button-row"><button type="button" class="secondary small-button" data-managed-okd-open-operations>Open Operations</button></div>`;outcome.querySelector('[data-managed-okd-open-operations]').onclick=()=>navigate('operations');
+    event.currentTarget.reset();managedOKDStage(1);syncManagedOKDConnectivity();toast('Managed OKD install request created; installation success is not implied.');
+  }catch(error){toast(error.message,'error');}
+};
+
 async function loadClusters() {
   try {
-    const [projects, imports, clusters] = await Promise.all([softApi('/api/v1/projects',[],'projects'), softApi('/api/v1/cluster-imports',[],'cluster imports'), softApi('/api/v1/clusters',[],'clusters')]);
-    Object.assign(state, {projects, imports, clusters});
+    const [projects, imports, clusters, managedOKDRuntime] = await Promise.all([softApi('/api/v1/projects',[],'projects'), softApi('/api/v1/cluster-imports',[],'cluster imports'), softApi('/api/v1/clusters',[],'clusters'), softApi('/api/v1/managed-okd-installs/runtime',{configured:false,requestCreationAllowed:false,connectedRequestAllowed:false,disconnectedRequestAllowed:false},'managed OKD runtime')]);
+    Object.assign(state, {projects, imports, clusters, managedOKDRuntime});
     const connected=clusters.map(row=>row.cluster||row);
     setOptions($('#maintenance-cluster-select'), connected, item=>item.id, item=>`${item.displayName} · ${item.kubernetesVersion||'inventory pending'}`, 'Connect a cluster first');
-    setOptions($('#cluster-project'), projects, item => item.id, item => `${item.displayName} · ${item.name}`, 'Create a project first');
+    setProjectOptions($('#cluster-project'),projects);
+    setProjectOptions($('#managed-okd-project'),projects);
     prerequisite($('#clusters-prerequisite'), projects.length > 0, 'A project is required before a cluster can be connected.', 'workspace', 'Create organization and project');
     setIntrinsicDisabled($('#cluster-import-form').querySelector('button[type="submit"]'), projects.length === 0);
+    syncManagedOKDConnectivity();
     const clusterRows=clusters.map(row => {
       const cluster=row.cluster||row,inventory=row.inventory||{},readyNodes=(inventory.nodes||[]).filter(node=>node.ready).length,totalNodes=(inventory.nodes||[]).length;
       const actions=`<div class="row-actions"><button type="button" class="secondary small-button" data-cluster-action="inspect" data-id="${esc(cluster.id)}">Details</button>${canAdminister()&&cluster.connectionState!=='REVOKED'?`<button type="button" class="danger small-button" data-cluster-action="revoke" data-id="${esc(cluster.id)}">Revoke</button>`:''}</div>`;
       return tableRow([
         tableCell(`<span class="cell-title">${esc(cluster.displayName)}</span><span class="cell-meta technical">${esc(cluster.id)}</span>`),
         tableCell(`${badge(row.online?'ONLINE':'OFFLINE')} ${badge(cluster.connectionState||'connected')}`,'status-cell'),
-        tableCell(`<span class="cell-title">${esc(row.target?.distributionIdentity||cluster.distribution||'Pending')}</span><span class="cell-meta technical">${esc(row.target?.provisioningMode||'import-existing')} · ${esc(cluster.kubernetesVersion||'version pending')}</span>`),
-        tableCell(totalNodes?`${esc(readyNodes)}/${esc(totalNodes)} ready`:'Inventory pending','numeric'),
+        tableCell(`<span class="cell-title">${esc(row.target?.distributionIdentity||cluster.distribution||'Pending')} ${row.okdImportAdmitted?badge('OKD ADMITTED'):''}</span><span class="cell-meta technical">${esc(row.target?.provisioningMode||'import-existing')} · ${esc(cluster.kubernetesVersion||'version pending')}</span>`),
+        tableCell(totalNodes?`${esc(readyNodes)}/${esc(totalNodes)} ready`:'وضعیت ثبت‌شده pending','numeric'),
         tableCell(`<span class="cell-title technical">${esc(cluster.agentVersion||'Pending')}</span><span class="cell-meta">${inventory.apiDiscoveryComplete?'API complete':'API incomplete'} · ${inventory.crdDiscoveryComplete?'CRD complete':'CRD incomplete'}</span>`),
         tableCell(formatDate(cluster.lastSeenAt),'timestamp',cluster.lastSeenAt||''),
         tableCell(actions,'actions-cell')
@@ -1430,8 +2512,9 @@ async function loadClusters() {
 $('#maintenance-cluster-select').onchange=async()=>{const select=$('#maintenance-cluster-select'),next=select.value,previous=state.currentMaintenanceClusterId,profileForm=$('#maintenance-profile-form'),windowForm=$('#maintenance-window-form');if((dirtyWithin(profileForm)||dirtyWithin(windowForm))&&!await confirmAction('Discard maintenance changes?','Switch clusters and discard unsaved maintenance profile/window changes?',true)){select.value=previous;return;}clearDirtyForms(profileForm);clearDirtyForms(windowForm);profileForm.reset();windowForm.reset();$('#maintenance-max-unavailable').value=1;try{await loadClusterMaintenanceAuthority(next);}catch(error){select.value=previous;toast(error.message,'error');if(previous)await loadClusterMaintenanceAuthority(previous);}};
 $('#maintenance-profile-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const clusterId=$('#maintenance-cluster-select').value;if(!clusterId)return;try{const headers={};if(state.clusterMaintenanceProfile?.revision)headers['If-Match']=`"${state.clusterMaintenanceProfile.revision}"`;await api(`/api/v1/clusters/${clusterId}/maintenance-profile`,{method:'PUT',headers,body:{environment:$('#maintenance-environment').value,defaultDrainTimeoutSeconds:Number($('#maintenance-default-timeout').value)}});toast('Cluster environment profile saved.');await loadClusterMaintenanceAuthority(clusterId);}catch(error){toast(error.message,'error');}};
 $('#maintenance-window-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const clusterId=$('#maintenance-cluster-select').value;if(!clusterId)return;try{await api(`/api/v1/clusters/${clusterId}/maintenance-windows`,{method:'POST',body:{name:$('#maintenance-window-name').value.trim(),startsAt:new Date($('#maintenance-window-start').value).toISOString(),endsAt:new Date($('#maintenance-window-end').value).toISOString(),maxUnavailable:1,drainTimeoutSeconds:Number($('#maintenance-window-timeout').value)}});toast('Maintenance window created.');event.currentTarget.reset();$('#maintenance-max-unavailable').value=1;$('#maintenance-window-timeout').value=state.clusterMaintenanceProfile?.defaultDrainTimeoutSeconds||300;await loadClusterMaintenanceAuthority(clusterId);}catch(error){toast(error.message,'error');}};
-$('#maintenance-window-grid').onclick=async event=>{const button=event.target.closest('[data-maintenance-window-action]');if(!button)return;const clusterId=$('#maintenance-cluster-select').value,window=state.clusterMaintenanceWindows.find(row=>row.id===button.dataset.id);if(!window)return;if(button.dataset.maintenanceWindowAction==='cancel'){if(!await confirmAction('Cancel maintenance window',`Cancel ${window.name}? Existing active runs must finish first.`,true))return;try{await api(`/api/v1/clusters/${clusterId}/maintenance-windows/${window.id}/cancel`,{method:'POST',headers:{'If-Match':`"${window.revision}"`},body:{}});toast('Maintenance window cancelled.');await loadClusterMaintenanceAuthority(clusterId);}catch(error){toast(error.message,'error');}return;}const record=state.clusters.find(row=>(row.cluster||row).id===clusterId),ready=(record?.inventory?.nodes||[]).filter(n=>n.ready);if(!ready.length){toast('Current inventory has no Ready nodes.','error');return;}const values=await askFields('Run node maintenance',[{name:'nodeName',label:'Ready node',type:'select',value:ready[0].name,options:ready.map(n=>({value:n.name,label:`${n.name} · ${(n.roles||[]).join(', ')||'worker'}`}))}],'Request approval');if(!values)return;try{await api(`/api/v1/clusters/${clusterId}/maintenance-runs`,{method:'POST',headers:{'Idempotency-Key':idempotency('cluster-maintenance')},body:{windowId:window.id,nodeNames:[values.nodeName]}});toast('Maintenance run created and waiting for independent approval.');await loadClusterMaintenanceAuthority(clusterId);}catch(error){toast(error.message,'error');}};
-$('#maintenance-run-grid').onclick=async event=>{const button=event.target.closest('[data-maintenance-run-action]');if(!button)return;const clusterId=$('#maintenance-cluster-select').value,run=state.clusterMaintenanceRuns.find(row=>row.id===button.dataset.id);if(!run)return;if(button.dataset.maintenanceRunAction==='inspect'){try{const record=await api(`/api/v1/clusters/${clusterId}/maintenance-runs/${run.id}`);showDetails('Cluster maintenance run',`<dl class="key-value"><dt>Authority</dt><dd class="technical">KUBERNETES_NODE_MAINTENANCE_V1</dd><dt>State</dt><dd>${badge(record.run.state)}</dd><dt>Nodes</dt><dd class="technical">${esc((record.run.nodeNames||[]).join(', '))}</dd><dt>Inventory digest</dt><dd class="technical">${esc(record.run.inventoryDigest)}</dd><dt>Window</dt><dd class="technical">${esc(record.run.windowId)}</dd><dt>Operation</dt><dd class="technical">${esc(record.run.operationId)}</dd><dt>Drain timeout</dt><dd>${esc(record.run.drainTimeoutSeconds)}s</dd><dt>Error</dt><dd>${esc(record.run.lastError||'—')}</dd></dl>`);}catch(error){toast(error.message,'error');}return;}if(!await confirmAction('Approve node maintenance',`Approve cordon, PDB-aware drain and uncordon for ${(run.nodeNames||[]).join(', ')}?`))return;try{await api(`/api/v1/clusters/${clusterId}/maintenance-runs/${run.id}/approve`,{method:'POST',headers:{'If-Match':`"${run.revision}"`},body:{}});toast('Maintenance approved and queued for the cluster agent.');await loadClusterMaintenanceAuthority(clusterId);}catch(error){toast(error.message,'error');}};
+$('#target-node-lifecycle-grid').onclick=async event=>{const clusterId=$('#maintenance-cluster-select').value;if(!clusterId)return;const record=state.clusters.find(row=>(row.cluster||row).id===clusterId),cluster=record?.cluster||record,nodes=(record?.inventory?.nodes||[]);const bindButton=event.target.closest('[data-node-lifecycle-bind]');if(bindButton){const candidates=(state.providerClusters||[]).filter(item=>item.projectId===cluster?.projectId&&item.state==='ACTIVE');if(!candidates.length){toast('No ACTIVE provider cluster is available for this target project.','error');return;}const values=await askFields('Bind target to provider cluster',[{name:'providerClusterId',label:'Provider cluster',type:'select',value:candidates[0].id,options:candidates.map(item=>({value:item.id,label:`${item.displayName} · workers ${item.desired?.workerReplicas||0}`}))}],'Bind provider');if(!values)return;if(!await confirmAction('Bind provider cluster',`Bind ${cluster?.displayName||clusterId} to the selected provider cluster? This binding becomes the authoritative lifecycle owner for provider-backed node Add.`))return;try{await api(`/api/v1/clusters/${clusterId}/provider-binding`,{method:'POST',headers:{'If-Match':`"${cluster.revision}"`},body:{providerClusterId:values.providerClusterId}});toast('Provider binding saved.');await loadClusters();}catch(error){toast(error.message,'error');}return;}const executeButton=event.target.closest('[data-node-lifecycle-execute]');if(executeButton){const action=executeButton.dataset.nodeLifecycleExecute;if(action==='ADD'){if(!await confirmAction('Request provider-backed node Add','Increase the bound Cluster API worker topology by one replica? A separate provider-cluster approval is required before execution.'))return;try{const result=await api(`/api/v1/clusters/${clusterId}/node-lifecycle-actions`,{method:'POST',headers:{'Idempotency-Key':idempotency('target-node-add')},body:{action:'ADD'}});toast(result.idempotentReplay?'Existing node Add request reused.':'Node Add requested and waiting for independent provider approval.');await Promise.all([loadClusterMaintenanceAuthority(clusterId),loadProviders()]);}catch(error){toast(error.message,'error');}return;}if(!['REMOVE','REPLACE','CERTIFICATE_RENEWAL','REMEDIATE'].includes(action))return;const workerOnly=nodes.filter(n=>(n.roles||[]).some(role=>String(role).toLowerCase()==='worker')&&!(n.roles||[]).some(role=>['control-plane','controlplane','master','server'].includes(String(role).toLowerCase()))),workerCandidates=action==='REMEDIATE'?workerOnly.filter(n=>!n.ready):workerOnly.filter(n=>n.ready);if(!workerCandidates.length){toast(action==='REMEDIATE'?'No Not Ready worker-only node is available for remediation.':'No Ready worker-only node is available for provider lifecycle execution.','error');return;}const now=Date.now(),windows=(state.clusterMaintenanceWindows||[]).filter(item=>item.state==='ACTIVE'&&new Date(item.startsAt).getTime()<=now&&new Date(item.endsAt).getTime()>now);if(!windows.length){toast('No active maintenance window is available for destructive node lifecycle execution.','error');return;}const title=action==='REMOVE'?'Request provider-backed node Remove':action==='REPLACE'?'Request provider-backed node Replace':action==='CERTIFICATE_RENEWAL'?'Request provider-backed Certificate Renewal':'Request provider-backed Node Remediation',buttonLabel=action==='REMOVE'?'Request Remove':action==='REPLACE'?'Request Replace':action==='CERTIFICATE_RENEWAL'?'Request Certificate Renewal':'Request Remediation';const values=await askFields(title,[{name:'nodeName',label:action==='REMEDIATE'?'Not Ready worker node':'Ready worker node',type:'select',value:workerCandidates[0].name,options:workerCandidates.map(n=>({value:n.name,label:`${n.name} · ${n.uid||'UID unavailable'}`}))},{name:'windowId',label:'Active maintenance window',type:'select',value:windows[0].id,options:windows.map(item=>({value:item.id,label:`${item.name} · ${formatDate(item.endsAt)}`}))}],buttonLabel);if(!values)return;const destructive=action==='REMOVE'||action==='REMEDIATE',message=action==='REMOVE'?`Remove ${values.nodeName} and decrease the bound Cluster API worker topology by exactly one replica? Independent approval is required.`:action==='REPLACE'?`Delete the exact CAPI Machine for ${values.nodeName} so its MachineDeployment creates a replacement? Independent approval is required.`:action==='CERTIFICATE_RENEWAL'?`Replace the exact CAPI Machine for ${values.nodeName} one-for-one so the joining RKE2 worker receives fresh node identity and certificates? Independent approval is required.`:`Remediate unhealthy worker ${values.nodeName} by replacing its exact CAPI Machine one-for-one? Independent approval is required.`;if(!await confirmAction(title,message,destructive))return;try{const result=await api(`/api/v1/clusters/${clusterId}/node-lifecycle-actions`,{method:'POST',headers:{'Idempotency-Key':idempotency(`target-node-${action.toLowerCase()}-${values.nodeName}`)},body:{action,nodeName:values.nodeName,windowId:values.windowId}});const requested=action==='REMOVE'?'Node Remove':action==='REPLACE'?'Node Replace':action==='CERTIFICATE_RENEWAL'?'Certificate Renewal':'Node Remediation';toast(result.idempotentReplay?'Existing provider node lifecycle request reused.':`${requested} requested and waiting for independent provider approval.`);await Promise.all([loadClusterMaintenanceAuthority(clusterId),loadProviders()]);}catch(error){toast(error.message,'error');}return;}const button=event.target.closest('[data-node-lifecycle-plan]');if(!button)return;const action=button.dataset.nodeLifecyclePlan,descriptor=(state.targetNodeLifecycleAuthority?.actions||[]).find(row=>row.action===action);if(!descriptor)return;let nodeName='';if(descriptor.requiresNode){if(!nodes.length){toast('Current inventory has no nodes for lifecycle planning.','error');return;}const values=await askFields('Preview node lifecycle impact',[{name:'nodeName',label:'وضعیت ثبت‌شده node',type:'select',value:nodes[0].name,options:nodes.map(n=>({value:n.name,label:`${n.name} · ${n.ready?'Ready':'Not Ready'} · ${(n.roles||[]).join(', ')||'worker'}`}))}],'Preview impact');if(!values)return;nodeName=values.nodeName;}try{const plan=await api(`/api/v1/clusters/${clusterId}/node-lifecycle-plans`,{method:'POST',body:{action,nodeName}});showDetails('Target node lifecycle plan',`<dl class="key-value"><dt>Authority</dt><dd class="technical">${esc(plan.authority)} · ${esc(plan.campaignAuthority)}</dd><dt>Action</dt><dd>${badge(plan.action)} ${badge(plan.executable?'EXECUTABLE':'BLOCKED')}</dd><dt>اجراکننده</dt><dd class="technical">${esc(plan.executor)}</dd><dt>Provider binding</dt><dd class="technical">${esc(plan.providerClusterId||'—')} · ${plan.providerBindingReady?'READY':'NOT READY'}</dd><dt>Node</dt><dd class="technical">${esc(plan.nodeName||'—')} ${plan.nodeUid?`· ${esc(plan.nodeUid)}`:''}</dd><dt>وضعیت ثبت‌شده</dt><dd class="technical">${esc(plan.inventoryDigest)}</dd><dt>Plan digest</dt><dd class="technical">${esc(plan.planDigest)}</dd><dt>Impact</dt><dd>${esc((plan.impact||[]).join(' · '))}</dd><dt>Recovery</dt><dd>${esc((plan.recovery||[]).join(' · '))}</dd><dt>Development blockers</dt><dd class="technical">${esc((plan.blockers||[]).join(', ')||'—')}</dd><dt>Physical certification</dt><dd class="technical">${esc(plan.physicalCertificationStatus)}</dd></dl>`);}catch(error){toast(error.message,'error');}};
+$('#maintenance-window-grid').onclick=async event=>{const button=event.target.closest('[data-maintenance-window-action]');if(!button)return;const clusterId=$('#maintenance-cluster-select').value,window=state.clusterMaintenanceWindows.find(row=>row.id===button.dataset.id);if(!window)return;if(button.dataset.maintenanceWindowAction==='cancel'){if(!await confirmAction('Cancel maintenance window',`Cancel ${window.name}? Existing active runs must finish first.`,true))return;try{await api(`/api/v1/clusters/${clusterId}/maintenance-windows/${window.id}/cancel`,{method:'POST',headers:{'If-Match':`"${window.revision}"`},body:{}});toast('Maintenance window cancelled.');await loadClusterMaintenanceAuthority(clusterId);}catch(error){toast(error.message,'error');}return;}const record=state.clusters.find(row=>(row.cluster||row).id===clusterId),ready=(record?.inventory?.nodes||[]).filter(n=>n.ready);if(!ready.length){toast('Current inventory has no Ready nodes.','error');return;}const executable=(state.targetNodeLifecycleAuthority?.actions||[]).filter(row=>row.executable&&['DRAIN','OS_PATCH'].includes(row.action));if(!executable.length){toast('No executable node maintenance action is admitted by current inventory.','error');return;}const actionOptions=executable.map(row=>({value:row.action,label:row.action==='OS_PATCH'?'OS patch (drain → patch → uncordon)':'Drain workloads'}));const values=await askFields('Run node maintenance',[{name:'action',label:'Node action',type:'select',value:actionOptions[0].value,options:actionOptions},{name:'nodeName',label:'Ready node',type:'select',value:ready[0].name,options:ready.map(n=>({value:n.name,label:`${n.name} · ${(n.roles||[]).join(', ')||'worker'}`}))}],'Request approval');if(!values)return;try{await api(`/api/v1/clusters/${clusterId}/maintenance-runs`,{method:'POST',headers:{'Idempotency-Key':idempotency('cluster-maintenance')},body:{windowId:window.id,action:values.action,nodeNames:[values.nodeName]}});toast(values.action==='OS_PATCH'?'OS patch run created and waiting for independent approval.':'Maintenance run created and waiting for independent approval.');await loadClusterMaintenanceAuthority(clusterId);}catch(error){toast(error.message,'error');}};
+$('#maintenance-run-grid').onclick=async event=>{const button=event.target.closest('[data-maintenance-run-action]');if(!button)return;const clusterId=$('#maintenance-cluster-select').value,run=state.clusterMaintenanceRuns.find(row=>row.id===button.dataset.id);if(!run)return;if(button.dataset.maintenanceRunAction==='inspect'){try{const record=await api(`/api/v1/clusters/${clusterId}/maintenance-runs/${run.id}`);showDetails('Cluster maintenance run',`<dl class="key-value"><dt>Authority</dt><dd class="technical">${esc(state.day2CampaignEngine?.authority||'GENERALIZED_DAY2_CAMPAIGN_ENGINE_V1')} · KUBERNETES_NODE_MAINTENANCE_V1</dd><dt>State</dt><dd>${badge(record.run.state)} ${badge(record.run.action||'DRAIN')}</dd><dt>Nodes</dt><dd class="technical">${esc((record.run.nodeNames||[]).join(', '))}</dd><dt>Inventory digest</dt><dd class="technical">${esc(record.run.inventoryDigest)}</dd><dt>Window</dt><dd class="technical">${esc(record.run.windowId)}</dd><dt>Operation</dt><dd class="technical">${esc(record.run.operationId)}</dd><dt>Drain timeout</dt><dd>${esc(record.run.drainTimeoutSeconds)}s</dd><dt>Host action timeout</dt><dd>${record.run.hostActionTimeoutSeconds?`${esc(record.run.hostActionTimeoutSeconds)}s`:'—'}</dd><dt>Error</dt><dd>${esc(record.run.lastError||'—')}</dd></dl>`);}catch(error){toast(error.message,'error');}return;}if(!await confirmAction('Approve node maintenance',run.action==='OS_PATCH'?`Approve cordon, PDB-aware drain, host OS patch and uncordon for ${(run.nodeNames||[]).join(', ')}? Reboot is never automatic.`:`Approve cordon, PDB-aware drain and uncordon for ${(run.nodeNames||[]).join(', ')}?`))return;try{await api(`/api/v1/clusters/${clusterId}/maintenance-runs/${run.id}/approve`,{method:'POST',headers:{'If-Match':`"${run.revision}"`},body:{}});toast('Maintenance approved and queued for the cluster agent.');await loadClusterMaintenanceAuthority(clusterId);}catch(error){toast(error.message,'error');}};
 
 $('#cluster-import-form').onsubmit = async event => {
   event.preventDefault(); if (!event.currentTarget.reportValidity()) return;
@@ -1478,10 +2561,27 @@ $('#cluster-grid').onclick = async event => {
   const cluster = row.cluster || row, inventory = row.inventory || {}, action = button.dataset.clusterAction;
   if (action === 'inspect') {
     try {
-      const record = await api(`/api/v1/clusters/${cluster.id}`);
+      const [record,workloadExplorer] = await Promise.all([api(`/api/v1/clusters/${cluster.id}`),api(`/api/v1/clusters/${cluster.id}/workloads`).catch(error=>({authority:'WORKLOAD_EXPLORER_READ_AUTHORITY_V1',complete:false,stale:true,error:error.message,workloads:[],services:[],ingresses:[],persistentVolumeClaims:[],events:[]}))]);
       const current = record.cluster || cluster, currentInventory = record.inventory || inventory, certificates = record.agentCertificates || [];
-      const certificateRows = certificates.length ? `<div class="activity-list">${certificates.map(cert=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${cert.state==='ACTIVE'?'✓':'×'}</span><div><strong class="technical">${esc(cert.fingerprint)}</strong><small>${esc(cert.serialNumber)} · expires ${formatDate(cert.notAfter)}</small></div></div><div class="resource-actions">${badge(cert.state)}${canAdminister()&&cert.state==='ACTIVE'?`<button type="button" class="danger small-button" data-agent-certificate-action="revoke" data-id="${esc(cert.id)}" data-revision="${cert.revision}">Revoke certificate</button>`:''}</div></div>`).join('')}</div>` : '<p>No client certificate has been issued yet. The bootstrap credential is only used to obtain the first certificate.</p>';
-      showDetails(current.displayName, `<div class="detail-section"><h3>Connection</h3><dl class="key-value"><dt>ID</dt><dd class="technical">${esc(current.id)}</dd><dt>State</dt><dd>${badge(record.online ? 'ONLINE':'OFFLINE')}</dd><dt>Connection authority</dt><dd>${badge(current.connectionState || 'CONNECTED')}</dd><dt>Agent authentication</dt><dd>${badge(record.agentAuthentication || 'bootstrap-bearer')}</dd><dt>Distribution identity</dt><dd>${esc(record.target?.distributionIdentity || current.distribution || '—')}</dd><dt>Provisioning mode</dt><dd>${esc(record.target?.provisioningMode || 'import-existing')}</dd><dt>Infrastructure</dt><dd>${esc(record.target?.infrastructureProvider || 'existing')}</dd><dt>Observed legacy distribution</dt><dd>${esc(record.target?.legacyDistribution || current.distribution || '—')}</dd><dt>Kubernetes</dt><dd class="technical">${esc(current.kubernetesVersion || '—')}</dd><dt>Agent</dt><dd class="technical">${esc(current.agentVersion || '—')}</dd><dt>Last seen</dt><dd>${formatDate(current.lastSeenAt)}</dd></dl></div><div class="detail-section"><h3>Agent mTLS certificates</h3><p>Private keys stay on the managed cluster. The control plane stores certificate metadata and revocation state only.</p>${certificateRows}</div><div class="detail-section"><h3>Nodes</h3>${(currentInventory.nodes||[]).length ? `<div class="activity-list">${currentInventory.nodes.map(node=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${node.ready?'✓':'!'}</span><div><strong class="technical">${esc(node.name)}</strong><small>${esc((node.roles||[]).join(', ') || 'worker')} · ${esc(node.os || '')} ${esc(node.architecture || '')}</small></div></div>${badge(node.ready?'READY':'NOT READY')}</div>`).join('')}</div>` : '<p>No node inventory reported.</p>'}</div><div class="detail-section"><h3>API / CRD discovery</h3><div class="resource-details">${detailRow('API discovery',currentInventory.apiDiscoveryComplete?'Complete':'Incomplete')}${detailRow('API resources',(currentInventory.apiResources||[]).length)}${detailRow('CRD discovery',currentInventory.crdDiscoveryComplete?'Complete':'Incomplete')}${detailRow('CRDs',(currentInventory.crds||[]).length)}</div>${!currentInventory.apiDiscoveryComplete||!currentInventory.crdDiscoveryComplete?'<div class="warning-banner">Planning impact cannot be approval-ready until API and CRD discovery evidence is complete.</div>':''}<details><summary>Discovered API resources</summary><pre class="code-block technical" dir="ltr">${esc((currentInventory.apiResources||[]).map(item=>`${item.apiVersion} ${item.kind} (${item.resource})`).join('\n')||'No API resource inventory')}</pre></details><details><summary>Discovered CRDs</summary><pre class="code-block technical" dir="ltr">${esc((currentInventory.crds||[]).map(item=>`${item.name} · ${(item.versions||[]).filter(v=>v.served).map(v=>v.name).join(', ')}`).join('\n')||'No CRD inventory')}</pre></details></div><div class="detail-section"><h3>Capabilities</h3><div class="resource-meta">${(current.capabilities||[]).map(cap=>`<span class="badge neutral">${esc(cap)}</span>`).join('') || 'None reported'}</div></div>`);
+      const certificateRows = certificates.length ? `<div class="activity-list">${certificates.map(cert=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${cert.state==='ACTIVE'?'✓':'×'}</span><div><strong class="technical">${esc(cert.fingerprint)}</strong><small>${esc(cert.serialNumber)} · expires ${formatDate(cert.notAfter)}</small></div></div><div class="resource-actions">${badge(cert.state)}${canAdminister()&&cert.state==='ACTIVE'?`<button type="button" class="danger small-button" data-agent-certificate-action="revoke" data-id="${esc(cert.id)}" data-revision="${cert.revision}" data-state="${esc(cert.state)}">Revoke certificate</button>`:''}</div></div>`).join('')}</div>` : '<p>No client certificate has been issued yet. The bootstrap credential is only used to obtain the first certificate.</p>';
+      const reconnect=record.reconnect||{},okdHealth=record.okdHealth||{},targetProfile=record.targetProfile||{},isOKD=(record.target?.distributionIdentity||current.distribution)==='okd';
+      const reconnectSection=`<div class="detail-section"><h3>Reconnect authority</h3><div class="resource-details">${detailRow('Status',reconnect.status||'UNKNOWN')}${detailRow('Automatic reconnect',reconnect.automatic?'Yes':'No')}${detailRow('Same cluster identity required',reconnect.sameClusterIdentityRequired?'Yes':'No')}${detailRow('Target RBAC fence required',reconnect.targetRbacFenceRequired?'Yes':'No')}</div><p>${esc(reconnect.next||'Reconnect authority is unavailable.')}</p></div>`;
+      const okdSection=isOKD?`<div class="detail-section"><h3>OKD health & profile</h3><div class="resource-meta">${badge(okdHealth.status||'BLOCKED')}${record.okdImportAdmitted?badge('IMPORT ADMITTED'):badge('READ ONLY')}${badge(targetProfile.status||'BLOCKED')}</div><div class="resource-details">${detailRow('Health authority',okdHealth.authority||'—',true)}${detailRow('Cluster version',okdHealth.clusterVersion||current.kubernetesVersion||'—',true)}${detailRow('ClusterOperators',okdHealth.operatorCount||0)}${detailRow('Unavailable',(okdHealth.unavailable||[]).join(', ')||'None')}${detailRow('Progressing',(okdHealth.progressing||[]).join(', ')||'None')}${detailRow('Degraded',(okdHealth.degraded||[]).join(', ')||'None')}${detailRow('Upgrade blocked',(okdHealth.upgradeBlocked||[]).join(', ')||'None')}${detailRow('Profile compiler',targetProfile.authority||'—',true)}</div>${(targetProfile.blockers||[]).length?`<div class="warning-banner">Profile blocked: ${esc(targetProfile.blockers.join(' · '))}</div>`:''}<details><summary>Desired / observed component decisions</summary><div class="activity-list">${(targetProfile.resolution?.decisions||[]).map(item=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${item.action==='suppress'?'−':item.action==='include'?'+':'!'}</span><div><strong>${esc(item.component)}</strong><small>${esc(item.domain)} · ${esc(item.reason)}</small></div></div>${badge((item.action||'unknown').toUpperCase())}</div>`).join('')||'<p>No profile decisions available.</p>'}</div></details></div>`:'';
+      const authorityActions=`<div class="detail-section"><h3>Target authority actions</h3><p>Mutation access is issued only after fresh identity, health and desired/observed profile admission. Revoked clusters must remove any target-side mutation bindings before the same physical UID can re-enroll.</p><div class="resource-actions">${record.mutationRBACActivationRequired&&canAdminister()?`<button type="button" class="primary small-button" data-cluster-authority-action="activate">Issue mutation access manifest</button>`:''}${record.mutationRBACProofPending?'<span class="badge warning">WAITING FOR TARGET PROOF</span>':''}${reconnect.status==='REENROLLMENT_REQUIRED'&&reconnect.targetRbacFenceRequired&&canAdminister()?`<button type="button" class="danger small-button" data-cluster-authority-action="revocation-fence">Target RBAC cleanup</button>`:''}${reconnect.status==='REENROLLMENT_REQUIRED'&&!reconnect.targetRbacFenceRequired?'<span class="badge neutral">READY FOR NEW ENROLLMENT</span>':''}</div></div>`;
+      const workloadRows=(workloadExplorer.workloads||[]).slice(0,50).map(item=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${item.failed>0?'!':item.readyReplicas>=item.desiredReplicas?'✓':'○'}</span><div><strong>${esc(item.kind)} · <span class="technical">${esc(item.namespace)}/${esc(item.name)}</span></strong><small>Ready ${esc(item.readyReplicas||0)}/${esc(item.desiredReplicas||0)}${(item.images||[]).length?` · ${esc((item.images||[]).join(', '))}`:''}</small></div></div>${badge(item.failed>0?'FAILED':item.readyReplicas>=item.desiredReplicas?'READY':'PARTIAL')}</div>`).join('');
+      const workloadSection=`<div class="detail-section" data-authority="WORKLOAD_EXPLORER_READ_AUTHORITY_V1"><h3>Workload Explorer</h3><p>Live observational inventory from the managed-cluster Agent. It is bounded and never becomes desired state.</p><div class="resource-meta">${badge(workloadExplorer.fresh?'FRESH':'STALE')}${badge(workloadExplorer.complete?'COMPLETE':'INCOMPLETE')}${workloadExplorer.truncated?badge('TRUNCATED'):''}</div><div class="resource-details">${detailRow('Authority',workloadExplorer.authority||'WORKLOAD_EXPLORER_READ_AUTHORITY_V1',true)}${detailRow('Workloads',(workloadExplorer.workloads||[]).length)}${detailRow('Services',(workloadExplorer.services||[]).length)}${detailRow('Ingresses',(workloadExplorer.ingresses||[]).length)}${detailRow('PVCs',(workloadExplorer.persistentVolumeClaims||[]).length)}${detailRow('Events',(workloadExplorer.events||[]).length)}${detailRow('وضعیت ثبت‌شده',shortDigest(workloadExplorer.inventoryDigest||current.inventoryDigest||''))}</div>${workloadExplorer.error?`<div class="warning-banner">${esc(workloadExplorer.error)}</div>`:''}${workloadRows?`<details open><summary>Controllers (${(workloadExplorer.workloads||[]).length})</summary><div class="activity-list">${workloadRows}</div></details>`:'<p>No controller inventory reported.</p>'}<details><summary>Networking & storage</summary><div class="activity-list">${(workloadExplorer.services||[]).slice(0,30).map(item=>`<div class="activity-item"><div><strong>Service · <span class="technical">${esc(item.namespace)}/${esc(item.name)}</span></strong><small>${esc(item.type||'')} · ${esc((item.ports||[]).map(port=>`${port.port}/${port.protocol||'TCP'}`).join(', ')||'no ports')}</small></div></div>`).join('')}${(workloadExplorer.ingresses||[]).slice(0,30).map(item=>`<div class="activity-item"><div><strong>Ingress · <span class="technical">${esc(item.namespace)}/${esc(item.name)}</span></strong><small>${esc((item.hosts||[]).join(', ')||'no host')}</small></div></div>`).join('')}${(workloadExplorer.persistentVolumeClaims||[]).slice(0,30).map(item=>`<div class="activity-item"><div><strong>PVC · <span class="technical">${esc(item.namespace)}/${esc(item.name)}</span></strong><small>${esc(item.phase||'')} · ${esc(item.requested||'')}</small></div></div>`).join('')||'<p>No Service, Ingress or PVC observations.</p>'}</div></details><details><summary>Recent events (${(workloadExplorer.events||[]).length})</summary><div class="activity-list">${(workloadExplorer.events||[]).slice(0,50).map(item=>`<div class="activity-item"><div><strong>${esc(item.type||'Event')} · ${esc(item.reason||'')}</strong><small><span class="technical">${esc(item.namespace||'')}/${esc(item.regardingKind||'')}/${esc(item.regardingName||'')}</span> · ${esc(item.message||'')}</small></div>${badge(item.count||1)}</div>`).join('')||'<p>No recent events.</p>'}</div></details></div>`;
+      showDetails(current.displayName, `<div class="detail-section"><h3>Connection</h3><dl class="key-value"><dt>ID</dt><dd class="technical">${esc(current.id)}</dd><dt>State</dt><dd>${badge(record.online ? 'ONLINE':'OFFLINE')}</dd><dt>Connection authority</dt><dd>${badge(current.connectionState || 'CONNECTED')}</dd><dt>Agent authentication</dt><dd>${badge(record.agentAuthentication || 'bootstrap-bearer')}</dd><dt>Distribution identity</dt><dd>${esc(record.target?.distributionIdentity || current.distribution || '—')}</dd><dt>Provisioning mode</dt><dd>${esc(record.target?.provisioningMode || 'import-existing')}</dd><dt>Infrastructure</dt><dd>${esc(record.target?.infrastructureProvider || 'existing')}</dd><dt>Observed legacy distribution</dt><dd>${esc(record.target?.legacyDistribution || current.distribution || '—')}</dd><dt>Kubernetes</dt><dd class="technical">${esc(current.kubernetesVersion || '—')}</dd><dt>Agent</dt><dd class="technical">${esc(current.agentVersion || '—')}</dd><dt>Last seen</dt><dd>${formatDate(current.lastSeenAt)}</dd></dl></div>${reconnectSection}${okdSection}${authorityActions}${workloadSection}<div class="detail-section"><h3>Agent mTLS certificates</h3><p>Private keys stay on the managed cluster. The control plane stores certificate metadata and revocation state only.</p>${certificateRows}</div><div class="detail-section"><h3>Nodes</h3>${(currentInventory.nodes||[]).length ? `<div class="activity-list">${currentInventory.nodes.map(node=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${node.ready?'✓':'!'}</span><div><strong class="technical">${esc(node.name)}</strong><small>${esc((node.roles||[]).join(', ') || 'worker')} · ${esc(node.os || '')} ${esc(node.architecture || '')}</small></div></div>${badge(node.ready?'READY':'NOT READY')}</div>`).join('')}</div>` : '<p>No node inventory reported.</p>'}</div><div class="detail-section"><h3>API / CRD discovery</h3><div class="resource-details">${detailRow('API discovery',currentInventory.apiDiscoveryComplete?'Complete':'Incomplete')}${detailRow('API resources',(currentInventory.apiResources||[]).length)}${detailRow('CRD discovery',currentInventory.crdDiscoveryComplete?'Complete':'Incomplete')}${detailRow('CRDs',(currentInventory.crds||[]).length)}</div>${!currentInventory.apiDiscoveryComplete||!currentInventory.crdDiscoveryComplete?'<div class="warning-banner">Planning impact cannot be approval-ready until API and CRD discovery evidence is complete.</div>':''}<details><summary>Discovered API resources</summary><pre class="code-block technical" dir="ltr">${esc((currentInventory.apiResources||[]).map(item=>`${item.apiVersion} ${item.kind} (${item.resource})`).join('\n')||'No API resource inventory')}</pre></details><details><summary>Discovered CRDs</summary><pre class="code-block technical" dir="ltr">${esc((currentInventory.crds||[]).map(item=>`${item.name} · ${(item.versions||[]).filter(v=>v.served).map(v=>v.name).join(', ')}`).join('\n')||'No CRD inventory')}</pre></details></div><div class="detail-section"><h3>Capabilities</h3><div class="resource-meta">${(current.capabilities||[]).map(cap=>`<span class="badge neutral">${esc(cap)}</span>`).join('') || 'None reported'}</div></div>`);
+      const authorityButton=$('[data-cluster-authority-action]', $('#detail-content'));
+      if(authorityButton)authorityButton.onclick=async()=>{
+        if(authorityButton.dataset.clusterAuthorityAction==='activate'){
+          if(!await confirmAction('Issue target mutation access',`Issue digest-bound mutation RBAC for ${current.displayName}? Apply the returned manifest on the same cluster; mutation stays blocked until the Agent proves the exact binding.`))return;
+          try{const result=await api(`/api/v1/clusters/${current.id}/mutation-rbac-manifest`,{method:'POST',body:{}});showDetails('Apply target mutation access',`<div class="warning-banner">This does not grant mutation until the target applies the exact manifest and the next inventory proves the binding.</div><pre class="code-block technical" dir="ltr">${esc(result.manifest||'')}</pre><div class="resource-details">${detailRow('وضعیت ثبت‌شده digest',result.inventoryDigest||'—',true)}${detailRow('Activation basis',result.activationIssuedForDigest||'—',true)}</div>`);}catch(error){toast(error.message,'error');}
+          return;
+        }
+        if(authorityButton.dataset.clusterAuthorityAction==='revocation-fence'){
+          try{const result=await api(`/api/v1/clusters/${current.id}/revocation-rbac-manifest`);showDetails('Target RBAC cleanup',`<div class="warning-banner">Apply this cleanup manifest on the revoked target before acknowledging. The acknowledgement is an operator assertion, not Physical Runtime proof.</div><pre class="code-block technical" dir="ltr">${esc(result.manifest||'')}</pre><div class="resource-details">${detailRow('Fence digest',result.targetRBACRevocationFenceDigest||'—',true)}</div><div class="resource-actions"><button type="button" class="danger small-button" data-cluster-authority-action="ack-revocation">Acknowledge applied cleanup</button></div>`);const ack=$('[data-cluster-authority-action="ack-revocation"]', $('#detail-content'));if(ack)ack.onclick=async()=>{if(!await confirmAction('Acknowledge target RBAC cleanup','Confirm only after the exact cleanup manifest was applied to the revoked target. This enables same-UID re-enrollment but is not Physical certification.',true))return;try{await api(`/api/v1/clusters/${current.id}/revocation-rbac-acknowledgement`,{method:'POST',headers:{'If-Match':`"${current.revision}"`},body:{fenceDigest:result.targetRBACRevocationFenceDigest}});$('#detail-dialog').close();toast('Target RBAC cleanup acknowledged. Same-UID re-enrollment is allowed.');await loadClusters();}catch(error){toast(error.message,'error');}};}catch(error){toast(error.message,'error');}
+        }
+      };
       $$('[data-agent-certificate-action="revoke"]', $('#detail-content')).forEach(certButton => {
         certButton.onclick = async () => {
           if (!await confirmAction('Revoke agent certificate', 'Immediately revoke this client certificate? The agent must use another active certificate or re-enroll before it can reconnect.', true)) return;
@@ -1510,8 +2610,11 @@ function renderTargetArchitectureSummary(model){
   const roadmap=model?.programRoadmap||{};
   const current=(roadmap.phases||[]).find(item=>item.id===roadmap.currentPhase);
   const resolver=model?.capabilityResolver||{};
+  const search=model?.searchProjection||{};
   const trackCount=(roadmap.tracks||[]).length;
-  target.innerHTML=`<strong>Target architecture</strong> · admitted <span class="technical">${esc(admitted.join(', ')||'none')}</span>${previews.length?` · preview only <span class="technical">${esc(previews.join(', '))}</span>`:''} · capability resolver <span class="technical">${esc(resolver.authority||'unavailable')}</span>${current?` · current product phase <strong>${esc(current.id)}</strong>`:''}${trackCount?` · <strong>${esc(trackCount)}</strong> cross-cutting product tracks`:''}`;
+  const positioning=roadmap.positioning||'';
+  const differentiators=roadmap.competitiveDifferentiators||[];
+  target.innerHTML=`<strong>Target architecture</strong> · admitted <span class="technical">${esc(admitted.join(', ')||'none')}</span>${previews.length?` · preview only <span class="technical">${esc(previews.join(', '))}</span>`:''} · capability resolver <span class="technical">${esc(resolver.authority||'unavailable')}</span>${search.authority?` · search projection <span class="technical">${esc(search.defaultBackend||'none')}</span> ${badge(search.status||'UNKNOWN')}`:''}${current?` · current product phase <strong>${esc(current.id)}</strong>`:''}${trackCount?` · <strong>${esc(trackCount)}</strong> cross-cutting product tracks`:''}${positioning?`<br><span class="field-label">Product position</span> ${esc(positioning)}`:''}${differentiators.length?`<br><span class="field-label">Competitive center</span> ${differentiators.slice(0,3).map(item=>`<span class="badge neutral">${esc(item)}</span>`).join(' ')}`:''}`;
   const field=$('#provider-distributions');if(field&&admitted.length)field.placeholder=admitted.join(',');
 }
 
@@ -1520,7 +2623,7 @@ async function loadProviders() {
     const [projects, clusterRows, profiles, providerClusters, recoveryCheckpoints, targetArchitecture] = await Promise.all([softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/clusters',[],'clusters'),softApi('/api/v1/provider-profiles',[],'provider profiles'),softApi('/api/v1/provider-clusters',[],'provider clusters'),softApi('/api/v1/recovery-checkpoints',[],'recovery checkpoints'),softApi('/api/v1/target-architecture-model',{},'target architecture')]);
     Object.assign(state,{projects,clusters:clusterRows,providerProfiles:profiles,providerClusters,recoveryCheckpoints,targetArchitecture});
     renderTargetArchitectureSummary(targetArchitecture);
-    setOptions($('#provider-project'),projects,item=>item.id,item=>`${item.displayName} · ${item.name}`,'Create a project first');
+    setProjectOptions($('#provider-project'),projects);
     const projectId = $('#provider-project').value;
     const management = clusterRows.map(row=>row.cluster||row).filter(cluster=>!projectId||cluster.projectId===projectId);
     setOptions($('#provider-management-cluster'),management,item=>item.id,item=>`${item.displayName} · ${item.kubernetesVersion || 'version pending'}`,'Connect a management cluster first');
@@ -1560,12 +2663,24 @@ async function loadProviders() {
     $('#provider-cluster-grid').innerHTML=dataTable('Dedicated clusters',[{label:'Cluster / resource'},{label:'State'},{label:'Runtime'},{label:'Topology',className:'numeric'},{label:'Compatibility'},{label:'Actions'}],providerClusterRows,'No dedicated clusters','Verify a provider profile and create the first approval-bound cluster request.',{source:'provider clusters'});
   } catch (error) { $('#provider-profile-grid').innerHTML=errorState(error.message); $('#provider-cluster-grid').innerHTML=errorState(error.message); }
 }
+function syncProviderInfrastructureFields(){
+  const provider=$('#provider-infrastructure-provider').value;
+  const vmware=provider==='vmware';
+  $('#provider-vmware-fields').hidden=!vmware;
+  $('#provider-infrastructure-endpoint').required=vmware;
+  $('#provider-credential-ref').required=vmware;
+  $('#provider-architectures').readOnly=vmware;
+  if(vmware) $('#provider-architectures').value='amd64';
+  if(!vmware){$('#provider-infrastructure-endpoint').value='';$('#provider-credential-ref').value='';}
+}
+$('#provider-infrastructure-provider').onchange=syncProviderInfrastructureFields;
+syncProviderInfrastructureFields();
 $('#provider-project').onchange=loadProviders;
 $('#provider-profile-select').onchange=()=>{const profile=state.providerProfiles.find(item=>item.id===$('#provider-profile-select').value);if(!profile)return;setOptions($('#provider-cluster-architecture'),profile.architectures||[],item=>item,item=>item,'No admitted architecture');setOptions($('#provider-cluster-distribution'),profile.distributionIdentities||profile.distributionProfiles||[],item=>item,item=>item,'No admitted distribution identity');$('#provider-cluster-version').value=profile.defaultKubernetesVersion||$('#provider-cluster-version').value;};
 $('#provider-profile-form').onsubmit=async event=>{
   event.preventDefault(); if(!event.currentTarget.reportValidity())return;
-  const payload={projectId:$('#provider-project').value,managementClusterId:$('#provider-management-cluster').value,name:$('#provider-profile-name').value.trim(),displayName:$('#provider-profile-display-name').value.trim(),clusterClassName:$('#provider-cluster-class').value.trim(),workerClassName:$('#provider-worker-class').value.trim(),defaultKubernetesVersion:$('#provider-default-version').value.trim(),kubernetesSeries:$('#provider-series').value.split(',').map(v=>v.trim()).filter(Boolean),architectures:$('#provider-architectures').value.split(',').map(v=>v.trim().toLowerCase()).filter(Boolean),distributionProfiles:$('#provider-distributions').value.split(',').map(v=>v.trim().toLowerCase()).filter(Boolean),maxWorkerReplicas:Number($('#provider-max-workers').value)};
-  try{await api('/api/v1/provider-profiles',{method:'POST',headers:{'Idempotency-Key':idempotency('provider-profile')},body:payload});toast('Provider profile verification queued.');event.currentTarget.reset();await loadProviders();}catch(error){toast(error.message,'error');}
+  const payload={projectId:$('#provider-project').value,managementClusterId:$('#provider-management-cluster').value,name:$('#provider-profile-name').value.trim(),displayName:$('#provider-profile-display-name').value.trim(),clusterClassName:$('#provider-cluster-class').value.trim(),workerClassName:$('#provider-worker-class').value.trim(),defaultKubernetesVersion:$('#provider-default-version').value.trim(),kubernetesSeries:$('#provider-series').value.split(',').map(v=>v.trim()).filter(Boolean),architectures:$('#provider-architectures').value.split(',').map(v=>v.trim().toLowerCase()).filter(Boolean),distributionProfiles:$('#provider-distributions').value.split(',').map(v=>v.trim().toLowerCase()).filter(Boolean),infrastructureProvider:$('#provider-infrastructure-provider').value,infrastructureEndpoint:$('#provider-infrastructure-endpoint').value.trim(),credentialRef:$('#provider-credential-ref').value.trim(),maxWorkerReplicas:Number($('#provider-max-workers').value)};
+  try{await api('/api/v1/provider-profiles',{method:'POST',headers:{'Idempotency-Key':idempotency('provider-profile')},body:payload});toast('Provider profile verification queued.');event.currentTarget.reset();syncProviderInfrastructureFields();await loadProviders();}catch(error){toast(error.message,'error');}
 };
 $('#provider-cluster-form').onsubmit=async event=>{
   event.preventDefault();if(!event.currentTarget.reportValidity())return;
@@ -1576,7 +2691,7 @@ $('#provider-cluster-form').onsubmit=async event=>{
 $('#provider-profile-grid').onclick=async event=>{
   const button=event.target.closest('[data-provider-profile-action]');if(!button)return;
   const profile=state.providerProfiles.find(item=>item.id===button.dataset.id);if(!profile)return;
-  if(button.dataset.providerProfileAction==='inspect'){showDetails(profile.displayName,`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(profile.id)}</dd><dt>State</dt><dd>${badge(profile.state)}</dd><dt>ClusterClass</dt><dd class="technical">${esc(profile.clusterClassName)}</dd><dt>Worker class</dt><dd class="technical">${esc(profile.workerClassName)}</dd><dt>Architectures</dt><dd class="technical">${esc((profile.architectures||[]).join(', '))}</dd><dt>Distribution identities</dt><dd class="technical">${esc((profile.distributionIdentities||profile.distributionProfiles||[]).join(', '))}</dd><dt>Provisioning mode</dt><dd>${esc(profile.provisioningMode||'cluster-api')}</dd><dt>Infrastructure provider</dt><dd>${esc(profile.infrastructureProvider||'unspecified')}</dd><dt>Observed digest</dt><dd class="technical">${esc(profile.observedDigest||'—')}</dd><dt>Last error</dt><dd>${esc(profile.lastError||'—')}</dd></dl>`);return;}
+  if(button.dataset.providerProfileAction==='inspect'){showDetails(profile.displayName,`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(profile.id)}</dd><dt>State</dt><dd>${badge(profile.state)}</dd><dt>ClusterClass</dt><dd class="technical">${esc(profile.clusterClassName)}</dd><dt>Worker class</dt><dd class="technical">${esc(profile.workerClassName)}</dd><dt>Architectures</dt><dd class="technical">${esc((profile.architectures||[]).join(', '))}</dd><dt>Distribution identities</dt><dd class="technical">${esc((profile.distributionIdentities||profile.distributionProfiles||[]).join(', '))}</dd><dt>Provisioning mode</dt><dd>${esc(profile.provisioningMode||'cluster-api')}</dd><dt>Infrastructure provider</dt><dd>${esc(profile.infrastructureProvider||'unspecified')}</dd><dt>Infrastructure endpoint</dt><dd class="technical">${esc(profile.infrastructureEndpoint||'—')}</dd><dt>Credential reference</dt><dd class="technical">${esc(profile.credentialRef||'—')}</dd><dt>Observed digest</dt><dd class="technical">${esc(profile.observedDigest||'—')}</dd><dt>Last error</dt><dd>${esc(profile.lastError||'—')}</dd></dl>`);return;}
   try{await api(`/api/v1/provider-profiles/${profile.id}/retry`,{method:'POST',headers:{'If-Match':`"${profile.revision}"`},body:{}});toast('Provider profile verification retried.');await loadProviders();}catch(error){toast(error.message,'error');}
 };
 $('#provider-cluster-grid').onclick=async event=>{
@@ -1629,8 +2744,8 @@ $('#baseline-deployment-grid').onclick=async event=>{const button=event.target.c
 
 async function loadVerification(){
   try{
-    const [deployments,verifications,closures,certifications,projects,clusterRows,catalogReleases]=await Promise.all([softApi('/api/v1/baseline-deployments',[],'baseline deployments'),softApi('/api/v1/runtime-verifications',[],'runtime verifications'),softApi('/api/v1/runtime-closure-campaigns',[],'closure campaigns'),softApi('/api/v1/runtime-certifications',[],'runtime certifications'),softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/clusters',[],'clusters'),softApi('/api/v1/catalog-releases',[],'catalog releases')]);
-    Object.assign(state,{baselineDeployments:deployments,verifications,closures,runtimeCertifications:certifications,projects,clusters:clusterRows,catalogReleases});
+    const [deployments,verifications,closures,certifications,projects,clusterRows,catalogReleases,runtimeCertificationAuthority]=await Promise.all([softApi('/api/v1/baseline-deployments',[],'baseline deployments'),softApi('/api/v1/runtime-verifications',[],'runtime verifications'),softApi('/api/v1/runtime-closure-campaigns',[],'closure campaigns'),softApi('/api/v1/runtime-certifications',[],'runtime certifications'),softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/clusters',[],'clusters'),softApi('/api/v1/catalog-releases',[],'catalog releases'),softApi('/api/v1/catalog/runtime-certification-authority',{components:[]},'component runtime certification authority')]);
+    Object.assign(state,{baselineDeployments:deployments,verifications,closures,runtimeCertifications:certifications,projects,clusters:clusterRows,catalogReleases,runtimeCertificationAuthority});
     const successful=deployments.filter(d=>d.state==='SUCCEEDED'&&d.desiredDigest===d.observedDigest);
     setOptions($('#verification-baseline'),successful,item=>item.id,item=>`${item.baselineId}@${item.baselineVersion||''} · ${item.clusterId}`,'No successful baseline deployment');
     const closureCandidates=deployments.filter(d=>!['ROLLBACK_QUEUED','ROLLING_BACK','ROLLED_BACK'].includes(d.state));
@@ -1639,18 +2754,20 @@ async function loadVerification(){
     setIntrinsicDisabled($('#verification-form').querySelector('button[type="submit"]'), !successful.length);
     setIntrinsicDisabled($('#closure-form').querySelector('button[type="submit"]'), !closureCandidates.length);
 
-    setOptions($('#runtime-certification-project'),projects,item=>item.id,item=>`${item.displayName} · ${item.name}`,'Create a project first');
+    setProjectOptions($('#runtime-certification-project'),projects);
     const certificationProject=$('#runtime-certification-project').value;
     const clusters=clusterRows.map(row=>row.cluster||row).filter(cluster=>cluster.projectId===certificationProject&&cluster.inventoryDigest);
     setOptions($('#runtime-certification-cluster'),clusters,item=>item.id,item=>`${item.displayName} · ${item.kubernetesVersion||'version pending'} · ${shortDigest(item.inventoryDigest)}`,'Fresh cluster inventory required');
     const renderable=catalogReleases.filter(release=>release.state==='PUBLISHED'&&['RENDER','RUNTIME','PRODUCTION'].includes(release.channel));
     setOptions($('#runtime-certification-catalog'),renderable,item=>item.id,item=>`${item.catalogName}@${item.catalogVersion} · ${item.channel} · ${shortDigest(item.manifestDigest)}`,'Publish a RENDER-or-higher Catalog release first');
-    setIntrinsicDisabled($('#runtime-certification-form').querySelector('button[type="submit"]'), !projects.length||!clusters.length||!renderable.length);
+    const componentContracts=(runtimeCertificationAuthority?.components||[]).filter(item=>item?.sourceBinding?.resolved===true&&item?.executor?.profile==='COMPONENT_RUNTIME_V1'&&String(item?.executor?.status||'').startsWith('component-')&&item?.executor?.status!=='pending-component-executor');
+    setOptions($('#runtime-certification-component'),componentContracts,item=>item.component,item=>`${item.component}@${item.release} · 5/6 lifecycle stages`,'No component executor is currently admitted');
+    updateRuntimeCertificationProfileForm();
 
     $('#runtime-certification-grid').innerHTML=certifications.length?latest(certifications).map(run=>{
       const passed=(run.checks||[]).filter(check=>check.status==='PASS').length;
       const blocked=(run.checks||[]).filter(check=>check.status==='BLOCKED').length;
-      return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(run.profile)}</h3><div class="resource-meta">${badge(run.state)}${badge(run.phase)}${badge(`${passed}/${(run.checks||[]).length} PASS`)}${blocked?badge(`${blocked} BLOCKED`):''}</div></div></div><p>${technical(run.namespace)} · ${technical(run.clusterId)}</p><div class="resource-details">${detailRow('Catalog',run.catalogReleaseId,true)}${detailRow('Inventory',shortDigest(run.inventoryDigest))}${detailRow('Source lock',shortDigest(run.sourceLockDigest))}${detailRow('Rendered',shortDigest(run.renderedDigest))}${detailRow('Resources',run.resourceCount||0)}${detailRow('Install checkpoint',shortDigest(run.installCheckpointDigest))}${detailRow('Evidence',shortDigest(run.evidenceDigest))}${detailRow('Expires',formatDate(run.expiresAt))}${detailRow('Attempt',run.taskAttempt||0)}</div>${run.lastError?`<div class="warning-banner">${esc(run.lastError)}</div>`:''}<details><summary>Certification checks (${(run.checks||[]).length})</summary><div class="activity-list">${(run.checks||[]).map(check=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${check.status==='PASS'?'✓':check.status==='BLOCKED'?'⏸':'!'}</span><div><strong>${esc(check.key)}</strong><small>${esc(check.detail||'No detail')}</small></div></div>${badge(check.status)}</div>`).join('')||'<p>No checks reported yet.</p>'}</div></details><div class="resource-actions">${run.state==='SUCCEEDED'?`<a class="secondary small-button" href="/api/v1/runtime-certifications/${esc(run.id)}/report">View report</a><button type="button" class="danger small-button" data-certification-action="revoke" data-id="${esc(run.id)}">Revoke evidence</button>`:''}<button type="button" class="secondary small-button" data-certification-action="inspect" data-id="${esc(run.id)}">Inspect</button></div></article>`;
+      return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(run.profile)}</h3><div class="resource-meta">${badge(run.state)}${badge(run.phase)}${badge(`${passed}/${(run.checks||[]).length} PASS`)}${blocked?badge(`${blocked} BLOCKED`):''}</div></div></div><p>${technical(run.namespace)} · ${technical(run.clusterId)}</p><div class="resource-details">${detailRow('Catalog',run.catalogReleaseId,true)}${run.componentName?detailRow('Component',`${run.componentName}@${run.componentRelease}`,true):''}${detailRow('Inventory digest',shortDigest(run.inventoryDigest))}${detailRow('Source lock',shortDigest(run.sourceLockDigest))}${detailRow('Rendered',shortDigest(run.renderedDigest))}${detailRow('Resources',run.resourceCount||0)}${detailRow('Install checkpoint',shortDigest(run.installCheckpointDigest))}${detailRow('Evidence',shortDigest(run.evidenceDigest))}${detailRow('Expires',formatDate(run.expiresAt))}${detailRow('Attempt',run.taskAttempt||0)}</div>${run.lastError?`<div class="warning-banner">${esc(run.lastError)}</div>`:''}<details><summary>Certification checks (${(run.checks||[]).length})</summary><div class="activity-list">${(run.checks||[]).map(check=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${check.status==='PASS'?'✓':check.status==='BLOCKED'?'⏸':'!'}</span><div><strong>${esc(check.key)}</strong><small>${esc(check.detail||'No detail')}</small></div></div>${badge(check.status)}</div>`).join('')||'<p>No checks reported yet.</p>'}</div></details><div class="resource-actions">${run.state==='SUCCEEDED'?`<a class="secondary small-button" href="/api/v1/runtime-certifications/${esc(run.id)}/report">View report</a><button type="button" class="danger small-button" data-certification-action="revoke" data-id="${esc(run.id)}">Revoke evidence</button>`:''}<button type="button" class="secondary small-button" data-certification-action="inspect" data-id="${esc(run.id)}">Inspect</button></div></article>`;
     }).join(''):emptyState('No runtime certification runs','Select a fresh connected cluster and a published RENDER-or-higher Catalog release.');
 
     $('#runtime-verification-grid').innerHTML=verifications.length?latest(verifications).map(v=>{
@@ -1660,29 +2777,164 @@ async function loadVerification(){
     $('#runtime-closure-grid').innerHTML=closures.length?latest(closures).map(c=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(c.state)}</h3><div class="resource-meta">${badge(c.state)}${c.nextAction?badge(c.nextAction):''}</div></div></div><p>${esc(c.summary||'Awaiting controller action')}</p><div class="resource-details">${detailRow('Baseline',c.baselineDeploymentId,true)}${detailRow('Verification',c.runtimeVerificationId||'—',true)}${detailRow('Desired',shortDigest(c.desiredDigest))}${detailRow('Observed',shortDigest(c.observedDigest))}${detailRow('Evidence',shortDigest(c.evidenceDigest))}</div>${c.lastError?`<div class="warning-banner">${esc(c.lastError)}</div>`:''}<div class="resource-actions">${c.state!=='SUCCEEDED'&&c.state!=='FAILED'?`<button type="button" class="primary small-button" data-closure-action="advance" data-id="${esc(c.id)}">Advance one step</button>`:''}${c.state==='FAILED'?`<button type="button" class="primary small-button" data-closure-action="retry" data-id="${esc(c.id)}">Retry failed step</button>`:''}${c.state==='SUCCEEDED'?`<button type="button" class="primary small-button" data-closure-action="verify" data-viewer-safe="true" data-id="${esc(c.id)}">Verify evidence</button><a class="secondary small-button" href="/api/v1/runtime-closure-campaigns/${esc(c.id)}/report">Download closure report</a>`:''}<button type="button" class="secondary small-button" data-closure-action="inspect" data-id="${esc(c.id)}">Inspect</button></div></article>`).join(''):emptyState('No closure campaigns','Select a baseline deployment and create the first resumable campaign.');
   }catch(error){$('#runtime-verification-grid').innerHTML=errorState(error.message);$('#runtime-closure-grid').innerHTML=errorState(error.message);$('#runtime-certification-grid').innerHTML=errorState(error.message);}
 }
+function updateRuntimeCertificationProfileForm(){const profile=$('#runtime-certification-profile')?.value||'FOUNDATION_V1',componentMode=profile==='COMPONENT_RUNTIME_V1',field=$('#runtime-certification-component-field'),component=$('#runtime-certification-component'),button=$('#runtime-certification-form')?.querySelector('button[type="submit"]');if(field)field.hidden=!componentMode;if(component)component.required=componentMode;const namespace=$('#runtime-certification-namespace');if(namespace)namespace.value=profile==='TARGET_RUNTIME_V1'?'4so-cert-target-runtime':profile==='OBSERVABILITY_V1'?'4so-cert-observability':componentMode?'4so-component-cert':'4so-cert-foundation';if(button){const hasBase=Boolean($('#runtime-certification-project')?.value&&$('#runtime-certification-cluster')?.value&&$('#runtime-certification-catalog')?.value);setIntrinsicDisabled(button,!hasBase||(componentMode&&!component?.value));}}
 $('#runtime-certification-project').onchange=()=>loadVerification();
-$('#runtime-certification-profile').onchange=()=>{const profile=$('#runtime-certification-profile').value;$('#runtime-certification-namespace').value=profile==='TARGET_RUNTIME_V1'?'4so-cert-target-runtime':profile==='OBSERVABILITY_V1'?'4so-cert-observability':'4so-cert-foundation';};
-$('#runtime-certification-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const body={projectId:$('#runtime-certification-project').value,clusterId:$('#runtime-certification-cluster').value,catalogReleaseId:$('#runtime-certification-catalog').value,profile:$('#runtime-certification-profile').value,namespace:$('#runtime-certification-namespace').value.trim()};try{const result=await api('/api/v1/runtime-certifications',{method:'POST',headers:{'Idempotency-Key':idempotency('runtime-certification')},body});toast(result.run?.state==='BLOCKED'?'Certification created as BLOCKED; inspect missing real capabilities.':'Runtime certification queued for the connected agent.',result.run?.state==='BLOCKED'?'warning':'success');await loadVerification();}catch(error){toast(error.message,'error');}};
+$('#runtime-certification-cluster').onchange=()=>updateRuntimeCertificationProfileForm();
+$('#runtime-certification-catalog').onchange=()=>updateRuntimeCertificationProfileForm();
+$('#runtime-certification-component').onchange=()=>updateRuntimeCertificationProfileForm();
+$('#runtime-certification-profile').onchange=()=>updateRuntimeCertificationProfileForm();
+$('#runtime-certification-form').onsubmit=async event=>{event.preventDefault();updateRuntimeCertificationProfileForm();if(!event.currentTarget.reportValidity())return;const profile=$('#runtime-certification-profile').value;const body={projectId:$('#runtime-certification-project').value,clusterId:$('#runtime-certification-cluster').value,catalogReleaseId:$('#runtime-certification-catalog').value,profile,namespace:$('#runtime-certification-namespace').value.trim()};if(profile==='COMPONENT_RUNTIME_V1')body.componentName=$('#runtime-certification-component').value;try{const result=await api('/api/v1/runtime-certifications',{method:'POST',headers:{'Idempotency-Key':idempotency('runtime-certification')},body});toast(result.run?.state==='BLOCKED'?'Certification created as BLOCKED; inspect missing real capabilities.':'Runtime certification queued for the connected agent.',result.run?.state==='BLOCKED'?'warning':'success');await loadVerification();}catch(error){toast(error.message,'error');}};
 $('#runtime-certification-grid').onclick=async event=>{const button=event.target.closest('[data-certification-action]');if(!button)return;const run=state.runtimeCertifications.find(item=>item.id===button.dataset.id);if(!run)return;const action=button.dataset.certificationAction;if(action==='inspect'){showDetails('Runtime certification',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(run.id)}</dd><dt>Profile</dt><dd>${badge(run.profile)}</dd><dt>State</dt><dd>${badge(run.state)}</dd><dt>Phase</dt><dd>${badge(run.phase)}</dd><dt>Project</dt><dd class="technical">${esc(run.projectId)}</dd><dt>Cluster</dt><dd class="technical">${esc(run.clusterId)}</dd><dt>Catalog release</dt><dd class="technical">${esc(run.catalogReleaseId)}</dd><dt>Namespace</dt><dd class="technical">${esc(run.namespace)}</dd><dt>Inventory digest</dt><dd class="technical">${esc(run.inventoryDigest||'—')}</dd><dt>Environment fingerprint</dt><dd class="technical">${esc(run.environmentFingerprint||'—')}</dd><dt>Manifest digest</dt><dd class="technical">${esc(run.manifestDigest||'—')}</dd><dt>Source-lock digest</dt><dd class="technical">${esc(run.sourceLockDigest||'—')}</dd><dt>Rendered digest</dt><dd class="technical">${esc(run.renderedDigest||'—')}</dd><dt>Checkpoint</dt><dd class="technical">${esc(run.installCheckpointDigest||'—')}</dd><dt>Evidence</dt><dd class="technical">${esc(run.evidenceDigest||'—')}</dd><dt>Expires</dt><dd>${esc(formatDate(run.expiresAt))}</dd><dt>Error / blocker</dt><dd>${esc(run.lastError||'—')}</dd></dl><div class="warning-banner">External Live Certified: false · Production Ready: false. This record proves only the selected profile on the bound inventory/context.</div>`);return;}if(action==='revoke'){if(!await confirmAction('Revoke certification evidence',`Revoke ${run.profile} evidence for ${run.namespace}?`,true))return;try{await api(`/api/v1/runtime-certifications/${run.id}/revoke`,{method:'POST',headers:{'If-Match':`"${run.revision}"`},body:{}});toast('Certification evidence revoked.');await loadVerification();}catch(error){toast(error.message,'error');}}};
 $('#verification-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const deployment=state.baselineDeployments.find(item=>item.id===$('#verification-baseline').value);try{await api('/api/v1/runtime-verifications',{method:'POST',headers:{'Idempotency-Key':idempotency('runtime-verification')},body:{projectId:deployment.projectId,clusterId:deployment.clusterId,baselineDeploymentId:deployment.id}});toast('Runtime verification queued for the connected agent.');await loadVerification();}catch(error){toast(error.message,'error');}};
 $('#closure-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const deployment=state.baselineDeployments.find(item=>item.id===$('#closure-baseline').value);try{await api('/api/v1/runtime-closure-campaigns',{method:'POST',headers:{'Idempotency-Key':idempotency('runtime-closure')},body:{projectId:deployment.projectId,clusterId:deployment.clusterId,baselineDeploymentId:deployment.id}});toast('Runtime closure campaign created.');await loadVerification();}catch(error){toast(error.message,'error');}};
 $('#runtime-verification-grid').onclick=async event=>{const button=event.target.closest('[data-verification-action]');if(!button)return;const record=state.verifications.find(item=>item.id===button.dataset.id);if(!record)return;if(button.dataset.verificationAction==='inspect'){showDetails('Runtime verification',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(record.id)}</dd><dt>State</dt><dd>${badge(record.state)}</dd><dt>Baseline</dt><dd class="technical">${esc(record.baselineDeploymentId)}</dd><dt>Probe image</dt><dd class="technical">${esc(record.probeImage||'—')}</dd><dt>Desired digest</dt><dd class="technical">${esc(record.desiredDigest||'—')}</dd><dt>Observed digest</dt><dd class="technical">${esc(record.observedDigest||'—')}</dd><dt>Report digest</dt><dd class="technical">${esc(record.reportDigest||'—')}</dd><dt>Error</dt><dd>${esc(record.lastError||'—')}</dd></dl>`);return;}try{await api(`/api/v1/runtime-verifications/${record.id}/retry`,{method:'POST',headers:{'If-Match':`"${record.revision}"`},body:{}});toast('Runtime verification re-queued with the same identity and desired digest.');await loadVerification();}catch(error){toast(error.message,'error');}};
 $('#runtime-closure-grid').onclick=async event=>{const button=event.target.closest('[data-closure-action]');if(!button)return;const record=state.closures.find(item=>item.id===button.dataset.id);if(!record)return;const action=button.dataset.closureAction;if(action==='inspect'){showDetails('Runtime closure campaign',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(record.id)}</dd><dt>State</dt><dd>${badge(record.state)}</dd><dt>Next action</dt><dd>${esc(record.nextAction||'—')}</dd><dt>Summary</dt><dd>${esc(record.summary||'—')}</dd><dt>Baseline</dt><dd class="technical">${esc(record.baselineDeploymentId)}</dd><dt>Verification</dt><dd class="technical">${esc(record.runtimeVerificationId||'—')}</dd><dt>Evidence digest</dt><dd class="technical">${esc(record.evidenceDigest||'—')}</dd><dt>Error</dt><dd>${esc(record.lastError||'—')}</dd></dl>`);return;}try{if(action==='verify'){const report=await api(`/api/v1/runtime-closure-campaigns/${record.id}/report`);const result=await api('/api/v1/runtime-closure-reports/verify',{method:'POST',body:report});showDetails(t('verification.verifiedTitle','Verified closure evidence'),`<div class="success-banner">${esc(t('verification.verifiedMessage','Independent digest verification passed.'))}</div><dl class="key-value"><dt>Campaign</dt><dd class="technical">${esc(result.campaignId)}</dd><dt>Project</dt><dd class="technical">${esc(result.projectId)}</dd><dt>Cluster</dt><dd class="technical">${esc(result.clusterId)}</dd><dt>Baseline</dt><dd class="technical">${esc(result.baselineDeploymentId)}</dd><dt>Verification</dt><dd class="technical">${esc(result.runtimeVerificationId)}</dd><dt>Evidence digest</dt><dd class="technical">${esc(result.evidenceDigest)}</dd><dt>Canonicalization</dt><dd class="technical">${esc(result.canonicalization)}</dd></dl><div class="warning-banner">${esc(t('verification.integrityOnly','This verifies evidence integrity only; Runtime Certified, HA Certified and Production Ready remain false.'))}</div>`);return;}await api(`/api/v1/runtime-closure-campaigns/${record.id}/${action}`,{method:'POST',headers:{'If-Match':`"${record.revision}"`},body:{}});toast(`Closure campaign ${action} accepted.`);await loadVerification();}catch(error){toast(error.message,'error');}};
 
+async function loadWorkspaces(){
+  try{
+    const [projects,clusterRows,workspaces]=await Promise.all([
+      softApi('/api/v1/projects',[],'projects'),
+      softApi('/api/v1/clusters',[],'clusters'),
+      softApi('/api/v1/workspaces',[],'workspaces')
+    ]);
+    const clusters=clusterRows.map(row=>row.cluster||row);
+    Object.assign(state,{projects,clusters,workspaces});
+    const projectById=new Map(projects.map(item=>[item.id,item]));
+    const clusterById=new Map(clusters.map(item=>[item.id,item]));
+    prerequisite($('#workspaces-prerequisite'),projects.length>0,'Create a project before creating a Workspace.','workspace','Open organizations & projects');
+    setProjectOptions($('#workspace-authority-project'),projects);
+    const previousWorkspace=$('#workspace-binding-workspace').value;
+    setOptions($('#workspace-binding-workspace'),workspaces,item=>item.id,item=>`${item.displayName} · ${projectById.get(item.projectId)?.displayName||item.projectId}`,'Create a Workspace first');
+    if(previousWorkspace && workspaces.some(item=>item.id===previousWorkspace)) $('#workspace-binding-workspace').value=previousWorkspace;
+    const selectedWorkspace=workspaces.find(item=>item.id===$('#workspace-binding-workspace').value) || workspaces[0] || null;
+    const eligibleClusters=selectedWorkspace?clusters.filter(item=>item.projectId===selectedWorkspace.projectId):[];
+    setOptions($('#workspace-binding-cluster'),eligibleClusters,item=>item.id,item=>`${item.displayName||item.name||item.id} · ${item.kubernetesVersion||'version pending'}`,'No managed cluster in this project');
+    const bindings=selectedWorkspace?await softApi(`/api/v1/workspaces/${encodeURIComponent(selectedWorkspace.id)}/bindings`,[],'workspace bindings'):[];
+    state.workspaceBindings=bindings;
+    $('#workspace-authority-grid').innerHTML=workspaces.length?workspaces.map(item=>{
+      const selected=selectedWorkspace?.id===item.id;
+      return `<article class="resource-card${selected?' selected':''}"><div class="resource-header"><div><h3>${esc(item.displayName||item.name)}</h3><div class="resource-meta">${badge('REFERENCE_ONLY')}${selected?badge('SELECTED'):''}</div></div></div><p>${esc(item.description||'Project-scoped cross-cluster namespace boundary')}</p><div class="resource-details">${detailRow('Project',projectById.get(item.projectId)?.displayName||item.projectId)}${detailRow('Machine name',item.name,true)}${detailRow('Authority','WORKSPACE_AUTHORITY_V1',true)}${detailRow('Digest',shortDigest(item.digest))}${detailRow('Revision',item.revision)}</div><div class="resource-actions"><button class="secondary small-button" type="button" data-workspace-select="${esc(item.id)}">View namespace bindings</button></div></article>`;
+    }).join(''):emptyState('No Workspaces','Create a reference-only project boundary before binding namespaces.');
+    $('#workspace-binding-grid').innerHTML=bindings.length?bindings.map(item=>{
+      const cluster=clusterById.get(item.clusterId);
+      return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.namespace)}</h3><div class="resource-meta">${badge(item.state)}</div></div></div><p>${esc(cluster?.displayName||cluster?.name||item.clusterId)}</p><div class="resource-details">${detailRow('Cluster',item.clusterId,true)}${detailRow('Namespace',item.namespace,true)}${detailRow('Runtime state','Derived from referenced cluster')}${detailRow('Revision',item.revision)}</div><div class="resource-actions">${item.state==='ACTIVE'?`<button class="danger small-button" type="button" data-workspace-binding-action="revoke" data-id="${esc(item.id)}">Revoke binding</button>`:''}<button class="secondary small-button" type="button" data-workspace-binding-action="inspect" data-id="${esc(item.id)}">Inspect reference</button></div></article>`;
+    }).join(''):emptyState(selectedWorkspace?'No namespace bindings':'No Workspace selected',selectedWorkspace?'Bind an existing managed-cluster namespace. Runtime data stays on the cluster.':'Create a Workspace first.');
+
+    $('#workspace-authority-project').onchange=()=>queueMicrotask(()=>applyAccessMode());
+    $('#workspace-binding-workspace').onchange=async()=>{await loadWorkspaces();};
+    $('#workspace-authority-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;try{await api('/api/v1/workspaces',{method:'POST',body:{projectId:$('#workspace-authority-project').value,name:$('#workspace-authority-name').value.trim(),displayName:$('#workspace-authority-display').value.trim(),description:$('#workspace-authority-description').value.trim()}});toast('Workspace authority created.');event.currentTarget.reset();await loadWorkspaces();}catch(error){toast(error.message,'error');}};
+    $('#workspace-binding-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const workspaceId=$('#workspace-binding-workspace').value;if(!workspaceId){toast('Create or select a Workspace first.','error');return;}try{await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/bindings`,{method:'POST',body:{clusterId:$('#workspace-binding-cluster').value,namespace:$('#workspace-binding-namespace').value.trim()}});toast('Namespace reference bound to Workspace.');$('#workspace-binding-namespace').value='';await loadWorkspaces();}catch(error){toast(error.message,'error');}};
+    $('#workspace-authority-grid').onclick=async event=>{const button=event.target.closest('[data-workspace-select]');if(!button)return;$('#workspace-binding-workspace').value=button.dataset.workspaceSelect;await loadWorkspaces();};
+    $('#workspace-binding-grid').onclick=async event=>{const button=event.target.closest('[data-workspace-binding-action]');if(!button)return;const binding=state.workspaceBindings.find(item=>item.id===button.dataset.id);if(!binding)return;const workspace=state.workspaces.find(item=>item.id===binding.workspaceId);if(button.dataset.workspaceBindingAction==='inspect'){showDetails('Workspace namespace reference',`<div class="inline-summary"><strong>Reference-only authority.</strong> Workload, quota, health, observability and cost state are not persisted in the Workspace record.</div><dl class="key-value"><dt>Workspace</dt><dd>${esc(workspace?.displayName||binding.workspaceId)}</dd><dt>Project</dt><dd class="technical">${esc(binding.projectId)}</dd><dt>Cluster</dt><dd class="technical">${esc(binding.clusterId)}</dd><dt>Namespace</dt><dd class="technical">${esc(binding.namespace)}</dd><dt>State</dt><dd>${badge(binding.state)}</dd><dt>Revision</dt><dd>${esc(binding.revision)}</dd></dl>`);return;}if(button.dataset.workspaceBindingAction==='revoke'){if(!await confirmAction('Revoke Workspace binding',`Remove ${binding.namespace} from ${workspace?.displayName||'this Workspace'}? This changes only the product reference; it does not delete the namespace or workloads.`,true))return;try{await api(`/api/v1/workspaces/${encodeURIComponent(binding.workspaceId)}/bindings/${encodeURIComponent(binding.id)}/revoke`,{method:'POST',headers:{'If-Match':`"${binding.revision}"`},body:{}});toast('Workspace binding revoked. The namespace and workloads were not deleted.');await loadWorkspaces();}catch(error){toast(error.message,'error');}}};
+    applyAccessMode($('#workspaces'));
+  }catch(error){
+    if(error?.name==='AbortError')throw error;
+    $('#workspace-authority-grid').innerHTML=errorState('Workspace authority unavailable',error.message);
+    $('#workspace-binding-grid').innerHTML='';
+  }
+}
+
+
+const finOpsEndpoints={rateCards:'/api/v1/finops/rate-cards',usage:'/api/v1/finops/usage-measurements',capacity:'/api/v1/finops/capacity-observations',showback:'/api/v1/finops/showback',chargeback:'/api/v1/finops/chargeback-export'};
+function finOpsMoney(micros,currency){
+  if(micros===null||micros===undefined)return 'Cost unavailable';
+  const raw=typeof micros==='string'?micros:String(micros);
+  if(!/^-?\d+$/.test(raw))return 'Cost unavailable';
+  try{
+    const value=BigInt(raw),negative=value<0n,abs=negative?-value:value,whole=abs/1000000n,fraction=(abs%1000000n).toString().padStart(6,'0').replace(/0+$/,'');
+    return `${negative?'-':''}${whole.toString()}${fraction?'.'+fraction:''} ${currency||''}`.trim();
+  }catch(_error){return 'Cost unavailable';}
+}
+function finOpsMicrosInput(id){
+  const raw=$(id).value.trim();
+  if(!/^\d+$/.test(raw))throw new Error('Rate-card prices must be non-negative integer micro-currency values.');
+  const value=BigInt(raw);
+  if(value>9223372036854775807n)throw new Error('Rate-card price exceeds the supported int64 micro-currency range.');
+  if(value>9007199254740991n)throw new Error('Rate-card price exceeds the browser exact-integer range. Use API automation for larger values.');
+  return Number(value);
+}
+function finOpsUsageComplete(item){
+  const metrics=item?.metrics||{};
+  return ['CPU_CORE_HOUR','MEMORY_GIB_HOUR','STORAGE_GIB_HOUR','ACCELERATOR_HOUR'].every(metric=>metrics[metric]?.available===true);
+}
+function finOpsMetricSummary(item){
+  const metrics=item?.metrics||{};
+  return Object.entries(metrics).map(([name,sample])=>`${name}: ${sample?.available?String(sample.quantityMicros)+' µunits':'missing'}`).join(' · ');
+}
+function finOpsWindow(usage){
+  const valid=usage.filter(item=>item?.windowStart&&item?.windowEnd);
+  if(!valid.length)return null;
+  const from=new Date(Math.min(...valid.map(item=>new Date(item.windowStart).getTime())));
+  const to=new Date(Math.max(...valid.map(item=>new Date(item.windowEnd).getTime())));
+  if(!Number.isFinite(from.getTime())||!Number.isFinite(to.getTime())||to<=from)return null;
+  return {from:from.toISOString(),to:to.toISOString()};
+}
+async function loadFinOps(){
+  try{
+    const [organizations,projects]=await Promise.all([softApi('/api/v1/organizations',[],'organizations'),softApi('/api/v1/projects',[],'projects')]);
+    Object.assign(state,{organizations,projects});
+    const scopedProject=projects.find(item=>item.id===state.globalScope.projectId)||null;
+    const organizationId=scopedProject?.organizationId||state.globalScope.organizationId||organizations[0]?.id||'';
+    prerequisite($('#finops-prerequisite'),Boolean(organizationId),'Select or create an organization before reviewing FinOps.','workspace','Open organizations & projects');
+    setOptions($('#finops-rate-card-organization'),organizations,item=>item.id,item=>`${item.displayName||item.name} · ${item.id}`,'Create an organization first');
+    if(organizationId&&organizations.some(item=>item.id===organizationId))$('#finops-rate-card-organization').value=organizationId;
+    if(!$('#finops-rate-card-effective').value)$('#finops-rate-card-effective').value=localDateTimeValue(new Date());
+    if(!organizationId){state.finOpsRateCards=[];state.finOpsUsage=[];state.finOpsCostSummary=null;state.finOpsChargeback=null;$('#finops-cost-summary').innerHTML='';$('#finops-rate-card-grid').innerHTML=emptyState('No organization scope','Choose an organization to review rate cards.');$('#finops-usage-grid').innerHTML='';$('#finops-chargeback-grid').innerHTML='';return;}
+    const projectId=scopedProject?.organizationId===organizationId?scopedProject.id:'';
+    const scopeQuery=projectId?`projectId=${encodeURIComponent(projectId)}`:`organizationId=${encodeURIComponent(organizationId)}`;
+    const [rateCards,usage,capacity]=await Promise.all([
+      softApi(`${finOpsEndpoints.rateCards}?organizationId=${encodeURIComponent(organizationId)}`,[],'FinOps rate cards'),
+      softApi(`${finOpsEndpoints.usage}?${scopeQuery}&limit=500`,[],'FinOps usage'),
+      softApi(`${finOpsEndpoints.capacity}?${scopeQuery}&limit=100`,[],'FinOps capacity')
+    ]);
+    const sortedCards=[...rateCards].sort((a,b)=>new Date(b.effectiveFrom)-new Date(a.effectiveFrom)||String(b.version).localeCompare(String(a.version)));
+    const card=sortedCards[0]||null;
+    const window=finOpsWindow(usage);
+    let showback=null;
+    if(card&&window){
+      const query=`${scopeQuery}&currency=${encodeURIComponent(card.currency)}&groupBy=PROJECT&from=${encodeURIComponent(window.from)}&to=${encodeURIComponent(window.to)}`;
+      showback=await softApi(`${finOpsEndpoints.showback}?${query}`,null,'FinOps showback');
+      const exportLink=$('#finops-chargeback-export');
+      if(exportLink){exportLink.href=`${finOpsEndpoints.chargeback}?${query}`;exportLink.hidden=false;}
+    }else{
+      const exportLink=$('#finops-chargeback-export');
+      if(exportLink){exportLink.removeAttribute('href');exportLink.hidden=true;}
+    }
+    Object.assign(state,{finOpsRateCards:sortedCards,finOpsUsage:usage,finOpsCapacity:capacity,finOpsCostSummary:showback,finOpsChargeback:showback});
+    const missingMeasurements=usage.filter(item=>!finOpsUsageComplete(item)).length;
+    const status=showback?.complete?'AVAILABLE':card&&window?'INCOMPLETE':card?'NO USAGE':'NO RATE CARD';
+    $('#finops-cost-summary').innerHTML=`<article class="metric-card"><span>Cost status</span><strong>${esc(status)}</strong><small>${missingMeasurements?`${esc(missingMeasurements)} measurement(s) contain missing telemetry`:'No hidden telemetry gap in loaded usage'}</small></article><article class="metric-card"><span>Authoritative total</span><strong>${esc(showback?.complete?finOpsMoney(showback.totalCostMicros,showback.currency):'Cost unavailable')}</strong><small>${showback?`Known subtotal ${esc(finOpsMoney(showback.knownCostMicros,showback.currency))}`:'Measured usage plus a covering rate card is required'}</small></article><article class="metric-card"><span>Usage / capacity</span><strong>${esc(usage.length)} / ${esc(capacity.length)}</strong><small>Trusted collector records only</small></article><article class="metric-card"><span>Rate card</span><strong>${esc(card?`${card.name}@${card.version}`:'Not configured')}</strong><small>${esc(card?.currency||'No pricing authority')}</small></article>`;
+    $('#finops-rate-card-grid').innerHTML=sortedCards.length?sortedCards.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)}@${esc(item.version)}</h3><div class="resource-meta">${badge(item.currency)}${item.id===card?.id?badge('LATEST'):''}</div></div></div><p>Effective ${formatDate(item.effectiveFrom)}${item.effectiveUntil?` → ${formatDate(item.effectiveUntil)}`:' · open ended'}</p><div class="resource-details">${Object.entries(item.rates||{}).sort(([a],[b])=>a.localeCompare(b)).map(([metric,price])=>detailRow(metric,`${esc(price)} micros / unit`,true)).join('')}${detailRow('Digest',shortDigest(item.digest))}</div></article>`).join(''):emptyState('No rate cards','Publish an immutable organization rate card to derive cost from measured usage.');
+    $('#finops-usage-grid').innerHTML=usage.length?latest(usage,12).map(item=>{const complete=finOpsUsageComplete(item);return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.namespace||item.workspaceId||item.clusterId||item.projectId)}</h3><div class="resource-meta">${badge(complete?'MEASURED':'INCOMPLETE')}${!complete?badge('COST UNAVAILABLE'):''}</div></div></div><p>${esc(finOpsMetricSummary(item)||'No metric data')}</p><div class="resource-details">${detailRow('Project',item.projectId,true)}${detailRow('Cluster',item.clusterId||'—',true)}${detailRow('Window',`${formatDate(item.windowStart)} → ${formatDate(item.windowEnd)}`)}${detailRow('Source',item.source,true)}${detailRow('Digest',shortDigest(item.digest))}</div></article>`;}).join(''):emptyState('No usage observations','Trusted collectors have not reported measured usage yet. Missing telemetry is not treated as zero.');
+    const groups=showback?.groups||[];
+    $('#finops-chargeback-grid').innerHTML=groups.length?groups.map(group=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(group.key)}</h3><div class="resource-meta">${badge(group.complete?'COMPLETE':'INCOMPLETE')}${group.attributionComplete?badge('ATTRIBUTED'):badge('UNATTRIBUTED')}</div></div></div><p>${esc(group.complete?finOpsMoney(group.totalCostMicros,showback.currency):'Cost unavailable')}</p><div class="resource-details">${detailRow('Known subtotal',finOpsMoney(group.knownCostMicros,showback.currency))}${detailRow('Measurements',group.measurementCount)}${detailRow('Missing telemetry',(group.missingTelemetry||[]).join(', ')||'None')}${detailRow('Missing rates',(group.missingRates||[]).join(', ')||'None')}</div></article>`).join(''):emptyState(card?(window?'No chargeback groups':'No usage window'):'No rate card selected',card?'No complete measured usage falls inside the current scope.':'Publish a rate card before deriving chargeback.');
+    $('#finops-rate-card-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;try{const organizationID=$('#finops-rate-card-organization').value;const body={organizationId:organizationID,name:$('#finops-rate-card-name').value.trim(),version:$('#finops-rate-card-version').value.trim(),currency:$('#finops-rate-card-currency').value.trim().toUpperCase(),effectiveFrom:new Date($('#finops-rate-card-effective').value).toISOString(),rates:{CPU_CORE_HOUR:finOpsMicrosInput('#finops-price-cpu'),MEMORY_GIB_HOUR:finOpsMicrosInput('#finops-price-memory'),STORAGE_GIB_HOUR:finOpsMicrosInput('#finops-price-storage'),ACCELERATOR_HOUR:finOpsMicrosInput('#finops-price-accelerator')}};await api(finOpsEndpoints.rateCards,{method:'POST',headers:{'Idempotency-Key':idempotency('finops-rate-card')},body});toast('Immutable FinOps rate card published.');await loadFinOps();}catch(error){toast(error.message,'error');}};
+    applyAccessMode($('#finops'));
+  }catch(error){if(error?.name==='AbortError')throw error;$('#finops-cost-summary').innerHTML='';$('#finops-rate-card-grid').innerHTML=errorState('FinOps unavailable',error.message);$('#finops-usage-grid').innerHTML='';$('#finops-chargeback-grid').innerHTML='';}
+}
+
 async function loadFleet(){
   try{
-    const [projects,clusters,groups,drifts,campaigns,baselines,recoveryCheckpoints]=await Promise.all([softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/clusters',[],'clusters'),softApi('/api/v1/fleet-groups',[],'fleet groups'),softApi('/api/v1/drift-scans',[],'drift scans'),softApi('/api/v1/upgrade-campaigns',[],'upgrade campaigns'),softApi('/api/v1/baselines',[],'baselines'),softApi('/api/v1/recovery-checkpoints',[],'recovery checkpoints')]);
-    Object.assign(state,{projects,clusters,fleetGroups:groups,driftScans:drifts,upgradeCampaigns:campaigns,baselines,recoveryCheckpoints});
-    setOptions($('#fleet-project'),projects,item=>item.id,item=>`${item.displayName} · ${item.name}`,'Create a project first');
+    const [projects,clusters,groups,drifts,campaigns,baselines,recoveryCheckpoints,day2CampaignEngine]=await Promise.all([softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/clusters',[],'clusters'),softApi('/api/v1/fleet-groups',[],'fleet groups'),softApi('/api/v1/drift-scans',[],'drift scans'),softApi('/api/v1/upgrade-campaigns',[],'upgrade campaigns'),softApi('/api/v1/baselines',[],'baselines'),softApi('/api/v1/recovery-checkpoints',[],'recovery checkpoints'),softApi('/api/v1/day2-campaign-engine',{},'Day-2 campaign engine')]);
+    Object.assign(state,{projects,clusters,fleetGroups:groups,driftScans:drifts,upgradeCampaigns:campaigns,baselines,recoveryCheckpoints,day2CampaignEngine:day2CampaignEngine?.authority?day2CampaignEngine:state.day2CampaignEngine});
+    setProjectOptions($('#fleet-project'),projects);
+    setProjectOptions($('#operations-search-project'),projects);
+    if($('#fleet-project').value&&[...$('#operations-search-project').options].some(option=>option.value===$('#fleet-project').value))$('#operations-search-project').value=$('#fleet-project').value;
     const projectId=$('#fleet-project').value;
+    const [backupPolicies,dataProtectionRuns]=projectId?await Promise.all([softApi(`/api/v1/backup-policies?projectId=${encodeURIComponent(projectId)}`,[],'backup policies'),softApi(`/api/v1/data-protection-runs?projectId=${encodeURIComponent(projectId)}`,[],'data protection runs')]):[[],[]];
+    Object.assign(state,{backupPolicies,dataProtectionRuns});
     const fleetHealth=projectId?await api(`/api/v1/fleet/health?projectId=${encodeURIComponent(projectId)}`):{summary:{total:0,healthy:0,warning:0,stale:0,critical:0,online:0,eol:0},clusters:[]}; state.fleetHealth=fleetHealth;
     const projectClusters=clusters.map(row=>row.cluster||row).filter(cluster=>!projectId||cluster.projectId===projectId);
     setOptions($('#fleet-clusters'),projectClusters,item=>item.id,item=>`${item.displayName} · ${item.kubernetesVersion||'version pending'}`,'Connect clusters first');
     setOptions($('#recovery-cluster'),projectClusters.filter(item=>item.inventoryDigest),item=>item.id,item=>`${item.displayName} · ${shortDigest(item.inventoryDigest)}`,'Fresh cluster inventory required');
+    setOptions($('#data-protection-cluster'),projectClusters.filter(item=>item.inventoryDigest),item=>item.id,item=>`${item.displayName} · ${shortDigest(item.inventoryDigest)}`,'Fresh cluster inventory required');
+    const policyById=new Map(backupPolicies.map(item=>[item.id,item]));
+    $('#data-protection-policy-grid').innerHTML=backupPolicies.length?latest(backupPolicies).map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)}</h3><div class="resource-meta">${badge(item.state)}${badge(item.provider)}</div></div></div><p>${esc(item.includedNamespaces?.join(', ')||'No namespaces')}</p><div class="resource-details">${detailRow('Cluster',item.clusterId,true)}${detailRow('UTC schedule',item.schedule,true)}${detailRow('Retention',item.retention,true)}${detailRow('Storage location',item.backupStorageLocation,true)}${detailRow('Credential reference',item.credentialRef,true)}${detailRow('Desired digest',shortDigest(item.desiredDigest))}</div><div class="resource-actions">${item.state==='ACTIVE'?`<button class="primary small-button" type="button" data-dp-policy-action="backup" data-id="${esc(item.id)}">Run backup</button><button class="secondary small-button" type="button" data-dp-policy-action="disable" data-id="${esc(item.id)}">Disable schedule</button>`:`<button class="primary small-button" type="button" data-dp-policy-action="enable" data-id="${esc(item.id)}">Enable schedule</button>`}<button class="secondary small-button" type="button" data-dp-policy-action="inspect" data-id="${esc(item.id)}">Inspect</button></div></article>`).join(''):emptyState('No backup policies','Create a policy for a connected cluster with current inventory and Velero capability.');
+    $('#data-protection-run-grid').innerHTML=dataProtectionRuns.length?latest(dataProtectionRuns).map(item=>{const policy=policyById.get(item.policyId);const successfulBackup=item.kind==='BACKUP'&&item.state==='SUCCEEDED';return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.kind)} · ${esc(policy?.name||item.policyId)}</h3><div class="resource-meta">${badge(item.state)}</div></div></div><div class="resource-details">${detailRow('Cluster',item.clusterId,true)}${detailRow('Reference',item.reference||'—',true)}${detailRow('Recovery checkpoint',item.recoveryCheckpointId||'—',true)}${detailRow('Evidence',shortDigest(item.evidenceDigest))}${detailRow('Requested by',item.requestedBy||'—')}${detailRow('Approved by',item.approvedBy||'—')}${detailRow('Error',item.lastError||'—')}</div><div class="resource-actions">${successfulBackup?`<button class="secondary small-button" type="button" data-dp-run-action="drill" data-id="${esc(item.id)}">Run restore drill</button><button class="danger small-button" type="button" data-dp-run-action="restore" data-id="${esc(item.id)}">Request restore</button>`:''}${item.kind==='RESTORE'&&item.state==='AWAITING_APPROVAL'?`<button class="primary small-button" type="button" data-dp-run-action="approve" data-id="${esc(item.id)}">Approve restore</button>`:''}<button class="secondary small-button" type="button" data-dp-run-action="inspect" data-id="${esc(item.id)}">Inspect</button></div></article>`}).join(''):emptyState('No backup or restore runs','Run a backup from an active policy. Successful backups can be used for restore drills or approval-gated restores.');
     if(!$('#recovery-completed-at').value) $('#recovery-completed-at').value=localDateTimeValue(new Date(Date.now()-5*60000));
     if(!$('#recovery-expires-at').value) $('#recovery-expires-at').value=localDateTimeValue(new Date(Date.now()+24*3600000));
     const visibleCheckpoints=recoveryCheckpoints.filter(item=>!projectId||item.projectId===projectId);
-    $('#recovery-checkpoint-grid').innerHTML=visibleCheckpoints.length?latest(visibleCheckpoints).map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.provider)} · ${esc(item.reference)}</h3><div class="resource-meta">${badge(item.state)}${new Date(item.expiresAt)>new Date()?badge('VALID'):badge('EXPIRED')}</div></div></div><div class="resource-details">${detailRow('Cluster',item.clusterId,true)}${detailRow('Evidence',shortDigest(item.evidenceDigest))}${detailRow('Inventory',shortDigest(item.inventoryDigest))}${detailRow('Completed',formatDate(item.completedAt))}${detailRow('Expires',formatDate(item.expiresAt))}${detailRow('Revision',item.revision)}</div><div class="resource-actions">${item.state==='VERIFIED'?`<button type="button" class="danger small-button" data-recovery-action="revoke" data-id="${esc(item.id)}">Revoke checkpoint</button>`:''}<button type="button" class="secondary small-button" data-recovery-action="inspect" data-id="${esc(item.id)}">Inspect</button></div></article>`).join(''):emptyState('No recovery checkpoints','Register backup evidence captured against current cluster inventory before creating an upgrade campaign.');
+    $('#recovery-checkpoint-grid').innerHTML=visibleCheckpoints.length?latest(visibleCheckpoints).map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.provider)} · ${esc(item.reference)}</h3><div class="resource-meta">${badge(item.state)}${new Date(item.expiresAt)>new Date()?badge('VALID'):badge('EXPIRED')}</div></div></div><div class="resource-details">${detailRow('Cluster',item.clusterId,true)}${detailRow('Evidence',shortDigest(item.evidenceDigest))}${detailRow('وضعیت ثبت‌شده',shortDigest(item.inventoryDigest))}${detailRow('Completed',formatDate(item.completedAt))}${detailRow('Expires',formatDate(item.expiresAt))}${detailRow('Revision',item.revision)}</div><div class="resource-actions">${item.state==='VERIFIED'?`<button type="button" class="danger small-button" data-recovery-action="revoke" data-id="${esc(item.id)}">Revoke checkpoint</button>`:''}<button type="button" class="secondary small-button" data-recovery-action="inspect" data-id="${esc(item.id)}">Inspect</button></div></article>`).join(''):emptyState('No recovery checkpoints','Register backup evidence captured against current cluster inventory before creating an upgrade campaign.');
     const visibleGroups=groups.filter(group=>!projectId||group.projectId===projectId);
     prerequisite($('#fleet-prerequisite'),projectClusters.length>0,'At least one connected cluster is required before creating a fleet.','clusters','Connect clusters');
     setIntrinsicDisabled($('#fleet-group-form').querySelector('button[type="submit"]'), !projectClusters.length);
@@ -1691,12 +2943,34 @@ async function loadFleet(){
     $('#fleet-health-grid').innerHTML=(fleetHealth.clusters||[]).length?(fleetHealth.clusters||[]).map(row=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(row.displayName||row.name)}</h3><div class="resource-meta">${badge(row.health)}${badge(row.online?'ONLINE':'OFFLINE')}${badge(row.kubernetesSupport?.status||'UNKNOWN')}</div></div></div><div class="resource-details">${detailRow('Kubernetes',row.kubernetesVersion||'—',true)}${detailRow('Support EOL',row.kubernetesSupport?.endOfLife?new Date(row.kubernetesSupport.endOfLife).toLocaleDateString():'unknown')}${detailRow('Nodes',`${row.readyNodes||0}/${row.nodeCount||0} Ready`)}${detailRow('Storage classes',row.storageClassCount||0)}${detailRow('Default storage',row.defaultStorageClass||'—',true)}${detailRow('CPU allocatable',`${row.capacity?.cpuAllocatableMilli||0}m`)}${detailRow('Memory allocatable',bytes(row.capacity?.memoryAllocatableBytes))}${detailRow('CNI',row.networking?.cni||'unknown',true)}${detailRow('Ingress',(row.networking?.ingressControllers||[]).join(', ')||'unknown',true)}</div>${(row.warnings||[]).length?`<div class="warning-banner">${(row.warnings||[]).map(esc).join('<br>')}</div>`:''}<div class="resource-actions"><button type="button" class="secondary small-button" data-health-action="timeline" data-id="${esc(row.clusterId)}">Timeline</button><button type="button" class="secondary small-button" data-health-action="bundle" data-id="${esc(row.clusterId)}">Support bundle</button></div></article>`).join(''):emptyState('No fleet health data','Connect a cluster and wait for the first inventory report.');
     $('#fleet-group-grid').innerHTML=visibleGroups.length?visibleGroups.map(group=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(group.displayName)}</h3><div class="resource-meta">${badge(`${group.clusterIds.length} clusters`)}</div></div></div><div class="resource-details">${detailRow('Machine name',group.name,true)}${detailRow('Project',group.projectId,true)}${detailRow('Revision',group.revision)}</div><details><summary>Cluster IDs</summary><pre class="code-block technical" dir="ltr">${esc(group.clusterIds.join('\n'))}</pre></details><div class="resource-actions"><button type="button" class="secondary small-button" data-fleet-action="drift" data-id="${esc(group.id)}">Run drift scan</button><button type="button" class="primary small-button" data-fleet-action="upgrade" data-id="${esc(group.id)}">Create upgrade campaign</button></div></article>`).join(''):emptyState('No fleet groups','Select connected clusters and create the first fleet group.');
     $('#drift-scan-grid').innerHTML=drifts.length?latest(drifts).map(scan=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(scan.state)}</h3><div class="resource-meta">${badge(scan.state)}${badge(`${(scan.targets||[]).length} targets`)}</div></div></div><p>${esc(scan.summary||'Agent checks are pending.')}</p><div class="activity-list">${(scan.targets||[]).map(target=>{const git=target.git;return `<div class="activity-item"><div class="activity-main"><span class="check-icon">${target.state==='IN_SYNC'?'✓':target.state==='FAILED'?'!':'○'}</span><div><strong class="technical">${esc(target.clusterId)}</strong><small>${esc(target.baselineVersion||'No baseline')} · ${(target.changes||[]).filter(change=>change.action!=='NOOP').length} baseline changes${git?` · Git ${esc(git.classification)}`:''}</small>${git?`<small>Base ${esc(shortDigest(git.baseDigest))} → Git ${esc(shortDigest(git.currentDigest))} → Live ${esc(shortDigest(git.observedDigest||'UNKNOWN'))}</small>${git.changedFiles?.length?`<small>${git.changedFiles.length} externally changed Git file(s)</small>`:''}`:''}${target.comparison?`<small>Product ${esc(shortDigest(target.comparison.productGeneratedDigest))}${target.comparison.gitDesiredDigest?` → Git ${esc(shortDigest(target.comparison.gitDesiredDigest))}`:''} → Live ${esc(shortDigest(target.comparison.liveObservedDigest||'UNKNOWN'))} · ${esc(target.comparison.classification)}</small>`:''}</div></div><div>${badge(target.state)}${git?badge(git.currentTrusted?'TRUSTED':'UNTRUSTED'):''}</div>${(target.findings||[]).length?`<div class="resource-details">${target.findings.map(finding=>`<div class="detail-row"><span>${badge(finding.severity)} ${badge(finding.category)} <strong>${esc(finding.code)}</strong></span><small>${esc(finding.summary)} · Owner ${esc(finding.owner)} · Seen ${esc(finding.occurrences||1)}×</small>${finding.remediation?.mode==='OPERATION'&&finding.remediation?.eligible?`<button type="button" class="secondary small-button" data-drift-action="remediate-finding" data-scan-id="${esc(scan.id)}" data-cluster-id="${esc(target.clusterId)}" data-fingerprint="${esc(finding.fingerprint)}">Queue ${esc(finding.remediation.action)}</button>`:`<small>Remediation: ${esc(finding.remediation?.action||'REVIEW')} · ${esc(finding.remediation?.mode||'GUIDANCE')}</small>`}</div>`).join('')}</div>`:''}${git?.adoptable?`<button type="button" class="secondary small-button" data-drift-action="adopt-git" data-scan-id="${esc(scan.id)}" data-cluster-id="${esc(target.clusterId)}">Adopt trusted Git state</button>`:''}</div>`}).join('')}</div></article>`).join(''):emptyState('No drift scans','Run a live read-only drift scan from a fleet group.');
-    $('#upgrade-campaign-grid').innerHTML=campaigns.length?latest(campaigns).map(campaign=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(campaign.targetVersion)}</h3><div class="resource-meta">${badge(campaign.state)}${badge(`wave ${campaign.currentWave||0}`)}</div></div></div><p>${esc(campaign.summary||'Awaiting campaign action.')}</p><div class="resource-details">${detailRow('Canary count',campaign.canaryCount)}${detailRow('Window start',formatDate(campaign.maintenanceWindowStart))}${detailRow('Window end',formatDate(campaign.maintenanceWindowEnd))}${detailRow('Plan valid until',formatDate(campaign.planExpiresAt))}${detailRow('Recovery checkpoints',(campaign.recoveryCheckpointIds||[]).length)}${detailRow('Revalidations',campaign.planRevalidationCount||0)}${detailRow('Revision',campaign.revision)}</div><details><summary>Targets (${(campaign.targets||[]).length})</summary><div class="activity-list">${(campaign.targets||[]).map(target=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${target.wave}</span><div><strong class="technical">${esc(target.clusterId)}</strong><small>Wave ${target.wave}</small></div></div>${badge(target.state)}</div>`).join('')}</div></details><div class="resource-actions">${campaign.state==='AWAITING_APPROVAL'?approvalControl(campaign,'Approve campaign',`data-upgrade-action="approve" data-id="${esc(campaign.id)}"`):''}${['AWAITING_APPROVAL','QUEUED','RUNNING','PAUSED'].includes(campaign.state)?`<button type="button" class="secondary small-button" data-upgrade-action="revalidate" data-id="${esc(campaign.id)}">Revalidate / reschedule</button>`:''}${campaign.state==='RUNNING'?`<button type="button" class="secondary small-button" data-upgrade-action="pause" data-id="${esc(campaign.id)}">Pause safely</button>`:''}${campaign.state==='PAUSED'?`<button type="button" class="primary small-button" data-upgrade-action="resume" data-id="${esc(campaign.id)}">Resume campaign</button>`:''}${['QUEUED','RUNNING','HALTED','PAUSE_REQUESTED','CANCEL_REQUESTED'].includes(campaign.state)?`<button type="button" class="primary small-button" data-upgrade-action="advance" data-id="${esc(campaign.id)}">${['PAUSE_REQUESTED','CANCEL_REQUESTED'].includes(campaign.state)?'Drain active work':'Advance campaign'}</button>`:''}${!['SUCCEEDED','FAILED','CANCELLED','CANCEL_REQUESTED'].includes(campaign.state)?`<button type="button" class="danger small-button" data-upgrade-action="cancel" data-id="${esc(campaign.id)}">Cancel safely</button>`:''}<button type="button" class="secondary small-button" data-upgrade-action="inspect" data-id="${esc(campaign.id)}">Inspect</button></div></article>`).join(''):emptyState('No upgrade campaigns','Create an upgrade campaign from an eligible fleet group.');
+    $('#upgrade-campaign-grid').innerHTML=campaigns.length?latest(campaigns).map(campaign=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(campaign.targetVersion)}</h3><div class="resource-meta">${badge(campaign.state)}${badge(`wave ${campaign.currentWave||0}`)}</div></div></div><p>${esc(campaign.summary||'Awaiting campaign action.')}</p><div class="resource-details">${detailRow('Authority',state.day2CampaignEngine?.authority||'GENERALIZED_DAY2_CAMPAIGN_ENGINE_V1',true)}${detailRow('Canary count',campaign.canaryCount)}${detailRow('Window start',formatDate(campaign.maintenanceWindowStart))}${detailRow('Window end',formatDate(campaign.maintenanceWindowEnd))}${detailRow('Plan valid until',formatDate(campaign.planExpiresAt))}${detailRow('Recovery checkpoints',(campaign.recoveryCheckpointIds||[]).length)}${detailRow('Revalidations',campaign.planRevalidationCount||0)}${detailRow('Revision',campaign.revision)}</div><details><summary>Targets (${(campaign.targets||[]).length})</summary><div class="activity-list">${(campaign.targets||[]).map(target=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${target.wave}</span><div><strong class="technical">${esc(target.clusterId)}</strong><small>Wave ${target.wave}</small></div></div>${badge(target.state)}</div>`).join('')}</div></details><div class="resource-actions">${campaign.state==='AWAITING_APPROVAL'?approvalControl(campaign,'Approve campaign',`data-upgrade-action="approve" data-id="${esc(campaign.id)}"`):''}${['AWAITING_APPROVAL','QUEUED','RUNNING','PAUSED'].includes(campaign.state)?`<button type="button" class="secondary small-button" data-upgrade-action="revalidate" data-id="${esc(campaign.id)}">Revalidate / reschedule</button>`:''}${campaign.state==='RUNNING'?`<button type="button" class="secondary small-button" data-upgrade-action="pause" data-id="${esc(campaign.id)}">Pause safely</button>`:''}${campaign.state==='PAUSED'?`<button type="button" class="primary small-button" data-upgrade-action="resume" data-id="${esc(campaign.id)}">Resume campaign</button>`:''}${['QUEUED','RUNNING','HALTED','PAUSE_REQUESTED','CANCEL_REQUESTED'].includes(campaign.state)?`<button type="button" class="primary small-button" data-upgrade-action="advance" data-id="${esc(campaign.id)}">${['PAUSE_REQUESTED','CANCEL_REQUESTED'].includes(campaign.state)?'Drain active work':'Advance campaign'}</button>`:''}${!['SUCCEEDED','FAILED','CANCELLED','CANCEL_REQUESTED'].includes(campaign.state)?`<button type="button" class="danger small-button" data-upgrade-action="cancel" data-id="${esc(campaign.id)}">Cancel safely</button>`:''}<button type="button" class="secondary small-button" data-upgrade-action="inspect" data-id="${esc(campaign.id)}">Inspect</button></div></article>`).join(''):emptyState('No upgrade campaigns','Create an upgrade campaign from an eligible fleet group.');
   }catch(error){$('#fleet-health-grid').innerHTML=errorState(error.message);$('#recovery-checkpoint-grid').innerHTML=errorState(error.message);$('#fleet-group-grid').innerHTML=errorState(error.message);$('#drift-scan-grid').innerHTML=errorState(error.message);$('#upgrade-campaign-grid').innerHTML=errorState(error.message);}
 }
-async function downloadSupportBundle(body){ const result=await apiBlob('/api/v1/support-bundles',{method:'POST',body}); const match=/filename=\"?([^\";]+)\"?/i.exec(result.disposition); const name=match?.[1]||'4so-support-bundle.zip'; const url=URL.createObjectURL(result.blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500); $('#fleet-support-status').innerHTML=`<div class="success-banner">Bundle verified by the server before download · ${esc(result.redactions)} redactions · digest <span class="technical">${esc(result.digest||'—')}</span></div>`; }
+async function downloadSupportBundle(body,statusSelector='#fleet-support-status'){
+  const status=$(statusSelector)||$('#fleet-support-status');if(status)status.innerHTML='<div class="inline-summary">Support bundle job queued. Waiting for sealed evidence…</div>';
+  const created=await api('/api/v1/support-bundle-jobs',{method:'POST',headers:{'Idempotency-Key':idempotency('support-bundle')},body});
+  const operationId=created.operation?.id;if(!operationId)throw new Error('Support bundle job did not return an operation ID.');
+  let job=created;
+  for(let attempt=0;attempt<30;attempt++){
+    job=await api(`/api/v1/support-bundle-jobs/${encodeURIComponent(operationId)}`);
+    const opState=job.operation?.state||'';
+    if(job.ready)break;
+    if(['FAILED','CANCELLED','ROLLED_BACK','ROLLBACK_FAILED','NEEDS_OPERATOR'].includes(opState))throw new Error(job.operation?.lastError||`Support bundle job ended in ${opState}.`);
+    if(status)status.innerHTML=`<div class="inline-summary">Support bundle ${esc(opState||'QUEUED')} · operation <span class="technical">${esc(operationId)}</span></div>`;
+    await new Promise(resolve=>setTimeout(resolve,500));
+  }
+  if(!job.ready)throw new Error(`Support bundle is still running as operation ${operationId}. Follow it in Operations and retry download when evidence is sealed.`);
+  const result=await apiBlob(`/api/v1/support-bundle-jobs/${encodeURIComponent(operationId)}/download`);
+  const match=/filename="?([^";]+)"?/i.exec(result.disposition),name=match?.[1]||'4so-support-bundle.zip',url=URL.createObjectURL(result.blob),a=document.createElement('a');
+  a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
+  if(status)status.innerHTML=`<div class="success-banner">Durable support bundle sealed and verified · operation <span class="technical">${esc(operationId)}</span> · digest <span class="technical">${esc(result.digest||job.evidence?.digest||'—')}</span></div>`;
+}
 $('#fleet-health-grid').onclick=async event=>{const button=event.target.closest('[data-health-action]');if(!button)return;try{if(button.dataset.healthAction==='timeline'){const events=await api(`/api/v1/clusters/${button.dataset.id}/timeline`);showDetails('Cluster timeline',events.length?`<div class="activity-list">${events.slice(0,100).map(item=>`<div class="activity-item"><div><strong>${esc(item.action)}</strong><small>${esc(item.resourceType)} · ${esc(item.resourceId)} · ${new Date(item.occurredAt).toLocaleString()}</small></div>${badge(item.actorId||'system')}</div>`).join('')}</div>`:emptyState('No timeline events','No related audit events are available yet.'));return;}await downloadSupportBundle({profile:'cluster-diagnostics',clusterId:button.dataset.id});toast('Cluster support bundle downloaded.');}catch(error){toast(error.message,'error');}};
+$('#operations-search-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const projectId=$('#operations-search-project').value,query=$('#operations-search-query').value.trim();$('#operations-search-status').innerHTML='<div class="inline-summary">Searching bounded project projection…</div>';try{const result=await api(`/api/v1/search?projectId=${encodeURIComponent(projectId)}&q=${encodeURIComponent(query)}`);$('#operations-search-status').innerHTML=`<div class="success-banner"><strong>${esc(result.resultCount||0)} result(s)</strong> · backend <span class="technical">${esc(result.backend||'postgresql-bounded')}</span> · source of truth: no</div>`;$('#operations-search-results').innerHTML=(result.results||[]).length?(result.results||[]).map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.title||item.id)}</h3><div class="resource-meta">${badge((item.type||'record').toUpperCase())}</div></div></div><p>${esc(item.summary||'No summary')}</p><div class="resource-details">${detailRow('Source',item.sourceRef||'—',true)}${detailRow('Updated',formatDate(item.updatedAt))}${detailRow('Digest',shortDigest(item.digest||''))}</div></article>`).join(''):emptyState('No search results','Try a cluster name, operation kind, evidence kind or audit actor/resource.');}catch(error){$('#operations-search-status').innerHTML=errorState(error.message);$('#operations-search-results').innerHTML='';}};
 $('#fleet-support-download').onclick=async()=>{const projectId=$('#fleet-project').value;if(!projectId){toast('Select a project first.','error');return;}try{await downloadSupportBundle({profile:'fleet-diagnostics',projectId});toast('Project support bundle downloaded.');}catch(error){toast(error.message,'error');}};
+$('#data-protection-policy-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const cluster=state.clusters.map(row=>row.cluster||row).find(item=>item.id===$('#data-protection-cluster').value);if(!cluster){toast('Select a connected cluster with current inventory.','error');return;}const includedNamespaces=$('#data-protection-namespaces').value.split(',').map(item=>item.trim()).filter(Boolean);try{await api('/api/v1/backup-policies',{method:'POST',body:{projectId:cluster.projectId,clusterId:cluster.id,name:$('#data-protection-name').value.trim(),provider:'velero',backupStorageLocation:$('#data-protection-storage-location').value.trim(),credentialRef:$('#data-protection-credential-ref').value.trim(),schedule:$('#data-protection-schedule').value.trim(),retention:$('#data-protection-retention').value.trim(),includedNamespaces}});toast('Backup policy created. Scheduled backups are now controlled by the policy state.');event.currentTarget.reset();await loadFleet();}catch(error){toast(error.message,'error');}};
+$('#data-protection-policy-grid').onclick=async event=>{const button=event.target.closest('[data-dp-policy-action]');if(!button)return;const item=state.backupPolicies.find(row=>row.id===button.dataset.id);if(!item)return;const action=button.dataset.dpPolicyAction;if(action==='inspect'){showDetails('Backup policy',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(item.id)}</dd><dt>State</dt><dd>${badge(item.state)}</dd><dt>Cluster</dt><dd class="technical">${esc(item.clusterId)}</dd><dt>Schedule</dt><dd class="technical">${esc(item.schedule)}</dd><dt>Retention</dt><dd class="technical">${esc(item.retention)}</dd><dt>Namespaces</dt><dd>${esc((item.includedNamespaces||[]).join(', '))}</dd><dt>Storage location</dt><dd class="technical">${esc(item.backupStorageLocation)}</dd><dt>Credential reference</dt><dd class="technical">${esc(item.credentialRef)}</dd><dt>Desired digest</dt><dd class="technical">${esc(item.desiredDigest)}</dd></dl>`);return;}try{if(action==='backup'){await api('/api/v1/backup-runs',{method:'POST',body:{projectId:item.projectId,clusterId:item.clusterId,policyId:item.id,idempotencyKey:idempotency('backup')}});toast('Backup run queued.');}else{await api(`/api/v1/backup-policies/${encodeURIComponent(item.id)}/${action}`,{method:'POST',headers:{'If-Match':`"${item.revision}"`},body:{}});toast(action==='disable'?'Backup schedule disabled.':'Backup schedule enabled.');}await loadFleet();}catch(error){toast(error.message,'error');}};
+$('#data-protection-run-grid').onclick=async event=>{const button=event.target.closest('[data-dp-run-action]');if(!button)return;const item=state.dataProtectionRuns.find(row=>row.id===button.dataset.id);if(!item)return;const action=button.dataset.dpRunAction;if(action==='inspect'){showDetails('Data protection run',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(item.id)}</dd><dt>Kind</dt><dd>${badge(item.kind)}</dd><dt>State</dt><dd>${badge(item.state)}</dd><dt>Reference</dt><dd class="technical">${esc(item.reference||'—')}</dd><dt>Evidence digest</dt><dd class="technical">${esc(item.evidenceDigest||'—')}</dd><dt>Recovery checkpoint</dt><dd class="technical">${esc(item.recoveryCheckpointId||'—')}</dd><dt>RPO seconds</dt><dd>${esc(item.rpoSeconds||0)}</dd><dt>RTO seconds</dt><dd>${esc(item.rtoSeconds||0)}</dd><dt>Requested by</dt><dd>${esc(item.requestedBy||'—')}</dd><dt>Approved by</dt><dd>${esc(item.approvedBy||'—')}</dd><dt>Error</dt><dd>${esc(item.lastError||'—')}</dd></dl>`);return;}try{if(action==='approve'){if(!await confirmAction('Approve restore','Approve this destructive restore request? The requester cannot approve their own restore.',true))return;await api(`/api/v1/restore-runs/${encodeURIComponent(item.id)}/approve`,{method:'POST',headers:{'If-Match':`"${item.revision}"`},body:{}});toast('Restore approved and queued.');}else{const endpoint=action==='drill'?'/api/v1/restore-drills':'/api/v1/restore-runs';if(action==='restore'&&!await confirmAction('Request restore','Create a destructive restore request from this verified backup? A different approver must approve it before execution.',true))return;await api(endpoint,{method:'POST',body:{projectId:item.projectId,clusterId:item.clusterId,policyId:item.policyId,backupRunId:item.id,idempotencyKey:idempotency(action==='drill'?'restore-drill':'restore')}});toast(action==='drill'?'Restore drill queued in an isolated namespace.':'Restore request created and waiting for independent approval.');}await loadFleet();}catch(error){toast(error.message,'error');}};
 $('#recovery-checkpoint-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const cluster=state.clusters.map(row=>row.cluster||row).find(item=>item.id===$('#recovery-cluster').value);if(!cluster){toast('Select a cluster with current inventory.','error');return;}try{await api('/api/v1/recovery-checkpoints',{method:'POST',body:{projectId:cluster.projectId,clusterId:cluster.id,provider:$('#recovery-provider').value.trim(),reference:$('#recovery-reference').value.trim(),evidenceDigest:$('#recovery-evidence-digest').value.trim(),completedAt:new Date($('#recovery-completed-at').value).toISOString(),expiresAt:new Date($('#recovery-expires-at').value).toISOString()}});toast('Recovery checkpoint registered against current inventory.');$('#recovery-reference').value='';$('#recovery-evidence-digest').value='';await loadFleet();}catch(error){toast(error.message,'error');}};
 $('#recovery-checkpoint-grid').onclick=async event=>{const button=event.target.closest('[data-recovery-action]');if(!button)return;const item=state.recoveryCheckpoints.find(row=>row.id===button.dataset.id);if(!item)return;if(button.dataset.recoveryAction==='inspect'){showDetails('Recovery checkpoint',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(item.id)}</dd><dt>State</dt><dd>${badge(item.state)}</dd><dt>Cluster</dt><dd class="technical">${esc(item.clusterId)}</dd><dt>Provider</dt><dd>${esc(item.provider)}</dd><dt>Reference</dt><dd class="technical">${esc(item.reference)}</dd><dt>Evidence digest</dt><dd class="technical">${esc(item.evidenceDigest)}</dd><dt>Inventory digest</dt><dd class="technical">${esc(item.inventoryDigest)}</dd><dt>Completed</dt><dd>${formatDate(item.completedAt)}</dd><dt>Expires</dt><dd>${formatDate(item.expiresAt)}</dd></dl>`);return;}if(!await confirmAction('Revoke recovery checkpoint',`Revoke ${item.reference}? Campaigns that have not started must revalidate with new recovery evidence.`,true))return;try{await api(`/api/v1/recovery-checkpoints/${item.id}/revoke`,{method:'POST',headers:{'If-Match':`"${item.revision}"`},body:{}});toast('Recovery checkpoint revoked.');await loadFleet();}catch(error){toast(error.message,'error');}};
 $('#fleet-project').onchange=loadFleet;
@@ -1705,15 +2979,17 @@ $('#fleet-group-grid').onclick=async event=>{
   const button=event.target.closest('[data-fleet-action]'); if(!button)return;
   const group=state.fleetGroups.find(item=>item.id===button.dataset.id); if(!group)return;
   if(button.dataset.fleetAction==='drift'){try{const organization=$('#drift-git-organization').value.trim(),repository=$('#drift-git-repository').value.trim(),branch=$('#drift-git-branch').value.trim()||'main';if((organization&&!repository)||(!organization&&repository)){toast('Enter both Git organization and repository, or leave both empty.','error');return;}const body={projectId:group.projectId,fleetGroupId:group.id};if(organization&&repository)body.git={organization,repository,branch};await api('/api/v1/drift-scans',{method:'POST',headers:{'Idempotency-Key':idempotency('drift')},body});toast(organization?'Three-way Git + live drift scan queued.':'Live baseline drift scan queued.');await loadFleet();}catch(error){toast(error.message,'error');}return;}
-  const targetOptions=state.baselines.filter(item=>item.id==='secure-namespace-foundation').map(item=>({value:item.version,label:`${item.displayName} · ${item.version}`}));
+  const targetOptions=state.baselines.filter(item=>item.id==='secure-namespace-foundation'&&Array.isArray(item.upgradeFrom)&&item.upgradeFrom.length>0).map(item=>({value:item.version,label:`${item.displayName} · ${item.version} · from ${item.upgradeFrom.join(', ')}`}));
+  if(!targetOptions.length){toast('No upgrade-capable baseline revision is currently available for this fleet.','error');return;}
   const fields=[{name:'targetVersion',label:'Target baseline version',type:'select',options:targetOptions},{name:'maintenanceWindowStart',label:'Maintenance window start',type:'datetime-local',value:localDateTimeValue(new Date(Date.now()+5*60000))},{name:'maintenanceWindowEnd',label:'Maintenance window end',type:'datetime-local',value:localDateTimeValue(new Date(Date.now()+2*3600000))},{name:'canaryCount',label:'Canary clusters',type:'number',value:1,min:1,max:group.clusterIds.length},{name:'waveSize',label:'Wave size',type:'number',value:Math.min(2,group.clusterIds.length),min:1,max:group.clusterIds.length},{name:'haltAfterFailures',label:'Halt after failures',type:'number',value:1,min:1,max:group.clusterIds.length}];
   for(const clusterId of group.clusterIds){const cluster=(state.clusters.map(row=>row.cluster||row)).find(item=>item.id===clusterId);const eligible=state.recoveryCheckpoints.filter(item=>item.projectId===group.projectId&&item.clusterId===clusterId&&item.state==='VERIFIED'&&item.inventoryDigest===cluster?.inventoryDigest&&new Date(item.expiresAt)>new Date()).sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt));if(!eligible.length){toast(`Register a valid recovery checkpoint for ${cluster?.displayName||clusterId} first.`,'error');return;}fields.push({name:`checkpoint_${clusterId}`,label:`Recovery checkpoint · ${cluster?.displayName||clusterId}`,type:'select',options:eligible.map(item=>({value:item.id,label:`${item.provider} · ${item.reference} · expires ${formatDate(item.expiresAt)}`}))});}
   const values=await askFields('Create safe upgrade campaign',fields,'Create campaign'); if(!values)return;
   const recoveryCheckpointIds=group.clusterIds.map(id=>values[`checkpoint_${id}`]);
+  if(!await confirmAction('Review upgrade campaign',`Create a campaign for ${group.clusterIds.length} cluster(s) targeting ${values.targetVersion}, canary ${values.canaryCount}, wave size ${values.waveSize}, halt after ${values.haltAfterFailures} failure(s), with ${recoveryCheckpointIds.length} recovery checkpoint(s)? The campaign still requires independent approval before rollout.`))return;
   try{await api('/api/v1/upgrade-campaigns',{method:'POST',headers:{'Idempotency-Key':idempotency('upgrade')},body:{projectId:group.projectId,fleetGroupId:group.id,baselineId:'secure-namespace-foundation',targetVersion:values.targetVersion,canaryCount:values.canaryCount,waveSize:values.waveSize,haltAfterFailures:values.haltAfterFailures,maintenanceWindowStart:new Date(values.maintenanceWindowStart).toISOString(),maintenanceWindowEnd:new Date(values.maintenanceWindowEnd).toISOString(),recoveryCheckpointIds}});toast('Upgrade campaign created with recovery and maintenance safety context.');await loadFleet();}catch(error){toast(error.message,'error');}
 };
 $('#drift-scan-grid').onclick=async event=>{const button=event.target.closest('[data-drift-action]');if(!button)return;if(button.dataset.driftAction==='adopt-git'){if(!await confirmAction('Adopt trusted external Git revision','This does not overwrite Git or live state. It only records the already-applied, platform-signed Git revision as the new drift base.'))return;try{await api(`/api/v1/drift-scans/${button.dataset.scanId}/adopt-git`,{method:'POST',body:{clusterId:button.dataset.clusterId}});toast('Trusted external Git revision adopted without overwrite. Run a new drift scan to confirm convergence.');await loadFleet();}catch(error){toast(error.message,'error');}return;}if(button.dataset.driftAction==='remediate-finding'){if(!await confirmAction('Queue drift remediation','This creates a durable, idempotent operation bound to this exact drift finding. It does not automatically overwrite Git.'))return;try{const result=await api(`/api/v1/drift-scans/${button.dataset.scanId}/targets/${button.dataset.clusterId}/findings/${button.dataset.fingerprint}/remediate`,{method:'POST',headers:{'Idempotency-Key':idempotency('drift-remediation')}});toast(`Remediation operation ${result.operation?.state||'QUEUED'}: ${result.operation?.id||''}`);await loadFleet();}catch(error){toast(error.message,'error');}}};
-$('#upgrade-campaign-grid').onclick=async event=>{const button=event.target.closest('[data-upgrade-action]');if(!button)return;const campaign=state.upgradeCampaigns.find(item=>item.id===button.dataset.id);if(!campaign)return;const action=button.dataset.upgradeAction;if(action==='inspect'){showDetails('Upgrade campaign',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(campaign.id)}</dd><dt>State</dt><dd>${badge(campaign.state)}</dd><dt>Baseline</dt><dd class="technical">${esc(campaign.baselineId)}@${esc(campaign.targetVersion)}</dd><dt>Current wave</dt><dd>${esc(campaign.currentWave||0)}</dd><dt>Maintenance window</dt><dd>${formatDate(campaign.maintenanceWindowStart)} → ${formatDate(campaign.maintenanceWindowEnd)}</dd><dt>Plan context</dt><dd class="technical">${esc(campaign.planContextDigest||'—')}</dd><dt>Plan expires</dt><dd>${formatDate(campaign.planExpiresAt)}</dd><dt>Recovery checkpoints</dt><dd class="technical">${esc((campaign.recoveryCheckpointIds||[]).join(', ')||'—')}</dd><dt>Pause count</dt><dd>${esc(campaign.pauseCount||0)}</dd><dt>Paused by / at</dt><dd>${esc(campaign.pausedBy||'—')} · ${formatDate(campaign.pausedAt)}</dd><dt>Cancel requested</dt><dd>${esc(campaign.cancelRequestedBy||'—')} · ${formatDate(campaign.cancelRequestedAt)}</dd><dt>Cancelled by / at</dt><dd>${esc(campaign.cancelledBy||'—')} · ${formatDate(campaign.cancelledAt)}</dd><dt>Control reason</dt><dd>${esc(campaign.controlReason||'—')}</dd><dt>Summary</dt><dd>${esc(campaign.summary||'—')}</dd><dt>Error</dt><dd>${esc(campaign.lastError||'—')}</dd></dl>`);return;}if(action==='approve'&&!await confirmAction('Approve upgrade campaign',`Approve rollout of ${campaign.baselineId}@${campaign.targetVersion} to ${(campaign.targets||[]).length} clusters?`))return;
+$('#upgrade-campaign-grid').onclick=async event=>{const button=event.target.closest('[data-upgrade-action]');if(!button)return;const campaign=state.upgradeCampaigns.find(item=>item.id===button.dataset.id);if(!campaign)return;const action=button.dataset.upgradeAction;if(action==='inspect'){showDetails('Upgrade campaign',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(campaign.id)}</dd><dt>Authority</dt><dd class="technical">${esc(state.day2CampaignEngine?.authority||'GENERALIZED_DAY2_CAMPAIGN_ENGINE_V1')}</dd><dt>State</dt><dd>${badge(campaign.state)}</dd><dt>Baseline</dt><dd class="technical">${esc(campaign.baselineId)}@${esc(campaign.targetVersion)}</dd><dt>Current wave</dt><dd>${esc(campaign.currentWave||0)}</dd><dt>Maintenance window</dt><dd>${formatDate(campaign.maintenanceWindowStart)} → ${formatDate(campaign.maintenanceWindowEnd)}</dd><dt>Plan context</dt><dd class="technical">${esc(campaign.planContextDigest||'—')}</dd><dt>Plan expires</dt><dd>${formatDate(campaign.planExpiresAt)}</dd><dt>Recovery checkpoints</dt><dd class="technical">${esc((campaign.recoveryCheckpointIds||[]).join(', ')||'—')}</dd><dt>Pause count</dt><dd>${esc(campaign.pauseCount||0)}</dd><dt>Paused by / at</dt><dd>${esc(campaign.pausedBy||'—')} · ${formatDate(campaign.pausedAt)}</dd><dt>Cancel requested</dt><dd>${esc(campaign.cancelRequestedBy||'—')} · ${formatDate(campaign.cancelRequestedAt)}</dd><dt>Cancelled by / at</dt><dd>${esc(campaign.cancelledBy||'—')} · ${formatDate(campaign.cancelledAt)}</dd><dt>Control reason</dt><dd>${esc(campaign.controlReason||'—')}</dd><dt>Summary</dt><dd>${esc(campaign.summary||'—')}</dd><dt>Error</dt><dd>${esc(campaign.lastError||'—')}</dd></dl>`);return;}if(action==='approve'&&!await confirmAction('Approve upgrade campaign',`Approve rollout of ${campaign.baselineId}@${campaign.targetVersion} to ${(campaign.targets||[]).length} clusters?`))return;
 if(action==='pause'){
   const values=await askFields('Pause upgrade campaign',[{name:'reason',label:'Reason',type:'text',value:'Operator pause between upgrade targets'}],'Request safe pause');if(!values)return;
   try{await api(`/api/v1/upgrade-campaigns/${campaign.id}/pause`,{method:'POST',headers:{'If-Match':`"${campaign.revision}"`},body:{reason:values.reason}});toast('Pause requested. Active work will drain to a safe point before the campaign pauses.');await loadFleet();}catch(error){toast(error.message,'error');}return;
@@ -1772,13 +3048,13 @@ async function loadTenants(){
     setOptions($('#tenant-organization'),organizations,item=>item.id,item=>`${item.displayName} · ${item.name}`,'Create an organization first');
     const orgId=$('#tenant-organization').value;
     const visibleProjects=projects.filter(project=>!orgId||project.organizationId===orgId);
-    setOptions($('#tenant-project'),visibleProjects,item=>item.id,item=>`${item.displayName} · ${item.name}`,'Create a project first');
+    setProjectOptions($('#tenant-project'),visibleProjects);
     const projectId=$('#tenant-project').value;
     const clusters=clusterRows.map(row=>row.cluster||row).filter(cluster=>!projectId||cluster.projectId===projectId);
     setOptions($('#tenant-cluster'),clusters,item=>item.id,item=>`${item.displayName} · ${item.kubernetesVersion||'version pending'}`,'Connect a cluster first');
     const planValues=Array.isArray(plans)?plans:Object.values(plans||{});
     setOptions($('#tenant-plan'),planValues,item=>item.name,item=>`${item.name} · CPU ${item.quota?.['requests.cpu']||'—'} · RAM ${item.quota?.['requests.memory']||'—'} · ${item.storage?.requestQuota||'—'} storage · ${item.backup?.provider||'no backup'}`,'No tenant plans');
-    prerequisite($('#tenants-prerequisite'),organizations.length>0&&visibleProjects.length>0,'An organization and project are required before tenant provisioning.','workspace','Create workspace records');
+    prerequisite($('#tenants-prerequisite'),organizations.length>0&&visibleProjects.length>0,'An organization and project are required before tenant provisioning.','workspace','Create organization and project records');
     setIntrinsicDisabled($('#tenant-form').querySelector('button[type="submit"]'), !projectId||!clusters.length||!planValues.length);
     const visibleTenants=tenants.filter(item=>!projectId||item.projectId===projectId);
     const tenantRows=latest(visibleTenants).map(item=>{
@@ -1849,17 +3125,62 @@ function renderAILatestDiagnosis(){
   target.innerHTML=`<div class="resource-details">${detailRow('Classification',badge(d.classification||'unknown'))}${detailRow('Confidence',`${esc(d.confidence??0)}%`)}${detailRow('Owner',esc(d.owner||'—'))}${detailRow('Provider',`${esc(run.provider||'—')} · ${esc(run.model||'—')}`)}${detailRow('Redactions',esc(run.redactionCount||0))}${detailRow('Input tokens',esc(run.inputTokens||0))}${detailRow('Cached tokens',esc(run.cachedTokens||0))}${detailRow('Output tokens',esc(run.outputTokens||0))}</div><div class="prerequisite"><strong>Summary</strong><p>${esc(d.summary||'—')}</p></div>${(d.recommendedChecks||[]).length?`<details open><summary>Recommended deterministic checks</summary><ul>${d.recommendedChecks.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></details>`:''}<div class="inline-summary"><strong>Proposed direction:</strong> ${esc(d.recommendedFix||'—')}</div>`;
 }
 
+function mcpMutationDescriptor(tool){
+  const map={
+    operation_cancel:{family:'Operation control',risk:'MEDIUM',approval:false,detail:'Revision-guarded cancellation through the durable operation state machine.'},
+    drift_scan_request:{family:'Assurance',risk:'LOW',approval:false,detail:'Observational live drift scan only; it cannot remediate findings.'},
+    runtime_verification_request:{family:'Assurance',risk:'LOW',approval:false,detail:'Creates a digest-pinned runtime verification task against one successful baseline deployment.'},
+    cluster_maintenance_request:{family:'Day-2 maintenance',risk:'HIGH',approval:true,detail:'High-impact maintenance request stops at independent approval; requester cannot self-approve.'},
+    upgrade_campaign_request:{family:'Fleet upgrade',risk:'HIGH',approval:true,detail:'High-impact canary/wave upgrade request requires recovery checkpoints and stops at independent approval.'}
+  };
+  return map[tool]||{family:'Delegated operation',risk:'MEDIUM',approval:false,detail:'Allow-listed product mutation with project/RBAC/idempotency/revision/audit enforcement.'};
+}
+
+function renderMCPHumanDelegation(){
+  const target=$('#ai-mcp-human-connection-status'); if(!target)return;
+  const model=state.mcpDelegationArchitecture||{};
+  const oauthReady=String(model.status||'').includes('OAUTH_DISCOVERY_AND_AUDIENCE_SOURCE_IMPLEMENTED');
+  const steps=['Sign in with organization account','Choose organization or project','Choose friendly access','Review and confirm','Follow jobs and results'];
+  target.innerHTML=`<div class="journey-strip">${steps.map((step,index)=>`<div class="journey-step"><span>${index+1}</span><strong>${esc(localizeDynamicText(step))}</strong></div>`).join('')}</div><div class="${oauthReady?'success-banner':'warning-banner'}"><strong>${esc(localizeDynamicText(oauthReady?'OAuth connection foundation':'Connection setup is not enabled yet'))}</strong><p>${esc(localizeDynamicText('OAuth discovery and dedicated MCP audience are implemented. Revocable delegation grants, trusted-client registration and consent management are still required before human connections can be enabled.'))}</p></div><details><summary>${esc(localizeDynamicText('Advanced connection details'))}</summary><div class="resource-details">${detailRow('Authority',model.authority||'—',true)}${detailRow('Protocol',model.protocolVersion||'—',true)}${detailRow('Resource server',model.resourceServer||'/mcp',true)}${detailRow('OAuth metadata',model.protectedResourceMetadata||'/.well-known/oauth-protected-resource',true)}${detailRow('Token audience',model.tokenAudience||'platform-mcp',true)}${detailRow('Authorization',model.authorizationAuthority||'Keycloak',true)}</div></details>`;
+}
+
+function renderAIControlAuthority(){
+  const cap=state.aiCapabilities||{},target=$('#ai-control-capabilities');
+  if(target){
+    const counts=cap.counts||{},routeCount=Number(cap.routeCount||0),callable=Number(cap.aiCallableRoutes||0),mutations=Number(cap.durableMutationRoutes||0),excluded=Number(counts['security-excluded']||0);
+    const coverage=Number(cap.routeDispositionCoveragePercent||0),durable=Number(cap.durableMutationCoveragePercent||0);
+    target.innerHTML=`<div class="metric-grid compact-metrics"><article class="metric-card"><strong>${esc(coverage)}%</strong><span>Route disposition</span><small>${esc(routeCount)} / ${esc(routeCount)} stable routes mapped</small></article><article class="metric-card"><strong>${esc(callable)}</strong><span>AI-callable routes</span><small>${esc(excluded)} intentionally protected</small></article><article class="metric-card"><strong>${esc(durable)}%</strong><span>Durable mutations</span><small>${esc(mutations)} / ${esc(mutations)} operate + administration routes</small></article></div><div class="resource-details">${detailRow('Read routes',counts['tool-read']||0)}${detailRow('Operate routes',counts['tool-operate']||0)}${detailRow('Administration routes',counts['tool-admin']||0)}${detailRow('Protected routes',excluded)}${detailRow('Idempotency',cap.idempotencyRequired?'REQUIRED':'NOT ENFORCED')}${detailRow('Retry policy',cap.expiredInFlightPolicy||'—',true)}${detailRow('Arbitrary route',cap.arbitraryRouteAllowed?'ALLOWED':'BLOCKED')}${detailRow('Raw credentials',cap.rawCredentialAccess?'ALLOWED':'BLOCKED')}</div><div class="inline-summary"><strong>Safety boundary:</strong> AI cannot decide PASS or Physical PASS. Administration tools require human ADMINISTRATION delegation; raw secrets, shell/SSH/SQL and self-delegation remain outside the MCP action surface.</div>`;
+  }
+  const jobsTarget=$('#ai-control-jobs'); if(!jobsTarget)return;
+  const jobs=(state.aiControlJobs?.items||[]).slice(0,25);
+  if(!jobs.length){jobsTarget.innerHTML=emptyState('No AI control jobs','No AI-triggered mutation is visible in the current organization/project scope.');return;}
+  const rows=jobs.map(job=>tableRow([
+    tableCell(`<span class="cell-title technical">${esc(job.toolName||job.action||'—')}</span><span class="cell-meta">${esc(job.family||'—')} · ${esc(job.method||'—')}</span>`),
+    tableCell(`${badge(job.state||'UNKNOWN')}<span class="cell-meta">attempt ${esc(job.attempt||0)}</span>`),
+    tableCell(`<span class="cell-title">${esc(job.actorId||'—')}</span><span class="cell-meta">${esc(job.authentication||'—')} · ${esc(job.delegationProfile||'—')}</span>`),
+    tableCell(`<span class="cell-title technical">${esc(job.projectId||job.organizationId||'platform')}</span><span class="cell-meta">${esc(job.oauthClientId||'no client id')}</span>`),
+    tableCell(`<span class="technical">${shortDigest(job.requestDigest)}</span><span class="cell-meta technical">${shortDigest(job.responseDigest)}</span>`),
+    tableCell(formatDate(job.createdAt),'timestamp')
+  ]));
+  jobsTarget.innerHTML=dataTable('Durable AI control jobs',[{label:'Action'},{label:'State'},{label:'Actor / delegation'},{label:'Scope / client'},{label:'Request / result digest'},{label:'Created',className:'timestamp'}],rows,'No AI control jobs','AI mutations appear here only after the durable job is recorded.',{key:'ai-control-jobs'});
+}
+
+async function reloadAIControlJobs(){
+  try{state.aiControlJobs=await api('/api/v1/ai/control-jobs');renderAIControlAuthority();}
+  catch(error){const target=$('#ai-control-jobs');if(target)target.innerHTML=errorState(error.message);}
+}
+
 function renderAIRuntimeAndAccess(){
   const policy=state.aiPolicy||{},guide=state.aiGuide||{},mcp=guide.mcp||{};
   const runtime=$('#ai-runtime-details');
   if(runtime){
     const last=latest(state.aiRuns||[])[0];
-    runtime.innerHTML=`<div class="resource-details">${detailRow('Runtime authority',policy.runtimeAuthority||'—',true)}${detailRow('Configuration',policy.enabled?badge('CONFIGURED'):badge('DISABLED'))}${detailRow('Provider',esc(policy.provider||'none'))}${detailRow('Model',esc(policy.model||'—'))}${detailRow('Input ceiling',`${esc(policy.maxInputBytes||0)} bytes`)}${detailRow('Output ceiling',`${esc(policy.maxOutputTokens||0)} tokens`)}${detailRow('Redaction',policy.redactionRequired?'REQUIRED':'UNKNOWN')}${detailRow('Latest durable advisory',last?formatDate(last.createdAt):'None recorded')}</div><div class="inline-summary"><strong>Authority:</strong> advisory only · no PASS / Physical PASS · no direct mutation. Provider reachability is evaluated only by an actual bounded diagnosis request.</div>`;
+    runtime.innerHTML=`<div class="resource-details">${detailRow('Runtime authority',policy.runtimeAuthority||'—',true)}${detailRow('Configuration',policy.enabled?badge('CONFIGURED'):badge('DISABLED'))}${detailRow('Provider',esc(policy.provider||'none'))}${detailRow('Model',esc(policy.model||'—'))}${detailRow('Input ceiling',`${esc(policy.maxInputBytes||0)} bytes`)}${detailRow('Output ceiling',`${esc(policy.maxOutputTokens||0)} tokens`)}${detailRow('Redaction',policy.redactionRequired?'REQUIRED':'UNKNOWN')}${detailRow('Latest durable advisory',last?formatDate(last.createdAt):'None recorded')}</div><div class="inline-summary"><strong>Authority:</strong> diagnosis is advisory · no PASS / Physical PASS. Allow-listed MCP mutations require separate mcp.operate authority, project scope, revision guards and durable audit. Provider reachability is evaluated only by an actual bounded diagnosis request.</div>`;
   }
   const access=$('#ai-mcp-access');
   if(access){
-    const tools=mcp.tools||[];
-    access.innerHTML=`<div class="resource-details">${detailRow('Endpoint',mcp.path||'/mcp',true)}${detailRow('Protocol',mcp.protocol||'2026-07-28',true)}${detailRow('Transport',mcp.transport||'streamable-http')}${detailRow('Read scope',mcp.permission||'mcp.read',true)}${detailRow('Diagnosis scope','ai.diagnose',true)}${detailRow('Mutation tools',(mcp.mutatingTools||[]).length?String(mcp.mutatingTools.length):'NONE')}</div><details open><summary>Read-only tools (${tools.length})</summary><div class="activity-list">${tools.map(tool=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">✓</span><div><strong class="technical">${esc(tool)}</strong><small>Authenticated capability context · project authorization is rechecked for project resources.</small></div></div>${badge('READ ONLY')}</div>`).join('')}</div></details>`;
+    const tools=mcp.tools||[],mutating=mcp.mutatingTools||[];
+    access.innerHTML=`<div class="resource-details">${detailRow('Endpoint',mcp.path||'/mcp',true)}${detailRow('Protocol',mcp.protocol||'2026-07-28',true)}${detailRow('Transport',mcp.transport||'streamable-http')}${detailRow('Read scope',mcp.permission||'mcp.read',true)}${detailRow('Operation scope',mcp.operationPermission||'mcp.operate',true)}${detailRow('Diagnosis scope','ai.diagnose',true)}${detailRow('Mutation tools',mutating.length?String(mutating.length):'NONE')}</div><div class="inline-summary"><strong>Delegation boundary:</strong> read-only by default. Mutation tools are allow-listed product operations; normal role/project authorization, expected revision and durable audit remain mandatory.</div><details open><summary>Read-only tools (${tools.length})</summary><div class="activity-list">${tools.map(tool=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">✓</span><div><strong class="technical">${esc(tool)}</strong><small>Authenticated capability context · project authorization is rechecked for project resources.</small></div></div>${badge('READ ONLY')}</div>`).join('')}</div></details>${mutating.length?`<details open><summary>Delegated operation tools (${mutating.length})</summary><div class="activity-list">${mutating.map(tool=>{const meta=mcpMutationDescriptor(tool);return `<div class="activity-item"><div class="activity-main"><span class="check-icon">↳</span><div><strong class="technical">${esc(tool)}</strong><small>${esc(meta.family)} · ${esc(meta.detail)}</small></div></div><div class="resource-meta">${badge(meta.risk)}${badge(meta.approval?'APPROVAL GATED':'DELEGATED')}</div></div>`}).join('')}</div></details>`:''}`;
   }
 }
 
@@ -1904,12 +3225,18 @@ function inspectAIRun(id){
   showDetails(`AI advisory evidence · ${run.id}`,`<div class="warning-banner"><strong>Advisory only</strong><p>This record cannot authorize a mutation, deterministic PASS or Exact-SHA Physical PASS.</p></div><div class="resource-details">${detailRow('Project',esc(aiRunProjectName(run.projectId)))}${detailRow('Purpose',esc(run.purpose||'—'))}${detailRow('Provider / model',`${esc(run.provider||'—')} · ${esc(run.model||'—')}`)}${detailRow('Prompt ID',esc(run.promptId||'—'),true)}${detailRow('Linked authority',`${esc(run.linkedResourceType||'none')} · ${esc(run.linkedResourceId||'—')}`)}${detailRow('Redactions',esc(run.redactionCount||0))}${detailRow('Tokens',`${esc(run.inputTokens||0)} in · ${esc(run.cachedTokens||0)} cached · ${esc(run.outputTokens||0)} out`)}${detailRow('Prompt digest',esc(run.promptDigest||'—'),true)}${detailRow('Context digest',esc(run.contextDigest||'—'),true)}${detailRow('Output digest',esc(run.outputDigest||'—'),true)}${detailRow('Request digest',esc(run.requestDigest||'—'),true)}${detailRow('Created',formatDate(run.createdAt))}</div><details open><summary>Structured advisory output</summary><pre class="code-block technical" dir="ltr">${esc(output)}</pre></details>`);
 }
 
+function aiAgentLastActivity(account){const actor=`service-account:${account.id}`;const rows=(state.securityAudit||[]).filter(item=>item.actorId===actor).sort((a,b)=>new Date(b.occurredAt)-new Date(a.occurredAt));return rows[0]||null;}
+function renderAIAgentAccess(){const grid=$('#ai-agent-access-grid');if(!grid)return;const accounts=state.aiServiceAccounts||[];if(!accounts.length){grid.innerHTML=emptyState('No scoped agent identities','Select an organization with service accounts or create one from Organizations & projects.');return;}grid.innerHTML=accounts.map(account=>{const tokens=state.aiAPITokens?.[account.id]||[],activity=aiAgentLastActivity(account),scope=account.projectId?`Project · ${account.projectId}`:'Organization-wide';const tokenRows=tokens.map(token=>{const effective=tokenEffectiveState(token);return `<div class="activity-item"><div class="activity-main"><span class="check-icon">⌁</span><div><strong class="technical">${esc(token.tokenPrefix)}</strong><small>${esc((token.permissions||[]).join(' + '))} · expires ${esc(formatDate(token.expiresAt))}</small></div></div><div class="resource-meta">${badge(effective)}${effective==='ACTIVE'?`<button class="secondary small-button" data-ai-agent-token-action="rotate" data-account-id="${esc(account.id)}" data-token-id="${esc(token.id)}">Rotate</button><button class="danger small-button" data-ai-agent-token-action="revoke" data-account-id="${esc(account.id)}" data-token-id="${esc(token.id)}">Revoke</button>`:''}</div></div>`}).join('')||'<small>No API tokens issued.</small>';return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(account.displayName)}</h3><div class="resource-meta">${badge(account.state)} ${badge(account.productRole)}</div></div></div><div class="resource-details">${detailRow('Scope',scope,true)}${detailRow('Latest auth activity',activity?`${formatDate(activity.occurredAt)} · ${activity.outcome||activity.decision||'recorded'}`:'No loaded security-audit activity')}${detailRow('MCP operate',tokens.some(t=>(t.permissions||[]).includes('mcp.operate'))?'DELEGATED':'NOT GRANTED')}${detailRow('MCP read',tokens.some(t=>(t.permissions||[]).includes('mcp.read'))?'GRANTED':'NOT GRANTED')}</div><details open><summary>API tokens · ${tokens.length}</summary><div class="activity-list">${tokenRows}</div></details>${account.state==='ACTIVE'?`<div class="resource-actions"><button class="danger small-button" data-ai-agent-account-revoke="${esc(account.id)}">Revoke service account</button></div>`:''}</article>`}).join('');}
+async function loadAIAgentAccess(){const select=$('#ai-agent-organization');if(!select)return;const orgs=state.organizations?.length?state.organizations:await softApi('/api/v1/organizations',[],'organizations');state.organizations=orgs;const previous=select.value;setOptions(select,orgs,item=>item.id,item=>item.displayName||item.name,'No organizations');if(previous&&orgs.some(o=>o.id===previous))select.value=previous;if(!select.value){state.aiServiceAccounts=[];state.aiAPITokens={};renderAIAgentAccess();return;}try{const accounts=await api(`/api/v1/service-accounts?organizationId=${encodeURIComponent(select.value)}`);state.aiServiceAccounts=accounts;state.aiAPITokens={};await Promise.all(accounts.map(async account=>{state.aiAPITokens[account.id]=await api(`/api/v1/service-accounts/${encodeURIComponent(account.id)}/tokens`);}));if(mayAdministerIdentityAuthority())state.securityAudit=await softApi('/api/v1/security-audit-events?limit=200',state.securityAudit||[],'security audit');renderAIAgentAccess();}catch(error){$('#ai-agent-access-grid').innerHTML=errorState(error.message);}}
+$('#ai-agent-organization').onchange=loadAIAgentAccess;
+$('#ai-agent-access-grid').onclick=async event=>{const revokeAccount=event.target.closest('[data-ai-agent-account-revoke]');if(revokeAccount){const account=state.aiServiceAccounts.find(a=>a.id===revokeAccount.dataset.aiAgentAccountRevoke);if(!account||!await confirmAction('Revoke agent identity',`Revoke ${account.displayName} and every active token?`,true))return;try{await api(`/api/v1/service-accounts/${account.id}/revoke`,{method:'POST',headers:{'If-Match':`"${account.revision}"`,'X-Confirm-Revoke':'revoke-service-account'}});toast('Agent identity revoked.');await loadAIAgentAccess();}catch(error){toast(error.message,'error');}return;}const button=event.target.closest('[data-ai-agent-token-action]');if(!button)return;const account=state.aiServiceAccounts.find(a=>a.id===button.dataset.accountId),token=(state.aiAPITokens?.[button.dataset.accountId]||[]).find(t=>t.id===button.dataset.tokenId);if(!account||!token)return;if(button.dataset.aiAgentTokenAction==='revoke'){if(!await confirmAction('Revoke agent token',`Immediately revoke ${token.tokenPrefix}?`,true))return;try{await api(`/api/v1/service-accounts/${account.id}/tokens/${token.id}/revoke`,{method:'POST',headers:{'If-Match':`"${token.revision}"`,'X-Confirm-Revoke':'revoke-api-token'}});toast('Agent token revoked.');await loadAIAgentAccess();}catch(error){toast(error.message,'error');}return;}const options=apiTokenPermissionProfiles(account),values=await askFields('Rotate agent token',[{name:'hours',label:'New expiry in hours',type:'number',value:24,min:1,max:8784},{name:'permission',label:'Permission profile',type:'select',options,value:apiTokenPermissionProfileValue(token.permissions)}],'Review rotation');if(!values)return;if(!await confirmAction('Rotate agent token',`Rotate ${token.tokenPrefix}? The old token is invalidated.`,true))return;try{const response=await api(`/api/v1/service-accounts/${account.id}/tokens/${token.id}/rotate`,{method:'POST',headers:{'If-Match':`"${token.revision}"`,'X-Confirm-Rotate':'rotate-api-token','Idempotency-Key':idempotency('ai-agent-token-rotate')},body:{expiresAt:new Date(Date.now()+Number(values.hours)*3600000).toISOString(),permissions:apiTokenPermissionsFromProfile(values.permission)}});showOneTimeAPIToken('Agent token rotated',response);await loadAIAgentAccess();}catch(error){toast(error.message,'error');}};
+
 async function loadAI(){
   try{
-    const [policy,guide,projects,operations,clusters,runs]=await Promise.all([
-      softApi('/api/v1/ai/policy',{},'AI policy'), softApi('/api/v1/lab/guide',{},'lab guide'), softApi('/api/v1/projects',[],'projects'), softApi('/api/v1/operations?limit=200',[],'operations'), softApi('/api/v1/clusters',[],'clusters'), softApi('/api/v1/ai/runs',[],'AI runs')
+    const [policy,guide,projects,operations,clusters,runs,mcpDelegationArchitecture,aiCapabilities,aiControlJobs]=await Promise.all([
+      softApi('/api/v1/ai/policy',{},'AI policy'), softApi('/api/v1/lab/guide',{},'lab guide'), softApi('/api/v1/projects',[],'projects'), softApi('/api/v1/operations?limit=200',[],'operations'), softApi('/api/v1/clusters',[],'clusters'), softApi('/api/v1/ai/runs',[],'AI runs'), softApi('/api/v1/mcp/delegation-architecture',{},'MCP delegation architecture'), softApi('/api/v1/ai/capabilities',{},'AI control capabilities'), softApi('/api/v1/ai/control-jobs',{items:[]},'AI control jobs')
     ]);
-    state.aiPolicy=policy; state.aiGuide=guide; state.projects=projects; state.operations=operations; state.clusters=clusters; state.aiRuns=runs;
+    state.aiPolicy=policy; state.aiGuide=guide; state.projects=projects; state.operations=operations; state.clusters=clusters; state.aiRuns=runs; state.mcpDelegationArchitecture=mcpDelegationArchitecture; state.aiCapabilities=aiCapabilities; state.aiControlJobs=aiControlJobs;
     $('#ai-policy-summary').innerHTML=[
       ['Runtime',policy.enabled?'ENABLED':'DISABLED',policy.provider||'none'],['Model',policy.model||'—','provider-selected'],['Input budget',policy.maxInputBytes||0,'bytes after redaction'],['Output budget',policy.maxOutputTokens||0,'tokens max'],['Authority','ADVISORY ONLY','PASS / Physical PASS: never']
     ].map(([label,value,detail])=>`<article class="metric-card"><strong>${esc(value)}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></article>`).join('');
@@ -1917,18 +3244,19 @@ async function loadAI(){
     if(banner){banner.hidden=!!policy.enabled;banner.innerHTML=policy.enabled?'':'<strong>AI runtime disabled</strong><p>No model provider is configured. Deterministic platform, Lab and certification workflows remain available; AI diagnosis is intentionally unavailable.</p>';}
     const diagnosisButton=$('#ai-diagnosis-form button[type="submit"]'); if(diagnosisButton)diagnosisButton.disabled=!policy.enabled;
     const projectSelect=$('#ai-project'); const selected=projectSelect?.value||'';
-    setOptions(projectSelect,projects.map(p=>({value:p.id,label:p.displayName||p.name||p.id})),item=>item.value,item=>item.label,'Select project');
-    if(selected&&projects.some(p=>p.id===selected))projectSelect.value=selected;
+    setProjectOptions(projectSelect,projects,item=>item.displayName||item.name||item.id,'Select project');
+    if(!state.globalScope.projectId&&selected&&projects.some(p=>p.id===selected))projectSelect.value=selected;
     const historyFilter=$('#ai-run-project-filter'),historySelected=historyFilter?.value||'';
     if(historyFilter){historyFilter.innerHTML='<option value="">All accessible projects</option>'+projects.map(p=>`<option value="${esc(p.id)}">${esc(p.displayName||p.name||p.id)}</option>`).join('');if(historySelected&&projects.some(p=>p.id===historySelected))historyFilter.value=historySelected;}
     syncAIResourceOptions();
-    renderAIRuntimeAndAccess(); renderAIUsageSummary(); renderAIRunHistory(); renderAILatestDiagnosis();
+    renderAIControlAuthority(); renderAIRuntimeAndAccess(); renderMCPHumanDelegation(); renderAIUsageSummary(); renderAIRunHistory(); renderAILatestDiagnosis(); await loadAIAgentAccess();
   }catch(error){toast(error.message,'error');}
 }
 
 $('#ai-project').onchange=syncAIResourceOptions;
 $('#ai-resource-type').onchange=syncAIResourceOptions;
 $('#ai-run-project-filter').onchange=renderAIRunHistory;
+$('#ai-control-jobs-refresh').onclick=reloadAIControlJobs;
 $('#ai-run-grid').onclick=event=>{const button=event.target.closest('[data-ai-run-inspect]');if(button)inspectAIRun(button.dataset.aiRunInspect);};
 $('#ai-diagnosis-form').onsubmit=async event=>{
   event.preventDefault(); if(!event.currentTarget.reportValidity())return;
@@ -1941,7 +3269,7 @@ $('#ai-diagnosis-form').onsubmit=async event=>{
 async function loadLab(){
   try{
     const [guide,targetArchitecture]=await Promise.all([softApi('/api/v1/lab/guide',{},'lab guide'),softApi('/api/v1/target-architecture-model',{},'target architecture')]);
-    if(guide.authority && guide.authority!=='LAB_CERTIFICATION_MATRIX_V1') throw new Error('Unexpected lab guide authority.');
+    if(guide.authority && guide.authority!=='LAB_CERTIFICATION_MATRIX_V2') throw new Error('Unexpected lab guide authority.');
     state.labGuide=guide;
     const tiers=guide.serverTiers||[];const matrix=guide.matrix||[];const ai=guide.aiPolicy||{};const mcp=guide.mcp||{};
     $('#lab-summary').innerHTML=[
@@ -1971,20 +3299,109 @@ async function loadLab(){
     const trackRows=tracks.map(track=>tableRow([tableCell(`<span class="cell-title">${esc(track.title||track.id)}</span><span class="cell-meta technical">${esc(track.id)}</span>`),tableCell(esc(track.objective||'—')),tableCell((track.requirements||[]).map(item=>`<span class="cell-meta">${esc(item)}</span>`).join(''))]));
     $('#lab-program-tracks').innerHTML=`<div class="inline-summary"><strong>${esc(roadmap.authority||'unavailable')}</strong> · current <span class="technical">${esc(roadmap.currentPhase||'—')}</span>${current?` · ${badge(current.status||'UNKNOWN')}`:''} · ${esc((roadmap.globalGuardrails||[]).length)} global guardrails</div>${dataTable('Cross-cutting program tracks',[{label:'Track'},{label:'Objective'},{label:'Required in every later phase'}],trackRows,'No program tracks','The canonical program-track authority is unavailable.',{key:'lab-program-tracks'})}`;
     $('#lab-ai-policy').innerHTML=`<div class="resource-details">${detailRow('Invocation',ai.defaultMode||'failure-only')}${detailRow('Failure packet',`${ai.defaultFailurePacketBytes||0} default / ${ai.maxFailurePacketBytes||0} max bytes`)}${detailRow('Output budget',`${ai.defaultOutputTokens||0} default / ${ai.maxOutputTokens||0} max tokens`)}${detailRow('Can decide PASS','NO')}${detailRow('Can decide Physical PASS','NO')}</div><details open><summary>Supported adapters</summary><div class="activity-list">${(ai.providers||[]).map(provider=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">•</span><div><strong class="technical">${esc(provider.id||provider)}</strong><small>${esc(provider.use||provider.role||provider.description||'bounded diagnosis / repair adapter')}</small></div></div></div>`).join('')}</div></details>`;
-    $('#lab-mcp').innerHTML=`<div class="resource-details">${detailRow('Endpoint',mcp.path||mcp.endpoint||'/mcp')}${detailRow('Protocol',mcp.protocol||mcp.protocolVersion||'—')}${detailRow('Transport',mcp.transport||'—')}${detailRow('Authority',mcp.defaultAccess==='read-only'?'READ ONLY':'MUTATING')}</div><details open><summary>Exposed tools</summary><div class="activity-list">${(mcp.tools||[]).map(tool=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">✓</span><div><strong class="technical">${esc(tool.name||tool)}</strong><small>${esc(tool.description||'authoritative read-only resource')}</small></div></div>${badge('READ ONLY')}</div>`).join('')}</div></details><p class="inline-summary">External clients must authenticate through the normal Platform API boundary and send <span class="technical">MCP-Protocol-Version: ${esc(mcp.protocol||mcp.protocolVersion||'2026-07-28')}</span>.</p>`;
+    $('#lab-mcp').innerHTML=`<div class="resource-details">${detailRow('Endpoint',mcp.path||mcp.endpoint||'/mcp')}${detailRow('Protocol',mcp.protocol||mcp.protocolVersion||'—')}${detailRow('Transport',mcp.transport||'—')}${detailRow('Default authority','READ ONLY')}${detailRow('Operation scope',mcp.operationPermission||'mcp.operate')}</div><details open><summary>Read tools</summary><div class="activity-list">${(mcp.tools||[]).map(tool=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">✓</span><div><strong class="technical">${esc(tool.name||tool)}</strong><small>${esc(tool.description||'authoritative read-only resource')}</small></div></div>${badge('READ ONLY')}</div>`).join('')}</div></details>${(mcp.mutatingTools||[]).length?`<details><summary>Delegated operation tools</summary><div class="activity-list">${mcp.mutatingTools.map(tool=>{const name=tool.name||tool,meta=mcpMutationDescriptor(name);return `<div class="activity-item"><div class="activity-main"><span class="check-icon">↳</span><div><strong class="technical">${esc(name)}</strong><small>${esc(meta.family)} · ${esc(meta.detail)}</small></div></div><div class="resource-meta">${badge(meta.risk)}${badge(meta.approval?'APPROVAL GATED':'DELEGATED')}</div></div>`}).join('')}</div></details>`:''}<p class="inline-summary">External clients authenticate through the normal Platform API boundary and send <span class="technical">MCP-Protocol-Version: ${esc(mcp.protocol||mcp.protocolVersion||'2026-07-28')}</span>. MCP cannot certify Physical PASS or bypass product approval boundaries.</p>`;
     restoreDataTableSortPreferences($('#lab'));
   }catch(error){toast(error.message,'error');}
 }
 
+function renderAutopilotCampaign(){const target=$('#autopilot-campaign-status'),item=state.autopilotStatus;if(!target)return;if(!item?.configured){target.innerHTML=emptyState('Autopilot evidence not configured',item?.message||'Set PLATFORM_FACTORY_AUTOPILOT_STATE_DIR on the local platform API instance to expose sanitized local campaign evidence.');return;}if(!item.available){target.innerHTML=emptyState('No campaign evidence yet',item.message||'Run the checkpoint-safe Autopilot to create the derived campaign report.');return;}const completed=(item.stageResults||[]).filter(row=>row.status==='PASS').length;target.innerHTML=`<div class="metric-grid"><div class="metric"><span>Status</span><strong>${esc(item.status||'—')}</strong></div><div class="metric"><span>Stage</span><strong>${esc(item.nextIndex||0)} / ${esc(item.stageCount||0)}</strong></div><div class="metric"><span>Repairs</span><strong>${esc(item.repairCount||0)}</strong></div><div class="metric"><span>Completed loaded</span><strong>${completed}</strong></div></div><div class="resource-details">${detailRow('Phase',item.phase||'—')}${detailRow('Current stage',item.currentStage||'—',true)}${detailRow('Specialist',item.currentSpecialist||'—')}${detailRow('Active process',item.activeProcess||'none',true)}${detailRow('Resume eligible',item.resumeEligible?'YES':'NO')}${detailRow('Updated',formatDate(item.updatedAt))}</div>${item.lastFailure?`<div class="warning-banner"><strong>Latest failure · ${esc(item.lastFailure.stage||'unknown')}</strong><p>${esc(item.lastFailure.reason||item.lastFailure.status||'Failure recorded')} · specialist ${esc(item.lastFailure.specialist||'—')} · fingerprint <span class="technical">${esc(item.lastFailure.fingerprint||'—')}</span></p></div>`:''}<details><summary>Recent stage evidence · ${(item.stageResults||[]).length}</summary><div class="activity-list">${(item.stageResults||[]).slice(-12).reverse().map(row=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">${row.status==='PASS'?'✓':row.status==='FAIL'?'!':'•'}</span><div><strong>${esc(row.name)}</strong><small>${esc(row.specialist||'—')} · ${esc(row.elapsedSeconds||0)}s · <span class="technical">${esc(row.fingerprint||'—')}</span></small></div></div>${badge(row.status||'UNKNOWN')}</div>`).join('')}</div></details><div class="inline-summary">${esc(item.authority)} · derived local evidence · never Product or Physical authority</div>`;}
+function supportScopeRows(profile){const scope=profile?.scope;if(scope==='project')return state.projects||[];if(scope==='cluster')return state.clusters||[];if(scope==='operation')return state.operations||[];return [];}
+function renderSupportCenter(){const profileSelect=$('#support-center-profile'),scopeSelect=$('#support-center-scope');if(!profileSelect||!scopeSelect)return;const previous=profileSelect.value;profileSelect.innerHTML=(state.supportProfiles||[]).map(p=>`<option value="${esc(p.name)}">${esc(p.name)} · ${esc(p.description)}</option>`).join('');if(previous&&state.supportProfiles.some(p=>p.name===previous))profileSelect.value=previous;const profile=state.supportProfiles.find(p=>p.name===profileSelect.value),rows=supportScopeRows(profile),old=scopeSelect.value;scopeSelect.innerHTML=rows.map(item=>`<option value="${esc(item.id)}">${esc(item.displayName||item.name||item.kind||item.id)} · ${esc(item.id)}</option>`).join('');if(old&&rows.some(item=>item.id===old))scopeSelect.value=old;$('#support-center-scope-field').querySelector('span').textContent=profile?.scope?`${profile.scope[0].toUpperCase()+profile.scope.slice(1)} scope`:'Scope';}
+$('#support-center-profile').onchange=renderSupportCenter;
+$('#support-center-form').onsubmit=async event=>{event.preventDefault();const profile=state.supportProfiles.find(p=>p.name===$('#support-center-profile').value),id=$('#support-center-scope').value;if(!profile||!id){toast('Select a support scope.','error');return;}const body={profile:profile.name};body[profile.scope+'Id']=id;try{await downloadSupportBundle(body,'#support-center-status');toast('Verified support bundle downloaded.');}catch(error){toast(error.message,'error');}};
+
+
+function queueLane(queueCenter,id){return (queueCenter?.lanes||[]).find(item=>item.id===id)||{};}
+function renderOperationsQueueCenter(){
+  const center=state.queueCenter||{},operationsLane=queueLane(center,'operations'),agentLane=queueLane(center,'agent-tasks'),notificationsLane=queueLane(center,'notifications'),outboxLane=queueLane(center,'outbox');
+  const summary=$('#queue-center-summary'),grid=$('#queue-center-grid'),authority=$('#queue-center-authority');if(!summary||!grid||!authority)return;
+  summary.innerHTML=[
+    ['Operation pending',operationsLane.pending||0,`${operationsLane.executing||0} executing · ${operationsLane.retryWait||0} retry wait`],
+    ['Operation attention',operationsLane.attention||0,`${operationsLane.expiredClaims||0} expired loaded leases`],
+    ['Agent tasks',agentLane.pending||0,`${agentLane.executing||0} executing · ${agentLane.expiredClaims||0} expired · ${agentLane.retried||0} retried · max attempt ${agentLane.maxAttempt||0}${agentLane.oldestPendingAt?` · oldest pending ${formatDate(agentLane.oldestPendingAt)}`:''}`],
+    ['Notification pending',(notificationsLane.pending||0)+(notificationsLane.retryWait||0),`${notificationsLane.executing||0} delivering · ${notificationsLane.deadLetter||0} dead-letter`],
+    ['Outbox pending',outboxLane.pending||0,'transactional unpublished events']
+  ].map(([label,value,detail])=>`<article class="metric-card"><strong>${esc(value)}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></article>`).join('');
+  const rows=(center.items||[]).map(item=>tableRow([
+    tableCell(`<span class="cell-title">${esc(item.kind)}</span><span class="cell-meta technical">${esc(item.id)}</span>`),
+    tableCell(`${badge(item.lane)} ${badge(item.state)}`,'status-cell'),
+    tableCell(`<span class="cell-title">${esc(item.attempt||0)} / ${esc(item.maxAttempts||'—')}</span><span class="cell-meta technical">${esc(item.leaseOwner||'no active lease')}</span>`),
+    tableCell(`${item.leaseExpiresAt?formatDate(item.leaseExpiresAt):'—'}${item.nextAttemptAt?`<span class="cell-meta">next ${formatDate(item.nextAttemptAt)}</span>`:''}`,'timestamp',item.leaseExpiresAt||item.nextAttemptAt||''),
+    tableCell(`<span class="cell-title">${esc(item.lastError||'—')}</span><span class="cell-meta">updated ${esc(formatDate(item.updatedAt))}</span>`)
+  ]));
+  grid.innerHTML=dataTable('Queue work items',[{label:'Work item'},{label:'Lane / state'},{label:'Attempt / owner'},{label:'Lease / retry',className:'timestamp'},{label:'Last result'}],rows,'No queued work','No non-terminal durable operation or notification-delivery item is loaded in this scope. Agent-task details stay aggregate-only by design.',{key:'operations-queue-center'});
+  const truncated=(center.lanes||[]).filter(l=>l.truncated).map(l=>l.id);
+  authority.innerHTML=`<strong>${esc(center.authority||'OPERATIONS_QUEUE_CENTER_V1')}</strong> · ${esc(center.backend||'—')} · read-only · scope-before-limit · ${esc(center.limit||0)} item window${truncated.length?` · truncated lanes: ${esc(truncated.join(', '))}`:' · loaded lanes complete for this window'}`;
+}
+function renderProductLogCenter(){
+  const result=state.productLogs||{},entries=result.entries||[],opSelect=$('#log-center-operation');if(!opSelect)return;
+  const previous=opSelect.value;opSelect.innerHTML=`<option value="">All operations</option>${(state.operations||[]).map(op=>`<option value="${esc(op.id)}">${esc(op.kind)} · ${esc(op.id)}</option>`).join('')}`;if(previous&&state.operations.some(op=>op.id===previous))opSelect.value=previous;
+  const rows=entries.map(item=>tableRow([
+    tableCell(formatDate(item.timestamp),'timestamp',item.timestamp||''),
+    tableCell(`${badge(item.level)} ${badge(item.source)}`,'status-cell'),
+    tableCell(`<span class="cell-title">${esc(item.eventType)}</span><span class="cell-meta">${esc(item.message)}</span>`),
+    tableCell(`<span class="cell-title technical">${esc(item.operationId||item.resourceId||'—')}</span><span class="cell-meta">${esc(item.stepKey||item.resourceType||item.targetRef||'—')}</span>`),
+    tableCell(`<span class="technical">${esc(item.actorId||'—')}</span>${item.evidenceDigest?`<span class="cell-meta technical">${esc(shortDigest(item.evidenceDigest))}</span>`:''}`)
+  ]));
+  $('#log-center-grid').innerHTML=dataTable('Product logs',[{label:'Time',className:'timestamp'},{label:'Level / source'},{label:'Event / message'},{label:'Context'},{label:'Actor / evidence'}],rows,'No product logs','No matching log entry exists in the loaded authorized window.',{key:'product-log-center'});
+  const searchState=result.windowTruncated?(result.searchComplete?'window truncated':'search is window-bounded; older matches may exist'):'loaded source windows complete';
+  $('#log-center-authority').innerHTML=`<strong>${esc(result.authority||'PRODUCT_LOG_CENTER_V1')}</strong> · ${esc(result.searchSemantics||'LATEST_AUTHORIZED_PRODUCT_LOG_WINDOWS_V1')} · ${esc(searchState)} · payloads ${esc(result.payloadPolicy||'metadata only')} · runtime workload tail ${result.runtimeWorkloadTail?'enabled':'not enabled'}`;
+}
+async function refreshQueueCenter(){state.queueCenter=await api('/api/v1/operations/queue-center?limit=100');renderOperationsQueueCenter();}
+async function refreshProductLogs(){
+  const params=new URLSearchParams({limit:'100'}),source=$('#log-center-source')?.value||'',level=$('#log-center-level')?.value||'ALL',operationId=$('#log-center-operation')?.value||'',q=$('#log-center-query')?.value?.trim()||'';
+  if(source)params.set('source',source);if(level&&level!=='ALL')params.set('level',level);if(operationId){params.set('operationId',operationId);params.set('source','operation');}if(q)params.set('q',q);
+  state.productLogs=await api(`/api/v1/logs?${params.toString()}`);renderProductLogCenter();
+}
+$('#queue-center-refresh').onclick=async()=>{try{await refreshQueueCenter();toast('Queue Center refreshed.');}catch(error){toast(error.message,'error');}};
+$('#log-center-refresh').onclick=async()=>{try{await refreshProductLogs();toast('Product logs refreshed.');}catch(error){toast(error.message,'error');}};
+$('#log-center-form').onsubmit=async event=>{event.preventDefault();try{await refreshProductLogs();}catch(error){toast(error.message,'error');}};
+
+function operationClusterRows(){return (state.clusters||[]).map(row=>row.cluster||row).filter(Boolean);}
+function renderWorkloadLogSelectors(){
+  const project=$('#workload-log-project'),cluster=$('#workload-log-cluster'),workload=$('#workload-log-workload');if(!project||!cluster||!workload)return;
+  const projects=(state.projects||[]).filter(item=>projectBelongsToGlobalScope(item.id));setProjectOptions(project,projects,item=>`${item.displayName||item.name||item.id} · ${item.name||item.id}`,'No accessible project');
+  const selectedProject=project.value,clusters=operationClusterRows().filter(item=>item.projectId===selectedProject&&item.connectionState!=='REVOKED');setOptions(cluster,clusters,item=>item.id,item=>`${item.displayName||item.name||item.id} · ${item.connectionState||'UNKNOWN'}`,'No connected cluster');
+  const explorer=state.workloadLogExplorer;if(!explorer||explorer.clusterId!==cluster.value){workload.innerHTML='<option value="">Load a cluster workload inventory</option>';workload.disabled=true;return;}
+  const rows=(explorer.workloads||[]);workload.innerHTML=rows.length?rows.map((item,index)=>`<option value="${index}">${esc(item.kind)} · ${esc(item.namespace)}/${esc(item.name)}</option>`).join(''):'<option value="">No workloads in current inventory</option>';workload.disabled=!rows.length;
+}
+async function refreshWorkloadLogExplorer(){
+  const clusterId=$('#workload-log-cluster')?.value||'';state.workloadLogExplorer=null;renderWorkloadLogSelectors();if(!clusterId)return;
+  const explorer=await api(`/api/v1/clusters/${clusterId}/workloads`);state.workloadLogExplorer={...explorer,clusterId};renderWorkloadLogSelectors();
+}
+function renderWorkloadLogResult(view=state.workloadLogQuery){
+  const status=$('#workload-log-status'),grid=$('#workload-log-grid');if(!status||!grid)return;if(!view){status.innerHTML='<span>No target workload log query has been submitted.</span>';grid.innerHTML='';return;}
+  const op=view.operation||{},lines=view.lines||[],evidence=view.evidence||{};status.innerHTML=`<strong>${esc(op.kind||'target.logs.query')}</strong> · ${badge(op.state||'UNKNOWN')} · operation <span class="technical">${esc(op.id||'—')}</span> · inventory <span class="technical">${esc(shortDigest(op.desiredRevision||''))}</span>${view.ready?` · sealed evidence <span class="technical">${esc(shortDigest(evidence.digest||''))}</span>`:' · waiting for connected Agent'}`;
+  const rows=lines.map(item=>tableRow([tableCell(formatDate(item.timestamp),'timestamp',item.timestamp||''),tableCell(`<span class="technical">${esc(item.pod)}</span><span class="cell-meta">${esc(item.container||'—')}</span>`),tableCell(`<span class="technical log-line">${esc(item.line)}</span>`)]));
+  grid.innerHTML=dataTable('Target workload logs',[{label:'Time',className:'timestamp'},{label:'Pod / container'},{label:'Line'}],rows,'No target log lines','The bounded query completed without matching log lines.',{key:'target-workload-logs'});
+}
+async function pollWorkloadLogQuery(operationId){
+  for(let attempt=0;attempt<60;attempt++){
+    const view=await api(`/api/v1/workload-log-queries/${operationId}`);state.workloadLogQuery=view;renderWorkloadLogResult(view);
+    const terminal=['SUCCEEDED','FAILED','CANCELLED','ROLLED_BACK','NEEDS_OPERATOR'].includes(view.operation?.state);if(view.ready||terminal)return view;
+    await new Promise(resolve=>setTimeout(resolve,1500));
+  }
+  throw new Error('Target workload log query is still running. Keep the Operation ID and refresh Operations to inspect its durable state.');
+}
+$('#workload-log-project').onchange=()=>{state.workloadLogExplorer=null;renderWorkloadLogSelectors();refreshWorkloadLogExplorer().catch(error=>toast(error.message,'error'));};
+$('#workload-log-cluster').onchange=()=>refreshWorkloadLogExplorer().catch(error=>toast(error.message,'error'));
+$('#workload-log-form').onsubmit=async event=>{event.preventDefault();const button=event.submitter||$('#workload-log-form button[type="submit"]');try{
+  const explorer=state.workloadLogExplorer,index=Number($('#workload-log-workload').value),item=explorer?.workloads?.[index];if(!item)throw new Error('Select a workload from the current authoritative inventory.');
+  if(button)button.disabled=true;const body={projectId:$('#workload-log-project').value,clusterId:$('#workload-log-cluster').value,namespace:item.namespace,workloadKind:item.kind,workloadName:item.name,container:$('#workload-log-container').value.trim(),mode:$('#workload-log-mode').value,sinceSeconds:Number($('#workload-log-since').value),limit:Number($('#workload-log-limit').value)};
+  const key=`target-logs-${Date.now()}-${globalThis.crypto?.randomUUID?.()||Math.random().toString(36).slice(2)}`;const created=await api('/api/v1/workload-log-queries',{method:'POST',headers:{'Idempotency-Key':key},body});state.workloadLogQuery={operation:created.operation,ready:false};renderWorkloadLogResult();toast('Target workload log query queued.');await pollWorkloadLogQuery(created.operation.id);
+}catch(error){toast(error.message,'error');}finally{if(button)button.disabled=false;}};
+
 async function loadOperations(){
   try{
     const securityAllowed=mayAdministerIdentityAuthority();
-    const [summary,operations,audit,securityAudit]=await Promise.all([softApi('/api/v1/control-plane/summary',{},'control-plane summary'),softApi('/api/v1/operations?limit=200',[],'operations'),softApi('/api/v1/audit-events?limit=100',[],'audit'),securityAllowed?softApi('/api/v1/security-audit-events?limit=200',[],'security audit'):Promise.resolve([])]);
-    Object.assign(state,{summary,operations,audit,securityAudit});
-    $('#control-plane-summary').innerHTML=[['Authority',summary.authorityBackend,'authoritative store'],['Operations',summary.operations,`${summary.evidence} evidence records`],['Outbox pending',summary.unpublishedOutbox,'durable events'],['Audit events',summary.auditEvents,'append-only history']].map(([label,value,detail])=>`<article class="metric-card"><strong>${esc(value)}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></article>`).join('');
+    const [summary,operations,audit,queueCenter,productLogs,securityAudit,autopilotStatus,supportProfiles,projects,clusters]=await Promise.all([softApi('/api/v1/control-plane/summary',{},'control-plane summary'),softApi('/api/v1/operations?limit=200',[],'operations'),softApi('/api/v1/audit-events?limit=100',[],'audit'),softApi('/api/v1/operations/queue-center?limit=100',{authority:'OPERATIONS_QUEUE_CENTER_V1',lanes:[],items:[]},'queue center'),softApi('/api/v1/logs?limit=100',{authority:'PRODUCT_LOG_CENTER_V1',entries:[]},'product logs'),securityAllowed?softApi('/api/v1/security-audit-events?limit=200',[],'security audit'):Promise.resolve([]),securityAllowed?softApi('/api/v1/autopilot/status',{configured:false,available:false},'autopilot status'):Promise.resolve({configured:false,available:false,message:'Platform-admin role is required.'}),softApi('/api/v1/support-bundles/profiles',[],'support profiles'),softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/clusters',[],'clusters')]);
+    Object.assign(state,{summary,operations,audit,queueCenter,productLogs,securityAudit,autopilotStatus,supportProfiles,projects,clusters}); renderAutopilotCampaign(); renderSupportCenter(); renderOperationsQueueCenter(); renderProductLogCenter(); renderWorkloadLogSelectors();
+    const operationsLane=queueLane(queueCenter,'operations');
+    $('#control-plane-summary').innerHTML=[['Authority',summary.authorityBackend,'authoritative store'],['Operations',summary.operations,`${summary.evidence} evidence records`],['Pending',operationsLane.pending||0,'exact scoped durable-operation states'],['Executing',operationsLane.executing||0,'running / verifying / rollback'],['Needs attention',operationsLane.attention||0,'failed / plan failed / operator required'],['Expired loaded leases',operationsLane.expiredClaims||0,'visible Queue Center window'],['Outbox pending',summary.unpublishedOutbox,'scoped durable events'],['Audit events',summary.auditEvents,'append-only history']].map(([label,value,detail])=>`<article class="metric-card"><strong>${esc(value)}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></article>`).join('');
     const operationRows=latest(operations).map(op=>{
       const flags=[op.retryExhausted?badge('RETRY EXHAUSTED'):'',op.recoveryCheckpointId?badge('RECOVERY BOUND'):'',op.compensationPlanDigest?badge('COMPENSATION BOUND'):'',op.state==='NEEDS_OPERATOR'?badge('OPERATOR REQUIRED'):''].join(' ');
-      const actions=`<div class="row-actions"><button type="button" class="secondary small-button" data-operation-id="${esc(op.id)}">Inspect</button><button type="button" class="secondary small-button" data-operation-bundle="${esc(op.id)}">Bundle</button>${!['SUCCEEDED','ROLLED_BACK','CANCELLED'].includes(op.state)?`<button type="button" class="danger small-button" data-operation-cancel="${esc(op.id)}">Cancel</button>`:''}</div>`;
+      const managedOKDApproval=op.kind==='managed.okd.install'&&op.state==='AWAITING_APPROVAL'?approvalControl({...op,requestedBy:op.actorId},'Approve OKD install',`data-managed-okd-approval="${esc(op.id)}" data-revision="${esc(op.revision)}"`):'';
+      const actions=`<div class="row-actions"><button type="button" class="secondary small-button" data-operation-id="${esc(op.id)}">Inspect</button><button type="button" class="secondary small-button" data-operation-logs="${esc(op.id)}">Logs</button><button type="button" class="secondary small-button" data-operation-bundle="${esc(op.id)}">Bundle</button>${managedOKDApproval}${['FAILED','CANCEL_REQUESTED'].includes(op.state)&&op.compensationPlanDigest&&op.compensationStepCount>0?`<button type="button" class="primary small-button" data-operation-action="recover" data-id="${esc(op.id)}">Start recovery</button>`:''}${!['SUCCEEDED','ROLLED_BACK','CANCELLED','FAILED'].includes(op.state)?`<button type="button" class="danger small-button" data-operation-cancel="${esc(op.id)}">Cancel</button>`:''}</div>`;
       return tableRow([
         tableCell(`<span class="cell-title">${esc(op.kind)}</span><span class="cell-meta technical">${esc(op.id)}</span>`),
         tableCell(`${badge(op.state)}${flags?`<span class="cell-meta">${flags}</span>`:''}`,'status-cell'),
@@ -2018,7 +3435,7 @@ async function loadOperations(){
     }
   }catch(error){$('#operation-grid').innerHTML=errorState(error.message);$('#audit-grid').innerHTML=errorState(error.message);if($('#security-audit-grid'))$('#security-audit-grid').innerHTML=errorState(error.message);}
 }
-$('#operation-grid').onclick=async event=>{const bundle=event.target.closest('[data-operation-bundle]');if(bundle){try{await downloadSupportBundle({profile:'operation-diagnostics',operationId:bundle.dataset.operationBundle});toast('Operation support bundle downloaded.');}catch(error){toast(error.message,'error');}return;}const cancel=event.target.closest('[data-operation-cancel]');if(cancel){const op=state.operations.find(item=>item.id===cancel.dataset.operationCancel);if(!op)return;if(!await confirmAction('Cancel operation safely',`Request cancellation for ${op.kind}? In-flight work is drained to a safe boundary before final cancellation.`))return;try{await api(`/api/v1/operations/${op.id}/cancel`,{method:'POST',headers:{'If-Match':`"${op.revision}"`},body:{reason:'operator requested safe cancellation from console'}});toast('Cancellation requested.');await loadOperations();}catch(error){toast(error.message,'error');}return;}const button=event.target.closest('[data-operation-id]');if(!button)return;try{const view=await api(`/api/v1/operations/${button.dataset.operationId}`),op=view.operation;showDetails(op.kind,`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(op.id)}</dd><dt>State</dt><dd>${badge(op.state)}</dd><dt>Class</dt><dd>${badge(op.class||'MUTATING')}</dd><dt>Target</dt><dd class="technical">${esc(op.targetRef)}</dd><dt>Risk</dt><dd>${esc(op.risk)}</dd><dt>Attempt</dt><dd>${esc(op.attempt||0)} / ${esc(op.retryPolicy?.maxAttempts||'—')}</dd><dt>Retry classes</dt><dd>${esc((op.retryPolicy?.retryableClasses||[]).join(', ')||'—')}</dd><dt>Backoff</dt><dd>${esc(op.retryPolicy?.initialBackoffSeconds||'—')}s → max ${esc(op.retryPolicy?.maxBackoffSeconds||'—')}s</dd><dt>Next attempt</dt><dd>${formatDate(op.nextAttemptAt)}</dd><dt>Last failure class</dt><dd>${esc(op.lastFailureClass||'—')}</dd><dt>Recovery checkpoint</dt><dd class="technical">${esc(op.recoveryCheckpointId||'—')}</dd><dt>Recovery evidence</dt><dd class="technical">${esc(op.recoveryEvidenceDigest||'—')}</dd><dt>Compensation plan</dt><dd class="technical">${esc(op.compensationPlanDigest||'—')}</dd><dt>Compensation steps</dt><dd>${esc(op.compensationStepCount||0)} · cursor ${esc(op.compensationCursor||0)}</dd><dt>Compensation failure step</dt><dd class="technical">${esc(op.compensationFailureStep||'—')}</dd><dt>Cancellation</dt><dd>${esc(op.cancelReason||'—')}</dd><dt>Actor</dt><dd>${esc(op.actorId)}</dd><dt>Desired revision</dt><dd class="technical">${esc(op.desiredRevision)}</dd><dt>Error</dt><dd>${esc(op.lastError||'—')}</dd></dl><div class="detail-section"><h3>Steps</h3><div class="timeline">${(view.steps||[]).map(step=>`<div class="timeline-step ${step.state==='SUCCEEDED'?'success':step.state==='FAILED'?'failed':''}"><span class="timeline-dot">${step.state==='SUCCEEDED'?'✓':step.state==='FAILED'?'!':'○'}</span><div><h4>${esc(step.stepKey)}</h4><p>${esc(step.state)} · attempt ${esc(step.attempt)}${step.lastError?` · ${esc(step.lastError)}`:''}</p></div></div>`).join('')||'<p>No operation steps.</p>'}</div></div><div class="detail-section"><h3>Compensation</h3><div class="timeline">${(view.compensation||[]).slice().sort((a,b)=>b.forwardOrder-a.forwardOrder).map(step=>`<div class="timeline-step ${step.state==='SUCCEEDED'?'success':['FAILED','MANUAL_REQUIRED'].includes(step.state)?'failed':''}"><span class="timeline-dot">${step.state==='SUCCEEDED'?'✓':['FAILED','MANUAL_REQUIRED'].includes(step.state)?'!':'↩'}</span><div><h4>${esc(step.stepKey)} · ${esc(step.strategy)}</h4><p>forward #${esc(step.forwardOrder)} · ${step.forwardCompleted?'committed':'not committed'} · compensation ${esc(step.state)} · attempt ${esc(step.attempt)}/${esc(step.maxAttempts)}${step.evidenceDigest?` · ${esc(shortDigest(step.evidenceDigest))}`:''}${step.lastError?` · ${esc(step.lastError)}`:''}</p></div></div>`).join('')||'<p>No compensation plan is bound.</p>'}</div></div><div class="detail-section"><h3>Step trace / logs & evidence</h3><div class="resource-details">${detailRow('Trace authority',view.traceMethod||'—')}${detailRow('Trace entries',(view.traces||[]).length)}${detailRow('Payload evidence',(view.evidence||[]).filter(item=>item.hasPayload).length)}</div><div class="timeline">${(view.traces||[]).map(trace=>`<div class="timeline-step ${trace.level==='ERROR'?'failed':trace.level==='WARN'?'':'success'}"><span class="timeline-dot">${trace.level==='ERROR'?'!':trace.level==='WARN'?'△':'•'}</span><div><h4>${esc(trace.phase)} · ${esc(trace.stepKey)} · attempt ${esc(trace.attempt)} · #${esc(trace.sequence)}</h4><p>${badge(trace.level)} ${esc(trace.eventType)} · ${esc(trace.message)}</p><small class="technical">trace ${esc(trace.traceKey)} · evidence ${esc(trace.evidenceId||'—')} · ${esc(shortDigest(trace.evidenceDigest||''))}</small></div></div>`).join('')||'<p>No per-step trace has been sealed.</p>'}</div></div><div class="detail-section"><h3>Evidence</h3>${(view.evidence||[]).length?`<dl class="key-value">${view.evidence.map(item=>`<dt>${esc(item.kind)}</dt><dd><span class="technical">${esc(item.digest)}</span><br>${esc(item.phase||'OPERATION')} · ${esc(item.stepKey||'operation')} · attempt ${esc(item.attempt||0)} · ${esc(item.location)} · ${item.sealed?'sealed':'unsealed'} · payload ${item.hasPayload?'available':'metadata-only'}${item.traceId?` · trace ${esc(item.traceId)}`:''}${item.hasPayload?`<br><button type="button" class="secondary small-button" data-operation-id="${esc(op.id)}" data-operation-evidence-payload="${esc(item.id)}">Inspect payload</button>`:''}</dd>`).join('')}</dl>`:'<p>No evidence attached.</p>'}</div>`);}catch(error){toast(error.message,'error');}};
+$('#operation-grid').onclick=async event=>{const managedApproval=event.target.closest('[data-managed-okd-approval]');if(managedApproval){const op=state.operations.find(item=>item.id===managedApproval.dataset.managedOkdApproval);if(!op)return;if(!await confirmAction('Approve managed OKD install',`Approve the sealed Compact-3 install request ${op.targetRef}? The requester cannot approve their own request and execution remains evidence-tracked.`))return;try{await api(`/api/v1/managed-okd-installs/${op.id}/approve`,{method:'POST',headers:{'If-Match':`"${op.revision}"`},body:{}});toast('Managed OKD install approved and queued. Follow progress and evidence here.');await loadOperations();}catch(error){toast(error.message,'error');}return;}const logs=event.target.closest('[data-operation-logs]');if(logs){$('#log-center-operation').value=logs.dataset.operationLogs;$('#log-center-source').value='operation';try{await refreshProductLogs();$('#product-log-center').scrollIntoView({behavior:'smooth',block:'start'});}catch(error){toast(error.message,'error');}return;}const recovery=event.target.closest('[data-operation-action="recover"]');if(recovery){const op=state.operations.find(item=>item.id===recovery.dataset.id);if(!op)return;if(!await confirmAction('Start operation recovery',`Begin the bound compensation plan for ${op.kind}? Completed forward steps will be reversed in safe order and evidence remains attached to the same operation.`,true))return;try{await api(`/api/v1/operations/${op.id}/compensation/start`,{method:'POST',headers:{'If-Match':`"${op.revision}"`},body:{}});toast('Operation recovery accepted. Follow rollback steps and evidence in Operations.');await loadOperations();}catch(error){toast(error.message,'error');}return;}const bundle=event.target.closest('[data-operation-bundle]');if(bundle){try{await downloadSupportBundle({profile:'operation-diagnostics',operationId:bundle.dataset.operationBundle});toast('Operation support bundle downloaded.');}catch(error){toast(error.message,'error');}return;}const cancel=event.target.closest('[data-operation-cancel]');if(cancel){const op=state.operations.find(item=>item.id===cancel.dataset.operationCancel);if(!op)return;if(!await confirmAction('Cancel operation safely',`Request cancellation for ${op.kind}? In-flight work is drained to a safe boundary before final cancellation.`))return;try{await api(`/api/v1/operations/${op.id}/cancel`,{method:'POST',headers:{'If-Match':`"${op.revision}"`},body:{reason:'operator requested safe cancellation from console'}});toast('Cancellation requested.');await loadOperations();}catch(error){toast(error.message,'error');}return;}const button=event.target.closest('[data-operation-id]');if(!button)return;try{const view=await api(`/api/v1/operations/${button.dataset.operationId}`),op=view.operation;showDetails(op.kind,`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(op.id)}</dd><dt>State</dt><dd>${badge(op.state)}</dd><dt>Class</dt><dd>${badge(op.class||'MUTATING')}</dd><dt>Target</dt><dd class="technical">${esc(op.targetRef)}</dd><dt>Risk</dt><dd>${esc(op.risk)}</dd><dt>Attempt</dt><dd>${esc(op.attempt||0)} / ${esc(op.retryPolicy?.maxAttempts||'—')}</dd><dt>Execution authority</dt><dd>Service Account · <span class="technical">operation.execute</span></dd><dt>Lease owner</dt><dd class="technical">${esc(op.leaseOwner||'—')}</dd><dt>Lease expiry</dt><dd>${formatDate(op.leaseExpiresAt)}</dd><dt>Fence</dt><dd class="technical">${esc(op.fenceToken||'—')}</dd><dt>Retry classes</dt><dd>${esc((op.retryPolicy?.retryableClasses||[]).join(', ')||'—')}</dd><dt>Backoff</dt><dd>${esc(op.retryPolicy?.initialBackoffSeconds||'—')}s → max ${esc(op.retryPolicy?.maxBackoffSeconds||'—')}s</dd><dt>Next attempt</dt><dd>${formatDate(op.nextAttemptAt)}</dd><dt>Last failure class</dt><dd>${esc(op.lastFailureClass||'—')}</dd><dt>Recovery checkpoint</dt><dd class="technical">${esc(op.recoveryCheckpointId||'—')}</dd><dt>Recovery evidence</dt><dd class="technical">${esc(op.recoveryEvidenceDigest||'—')}</dd><dt>Compensation plan</dt><dd class="technical">${esc(op.compensationPlanDigest||'—')}</dd><dt>Compensation steps</dt><dd>${esc(op.compensationStepCount||0)} · cursor ${esc(op.compensationCursor||0)}</dd><dt>Compensation failure step</dt><dd class="technical">${esc(op.compensationFailureStep||'—')}</dd><dt>Cancellation</dt><dd>${esc(op.cancelReason||'—')}</dd><dt>Actor</dt><dd>${esc(op.actorId)}</dd><dt>Desired revision</dt><dd class="technical">${esc(op.desiredRevision)}</dd><dt>Error</dt><dd>${esc(op.lastError||'—')}</dd></dl><div class="detail-section"><h3>Steps</h3><div class="timeline">${(view.steps||[]).map(step=>`<div class="timeline-step ${step.state==='SUCCEEDED'?'success':step.state==='FAILED'?'failed':''}"><span class="timeline-dot">${step.state==='SUCCEEDED'?'✓':step.state==='FAILED'?'!':'○'}</span><div><h4>${esc(step.stepKey)}</h4><p>${esc(step.state)} · attempt ${esc(step.attempt)}${step.lastError?` · ${esc(step.lastError)}`:''}</p></div></div>`).join('')||'<p>No operation steps.</p>'}</div></div><div class="detail-section"><h3>Compensation</h3><div class="timeline">${(view.compensation||[]).slice().sort((a,b)=>b.forwardOrder-a.forwardOrder).map(step=>`<div class="timeline-step ${step.state==='SUCCEEDED'?'success':['FAILED','MANUAL_REQUIRED'].includes(step.state)?'failed':''}"><span class="timeline-dot">${step.state==='SUCCEEDED'?'✓':['FAILED','MANUAL_REQUIRED'].includes(step.state)?'!':'↩'}</span><div><h4>${esc(step.stepKey)} · ${esc(step.strategy)}</h4><p>forward #${esc(step.forwardOrder)} · ${step.forwardCompleted?'committed':'not committed'} · compensation ${esc(step.state)} · attempt ${esc(step.attempt)}/${esc(step.maxAttempts)}${step.evidenceDigest?` · ${esc(shortDigest(step.evidenceDigest))}`:''}${step.lastError?` · ${esc(step.lastError)}`:''}</p></div></div>`).join('')||'<p>No compensation plan is bound.</p>'}</div></div><div class="detail-section"><h3>Step trace / logs & evidence</h3><div class="resource-details">${detailRow('Trace authority',view.traceMethod||'—')}${detailRow('Trace entries',(view.traces||[]).length)}${detailRow('Payload evidence',(view.evidence||[]).filter(item=>item.hasPayload).length)}</div><div class="timeline">${(view.traces||[]).map(trace=>`<div class="timeline-step ${trace.level==='ERROR'?'failed':trace.level==='WARN'?'':'success'}"><span class="timeline-dot">${trace.level==='ERROR'?'!':trace.level==='WARN'?'△':'•'}</span><div><h4>${esc(trace.phase)} · ${esc(trace.stepKey)} · attempt ${esc(trace.attempt)} · #${esc(trace.sequence)}</h4><p>${badge(trace.level)} ${esc(trace.eventType)} · ${esc(trace.message)}</p><small class="technical">trace ${esc(trace.traceKey)} · evidence ${esc(trace.evidenceId||'—')} · ${esc(shortDigest(trace.evidenceDigest||''))}</small></div></div>`).join('')||'<p>No per-step trace has been sealed.</p>'}</div></div><div class="detail-section"><h3>Evidence</h3>${(view.evidence||[]).length?`<dl class="key-value">${view.evidence.map(item=>`<dt>${esc(item.kind)}</dt><dd><span class="technical">${esc(item.digest)}</span><br>${esc(item.phase||'OPERATION')} · ${esc(item.stepKey||'operation')} · attempt ${esc(item.attempt||0)} · ${esc(item.location)} · ${item.sealed?'sealed':'unsealed'} · payload ${item.hasPayload?'available':'metadata-only'}${item.traceId?` · trace ${esc(item.traceId)}`:''}${item.hasPayload?`<br><button type="button" class="secondary small-button" data-operation-id="${esc(op.id)}" data-operation-evidence-payload="${esc(item.id)}">Inspect payload</button>`:''}</dd>`).join('')}</dl>`:'<p>No evidence attached.</p>'}</div>`);}catch(error){toast(error.message,'error');}};
 
 
 function notificationOrgProjects(orgId){ return state.projects.filter(project=>project.organizationId===orgId); }
@@ -2027,18 +3444,27 @@ function renderNotificationEventTypes(){
   $('#notification-event-type-list').innerHTML=state.notificationEventTypes.length?state.notificationEventTypes.map(item=>`<label class="activity-item"><span class="activity-main"><input type="checkbox" data-notification-event-type value="${esc(item.eventType)}"${selected.has(item.eventType)?' checked':''}><span><strong class="technical">${esc(item.eventType)}</strong><small>${esc(item.description)} · ${esc(item.severity)}</small></span></span></label>`).join(''):emptyState('No event types','The notification event contract is unavailable.');
 }
 function renderNotificationSelectors(){
-  const orgDest=$('#notification-destination-organization'),orgRoute=$('#notification-route-organization');
+  const orgDest=$('#notification-destination-organization'),orgRoute=$('#notification-route-organization'),orgPreview=$('#notification-preview-organization');
+  const previousPreviewOrg=orgPreview?.value||'';
   setOptions(orgDest,state.organizations,item=>item.id,item=>item.displayName||item.name,'Create an organization first');
   setOptions(orgRoute,state.organizations,item=>item.id,item=>item.displayName||item.name,'Create an organization first');
+  if(orgPreview){setOptions(orgPreview,state.organizations,item=>item.id,item=>item.displayName||item.name,'Create an organization first');if(previousPreviewOrg&&[...orgPreview.options].some(option=>option.value===previousPreviewOrg))orgPreview.value=previousPreviewOrg;}
   const orgId=orgRoute.value;
   const projects=notificationOrgProjects(orgId),project=$('#notification-route-project'),previousProject=project.value;
   project.innerHTML=`<option value="">All projects in organization</option>`+projects.map(item=>`<option value="${esc(item.id)}">${esc(item.displayName||item.name)}</option>`).join('');
   if([...project.options].some(option=>option.value===previousProject))project.value=previousProject;
+  if(orgPreview){const previewProject=$('#notification-preview-project'),previousPreviewProject=previewProject.value,previewProjects=notificationOrgProjects(orgPreview.value);previewProject.innerHTML=`<option value="">Organization-wide event</option>`+previewProjects.map(item=>`<option value="${esc(item.id)}">${esc(item.displayName||item.name)}</option>`).join('');if([...previewProject.options].some(option=>option.value===previousPreviewProject))previewProject.value=previousPreviewProject;const eventSelect=$('#notification-preview-event-type'),previousEvent=eventSelect.value;eventSelect.innerHTML=state.notificationEventTypes.length?state.notificationEventTypes.map(item=>`<option value="${esc(item.eventType)}">${esc(item.eventType)} · ${esc(item.severity)}</option>`).join(''):'<option value="" disabled>No event types available</option>';if(previousEvent&&[...eventSelect.options].some(option=>option.value===previousEvent))eventSelect.value=previousEvent;}
   const active=state.notificationDestinations.filter(item=>item.organizationId===orgId&&item.state==='ACTIVE');
   const destinationSelect=$('#notification-route-destinations'),selected=new Set([...destinationSelect.selectedOptions].map(option=>option.value));
   destinationSelect.innerHTML=active.length?active.map(item=>`<option value="${esc(item.id)}"${selected.has(item.id)?' selected':''}>${esc(item.name)} · ${esc(item.kind)}</option>`).join(''):'<option value="" disabled>No active destinations</option>';
   destinationSelect.disabled=!active.length;
   renderNotificationEventTypes();
+}
+function renderNotificationRoutingPreview(){
+  const target=$('#notification-preview-result');if(!target)return;const preview=state.notificationRoutingPreview;if(!preview){target.innerHTML='<p class="muted">Choose event scope, type and severity to inspect matching rules and destinations.</p>';return;}
+  const routes=preview.matchedRoutes||[];const summary=`<div class="metric-grid"><div class="metric"><span>Matched rules</span><strong>${esc(preview.routeCount||0)}</strong></div><div class="metric"><span>Active destinations</span><strong>${esc(preview.destinationCount||0)}</strong></div><div class="metric"><span>Side effects</span><strong>${preview.sideEffects?'YES':'NONE'}</strong></div></div>`;
+  const rows=routes.map(route=>`<article class="activity-item"><div class="activity-main"><span class="status-dot ${route.destinations?.length?'ok':'warn'}"></span><div><strong>${esc(route.name)}</strong><p>${route.projectId?`Project ${technical(route.projectId)}`:'Organization-wide'} · minimum ${badge(route.minimumSeverity)} · ${esc((route.eventPatterns||[]).join(', '))}</p><small>${(route.destinations||[]).length?(route.destinations||[]).map(destination=>`${esc(destination.name)} · ${esc(destination.kind)} · ${esc(destination.state)}`).join(' · '):'No active destination remains for this matched rule.'}</small></div></div></article>`).join('');
+  target.innerHTML=`${summary}<div class="inline-summary"><strong class="technical">${esc(preview.eventType)}</strong> ${badge(preview.severity)} · ${preview.projectId?`project ${technical(preview.projectId)}`:'organization-wide'} · authority ${technical(preview.authority||'—')}</div>${rows||emptyState('No matching routes','This event would create no notification deliveries under the current routing authority.')}<p class="status-note">Preview is side-effect free. Delivery created: ${preview.deliveryCreated?'yes':'no'}.</p>`;
 }
 function renderNotificationResources(){
   const orgById=new Map(state.organizations.map(item=>[item.id,item]));
@@ -2049,12 +3475,13 @@ function renderNotificationResources(){
   const dead=state.notificationDeliveries.filter(item=>item.state==='DEAD_LETTER').length;
   const retrying=state.notificationDeliveries.filter(item=>['PENDING','DELIVERING','RETRY_WAIT'].includes(item.state)).length;
   $('#notification-summary').innerHTML=[['Active destinations',state.notificationDestinations.filter(item=>item.state==='ACTIVE').length],['Enabled routes',state.notificationRoutes.filter(item=>item.enabled).length],['Dead letters',dead],['Pending / retrying',retrying]].map(([label,value])=>`<div class="metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
+  const providerGrid=$('#notification-provider-contract-grid');if(providerGrid)providerGrid.innerHTML=state.notificationProviderContracts.length?state.notificationProviderContracts.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.kind)}</h3><div class="resource-meta">${badge(item.transport)}${badge(item.externalEgress?'EXTERNAL EGRESS':'LOCAL')}</div></div></div><div class="resource-details">${detailRow('Authorization',item.supportsAuthorization?'supported':'not used')}${detailRow('HMAC',item.supportsHmac?'supported':'not used')}${detailRow('Durable delivery',item.deliveryDurable?'yes':'no')}${detailRow('Retry / dead letter',item.retryAndDeadLetter?'yes':'no')}${detailRow('Raw secret material',item.rawSecretMaterialAllowed?'ALLOWED':'forbidden')}</div></article>`).join(''):emptyState('Provider contracts unavailable','Notification adapter authority was not returned by the API.');
   const destinationRows=latest(state.notificationDestinations).map(item=>tableRow([
     tableCell(`<span class="cell-title">${esc(item.name)}</span><span class="cell-meta">${esc(orgById.get(item.organizationId)?.displayName||item.organizationId)}</span>`),
     tableCell(`${badge(item.kind)} ${badge(item.state)}`,'status-cell'),
     tableCell(`<span class="technical">${esc(item.endpoint||'Local console')}</span>`),
     tableCell(`${esc(item.timeoutSeconds||10)}s`,'numeric'),
-    tableCell(`<div class="row-actions"><button type="button" class="secondary small-button" data-notification-destination-action="inspect" data-id="${esc(item.id)}">Inspect</button><button type="button" class="secondary small-button" data-notification-destination-action="edit" data-id="${esc(item.id)}">Edit</button>${item.state==='ACTIVE'?`<button type="button" class="danger small-button" data-notification-destination-action="disable" data-id="${esc(item.id)}">Disable</button>`:''}</div>`,'actions-cell')
+    tableCell(`<div class="row-actions"><button type="button" class="secondary small-button" data-notification-destination-action="inspect" data-id="${esc(item.id)}">Inspect</button>${item.state==='ACTIVE'?`<button type="button" class="secondary small-button" data-notification-destination-action="edit" data-id="${esc(item.id)}">Edit</button><button type="button" class="danger small-button" data-notification-destination-action="disable" data-id="${esc(item.id)}">Disable</button>`:''}</div>`,'actions-cell')
   ]));
   $('#notification-destination-grid').innerHTML=dataTable('Notification destinations',[{label:'Destination'},{label:'Kind / state'},{label:'Endpoint'},{label:'Timeout',className:'numeric'},{label:'Actions'}],destinationRows,'No destinations','Create a console or webhook destination.',{source:'notification destinations'});
   const routeRows=latest(state.notificationRoutes).map(item=>tableRow([
@@ -2082,9 +3509,9 @@ function renderNotificationResources(){
 }
 async function loadNotifications(){
   try{
-    const [organizations,projects,eventTypes,destinations,routes,events,deliveries]=await Promise.all([softApi('/api/v1/organizations',[],'organizations'),softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/notification-event-types',[],'notification event types'),softApi('/api/v1/notification-destinations',[],'notification destinations'),softApi('/api/v1/notification-routes',[],'notification routes'),softApi('/api/v1/notification-events?limit=100',[],'notification events'),softApi('/api/v1/notification-deliveries?limit=100',[],'notification deliveries')]);
-    Object.assign(state,{organizations,projects,notificationEventTypes:eventTypes,notificationDestinations:destinations,notificationRoutes:routes,notificationEvents:events,notificationDeliveries:deliveries});
-    renderNotificationSelectors();renderNotificationResources();
+    const [organizations,projects,eventTypes,providerContracts,destinations,routes,events,deliveries]=await Promise.all([softApi('/api/v1/organizations',[],'organizations'),softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/notification-event-types',[],'notification event types'),softApi('/api/v1/notification-provider-contracts',[],'notification provider contracts'),softApi('/api/v1/notification-destinations',[],'notification destinations'),softApi('/api/v1/notification-routes',[],'notification routes'),softApi('/api/v1/notification-events?limit=100',[],'notification events'),softApi('/api/v1/notification-deliveries?limit=100',[],'notification deliveries')]);
+    Object.assign(state,{organizations,projects,notificationEventTypes:eventTypes,notificationProviderContracts:providerContracts,notificationDestinations:destinations,notificationRoutes:routes,notificationEvents:events,notificationDeliveries:deliveries});
+    renderNotificationSelectors();renderNotificationResources();renderNotificationRoutingPreview();
   }catch(error){for(const id of ['notification-destination-grid','notification-route-grid','notification-event-grid','notification-delivery-grid'])$( `#${id}` ).innerHTML=errorState(error.message);}
 }
 function resetNotificationDestinationForm(){
@@ -2101,6 +3528,7 @@ function editNotificationRoute(item){
 }
 $('#notification-destination-kind').onchange=()=>{const webhook=$('#notification-destination-kind').value==='WEBHOOK';$('#notification-webhook-fields').hidden=!webhook;$('#notification-destination-endpoint').required=webhook;};
 $('#notification-route-organization').onchange=renderNotificationSelectors;
+$('#notification-preview-organization').onchange=()=>{state.notificationRoutingPreview=null;renderNotificationSelectors();renderNotificationRoutingPreview();};
 $('#notification-destination-cancel-edit').onclick=async()=>{const form=$('#notification-destination-form');if(!await confirmDiscardDirty(form,'Discard destination changes?','Cancel editing and discard unsaved notification destination changes?'))return;resetNotificationDestinationForm();};
 $('#notification-route-cancel-edit').onclick=async()=>{const form=$('#notification-route-form');if(!await confirmDiscardDirty(form,'Discard routing changes?','Cancel editing and discard unsaved notification routing changes?'))return;resetNotificationRouteForm();};
 $('#notification-destination-form').onsubmit=async event=>{
@@ -2108,13 +3536,17 @@ $('#notification-destination-form').onsubmit=async event=>{
   const body={organizationId:editing?(state.notificationDestinations.find(item=>item.id===editing)?.organizationId||$('#notification-destination-organization').value):$('#notification-destination-organization').value,name:$('#notification-destination-name').value.trim(),kind,endpoint:kind==='WEBHOOK'?$('#notification-destination-endpoint').value.trim():'',authorizationEnv:kind==='WEBHOOK'?$('#notification-destination-auth-env').value.trim():'',hmacSecretEnv:kind==='WEBHOOK'?$('#notification-destination-hmac-env').value.trim():'',allowHttp:kind==='WEBHOOK'&&$('#notification-destination-allow-http').checked,timeoutSeconds:Number($('#notification-destination-timeout').value||10)};
   try{if(editing)await api(`/api/v1/notification-destinations/${editing}`,{method:'PUT',headers:{'If-Match':`"${form.dataset.revision}"`},body});else await api('/api/v1/notification-destinations',{method:'POST',body});toast(editing?'Notification destination updated.':'Notification destination created.');resetNotificationDestinationForm();await loadNotifications();}catch(error){toast(error.message,'error');}
 };
+$('#notification-preview-form').onsubmit=async event=>{
+  event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;const body={organizationId:$('#notification-preview-organization').value,projectId:$('#notification-preview-project').value||'',eventType:$('#notification-preview-event-type').value,severity:$('#notification-preview-severity').value};
+  try{state.notificationRoutingPreview=await api('/api/v1/notification-routing/preview',{method:'POST',body});renderNotificationRoutingPreview();toast('Notification routing preview refreshed.');}catch(error){state.notificationRoutingPreview=null;$('#notification-preview-result').innerHTML=errorState(error.message);toast(error.message,'error');}
+};
 $('#notification-route-form').onsubmit=async event=>{
   event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;const eventPatterns=$$('#notification-event-type-list input:checked').map(input=>input.value),destinationIds=[...$('#notification-route-destinations').selectedOptions].map(option=>option.value).filter(Boolean);if(!eventPatterns.length){toast('Select at least one event type.','error');return;}if(!destinationIds.length){toast('Select at least one active destination.','error');return;}const editing=form.dataset.editId;
   const body={organizationId:editing?(state.notificationRoutes.find(item=>item.id===editing)?.organizationId||$('#notification-route-organization').value):$('#notification-route-organization').value,projectId:$('#notification-route-project').value||'',name:$('#notification-route-name').value.trim(),enabled:editing?form.dataset.enabled==='true':true,eventPatterns,minimumSeverity:$('#notification-route-severity').value,destinationIds};
   try{if(editing)await api(`/api/v1/notification-routes/${editing}`,{method:'PUT',headers:{'If-Match':`"${form.dataset.revision}"`},body});else await api('/api/v1/notification-routes',{method:'POST',body});toast(editing?'Notification routing rule updated.':'Notification routing rule created.');resetNotificationRouteForm();await loadNotifications();}catch(error){toast(error.message,'error');}
 };
 $('#notification-destination-grid').onclick=async event=>{const button=event.target.closest('[data-notification-destination-action]');if(!button)return;const item=state.notificationDestinations.find(v=>v.id===button.dataset.id);if(!item)return;if(button.dataset.notificationDestinationAction==='inspect'){showDetails('Notification destination',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(item.id)}</dd><dt>Kind / state</dt><dd>${badge(item.kind)} ${badge(item.state)}</dd><dt>Endpoint</dt><dd class="technical">${esc(item.endpoint||'Local console')}</dd><dt>Authorization env</dt><dd class="technical">${esc(item.authorizationEnv||'—')}</dd><dt>HMAC env</dt><dd class="technical">${esc(item.hmacSecretEnv||'—')}</dd><dt>Allow HTTP</dt><dd>${item.allowHttp?'yes':'no'}</dd><dt>Revision</dt><dd>${esc(item.revision)}</dd></dl>`);return;}if(button.dataset.notificationDestinationAction==='edit'){const form=$('#notification-destination-form');if(form.dataset.editId===item.id&&dirtyWithin(form)){form.scrollIntoView({behavior:'smooth',block:'center'});return;}if(!await confirmDiscardDirty(form,'Replace unsaved destination changes?','Open this destination and discard the unsaved values currently in the destination editor?'))return;editNotificationDestination(item);return;}if(button.dataset.notificationDestinationAction==='disable'){if(!await confirmAction('Disable notification destination','Disable this destination? Existing history remains, but new matching deliveries will no longer target it.',true))return;try{await api(`/api/v1/notification-destinations/${item.id}/disable`,{method:'POST',headers:{'If-Match':`"${item.revision}"`,'X-Confirm-Disable':'disable-notification-destination'},body:{}});toast('Notification destination disabled.');await loadNotifications();}catch(error){toast(error.message,'error');}}};
-$('#notification-route-grid').onclick=async event=>{const button=event.target.closest('[data-notification-route-action]');if(!button)return;const item=state.notificationRoutes.find(v=>v.id===button.dataset.id);if(!item)return;if(button.dataset.notificationRouteAction==='inspect'){showDetails('Notification route',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(item.id)}</dd><dt>Enabled</dt><dd>${esc(item.enabled)}</dd><dt>Minimum severity</dt><dd>${badge(item.minimumSeverity)}</dd><dt>Event patterns</dt><dd class="technical">${esc((item.eventPatterns||[]).join(', '))}</dd><dt>Destinations</dt><dd class="technical">${esc((item.destinationIds||[]).join(', '))}</dd><dt>Revision</dt><dd>${esc(item.revision)}</dd></dl>`);return;}if(button.dataset.notificationRouteAction==='edit'){const form=$('#notification-route-form');if(form.dataset.editId===item.id&&dirtyWithin(form)){form.scrollIntoView({behavior:'smooth',block:'center'});return;}if(!await confirmDiscardDirty(form,'Replace unsaved routing changes?','Open this routing rule and discard the unsaved values currently in the routing editor?'))return;editNotificationRoute(item);return;}if(button.dataset.notificationRouteAction==='toggle'){try{await api(`/api/v1/notification-routes/${item.id}`,{method:'PUT',headers:{'If-Match':`"${item.revision}"`},body:{organizationId:item.organizationId,projectId:item.projectId||'',name:item.name,enabled:!item.enabled,eventPatterns:item.eventPatterns,minimumSeverity:item.minimumSeverity,destinationIds:item.destinationIds}});toast(item.enabled?'Routing rule disabled.':'Routing rule enabled.');await loadNotifications();}catch(error){toast(error.message,'error');}}};
+$('#notification-route-grid').onclick=async event=>{const button=event.target.closest('[data-notification-route-action]');if(!button)return;const item=state.notificationRoutes.find(v=>v.id===button.dataset.id);if(!item)return;if(button.dataset.notificationRouteAction==='inspect'){let policy=null;try{policy=await api(`/api/v1/notification-routes/${item.id}/policy-digest`);}catch(_error){}showDetails('Notification route',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(item.id)}</dd><dt>Enabled</dt><dd>${esc(item.enabled)}</dd><dt>Minimum severity</dt><dd>${badge(item.minimumSeverity)}</dd><dt>Event patterns</dt><dd class="technical">${esc((item.eventPatterns||[]).join(', '))}</dd><dt>Destinations</dt><dd class="technical">${esc((item.destinationIds||[]).join(', '))}</dd><dt>Policy digest</dt><dd class="technical">${esc(policy?.digest||'Unavailable')}</dd><dt>Revision</dt><dd>${esc(item.revision)}</dd></dl>`);return;}if(button.dataset.notificationRouteAction==='edit'){const form=$('#notification-route-form');if(form.dataset.editId===item.id&&dirtyWithin(form)){form.scrollIntoView({behavior:'smooth',block:'center'});return;}if(!await confirmDiscardDirty(form,'Replace unsaved routing changes?','Open this routing rule and discard the unsaved values currently in the routing editor?'))return;editNotificationRoute(item);return;}if(button.dataset.notificationRouteAction==='toggle'){const enabling=!item.enabled;const title=enabling?'Enable notification route':'Disable notification route';const impact=enabling?'Enable this route? New matching events will begin creating deliveries to its configured destinations.':'Disable this route? Existing history remains, but new matching events will stop creating deliveries for this rule.';if(!await confirmAction(title,impact,!enabling))return;try{await api(`/api/v1/notification-routes/${item.id}`,{method:'PUT',headers:{'If-Match':`"${item.revision}"`},body:{organizationId:item.organizationId,projectId:item.projectId||'',name:item.name,enabled:enabling,eventPatterns:item.eventPatterns,minimumSeverity:item.minimumSeverity,destinationIds:item.destinationIds}});toast(enabling?'Routing rule enabled.':'Routing rule disabled.');await loadNotifications();}catch(error){toast(error.message,'error');}}};
 $('#notification-event-grid').onclick=event=>{const button=event.target.closest('[data-notification-event-id]');if(!button)return;const item=state.notificationEvents.find(v=>v.id===button.dataset.notificationEventId);if(!item)return;showDetails(item.title||item.eventType,`<dl class="key-value"><dt>Event type</dt><dd class="technical">${esc(item.eventType)}</dd><dt>Severity</dt><dd>${badge(item.severity)}</dd><dt>Source event</dt><dd class="technical">${esc(item.sourceEventId)}</dd><dt>Aggregate</dt><dd class="technical">${esc(item.aggregateType)} / ${esc(item.aggregateId)}</dd><dt>Occurred</dt><dd>${formatDate(item.occurredAt)}</dd><dt>Summary</dt><dd>${esc(item.summary||'—')}</dd></dl>`);};
 $('#notification-delivery-grid').onclick=async event=>{const button=event.target.closest('[data-notification-delivery-id]');if(!button)return;try{const view=await api(`/api/v1/notification-deliveries/${button.dataset.notificationDeliveryId}`),item=view.delivery,sourceEvent=view.event||state.notificationEvents.find(v=>v.id===item.eventId)||null,attempts=view.attempts||[];const retryScope=sourceEvent?.projectId?` data-project-scope="${esc(sourceEvent.projectId)}"`:sourceEvent?.organizationId?` data-organization-scope="${esc(sourceEvent.organizationId)}"`:' data-project-scope="__permission-scope-unavailable__"';const retry=item.state==='DEAD_LETTER'?`<div class="detail-section"><button type="button" data-notification-retry-dead-letter${retryScope} class="primary">Requeue dead letter</button></div>`:'';showDetails('Notification delivery',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(item.id)}</dd><dt>State</dt><dd>${badge(item.state)}</dd><dt>Attempt</dt><dd>${esc(item.attempt)} / ${esc(item.maxAttempts)}</dd><dt>Last HTTP status</dt><dd>${esc(item.lastStatusCode||'—')}</dd><dt>Last error</dt><dd>${esc(item.lastError||'—')}</dd><dt>Next attempt</dt><dd>${formatDate(item.nextAttemptAt)}</dd></dl><div class="detail-section"><h3>Immutable attempts</h3><div class="timeline">${attempts.length?attempts.map(attempt=>`<div class="timeline-step ${attempt.success?'success':attempt.retryable?'':'failed'}"><span class="timeline-dot">${attempt.success?'✓':'!'}</span><div><h4>Attempt ${esc(attempt.attempt)}</h4><p>${attempt.success?'SUCCEEDED':attempt.retryable?'RETRYABLE':'FAILED'} · HTTP ${esc(attempt.statusCode||'—')} · ${esc(attempt.durationMillis||0)} ms${attempt.error?` · ${esc(attempt.error)}`:''}</p><small class="technical">${esc(attempt.responseDigest||'—')}</small></div></div>`).join(''):'<p>No attempts recorded.</p>'}</div></div>${retry}`);if(item.state==='DEAD_LETTER')setTimeout(()=>{const retryButton=document.querySelector('[data-notification-retry-dead-letter]');if(retryButton)retryButton.onclick=async()=>{if(!await confirmAction('Requeue dead letter','Retry this durable delivery after the destination problem has been corrected?'))return;try{await api(`/api/v1/notification-deliveries/${item.id}/retry`,{method:'POST',headers:{'If-Match':`"${item.revision}"`},body:{}});closeDetails();toast('Dead letter requeued.');await loadNotifications();}catch(error){toast(error.message,'error');}};},0);}catch(error){toast(error.message,'error');}};
 
@@ -2137,7 +3569,11 @@ async function loadServices(){
 
 $('#git-credential-create-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;if(!canAdminister()){toast('Git credential authority requires platform-admin.','error');return;}try{await api('/api/v1/git-credentials',{method:'POST',body:{name:$('#git-credential-create-name').value.trim(),username:$('#git-credential-create-username').value.trim(),secretRef:$('#git-credential-create-secret-ref').value.trim()}});event.currentTarget.reset();toast('Git credential reference created.');await loadServices();}catch(error){toast(error.message,'error');}};
 $('#git-provider-create-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;if(!canAdminister()){toast('Git provider authority requires platform-admin.','error');return;}try{await api('/api/v1/git-providers',{method:'POST',body:{name:$('#git-provider-create-name').value.trim(),kind:'FORGEJO',baseUrl:$('#git-provider-create-base-url').value.trim(),credentialId:$('#git-provider-create-credential').value,default:$('#git-provider-create-default').checked}});event.currentTarget.reset();$('#git-provider-create-default').checked=true;toast('Forgejo provider connected.');await loadServices();}catch(error){toast(error.message,'error');}};
-$('#git-provider-grid').onclick=async event=>{const button=event.target.closest('[data-git-provider-action]');if(!button)return;const item=state.gitProviders.find(row=>row.id===button.dataset.id);if(!item)return;if(button.dataset.gitProviderAction==='rebind'){const select=$(`[data-git-provider-credential="${item.id}"]`);const credentialId=select?.value;if(!credentialId||credentialId===item.credentialId){toast(credentialId?'Provider already uses this credential.':'Select an active credential.','error');return;}try{await api(`/api/v1/git-providers/${item.id}/credential`,{method:'PUT',headers:{'If-Match':`"${item.revision}"`},body:{credentialId}});toast('Git provider credential binding updated.');await loadServices();}catch(error){toast(error.message,'error');}}};
+$('#git-provider-grid').onclick=async event=>{const button=event.target.closest('[data-git-provider-action]');if(!button)return;const item=state.gitProviders.find(row=>row.id===button.dataset.id);if(!item)return;if(button.dataset.gitProviderAction==='rebind'){const select=$(`[data-git-provider-credential="${item.id}"]`);const credentialId=select?.value,credential=state.gitCredentials.find(row=>row.id===credentialId);if(!credentialId||credentialId===item.credentialId){toast(credentialId?'Provider already uses this credential.':'Select an active credential.','error');return;}if(!credential||credential.state!=='ACTIVE'){toast('Selected Git credential is no longer ACTIVE. Refresh and select an active credential.','error');return;}if(!await confirmAction('Rebind Git provider credential',`Rebind ${item.name} to credential ${credential.name}? Subsequent Git reads and writes will use the new secret reference.`,false))return;try{await api(`/api/v1/git-providers/${item.id}/credential`,{method:'PUT',headers:{'If-Match':`"${item.revision}"`},body:{credentialId}});toast('Git provider credential binding updated.');await loadServices();}catch(error){toast(error.message,'error');}}};
+
+
+const externalRegistryAdmissionForm=$('#external-registry-admission-form');
+if(externalRegistryAdmissionForm)externalRegistryAdmissionForm.onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;const projectId=state.globalScope.projectId||'',project=projectId?scopeDirectoryProject(projectId):null,organizationId=state.globalScope.organizationId||project?.organizationId||'';if(!organizationId&&!projectId){toast('Select an organization or project in the global scope first.','error');return;}const body={organizationId,projectId,registryUrl:$('#external-registry-url').value.trim(),imageReference:$('#external-registry-reference').value.trim(),direction:$('#external-registry-direction').value,credentialRef:$('#external-registry-credential-ref').value.trim()};try{const result=await api('/api/v1/external-registry/admission',{method:'POST',body});state.externalRegistryAdmission=result;$('#external-registry-admission-result').innerHTML=`<div class="resource-details">${detailRow('Authority',result.authority,true)}${detailRow('Decision',result.admitted?'ADMITTED':'BLOCKED')}${detailRow('Registry',result.registryHost,true)}${detailRow('Repository',result.repository,true)}${detailRow('Digest',result.digest,true)}${detailRow('Direction',result.direction)}${detailRow('Managed registry authority',result.managedRegistrySoT)}${detailRow('Mutable tags',result.mutableTagsAllowed?'allowed':'forbidden')}${detailRow('Raw credentials',result.rawCredentialsAllowed?'allowed':'forbidden')}</div>`;toast('External registry reference admitted for planning.');}catch(error){state.externalRegistryAdmission=null;$('#external-registry-admission-result').innerHTML=errorState(error.message);toast(error.message,'error');}};
 
 async function loadGitDeliveryAuthority(){
   try{
@@ -2172,7 +3608,7 @@ $('#git-revision-form').onsubmit=async event=>{
   if(!Object.keys(state.gitRevisionFiles).length){toast('Add at least one desired-state file.','error');return;}
   try{const result=await api('/api/v1/system-services/git/revisions',{method:'POST',body:{organization:$('#git-revision-organization').value.trim(),repository:$('#git-revision-repository').value.trim(),revisionId:$('#git-revision-id').value.trim(),digest:$('#git-revision-digest').value.trim(),deliveryMode:$('#git-revision-delivery-mode').value,files:state.gitRevisionFiles}});const pr=result.pullRequest;$('#git-revision-result').innerHTML=pr?`<div class="success-banner"><strong>Pull request staged for review</strong><div class="resource-details">${detailRow('Revision',pr.revisionId,true)}${detailRow('Digest',pr.digest,true)}${detailRow('Pull request','#'+pr.externalNumber)}${detailRow('Head branch',pr.headBranch,true)}${detailRow('State',pr.state)}${detailRow('Changed files',result.changedFiles)}</div></div>`:`<div class="success-banner"><strong>Revision published</strong><div class="resource-details">${detailRow('Revision',result.revisionId,true)}${detailRow('Digest',result.digest,true)}${detailRow('Commit SHA',result.commitSha,true)}${detailRow('Changed files',result.changedFiles)}</div></div>`;state.gitRevisionFiles={};renderGitFiles();toast(pr?'Pull request created. Review and approve it before merge.':'Desired-state revision published.');await loadGitDeliveryAuthority();}catch(error){$('#git-revision-result').innerHTML=errorState(error.message);toast(error.message,'error');}
 };
-$('#git-pull-request-grid').onclick=async event=>{const button=event.target.closest('[data-git-pr-action]');if(!button)return;const action=button.dataset.gitPrAction,id=button.dataset.prId,revision=button.dataset.revision;if(action==='merge'&&!await confirmAction('Merge signed pull request','Merge this approved signed revision into the managed desired-state branch?',true))return;try{await api(`/api/v1/system-services/git/pull-requests/${id}/${action}`,{method:'POST',headers:{'If-Match':`"${revision}"`},body:{}});toast(action==='approve'?'Pull request approved.':'Pull request merged and recorded as managed desired state.');await loadGitDeliveryAuthority();}catch(error){toast(error.message,'error');}};
+$('#git-pull-request-grid').onclick=async event=>{const button=event.target.closest('[data-git-pr-action]');if(!button)return;const action=button.dataset.gitPrAction,id=button.dataset.prId,revision=button.dataset.revision;if(action==='approve'&&!await confirmAction('Approve signed pull request','Approve this exact signed candidate for merge? Approval does not merge or reconcile the desired state.',false))return;if(action==='merge'&&!await confirmAction('Merge signed pull request','Merge this approved signed revision into the managed desired-state branch?',true))return;try{await api(`/api/v1/system-services/git/pull-requests/${id}/${action}`,{method:'POST',headers:{'If-Match':`"${revision}"`},body:{}});toast(action==='approve'?'Pull request approved; merge remains a separate action.':'Pull request merged and recorded as managed desired state.');await loadGitDeliveryAuthority();}catch(error){toast(error.message,'error');}};
 $('#git-lkg-grid').onclick=async event=>{const button=event.target.closest('[data-git-lkg-rollback]');if(!button)return;if(!await confirmAction('Rollback Git desired state',`Restore ${button.dataset.organization}/${button.dataset.repository}@${button.dataset.branch} to its last-known-good signed revision? A fresh sync observation is required afterward.`,true))return;try{const lkgRevision=Number(button.dataset.lkgRevision);const headers={'X-Confirm-Rollback':`rollback:${button.dataset.gitLkgRollback}:${lkgRevision}`};const result=await api('/api/v1/system-services/git/last-known-good/rollback',{method:'POST',headers,body:{organization:button.dataset.organization,repository:button.dataset.repository,branch:button.dataset.branch,lkgId:button.dataset.gitLkgRollback,lkgRevision,commitSha:button.dataset.lkgCommit}});toast(`Rollback commit ${result.rollbackRevision.commitSha.slice(0,12)} created. Awaiting sync observation.`);await loadGitDeliveryAuthority();}catch(error){toast(error.message,'error');}};
 renderGitFiles();
 
@@ -2205,7 +3641,7 @@ function renderBlueprintOverlayOptions(){
 }
 function renderBlueprintOverlays(){
   const projectById=new Map(state.projects.map(item=>[item.id,item]));
-  setOptions($('#blueprint-overlay-project'),state.projects,item=>item.id,item=>item.displayName||item.name,'Create a project first');
+  setProjectOptions($('#blueprint-overlay-project'),state.projects,item=>item.displayName||item.name);
   $('#blueprint-overlay-grid').innerHTML=state.blueprintOverlays.length?latest(state.blueprintOverlays).map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)} <span class="technical">${esc(item.version)}</span></h3><div class="resource-meta">${badge(item.scope)}${badge(item.scopeKey)}</div></div></div><p>${esc(projectById.get(item.projectId)?.displayName||item.projectId)}</p><div class="resource-details">${detailRow('Digest',shortDigest(item.digest))}${detailRow('Changes',(item.changes||[]).length)}${detailRow('Created by',item.createdBy||'—')}</div><details><summary>Immutable changes</summary><pre class="code-block technical" dir="ltr">${esc(JSON.stringify(item.changes,null,2))}</pre></details></article>`).join(''):emptyState('No overlays','Create a provider or environment overlay when a Blueprint explicitly delegates fields.');
   renderBlueprintOverlayOptions();
 }
@@ -2230,7 +3666,7 @@ function renderBlueprintKubernetesOptions(){for(const [path,id] of [['spec.compa
 function renderBlueprintAuthoringOptions(){
   renderBlueprintKubernetesOptions();
   const project=$('#blueprint-project');
-  setOptions(project,state.projects,item=>item.id,item=>`${item.displayName||item.name} · ${item.name}`,'Create a project first');
+  setProjectOptions(project,state.projects);
   const plans=blueprintPlanValues();
   const planSelect=$('#blueprint-tenant-plans');
   const selectedPlans=new Set([...planSelect.selectedOptions].map(option=>option.value));
@@ -2322,7 +3758,7 @@ async function confirmDiscardBlueprintEditor(message){if(!blueprintEditorHasUnsa
 function resetBlueprintEditor(){
   state.blueprintEditorReleaseId=null; state.blueprintEditorRevision=0; state.blueprintCatalogComponents=null; state.blueprintComponentDraft={}; $('#blueprint-release-form').reset(); $('#blueprint-field-ownership').value=ownershipRulesText(defaultBlueprintOwnershipRules); $('#blueprint-api-version').value='platform.4so.io/v1alpha1'; $('#blueprint-kind').value='PlatformBlueprint'; $('#blueprint-delivery-mode').value='gitops'; $('#blueprint-tenancy-mode').value='namespace'; $('#blueprint-deletion-policy').value='approval-and-backup-required'; $('#blueprint-enforce-digest-images').checked=true; $('#blueprint-allow-plaintext-secrets').checked=false; $$('[data-blueprint-approval-risk]').forEach(input=>input.checked=['high','critical'].includes(input.value)); $('#blueprint-resolution-preview').innerHTML='';
   $('#blueprint-project').disabled=!state.projects.length; $('#blueprint-catalog-release').disabled=false; $('#blueprint-source-release').disabled=false; $('#blueprint-source-release').value=''; $('#blueprint-name').readOnly=false; $('#blueprint-version').readOnly=false;
-  $('#blueprint-editor-state').className='badge neutral'; $('#blueprint-editor-state').textContent='NEW DRAFT'; $('#blueprint-release-save').textContent=state.locale==='fa'?'ایجاد Draft':'Create draft release';
+  $('#blueprint-editor-state').className='badge neutral'; $('#blueprint-editor-state').textContent='NEW DRAFT'; $('#blueprint-release-save').textContent=state.locale==='fa'?'ایجاد پیش‌نویس':'Create draft release';
   renderBlueprintAuthoringOptions(); clearBlueprintEditorDirty(); showBlueprintAuthoringStep(1);
 }
 async function populateBlueprintEditor(view){
@@ -2339,6 +3775,41 @@ function renderBlueprintCompareOptions(){
   for(const id of ['#blueprint-compare-left','#blueprint-compare-right'])setOptions($(id),options,item=>item.id,item=>blueprintReleaseLabel(item),'No releases');
   if(options.length>1&&!$('#blueprint-compare-right').value)$('#blueprint-compare-right').value=options[1].id;
 }
+
+function platformTemplateProjectOptions(){
+  for(const id of ['template-schema-project','template-policy-project','platform-template-project'])setProjectOptions($(`#${id}`),state.projects,item=>item.displayName||item.name,'Select project');
+}
+function renderPlatformTemplateOptions(){
+  platformTemplateProjectOptions();
+  const projectID=$('#platform-template-project')?.value||'';
+  const blueprints=state.blueprintReleases.filter(item=>item.projectId===projectID&&item.state==='PUBLISHED'&&item.executionReady===true);
+  const schemas=state.variableSchemas.filter(item=>item.projectId===projectID);
+  const policies=state.platformPolicySets.filter(item=>item.projectId===projectID);
+  setOptions($('#platform-template-blueprint'),blueprints,item=>item.id,item=>`${item.blueprintName} ${item.blueprintVersion}`,'No eligible Blueprint');
+  setOptions($('#platform-template-schema'),schemas,item=>item.id,item=>`${item.name} ${item.version}`,'No variable schema');
+  setOptions($('#platform-template-policy'),policies,item=>item.id,item=>`${item.name} ${item.version}`,'No policy set');
+}
+function renderPlatformTemplateAuthorities(){
+  const projectById=new Map(state.projects.map(item=>[item.id,item]));
+  $('#template-schema-grid').innerHTML=state.variableSchemas.length?state.variableSchemas.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)} <span class="technical">${esc(item.version)}</span></h3><div class="resource-meta">${badge('VARIABLE SCHEMA')}</div></div></div><p>${esc(projectById.get(item.projectId)?.displayName||item.projectId)}</p><div class="resource-details">${detailRow('Variables',(item.variables||[]).length)}${detailRow('Digest',shortDigest(item.digest))}</div></article>`).join(''):emptyState('No variable schemas','Create a typed schema before composing a platform template.');
+  $('#template-policy-grid').innerHTML=state.platformPolicySets.length?state.platformPolicySets.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)} <span class="technical">${esc(item.version)}</span></h3><div class="resource-meta">${badge(item.maintenance?.riskClass||'POLICY')}</div></div></div><p>${esc(projectById.get(item.projectId)?.displayName||item.projectId)}</p><div class="resource-details">${detailRow('Max unavailable',`${item.maintenance?.maxUnavailable||0}%`)}${detailRow('Pod security',item.security?.podSecurityLevel||'—')}${detailRow('Digest',shortDigest(item.digest))}</div></article>`).join(''):emptyState('No policy sets','Create reusable operating policy before composing a platform template.');
+  $('#platform-template-grid').innerHTML=state.platformTemplates.length?state.platformTemplates.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)} <span class="technical">${esc(item.version)}</span></h3><div class="resource-meta">${badge(item.impact?.status||'TARGET_PREVIEW_REQUIRED')}</div></div></div><p>${esc(projectById.get(item.projectId)?.displayName||item.projectId)}</p><div class="resource-details">${detailRow('Template digest',shortDigest(item.digest))}${detailRow('Blueprint',shortDigest(item.blueprintDigest))}${detailRow('Variable schema',shortDigest(item.variableSchemaDigest))}${detailRow('Policy set',shortDigest(item.policySetDigest))}${detailRow('Target classes',(item.allowedTargetClasses||[]).join(', ')||'—')}${detailRow('Certification',(item.certificationRequirements||[]).join(', '))}</div><div class="resource-actions"><button class="secondary small-button" type="button" data-template-admission="${esc(item.id)}" data-target-class="${esc((item.allowedTargetClasses||[])[0]||'')}">Check source admission</button></div></article>`).join(''):emptyState('No platform templates','Compose a published Blueprint release, VariableSchema and PolicySet.');
+  renderPlatformTemplateOptions();
+}
+async function loadPlatformTemplates(){
+  try{
+    const [projects,releases,schemas,policies,templates]=await Promise.all([softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/blueprint-releases',[],'blueprint releases'),softApi('/api/v1/variable-schemas',[],'variable schemas'),softApi('/api/v1/platform-policy-sets',[],'platform policy sets'),softApi('/api/v1/platform-templates',[],'platform templates')]);
+    Object.assign(state,{projects,blueprintReleases:releases,variableSchemas:schemas,platformPolicySets:policies,platformTemplates:templates});
+    renderPlatformTemplateAuthorities();
+  }catch(error){$('#platform-template-grid').innerHTML=errorState(error.message);toast(error.message,'error');}
+}
+function parseTemplateJSON(id,label){try{const value=JSON.parse($(id).value.trim());if(!Array.isArray(value))throw new Error(`${label} must be a JSON array.`);return value;}catch(error){throw new Error(`${label}: ${error.message}`);}}
+$('#template-schema-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;try{await api('/api/v1/variable-schemas',{method:'POST',body:{projectId:$('#template-schema-project').value,name:$('#template-schema-name').value.trim(),version:$('#template-schema-version').value.trim(),variables:parseTemplateJSON('#template-schema-variables','Variable definitions')}});toast('Immutable variable schema created.');form.reset();await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
+$('#template-policy-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;try{const required=$('#template-policy-backup-required').checked;await api('/api/v1/platform-policy-sets',{method:'POST',body:{projectId:$('#template-policy-project').value,name:$('#template-policy-name').value.trim(),version:$('#template-policy-version').value.trim(),maintenance:{riskClass:$('#template-policy-risk').value,requireApproval:$('#template-policy-approval').checked,maxUnavailable:Number($('#template-policy-max-unavailable').value),requireRecoveryCheckpoint:$('#template-policy-checkpoint').checked},backup:{required,provider:required?$('#template-policy-backup-provider').value.trim():'',schedule:required?$('#template-policy-backup-schedule').value.trim():'',retention:required?$('#template-policy-backup-retention').value.trim():''},security:{podSecurityLevel:$('#template-policy-security').value,defaultDenyIngress:$('#template-policy-deny-ingress').checked,defaultDenyEgress:$('#template-policy-deny-egress').checked,allowDNS:$('#template-policy-allow-dns').checked}}});toast('Immutable policy set created.');form.reset();await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
+$('#platform-template-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;try{const targets=$('#platform-template-targets').value.split(',').map(v=>v.trim()).filter(Boolean),certificationRequirements=$$('[data-template-cert]:checked').map(el=>el.value);if(!certificationRequirements.length)throw new Error('Select at least one certification requirement.');await api('/api/v1/platform-templates',{method:'POST',body:{projectId:$('#platform-template-project').value,name:$('#platform-template-name').value.trim(),version:$('#platform-template-version').value.trim(),blueprintReleaseId:$('#platform-template-blueprint').value,variableSchemaId:$('#platform-template-schema').value,policySetId:$('#platform-template-policy').value,allowedTargetClasses:targets,certificationRequirements}});toast('Immutable Platform Template created.');form.reset();$$('[data-template-cert]').forEach(el=>el.checked=true);await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
+$('#platform-template-project').addEventListener('change',renderPlatformTemplateOptions);
+$('#templates').addEventListener('click',async event=>{const button=event.target.closest('[data-template-admission]');if(!button)return;try{const result=await api(`/api/v1/platform-templates/${button.dataset.templateAdmission}/admission?targetClass=${encodeURIComponent(button.dataset.targetClass||'')}`);$('#platform-template-admission-result').innerHTML=`<div class="${result.blockers?.length?'warning-banner':'inline-summary'}"><strong>Source admission</strong> · binding ${result.bindingValid?'valid':'invalid'} · target ${result.targetAllowed?'allowed':'blocked'} · adoption ready <strong>${result.adoptionReady?'YES':'NO'}</strong> · impact ${esc(result.impactStatus)}${result.blockers?.length?`<br>Blockers: ${esc(result.blockers.join(', '))}`:''}<br><small>Even with zero source blockers, adoptionReady remains false until target-specific impact and required certification evidence exist.</small></div>`;}catch(error){toast(error.message,'error');}});
+
 function renderBlueprintReleases(){
   const projectById=new Map(state.projects.map(item=>[item.id,item]));
   $('#blueprint-release-grid').innerHTML=state.blueprintReleases.length?latest(state.blueprintReleases).map(item=>{const project=projectById.get(item.projectId);let actions=`<button type="button" class="secondary small-button" data-blueprint-action="inspect" data-id="${esc(item.id)}">Inspect</button>`;if(item.state==='DRAFT')actions+=`<button type="button" class="secondary small-button" data-blueprint-action="edit" data-id="${esc(item.id)}">Edit draft</button><button type="button" class="primary small-button" data-blueprint-action="review" data-id="${esc(item.id)}">Submit review</button>`;if(item.state==='REVIEW')actions+=`<button type="button" class="secondary small-button" data-blueprint-action="request-changes" data-id="${esc(item.id)}">Request changes</button><button type="button" class="primary small-button" data-blueprint-action="publish" data-id="${esc(item.id)}">Publish</button>`;if(['PUBLISHED','DEPRECATED','REVOKED'].includes(item.state))actions+=`<button type="button" class="secondary small-button" data-blueprint-action="clone" data-id="${esc(item.id)}">Clone</button>`;if(item.state==='PUBLISHED')actions+=`<button type="button" class="secondary small-button" data-blueprint-action="deprecate" data-id="${esc(item.id)}">Deprecate</button><button type="button" class="danger small-button" data-blueprint-action="revoke" data-id="${esc(item.id)}">Revoke</button>`;if(item.state==='DEPRECATED')actions+=`<button type="button" class="danger small-button" data-blueprint-action="revoke" data-id="${esc(item.id)}">Revoke</button>`;return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.blueprintName)} <span class="technical">${esc(item.blueprintVersion)}</span></h3><div class="resource-meta">${badge(item.state)}${badge(item.planStatus||'unknown')}${item.executionReady?badge('execution-ready'):badge('planning-only')}</div></div></div><p>${esc(project?.displayName||project?.name||item.projectId)}</p><div class="resource-details">${detailRow('Revision',`r${item.revision}`)}${detailRow('Blueprint digest',shortDigest(item.currentBlueprintDigest))}${detailRow('Catalog digest',shortDigest(item.catalogDigest))}${detailRow('Upgrade sources',(item.upgradeFromIds||[]).length)}${detailRow('Requested by',item.requestedBy||'—')}${detailRow('Published',formatDate(item.publishedAt))}</div><div class="resource-actions">${actions}</div></article>`;}).join(''):emptyState('No Blueprint releases','Create a project, then author the first real Blueprint release from this page.');
@@ -2397,7 +3868,10 @@ function updateCatalogSelectedCount(){const selected=catalogSelectedComponents()
 function renderCatalogGovernance(summary={}){
   const signer=state.catalogSigningIdentity||{};
   const published=state.catalogReleases.filter(item=>item.state==='PUBLISHED').length, activeKeys=state.catalogTrustKeys.filter(item=>item.state==='ACTIVE').length;
-  $('#catalog-summary').innerHTML=[['Components',summary.componentCount||state.catalog.length,`${summary.resolvedComponentCount||0} resolved · ${summary.unresolvedComponentCount??state.catalog.filter(c=>!c.spec?.source?.resolved).length} unresolved`],['Renderable',summary.renderableComponentCount||0,'embedded source bundles verified at startup'],['Governed releases',state.catalogReleases.length,`${published} published`],['Active trust keys',activeKeys,'Ed25519 verification authority'],['Catalog digest',shortDigest(summary.digest||''),'shipped inventory digest']].map(([label,value,detail])=>`<article class="metric-card"><strong${label==='Catalog digest'?' class="technical"':''}>${esc(value)}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></article>`).join('');
+  const upstream=summary.upstreamAdmission||{total:0,readyForAcquisition:0,reviewRequired:0,runtimeBlocked:0,components:[]};
+  $('#catalog-summary').innerHTML=[['Components',summary.componentCount||state.catalog.length,`${summary.resolvedComponentCount||0} resolved · ${summary.unresolvedComponentCount??state.catalog.filter(c=>!c.spec?.source?.resolved).length} unresolved`],['Renderable',summary.renderableComponentCount||0,'embedded source bundles verified at startup'],['S1 acquisition',`${upstream.readyForAcquisition||0}/${upstream.total||0}`,`${upstream.reviewRequired||0} source-selection reviews · ${upstream.runtimeBlocked||0} runtime holds`],['Governed releases',state.catalogReleases.length,`${published} published`],['Active trust keys',activeKeys,'Ed25519 verification authority'],['Catalog digest',shortDigest(summary.digest||''),'shipped inventory digest']].map(([label,value,detail])=>`<article class="metric-card"><strong${label==='Catalog digest'?' class="technical"':''}>${esc(value)}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></article>`).join('');
+  const upstreamRows=Array.isArray(upstream.components)?upstream.components:[];
+  $('#catalog-upstream-admission').innerHTML=upstreamRows.length?`${upstream.reviewRequired?`<div class="warning-banner"><strong>${esc(upstream.reviewRequired)} source-selection review${upstream.reviewRequired===1?'':'s'} remain blocked</strong> · ${esc(upstream.readyForAcquisition||0)} exact candidates are acquisition-ready.</div>`:upstream.runtimeBlocked?`<div class="warning-banner"><strong>Source admission closed</strong> · all ${esc(upstream.readyForAcquisition||0)} candidates may be acquired, while ${esc(upstream.runtimeBlocked||0)} runtime hold${upstream.runtimeBlocked===1?'':'s'} remain fail-closed until separate certification clears them.</div>`:`<div class="success-banner"><strong>Source admission closed</strong> · every unresolved upstream component has an exact acquisition candidate. Immutable acquisition and runtime certification remain separate gates.</div>`}<div class="activity-list">${upstreamRows.map(row=>{const selected=row.selectedVersion||row.catalogConstraint||'unselected',sourceBlocked=row.status!=='ready-for-acquisition',runtimeBlocked=row.runtimeStatus&&row.runtimeStatus!=='eligible-after-source-resolution',evidence=Array.isArray(row.reviewEvidence)?row.reviewEvidence:[];return `<div class="activity-item"><div class="activity-main"><span class="check-icon">${sourceBlocked?'!':runtimeBlocked?'~':'✓'}</span><div><strong>${esc(row.component)} · ${esc(selected)}</strong><small>${esc(row.rationale||'No rationale')}</small>${evidence.length?`<details><summary>Review evidence · ${esc(evidence.length)}</summary><div class="resource-details">${evidence.map(item=>`${detailRow('Kind',item.kind||'evidence')}${detailRow('Evidence',item.url||'—',true)}${detailRow('Finding',item.summary||'—')}`).join('')}</div></details>`:''}</div></div><div class="resource-meta">${badge(row.status||'UNKNOWN')}${badge(row.runtimeStatus||'UNKNOWN')}</div></div>`;}).join('')}</div>`:emptyState('No upstream admission rows','All shipped components are already source-resolved or the admission authority has no unresolved Helm rows.');
   $('#catalog-signer').innerHTML=signer.available?`<strong>Signer ready</strong> · ${badge(signer.mode||'configured')} · <span class="technical">${esc(signer.fingerprint||'')}</span>`:'<strong>Signing disabled</strong> · configure PLATFORM_FACTORY_CATALOG_SIGNING_PRIVATE_KEY_B64 for OIDC environments.';
   prerequisite($('#catalog-prerequisite'),signer.available,'A catalog signing identity is required before releases can enter REVIEW.','services','Review system configuration');
   const orgOptions=`<option value="">Platform-wide trust</option>${state.organizations.map(org=>`<option value="${esc(org.id)}">${esc(org.displayName||org.name)} · private</option>`).join('')}`;
@@ -2446,7 +3920,7 @@ function renderCompatibilityResult(result){
 $('#compatibility-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const input=$('#blueprint-input').value.trim();if(!input){toast('Paste a Blueprint JSON document first.','error');return;}let blueprint;try{blueprint=JSON.parse(input);}catch(error){toast(`Invalid JSON: ${error.message}`,'error');return;}const target={kubernetesVersion:$('#compatibility-kubernetes').value.trim(),architecture:$('#compatibility-architecture').value,distribution:$('#compatibility-distribution').value,provider:$('#compatibility-provider').value};try{const result=await api('/api/v1/compatibility/evaluate',{method:'POST',body:{blueprint,target}});renderCompatibilityResult(result);toast('Compatibility evaluation completed.');}catch(error){if(error.body?.decision){renderCompatibilityResult(error.body);toast('Compatibility evaluation found blockers.','warning');}else toast(error.message,'error');}};
 $('#validate').onclick=()=>runBlueprint('/api/v1/blueprints/validate');$('#plan').onclick=()=>runBlueprint('/api/v1/plans');$('#blueprint-clear').onclick=()=>{$('#blueprint-input').value='';delete $('#blueprint-input').dataset.dirty;$('#blueprint-result-panel').hidden=true;$('#compatibility-result').innerHTML='';};
 
-const loaders={overview:loadOverview,workspace:loadWorkspace,installation:loadInstallation,clusters:loadClusters,providers:loadProviders,blueprints:loadBlueprints,marketplace:loadMarketplace,baselines:loadBaselines,verification:loadVerification,fleet:loadFleet,tenants:loadTenants,operations:loadOperations,ai:loadAI,lab:loadLab,notifications:loadNotifications,services:loadServices,catalog:loadCatalog,validator:async()=>{}};
+const loaders={overview:loadOverview,workspace:loadWorkspace,installation:loadInstallation,clusters:loadClusters,providers:loadProviders,blueprints:loadBlueprints,templates:loadPlatformTemplates,marketplace:loadMarketplace,baselines:loadBaselines,verification:loadVerification,fleet:loadFleet,workspaces:loadWorkspaces,finops:loadFinOps,tenants:loadTenants,operations:loadOperations,ai:loadAI,lab:loadLab,notifications:loadNotifications,services:loadServices,catalog:loadCatalog,validator:async()=>{}};
 const livePages=new Set(['overview','clusters','providers','marketplace','baselines','verification','fleet','tenants','operations','ai','notifications','services']);
 function hasActiveWork(page = state.currentPage){
   const pageCollections={

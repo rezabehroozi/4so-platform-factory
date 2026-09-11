@@ -35,7 +35,7 @@ func providerFixture(t *testing.T) (*MemoryStore, context.Context, Project, Mana
 	}
 	cluster, _, err = upsertMutationReadyInventoryForTest(t, s, ctx, cluster.ID, digestTenantTest(agentToken), cluster.ExternalUID, ClusterInventory{
 		ObservedAt: time.Now().UTC(), Distribution: "rke2", KubernetesVersion: "v1.33.2",
-		Capabilities: []string{TargetMutationRBACActiveCapability, "controlled-baseline-deployment"},
+		Capabilities: []string{TargetMutationRBACActiveCapability, TargetNodeProviderMachineLifecycleCapability, "controlled-baseline-deployment"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -254,5 +254,105 @@ func TestProviderTasksLeasePreventsConcurrentReissueAndFencesRecoveredAttempt(t 
 	cluster, err = s.ReportProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken), apply2.Revision, ProviderClusterTaskResult{ProviderClusterID: cluster.ID, TaskFenceToken: apply2.TaskFenceToken, Action: "APPLY", Success: true, ObservedDigest: cluster.DesiredDigest, Phase: "Provisioning"})
 	if err != nil || cluster.State != ProviderClusterReconciling {
 		t.Fatalf("apply completion=%+v err=%v", cluster, err)
+	}
+}
+
+func TestVMwareProviderProfileAdmissionIsFailClosed(t *testing.T) {
+	s, ctx, project, management, _ := providerFixture(t)
+	base := ProviderProfile{
+		ProjectID: project.ID, ManagementClusterID: management.ID,
+		Name: "vmware-prod", DisplayName: "VMware Production",
+		Adapter: clusterAPIAdapter, Namespace: providerSystemNamespace,
+		ClusterClassName: "vmware-prod", WorkerClassName: "worker-standard",
+		DefaultKubernetesVersion: "v1.33.2", KubernetesSeries: []string{"v1.33"},
+		Architectures: []string{"amd64"}, DistributionProfiles: []string{"kubernetes"}, MaxWorkerReplicas: 20,
+		InfrastructureProvider: "vmware", InfrastructureEndpoint: "https://vcenter.example.test",
+		CredentialRef: "external-secret://4so-provider-system/vcenter-prod",
+		DesiredDigest: digestTenantTest("vmware-profile-desired"), RequestDigest: digestTenantTest("vmware-profile-request"), IdempotencyKey: "vmware-profile",
+	}
+	created, replay, err := s.CreateProviderProfile(ctx, base, "admin")
+	if err != nil || replay || created.InfrastructureProvider != "vmware" || created.InfrastructureEndpoint != "https://vcenter.example.test" || created.CredentialRef != base.CredentialRef {
+		t.Fatalf("vmware profile=%#v replay=%v err=%v", created, replay, err)
+	}
+
+	bad := []ProviderProfile{
+		func() ProviderProfile {
+			v := base
+			v.Name = "bad-http"
+			v.IdempotencyKey = "bad-http"
+			v.InfrastructureEndpoint = "http://vcenter.example.test"
+			return v
+		}(),
+		func() ProviderProfile {
+			v := base
+			v.Name = "bad-userinfo"
+			v.IdempotencyKey = "bad-userinfo"
+			v.InfrastructureEndpoint = "https://admin:secret@vcenter.example.test"
+			return v
+		}(),
+		func() ProviderProfile {
+			v := base
+			v.Name = "bad-query"
+			v.IdempotencyKey = "bad-query"
+			v.InfrastructureEndpoint = "https://vcenter.example.test/?token=secret"
+			return v
+		}(),
+		func() ProviderProfile {
+			v := base
+			v.Name = "bad-secret"
+			v.IdempotencyKey = "bad-secret"
+			v.CredentialRef = "admin:secret"
+			return v
+		}(),
+		func() ProviderProfile {
+			v := base
+			v.Name = "bad-secret-ns"
+			v.IdempotencyKey = "bad-secret-ns"
+			v.CredentialRef = "external-secret://other/vcenter"
+			return v
+		}(),
+		func() ProviderProfile {
+			v := base
+			v.Name = "bad-arm"
+			v.IdempotencyKey = "bad-arm"
+			v.Architectures = []string{"arm64"}
+			return v
+		}(),
+	}
+	for _, candidate := range bad {
+		candidate.RequestDigest = digestTenantTest(candidate.Name + "-request")
+		candidate.DesiredDigest = digestTenantTest(candidate.Name + "-desired")
+		if _, _, err := s.CreateProviderProfile(ctx, candidate, "admin"); err == nil || !errors.Is(err, ErrValidation) {
+			t.Fatalf("unsafe VMware profile %s accepted: %v", candidate.Name, err)
+		}
+	}
+}
+
+func TestVMwareProviderProfilePropagatesInfrastructureIdentity(t *testing.T) {
+	s, ctx, project, management, agentToken := providerFixture(t)
+	profile, _, err := s.CreateProviderProfile(ctx, ProviderProfile{
+		ProjectID: project.ID, ManagementClusterID: management.ID, Name: "vmware", DisplayName: "VMware",
+		Adapter: clusterAPIAdapter, Namespace: providerSystemNamespace, ClusterClassName: "vmware", WorkerClassName: "workers",
+		DefaultKubernetesVersion: "v1.33.2", KubernetesSeries: []string{"v1.33"}, Architectures: []string{"amd64"}, DistributionProfiles: []string{"kubernetes"}, MaxWorkerReplicas: 10,
+		InfrastructureProvider: "vmware", InfrastructureEndpoint: "https://vcenter.example.test", CredentialRef: "external-secret://4so-provider-system/vcenter",
+		DesiredDigest: digestTenantTest("vmware-d"), RequestDigest: digestTenantTest("vmware-r"), IdempotencyKey: "vmware",
+	}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := s.NextProviderProfileTask(ctx, management.ID, digestTenantTest(agentToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err = s.ReportProviderProfileTask(ctx, management.ID, digestTenantTest(agentToken), claimed.Revision, ProviderProfileTaskResult{ProfileID: profile.ID, TaskFenceToken: claimed.TaskFenceToken, Success: true, ObservedDigest: digestTenantTest("vmware-observed")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cluster, _, err := s.CreateProviderCluster(ctx, ProviderCluster{ProjectID: project.ID, ProviderProfileID: profile.ID, Name: "tenant-vm", DisplayName: "Tenant VM", Desired: ProviderClusterSpec{KubernetesVersion: "v1.33.2", Architecture: "amd64", DistributionIdentity: "kubernetes", ControlPlaneReplicas: 3, WorkerReplicas: 3}, RequestDigest: digestTenantTest("vmcluster-r"), IdempotencyKey: "vmcluster"}, "operator")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cluster.Desired.InfrastructureProvider != "vmware" {
+		t.Fatalf("VMware identity was not propagated: %#v", cluster.Desired)
 	}
 }

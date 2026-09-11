@@ -16,7 +16,12 @@ import (
 	"strings"
 )
 
-const InstallerBinaryPath = "bin/linux-amd64/platform-installer"
+const (
+	InstallerBinaryPath     = "bin/linux-amd64/platform-installer"
+	PlatformAPIBinaryPath   = "bin/linux-amd64/platform-api"
+	PlatformAgentBinaryPath = "bin/linux-amd64/platform-agent"
+	PlatformProbeBinaryPath = "bin/linux-amd64/platform-probe"
+)
 
 const maxArtifactManifestBytes = 8 << 20
 

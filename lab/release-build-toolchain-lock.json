@@ -1,0 +1,40 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1",
+  "kind": "ReleaseBuildToolchainLock",
+  "spec": {
+    "admissionStatus": "blocked",
+    "blockedReason": "official compiler metadata is exact-locked, but the compiler archive has not yet been acquired and verified into the offline release toolchain cache",
+    "blocker": "RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING",
+    "candidateExactCompiler": {
+      "archiveFile": "go1.27.1.linux-amd64.tar.gz",
+      "archiveSha256": "63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445",
+      "archiveSize": 70553950,
+      "archiveURL": "https://go.dev/dl/go1.27.1.linux-amd64.tar.gz",
+      "goarch": "amd64",
+      "goos": "linux",
+      "localArchivePath": "vendor/toolchains/go1.27.1.linux-amd64.tar.gz",
+      "metadataSource": "https://go.dev/dl/?mode=json",
+      "releaseDate": "2026-09-01",
+      "version": "go1.27.1"
+    },
+    "language": "go",
+    "moduleGoDirective": "1.23",
+    "observedBuilder": "go1.23.2 linux/amd64",
+    "policy": {
+      "compilerVersionMustMatchBuildProvenance": true,
+      "exactCompilerArchiveDigestRequired": true,
+      "networkAutoDownloadDuringReleaseBuildAllowed": false,
+      "physicalPassFromSourceBuildAllowed": false,
+      "supportedToolchainRequired": true
+    },
+    "releaseVersion": "0.0.359",
+    "requiredClosure": [
+      "acquire candidateExactCompiler archive out-of-band or from a trusted connected acquisition runner",
+      "verify exact archive byte size and sha256 before atomic install into vendor/toolchains",
+      "verify offline Go install reports the exact candidate version/GOOS/GOARCH",
+      "record exact go version/GOOS/GOARCH/CGO in BUILD-PROVENANCE",
+      "rebuild release binaries using only the admitted offline toolchain and compare artifact manifest"
+    ]
+  }
+}

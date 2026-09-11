@@ -1,0 +1,95 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "PlatformComponent",
+  "metadata": {
+    "name": "ceph-csi-operator"
+  },
+  "spec": {
+    "displayName": "Ceph CSI Operator",
+    "category": "storage",
+    "release": "1.0.4",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
+    "supportTier": "research-candidate",
+    "mandatory": true,
+    "dependencies": [
+      "snapshot-controller"
+    ],
+    "provides": [
+      "ceph-csi-operator"
+    ],
+    "requiresCapabilities": [
+      "volume-snapshot-controller"
+    ],
+    "exclusiveCapabilities": [
+      "ceph-csi-operator"
+    ],
+    "conflictsWith": [],
+    "risk": "critical",
+    "capabilities": [
+      "storage-driver-control-plane"
+    ],
+    "namespace": "ceph-csi-operator-system",
+    "wave": 52,
+    "settingsSchemaRef": "schemas/settings/ceph-csi-operator.schema.json",
+    "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "distributionProfiles": [
+        "kubernetes",
+        "rke2"
+      ],
+      "providers": [
+        "imported",
+        "cluster-api-topology-v1beta2"
+      ]
+    },
+    "delivery": {
+      "type": "helm",
+      "repositoryKey": "platform-charts",
+      "chart": "ceph-csi-operator"
+    },
+    "source": {
+      "type": "helm-chart",
+      "resolved": false,
+      "artifactDigest": "",
+      "sourceLockDigest": "",
+      "imageInventoryDigest": "",
+      "licenseManifestDigest": "",
+      "signatureVerification": "required",
+      "sbom": "required",
+      "provenance": "required"
+    },
+    "operations": {
+      "preflight": "required",
+      "install": "required",
+      "verify": "required",
+      "upgrade": "required",
+      "rollback": "required",
+      "uninstall": "safe-when-supported"
+    },
+    "readiness": [
+      "deployment/ceph-csi-operator-controller-manager"
+    ],
+    "rollback": {
+      "strategy": "preserve-crds-driver-state-and-restore-previous-operator-release"
+    },
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": [],
+      "evidenceDigest": ""
+    }
+  }
+}

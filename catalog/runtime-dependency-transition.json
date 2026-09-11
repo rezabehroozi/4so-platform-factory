@@ -1,0 +1,82 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "RuntimeDependencyTransition",
+  "metadata": {
+    "name": "gateway-network-stack-1-6-1"
+  },
+  "spec": {
+    "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
+    "status": "acquisition-pending",
+    "policy": {
+      "sourceAcquisitionIndependentOfRuntimeSuitability": true,
+      "mutationBeforeSourceResolution": false,
+      "runtimeCertificationRequired": true,
+      "physicalPassInference": false
+    },
+    "gatewayApi": {
+      "currentRelease": "1.5.1",
+      "currentSourceResolved": true,
+      "targetRelease": "1.6.1",
+      "releaseUrl": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.6.1",
+      "releaseCommitShort": "8bb74df",
+      "assets": [
+        {
+          "name": "standard-install.yaml",
+          "url": "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml",
+          "size": 1170953,
+          "sha256": "24d931f22abd8e40c973264319ead7cfa09d0fb7716b7ab1ee2ff174cb063a73"
+        },
+        {
+          "name": "experimental-install.yaml",
+          "url": "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/experimental-install.yaml",
+          "size": 1402117,
+          "sha256": "d7fa77650e4ef28fca0411536fcb5e237deb4d50301cfded3be49d9a1b7bbd02"
+        }
+      ],
+      "sourceStatus": "pending-byte-acquisition"
+    },
+    "kgateway": {
+      "targetRelease": "2.4.1",
+      "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+      "gatewayApiCompatibility": "1.4-1.6",
+      "sourceStatus": "pending-byte-acquisition"
+    },
+    "cilium": {
+      "targetRelease": "1.20.1",
+      "source": "https://helm.cilium.io",
+      "requiredGatewayApiRelease": "1.6.1",
+      "sourceStatus": "pending-byte-acquisition",
+      "runtimeStatus": "dependency-transition-required"
+    },
+    "ordering": [
+      "acquire-and-verify-gateway-api-1.6.1",
+      "acquire-and-verify-kgateway-2.4.1",
+      "acquire-and-verify-cilium-1.20.1",
+      "certify-gateway-api-upgrade-1.5.1-to-1.6.1",
+      "certify-kgateway-2.4.1-on-gateway-api-1.6.1",
+      "certify-cilium-1.20.1-on-gateway-api-1.6.1"
+    ],
+    "evidence": [
+      {
+        "kind": "compatibility",
+        "url": "https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/",
+        "summary": "Cilium 1.20 Gateway API support requires Gateway API v1.6.1 CRDs."
+      },
+      {
+        "kind": "compatibility",
+        "url": "https://kgateway.dev/docs/envoy/latest/reference/versions/",
+        "summary": "Kgateway 2.4.x supports Gateway API 1.4 through 1.6."
+      },
+      {
+        "kind": "release",
+        "url": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.6.1",
+        "summary": "Gateway API v1.6.1 is an immutable official release with published release assets and digests."
+      },
+      {
+        "kind": "release",
+        "url": "https://github.com/kgateway-dev/kgateway/releases/tag/v2.4.1",
+        "summary": "Kgateway v2.4.1 is the stable 2.4 patch release and publishes OCI Helm installation coordinates."
+      }
+    ]
+  }
+}

@@ -14,13 +14,23 @@ import (
 	"time"
 )
 
+type TLSKeyGenerator func() (*rsa.PrivateKey, error)
+
+func ProductionTLSKeyGenerator() (*rsa.PrivateKey, error) {
+	return rsa.GenerateKey(rand.Reader, 3072)
+}
+
+func SimulationTLSKeyGenerator() (*rsa.PrivateKey, error) {
+	return rsa.GenerateKey(rand.Reader, 1024)
+}
+
 const (
 	tlsCAPath   = "/var/lib/4so-platform-installer/secrets/platform-ca.crt"
 	tlsCertPath = "/var/lib/4so-platform-installer/secrets/platform-tls.crt"
 	tlsKeyPath  = "/var/lib/4so-platform-installer/secrets/platform-tls.key"
 )
 
-func ensureTLSMaterial(system System, publicEndpoint, dnsZone string) error {
+func ensureTLSMaterial(system System, publicEndpoint, dnsZone string, generateKey TLSKeyGenerator) error {
 	if system.Exists(tlsCAPath) && system.Exists(tlsCertPath) && system.Exists(tlsKeyPath) {
 		return nil
 	}
@@ -33,7 +43,10 @@ func ensureTLSMaterial(system System, publicEndpoint, dnsZone string) error {
 	if zone != "" {
 		hosts = append(hosts, "git."+zone, "registry."+zone, "auth."+zone, "agent."+zone)
 	}
-	caKey, err := rsa.GenerateKey(rand.Reader, 3072)
+	if generateKey == nil {
+		generateKey = ProductionTLSKeyGenerator
+	}
+	caKey, err := generateKey()
 	if err != nil {
 		return err
 	}
@@ -47,7 +60,7 @@ func ensureTLSMaterial(system System, publicEndpoint, dnsZone string) error {
 	if err != nil {
 		return err
 	}
-	leafKey, err := rsa.GenerateKey(rand.Reader, 3072)
+	leafKey, err := generateKey()
 	if err != nil {
 		return err
 	}

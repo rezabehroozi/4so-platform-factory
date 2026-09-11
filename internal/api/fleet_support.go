@@ -21,6 +21,10 @@ func optionalClusterInventory(store controlplane.Store, ctx context.Context, clu
 	return inventory, err
 }
 
+type clusterTimelinePageStore interface {
+	ListClusterTimelineAuditPage(context.Context, string, int) ([]controlplane.AuditEvent, error)
+}
+
 type supportBundleRequest struct {
 	Profile     string `json:"profile"`
 	ProjectID   string `json:"projectId,omitempty"`
@@ -44,17 +48,27 @@ func (s *Server) fleetHealth(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	clusters, err := s.store.ListManagedClusters(r.Context(), projectID)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
 	allowed, all, err := s.accessibleProjectSet(r)
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	clusters = filterProjectScoped(clusters, allowed, all, func(item controlplane.ManagedCluster) string { return item.ProjectID })
+	ids := boolSetIDs(allowed)
+	if projectID != "" {
+		ids, all = []string{projectID}, false
+	}
+	pager, ok := s.store.(managedClusterPageStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "BOUNDED_FLEET_HEALTH_UNAVAILABLE", "fleet health requires a bounded cluster pager")
+		return
+	}
+	const fleetHealthLimit = 200
+	clusters, err := pager.ListManagedClustersPage(r.Context(), ids, all, nil, fleetHealthLimit)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	w.Header().Set("X-4SO-Result-Limit", fmt.Sprint(fleetHealthLimit))
 	now := time.Now().UTC()
 	rows := make([]fleethealth.ClusterHealth, 0, len(clusters))
 	summary := map[string]int{"total": len(clusters), "healthy": 0, "warning": 0, "stale": 0, "critical": 0, "online": 0, "eol": 0}
@@ -94,7 +108,7 @@ func (s *Server) fleetHealth(w http.ResponseWriter, r *http.Request) {
 		}
 		return rows[i].Name < rows[j].Name
 	})
-	writeJSON(w, http.StatusOK, map[string]any{"generatedAt": now, "summary": summary, "supportPolicy": fleethealth.SnapshotPolicy(now), "clusters": rows})
+	writeJSON(w, http.StatusOK, map[string]any{"generatedAt": now, "summary": summary, "summaryScope": "returned-clusters", "bounded": true, "resultLimit": fleetHealthLimit, "supportPolicy": fleethealth.SnapshotPolicy(now), "clusters": rows})
 }
 
 func healthRank(value string) int {
@@ -131,87 +145,11 @@ func (s *Server) clusterTimeline(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) clusterTimelineEvents(r *http.Request, cluster controlplane.ManagedCluster) ([]controlplane.AuditEvent, error) {
-	snapshot, err := s.store.Snapshot(r.Context())
-	if err != nil {
-		return nil, err
+	pager, ok := s.store.(clusterTimelinePageStore)
+	if !ok {
+		return nil, fmt.Errorf("%w: cluster timeline requires bounded scoped audit pager", controlplane.ErrPrerequisite)
 	}
-	resourceIDs := map[string]bool{cluster.ID: true, cluster.ImportID: true}
-	for _, inventory := range snapshot.ClusterInventories {
-		if inventory.ClusterID == cluster.ID {
-			resourceIDs[inventory.ID] = true
-		}
-	}
-	for _, certificate := range snapshot.AgentCertificates {
-		if certificate.ClusterID == cluster.ID {
-			resourceIDs[certificate.ID] = true
-		}
-	}
-	for _, deployment := range snapshot.BaselineDeployments {
-		if deployment.ClusterID == cluster.ID {
-			resourceIDs[deployment.ID] = true
-		}
-	}
-	for _, verification := range snapshot.RuntimeVerifications {
-		if verification.ClusterID == cluster.ID {
-			resourceIDs[verification.ID] = true
-		}
-	}
-	for _, campaign := range snapshot.RuntimeClosureCampaigns {
-		if campaign.ClusterID == cluster.ID {
-			resourceIDs[campaign.ID] = true
-		}
-	}
-	for _, tenant := range snapshot.Tenants {
-		if tenant.ClusterID == cluster.ID {
-			resourceIDs[tenant.ID] = true
-		}
-	}
-	for _, profile := range snapshot.ProviderProfiles {
-		if profile.ManagementClusterID == cluster.ID {
-			resourceIDs[profile.ID] = true
-		}
-	}
-	for _, group := range snapshot.FleetGroups {
-		for _, clusterID := range group.ClusterIDs {
-			if clusterID == cluster.ID {
-				resourceIDs[group.ID] = true
-				break
-			}
-		}
-	}
-	for _, scan := range snapshot.DriftScans {
-		for _, target := range scan.Targets {
-			if target.ClusterID == cluster.ID {
-				resourceIDs[scan.ID] = true
-				break
-			}
-		}
-	}
-	for _, campaign := range snapshot.UpgradeCampaigns {
-		for _, target := range campaign.Targets {
-			if target.ClusterID == cluster.ID {
-				resourceIDs[campaign.ID] = true
-				break
-			}
-		}
-	}
-	out := make([]controlplane.AuditEvent, 0, 64)
-	for _, event := range snapshot.Audit {
-		visible := resourceIDs[event.ResourceID]
-		if !visible && event.Metadata != nil {
-			if value, ok := event.Metadata["clusterId"].(string); ok && value == cluster.ID {
-				visible = true
-			}
-		}
-		if visible {
-			out = append(out, event)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].OccurredAt.After(out[j].OccurredAt) })
-	if len(out) > 200 {
-		out = out[:200]
-	}
-	return out, nil
+	return pager.ListClusterTimelineAuditPage(r.Context(), cluster.ID, 200)
 }
 
 func (s *Server) supportBundleProfiles(w http.ResponseWriter, _ *http.Request) {
@@ -252,9 +190,19 @@ func (s *Server) createSupportBundle(w http.ResponseWriter, r *http.Request) {
 			writeStoreError(w, err)
 			return
 		}
-		clusters, err := s.store.ListManagedClusters(r.Context(), input.ProjectID)
+		clusterPager, ok := s.store.(managedClusterPageStore)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "BOUNDED_SUPPORT_BUNDLE_UNAVAILABLE", "fleet support bundles require a bounded cluster pager")
+			return
+		}
+		const fleetBundleClusterLimit = 50
+		clusters, err := clusterPager.ListManagedClustersPage(r.Context(), []string{input.ProjectID}, false, nil, fleetBundleClusterLimit+1)
 		if err != nil {
 			writeStoreError(w, err)
+			return
+		}
+		if len(clusters) > fleetBundleClusterLimit {
+			writeError(w, http.StatusUnprocessableEntity, "SUPPORT_BUNDLE_SCOPE_TOO_LARGE", "fleet-diagnostics is limited to 50 clusters per synchronous bundle; use cluster-diagnostics for a narrower incident scope")
 			return
 		}
 		details := make([]clusterSupportSnapshot, 0, len(clusters))
@@ -276,9 +224,19 @@ func (s *Server) createSupportBundle(w http.ResponseWriter, r *http.Request) {
 			}
 			details = append(details, clusterSupportSnapshot{Cluster: cluster, Inventory: inventory, Certificates: certificates, Health: fleethealth.Evaluate(cluster, inventory, certificates, now), Timeline: timeline})
 		}
-		operations, err := s.store.ListOperations(r.Context(), input.ProjectID)
+		opPager, ok := s.store.(operationPageStore)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "BOUNDED_SUPPORT_BUNDLE_UNAVAILABLE", "fleet support bundles require bounded operation paging")
+			return
+		}
+		const fleetBundleOperationLimit = 200
+		operations, err := opPager.ListOperationsPage(r.Context(), input.ProjectID, fleetBundleOperationLimit+1)
 		if err != nil {
 			writeStoreError(w, err)
+			return
+		}
+		if len(operations) > fleetBundleOperationLimit {
+			writeError(w, http.StatusUnprocessableEntity, "SUPPORT_BUNDLE_SCOPE_TOO_LARGE", "fleet-diagnostics is limited to 200 recent operations per synchronous bundle; narrow the incident scope")
 			return
 		}
 		audit, err := s.projectAuditEvents(r, project)
@@ -393,18 +351,11 @@ func (s *Server) createSupportBundle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) projectAuditEvents(r *http.Request, project controlplane.Project) ([]controlplane.AuditEvent, error) {
-	snapshot, err := s.store.Snapshot(r.Context())
-	if err != nil {
-		return nil, err
+	pager, ok := s.store.(auditScopedPageStore)
+	if !ok {
+		return nil, fmt.Errorf("%w: project audit diagnostics require bounded scoped audit pager", controlplane.ErrPrerequisite)
 	}
-	index := buildScopeIndex(snapshot, map[string]bool{}, map[string]bool{project.ID: true})
-	out := make([]controlplane.AuditEvent, 0, len(snapshot.Audit))
-	for _, event := range snapshot.Audit {
-		if auditVisible(event, index) {
-			out = append(out, event)
-		}
-	}
-	return limitAuditTail(out, 1000), nil
+	return pager.ListAuditPageByScopes(r.Context(), nil, []string{project.ID}, 1000)
 }
 
 func safeFileName(value string) string {

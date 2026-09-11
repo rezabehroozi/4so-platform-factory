@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -214,5 +216,57 @@ func TestMarketplaceModelRecommendationPersistsAIRunAndReplaysBeforeProvider(t *
 	w = apiRequest(t, s.Handler(), http.MethodPost, "/api/v1/marketplace/recommendations", body, headers)
 	if w.Code != http.StatusOK || calls != 1 || !strings.Contains(w.Body.String(), `"idempotentReplay":true`) {
 		t.Fatalf("replay=%d calls=%d body=%s", w.Code, calls, w.Body.String())
+	}
+}
+
+func TestMarketplaceModelRecommendationConcurrentSameKeyDispatchesProviderOnce(t *testing.T) {
+	s, _, project, cluster, _ := marketplaceHTTPFixture(t)
+	var calls atomic.Int32
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			close(entered)
+		}
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"output_text":"{\"recommendations\":[{\"offerId\":\"secure-namespace-foundation\",\"offerVersion\":\"1.0.0\",\"score\":90,\"reason\":\"safe\"}]}","usage":{"input_tokens":1,"output_tokens":1}}`))
+	}))
+	defer provider.Close()
+	runtime, err := airuntime.New(airuntime.Config{Provider: airuntime.ProviderOpenAIResponses, Endpoint: provider.URL, Model: "market-model", MaxInputBytes: 8192, MaxOutputTokens: 600})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.ConfigureAIRuntime(runtime)
+	s.ConfigureMarketplaceAdvisor(marketplace.NewRuntimeAdvisor(runtime))
+	body := fmt.Sprintf(`{"projectId":%q,"clusterId":%q,"objective":"improve security"}`, project.ID, cluster.ID)
+	makeRequest := func() *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/marketplace/recommendations", strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Actor-ID", "operator")
+		r.Header.Set("Idempotency-Key", "market-concurrent")
+		w := httptest.NewRecorder()
+		s.Handler().ServeHTTP(w, r)
+		return w
+	}
+	var first *httptest.ResponseRecorder
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() { defer wg.Done(); first = makeRequest() }()
+	<-entered
+	second := makeRequest()
+	if second.Code != http.StatusConflict || !strings.Contains(second.Body.String(), "AI_EXECUTION_ALREADY_DISPATCHED") {
+		t.Fatalf("second=%d body=%s", second.Code, second.Body.String())
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("provider calls before release=%d", calls.Load())
+	}
+	close(release)
+	wg.Wait()
+	if first == nil || first.Code != http.StatusCreated {
+		t.Fatalf("first=%v", first)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("provider called %d times", calls.Load())
 	}
 }

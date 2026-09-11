@@ -82,11 +82,24 @@ func TestWebhookDeliveryRetryHMACAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, state := range []controlplane.OperationState{controlplane.OperationPlanning, controlplane.OperationQueued, controlplane.OperationRunning, controlplane.OperationFailed} {
-		op, err = store.TransitionOperation(ctx, op.ID, op.Revision, state, "boom", "operator")
+	for _, state := range []controlplane.OperationState{controlplane.OperationPlanning, controlplane.OperationQueued} {
+		op, err = store.TransitionOperation(ctx, op.ID, op.Revision, state, "", "operator")
 		if err != nil {
 			t.Fatalf("transition %s: %v", state, err)
 		}
+	}
+	claim, err := store.ClaimOperation(ctx, op.ID, "notification-test-worker", time.Minute, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, _ = store.GetOperation(ctx, op.ID)
+	op, err = store.StartOperationAttempt(ctx, op.ID, op.Revision, "notification-test-worker", claim.FenceToken, "notification-test-worker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, err = store.ReportOperationFailure(ctx, op.ID, op.Revision, "notification-test-worker", claim.FenceToken, controlplane.OperationFailureReport{Class: controlplane.OperationFailurePermanent, Code: "TEST_FAILURE", Message: "boom"}, "notification-test-worker")
+	if err != nil || op.State != controlplane.OperationFailed {
+		t.Fatalf("report failure op=%+v err=%v", op, err)
 	}
 
 	worker := New(store, nil)
@@ -132,6 +145,42 @@ func TestWebhookDeliveryRetryHMACAndHistory(t *testing.T) {
 	events, _ := store.ListNotificationEvents(ctx, org.ID, project.ID, 20)
 	if len(events) != 1 || events[0].EventType != "operation.failed" || events[0].Severity != controlplane.NotificationCritical {
 		t.Fatalf("events=%+v", events)
+	}
+}
+
+func TestFailureReportedOnlyNotifiesWhenOperationIsTerminalFailed(t *testing.T) {
+	ctx := context.Background()
+	store := controlplane.NewMemoryStore()
+	org, err := store.CreateOrganization(ctx, controlplane.Organization{Name: "notify-failure", DisplayName: "Notify Failure"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "notify-project", DisplayName: "Notify Project"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	failedPayload := []byte(`{"organizationId":"` + org.ID + `","projectId":"` + project.ID + `","state":"FAILED","lastError":"terminal"}`)
+	event, actionable, err := classifyOutboxEvent(ctx, store, controlplane.OutboxEvent{ResourceMeta: controlplane.ResourceMeta{ID: "evt-terminal", CreatedAt: now}, AggregateType: "operation", AggregateID: "op-terminal", EventType: "operation.failure_reported", Payload: failedPayload}, now)
+	if err != nil || !actionable {
+		t.Fatalf("terminal failure classification actionable=%v event=%+v err=%v", actionable, event, err)
+	}
+	if event.EventType != "operation.failed" || event.Severity != controlplane.NotificationCritical || event.Summary != "terminal" {
+		t.Fatalf("terminal failure event=%+v", event)
+	}
+	retryPayload := []byte(`{"organizationId":"` + org.ID + `","projectId":"` + project.ID + `","state":"RETRY_WAIT","lastError":"transient"}`)
+	event, actionable, err = classifyOutboxEvent(ctx, store, controlplane.OutboxEvent{ResourceMeta: controlplane.ResourceMeta{ID: "evt-retry", CreatedAt: now}, AggregateType: "operation", AggregateID: "op-retry", EventType: "operation.failure_reported", Payload: retryPayload}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if actionable {
+		t.Fatalf("retry-wait failure unexpectedly emitted terminal notification: %+v", event)
+	}
+	for _, producerEvent := range []string{"operation.owner_failed", "operation.completed"} {
+		event, actionable, err = classifyOutboxEvent(ctx, store, controlplane.OutboxEvent{ResourceMeta: controlplane.ResourceMeta{ID: "evt-" + producerEvent, CreatedAt: now}, AggregateType: "operation", AggregateID: "op-domain", EventType: producerEvent, Payload: failedPayload}, now)
+		if err != nil || !actionable || event.EventType != "operation.failed" || event.Severity != controlplane.NotificationCritical {
+			t.Fatalf("producer %s did not normalize terminal operation failure: actionable=%v event=%+v err=%v", producerEvent, actionable, event, err)
+		}
 	}
 }
 
@@ -255,5 +304,81 @@ func TestOutboxPublishUsesCurrentTimeForLeaseFence(t *testing.T) {
 	err := worker.processOutbox(ctx, base)
 	if !errors.Is(err, controlplane.ErrStaleFence) {
 		t.Fatalf("expired outbox lease was published with stale claim time: %v", err)
+	}
+}
+
+type incrementalHealthTestStore struct {
+	controlplane.Store
+	candidateCalls int
+	listAllCalls   int
+	cluster        controlplane.ManagedCluster
+	project        controlplane.Project
+	inventory      controlplane.ClusterInventory
+	changedAt      time.Time
+}
+
+func (s *incrementalHealthTestStore) ListNotificationHealthCandidates(_ context.Context, after time.Time, afterID string, limit int) ([]controlplane.NotificationHealthCandidate, bool, error) {
+	s.candidateCalls++
+	if limit != healthCandidatePage {
+		return nil, false, errors.New("unexpected candidate page size")
+	}
+	if s.candidateCalls == 1 {
+		return []controlplane.NotificationHealthCandidate{{ClusterID: s.cluster.ID, ChangedAt: s.changedAt}}, true, nil
+	}
+	if after.Before(s.changedAt) || afterID != s.cluster.ID {
+		return nil, false, errors.New("incremental cursor did not advance deterministically")
+	}
+	return nil, false, nil
+}
+
+func (s *incrementalHealthTestStore) ListManagedClusters(context.Context, string) ([]controlplane.ManagedCluster, error) {
+	s.listAllCalls++
+	return nil, errors.New("fleet-wide cluster list must not be used by incremental health scan")
+}
+func (s *incrementalHealthTestStore) GetManagedCluster(context.Context, string) (controlplane.ManagedCluster, error) {
+	return s.cluster, nil
+}
+func (s *incrementalHealthTestStore) GetProject(context.Context, string) (controlplane.Project, error) {
+	return s.project, nil
+}
+func (s *incrementalHealthTestStore) GetLatestClusterInventory(context.Context, string) (controlplane.ClusterInventory, error) {
+	return s.inventory, nil
+}
+func (s *incrementalHealthTestStore) ListAgentCertificates(context.Context, string) ([]controlplane.AgentCertificate, error) {
+	return nil, nil
+}
+func (s *incrementalHealthTestStore) RouteNotificationEvent(context.Context, controlplane.NotificationEvent, string) (controlplane.NotificationEvent, []controlplane.NotificationDelivery, bool, error) {
+	return controlplane.NotificationEvent{}, nil, false, nil
+}
+
+func TestHealthScannerUsesIncrementalCandidatePages(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	lastSeen := now
+	base := controlplane.NewMemoryStore()
+	store := &incrementalHealthTestStore{
+		Store:     base,
+		cluster:   controlplane.ManagedCluster{ResourceMeta: controlplane.ResourceMeta{ID: "clu-incremental", UpdatedAt: now.Add(-time.Minute)}, ProjectID: "prj-incremental", ConnectionState: "CONNECTED", KubernetesVersion: "v1.35.0", LastSeenAt: &lastSeen},
+		project:   controlplane.Project{ResourceMeta: controlplane.ResourceMeta{ID: "prj-incremental"}, OrganizationID: "org-incremental"},
+		inventory: controlplane.ClusterInventory{ResourceMeta: controlplane.ResourceMeta{ID: "inv-incremental", UpdatedAt: now.Add(-time.Minute)}, ClusterID: "clu-incremental", ObservedAt: now, KubernetesVersion: "v1.35.0", Digest: "sha256:" + strings.Repeat("a", 64)},
+		changedAt: now.Add(-time.Minute),
+	}
+	worker := New(store, nil)
+	worker.Now = func() time.Time { return now }
+	worker.HealthScan = time.Minute
+	if err := worker.ProcessOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !worker.lastHealth.IsZero() {
+		t.Fatalf("more candidate pages should keep health scan immediately due: %v", worker.lastHealth)
+	}
+	if err := worker.ProcessOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if store.candidateCalls != 2 || store.listAllCalls != 0 {
+		t.Fatalf("incremental scan calls candidates=%d fleetLists=%d", store.candidateCalls, store.listAllCalls)
+	}
+	if worker.lastFullHealth.IsZero() || worker.healthFullScan {
+		t.Fatalf("cold-start full sweep did not finish incrementally: lastFull=%v full=%v", worker.lastFullHealth, worker.healthFullScan)
 	}
 }

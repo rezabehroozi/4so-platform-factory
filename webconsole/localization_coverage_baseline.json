@@ -1,0 +1,12 @@
+{
+  "attributeGapCount": 0,
+  "authority": "CONSOLE_LOCALIZATION_COVERAGE_V2",
+  "complete": true,
+  "gapDigest": "sha256:0dedff4e929fe722747d2949639c4e48c692cf53b889c4abb421b4f7ca543111",
+  "gaps": {
+    "attribute": [],
+    "text": []
+  },
+  "schemaVersion": 2,
+  "textGapCount": 0
+}

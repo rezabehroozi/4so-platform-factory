@@ -23,6 +23,9 @@ type createProviderProfileInput struct {
 	KubernetesSeries         []string `json:"kubernetesSeries"`
 	Architectures            []string `json:"architectures"`
 	DistributionProfiles     []string `json:"distributionProfiles"`
+	InfrastructureProvider   string   `json:"infrastructureProvider,omitempty"`
+	InfrastructureEndpoint   string   `json:"infrastructureEndpoint,omitempty"`
+	CredentialRef            string   `json:"credentialRef,omitempty"`
 	MaxWorkerReplicas        int      `json:"maxWorkerReplicas"`
 }
 
@@ -83,7 +86,7 @@ func (s *Server) createProviderProfile(w http.ResponseWriter, r *http.Request) {
 	profile := controlplane.ProviderProfile{
 		ProjectID: in.ProjectID, ManagementClusterID: in.ManagementClusterID, Name: in.Name, DisplayName: in.DisplayName,
 		Adapter: providerAdapter, Namespace: providerNamespace, ClusterClassName: in.ClusterClassName, WorkerClassName: in.WorkerClassName,
-		DefaultKubernetesVersion: in.DefaultKubernetesVersion, KubernetesSeries: in.KubernetesSeries, Architectures: in.Architectures, DistributionProfiles: in.DistributionProfiles, MaxWorkerReplicas: in.MaxWorkerReplicas,
+		DefaultKubernetesVersion: in.DefaultKubernetesVersion, KubernetesSeries: in.KubernetesSeries, Architectures: in.Architectures, DistributionProfiles: in.DistributionProfiles, InfrastructureProvider: in.InfrastructureProvider, InfrastructureEndpoint: in.InfrastructureEndpoint, CredentialRef: in.CredentialRef, MaxWorkerReplicas: in.MaxWorkerReplicas,
 		IdempotencyKey: key, RequestDigest: digestValue(in),
 	}
 	dummy := controlplane.ProviderClusterSpec{}
@@ -92,7 +95,7 @@ func (s *Server) createProviderProfile(w http.ResponseWriter, r *http.Request) {
 		"adapter": profile.Adapter, "namespace": profile.Namespace,
 		"clusterClassName": profile.ClusterClassName, "workerClassName": profile.WorkerClassName,
 		"defaultKubernetesVersion": profile.DefaultKubernetesVersion, "kubernetesSeries": profile.KubernetesSeries,
-		"architectures": profile.Architectures, "distributionProfiles": profile.DistributionProfiles, "maxWorkerReplicas": profile.MaxWorkerReplicas,
+		"architectures": profile.Architectures, "distributionProfiles": profile.DistributionProfiles, "infrastructureProvider": profile.InfrastructureProvider, "infrastructureEndpoint": profile.InfrastructureEndpoint, "credentialRef": profile.CredentialRef, "maxWorkerReplicas": profile.MaxWorkerReplicas,
 	})
 	v, replay, err := s.store.CreateProviderProfile(r.Context(), profile, actor)
 	if err != nil {
@@ -115,18 +118,21 @@ func (s *Server) listProviderProfiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	v, err := s.store.ListProviderProfiles(r.Context(), projectID, r.URL.Query().Get("managementClusterId"))
+	clusterID := strings.TrimSpace(r.URL.Query().Get("managementClusterId"))
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.ProviderProfile, error)
+	if pager, ok := s.store.(providerProfilePageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.ProviderProfile, error) {
+			return pager.ListProviderProfilesPage(r.Context(), ids, all, clusterID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.ProviderProfile, error) {
+		return s.store.ListProviderProfiles(r.Context(), projectID, clusterID)
+	}, page, func(item controlplane.ProviderProfile) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.ProviderProfile) string { return item.ProjectID })
-	writeJSON(w, http.StatusOK, v)
+	writeOperatorCollectionJSON(w, r, http.StatusOK, v)
 }
 
 func (s *Server) getProviderProfile(w http.ResponseWriter, r *http.Request) {
@@ -227,18 +233,21 @@ func (s *Server) listProviderClusters(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	v, err := s.store.ListProviderClusters(r.Context(), projectID, r.URL.Query().Get("providerProfileId"))
+	profileID := strings.TrimSpace(r.URL.Query().Get("providerProfileId"))
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.ProviderCluster, error)
+	if pager, ok := s.store.(providerClusterPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.ProviderCluster, error) {
+			return pager.ListProviderClustersPage(r.Context(), ids, all, profileID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.ProviderCluster, error) {
+		return s.store.ListProviderClusters(r.Context(), projectID, profileID)
+	}, page, func(item controlplane.ProviderCluster) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.ProviderCluster) string { return item.ProjectID })
-	writeJSON(w, http.StatusOK, v)
+	writeOperatorCollectionJSON(w, r, http.StatusOK, v)
 }
 
 func (s *Server) getProviderCluster(w http.ResponseWriter, r *http.Request) {
@@ -412,7 +421,7 @@ func (s *Server) nextProviderProfileTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	setRevisionETag(w, v.Revision)
-	writeJSON(w, http.StatusOK, controlplane.ProviderProfileTask{ProfileID: v.ID, ProfileRevision: v.Revision, TaskFenceToken: v.TaskFenceToken, LeaseExpiresAt: *v.TaskLeaseExpiresAt, Namespace: v.Namespace, ClusterClassName: v.ClusterClassName, WorkerClassName: v.WorkerClassName})
+	writeJSON(w, http.StatusOK, controlplane.ProviderProfileTask{ProfileID: v.ID, ProfileRevision: v.Revision, TaskFenceToken: v.TaskFenceToken, LeaseExpiresAt: *v.TaskLeaseExpiresAt, Namespace: v.Namespace, ClusterClassName: v.ClusterClassName, WorkerClassName: v.WorkerClassName, InfrastructureProvider: v.InfrastructureProvider})
 }
 
 func (s *Server) reportProviderProfileTask(w http.ResponseWriter, r *http.Request) {
@@ -488,7 +497,7 @@ func (s *Server) nextProviderClusterTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	setRevisionETag(w, v.Revision)
-	writeJSON(w, http.StatusOK, controlplane.ProviderClusterTask{ProviderClusterID: v.ID, ClusterRevision: v.Revision, TaskFenceToken: v.TaskFenceToken, LeaseExpiresAt: *v.TaskLeaseExpiresAt, Action: action, Namespace: v.Namespace, ResourceName: v.ResourceName, DesiredDigest: v.DesiredDigest, Resource: resource})
+	writeJSON(w, http.StatusOK, controlplane.ProviderClusterTask{ProviderClusterID: v.ID, ClusterRevision: v.Revision, TaskFenceToken: v.TaskFenceToken, LeaseExpiresAt: *v.TaskLeaseExpiresAt, Action: action, Namespace: v.Namespace, ResourceName: v.ResourceName, DesiredDigest: v.DesiredDigest, Resource: resource, TargetNodeMutation: v.TargetNodeMutation})
 }
 
 func (s *Server) reportProviderClusterTask(w http.ResponseWriter, r *http.Request) {

@@ -75,6 +75,14 @@ func TestPostgresAuthorityMigrationContract(t *testing.T) {
 		"target_rbac_revocation_ack_digest text NOT NULL DEFAULT ''", "cluster.mutation_rbac_activation.authorized", "target-mutation-rbac-ever-issued",
 		"target-read-only-admission", "target_rbac_revocation_acknowledged_at IS NULL", "successor.created_at <= predecessor.target_rbac_revocation_acknowledged_at",
 		"CREATE TABLE IF NOT EXISTS ai_runs", "ai_runs_project_idempotency", "advisory_only boolean",
+		"CREATE TABLE IF NOT EXISTS ai_execution_claims", "ai_execution_claim_project_idempotency", "DISPATCHED",
+		"CREATE TABLE IF NOT EXISTS variable_schemas", "variable_schema_identity_unique", "variable_schemas_immutable",
+		"CREATE TABLE IF NOT EXISTS platform_policy_sets", "platform_policy_set_identity_unique", "platform_policy_sets_immutable",
+		"CREATE TABLE IF NOT EXISTS platform_templates", "platform_template_identity_unique", "validate_platform_template_binding", "platform_templates_binding_guard", "platform_templates_immutable",
+		"CREATE TABLE IF NOT EXISTS workspaces", "workspace_identity_unique", "workspaces_immutable",
+		"CREATE TABLE IF NOT EXISTS workspace_bindings", "workspace_bindings_active_scope_unique", "validate_workspace_binding_authority", "workspace_bindings_authority_guard",
+		"component_name text NOT NULL DEFAULT ''", "component_release text NOT NULL DEFAULT ''", "COMPONENT_RUNTIME_V1", "runtime_certification_component_identity_check",
+		"CREATE TABLE operation_request_payloads", "operation_request_payloads_no_update", "operation request payloads are immutable",
 	}
 	for _, term := range required {
 		if !strings.Contains(combined, term) {
@@ -114,7 +122,7 @@ func TestMigrationMixedVersionCompatibilityIsExplicit(t *testing.T) {
 			t.Fatalf("migration %d has invalid compatibility class %q", migration.Version, migration.Compatibility)
 		}
 	}
-	for _, version := range []int64{21, 27, 47, 50} {
+	for _, version := range []int64{21, 27, 47, 50, 60, 61, 64} {
 		if !unsafe[version] {
 			t.Fatalf("migration %d mixed-version hazard was not classified as quiesced-required", version)
 		}
@@ -185,6 +193,139 @@ func TestAIRunAuthorityMigrationIsAdditiveAndRollingSafe(t *testing.T) {
 	for _, term := range []string{"CREATE TABLE IF NOT EXISTS ai_runs", "output jsonb NOT NULL", "advisory_only boolean NOT NULL DEFAULT true", "ai_runs_project_idempotency"} {
 		if !strings.Contains(m.SQL, term) {
 			t.Fatalf("migration 53 missing %q", term)
+		}
+	}
+}
+
+func TestAIExecutionDispatchMigrationIsAdditiveAndRollingSafe(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) < 54 {
+		t.Fatalf("expected migration 54, got %d migrations", len(all))
+	}
+	m := all[53]
+	if m.Version != 54 || m.Compatibility != CompatibilityRollingSafe {
+		t.Fatalf("migration 54 compatibility mismatch: %#v", m)
+	}
+	for _, term := range []string{"CREATE TABLE IF NOT EXISTS ai_execution_claims", "ai_execution_claim_project_idempotency", "ai_execution_claim_terminal_shape", "DISPATCHED", "COMPLETED", "FAILED"} {
+		if !strings.Contains(m.SQL, term) {
+			t.Fatalf("migration 54 missing %q", term)
+		}
+	}
+}
+
+func TestWorkspaceAuthorityMigrationIsProjectScopedAndRollingSafe(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) < 58 {
+		t.Fatalf("expected migration 58, got %d migrations", len(all))
+	}
+	m := all[57]
+	if m.Version != 58 || m.Compatibility != CompatibilityRollingSafe {
+		t.Fatalf("migration 58 compatibility mismatch: %#v", m)
+	}
+	for _, term := range []string{
+		"CREATE TABLE IF NOT EXISTS workspaces",
+		"project_id text NOT NULL REFERENCES projects(id)",
+		"workspace_identity_unique",
+		"workspaces_immutable",
+		"CREATE TABLE IF NOT EXISTS workspace_bindings",
+		"cluster_id text NOT NULL REFERENCES managed_clusters(id)",
+		"workspace_bindings_active_scope_unique",
+		"WHERE state='ACTIVE'",
+		"validate_workspace_binding_authority",
+		"workspace binding cross-project authority is forbidden",
+	} {
+		if !strings.Contains(m.SQL, term) {
+			t.Fatalf("migration 58 missing Workspace authority guard %q", term)
+		}
+	}
+	for _, forbidden := range []string{
+		"ALTER TABLE managed_clusters",
+		"ALTER TABLE projects",
+		"ALTER TABLE tenant_environments",
+		"ALTER TABLE baseline_deployments",
+	} {
+		if strings.Contains(m.SQL, forbidden) {
+			t.Fatalf("migration 58 must not mutate existing runtime authority table via %q", forbidden)
+		}
+	}
+}
+
+func TestFinOpsAuthorityMigrationIsAdditiveAndRollingSafe(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) < 70 {
+		t.Fatalf("expected migration 70, got %d migrations", len(all))
+	}
+	m := all[69]
+	if m.Version != 70 || m.Compatibility != CompatibilityRollingSafe {
+		t.Fatalf("migration 70 compatibility mismatch: %#v", m)
+	}
+	for _, term := range []string{
+		"CREATE TABLE finops_rate_cards",
+		"CREATE TABLE finops_usage_measurements",
+		"CREATE TABLE finops_capacity_observations",
+		"finops_usage_source_event_unique",
+		"finops_capacity_source_event_unique",
+		"finops_rate_cards_immutable",
+		"finops_usage_measurements_immutable",
+		"finops_capacity_observations_immutable",
+	} {
+		if !strings.Contains(m.SQL, term) {
+			t.Fatalf("migration 70 missing %q", term)
+		}
+	}
+}
+
+func TestVMwareProviderAuthorityMigrationIsRollingSafe(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) < 71 {
+		t.Fatalf("expected migration 71, got %d migrations", len(all))
+	}
+	m := all[70]
+	if m.Version != 71 || m.Compatibility != CompatibilityRollingSafe {
+		t.Fatalf("migration 71 compatibility mismatch: %#v", m)
+	}
+	for _, term := range []string{"infrastructure_provider", "infrastructure_endpoint", "credential_ref", "VMWARE_PROVIDER_AUTHORITY_V1"} {
+		if !strings.Contains(m.SQL, term) {
+			t.Fatalf("migration 71 missing %q", term)
+		}
+	}
+}
+
+func TestMCPControlJobRecoveryResolutionMigrationIsAdditiveAndRollingSafe(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) < 72 {
+		t.Fatalf("expected migration 72, got %d migrations", len(all))
+	}
+	m := all[71]
+	if m.Version != 72 || m.Compatibility != CompatibilityRollingSafe {
+		t.Fatalf("migration 72 compatibility mismatch: %#v", m)
+	}
+	for _, term := range []string{
+		"MCP_CONTROL_JOB_RECOVERY_AUTHORITY_V1",
+		"recovery_resolution text NOT NULL DEFAULT ''",
+		"recovery_readback_digest text NOT NULL DEFAULT ''",
+		"recovery_evidence_digest text NOT NULL DEFAULT ''",
+		"recovered_by text NOT NULL DEFAULT ''",
+		"recovered_at timestamptz",
+		"mcp_control_jobs_recovery_resolution_shape",
+	} {
+		if !strings.Contains(m.SQL, term) {
+			t.Fatalf("migration 72 missing %q", term)
 		}
 	}
 }

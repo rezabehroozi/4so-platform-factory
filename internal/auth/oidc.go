@@ -46,6 +46,8 @@ type Config struct {
 	InternalBase        string
 	ClientID            string
 	RedirectURL         string
+	MCPResourceURL      string
+	MCPAudience         string
 	SessionSecret       string
 	BootstrapToken      string
 	LocalDevelopment    bool
@@ -57,22 +59,25 @@ type Config struct {
 }
 
 type Principal struct {
-	Subject           string            `json:"sub"`
-	Email             string            `json:"email,omitempty"`
-	Name              string            `json:"name,omitempty"`
-	Roles             []string          `json:"roles,omitempty"`
-	Expires           int64             `json:"exp"`
-	Authentication    string            `json:"authentication,omitempty"`
-	ServiceAccountID  string            `json:"serviceAccountId,omitempty"`
-	CredentialID      string            `json:"credentialId,omitempty"`
-	OrganizationID    string            `json:"organizationId,omitempty"`
-	ProjectID         string            `json:"projectId,omitempty"`
-	Permissions       []string          `json:"permissions,omitempty"`
-	Groups            []string          `json:"groups,omitempty"`
-	MappingDigest     string            `json:"mappingDigest,omitempty"`
-	MappedAt          int64             `json:"mappedAt,omitempty"`
-	OrganizationRoles map[string]string `json:"organizationRoles,omitempty"`
-	ProjectRoles      map[string]string `json:"projectRoles,omitempty"`
+	Issuer                  string            `json:"iss,omitempty"`
+	AuthorizedClientID      string            `json:"authorizedClientId,omitempty"`
+	DelegationAccessProfile string            `json:"delegationAccessProfile,omitempty"`
+	Subject                 string            `json:"sub"`
+	Email                   string            `json:"email,omitempty"`
+	Name                    string            `json:"name,omitempty"`
+	Roles                   []string          `json:"roles,omitempty"`
+	Expires                 int64             `json:"exp"`
+	Authentication          string            `json:"authentication,omitempty"`
+	ServiceAccountID        string            `json:"serviceAccountId,omitempty"`
+	CredentialID            string            `json:"credentialId,omitempty"`
+	OrganizationID          string            `json:"organizationId,omitempty"`
+	ProjectID               string            `json:"projectId,omitempty"`
+	Permissions             []string          `json:"permissions,omitempty"`
+	Groups                  []string          `json:"groups,omitempty"`
+	MappingDigest           string            `json:"mappingDigest,omitempty"`
+	MappedAt                int64             `json:"mappedAt,omitempty"`
+	OrganizationRoles       map[string]string `json:"organizationRoles,omitempty"`
+	ProjectRoles            map[string]string `json:"projectRoles,omitempty"`
 }
 
 type statePayload struct {
@@ -96,6 +101,8 @@ func New(config Config) (*Manager, error) {
 	config.InternalBase = strings.TrimRight(strings.TrimSpace(config.InternalBase), "/")
 	config.ClientID = strings.TrimSpace(config.ClientID)
 	config.RedirectURL = strings.TrimSpace(config.RedirectURL)
+	config.MCPResourceURL = strings.TrimRight(strings.TrimSpace(config.MCPResourceURL), "/")
+	config.MCPAudience = strings.TrimSpace(config.MCPAudience)
 	if !config.Enabled {
 		return &Manager{config: config, http: &http.Client{Timeout: 10 * time.Second}, entropy: rand.Reader}, nil
 	}
@@ -124,6 +131,51 @@ func (m *Manager) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /auth/callback", m.callback)
 	mux.HandleFunc("POST /auth/logout", m.logout)
 	mux.HandleFunc("GET /auth/session", m.session)
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource", m.mcpProtectedResourceMetadata)
+}
+
+func (m *Manager) mcpResourceURL(r *http.Request) string {
+	if m != nil && m.config.MCPResourceURL != "" {
+		return m.config.MCPResourceURL
+	}
+	scheme := "https"
+	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); forwarded == "http" || forwarded == "https" {
+		scheme = forwarded
+	} else if r.TLS == nil && (strings.HasPrefix(r.Host, "127.0.0.1") || strings.HasPrefix(r.Host, "localhost")) {
+		scheme = "http"
+	}
+	return scheme + "://" + r.Host + "/mcp"
+}
+
+func (m *Manager) mcpProtectedResourceMetadataURL(r *http.Request) string {
+	resource := m.mcpResourceURL(r)
+	parsed, err := url.Parse(resource)
+	if err == nil && parsed.Scheme != "" && parsed.Host != "" {
+		return parsed.Scheme + "://" + parsed.Host + "/.well-known/oauth-protected-resource"
+	}
+	return "/.well-known/oauth-protected-resource"
+}
+
+func (m *Manager) mcpProtectedResourceMetadata(w http.ResponseWriter, r *http.Request) {
+	if m == nil || !m.Enabled() || m.config.Issuer == "" {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": map[string]string{"code": "MCP_OAUTH_NOT_CONFIGURED", "message": "remote MCP OAuth metadata is unavailable until OIDC is configured"}})
+		return
+	}
+	metadata := map[string]any{
+		"resource":                 m.mcpResourceURL(r),
+		"authorization_servers":    []string{m.config.Issuer},
+		"bearer_methods_supported": []string{"header"},
+		"scopes_supported":         []string{"mcp.read", "mcp.operate"},
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, metadata)
+}
+
+func (m *Manager) writeUnauthorized(w http.ResponseWriter, r *http.Request, code, message string) {
+	if r.URL.Path == "/mcp" && m != nil && m.Enabled() {
+		w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer resource_metadata=%q`, m.mcpProtectedResourceMetadataURL(r)))
+	}
+	writeJSON(w, http.StatusUnauthorized, map[string]any{"error": map[string]string{"code": code, "message": message}})
 }
 
 func (m *Manager) apiTokenPrincipal(r *http.Request) (Principal, bool, error) {
@@ -212,7 +264,7 @@ func (m *Manager) RequireAPI(next http.Handler) http.Handler {
 					writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": map[string]string{"code": "SECURITY_AUDIT_UNAVAILABLE", "message": "authentication deny audit could not be durably recorded"}})
 					return
 				}
-				writeJSON(w, http.StatusUnauthorized, map[string]any{"error": map[string]string{"code": "API_TOKEN_REJECTED", "message": "API token is invalid, expired or revoked"}})
+				m.writeUnauthorized(w, r, "API_TOKEN_REJECTED", "API token is invalid, expired or revoked")
 				return
 			}
 			if err := m.auditRequest(r, principal, "AUTHENTICATION", "ALLOW", "API_TOKEN_ACCEPTED", http.StatusOK); err != nil {
@@ -232,7 +284,7 @@ func (m *Manager) RequireAPI(next http.Handler) http.Handler {
 					writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": map[string]string{"code": "SECURITY_AUDIT_UNAVAILABLE", "message": "authentication deny audit could not be durably recorded"}})
 					return
 				}
-				writeJSON(w, http.StatusUnauthorized, map[string]any{"error": map[string]string{"code": "AUTHENTICATION_REQUIRED", "message": "OIDC or explicit loopback development mode is required"}})
+				m.writeUnauthorized(w, r, "AUTHENTICATION_REQUIRED", "OIDC or explicit loopback development mode is required")
 				return
 			}
 			if strings.TrimSpace(r.Header.Get("Authorization")) != "" {
@@ -240,7 +292,7 @@ func (m *Manager) RequireAPI(next http.Handler) http.Handler {
 					writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": map[string]string{"code": "SECURITY_AUDIT_UNAVAILABLE", "message": "authentication deny audit could not be durably recorded"}})
 					return
 				}
-				writeJSON(w, http.StatusUnauthorized, map[string]any{"error": map[string]string{"code": "AUTHENTICATION_REQUIRED", "message": "unsupported authorization credential"}})
+				m.writeUnauthorized(w, r, "AUTHENTICATION_REQUIRED", "unsupported authorization credential")
 				return
 			}
 			principal := Principal{Subject: "local-development", Roles: []string{"platform-admin"}, Expires: time.Now().Add(time.Hour).Unix(), Authentication: "local"}
@@ -261,7 +313,7 @@ func (m *Manager) RequireAPI(next http.Handler) http.Handler {
 				writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": map[string]string{"code": "SECURITY_AUDIT_UNAVAILABLE", "message": "authentication deny audit could not be durably recorded"}})
 				return
 			}
-			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": map[string]string{"code": "AUTHENTICATION_REQUIRED", "message": "sign in through the managed identity service"}})
+			m.writeUnauthorized(w, r, "AUTHENTICATION_REQUIRED", "sign in through the managed identity service")
 			return
 		}
 		principal.Authentication = "oidc"
@@ -293,9 +345,12 @@ func requiresOperatorRole(r *http.Request) bool {
 	// These POST endpoints are pure validation/planning operations and do not
 	// mutate durable authority. Viewers may use them without gaining write access.
 	switch r.URL.Path {
-	case "/api/v1/blueprints/validate", "/api/v1/blueprints/authoring-roundtrip", "/api/v1/blueprints/resolve", "/api/v1/compatibility/evaluate", "/api/v1/plans", "/api/v1/installations/plans", "/api/v1/blueprint-releases/compare", "/api/v1/runtime-closure-reports/verify", "/api/v1/support-bundles", "/api/v1/ai/diagnose", "/mcp":
+	case "/api/v1/blueprints/validate", "/api/v1/blueprints/authoring-roundtrip", "/api/v1/blueprints/resolve", "/api/v1/compatibility/evaluate", "/api/v1/plans", "/api/v1/installations/plans", "/api/v1/blueprint-releases/compare", "/api/v1/runtime-closure-reports/verify", "/api/v1/support-bundles", "/api/v1/ai/diagnose", "/api/v1/mcp/delegation-grants/preview", "/api/v1/mcp/delegation-grants", "/mcp":
 		return false
 	default:
+		if strings.HasPrefix(r.URL.Path, "/api/v1/mcp/delegation-grants/") && strings.HasSuffix(r.URL.Path, "/revoke") {
+			return false
+		}
 		return true
 	}
 }
@@ -503,7 +558,11 @@ func (m *Manager) authenticate(r *http.Request) (Principal, error) {
 		return Principal{Subject: "local-development", Roles: []string{"platform-admin"}, Expires: time.Now().Add(time.Hour).Unix(), Authentication: "local"}, nil
 	}
 	if header := strings.TrimSpace(r.Header.Get("Authorization")); strings.HasPrefix(header, "Bearer ") {
-		return m.verifyJWT(r.Context(), strings.TrimSpace(strings.TrimPrefix(header, "Bearer ")), "")
+		expectedAudience := m.config.ClientID
+		if r.URL.Path == "/mcp" && m.config.MCPAudience != "" {
+			expectedAudience = m.config.MCPAudience
+		}
+		return m.verifyJWTForAudience(r.Context(), strings.TrimSpace(strings.TrimPrefix(header, "Bearer ")), "", expectedAudience)
 	}
 	cookie, err := r.Cookie("platform_session")
 	if err != nil {
@@ -557,6 +616,10 @@ func (m *Manager) validBootstrap(r *http.Request) bool {
 }
 
 func (m *Manager) verifyJWT(ctx context.Context, raw, nonce string) (Principal, error) {
+	return m.verifyJWTForAudience(ctx, raw, nonce, m.config.ClientID)
+}
+
+func (m *Manager) verifyJWTForAudience(ctx context.Context, raw, nonce, expectedAudience string) (Principal, error) {
 	parts := strings.Split(raw, ".")
 	if len(parts) != 3 {
 		return Principal{}, errors.New("invalid JWT")
@@ -569,22 +632,24 @@ func (m *Manager) verifyJWT(ctx context.Context, raw, nonce string) (Principal, 
 		return Principal{}, errors.New("unsupported JWT header")
 	}
 	var claims struct {
-		Subject  string          `json:"sub"`
-		Email    string          `json:"email"`
-		Name     string          `json:"name"`
-		Issuer   string          `json:"iss"`
-		Audience json.RawMessage `json:"aud"`
-		Expires  int64           `json:"exp"`
-		Nonce    string          `json:"nonce"`
-		Groups   []string        `json:"groups"`
-		Realm    struct {
+		Subject         string          `json:"sub"`
+		Email           string          `json:"email"`
+		Name            string          `json:"name"`
+		Issuer          string          `json:"iss"`
+		Audience        json.RawMessage `json:"aud"`
+		Expires         int64           `json:"exp"`
+		Nonce           string          `json:"nonce"`
+		Groups          []string        `json:"groups"`
+		AuthorizedParty string          `json:"azp"`
+		ClientID        string          `json:"client_id"`
+		Realm           struct {
 			Roles []string `json:"roles"`
 		} `json:"realm_access"`
 	}
 	if err := decodeSegment(parts[1], &claims); err != nil {
 		return Principal{}, err
 	}
-	if claims.Subject == "" || claims.Issuer != m.config.Issuer || claims.Expires < time.Now().Unix() || !audienceContains(claims.Audience, m.config.ClientID) {
+	if claims.Subject == "" || claims.Issuer != m.config.Issuer || claims.Expires < time.Now().Unix() || expectedAudience == "" || !audienceContains(claims.Audience, expectedAudience) {
 		return Principal{}, errors.New("JWT claims rejected")
 	}
 	if nonce != "" && subtle.ConstantTimeCompare([]byte(nonce), []byte(claims.Nonce)) != 1 {
@@ -611,7 +676,11 @@ func (m *Manager) verifyJWT(ctx context.Context, raw, nonce string) (Principal, 
 	if err != nil || rsa.VerifyPKCS1v15(key, crypto.SHA256, digest[:], signature) != nil {
 		return Principal{}, errors.New("JWT signature rejected")
 	}
-	principal := Principal{Subject: claims.Subject, Email: claims.Email, Name: claims.Name, Groups: append([]string(nil), claims.Groups...), Expires: claims.Expires, MappedAt: time.Now().Unix()}
+	authorizedClientID := strings.TrimSpace(claims.AuthorizedParty)
+	if authorizedClientID == "" {
+		authorizedClientID = strings.TrimSpace(claims.ClientID)
+	}
+	principal := Principal{Issuer: claims.Issuer, AuthorizedClientID: authorizedClientID, Subject: claims.Subject, Email: claims.Email, Name: claims.Name, Groups: append([]string(nil), claims.Groups...), Expires: claims.Expires, MappedAt: time.Now().Unix()}
 	if m.config.GroupMapper != nil {
 		mapped, mapErr := m.config.GroupMapper(ctx, claims.Groups)
 		if mapErr != nil {

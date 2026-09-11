@@ -22,7 +22,7 @@ def req(url, method='GET', body=None, headers=None, raw=False):
         return e.code,v,dict(e.headers)
 
 def start(binary,state):
-    port=free_port(); env=os.environ.copy(); env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}'; env['PLATFORM_FACTORY_STATE_FILE']=str(state); env['PLATFORM_FACTORY_AGENT_MTLS_REQUIRED']='false'; env['PLATFORM_FACTORY_PUBLIC_URL']='https://platform.example.test'; env['PLATFORM_FACTORY_FLEET_AGENT_IMAGE']='registry.local/platform-agent@sha256:'+'a'*64; env['PLATFORM_FACTORY_RUNTIME_PROBE_IMAGE']='registry.local/platform-probe@sha256:'+'b'*64
+    port=free_port(); env=os.environ.copy(); env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true'; env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}'; env['PLATFORM_FACTORY_STATE_FILE']=str(state); env['PLATFORM_FACTORY_AGENT_MTLS_REQUIRED']='false'; env['PLATFORM_FACTORY_PUBLIC_URL']='https://platform.example.test'; env['PLATFORM_FACTORY_FLEET_AGENT_IMAGE']='registry.local/platform-agent@sha256:'+'a'*64; env['PLATFORM_FACTORY_RUNTIME_PROBE_IMAGE']='registry.local/platform-probe@sha256:'+'b'*64
     p=subprocess.Popen([str(binary)],env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True); base=f'http://127.0.0.1:{port}'
     for _ in range(100):
         try:
@@ -81,7 +81,10 @@ def main():
             st,revoked,_=req(base+f"/api/v1/clusters/{cluster['id']}/revoke",'POST',{}, {'If-Match':str(rev),'X-Actor-ID':'support-admin','X-Actor-Role':'platform-admin','X-Confirm-Revoke':'revoke-cluster-agent'}); assert st==200,(st,revoked)
             assert revoked['hubAgentCredentialRevoked'] is True and revoked['targetRBACRevocationStatus']=='APPLY_REQUIRED',revoked
             fence_digest=revoked['targetRBACRevocationFenceDigest']; assert fence_digest.startswith('sha256:'),revoked
-            fence=revoked['targetRBACRevocationManifest']; assert fence.count('subjects: []')==6,fence
+            fence=revoked['targetRBACRevocationManifest']
+            assert fence.count('subjects: []')==7,fence
+            for binding in ('4so-platform-agent-credential','4so-platform-agent-readonly','4so-platform-provider-manager','4so-platform-baseline-manager','4so-platform-node-maintenance-job-manager','4so-platform-agent-maintenance-manager','4so-platform-agent-tenant-manager'):
+                assert f'name: {binding}' in fence,fence
             assert '4so-provider-system' in fence and '4so-platform-baseline' in fence,fence
             st,retrieved,_=req(base+f"/api/v1/clusters/{cluster['id']}/revocation-rbac-manifest",headers={'X-Actor-ID':'support-admin','X-Actor-Role':'platform-admin'}); assert st==200,(st,retrieved)
             assert retrieved['targetRBACRevocationManifest']==fence and retrieved['targetRBACRevocationFenceDigest']==fence_digest,retrieved

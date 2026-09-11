@@ -87,6 +87,19 @@ func globalPrincipalLevel(principal auth.Principal) organizationAccessLevel {
 	return 0
 }
 
+func mcpHumanDelegationLevel(principal auth.Principal) organizationAccessLevel {
+	switch strings.ToUpper(strings.TrimSpace(principal.DelegationAccessProfile)) {
+	case "VIEW":
+		return organizationRead
+	case "OPERATE":
+		return organizationWrite
+	case "ADMINISTRATION":
+		return organizationAdminAccess
+	default:
+		return 0
+	}
+}
+
 func membershipLevel(role controlplane.OrganizationMembershipRole) organizationAccessLevel {
 	switch role {
 	case controlplane.OrganizationAdmin:
@@ -159,6 +172,16 @@ func (s *Server) organizationAccess(r *http.Request, organizationID string) (org
 		return organizationAdminAccess, nil
 	}
 	global := globalPrincipalLevel(principal)
+	if principal.Authentication == "mcp-human" {
+		global = minAccessLevel(global, mcpHumanDelegationLevel(principal))
+		grantOrg := strings.TrimSpace(principal.OrganizationID)
+		if grantOrg != "" && grantOrg != strings.TrimSpace(organizationID) {
+			return 0, errOrganizationAccessDenied
+		}
+		if grantOrg == "" && global == organizationAdminAccess {
+			return organizationAdminAccess, nil
+		}
+	}
 	if global == organizationAdminAccess {
 		return organizationAdminAccess, nil
 	}
@@ -200,7 +223,7 @@ func (s *Server) organizationAccess(r *http.Request, organizationID string) (org
 func (s *Server) requireOrganizationAccess(r *http.Request, organizationID string, required organizationAccessLevel) error {
 	level, err := s.organizationAccess(r, organizationID)
 	denied := err != nil || level < required
-	if principal, ok := requestPrincipal(r); ok && principal.Authentication == "api-token" && strings.TrimSpace(principal.ProjectID) != "" && required > organizationRead {
+	if principal, ok := requestPrincipal(r); ok && (principal.Authentication == "api-token" || principal.Authentication == "mcp-human") && strings.TrimSpace(principal.ProjectID) != "" && required > organizationRead {
 		denied = true
 	}
 	if denied {
@@ -223,6 +246,9 @@ func (s *Server) projectAccess(r *http.Request, projectID string) (controlplane.
 	if principal, ok := requestPrincipal(r); ok && principal.Authentication != "api-token" {
 		if direct := projectRoleLevel(principal.ProjectRoles[project.ID]); direct > 0 {
 			global := globalPrincipalLevel(principal)
+			if principal.Authentication == "mcp-human" {
+				global = minAccessLevel(global, mcpHumanDelegationLevel(principal))
+			}
 			if global == organizationRead {
 				level = organizationRead
 			} else if global >= organizationWrite {
@@ -233,7 +259,10 @@ func (s *Server) projectAccess(r *http.Request, projectID string) (controlplane.
 	if level == 0 {
 		level, accessErr = s.organizationAccess(r, project.OrganizationID)
 	}
-	if principal, ok := requestPrincipal(r); ok && principal.Authentication == "api-token" && strings.TrimSpace(principal.ProjectID) != "" && strings.TrimSpace(principal.ProjectID) != project.ID {
+	if principal, ok := requestPrincipal(r); ok && principal.Authentication == "mcp-human" && strings.TrimSpace(principal.OrganizationID) != "" && strings.TrimSpace(principal.OrganizationID) != project.OrganizationID {
+		return project, 0, errOrganizationAccessDenied
+	}
+	if principal, ok := requestPrincipal(r); ok && (principal.Authentication == "api-token" || principal.Authentication == "mcp-human") && strings.TrimSpace(principal.ProjectID) != "" && strings.TrimSpace(principal.ProjectID) != project.ID {
 		return project, 0, errOrganizationAccessDenied
 	}
 	if accessErr != nil || level == 0 {

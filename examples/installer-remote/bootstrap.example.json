@@ -3,7 +3,7 @@
   "kind": "InstallerRemoteBootstrap",
   "metadata": {
     "name": "primary-installer-host",
-    "version": "0.0.125"
+    "version": "0.0.256"
   },
   "spec": {
     "target": {
@@ -14,6 +14,10 @@
       "root": "/"
     },
     "platformctlBinary": "../../bin/linux-amd64/platformctl",
-    "deploymentSpec": "../installer-host/deployment.example.json"
+    "deploymentSpec": "../installer-host/deployment.example.json",
+    "expectedBundle": {
+      "bundleDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "lockDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+    }
   }
 }

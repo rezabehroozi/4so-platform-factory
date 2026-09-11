@@ -35,14 +35,15 @@
     },
     "conflictsWith": [],
     "delivery": {
-      "chart": "ceph-csi-rbd",
+      "chart": "ceph-csi-drivers",
       "repositoryKey": "platform-charts",
       "type": "helm"
     },
     "dependencies": [
-      "snapshot-controller"
+      "snapshot-controller",
+      "ceph-csi-operator"
     ],
-    "displayName": "Ceph CSI RBD",
+    "displayName": "Ceph CSI RBD (Operator Managed)",
     "evidenceRequired": [
       "resolved-source-lock",
       "rendered-resource-inventory",
@@ -52,7 +53,7 @@
     ],
     "exclusiveCapabilities": [],
     "mandatory": true,
-    "namespace": "ceph-csi-rbd",
+    "namespace": "ceph-csi-operator-system",
     "operations": {
       "install": "required",
       "preflight": "required",
@@ -65,16 +66,15 @@
       "rbd-storage"
     ],
     "readiness": [
-      "daemonset/ceph-csi-rbd-nodeplugin",
-      "deployment/ceph-csi-rbd-provisioner"
+      "driver/rbd.csi.ceph.com"
     ],
-    "release": "3.17.x",
+    "release": "1.0.4",
     "requiresCapabilities": [
       "volume-snapshot-controller"
     ],
     "risk": "critical",
     "rollback": {
-      "strategy": "preserve-volumes-and-restore-driver-release"
+      "strategy": "preserve-volumes-clientprofiles-and-restore-operator-managed-driver-release"
     },
     "settingsSchemaRef": "schemas/settings/ceph-csi-rbd.schema.json",
     "source": {
@@ -89,7 +89,7 @@
       "type": "helm-chart"
     },
     "supportTier": "research-candidate",
-    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
     "wave": 55
   }
 }

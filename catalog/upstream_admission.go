@@ -24,15 +24,23 @@ type UpstreamAdmission struct {
 	} `json:"spec"`
 }
 
+type UpstreamAdmissionReviewEvidence struct {
+	Kind    string `json:"kind"`
+	URL     string `json:"url"`
+	Summary string `json:"summary"`
+}
+
 type UpstreamAdmissionComponent struct {
-	CatalogConstraint string  `json:"catalogConstraint"`
-	Chart             string  `json:"chart"`
-	Component         string  `json:"component"`
-	Rationale         string  `json:"rationale"`
-	SelectedVersion   *string `json:"selectedVersion"`
-	Source            string  `json:"source"`
-	Status            string  `json:"status"`
-	UpstreamVersion   *string `json:"upstreamVersion"`
+	CatalogConstraint string                            `json:"catalogConstraint"`
+	Chart             string                            `json:"chart"`
+	Component         string                            `json:"component"`
+	Rationale         string                            `json:"rationale"`
+	ReviewEvidence    []UpstreamAdmissionReviewEvidence `json:"reviewEvidence,omitempty"`
+	SelectedVersion   *string                           `json:"selectedVersion"`
+	Source            string                            `json:"source"`
+	Status            string                            `json:"status"`
+	RuntimeStatus     string                            `json:"runtimeStatus"`
+	UpstreamVersion   *string                           `json:"upstreamVersion"`
 }
 
 var upstreamAdmissionExactVersion = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
@@ -44,6 +52,12 @@ var upstreamAdmissionStatuses = map[string]struct{}{
 	"dependency-review-required":   {},
 	"version-selection-required":   {},
 	"version-review-required":      {},
+}
+
+var upstreamRuntimeStatuses = map[string]struct{}{
+	"eligible-after-source-resolution": {},
+	"dependency-transition-required":   {},
+	"review-required":                  {},
 }
 
 func LoadUpstreamAdmission() (UpstreamAdmission, error) {
@@ -94,6 +108,7 @@ func ValidateUpstreamAdmission(admission UpstreamAdmission, components map[strin
 		"versionSelection":           "exact-semver-no-prerelease",
 		"sourceResolution":           "separate-immutable-acquisition-required",
 		"runtimeCertification":       "separate-runtime-evidence-required",
+		"candidateAcquisition":       "exact-source-may-be-acquired-before-runtime-clearance",
 		"autoWidenCatalogConstraint": false,
 		"allowLatestResolution":      false,
 	}
@@ -133,6 +148,9 @@ func ValidateUpstreamAdmission(admission UpstreamAdmission, components map[strin
 		if _, ok := upstreamAdmissionStatuses[row.Status]; !ok {
 			return fmt.Errorf("upstream admission component %q has invalid status %q", name, row.Status)
 		}
+		if _, ok := upstreamRuntimeStatuses[row.RuntimeStatus]; !ok {
+			return fmt.Errorf("upstream admission component %q has invalid runtime status %q", name, row.RuntimeStatus)
+		}
 		constraint := normalizeUpstreamAdmissionVersion(row.CatalogConstraint)
 		if !upstreamAdmissionConstraint.MatchString(constraint) {
 			return fmt.Errorf("upstream admission component %q has invalid catalog constraint %q", name, row.CatalogConstraint)
@@ -147,6 +165,27 @@ func ValidateUpstreamAdmission(admission UpstreamAdmission, components map[strin
 		if strings.TrimSpace(row.Rationale) == "" {
 			return fmt.Errorf("upstream admission component %q is missing rationale", name)
 		}
+		for i, evidence := range row.ReviewEvidence {
+			kind := strings.TrimSpace(evidence.Kind)
+			if kind != "release" && kind != "blocker" && kind != "source-migration" {
+				return fmt.Errorf("upstream admission component %q review evidence %d has invalid kind %q", name, i, evidence.Kind)
+			}
+			if !strings.HasPrefix(strings.TrimSpace(evidence.URL), "https://") || strings.TrimSpace(evidence.Summary) == "" {
+				return fmt.Errorf("upstream admission component %q review evidence %d is incomplete", name, i)
+			}
+		}
+		if row.RuntimeStatus != "eligible-after-source-resolution" {
+			hasBlocker := false
+			for _, evidence := range row.ReviewEvidence {
+				if strings.TrimSpace(evidence.Kind) == "blocker" {
+					hasBlocker = true
+					break
+				}
+			}
+			if !hasBlocker {
+				return fmt.Errorf("upstream admission component %q runtime blocker lacks blocker evidence", name)
+			}
+		}
 
 		selected := ""
 		if row.SelectedVersion != nil {
@@ -159,6 +198,11 @@ func ValidateUpstreamAdmission(admission UpstreamAdmission, components map[strin
 			}
 		}
 
+		if row.Status == "version-review-required" {
+			if selected == "" || len(row.ReviewEvidence) == 0 {
+				return fmt.Errorf("upstream admission component %q version review requires an exact candidate and review evidence", name)
+			}
+		}
 		if row.Status == "ready-for-acquisition" {
 			if selected == "" {
 				return fmt.Errorf("upstream admission component %q is ready without an exact selected version", name)
@@ -169,6 +213,13 @@ func ValidateUpstreamAdmission(admission UpstreamAdmission, components map[strin
 			if component.Spec.VersionPolicy != "exact-upstream-admitted-pending-source-acquisition" {
 				return fmt.Errorf("upstream admission component %q has invalid ready version policy %q", name, component.Spec.VersionPolicy)
 			}
+		} else if selected != "" {
+			if component.Spec.Release != selected {
+				return fmt.Errorf("upstream admission component %q review candidate pin mismatch: catalog=%q candidate=%q", name, component.Spec.Release, selected)
+			}
+			if component.Spec.VersionPolicy != "exact-upstream-review-candidate-pending-decision" {
+				return fmt.Errorf("upstream admission component %q has invalid review candidate version policy %q", name, component.Spec.VersionPolicy)
+			}
 		} else if component.Spec.Release != constraint {
 			return fmt.Errorf("upstream admission component %q review constraint drift: catalog=%q authority=%q", name, component.Spec.Release, constraint)
 		}
@@ -176,6 +227,21 @@ func ValidateUpstreamAdmission(admission UpstreamAdmission, components map[strin
 	for name := range rows {
 		if _, ok := unresolved[name]; !ok {
 			return fmt.Errorf("upstream admission contains non-unresolved component %q", name)
+		}
+	}
+
+	// Source acquisition and runtime suitability are separate authorities.
+	// An exact candidate may be acquired even while runtime certification is
+	// blocked; this makes source evidence inspectable without treating bytes as
+	// an admission to install. Cilium 1.20 remains runtime-blocked until the
+	// explicit Gateway API 1.6.1 dependency transition is completed.
+	if gateway, ok := components["gateway-api"]; ok {
+		gatewayRelease := normalizeUpstreamAdmissionVersion(gateway.Spec.Release)
+		if cilium, ok := rows["cilium"]; ok && cilium.SelectedVersion != nil {
+			selected := normalizeUpstreamAdmissionVersion(*cilium.SelectedVersion)
+			if strings.HasPrefix(selected, "1.20.") && (gatewayRelease != "1.6.1" || !gateway.Spec.Source.Resolved) && cilium.RuntimeStatus != "dependency-transition-required" {
+				return fmt.Errorf("upstream admission runtime dependency status invalid: cilium %s must remain dependency-transition-required until resolved gateway-api 1.6.1; current=%s resolved=%t", selected, gatewayRelease, gateway.Spec.Source.Resolved)
+			}
 		}
 	}
 	return nil

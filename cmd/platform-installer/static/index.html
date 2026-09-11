@@ -84,7 +84,6 @@
               <label><span>DNS zone</span><input id="dns-zone" class="technical" placeholder="company.tld" dir="ltr"></label>
               <label><span>TLS mode</span><select id="tls-mode" required><option value="managed-private-ca">Managed private CA</option><option value="bootstrap-self-signed">Bootstrap self-signed</option></select></label>
               <label id="certificate-field" hidden><span>Certificate secret reference</span><input id="certificate-ref" class="technical" placeholder="secret://tls/platform" dir="ltr"></label>
-              <label><span>Bootstrap administrator email</span><input id="admin-email" type="email" placeholder="administrator@company.tld" dir="ltr"></label>
             </div>
           </article>
 
@@ -117,6 +116,7 @@
         <div class="section-intro"><div><h2>Execution progress</h2><p>Every step is resumable and health-gated. A failed run resumes from the failed or pending step.</p></div><button id="resume-installation" type="button" class="primary" disabled>Resume failed run</button></div>
         <article class="panel"><div id="run-progress" class="timeline"><div class="empty-state">No run loaded.</div></div></article>
         <article class="panel"><div class="panel-heading"><div><h2>Failure diagnostics</h2><p>Capture a verified, tamper-evident snapshot of the failed step and every related runtime authority before changing the environment.</p></div><div class="resource-actions"><button id="download-diagnostics" class="secondary small" type="button">Download diagnostics</button><button id="verify-diagnostics" class="primary small" type="button">Verify diagnostics</button></div></div><div id="diagnostics-status" class="details-list"><div class="empty-state">Diagnostics become available after an installation run exists.</div></div></article>
+        <article class="panel danger-zone"><div class="panel-heading"><div><h2>Reset and clean reinstall</h2><p>Explicitly uninstall only product-owned RKE2 and generated installer state. Installer access token and pinned HA SSH trust are preserved so a clean reinstall can be planned after reset.</p></div><div class="resource-actions"><button id="resume-reset" class="secondary small" type="button" disabled>Resume interrupted reset</button><button id="start-reset" class="danger small" type="button" disabled>Reset installation</button></div></div><div id="reset-status" class="details-list"><div class="empty-state">No reset run exists.</div></div></article>
       </section>
 
       <section id="health" class="page">

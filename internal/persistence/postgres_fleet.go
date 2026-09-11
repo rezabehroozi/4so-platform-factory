@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"platform.4so.io/factory/internal/controlplane"
-	"platform.4so.io/factory/internal/targetmodel"
 	"strings"
 	"time"
 )
@@ -33,6 +32,7 @@ func scanManagedCluster(row interface{ Scan(...any) error }) (controlplane.Manag
 		if decodeErr := decodeJSONColumn(cap, &v.Capabilities, "postgres_fleet.Capabilities"); decodeErr != nil {
 			return v, decodeErr
 		}
+		v.ProviderClusterID = strings.TrimSpace(v.Labels[controlplane.TargetNodeProviderBindingLabel])
 	}
 	return v, err
 }
@@ -364,10 +364,11 @@ func (s *PostgresStore) UpsertClusterInventory(ctx context.Context, clusterID, a
 		capacity, _ := json.Marshal(inv.Capacity)
 		certificates, _ := json.Marshal(inv.Certificates)
 		networking, _ := json.Marshal(inv.Networking)
+		workloadExplorer, _ := json.Marshal(inv.WorkloadExplorer)
 		apiResources, _ := json.Marshal(inv.APIResources)
 		crds, _ := json.Marshal(inv.CRDs)
 		caps, _ := json.Marshal(inv.Capabilities)
-		_, e = tx.ExecContext(ctx, `INSERT INTO cluster_inventory_snapshots(id,cluster_id,revision,observed_at,distribution,distribution_evidence_method,distribution_evidence_uid,distribution_evidence_version,kubernetes_version,nodes,addons,storage_classes,capacity,certificates,networking,api_resources,crds,api_discovery_complete,crd_discovery_complete,schema_discovery_version,schema_discovery_digest,schema_discovery_complete,capabilities,digest,created_at,updated_at) VALUES($1,$2,1,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$24) ON CONFLICT(cluster_id,digest) DO NOTHING`, inv.ID, clusterID, inv.ObservedAt, inv.Distribution, inv.DistributionEvidenceMethod, inv.DistributionEvidenceUID, inv.DistributionEvidenceVersion, inv.KubernetesVersion, nodes, addons, storageClasses, capacity, certificates, networking, apiResources, crds, inv.APIDiscoveryComplete, inv.CRDDiscoveryComplete, inv.SchemaDiscoveryVersion, inv.SchemaDiscoveryDigest, inv.SchemaDiscoveryComplete, caps, inv.Digest, now)
+		_, e = tx.ExecContext(ctx, `INSERT INTO cluster_inventory_snapshots(id,cluster_id,revision,observed_at,distribution,distribution_evidence_method,distribution_evidence_uid,distribution_evidence_version,kubernetes_version,nodes,addons,storage_classes,capacity,certificates,networking,workload_explorer,api_resources,crds,api_discovery_complete,crd_discovery_complete,schema_discovery_version,schema_discovery_digest,schema_discovery_complete,capabilities,digest,created_at,updated_at) VALUES($1,$2,1,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$25) ON CONFLICT(cluster_id,digest) DO NOTHING`, inv.ID, clusterID, inv.ObservedAt, inv.Distribution, inv.DistributionEvidenceMethod, inv.DistributionEvidenceUID, inv.DistributionEvidenceVersion, inv.KubernetesVersion, nodes, addons, storageClasses, capacity, certificates, networking, workloadExplorer, apiResources, crds, inv.APIDiscoveryComplete, inv.CRDDiscoveryComplete, inv.SchemaDiscoveryVersion, inv.SchemaDiscoveryDigest, inv.SchemaDiscoveryComplete, caps, inv.Digest, now)
 		if e != nil {
 			return e
 		}
@@ -410,7 +411,7 @@ func (s *PostgresStore) AuthorizeClusterMutationRBACActivation(ctx context.Conte
 		if e != nil {
 			return mapDBError(e)
 		}
-		if !controlplane.ClusterInventoryAuthorityFreshAt(cluster, utcNow(s.now)) || !controlplane.ClusterHasCapability(cluster, controlplane.TargetIdentityContinuityCapability) || !targetmodel.SupportedDistribution(cluster.Distribution) {
+		if !controlplane.ClusterInventoryAuthorityFreshAt(cluster, utcNow(s.now)) || !controlplane.ClusterHasCapability(cluster, controlplane.TargetIdentityContinuityCapability) || !controlplane.ClusterMutationAdmissionEligible(cluster) {
 			return controlplane.ErrPrerequisite
 		}
 		blocked, e := s.hasUnacknowledgedRevokedClusterForUIDTx(ctx, tx, cluster.ExternalUID, cluster.ID)
@@ -602,8 +603,8 @@ func (s *PostgresStore) ListManagedClusters(ctx context.Context, pid string) ([]
 }
 func (s *PostgresStore) GetLatestClusterInventory(ctx context.Context, id string) (controlplane.ClusterInventory, error) {
 	var v controlplane.ClusterInventory
-	var nodes, addons, storageClasses, capacity, certificates, networking, apiResources, crds, caps []byte
-	e := s.db.QueryRowContext(ctx, `SELECT id,revision,cluster_id,observed_at,distribution,distribution_evidence_method,distribution_evidence_uid,distribution_evidence_version,kubernetes_version,nodes,addons,storage_classes,capacity,certificates,networking,api_resources,crds,api_discovery_complete,crd_discovery_complete,schema_discovery_version,schema_discovery_digest,schema_discovery_complete,capabilities,digest,created_at,updated_at FROM cluster_inventory_snapshots WHERE cluster_id=$1 ORDER BY observed_at DESC,id DESC LIMIT 1`, id).Scan(&v.ID, &v.Revision, &v.ClusterID, &v.ObservedAt, &v.Distribution, &v.DistributionEvidenceMethod, &v.DistributionEvidenceUID, &v.DistributionEvidenceVersion, &v.KubernetesVersion, &nodes, &addons, &storageClasses, &capacity, &certificates, &networking, &apiResources, &crds, &v.APIDiscoveryComplete, &v.CRDDiscoveryComplete, &v.SchemaDiscoveryVersion, &v.SchemaDiscoveryDigest, &v.SchemaDiscoveryComplete, &caps, &v.Digest, &v.CreatedAt, &v.UpdatedAt)
+	var nodes, addons, storageClasses, capacity, certificates, networking, workloadExplorer, apiResources, crds, caps []byte
+	e := s.db.QueryRowContext(ctx, `SELECT id,revision,cluster_id,observed_at,distribution,distribution_evidence_method,distribution_evidence_uid,distribution_evidence_version,kubernetes_version,nodes,addons,storage_classes,capacity,certificates,networking,workload_explorer,api_resources,crds,api_discovery_complete,crd_discovery_complete,schema_discovery_version,schema_discovery_digest,schema_discovery_complete,capabilities,digest,created_at,updated_at FROM cluster_inventory_snapshots WHERE cluster_id=$1 ORDER BY observed_at DESC,id DESC LIMIT 1`, id).Scan(&v.ID, &v.Revision, &v.ClusterID, &v.ObservedAt, &v.Distribution, &v.DistributionEvidenceMethod, &v.DistributionEvidenceUID, &v.DistributionEvidenceVersion, &v.KubernetesVersion, &nodes, &addons, &storageClasses, &capacity, &certificates, &networking, &workloadExplorer, &apiResources, &crds, &v.APIDiscoveryComplete, &v.CRDDiscoveryComplete, &v.SchemaDiscoveryVersion, &v.SchemaDiscoveryDigest, &v.SchemaDiscoveryComplete, &caps, &v.Digest, &v.CreatedAt, &v.UpdatedAt)
 	if e != nil {
 		return v, mapDBError(e)
 	}
@@ -623,6 +624,9 @@ func (s *PostgresStore) GetLatestClusterInventory(ctx context.Context, id string
 		return v, decodeErr
 	}
 	if decodeErr := decodeJSONColumn(networking, &v.Networking, "postgres_fleet.Networking"); decodeErr != nil {
+		return v, decodeErr
+	}
+	if decodeErr := decodeJSONColumn(workloadExplorer, &v.WorkloadExplorer, "postgres_fleet.WorkloadExplorer"); decodeErr != nil {
 		return v, decodeErr
 	}
 	if decodeErr := decodeJSONColumn(apiResources, &v.APIResources, "postgres_fleet.APIResources"); decodeErr != nil {

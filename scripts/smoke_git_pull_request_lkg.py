@@ -204,7 +204,7 @@ def argo_server(state):
     srv=ThreadingHTTPServer(('127.0.0.1',port),H);threading.Thread(target=srv.serve_forever,daemon=True).start();return srv,f'http://127.0.0.1:{port}'
 
 def start_api(binary,state_file,git_url,argo_url):
-    port=free_port();env=os.environ.copy();env.update({'PLATFORM_FACTORY_LISTEN':f'127.0.0.1:{port}','PLATFORM_FACTORY_STATE_FILE':str(state_file),'PLATFORM_FACTORY_AGENT_MTLS_REQUIRED':'false','PLATFORM_FACTORY_INTERNAL_GIT_URL':git_url,'PLATFORM_FACTORY_INTERNAL_GIT_USERNAME':'admin','PLATFORM_FACTORY_INTERNAL_GIT_PASSWORD':'secret','PLATFORM_FACTORY_INTERNAL_GIT_BOOTSTRAP':'true','PLATFORM_FACTORY_INTERNAL_GITOPS_URL':argo_url});p=subprocess.Popen([str(binary)],env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True);base=f'http://127.0.0.1:{port}'
+    port=free_port();env=os.environ.copy(); env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true';env.update({'PLATFORM_FACTORY_LISTEN':f'127.0.0.1:{port}','PLATFORM_FACTORY_STATE_FILE':str(state_file),'PLATFORM_FACTORY_AGENT_MTLS_REQUIRED':'false','PLATFORM_FACTORY_INTERNAL_GIT_URL':git_url,'PLATFORM_FACTORY_INTERNAL_GIT_USERNAME':'admin','PLATFORM_FACTORY_INTERNAL_GIT_PASSWORD':'secret','PLATFORM_FACTORY_INTERNAL_GIT_BOOTSTRAP':'true','PLATFORM_FACTORY_INTERNAL_GITOPS_URL':argo_url});p=subprocess.Popen([str(binary)],env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True);base=f'http://127.0.0.1:{port}'
     for _ in range(100):
         try:
             if request(base,'/readyz')[0]==200:return p,base

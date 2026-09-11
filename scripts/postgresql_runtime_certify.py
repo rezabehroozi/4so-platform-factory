@@ -23,12 +23,19 @@ import subprocess
 import sys
 import tempfile
 import time
-from urllib.parse import parse_qs, urlsplit, urlunsplit
+from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE_PATH = ROOT / "certification" / "postgresql-runtime-profile.json"
 MIGRATIONS_DIR = ROOT / "migrations"
 POSTMASTER_IDENTITY_SQL = "SELECT concat_ws('|', coalesce(inet_server_addr()::text,'local'), coalesce(inet_server_port()::text,'local'), pg_postmaster_start_time()::text)"
+AI_RUN_POSTGRES_DURABILITY_AUTHORITY = "AI_RUN_POSTGRES_DURABILITY_RUNTIME_AUTHORITY_V1"
+M03_EXACT_RELEASE_EVIDENCE_AUTHORITY = "LAB_M03_EXACT_RELEASE_EVIDENCE_AUTHORITY_V1"
+AI_RUN_POSTGRES_MANDATORY_CHECKS = (
+    "ai-run-atomic-result-commit",
+    "ai-run-post-restart-durability",
+    "ai-run-post-restore-durability",
+)
 
 
 class CertificationError(RuntimeError):
@@ -60,11 +67,10 @@ def schema_identity_guard_sql(schema: str, expected_oid: str) -> str:
 
 class Runner:
     def __init__(self, dsn: str, schema: str, timeout: int = 60):
-        self.dsn = dsn
+        self.dsn, self.env = subprocess_postgres_connection(dsn, os.environ)
         self.schema = schema
         self.timeout = timeout
         self.expected_schema_oid: str | None = None
-        self.env = os.environ.copy()
         self.env["PGOPTIONS"] = f"-c search_path={schema}"
 
     def bind_schema_oid(self, oid: str) -> None:
@@ -82,12 +88,16 @@ class Runner:
         if tuples:
             command += ["--tuples-only", "--no-align"]
         guarded_sql = self.schema_identity_guard() + sql
-        command += [dsn or self.dsn, "--command", guarded_sql]
+        command_env = dict(env or self.env)
+        command_dsn = self.dsn
+        if dsn is not None:
+            command_dsn, command_env = subprocess_postgres_connection(dsn, command_env)
+        command += [command_dsn, "--command", guarded_sql]
         result = subprocess.run(
             command,
             text=True,
             capture_output=True,
-            env=env or self.env,
+            env=command_env,
             timeout=timeout or self.timeout,
             check=False,
         )
@@ -125,14 +135,101 @@ def sha256_file(path: Path) -> str:
     return sha256_bytes(path.read_bytes())
 
 
+def sql_literal(value: str) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def canonical_json_digest(value) -> tuple[str, str]:
+    raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
+    return raw, sha256_bytes(raw.encode())
+
+
+def verify_ai_run_durable_pair(runner, *, run_id: str = "air-cert", claim_id: str = "aic-cert") -> str:
+    row = runner.run(
+        "SELECT c.state || '|' || c.ai_run_id || '|' || r.id || '|' || "
+        "c.request_digest || '|' || r.request_digest || '|' || c.idempotency_key || '|' || "
+        "r.idempotency_key || '|' || r.output_digest "
+        "FROM ai_execution_claims c JOIN ai_runs r ON r.id=c.ai_run_id "
+        f"WHERE c.id={sql_literal(claim_id)} AND r.id={sql_literal(run_id)}",
+        tuples=True,
+    ).stdout.strip()
+    parts = row.split("|", 7)
+    if len(parts) != 8:
+        raise CertificationError(f"durable AI execution pair is missing or malformed: {row or 'empty'}")
+    state, linked_run, persisted_run, claim_request, run_request, claim_key, run_key, output_digest = parts
+    if state != "COMPLETED" or linked_run != run_id or persisted_run != run_id:
+        raise CertificationError(f"durable AI execution claim is not terminally bound to {run_id}: {row}")
+    if claim_request != run_request or claim_key != run_key:
+        raise CertificationError("durable AI execution claim/run request authority diverged")
+    output_text = runner.run(
+        f"SELECT output::text FROM ai_runs WHERE id={sql_literal(run_id)}", tuples=True
+    ).stdout.strip()
+    try:
+        output_value = json.loads(output_text)
+    except json.JSONDecodeError as exc:
+        raise CertificationError("durable AI run output is not valid JSON") from exc
+    _, recomputed = canonical_json_digest(output_value)
+    if output_digest != recomputed:
+        raise CertificationError(
+            f"durable AI run output digest mismatch expected={recomputed} actual={output_digest}"
+        )
+    return f"claim={claim_id} state=COMPLETED aiRun={run_id} outputDigest={output_digest}"
+
+
+
+
+def subprocess_postgres_connection(dsn: str, base_env: dict[str, str] | None = None) -> tuple[str, dict[str, str]]:
+    """Return a credential-free argv DSN plus child env for libpq tools.
+
+    M03 runs on shared operator/lab hosts where process argv may be observable.
+    Password material therefore never travels in psql/pg_dump/pg_restore/createdb/
+    dropdb argv. URL-format DSNs are preserved semantically while credentials are
+    moved to PGPASSWORD. Keyword DSNs must already keep password out of argv.
+    """
+    raw = str(dsn).strip()
+    if not raw:
+        raise CertificationError("PostgreSQL DSN is required")
+    env = dict(base_env or os.environ)
+    if raw.startswith(("postgres://", "postgresql://")):
+        parsed = urlsplit(raw)
+        password: str | None = None
+        netloc = parsed.netloc
+        if "@" in netloc:
+            userinfo, hostpart = netloc.rsplit("@", 1)
+            if ":" in userinfo:
+                userpart, passwordpart = userinfo.split(":", 1)
+                password = unquote(passwordpart)
+                netloc = userpart + "@" + hostpart
+        clean_query: list[tuple[str, str]] = []
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True):
+            if key.lower() == "password":
+                if password is not None and password != value:
+                    raise CertificationError("PostgreSQL DSN contains conflicting password authorities")
+                password = value
+                continue
+            clean_query.append((key, value))
+        if password is not None:
+            if "\x00" in password or "\r" in password or "\n" in password:
+                raise CertificationError("PostgreSQL DSN password contains forbidden control characters")
+            env["PGPASSWORD"] = password
+        sanitized = urlunsplit((parsed.scheme, netloc, parsed.path, urlencode(clean_query, doseq=True), ""))
+        return sanitized, env
+    if re.search(r"(?i)(?:^|\s)password\s*=", raw):
+        raise CertificationError("password-bearing keyword PostgreSQL DSN is forbidden on process argv; use PGPASSWORD")
+    return raw, env
+
+
 def redact_dsn(dsn: str) -> str:
     if dsn.startswith(("postgres://", "postgresql://")):
         parsed = urlsplit(dsn)
         host = parsed.hostname or ""
         port = f":{parsed.port}" if parsed.port else ""
         user = parsed.username or ""
-        auth = f"{user}:***@" if user else ""
-        return urlunsplit((parsed.scheme, auth + host + port, parsed.path, parsed.query, ""))
+        auth = f"{user}:***@" if parsed.password is not None else (f"{user}@" if user else "")
+        query = []
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True):
+            query.append((key, "***" if key.lower() == "password" else value))
+        return urlunsplit((parsed.scheme, auth + host + port, parsed.path, urlencode(query, doseq=True, safe="*"), ""))
     return re.sub(r"(?i)(password\s*=\s*)[^\s]+", r"\1***", dsn)
 
 
@@ -242,12 +339,13 @@ def schema_oid(runner, schema: str | None = None) -> str:
 
 def database_oid(admin_dsn: str, database: str) -> str:
     target = database.replace("'", "''")
+    admin_arg, admin_env = subprocess_postgres_connection(admin_dsn, os.environ)
     command = [
         "psql", "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--tuples-only", "--no-align",
-        admin_dsn, "--command",
+        admin_arg, "--command",
         f"SELECT coalesce((SELECT oid::text FROM pg_catalog.pg_database WHERE datname='{target}'),'')",
     ]
-    result = subprocess.run(command, text=True, capture_output=True, timeout=30, check=False)
+    result = subprocess.run(command, text=True, capture_output=True, env=admin_env, timeout=30, check=False)
     if result.returncode:
         raise CertificationError(redact_text(f"could not inspect restore database identity: {result.stderr.strip()}"))
     value = result.stdout.strip()
@@ -265,9 +363,10 @@ def require_database_oid(admin_dsn: str, database: str, expected_oid: str) -> No
 
 
 def create_restore_database(admin_dsn: str, database: str) -> str:
+    admin_arg, admin_env = subprocess_postgres_connection(admin_dsn, os.environ)
     create = subprocess.run(
-        ["createdb", "--maintenance-db", admin_dsn, database],
-        text=True, capture_output=True, timeout=30, check=False,
+        ["createdb", "--maintenance-db", admin_arg, database],
+        text=True, capture_output=True, env=admin_env, timeout=30, check=False,
     )
     if create.returncode:
         raise CertificationError(f"createdb failed without deleting any pre-existing database: {create.stderr.strip()}")
@@ -276,9 +375,10 @@ def create_restore_database(admin_dsn: str, database: str) -> str:
 
 def drop_owned_restore_database(admin_dsn: str, database: str, expected_oid: str) -> None:
     require_database_oid(admin_dsn, database, expected_oid)
+    admin_arg, admin_env = subprocess_postgres_connection(admin_dsn, os.environ)
     result = subprocess.run(
-        ["dropdb", "--maintenance-db", admin_dsn, database],
-        text=True, capture_output=True, timeout=30, check=False,
+        ["dropdb", "--maintenance-db", admin_arg, database],
+        text=True, capture_output=True, env=admin_env, timeout=30, check=False,
     )
     if result.returncode:
         raise CertificationError("restored database cleanup failed: " + result.stderr.strip())
@@ -439,7 +539,40 @@ def psql_command(
     if tuples:
         command += ["--tuples-only", "--no-align"]
     guarded_sql = schema_identity_guard_sql(schema, expected_schema_oid) + sql if expected_schema_oid else sql
-    return command + [dsn, "--command", guarded_sql]
+    safe_dsn, _ = subprocess_postgres_connection(dsn, os.environ)
+    return command + [safe_dsn, "--command", guarded_sql]
+
+
+def _strict_json_object(raw: str, *, label: str) -> dict[str, object]:
+    def pairs(values):
+        out = {}
+        for key, value in values:
+            if key in out:
+                raise CertificationError(f"{label} contains duplicate JSON key {key!r}")
+            out[key] = value
+        return out
+    try:
+        value = json.loads(raw, object_pairs_hook=pairs)
+    except json.JSONDecodeError as exc:
+        raise CertificationError(f"{label} is not valid JSON") from exc
+    if not isinstance(value, dict):
+        raise CertificationError(f"{label} must be a JSON object")
+    return value
+
+
+def read_connection_json_stdin(stream) -> tuple[str, str]:
+    max_bytes = 16 * 1024
+    raw = stream.read(max_bytes + 1)
+    if len(raw.encode("utf-8")) > max_bytes:
+        raise CertificationError("PostgreSQL private connection stdin exceeds 16384-byte limit")
+    value = _strict_json_object(raw, label="PostgreSQL private connection stdin")
+    if set(value) != {"dsn", "adminDsn"}:
+        raise CertificationError("PostgreSQL private connection stdin must contain exactly dsn and adminDsn")
+    dsn = value.get("dsn")
+    admin = value.get("adminDsn")
+    if not isinstance(dsn, str) or not dsn.strip() or not isinstance(admin, str) or not admin.strip():
+        raise CertificationError("PostgreSQL private connection stdin requires non-empty string dsn and adminDsn")
+    return dsn.strip(), admin.strip()
 
 
 def add_check(checks: list[Check], name: str, fn) -> None:
@@ -460,11 +593,17 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dsn", default=os.getenv("POSTGRES_CERT_DSN", ""))
     parser.add_argument("--admin-dsn", default=os.getenv("POSTGRES_CERT_ADMIN_DSN", ""))
+    parser.add_argument("--connection-json-stdin", action="store_true")
     parser.add_argument("--restart-command", default=os.getenv("POSTGRES_CERT_RESTART_COMMAND", ""))
     parser.add_argument("--evidence", default=str(ROOT / "evidence" / "postgresql-runtime-certification.json"))
+    parser.add_argument("--release-artifact-digest", default=os.getenv("POSTGRES_CERT_RELEASE_ARTIFACT_DIGEST", ""))
     parser.add_argument("--contract-only", action="store_true")
     parser.add_argument("--keep-schema", action="store_true")
     args = parser.parse_args()
+    if args.connection_json_stdin:
+        if str(args.dsn).strip() or str(args.admin_dsn).strip():
+            raise CertificationError("--connection-json-stdin cannot be combined with --dsn/--admin-dsn or POSTGRES_CERT_DSN/POSTGRES_CERT_ADMIN_DSN")
+        args.dsn, args.admin_dsn = read_connection_json_stdin(sys.stdin)
 
     started = utcnow(reproducible=args.contract_only)
     profile = load_profile()
@@ -487,6 +626,8 @@ def main() -> int:
             "mode": "contract-only",
             "status": status,
             "runtimeCertified": False,
+            "aiRunPostgresDurabilityAuthority": AI_RUN_POSTGRES_DURABILITY_AUTHORITY,
+            "aiRunPostgresDurabilityCertified": False,
             "startedAt": started,
             "finishedAt": utcnow(reproducible=True),
             "profileDigest": profile_digest,
@@ -500,6 +641,9 @@ def main() -> int:
         return 0 if status == "PASS" else 1
 
     prerequisites = []
+    release_artifact_digest = str(args.release_artifact_digest).strip()
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", release_artifact_digest):
+        prerequisites.append("--release-artifact-digest must be the exact lowercase sha256 release digest")
     if os.getenv("ALLOW_DESTRUCTIVE_POSTGRES_CERTIFICATION") != "1":
         prerequisites.append("ALLOW_DESTRUCTIVE_POSTGRES_CERTIFICATION=1 is required")
     if not args.dsn:
@@ -515,10 +659,14 @@ def main() -> int:
     if prerequisites:
         checks.append(Check("prerequisites", "BLOCKED", "; ".join(prerequisites)))
         evidence = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "mode": "runtime",
             "status": "BLOCKED",
+            "releaseEvidenceAuthority": M03_EXACT_RELEASE_EVIDENCE_AUTHORITY,
+            "releaseArtifactDigest": release_artifact_digest,
             "runtimeCertified": False,
+            "aiRunPostgresDurabilityAuthority": AI_RUN_POSTGRES_DURABILITY_AUTHORITY,
+            "aiRunPostgresDurabilityCertified": False,
             "startedAt": started,
             "finishedAt": utcnow(),
             "target": redact_dsn(args.dsn),
@@ -648,6 +796,61 @@ def main() -> int:
         return "unique idempotency authority enforced under contention"
     add_check(checks, "idempotency-contention", idempotency_contention)
 
+    def ai_run_atomic_result_commit():
+        require_schema_ready(schema_ready)
+        runner.run("INSERT INTO projects(id,organization_id,revision,name,display_name,created_at,updated_at) VALUES('project-cert','atomic-ok',1,'project-cert','Project Cert',now(),now()) ON CONFLICT DO NOTHING")
+        request_digest = "sha256:" + "d" * 64
+        prompt_digest = "sha256:" + "a" * 64
+        context_digest = "sha256:" + "b" * 64
+        output_raw, output_digest = canonical_json_digest({"classification": "environment"})
+
+        rollback_sql = f"""BEGIN;
+INSERT INTO ai_execution_claims(id,project_id,revision,purpose,idempotency_key,request_digest,state,ai_run_id,failure_code,requested_by,created_at,updated_at) VALUES('aic-rollback','project-cert',1,'operator-diagnosis','ai-cert-rollback',{sql_literal(request_digest)},'DISPATCHED','','','certifier',now(),now());
+INSERT INTO ai_runs(id,project_id,revision,purpose,provider,model,prompt_id,prompt_digest,context_digest,output_digest,redaction_count,input_bytes,input_tokens,cached_tokens,output_tokens,output,linked_resource_type,linked_resource_id,requested_by,idempotency_key,request_digest,advisory_only,created_at,updated_at) VALUES('air-rollback','project-cert',1,'operator-diagnosis','runtime-certifier','cert-model','operator-diagnosis',{sql_literal(prompt_digest)},{sql_literal(context_digest)},{sql_literal(output_digest)},0,32,4,0,2,{sql_literal(output_raw)}::jsonb,'','','certifier','ai-cert-rollback',{sql_literal(request_digest)},true,now(),now());
+SELECT 1/0;
+UPDATE ai_execution_claims SET revision=2,state='COMPLETED',ai_run_id='air-rollback',updated_at=now() WHERE id='aic-rollback';
+COMMIT;"""
+        failed = runner.run(rollback_sql, check=False)
+        if failed.returncode == 0:
+            raise CertificationError("forced AI result transaction rollback unexpectedly succeeded")
+        rollback_count = runner.run(
+            "SELECT (SELECT count(*) FROM ai_execution_claims WHERE id='aic-rollback')::text || ':' || "
+            "(SELECT count(*) FROM ai_runs WHERE id='air-rollback')::text", tuples=True
+        ).stdout.strip()
+        if rollback_count != "0:0":
+            raise CertificationError(f"AI result transaction leaked split state after rollback: {rollback_count}")
+
+        commit_sql = f"""BEGIN;
+INSERT INTO ai_execution_claims(id,project_id,revision,purpose,idempotency_key,request_digest,state,ai_run_id,failure_code,requested_by,created_at,updated_at) VALUES('aic-cert','project-cert',1,'operator-diagnosis','ai-cert-main',{sql_literal(request_digest)},'DISPATCHED','','','certifier',now(),now());
+INSERT INTO ai_runs(id,project_id,revision,purpose,provider,model,prompt_id,prompt_digest,context_digest,output_digest,redaction_count,input_bytes,input_tokens,cached_tokens,output_tokens,output,linked_resource_type,linked_resource_id,requested_by,idempotency_key,request_digest,advisory_only,created_at,updated_at) VALUES('air-cert','project-cert',1,'operator-diagnosis','runtime-certifier','cert-model','operator-diagnosis',{sql_literal(prompt_digest)},{sql_literal(context_digest)},{sql_literal(output_digest)},0,32,4,0,2,{sql_literal(output_raw)}::jsonb,'','','certifier','ai-cert-main',{sql_literal(request_digest)},true,now(),now());
+INSERT INTO audit_events(id,occurred_at,actor_id,action,resource_type,resource_id,resource_revision,metadata) VALUES('aud-ai-cert',now(),'certifier','ai_run.created','aiRun','air-cert',1,'{{"projectId":"project-cert"}}'::jsonb);
+INSERT INTO outbox_events(id,revision,aggregate_type,aggregate_id,event_type,payload,available_at,created_at,updated_at) VALUES('evt-ai-cert',1,'aiRun','air-cert','ai_run.created','{{}}'::jsonb,now(),now(),now());
+UPDATE ai_execution_claims SET revision=2,state='COMPLETED',ai_run_id='air-cert',failure_code='',updated_at=now() WHERE id='aic-cert';
+COMMIT;"""
+        runner.run(commit_sql)
+        detail = verify_ai_run_durable_pair(runner)
+        side_effects = runner.run(
+            "SELECT (SELECT count(*) FROM audit_events WHERE resource_type='aiRun' AND resource_id='air-cert')::text || ':' || "
+            "(SELECT count(*) FROM outbox_events WHERE aggregate_type='aiRun' AND aggregate_id='air-cert')::text",
+            tuples=True,
+        ).stdout.strip()
+        if side_effects != "1:1":
+            raise CertificationError(f"AI result commit missing audit/outbox atomic side effects: {side_effects}")
+
+        concurrent = []
+        for suffix in ("a", "b"):
+            concurrent.append(psql_command(
+                args.dsn,
+                "INSERT INTO ai_execution_claims(id,project_id,revision,purpose,idempotency_key,request_digest,state,ai_run_id,failure_code,requested_by,created_at,updated_at) "
+                f"VALUES('aic-race-{suffix}','project-cert',1,'operator-diagnosis','ai-cert-race',{sql_literal(request_digest)},'DISPATCHED','','','certifier',now(),now())",
+                tuples=False, schema=schema, expected_schema_oid=schema_oid_value,
+            ))
+        results = run_concurrent(concurrent, runner.env)
+        if sum(1 for result in results if result.returncode == 0) != 1:
+            raise CertificationError("AI pre-egress idempotency claim did not produce exactly one dispatch winner")
+        return detail + "; rollback=0:0 audit/outbox=1:1 dispatchWinners=1"
+    add_check(checks, "ai-run-atomic-result-commit", ai_run_atomic_result_commit)
+
     def lease_contention():
         require_schema_ready(schema_ready)
         runner.run("INSERT INTO operations(id,project_id,revision,kind,target_ref,desired_revision,state,risk,idempotency_key,request_digest,actor_id,created_at,updated_at) VALUES('op-lease','project-cert',1,'certify','target','rev','QUEUED','low','lease-key','sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','certifier',now(),now()) ON CONFLICT DO NOTHING")
@@ -701,25 +904,31 @@ def main() -> int:
         return run_restart_check(runner, args.restart_command)
     add_check(checks, "postgres-restart", restart_check)
 
+    def ai_run_post_restart():
+        require_schema_ready(schema_ready)
+        return verify_ai_run_durable_pair(runner) + "; survived PostgreSQL postmaster restart"
+    add_check(checks, "ai-run-post-restart-durability", ai_run_post_restart)
+
     def backup_restore():
         nonlocal restored_database_created, restored_database_oid
         require_schema_ready(schema_ready)
         restored_database_oid = create_restore_database(args.admin_dsn, restored_database)
         restored_database_created = True
         require_database_oid(args.admin_dsn, restored_database, restored_database_oid)
-        dump = subprocess.run(["pg_dump", "--format=custom", "--schema", schema, "--file", str(backup_file), args.dsn], text=True, capture_output=True, timeout=120, check=False)
+        dump_dsn, dump_env = subprocess_postgres_connection(args.dsn, runner.env)
+        dump = subprocess.run(["pg_dump", "--format=custom", "--schema", schema, "--file", str(backup_file), dump_dsn], text=True, capture_output=True, env=dump_env, timeout=120, check=False)
         if dump.returncode:
             raise CertificationError(f"pg_dump failed: {dump.stderr.strip()}")
         restore_dsn = database_dsn(args.admin_dsn, restored_database)
         require_database_oid(args.admin_dsn, restored_database, restored_database_oid)
-        restore = subprocess.run(["pg_restore", "--no-owner", "--no-privileges", "--dbname", restore_dsn, str(backup_file)], text=True, capture_output=True, timeout=120, check=False)
+        restore_arg, restore_env = subprocess_postgres_connection(restore_dsn, os.environ)
+        restore = subprocess.run(["pg_restore", "--no-owner", "--no-privileges", "--dbname", restore_arg, str(backup_file)], text=True, capture_output=True, env=restore_env, timeout=120, check=False)
         if restore.returncode:
             raise CertificationError(f"pg_restore failed: {restore.stderr.strip()}")
         require_database_oid(args.admin_dsn, restored_database, restored_database_oid)
-        restored_env = runner.env.copy()
         restored_runner = Runner(restore_dsn, schema)
         restored_runner.bind_schema_oid(schema_oid(restored_runner))
-        count = restored_runner.run("SELECT count(*) FROM organizations WHERE id='atomic-ok'", tuples=True, env=restored_env).stdout.strip()
+        count = restored_runner.run("SELECT count(*) FROM organizations WHERE id='atomic-ok'", tuples=True).stdout.strip()
         if count != "1":
             raise CertificationError(f"restored authority row count {count}")
         return f"backup restored into {restored_database} oid={restored_database_oid}"
@@ -740,6 +949,16 @@ def main() -> int:
         return "post-restore immutable invariants preserved"
     add_check(checks, "post-restore-invariants", post_restore_invariants)
 
+    def ai_run_post_restore():
+        require_schema_ready(schema_ready)
+        if not restored_database_created or not restored_database_oid:
+            raise CertificationError("backup/restore did not establish durable restore database identity")
+        require_database_oid(args.admin_dsn, restored_database, restored_database_oid)
+        restored = Runner(database_dsn(args.admin_dsn, restored_database), schema)
+        restored.bind_schema_oid(schema_oid(restored))
+        return verify_ai_run_durable_pair(restored) + "; survived backup/restore"
+    add_check(checks, "ai-run-post-restore-durability", ai_run_post_restore)
+
     add_check(
         checks, "cleanup",
         lambda: cleanup_certification_artifacts(
@@ -754,11 +973,16 @@ def main() -> int:
     missing_checks = sorted(mandatory - set(observed))
     all_pass = not missing_checks and all(observed.get(name) == "PASS" for name in mandatory)
     status = "PASS" if all_pass else "FAIL"
+    ai_run_postgres_certified = all(observed.get(name) == "PASS" for name in AI_RUN_POSTGRES_MANDATORY_CHECKS)
     evidence = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "mode": "runtime",
         "status": status,
+        "releaseEvidenceAuthority": M03_EXACT_RELEASE_EVIDENCE_AUTHORITY,
+        "releaseArtifactDigest": release_artifact_digest,
         "runtimeCertified": all_pass,
+        "aiRunPostgresDurabilityAuthority": AI_RUN_POSTGRES_DURABILITY_AUTHORITY,
+        "aiRunPostgresDurabilityCertified": ai_run_postgres_certified,
         "startedAt": started,
         "finishedAt": utcnow(),
         "target": redact_dsn(args.dsn),

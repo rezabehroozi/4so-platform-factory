@@ -266,18 +266,21 @@ func (s *Server) listTenants(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	v, err := s.store.ListTenants(r.Context(), projectID, r.URL.Query().Get("clusterId"))
+	clusterID := strings.TrimSpace(r.URL.Query().Get("clusterId"))
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.TenantEnvironment, error)
+	if pager, ok := s.store.(tenantPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.TenantEnvironment, error) {
+			return pager.ListTenantsPage(r.Context(), ids, all, clusterID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.TenantEnvironment, error) {
+		return s.store.ListTenants(r.Context(), projectID, clusterID)
+	}, page, func(item controlplane.TenantEnvironment) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.TenantEnvironment) string { return item.ProjectID })
-	writeJSON(w, 200, v)
+	writeOperatorCollectionJSON(w, r, 200, v)
 }
 func (s *Server) getTenant(w http.ResponseWriter, r *http.Request) {
 	v, err := s.store.GetTenant(r.Context(), r.PathValue("id"))

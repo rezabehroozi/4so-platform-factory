@@ -67,7 +67,7 @@
     "readiness": [
       "deployment/grafana"
     ],
-    "release": "12.10.x",
+    "release": "12.10.0",
     "requiresCapabilities": [
       "metrics-backend",
       "logs-backend"
@@ -89,7 +89,7 @@
       "type": "helm-chart"
     },
     "supportTier": "research-candidate",
-    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
     "wave": 70
   }
 }

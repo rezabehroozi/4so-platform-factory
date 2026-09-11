@@ -5,6 +5,7 @@ import (
 
 	"platform.4so.io/factory/catalog"
 	"platform.4so.io/factory/internal/domain"
+	"platform.4so.io/factory/internal/targetmodel"
 )
 
 func admissionPolicy(admission *catalog.UpstreamAdmission) {
@@ -16,6 +17,7 @@ func admissionPolicy(admission *catalog.UpstreamAdmission) {
 		"versionSelection":           "exact-semver-no-prerelease",
 		"sourceResolution":           "separate-immutable-acquisition-required",
 		"runtimeCertification":       "separate-runtime-evidence-required",
+		"candidateAcquisition":       "exact-source-may-be-acquired-before-runtime-clearance",
 		"autoWidenCatalogConstraint": false,
 		"allowLatestResolution":      false,
 	}
@@ -57,7 +59,7 @@ func TestBuildSeparatesProductDeploymentAndPhysicalAuthority(t *testing.T) {
 	admissionPolicy(&admission)
 	admission.Spec.Components = []catalog.UpstreamAdmissionComponent{{
 		Component: "external", CatalogConstraint: "1.2.x", Chart: "external", Source: "https://example.test/charts",
-		Rationale: "test authority", Status: "ready-for-acquisition", SelectedVersion: strptr("1.2.3"), UpstreamVersion: strptr("v1.2.3"),
+		Rationale: "test authority", Status: "ready-for-acquisition", RuntimeStatus: "eligible-after-source-resolution", SelectedVersion: strptr("1.2.3"), UpstreamVersion: strptr("v1.2.3"),
 	}}
 	components := map[string]catalog.Component{
 		"external": unresolvedHelmComponent("external", "1.2.3", "exact-upstream-admitted-pending-source-acquisition", "external"),
@@ -70,7 +72,8 @@ func TestBuildSeparatesProductDeploymentAndPhysicalAuthority(t *testing.T) {
 	if report.ProductReleaseReady || report.DeploymentExecutable {
 		t.Fatalf("blocked plan became ready: %+v", report)
 	}
-	if report.ProductReleaseBlockers != 6 || report.DeploymentContextBlockers != 1 || report.UnclassifiedProductBlockers != 1 {
+	wantRoadmap := sumCounts(targetmodel.FeatureFreezeBlockerCounts(report.ProgramRoadmap))
+	if report.RoadmapFeatureBlockers != wantRoadmap || report.ProductReleaseBlockers != 6+wantRoadmap || report.DeploymentContextBlockers != 1 || report.UnclassifiedProductBlockers != 1 {
 		t.Fatalf("unexpected blocker split: %+v", report)
 	}
 	if report.PhysicalRuntimeStatus != StatusNotEvaluated {
@@ -81,6 +84,34 @@ func TestBuildSeparatesProductDeploymentAndPhysicalAuthority(t *testing.T) {
 	}
 	if report.DeploymentContextBlockerCodes["GIT_REVISION_NOT_IMMUTABLE"] != 1 {
 		t.Fatalf("deployment-context blocker classification drifted: %+v", report.DeploymentContextBlockerCodes)
+	}
+}
+
+func TestBuildCannotReportProductReadyWhileMandatoryRoadmapIsBlocked(t *testing.T) {
+	plan := domain.DeploymentPlan{ID: "plan-roadmap-gate", Blueprint: "test", BlueprintVersion: "1.0.0", Executable: true}
+	var admission catalog.UpstreamAdmission
+	admissionPolicy(&admission)
+	report, err := Build(plan, admission, map[string]catalog.Component{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.ProgramRoadmap.GoalReady {
+		t.Fatalf("test requires blocked mandatory roadmap: %#v", report.ProgramRoadmap)
+	}
+	if report.RoadmapFeatureBlockers == 0 || len(report.RoadmapFeatureBlockerCodes) == 0 {
+		t.Fatalf("mandatory roadmap blockers were not surfaced: %#v", report)
+	}
+	if report.ProductReleaseReady {
+		t.Fatalf("product release was marked ready while roadmap remained blocked: %#v", report)
+	}
+	if report.ProductReleaseBlockers != report.RoadmapFeatureBlockers {
+		t.Fatalf("roadmap-only plan should have only roadmap product blockers: %#v", report)
+	}
+	if report.ProductBlockerCodes["OKD_CONNECTED_MANAGED_INSTALL_PENDING"] == 0 {
+		t.Fatalf("connected managed OKD blocker is absent from product blocker authority: %#v", report.ProductBlockerCodes)
+	}
+	if report.ProductBlockerCodes["TARGET_DATA_PROTECTION_WORKFLOW_PENDING"] != 0 {
+		t.Fatalf("closed G4 blocker remained in product blocker authority: %#v", report.ProductBlockerCodes)
 	}
 }
 
@@ -109,20 +140,20 @@ func TestAdmissionReviewIsSeparateFromImmutableAcquisition(t *testing.T) {
 	admissionPolicy(&admission)
 	admission.Spec.Components = []catalog.UpstreamAdmissionComponent{{
 		Component: "external", CatalogConstraint: "1.2.3", Chart: "external", Source: "https://example.test/charts",
-		Rationale: "test authority", Status: "dependency-review-required", SelectedVersion: strptr("1.2.3"), UpstreamVersion: strptr("1.2.3"),
+		Rationale: "test authority", Status: "ready-for-acquisition", RuntimeStatus: "review-required", SelectedVersion: strptr("1.2.3"), UpstreamVersion: strptr("1.2.3"), ReviewEvidence: []catalog.UpstreamAdmissionReviewEvidence{{Kind: "blocker", URL: "https://example.test/issue", Summary: "runtime review remains open"}},
 	}}
 	components := map[string]catalog.Component{
-		"external": unresolvedHelmComponent("external", "1.2.3", "resolve-verify-and-pin-before-execution", "external"),
+		"external": unresolvedHelmComponent("external", "1.2.3", "exact-upstream-admitted-pending-source-acquisition", "external"),
 	}
 	report, err := Build(plan, admission, components)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.UpstreamAdmission.ReviewRequired != 1 || report.UpstreamAdmission.Ready != 0 {
+	if report.UpstreamAdmission.ReviewRequired != 0 || report.UpstreamAdmission.Ready != 1 || report.UpstreamAdmission.RuntimeBlocked != 1 {
 		t.Fatalf("admission metrics are wrong: %+v", report.UpstreamAdmission)
 	}
-	if report.Phases[0].ID != "upstream-admission" || report.Phases[0].Status != StatusBlocked {
-		t.Fatalf("review-required admission did not block its own phase: %+v", report.Phases[0])
+	if report.Phases[0].ID != "upstream-admission" || report.Phases[0].Status != StatusComplete {
+		t.Fatalf("source admission should be complete while runtime hold remains separate: %+v", report.Phases[0])
 	}
 	if report.Phases[1].ID != "immutable-source-acquisition" || report.Phases[1].BlockerCount != 2 {
 		t.Fatalf("source acquisition blockers were not kept separate: %+v", report.Phases[1])
@@ -138,7 +169,7 @@ func TestBuildRejectsAdmissionConstraintDriftInsteadOfReportingComplete(t *testi
 	admissionPolicy(&admission)
 	admission.Spec.Components = []catalog.UpstreamAdmissionComponent{{
 		Component: "external", CatalogConstraint: "1.2.x", Chart: "external", Source: "https://example.test/charts",
-		Rationale: "stale authority", Status: "dependency-review-required",
+		Rationale: "stale authority", Status: "ready-for-acquisition", RuntimeStatus: "eligible-after-source-resolution", SelectedVersion: strptr("1.2.3"), UpstreamVersion: strptr("1.2.3"),
 	}}
 	components := map[string]catalog.Component{
 		"external": unresolvedHelmComponent("external", "2.0.x", "resolve-verify-and-pin-before-execution", "external"),
@@ -156,13 +187,13 @@ func TestBuildIncludesCanonicalProgramRoadmapWithoutConflatingPhysicalRuntime(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.ProgramRoadmap.Authority != "PROGRAM_PHASE_MODEL_V3" || report.ProgramRoadmap.CurrentPhase != "C-ai-native-operator-experience-lab-mcp-foundation" {
+	if report.ProgramRoadmap.Authority != "PROGRAM_PHASE_MODEL_V64" || report.ProgramRoadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" {
 		t.Fatalf("unexpected program roadmap: %#v", report.ProgramRoadmap)
 	}
 	if report.ProgramRoadmap.GoalReady {
 		t.Fatal("program goal was reported ready while OKD target phases remain blocked")
 	}
-	if report.PhysicalRuntimeStatus != StatusNotEvaluated || report.ProgramRoadmap.Phases[len(report.ProgramRoadmap.Phases)-1].Status != "not-evaluated" {
+	if report.PhysicalRuntimeStatus != StatusNotEvaluated || report.ProgramRoadmap.Phases[len(report.ProgramRoadmap.Phases)-1].Status != targetmodel.ProgramStatusDeferred {
 		t.Fatalf("physical runtime was inferred from source readiness: report=%q roadmap=%#v", report.PhysicalRuntimeStatus, report.ProgramRoadmap.Phases[len(report.ProgramRoadmap.Phases)-1])
 	}
 }

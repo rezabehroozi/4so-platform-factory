@@ -27,6 +27,9 @@
         "version": {
           "type": "string",
           "minLength": 1
+        },
+        "sourceReleaseDigest": {
+          "$ref": "#/$defs/optionalDigest"
         }
       }
     },
@@ -85,7 +88,7 @@
             "maintenanceImage",
             "gitOpsManifest",
             "cloudNativePGManifest",
-            "ocmManifest",
+            "storageManifest",
             "fleetAgentImage",
             "runtimeProbeImage"
           ],
@@ -125,7 +128,7 @@
               "$ref": "#/$defs/artifact"
             },
             "ocmManifest": {
-              "$ref": "#/$defs/artifact"
+              "$ref": "#/$defs/optionalArtifact"
             },
             "fleetAgentImage": {
               "type": "string",
@@ -136,6 +139,9 @@
               "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
             },
             "cloudNativePGManifest": {
+              "$ref": "#/$defs/artifact"
+            },
+            "storageManifest": {
               "$ref": "#/$defs/artifact"
             }
           }
@@ -187,6 +193,40 @@
           "pattern": "^sha256:[a-f0-9]{64}$"
         }
       }
+    },
+    "optionalArtifact": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/artifact"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "const": ""
+            },
+            "sha256": {
+              "const": ""
+            }
+          }
+        }
+      ]
+    },
+    "optionalDigest": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        {
+          "const": ""
+        }
+      ]
     }
   }
 }

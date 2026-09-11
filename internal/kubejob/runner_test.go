@@ -244,7 +244,7 @@ func TestExecuteRejectsJobReplacementWhileWaiting(t *testing.T) {
 	if err := os.MkdirAll(identityDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	idRaw, _ := json.Marshal(identity{Owner: opts.Owner, OperationID: opts.OperationID, Name: opts.Name, UID: active.Metadata.UID, ResourceVersion: active.Metadata.ResourceVersion})
+	idRaw, _ := json.Marshal(identity{Owner: opts.Owner, OperationID: opts.OperationID, Name: opts.Name, UID: active.Metadata.UID, ResourceVersion: active.Metadata.ResourceVersion, ManifestDigest: digestManifest(opts.Manifest)})
 	if err := os.WriteFile(filepath.Join(identityDir, opts.Name+".json"), idRaw, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -253,5 +253,52 @@ func TestExecuteRejectsJobReplacementWhileWaiting(t *testing.T) {
 	err := Execute(context.Background(), opts)
 	if err == nil || !strings.Contains(err.Error(), "UID changed") {
 		t.Fatalf("expected wait-time replacement rejection, got %v", err)
+	}
+}
+
+func TestExecuteRejectsManifestDriftWithoutOverwritingDurableManifest(t *testing.T) {
+	system := newFakeSystem(t)
+	opts := options(t, system)
+	if err := Execute(context.Background(), opts); err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(opts.StateDir, opts.StateSubdir, opts.Name+".yaml")
+	accepted, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Manifest = strings.Replace(opts.Manifest, "example.invalid/noop", "example.invalid/changed", 1)
+	err = Execute(context.Background(), opts)
+	if err == nil || !strings.Contains(err.Error(), "manifest digest changed") {
+		t.Fatalf("expected manifest-drift rejection, got %v", err)
+	}
+	after, readErr := os.ReadFile(manifestPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(after) != string(accepted) {
+		t.Fatalf("rejected replay overwrote accepted manifest evidence\naccepted=%s\nafter=%s", accepted, after)
+	}
+}
+
+func TestExecuteRejectsLegacyIdentityWithoutManifestDigest(t *testing.T) {
+	system := newFakeSystem(t)
+	opts := options(t, system)
+	active := completedSnapshot(opts.Name, "uid-created", opts.Owner, opts.OperationID)
+	system.jobs[opts.Name] = active
+	identityDir := filepath.Join(opts.StateDir, opts.StateSubdir, "job-identities")
+	if err := os.MkdirAll(identityDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	legacy, _ := json.Marshal(identity{Owner: opts.Owner, OperationID: opts.OperationID, Name: opts.Name, UID: active.Metadata.UID, ResourceVersion: active.Metadata.ResourceVersion})
+	if err := os.WriteFile(filepath.Join(identityDir, opts.Name+".json"), legacy, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := Execute(context.Background(), opts)
+	if err == nil || !strings.Contains(err.Error(), "predates manifest-digest authority") {
+		t.Fatalf("expected legacy-identity rejection, got %v", err)
+	}
+	if strings.Contains(strings.Join(system.commands, "\n"), " create -f ") {
+		t.Fatal("legacy identity must never trigger blind Job replay")
 	}
 }

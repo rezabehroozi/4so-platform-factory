@@ -29,6 +29,96 @@ class PostgreSQLCertifierTests(unittest.TestCase):
         self.assertFalse(mod.compare_version("16.14", "16.15"))
 
 
+    def test_postgres_subprocess_connection_removes_password_from_argv(self):
+        secret = "s3cr%40et:@/?#%"
+        encoded = "s3cr%2540et%3A%40%2F%3F%23%25"
+        dsn = f"postgresql://cert:{encoded}@db.example:5432/platform?sslmode=verify-full&application_name=cert"
+        safe, env = mod.subprocess_postgres_connection(dsn, {"BASE": "1"})
+        self.assertNotIn(encoded, safe)
+        self.assertNotIn(secret, safe)
+        self.assertEqual(env["PGPASSWORD"], secret)
+        self.assertIn("cert@db.example:5432", safe)
+        self.assertIn("sslmode=verify-full", safe)
+        self.assertEqual(env["BASE"], "1")
+
+    def test_runner_and_concurrent_psql_never_expose_password_in_argv(self):
+        dsn = "postgresql://cert:supersecret@db.example:5432/platform?sslmode=verify-full"
+        calls = []
+        original = mod.subprocess.run
+        try:
+            def fake_run(command, **kwargs):
+                calls.append((command, kwargs.get("env", {})))
+                return subprocess.CompletedProcess(command, 0, "1\n", "")
+            mod.subprocess.run = fake_run
+            runner = mod.Runner(dsn, "pf_cert_safe")
+            runner.run("SELECT 1")
+        finally:
+            mod.subprocess.run = original
+        command, env = calls[0]
+        self.assertFalse(any("supersecret" in str(arg) for arg in command))
+        self.assertEqual(env.get("PGPASSWORD"), "supersecret")
+        concurrent = mod.psql_command(dsn, "SELECT 1")
+        self.assertFalse(any("supersecret" in str(arg) for arg in concurrent))
+
+    def test_keyword_dsn_password_is_rejected_from_argv_boundary(self):
+        with self.assertRaisesRegex(mod.CertificationError, "PGPASSWORD"):
+            mod.subprocess_postgres_connection("host=db.example dbname=platform user=cert password=supersecret")
+
+    def test_conflicting_uri_password_authorities_fail_closed(self):
+        with self.assertRaisesRegex(mod.CertificationError, "conflicting password authorities"):
+            mod.subprocess_postgres_connection("postgresql://cert:first@db.example/platform?password=second&sslmode=verify-full")
+
+    def test_redact_url_dsn_masks_query_password(self):
+        value = mod.redact_dsn("postgresql://admin@db.example:5432/platform?password=fixture-query-3P8&sslmode=verify-full")
+        self.assertNotIn("fixture-query-3P8", value)
+        self.assertIn("password=***", value)
+        self.assertIn("sslmode=verify-full", value)
+
+    def test_private_connection_stdin_is_bounded_strict_and_conflict_free(self):
+        import io
+        primary = "postgresql://cert:fixture-alpha-7K2@db.example/platform"
+        admin = "postgresql://admin:fixture-beta-9M4@db.example/postgres"
+        dsn, admin_dsn = mod.read_connection_json_stdin(io.StringIO(json.dumps({"dsn": primary, "adminDsn": admin})))
+        self.assertEqual(primary, dsn)
+        self.assertEqual(admin, admin_dsn)
+        for raw in (
+            '{"dsn":"a","dsn":"b","adminDsn":"c"}',
+            '{"dsn":"a","adminDsn":"b","extra":true}',
+            '[]',
+        ):
+            with self.assertRaises(mod.CertificationError):
+                mod.read_connection_json_stdin(io.StringIO(raw))
+        with self.assertRaisesRegex(mod.CertificationError, "16384-byte limit"):
+            mod.read_connection_json_stdin(io.StringIO(json.dumps({"dsn": "x" * 17000, "adminDsn": "y"})))
+
+    def test_admin_restore_credentials_are_distinct_and_never_exposed_on_argv(self):
+        primary = mod.Runner("postgresql://cert:fixture-alpha-7K2@db.example/platform?sslmode=verify-full", "pf_cert_safe")
+        restore_dsn = mod.database_dsn("postgresql://admin:fixture-beta-9M4@db.example/postgres?sslmode=verify-full", "pf_restore_safe")
+        restored = mod.Runner(restore_dsn, "pf_cert_safe")
+        self.assertEqual("fixture-alpha-7K2", primary.env.get("PGPASSWORD"))
+        self.assertEqual("fixture-beta-9M4", restored.env.get("PGPASSWORD"))
+        self.assertNotIn("fixture-alpha-7K2", primary.dsn)
+        self.assertNotIn("fixture-beta-9M4", restored.dsn)
+
+        calls = []
+        original = mod.subprocess.run
+        try:
+            def fake_run(command, **kwargs):
+                calls.append((list(command), dict(kwargs.get("env") or {})))
+                if command[0] == "createdb":
+                    return subprocess.CompletedProcess(command, 0, "", "")
+                if command[0] == "psql":
+                    return subprocess.CompletedProcess(command, 0, "4242\n", "")
+                raise AssertionError(command)
+            mod.subprocess.run = fake_run
+            oid = mod.create_restore_database("postgresql://admin:fixture-beta-9M4@db.example/postgres", "pf_restore_safe")
+        finally:
+            mod.subprocess.run = original
+        self.assertEqual("4242", oid)
+        self.assertEqual(["fixture-beta-9M4", "fixture-beta-9M4"], [env.get("PGPASSWORD") for _, env in calls])
+        self.assertTrue(all("fixture-beta-9M4" not in " ".join(command) for command, _ in calls))
+        self.assertTrue(all("fixture-alpha-7K2" not in " ".join(command) for command, _ in calls))
+
     def test_runtime_runner_never_falls_back_to_public_schema(self):
         runner = mod.Runner("postgresql://db.example/platform?sslmode=verify-full", "pf_cert_isolated")
         self.assertEqual(runner.env["PGOPTIONS"], "-c search_path=pf_cert_isolated")
@@ -196,6 +286,32 @@ class PostgreSQLCertifierTests(unittest.TestCase):
             mod.terminate_process_group = original_terminate
         self.assertEqual(terminated, [worker])
 
+
+    def test_ai_run_postgres_durability_checks_are_mandatory(self):
+        profile = mod.load_profile()
+        for name in mod.AI_RUN_POSTGRES_MANDATORY_CHECKS:
+            self.assertIn(name, profile["mandatoryChecks"])
+
+    def test_ai_run_pair_verification_recomputes_output_digest(self):
+        output = {"classification": "environment"}
+        raw, digest = mod.canonical_json_digest(output)
+        request = "sha256:" + "d" * 64
+        class FakeRunner:
+            def __init__(self, bad_digest=False):
+                self.bad_digest = bad_digest
+            def run(self, sql, **kwargs):
+                if "FROM ai_execution_claims c JOIN ai_runs" in sql:
+                    used = ("sha256:" + "e" * 64) if self.bad_digest else digest
+                    row = f"COMPLETED|air-cert|air-cert|{request}|{request}|ai-cert-main|ai-cert-main|{used}\n"
+                    return subprocess.CompletedProcess(["psql"], 0, row, "")
+                if "SELECT output::text FROM ai_runs" in sql:
+                    return subprocess.CompletedProcess(["psql"], 0, raw + "\n", "")
+                raise AssertionError(sql)
+        detail = mod.verify_ai_run_durable_pair(FakeRunner())
+        self.assertIn("state=COMPLETED", detail)
+        with self.assertRaises(mod.CertificationError):
+            mod.verify_ai_run_durable_pair(FakeRunner(bad_digest=True))
+
     def test_cleanup_is_mandatory_certification_check(self):
         profile = mod.load_profile()
         self.assertIn("cleanup", profile["mandatoryChecks"])
@@ -294,7 +410,7 @@ class PostgreSQLCertifierTests(unittest.TestCase):
             output = Path(td) / "blocked.json"
             original = mod.sys.argv
             try:
-                mod.sys.argv = ["postgresql_runtime_certify.py", "--evidence", str(output)]
+                mod.sys.argv = ["postgresql_runtime_certify.py", "--evidence", str(output), "--release-artifact-digest", "sha256:" + "7" * 64]
                 rc = mod.main()
             finally:
                 mod.sys.argv = original
@@ -302,6 +418,23 @@ class PostgreSQLCertifierTests(unittest.TestCase):
             evidence = json.loads(output.read_text())
             self.assertEqual(evidence["status"], "BLOCKED")
             self.assertFalse(evidence["runtimeCertified"])
+            self.assertEqual(evidence["schemaVersion"], 2)
+            self.assertEqual(evidence["releaseEvidenceAuthority"], mod.M03_EXACT_RELEASE_EVIDENCE_AUTHORITY)
+            self.assertEqual(evidence["releaseArtifactDigest"], "sha256:" + "7" * 64)
+
+    def test_runtime_requires_exact_release_digest_before_certification(self):
+        with tempfile.TemporaryDirectory() as td:
+            output = Path(td) / "blocked.json"
+            original = mod.sys.argv
+            try:
+                mod.sys.argv = ["postgresql_runtime_certify.py", "--evidence", str(output)]
+                rc = mod.main()
+            finally:
+                mod.sys.argv = original
+            self.assertEqual(rc, 2)
+            evidence = json.loads(output.read_text())
+            prereq = next(row for row in evidence["checks"] if row["name"] == "prerequisites")
+            self.assertIn("release-artifact-digest", prereq["detail"])
 
 
 if __name__ == "__main__":

@@ -20,16 +20,18 @@ type ServerTier struct {
 }
 
 type MatrixRow struct {
-	ID               string   `json:"id"`
-	Group            string   `json:"group"`
-	Name             string   `json:"name"`
-	ServerTier       string   `json:"serverTier"`
-	Phase            string   `json:"phase"`
-	Destructive      bool     `json:"destructive"`
-	AIEligible       bool     `json:"aiEligible"`
-	Actions          []string `json:"actions"`
-	AutomationStatus string   `json:"automationStatus"`
-	AutomationDetail string   `json:"automationDetail"`
+	ID                string   `json:"id"`
+	Group             string   `json:"group"`
+	Name              string   `json:"name"`
+	ServerTier        string   `json:"serverTier"`
+	Phase             string   `json:"phase"`
+	FeatureOwnerPhase string   `json:"featureOwnerPhase"`
+	ExecutionPhase    string   `json:"executionPhase"`
+	Destructive       bool     `json:"destructive"`
+	AIEligible        bool     `json:"aiEligible"`
+	Actions           []string `json:"actions"`
+	AutomationStatus  string   `json:"automationStatus"`
+	AutomationDetail  string   `json:"automationDetail"`
 }
 
 type AIPolicy struct {
@@ -50,14 +52,18 @@ type AIPolicy struct {
 	} `json:"providers"`
 }
 type MCP struct {
-	Protocol      string   `json:"protocol"`
-	Transport     string   `json:"transport"`
-	Path          string   `json:"path"`
-	DefaultAccess string   `json:"defaultAccess"`
-	Tools         []string `json:"tools"`
-	MutatingTools []string `json:"mutatingTools"`
-	Permission    string   `json:"permission"`
-	Authorization string   `json:"authorization"`
+	Protocol                    string   `json:"protocol"`
+	Transport                   string   `json:"transport"`
+	Path                        string   `json:"path"`
+	DefaultAccess               string   `json:"defaultAccess"`
+	Tools                       []string `json:"tools"`
+	MutatingTools               []string `json:"mutatingTools"`
+	Permission                  string   `json:"permission"`
+	OperationPermission         string   `json:"operationPermission,omitempty"`
+	DelegatedOperationAuthority string   `json:"delegatedOperationAuthority,omitempty"`
+	Authorization               string   `json:"authorization"`
+	ConformanceAuthority        string   `json:"conformanceAuthority"`
+	ExternalClient              string   `json:"externalClient"`
 }
 
 type Runner struct {

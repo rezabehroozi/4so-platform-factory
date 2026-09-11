@@ -226,7 +226,7 @@ func TestCompensationManualStrategyStopsAtNeedsOperator(t *testing.T) {
 }
 
 func TestDirectRollbackTransitionCannotBypassCompensationAuthority(t *testing.T) {
-	store, ctx, project, _ := compensationFixture(t)
+	store, ctx, project, now := compensationFixture(t)
 	op, _, err := store.CreateOperation(ctx, OperationRequest{ProjectID: project.ID, Kind: "test.rollback", TargetRef: "cluster:test", DesiredRevision: testDigest(9991), Risk: "high", Class: OperationClassMutating}, "req-direct-rollback", "operator", "req-direct-rollback")
 	if err != nil {
 		t.Fatal(err)
@@ -239,11 +239,49 @@ func TestDirectRollbackTransitionCannotBypassCompensationAuthority(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	op, err = store.TransitionOperation(ctx, op.ID, op.Revision, OperationRunning, "", "worker")
+	claim, err := store.ClaimOperation(ctx, op.ID, "worker", time.Minute, *now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, _ = store.GetOperation(ctx, op.ID)
+	op, err = store.StartOperationAttempt(ctx, op.ID, op.Revision, "worker", claim.FenceToken, "worker")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = store.TransitionOperation(ctx, op.ID, op.Revision, OperationRollingBack, "forward failed", "worker"); !errors.Is(err, ErrPrerequisite) {
 		t.Fatalf("expected direct rollback transition to be blocked, got %v", err)
+	}
+}
+
+func TestExpiredLeaseRejectsCompensationStepCompletion(t *testing.T) {
+	store, ctx, project, now := compensationFixture(t)
+	op, claim := startCompensatedOperation(t, store, ctx, project, *now, testCompPlan()[:1])
+	_, op, err := store.RecordOperationForwardStepCompleted(ctx, op.ID, "create-namespace", op.Revision, "worker-a", claim.FenceToken, "worker-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, err = store.ReportOperationFailure(ctx, op.ID, op.Revision, "worker-a", claim.FenceToken, OperationFailureReport{Class: OperationFailurePermanent, Message: "force compensation"}, "worker-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, err = store.BeginOperationCompensation(ctx, op.ID, op.Revision, "operator")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim, err = store.ClaimOperation(ctx, op.ID, "rollback-expired", time.Minute, *now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	step, op, err := store.ClaimNextOperationCompensationStep(ctx, op.ID, "rollback-expired", claim.FenceToken, "rollback-expired")
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidenceDigest := sealCompensationStepEvidence(t, store, ctx, op, step, "rollback-expired", claim.FenceToken, "before-expiry")
+	*now = now.Add(2 * time.Minute)
+	if _, _, err = store.CompleteOperationCompensationStep(ctx, op.ID, step.StepKey, "rollback-expired", claim.FenceToken, evidenceDigest, "rollback-expired"); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("expired compensation completion accepted: %v", err)
+	}
+	if _, _, err = store.ReportOperationCompensationStepFailure(ctx, op.ID, step.StepKey, "rollback-expired", claim.FenceToken, CompensationStepFailure{Message: "late failure", Retryable: false}, "rollback-expired"); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("expired compensation failure accepted: %v", err)
 	}
 }

@@ -32,7 +32,9 @@
       }
     ],
     "management": {
-      "publicEndpoint": "https://factory.lab.example"
+      "publicEndpoint": "https://factory.lab.example",
+      "adminEmail": "admin@factory.lab.example",
+      "dnsZone": "lab.example"
     },
     "ai": {
       "provider": "none",

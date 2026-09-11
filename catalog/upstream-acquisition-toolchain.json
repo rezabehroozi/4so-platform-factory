@@ -1,0 +1,64 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "UpstreamAcquisitionToolchain",
+  "metadata": {
+    "name": "canonical-helm-acquisition-toolchain"
+  },
+  "spec": {
+    "authority": "UPSTREAM_ACQUISITION_TOOLCHAIN_V3",
+    "policy": {
+      "allowUnpinnedTools": false,
+      "allowLatestResolution": false,
+      "requireAssetDigestVerification": true,
+      "bootstrapIsBuildTimeOnly": true,
+      "vendoredIntoProductArtifact": false,
+      "allowStagedOfflineBootstrap": true,
+      "stagedArchivesMustMatchLockedFilename": true
+    },
+    "inputLimits": {
+      "maxHelmIndexBytes": 33554432,
+      "maxChartArchiveBytes": 67108864,
+      "maxChartMembers": 8192,
+      "maxChartUnpackedBytes": 536870912,
+      "maxChartMetadataBytes": 1048576
+    },
+    "tools": [
+      {
+        "name": "helm",
+        "version": "4.2.4",
+        "versionCommand": ["version", "--short"],
+        "versionRegex": "^v?4\\.2\\.4(?:[+\\-].*)?$",
+        "platforms": {
+          "linux-amd64": {
+            "url": "https://get.helm.sh/helm-v4.2.4-linux-amd64.tar.gz",
+            "sha256": "c306b46f719b0a4da32d0f78ee21bf90ce8d602f15b22ab753f0674d1670a7f3",
+            "archiveMember": "linux-amd64/helm"
+          },
+          "linux-arm64": {
+            "url": "https://get.helm.sh/helm-v4.2.4-linux-arm64.tar.gz",
+            "sha256": "564de2191b881e9f71b5606b25345821ea1682f06ab90499d3ab22b530176da1",
+            "archiveMember": "linux-arm64/helm"
+          }
+        }
+      },
+      {
+        "name": "crane",
+        "version": "0.22.1",
+        "versionCommand": ["version"],
+        "versionRegex": "^v?0\\.22\\.1$",
+        "platforms": {
+          "linux-amd64": {
+            "url": "https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_x86_64.tar.gz",
+            "sha256": "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0",
+            "archiveMember": "crane"
+          },
+          "linux-arm64": {
+            "url": "https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_arm64.tar.gz",
+            "sha256": "898c0cff975f898a33e8c4580bdafb0e7c02c7faa33374e946762f97c4ab7110",
+            "archiveMember": "crane"
+          }
+        }
+      }
+    ]
+  }
+}

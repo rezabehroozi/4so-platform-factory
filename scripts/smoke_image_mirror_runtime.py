@@ -104,7 +104,7 @@ def req(base,path,method='GET',body=None,headers=None):
         return e.code,out
 
 def start_api(binary,root,state,zot):
-    port=free_port(); env=os.environ.copy(); env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}'; env['PLATFORM_FACTORY_STATE_FILE']=str(state); env['PLATFORM_FACTORY_INTERNAL_REGISTRY_URL']=zot
+    port=free_port(); env=os.environ.copy(); env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true'; env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}'; env['PLATFORM_FACTORY_STATE_FILE']=str(state); env['PLATFORM_FACTORY_INTERNAL_REGISTRY_URL']=zot
     env['PLATFORM_FACTORY_AGENT_MTLS_REQUIRED']='false'; env['PLATFORM_FACTORY_PUBLIC_URL']='https://platform.example.test'; env['PLATFORM_FACTORY_FLEET_AGENT_IMAGE']='registry.local/platform-agent@sha256:'+'a'*64; env['PLATFORM_FACTORY_RUNTIME_PROBE_IMAGE']='registry.local/platform-probe@sha256:'+'b'*64
     p=subprocess.Popen([str(binary)],cwd=root,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True); base=f'http://127.0.0.1:{port}'
     for _ in range(120):

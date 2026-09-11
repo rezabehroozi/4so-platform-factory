@@ -3,6 +3,8 @@ package controlplane
 import (
 	"context"
 	"time"
+
+	"platform.4so.io/factory/internal/compliance"
 )
 
 // Store is the durable authority boundary used by the API and operation workers.
@@ -50,6 +52,25 @@ type Store interface {
 	GetBlueprintOverlay(context.Context, string) (BlueprintOverlay, error)
 	ListBlueprintOverlays(context.Context, string, BlueprintOverlayScope) ([]BlueprintOverlay, error)
 
+	CreateVariableSchema(context.Context, VariableSchema, string) (VariableSchema, error)
+	GetVariableSchema(context.Context, string) (VariableSchema, error)
+	ListVariableSchemas(context.Context, string) ([]VariableSchema, error)
+
+	CreatePlatformPolicySet(context.Context, PlatformPolicySet, string) (PlatformPolicySet, error)
+	GetPlatformPolicySet(context.Context, string) (PlatformPolicySet, error)
+	ListPlatformPolicySets(context.Context, string) ([]PlatformPolicySet, error)
+	CreatePlatformTemplate(context.Context, PlatformTemplate, string) (PlatformTemplate, error)
+	GetPlatformTemplate(context.Context, string) (PlatformTemplate, error)
+	ListPlatformTemplates(context.Context, string) ([]PlatformTemplate, error)
+
+	CreateWorkspace(context.Context, Workspace, string) (Workspace, error)
+	GetWorkspace(context.Context, string) (Workspace, error)
+	ListWorkspaces(context.Context, string) ([]Workspace, error)
+	CreateWorkspaceBinding(context.Context, WorkspaceBinding, string) (WorkspaceBinding, error)
+	GetWorkspaceBinding(context.Context, string) (WorkspaceBinding, error)
+	ListWorkspaceBindings(context.Context, string) ([]WorkspaceBinding, error)
+	RevokeWorkspaceBinding(context.Context, string, int64, string) (WorkspaceBinding, error)
+
 	CreateBlueprintRevision(context.Context, BlueprintRevision, string) (BlueprintRevision, error)
 	GetBlueprintRevision(context.Context, string) (BlueprintRevision, error)
 	CreateBlueprintReleaseWithRevision(context.Context, BlueprintRevision, BlueprintRelease, string) (BlueprintRevision, BlueprintRelease, error)
@@ -82,6 +103,9 @@ type Store interface {
 	GetAssignment(context.Context, string) (Assignment, error)
 
 	CreateOperation(context.Context, OperationRequest, string, string, string) (Operation, bool, error)
+	CreateOperationAwaitingApprovalWithPayload(context.Context, OperationRequest, string, string, string, string, []byte) (Operation, bool, error)
+	GetOperationRequestPayload(context.Context, string) (OperationRequestPayload, error)
+	ApproveOperationAndQueue(context.Context, string, int64, string) (Operation, error)
 	GetOperation(context.Context, string) (Operation, error)
 	ListOperations(context.Context, string) ([]Operation, error)
 	TransitionOperation(context.Context, string, int64, OperationState, string, string) (Operation, error)
@@ -107,6 +131,7 @@ type Store interface {
 	AppendOperationStepTrace(context.Context, OperationStepTraceInput, string, int64, string) (OperationStepTrace, EvidenceMetadata, error)
 	ListOperationStepTraces(context.Context, string) ([]OperationStepTrace, error)
 	GetEvidencePayload(context.Context, string) (EvidenceMetadata, []byte, error)
+	AppendOperationEvidencePayload(context.Context, EvidenceMetadata, []byte, string, int64, string) (EvidenceMetadata, error)
 
 	ClaimOutbox(context.Context, string, int, time.Duration, time.Time) ([]OutboxEvent, error)
 	MarkOutboxPublished(context.Context, string, string, time.Time) error
@@ -129,6 +154,16 @@ type Store interface {
 	ReportNotificationDelivery(context.Context, string, string, time.Time, NotificationDeliveryResult) (NotificationDelivery, NotificationDeliveryAttempt, error)
 	RetryNotificationDelivery(context.Context, string, int64, string) (NotificationDelivery, error)
 	ListNotificationDeliveryAttempts(context.Context, string) ([]NotificationDeliveryAttempt, error)
+
+	CreateFinOpsRateCard(context.Context, FinOpsRateCard, string) (FinOpsRateCard, error)
+	GetFinOpsRateCard(context.Context, string) (FinOpsRateCard, error)
+	ListFinOpsRateCards(context.Context, string) ([]FinOpsRateCard, error)
+	CreateFinOpsUsageMeasurement(context.Context, FinOpsUsageMeasurement, string) (FinOpsUsageMeasurement, bool, error)
+	GetFinOpsUsageMeasurement(context.Context, string) (FinOpsUsageMeasurement, error)
+	ListFinOpsUsageMeasurements(context.Context, string, string, time.Time, time.Time, int) ([]FinOpsUsageMeasurement, error)
+	CreateFinOpsCapacityObservation(context.Context, FinOpsCapacityObservation, string) (FinOpsCapacityObservation, bool, error)
+	GetFinOpsCapacityObservation(context.Context, string) (FinOpsCapacityObservation, error)
+	ListFinOpsCapacityObservations(context.Context, string, string, time.Time, time.Time, int) ([]FinOpsCapacityObservation, error)
 
 	AppendEvidence(context.Context, EvidenceMetadata, string) (EvidenceMetadata, error)
 	ListEvidence(context.Context, string) ([]EvidenceMetadata, error)
@@ -153,6 +188,7 @@ type Store interface {
 	RevokeAgentCertificate(context.Context, string, int64, string) (AgentCertificate, error)
 	GetManagedCluster(context.Context, string) (ManagedCluster, error)
 	ListManagedClusters(context.Context, string) ([]ManagedCluster, error)
+	BindManagedClusterProvider(context.Context, string, int64, string, string) (ManagedCluster, error)
 	GetLatestClusterInventory(context.Context, string) (ClusterInventory, error)
 	UpsertClusterMaintenanceProfile(context.Context, ClusterMaintenanceProfile, int64, string) (ClusterMaintenanceProfile, error)
 	GetClusterMaintenanceProfile(context.Context, string) (ClusterMaintenanceProfile, error)
@@ -191,6 +227,17 @@ type Store interface {
 	NextRuntimeCertificationTask(context.Context, string, string) (RuntimeCertificationRun, error)
 	ReportRuntimeCertificationTask(context.Context, string, string, int64, RuntimeCertificationResult) (RuntimeCertificationRun, error)
 	RevokeRuntimeCertification(context.Context, string, int64, string) (RuntimeCertificationRun, error)
+
+	UpsertBackupPolicy(context.Context, BackupPolicy, int64, string) (BackupPolicy, error)
+	SetBackupPolicyState(context.Context, string, int64, BackupPolicyState, string) (BackupPolicy, error)
+	GetBackupPolicy(context.Context, string) (BackupPolicy, error)
+	ListBackupPolicies(context.Context, string, string) ([]BackupPolicy, error)
+	CreateDataProtectionRun(context.Context, DataProtectionRun, string) (DataProtectionRun, bool, error)
+	GetDataProtectionRun(context.Context, string) (DataProtectionRun, error)
+	ListDataProtectionRuns(context.Context, string, string, DataProtectionRunKind) ([]DataProtectionRun, error)
+	ApproveDataProtectionRun(context.Context, string, int64, string) (DataProtectionRun, error)
+	NextDataProtectionTask(context.Context, string, string) (DataProtectionRun, BackupPolicy, error)
+	ReportDataProtectionTask(context.Context, string, string, int64, DataProtectionTaskResult) (DataProtectionRun, error)
 
 	CreateRecoveryCheckpoint(context.Context, RecoveryCheckpoint, string) (RecoveryCheckpoint, error)
 	GetRecoveryCheckpoint(context.Context, string) (RecoveryCheckpoint, error)
@@ -266,12 +313,15 @@ type Store interface {
 	GetProviderCluster(context.Context, string) (ProviderCluster, error)
 	ListProviderClusters(context.Context, string, string) ([]ProviderCluster, error)
 	QueueProviderClusterChange(context.Context, string, int64, string, ProviderClusterSpec, string, string, string, string) (ProviderCluster, error)
+	QueueTargetNodeProviderMutation(context.Context, string, int64, TargetNodeProviderMutation, ProviderClusterSpec, string, string) (ProviderCluster, error)
 	ApproveProviderCluster(context.Context, string, int64, string) (ProviderCluster, error)
 	RetryProviderCluster(context.Context, string, int64, string) (ProviderCluster, error)
 	NextProviderClusterTask(context.Context, string, string) (ProviderCluster, ProviderProfile, error)
 	ReportProviderClusterTask(context.Context, string, string, int64, ProviderClusterTaskResult) (ProviderCluster, error)
 
-	CreateAIRun(context.Context, AIRun, string) (AIRun, bool, error)
+	ClaimAIExecution(context.Context, AIExecutionClaim, string) (AIExecutionClaim, bool, error)
+	FinalizeAIExecution(context.Context, AIRun, string) (AIRun, bool, AIExecutionClaim, error)
+	FailAIExecution(context.Context, string, string, string, string, string) (AIExecutionClaim, error)
 	GetAIRun(context.Context, string) (AIRun, error)
 	GetAIRunByIdempotencyKey(context.Context, string, string) (AIRun, error)
 	ListAIRuns(context.Context, string) ([]AIRun, error)
@@ -285,6 +335,33 @@ type Store interface {
 	GetRuntimeClosureCampaign(context.Context, string) (RuntimeClosureCampaign, error)
 	ListRuntimeClosureCampaigns(context.Context, string, string) ([]RuntimeClosureCampaign, error)
 	UpdateRuntimeClosureCampaign(context.Context, string, int64, RuntimeClosureCampaignUpdate, string) (RuntimeClosureCampaign, error)
+
+	CreateComplianceProfile(context.Context, ComplianceProfile, string) (ComplianceProfile, error)
+	GetComplianceProfile(context.Context, string) (ComplianceProfile, error)
+	ListComplianceProfiles(context.Context, string) ([]ComplianceProfile, error)
+	CreateComplianceScanRun(context.Context, ComplianceScanRun, string) (ComplianceScanRun, bool, error)
+	GetComplianceScanRun(context.Context, string) (ComplianceScanRun, error)
+	ListComplianceScanRuns(context.Context, string, string) ([]ComplianceScanRun, error)
+	ClaimComplianceScanTask(context.Context, string, string, time.Duration, time.Time) (ComplianceScanTask, error)
+	CompleteComplianceScan(context.Context, string, string, int64, []compliance.Finding, string) (ComplianceScanRun, error)
+	FailComplianceScan(context.Context, string, string, int64, string, string) (ComplianceScanRun, error)
+	ListComplianceFindings(context.Context, string, string) ([]ComplianceFindingRecord, error)
+	CreateComplianceWaiver(context.Context, ComplianceWaiver, string) (ComplianceWaiver, error)
+	GetComplianceWaiver(context.Context, string) (ComplianceWaiver, error)
+	ApproveComplianceWaiver(context.Context, string, int64, string) (ComplianceWaiver, error)
+	RevokeComplianceWaiver(context.Context, string, int64, string) (ComplianceWaiver, error)
+	ListComplianceWaivers(context.Context, string) ([]ComplianceWaiver, error)
+
+	RequestSAMLBrokerUpsert(context.Context, SAMLBroker, int64, string, string, string) (SAMLBroker, IdentityAdminJob, bool, error)
+	RequestSAMLBrokerDelete(context.Context, string, int64, string, string, string) (SAMLBroker, IdentityAdminJob, bool, error)
+	GetSAMLBroker(context.Context, string) (SAMLBroker, error)
+	ListSAMLBrokers(context.Context, string) ([]SAMLBroker, error)
+	GetIdentityAdminJob(context.Context, string) (IdentityAdminJob, error)
+	ListIdentityAdminJobs(context.Context, string) ([]IdentityAdminJob, error)
+	ApproveIdentityAdminJob(context.Context, string, int64, string) (IdentityAdminJob, error)
+	ClaimIdentityAdminTask(context.Context, string, time.Duration, time.Time) (IdentityAdminTask, error)
+	CompleteIdentityAdminTask(context.Context, string, string, int64, string, string) (IdentityAdminJob, SAMLBroker, error)
+	FailIdentityAdminTask(context.Context, string, string, int64, string, string) (IdentityAdminJob, SAMLBroker, error)
 
 	// Snapshot is intended for read-only diagnostics and development backup.
 	// Production backup/restore is performed at PostgreSQL and object-store layers.
@@ -304,8 +381,16 @@ type Snapshot struct {
 	SecurityAudit              []SecurityAuditEvent              `json:"securityAudit"`
 	ServiceAccounts            []ServiceAccount                  `json:"serviceAccounts"`
 	APITokens                  []APIToken                        `json:"apiTokens"`
+	MCPTrustedClients          []MCPTrustedClient                `json:"mcpTrustedClients"`
+	MCPDelegationGrants        []MCPDelegationGrant              `json:"mcpDelegationGrants"`
+	MCPControlJobs             []MCPControlJob                   `json:"mcpControlJobs"`
 	Projects                   []Project                         `json:"projects"`
 	BlueprintOverlays          []BlueprintOverlay                `json:"blueprintOverlays"`
+	VariableSchemas            []VariableSchema                  `json:"variableSchemas"`
+	PlatformPolicySets         []PlatformPolicySet               `json:"platformPolicySets"`
+	PlatformTemplates          []PlatformTemplate                `json:"platformTemplates"`
+	Workspaces                 []Workspace                       `json:"workspaces"`
+	WorkspaceBindings          []WorkspaceBinding                `json:"workspaceBindings"`
 	Revisions                  []BlueprintRevision               `json:"blueprintRevisions"`
 	BlueprintReleases          []BlueprintRelease                `json:"blueprintReleases"`
 	CatalogTrustKeys           []CatalogTrustKey                 `json:"catalogTrustKeys"`
@@ -336,6 +421,8 @@ type Snapshot struct {
 	BaselineDeployments        []BaselineDeployment              `json:"baselineDeployments"`
 	RuntimeVerifications       []RuntimeVerification             `json:"runtimeVerifications"`
 	RuntimeCertifications      []RuntimeCertificationRun         `json:"runtimeCertifications"`
+	BackupPolicies             []BackupPolicy                    `json:"backupPolicies"`
+	DataProtectionRuns         []DataProtectionRun               `json:"dataProtectionRuns"`
 	RecoveryCheckpoints        []RecoveryCheckpoint              `json:"recoveryCheckpoints"`
 	FleetGroups                []FleetGroup                      `json:"fleetGroups"`
 	GitCredentials             []GitCredential                   `json:"gitCredentials"`
@@ -349,7 +436,18 @@ type Snapshot struct {
 	Tenants                    []TenantEnvironment               `json:"tenants"`
 	ProviderProfiles           []ProviderProfile                 `json:"providerProfiles"`
 	ProviderClusters           []ProviderCluster                 `json:"providerClusters"`
+	AIExecutionClaims          []AIExecutionClaim                `json:"aiExecutionClaims"`
 	AIRuns                     []AIRun                           `json:"aiRuns"`
 	MarketplaceRecommendations []MarketplaceRecommendation       `json:"marketplaceRecommendations"`
 	RuntimeClosureCampaigns    []RuntimeClosureCampaign          `json:"runtimeClosureCampaigns"`
+	ComplianceProfiles         []ComplianceProfile               `json:"complianceProfiles,omitempty"`
+	ComplianceScanRuns         []ComplianceScanRun               `json:"complianceScanRuns,omitempty"`
+	ComplianceFindings         []ComplianceFindingRecord         `json:"complianceFindings,omitempty"`
+	ComplianceWaivers          []ComplianceWaiver                `json:"complianceWaivers,omitempty"`
+	SAMLBrokers                []SAMLBroker                      `json:"samlBrokers,omitempty"`
+	IdentityAdminJobs          []IdentityAdminJob                `json:"identityAdminJobs,omitempty"`
+	OperationRequestPayloads   []OperationRequestPayload         `json:"operationRequestPayloads,omitempty"`
+	FinOpsRateCards            []FinOpsRateCard                  `json:"finOpsRateCards,omitempty"`
+	FinOpsUsageMeasurements    []FinOpsUsageMeasurement          `json:"finOpsUsageMeasurements,omitempty"`
+	FinOpsCapacityObservations []FinOpsCapacityObservation       `json:"finOpsCapacityObservations,omitempty"`
 }

@@ -218,6 +218,12 @@ def main() -> int:
 
             page.evaluate("() => navigate('catalog')"); page.wait_for_timeout(250)
             assert page.locator("#catalog.page.active").count()==1
+            admission=json.loads((root/'catalog/upstream-admission.json').read_text())['spec']['components']
+            admission_text=page.locator("#catalog-upstream-admission").inner_text()
+            expected_review=[row['component'] for row in admission if row.get('status')!='ready-for-acquisition']
+            expected_ready=sum(1 for row in admission if row.get('status')=='ready-for-acquisition')
+            assert f"{expected_ready}" in page.locator("#catalog-summary").inner_text()
+            for component_name in expected_review: assert component_name in admission_text
             page.locator("#catalog details.action-console").first.evaluate("el => el.open = true")
             assert page.locator("#catalog-signer").inner_text().find("Signer ready")>=0
             page.locator("#catalog-trust-form button[type='submit']").click()
@@ -334,6 +340,15 @@ def main() -> int:
             route_card=page.locator("#notification-route-grid tr[data-record-row]").filter(has_text="ui-runtime-failures").filter(has_text="ACTIVE")
             route_card.wait_for(state="visible",timeout=4000)
             assert route_card.count()==1,page.locator("#notification-route-grid").inner_text()
+            page.locator("#notification-preview-organization").select_option(project["organizationId"])
+            page.locator("#notification-preview-event-type").select_option("certification.failed")
+            page.locator("#notification-preview-severity").select_option("CRITICAL")
+            page.locator("#notification-preview-form button[type='submit']").click()
+            page.wait_for_function("() => document.querySelector('#notification-preview-result')?.textContent?.includes('ui-runtime-failures')")
+            preview_text=page.locator("#notification-preview-result").inner_text()
+            assert "ui-runtime-failures" in preview_text and "Side effects" in preview_text and "NONE" in preview_text,preview_text
+            status,preview_api=api_req(api_base,"/api/v1/notification-routing/preview",method="POST",body={"organizationId":project["organizationId"],"eventType":"certification.failed","severity":"CRITICAL"})
+            assert status==200 and preview_api["authority"]=="NOTIFICATION_ROUTING_PREVIEW_AUTHORITY_V1" and preview_api["sideEffects"] is False and preview_api["deliveryCreated"] is False,(status,preview_api)
 
             # Blueprint Overlay Console creates a real immutable Authority resource.
             page.evaluate("() => navigate('blueprints')"); page.wait_for_timeout(300)
@@ -364,7 +379,7 @@ def main() -> int:
             page.screenshot(path=str(screenshot),full_page=True)
             context.close(); browser.close()
             if errors or failed: raise AssertionError({"errors":errors,"failedResponses":failed})
-            report={"schemaVersion":1,"mode":"live-loopback-real-platform-api","authorityMocked":False,"browserTransport":transport,"browserHTTPDirect":transport=="browser-http-direct","fetchTransportBridge":transport!="browser-http-direct","catalogLifecycle":"CANDIDATE->RENDER PUBLISHED","renderResourceCount":6,"planningImpactConsoleAuthorityMocked":False,"planningImpactReviewVisible":True,"planningImpactApprovedFromConsole":True,"operationStepTraceConsoleAuthorityMocked":False,"operationStepTraceVisible":True,"runtimeCertificationConsoleQueued":True,"runtimeCertificationAuthorityMocked":False,"notificationConsoleAuthorityMocked":False,"notificationDestinationCreated":True,"notificationRouteCreated":True,"blueprintOverlayConsoleAuthorityMocked":False,"blueprintOverlayCreated":True,"blueprintAuthoringParityAuthorityMocked":False,"blueprintAuthoringParityVisible":True,"blueprintAuthoringRoundTripPASS":True,"rtlVerified":True,"externalRuntimeCertified":False,"screenshot":str(screenshot),"status":"PASS"}
+            report={"schemaVersion":1,"mode":"live-loopback-real-platform-api","authorityMocked":False,"browserTransport":transport,"browserHTTPDirect":transport=="browser-http-direct","fetchTransportBridge":transport!="browser-http-direct","catalogLifecycle":"CANDIDATE->RENDER PUBLISHED","renderResourceCount":6,"planningImpactConsoleAuthorityMocked":False,"planningImpactReviewVisible":True,"planningImpactApprovedFromConsole":True,"operationStepTraceConsoleAuthorityMocked":False,"operationStepTraceVisible":True,"runtimeCertificationConsoleQueued":True,"runtimeCertificationAuthorityMocked":False,"notificationConsoleAuthorityMocked":False,"notificationDestinationCreated":True,"notificationRouteCreated":True,"notificationRoutingPreviewVerified":True,"blueprintOverlayConsoleAuthorityMocked":False,"blueprintOverlayCreated":True,"blueprintAuthoringParityAuthorityMocked":False,"blueprintAuthoringParityVisible":True,"blueprintAuthoringRoundTripPASS":True,"rtlVerified":True,"externalRuntimeCertified":False,"screenshot":str(screenshot),"status":"PASS"}
             (smoke_evidence_dir(root)/"catalog-live-authority-smoke.json").write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
             print("UI_LIVE_AUTHORITY_SMOKE_PASS",screenshot)
         finally:

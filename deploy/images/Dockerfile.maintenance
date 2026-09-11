@@ -1,7 +1,10 @@
-ARG POSTGRES_BASE_IMAGE
-FROM ${POSTGRES_BASE_IMAGE}
-ARG POSTGRES_BASE_IMAGE
-RUN case "$POSTGRES_BASE_IMAGE" in *@sha256:*) ;; *) echo "POSTGRES_BASE_IMAGE must be digest-pinned" >&2; exit 1 ;; esac && \
-    apk add --no-cache aws-cli bash ca-certificates coreutils curl gzip jq tar
+ARG MAINTENANCE_RUNTIME_IMAGE
+FROM ${MAINTENANCE_RUNTIME_IMAGE}
+ARG SOURCE_RELEASE_DIGEST
+LABEL platform.4so.io/product-role="maintenance" \
+      platform.4so.io/source-release-digest="${SOURCE_RELEASE_DIGEST}"
+# The maintenance runtime MUST already contain the complete exact toolset used by
+# disaster-recovery and lifecycle jobs. This release recipe performs no network
+# package installation; compatibility is certified before the image is admitted.
 USER 65532:65532
 ENTRYPOINT ["/bin/sh"]

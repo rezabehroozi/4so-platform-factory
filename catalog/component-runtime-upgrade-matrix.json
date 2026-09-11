@@ -1,0 +1,187 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ComponentRuntimeUpgradeMatrix",
+  "authority": "COMPONENT_RUNTIME_UPGRADE_MATRIX_V2",
+  "schemaVersion": 1,
+  "policy": {
+    "sourcePairRequiredForUpgradeRequiredComponents": true,
+    "firstProductReleaseInstallOnlyAllowed": true,
+    "historicalVersionFabricationForbidden": true,
+    "distinctSourceLockDigestsRequired": true,
+    "mutableTagResolutionForbidden": true,
+    "exactVersionDirectionRequired": true,
+    "sourceLockSelfIdentityRequired": true,
+    "downgradeAdmission": "forbidden-by-default",
+    "rollbackMeaning": "recovery-evidence-only; no fake rollback promise",
+    "stages": [
+      "preflight",
+      "upgrade",
+      "readiness",
+      "failure-recovery",
+      "remove-old-version"
+    ],
+    "certificationRule": "source-pair admission does not equal runtime PASS; every admitted edge requires exact execution evidence before S2 closure."
+  },
+  "components": [
+    {
+      "component": "alloy",
+      "targetRelease": "1.11.0",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "argocd",
+      "targetRelease": "10.2.3",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "capsule",
+      "targetRelease": "0.13.11",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "ceph-csi-operator",
+      "targetRelease": "1.0.4",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "ceph-csi-rbd",
+      "targetRelease": "1.0.4",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "cert-manager",
+      "targetRelease": "1.21.1",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "cilium",
+      "targetRelease": "1.20.1",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "external-dns",
+      "targetRelease": "1.21.1",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "external-secrets",
+      "targetRelease": "2.8.0",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "gateway-api",
+      "targetRelease": "1.5.1",
+      "targetSourceLockDigest": "81fff6af6f25701b1d52ce49023c97b92cc82b7ce8bb5a3b157fcd3d3340bb81",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "grafana",
+      "targetRelease": "12.10.0",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "kgateway",
+      "targetRelease": "2.4.1",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "kyverno",
+      "targetRelease": "3.8.2",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "loki",
+      "targetRelease": "18.12.1",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "metallb",
+      "targetRelease": "0.16.1",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "secure-namespace-foundation",
+      "targetRelease": "1.0.0",
+      "targetSourceLockDigest": "9edd1277cf776acbd9062142d875fa81edcb5a8de1aeedc554f8634ee925cc5c",
+      "status": "install-only-first-product-release",
+      "admittedEdges": [],
+      "upgradeExecutor": "install-readiness-failure-remove-only"
+    },
+    {
+      "component": "snapshot-controller",
+      "targetRelease": "8.5.0",
+      "targetSourceLockDigest": "722e9482497fa9155d534be75dc2550cb8a2ec9ca9d457f475b2039edcff52b5",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "tetragon",
+      "targetRelease": "1.7.0",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "velero",
+      "targetRelease": "12.1.0",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    },
+    {
+      "component": "victoria-metrics",
+      "targetRelease": "0.90.2",
+      "targetSourceLockDigest": "",
+      "status": "pending-source-pair",
+      "admittedEdges": [],
+      "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
+    }
+  ]
+}

@@ -1,0 +1,178 @@
+{
+  "authority": "RESOURCE_SCOPE_OWNER_CLASSIFICATIONS_V1",
+  "families": {
+    "access": {
+      "evidence": "internal/api/access_context.go; effective scope is derived from the authenticated principal and server-side organization/project authorization",
+      "scope": "DYNAMIC_SCOPED"
+    },
+    "ai": {
+      "evidence": "internal/api/mcp_route_parity.go; AI runs and durable MCP jobs carry explicit organization/project scope where applicable",
+      "scope": "DYNAMIC_SCOPED"
+    },
+    "audit-events": {
+      "evidence": "internal/api/operations_observability.go; audit visibility is intersected with authorized organization/project resource ownership",
+      "scope": "DYNAMIC_SCOPED"
+    },
+    "autopilot": {
+      "evidence": "internal/api/autopilot.go; endpoint exposes platform-owned Autopilot status and does not accept tenant resource identifiers",
+      "scope": "PLATFORM_SCOPED"
+    },
+    "backup-policies": {
+      "evidence": "internal/api/data_protection.go; BackupPolicy carries ProjectID and every read/write path requires project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "backup-runs": {
+      "evidence": "internal/api/data_protection.go; backup run creation requires explicit ProjectID project access and persists a project-scoped DataProtectionRun",
+      "scope": "PROJECT_SCOPED"
+    },
+    "baseline-deployments": {
+      "evidence": "internal/api/baseline.go; BaselineDeployment carries ProjectID and handlers enforce requireProjectAccess before mutation/read",
+      "scope": "PROJECT_SCOPED"
+    },
+    "blueprint-overlays": {
+      "evidence": "internal/api/blueprint_overlay.go; BlueprintOverlay carries ProjectID and handlers enforce requireProjectAccess",
+      "scope": "PROJECT_SCOPED"
+    },
+    "blueprint-releases": {
+      "evidence": "internal/api/blueprint_lifecycle.go; BlueprintRelease carries ProjectID and lifecycle handlers enforce project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "cluster-imports": {
+      "evidence": "internal/api/fleet.go; ClusterImport carries ProjectID and create/list/get/approval paths enforce project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "clusters": {
+      "evidence": "internal/api/fleet.go; ManagedCluster carries ProjectID and resource reads/mutations resolve authorization through project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "control-plane": {
+      "evidence": "internal/api/server.go; summary/attention resolve the caller accessible organization/project sets before aggregating resources",
+      "scope": "DYNAMIC_SCOPED"
+    },
+    "data-protection-runs": {
+      "evidence": "internal/api/data_protection.go; DataProtectionRun carries ProjectID and list/get/action handlers require project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "day2-campaign-engine": {
+      "evidence": "internal/api/day2_campaign_engine.go; endpoint exposes the platform-owned campaign engine contract and no tenant resource state",
+      "scope": "PLATFORM_SCOPED"
+    },
+    "drift-scans": {
+      "evidence": "internal/api/fleet_upgrade.go; DriftScan carries ProjectID and create/list/action paths enforce project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "finops": {
+      "evidence": "internal/api/finops.go; rate cards, usage and showback are explicitly organization/project scoped",
+      "scope": "DYNAMIC_SCOPED"
+    },
+    "fleet": {
+      "evidence": "internal/api/fleet_support.go; fleet health is derived only from the authenticated caller accessible project set",
+      "scope": "DYNAMIC_SCOPED"
+    },
+    "fleet-groups": {
+      "evidence": "internal/api/fleet_upgrade.go; FleetGroup carries ProjectID and handlers enforce project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "lab": {
+      "evidence": "internal/api/lab.go; lab guide is platform-owned static operational guidance and has no tenant-owned resource identity",
+      "scope": "PLATFORM_SCOPED"
+    },
+    "mcp": {
+      "evidence": "internal/api/mcp_delegation.go; delegation grants are explicitly organization/project scoped and server-side access is checked before grant issuance",
+      "scope": "DYNAMIC_SCOPED"
+    },
+    "operations": {
+      "evidence": "internal/controlplane/model.go; OperationRequest and Operation carry ProjectID and API access resolves authorization through that project",
+      "scope": "PROJECT_SCOPED"
+    },
+    "organizations": {
+      "evidence": "internal/api/organization.go and internal/api/tenant.go; organization resources/memberships/entitlements use explicit organization access checks",
+      "scope": "ORGANIZATION_SCOPED"
+    },
+    "platform-policy-sets": {
+      "evidence": "internal/controlplane/platform_template.go; PlatformPolicySet carries ProjectID and API handlers authorize that project",
+      "scope": "PROJECT_SCOPED"
+    },
+    "platform-templates": {
+      "evidence": "internal/controlplane/platform_template.go and internal/api/platform_template.go; PlatformTemplate carries ProjectID and handlers require project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "projects": {
+      "evidence": "internal/api/server.go; project authority requires organization ownership/access",
+      "scope": "ORGANIZATION_SCOPED"
+    },
+    "provider-clusters": {
+      "evidence": "internal/api/provider.go; ProviderCluster is bound through a project-owned ProviderProfile",
+      "scope": "PROJECT_SCOPED"
+    },
+    "provider-profiles": {
+      "evidence": "internal/api/provider.go; ProviderProfile carries ProjectID as resource authority",
+      "scope": "PROJECT_SCOPED"
+    },
+    "recovery-checkpoints": {
+      "evidence": "internal/api/recovery_checkpoint.go; RecoveryCheckpoint carries ProjectID and create/list/get/revoke authorize the project",
+      "scope": "PROJECT_SCOPED"
+    },
+    "restore-drills": {
+      "evidence": "internal/api/data_protection.go; restore drill creation persists project-scoped DataProtectionRun after requireProjectAccess",
+      "scope": "PROJECT_SCOPED"
+    },
+    "restore-runs": {
+      "evidence": "internal/api/data_protection.go; restore run create/approve resolves authorization through DataProtectionRun.ProjectID",
+      "scope": "PROJECT_SCOPED"
+    },
+    "runtime-certifications": {
+      "evidence": "internal/api/runtime_certification.go; RuntimeCertificationRun carries ProjectID and handlers enforce project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "runtime-closure-campaigns": {
+      "evidence": "internal/api/runtime_closure.go; RuntimeClosureCampaign carries ProjectID and handlers enforce project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "runtime-verifications": {
+      "evidence": "internal/api/runtime_verification.go; RuntimeVerification carries ProjectID and handlers enforce project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "search": {
+      "evidence": "internal/api/search_projection.go; search sources are constrained to caller-authorized project scope before projection",
+      "scope": "DYNAMIC_SCOPED"
+    },
+    "security-audit-events": {
+      "evidence": "internal/api/security_audit.go; security audit chain is platform authority and access is restricted to platform administrative context",
+      "scope": "PLATFORM_SCOPED"
+    },
+    "service-accounts": {
+      "evidence": "internal/api/service_account.go; service accounts are organization-scoped with optional ProjectID and server-side scope checks",
+      "scope": "DYNAMIC_SCOPED"
+    },
+    "target-architecture-model": {
+      "evidence": "internal/api/architecture_model.go; endpoint exposes platform-owned architecture authority with no tenant resource identity",
+      "scope": "PLATFORM_SCOPED"
+    },
+    "tenants": {
+      "evidence": "internal/api/tenant.go; TenantEnvironment carries ProjectID and all lifecycle handlers require project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "upgrade-campaigns": {
+      "evidence": "internal/api/fleet_upgrade.go; UpgradeCampaign carries ProjectID and campaign lifecycle handlers require project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "version": {
+      "evidence": "internal/api/server.go; version is immutable platform build metadata and has no tenant-owned resource state",
+      "scope": "PLATFORM_SCOPED"
+    },
+    "workload-log-queries": {
+      "evidence": "internal/api/workload_logs.go; requests require ProjectID access and persisted operation ownership remains project-scoped",
+      "scope": "PROJECT_SCOPED"
+    },
+    "workspaces": {
+      "evidence": "internal/api/workspace.go; Workspace authority is project-scoped",
+      "scope": "PROJECT_SCOPED"
+    }
+  },
+  "policy": {
+    "defaultScope": "UNCLASSIFIED",
+    "inferenceAllowed": false,
+    "ownerReviewRequiredWhenMissing": true
+  }
+}

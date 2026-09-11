@@ -63,6 +63,7 @@ type installerServer struct {
 	disasterRecovery *disasterrecovery.Manager
 	mutationMu       sync.Mutex
 	bootstrapActive  bool
+	resetActive      bool
 }
 
 func main() {
@@ -123,19 +124,28 @@ func main() {
 		os.Exit(1)
 	}
 	bootstrapInterrupted := currentBootstrap != nil && currentBootstrap.State != bootstrap.RunSucceeded
+	resetBlocking, resetErr := runner.HasBlockingReset()
+	if resetErr != nil {
+		logger.Error("load durable reset authority", "error", resetErr)
+		os.Exit(1)
+	}
 	if executionEnabled {
-		if err := validateExclusiveDurableOperations(bootstrapInterrupted, lifecycleManager.HasActive(), drManager.HasActive()); err != nil {
+		if err := validateExclusiveDurableOperations(bootstrapInterrupted, lifecycleManager.HasActive(), drManager.HasActive(), resetBlocking); err != nil {
 			logger.Error("conflicting durable mutations require operator recovery", "error", err)
 			os.Exit(1)
 		}
-		currentRequest := installation.InstallRequest{}
-		if currentBootstrap != nil {
-			currentRequest = currentBootstrap.Request
-		}
-		lifecycleResumed := lifecycleManager.Reconcile(context.Background())
-		drResumed := drManager.Reconcile(context.Background(), currentRequest)
-		if lifecycleResumed > 0 || drResumed > 0 {
-			logger.Info("durable operation reconciliation started", "lifecycle_runs", lifecycleResumed, "disaster_recovery_runs", drResumed)
+		if resetBlocking {
+			logger.Warn("interrupted reset requires explicit operator resume; automatic lifecycle reconciliation is fenced")
+		} else {
+			currentRequest := installation.InstallRequest{}
+			if currentBootstrap != nil {
+				currentRequest = currentBootstrap.Request
+			}
+			lifecycleResumed := lifecycleManager.Reconcile(context.Background())
+			drResumed := drManager.Reconcile(context.Background(), currentRequest)
+			if lifecycleResumed > 0 || drResumed > 0 {
+				logger.Info("durable operation reconciliation started", "lifecycle_runs", lifecycleResumed, "disaster_recovery_runs", drResumed)
+			}
 		}
 	}
 	application := &installerServer{runner: runner, access: access, transport: transport, executionEnabled: executionEnabled, logger: logger, lifecycle: lifecycleManager, disasterRecovery: drManager}
@@ -191,6 +201,9 @@ func (s *installerServer) routes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/plan", s.auth(http.HandlerFunc(s.plan)))
 	mux.Handle("POST /api/v1/start", s.auth(http.HandlerFunc(s.start)))
 	mux.Handle("POST /api/v1/resume", s.auth(http.HandlerFunc(s.resume)))
+	mux.Handle("GET /api/v1/reset/runs", s.auth(http.HandlerFunc(s.resetRuns)))
+	mux.Handle("POST /api/v1/reset/start", s.auth(http.HandlerFunc(s.startReset)))
+	mux.Handle("POST /api/v1/reset/resume", s.auth(http.HandlerFunc(s.resumeReset)))
 	mux.Handle("GET /api/v1/lifecycle/runs", s.auth(http.HandlerFunc(s.lifecycleRuns)))
 	mux.Handle("GET /api/v1/lifecycle/backups/{service}", s.auth(http.HandlerFunc(s.lifecycleBackups)))
 	mux.Handle("POST /api/v1/lifecycle/backup", s.auth(http.HandlerFunc(s.lifecycleBackup)))
@@ -434,7 +447,16 @@ func (s *installerServer) storeSSHKnownHosts(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusCreated, status)
 }
-func validateExclusiveDurableOperations(bootstrapActive, lifecycleActive, disasterRecoveryActive bool) error {
+func validateExclusiveDurableOperations(bootstrapActive, lifecycleActive, disasterRecoveryActive, resetActive bool) error {
+	if resetActive {
+		// A reset is allowed to coexist with a failed/succeeded bootstrap journal
+		// because that journal is the exact source authority being removed. It
+		// must never coexist with a lifecycle/DR mutation.
+		if lifecycleActive || disasterRecoveryActive {
+			return errors.New("reset cannot coexist with lifecycle or disaster-recovery mutation authority")
+		}
+		return nil
+	}
 	active := 0
 	if bootstrapActive {
 		active++
@@ -479,7 +501,22 @@ func (s *installerServer) bootstrapExecutionActiveLocked() bool {
 }
 
 func (s *installerServer) mutationConflictLocked(target string) error {
-	if target != "bootstrap" && (s.bootstrapExecutionActiveLocked() || s.bootstrapInterrupted()) {
+	resetBlocking := false
+	if s.runner != nil {
+		blocking, err := s.runner.HasBlockingReset()
+		if err != nil {
+			return fmt.Errorf("load reset authority: %w", err)
+		}
+		resetBlocking = blocking
+	}
+	if (s.resetActive || resetBlocking) && target != "reset" {
+		return errors.New("installer reset is active or requires explicit resume")
+	}
+	if target == "reset" {
+		if s.bootstrapExecutionActiveLocked() {
+			return errors.New("bootstrap execution is active")
+		}
+	} else if target != "bootstrap" && (s.bootstrapExecutionActiveLocked() || s.bootstrapInterrupted()) {
 		return errors.New("bootstrap mutation is active or requires resume")
 	}
 	if s.lifecycle != nil && s.lifecycle.HasActive() && target != "lifecycle" {
@@ -762,10 +799,16 @@ func (s *installerServer) status(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusInternalServerError, "STATUS_FAILED", err.Error())
 		return
 	}
+	resetRuns, resetErr := s.runner.ResetRuns()
+	if resetErr != nil {
+		writeError(w, http.StatusInternalServerError, "RESET_STATUS_FAILED", resetErr.Error())
+		return
+	}
 	s.mutationMu.Lock()
 	bootstrapActive := s.bootstrapActive
+	resetActive := s.resetActive
 	s.mutationMu.Unlock()
-	writeJSON(w, http.StatusOK, map[string]any{"executionEnabled": s.executionEnabled, "bootstrapActive": bootstrapActive, "run": run})
+	writeJSON(w, http.StatusOK, map[string]any{"executionEnabled": s.executionEnabled, "bootstrapActive": bootstrapActive, "resetActive": resetActive, "run": run, "resetRuns": resetRuns})
 }
 
 func (s *installerServer) profiles(w http.ResponseWriter, _ *http.Request) {
@@ -845,6 +888,23 @@ func (s *installerServer) start(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "accepted", "message": "bootstrap execution started"})
 }
 
+func (s *installerServer) bootstrapResumeStatusLocked() (*bootstrap.Run, error) {
+	if s.runner == nil {
+		return nil, errors.New("bootstrap runner is unavailable")
+	}
+	run, err := s.runner.Status()
+	if err != nil {
+		return nil, fmt.Errorf("load bootstrap resume authority: %w", err)
+	}
+	if run == nil {
+		return nil, errors.New("no bootstrap run exists to resume")
+	}
+	if run.State == bootstrap.RunSucceeded {
+		return nil, fmt.Errorf("bootstrap run %s already succeeded", run.ID)
+	}
+	return run, nil
+}
+
 func (s *installerServer) resume(w http.ResponseWriter, _ *http.Request) {
 	if !s.executionEnabled {
 		writeError(w, http.StatusForbidden, "EXECUTION_DISABLED", "execution is disabled")
@@ -861,6 +921,11 @@ func (s *installerServer) resume(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusConflict, "MUTATION_CONFLICT", "bootstrap mutation is already active")
 		return
 	}
+	if _, err := s.bootstrapResumeStatusLocked(); err != nil {
+		s.mutationMu.Unlock()
+		writeError(w, http.StatusConflict, "BOOTSTRAP_RESUME_NOT_AVAILABLE", err.Error())
+		return
+	}
 	s.bootstrapActive = true
 	s.mutationMu.Unlock()
 	go func() {
@@ -873,6 +938,116 @@ func (s *installerServer) resume(w http.ResponseWriter, _ *http.Request) {
 		s.logger.Info("bootstrap resume completed", "run_id", run.ID, "state", run.State)
 	}()
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "accepted", "message": "bootstrap resume started"})
+}
+
+func (s *installerServer) resetRuns(w http.ResponseWriter, _ *http.Request) {
+	runs, err := s.runner.ResetRuns()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "RESET_STATUS_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, runs)
+}
+
+func (s *installerServer) startReset(w http.ResponseWriter, r *http.Request) {
+	if !s.executionEnabled {
+		writeError(w, http.StatusForbidden, "EXECUTION_DISABLED", "execution is disabled")
+		return
+	}
+	source, err := s.runner.Status()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "STATUS_FAILED", err.Error())
+		return
+	}
+	if source == nil {
+		writeError(w, http.StatusConflict, "INSTALLATION_REQUIRED", "no installation authority exists to reset")
+		return
+	}
+	confirmation := strings.TrimSpace(r.Header.Get("X-Confirm-Reset"))
+	expected := "reset:" + source.ID
+	if confirmation != expected {
+		writeError(w, http.StatusPreconditionRequired, "RESET_CONFIRMATION_REQUIRED", "X-Confirm-Reset must be "+expected)
+		return
+	}
+	s.mutationMu.Lock()
+	if err := s.mutationConflictLocked("reset"); err != nil {
+		s.mutationMu.Unlock()
+		writeError(w, http.StatusConflict, "MUTATION_CONFLICT", err.Error())
+		return
+	}
+	if s.resetActive {
+		s.mutationMu.Unlock()
+		writeError(w, http.StatusConflict, "MUTATION_CONFLICT", "installer reset is already active")
+		return
+	}
+	s.resetActive = true
+	s.mutationMu.Unlock()
+	go func() {
+		defer func() { s.mutationMu.Lock(); s.resetActive = false; s.mutationMu.Unlock() }()
+		run, runErr := s.runner.StartReset(context.Background(), confirmation)
+		if runErr != nil {
+			s.logger.Error("installer reset failed", "reset_id", run.ID, "error", runErr)
+			return
+		}
+		s.logger.Info("installer reset completed", "reset_id", run.ID, "state", run.State)
+	}()
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "accepted", "message": "journaled installer reset started"})
+}
+
+func (s *installerServer) resumeReset(w http.ResponseWriter, r *http.Request) {
+	if !s.executionEnabled {
+		writeError(w, http.StatusForbidden, "EXECUTION_DISABLED", "execution is disabled")
+		return
+	}
+	runs, err := s.runner.ResetRuns()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "RESET_STATUS_FAILED", err.Error())
+		return
+	}
+	var active *bootstrap.ResetRun
+	if len(runs) > 0 && runs[len(runs)-1].State != bootstrap.ResetStateSucceeded {
+		candidate := runs[len(runs)-1]
+		active = &candidate
+	}
+	if active == nil {
+		writeError(w, http.StatusConflict, "RESET_RESUME_NOT_REQUIRED", "no reset run requires resume")
+		return
+	}
+	expected := "resume:" + active.ID
+	if strings.TrimSpace(r.Header.Get("X-Confirm-Reset-Resume")) != expected {
+		writeError(w, http.StatusPreconditionRequired, "RESET_RESUME_CONFIRMATION_REQUIRED", "X-Confirm-Reset-Resume must be "+expected)
+		return
+	}
+	s.mutationMu.Lock()
+	if s.resetActive {
+		s.mutationMu.Unlock()
+		writeError(w, http.StatusConflict, "MUTATION_CONFLICT", "installer reset is already active")
+		return
+	}
+	// A blocking reset is the mutation authority being resumed; do not reject
+	// it through the generic conflict helper.
+	if s.lifecycle != nil && s.lifecycle.HasActive() {
+		s.mutationMu.Unlock()
+		writeError(w, http.StatusConflict, "MUTATION_CONFLICT", "service lifecycle mutation is active")
+		return
+	}
+	if s.disasterRecovery != nil && s.disasterRecovery.HasActive() {
+		s.mutationMu.Unlock()
+		writeError(w, http.StatusConflict, "MUTATION_CONFLICT", "disaster-recovery mutation is active")
+		return
+	}
+	s.resetActive = true
+	s.mutationMu.Unlock()
+	go func(id string) {
+		defer func() { s.mutationMu.Lock(); s.resetActive = false; s.mutationMu.Unlock() }()
+		run, runErr := s.runner.ResumeReset(context.Background(), id)
+		if runErr != nil {
+			s.logger.Error("installer reset resume failed", "reset_id", run.ID, "error", runErr)
+			return
+		}
+		s.logger.Info("installer reset resume completed", "reset_id", run.ID, "state", run.State)
+	}(active.ID)
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "accepted", "message": "installer reset resume started"})
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, value any) error {

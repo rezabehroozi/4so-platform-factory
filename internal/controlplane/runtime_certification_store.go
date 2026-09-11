@@ -15,6 +15,8 @@ const RuntimeCertificationValidity = 30 * 24 * time.Hour
 
 var observabilityRuntimeCertificationCapabilities = []string{"cert.metrics", "cert.logs", "cert.alerts"}
 
+var componentRuntimeCertificationCapabilities = []string{"cert.component-runtime"}
+
 var targetRuntimeCertificationCapabilities = []string{
 	"cert.dns", "cert.tls", "cert.network", "cert.tenant-isolation", "cert.pvc", "cert.snapshot", "cert.backup", "cert.restore", "cert.metrics", "cert.logs", "cert.alerts",
 }
@@ -25,6 +27,8 @@ func RuntimeCertificationRequiredCapabilities(profile RuntimeCertificationProfil
 		return append([]string(nil), observabilityRuntimeCertificationCapabilities...)
 	case RuntimeCertificationTargetV1:
 		return append([]string(nil), targetRuntimeCertificationCapabilities...)
+	case RuntimeCertificationComponentV1:
+		return append([]string(nil), componentRuntimeCertificationCapabilities...)
 	default:
 		return nil
 	}
@@ -64,7 +68,13 @@ func RuntimeCertificationCleanupToken(runID string, attempt int, fenceToken int6
 }
 
 func certificationContextValid(v RuntimeCertificationRun) bool {
-	return validSHA256(v.InventoryDigest) && validSHA256(v.EnvironmentFingerprint) && validSHA256(v.ManifestDigest) && validSHA256(v.SourceLockDigest) && validSHA256(v.RenderedDigest) && v.ResourceCount > 0
+	if !validSHA256(v.InventoryDigest) || !validSHA256(v.EnvironmentFingerprint) || !validSHA256(v.ManifestDigest) || !validSHA256(v.SourceLockDigest) || !validSHA256(v.RenderedDigest) || v.ResourceCount <= 0 {
+		return false
+	}
+	if v.Profile == RuntimeCertificationComponentV1 {
+		return strings.TrimSpace(v.ComponentName) != "" && strings.TrimSpace(v.ComponentRelease) != ""
+	}
+	return strings.TrimSpace(v.ComponentName) == "" && strings.TrimSpace(v.ComponentRelease) == ""
 }
 
 func RuntimeCertificationCheckpointDigest(v RuntimeCertificationRun, checks []RuntimeCheck) string {
@@ -73,12 +83,14 @@ func RuntimeCertificationCheckpointDigest(v RuntimeCertificationRun, checks []Ru
 		Inventory     string         `json:"inventoryDigest"`
 		Environment   string         `json:"environmentFingerprint"`
 		Catalog       string         `json:"catalogReleaseId"`
+		Component     string         `json:"componentName,omitempty"`
+		Release       string         `json:"componentRelease,omitempty"`
 		Manifest      string         `json:"manifestDigest"`
 		SourceLock    string         `json:"sourceLockDigest"`
 		Rendered      string         `json:"renderedDigest"`
 		Namespace     string         `json:"namespace"`
 		InstallChecks []RuntimeCheck `json:"installChecks"`
-	}{v.ID, v.InventoryDigest, v.EnvironmentFingerprint, v.CatalogReleaseID, v.ManifestDigest, v.SourceLockDigest, v.RenderedDigest, v.Namespace, checks})
+	}{v.ID, v.InventoryDigest, v.EnvironmentFingerprint, v.CatalogReleaseID, v.ComponentName, v.ComponentRelease, v.ManifestDigest, v.SourceLockDigest, v.RenderedDigest, v.Namespace, checks})
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
@@ -92,6 +104,8 @@ func RuntimeCertificationEvidenceDigest(v RuntimeCertificationRun) string {
 		Environment   string                      `json:"environmentFingerprint"`
 		Catalog       string                      `json:"catalogReleaseId"`
 		Revision      string                      `json:"catalogRevisionId"`
+		Component     string                      `json:"componentName,omitempty"`
+		Release       string                      `json:"componentRelease,omitempty"`
 		Manifest      string                      `json:"manifestDigest"`
 		SourceLock    string                      `json:"sourceLockDigest"`
 		Rendered      string                      `json:"renderedDigest"`
@@ -99,9 +113,40 @@ func RuntimeCertificationEvidenceDigest(v RuntimeCertificationRun) string {
 		ResourceCount int                         `json:"resourceCount"`
 		Checkpoint    string                      `json:"installCheckpointDigest"`
 		Checks        []RuntimeCheck              `json:"checks"`
-	}{"platform.4so.io/runtime-certification-evidence/v1", v.ID, v.Profile, v.InventoryDigest, v.EnvironmentFingerprint, v.CatalogReleaseID, v.CatalogRevisionID, v.ManifestDigest, v.SourceLockDigest, v.RenderedDigest, v.Namespace, v.ResourceCount, v.InstallCheckpointDigest, v.Checks})
+	}{"platform.4so.io/runtime-certification-evidence/v1", v.ID, v.Profile, v.InventoryDigest, v.EnvironmentFingerprint, v.CatalogReleaseID, v.CatalogRevisionID, v.ComponentName, v.ComponentRelease, v.ManifestDigest, v.SourceLockDigest, v.RenderedDigest, v.Namespace, v.ResourceCount, v.InstallCheckpointDigest, v.Checks})
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// ValidateRuntimeCertificationEvidence revalidates a completed certification
+// record before it is used as an authority. This protects durable restore and
+// downstream admission from treating a state label plus a digest-shaped string
+// as proof when the stored checkpoints/checks no longer reconstruct the exact
+// evidence digest originally produced by the certification state machine.
+func runtimeCertificationChecksForPhase(v RuntimeCertificationRun, phase RuntimeCertificationPhase) []RuntimeCheck {
+	out := []RuntimeCheck{}
+	for _, check := range v.Checks {
+		key := strings.TrimSpace(check.Key)
+		include := false
+		switch phase {
+		case RuntimeCertificationPhaseInstall:
+			include = key == "fresh-install-target" || strings.HasPrefix(key, "apply/") || key == "component-failure-control/duplicate-create-conflict"
+		case RuntimeCertificationPhaseVerify:
+			if v.Profile == RuntimeCertificationComponentV1 {
+				include = key == "durable-install-checkpoint" || strings.HasPrefix(key, "verify/") || strings.HasPrefix(key, "component-readiness/") || strings.HasPrefix(key, "component-dependency/") || key == "nodes-ready" || key == "cluster-dns-service" || key == "kubernetes-api-tls"
+			} else {
+				include = !(key == "fresh-install-target" || strings.HasPrefix(key, "apply/"))
+			}
+		case RuntimeCertificationPhaseFailure:
+			include = strings.HasPrefix(key, "component-failure-recovery/")
+		case RuntimeCertificationPhaseRemove:
+			include = strings.HasPrefix(key, "component-remove/")
+		}
+		if include {
+			out = append(out, check)
+		}
+	}
+	return out
 }
 
 // ValidateRuntimeCertificationEvidence revalidates a completed certification
@@ -113,7 +158,7 @@ func ValidateRuntimeCertificationEvidence(v RuntimeCertificationRun) error {
 	if v.State != RuntimeCertificationSucceeded && v.State != RuntimeCertificationRevoked {
 		return fmt.Errorf("%w: runtime certification evidence requires SUCCEEDED or REVOKED state", ErrInvalidTransition)
 	}
-	if v.Profile != RuntimeCertificationFoundationV1 && v.Profile != RuntimeCertificationObservabilityV1 && v.Profile != RuntimeCertificationTargetV1 {
+	if v.Profile != RuntimeCertificationFoundationV1 && v.Profile != RuntimeCertificationObservabilityV1 && v.Profile != RuntimeCertificationTargetV1 && v.Profile != RuntimeCertificationComponentV1 {
 		return fmt.Errorf("%w: unsupported runtime certification evidence profile", ErrValidation)
 	}
 	if !certificationContextValid(v) || v.InstallCheckpointAt == nil || v.FinishedAt == nil || v.ExpiresAt == nil {
@@ -122,21 +167,27 @@ func ValidateRuntimeCertificationEvidence(v RuntimeCertificationRun) error {
 	if v.FinishedAt.Before(*v.InstallCheckpointAt) || !v.ExpiresAt.After(*v.FinishedAt) {
 		return fmt.Errorf("%w: runtime certification evidence timestamps are inconsistent", ErrValidation)
 	}
-	installCount := v.ResourceCount + 1 // fresh-install-target + one apply/* per rendered resource.
-	if installCount <= 1 || len(v.Checks) <= installCount {
-		return fmt.Errorf("%w: runtime certification evidence checks are incomplete", ErrValidation)
+	phases := []RuntimeCertificationPhase{RuntimeCertificationPhaseInstall, RuntimeCertificationPhaseVerify}
+	if v.Profile == RuntimeCertificationComponentV1 {
+		phases = append(phases, RuntimeCertificationPhaseFailure, RuntimeCertificationPhaseRemove)
+		if v.Phase != RuntimeCertificationPhaseRemove {
+			return fmt.Errorf("%w: completed component certification must finish at REMOVE phase", ErrValidation)
+		}
 	}
-	installChecks := append([]RuntimeCheck(nil), v.Checks[:installCount]...)
-	verifyChecks := append([]RuntimeCheck(nil), v.Checks[installCount:]...)
-	installView := v
-	installView.Phase = RuntimeCertificationPhaseInstall
-	if err := ValidateRuntimeCertificationResultShape(installView, RuntimeCertificationResult{Phase: RuntimeCertificationPhaseInstall, Success: true, Checks: installChecks}); err != nil {
-		return err
-	}
-	verifyView := v
-	verifyView.Phase = RuntimeCertificationPhaseVerify
-	if err := ValidateRuntimeCertificationResultShape(verifyView, RuntimeCertificationResult{Phase: RuntimeCertificationPhaseVerify, Success: true, Checks: verifyChecks}); err != nil {
-		return err
+	var installChecks []RuntimeCheck
+	for _, phase := range phases {
+		checks := runtimeCertificationChecksForPhase(v, phase)
+		if len(checks) == 0 {
+			return fmt.Errorf("%w: runtime certification phase %s has no evidence", ErrValidation, phase)
+		}
+		view := v
+		view.Phase = phase
+		if err := ValidateRuntimeCertificationResultShape(view, RuntimeCertificationResult{Phase: phase, Success: true, Checks: checks}); err != nil {
+			return err
+		}
+		if phase == RuntimeCertificationPhaseInstall {
+			installChecks = checks
+		}
 	}
 	for _, check := range v.Checks {
 		if check.Status != "PASS" {
@@ -174,7 +225,7 @@ func (s *MemoryStore) CreateRuntimeCertification(_ context.Context, v RuntimeCer
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v.ProjectID, v.ClusterID, v.CatalogReleaseID, v.Namespace = strings.TrimSpace(v.ProjectID), strings.TrimSpace(v.ClusterID), strings.TrimSpace(v.CatalogReleaseID), strings.TrimSpace(v.Namespace)
-	if v.Profile != RuntimeCertificationFoundationV1 && v.Profile != RuntimeCertificationObservabilityV1 && v.Profile != RuntimeCertificationTargetV1 {
+	if v.Profile != RuntimeCertificationFoundationV1 && v.Profile != RuntimeCertificationObservabilityV1 && v.Profile != RuntimeCertificationTargetV1 && v.Profile != RuntimeCertificationComponentV1 {
 		return RuntimeCertificationRun{}, false, fmt.Errorf("%w: unsupported runtime certification profile", ErrValidation)
 	}
 	if v.ProjectID == "" || v.ClusterID == "" || v.CatalogReleaseID == "" || v.Namespace == "" || strings.TrimSpace(actor) == "" || strings.TrimSpace(v.IdempotencyKey) == "" || !validSHA256(v.RequestDigest) {
@@ -313,8 +364,6 @@ func (s *MemoryStore) NextRuntimeCertificationTask(_ context.Context, clusterID,
 		v.State = RuntimeCertificationInstalling
 		v.Phase = RuntimeCertificationPhaseInstall
 		v.StartedAt = &now
-	} else if v.State == RuntimeCertificationVerifying {
-		v.Phase = RuntimeCertificationPhaseVerify
 	}
 	lease := now.Add(AgentTaskLeaseDuration)
 	v.TaskAttempt++
@@ -358,6 +407,11 @@ func ValidateRuntimeCertificationResultShape(v RuntimeCertificationRun, result R
 		if err := require("fresh-install-target"); err != nil {
 			return err
 		}
+		if v.Profile == RuntimeCertificationComponentV1 {
+			if err := require("component-failure-control/duplicate-create-conflict"); err != nil {
+				return err
+			}
+		}
 		if applyCount != v.ResourceCount {
 			return fmt.Errorf("%w: install certification requires exactly %d apply checks, got %d", ErrValidation, v.ResourceCount, applyCount)
 		}
@@ -383,6 +437,44 @@ func ValidateRuntimeCertificationResultShape(v RuntimeCertificationRun, result R
 					return err
 				}
 			}
+		}
+		if v.Profile == RuntimeCertificationComponentV1 {
+			for _, key := range []string{"component-dependency/nodes-ready", "component-dependency/cluster-dns-service", "component-dependency/kubernetes-api-tls"} {
+				if err := require(key); err != nil {
+					return err
+				}
+			}
+			readinessCount := 0
+			for key := range seen {
+				if strings.HasPrefix(key, "component-readiness/") {
+					readinessCount++
+				}
+			}
+			if readinessCount != v.ResourceCount {
+				return fmt.Errorf("%w: component runtime certification requires exactly %d readiness checks, got %d", ErrValidation, v.ResourceCount, readinessCount)
+			}
+		}
+	case RuntimeCertificationPhaseFailure:
+		if v.Profile != RuntimeCertificationComponentV1 {
+			return fmt.Errorf("%w: failure-recovery phase is component-only", ErrValidation)
+		}
+		for _, key := range []string{"component-failure-recovery/drift-injected", "component-failure-recovery/reconciled", "component-failure-recovery/readiness-restored"} {
+			if err := require(key); err != nil {
+				return err
+			}
+		}
+	case RuntimeCertificationPhaseRemove:
+		if v.Profile != RuntimeCertificationComponentV1 {
+			return fmt.Errorf("%w: remove phase is component-only", ErrValidation)
+		}
+		removeCount := 0
+		for key := range seen {
+			if strings.HasPrefix(key, "component-remove/") {
+				removeCount++
+			}
+		}
+		if removeCount != v.ResourceCount {
+			return fmt.Errorf("%w: component remove certification requires exactly %d remove checks, got %d", ErrValidation, v.ResourceCount, removeCount)
 		}
 	default:
 		return fmt.Errorf("%w: unsupported runtime certification result phase", ErrValidation)
@@ -419,7 +511,7 @@ func (s *MemoryStore) ReportRuntimeCertificationTask(_ context.Context, clusterI
 	if result.InventoryDigest != v.InventoryDigest || result.RenderedDigest != v.RenderedDigest || result.Phase != v.Phase {
 		return RuntimeCertificationRun{}, fmt.Errorf("%w: certification task result context mismatch", ErrValidation)
 	}
-	if (v.Phase == RuntimeCertificationPhaseInstall && v.State != RuntimeCertificationInstalling) || (v.Phase == RuntimeCertificationPhaseVerify && v.State != RuntimeCertificationVerifying) {
+	if (v.Phase == RuntimeCertificationPhaseInstall && v.State != RuntimeCertificationInstalling) || (v.Phase != RuntimeCertificationPhaseInstall && v.State != RuntimeCertificationVerifying) {
 		return RuntimeCertificationRun{}, ErrInvalidTransition
 	}
 	if err := ValidateRuntimeCertificationResultShape(v, result); err != nil {
@@ -447,17 +539,32 @@ func (s *MemoryStore) ReportRuntimeCertificationTask(_ context.Context, clusterI
 		return cloneRuntimeCertification(v), nil
 	}
 	v.Checks = append(v.Checks, result.Checks...)
-	if v.Phase == RuntimeCertificationPhaseInstall {
+	switch v.Phase {
+	case RuntimeCertificationPhaseInstall:
 		v.InstallCheckpointDigest = RuntimeCertificationCheckpointDigest(v, result.Checks)
 		v.InstallCheckpointAt = &now
 		v.State = RuntimeCertificationVerifying
 		v.Phase = RuntimeCertificationPhaseVerify
 		v.LastError = ""
-	} else {
+	case RuntimeCertificationPhaseVerify:
 		if !validSHA256(v.InstallCheckpointDigest) || v.InstallCheckpointAt == nil {
 			return RuntimeCertificationRun{}, fmt.Errorf("%w: durable install checkpoint is required before verify completion", ErrInvalidTransition)
 		}
+		if v.Profile == RuntimeCertificationComponentV1 {
+			v.Phase = RuntimeCertificationPhaseFailure
+			v.State = RuntimeCertificationVerifying
+		} else {
+			v.State = RuntimeCertificationSucceeded
+		}
+	case RuntimeCertificationPhaseFailure:
+		v.Phase = RuntimeCertificationPhaseRemove
+		v.State = RuntimeCertificationVerifying
+	case RuntimeCertificationPhaseRemove:
 		v.State = RuntimeCertificationSucceeded
+	default:
+		return RuntimeCertificationRun{}, fmt.Errorf("%w: unsupported runtime certification phase transition", ErrInvalidTransition)
+	}
+	if v.State == RuntimeCertificationSucceeded {
 		v.LastError = ""
 		v.FinishedAt = &now
 		expires := now.Add(RuntimeCertificationValidity)

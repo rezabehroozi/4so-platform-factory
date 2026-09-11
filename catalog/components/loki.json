@@ -68,7 +68,7 @@
     "readiness": [
       "statefulset/loki-backend"
     ],
-    "release": "7.3.x",
+    "release": "18.12.1",
     "requiresCapabilities": [],
     "risk": "high",
     "rollback": {
@@ -87,7 +87,7 @@
       "type": "helm-chart"
     },
     "supportTier": "research-candidate",
-    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
     "wave": 68
   }
 }

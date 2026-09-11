@@ -185,6 +185,68 @@ func (s *MemoryStore) ListOperationStepTraces(_ context.Context, operationID str
 	return out, nil
 }
 
+// AppendOperationEvidencePayload seals a bounded binary/text artifact directly
+// against the currently leased operation. It is the generic payload boundary
+// for durable read-only jobs (for example support-bundle generation and target
+// workload log queries) that do not belong to a forward/compensation step.
+// The operation lease + fence is checked at commit time so a stale worker can
+// never attach evidence after losing execution authority.
+func (s *MemoryStore) AppendOperationEvidencePayload(_ context.Context, in EvidenceMetadata, payload []byte, worker string, fence int64, actor string) (EvidenceMetadata, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	worker = strings.TrimSpace(worker)
+	actor = strings.TrimSpace(actor)
+	in.OperationID = strings.TrimSpace(in.OperationID)
+	in.Kind = strings.TrimSpace(in.Kind)
+	in.MediaType = strings.TrimSpace(in.MediaType)
+	in.Location = strings.TrimSpace(in.Location)
+	if worker == "" || actor == "" || fence <= 0 || in.OperationID == "" || in.Kind == "" || in.MediaType == "" {
+		return EvidenceMetadata{}, fmt.Errorf("%w: operationId, kind, mediaType, worker, actor and positive fence are required", ErrValidation)
+	}
+	if len(payload) == 0 || len(payload) > 16<<20 {
+		return EvidenceMetadata{}, fmt.Errorf("%w: evidence payload must be between 1 byte and 16 MiB", ErrValidation)
+	}
+	op, ok := s.operations[in.OperationID]
+	if !ok {
+		return EvidenceMetadata{}, ErrNotFound
+	}
+	now := nowUTC(s.now)
+	if strings.TrimSpace(op.LeaseOwner) != worker || op.FenceToken != fence || op.LeaseExpiresAt == nil || !op.LeaseExpiresAt.After(now) {
+		return EvidenceMetadata{}, ErrStaleFence
+	}
+	digest := operationStepPayloadDigest(payload)
+	if in.Digest != "" && strings.TrimSpace(in.Digest) != digest {
+		return EvidenceMetadata{}, fmt.Errorf("%w: evidence payload digest mismatch", ErrValidation)
+	}
+	if in.Size != 0 && in.Size != int64(len(payload)) {
+		return EvidenceMetadata{}, fmt.Errorf("%w: evidence payload size mismatch", ErrValidation)
+	}
+	for _, existing := range s.evidence {
+		if existing.OperationID == in.OperationID && existing.Digest == digest && existing.StepKey == "" && existing.Phase == "" {
+			stored, exists := s.evidencePayloads[existing.ID]
+			if !exists || operationStepPayloadDigest(stored) != digest || int64(len(stored)) != existing.Size {
+				return EvidenceMetadata{}, fmt.Errorf("%w: existing evidence payload integrity mismatch", ErrConflict)
+			}
+			return existing, nil
+		}
+	}
+	id := s.id("evd")
+	location := in.Location
+	if location == "" {
+		location = fmt.Sprintf("authority://operations/%s/evidence/%s", in.OperationID, id)
+	}
+	out := EvidenceMetadata{
+		ResourceMeta: ResourceMeta{ID: id, Revision: 1, CreatedAt: now, UpdatedAt: now},
+		OperationID:  in.OperationID, Kind: in.Kind, Digest: digest, MediaType: in.MediaType,
+		Location: location, Size: int64(len(payload)), HasPayload: true, Sealed: true,
+	}
+	s.evidence[id] = out
+	s.evidencePayloads[id] = append([]byte(nil), payload...)
+	s.appendAuditLocked(actor, "evidence.payload_sealed", "evidence", id, 1, map[string]any{"operationId": in.OperationID, "digest": digest, "kind": in.Kind, "fenceToken": fence})
+	s.appendOutboxLocked("evidence", id, "evidence.payload_sealed", out)
+	return out, nil
+}
+
 func (s *MemoryStore) GetEvidencePayload(_ context.Context, evidenceID string) (EvidenceMetadata, []byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

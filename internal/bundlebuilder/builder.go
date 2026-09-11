@@ -13,14 +13,23 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"syscall"
 
 	"platform.4so.io/factory/internal/bootstrap"
+	"platform.4so.io/factory/internal/ociarchive"
 )
 
 const (
-	BuildAPIVersion = "platform.4so.io/v1alpha1"
-	BuildKind       = "ApplianceBundleBuild"
+	BuildAPIVersion                = "platform.4so.io/v1alpha1"
+	BuildKind                      = "ApplianceBundleBuild"
+	SourceArtifactBindingAuthority = "BUNDLE_SOURCE_ARTIFACT_BINDING_AUTHORITY_V1"
 )
+
+type SourceArtifactBinding struct {
+	Path      string `json:"path"`
+	SHA256    string `json:"sha256"`
+	SizeBytes int64  `json:"sizeBytes"`
+}
 
 type BuildSpec struct {
 	APIVersion string `json:"apiVersion"`
@@ -30,7 +39,8 @@ type BuildSpec struct {
 		SourceReleaseDigest string `json:"sourceReleaseDigest"`
 	} `json:"metadata"`
 	Spec struct {
-		RKE2 struct {
+		SourceArtifacts []SourceArtifactBinding `json:"sourceArtifacts"`
+		RKE2            struct {
 			Version          string   `json:"version"`
 			Installer        string   `json:"installer"`
 			InstallArtifacts []string `json:"installArtifacts"`
@@ -94,8 +104,9 @@ func Build(specPath, stagingDir, outputDir string) (BuildResult, error) {
 	if err != nil {
 		return BuildResult{}, err
 	}
-	if info, statErr := os.Stat(stagingRoot); statErr != nil || !info.IsDir() {
-		return BuildResult{}, fmt.Errorf("staging directory is not readable")
+	info, statErr := os.Lstat(stagingRoot)
+	if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return BuildResult{}, fmt.Errorf("staging directory must be a readable non-symlink directory")
 	}
 	outputRoot, err := filepath.Abs(outputDir)
 	if err != nil {
@@ -114,20 +125,25 @@ func Build(specPath, stagingDir, outputDir string) (BuildResult, error) {
 		}
 	}()
 
+	bindings := make(map[string]SourceArtifactBinding, len(spec.Spec.SourceArtifacts))
+	for _, binding := range spec.Spec.SourceArtifacts {
+		bindings[binding.Path] = binding
+	}
 	copyOne := func(relative string) (bootstrap.Artifact, error) {
-		clean, source, err := safeSource(stagingRoot, relative)
+		clean, err := cleanArtifactPath(relative)
 		if err != nil {
 			return bootstrap.Artifact{}, err
+		}
+		binding, ok := bindings[clean]
+		if !ok {
+			return bootstrap.Artifact{}, fmt.Errorf("artifact %q is not bound by spec.sourceArtifacts", clean)
 		}
 		destinationRel := filepath.ToSlash(filepath.Join("artifacts", clean))
 		destination := filepath.Join(outputRoot, filepath.FromSlash(destinationRel))
 		if err = os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 			return bootstrap.Artifact{}, err
 		}
-		if err = copyRegular(source, destination); err != nil {
-			return bootstrap.Artifact{}, err
-		}
-		digest, err := fileDigest(destination)
+		digest, err := copyBoundRegular(stagingRoot, clean, destination, binding)
 		if err != nil {
 			return bootstrap.Artifact{}, err
 		}
@@ -220,6 +236,18 @@ func Build(specPath, stagingDir, outputDir string) (BuildResult, error) {
 		images = append(images, manifestImages...)
 	}
 	images = sortedUnique(images)
+	archiveImages := []string{}
+	for _, artifact := range workloadArchives {
+		archivePath := filepath.Join(outputRoot, filepath.FromSlash(artifact.Path))
+		inventory, inspectErr := ociarchive.Inspect(archivePath)
+		if inspectErr != nil {
+			return BuildResult{}, fmt.Errorf("workload OCI archive %q: %w", artifact.Path, inspectErr)
+		}
+		archiveImages = append(archiveImages, inventory.Images...)
+	}
+	if len(archiveImages) != len(images) || !equalStringSlices(sortedUnique(archiveImages), images) {
+		return BuildResult{}, fmt.Errorf("workload OCI archives must contain exactly all required product and operator/storage images")
+	}
 	manifest.Spec.Airgap.Complete = true
 	manifest.Spec.Airgap.RequiredImages = images
 
@@ -292,15 +320,41 @@ func validateSpec(spec BuildSpec) error {
 		return errors.New("RKE2 install artifacts, RKE2 image archives and workload image archives are required")
 	}
 	seen := map[string]bool{}
-	for _, path := range paths {
-		clean := filepath.Clean(strings.TrimSpace(path))
-		if clean == "." || clean == ".." || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-			return fmt.Errorf("artifact path %q must be relative to the staging directory", path)
+	for _, value := range paths {
+		clean, err := cleanArtifactPath(value)
+		if err != nil {
+			return err
 		}
 		if seen[clean] {
-			return fmt.Errorf("duplicate artifact path %q", path)
+			return fmt.Errorf("duplicate artifact path %q", value)
 		}
 		seen[clean] = true
+	}
+	if len(spec.Spec.SourceArtifacts) != len(seen) {
+		return fmt.Errorf("spec.sourceArtifacts must bind exactly all %d artifact paths", len(seen))
+	}
+	bound := map[string]bool{}
+	for _, binding := range spec.Spec.SourceArtifacts {
+		clean, err := cleanArtifactPath(binding.Path)
+		if err != nil {
+			return fmt.Errorf("source artifact binding: %w", err)
+		}
+		if clean != binding.Path {
+			return fmt.Errorf("source artifact binding path %q must be canonical", binding.Path)
+		}
+		if !seen[clean] {
+			return fmt.Errorf("source artifact binding %q does not belong to the build artifact universe", clean)
+		}
+		if bound[clean] {
+			return fmt.Errorf("duplicate source artifact binding %q", clean)
+		}
+		if !regexp.MustCompile(`^sha256:[a-f0-9]{64}$`).MatchString(binding.SHA256) {
+			return fmt.Errorf("source artifact binding %q must contain a lowercase sha256 digest", clean)
+		}
+		if binding.SizeBytes <= 0 || binding.SizeBytes > 64<<30 {
+			return fmt.Errorf("source artifact binding %q has invalid sizeBytes", clean)
+		}
+		bound[clean] = true
 	}
 	for _, image := range []string{spec.Spec.Workloads.PostgreSQLImage, spec.Spec.Workloads.PlatformAPIImage, spec.Spec.Workloads.ForgejoImage, spec.Spec.Workloads.ZotImage, spec.Spec.Workloads.KeycloakImage, spec.Spec.Workloads.MaintenanceImage, spec.Spec.Workloads.FleetAgentImage, spec.Spec.Workloads.RuntimeProbeImage} {
 		parts := strings.Split(image, "@sha256:")
@@ -335,49 +389,102 @@ func ensureEmptyOutput(path string) error {
 	return nil
 }
 
-func safeSource(root, relative string) (string, string, error) {
-	clean := filepath.Clean(strings.TrimSpace(relative))
-	if clean == "." || clean == ".." || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", "", fmt.Errorf("artifact path %q escapes the staging directory", relative)
+func cleanArtifactPath(relative string) (string, error) {
+	raw := strings.TrimSpace(relative)
+	if raw == "" || raw != relative || strings.Contains(raw, "\\") {
+		return "", fmt.Errorf("artifact path %q must be a canonical relative path", relative)
 	}
-	path := filepath.Join(root, clean)
-	resolved, err := filepath.Abs(path)
-	if err != nil {
-		return "", "", err
+	clean := filepath.Clean(raw)
+	if clean != raw || clean == "." || clean == ".." || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("artifact path %q must be a canonical relative path", relative)
 	}
-	if resolved != root && !strings.HasPrefix(resolved, root+string(filepath.Separator)) {
-		return "", "", fmt.Errorf("artifact path %q escapes the staging directory", relative)
-	}
-	info, err := os.Lstat(resolved)
-	if err != nil {
-		return "", "", fmt.Errorf("artifact %q: %w", relative, err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() <= 0 {
-		return "", "", fmt.Errorf("artifact %q must be a non-empty regular non-symlink file", relative)
-	}
-	return clean, resolved, nil
+	return clean, nil
 }
 
-func copyRegular(source, destination string) error {
-	input, err := os.Open(source)
+// openBoundSource walks each path component beneath the already-admitted staging
+// root with openat(O_NOFOLLOW). This prevents a parent-directory symlink swap
+// from redirecting a bundle build outside the staging authority after validation.
+func openBoundSource(root, relative string) (*os.File, error) {
+	clean, err := cleanArtifactPath(relative)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	rootFD, err := syscall.Open(root, syscall.O_RDONLY|syscall.O_DIRECTORY|syscall.O_CLOEXEC|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, fmt.Errorf("open staging root safely: %w", err)
+	}
+	currentFD := rootFD
+	parts := strings.Split(filepath.ToSlash(clean), "/")
+	for _, part := range parts[:len(parts)-1] {
+		nextFD, openErr := syscall.Openat(currentFD, part, syscall.O_RDONLY|syscall.O_DIRECTORY|syscall.O_CLOEXEC|syscall.O_NOFOLLOW, 0)
+		if currentFD != rootFD {
+			_ = syscall.Close(currentFD)
+		}
+		if openErr != nil {
+			_ = syscall.Close(rootFD)
+			return nil, fmt.Errorf("artifact %q parent path is unsafe: %w", clean, openErr)
+		}
+		currentFD = nextFD
+	}
+	fd, openErr := syscall.Openat(currentFD, parts[len(parts)-1], syscall.O_RDONLY|syscall.O_CLOEXEC|syscall.O_NOFOLLOW, 0)
+	if currentFD != rootFD {
+		_ = syscall.Close(currentFD)
+	}
+	_ = syscall.Close(rootFD)
+	if openErr != nil {
+		return nil, fmt.Errorf("artifact %q cannot be opened safely: %w", clean, openErr)
+	}
+	file := os.NewFile(uintptr(fd), clean)
+	if file == nil {
+		_ = syscall.Close(fd)
+		return nil, fmt.Errorf("artifact %q cannot be represented as a file", clean)
+	}
+	info, statErr := file.Stat()
+	if statErr != nil || !info.Mode().IsRegular() || info.Size() <= 0 {
+		_ = file.Close()
+		return nil, fmt.Errorf("artifact %q must be a non-empty regular non-symlink file", clean)
+	}
+	return file, nil
+}
+
+func copyBoundRegular(root, relative, destination string, binding SourceArtifactBinding) (string, error) {
+	input, err := openBoundSource(root, relative)
+	if err != nil {
+		return "", err
 	}
 	defer input.Close()
+	info, err := input.Stat()
+	if err != nil {
+		return "", err
+	}
+	if info.Size() != binding.SizeBytes {
+		return "", fmt.Errorf("source artifact %q size mismatch expected=%d actual=%d", relative, binding.SizeBytes, info.Size())
+	}
 	output, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
-		return err
+		return "", err
 	}
-	_, copyErr := io.Copy(output, input)
+	h := sha256.New()
+	written, copyErr := io.Copy(io.MultiWriter(output, h), input)
 	syncErr := output.Sync()
 	closeErr := output.Close()
 	if copyErr != nil {
-		return copyErr
+		return "", copyErr
 	}
 	if syncErr != nil {
-		return syncErr
+		return "", syncErr
 	}
-	return closeErr
+	if closeErr != nil {
+		return "", closeErr
+	}
+	if written != binding.SizeBytes {
+		return "", fmt.Errorf("source artifact %q copied size mismatch expected=%d actual=%d", relative, binding.SizeBytes, written)
+	}
+	digest := "sha256:" + hex.EncodeToString(h.Sum(nil))
+	if digest != binding.SHA256 {
+		return "", fmt.Errorf("source artifact %q digest mismatch expected=%s actual=%s", relative, binding.SHA256, digest)
+	}
+	return digest, nil
 }
 
 func fileDigest(path string) (string, error) {
@@ -426,4 +533,16 @@ func sortedUnique(values []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

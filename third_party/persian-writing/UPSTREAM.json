@@ -1,0 +1,32 @@
+{
+  "name": "persian-writing",
+  "repository": "https://github.com/ali2000hos/persian-writing",
+  "version": "1.3.5",
+  "commit": "118c2167f30cafe18df13c0ba85f98f50dad1894",
+  "tree": "9fd2300bfee50ac7cc666a2e8cbffc47a71e8857",
+  "integration": "curated-core-vendor",
+  "runtimeNetworkDependency": false,
+  "included": [
+    "LICENSE",
+    "AGENTS.md",
+    "SKILL.md",
+    "references/orthography.md",
+    "references/writing-style.md",
+    "scripts/fa_lint.py"
+  ],
+  "excluded": {
+    "assets/fonts": "binary fonts are not redistributed in the 4SO release artifact",
+    "assets/persian_words.txt": "large optional spell-check dictionary is not required by the deterministic 4SO UI gate",
+    "document_render_helpers": "4SO product integration currently consumes prose/orthography lint only",
+    "marketing_social_seo_references": "not part of Operator Console product-copy release gate"
+  },
+  "fileDigests": {
+    "LICENSE": "sha256:3f7524ca97aa0f90fedfa69e31aada5cace1d860d07c2e540f69d088eeb4f960",
+    "AGENTS.md": "sha256:717ef6f1565343a93f167208a6240f6f310f8c7eb41f6b76d3ca4321b11de927",
+    "SKILL.md": "sha256:42a2e63b534dcff6b4d83f7840264717cefce57918f84b5d2330d64544f2b100",
+    "references/orthography.md": "sha256:dc4e8c44ddd8561965e9b4796c38d9c0199a6aec09aba48edbe32789803cdb6d",
+    "references/writing-style.md": "sha256:1a6b0c56f4a368e3d12aa136a492cf238e9fac974da7c71613f02b52e6541df9",
+    "scripts/fa_lint.py": "sha256:e1e7566fab1139f30e5f2c318de61ab51dc006950eeb7efe6288ed49cad61b0b",
+    "README.4SO.md": "sha256:03f16683222ca579f97d2ae7a65f7c6f6073e5b6ef00967bbfb38a0a666704ae"
+  }
+}

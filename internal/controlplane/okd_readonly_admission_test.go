@@ -55,7 +55,117 @@ func authoritativeOKDInventory(now time.Time) ClusterInventory {
 	}
 }
 
-func TestOKDInventoryIsAuthoritativeButReadOnlyUntilAdmissionPhaseCloses(t *testing.T) {
+func healthyAdmittedOKDInventory(now time.Time) ClusterInventory {
+	inv := authoritativeOKDInventory(now)
+	inv.Capabilities = append(inv.Capabilities, "volume-snapshot-controller")
+	inv.SchemaDiscoveryComplete = true
+	inv.SchemaDiscoveryVersion = "OPENAPI_V3"
+	inv.SchemaDiscoveryDigest = digestTenantTest("okd-openapi")
+	inv.Networking = ClusterNetworking{CNI: "OVNKubernetes"}
+	inv.APIResources = append(inv.APIResources,
+		ClusterAPIResourceObservation{APIVersion: "operators.coreos.com/v1alpha1", Group: "operators.coreos.com", Version: "v1alpha1", Kind: "ClusterServiceVersion", Resource: "clusterserviceversions", Namespaced: true},
+		ClusterAPIResourceObservation{APIVersion: "security.openshift.io/v1", Group: "security.openshift.io", Version: "v1", Kind: "SecurityContextConstraints", Resource: "securitycontextconstraints"},
+		ClusterAPIResourceObservation{APIVersion: "project.openshift.io/v1", Group: "project.openshift.io", Version: "v1", Kind: "Project", Resource: "projects"},
+	)
+	inv.AddOns = []ClusterAddOn{
+		{Name: "version", Kind: "cluster-version", Version: "4.19.0-okd-scos.0", Healthy: true, Available: "True", Progressing: "False", Degraded: "False", Upgradeable: "True"},
+		{Name: "network", Kind: "cluster-operator", Version: "4.19.0", Healthy: true, Available: "True", Progressing: "False", Degraded: "False", Upgradeable: "True"},
+		{Name: "monitoring", Kind: "cluster-operator", Version: "4.19.0", Healthy: true, Available: "True", Progressing: "False", Degraded: "False", Upgradeable: "True"},
+		{Name: "operator-lifecycle-manager", Kind: "cluster-operator", Version: "4.19.0", Healthy: true, Available: "True", Progressing: "False", Degraded: "False", Upgradeable: "True"},
+		{Name: "machine-config", Kind: "cluster-operator", Version: "4.19.0", Healthy: true, Available: "True", Progressing: "False", Degraded: "False", Upgradeable: "True"},
+	}
+	return inv
+}
+
+func TestHealthyOKDInventoryIsImportAdmittedButStillRequiresServerIssuedMutationRBAC(t *testing.T) {
+	now := time.Date(2026, 9, 3, 10, 0, 0, 0, time.UTC)
+	store, ctx, cluster, agent := seedAdmissionCluster(t, &now)
+	inv := healthyAdmittedOKDInventory(now)
+	inv.Capabilities = append(inv.Capabilities, TargetEnrollmentPrincipalIsolatedCapability)
+	cluster, stored, err := store.UpsertClusterInventory(ctx, cluster.ID, agent, cluster.ExternalUID, inv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, capability := range []string{OKDImportAdmissionCapability, OKDHealthHealthyCapability, "networking.ovn-kubernetes", "monitoring.cluster", "operator-lifecycle.olm", "security.scc", "tenancy.projects"} {
+		if !clusterHasCapability(cluster, capability) {
+			t.Fatalf("missing server-derived OKD capability %q: %v", capability, cluster.Capabilities)
+		}
+	}
+	if clusterHasCapability(cluster, TargetMutationRBACActiveCapability) || ClusterTaskAdmitted(cluster) {
+		t.Fatalf("OKD import bypassed server mutation-RBAC issuance: %v", cluster.Capabilities)
+	}
+	health := TranslateOKDHealth(stored)
+	if health.Status != "HEALTHY" || !health.MutationEligible || health.OperatorCount != 4 {
+		t.Fatalf("unexpected OKD health: %+v", health)
+	}
+	profile := CompileTargetProfile(stored, nil)
+	if profile.Status != "CONVERGED" || !profile.Resolution.Admitted {
+		t.Fatalf("OKD desired/observed profile did not converge: %+v", profile)
+	}
+
+	cluster, _, err = store.AuthorizeClusterMutationRBACActivation(ctx, cluster.ID, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !clusterHasCapability(cluster, TargetMutationRBACActivationIssuedCapability) || ClusterTaskAdmitted(cluster) {
+		t.Fatalf("issuance alone incorrectly admitted mutation: %v", cluster.Capabilities)
+	}
+	inv.ObservedAt = now.Add(time.Minute)
+	inv.Capabilities = append(inv.Capabilities, TargetEnrollmentPrincipalIsolatedCapability, TargetMutationRBACActiveCapability)
+	cluster, _, err = store.UpsertClusterInventory(ctx, cluster.ID, agent, cluster.ExternalUID, inv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ClusterTaskAdmitted(cluster) {
+		t.Fatalf("healthy OKD import did not enter admitted task authority after server issuance + agent proof: %+v", cluster)
+	}
+}
+
+func TestOKDDegradedOperatorFailsClosedAndProfileReportsBlocker(t *testing.T) {
+	now := time.Date(2026, 9, 3, 10, 30, 0, 0, time.UTC)
+	inv := healthyAdmittedOKDInventory(now)
+	for i := range inv.AddOns {
+		if inv.AddOns[i].Name == "network" {
+			inv.AddOns[i].Healthy = false
+			inv.AddOns[i].Degraded = "True"
+			inv.AddOns[i].Reason = "OVNDegraded"
+			inv.AddOns[i].Message = "OVN rollout is degraded"
+		}
+	}
+	inv = NormalizeClusterInventoryForAdmission(inv)
+	if clusterHasCapability(ManagedCluster{Capabilities: inv.Capabilities}, OKDImportAdmissionCapability) {
+		t.Fatalf("degraded OKD was admitted: %v", inv.Capabilities)
+	}
+	if !clusterHasCapability(ManagedCluster{Capabilities: inv.Capabilities}, TargetReadOnlyAdmissionCapability) {
+		t.Fatalf("degraded OKD did not fail closed read-only: %v", inv.Capabilities)
+	}
+	health := TranslateOKDHealth(inv)
+	if health.Status != "DEGRADED" || len(health.Degraded) != 1 || health.Degraded[0] != "network" {
+		t.Fatalf("unexpected health translation: %+v", health)
+	}
+	profile := CompileTargetProfile(inv, nil)
+	if profile.Status != "BLOCKED" || len(profile.Blockers) == 0 {
+		t.Fatalf("degraded OKD profile was reported converged: %+v", profile)
+	}
+}
+
+func TestClusterReconnectAuthorityDistinguishesAutomaticReconnectFromRevokedReenrollment(t *testing.T) {
+	now := time.Date(2026, 9, 3, 11, 0, 0, 0, time.UTC)
+	lastSeen := now.Add(-10 * time.Minute)
+	cluster := ManagedCluster{ExternalUID: "uid-a", ConnectionState: "CONNECTED", LastSeenAt: &lastSeen}
+	reconnect := ClusterReconnectAuthority(cluster, now)
+	if reconnect.Status != "WAITING_FOR_AGENT" || !reconnect.Automatic || !reconnect.SameClusterIdentityRequired {
+		t.Fatalf("unexpected automatic reconnect authority: %+v", reconnect)
+	}
+	cluster.ConnectionState = "REVOKED"
+	cluster.Capabilities = []string{TargetMutationRBACEverIssuedCapability}
+	reconnect = ClusterReconnectAuthority(cluster, now)
+	if reconnect.Status != "REENROLLMENT_REQUIRED" || reconnect.Automatic || !reconnect.TargetRBACFenceRequired {
+		t.Fatalf("unexpected revoked re-enrollment authority: %+v", reconnect)
+	}
+}
+
+func TestOKDInventoryWithoutHealthAndNativeOwnershipRemainsReadOnly(t *testing.T) {
 	now := time.Date(2026, 8, 27, 9, 0, 0, 0, time.UTC)
 	store, ctx, cluster, agent := seedAdmissionCluster(t, &now)
 	inv := authoritativeOKDInventory(now)

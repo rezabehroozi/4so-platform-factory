@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -335,10 +336,10 @@ func TestPostgresServiceAccountTokenIssueRotateAndRevokeAuthority(t *testing.T) 
 
 func TestPostgresInventoryCorruptJSONFailsClosed(t *testing.T) {
 	now := fixedPGTime()
-	columns := []string{"id", "revision", "cluster_id", "observed_at", "distribution", "distribution_evidence_method", "distribution_evidence_uid", "distribution_evidence_version", "kubernetes_version", "nodes", "addons", "storage_classes", "capacity", "certificates", "networking", "api_resources", "crds", "api_discovery_complete", "crd_discovery_complete", "schema_discovery_version", "schema_discovery_digest", "schema_discovery_complete", "capabilities", "digest", "created_at", "updated_at"}
+	columns := []string{"id", "revision", "cluster_id", "observed_at", "distribution", "distribution_evidence_method", "distribution_evidence_uid", "distribution_evidence_version", "kubernetes_version", "nodes", "addons", "storage_classes", "capacity", "certificates", "networking", "workload_explorer", "api_resources", "crds", "api_discovery_complete", "crd_discovery_complete", "schema_discovery_version", "schema_discovery_digest", "schema_discovery_complete", "capabilities", "digest", "created_at", "updated_at"}
 	row := []driver.Value{
 		"inv_fixed", int64(1), "clu_fixed", now, "rke2", "", "", "", "v1.34.9+rke2r1",
-		[]byte("{"), []byte("[]"), []byte("[]"), []byte("{}"), []byte("[]"), []byte("{}"), []byte("[]"), []byte("[]"),
+		[]byte("{"), []byte("[]"), []byte("[]"), []byte("{}"), []byte("[]"), []byte("{}"), []byte("{}"), []byte("[]"), []byte("[]"),
 		true, true, "v1", "sha256:schema", true, []byte("[]"), "sha256:inventory", now, now,
 	}
 	db, script := openScriptDB(t, scriptStep{kind: "query", contains: "FROM cluster_inventory_snapshots", columns: columns, rows: [][]driver.Value{row}})
@@ -391,7 +392,7 @@ func TestPostgresCriticalJSONScannersFailClosed(t *testing.T) {
 			name: "provider kubernetes series",
 			values: []driver.Value{
 				"pp_fixed", "prj_fixed", "mgmt_fixed", int64(1), "profile", "Profile", "cluster-api", "platform-system", "cc", "worker", "v1.34.0",
-				bad, []byte("[]"), []byte("[]"), int64(10), "READY", "sha256:desired", "sha256:observed", "actor", "idem", "sha256:req", int64(0), int64(0), nil, "", now, now,
+				bad, []byte("[]"), []byte("[]"), "unspecified", "", "", int64(10), "READY", "sha256:desired", "sha256:observed", "actor", "idem", "sha256:req", int64(0), int64(0), nil, "", now, now,
 			},
 			scan: func(row *sql.Row) error { _, err := scanProviderProfile(row); return err },
 		},
@@ -807,7 +808,7 @@ func TestCheckMigrationCompatibilityBlocksUnsafeRollingUpgradeBeforeMutation(t *
 			scriptStep{kind: "query", contains: "SELECT to_regclass", columns: []string{"to_regclass"}, rows: [][]driver.Value{{"schema_migrations"}}},
 			scriptStep{kind: "query", contains: "SELECT COALESCE(MAX(version),0), COUNT(*)", columns: []string{"max", "count"}, rows: [][]driver.Value{{int64(20), int64(20)}}},
 		)
-		if err := CheckMigrationCompatibility(context.Background(), db, MigrationModeQuiesced, map[int64]struct{}{21: {}, 27: {}, 47: {}, 50: {}}); err != nil {
+		if err := CheckMigrationCompatibility(context.Background(), db, MigrationModeQuiesced, map[int64]struct{}{21: {}, 27: {}, 47: {}, 50: {}, 60: {}, 61: {}, 64: {}}); err != nil {
 			t.Fatal(err)
 		}
 		script.done(t)
@@ -861,13 +862,38 @@ func TestCheckMigrationCompatibilityBlocksUnsafeRollingUpgradeBeforeMutation(t *
 		script.done(t)
 	})
 
-	t.Run("already past migration 50 remains rolling compatible", func(t *testing.T) {
+	t.Run("already past migration 50 blocks at OS patch semantic boundary 60", func(t *testing.T) {
 		db, script := openScriptDB(t,
 			scriptStep{kind: "query", contains: "SELECT to_regclass", columns: []string{"to_regclass"}, rows: [][]driver.Value{{"schema_migrations"}}},
 			scriptStep{kind: "query", contains: "SELECT COALESCE(MAX(version),0), COUNT(*)", columns: []string{"max", "count"}, rows: [][]driver.Value{{int64(50), int64(50)}}},
 		)
-		if err := CheckMigrationCompatibility(context.Background(), db, MigrationModeRolling, nil); err != nil {
-			t.Fatal(err)
+		err := CheckMigrationCompatibility(context.Background(), db, MigrationModeRolling, nil)
+		if err == nil || !strings.Contains(err.Error(), "pending migration 60") || !strings.Contains(err.Error(), "quiesced") {
+			t.Fatalf("expected migration 60 mixed-version block, got %v", err)
+		}
+		script.done(t)
+	})
+
+	t.Run("already past migration 60 blocks at provider Machine semantic boundary 61", func(t *testing.T) {
+		db, script := openScriptDB(t,
+			scriptStep{kind: "query", contains: "SELECT to_regclass", columns: []string{"to_regclass"}, rows: [][]driver.Value{{"schema_migrations"}}},
+			scriptStep{kind: "query", contains: "SELECT COALESCE(MAX(version),0), COUNT(*)", columns: []string{"max", "count"}, rows: [][]driver.Value{{int64(60), int64(60)}}},
+		)
+		err := CheckMigrationCompatibility(context.Background(), db, MigrationModeRolling, nil)
+		if err == nil || !strings.Contains(err.Error(), "pending migration 61") || !strings.Contains(err.Error(), "quiesced") {
+			t.Fatalf("expected migration 61 mixed-version block, got %v", err)
+		}
+		script.done(t)
+	})
+
+	t.Run("already past migration 61 blocks at component lifecycle semantic boundary 64", func(t *testing.T) {
+		db, script := openScriptDB(t,
+			scriptStep{kind: "query", contains: "SELECT to_regclass", columns: []string{"to_regclass"}, rows: [][]driver.Value{{"schema_migrations"}}},
+			scriptStep{kind: "query", contains: "SELECT COALESCE(MAX(version),0), COUNT(*)", columns: []string{"max", "count"}, rows: [][]driver.Value{{int64(61), int64(61)}}},
+		)
+		err := CheckMigrationCompatibility(context.Background(), db, MigrationModeRolling, nil)
+		if err == nil || !strings.Contains(err.Error(), "pending migration 64") || !strings.Contains(err.Error(), "quiesced") {
+			t.Fatalf("expected migration 64 mixed-version block, got %v", err)
 		}
 		script.done(t)
 	})
@@ -1409,6 +1435,84 @@ func TestPostgresInventoryRejectsStaleObservationBeforeAuthorityMutation(t *test
 	})
 	if !errors.Is(err, controlplane.ErrPrerequisite) {
 		t.Fatalf("postgres accepted stale observation as fresh inventory authority: %v", err)
+	}
+	script.done(t)
+}
+
+func TestPostgresFinalizeAIExecutionCommitsRunAndClaimInOneTransaction(t *testing.T) {
+	now := fixedPGTime()
+	requestDigest := "sha256:" + strings.Repeat("b", 64)
+	output := json.RawMessage(`{"classification":"environment"}`)
+	outputDigest, err := controlplane.AIRunOutputDigest(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimRow := []driver.Value{"aic_existing", "project-1", int64(1), "operator-diagnosis", "ai-key", requestDigest, "DISPATCHED", "", "", "operator", now, now}
+	db, script := openScriptDB(t,
+		scriptStep{kind: "begin"},
+		scriptStep{kind: "query", contains: "FROM ai_execution_claims WHERE project_id=$1 AND idempotency_key=$2 FOR UPDATE", columns: strings.Split(aiExecutionColumns, ","), rows: [][]driver.Value{claimRow}},
+		scriptStep{kind: "query", contains: "FROM ai_runs WHERE project_id=$1 AND idempotency_key=$2 FOR UPDATE", columns: strings.Split(aiRunColumns, ",")},
+		scriptStep{kind: "query", contains: "SELECT EXISTS(SELECT 1 FROM projects", columns: []string{"exists"}, rows: [][]driver.Value{{true}}},
+		scriptStep{kind: "query", contains: "SELECT project_id FROM operations", columns: []string{"project_id"}, rows: [][]driver.Value{{"project-1"}}},
+		scriptStep{kind: "exec", contains: "INSERT INTO ai_runs"},
+		scriptStep{kind: "exec", contains: "INSERT INTO audit_events"},
+		scriptStep{kind: "exec", contains: "INSERT INTO outbox_events"},
+		scriptStep{kind: "exec", contains: "UPDATE ai_execution_claims SET revision=$3,state='COMPLETED'"},
+		scriptStep{kind: "exec", contains: "INSERT INTO audit_events"},
+		scriptStep{kind: "commit"},
+	)
+	store, err := NewPostgresStoreWith(db, func() time.Time { return now }, fixedPGID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := controlplane.AIRun{ProjectID: "project-1", Purpose: "operator-diagnosis", Provider: "openai-responses", Model: "test", PromptID: "operator.failure-diagnosis.v1", PromptDigest: requestDigest, ContextDigest: requestDigest, OutputDigest: outputDigest, Output: output, LinkedResourceType: "operation", LinkedResourceID: "op-1", IdempotencyKey: "ai-key", RequestDigest: requestDigest, AdvisoryOnly: true}
+	created, replay, claim, err := store.FinalizeAIExecution(context.Background(), run, "operator")
+	if err != nil || replay || created.ID != "air_fixed" || claim.State != controlplane.AIExecutionCompleted || claim.AIRunID != created.ID {
+		t.Fatalf("run=%+v replay=%v claim=%+v err=%v", created, replay, claim, err)
+	}
+	script.done(t)
+}
+
+func TestPostgresControlPlaneAttentionScopesBeforeLimit(t *testing.T) {
+	now := fixedPGTime()
+	db, script := openScriptDB(t, scriptStep{
+		kind:     "query",
+		contains: "WITH selected_projects AS (",
+		columns:  []string{"kind", "id", "project_id", "display_name", "state", "message", "page", "updated_at"},
+		rows:     [][]driver.Value{{"tenant", "tenant-failed", "prj_own", "Tenant Failed", "FAILED", "boom", "tenants", now}},
+	})
+	store, err := NewPostgresStoreWith(db, func() time.Time { return now }, fixedPGID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := store.ControlPlaneAttention(context.Background(), []string{"prj_own", "prj_own"}, false, 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].ID != "tenant-failed" || items[0].ProjectID != "prj_own" {
+		t.Fatalf("unexpected attention items: %#v", items)
+	}
+	script.done(t)
+}
+
+func TestPostgresOperatorCollectionCursorAppliesBeforeLimit(t *testing.T) {
+	now := fixedPGTime()
+	db, script := openScriptDB(t, scriptStep{
+		kind:     "query",
+		contains: "FROM managed_clusters WHERE 1=1 AND (updated_at < $1 OR (updated_at = $1 AND id < $2)) ORDER BY updated_at DESC,id DESC LIMIT $3",
+		columns:  []string{"id"},
+	})
+	store, err := NewPostgresStoreWith(db, func() time.Time { return now }, fixedPGID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cursor := &controlplane.CollectionCursor{UpdatedAt: now.Add(-time.Minute), ID: "cls_cursor"}
+	values, err := store.ListManagedClustersPage(context.Background(), nil, true, cursor, 101)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(values) != 0 {
+		t.Fatalf("unexpected values: %#v", values)
 	}
 	script.done(t)
 }

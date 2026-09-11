@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -32,9 +33,10 @@ func ProviderClusterDesiredDigest(profileID, name string, spec ProviderClusterSp
 }
 
 var (
-	dnsLabelPattern    = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
-	kubeVersionPattern = regexp.MustCompile(`^v1\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$`)
-	kubeSeriesPattern  = regexp.MustCompile(`^v1\.[0-9]+$`)
+	dnsLabelPattern           = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+	kubeVersionPattern        = regexp.MustCompile(`^v1\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$`)
+	kubeSeriesPattern         = regexp.MustCompile(`^v1\.[0-9]+$`)
+	externalSecretNamePattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$`)
 )
 
 func cloneProviderProfile(v ProviderProfile) ProviderProfile {
@@ -88,6 +90,38 @@ func kubeSeries(v string) string {
 		return ""
 	}
 	return "v" + parts[0] + "." + parts[1]
+}
+
+func validateProviderInfrastructure(v *ProviderProfile) error {
+	v.InfrastructureProvider = strings.ToLower(strings.TrimSpace(v.InfrastructureProvider))
+	v.InfrastructureEndpoint = strings.TrimSpace(v.InfrastructureEndpoint)
+	v.CredentialRef = strings.TrimSpace(v.CredentialRef)
+	if v.InfrastructureProvider == "" {
+		v.InfrastructureProvider = targetmodel.InfrastructureUnspecified
+	}
+	switch v.InfrastructureProvider {
+	case targetmodel.InfrastructureUnspecified:
+		if v.InfrastructureEndpoint != "" || v.CredentialRef != "" {
+			return fmt.Errorf("%w: infrastructure endpoint/credential require an admitted infrastructure provider", ErrValidation)
+		}
+		return nil
+	case targetmodel.InfrastructureVMware:
+		u, err := url.Parse(v.InfrastructureEndpoint)
+		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+			return fmt.Errorf("%w: VMware infrastructureEndpoint must be an HTTPS origin without credentials, path, query or fragment", ErrValidation)
+		}
+		const prefix = "external-secret://4so-provider-system/"
+		name := strings.TrimPrefix(v.CredentialRef, prefix)
+		if !strings.HasPrefix(v.CredentialRef, prefix) || name == "" || len(name) > 253 || !externalSecretNamePattern.MatchString(name) || strings.Contains(name, "..") {
+			return fmt.Errorf("%w: VMware credentialRef must be external-secret://4so-provider-system/<name>", ErrValidation)
+		}
+		if len(v.Architectures) != 1 || strings.ToLower(strings.TrimSpace(v.Architectures[0])) != "amd64" {
+			return fmt.Errorf("%w: VMware provider profile currently admits amd64 only", ErrValidation)
+		}
+		return nil
+	default:
+		return fmt.Errorf("%w: unsupported infrastructure provider %s", ErrValidation, v.InfrastructureProvider)
+	}
 }
 
 func validateProviderProfile(v *ProviderProfile) error {
@@ -144,7 +178,9 @@ func validateProviderProfile(v *ProviderProfile) error {
 	}
 	v.DistributionIdentities = append([]string(nil), v.DistributionProfiles...)
 	v.ProvisioningMode = targetmodel.ProvisioningModeFromAdapter(v.Adapter)
-	v.InfrastructureProvider = targetmodel.InfrastructureUnspecified
+	if err := validateProviderInfrastructure(v); err != nil {
+		return err
+	}
 	if v.MaxWorkerReplicas < 1 || v.MaxWorkerReplicas > 500 {
 		return fmt.Errorf("%w: maxWorkerReplicas must be between 1 and 500", ErrValidation)
 	}
@@ -487,6 +523,85 @@ func (s *MemoryStore) QueueProviderClusterChange(_ context.Context, id string, e
 	return v, nil
 }
 
+func (s *MemoryStore) QueueTargetNodeProviderMutation(_ context.Context, id string, expected int64, mutation TargetNodeProviderMutation, desired ProviderClusterSpec, actor, requestDigest string) (ProviderCluster, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.providerClusters[id]
+	if !ok {
+		return ProviderCluster{}, ErrNotFound
+	}
+	if v.Revision != expected {
+		return ProviderCluster{}, ErrConflict
+	}
+	if v.State != ProviderClusterActive {
+		return ProviderCluster{}, ErrInvalidTransition
+	}
+	action := TargetNodeLifecycleAction(strings.ToUpper(strings.TrimSpace(string(mutation.Action))))
+	if action != TargetNodeActionRemove && action != TargetNodeActionReplace && action != TargetNodeActionCertificateRenewal && action != TargetNodeActionRemediate {
+		return ProviderCluster{}, fmt.Errorf("%w: target-node provider mutation action", ErrValidation)
+	}
+	managementInventory, managementReady := s.clusterInventories[v.ManagementClusterID]
+	if !managementReady || !inventoryHasCapability(managementInventory, TargetNodeProviderMachineLifecycleCapability) {
+		return ProviderCluster{}, fmt.Errorf("%w: management cluster provider Machine lifecycle capability is required", ErrPrerequisite)
+	}
+	if mutation.Authority != TargetNodeProviderMachineLifecycleAuthority || strings.TrimSpace(mutation.TargetClusterID) == "" || strings.TrimSpace(mutation.NodeName) == "" || strings.TrimSpace(mutation.NodeUID) == "" || !strings.HasPrefix(mutation.InventoryDigest, "sha256:") || strings.TrimSpace(mutation.WindowID) == "" || !mutation.WindowEndsAt.After(nowUTC(s.now)) {
+		return ProviderCluster{}, fmt.Errorf("%w: incomplete target-node mutation envelope", ErrPrerequisite)
+	}
+	window, ok := s.clusterMaintenanceWindows[mutation.WindowID]
+	if !ok || window.ClusterID != mutation.TargetClusterID || window.State != ClusterMaintenanceWindowActive || !window.EndsAt.Equal(mutation.WindowEndsAt) || nowUTC(s.now).Before(window.StartsAt) || !window.EndsAt.After(nowUTC(s.now)) {
+		return ProviderCluster{}, ErrMaintenanceWindow
+	}
+	inv, ok := s.clusterInventories[mutation.TargetClusterID]
+	if !ok || inv.Digest != mutation.InventoryDigest {
+		return ProviderCluster{}, fmt.Errorf("%w: target inventory changed", ErrConflict)
+	}
+	found, eligible := false, false
+	for _, n := range inv.Nodes {
+		if n.Name == mutation.NodeName && n.UID == mutation.NodeUID {
+			found = true
+			eligible = TargetNodeProviderMutationEligibleFor(action, n)
+			break
+		}
+	}
+	if !found {
+		return ProviderCluster{}, fmt.Errorf("%w: target node identity changed", ErrConflict)
+	}
+	if !eligible {
+		return ProviderCluster{}, fmt.Errorf("%w: target node does not satisfy action-specific worker health admission", ErrPrerequisite)
+	}
+	profile := s.providerProfiles[v.ProviderProfileID]
+	desired.KubernetesVersion = normalizeKubeVersion(desired.KubernetesVersion)
+	if err := providerSpecAllowed(profile, &desired); err != nil {
+		return ProviderCluster{}, err
+	}
+	if action == TargetNodeActionRemove {
+		if v.Desired.WorkerReplicas <= 1 || desired.WorkerReplicas != v.Desired.WorkerReplicas-1 || desired.ControlPlaneReplicas != v.Desired.ControlPlaneReplicas || desired.KubernetesVersion != v.Desired.KubernetesVersion {
+			return ProviderCluster{}, fmt.Errorf("%w: REMOVE must decrease workers by exactly one and preserve all other topology", ErrValidation)
+		}
+	} else if desired != v.Desired {
+		return ProviderCluster{}, fmt.Errorf("%w: REPLACE must preserve desired topology", ErrValidation)
+	}
+	if !strings.HasPrefix(requestDigest, "sha256:") {
+		return ProviderCluster{}, fmt.Errorf("%w: request digest required", ErrValidation)
+	}
+	v.Desired = desired
+	v.DesiredDigest = ProviderClusterDesiredDigest(v.ProviderProfileID, v.Name, desired)
+	v.TargetNodeMutation = mutation
+	v.PendingAction = "TARGET_NODE_" + string(action)
+	v.RequestDigest = requestDigest
+	v.RequestedBy = actor
+	v.ApprovedBy = ""
+	v.ApprovedAt = nil
+	v.State = ProviderClusterAwaitingApproval
+	v.LastError = ""
+	v.Revision++
+	v.UpdatedAt = nowUTC(s.now)
+	s.providerClusters[id] = v
+	s.appendAuditLocked(actor, "provider_cluster.target_node_"+strings.ToLower(string(action))+".approval_requested", "providerCluster", id, v.Revision, map[string]any{"targetClusterId": mutation.TargetClusterID, "nodeName": mutation.NodeName, "nodeUid": mutation.NodeUID, "inventoryDigest": mutation.InventoryDigest, "windowId": mutation.WindowID})
+	s.appendOutboxLocked("providerCluster", id, "provider_cluster.approval.requested", v)
+	return v, nil
+}
+
 func (s *MemoryStore) ApproveProviderCluster(_ context.Context, id string, expected int64, actor string) (ProviderCluster, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -534,7 +649,7 @@ func (s *MemoryStore) RetryProviderCluster(_ context.Context, id string, expecte
 	}
 	if v.PendingAction == "DELETE" {
 		return ProviderCluster{}, ownerDestructiveRetryRequiresFreshRequest(v.DestructiveOperationID)
-	} else if v.PendingAction == "PROVISION" || v.PendingAction == "SCALE" || v.PendingAction == "UPGRADE" {
+	} else if v.PendingAction == "PROVISION" || v.PendingAction == "SCALE" || v.PendingAction == "UPGRADE" || IsTargetNodeProviderPendingAction(v.PendingAction) {
 		v.State = ProviderClusterQueued
 	} else {
 		return ProviderCluster{}, fmt.Errorf("%w: failed provider cluster has no retryable action", ErrValidation)
@@ -576,6 +691,29 @@ func (s *MemoryStore) NextProviderClusterTask(_ context.Context, clusterID, toke
 		return resourceUpdatedBefore(s.providerClusters[ids[i]].ResourceMeta, s.providerClusters[ids[j]].ResourceMeta)
 	})
 	v := s.providerClusters[ids[0]]
+	if IsTargetNodeProviderPendingAction(v.PendingAction) {
+		m := v.TargetNodeMutation
+		inv, ok := s.clusterInventories[m.TargetClusterID]
+		window, wok := s.clusterMaintenanceWindows[m.WindowID]
+		nowCheck := nowUTC(s.now)
+		nodeOK := false
+		if ok && inv.Digest == m.InventoryDigest {
+			for _, n := range inv.Nodes {
+				if n.Name == m.NodeName && n.UID == m.NodeUID {
+					nodeOK = TargetNodeProviderMutationEligibleFor(m.Action, n)
+					break
+				}
+			}
+		}
+		if !nodeOK || !wok || window.State != ClusterMaintenanceWindowActive || nowCheck.Before(window.StartsAt) || !window.EndsAt.After(nowCheck) || !window.EndsAt.Equal(m.WindowEndsAt) {
+			v.State = ProviderClusterFailed
+			v.LastError = "target-node mutation identity/window fence changed before claim"
+			v.Revision++
+			v.UpdatedAt = nowCheck
+			s.providerClusters[v.ID] = v
+			return ProviderCluster{}, ProviderProfile{}, ErrNotFound
+		}
+	}
 	if v.State == ProviderClusterDeleting && v.TaskLeaseExpiresAt != nil {
 		message := "provider cluster destructive task lease expired; explicit recovery-bound retry is required"
 		if _, err := s.finishOwnerDestructiveOperationLocked(v.DestructiveOperationID, false, message, "cluster-agent"); err != nil {
@@ -656,6 +794,14 @@ func (s *MemoryStore) ReportProviderClusterTask(_ context.Context, clusterID, to
 	} else {
 		switch action {
 		case "APPLY":
+			if IsTargetNodeProviderPendingAction(v.PendingAction) {
+				m := result.TargetNodeMutation
+				if m.Authority != TargetNodeProviderMachineLifecycleAuthority || m.NodeName != v.TargetNodeMutation.NodeName || m.NodeUID != v.TargetNodeMutation.NodeUID || m.InventoryDigest != v.TargetNodeMutation.InventoryDigest || strings.TrimSpace(m.MachineName) == "" || strings.TrimSpace(m.MachineUID) == "" || strings.TrimSpace(m.MachineResourceVersion) == "" || strings.TrimSpace(m.MachineSetName) == "" || strings.TrimSpace(m.MachineDeploymentName) == "" || !strings.HasPrefix(m.EvidenceDigest, "sha256:") {
+					v.State, v.LastError = ProviderClusterFailed, "target-node provider mutation evidence is incomplete"
+					break
+				}
+				v.TargetNodeMutation = m
+			}
 			if result.ObservedDigest != v.DesiredDigest {
 				v.State = ProviderClusterFailed
 				v.LastError = "provider cluster desired/observed digest mismatch"

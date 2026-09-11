@@ -2,6 +2,7 @@ package kubejob
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,6 +45,7 @@ type identity struct {
 	Name            string `json:"name"`
 	UID             string `json:"uid"`
 	ResourceVersion string `json:"resourceVersion"`
+	ManifestDigest  string `json:"manifestDigest"`
 }
 
 type snapshot struct {
@@ -94,9 +96,7 @@ func Execute(ctx context.Context, options Options) error {
 
 	manifestDir := filepath.Join(options.StateDir, options.StateSubdir)
 	manifestPath := filepath.Join(manifestDir, options.Name+".yaml")
-	if err := durablefile.Replace(manifestPath, []byte(options.Manifest), 0o700, 0o600); err != nil {
-		return fmt.Errorf("persist Kubernetes Job manifest: %w", err)
-	}
+	manifestDigest := digestManifest(options.Manifest)
 	identityPath := filepath.Join(manifestDir, "job-identities", options.Name+".json")
 	stored, hasIdentity, err := loadIdentity(identityPath)
 	if err != nil {
@@ -105,6 +105,12 @@ func Execute(ctx context.Context, options Options) error {
 	if hasIdentity {
 		if stored.Owner != options.Owner || stored.OperationID != options.OperationID || stored.Name != options.Name || stored.UID == "" {
 			return fmt.Errorf("durable Kubernetes Job identity does not match requested operation %s/%s", options.Owner, options.OperationID)
+		}
+		if stored.ManifestDigest == "" {
+			return fmt.Errorf("Kubernetes Job %s durable identity predates manifest-digest authority; blind replay is forbidden", options.Name)
+		}
+		if stored.ManifestDigest != manifestDigest {
+			return fmt.Errorf("Kubernetes Job %s manifest digest changed from %s to %s; replay is forbidden", options.Name, stored.ManifestDigest, manifestDigest)
 		}
 		current, exists, inspectErr := inspect(ctx, options, options.Name)
 		if inspectErr != nil {
@@ -131,6 +137,9 @@ func Execute(ctx context.Context, options Options) error {
 			return fmt.Errorf("legacy Kubernetes Job %s exists with UID %s but has no durable identity; refusing upgrade-time replay", options.LegacyName, legacy.Metadata.UID)
 		}
 	}
+	if err = durablefile.Replace(manifestPath, []byte(options.Manifest), 0o700, 0o600); err != nil {
+		return fmt.Errorf("persist Kubernetes Job manifest: %w", err)
+	}
 
 	raw, err := kubectlOutput(ctx, options, "create", "-f", manifestPath, "-o", "json")
 	if err != nil {
@@ -143,7 +152,7 @@ func Execute(ctx context.Context, options Options) error {
 	if err = verify(created, options, ""); err != nil {
 		return fmt.Errorf("created Kubernetes Job identity is invalid: %w", err)
 	}
-	stored = identity{Owner: options.Owner, OperationID: options.OperationID, Name: options.Name, UID: created.Metadata.UID, ResourceVersion: created.Metadata.ResourceVersion}
+	stored = identity{Owner: options.Owner, OperationID: options.OperationID, Name: options.Name, UID: created.Metadata.UID, ResourceVersion: created.Metadata.ResourceVersion, ManifestDigest: manifestDigest}
 	encoded, err := json.MarshalIndent(stored, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode Kubernetes Job identity: %w", err)
@@ -152,6 +161,11 @@ func Execute(ctx context.Context, options Options) error {
 		return fmt.Errorf("Kubernetes Job %s was created with UID %s but durable identity persistence failed; refusing replay: %w", options.Name, created.Metadata.UID, err)
 	}
 	return wait(ctx, options, created.Metadata.UID)
+}
+
+func digestManifest(manifest string) string {
+	sum := sha256.Sum256([]byte(manifest))
+	return fmt.Sprintf("sha256:%x", sum[:])
 }
 
 func validName(value string) bool {

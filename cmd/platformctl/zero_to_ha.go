@@ -92,6 +92,7 @@ func zeroToHAHandoffCommand(args []string) {
 	if err != nil {
 		fatal(fmt.Errorf("inspect exact release artifact: %w", err))
 	}
+	platformctlBinaryDigest := bindRunningPlatformctlToExactRelease(release)
 	installerBinaryDigest, err := release.FileDigest(releaseartifact.InstallerBinaryPath)
 	if err != nil {
 		fatal(fmt.Errorf("inspect release installer binary digest: %w", err))
@@ -139,7 +140,7 @@ func zeroToHAHandoffCommand(args []string) {
 		fatal(errors.New("remote bootstrap token fingerprint does not match the live Installer access authority"))
 	}
 
-	trust, campaign, err := syncAndPrepareZeroToHA(connection, request, release.Digest, installerBinaryDigest, privateKey, knownHosts, time.Now().UTC())
+	trust, campaign, err := syncAndPrepareZeroToHA(connection, request, release.Digest, installerBinaryDigest, platformctlBinaryDigest, privateKey, knownHosts, time.Now().UTC())
 	if err != nil {
 		fatal(err)
 	}
@@ -165,7 +166,7 @@ func zeroToHAHandoffCommand(args []string) {
 	})
 }
 
-func syncAndPrepareZeroToHA(connection fieldCampaignConnection, request installation.InstallRequest, releaseArtifactDigest, installerBinaryDigest string, privateKey, knownHosts []byte, now time.Time) (bootstrap.SSHTrustStatus, fieldcampaign.Campaign, error) {
+func syncAndPrepareZeroToHA(connection fieldCampaignConnection, request installation.InstallRequest, releaseArtifactDigest, installerBinaryDigest, platformctlBinaryDigest string, privateKey, knownHosts []byte, now time.Time) (bootstrap.SSHTrustStatus, fieldcampaign.Campaign, error) {
 	var storedKey struct {
 		Stored        bool   `json:"stored"`
 		CredentialRef string `json:"credentialRef"`
@@ -186,7 +187,7 @@ func syncAndPrepareZeroToHA(connection fieldCampaignConnection, request installa
 	if err := requirePeerTrust(request.Infrastructure.NodeAddresses[1:], trust.Entries); err != nil {
 		return trust, fieldcampaign.Campaign{}, fmt.Errorf("Installer HA trust status: %w", err)
 	}
-	campaign, err := prepareFieldCampaign(connection, request, releaseArtifactDigest, installerBinaryDigest, now)
+	campaign, err := prepareFieldCampaign(connection, request, releaseArtifactDigest, installerBinaryDigest, platformctlBinaryDigest, now)
 	if err != nil {
 		return trust, fieldcampaign.Campaign{}, fmt.Errorf("prepare zero-to-ha Field Campaign: %w", err)
 	}
@@ -283,6 +284,8 @@ func zeroToHANextAction(campaign fieldcampaign.Campaign) string {
 		return "run field-campaign watch"
 	case fieldcampaign.StateFailed:
 		return "run field-campaign diagnose, fix the owning cause, then resume with --confirmation RESUME"
+	case fieldcampaign.StateInterrupted:
+		return "resume the interrupted durable run with field-campaign resume --confirmation RESUME"
 	case fieldcampaign.StateSucceeded:
 		return "collect independently verified field evidence"
 	default:

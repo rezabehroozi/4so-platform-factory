@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://4so.local/schemas/historical-upgrade-staged-batch.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "platform.4so.io/v1alpha1"},
+    "kind": {"const": "StagedHistoricalUpgradeBatch"},
+    "metadata": {"type": "object"},
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "canonicalAuthority", "runtimeCertificationImplied", "entries"],
+      "properties": {
+        "authority": {"const": "HISTORICAL_UPGRADE_STAGED_BATCH_V1"},
+        "canonicalAuthority": {"const": "catalog/component-upgrade-source-admission.json"},
+        "runtimeCertificationImplied": {"const": false},
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["component", "targetRelease", "previousVersion", "source", "bundleFile", "bundleDigest", "historical"],
+            "properties": {
+              "component": {"type": "string", "minLength": 1},
+              "targetRelease": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+              "previousVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+              "source": {"type": "string", "minLength": 1},
+              "bundleFile": {"type": "string", "minLength": 1},
+              "bundleDigest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+              "historical": {"const": true}
+            }
+          }
+        }
+      }
+    }
+  }
+}

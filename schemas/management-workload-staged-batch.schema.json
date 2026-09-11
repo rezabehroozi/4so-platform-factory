@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/management-workload-staged-batch.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "platform.4so.io/v1alpha1"},
+    "kind": {"const": "StagedManagementWorkloadBatch"},
+    "metadata": {"type": "object"},
+    "spec": {
+      "type": "object",
+      "required": ["authority", "canonicalAuthority", "releaseFileSha256", "networkFetchRequiredForOfflineVerify", "entries"],
+      "properties": {
+        "authority": {"const": "MANAGEMENT_WORKLOAD_STAGED_BATCH_V1"},
+        "canonicalAuthority": {"const": "lab/management-workload-image-build-plan.json+exact-release-artifact"},
+        "releaseFileSha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "networkFetchRequiredForOfflineVerify": {"const": false},
+        "entries": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["role", "repository", "tag", "version", "selectionChannel", "selectionEvidenceURL", "layoutPath", "lockPath", "lockDigest", "layoutTreeDigest", "layoutFileCount", "layoutBytes", "exactReference", "manifestDigest"]
+          }
+        }
+      }
+    }
+  }
+}

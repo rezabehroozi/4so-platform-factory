@@ -15,7 +15,7 @@ func campaignFixture(t *testing.T) Campaign {
 	t.Helper()
 	digest := func(ch string) string { return "sha256:" + strings.Repeat(ch, 64) }
 	request := installation.InstallRequest{ProfileID: "evaluation-single-node", Connectivity: installation.ConnectivityConnected, Infrastructure: installation.InfrastructureSpec{Provider: "existing-hosts", NodeAddresses: []string{"127.0.0.1"}}, Network: installation.NetworkSpec{PublicEndpoint: "https://platform.example", TLSMode: "bootstrap-self-signed"}}
-	c, err := New("https://installer.example", request, digest("1"), digest("2"), digest("9"), digest("8"), "plan-1", digest("3"), true, time.Date(2026, 8, 6, 20, 0, 0, 0, time.UTC))
+	c, err := New("https://installer.example", request, digest("1"), digest("2"), digest("9"), digest("8"), digest("7"), "plan-1", digest("3"), true, time.Date(2026, 8, 6, 20, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,6 +65,37 @@ func TestCampaignLifecycleAndPrivatePersistence(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsSymlinkAndOversizedState(t *testing.T) {
+	c := campaignFixture(t)
+	root := t.TempDir()
+	target := filepath.Join(root, "campaign.json")
+	if err := Save(target, c); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "campaign-link.json")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(link); err == nil || !strings.Contains(err.Error(), "bounded regular non-symlink") {
+		t.Fatalf("symlink campaign state accepted: %v", err)
+	}
+	oversized := filepath.Join(root, "oversized.json")
+	f, err := os.OpenFile(oversized, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Truncate(maxCampaignStateBytes + 1); err != nil {
+		_ = f.Close()
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = Load(oversized); err == nil || !strings.Contains(err.Error(), "bounded regular non-symlink") {
+		t.Fatalf("oversized campaign state accepted: %v", err)
+	}
+}
+
 func TestCampaignRejectsInvalidTransitionAndTamper(t *testing.T) {
 	c := campaignFixture(t)
 	if err := c.Transition(StateSucceeded, "skip", "invalid", c.UpdatedAt.Add(time.Minute)); err == nil {
@@ -79,7 +110,7 @@ func TestCampaignRejectsInvalidTransitionAndTamper(t *testing.T) {
 func TestNewCampaignRequiresExactReleaseArtifactDigest(t *testing.T) {
 	digest := func(ch string) string { return "sha256:" + strings.Repeat(ch, 64) }
 	request := installation.InstallRequest{ProfileID: "evaluation-single-node", Connectivity: installation.ConnectivityConnected, Infrastructure: installation.InfrastructureSpec{Provider: "existing-hosts", NodeAddresses: []string{"127.0.0.1"}}, Network: installation.NetworkSpec{PublicEndpoint: "https://platform.example", TLSMode: "bootstrap-self-signed"}}
-	if _, err := New("https://installer.example", request, digest("1"), digest("2"), "", digest("8"), "plan-1", digest("3"), true, time.Now().UTC()); err == nil || !strings.Contains(err.Error(), "releaseArtifactDigest") {
+	if _, err := New("https://installer.example", request, digest("1"), digest("2"), "", digest("8"), digest("7"), "plan-1", digest("3"), true, time.Now().UTC()); err == nil || !strings.Contains(err.Error(), "releaseArtifactDigest") {
 		t.Fatalf("new campaign accepted without exact release binding: %v", err)
 	}
 }
@@ -89,6 +120,7 @@ func TestLegacyCampaignStateRemainsVerifiableForRecovery(t *testing.T) {
 	c.SchemaVersion = LegacySchemaVersion
 	c.ReleaseArtifactDigest = ""
 	c.InstallerBinaryDigest = ""
+	c.PlatformctlBinaryDigest = ""
 	if err := c.Seal(); err != nil {
 		t.Fatalf("legacy recovery state became unreadable: %v", err)
 	}
@@ -101,10 +133,31 @@ func TestSchemaV2CampaignStateRemainsVerifiableForRecovery(t *testing.T) {
 	c := campaignFixture(t)
 	c.SchemaVersion = ExactSHASchemaVersion
 	c.InstallerBinaryDigest = ""
+	c.PlatformctlBinaryDigest = ""
 	if err := c.Seal(); err != nil {
 		t.Fatalf("schema v2 recovery state became unreadable: %v", err)
 	}
 	if err := c.Verify(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSchemaV4CampaignStateRemainsVerifiableForRecovery(t *testing.T) {
+	c := campaignFixture(t)
+	c.SchemaVersion = PrePlatformctlBindingSchemaVersion
+	c.PlatformctlBinaryDigest = ""
+	if err := c.Seal(); err != nil {
+		t.Fatalf("schema v4 recovery state became unreadable: %v", err)
+	}
+	if err := c.Verify(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCurrentCampaignRequiresPlatformctlDigest(t *testing.T) {
+	c := campaignFixture(t)
+	c.PlatformctlBinaryDigest = ""
+	if err := c.Seal(); err == nil || !strings.Contains(err.Error(), "platformctlBinaryDigest") {
+		t.Fatalf("current campaign accepted without platformctl digest: %v", err)
 	}
 }

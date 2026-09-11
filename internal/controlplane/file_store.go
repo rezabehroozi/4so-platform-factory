@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"platform.4so.io/factory/internal/compliance"
 	"platform.4so.io/factory/internal/durablefile"
 )
 
@@ -161,6 +162,27 @@ func mutate2[A any, B any](f *FileStore, ctx context.Context, fn func() (A, B, e
 	return a, b, nil
 }
 
+func mutate3[A any, B any, C any](f *FileStore, ctx context.Context, fn func() (A, B, C, error)) (A, B, C, error) {
+	f.writeMu.Lock()
+	defer f.writeMu.Unlock()
+	before, err := f.MemoryStore.Snapshot(ctx)
+	if err != nil {
+		var a A
+		var b B
+		var c C
+		return a, b, c, err
+	}
+	a, b, c, err := fn()
+	if err != nil {
+		return a, b, c, err
+	}
+	if err = f.persist(ctx); err != nil {
+		_ = f.MemoryStore.Restore(before)
+		return a, b, c, fmt.Errorf("persist authoritative snapshot: %w", err)
+	}
+	return a, b, c, nil
+}
+
 func mutateErr(f *FileStore, ctx context.Context, fn func() error) error {
 	f.writeMu.Lock()
 	defer f.writeMu.Unlock()
@@ -196,6 +218,24 @@ func (f *FileStore) RevokeOrganizationMembership(ctx context.Context, org, subje
 	return mutate(f, ctx, func() (OrganizationMembership, error) {
 		return f.MemoryStore.RevokeOrganizationMembership(ctx, org, subject, rev, a)
 	})
+}
+func (f *FileStore) CreateVariableSchema(ctx context.Context, v VariableSchema, a string) (VariableSchema, error) {
+	return mutate(f, ctx, func() (VariableSchema, error) { return f.MemoryStore.CreateVariableSchema(ctx, v, a) })
+}
+func (f *FileStore) CreatePlatformPolicySet(ctx context.Context, v PlatformPolicySet, a string) (PlatformPolicySet, error) {
+	return mutate(f, ctx, func() (PlatformPolicySet, error) { return f.MemoryStore.CreatePlatformPolicySet(ctx, v, a) })
+}
+func (f *FileStore) CreatePlatformTemplate(ctx context.Context, v PlatformTemplate, a string) (PlatformTemplate, error) {
+	return mutate(f, ctx, func() (PlatformTemplate, error) { return f.MemoryStore.CreatePlatformTemplate(ctx, v, a) })
+}
+func (f *FileStore) CreateWorkspace(ctx context.Context, v Workspace, a string) (Workspace, error) {
+	return mutate(f, ctx, func() (Workspace, error) { return f.MemoryStore.CreateWorkspace(ctx, v, a) })
+}
+func (f *FileStore) CreateWorkspaceBinding(ctx context.Context, v WorkspaceBinding, a string) (WorkspaceBinding, error) {
+	return mutate(f, ctx, func() (WorkspaceBinding, error) { return f.MemoryStore.CreateWorkspaceBinding(ctx, v, a) })
+}
+func (f *FileStore) RevokeWorkspaceBinding(ctx context.Context, id string, rev int64, a string) (WorkspaceBinding, error) {
+	return mutate(f, ctx, func() (WorkspaceBinding, error) { return f.MemoryStore.RevokeWorkspaceBinding(ctx, id, rev, a) })
 }
 func (f *FileStore) CreateBlueprintOverlay(ctx context.Context, v BlueprintOverlay, a string) (BlueprintOverlay, error) {
 	return mutate(f, ctx, func() (BlueprintOverlay, error) { return f.MemoryStore.CreateBlueprintOverlay(ctx, v, a) })
@@ -285,6 +325,31 @@ func (f *FileStore) CreateOperation(ctx context.Context, r OperationRequest, k, 
 		}
 	}
 	return v, replay, nil
+}
+func (f *FileStore) CreateOperationAwaitingApprovalWithPayload(ctx context.Context, r OperationRequest, k, a, q, mediaType string, payload []byte) (Operation, bool, error) {
+	f.writeMu.Lock()
+	defer f.writeMu.Unlock()
+	before, err := f.MemoryStore.Snapshot(ctx)
+	if err != nil {
+		return Operation{}, false, err
+	}
+	v, replay, err := f.MemoryStore.CreateOperationAwaitingApprovalWithPayload(ctx, r, k, a, q, mediaType, payload)
+	if err != nil {
+		return v, replay, err
+	}
+	if !replay {
+		if err = f.persist(ctx); err != nil {
+			_ = f.MemoryStore.Restore(before)
+			return v, replay, fmt.Errorf("persist authoritative snapshot: %w", err)
+		}
+	}
+	return v, replay, nil
+}
+func (f *FileStore) GetOperationRequestPayload(ctx context.Context, id string) (OperationRequestPayload, error) {
+	return f.MemoryStore.GetOperationRequestPayload(ctx, id)
+}
+func (f *FileStore) ApproveOperationAndQueue(ctx context.Context, id string, rev int64, actor string) (Operation, error) {
+	return mutate(f, ctx, func() (Operation, error) { return f.MemoryStore.ApproveOperationAndQueue(ctx, id, rev, actor) })
 }
 func (f *FileStore) TransitionOperation(ctx context.Context, id string, rev int64, to OperationState, e, a string) (Operation, error) {
 	return mutate(f, ctx, func() (Operation, error) { return f.MemoryStore.TransitionOperation(ctx, id, rev, to, e, a) })
@@ -443,6 +508,23 @@ func (f *FileStore) ListOperationStepTraces(ctx context.Context, operationID str
 func (f *FileStore) GetEvidencePayload(ctx context.Context, evidenceID string) (EvidenceMetadata, []byte, error) {
 	return f.MemoryStore.GetEvidencePayload(ctx, evidenceID)
 }
+func (f *FileStore) AppendOperationEvidencePayload(ctx context.Context, v EvidenceMetadata, payload []byte, worker string, fence int64, actor string) (EvidenceMetadata, error) {
+	f.writeMu.Lock()
+	defer f.writeMu.Unlock()
+	before, err := f.MemoryStore.Snapshot(ctx)
+	if err != nil {
+		return EvidenceMetadata{}, err
+	}
+	out, err := f.MemoryStore.AppendOperationEvidencePayload(ctx, v, payload, worker, fence, actor)
+	if err != nil {
+		return out, err
+	}
+	if err = f.persist(ctx); err != nil {
+		_ = f.MemoryStore.Restore(before)
+		return EvidenceMetadata{}, fmt.Errorf("persist authoritative snapshot: %w", err)
+	}
+	return out, nil
+}
 func (f *FileStore) ClaimOutbox(ctx context.Context, w string, l int, ttl time.Duration, at time.Time) ([]OutboxEvent, error) {
 	return mutate(f, ctx, func() ([]OutboxEvent, error) { return f.MemoryStore.ClaimOutbox(ctx, w, l, ttl, at) })
 }
@@ -549,6 +631,9 @@ func (f *FileStore) ClaimNotificationHealthScanLease(ctx context.Context, worker
 	// new scanner immediately without changing product authority.
 	return f.MemoryStore.ClaimNotificationHealthScanLease(ctx, worker, ttl, at)
 }
+func (f *FileStore) ListNotificationHealthCandidates(ctx context.Context, after time.Time, afterID string, limit int) ([]NotificationHealthCandidate, bool, error) {
+	return f.MemoryStore.ListNotificationHealthCandidates(ctx, after, afterID, limit)
+}
 
 func (f *FileStore) ClaimNotificationDeliveries(ctx context.Context, worker string, limit int, ttl time.Duration, at time.Time) ([]NotificationDelivery, error) {
 	return mutate(f, ctx, func() ([]NotificationDelivery, error) {
@@ -618,4 +703,102 @@ func (f *FileStore) RevokeOIDCGroupMapping(ctx context.Context, id string, rev i
 }
 func (f *FileStore) AppendSecurityAudit(ctx context.Context, in SecurityAuditInput) (SecurityAuditEvent, error) {
 	return mutate(f, ctx, func() (SecurityAuditEvent, error) { return f.MemoryStore.AppendSecurityAudit(ctx, in) })
+}
+
+func (f *FileStore) CreateComplianceProfile(ctx context.Context, v ComplianceProfile, actor string) (ComplianceProfile, error) {
+	return mutate(f, ctx, func() (ComplianceProfile, error) { return f.MemoryStore.CreateComplianceProfile(ctx, v, actor) })
+}
+func (f *FileStore) GetComplianceProfile(ctx context.Context, id string) (ComplianceProfile, error) {
+	return f.MemoryStore.GetComplianceProfile(ctx, id)
+}
+func (f *FileStore) ListComplianceProfiles(ctx context.Context, projectID string) ([]ComplianceProfile, error) {
+	return f.MemoryStore.ListComplianceProfiles(ctx, projectID)
+}
+func (f *FileStore) CreateComplianceScanRun(ctx context.Context, v ComplianceScanRun, actor string) (ComplianceScanRun, bool, error) {
+	return mutate2(f, ctx, func() (ComplianceScanRun, bool, error) { return f.MemoryStore.CreateComplianceScanRun(ctx, v, actor) })
+}
+func (f *FileStore) GetComplianceScanRun(ctx context.Context, id string) (ComplianceScanRun, error) {
+	return f.MemoryStore.GetComplianceScanRun(ctx, id)
+}
+func (f *FileStore) ListComplianceScanRuns(ctx context.Context, projectID, clusterID string) ([]ComplianceScanRun, error) {
+	return f.MemoryStore.ListComplianceScanRuns(ctx, projectID, clusterID)
+}
+func (f *FileStore) ClaimComplianceScanTask(ctx context.Context, clusterID, owner string, lease time.Duration, now time.Time) (ComplianceScanTask, error) {
+	return mutate(f, ctx, func() (ComplianceScanTask, error) {
+		return f.MemoryStore.ClaimComplianceScanTask(ctx, clusterID, owner, lease, now)
+	})
+}
+func (f *FileStore) CompleteComplianceScan(ctx context.Context, id, owner string, fence int64, findings []compliance.Finding, actor string) (ComplianceScanRun, error) {
+	return mutate(f, ctx, func() (ComplianceScanRun, error) {
+		return f.MemoryStore.CompleteComplianceScan(ctx, id, owner, fence, findings, actor)
+	})
+}
+func (f *FileStore) FailComplianceScan(ctx context.Context, id, owner string, fence int64, message, actor string) (ComplianceScanRun, error) {
+	return mutate(f, ctx, func() (ComplianceScanRun, error) {
+		return f.MemoryStore.FailComplianceScan(ctx, id, owner, fence, message, actor)
+	})
+}
+func (f *FileStore) ListComplianceFindings(ctx context.Context, projectID, runID string) ([]ComplianceFindingRecord, error) {
+	return f.MemoryStore.ListComplianceFindings(ctx, projectID, runID)
+}
+func (f *FileStore) CreateComplianceWaiver(ctx context.Context, v ComplianceWaiver, actor string) (ComplianceWaiver, error) {
+	return mutate(f, ctx, func() (ComplianceWaiver, error) { return f.MemoryStore.CreateComplianceWaiver(ctx, v, actor) })
+}
+func (f *FileStore) GetComplianceWaiver(ctx context.Context, id string) (ComplianceWaiver, error) {
+	return f.MemoryStore.GetComplianceWaiver(ctx, id)
+}
+
+func (f *FileStore) ApproveComplianceWaiver(ctx context.Context, id string, expected int64, actor string) (ComplianceWaiver, error) {
+	return mutate(f, ctx, func() (ComplianceWaiver, error) {
+		return f.MemoryStore.ApproveComplianceWaiver(ctx, id, expected, actor)
+	})
+}
+func (f *FileStore) RevokeComplianceWaiver(ctx context.Context, id string, expected int64, actor string) (ComplianceWaiver, error) {
+	return mutate(f, ctx, func() (ComplianceWaiver, error) {
+		return f.MemoryStore.RevokeComplianceWaiver(ctx, id, expected, actor)
+	})
+}
+func (f *FileStore) ListComplianceWaivers(ctx context.Context, projectID string) ([]ComplianceWaiver, error) {
+	return f.MemoryStore.ListComplianceWaivers(ctx, projectID)
+}
+
+func (f *FileStore) RequestSAMLBrokerUpsert(ctx context.Context, v SAMLBroker, expected int64, idempotencyKey, requestDigest, actor string) (SAMLBroker, IdentityAdminJob, bool, error) {
+	return mutate3(f, ctx, func() (SAMLBroker, IdentityAdminJob, bool, error) {
+		return f.MemoryStore.RequestSAMLBrokerUpsert(ctx, v, expected, idempotencyKey, requestDigest, actor)
+	})
+}
+func (f *FileStore) RequestSAMLBrokerDelete(ctx context.Context, id string, expected int64, idempotencyKey, requestDigest, actor string) (SAMLBroker, IdentityAdminJob, bool, error) {
+	return mutate3(f, ctx, func() (SAMLBroker, IdentityAdminJob, bool, error) {
+		return f.MemoryStore.RequestSAMLBrokerDelete(ctx, id, expected, idempotencyKey, requestDigest, actor)
+	})
+}
+func (f *FileStore) GetSAMLBroker(ctx context.Context, id string) (SAMLBroker, error) {
+	return f.MemoryStore.GetSAMLBroker(ctx, id)
+}
+func (f *FileStore) ListSAMLBrokers(ctx context.Context, organizationID string) ([]SAMLBroker, error) {
+	return f.MemoryStore.ListSAMLBrokers(ctx, organizationID)
+}
+func (f *FileStore) GetIdentityAdminJob(ctx context.Context, id string) (IdentityAdminJob, error) {
+	return f.MemoryStore.GetIdentityAdminJob(ctx, id)
+}
+func (f *FileStore) ListIdentityAdminJobs(ctx context.Context, organizationID string) ([]IdentityAdminJob, error) {
+	return f.MemoryStore.ListIdentityAdminJobs(ctx, organizationID)
+}
+func (f *FileStore) ApproveIdentityAdminJob(ctx context.Context, id string, expected int64, actor string) (IdentityAdminJob, error) {
+	return mutate(f, ctx, func() (IdentityAdminJob, error) {
+		return f.MemoryStore.ApproveIdentityAdminJob(ctx, id, expected, actor)
+	})
+}
+func (f *FileStore) ClaimIdentityAdminTask(ctx context.Context, owner string, lease time.Duration, now time.Time) (IdentityAdminTask, error) {
+	return mutate(f, ctx, func() (IdentityAdminTask, error) { return f.MemoryStore.ClaimIdentityAdminTask(ctx, owner, lease, now) })
+}
+func (f *FileStore) CompleteIdentityAdminTask(ctx context.Context, id, owner string, fence int64, observedDigest, actor string) (IdentityAdminJob, SAMLBroker, error) {
+	return mutate2(f, ctx, func() (IdentityAdminJob, SAMLBroker, error) {
+		return f.MemoryStore.CompleteIdentityAdminTask(ctx, id, owner, fence, observedDigest, actor)
+	})
+}
+func (f *FileStore) FailIdentityAdminTask(ctx context.Context, id, owner string, fence int64, message, actor string) (IdentityAdminJob, SAMLBroker, error) {
+	return mutate2(f, ctx, func() (IdentityAdminJob, SAMLBroker, error) {
+		return f.MemoryStore.FailIdentityAdminTask(ctx, id, owner, fence, message, actor)
+	})
 }

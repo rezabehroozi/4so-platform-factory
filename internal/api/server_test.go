@@ -68,6 +68,48 @@ func TestCatalogSummary(t *testing.T) {
 	if got["digest"] == "" {
 		t.Fatal("catalog digest missing")
 	}
+	admission, ok := got["upstreamAdmission"].(map[string]any)
+	if !ok {
+		t.Fatal("upstream admission summary missing")
+	}
+	if admission["total"].(float64) < 1 || admission["readyForAcquisition"].(float64) < 1 {
+		t.Fatalf("upstream admission summary is empty: %+v", admission)
+	}
+	rows, ok := admission["components"].([]any)
+	if !ok || len(rows) != int(admission["total"].(float64)) {
+		t.Fatalf("upstream admission rows mismatch: %+v", admission)
+	}
+	runtimeAuthority, ok := got["runtimeCertificationAuthority"].(map[string]any)
+	if !ok || runtimeAuthority["authority"] != catalog.ComponentRuntimeCertificationAuthority {
+		t.Fatalf("runtime certification authority missing: %+v", got)
+	}
+	stats, ok := runtimeAuthority["stats"].(map[string]any)
+	if !ok || stats["total"] != float64(20) || stats["sourceReady"] != float64(3) || stats["lifecycleComplete"] != float64(0) {
+		t.Fatalf("runtime certification stats drift: %+v", runtimeAuthority)
+	}
+}
+
+func TestComponentRuntimeCertificationAuthority(t *testing.T) {
+	s := testServer(t)
+	r := httptest.NewRequest("GET", "/api/v1/catalog/runtime-certification-authority", nil)
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var got struct {
+		Authority         string                                          `json:"authority"`
+		Stats             catalog.ComponentRuntimeCertificationStats      `json:"stats"`
+		Components        []catalog.ComponentRuntimeCertificationContract `json:"components"`
+		ProductionReady   bool                                            `json:"productionReady"`
+		PhysicalCertified bool                                            `json:"physicalCertified"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Authority != catalog.ComponentRuntimeCertificationAuthority || got.Stats.Total != 20 || got.Stats.SourceReady != 3 || got.Stats.LifecycleComplete != 0 || len(got.Components) != 20 || got.ProductionReady || got.PhysicalCertified {
+		t.Fatalf("unexpected component runtime authority: %#v", got)
+	}
 }
 func TestPlanIsHonestPlanningOnly(t *testing.T) {
 	s := testServer(t)

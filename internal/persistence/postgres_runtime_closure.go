@@ -9,12 +9,12 @@ import (
 	"platform.4so.io/factory/internal/controlplane"
 )
 
-const runtimeClosureColumns = `id,project_id,cluster_id,baseline_deployment_id,COALESCE(runtime_verification_id,''),revision,state::text,desired_digest,observed_digest,evidence_digest,next_action,summary,last_error,requested_by,idempotency_key,request_digest,started_at,finished_at,created_at,updated_at`
+const runtimeClosureColumns = `id,project_id,cluster_id,baseline_deployment_id,COALESCE(runtime_verification_id,''),revision,state::text,desired_digest,observed_digest,evidence_digest,evidence_schema_version,release_artifact_digest,producer_binary_digest,next_action,summary,last_error,requested_by,idempotency_key,request_digest,started_at,finished_at,created_at,updated_at`
 
 func scanRuntimeClosureCampaign(row interface{ Scan(...any) error }) (controlplane.RuntimeClosureCampaign, error) {
 	var v controlplane.RuntimeClosureCampaign
 	var state string
-	err := row.Scan(&v.ID, &v.ProjectID, &v.ClusterID, &v.BaselineDeploymentID, &v.RuntimeVerificationID, &v.Revision, &state, &v.DesiredDigest, &v.ObservedDigest, &v.EvidenceDigest, &v.NextAction, &v.Summary, &v.LastError, &v.RequestedBy, &v.IdempotencyKey, &v.RequestDigest, &v.StartedAt, &v.FinishedAt, &v.CreatedAt, &v.UpdatedAt)
+	err := row.Scan(&v.ID, &v.ProjectID, &v.ClusterID, &v.BaselineDeploymentID, &v.RuntimeVerificationID, &v.Revision, &state, &v.DesiredDigest, &v.ObservedDigest, &v.EvidenceDigest, &v.EvidenceSchemaVersion, &v.ReleaseArtifactDigest, &v.ProducerBinaryDigest, &v.NextAction, &v.Summary, &v.LastError, &v.RequestedBy, &v.IdempotencyKey, &v.RequestDigest, &v.StartedAt, &v.FinishedAt, &v.CreatedAt, &v.UpdatedAt)
 	v.State = controlplane.RuntimeClosureCampaignState(state)
 	return v, err
 }
@@ -77,7 +77,7 @@ func (s *PostgresStore) CreateRuntimeClosureCampaign(ctx context.Context, v cont
 		if v.State == controlplane.RuntimeClosureFailed {
 			v.FinishedAt = &now
 		}
-		_, e = tx.ExecContext(ctx, `INSERT INTO runtime_closure_campaigns(id,project_id,cluster_id,baseline_deployment_id,revision,state,desired_digest,observed_digest,evidence_digest,next_action,summary,last_error,requested_by,idempotency_key,request_digest,started_at,finished_at,created_at,updated_at) VALUES($1,$2,$3,$4,1,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)`, v.ID, v.ProjectID, v.ClusterID, v.BaselineDeploymentID, string(v.State), v.DesiredDigest, v.ObservedDigest, v.EvidenceDigest, v.NextAction, v.Summary, v.LastError, actor, v.IdempotencyKey, v.RequestDigest, v.StartedAt, v.FinishedAt, now)
+		_, e = tx.ExecContext(ctx, `INSERT INTO runtime_closure_campaigns(id,project_id,cluster_id,baseline_deployment_id,revision,state,desired_digest,observed_digest,evidence_digest,evidence_schema_version,release_artifact_digest,producer_binary_digest,next_action,summary,last_error,requested_by,idempotency_key,request_digest,started_at,finished_at,created_at,updated_at) VALUES($1,$2,$3,$4,1,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$20)`, v.ID, v.ProjectID, v.ClusterID, v.BaselineDeploymentID, string(v.State), v.DesiredDigest, v.ObservedDigest, v.EvidenceDigest, v.EvidenceSchemaVersion, v.ReleaseArtifactDigest, v.ProducerBinaryDigest, v.NextAction, v.Summary, v.LastError, actor, v.IdempotencyKey, v.RequestDigest, v.StartedAt, v.FinishedAt, now)
 		if e != nil {
 			return mapDBError(e)
 		}

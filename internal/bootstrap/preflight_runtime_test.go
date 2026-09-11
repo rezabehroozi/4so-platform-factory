@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -103,5 +104,72 @@ func TestPublicPreflightRejectsConcurrentBootstrapExecution(t *testing.T) {
 	runner.mu.Unlock()
 	if _, err = runner.Preflight(context.Background(), bootstrapRequest()); err == nil || !errors.Is(err, ErrBootstrapExecutionActive) {
 		t.Fatalf("concurrent preflight was not rejected: %v", err)
+	}
+}
+
+type synchronizedClockTestSystem struct{ *SimulatedSystem }
+
+func (s *synchronizedClockTestSystem) Output(ctx context.Context, name string, args []string, environment map[string]string) ([]byte, error) {
+	if name == "timedatectl" && slices.Equal(args, []string{"show", "--property=NTPSynchronized", "--value"}) {
+		return []byte("yes\n"), nil
+	}
+	return s.SimulatedSystem.Output(ctx, name, args, environment)
+}
+
+func TestTimeSynchronizationPreflightFailsClosedAndAcceptsSynchronizedClock(t *testing.T) {
+	unsynchronized := &Runner{system: &SimulatedSystem{Root: t.TempDir()}}
+	if err := unsynchronized.verifyTimeSynchronization(context.Background()); err == nil || !strings.Contains(err.Error(), "not NTP-synchronized") {
+		t.Fatalf("unsynchronized clock was not rejected: %v", err)
+	}
+	synchronized := &Runner{system: &synchronizedClockTestSystem{SimulatedSystem: &SimulatedSystem{Root: t.TempDir()}}}
+	if err := synchronized.verifyTimeSynchronization(context.Background()); err != nil {
+		t.Fatalf("synchronized clock was rejected: %v", err)
+	}
+}
+
+func TestExternalServiceReachabilityChecksDNSAndTCPBoundary(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	if err := verifyTCPEndpointReachability(context.Background(), "http://"+listener.Addr().String()); err != nil {
+		t.Fatalf("reachable endpoint was rejected: %v", err)
+	}
+	if err := verifyTCPEndpointReachability(context.Background(), "s3-compatible://example.test"); err == nil || !strings.Contains(err.Error(), "explicit TCP port") {
+		t.Fatalf("endpoint without a resolvable transport contract was accepted: %v", err)
+	}
+}
+
+func TestSizingEnforcementRejectsAnyUnderMinimumResource(t *testing.T) {
+	sizing := installation.ApplianceSizing{MinimumVCPU: 8, MinimumMemoryGiB: 16, MinimumDiskGiB: 160, MinimumFreeDiskGiB: 120}
+	if err := enforceSizing(hostCapacity{VCPU: 8, MemoryGiB: 16, DiskGiB: 160, FreeDiskGiB: 120}, sizing); err != nil {
+		t.Fatalf("exact minimum must pass: %v", err)
+	}
+	cases := []hostCapacity{
+		{VCPU: 7, MemoryGiB: 16, DiskGiB: 160, FreeDiskGiB: 120},
+		{VCPU: 8, MemoryGiB: 15, DiskGiB: 160, FreeDiskGiB: 120},
+		{VCPU: 8, MemoryGiB: 16, DiskGiB: 159, FreeDiskGiB: 120},
+		{VCPU: 8, MemoryGiB: 16, DiskGiB: 160, FreeDiskGiB: 119},
+	}
+	for _, capacity := range cases {
+		if err := enforceSizing(capacity, sizing); err == nil {
+			t.Fatalf("under-minimum capacity unexpectedly passed: %+v", capacity)
+		}
+	}
+}
+
+func TestNoProxyCoverageHandlesExactSuffixAndCIDRWithoutWildcardingUnrelatedHosts(t *testing.T) {
+	for _, tc := range []struct{ token, host string }{
+		{"127.0.0.1", "127.0.0.1"},
+		{".example.test", "api.example.test"},
+		{"10.0.0.0/8", "10.4.5.6"},
+	} {
+		if !noProxyCovers(tc.token, tc.host) {
+			t.Fatalf("NO_PROXY token %q should cover %q", tc.token, tc.host)
+		}
+	}
+	if noProxyCovers(".example.test", "notexample.test") {
+		t.Fatal("suffix matching must not cover unrelated host")
 	}
 }

@@ -42,3 +42,65 @@ func TestValidateUpstreamAdmissionRejectsReadyCatalogPinDrift(t *testing.T) {
 		t.Fatal("ready admission with drifted catalog release was accepted")
 	}
 }
+
+func TestValidateUpstreamAdmissionRequiresCiliumRuntimeTransitionUntilGatewayAPI161Resolved(t *testing.T) {
+	components, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	admission, err := LoadUpstreamAdmission()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for i := range admission.Spec.Components {
+		row := &admission.Spec.Components[i]
+		if row.Component != "cilium" {
+			continue
+		}
+		found = true
+		if row.Status != "ready-for-acquisition" {
+			t.Fatalf("Cilium source candidate is not acquisition-ready: %q", row.Status)
+		}
+		row.RuntimeStatus = "eligible-after-source-resolution"
+	}
+	if !found {
+		t.Skip("Cilium admission row is already retired")
+	}
+	if err := ValidateUpstreamAdmission(admission, components); err == nil {
+		t.Fatal("Cilium runtime suitability was admitted before the Gateway API 1.6.1 transition")
+	}
+}
+
+func TestValidateUpstreamAdmissionRejectsRuntimeBlockerWithoutBlockerEvidence(t *testing.T) {
+	components, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	admission, err := LoadUpstreamAdmission()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for i := range admission.Spec.Components {
+		row := &admission.Spec.Components[i]
+		if row.RuntimeStatus == "eligible-after-source-resolution" {
+			continue
+		}
+		found = true
+		filtered := row.ReviewEvidence[:0]
+		for _, evidence := range row.ReviewEvidence {
+			if evidence.Kind != "blocker" {
+				filtered = append(filtered, evidence)
+			}
+		}
+		row.ReviewEvidence = filtered
+		break
+	}
+	if !found {
+		t.Fatal("fixture has no runtime-blocked acquisition candidate")
+	}
+	if err := ValidateUpstreamAdmission(admission, components); err == nil {
+		t.Fatal("runtime-blocked candidate without blocker evidence was accepted")
+	}
+}

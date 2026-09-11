@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"platform.4so.io/factory/internal/controlplane"
+	"platform.4so.io/factory/internal/evidence"
 )
 
 func runtimeClosureHTTPFixture(t *testing.T) (http.Handler, *controlplane.MemoryStore, controlplane.Project, controlplane.ManagedCluster, string) {
@@ -44,6 +45,9 @@ func runtimeClosureHTTPFixture(t *testing.T) (http.Handler, *controlplane.Memory
 		t.Fatal(err)
 	}
 	server := New("0.0.21", nil, nil, store)
+	if err := server.ConfigureRuntimeClosureReleaseIdentity("sha256:"+strings.Repeat("6", 64), "sha256:"+strings.Repeat("7", 64)); err != nil {
+		t.Fatal(err)
+	}
 	server.ConfigureFleetImport("registry.local/agent@sha256:"+strings.Repeat("9", 64), "registry.local/probe@sha256:"+strings.Repeat("8", 64), "https://platform.example.test", "test-ca")
 	return server.Handler(), store, project, cluster, agentToken
 }
@@ -144,12 +148,12 @@ func TestRuntimeClosureCampaignFailureRetryAndEvidenceWorkflow(t *testing.T) {
 		t.Fatalf("advance success %d: %s", w.Code, w.Body.String())
 	}
 	campaign = decodeBody[controlplane.RuntimeClosureCampaign](t, w)
-	if campaign.State != controlplane.RuntimeClosureSucceeded || !strings.HasPrefix(campaign.EvidenceDigest, "sha256:") || campaign.DesiredDigest != campaign.ObservedDigest {
+	if campaign.State != controlplane.RuntimeClosureSucceeded || !strings.HasPrefix(campaign.EvidenceDigest, "sha256:") || campaign.DesiredDigest != campaign.ObservedDigest || campaign.EvidenceSchemaVersion != evidence.RuntimeClosureEvidenceSchema || campaign.ReleaseArtifactDigest != "sha256:"+strings.Repeat("6", 64) || campaign.ProducerBinaryDigest != "sha256:"+strings.Repeat("7", 64) {
 		t.Fatalf("completed campaign=%#v", campaign)
 	}
 
 	w = apiRequest(t, h, http.MethodGet, "/api/v1/runtime-closure-campaigns/"+campaign.ID+"/report", "", nil)
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"runtimeClosed":true`) || !strings.Contains(w.Body.String(), `"canonicalization":"sorted-string-map-json-v1"`) || !strings.Contains(w.Header().Get("Content-Disposition"), "runtime-closure") {
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"runtimeClosed":true`) || !strings.Contains(w.Body.String(), `"canonicalization":"sorted-string-map-json-v2"`) || !strings.Contains(w.Header().Get("Content-Disposition"), "runtime-closure") {
 		t.Fatalf("report %d headers=%v body=%s", w.Code, w.Header(), w.Body.String())
 	}
 	reportBody := w.Body.String()
@@ -162,5 +166,19 @@ func TestRuntimeClosureCampaignFailureRetryAndEvidenceWorkflow(t *testing.T) {
 	w = apiRequest(t, h, http.MethodPost, "/api/v1/runtime-closure-reports/verify", tampered, nil)
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("tampered report accepted %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestRuntimeClosureCampaignRequiresExactReleaseRuntimeIdentity(t *testing.T) {
+	ctx := context.Background()
+	store := controlplane.NewMemoryStore()
+	org, _ := store.CreateOrganization(ctx, controlplane.Organization{Name: "runtime-closure-no-identity", DisplayName: "Runtime Closure"}, "admin")
+	project, _ := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "runtime-closure-no-identity", DisplayName: "Runtime Closure"}, "admin")
+	server := New("0.0.260", nil, nil, store)
+	w := apiRequest(t, server.Handler(), http.MethodPost, "/api/v1/runtime-closure-campaigns", fmt.Sprintf(`{"projectId":%q,"clusterId":"missing","baselineDeploymentId":"missing"}`, project.ID), map[string]string{"X-Actor-ID": "operator", "Idempotency-Key": "no-identity"})
+	// Scope/entity checks happen before release-identity admission; the dedicated
+	// fixture path above exercises the exact release gate on a valid campaign.
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("unexpected precondition ordering: %d %s", w.Code, w.Body.String())
 	}
 }

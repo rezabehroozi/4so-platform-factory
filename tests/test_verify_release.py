@@ -68,6 +68,38 @@ class ReleaseIdentityValidation(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "ARCHIVE_SOURCE_INVALID"):
                 VERIFY.snapshot_archive(link, target)
 
+    def test_bounded_command_times_out_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            rc, stdout, stderr = VERIFY.run_bounded_command(
+                [sys.executable, "-c", "import time; time.sleep(2)"],
+                cwd=Path(directory),
+                env={},
+                timeout_seconds=1,
+            )
+            self.assertEqual(rc, 124)
+            self.assertIn("COMMAND_TIMEOUT", stderr)
+
+    def test_full_verifier_declares_checkpoint_safe_v2_authority(self):
+        self.assertEqual(VERIFY.FULL_VERIFIER_AUTHORITY, "CHECKPOINT_SAFE_FULL_VERIFIER_V2")
+        self.assertEqual(VERIFY.SHARD_AUTHORITY, "AUTOPILOT_STAGE_SHARD_AUTHORITY_V2")
+
+    def test_full_verifier_keeps_ui_and_smoke_parity_contract(self):
+        source = (ROOT / "scripts" / "verify_release.py").read_text(encoding="utf-8")
+        for required in (
+            "run_smoke_shard.py",
+            "smoke_ui.py",
+            "smoke_ui_quality.py",
+            "persian_ui_lint.py",
+            "smoke_ui_live.py",
+            "smoke_ui_workflow_e2e.py",
+            "test_lab_runner.py",
+            "catalog_upstream_admission.py",
+            "acquire_upstream_helm.py",
+            "acquire_upstream_tagged_source.py",
+            "acquire_historical_upgrade_batch.py",
+        ):
+            self.assertIn(required, source)
+
 
 if __name__ == "__main__":
     unittest.main()

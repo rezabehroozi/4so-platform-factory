@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"platform.4so.io/factory/internal/airuntime"
+	"platform.4so.io/factory/internal/durablefile"
 	"platform.4so.io/factory/internal/redaction"
+	"platform.4so.io/factory/internal/releaseartifact"
 )
 
 func aiCommand(args []string) {
@@ -41,6 +43,8 @@ func aiCommand(args []string) {
 		aiRedact(args[1:])
 	case "diagnose":
 		aiDiagnose(args[1:])
+	case "certify-provider":
+		aiCertifyProvider(args[1:])
 	default:
 		usage()
 		os.Exit(2)
@@ -147,5 +151,62 @@ func aiDiagnose(args []string) {
 			"promptDigest": result.PromptDigest, "contextDigest": result.ContextDigest, "outputDigest": result.OutputDigest,
 			"redactionCount": result.RedactionCount, "inputBytes": result.InputBytes, "usage": result.Usage,
 		},
+	})
+}
+
+func aiCertifyProvider(args []string) {
+	fs := flag.NewFlagSet("ai certify-provider", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	releasePath := fs.String("release-artifact", "", "exact release ZIP to bind into certification evidence")
+	outPath := fs.String("out", "", "private certification evidence JSON output")
+	confirmation := fs.String("confirmation", "", "must be CERTIFY because live provider calls may incur cost")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || strings.TrimSpace(*releasePath) == "" || strings.TrimSpace(*outPath) == "" || *confirmation != "CERTIFY" {
+		usage()
+		os.Exit(2)
+	}
+	inspection, err := releaseartifact.Inspect(*releasePath, version)
+	if err != nil {
+		fatal(fmt.Errorf("inspect exact release artifact: %w", err))
+	}
+	if inspection.Version != version {
+		fatal(fmt.Errorf("platformctl version %s does not match release artifact version %s", version, inspection.Version))
+	}
+	runningCertifierDigest := bindRunningPlatformctlToExactRelease(inspection)
+	config, err := airuntime.ConfigFromEnv(os.Getenv)
+	if err != nil {
+		fatal(err)
+	}
+	runtime, err := airuntime.New(config)
+	if err != nil {
+		fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	evidence, err := airuntime.CertifyExternalProvider(ctx, runtime, inspection.Version, inspection.Digest, runningCertifierDigest, time.Now().UTC())
+	if err != nil {
+		fatal(err)
+	}
+	raw, err := json.MarshalIndent(evidence, "", "  ")
+	if err != nil {
+		fatal(err)
+	}
+	raw = append(raw, '\n')
+	if err = durablefile.Replace(strings.TrimSpace(*outPath), raw, 0o700, 0o600); err != nil {
+		fatal(fmt.Errorf("persist AI provider certification evidence: %w", err))
+	}
+	printJSON(map[string]any{
+		"status":                     "PASS",
+		"authority":                  evidence.Authority,
+		"releaseVersion":             evidence.ReleaseVersion,
+		"releaseDigest":              evidence.ReleaseDigest,
+		"certifierBinaryDigest":      evidence.CertifierBinaryDigest,
+		"provider":                   evidence.Provider,
+		"model":                      evidence.Model,
+		"providerTransportAuthority": evidence.ProviderTransportAuthority,
+		"evidenceDigest":             evidence.EvidenceDigest,
+		"evidenceFile":               strings.TrimSpace(*outPath),
+		"advisoryOnly":               true,
+		"canDecidePass":              false,
+		"canDecidePhysicalPass":      false,
 	})
 }

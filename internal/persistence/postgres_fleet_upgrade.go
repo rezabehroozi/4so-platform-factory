@@ -511,6 +511,9 @@ func (s *PostgresStore) CreateUpgradeCampaign(ctx context.Context, v controlplan
 		if e = s.prepareUpgradeSafetyTx(ctx, tx, &v, v.RecoveryCheckpointIDs, now); e != nil {
 			return e
 		}
+		if e = controlplane.ValidateDay2UpgradeTopology(v); e != nil {
+			return e
+		}
 		v.ResourceMeta = controlplane.ResourceMeta{ID: s.id("upg"), Revision: 1, CreatedAt: now, UpdatedAt: now}
 		v.State = controlplane.UpgradeCampaignAwaitingApproval
 		v.RequestedBy = actor
@@ -574,6 +577,9 @@ func (s *PostgresStore) ApproveUpgradeCampaign(ctx context.Context, id string, e
 		}
 		if v.State != controlplane.UpgradeCampaignAwaitingApproval {
 			return controlplane.ErrInvalidTransition
+		}
+		if e = controlplane.ValidateDay2IndependentApproval(v.RequestedBy, actor); e != nil {
+			return e
 		}
 		now := utcNow(s.now)
 		if e = s.validateUpgradeSafetyTx(ctx, tx, v, now, false); e != nil {
@@ -854,6 +860,9 @@ func (s *PostgresStore) UpdateUpgradeCampaign(ctx context.Context, next controlp
 		}
 		if next.ProjectID != current.ProjectID || next.FleetGroupID != current.FleetGroupID || next.BaselineID != current.BaselineID || next.TargetVersion != current.TargetVersion || next.IdempotencyKey != current.IdempotencyKey || next.RequestDigest != current.RequestDigest || next.PlanContextDigest != current.PlanContextDigest || !next.MaintenanceWindowStart.Equal(current.MaintenanceWindowStart) || !next.MaintenanceWindowEnd.Equal(current.MaintenanceWindowEnd) {
 			return controlplane.ErrValidation
+		}
+		if e = controlplane.ValidateDay2UpgradeProgression(current, next); e != nil {
+			return e
 		}
 		now := utcNow(s.now)
 		if current.State == controlplane.UpgradeCampaignQueued && next.State == controlplane.UpgradeCampaignRunning {

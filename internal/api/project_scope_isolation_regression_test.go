@@ -96,10 +96,11 @@ func TestDirectProjectRoleDoesNotListSiblingProjectMetadata(t *testing.T) {
 
 type scopedOperationPagerProbe struct {
 	controlplane.Store
-	globalPage  []controlplane.Operation
-	scopedPage  []controlplane.Operation
-	globalCalls int
-	scopedCalls int
+	globalPage         []controlplane.Operation
+	scopedPage         []controlplane.Operation
+	globalCalls        int
+	scopedCalls        int
+	lastScopedProjects []string
 }
 
 func (s *scopedOperationPagerProbe) ListOperationsPage(context.Context, string, int) ([]controlplane.Operation, error) {
@@ -107,8 +108,9 @@ func (s *scopedOperationPagerProbe) ListOperationsPage(context.Context, string, 
 	return append([]controlplane.Operation(nil), s.globalPage...), nil
 }
 
-func (s *scopedOperationPagerProbe) ListOperationsPageByProjects(context.Context, []string, int) ([]controlplane.Operation, error) {
+func (s *scopedOperationPagerProbe) ListOperationsPageByProjects(_ context.Context, projectIDs []string, _ int) ([]controlplane.Operation, error) {
 	s.scopedCalls++
+	s.lastScopedProjects = append([]string(nil), projectIDs...)
 	return append([]controlplane.Operation(nil), s.scopedPage...), nil
 }
 
@@ -156,6 +158,57 @@ func TestScopedOperationsLimitAppliesAuthorizationBeforePagination(t *testing.T)
 	}
 	if store.scopedCalls != 1 || store.globalCalls != 0 {
 		t.Fatalf("pager calls scoped=%d global=%d want scoped=1 global=0", store.scopedCalls, store.globalCalls)
+	}
+}
+
+func TestExplicitOrganizationScopeConstrainsOperationsBeforePagination(t *testing.T) {
+	ctx := context.Background()
+	base := controlplane.NewMemoryStore()
+	orgA, err := base.CreateOrganization(ctx, controlplane.Organization{Name: "org-a-operations", DisplayName: "Org A"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	orgB, err := base.CreateOrganization(ctx, controlplane.Organization{Name: "org-b-operations", DisplayName: "Org B"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectA, err := base.CreateProject(ctx, controlplane.Project{OrganizationID: orgA.ID, Name: "a", DisplayName: "A"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectB, err := base.CreateProject(ctx, controlplane.Project{OrganizationID: orgB.ID, Name: "b", DisplayName: "B"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	own, _, err := base.CreateOperation(ctx, controlplane.OperationRequest{ProjectID: projectA.ID, Kind: "read", TargetRef: "a", DesiredRevision: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Risk: "low"}, "org-own", "admin", "own")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign, _, err := base.CreateOperation(ctx, controlplane.OperationRequest{ProjectID: projectB.ID, Kind: "read", TargetRef: "b", DesiredRevision: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", Risk: "low"}, "org-foreign", "admin", "foreign")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &scopedOperationPagerProbe{Store: base, globalPage: []controlplane.Operation{foreign}, scopedPage: []controlplane.Operation{own}}
+	srv := New("test", nil, slog.New(slog.NewTextHandler(io.Discard, nil)), store)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/operations?organizationId="+orgA.ID+"&limit=1", nil)
+	req = req.WithContext(auth.WithPrincipal(req.Context(), auth.Principal{Subject: "admin", Authentication: "oidc", Roles: []string{"platform-admin"}, Expires: time.Now().Add(time.Hour).Unix()}))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var ops []controlplane.Operation
+	if err := json.Unmarshal(w.Body.Bytes(), &ops); err != nil {
+		t.Fatal(err)
+	}
+	if len(ops) != 1 || ops[0].ID != own.ID {
+		t.Fatalf("organization scope page leaked/omitted operations: own=%s foreign=%s response=%s", own.ID, foreign.ID, w.Body.String())
+	}
+	if store.scopedCalls != 1 || store.globalCalls != 0 {
+		t.Fatalf("pager calls scoped=%d global=%d want scoped=1 global=0", store.scopedCalls, store.globalCalls)
+	}
+	if len(store.lastScopedProjects) != 1 || store.lastScopedProjects[0] != projectA.ID {
+		t.Fatalf("organization scope pager projects=%v want [%s]", store.lastScopedProjects, projectA.ID)
 	}
 }
 

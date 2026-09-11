@@ -1,0 +1,318 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ComponentUpgradeSourceAdmission",
+  "authority": "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1",
+  "schemaVersion": 1,
+  "policy": {
+    "explicitHumanOrReleaseReviewRequired": true,
+    "exactPreviousVersionRequired": true,
+    "strictUpgradeDirectionRequired": true,
+    "mutableTagForbidden": true,
+    "admissionDoesNotEqualCertification": true,
+    "reviewEvidenceRequiredForAdmission": true,
+    "firstProductReleaseInstallOnlyAllowed": true,
+    "historicalVersionFabricationForbidden": true
+  },
+  "components": [
+    {
+      "component": "alloy",
+      "targetRelease": "1.11.0",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "1.10.1",
+      "source": "https://grafana.github.io/helm-charts",
+      "rationale": "Reviewed exact predecessor 1.10.1 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/grafana/alloy/blob/main/operations/helm/charts/alloy/CHANGELOG.md",
+          "summary": "Upstream release history establishes 1.10.1 as the reviewed predecessor for target 1.11.0."
+        }
+      ]
+    },
+    {
+      "component": "argocd",
+      "targetRelease": "10.2.3",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "10.2.2",
+      "source": "https://argoproj.github.io/argo-helm",
+      "rationale": "Reviewed exact predecessor 10.2.2 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/argoproj/argo-helm/releases/tag/argo-cd-10.2.3",
+          "summary": "Upstream release history establishes 10.2.2 as the reviewed predecessor for target 10.2.3."
+        }
+      ]
+    },
+    {
+      "component": "capsule",
+      "targetRelease": "0.13.11",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "0.13.10",
+      "source": "oci://ghcr.io/projectcapsule/charts/capsule",
+      "rationale": "Reviewed exact predecessor 0.13.10 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/projectcapsule/capsule/releases/tag/v0.13.11",
+          "summary": "Upstream release history establishes 0.13.10 as the reviewed predecessor for target 0.13.11."
+        }
+      ]
+    },
+    {
+      "component": "ceph-csi-operator",
+      "targetRelease": "1.0.4",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "1.0.3",
+      "source": "https://ceph.github.io/ceph-csi-operator/",
+      "rationale": "Reviewed exact predecessor 1.0.3 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/ceph/ceph-csi-operator/releases/tag/v1.0.4",
+          "summary": "Upstream release history establishes 1.0.3 as the reviewed predecessor for target 1.0.4."
+        }
+      ]
+    },
+    {
+      "component": "ceph-csi-rbd",
+      "targetRelease": "1.0.4",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "1.0.3",
+      "source": "https://ceph.github.io/ceph-csi-operator-charts",
+      "rationale": "Reviewed exact predecessor 1.0.3 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/ceph/ceph-csi-operator-charts/releases/tag/v1.0.4",
+          "summary": "Upstream release history establishes 1.0.3 as the reviewed predecessor for target 1.0.4."
+        }
+      ]
+    },
+    {
+      "component": "cert-manager",
+      "targetRelease": "1.21.1",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "1.21.0",
+      "source": "https://charts.jetstack.io",
+      "rationale": "Reviewed exact predecessor 1.21.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/cert-manager/cert-manager/releases/tag/v1.21.1",
+          "summary": "Upstream release history establishes 1.21.0 as the reviewed predecessor for target 1.21.1."
+        }
+      ]
+    },
+    {
+      "component": "cilium",
+      "targetRelease": "1.20.1",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "1.20.0",
+      "source": "https://helm.cilium.io",
+      "rationale": "Reviewed exact predecessor 1.20.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/cilium/cilium/releases/tag/v1.20.1",
+          "summary": "Upstream release history establishes 1.20.0 as the reviewed predecessor for target 1.20.1."
+        }
+      ]
+    },
+    {
+      "component": "external-dns",
+      "targetRelease": "1.21.1",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "1.21.0",
+      "source": "https://kubernetes-sigs.github.io/external-dns/",
+      "rationale": "Reviewed exact predecessor 1.21.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://artifacthub.io/packages/helm/external-dns/external-dns/1.21.1",
+          "summary": "Upstream release history establishes 1.21.0 as the reviewed predecessor for target 1.21.1."
+        }
+      ]
+    },
+    {
+      "component": "external-secrets",
+      "targetRelease": "2.8.0",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "2.7.0",
+      "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
+      "rationale": "Reviewed exact predecessor 2.7.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/external-secrets/external-secrets/releases/tag/helm-chart-2.8.0",
+          "summary": "Upstream release history establishes 2.7.0 as the reviewed predecessor for target 2.8.0."
+        }
+      ]
+    },
+    {
+      "component": "gateway-api",
+      "targetRelease": "1.5.1",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "1.5.0",
+      "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
+      "rationale": "Reviewed exact predecessor 1.5.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.1",
+          "summary": "Upstream release history establishes 1.5.0 as the reviewed predecessor for target 1.5.1."
+        }
+      ]
+    },
+    {
+      "component": "grafana",
+      "targetRelease": "12.10.0",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "12.9.0",
+      "source": "https://grafana-community.github.io/helm-charts",
+      "rationale": "Reviewed exact predecessor 12.9.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://artifacthub.io/packages/helm/grafana/grafana/12.10.0",
+          "summary": "Upstream release history establishes 12.9.0 as the reviewed predecessor for target 12.10.0."
+        }
+      ]
+    },
+    {
+      "component": "kgateway",
+      "targetRelease": "2.4.1",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "2.4.0",
+      "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+      "rationale": "Reviewed exact predecessor 2.4.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/kgateway-dev/kgateway/releases/tag/v2.4.1",
+          "summary": "Upstream release history establishes 2.4.0 as the reviewed predecessor for target 2.4.1."
+        }
+      ]
+    },
+    {
+      "component": "kyverno",
+      "targetRelease": "3.8.2",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "3.8.1",
+      "source": "https://kyverno.github.io/kyverno/",
+      "rationale": "Reviewed exact predecessor 3.8.1 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://artifacthub.io/packages/helm/kyverno/kyverno/3.8.2",
+          "summary": "Upstream release history establishes 3.8.1 as the reviewed predecessor for target 3.8.2."
+        }
+      ]
+    },
+    {
+      "component": "loki",
+      "targetRelease": "18.12.1",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "18.12.0",
+      "source": "https://grafana-community.github.io/helm-charts",
+      "rationale": "Reviewed exact predecessor 18.12.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://artifacthub.io/packages/helm/grafana/loki/18.12.1",
+          "summary": "Upstream release history establishes 18.12.0 as the reviewed predecessor for target 18.12.1."
+        }
+      ]
+    },
+    {
+      "component": "metallb",
+      "targetRelease": "0.16.1",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "0.16.0",
+      "source": "https://metallb.github.io/metallb",
+      "rationale": "Reviewed exact predecessor 0.16.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/metallb/metallb/releases/tag/v0.16.1",
+          "summary": "Upstream release history establishes 0.16.0 as the reviewed predecessor for target 0.16.1."
+        }
+      ]
+    },
+    {
+      "component": "secure-namespace-foundation",
+      "targetRelease": "1.0.0",
+      "status": "install-only-first-product-release",
+      "previousVersion": "",
+      "source": "",
+      "rationale": "This is the first product-owned 1.0.0 release. S2 requires install/readiness/failure/remove evidence for this release, but a fabricated historical upgrade edge is forbidden.",
+      "reviewEvidence": [
+        {
+          "kind": "product-release-history",
+          "reference": "repo://catalog/components/secure-namespace-foundation.json",
+          "summary": "The canonical component authority identifies 1.0.0 as the first embedded product release; no earlier product release exists to certify an upgrade from."
+        }
+      ]
+    },
+    {
+      "component": "snapshot-controller",
+      "targetRelease": "8.5.0",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "8.4.0",
+      "source": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.4.0",
+      "rationale": "Reviewed exact predecessor 8.4.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.5.0",
+          "summary": "Upstream release history establishes 8.4.0 as the reviewed predecessor for target 8.5.0."
+        }
+      ]
+    },
+    {
+      "component": "tetragon",
+      "targetRelease": "1.7.0",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "1.6.1",
+      "source": "https://helm.cilium.io",
+      "rationale": "Reviewed exact predecessor 1.6.1 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://github.com/cilium/tetragon/releases/tag/v1.7.0",
+          "summary": "Upstream release history establishes 1.6.1 as the reviewed predecessor for target 1.7.0."
+        }
+      ]
+    },
+    {
+      "component": "velero",
+      "targetRelease": "12.1.0",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "12.0.3",
+      "source": "https://vmware-tanzu.github.io/helm-charts/",
+      "rationale": "Reviewed exact predecessor 12.0.3 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://artifacthub.io/packages/helm/vmware-tanzu/velero/12.1.0",
+          "summary": "Upstream release history establishes 12.0.3 as the reviewed predecessor for target 12.1.0."
+        }
+      ]
+    },
+    {
+      "component": "victoria-metrics",
+      "targetRelease": "0.90.2",
+      "status": "admitted-for-acquisition",
+      "previousVersion": "0.90.1",
+      "source": "https://victoriametrics.github.io/helm-charts/",
+      "rationale": "Reviewed exact predecessor 0.90.1 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "reviewEvidence": [
+        {
+          "kind": "upstream-release-history",
+          "reference": "https://artifacthub.io/packages/helm/victoriametrics/victoria-metrics-k8s-stack/0.90.2",
+          "summary": "Upstream release history establishes 0.90.1 as the reviewed predecessor for target 0.90.2."
+        }
+      ]
+    }
+  ]
+}

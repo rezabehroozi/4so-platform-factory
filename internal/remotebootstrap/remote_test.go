@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"platform.4so.io/factory/internal/bootstrap"
 )
 
 func TestStageArchiveRoundTripAndTamperDetection(t *testing.T) {
@@ -280,5 +282,84 @@ func TestRemoveStageRemovesOnlyItsAttemptFamily(t *testing.T) {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("concurrent attempt path %s was touched: %v", path, err)
 		}
+	}
+}
+
+func TestMakeArchiveRejectsSymlinkStageSource(t *testing.T) {
+	root := t.TempDir()
+	victim := filepath.Join(root, "victim")
+	if err := os.WriteFile(victim, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(victim, link); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := makeArchive(map[string]stageSource{
+		"bundle/payload": {path: link, mode: 0o644},
+	})
+	if err == nil || !strings.Contains(err.Error(), "regular non-symlink") {
+		t.Fatalf("expected fail-closed symlink source rejection, got %v", err)
+	}
+}
+
+func TestBuildStageArchiveIsDiskBackedAndCleanable(t *testing.T) {
+	root := t.TempDir()
+	bundle := filepath.Join(root, "bundle")
+	if err := os.MkdirAll(bundle, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundle, "bundle.json"), []byte("bundle\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	installer := filepath.Join(root, "platform-installer")
+	if err := os.WriteFile(installer, []byte("binary\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	loaded := loadedSpec{
+		InstallerBinary: installer,
+		BundleDirectory: bundle,
+		StageDirectory:  "/var/lib/4so-platform-installer/remote-bootstrap/test",
+	}
+	manifest, archive, _, err := buildStageArchive(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archivePath := archive.Name()
+	if len(manifest.Entries) < 3 {
+		cleanupStageArchive(archive)
+		t.Fatalf("expected deployment, installer and bundle entries, got %#v", manifest.Entries)
+	}
+	info, err := archive.Stat()
+	if err != nil {
+		cleanupStageArchive(archive)
+		t.Fatal(err)
+	}
+	if info.Size() == 0 {
+		cleanupStageArchive(archive)
+		t.Fatal("disk-backed stage archive is empty")
+	}
+	cleanupStageArchive(archive)
+	if _, err := os.Stat(archivePath); !os.IsNotExist(err) {
+		t.Fatalf("temporary stage archive was not removed: %v", err)
+	}
+}
+
+func TestExpectedBundleBindingIsExactAndFailClosed(t *testing.T) {
+	bundleDigest := "sha256:" + strings.Repeat("a", 64)
+	lockDigest := "sha256:" + strings.Repeat("b", 64)
+	var spec Spec
+	spec.Spec.ExpectedBundle.BundleDigest = bundleDigest
+	spec.Spec.ExpectedBundle.LockDigest = lockDigest
+	status := bootstrap.BundleAdmissionStatus{BundleDigest: bundleDigest, LockDigest: lockDigest}
+	if err := enforceExpectedBundleBinding(spec, status); err != nil {
+		t.Fatalf("expected exact binding to pass: %v", err)
+	}
+	status.BundleDigest = "sha256:" + strings.Repeat("c", 64)
+	if err := enforceExpectedBundleBinding(spec, status); err == nil || !strings.Contains(err.Error(), "bundle binding mismatch") {
+		t.Fatalf("expected changed staged bundle to fail closed, got %v", err)
+	}
+	if canonicalSHA256("sha256:"+strings.Repeat("A", 64)) || canonicalSHA256("sha256:"+strings.Repeat("0", 63)) {
+		t.Fatal("non-canonical bundle digest was accepted")
 	}
 }

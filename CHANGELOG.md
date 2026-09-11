@@ -1,3 +1,1155 @@
+# Changelog
+
+## 0.0.359 — engineering safety: bounded pagination, scope ownership and PostgreSQL behavioral integration
+
+- Advance executable roadmap authority to `PROGRAM_PHASE_MODEL_V64` without inflating mandatory Core truth: source/software closure remains **25/25 (100%)**, Core phase/release closure remains **19/25 (76%)**, and Physical/Exact-SHA certification remains independently unproven and non-blocking for software development.
+- Add `OPERATOR_COLLECTION_CURSOR_V1`: main operator collection APIs default to 100 results (maximum 200), use a deterministic opaque `(updated_at,id)` continuation cursor, expose `X-4SO-Next-Cursor` / `Link rel="next"`, and require PostgreSQL adapters to apply authorized scope and cursor predicates before `LIMIT`.
+- Expand `RESOURCE_SCOPE_OWNER_CLASSIFICATIONS_V1` from 6/73 to **42/73** source-reviewed API families; the remaining 31 stay explicitly `UNCLASSIFIED / OWNER_REVIEW_REQUIRED` instead of inferring tenant scope from route or table names.
+- Add `POSTGRES_BEHAVIORAL_INTEGRATION_V1` with a PostgreSQL 16 GitHub Actions service container and the production libpq driver to exercise fresh migrations, organization/project authority, operation idempotency, project isolation and lease/fence concurrency.
+- Pin Python smoke/test dependencies used directly by repository tooling and keep J5 open until 73/73 ownership closure; no RLS, Terraform/Crossplane, provider-runtime or Physical PASS claim is inferred.
+
+## 0.0.358 — Product API contract, scope registry and MCP recovery foundation
+
+- Advance executable roadmap authority to `PROGRAM_PHASE_MODEL_V63` while preserving mandatory Core source/software closure at **25/25 (100%)** and Core phase/release closure at **19/25 (76%)**; Physical/Exact-SHA evidence remains independently unproven and never blocks pre-physical coding.
+- Selectively transfer CloudSuite-derived patterns without importing a second control plane: add human-admin, revision-fenced MCP `RECOVERY_REQUIRED` resolution from authoritative readback/evidence and explicitly prohibit automatic redispatch or MCP self-resolution.
+- Add additive rolling-safe migration `0072_mcp_control_job_recovery_resolution.sql` plus Memory/File/PostgreSQL parity and audit evidence for terminal recovery resolution.
+- Add reproducible `PRODUCT_API_CONTRACT_AUTHORITY_V1` covering all stable Product API routes and a dependency-light Go SDK transport/route catalog that contains no lifecycle business logic, approval bypass or automatic mutation retry.
+- Add fail-closed `RESOURCE_SCOPE_REGISTRY_V1`; every API family is represented while unreviewed ownership remains `UNCLASSIFIED / OWNER_REVIEW_REQUIRED` instead of being inferred.
+- Re-phase competitive pre-physical work: Terraform+Crossplane, Virtual Cluster/Developer Mode, AWS/Azure/GCP providers, Fleet Reliability/Incident/SLO, FinOps v2 and Edge/Sovereign proceed independently of physical installation. The broader weighted whole-product coding estimate is now approximately **74%**.
+
+## 0.0.357 — H2 VMware provider authority source closure
+
+- Advance executable roadmap authority to `PROGRAM_PHASE_MODEL_V62` without changing mandatory Core truth: source/software closure remains **25/25 (100%)**, phase/release closure remains **19/25 (76%)**, current exact source locks remain **3/20**, runtime upgrade source pairs remain **0/19**, and no installation or Physical PASS is inferred.
+- Promote H2 VMware Provider from blocked to `source-implemented` using the existing product-owned Cluster API topology lifecycle rather than introducing a second infrastructure source of truth.
+- Add `VMWARE_PROVIDER_AUTHORITY_V1`: VMware provider profiles require an HTTPS-only vCenter origin with no embedded credentials/path/query/fragment, an `external-secret://4so-provider-system/<name>` reference, amd64-only source admission and exact infrastructure identity propagation to provider-cluster desired state.
+- Add management-agent CAPV verification requiring the admitted ClusterClass to reference `VSphereClusterTemplate` for cluster infrastructure and `VSphereMachineTemplate` for the admitted worker class; arbitrary infrastructure templates fail closed.
+- Persist VMware provider identity through rolling-safe migration `0071_vmware_provider_authority.sql`, preserve old-writer `unspecified` compatibility, and expose the same fields through REST and Operator Console without collecting raw vCenter username/password.
+- Keep connected vCenter/CAPV execution, runtime certification and Exact-SHA Physical evidence independent; their absence does not block J3/I2 or further source/generated-runtime development.
+
+## 0.0.356 — J2 FinOps usage, capacity and chargeback authority closure
+
+- Advance executable roadmap authority to `PROGRAM_PHASE_MODEL_V61` while preserving mandatory Core truth: source/software closure remains **25/25 (100%)**, phase/release closure remains **19/25 (76%)**, current exact source locks remain **3/20**, runtime upgrade pairs remain **0/19**, and no installation or Physical PASS is inferred.
+- Promote J2 FinOps from blocked to `source-implemented` with immutable organization-scoped rate cards, project-scoped measured usage, point-in-time capacity observations and deterministic chargeback/showback authority.
+- Preserve financial truth fail-closed: explicit zero usage is distinct from missing telemetry, missing rate or interval coverage never becomes zero cost, and integer micro-currency arithmetic avoids floating-point billing drift.
+- Add Memory/File development persistence plus PostgreSQL production SoT through additive migration `0070_finops_usage_ratecard_authority.sql`, append-only/idempotent measurement semantics and snapshot parity.
+- Productize FinOps through scoped REST APIs, typed MCP read parity and an Operator Console workflow; financial telemetry ingestion remains trusted-collector/platform-admin only and is not exposed as an AI write tool.
+- Keep physical installation, Exact-SHA runtime and production certification explicitly separate from source closure so they never block remaining pre-physical software development.
+
+## 0.0.355 — J1 external-registry and notification contract closure
+
+- Advance executable roadmap authority to `PROGRAM_PHASE_MODEL_V60` without changing mandatory Core truth: source/software closure remains **25/25 (100%)**, phase/release closure remains **19/25 (76%)**, current exact source locks remain **3/20**, runtime upgrade pairs remain **0/19**, and no installation or Physical PASS is inferred.
+- Close three of four J1 Automation & External Integrations software blockers. J1 remains blocked only on `TERRAFORM_PROVIDER_PENDING`; a mock/schema-only provider is explicitly not accepted as closure.
+- Add `EXTERNAL_REGISTRY_ADMISSION_AUTHORITY_V1`: external OCI candidates require absolute HTTPS, exact digest-pinned references and matching registry host; mutable tags/raw credentials are rejected, credential references are opaque server-side IDs, and zot remains canonical managed-registry authority.
+- Add `NOTIFICATION_PROVIDER_ADAPTER_CONTRACT_V1` and `NOTIFICATION_PREFERENCE_DIGEST_POLICY_V1`, including explicit Console/Webhook capability semantics and deterministic revision-independent routing-policy evidence.
+- Productize J1 across REST, MCP route parity and Operator Console with external-registry admission preview, notification-provider contract inspection and route-policy digest inspection; preview/read paths do not bypass durable mutation or approval boundaries.
+
+## 0.0.354 — S1/S2 catalog-bundle output durability hardening
+
+- Retain executable roadmap authority `PROGRAM_PHASE_MODEL_V59` and preserve truthful Core source/software closure at **25/25 (100%)** versus phase/release closure at **19/25 (76%)**; this release does not fabricate external bytes, runtime certification or Physical PASS.
+- Close a supply-chain durability defect in `platformctl catalog-bundle assemble`: output bundles are no longer written in-place and are now replaced through the existing durable-file owner boundary, preventing readers from observing a partially written bundle after interruption.
+- Fail closed when the requested catalog-bundle output already exists as a symlink or non-regular path, while preserving safe atomic retry over an existing regular bundle file.
+- Add focused regression tests proving symlink targets are never modified and regular retry outputs converge to the expected bundle bytes.
+- Promote `acquire_upstream_tagged_source.py --self-test` and `acquire_historical_upgrade_batch.py --self-test` into the canonical `make test` / upstream acquisition validation path so the V59 historical tagged-source handoff cannot silently lose executable regression coverage.
+
+## 0.0.353 — S2 tagged-source acquisition closure and handoff integration
+
+- Advance the executable roadmap authority to `PROGRAM_PHASE_MODEL_V59` while preserving Core source/software closure at **25/25 (100%)** and phase/release closure at **19/25 (76%)**.
+- Add `TAGGED_SOURCE_ACQUISITION_RECIPE_V1` plus a generic commit-pinned `external-tagged-source-set` acquisition runner with tag→commit verification, bounded HTTPS fetch, deterministic ZIP assembly, per-file SHA-256, rendered-resource/image digest resolution, SBOM/license evidence and canonical historical bundle install.
+- Add reviewed recipes for Gateway API `1.5.0` at commit `3797b631d20f9ff4e2b4571f62d91d84a1fbdf5a` and Snapshot Controller `8.4.0` at commit `f21cb02763e7cd6a7fc84846f106b83119b5371d`; recipe presence is acquisition readiness only and does not claim the bytes are embedded.
+- Extend `HISTORICAL_UPGRADE_STAGED_BATCH_V1` to execute/stage tagged predecessors instead of merely listing them, while preserving canonical `install-historical` and checkpoint-safe offline verification.
+- Integrate historical acquisition into `SUPPLY_CHAIN_HANDOFF_V1` and `SUPPLY_CHAIN_HANDOFF_SEAL_V1`; the connected/offline command plan and strict stage completeness now include the historical stage manifest whenever historical sources are immediately stageable.
+- Add fail-closed repository validation and negative controls for recipe/admission identity, full commit pins, deterministic assembly, path traversal, HTTPS host restrictions and runner selection. Current exact source locks remain **3/20** and S2 runtime source pairs remain **0/19**.
+
+## 0.0.352 — S2 upgrade-source selection closure and historical batch
+
+- Advance the executable roadmap authority to `PROGRAM_PHASE_MODEL_V58` while preserving Core source/software closure at **25/25 (100%)** and phase/release closure at **19/25 (76%)**.
+- Close the manual previous-release selection bottleneck for S2: **19/19 upgrade-applicable components** now have exact strictly older predecessor/source admissions plus machine-readable upstream review evidence; review-required count is zero.
+- Model `secure-namespace-foundation 1.0.0` as `install-only-first-product-release`; historical-version fabrication is explicitly forbidden and the runtime certification registry no longer reports a fake pending upgrade for its first release.
+- Add `HISTORICAL_UPGRADE_STAGED_BATCH_V1` and historical mode to the Helm/OCI acquisition owner path so reviewed predecessors can be acquired, staged, transferred, re-verified and installed through `catalog-bundle install-historical` without mutating current component authority or implying runtime PASS.
+- Enforce the reviewed evidence and new first-release semantics in Python, schema, repository validation and Go historical import; regenerate the upgrade matrix as **0 admitted / 19 pending / 1 install-only**.
+- Replace the S2 `COMPONENT_UPGRADE_SOURCE_ADMISSION_PENDING` blocker with the truthful external-byte blocker `COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING`. Current source locks remain **3/20** and no missing upstream bytes, runtime certification or Physical PASS are inferred.
+
+## 0.0.351 — release truth convergence and external closure readiness
+
+- Advance the executable roadmap authority to `PROGRAM_PHASE_MODEL_V57` without progress inflation: Core source/software closure remains **25/25 (100%)**, while phase/release closure remains **19/25 (76%)** and `goalReady=false`.
+- Add fail-closed release-documentation convergence across `VERSION`, `RELEASE-NAME`, executable roadmap authority, current `PHASE_STATUS`, the single current-release README summary and the top CHANGELOG entry.
+- Replace the release-specific PHASE_STATUS validator wiring with authority-derived validation so future roadmap versions cannot silently leave stale documentation gates behind.
+- Add negative controls for duplicate current README summaries, stale/missing top CHANGELOG releases, missing current phase status and roadmap/phase-document mismatch.
+- Fix a real post-acquisition authority divergence: successful Cilium/kgateway catalog imports now atomically advance `RUNTIME_DEPENDENCY_TRANSITION_V1` source state to `source-acquired`; the transition authority participates in catalog transaction rollback/recovery and admission retirement is accepted only when the component is genuinely source-resolved.
+- Repair the ExternalCatalogBundle smoke fixture to carry the current `candidateAcquisition` and runtime-hold policy, then prove import → admission retirement → transition rebind → repository rebuild end-to-end.
+- Preserve external closure truth: no exact upstream byte, runtime certification, named-client interoperability, OKD physical execution or Physical PASS is inferred by this release.
+
+## 0.0.350 — external closure campaign and progress truth
+
+- Introduce `PROGRAM_PROGRESS_MODEL_V1` to separate product-owned source/software closure from fail-closed phase/release closure.
+- Report mandatory Core source/software closure as 25/25 while keeping phase-ready closure at 19/25 and all six externally/evidence-blocked Core phases open.
+- Keep S1 at 3/20 real source locks and S2 at 0/20 admitted runtime upgrade pairs; no missing upstream bytes or runtime evidence are fabricated.
+
+## 0.0.349 — S1 source/runtime admission separation and gateway-stack transition
+
+- Separate immutable source acquisition admission from runtime suitability: all 17 unresolved Helm candidates are exact and acquisition-ready while three runtime holds remain fail-closed.
+- Rebaseline kgateway from 2.3.6 to 2.4.1 so the network stack spans Gateway API 1.4-1.6 and can bridge the product-owned 1.5.1 -> 1.6.1 transition.
+- Add `RUNTIME_DEPENDENCY_TRANSITION_V1` with exact official Gateway API 1.6.1 asset size/SHA metadata, ordered kgateway/Cilium acquisition, and an explicit no-Physical-PASS truth policy.
+- Extend Go/Python/catalog-bundle/release-readiness/API/Operator Console contracts with separate source-admission and runtime-hold status; runtime holds no longer prevent source evidence acquisition.
+- Extend `SUPPLY_CHAIN_HANDOFF_V1` with runtime holds and dependency-transition authority so disconnected staging preserves the same split without creating a second source of truth.
+
+## 0.0.348 — S2 historical source import and handoff seal
+
+- Added `SUPPLY_CHAIN_HANDOFF_SEAL_V1` for deterministic whole-stage transfer integrity.
+- Added canonical `COMPONENT_UPGRADE_SOURCE_ADMISSION_V1` with explicit review-before-acquisition semantics.
+- Added `catalog-bundle assemble --historical` / `install-historical` so reviewed older source bundles can be imported without changing the current component authority.
+- Historical import admits only an exact strict-upgrade source pair into `COMPONENT_RUNTIME_UPGRADE_MATRIX_V2`; it never marks runtime certification PASS.
+- Added fail-closed tests for unreviewed historical import, target mutation prevention, symlinked stage content and post-seal byte tamper.
+
+## 0.0.347 — S1 unified supply-chain handoff and S2 pair readiness
+
+- Added `SUPPLY_CHAIN_HANDOFF_V1`, a derived connected-to-offline execution contract spanning upstream components, management images, manifest image resolution, exact release toolchain bytes and all S2 previous-source requirements without becoming a second source of truth.
+- Added exact-release-bound `MANAGEMENT_WORKLOAD_STAGED_BATCH_V1` tooling for four external management images with owner-path registry acquisition/offline verification, exact references and deterministic layout tree digests.
+- Added fail-closed negative controls for staging symlinks, digest/release drift, mutable references and truth-model promotion.
+- S1/S2 remain blocked until exact upstream bytes, management image digests/toolchain bytes and previous-version source pairs are actually acquired and certified.
+
+## 0.0.346 — s1-staged-batch-handoff-and-installer-parity-v52
+
+- Advance the canonical roadmap to `PROGRAM_PHASE_MODEL_V52` while preserving Core source implementation at **19/25 = 76%** and keeping S1/S2 blocked on real byte/runtime evidence.
+- Add `UPSTREAM_STAGED_BATCH_V1`: connected `--stage-out` creates verified ExternalCatalogBundle ZIPs plus a digest-bound derived manifest without mutating repository authority; disconnected `--install-staged` re-verifies and installs them through the existing atomic catalog-bundle owner path.
+- Make staged transfer checkpoint-safe and fail closed on symlink/non-regular paths, path escape, duplicate entries, release/source/admission drift, bundle/upstream digest mismatch and platformctl verification drift; the manifest is explicitly non-authoritative transport evidence.
+- Fix a production S1 regression where Go catalog-bundle admission validation lagged the V51 Python rule and rejected all ready imports whenever an exact review candidate was present. Go now accepts exact review candidates only when release and `exact-upstream-review-candidate-pending-decision` remain pinned, while still blocking that candidate's own acquisition.
+- Add Go/Python negative controls and restore the full ExternalCatalogBundle assemble→verify→install→rebuild→API-render smoke.
+- Preserve upstream truth at **14 ready / 3 review**, only **3/20** real source locks and S2 at **0 admitted / 20 pending**; no upstream bytes, Physical PASS or production certification are inferred.
+
+## 0.0.345 — s1-exact-review-candidate-authority-v51
+
+- Advance the canonical roadmap to `PROGRAM_PHASE_MODEL_V51` while preserving Core source implementation at **19/25 = 76%**.
+- Separate review decision state from runtime release identity: review-blocked rows with exact selected versions now pin component releases exactly while keeping `source.resolved=false` and acquisition forbidden.
+- Pin Cilium `1.20.1`, Kyverno `3.8.2` and MetalLB `0.16.1` as exact review candidates without clearing their dependency/security/version-review blockers.
+- Add fail-closed Go/Python validation and negative controls for review-candidate release drift and review-candidate version-policy drift.
+- Make platform-agent startup fail closed when an authoritative certificate Secret is accepted but the stale local certificate cache cannot be durably refreshed, preventing later stale-certificate resurrection.
+- Regenerate `COMPONENT_RUNTIME_UPGRADE_MATRIX_V2`; S2 remains truthfully `0 admitted / 20 pending` because exact source-pair bytes are still missing.
+
+## 0.0.344 — s1-staged-offline-acquisition-hardening-v50
+
+- Advance the canonical roadmap authority to `PROGRAM_PHASE_MODEL_V50` without progress inflation: Core source implementation remains **19/25 = 76%** and S1/S2 remain blocked on real acquisition/certification evidence.
+- Promote the pinned build-time authority to `UPSTREAM_ACQUISITION_TOOLCHAIN_V3`; Helm 4.2.4 and Crane 0.22.1 remain exact SHA-locked, while restricted build hosts can now bootstrap them from operator-staged canonical archives without network access or alternate version authority.
+- Add staged-asset tamper negative controls and post-extraction exact-version validation.
+- Add machine-readable Helm acquisition limits (index/chart/member/expanded/metadata bounds) and fail closed on oversized/truncated upstream metadata, oversized chart archives and unsafe/non-regular tar content.
+- Preserve the truthful upstream queue at **14 ready / 3 review** and component upgrade matrix at **0 admitted / 20 pending**; no Generated Runtime, Physical or production PASS is inferred.
+
+## 0.0.343 — component-upgrade-admission-hardening-v49
+
+- Advance the canonical roadmap authority to `PROGRAM_PHASE_MODEL_V49` without inflating progress: Core source implementation remains **19/25 = 76%** and S2 remains blocked.
+- Replace `COMPONENT_RUNTIME_UPGRADE_MATRIX_V1` with `COMPONENT_RUNTIME_UPGRADE_MATRIX_V2`; source-pair admission now requires source-lock self-identity (`component` + exact `version`) and strict numeric upgrade direction (`from < to`).
+- Fail closed on wildcard/alias releases, foreign/mismatched source locks, and newer siblings that could otherwise be reversed into an upgrade edge.
+- Add owner negative controls for wrong lock identity, reverse/newer edges, wildcard targets, valid directional exact pairs, and forged reverse-edge validation. Current matrix remains truthful at **20 components / 0 admitted / 20 pending**.
+
+## 0.0.342 — feature-certification-contract-closure-v48
+
+- Advance the canonical roadmap to `PROGRAM_PHASE_MODEL_V48` without changing Core source closure: **19/25 = 76%**.
+- Replace the broad `FEATURE_CERTIFICATION_REGISTRY_V1` contract with `FEATURE_CERTIFICATION_REGISTRY_V2`, adding explicit owner phases, required certification levels, physical/chaos scenario rows where applicable and mandatory negative controls.
+- Add `FEATURE_CERTIFICATION_CONTRACT_COVERAGE_V1`: all **24/24 mandatory Core owner phases before C9 are covered**, with zero missing owners.
+- Add fail-closed `ValidateFeatureCertificationRegistry` checks for duplicate/empty features, missing or unknown owners, unknown levels, missing physical scenarios, missing negative controls and uncovered mandatory Core phases; negative regressions prove owner and negative-control omissions are rejected.
+- Remove only the now-resolved `FEATURE_CERTIFICATION_CONTRACTS_INCOMPLETE` blocker from C9. C9 remains blocked on `PRE_CERTIFICATION_REQUIRED_FEATURES_OPEN` and `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING`; no phase is promoted and no Physical PASS is inferred.
+- Preserve AI/MCP and Persian language truth from V47: 318/318 route disposition, 134/134 durable AI mutation coverage, named external-client execution still pending, and `PERSIAN_WRITING_GATE_V1` remains release-gated.
+
+## 0.0.341 — persian-writing-ai-language-quality-v47
+
+- Integrated `ali2000hos/persian-writing` 1.3.5 at exact commit `118c2167f30cafe18df13c0ba85f98f50dad1894` as a pinned offline curated core with MIT license/admission metadata and per-file digests; no runtime network fetch, binary font redistribution or large external lexicon is required.
+- Added `PERSIAN_WRITING_GATE_V1` to release validation and UI smoke. It applies formal-but-human Persian, Unicode/ZWNJ/punctuation rules and high-signal anti-bureaucratic/anti-AI checks to actual Console/Installer product copy while exempting machine identifiers and established technical protocol/product names.
+- The gate now executes the vendored upstream `third_party/persian-writing/scripts/fa_lint.py` itself against technical-token-masked product prose; the current audit covers 1,251 unique Persian strings with zero upstream lint findings and zero 4SO gate findings.
+- Reworked page outcome/done-state copy and high-frequency operational text so users see Persian task/state language instead of implementation-English such as Job/Retry/Runtime/Evidence/Drift/Plan/Approval; established protocol and product names remain unchanged where they improve precision.
+- Rewrote the 83 mixed-English grammar/adjective findings found by the first gate pass, including immutable/authoritative/Fail-closed/Plaintext/Scoped/Missing/Unavailable-style implementation prose, plus a focused Installer backup/restore/runtime terminology pass.
+- Added `GET /api/v1/ai/persian-writing`; MCP route generation exposes it as the fixed read-only tool `api_get_ai_persian_writing`, making the pinned Persian language authority discoverable to AI clients without exposing fonts, lexicons or mutation authority.
+- MCP route parity is now 318/318 stable routes: 147 read, 63 operate, 71 administration and 37 intentional security exclusions; durable mutation coverage remains 134/134.
+- Core source closure remains 19/25 (76%). C7W still requires real named-client interoperability evidence and no Physical PASS is inferred.
+
+## 0.0.340 — ai-first-durable-mcp-control-closure-v46
+
+- Promoted AI/MCP to a first-class product-control surface with `MCP_ROUTE_PARITY_AUTHORITY_V1`: all 317 stable `/api/v1` routes have an explicit fixed-route disposition, 280 are AI-callable and 37 remain intentionally security-excluded with machine-readable rationales.
+- Added `MCP_DURABLE_CONTROL_JOB_AUTHORITY_V1` across Memory/File/PostgreSQL plus migration 0069; all 134 AI-callable mutation routes require idempotency and persist bounded actor/delegation/scope/request/result lifecycle evidence before canonical mutation dispatch.
+- Added scoped `/api/v1/ai/capabilities` and durable AI-control Job observation to REST and Operator Console, while preserving the prohibition on arbitrary routes, raw credentials, shell/SSH/SQL and PASS/Physical-PASS authority.
+- Closed a retry correctness defect where Go short-declaration shadowing could execute a mutation while leaving its AI control Job RUNNING; terminal replay regression now proves no duplicate mutation.
+- Closed an MCP development-mode privilege leak: the loopback `local-development` platform-admin compatibility principal is now read-only on `/mcp`; operate/administration requires explicit API-token permission or human OAuth delegation. The black-box MCP conformance harness now passes this boundary.
+- Kept C7W truthfully open only on named external-client execution evidence for ChatGPT, Claude, Gemini and Grok. Local/source conformance does not certify those clients. Core remains 19/25 (76%); no Physical PASS is inferred.
+
+## 0.0.339 — mcp-parity-disconnected-okd-source-workflow-v45
+
+- Completed typed MCP parity for the Workspaces and Projects route families with authoritative scope/RBAC/delegation regression coverage.
+- Completed five additional stable read-only MCP families without introducing a generic mutation surface: Version, Baselines, Tenancy Plans, Day-2 Campaign Engine and Catalog Signing Identity. REST and MCP consume the same underlying product authority; catalog signing private material is never exposed.
+- Added a distinct durable disconnected Managed OKD sequence with exact ImageSetConfiguration and inventory digests, sealed offline archive verification, exact-SHA `oc-mirror v2` runtime boundary and fail-closed operation marker.
+- Added mode-specific Connected/Disconnected readiness across REST, MCP and the Operator Console.
+- Removed `OKD_DISCONNECTED_INSTALL_WORKFLOW_PENDING`; retained `OKD_OC_MIRROR_V2_ACQUISITION_PENDING` and all real Connected/Disconnected/Physical certification blockers.
+- Advanced roadmap authority to `PROGRAM_PHASE_MODEL_V45`; Core source closure remains 19/25 = 76%.
+
+## 0.0.338 — Managed OKD Production Runtime Hardening V44
+
+- Advance the executable roadmap authority to `PROGRAM_PHASE_MODEL_V44` while preserving Core Freeze at **19/25 = 76%** and keeping `OKD_CONNECTED_MANAGED_INSTALL_PENDING` open.
+- Wire the Managed OKD executor, signed media handler and durable worker into production `platform-api` with fail-closed startup validation and an authenticated runtime-truth endpoint.
+- Add organization/project/machine/endpoint-bound Redfish file credentials with no-follow and strict permission validation.
+- Replace raw Agent ISO URL booting with digest-addressed local serving, operation-bound HMAC URLs, Range support and per-request SHA-256 revalidation.
+- Add exact workspace execution with SHA-verified `openshift-install`/`oc`, private per-operation work directories, inherited-authority stripping, bounded output/timeouts and exact ClusterVersion/Node/ClusterOperator health gates.
+- Add lease heartbeat plus post-heartbeat revision/fence reload so long Redfish/install steps do not duplicate or write stale evidence.
+- Add deterministic, retry-safe managed-cluster registration into the existing ClusterImport authority and reject same-name imports owned by another install operation.
+- Make the Operator Console read runtime readiness and disable Managed OKD request submission when production execution is unavailable.
+- Harden external catalog-bundle installation so component release/source rebind, runtime-certification registry, runtime-upgrade matrix and upstream-admission retirement commit under one crash-recoverable authority transaction; this closes a full-verifier drift where Cilium import could leave `component-runtime-upgrade-matrix.json` on `1.20.x` after the component was pinned to `1.20.1`.
+- Add regression coverage for idempotent matrix rebind and crash-journal restoration; unrelated matrix drift or pre-existing admitted upgrade edges remain fail-closed.
+- Do not claim connected, disconnected, upgrade, Physical or production PASS; exact acquisition/workspace staging and real connected certification remain open.
+
+## 0.0.337 — Operator Outcome Platform Journey Hardening V43
+
+- Keep `PROGRAM_PHASE_MODEL_V43` and Core Freeze at **19/25 = 76%**; this UI/product closure removes no runtime, acquisition or Physical blocker.
+- Audit all 20 Operator Console pages plus the bootstrap Installer across 320/390/768/1024/1440 responsive viewports; browser smoke remains free of horizontal overflow and page errors.
+- Add an `Outcome / Done when` contract to every Operator Console page so each surface states the result it produces and the observable completion condition.
+- Replace the import-centric Platforms landing with a task-first `Create or connect a platform` entry point: existing-cluster enrollment, infrastructure-profile provisioning, or Managed OKD Compact-3.
+- Add a three-stage Managed OKD Compact-3 console journey wired to the existing durable `POST /api/v1/managed-okd-installs` authority; raw BMC credentials are never accepted, SHA-256 input is canonicalized, and request acceptance never implies install success.
+- Complete the operator journey by surfacing independent Managed OKD approval in Operations through the dedicated revision-bound approval endpoint.
+- Clarify information architecture (`Control-plane install`, `Infrastructure profiles`, `Marketplace`, `Application workspaces`) and fix high-visibility Persian copy defects while preserving technical terms only where they improve comprehension.
+- Add regression contracts and browser smoke assertions for page outcomes, the three-path platform entry, Managed OKD stages, mutation outcome tracking and approval reachability.
+
+## 0.0.336 — Managed OKD Target-Model Truth Hardening V43
+
+- Keep `PROGRAM_PHASE_MODEL_V43` and Core Freeze at **19/25 = 76%**; no runtime/Physical blocker is removed.
+- Converge `TARGET_ARCHITECTURE_MODEL_V1` with the source-implemented H1 path: OKD + Bare Metal now explicitly expose source-level managed-install support while connected runtime certification remains pending.
+- Add `ManagedInstallSourceSupported` as a narrow source-truth predicate for `OKD + bare-metal`; OpenShift and VMware remain non-admitted through this path.
+- Preserve `SupportedDistribution(OKD) == false` so source implementation cannot be mistaken for generally certified runtime support.
+- Re-verify the exact Go 1.27.1 candidate metadata from the official Go release page; archive acquisition remains blocked in this execution environment, so `RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING` stays open.
+
+## 0.0.335 — Durable Managed OKD Orchestration + MCP V43
+
+- Advance the executable roadmap to `PROGRAM_PHASE_MODEL_V43` while keeping Core Freeze at **19/25 = 76%** and Physical/External certification truth separate.
+- Close the source-level `BAREMETAL_MANAGED_INSTALL_WORKFLOW_PENDING` blocker with durable sealed input, PostgreSQL/File/Memory parity, independent approval, restart-safe worker checkpoints, expired-RUNNING reclaim and monotonic fencing.
+- Add typed REST and MCP managed-OKD request/read/approval surfaces; BMC credentials remain server-side and approval remains a separate ADMINISTRATION actor.
+- Fix BootMedia crash takeover so a newer fence may resume work while stale fences remain rejected.
+- Keep `OKD_CONNECTED_MANAGED_INSTALL_PENDING`, S1 exact toolchain/acquisition and S2 exact upgrade matrix blockers open until their required evidence exists.
+
+## 0.0.334 — Managed OKD Install Authority Foundation V42
+
+- Keep `PROGRAM_PHASE_MODEL_V42` and Core Freeze at **19/25 = 76%**; no H1 blocker is removed.
+- Add `BAREMETAL_MANAGED_INSTALL_AUTHORITY_FOUNDATION_V1` under `internal/managedinstall`.
+- Require Compact-3 exactly, canonical SHA-256 identities for release payload/FCOS/Agent ISO, and opaque credential references rather than secret material.
+- Add independent approval and monotonic fencing so a higher-fence worker can reclaim interrupted work while stale/equal fences fail closed.
+- Make request digest ordering deterministic and step progression evidence-sequenced rather than wall-clock dependent.
+- Keep `BAREMETAL_MANAGED_INSTALL_WORKFLOW_PENDING` and `OKD_CONNECTED_MANAGED_INSTALL_PENDING` open until durable backend/API/worker integration and exact connected installer evidence exist.
+
+## 0.0.333 — Parallel C7W / S1 / S2 / H1 / C9 V42
+
+- Advance executable roadmap authority to `PROGRAM_PHASE_MODEL_V42` while preserving source/physical truth separation and Core Freeze at **19/25 = 76%**.
+- Close only `BAREMETAL_BOOT_MEDIA_PROVIDER_PENDING`: add `REDFISH_BOOT_MEDIA_PROVIDER_V1` with TLS-only BMC/resource paths, server-side credential resolution, exact media identity, idempotent same-image insertion, one-time boot, power/reset and bounded observation. Managed bare-metal orchestration and connected OKD installation remain blocked.
+- Add MCP `support_bundle_request` parity on the existing durable `support.bundle.generate` Operation. Diagnostic payloads are never emitted inline through MCP; the synchronous binary bundle route is explicitly security-excluded and sealed evidence remains behind authenticated REST download.
+- Exact-lock the official Go 1.27.1 Linux/amd64 release candidate by URL, size and SHA-256 and add `scripts/acquire_release_build_toolchain.py`, an offline-only atomic admission transaction. The archive is not bundled, so `RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING` remains open.
+- Add `COMPONENT_RUNTIME_UPGRADE_V1` with exact from/to source/render identities, stage-specific idempotency tokens, fencing, readiness/failure-recovery/remove-old-version evidence and no fake rollback promise. The source-pair matrix remains 0 admitted / 20 pending.
+- Synchronize release identity to `0.0.333 / parallel-c7w-s1-s2-h1-c9-v42` and keep C9 blocked until all mandatory branches, canonical source locks and certification contracts actually close.
+
+## 0.0.331 — Parallel C7W / S1 / S2 / C9 Hardening V40
+
+- Advance executable roadmap authority to `PROGRAM_PHASE_MODEL_V40` while preserving Core Freeze at source-level truth only.
+- Close `MCP_APPROVAL_OPERATION_PARITY_PENDING` with separate ADMINISTRATION-only approval tools for IdentityAdminJob, Cluster Maintenance and Fleet Upgrade; API-token/service-account MCP principals cannot see these tools and requester self-approval remains fail-closed.
+- Close `COMPONENT_RUNTIME_EXECUTOR_PARITY_PENDING` by replacing unresolved per-component executor gaps with source-gated `COMPONENT_RUNTIME_V1` contracts; exact source rebind atomically promotes install/readiness/dependency/failure/remove while upgrade remains independently blocked.
+- Add `RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1`; the current Go 1.23 baseline is explicitly non-admitted for release and `RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING` remains an S1 blocker until an exact supported toolchain is byte-locked and verified.
+- Keep S1 source acquisition, S2 upgrade matrix, C7W write-family coverage/external interoperability, H1/I1 and C9 exact freeze open. No Physical PASS is inferred.
+
+## 0.0.330 — Enterprise Identity / Compliance G5 Closure & C7W Identity Admin V39
+
+- Advance the executable roadmap to `PROGRAM_PHASE_MODEL_V39`; G5 becomes source-implemented while Physical/production certification remains unchanged.
+- Add durable Compliance Profile/ScanRun/Finding/Waiver/Recheck authority with canonical finding/evidence identity across Memory/File/PostgreSQL and migration `0066_compliance_scan_center_authority.sql`.
+- Add organization-scoped SAML desired state plus approval-gated, lease/fence/revision protected `IDENTITY_ADMIN_JOB_AUTHORITY_V1` with migration `0067_identity_admin_saml_broker_authority.sql`.
+- Add a server-only Keycloak reconciliation worker that creates/updates/deletes SAML Identity Providers, links them to the matching Keycloak Organization and verifies semantic read-back before completing jobs.
+- Enable Keycloak Organizations in the managed realm and mount the admin password only into Platform API as a read-only secret file; MCP/API resources, audit and evidence never contain the credential.
+- Add REST administration routes and ADMINISTRATION-only MCP `saml_broker_change_request`, `saml_broker_delete_request` and `identity_admin_job` tools. Writes always stop at independent approval and requester self-approval remains forbidden.
+- Remove only `MCP_IDENTITY_ADMIN_JOB_ADAPTER_PENDING`; broader C7W write/approval/interoperability blockers remain explicit.
+
+## 0.0.327 — Truth Gate Determinism & Compliance Hardening V37
+
+- Keep `PROGRAM_PHASE_MODEL_V37` unchanged while repairing source-level truth defects discovered by deep audit of 0.0.326.
+- Make `DataProtectionEvidenceDigest` retry/restart deterministic by canonicalizing timing telemetry out of evidence identity; local wall-clock `RuntimeCheck.DurationMillis` and RPO/RTO observations remain persisted telemetry rather than semantic fingerprint input.
+- Add a regression test proving identical run/reference/check semantics retain one evidence digest across retry timing differences.
+- Fix compliance severity ordering to explicit `CRITICAL > HIGH > MEDIUM` instead of lexical string ordering.
+- Extend Kubernetes workload scanning to `ephemeralContainers` so privileged/debug containers cannot bypass baseline evaluation.
+- Require valid `@sha256:<64-hex>` image pins for the hardened baseline; fixed tags such as `:1.2.3` are now reported as `IMAGE_NOT_DIGEST_PINNED`, while mutable/implicit latest remains separately classified.
+- Strengthen release provenance by recording the exact Go compiler/toolchain used for release binaries; this improves truthfulness without pretending the current toolchain is a supported long-term production baseline.
+- Preserve all open S1/S2, MCP parity, G5 durable Scan Center/SAML, H1/I1 and Exact-SHA Physical certification blockers.
+
+## 0.0.326 — Compliance Baseline Engine V37 Foundation
+
+- Advance the quality-first Core roadmap to `PROGRAM_PHASE_MODEL_V37` without claiming G5 source closure.
+- Add `4SO_KUBERNETES_SECURITY_BASELINE_V1`, a dependency-free deterministic Kubernetes object evaluator with stable finding fingerprints.
+- Detect cluster-admin RBAC bindings, host namespace access, privileged containers and mutable latest/untagged container images; accept digest-pinned hardened workloads.
+- Expose the evaluator through `platformctl compliance evaluate -f kubernetes-objects.json` for offline/operator use without creating a second compliance source of truth.
+- Replace the broad `COMPLIANCE_SCAN_CENTER_PENDING` blocker with the more precise `COMPLIANCE_DURABLE_SCAN_CENTER_PENDING`; SAML enterprise SSO and durable Profile/ScanRun/Finding/Waiver/Recheck authority remain open.
+- Keep S1/S2, MCP write parity, Managed/Disconnected OKD and Exact-SHA Physical certification open.
+
+## 0.0.325 — Target Data Protection Productization V36 Closure
+
+- Advance the quality-first Core roadmap to `PROGRAM_PHASE_MODEL_V36` and close G4 at the source-implementation level while keeping all Generated Runtime/Integration/Physical certification gates independent.
+- Add durable `BackupPolicy`, `BackupRun`, `RestoreRun` and `RestoreDrill` authority across Memory/File/PostgreSQL with migration `0065_target_data_protection_authority.sql`.
+- Add strict Velero BackupStorageLocation and opaque credential-reference binding; raw secret material remains outside the control plane.
+- Add HA-safe UTC backup scheduling with minute-bucket idempotency, exact request-digest replay and PostgreSQL conflict-safe concurrent-replica behavior.
+- Add policy enable/disable lifecycle through optimistic `If-Match` revision fencing, audit/outbox events and immediate scheduler/run admission enforcement.
+- Require independent direct-restore approval and reject requester self-approval.
+- Strengthen Restore Drill evidence: completed restore progress must report `itemsRestored == totalItems > 0`, warnings/errors must be zero, and isolated namespace cleanup uses UID/resourceVersion preconditions and confirmed absence.
+- Add Fleet/Recovery Operator Console workflows for policy creation, schedule enable/disable, Backup, Restore Drill, approval-gated Restore and evidence/checkpoint inspection with Persian zero-gap localization.
+- Keep S1 source acquisition, S2 component executor/upgrade parity, G5 identity/compliance, Managed/Disconnected OKD and Exact-SHA Physical certification open.
+
+## 0.0.324 — Component Runtime Failure-Recovery/Safe-Remove V35 Closure
+
+- Advance the quality-first Core roadmap to `PROGRAM_PHASE_MODEL_V35` while keeping S1 and S2 explicitly blocked on unresolved source acquisition/executor parity and the real two-version upgrade matrix.
+- Extend `COMPONENT_RUNTIME_V1` for Gateway API 1.5.1 and Snapshot Controller 8.5.0 through fenced `FAILURE_RECOVERY` and `REMOVE` phases, preserving TARGET_RUNTIME and other profiles on the legacy INSTALL/VERIFY lifecycle.
+- Inject a fenced ownership drift marker, require recovery on the same Kubernetes UID, clear the failure token before certification, and resume only drift proven to belong to a prior cleanup generation of the same run.
+- Make removal reverse-ordered and idempotent only for retries, require exact ownership plus UID/resourceVersion delete preconditions, and refuse CRD deletion when any live Custom Resource instance exists.
+- Add migration `0064_component_runtime_failure_remove_lifecycle.sql` as `QUIESCED_REQUIRED`; old Agents do not understand the new component-only phases, so rolling compatibility is intentionally not claimed.
+- Add Operator Console parity for `COMPONENT_RUNTIME_V1`, including authority-derived source-ready component selection and explicit 5/6 lifecycle-stage truth.
+- Keep upgrade certification, mandatory source acquisition, three upstream reviews, management-workload OCI/image locks and Exact-SHA Physical certification open.
+
+## 0.0.323 — Component Runtime Dependency/Negative-Control + Acquisition Toolchain V34 Closure
+
+- Advance the quality-first Core roadmap to `PROGRAM_PHASE_MODEL_V34` while keeping S1 and S2 explicitly blocked.
+- Extend Gateway API 1.5.1 and Snapshot Controller 8.5.0 component-owned runtime execution from install/readiness to install/readiness/dependency evidence; upgrade/remove/failure-recovery remain pending and full six-stage certification remains 0/20.
+- Add a duplicate-create conflict negative control to `COMPONENT_RUNTIME_V1`, proving the Agent fails closed when a freshly created owned resource is submitted again instead of treating an unintended replacement/adoption path as success.
+- Add `UPSTREAM_ACQUISITION_TOOLCHAIN_V2` with exact Helm 4.2.4 and Crane 0.22.1 build-time locks for linux-amd64/linux-arm64, upstream asset SHA-256 pins, strict version preflight and optional digest-verified bootstrap into an operator-selected tool directory.
+- Make upstream Helm acquisition consume only the locked toolchain and reject missing/mismatched tools; no `latest`, unpinned PATH fallback or product-artifact vendoring is admitted.
+- Keep actual component source-byte acquisition, three upstream admission reviews, management-workload OCI archive/image locks, component upgrade/remove/failure-recovery and Exact-SHA Physical certification open.
+
+## 0.0.322 — Component Runtime Install/Readiness Executor V33 Closure
+
+- Advance the quality-first Core roadmap to `PROGRAM_PHASE_MODEL_V33` without declaring S1 or S2 complete.
+- Add durable `COMPONENT_RUNTIME_V1` runs/tasks bound to exact component name, release and source-lock identity, persisted through migration `0063_component_runtime_certification_identity.sql`.
+- Add the first component-owned install/readiness execution path for Gateway API 1.5.1 and Snapshot Controller 8.5.0; keep dependency/upgrade/remove/failure stages explicitly pending and full-lifecycle certification at zero.
+- Require target capability `cert.component-runtime`, explicit Kubernetes resource-type allowlisting, foreign-owner rejection, fresh-install preflight, exact read-back and readiness evidence.
+- Strip upstream `status` observed state before desired-state hashing/mutation and cap component certification tasks at 256 resources / 4 MiB on both API and Agent boundaries.
+- Add API and fake-Kubernetes end-to-end tests plus binary runtime smoke covering missing-readiness rejection and successful install/readiness partial certification.
+
+## 0.0.321 — Component Runtime Certification Registry V32 Closure
+
+- Advance the quality-first Core roadmap to `PROGRAM_PHASE_MODEL_V32` without declaring S1 or S2 complete.
+- Add `COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1` with exact coverage for all 20 catalog components and explicit install/readiness/dependency/upgrade/remove/failure evidence contracts.
+- Bind each runtime-certification contract to the component release and exact source lock; unresolved sources remain `blocked-source-lock` and cannot be represented as runtime-ready.
+- Add `GET /api/v1/catalog/runtime-certification-authority` plus catalog-summary metrics showing source-ready/source-blocked, partial foundation-harness and zero full-lifecycle closure truthfully.
+- Make external catalog bundle import transactionally rebind component source authority, the runtime-certification registry and Helm upstream-admission retirement with durable crash-recovery journaling.
+- Add a runtime-certification stale-fence negative control and keep generic `TARGET_RUNTIME_V1` capability evidence from being promoted to per-component lifecycle certification.
+- Add `docs/PHASE_STATUS_V32.md` as a complete human-readable 34-phase snapshot of the executable V32 roadmap, with delivery tiers, current status, Core Freeze membership and blockers.
+
+## 0.0.320 — Quality-First Core Closure Roadmap V31 Rebaseline
+
+- Re-audit the exact 0.0.319 FULL artifact against product goals instead of preserving historical phase-count progress.
+- Add machine-readable roadmap delivery tiers: `core-freeze`, `expansion`, `certification`, and `optional`.
+- Keep VMware, Edge autonomy, Terraform/integration breadth, FinOps and Virtual Cluster in the roadmap but remove them from the Core Freeze blocker DAG.
+- Preserve Bare Metal + connected Managed OKD, disconnected OKD core, data protection, enterprise identity/compliance, MCP parity, exact supply chain and component runtime certification as mandatory Core Freeze work.
+- Explicitly define `source-implemented` as source-level evidence only; it never implies generated-runtime, integration, Exact-SHA physical or production readiness.
+- Reframe C4/C5/C8 wording so foundation/source closure cannot be mistaken for final whole-product or physical certification.
+- Add `docs/QUALITY_FIRST_CORE_REBASELINE_V31.md` with the audit evidence, critical path and reopen/rewrite policy.
+
+
+## 0.0.319 — mcp-action-registry-effective-filtering-phase-v30-closure
+
+- advance MCP C7W under `PROGRAM_PHASE_MODEL_V30` while keeping incomplete parity explicit and fail-closed.
+- add `MCP_PRODUCT_ACTION_REGISTRY_V1`, covering all 63 public `/api/v1` route families with exact route/mutation-count drift validation; generic raw mutation, raw SSH/shell/SQL/secrets and MCP self-delegation escalation remain forbidden.
+- add `mcp_action_registry` as a read-only MCP introspection tool and converge `tools/list` plus `tools/call` on `MCP_EFFECTIVE_TOOL_FILTERING_V1`, preventing unauthorized mutation-tool discovery or dispatch even at the inner handler boundary.
+- correct C7R documentation authority from stale `open` wording to `source-implemented`. C7W remains blocked on write-to-job coverage, approval-operation parity, identity/admin job adapters and ChatGPT/Claude/Gemini/Grok black-box interoperability; Physical/Exact-SHA certification stays deferred until development closure.
+
+## 0.0.318
+- close C7R human remote MCP OAuth delegation under `PROGRAM_PHASE_MODEL_V29`: durable trusted-client and revocable delegation-grant authority across Memory/File/PostgreSQL; per-request client/grant/current-RBAC enforcement; platform/org/project scoping; immediate grant/client revocation; and consent preview/confirm/revoke APIs.
+- keep C7W full Admin/User MCP read/write parity explicit and blocked; keep Physical/Exact-SHA certification deferred until development closure.
+
+## 0.0.317 — mcp-oauth-persian-copy-runtime-ui-release-closure
+
+- close a real Operator Console AI/MCP runtime regression: the new human MCP connection journey now uses a defined `localizeDynamicText` helper, preventing `loadAI()` from aborting before durable AI-run history and evidence actions render.
+- harden owner-level UI verification by awaiting asynchronous AI navigation and the durable-run evidence control instead of relying on a fixed browser delay; Console focus/theme/mobile/reduced-motion/data-workspace auxiliary checks now pass as a deterministic checkpoint.
+- keep `PROGRAM_PHASE_MODEL_V28` unchanged: C7R/C7W open work remains explicit, S1 supply-chain state is not promoted, and Physical/Exact-SHA certification remains deferred until development closure.
+- rebuild the complete source/runtime release artifact after repository, Go/Python, UI localization/product-copy and release-integrity verification.
+
+## 0.0.316 — mcp-oauth-discovery-audience-persian-product-copy-phase-v28
+
+- advance MCP human delegation to `PROGRAM_PHASE_MODEL_V28` and source-close two C7R foundations: RFC-style OAuth Protected Resource Metadata for `/mcp` plus a dedicated MCP token audience (`platform-mcp`) that is validated independently from the normal Platform API audience.
+- return an OAuth discovery `WWW-Authenticate` challenge for unauthenticated `/mcp` access while preserving server-side Keycloak/OIDC authority. Revocable `MCPDelegationGrant`, trusted-client admission, immediate grant revocation and consent UX remain explicit fail-closed C7R blockers rather than being simulated.
+- add a user-facing **AI account connections** surface to the Operator Console with the product journey `sign in -> choose organization/project -> choose friendly access -> review -> follow jobs/results`. Scope strings, tool names, token claims and revisions stay in the advanced technical view; no fake Connect action is enabled before grant/consent authority exists.
+- introduce `PERSIAN_PRODUCT_COPY_QA_V1` and upgrade Persian lint to `PERSIAN_UI_QA_V2`; rewrite high-frequency Console and Installer copy away from literal mixed-language/robotic phrasing while keeping necessary technical nouns available to operators. Localization remains zero-gap.
+- keep Exact-SHA physical installation/certification `deferred-until-development-closure`; it is not a development blocker.
+
+## 0.0.315
+
+- rebaseline MCP human delegation under `PROGRAM_PHASE_MODEL_V27` and add `MCP_REMOTE_OAUTH_DELEGATION_ARCHITECTURE_V1`. Existing C7 remains source-implemented; new mandatory C7R and C7W make standards-compliant Keycloak-backed remote OAuth plus complete authorized user/admin MCP operation parity explicit pre-C9 work.
+- define Keycloak as the single OIDC/OAuth authorization authority, `/mcp` as the protected resource, a product-owned revocable `MCPDelegationGrant`, short-lived audience-bound access tokens, trusted-client registration, authorization-filtered tool discovery and immediate product-RBAC/grant revocation checks.
+- require every MCP write to create/advance a durable product Job/Operation with actor/client/grant/resource identity, idempotency/request digest, audit and evidence; approval remains a separate independently-authorized action and raw SSH/kubectl/SQL/secrets/Keycloak-admin credentials remain forbidden.
+- add the connection/consent UX contract and ChatGPT/Claude/Gemini/Grok interoperability matrix as source/integration requirements. Physical installation/certification remains deferred until development closure and is not a development blocker.
+
+## 0.0.314 — g3-full-target-node-lifecycle-closure-phase-v26
+
+- close `G3-target-node-maintenance-lifecycle` with source-owned execution for all seven lifecycle actions: Add, Drain, Remove, Replace, OS Patch, Certificate Renewal and Node Remediation. Certificate Renewal and Remediation deliberately reuse the exact CAPI Machine replacement engine instead of introducing an unsafe host-service restart subsystem.
+- make certificate renewal health-aware and identity-safe: only a Ready provider-managed worker can enter `CERTIFICATE_RENEWAL`; the exact Machine identity and recovery evidence are persisted before deletion, one-for-one replacement preserves desired topology, and completion requires a different Ready Machine in the same MachineDeployment so the joining RKE2 worker receives fresh node identity/certificates.
+- make remediation semantics distinct from healthy replacement: only a NotReady worker-only node is admissible for `REMEDIATE`; retry reuses persisted Machine evidence and cannot resolve/delete a second Machine. Unsupported control-plane, provider-unbound and imported-target combinations remain fail-closed.
+- harden the durable Store boundary so Memory/File/PostgreSQL revalidate live management-cluster `provider-machine-lifecycle-v1` capability, target inventory digest/node UID, action-specific Ready/NotReady admission and active maintenance window before queue/claim. REST, MCP and Operator Console consume the same authority.
+- advance roadmap authority to `PROGRAM_PHASE_MODEL_V26` and mark G3 `source-implemented` with zero G3 development blockers. Exact-SHA physical installation/certification remains `deferred-until-development-closure` and is not a development blocker.
+
+## 0.0.313 — g3-exact-capi-machine-remove-replace-phase-v25
+
+- implement `TARGET_NODE_PROVIDER_MACHINE_LIFECYCLE_V1` for provider-backed target-node `REMOVE` and `REPLACE`. Admission is pinned to the authoritative Target↔ProviderCluster binding, a live management-cluster `provider-machine-lifecycle-v1` capability, target inventory digest, stable node UID, Ready worker-only role truth and an ACTIVE maintenance window. Memory/File/PostgreSQL enforce the same boundary so API/UI/MCP cannot bypass destructive-node admission.
+- make CAPI Machine identity exact and crash-safe. The management agent resolves one worker Machine from `cluster-name` plus `status.nodeRef` identity, requires MachineSet/MachineDeployment ownership labels, persists recovery evidence on the CAPI Cluster before mutation, and never re-resolves a different Machine on retry. Replace deletes only the pinned Machine with UID/resourceVersion preconditions and waits for a different Ready Machine in the same MachineDeployment.
+- implement bounded REMOVE semantics without a scale-down shortcut: mark only the pinned Machine with the official CAPI delete-priority annotation, then decrease worker topology by exactly one. REPLACE preserves desired topology. Both mutation envelopes remain durable through approval, lease/fence, APPLY evidence, INSPECT and retry/recovery state. Migration `0061_target_node_provider_machine_lifecycle.sql` is `QUIESCED_REQUIRED` because older agents do not honor the new exact-Machine mutation envelope.
+- converge REST, MCP and Operator Console on the same live authority. Console Remove/Replace actions are exposed only for executable authority, Ready worker-only inventory nodes and an ACTIVE maintenance window. Provider-machine RBAC is discovered by SelfSubjectAccessReview and revoked alongside the existing provider mutation bindings.
+- advance roadmap authority to `PROGRAM_PHASE_MODEL_V25`. G3 execution coverage is now 5/7 (Add, Drain, Remove, Replace, OS Patch); only `CERTIFICATE_RENEWAL_EXECUTOR_PENDING` and `NODE_REMEDIATION_EXECUTOR_PENDING` remain G3 development blockers. Exact-SHA physical installation/certification remains deferred until C9 and is not a development blocker.
+
+## 0.0.312 — g3-provider-binding-add-executor-phase-v24
+
+- add `TARGET_NODE_PROVIDER_BINDING_AUTHORITY_V1`: a target ManagedCluster can be bound only by a platform administrator to one ACTIVE same-project Cluster API ProviderCluster with an admitted profile. Binding is durable across Memory/File/PostgreSQL through the server-owned managed-cluster label and rejects revoked targets, management-plane self-binding, cross-project/profile drift and duplicate active target ownership.
+- make target-node `ADD` a real provider-backed executor. `POST /api/v1/clusters/{id}/node-lifecycle-actions` converts an admitted ADD plan into a one-replica Cluster API topology worker scale on the bound ProviderCluster, then stops at the existing independent ProviderCluster approval boundary before the management-cluster agent may APPLY/INSPECT it.
+- harden ADD idempotency across approval, execution and immediate completed replay so retrying the same request digest cannot create a second worker. Add end-to-end HTTP regression coverage for bind → ADD → replay → independent approval → CAPI APPLY/INSPECT → ACTIVE → completed replay. Remove/Replace stay explicitly blocked because exact provider Machine identity/deletion semantics are not yet product-owned.
+- converge Operator Console Maintenance on the same authority: platform admins can bind an ACTIVE provider cluster for the selected project, preview provider identity in the lifecycle plan and request ADD only when live binding readiness reports executable. No UI-only source of truth or destructive Remove/Replace shortcut is introduced.
+- advance roadmap authority to `PROGRAM_PHASE_MODEL_V24`. G3 execution coverage is now 3/7 (Add, Drain, OS Patch); `TARGET_NODE_PROVIDER_MUTATION_ADAPTERS_PENDING` is narrowed to `TARGET_NODE_REMOVE_REPLACE_PROVIDER_ADAPTERS_PENDING`. Certificate renewal and remediation remain development blockers. Exact-SHA physical installation/certification remains deferred until C9 and is not a development blocker.
+
+## 0.0.311 — g3-os-patch-host-executor-phase-v23-closure
+
+- implement `TARGET_NODE_HOST_MAINTENANCE_EXECUTOR_V1`: approved `OS_PATCH` runs now use the existing fenced maintenance workflow to cordon and PDB-aware drain the UID-pinned node, create an idempotent privileged node-pinned Job from the exact digest-pinned platform-agent image, chroot into the mounted host root, apply supported distro package updates, collect termination evidence and always attempt uncordon. Automatic reboot is deliberately forbidden; `rebootRequired` is reported as evidence for a separate admitted action.
+- advertise OS-patch executability only from live target truth: RKE2 distribution, mutation authority, fenced maintenance reporting, digest-pinned agent image and live `create jobs` RBAC must all be present. The Operator Console and MCP maintenance request surface can request `DRAIN` or `OS_PATCH`, but independent approval and durable Store admission remain authoritative.
+- add migration `0060_target_node_os_patch_executor.sql` and classify it `QUIESCED_REQUIRED`. Schema defaults keep old rows valid, but old agents are drain-only and must never coexist with newly executable OS-patch runs; this is an upgrade-safety gate, not a physical-runtime gate.
+- make Memory/File and PostgreSQL report validation reject any successful `OS_PATCH` result missing exact `TARGET_NODE_HOST_MAINTENANCE_EXECUTOR_V1` evidence. Revocation now neuters the new Job-manager RoleBinding as well, preventing post-revocation host mutation capability.
+- advance roadmap authority to `PROGRAM_PHASE_MODEL_V23` and remove only `OS_PATCH_EXECUTOR_PENDING` from G3. Provider-backed Add/Remove/Replace, certificate renewal and node remediation remain truthful development blockers. Exact-SHA physical installation/certification remains deferred until C9 development closure and is not a development blocker.
+
+## 0.0.310 — g3-target-node-lifecycle-authority-phase-v22-foundation
+
+- establish `TARGET_NODE_LIFECYCLE_AUTHORITY_V1` as the truthful G3 planning/admission boundary for Add, Drain, Remove, Replace, OS Patch, Certificate Renewal and Remediation. Plans are pinned to the current inventory digest and stable node UID; only the already-real fenced Kubernetes Drain executor is exposed as executable, while missing provider/node adapters remain explicit development blockers.
+- add project-scoped `GET /api/v1/clusters/{id}/node-lifecycle-authority` and read-only `POST /api/v1/clusters/{id}/node-lifecycle-plans`, plus matching Operator Console impact previews. Unsupported actions are visible as blocked rather than represented as completed product capability.
+- extend the external MCP surface with read-only `target_node_lifecycle_authority` and `target_node_lifecycle_plan` tools. MCP can inspect capabilities, impact, recovery and blockers but cannot create provider/patch/certificate/remediation mutations through these tools.
+- advance the roadmap to `PROGRAM_PHASE_MODEL_V22`: Exact-SHA physical installation/certification phases D and M are now `deferred-until-development-closure` with no physical-runtime blocker before C9. Physical testing remains an independent final certification layer, but it never blocks coding, feature hardening or non-physical verification during development.
+- add binary-level `TARGET_NODE_LIFECYCLE_AUTHORITY_RUNTIME_SMOKE` coverage and keep G3 open on real adapter work (`TARGET_NODE_PROVIDER_MUTATION_ADAPTERS_PENDING`, `OS_PATCH_EXECUTOR_PENDING`, `CERTIFICATE_RENEWAL_EXECUTOR_PENDING`, `NODE_REMEDIATION_EXECUTOR_PENDING`) rather than claiming a false closure.
+
+## 0.0.309 — g2-generalized-day2-campaign-engine-closure
+
+- close `G2-generalized-day2-campaign-engine` with `GENERALIZED_DAY2_CAMPAIGN_ENGINE_V1`, a single machine-readable Plan → Impact → Window → Approval → Canary/Waves → Fence → Execute → Verify → Evidence → Recovery contract shared by node-maintenance and fleet-upgrade adapters instead of introducing a duplicate lifecycle subsystem.
+- enforce the common safety contract at the durable Memory/File and PostgreSQL store boundaries: independent approval, bounded maintenance windows, lease/fence identity, immutable upgrade topology/recovery baseline identity, verification and per-target recovery evidence fail closed even when callers bypass REST/API presentation layers.
+- fix two authority defects found by the stronger boundary: direct Fleet Upgrade store approval could previously omit the independent-requester check, and REST/MCP default `waveSize=2` was invalid for one-cluster fleets once exact topology validation was applied. Both REST and MCP now use the same target-count-aware rollout normalization.
+- add `GET /api/v1/day2-campaign-engine` and surface the same authority in Operator Console maintenance and Fleet Upgrade inspection. Advance the executable roadmap to `PROGRAM_PHASE_MODEL_V21`: G2 becomes `source-implemented`, G3 is the next parallel Day-2 branch, while S1 remains the current critical path with all exact supply-chain blockers intact.
+- keep Exact-SHA Physical Runtime independently `NOT_EVALUATED`; source-level G2 closure is not Physical PASS.
+
+## 0.0.308 — g1-full-localization-zero-gap-phase-v20-closure
+
+- close `CONSOLE_FULL_LOCALIZATION_PENDING` for real: translate every previously reviewed mandatory Console localization gap (363 static text sources plus 31 user-facing attributes), preserve product/protocol terminology through the owned Persian glossary, and correct three pre-existing pseudo-localized values (`Catalog release`, `ClusterClass`, `Repository`) that previously mapped to English-only output.
+- replace the permissive coverage baseline with fail-closed `CONSOLE_LOCALIZATION_COVERAGE_V2`: a covered source must resolve to Persian copy or an explicitly protected technical term, and `--write-baseline` now refuses any non-zero localization gap instead of allowing regressions to be normalized into a new baseline. The canonical baseline is now exactly 0 text / 0 attribute gaps.
+- advance the executable roadmap to `PROGRAM_PHASE_MODEL_V20`: G1 Operational Runtime Hardening becomes `source-implemented` with `CONSOLE_FULL_LOCALIZATION_V1` evidence, while G2 Generalized Day-2 Campaign Engine is explicitly parallelized with the S1/S2 supply-chain/runtime-certification path. S1 remains the current critical path and keeps all exact-source/image blockers; no source, runtime or Physical PASS is inferred from localization closure.
+- keep Exact-SHA Physical Runtime independently `NOT_EVALUATED`. Upstream acquisition review remains fail-closed; dependency/version reviews are not promoted without exact accepted upstream bytes and evidence.
+
+## 0.0.307 — console-localization-runtime-coverage-authority-closure
+
+- make locale switching apply immediately to existing non-`data-i18n` DOM text and user-facing `aria-label`/`placeholder`/`title` attributes, while preserving exact English restoration and localizing later DOM mutations; add browser negative control `CONSOLE_LOCALIZATION_RUNTIME_V1`.
+- add `CONSOLE_LOCALIZATION_COVERAGE_V1`, a machine-readable reviewed baseline that fails on new unlocalized operator copy or silent baseline weakening. The baseline deliberately records the remaining 363 static-text and 31 attribute gaps, so `CONSOLE_FULL_LOCALIZATION_PENDING` remains open rather than being declared complete.
+- wire localization runtime/coverage checks into `make smoke-ui` and clean-artifact full verification. S1 remains 14 ready / 3 review and Exact-SHA Physical Runtime remains independently `NOT_EVALUATED`.
+
+## 0.0.306 — g1-runtime-observability-durable-support-workload-logs-closure
+
+- close the live target workload log transport as a read-only durable Operation workflow. Requests are project/cluster scoped, require fresh complete Workload Explorer inventory plus `workload-explorer-read` and `cert.logs`, bind to the admitted inventory digest, use Agent lease/fence execution, resolve only inventory-authorized Kubernetes workloads to bounded pod sets, issue bounded Loki queries, filter returned streams again, and seal the result as payload evidence before `SUCCEEDED`.
+- fix a runtime scheduler defect discovered during closure: `processWorkloadLogTask` existed but was absent from `AGENT_SCHEDULER_V2`, so queued target-log work could never execute. Add explicit scheduler coverage plus API/Agent round-trip and bounded LogQL negative controls, and expose the workflow in Operator Console without adding a Manager-side log SoT or raw LogQL input.
+- replace fleet-wide notification-health materialization with deterministic incremental candidate paging. The cursor advances only to the last observed `(changedAt, clusterId)` record, preventing concurrent commits from being skipped; periodic full sweeps remain reserved for time-only EOL/certificate transitions.
+- add durable async Support Bundle jobs using the existing Operation idempotency/lease/fence/retry authority. Server-generated redacted ZIP bytes are verified, sealed as Operation evidence and downloaded from the evidence payload; the legacy synchronous endpoint remains compatibility-only while Console uses the durable path.
+- retire only `TARGET_WORKLOAD_LOG_TAIL_PENDING`, `NOTIFICATION_HEALTH_INCREMENTAL_SCAN_PENDING` and `SUPPORT_BUNDLE_ASYNC_JOB_PENDING`, adding `TARGET_WORKLOAD_LOGS_V1`, `NOTIFICATION_HEALTH_INCREMENTAL_V1` and `SUPPORT_BUNDLE_ASYNC_JOB_V1`. G1 intentionally remains blocked only by `CONSOLE_FULL_LOCALIZATION_PENDING`; S1 remains 14 ready / 3 review and Exact-SHA Physical Runtime remains independently `NOT_EVALUATED`.
+
+## 0.0.305 — agent-task-queue-observability-g1-authority-closure
+
+- close the G1 Agent task queue observability blocker across all six product-owned Agent task families without creating a second task authority. Queue Center derives project-scoped aggregate state from Baseline, Runtime Verification, Runtime Certification, Tenant, Provider Profile and Provider Cluster durable records.
+- expose bounded queue truth for pending/executing/attention, expired claims, retry count, maximum attempt and oldest pending/executing age. Memory/File and PostgreSQL share the same state/lease classifier; PostgreSQL performs scope-before-aggregate SQL and never materializes task payloads.
+- keep the Operator Console read-only at this boundary: no Agent task payload, claim/fence token, credential or raw worker mutation control is exposed. Expired leases become reclaimable pending work while remaining visible as expired claims, preventing stale executing counts.
+- close the previously ambiguous 0.0.304 verification checkpoints by running C4 workflow E2E with the correct Installer executable and completing `internal/api` race coverage through deterministic test-name shards. The checkpoint-safe UI Quality route/auxiliary model remains the canonical long-running UI gate.
+- remove only `AGENT_TASK_QUEUE_OBSERVABILITY_PENDING` from G1 and add `AGENT_TASK_QUEUE_OBSERVABILITY_V1` evidence. G1 remains blocked by target workload log tail, incremental notification health, durable async support bundles and full console localization; S1 remains 14 ready / 3 review and Exact-SHA Physical Runtime remains independently `NOT_EVALUATED`.
+
+## 0.0.304 — s1-admission-console-checkpoint-safe-ui-quality-closure
+
+- expose canonical S1 upstream-acquisition admission in the read-only Catalog Summary API and Operator Console. The panel derives ready/review counts, rationale and structured review evidence directly from `catalog/upstream-admission.json`; it creates no parallel supply-chain state and offers no UI path to promote a review blocker.
+- add API/live-UI regression contracts proving admission totals, ready/review counts and component identities remain exactly aligned with canonical authority. Invalid or unreadable admission authority now fails the catalog summary closed instead of rendering stale supply-chain readiness.
+- make the heavyweight rendered UI Quality gate checkpoint-safe without weakening its historical default. `scripts/smoke_ui_quality.py` now supports deterministic scope/route shards plus separate auxiliary checkpoints; default `0/1` still executes the complete historical matrix and auxiliary contracts.
+- add sharding negative/coverage tests proving route shards are deterministic, disjoint and exhaustive, and verify the real route matrix as three Console shards + two Installer shards with independent Console/Installer auxiliary checkpoints. This removes aggregate Playwright timeout ambiguity for Autopilot while retaining all viewport/theme/direction/accessibility/contrast/focus/motion/feedback checks.
+- keep the S1 safety boundary unchanged: Cilium remains dependency-reviewed until exact Gateway API `1.6.1` bytes are acquired and locked; Kyverno and MetalLB remain review-required while their current upstream blockers are unresolved. Source acquisition, S2 runtime certification and Exact-SHA Physical Runtime remain independent gates.
+
+## 0.0.303 — s1-operator-migration-batch-acquisition-authority-closure
+
+- advance S1 upstream admission from 11 ready / 5 review to 14 ready / 3 review without manufacturing immutable source resolution: migrate OSS Loki to the maintained grafana-community chart line and pin exact chart `18.12.1`; replace the legacy Ceph CSI Helm deployment assumption with the upstream-supported Ceph-CSI Operator + `ceph-csi-drivers` architecture at exact `1.0.4` while preserving the stable product component id `ceph-csi-rbd` for consumers.
+- add first-class `ceph-csi-operator` catalog/blueprint/settings authority. The existing RBD capability now depends on the operator and snapshot controller, uses the official `ceph-csi-drivers` chart, and treats the `Driver/rbd.csi.ceph.com` custom resource as the operator-managed readiness boundary. Source locks and runtime certification remain separate pending gates.
+- add cross-component fail-closed supply-chain compatibility authority in Python, Go and repository validation: Cilium 1.20.x cannot become acquisition-ready until exact Gateway API `1.6.1` is itself resolved, and kgateway 2.3.x/2.4.x admission is fenced to the corresponding product Gateway API baseline. The current byte-resolved `1.5.1` baseline therefore keeps Cilium `1.20.1` under dependency review rather than allowing metadata to outrun immutable bytes.
+- add `scripts/acquire_upstream_batch.py`, a deterministic checkpoint-safe S1 batch runner. It executes only canonical ready rows through the existing atomic per-component acquisition/install path; successful installs retire their admission rows, so interruption resumes naturally from remaining authority without a second progress database. Review-required rows never enter the batch.
+- add negative controls proving missing acquisition tools stop before mutation and preserve the exact queue, plus catalog tests for Loki source migration, Ceph operator topology, Cilium/Gateway dependency fencing and deterministic batch execution. Exact-SHA Physical Runtime remains independently `NOT_EVALUATED`.
+
+## 0.0.302 — lifecycle-replay-manifest-upstream-authority-closure
+
+- bind every newly admitted lifecycle run to the exact accepted appliance-bundle digest and reject bundle drift before bundle-dependent replay. Interrupted legacy runs without accepted bundle authority now fail closed rather than inventing current-bundle authority.
+- bind durable Kubernetes Job identity to the SHA-256 digest of the exact generated Job manifest. Restart may wait on the same UID only when owner/operation/name and manifest digest all match; missing legacy manifest-digest authority, disappeared Jobs and manifest drift are rejected without overwriting accepted evidence.
+- harden lifecycle durable-state loading before reconciliation: every persisted run now requires canonical run/service/profile identity, supported action/state, safe backup identity and a valid accepted bundle digest when present. Corrupt service authority can no longer fall through the workload selector to Zot during restart, and missing-run updates fail closed.
+- advance S1 upstream admission for kgateway from dependency review to exact ready-for-acquisition after reconciling the product Gateway API `1.5.1` baseline with the upstream 2.3 compatibility contract. kgateway is pinned to `2.3.6` with explicit release/compatibility evidence; source acquisition and runtime certification remain independent pending gates. S1 becomes 11 ready-for-acquisition / 5 review-required.
+- add restart/failure negative controls for accepted-bundle drift, Kubernetes Job manifest drift, legacy missing digest authority, corrupt durable run authority and kgateway compatibility admission. Full Go tests/vet, 141 Python tests, upstream/Lab self-tests and sensitive-package race checks pass before final artifact verification; Exact-SHA Physical Runtime remains independently `NOT_EVALUATED`.
+
+## 0.0.301 — retry-resume-upstream-admission-authority-closure
+
+- make `ClaimOperation` fail side-effect-free before retry promotion when worker identity or lease TTL is invalid. `RETRY_WAIT -> QUEUED` audit/outbox/state mutation now occurs only after the claim request itself is valid, preserving Memory/File/PostgreSQL transaction semantics.
+- canonicalize operation worker identity at claim/renew/release boundaries and in active-lease comparison. Leading/trailing whitespace can no longer create backend-specific lease owners or make a worker unable to renew/release its own claim.
+- make Installer `POST /api/v1/resume` truthful before asynchronous execution: missing bootstrap authority and already-`SUCCEEDED` runs now return `409 BOOTSTRAP_RESUME_NOT_AVAILABLE` without publishing `bootstrapActive`; only an actually resumable durable run is accepted.
+- extend `CatalogUpstreamAdmission` with structured `reviewEvidence` and enforce it consistently in the embedded Catalog parser, repository validator, acquisition validator and external catalog-bundle parser. `version-review-required` now requires an exact candidate plus evidence rather than an ambiguous series-only review row.
+- advance S1 Exact Supply Chain Acquisition authority without manufacturing source resolution: Grafana is moved to the official post-migration community Helm source and exact chart `12.10.0` is admitted for acquisition; Kyverno `3.8.2` and MetalLB `0.16.1` are exact candidates but remain fail-closed in `version-review-required` with explicit upstream blocker evidence. Ready-for-acquisition count moves from 9 to 10 while review blockers move from 7 to 6.
+- close standalone smoke-auth drift across all non-auth-policy API smoke harnesses. Each child API process now explicitly binds loopback development auth instead of inheriting Makefile environment state, with a regression gate preventing future hidden parent-env dependencies.
+- validate the closure with full Go tests/vet, 139+ Python tests, Lab/upstream self-tests, sensitive-package race checks and 35/35 backend/Installer smoke workflows with parent development auth deliberately unset. Exact-SHA Physical Runtime remains independently `NOT_EVALUATED`; `PROGRAM_PHASE_MODEL_V19` remains the canonical roadmap and S1 remains the critical path.
+
+## 0.0.300 — operation-lease-notification-authority-closure
+
+- close stale-worker execution mutations across the generic durable Operation authority: verification, failure, success, cancellation acknowledgement, forward/rollback compensation completion and operation-step writes now require an unexpired lease in addition to matching owner/fence identity in both Memory and PostgreSQL stores.
+- constrain generic `TransitionOperation` to pre-execution orchestration states. Worker execution states such as `QUEUED -> RUNNING`, `RUNNING -> VERIFYING` and `VERIFYING -> SUCCEEDED` can no longer bypass dedicated lease/fence/retry/recovery authority methods; the raw executor API now fails closed with a prerequisite error.
+- fix PostgreSQL operation-step idempotent replay lookup to include `attempt`, matching the `(operation_id, attempt, step_key)` uniqueness authority and preventing a retry from replaying a previous attempt's step.
+- make operation-step replay semantically idempotent: the same `(operation, attempt, stepKey)` may replay only when state/error content matches; a conflicting outcome now returns `ErrIdempotencyConflict` instead of silently masking divergent worker reports. Re-claims may still replay the same semantic step despite a new fence/timestamp.
+- make terminal Operation failure notifications state-authoritative across generic retry, owner-destructive and cluster-maintenance producers: any tenant-scoped Operation outbox event whose durable state is `FAILED` normalizes to `operation.failed`, while `RETRY_WAIT` is not misreported as terminal failure.
+- add negative controls for expired leases, direct-transition bypass, PostgreSQL parity and producer-independent failure notification normalization; all Go/Python tests, 35 backend smoke workflows, UI gates and sensitive-package race checks pass locally. Exact-SHA Physical Runtime remains `NOT_EVALUATED`; `PROGRAM_PHASE_MODEL_V19` and the S1 critical path are unchanged.
+
+## 0.0.299 — standalone-smoke-auth-boundary-closure
+
+- make the Operation Step Trace, Compensation Orchestration and Owner Destructive Recovery runtime smoke harnesses self-contained by explicitly enabling loopback development authentication in the child API process instead of relying on Makefile-exported environment state; direct invocation now exercises the same authenticated contract as `make smoke` and exact-release verification.
+- preserve production authentication defaults: the change is confined to test subprocess environments and does not weaken API/OIDC admission or runtime configuration.
+- re-run repository validation, Go tests/vet, API/UI/Installer smoke paths and direct no-parent-env regression checks; Exact-SHA Physical Runtime remains `NOT_EVALUATED`.
+
+## 0.0.298 — release-authority-phase-v19-closure
+
+- close `R0-release-authority-certification-rebaseline` with `PROGRAM_PHASE_MODEL_V19`: mandatory product work is now a dependency DAG rather than a serial G→H→I→J chain; S1/S2 supply-chain/certification, G1-G5 operational/day-2/data-protection/identity, H1/H2 infrastructure, I1/I2 disconnected/edge and J1-J3 automation/FinOps/virtual-cluster branches are explicit.
+- fix a P1 release-governance defect where `ProductReleaseReady` could become true while `ProgramRoadmap.GoalReady` was false. Release readiness now exposes `roadmapFeatureBlockers`/`roadmapFeatureBlockerCodes`, includes mandatory roadmap blockers in product blocker totals, and adds a dedicated `mandatory-roadmap-feature-freeze` phase.
+- add `FEATURE_CERTIFICATION_REGISTRY_V1` so required certification layers are machine-readable per capability instead of implicit in prose. C9 now requires complete feature-certification contracts.
+- upgrade the Lab authority to `LAB_CERTIFICATION_MATRIX_V2` schema v3. `featureOwnerPhase` and physical `executionPhase` are distinct; M00-M10 execute in D, M11-M13 execute in M, while source owners such as G3 target-node lifecycle, H1 Connected Managed OKD and I1 disconnected OKD remain explicit.
+- make previously hidden mandatory goals explicit: `OKD_CONNECTED_MANAGED_INSTALL_PENDING`, `TARGET_NODE_LIFECYCLE_PENDING`, `TARGET_DATA_PROTECTION_WORKFLOW_PENDING`, `AGENT_TASK_QUEUE_OBSERVABILITY_PENDING`, and component certification/supply-chain blockers.
+- rebaseline Enterprise SAML through Keycloak SAML brokering into OIDC by default, preserving one application-facing authentication/session authority.
+- extend documentation truth validation to the Operator Console design foundation so current canonical roadmap claims cannot lag the executable target model.
+- Exact-SHA Physical Runtime remains `NOT_EVALUATED`; no source/release-governance PASS is promoted into Physical PASS.
+
+## 0.0.297 — operations-queue-product-log-center-closure
+
+- Add `OPERATIONS_QUEUE_CENTER_V1`: tenant-scoped exact aggregate queue state for durable Operations, notification deliveries and transactional outbox, plus a bounded newest-item window that never exposes raw worker claim/transition controls.
+- Add `PRODUCT_LOG_CENTER_V1`: one read-only, project-aware product log surface for sealed Operation step traces, Audit events and Notification events. Evidence payload bytes remain sealed; free-text search is explicitly bounded to the loaded authorized windows.
+- Extend PostgreSQL summary authority with scoped notification-delivery state aggregates and add scoped-before-LIMIT Operation trace paging for Memory/PostgreSQL stores.
+- Add Operator Console Queue Center and Product Log Center workflows, direct Operation → Logs navigation, lane-level pending/executing/retry/dead-letter/expired-claim truth and complete Persian strings for the new surfaces.
+- Advance the canonical roadmap to `PROGRAM_PHASE_MODEL_V18`: the broad Queue Center and Product Log Center blockers are closed, while `TARGET_WORKLOAD_LOG_TAIL_PENDING` remains explicit until live target workload/pod logs have an admitted scoped transport.
+- Preserve Exact-SHA Physical Runtime as `NOT_EVALUATED`; this release adds source/generated-runtime observability authority only and does not infer Physical PASS.
+
+## 0.0.296 — agent-scheduler-v2-queue-window-closure
+
+- Close `AGENT_SCHEDULER_V2`: Agent inventory/certificate/liveness polling now runs independently from the mutation task lane, so a slow baseline/tenant/provider/maintenance/runtime task cannot make an otherwise healthy Agent appear stale or offline.
+- Preserve single-writer mutation semantics: task families remain sequential and at most one newer accepted inventory epoch is coalesced while the writer is busy; the change does not introduce concurrent Kubernetes mutations.
+- Advertise the explicit `agent-scheduler-v2` runtime capability only from the upgraded Agent and add deterministic scheduler tests for bounded coalescing, cancellation and single-writer execution.
+- Add structured task-cycle scheduler logs with duration while keeping task-specific errors separately attributable.
+- Add a bounded read-only Operations queue-window foundation in the Console showing queued/executing/attention/expired-lease counts across the latest authorized 200 operations without exposing raw worker controls; the full cross-family Queue Center remains a Phase G blocker.
+- Advance the canonical roadmap to `PROGRAM_PHASE_MODEL_V17`; Agent Scheduler V2 is no longer a Phase G blocker while Queue Center, Log Center, async Support Bundle, notification scan, generalized maintenance, SAML, Compliance and full localization remain open.
+
+## 0.0.295 — checkpoint-safe-full-verifier-closure
+
+- Upgrade deterministic release verification to `CHECKPOINT_SAFE_FULL_VERIFIER_V2`: extracted-artifact verification now uses replayable unit/vet/race shards with per-command deadlines and fail-closed timeout handling instead of one unbounded monolithic package sweep.
+- Upgrade `AUTOPILOT_STAGE_SHARD_AUTHORITY_V2`: unit, vet, race and backend smoke stages are independently replayable checkpoints with bounded command lifetimes; installer lifecycle smoke remains isolated from general API smoke.
+- Bring Full Verifier coverage into parity with the canonical test/release graph by explicitly including Lab runner tests/self-test, upstream admission/acquisition self-test, derived-agent-knowledge validation, browser-triage prerequisite policy, AI control-plane smoke, Persian UI QA and C4 workflow E2E.
+- Keep production bootstrap TLS at RSA-3072 while adding an explicit injectable TLS key-generation seam; simulation uses a lower-cost test-only generator so constrained CI/Agent environments do not confuse cryptographic key-generation cost with a product hang.
+- Add regression checks for verifier timeout fail-closed behavior and Full Gate parity. Exact-SHA Physical Runtime remains `NOT_EVALUATED`; this release hardens Source/Generated/Runtime-Realism verification only.
+
+## 0.0.294 — operation-authority-bounded-diagnostics-closure
+
+- Close the critical generic Operation execution-authority gap: raw transition, claim, attempt, trace/evidence and compensation execution paths now require an authenticated service-account API token carrying the dedicated `operation.execute` permission. Human OIDC operator/admin principals cannot impersonate workers, and lease ownership is derived from the authenticated principal rather than a caller-selected `workerId`.
+- Add `POST /api/v1/operations/{id}/lease/renew` to the executor-only contract so long-running workers can renew the same fenced lease without re-claiming or inventing worker identity.
+- Make cluster timeline/support diagnostics scope resources before `LIMIT` in Memory/PostgreSQL authority paths; remove full-Control-Plane Snapshot scans from cluster timeline and project audit support-bundle collection.
+- Bound Fleet Health to a truthful 200-cluster returned window and synchronous Fleet Support Bundles to 50 clusters / 200 recent operations. Oversized synchronous bundle requests fail closed until the explicit asynchronous Support Bundle job authority is implemented.
+- Advance the canonical roadmap to `PROGRAM_PHASE_MODEL_V16`, explicitly tracking Agent Scheduler V2, unified Operations/Queue Center, Product Log Center, incremental notification health, async support bundles and full Console localization in addition to the remaining Day-2/SSO/Compliance blockers.
+- Align README/DESIGN with the existing-import OKD capability-gated mutation authority while continuing to keep managed OKD installation and Physical certification out of the admitted claim.
+- Expose `operation.execute` as an explicit operator service-account token profile in the Console, show lease owner/expiry/fence in Operation details, and close several remaining Persian Git/service navigation translations without exposing raw worker controls.
+- Preserve release truthfulness: this is a Source/Generated/negative-control closure only; Exact-SHA Physical Runtime remains `NOT_EVALUATED`, and Phase G remains blocked by its declared capability backlog.
+
+## 0.0.293 — workload-search-scale-correctness-closure
+
+- Make `SEARCH_PROJECTION_AUTHORITY_V2` fail closed unless the backing authority store supplies scope-aware bounded paging for clusters, operations, evidence and audit; remove the global-evidence hot path and the global-audit-before-project-limit path.
+- Add PostgreSQL and in-memory project-scoped evidence paging. PostgreSQL scopes evidence through the owning operation/project in SQL before `LIMIT`, preventing cross-tenant activity from evicting authorized search rows.
+- Add a cross-tenant regression with more than 1,000 foreign audit records proving a project-owned search marker remains visible after scope-before-limit enforcement.
+- Make Workload Explorer use Kubernetes native `limit`/`continue` paging for controllers, Services, Ingresses, PVCs and Events, and stop acquisition at explicit product budgets instead of materializing complete cluster-wide lists before truncation.
+- Canonicalize equal-timestamp event ordering with deterministic namespace/type/reason/resource/message/count tie-breakers so semantically identical event sets produce stable inventory digests.
+- Correct architecture-document drift to `PROGRAM_PHASE_MODEL_V15` and distinguish admitted OKD existing-cluster import from still-non-admitted managed OKD installation.
+- Preserve Phase G truthfulness: OS patch, certificate renewal, node remediation, SAML enterprise SSO and Compliance Scan Center blockers remain open; no Source/local test is promoted to Exact-SHA Physical PASS.
+
+## 0.0.292 — workload-search-projection-closure
+
+- Close three Phase G source blockers without advancing the phase: add bounded live Workload Explorer authority, decide the search projection boundary, and make the projection deterministically rebuildable while OS patch/certificate/node remediation, SAML and Compliance remain open.
+- Add `WORKLOAD_EXPLORER_READ_AUTHORITY_V1` from managed-cluster Agent discovery through persisted inventory, project-scoped API and Operator Console. Deployments, StatefulSets, DaemonSets, Jobs, Services, Ingresses, PVCs and recent Events are bounded observational state and never desired-state authority.
+- Expand the import Agent read-only RBAC only for the workload/event resources required by Workload Explorer and fail the inventory report closed when the required read authority cannot be exercised.
+- Add `SEARCH_PROJECTION_AUTHORITY_V2` and `SEARCH_PROJECTION_REBUILD_CONTRACT_V1`: PostgreSQL-backed bounded search is the default product projection; OpenSearch is an optional scale backend only, never SoT, never a second default metrics/log authority, and must be rebuildable from 4SO-owned clusters, operations, evidence metadata and scoped audit sources.
+- Add project-scoped `/api/v1/search`, `/api/v1/search/projection/rebuild` and MCP `ops_search`; AI never receives direct OpenSearch administrative MCP authority.
+- Add Global Operations Search and live Workload Explorer surfaces to the Operator Console with explicit freshness/completeness/truncation/source-of-truth semantics.
+
+## 0.0.291 — okd-import-capability-health-profile-closure
+
+- Source-close Phase F existing-cluster OKD import/capability certification without claiming managed OKD install or Physical Runtime certification.
+- Discover `ClusterVersion/version` plus `ClusterOperator` conditions from the target and project upstream `Failing`/`Degraded` semantics into one truthful product health model.
+- Derive `okd-import-admitted` and native ownership only from fresh inventory evidence; agent-provided server-owned capability markers are stripped and recomputed.
+- Add inventory-bound desired/observed target profile compilation so duplicate CNI/monitoring/OLM/SCC/project defaults are suppressed only when OKD ownership is actually observed.
+- Add reconnect authority distinguishing automatic same-import reconnect from revoked same-UID re-enrollment requiring target RBAC cleanup fencing.
+- Expose OKD health/profile/reconnect state plus target mutation-RBAC activation and revocation cleanup/acknowledgement actions in the Operator Console.
+- Keep OpenShift recognized but non-admitted, and keep managed OKD install/disconnected/Physical certification in later phases.
+
+## 0.0.290 — console-operational-completion-centers
+
+- Close C8 Console Operational Completion at Source Semantics under `PROGRAM_PHASE_MODEL_V13` and advance the current development phase to F OKD Import/Capability Certification without inferring Physical PASS.
+- Add `INSTALLER_RECOVERY_CONSOLE_AUTHORITY_V1` and converge the main Platform Console on a truthful handoff to the standalone Installer Recovery Console; reset/resume, disaster recovery, diagnostics and service lifecycle remain available even while the product API is unavailable, and installer bootstrap credentials are never proxied by the main console.
+- Add durable `AUTOPILOT_CAMPAIGN_REPORT_V1` output plus platform-admin-only `AUTOPILOT_CAMPAIGN_CONSOLE_AUTHORITY_V1`; the API rejects symlink/non-regular/oversized state, exposes only bounded stage/specialist/fingerprint/failure metadata, and never returns raw logs, process IDs, workspace paths or secrets.
+- Add a Console Autopilot Campaign Center with checkpoint/resume truth, stage/specialist progress, repair count, last bounded failure and recent stage evidence.
+- Add an AI/Agent Access Center that exposes scoped service-account identity, `mcp.read`/`mcp.operate`, token expiry, latest immutable authentication activity and direct rotate/revoke workflows through the existing product authority.
+- Add a centralized Support & Diagnostics Center over the existing server-verified redacted `fleet-diagnostics`, `cluster-diagnostics` and `operation-diagnostics` bundle profiles.
+
+## 0.0.289 — browser-triage-prerequisite-bootstrap
+
+- Harden the optional Chrome DevTools MCP Browser Specialist with `BROWSER_TRIAGE_PROFILE_V2` and `BROWSER_TRIAGE_PREREQUISITE_AUTHORITY_V1`; Windows and Linux prerequisite handling is now an executable Autopilot contract rather than a documentation assumption.
+- Add `scripts/browser_triage_bootstrap.py`: detect compatible Node/npm/npx and officially supported Google Chrome/Chrome for Testing, provision missing prerequisites user-locally without mandatory Administrator/root privileges, and launch exact-pinned `chrome-devtools-mcp@1.8.0` only after readiness verification.
+- Pin the fallback Node toolchain to Node.js 22.12.0 and verify official Node.js SHA-256 release digests for Linux x64/arm64 and Windows x64/arm64 archives. Pin the release browser fallback to Chrome for Testing 152.0.7977.75 and verify the extracted binary reports the expected version before use.
+- Do not treat arbitrary Chromium as an officially supported Chrome DevTools MCP prerequisite. Playwright/Chromium remains the deterministic 4SO UI gate, while Chrome DevTools MCP uses Google Chrome/Chrome for Testing for diagnostic Agent sessions.
+- Make Operator Console repair lazy-provision browser-triage prerequisites before the read-only/single-writer Agent repair flow. Non-UI repair stages do not pay the browser provisioning cost.
+- Advance the canonical roadmap authority to `PROGRAM_PHASE_MODEL_V12` without changing phase status: C8 Console Operational Completion remains current and Physical certification remains deferred behind C9 Feature Freeze.
+
+## 0.0.288 — mcp-delegated-registry-console-convergence
+
+- Close C7 AI/MCP Delegated Operations at Source Semantics under `PROGRAM_PHASE_MODEL_V11` and advance the current phase to C8 Console Operational Completion without inferring Physical PASS.
+- Expand the allow-listed MCP delegated registry from cancellation/maintenance to four operational families: operation control (`operation_cancel`), assurance (`drift_scan_request`, `runtime_verification_request`), Day-2 maintenance (`cluster_maintenance_request`) and fleet upgrade (`upgrade_campaign_request`).
+- Keep high-impact maintenance and upgrade requests independently approval-gated; the MCP registry exposes no approval tool, and exact idempotency/project/RBAC/product-store authority remains mandatory.
+- Add machine-readable MCP tool family/risk/approval metadata and converge the Console AI/MCP access view on the expanded delegated registry.
+
+# 0.0.287 — installer-source-closure-mcp-approval-handoff
+
+- Close `C5-installer-production-lifecycle-closure` at Source Semantics under `PROGRAM_PHASE_MODEL_V10` without inferring Physical PASS. The current phase advances to C7 AI/MCP Delegated Operations; physical sizing tuning and real network/storage failure injection move to exact-artifact Phase D evidence.
+- Add `INSTALLER_JOURNALED_RESET_AUTHORITY_V1`: source-run-bound reset/uninstall with exact confirmation, durable per-step state, explicit resume after interruption, fail-closed canonical RKE2 uninstall behavior, product-owned-state purging, preserved installer access/SSH trust and deterministic clean reinstall.
+- Enforce `APPLIANCE_SIZING_AUTHORITY_V1` during live local/HA preflight, including vCPU, RAM, total/free `/var/lib` capacity, filesystem locality, default-route/MTU evidence and proxy bypass checks in addition to existing time/DNS/port/SSH admission.
+- Add `INSTALLER_OBJECT_STORAGE_READ_WRITE_PROBE_V1`: production HA cannot complete until its configured external S3 authority performs credentialed encrypted write, exact read-back comparison and delete cleanup using the referenced Kubernetes Secret.
+- Add `INSTALLER_UPGRADE_INTERRUPTION_RECOVERY_MATRIX_V1`, making every durable upgrade/recovery interruption boundary machine-readable and owner-tested. `RECOVERY_REQUIRED` explicitly forbids replay of the failed upgrade and requires confirmation-bound state-aware recovery.
+- Expand delegated MCP safely: `cluster_maintenance_context` is read-only project context; `cluster_maintenance_request` is an idempotent high-impact operation request that must stop at independent `AWAITING_APPROVAL`, and the requesting Agent receives no MCP self-approval tool. `operation_cancel` remains the revision-guarded low/medium-risk mutation path.
+- Extend Installer UI with a reset/clean-reinstall danger zone, truthful reset progress/resume state and enforced sizing visibility. Extend the Operator Console MCP surface to distinguish delegated operations from approval-gated high-impact requests.
+- Extend Installer HTTP smoke to prove production-HA workflow plus reset -> clean evaluation reinstall, and require the external object-storage verification step.
+
+# 0.0.286 — agent-evidence-browser-search-persian-foundation
+
+- Advance the canonical roadmap to `PROGRAM_PHASE_MODEL_V9` after evaluating OpenWiki, Archify, Chrome DevTools MCP, OpenSearch, Markdown Viewer Skills and Salsi. Preserve the pre-certification ordering: C5 remains current, C9 is still the feature-freeze gate and Phase D physical certification remains deferred.
+- Add `platformctl target-architecture` so offline agents and release tooling can read the same `TARGET_ARCHITECTURE_MODEL_V1` authority exposed by the API/MCP surface without inventing a parallel model.
+- Add `DERIVED_AGENT_KNOWLEDGE_V1` / `DERIVED_ARCHITECTURE_EVIDENCE_V1`. Release packaging now creates `DERIVED-AGENT-KNOWLEDGE.json` from target/program authority, binds claims to exact source-file SHA-256 evidence, marks the projection discardable/rebuildable/not-SoT and explicitly forbids treating diagrams as runtime-impact or Physical-PASS proof.
+- Add `BROWSER_TRIAGE_PROFILE_V1`, pinning Chrome DevTools MCP `1.8.0` for developer Autopilot use with isolated/headless mode, CrUX/usage/update checks disabled and no product mutation authority. Playwright remains the deterministic UI gate; Node/Chrome MCP remains optional development tooling.
+- Add `APPLIANCE_SIZING_AUTHORITY_V1` to executable installation profiles and surface it in the Installer UI: evaluation baseline 4 vCPU / 8 GiB / 80 GiB with 8 / 16 / 150 recommended, and production HA baseline per management node 8 vCPU / 16 GiB / 160 GiB with 12 / 32 / 300 recommended. The authority is explicitly `SOURCE_BASELINE_PHYSICAL_TUNING_PENDING`; runtime enforcement and physical tuning remain a C5 blocker.
+- Add `PERSIAN_UI_QA_V1` and the product-owned `PERSIAN_PRODUCT_GLOSSARY_V1`: normalize Persian Unicode, reject hidden bidi overrides and non-canonical Arabic codepoints, preserve established technical terminology and ship no Salsi/Pasban external lexicon data.
+- Add `SEARCH_PROJECTION_AUTHORITY_V1`: OpenSearch is recorded only as an optional rebuildable search/analytics projection. PostgreSQL product state, durable evidence and metrics authority remain canonical, and direct unrestricted OpenSearch MCP administration is not an AI product boundary.
+- Extend C6 Autopilot gates with derived agent-knowledge, browser-profile and Persian-UI checks. Add G-phase blockers for the final OpenSearch-vs-existing-log-backend decision and projection rebuild contract rather than introducing duplicate default observability stacks before feature freeze.
+
+# 0.0.285 — pre-certification-communication-ui-authority
+
+- Advance the canonical roadmap to `PROGRAM_PHASE_MODEL_V8` after evaluating shadcn/ui and Novu as product benchmarks. Keep the existing 4SO-owned HTML/CSS/JS console stack; adopt shadcn's open-code/component-ownership principle without adding a React/Tailwind runtime dependency or copying upstream UI assets.
+- Add `NOTIFICATION_ROUTING_PREVIEW_AUTHORITY_V1`: an authenticated, organization/project-scoped, side-effect-free REST preview shows exactly which enabled notification rules and active destinations would match an event/severity without creating a notification event or delivery.
+- Expose the same preview through the read-only MCP tool `notification_routing_preview`, preserving project authorization and making notification policy explainable to external agents before any delegated action.
+- Add an Operator Console Routing Preview workflow that selects organization/project/event/severity and renders matched rules, destinations, authority and explicit zero-side-effect truth before routing changes.
+- Treat Novu as an optional communication-workflow/channel benchmark rather than product authority. 4SO notification events/routes/deliveries/retries/dead letters remain PostgreSQL/outbox-owned; future provider adapters/preferences/digest policy are explicit Phase J blockers and no mixed-license Novu Enterprise code is bundled.
+- Preserve C5 as the current Installer closure phase and keep C9 Feature Freeze ahead of the long Exact-SHA physical campaign. No source/UI/MCP result in this release implies Generated/Installed Runtime or Physical PASS.
+
+# 0.0.284 — pre-certification-feature-closure-rebaseline
+
+- Rebaseline the canonical product roadmap to `PROGRAM_PHASE_MODEL_V7`: C5 Installer Production Lifecycle Closure is current; C6 Multi-Agent Test Autopilot is source-implemented; C7/C8 and mandatory F-J remain pre-certification feature closure; C9 is the explicit Feature Freeze + Exact Bundle gate; long Exact-SHA physical Phase D may start only after C9 closes.
+- Harden live Installer preflight before mutation with local and HA-peer NTP synchronization checks plus DNS/TCP reachability admission for external object-storage endpoints. Keep product-owned appliance sizing, credentialed S3 read/write proof, journaled reset/reinstall and interrupted-upgrade recovery matrix explicit C5 blockers rather than inferring closure.
+- Upgrade Codex Autopilot into checkpointable specialist-owned stages: deterministic Go race and smoke shards, an isolated Installer smoke shard, Lab owner stages, read-only specialist triage before the single workspace-writer repair agent, redacted failure packets, and a hard C9 Feature-Freeze fence on `--real-test`.
+- Add bounded AI/MCP delegated-operation authority. `mcp.read` remains the default; operator-only `mcp.operate` adds capability-filtered mutation discovery. Project cluster/operation discovery is available to agents, and `operation_cancel` reuses normal project write authorization, expected-revision concurrency and durable audit/state-machine authority. MCP never gains shell/kubectl, RBAC escalation, approval self-grant or Physical PASS authority.
+- Converge Operator Horizon V3 documentation/UI authority with the new MCP access model: explicit delegated-operator token profile, separate read/operation scopes, read and mutation tool inventory, and truthful messaging that diagnosis remains advisory while allow-listed mutations stay product-authorized.
+- Preserve the four-layer Release Gate. This release is a pre-certification feature/hardening checkpoint; no Generated/Installed Runtime or Exact-SHA Physical PASS is inferred from source/unit/smoke evidence.
+
+# 0.0.283 — phase-d-state-authority-resume-hardening
+
+- Harden Field Campaign state loading under `FIELD_CAMPAIGN_PLATFORMCTL_CONTINUITY_AUTHORITY_V1`: campaign state must be a bounded regular non-symlink file and is opened with `O_NOFOLLOW`; oversized/symlink state is rejected before decode so status/watch/resume/diagnose/evidence collection cannot be redirected or stalled by path substitution.
+- Harden Lab runtime JSON authority reads with a 16 MiB bound, regular-file/no-symlink admission, no-follow open and stable-inode verification. This covers Lab spec/run-authority/campaign snapshots and generated acquisition metadata consumed by physical-certification automation.
+- Add owner regressions for symlink and oversized Field Campaign/Lab state and keep the existing Lab self-tests inside the stable `make test` gate.
+- Physical truth is unchanged: Phase D remains blocked on real server-driven exact-artifact execution, canonical external OCI/source-lock acquisition, approved live external AI-provider certification and PostgreSQL AI-run durability certification. No Physical PASS is inferred.
+
+# 0.0.282 — phase-d-server-driven-install-contract-hardening
+
+- Made the Phase D M01/M02 server-driven Installer request source-executable by requiring managed identity `adminEmail` and appliance `dnsZone` before mutation; three-management-node tiers additionally require explicit HTTPS endpoint and external S3 authority.
+- Forced Phase D management installation to consume the exact verified appliance bundle in disconnected mode, preventing silent connected-source substitution.
+- Added `LAB_INSTALLER_ACCESS_TOKEN_FILE_AUTHORITY_V1`: Installer access-token exports use unique private pending files, no-follow inode/mode/size validation, read-only sealing and atomic canonical replacement so same-binding resume is secure and overwrite-safe.
+- Promoted the Lab runner self-tests into the stable `make test` gate and repaired the stale exact-release M03 evidence self-test contract.
+- Physical/runtime truth is unchanged: Phase D remains blocked on exact server execution, canonical OCI source locks, live external AI-provider certification and PostgreSQL AI-run durability evidence.
+
+# 0.0.281 — phase-d-runtime-certification-boundary-hardening
+
+- Harden Phase D PostgreSQL M03 certification so password-bearing PostgreSQL URL DSNs are removed from `psql`/`createdb`/`dropdb`/`pg_dump`/`pg_restore` process argv and supplied only to the libpq child environment. Primary and admin/restore credentials remain independently bound, and query-parameter passwords are redacted in evidence.
+- Remove full M03 connection DSNs from the Lab Runner child environment. Exact physical Lab execution now passes the primary/admin DSNs through a bounded, duplicate-key-rejecting private stdin JSON contract; argv, emitted command evidence and inherited certifier environment carry no DSN password.
+- Add fail-before-egress exact-release validation to external AI provider certification. A malformed or non-canonical release SHA-256 is rejected before any live provider request instead of being discovered only during final evidence verification.
+- Strengthen Phase D negative controls for distinct primary/admin PostgreSQL credentials, private stdin transport, password-query redaction and the pinned HTTPS single-TLS-wrap contract. These are source/runtime-automation hardenings only; no Exact-SHA Physical PASS is inferred.
+- Keep all four Phase D physical blockers open. The management workload OCI archive still requires real external acquisition/build resolution, and this execution environment has no external DNS/registry connectivity, so canonical bundle locks, physical M00-M03, live external-provider and PostgreSQL durability certification remain unevaluated physically.
+
+# 0.0.280 — operator-console-live-e2e-c4-closure
+
+- Close Phase C4 at the source/runtime-loopback UX certification layer and advance the canonical current phase to **D — exact-artifact Lab / AI physical certification**. C4 no longer carries `OPERATOR_CONSOLE_WORKFLOW_E2E_CERTIFICATION_PENDING`.
+- Add one integrated live API-backed Operator Console certification harness covering Create/Import Platform, Blueprint review/publish, Fleet upgrade approval/waves/success, failed Operation recovery/compensation/evidence, and disconnected Installer bundle verification/plan/preflight. The harness reuses the real product UI/API/Installer authorities rather than introducing a second mock workflow engine.
+- Close defects discovered by C4 rather than weakening the certification: Operations can start safe compensation recovery, the central action completeness fence now preserves valid handled actions, local project selectors remain bound to Global Project Scope, empty bounded list endpoints serialize as `[]` rather than `null`, Fleet upgrade targets are limited to valid `upgradeFrom` revisions, and the Installer no longer exposes a duplicate admin-email field that was ignored by the request authority.
+- Rebaseline legacy loopback owner-smoke authentication helpers to the current explicit development-mode contract and add stable regressions for recovery action wiring, positive action-state completeness and empty bounded-page JSON semantics.
+- Record `C4_WORKFLOW_E2E_CERTIFICATION_PASS` and `UI_LIVE_AUTHORITY_SMOKE_PASS` as source/runtime-loopback UX evidence only. Exact-SHA Physical Runtime remains independently blocked in Phase D and is never inferred from C4.
+
+# 0.0.279 — operator-console-action-workflow-c3-closure
+
+- Close Phase C3 at the source-authority layer and advance the canonical current phase to **C4 — live end-to-end UX certification**. C3 no longer carries action-state or workflow-density blockers.
+- Complete the central fail-closed action-state matrix across all registered stateful mutation families, including cluster access, agent certificates, maintenance windows/runs, drift adoption/remediation, fleet groups, Workspace bindings and catalog trust. Explicit organization membership, OIDC mapping and notification dead-letter retry mutations now also reject stale/non-actionable state before transport.
+- Add explicit Review/Impact confirmation for organization access grants/changes, OIDC group mappings, API-token issue/rotation and safe upgrade campaign creation. HTTP acceptance remains distinct from terminal operation success through the authoritative mutation outcome rail.
+- Add stable owner/browser regressions for maintenance, Workspace, trust, drift, identity and dead-letter stale-state fences plus progressive-disclosure contracts for Blueprint, Fleet, Notifications, Services and Catalog. Backend RBAC/state machines remain authoritative; missing client action-state coverage fails closed instead of enabling an unguarded mutation.
+- Keep C4 and Exact-SHA Physical Phase D independent: source closure of C3 does not imply live end-to-end UX certification or Physical PASS.
+
+# 0.0.278 — operator-console-integration-action-convergence-c3
+
+- Extend the central C3 action-state contract into Notification, Git and Admin automation identities without duplicating backend state machines. Disabled notification destinations are inspect-only, revoked service accounts/API tokens cannot expose stale mutation controls, stale Git provider/credential authority is rejected before transport, and last-known-good rollback is blocked when the revision is no longer LKG or already matches current desired state.
+- Converge high-impact integration mutations on explicit operator impact review. Notification route enable/disable now confirms the delivery consequence, Git provider credential rebinding names the target credential and impact, and signed pull-request approval explicitly remains separate from merge/reconciliation.
+- Preserve truthful workflow density: Notifications remains history-first with configuration behind progressive disclosure; Services remains delivery/LKG-first with provider setup and repository publishing behind disclosures; Admin creation/access/identity mutation surfaces remain on-demand rather than persistent mega-forms.
+- Extend headless browser owner regressions for disabled notification destination editing, API-token mutation after owning service-account revocation, no-op LKG rollback, existing cancellation/revalidation guards and authoritative mutation outcome rendering. Keep C3 open because the complete action-state matrix and remaining Air-gap/recovery workflow-density certification still require closure before C4.
+- Exact-artifact Physical Runtime remains independent and not evaluated.
+
+# 0.0.277 — operator-console-action-state-outcome-c3-foundation
+
+- Advance Phase C3 without claiming closure. Add one central client-side operational action-state guard for enrollment, provider lifecycle, Marketplace, Baseline, runtime assurance, recovery, upgrade campaigns, tenants, durable operations, Blueprint releases, catalog releases and Git pull requests. Backend state machines remain authoritative; the console now disables stale/invalid controls before transport and explains the authoritative-state reason.
+- Close concrete stale-action defects found by the C3 audit: duplicate cancellation while an operation is already `CANCEL_REQUESTED`, upgrade revalidation during an active target, provider/tenant retry surfaces whose failed pending action is not actually retryable, and approval controls whose impact prerequisites are not ready.
+- Add an authoritative mutation outcome rail for operational mutations. Accepted/queued state is shown explicitly with resource/operation identity and a direct route to the owning page or durable Operation; the UI states that request acceptance does not imply terminal success.
+- Extend stable console owner tests and headless browser smoke with C3 regressions for stale action disabling, between-wave upgrade revalidation and truthful mutation outcome rendering. Keep `OPERATOR_CONSOLE_ACTION_STATE_MATRIX_PENDING` and `OPERATOR_CONSOLE_WORKFLOW_DENSITY_CONVERGENCE_PENDING` open until all remaining action families and workflow-density surfaces converge.
+- Physical/runtime certification remains independent and not evaluated.
+
+# 0.0.276 — operator-console-specialist-collection-scale-c2-closure
+
+- Close Phase C2 source authority and advance the canonical current phase to **C3 — action/workflow/evidence convergence**. High-cardinality Operator Console collections now use explicit bounded server-side contracts instead of materializing complete project collections on every specialist-page load.
+- Add one shared bounded collection contract with a hard `1..200` limit, stable `updatedAt DESC,id DESC` ordering and `X-4SO-Result-Limit` / `X-4SO-Result-Order` response evidence. Legacy unbounded API behavior remains available for compatibility when a caller does not request `limit`; the Operator Console always requests `limit=100` on high-cardinality resource pages.
+- Add Memory/FileStore and PostgreSQL pagers for managed clusters, imports, baseline deployments, runtime verification/closure/certification, provider profiles/clusters, drift scans, tenants, AI runs, Blueprint releases, Platform Templates, Workspaces, recovery checkpoints, Fleet groups and upgrade campaigns. PostgreSQL applies authorized project scope and resource filters before `LIMIT`.
+- Bound Marketplace installations and recommendations as first-class specialist collections. Marketplace installation SQL applies `source_type=marketplace`, authorized project scope and optional cluster filtering before stable newest-first `LIMIT`, avoiding the false-bound pattern where unrelated baseline rows consume page capacity.
+- Add API regressions for authorization-before-pagination, hard-limit rejection, explicit result-limit/order evidence and Marketplace pager routing. C2 remains independent from C3 workflow semantics and from Exact-SHA Physical Phase D; no runtime/Physical PASS is inferred.
+
+# 0.0.275 — operator-console-bounded-attention-c2-closure
+
+- Close the `OPERATOR_CONSOLE_BOUNDED_ATTENTION_QUERY_PENDING` blocker without claiming Phase C2 complete. Add `GET /api/v1/control-plane/attention?limit=N` with a hard 1..50 bound, explicit Organization/Project scope, authorization-before-LIMIT semantics and newest-first ordering.
+- Add the PostgreSQL attention authority as one bounded cross-resource projection over failed baseline deployments, runtime verifications, runtime closure campaigns, tenants, provider profiles/provider clusters and offline/stale managed clusters; detailed resource payloads remain behind their owning APIs.
+- Rework Overview polling so it no longer materializes full cluster/import/baseline/runtime/tenant/provider collections. The hot path now fetches only Version, bounded Summary, Attention(9), Operations(20) and Audit(20).
+- Preserve fail-closed/partial truth: a failed attention authority is surfaced as unavailable instead of silently treating missing failures as an empty healthy state.
+- Keep Phase C2 current and blocked only on `OPERATOR_CONSOLE_SERVER_SIDE_COLLECTION_SCALE_PENDING`; specialist resource pages still require bounded server-side collection contracts before C2 exits.
+- Physical Runtime remains independent and not evaluated.
+
+# 0.0.274 — operator-console-global-scope-authority-c1-closure
+
+- Close Phase C1 source authority and advance the canonical current phase to **C2 — console data scale / refresh semantics**. The top-level Operator Console now has one directory-backed Organization/Project scope instead of independent page-local context pretending to be global authority.
+- Add explicit, authorization-aware `organizationId` / `projectId` read scope to bounded Control Plane Summary, Operations and Audit collection paths. Organization-scoped operation pagination constrains eligible projects before `LIMIT`; project scope excludes organization-wide resource evidence that would widen the selected boundary.
+- Bind the topbar scope selector to `/api/v1/organizations`, `/api/v1/projects` and `/api/v1/access/context`. API-token fixed scope is non-editable; stale saved scope is normalized fail-closed against the live accessible directory.
+- Make scope changes interaction-safe: dirty forms require discard confirmation, superseded page requests are aborted, local project selectors are reloaded from scoped authority and mutations are blocked while the scope transition is in progress.
+- Add fail-closed client scoping for project/org collections and mutation bodies, plus visible disabled-action reasons for stale/out-of-scope controls. AI diagnosis, Platform Template/Policy/Variable Schema and Workspace create/bind/revoke flows now carry the same pre-action scope semantics as the existing cluster/fleet/tenant surfaces.
+- Add backend and browser regressions for explicit project/organization Summary/Audit/Operations scope, authorization-before-pagination, mismatched organization/project rejection, dirty scope switching, request cancellation and stale mutation fencing across desktop/mobile layouts.
+- Keep C2/C3/C4 and Physical Phase D independent and blocked. Organization-only high-cardinality project collections may still require bounded server-side endpoints under C2; this release does not infer runtime or Physical PASS from C1 source closure.
+
+# 0.0.273 — operator-console-assurance-ia-phase-v6-rebaseline
+
+- Rebase the canonical roadmap to `PROGRAM_PHASE_MODEL_V6` and split console closure into four independently testable stages: **C1 IA & global scope authority**, **C2 data scale & refresh semantics**, **C3 action/workflow/evidence convergence**, and **C4 live end-to-end UX certification**. Exact-artifact Lab/AI physical certification remains independent in parallel Phase D.
+- Promote **Assurance** to a first-class operator domain. The visible taxonomy is now `Overview -> Platforms -> Blueprints -> Fleet -> Operations -> Assurance -> Admin`; Runtime assurance, Supply-chain releases and Physical certification are no longer buried under Fleet, Blueprints or Operations.
+- Preserve internal route IDs for compatibility while keeping implementation terminology out of the operator-facing information architecture.
+- Extend the bounded PostgreSQL `control-plane/summary` authority with connected-cluster, successful baseline/verification/closure and failed-workflow counts. Overview metric/readiness cards now consume those bounded aggregates instead of deriving those truths from complete collections; bounded attention-detail queries remain an explicit C2 blocker.
+- Reduce Fleet daily-operation density without removing capability: Support & diagnostics, Drift details and Recovery checkpoints move behind progressive disclosure while Upgrade campaigns, Fleet groups and Fleet health remain primary.
+- Correct stale roadmap/documentation language that conflated console source closure with physical certification, and keep the four physical/runtime blockers under Phase D with no inferred Physical PASS.
+
+# 0.0.272 — External image tag-root evidence and disconnected verification hardening
+
+- Advance the management workload plan to `MANAGEMENT_WORKLOAD_IMAGE_BUILD_PLAN_V5` and external acquisition to `MANAGEMENT_WORKLOAD_EXTERNAL_IMAGE_ACQUISITION_V2`. Registry acquisition now persists the exact tag-root document bytes in the OCI layout and records `tagRootBytes`; multi-platform tag selection is therefore independently reproducible after transfer instead of trusting only a JSON claim about the original tag root.
+- Add `platformctl workload-oci verify-external`. On a disconnected Lab host it binds itself to the exact release ZIP and shipped V5 plan, parses the transferred V2 acquisition lock, re-hashes the preserved tag-root document, re-selects exactly one linux/amd64 child, re-hashes the selected manifest/config/layers and verifies byte accounting plus OCI index annotations without contacting any registry.
+- Reject offline acquisition layouts with missing/tampered tag-root evidence, symlink paths, unowned files/directories, digest/size drift, lock/plan/version/tag drift, ambiguous platform selection or extra OCI payload not owned by the exact lock. This closes the previous acquisition-host trust gap between networked tag resolution and disconnected bundle assembly.
+- Keep `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING` open. This environment still has no public DNS/registry access, so real external/base image bytes, product image builds and the final sealed management workload OCI archive remain external/runtime acquisition work; no digest or Physical PASS is fabricated.
+
+# 0.0.271 — External image version selection and Registry V2 acquisition authority
+
+- Advance the management workload plan to `MANAGEMENT_WORKLOAD_IMAGE_BUILD_PLAN_V4`. `MANAGEMENT_WORKLOAD_EXTERNAL_VERSION_SELECTION_V1` removes implicit external-version choice by pinning the product policy to PostgreSQL 17.11 (`17.11-bookworm`), Forgejo 15.0.7 LTS, zot 2.1.20 and Keycloak 26.7.3, while keeping image identity separate from its Registry V2 transport endpoint.
+- Add `MANAGEMENT_WORKLOAD_EXTERNAL_IMAGE_ACQUISITION_V1` and `platformctl workload-oci acquire-external`. The command binds itself to the exact release ZIP and shipped V4 plan, resolves only the selected tag, admits exactly one linux/amd64 manifest and streams config/layers into a local OCI layout with size/SHA-256 verification plus a release/plan/version/tag-bound acquisition lock. No web-scraped digest or `latest` value becomes authority.
+- Harden Registry V2 realism and ambiguity handling: Bearer realm/scope are constrained, source identity and transport are separate, duplicate JSON keys and response/document media-type mismatch fail closed, workload artifact/referrer/alternate descriptor forms are rejected, and multi-platform indexes must have exactly one linux/amd64 target.
+- Replace the over-strict all-redirect denial with bounded CDN-safe redirects: at most five HTTPS hops, public-address-only transport, and Authorization removal when origin changes. Exact byte digest/size remains final authority after any CDN hop.
+- Add an end-to-end owner regression proving `acquire-external -> OCI layout -> workload-oci assembly -> independent OCI archive inspection` compatibility. Lab blocked evidence now includes selected repository/version/tag/registry endpoint for unresolved external image roles.
+- Keep `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING` open. This execution environment cannot reach public registries, so real external image bytes/digests, base-image compatibility, product image builds and the final sealed management workload OCI archive remain runtime acquisition work; no digest or Physical PASS is fabricated.
+
+# 0.0.270 — Manifest image resolution and runtime rewrite hardening
+
+- Add `MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_V1` with `platformctl workload-oci inspect-manifest` and `resolve-manifest`. Exact-byte Argo CD/CloudNativePG/Longhorn source YAML is no longer treated as immutable runtime-image authority when it still contains tags; every runtime image must resolve to an exact `registry/repository@sha256` without changing repository identity.
+- Bind manifest resolution to the same management workload OCI archive used by the bundle. A manifest repository absent from that archive, multiple exact images for one repository, a mismatched already-pinned digest, or an extra resolution mapping fails closed.
+- Rewrite ready input-pack build specs to use generated `runtime-manifests/*` digest-pinned YAML while retaining the upstream locked YAML only as provenance. Generated manifest and resolution-lock bytes are independently re-hashed immediately before bundle construction, closing a post-resolution TOCTOU/substitution gap.
+- Advance the management workload image plan to `MANAGEMENT_WORKLOAD_IMAGE_BUILD_PLAN_V3` and add a dedicated resolution-lock JSON Schema. `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING` remains open because the real external/base/product image digests and final management workload OCI archive have not yet been physically resolved/built; no runtime or Physical PASS is inferred.
+
+# 0.0.269 — Product image payload/runtime contract and maintenance build hardening
+
+- Add `MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1` and `platformctl workload-oci certify-product`. The exact running platformctl must bind to the exact release ZIP; product image repository, linux/amd64 config, numeric non-root user, entrypoint, release labels and the final layered filesystem payload are then verified against the exact release binary digest. Whiteout replacement, non-regular payloads and digest substitution fail closed.
+- Certify ELF linkage from the binary bytes actually present in the OCI layers. `platform-api` must remain dynamically linked and declare both `libpq.so.5` and `libc.so.6`; `platform-agent` and `platform-probe` must remain static. Certification emits interpreter/DT_NEEDED evidence but deliberately keeps runtime-closure PASS false until the selected image is physically executed.
+- Require the agent image to contain a real `/etc/ssl/certs/ca-certificates.crt`, preserving system trust behavior used by Hub/observability TLS when no private CA file is supplied. Do not incorrectly collapse the agent runtime to scratch solely because its Go binary is static.
+- Replace name-based `nonroot:nonroot` in release image recipes with deterministic `65532:65532`, and bind product recipes to `SOURCE_RELEASE_DIGEST` plus product-role labels consumed by the certifier.
+- Remove mutable network package installation from `Dockerfile.maintenance`. The release recipe now consumes an exact prebuilt `maintenance-toolchain-base`; selection remains BLOCKED until the base digest is proven to contain the required PostgreSQL/S3/archive/diagnostic toolset and to tolerate the explicit root override used by disaster-recovery jobs.
+- Advance the build-plan contract to `MANAGEMENT_WORKLOAD_IMAGE_BUILD_PLAN_V2`; refine `api-runtime-base` from a libpq-only assumption to the complete dynamic dependency closure, make static-base CA trust explicit, and replace `postgres-maintenance-base` with the truthful maintenance toolchain role. `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING` remains open; no external/base digest or Physical PASS is fabricated.
+
+# 0.0.268 — Management workload image plan and deterministic OCI assembly foundation
+
+- Added `MANAGEMENT_WORKLOAD_IMAGE_BUILD_PLAN_V1` as the exact-release decomposition of the remaining management workload OCI source gap: eight core image roles, three base-image compatibility roles, product-owned exact-release binary/recipe inputs, and operator/storage image sets derived from already locked manifests.
+- Added release-only product image recipes for platform-api, platform-agent and platform-probe so production image construction can consume binaries already bound to the exact release instead of re-fetching Go modules inside an image build.
+- Added `MANAGEMENT_WORKLOAD_OCI_ASSEMBLY_AUTHORITY_V1` and `platformctl workload-oci assemble`; it merges exact digest-bound OCI layout roots into a deterministic streaming tar, re-hashes all blobs during copy, canonicalizes inventory/reference annotations and independently re-inspects the published archive.
+- Lab blocked acquisition evidence now reads the image build plan from the exact release ZIP and reports the concrete pending image/base resolution roles instead of exposing only an opaque missing-archive blocker.
+- Added repository/schema/negative-control coverage for role drift, mutable refs, unbound root digests, symlink layouts and deterministic source-order-independent assembly.
+- `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING` remains open: no external/base digest or product image result is fabricated by this release, and no runtime/Physical PASS is inferred.
+
+# 0.0.267 — Bundle source binding and TOCTOU hardening
+
+- Add `BUNDLE_SOURCE_ARTIFACT_BINDING_AUTHORITY_V1`. `ApplianceBundleBuild.spec.sourceArtifacts` must bind the exact canonical path, positive byte size and lowercase SHA-256 of every RKE2, workload OCI and manifest source consumed by the canonical builder; missing, extra, duplicate or aliased bindings fail closed.
+- Close the acquisition-lock -> builder reopen TOCTOU. Automatic Lab acquisition now derives `sourceArtifacts` only from the exact-release acquisition lock after re-hashing the input pack, rejects caller self-asserted bindings, and verifies the normalized spec still equals the lock proof before build. The Go builder walks staging parents with `openat(..., O_NOFOLLOW)`, opens the final source with no-follow semantics, copies once while hashing that opened descriptor, and rejects size/digest drift before sealing.
+- Harden the compatibility builder: do not erase symlink identity with `Path.resolve()`, reject final symlink sources and flattened basename collisions, stream-copy/hash one opened descriptor, and derive manifest images plus OCI inventory from the copied bundle artifacts rather than mutable original paths.
+- Harden the independent Go OCI archive inspector to reject final symlink archives before parsing. Add negative controls for post-binding source mutation, symlink staging parents, symlink OCI archives, compatibility symlink input, duplicate flattened basenames and caller-forged acquisition bindings.
+- Repair the installer-host smoke fixture to embed and manifest the exact `bin/linux-amd64/platformctl` binary now required by CLI self-binding; the fixture previously constructed a release ZIP that could not satisfy the existing exact-release execution contract.
+- Keep `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING` open. The product-owned `management-workload-oci-archive` remains the only completely missing canonical source authority; no runtime or Physical PASS is inferred from this hardening.
+
+- Validation before release packaging: repository validation PASS on 640 canonical source files; Python 105/105 PASS; all 54 Go packages PASS with `go test ./...`; `go vet ./...` PASS; targeted bundlebuilder/OCI/host-deployment/bootstrap/platformctl owners PASS.
+
+# 0.0.266 — Workspace authority and truthful console foundation
+
+- Add `WORKSPACE_AUTHORITY_V1` as a project-scoped, reference-only cross-cluster product boundary. Workspaces persist identity and exact managed-cluster/namespace bindings only; workload, quota, health, observability and cost remain owned by their existing runtime/telemetry authorities.
+- Add Memory/File/PostgreSQL Workspace persistence and snapshot/restore validation, including same-project cluster enforcement, unique ACTIVE `(project, cluster, namespace)` ownership, revision-guarded revocation and retained audit/outbox history.
+- Add migration `0058_workspace_authority.sql` with explicit rolling-safe mixed-version classification, project/cluster foreign keys, active-scope uniqueness and database-level cross-project authority guards.
+- Add project-authorized Workspace API routes for create/list/get, namespace bind/list and revision-guarded revoke. Cross-project principals receive 403 and cross-project resource references are hidden as 404/not-found.
+- Add Operator Horizon `Fleet -> Workspaces` as a distinct product destination while preserving legacy `Governance -> Organizations & projects`. The console explicitly labels Workspace as reference-only and never synthesizes workload, quota, health or cost state.
+- Extend stable UI owner suites to 20 console routes and exercise Workspaces at 320/390/768/1024/1440 without horizontal overflow or client/browser errors.
+- Mark Phase D `D-certified-platform-template-workspace-foundation` source-implemented only after Workspace API/persistence/negative-control/UI evidence exists. Current Phase C remains blocked by its independent Lab/AI/runtime evidence requirements; no Generated/Installed Runtime, runtime-realism or Exact-SHA Physical PASS is inferred.
+
+# 0.0.265 — PlatformTemplate authority and truthful console foundation
+
+- Close the Phase-D `PLATFORM_TEMPLATE_AUTHORITY_PENDING` blocker with durable `PLATFORM_POLICY_SET_AUTHORITY_V1` and `PLATFORM_TEMPLATE_AUTHORITY_V1`. A PlatformTemplate is an immutable project-scoped composition of one exact published/execution-ready BlueprintRelease, one immutable VariableSchema and one reusable maintenance/backup/security PolicySet; authoritative digests are captured at creation and binding drift fails closed.
+- Persist the new authorities consistently across MemoryStore, crash-safe FileStore snapshots and PostgreSQL migration `0057_platform_template_authority.sql`. PostgreSQL creation uses a serializable transaction with shared locks on referenced authorities; migration-level triggers reject cross-project, unpublished/not-execution-ready or digest-mismatched composition, while snapshot restore independently revalidates immutable bindings. Cross-project reference lookups are normalized to not-found semantics to avoid scope disclosure.
+- Add project-authorized `POST/GET /api/v1/platform-policy-sets`, `POST/GET /api/v1/platform-templates` and `GET /api/v1/platform-templates/{id}/admission`. Admission reports exact binding/target-class truth but intentionally leaves `adoptionReady=false`: target inventory/capabilities, disruptive impact, rollback feasibility and required certification cannot be inferred from source composition. Revoking a referenced Blueprint after template creation immediately blocks subsequent admission.
+- Add the first truthful Operator Horizon surface for `Configurations -> Platform templates`. Operators can author typed VariableSchemas, reusable PolicySets and immutable Templates, inspect exact digests and run source admission; there is deliberately no direct-deploy button or synthetic readiness. The console therefore exposes the new authority without pretending Phase D Workspace or target-impact execution exists.
+- Advance `PROGRAM_PHASE_MODEL_V4` truthfully: Phase D now has only `WORKSPACE_AUTHORITY_PENDING` and `WORKSPACE_PROJECT_SCOPE_NEGATIVE_CONTROLS_PENDING`. Phase C remains the current blocked phase and no Generated/Installed Runtime, runtime-realism or Exact-SHA Physical PASS is inferred from this source/durable closure.
+
+# 0.0.264 — Bundle OCI authority hardening and VariableSchema foundation
+
+- Close a real compatibility-builder authority defect: `scripts/build_appliance_bundle.py` now independently inspects every supplied management workload OCI Image Layout with the same Lab Python archive authority used by physical preflight, rejects duplicate image references across archives, and requires the archive image set to equal the exact required digest-pinned product/operator/storage image set before `bundle.lock.json` can be emitted. A negative regression proves a manifest cannot claim an image that is absent from the supplied OCI archive. This hardening does **not** fabricate the still-missing product-owned management workload OCI source archive and therefore does not close `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING`.
+- Add durable project-scoped `VARIABLE_SCHEMA_AUTHORITY_V1` as the first implemented primitive of Phase D. Variable schemas are immutable/versioned/digest-bound, support typed STRING/INTEGER/BOOLEAN/STRING_LIST values, required values, string allowlists/patterns, integer bounds and canonical defaults, reject unknown variables, and prohibit defaults for sensitive values.
+- Persist VariableSchema authority consistently across MemoryStore, crash-safe FileStore snapshots and PostgreSQL migration `0056_variable_schema_authority.sql`; include the family in PostgreSQL diagnostic snapshots, immutable audit/outbox emission and clean snapshot restore. Add project-authorized `POST/GET /api/v1/variable-schemas` surfaces and regression coverage for validation, scope, immutable identity and restart persistence.
+- Advance `PROGRAM_PHASE_MODEL_V4` truthfully: remove only `VARIABLE_SCHEMA_AUTHORITY_PENDING` from Phase D and register its source evidence. `PLATFORM_TEMPLATE_AUTHORITY_PENDING`, `WORKSPACE_AUTHORITY_PENDING` and `WORKSPACE_PROJECT_SCOPE_NEGATIVE_CONTROLS_PENDING` remain open; Phase C remains current and blocked, and no runtime or Physical PASS is inferred.
+
+# 0.0.263 — Certified platform product-architecture rebaseline
+
+- Rebase the canonical product roadmap to `PROGRAM_PHASE_MODEL_V4` after a direct feature/UX benchmark against Spectro Cloud Palette, Rafay, SUSE Rancher and Mirantis k0rdent. The machine-readable roadmap now carries explicit product positioning, primary benchmarks, competitive differentiators and deliberately deferred parity so future agents cannot turn competitor feature lists into uncontrolled scope.
+- Establish the competitive product center: **Certified Platform Templates + cross-cluster Workspaces + Impact Preview + Durable Operations + Evidence + Exact-SHA Physical Certification**. Add planned product tracks for private infrastructure providers, generalized Day-2 resilience, evidence-native compliance/enterprise identity, private-cloud usage/FinOps, edge/sovereign autonomy and automation integrations while preserving PostgreSQL/Forgejo/Argo/zot authority boundaries.
+- Replace the eight-phase roadmap with twelve large phases. New Phase D introduces Certified Platform Template/VariableSchema/policy composition and Workspace authority; later phases add OKD capability certification, Workload Explorer, OS patch/certificate/remediation campaigns, SAML/compliance, Managed Bare Metal/VMware, disconnected edge autonomy, Terraform/external registry admission/FinOps/virtual clusters, with VM and accelerator/AI workload planes explicitly optional and decision-gated. Hosted SaaS, public-cloud breadth, Crossplane, VMware migration and model serving remain deliberately deferred until the product-owned prerequisites justify them.
+- Promote the Operator Console to **4SO Operator Horizon V2**. Spectro Palette is now the primary information-architecture/workflow benchmark, Rafay the operational-density benchmark and Rancher a resource-explorer ergonomics reference; no competitor code/assets/runtime are introduced. User-facing navigation is normalized to `Overview -> Platforms -> Configurations -> Fleet -> Operations -> Governance`, `Workspace` is reserved for the future cross-cluster product object, and Overview gains a navigation-only `Configure -> Build or import -> Operate fleet -> Prove & recover` switchboard without synthesizing readiness.
+- Preserve source truth: this release registers architecture, roadmap and UI information-architecture changes; it does **not** claim implementation of Platform Templates, Workspaces, SAML, compliance scanning, FinOps, Edge autonomy, VM/GPU planes, or any new physical provider. Existing Phase-C runtime/source blockers remain blockers and the four independent Release Gate layers remain unchanged.
+
+# 0.0.262 — RKE2 and Argo CD exact-byte source-lock resolution
+
+- Make the Phase-C source-lock jump from `2 resolved / 2 partial / 1 missing + 1 derived` to `4 resolved / 0 partial / 1 missing + 1 derived` without weakening `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8` or fabricating the still-missing product-owned workload archive. RKE2 `v1.34.10+rke2r1` and Argo CD `v3.5.0` move from `partialAuthorities` to `resolvedAuthorities`; `status` remains `incomplete`, `inputPack` remains null, and `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING` remains open only because `management-workload-oci-archive` is still missing and the core workload image authority is derived from that archive.
+- Admit RKE2 `install.sh` from immutable release-tag commit `d419f09226d50a4777d348e5c53ea1bce3849b77`: Git blob `88c5f55bdfde94f2277465ece2b749c52d86c69b`, SHA-256 `2d24db2184dd6b1a5e281fa45cc9a8234c889394721746f89b5fe953fdaaf40a`, 25288 bytes. The previously locked RKE2 server tarball, offline image archive and checksum file were cross-checked against GitHub Release asset digest metadata and matched their shipped SHA-256/size locks exactly.
+- Admit Argo CD `manifests/install.yaml` from immutable release commit `e95e1be88a2da6c06bff5c2fe1791e4d233ed810`: Git blob `e0ff6c401aa18c2c67ba9dcb5f68f2f15853281f`, SHA-256 `a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe`, 1917766 bytes. Exact bytes were measured in an ephemeral `chatgpt`-branch GitHub Actions probe only after `git hash-object` matched the previously admitted immutable Git blob identity; the temporary workflow file was removed immediately after the successful probe and is not part of this release source tree. Development remains Local + ZIP.
+- Update the canonical Lab contract test to require four resolved authorities and zero partial authorities, including exact RKE2/Argo SHA-256, size and immutable raw-source paths. Preserve the generic partial-authority negative controls so future incomplete authority states remain fail-closed. Phase-C roadmap evidence now explicitly names the RKE2 and Argo exact-byte source locks.
+- Pre-build validation in this environment: repository validation PASS on 622 source files; Python 101/101 PASS including Lab contract 47/47; Go 54/54 packages PASS, with all 53 `internal/bootstrap` tests executed in four explicit shards to avoid wrapper execution-window ambiguity; `go vet ./...` PASS; race PASS on `labmodel`, `targetmodel` and `releasereadiness`; Lab self-test PASS; upstream admission PASS at 16 total / 9 ready / 7 review; upstream acquisition self-test PASS; all five Linux release binaries report `0.0.262`. Release readiness remains `productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `totalBlockers=76` (75 product / 1 deployment-context), so no Physical PASS is inferred.
+- Candidate exact-artifact validation reproduced repository validation on 622 files, Python 101/101, Lab self-test, source-lock truth `4 resolved / 0 partial / 1 missing + 1 derived`, packaged `platformctl 0.0.262`, readiness `false / not-evaluated / 76`, changed Go authority owners (`labmodel`, `targetmodel`, `releasereadiness`, `bundlebuilder`, `ociarchive`) and owner race tests from a clean extraction. The candidate structural verifier passed executable-mode, artifact-integrity, provenance/SBOM and brand-independence gates. A clean repository-wide Go wrapper again exceeded the environment execution window after early package passes, so exact-artifact Go claims are limited to the explicitly rerun owner packages while source-tree Go remains 54/54 PASS.
+
+# 0.0.261 — Bundle source-lock exact-release binding closure
+
+- Close a real Phase C source-authority TOCTOU: automatic Lab acquisition no longer trusts `lab/appliance-bundle-acquisition-lock.json` from the mutable extracted release tree after Exact-SHA extraction. `LAB_APPLIANCE_BUNDLE_ACQUISITION_EXACT_RELEASE_BINDING_V1` reads the lock member directly from one stable `O_NOFOLLOW` release-ZIP inode, requires the full ZIP digest to equal the sealed Exact Release SHA before source authority is accepted, re-checks inode/size/mtime/ctime plus full digest after member access, and computes the acquisition-lock digest over those exact member bytes.
+- Harden source-tree-only lock reads too: local validation/tests now use no-follow regular-file opens and reject inode/metadata drift while reading. Physical `plan` no longer extracts the release merely to inspect the automatic source lock.
+- Add a negative control that seals an `incomplete` lock into a release ZIP, replaces the extracted filesystem copy with a syntactically valid forged `ready` lock, and proves auto-acquisition still returns `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING` before any network call while reporting `LAB_APPLIANCE_BUNDLE_ACQUISITION_EXACT_RELEASE_BINDING_V1`.
+- Preserve source-lock truth: Longhorn and CloudNativePG remain resolved; RKE2 and Argo CD remain partial; the product-owned management workload OCI archive remains missing and the core-image authority remains derived. This closure does not infer Physical PASS or close the Phase C bundle-source blocker.
+- Validation before final rebuild: repository validation PASS on 622 source files; Python 101/101 PASS including 47 Lab contract tests and the forged-extracted-lock negative control; changed Go owners `targetmodel`, `labmodel` and `releasereadiness` plus their race tests PASS; Lab self-test PASS; upstream admission PASS at 16 total / 9 ready / 7 review; upstream acquisition self-test PASS; all five packaged Linux binaries report 0.0.261. The candidate exact ZIP passed executable-mode, artifact-integrity, provenance/SBOM and brand-independence gates and reproduced repository/Python/Lab validation from a clean extraction. A repository-wide Go run completed all packages except `internal/bootstrap`, whose test command exceeded this environment execution window, so 54/54 Go PASS is intentionally not claimed for this release.
+
+# 0.0.260 — Runtime closure exact-release authority closure
+
+- Add `RUNTIME_CLOSURE_EXACT_RELEASE_BINDING_AUTHORITY_V1`. Runtime closure evidence advances to schema v2 and now binds the exact release artifact SHA-256 plus the SHA-256 of the actually executing `platform-api` inode; a same-version binary from another build can no longer produce indistinguishable closure evidence.
+- Carry the appliance bundle `sourceReleaseDigest` into Platform API as `PLATFORM_FACTORY_SOURCE_RELEASE_DIGEST`. New runtime-closure campaigns fail closed when exact-release runtime identity is unavailable, seal both immutable digests into campaign/request/evidence authority, and legacy in-progress campaigns must be recreated instead of silently gaining stronger semantics. Historical schema-v1 reports remain independently verifiable but explicitly report `exactReleaseBound=false`.
+- Add rolling-safe PostgreSQL migration `0055_runtime_closure_exact_release_identity.sql` with defaulted legacy schema identity plus immutable `release_artifact_digest` / `producer_binary_digest` columns. Update both memory and PostgreSQL stores so source semantics and installed runtime persistence carry the same authority.
+- Harden independent CLI verification: schema-v2 `platformctl runtime-closure verify-report` and `fetch-report` require `--release-artifact`, self-bind the running `platformctl` to that exact archive, verify the report release digest equals the archive SHA-256, and verify the producer digest equals `bin/linux-amd64/platform-api` in the artifact.
+
+- Final validation before the evidence-bearing rebuild: repository validation PASS on `622` canonical source files; all Python owner modules PASS `101/101` when the aggregate wrapper was completed through bounded module runs; all `54/54` Go packages PASS with `go test ./...`; `go vet ./...` PASS; changed-owner race runs reported `ok` for `internal/evidence`, `internal/persistence`, `internal/api`, `internal/bootstrap` and `cmd/platformctl` (the outer wrapper later reached its cleanup execution window, so no stronger aggregate race claim is inferred); Lab Runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS; PostgreSQL contract-only certification PASS; all five release binaries report `0.0.260`. The candidate archive contained `627` entries and a clean extraction independently repeated repository validation, Python `101/101`, the runtime-closure/persistence/API/bootstrap/platformctl owner checks, Lab self-test, packaged version and truthful readiness (`productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `76` blockers). This evidence is Source/Generated-Runtime validation only and does not infer Exact-SHA Physical Runtime PASS.
+
+# 0.0.259 — M03 exact-release evidence authority closure
+
+- Close a real Phase C evidence-attribution gap after M03 runtime certification: `postgresql_runtime_certify.py` produced tamper-evident PostgreSQL/AI durability evidence, but the evidence itself did not bind the exact release ZIP SHA and the outer Lab `result.json` referenced only the evidence pathname. A report produced by another same-version build, or a file replaced after validation, could therefore lose exact-release provenance even though the surrounding Lab run carried `artifactSha256`.
+- Add `LAB_M03_EXACT_RELEASE_EVIDENCE_AUTHORITY_V1`. Runtime-mode PostgreSQL certification advances to evidence schema v2, requires an explicit lowercase `--release-artifact-digest`, embeds that exact SHA-256 plus the authority before computing `evidenceDigest`, and treats a missing/invalid release digest as a blocker rather than allowing unbound runtime certification. Contract-only mode remains non-runtime evidence and does not claim this authority.
+- Harden Lab M03 evidence consumption: the evidence file must be a bounded regular non-symlink file opened with no-follow semantics; JSON is duplicate-key rejected from that single opened inode; inode/size/mtime/ctime must remain stable across the read; the embedded release digest must equal the private run's exact release SHA; and `result.json` seals both `m03EvidenceDigest` (SHA-256 of those exact verified file bytes) and `m03EvidenceAuthority`. M03 failure after evidence generation retains the same digest/authority for forensic continuity.
+- Add owner negative controls for release-digest mismatch and missing exact-release certification input. Phase C blocker/source-lock truth remains unchanged: this makes the physical M03 evidence path attributable to exact bytes but does not itself execute M03 or infer Physical PASS.
+
+- Validation before the final evidence rebuild: repository validation PASS on `620` canonical source files; Python `101/101` PASS; all `54/54` Go packages PASS in bounded batches after the aggregate wrapper reached the environment execution window; `go vet ./...` PASS; race PASS on `internal/labmodel`, `internal/targetmodel` and `internal/releasereadiness`; Lab Runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS; PostgreSQL contract-only certification PASS; all five release binaries report `0.0.259`. The first candidate archive passed executable-mode, artifact-integrity, provenance/SBOM and brand-independence gates with `625` entries. A clean extraction independently repeated repository validation, Python `101/101`, changed Go-owner tests, Lab self-test, packaged version and readiness truth (`productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `76` blockers).
+
+# 0.0.258 — Exact release byte-continuity authority closure
+
+- Close a real Exact-SHA reopen/TOCTOU gap after `LAB_EXACT_RELEASE_SNAPSHOT_AUTHORITY_V2`: the private release snapshot was digest-bound at creation, but later release identity and extraction reopened the snapshot pathname independently. A same-user concurrent pathname replacement, or same-inode mutation between identity and extraction, could therefore make the bytes parsed/executed differ from the bytes previously attributed to the Lab run.
+- Add `LAB_EXACT_RELEASE_EXECUTION_AUTHORITY_V1`. `_release_identity` now derives canonical root, VERSION/RELEASE-NAME and SHA-256 from one no-follow opened regular inode and rejects inode/size/mtime/ctime drift across the read. `_safe_extract` opens once with no-follow semantics, hashes the opened inode, requires exact equality with the sealed release SHA, extracts only through a duplicate descriptor for that same inode, then rechecks inode/size/mtime/ctime and SHA-256 after extraction. Plan, preflight and physical execution all pass their already-derived exact release digest into this extraction boundary.
+- Harden the independent `verify_release.py` source snapshot so a same-inode/same-size rewrite whose mtime is restored still fails through the ctime check, and verify the published private snapshot digest before accepting it. This aligns Release Gate source-artifact semantics with the Physical Lab exact-byte semantics instead of maintaining a weaker verifier copy boundary.
+- Add negative controls for identity ctime drift, release-path replacement after identity, same-inode drift during extraction, and verifier snapshot ctime drift. Source-lock truth and all four Phase C blockers remain unchanged; this authority closure does not infer Physical PASS.
+- Validation: repository validation PASS on `620` canonical source files; Python `100/100` PASS; changed Go owners `internal/labmodel`, `internal/targetmodel`, `internal/releasereadiness` and `cmd/platformctl` PASS; race PASS on the three Phase-C model/readiness owners; `go vet ./...` PASS; Lab Runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS; all five release binaries report `0.0.258`. Repository-wide `go test ./...` reached the environment execution window at heavyweight `internal/bootstrap`, so no `54/54` Go PASS is claimed. The first candidate archive passed executable-mode, artifact-integrity, provenance/SBOM and brand-independence gates with `625` entries; a clean extraction independently repeated repository validation, Python `100/100` in two batches, changed Go-owner tests, Lab self-test, packaged version and readiness truth (`productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `76` blockers).
+
+# 0.0.257 — Lab SSH exact-byte concurrency authority closure
+
+- Close a real Phase C exact-byte trust race left after the release-snapshot hardening: `LAB_SSH_CREDENTIAL_SNAPSHOT_AUTHORITY_V2` now rejects post-open same-inode drift across size, `mtime` **and `ctime`** while copying both the SSH private key and `known_hosts`. V1 checked inode/size/mtime but could miss a same-size overwrite whose mtime was restored; ctime is now part of the immutable source-byte authority just as it is for `LAB_EXACT_RELEASE_SNAPSHOT_AUTHORITY_V2`.
+- Add a deterministic negative control that preserves inode, size and mtime while changing only ctime at the post-copy check; the SSH snapshot must fail closed with `changed while snapshotting`. Existing no-follow opens, private-key permission checks, read-only private snapshots, digest/size publication verification and retry/rebind rejection remain intact.
+- Preserve certification truth: this hardens the credential/host-trust bytes consumed by M00-M03 but does **not** perform a physical Lab run or close any Phase C runtime blocker. Source-lock truth remains `2 resolved / 2 partial / 1 missing + 1 derived`, and Exact-SHA Physical Runtime remains not evaluated.
+- Validation in this environment: repository validation PASS on `620` canonical source files; all Python owner modules PASS `96/96` (including `44/44` Lab contract tests); `go vet ./...` PASS; changed Go owners `internal/labmodel`, `internal/targetmodel` and `internal/releasereadiness` PASS with independent race runs; Lab Runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS; all five release binaries report `0.0.257`. Repository-wide `go test ./...` exceeded the execution window on heavyweight executable packages, so no `54/54` repository-wide Go PASS is claimed for this release. A clean extraction of the candidate ZIP independently repeated repository validation, `44/44` Lab contract tests, changed Go-owner tests, Lab self-test, packaged version and release-readiness truth (`productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `76` blockers).
+
+# 0.0.256 — Lab exact-byte and bundle execution authority closure
+
+- Close a real preflight-to-physical-mutation bundle substitution gap. Lab preflight sealed an appliance `bundleDigest`/`lockDigest` into `LAB_RUN_STATE_BINDING_AUTHORITY_V2`, but `InstallerRemoteBootstrap` did not carry that expected pair. A different valid bundle for the same release could therefore replace the provided bundle after preflight and be staged/applied before the Lab harness noticed the authority drift.
+- Add `REMOTE_BOOTSTRAP_EXPECTED_BUNDLE_AUTHORITY_V1`. `InstallerRemoteBootstrap.spec.expectedBundle` is now mandatory and contains exact canonical `bundleDigest` and `lockDigest`; prepared remote-bootstrap output advances to schema v2 and exposes `bundleBindingAuthority` for explicit evidence. `loadAndValidate` rejects a mismatched local source before SSH, and both `Prepare` and `Apply` re-check the independently staged remote `installer-host plan` before deployment; the returned applied state plus status/verify/rollback/recovery continuations must remain on the same bundle binding. Lab-generated remote specs receive this pair directly from the preflight-sealed `bundleBinding`.
+- Upgrade the release snapshot to `LAB_EXACT_RELEASE_SNAPSHOT_AUTHORITY_V2`. The source regular inode, size, `mtime` and `ctime` must remain unchanged across the streaming copy, matching the existing SSH snapshot concurrency discipline and rejecting same-inode/same-size concurrent rewrites that could otherwise produce a mixed byte stream as Exact-SHA authority.
+- Add owner negative controls for exact bundle-binding mismatch and release-snapshot metadata drift. Update the public remote-bootstrap schema/example and remote bootstrap smoke fixture to require the explicit expected bundle pair. Phase C blocker/source-lock truth is unchanged; these are authority-continuity closures and do not infer Physical PASS.
+- Validation before the final evidence rebuild: repository validation PASS on `620` canonical source files; Python `95/95` PASS; all `54/54` Go packages PASS in bounded batches; `go vet ./...` PASS; race tests PASS for `internal/remotebootstrap`, `internal/bootstrap` and `cmd/platformctl`; Lab Runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS; Remote Installer Bootstrap smoke PASS including the bad expected-bundle pre-SSH negative control; all five release binaries report `0.0.256`. The first built archive passed executable-mode, artifact-integrity, provenance/SBOM and full-artifact brand-independence gates with `625` entries. Exact-SHA Physical Runtime remains not evaluated.
+
+# 0.0.255 — Lab control-plane transport authority closure
+
+- Close a real Physical Lab trust-boundary split left after `PLATFORMCTL_CONTROL_PLANE_TRANSPORT_AUTHORITY_V1`: `scripts/lab_runner.py` still sent bearer-authenticated M01/M02 Installer health/JSON requests through default `urllib.request.urlopen()`, which may consume `HTTP_PROXY` / `HTTPS_PROXY` and performs its own connect-time DNS resolution. The certification harness could therefore traverse an undeclared proxy or use a different DNS result even though packaged `platformctl` was already fail-closed.
+- Add `LAB_CONTROL_PLANE_TRANSPORT_AUTHORITY_V1`. All credential-bearing Lab Installer requests now use one explicit opener with no environment proxy, denied redirects, validated-resolution socket pinning, link-local/unspecified/multicast rejection, TLS 1.2+ for HTTPS, and plaintext HTTP restricted to loopback SSH-tunnel endpoints. Private RFC1918 HTTPS remains admissible for self-hosted control-plane endpoints.
+- Add independent negative controls proving `169.254.169.254`, `0.0.0.0`, multicast and non-loopback plaintext HTTP fail before socket use; a deliberately broken environment proxy cannot intercept a real loopback bearer request; and even a same-origin HTTP 302 is denied. Refresh the stale standalone M03 evidence fixture so it carries the current `AI_RUN_POSTGRES_DURABILITY_RUNTIME_AUTHORITY_V1` mandatory checks rather than an obsolete pre-0.0.248 contract.
+- Phase C remains BLOCKED by the same four physical/source/provider durability blockers; this source/runtime-harness closure does not infer Physical PASS or change the incomplete appliance source lock.
+- Validation before the final evidence rebuild: repository validation PASS on `620` canonical source files; Python `94/94` PASS; all `54/54` Go packages PASS with bounded continuation after the aggregate wrapper reached the execution window; `go vet ./...` PASS; `go test -race -count=1 ./cmd/platformctl ./internal/labmodel ./internal/targetmodel` PASS; standalone Lab runner contract PASS; Lab Runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS. A clean extraction of the first 0.0.255 artifact independently passed repository validation, Python `94/94`, standalone Lab transport/M03 contract, owner Go suites and packaged `platformctl 0.0.255`; release-readiness remained `productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `76` total blockers.
+
+# 0.0.254 — platformctl control-plane transport authority closure
+
+- Add `PLATFORMCTL_CONTROL_PLANE_TRANSPORT_AUTHORITY_V1` for every credential-bearing `platformctl` Platform API / Bootstrap Installer client. Implicit `HTTP_PROXY` / `HTTPS_PROXY` routing is removed from this authority boundary, redirects remain denied, hostname resolution happens inside the dial boundary, link-local/unspecified/multicast destinations fail closed, and sockets connect only to IPs from the exact validated resolution set while RFC1918/loopback HTTPS remain supported.
+- Harden `--token-file` handling across runtime-closure, field evidence/diagnostics/campaigns, installer-access and zero-to-HA. Token files must be private regular non-symlink files, are opened with `O_NOFOLLOW`, inode-checked before read, bounded to 64 KiB, and rejected when group/other permissions are present. Environment-token injection remains supported and generated bootstrap token files were already `0600`.
+- Owner negative controls prove the control-plane HTTP client has no proxy function, a DNS result of `169.254.169.254` is rejected before the dial callback, a private RFC1918 address is dialed only at the exact validated IP, and `0644`/symlink token files fail closed.
+- Phase C remains BLOCKED by the same four physical/source/provider durability blockers; this closure does not infer Physical PASS or resolve the incomplete appliance source lock.
+- Validation before the final evidence rebuild: repository validation PASS on `620` canonical source files; Python `94/94` PASS; all `54/54` Go packages PASS using bounded continuation after the aggregate wrapper timed out; `go vet ./...` PASS; `go test -race -count=1 ./cmd/platformctl ./internal/fieldcampaign ./internal/installeraccess` PASS; Lab Runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS; Installer HTTP simulation and Remote Installer Bootstrap smoke PASS. A clean extraction of the first 0.0.254 artifact independently passed repository validation, Python `94/94`, owner Go suites, Lab self-test and packaged version `0.0.254`; release-readiness remained `productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `76` total blockers.
+
+# 0.0.253 — Field Campaign platformctl continuity authority closure
+
+- Close a real Exact-SHA Physical execution continuity gap left after `PLATFORMCTL_EXACT_RELEASE_SELF_BINDING_V1`: `field-campaign prepare` proved the preparing `platformctl` matched the exact release, but the persisted campaign state did not retain that binary digest. A different/tampered CLI that understood the state contract could therefore later issue `start` or `resume`, or persist watch/diagnostic observations, without proving it was the same packaged orchestrator authority.
+- Add `FIELD_CAMPAIGN_PLATFORMCTL_CONTINUITY_AUTHORITY_V1` and Field Campaign schema v5. `prepare` now seals the exact release `bin/linux-amd64/platformctl` SHA-256 into `platformctlBinaryDigest`, and that value participates in the campaign integrity digest.
+- Require `field-campaign start`, `watch`, `resume` and `diagnose` to hash the actual running inode through `/proc/self/exe` and match the sealed campaign digest **before** any Installer connection, physical start/resume mutation or campaign-state observation/write. `collect` already re-inspects the exact release and self-binds the running CLI; schema v5 collection now additionally verifies that the release's platformctl digest equals the digest sealed at prepare time.
+- Preserve recovery compatibility: schema v1-v4 campaign files remain readable and operable under their original assurance level, while only newly prepared schema-v5 campaigns claim continuous platformctl identity. This closure strengthens source/generated/runtime authority but does not infer Physical PASS or close any Phase C certification blocker.
+
+- Validation in this environment before the final evidence rebuild: repository validation PASS on `619` canonical source files; Python `94/94` PASS; all `54/54` Go packages PASS in bounded batches; `go vet ./...` PASS; `go test -race -count=1 ./internal/fieldcampaign ./internal/releaseartifact ./cmd/platformctl` PASS; Lab Runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS. A clean extraction of the first 0.0.253 artifact independently passed repository validation and Python `94/94`. The packaged platformctl passed a schema-v5 continuation state until the expected missing-token boundary, while a one-byte-tampered copy still reported `0.0.253` but was rejected by `FIELD_CAMPAIGN_PLATFORMCTL_CONTINUITY_AUTHORITY_V1` before connection/token handling; no remote mutation was attempted. Exact-SHA Physical Runtime remains not evaluated.
+
+# 0.0.252 — Management workload OCI admission semantics closure
+
+- Close a real Source→Installed-Runtime semantic gap in the production management-workload OCI archive verifier. Both the canonical Go `internal/ociarchive` owner and the independent Lab Python verifier previously classified parsed descriptors with substring tests such as `image.manifest` / `image.index`; an invented media type containing those substrings could therefore pass source admission even though OCI/containerd import semantics do not identify it as an image manifest or index.
+- Upgrade import addressability authority to `MANAGEMENT_WORKLOAD_OCI_IMPORT_ADDRESSABILITY_V2`. Parsed descriptors now admit only the exact OCI Image Index / OCI Image Manifest and Docker v2 Manifest List / Docker v2 Image Manifest media types. A JSON document that declares a non-empty `mediaType` must agree exactly with the descriptor media type.
+- Remove verifier drift between Lab and product runtime. The Python Lab admission path now enforces the same descriptor field/type schema, platform schema, index/manifest unknown-field rejection, `artifactType`/`subject` restrictions, annotations types, and exact media-type rules already owned by the Go verifier. An archive can no longer be accepted by the automatic Lab source gate and then fail later only because the Go bundle/runtime owner interprets the same OCI graph more strictly.
+- Add negative controls for substring-spoofed manifest media types, open/unknown descriptor schema, and descriptor/document media-type disagreement. This is source/generated-runtime closure only; the product-owned management workload OCI archive is still physically missing from the shipped acquisition lock, so `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING` remains open and no Physical PASS is inferred.
+
+- Validation in this environment: repository validation PASS on `618` canonical source files; Python `94/94` PASS; all `54/54` Go packages PASS in explicit bounded batches; `go vet ./...` PASS; `go test -race -count=1 ./internal/ociarchive ./internal/bundlebuilder` PASS; Lab runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS. A clean extraction of the first 0.0.252 build independently passed repository validation, Python `94/94`, the OCI/bundle/bootstrap/target/readiness owner packages and packaged `platformctl 0.0.252`. Release readiness remained `productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, with `76` total blockers (`75` product + `1` deployment-context). The final artifact is rebuilt after recording this evidence and reverified separately; none of these checks are Exact-SHA Physical Runtime.
+
+# 0.0.251 — Platformctl exact-release self-binding closure
+
+- Close a systemic Exact-SHA attribution defect first observed in `platformctl ai certify-provider`: matching only the running CLI version to the inspected release ZIP was insufficient because a modified executable could retain the same version string while performing the live provider probes and attributing that evidence to an untouched release artifact.
+- Add `PLATFORMCTL_EXACT_RELEASE_SELF_BINDING_V1` and apply it to every mutating/evidence-producing CLI path that directly claims an exact release: AI provider certification, `appliance-bundle build`, `field-campaign prepare`, non-legacy `field-campaign collect`, and `zero-to-ha`. Read-only independent evidence verification remains usable without forcing the verifier binary itself to be the packaged CLI.
+- Introduce `AI_EXTERNAL_PROVIDER_RUNTIME_CERTIFICATION_V2`. Before any live provider egress, the command now reads the packaged `bin/linux-amd64/platformctl` digest from the already fully verified release manifest, hashes the inode that is actually executing through `/proc/self/exe`, and requires exact SHA-256 equality. Hashing `/proc/self/exe` intentionally avoids a launch-path replacement race after `exec`.
+- Bind `certifierBinaryDigest` into the sealed provider evidence and add the mandatory `certifier-binary-binding` check. Evidence verification now requires the exact ordered seven-check V2 contract instead of accepting an arbitrary set of five-or-more PASS checks, so duplicate/substituted checks cannot silently weaken the evidence schema.
+- Preserve certification truth: this source/runtime closure does not close `AI_UNIFIED_RUNTIME_EXTERNAL_PROVIDER_CERTIFICATION_PENDING`. A real approved external provider must still be exercised by the exact packaged `platformctl` from the exact release, and provider evidence still cannot decide Product PASS or Exact-SHA Physical PASS.
+
+- Validation in this environment: repository validation PASS on `618` canonical source files; Python `93/93` PASS; all `54/54` Go packages PASS with long aggregate wrappers completed through explicit package batches; `go vet ./...` PASS; `go test -race -count=1 ./internal/releaseartifact ./internal/airuntime ./cmd/platformctl` PASS; AI control-plane runtime smoke PASS; remote-installer bootstrap smoke PASS; Lab runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS. The exact packaged `platformctl` passed the new self-binding gate and proceeded to the expected disabled-provider boundary, while a one-byte-tampered copy still reported version `0.0.251` but was rejected before provider egress because its `/proc/self/exe` SHA-256 no longer matched the fully verified release manifest; no certification evidence file was created. Exact-SHA Physical Runtime remains `not-evaluated` and all four Phase C certification blockers remain open.
+
+# 0.0.250 — AI external-provider certification authority closure
+
+- Close a real Phase C certification-path gap: `AI_UNIFIED_RUNTIME_EXTERNAL_PROVIDER_CERTIFICATION_PENDING` now has an executable exact-release evidence contract instead of relying on an ad-hoc successful `platformctl ai diagnose` call. `AI_EXTERNAL_PROVIDER_RUNTIME_CERTIFICATION_V1` requires the packaged `platformctl` version to match an inspected release ZIP and binds evidence to that ZIP SHA-256.
+- Add `platformctl ai certify-provider --release-artifact RELEASE.zip --out EVIDENCE.json --confirmation CERTIFY`. The command uses the same `UNIFIED_AI_RUNTIME_V1` / `AI_PROVIDER_TRANSPORT_AUTHORITY_V2` path as product traffic, requires HTTPS for external certification, performs bounded live diagnosis and Marketplace probes, proves synthetic-secret redaction, strict structured output, allowlist-only recommendation semantics and provider/model stability, and writes private durable mode-0600 sealed evidence.
+- Close a provider-accounting integrity defect: provider usage metadata is now rejected when any token counter is negative or cached tokens exceed input tokens, preventing malformed upstream accounting from becoming durable `ai_runs` evidence. The live certifier enforces the same invariant.
+- Preserve certification truth: the new source automation does **not** close `AI_UNIFIED_RUNTIME_EXTERNAL_PROVIDER_CERTIFICATION_PENDING` until this exact command passes against an approved real external provider using the exact release artifact. Provider certification evidence explicitly carries `canDecidePass=false` and `canDecidePhysicalPass=false`; the independent Exact-SHA Physical Runtime gate remains untouched.
+
+- Validation in this environment: repository validation PASS on `616` source files; Python `93/93` PASS; all `54/54` Go packages PASS when long aggregate wrappers were completed through explicit owner/package runs; `go vet ./...` PASS; `go test -race -count=1 ./internal/airuntime` PASS; AI control-plane runtime smoke PASS; Lab runner self-test PASS; upstream admission PASS (`16` total / `9` ready / `7` review); upstream acquisition self-test PASS. A clean extraction of the release independently passed repository validation, Python `93/93`, the AI/platformctl/target/readiness owner packages, packaged `platformctl 0.0.250`, and a negative control proving `platformctl ai certify-provider` rejects a loopback HTTP endpoint before network egress and creates no evidence file. No approved real external provider credential/endpoint is available in this session, so the external-provider blocker remains open and Exact-SHA Physical Runtime remains `not-evaluated`.
+
+# 0.0.249 — AI provider network-egress authority closure
+
+- Closed a real pre-certification transport gap in the Unified AI Runtime. `AI_PROVIDER_TRANSPORT_AUTHORITY_V2` no longer relies on the default HTTP transport's second DNS lookup at connect time: every provider connection resolves once at the controlled dial boundary, validates the complete address set, and opens the socket only to one of those exact admitted IP addresses while TLS continues to verify the configured hostname.
+- Provider egress now rejects link-local, unspecified and multicast addresses before connect, including metadata-style destinations such as `169.254.169.254` and IPv6 link-local addresses. HTTPS to explicitly configured RFC1918/loopback providers remains supported so private/self-hosted vLLM deployments are not broken.
+- Removed implicit environment-proxy authority from AI provider traffic. `HTTP_PROXY`/`HTTPS_PROXY` can no longer silently insert an undeclared hop into an API-key-bearing provider request. Same-origin redirect admission remains fail-closed and is re-evaluated against the V2 endpoint rules.
+- Added owner negative controls proving mixed safe+unsafe DNS answers fail before any dial, a validated hostname is dialed as its admitted IP rather than re-resolved by the socket layer, implicit proxy inheritance is disabled, and unsafe literal HTTPS destinations are rejected.
+- Corrected the AI crash-boundary smoke fixture itself: the negative control now uses an actual forced process crash rather than graceful termination that could wait for the provider timeout and terminalize the claim as `FAILED`. The fixture again proves a genuinely interrupted in-flight provider dispatch remains `DISPATCHED` and is not automatically re-egressed after restart.
+- This is source/runtime-boundary hardening only. `AI_UNIFIED_RUNTIME_EXTERNAL_PROVIDER_CERTIFICATION_PENDING` remains open until a real approved external provider is exercised with the exact release; no provider or Physical Runtime PASS is inferred from local tests.
+- Validation in this environment: repository validation PASS on 614 source files; Python `93/93` PASS; all `54/54` Go packages PASS; `go vet ./...` PASS; `go test -race ./internal/airuntime` PASS; AI control-plane runtime smoke PASS including the forced-crash no-redispatch boundary; upstream admission PASS (`16` components: `9` ready / `7` review); upstream acquisition self-test PASS; Lab runner self-test PASS. A clean extraction of the built release repeated repository validation, Python `93/93`, packaged `platform-api 0.0.249`, and the AI control-plane runtime smoke successfully. Release readiness remains truthful at `productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `76` total blockers (`75` product + `1` deployment-context).
+
+# 0.0.248 — M03 AI/PostgreSQL durability certification automation closure
+
+- Closed a real Phase-C certification automation gap: the canonical M03 PostgreSQL runtime harness now carries `AI_RUN_POSTGRES_DURABILITY_RUNTIME_AUTHORITY_V1` instead of certifying only generic database durability while `AI_RUN_POSTGRES_DURABILITY_RUNTIME_CERTIFICATION_PENDING` had no physical evidence path.
+- Added mandatory exact-runtime checks for one-winner `ai_execution_claims` contention, forced transaction rollback with zero claim/run leakage, atomic successful `DISPATCHED → ai_run + audit/outbox → COMPLETED`, post-postmaster-restart claim/run durability, and post-backup/restore claim/run durability with canonical JSON output-digest recomputation.
+- M03 sealed evidence now contains `aiRunPostgresDurabilityAuthority` and `aiRunPostgresDurabilityCertified`; the Lab runner rejects otherwise-successful PostgreSQL evidence if the three AI durability checks or the authority marker are absent. Source automation does **not** close the runtime blocker: `AI_RUN_POSTGRES_DURABILITY_RUNTIME_CERTIFICATION_PENDING` remains open until the exact release physically passes M03.
+
+# 0.0.247 — Lab SSH trust and remote-command authority closure
+
+- Close a real Phase C host-identity continuity gap: `LAB_SSH_CREDENTIAL_SNAPSHOT_AUTHORITY_V1` now snapshots the exact SSH private-key and `known_hosts` byte streams into private read-only run state before mutating preflight/execution. Source files are opened with no-follow semantics, snapshotted atomically, hashed and size-bound; retry/re-entry with different credential or host-trust bytes fails closed and requires a new `--state-dir`.
+- Upgrade run-state continuity to `LAB_RUN_STATE_BINDING_AUTHORITY_V2`. The immutable binding now carries the SSH credential/host-trust byte authority in addition to exact release, topology, execution spec and bundle/lock authority, so a path-stable but byte-mutated `known_hosts` file cannot silently change the physical host identity being certified.
+- Fix a real OpenSSH argv bug in the deterministic Lab runner. The previous command shape placed `--` after `root@host`; OpenSSH treats every argv after destination as remote command text, so the remote command began with `--` instead of `sh`. The runner now emits `ssh [options] -- root@host sh -ceu <quoted-script>`, with a regression test matching OpenSSH destination/command semantics.
+- Source-lock truth is intentionally unchanged at `2 resolved / 2 partial / 1 missing + 1 derived`; this closure strengthens the physical execution boundary but does not fabricate RKE2/Argo byte admission, external AI-provider certification, PostgreSQL durability certification or Exact-SHA Physical PASS.
+
+- Validation in this environment: repository validation PASS (`614` source files), all `91` Python tests PASS, all `54` Go packages PASS (aggregate wrappers that exceeded the command execution window were completed by explicit package batches), `go vet ./...` PASS, `go test -race -count=1 ./internal/labmodel ./internal/targetmodel ./internal/releasereadiness` PASS, Lab runner self-test PASS, upstream admission PASS (`16` components: `9` ready / `7` review), and upstream acquisition self-test PASS. A clean extraction of the preliminary 0.0.247 artifact independently passed repository validation, all `91` Python tests and the Lab/target/release-readiness owner packages; extraction with Unix mode preservation executed the packaged `platformctl 0.0.247` and reported `productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `totalBlockers=76`. These checks validate Source/Generated-Runtime authority only and do not infer Exact-SHA Physical Runtime.
+
+# 0.0.246 — Remote bootstrap streaming stage authority closure
+
+- Close a real `installer-remote` source TOCTOU: stage files are no longer validated by `WalkDir` and then reopened later with an unconstrained `os.ReadFile`. `REMOTE_BOOTSTRAP_STREAMING_STAGE_AUTHORITY_V1` reopens every path-backed stage source with `O_NOFOLLOW`, requires the same regular inode observed at open, streams exactly the observed byte count, and rejects size/modification drift before the stage manifest can become authority. A direct symlink source therefore fails closed instead of allowing local file disclosure into a remote stage archive.
+- Remove a production-scale memory failure mode in remote bootstrap. The previous implementation retained every source file in `dataByName` and then built a second complete TAR in a `bytes.Buffer`, so a multi-gigabyte appliance bundle could require roughly multiple bundle-sized RAM copies before SSH staging. The production path now writes a deterministic TAR to a private mode-`0600` temporary file and streams that file into SSH; the temporary archive is removed after Plan/Apply regardless of success or failure. The small in-memory helper remains test-only and now shares the same fail-closed source reader.
+- Preserve the existing remote receive/verify boundary: the generated stage manifest still hashes every streamed entry, the receiver verifies the manifest digest, and Apply independently invokes remote `verify-stage` before host deployment. This is a Source/Generated-Runtime closure and does not convert Phase C or Exact-SHA Physical Runtime to PASS.
+- Source-lock truth is intentionally unchanged at `2 resolved / 2 partial / 1 missing + 1 derived`; RKE2 and Argo CD still require local byte-level SHA-256/size admission, and the product-owned management workload OCI archive remains missing.
+
+- Validation in this environment: repository validation PASS (`614` source files), all `89` Python tests PASS, all Go packages PASS, `go vet ./...` PASS, `go test -race -count=1 ./internal/remotebootstrap` PASS, Lab runner self-test PASS, upstream admission PASS (`16` components: `9` ready / `7` review), upstream acquisition self-test PASS, `REMOTE_INSTALLER_BOOTSTRAP_SMOKE_PASS`, and installer HTTP simulation smoke PASS. A clean extraction of the first 0.0.246 build independently passed release integrity/provenance/SBOM/brand gates, repository validation, all `89` Python tests and the remote/target/lab/readiness owner packages; release readiness remained `productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `totalBlockers=76`. The final artifact is rebuilt after recording this evidence and reverified below; none of these checks are Exact-SHA Physical Runtime.
+
+# 0.0.245 — Lab run-state binding and concurrency fencing closure
+
+- Close a real Phase C physical-certification authority gap: a mutating `scripts/lab_runner.py run` now holds an exclusive non-blocking `flock` for the entire `--state-dir` lifetime, so two operator processes cannot concurrently reuse installer tokens, campaign state, bundle acquisition state or evidence paths and issue overlapping physical mutations. A concurrent second run fails closed before snapshot/preflight/install mutation.
+- Add `LAB_RUN_STATE_BINDING_AUTHORITY_V1`. After successful exact-release and bundle preflight, the state directory is atomically bound to the exact release SHA-256, canonical server-inventory digest, physical execution-spec digest and immutable bundle/lock digest authority. Reuse with the same authority is explicit and safe; reuse with another release, topology, management/SSH execution spec or bundle binding is rejected and requires a new state directory. Advisory AI configuration is intentionally excluded from the physical execution-spec digest because AI cannot own mutation or PASS.
+- Make the exact-release snapshot persistent instead of replaceable on a reused state directory. The runner compares a newly snapshotted candidate with the existing private snapshot and refuses cross-release rebinding, preserving M00→M03 continuity across operator retry/re-entry.
+- Close predictable-temporary-file clobber paths in Lab root execution. Exact-release snapshots, locked input-pack downloads and JSON evidence/checkpoint writes now use unique `mkstemp` files plus atomic replace; JSON writes fsync file and parent directory. Pre-created legacy `*.tmp` symlinks therefore cannot redirect a root Lab run into truncating an unrelated file. Owner negative controls cover concurrent state locking, cross-release rebind rejection, release/topology/spec/bundle binding drift and the old predictable-temp symlink attack shape.
+- Synchronize Lab documentation with the current V8 acquisition authority and current `2 resolved / 2 partial / 1 missing + 1 derived` source-lock truth. Phase C blockers remain unchanged and Exact-SHA Physical Runtime remains `not-evaluated`; these source/runtime-authority closures do not infer Physical PASS.
+
+- Validation in this environment: repository validation PASS (`614` source files), all `89` Python tests PASS, every Go package PASS (the aggregate `go test -p=2 -count=1 ./...` reached the command window after package 41 and packages 42–54 were then executed explicitly), `go vet ./...` PASS, Lab self-test PASS, upstream admission PASS (`16` components: `9` ready / `7` review), and upstream acquisition self-test PASS. A clean extraction of the built ZIP independently passed repository validation, all `89` Python tests, Lab self-test and Lab/target/release-readiness owner Go packages; release readiness remained `productReleaseReady=false`, `physicalRuntimeStatus=not-evaluated`, `totalBlockers=76`.
+
+# 0.0.244 — Lab exact-release snapshot authority closure
+
+- Close a real Exact-SHA certification TOCTOU: the Lab runner no longer hashes/identifies an operator release path and then later reopens that mutable path for extraction and execution. `LAB_EXACT_RELEASE_SNAPSHOT_AUTHORITY_V1` snapshots one exact byte stream into private run state before planning/preflight/run authority, hashes that copied stream, atomically publishes it mode `0400`, and reuses the same snapshot for release verification, bundle binding, field-campaign installation and evidence collection. Replacing the original release path after snapshot creation therefore cannot change the artifact attributed to the run.
+- Harden release ZIP admission at the Lab owner boundary. Duplicate paths, directory/encrypted/non-regular members, ambiguous or non-canonical paths, missing Unix permission metadata, multiple roots and bounded file-count/unpacked-size violations now fail closed before extraction. VERSION and RELEASE-NAME must also be canonical UTF-8 newline-terminated identity files matching the archive root.
+- Add stable owner negative controls proving source-path replacement after snapshot cannot alter the certified release identity and malformed duplicate/symlink-like ZIP members are rejected. The execution plan, successful preflight and successful row result expose `LAB_EXACT_RELEASE_SNAPSHOT_AUTHORITY_V1`; Phase C source-lock truth remains unchanged at `2 resolved / 2 partial / 1 missing + 1 derived` and no Physical PASS is inferred.
+- Validation in this environment: repository validation PASS (`614` source files), all `85` Python tests PASS, all Go packages PASS, `go vet ./...` PASS, Lab runner self-test PASS, upstream admission PASS (`16` components: `9` ready / `7` review), upstream acquisition self-test PASS, the complete backend/installer smoke command set PASS when resumed in bounded batches after the aggregate wrapper hit the session command timeout, and UI quality gates PASS. The full Playwright viewport matrix did not finish inside the 120-second command window and is therefore not claimed as PASS. Clean extraction of the built ZIP independently passed repository validation, all `85` Python tests, Lab self-test and the Lab/target/readiness owner Go packages; an actual plan against that ZIP reported `LAB_EXACT_RELEASE_SNAPSHOT_AUTHORITY_V1`, the exact ZIP SHA and truthful incomplete source-lock state. Exact-SHA Physical Runtime remains `not-evaluated`.
+
+# 0.0.243 — Lab acquisition public-source and canonical-path closure
+
+- Upgrade automatic Lab acquisition to `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8` and close a real public-source trust-boundary defect: source/input-pack URLs now reject localhost plus non-global literal IP destinations, and runtime download admission resolves DNS immediately before egress and rejects any non-global result. The HTTPS connection is then pinned to that admitted address set while TLS hostname verification remains intact, eliminating a second resolver lookup at connect time; implicit environment proxies are disabled on this automatic path. Every redirect and final response URL is independently re-admitted before bytes are accepted, preventing a public-looking hostname or redirect from silently reaching loopback/private/link-local/metadata networks.
+- Make canonical staging paths fail closed instead of repairing ambiguous input. Leading/trailing whitespace, backslashes, NUL, absolute paths and `.`/`..` segments are rejected; the Lab runner no longer rewrites `\` into `/`. Owner negative controls cover direct loopback/private/link-local URLs, DNS resolution to `169.254.169.254`, redirect rebinding, and ambiguous paths.
+- Align Source and Runtime JSON semantics by making repository JSON loading reject duplicate object keys rather than relying on last-key-wins parsing. The shipped acquisition schema/lock, program evidence and regression contracts are versioned to V8 while preserving the existing exact source truth.
+- Source-lock completeness is intentionally unchanged at `2 resolved / 2 partial / 1 missing + 1 derived`: RKE2 and Argo CD remain partial until exact byte-level admission is locally digest-bound, and the product-owned management workload OCI archive remains missing. Phase C therefore remains blocked on `LAB_SERVER_DRIVEN_INSTALL_RUNTIME_CERTIFICATION_PENDING`, `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING`, `AI_UNIFIED_RUNTIME_EXTERNAL_PROVIDER_CERTIFICATION_PENDING`, and `AI_RUN_POSTGRES_DURABILITY_RUNTIME_CERTIFICATION_PENDING`; no Exact-SHA Physical Runtime PASS is inferred.
+
+- Validation in this environment: repository validation PASS (`614` source files), all `83` Python tests PASS, all Go packages PASS (the first parallel invocation reached the environment execution ceiling after packages 1–38; packages 39–54 were then run explicitly and passed after correcting the V8 schema assertion), `go vet ./...` PASS, Lab runner self-test PASS, catalog upstream admission PASS (`16` components: `9` ready / `7` review), and upstream acquisition self-test PASS. These are Source/Generated-Runtime checks only; the four-layer gate remains independent.
+
+# 0.0.242 — AI provider result single-writer authority closure
+
+- Upgrade result durability to `AI_PROVIDER_RESULT_COMMIT_AUTHORITY_V2`: `FinalizeAIExecution` is now the only Store mutation that may create a durable `ai_run`; the legacy standalone `CreateAIRun` and `CompleteAIExecution` mutation surfaces are removed from MemoryStore, FileStore, PostgreSQL and the shared Store contract so future API paths cannot accidentally reintroduce a run/claim split write.
+- Close the Marketplace dispatch-capability bypass: server configuration now accepts only the product-owned `ControlledAdvisor`, its `UsesAIRuntime()` decision is evaluated before recommendation execution, and any impossible AI runtime result returned without declared provider-dispatch authority fails closed instead of falling back to standalone run persistence.
+- Preserve rolling upgrade safety from 0.0.240: `FinalizeAIExecution` still reconciles the exact legacy interrupted state where a matching durable run exists while its claim remains `DISPATCHED`, terminalizing the claim without a second provider request. Owner tests cover this compatibility path plus atomic replay, idempotency conflict, secret/output-digest rejection and cross-project link fencing.
+- Validation performed in this environment: repository-wide Go tests (`go test -p=2 -count=1 ./...`) PASS, all 80 Python tests PASS, targeted Go vet on changed AI authority packages PASS, AI control-plane runtime smoke PASS, catalog upstream admission PASS (`16` components: `9` ready / `7` review), and upstream Helm acquisition self-test PASS. The sequential `make test` wrapper previously exceeded the execution window, but its constituent Go/Python/admission/self-test coverage was subsequently executed successfully. Phase C remains blocked on `LAB_SERVER_DRIVEN_INSTALL_RUNTIME_CERTIFICATION_PENDING`, `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING`, `AI_UNIFIED_RUNTIME_EXTERNAL_PROVIDER_CERTIFICATION_PENDING`, and `AI_RUN_POSTGRES_DURABILITY_RUNTIME_CERTIFICATION_PENDING`; Exact-SHA Physical Runtime remains not evaluated.
+
+# 0.0.241 — AI provider atomic result commit closure
+
+- Add `AI_PROVIDER_RESULT_COMMIT_AUTHORITY_V1`: successful provider output is now finalized through one Store operation that creates/replays the durable `ai_run` and transitions its matching `ai_execution_claims` row from `DISPATCHED` to `COMPLETED` atomically.
+- PostgreSQL performs run insert, audit/outbox emission and claim terminalization inside one serializable transaction; FileStore performs one persisted snapshot mutation. The canonical Operator diagnosis and model-backed Marketplace paths no longer call `CreateAIRun` and `CompleteAIExecution` as two independent durable writes.
+- Add MemoryStore and scripted PostgreSQL owner tests proving the run and terminal claim commit together, and strengthen the black-box AI control-plane smoke to verify a successful FileStore run is already bound to a `COMPLETED` claim while the intentionally crash-unknown provider request remains `DISPATCHED` and is never redispatched.
+- Preserve certification truth: local package networking was unavailable, so a real PostgreSQL server could not be installed in this session. `AI_RUN_POSTGRES_DURABILITY_RUNTIME_CERTIFICATION_PENDING` remains open and Exact-SHA Physical Runtime is not inferred from source/FileStore/scripted-SQL evidence.
+
+# 0.0.240 — AI provider durable dispatch idempotency closure
+
+- Close a real external-AI idempotency race: Operator diagnosis and canonical Marketplace model advisory now create a durable `ai_execution_claims` dispatch fence **before** provider egress instead of relying only on the `ai_runs` row written after a successful model response. `(project_id,idempotency_key)` is unique across PostgreSQL, FileStore and MemoryStore authority.
+- Add `AI_PROVIDER_DISPATCH_AUTHORITY_V1` and rolling-safe migration `0054_ai_execution_dispatch_authority.sql`. Concurrent duplicate requests with the same request digest observe the existing `DISPATCHED` claim and cannot spend a second provider call; request-digest/purpose reuse conflicts fail closed.
+- Make uncertain outcomes explicit and safe: successful dispatch claims bind to the durable `ai_run`; rejected/provider-failed calls become terminal `FAILED`; a process crash after durable dispatch but before run persistence leaves `DISPATCHED` and the same key is never automatically redispatched. Explicit retry requires a new Idempotency-Key, preferring at-most-once provider dispatch over hidden duplicate cost when remote outcome is uncertain.
+- Extend exact runtime smoke semantics: the API is intentionally terminated while a mock provider call is in flight, the FileStore is reopened from disk, and the same key must return `AI_EXECUTION_ALREADY_DISPATCHED` without a second provider request. Unit negative controls also cover concurrent Operator and Marketplace calls.
+- Preserve certification truth: this materially strengthens Source/Generated-Runtime failure semantics but does not close `AI_UNIFIED_RUNTIME_EXTERNAL_PROVIDER_CERTIFICATION_PENDING` or `AI_RUN_POSTGRES_DURABILITY_RUNTIME_CERTIFICATION_PENDING`; no real approved external provider or physical PostgreSQL campaign was executed here.
+
+# 0.0.239 — AI provider transport and JSON ambiguity closure
+
+- Close a real external-provider trust-boundary defect: AI provider endpoints now require HTTPS unless the endpoint host is explicit loopback (`localhost`, `127.0.0.0/8`, or `::1`), preventing an API-key-bearing request from being configured over remote plaintext HTTP. URL credentials/fragments and non-HTTP(S) schemes fail closed.
+- Add `AI_PROVIDER_TRANSPORT_AUTHORITY_V1` to live AI policy/program evidence. Provider redirects are validated against the same transport rules and must remain on the exact same origin, preventing cross-origin credential egress or HTTPS-to-HTTP downgrade through a redirect.
+- Reject duplicate JSON object keys both in OpenAI Responses/OpenAI-compatible provider envelopes and in the model's structured JSON output before normalization/persistence, closing last-key-wins ambiguity across provider/proxy/parser boundaries.
+- Preserve release truth: this closes Source/Generated-Runtime transport and parsing semantics only. `AI_UNIFIED_RUNTIME_EXTERNAL_PROVIDER_CERTIFICATION_PENDING` remains open until a real approved external provider is exercised with exact-release evidence; Exact-SHA Physical Runtime is still not inferred.
+
+# 0.0.238 — OCI producer interoperability and bounded admission closure
+
+- Close a real producer-compatibility gap in `internal/ociarchive`: standard OCI Image Index metadata such as index `mediaType`/`annotations` and descriptor `platform` is now admitted instead of being rejected as unknown JSON. This keeps strict duplicate/unknown-field parsing while explicitly modeling the OCI fields real build/export tooling commonly emits.
+- Keep the workload authority image-only and fail closed for artifact/referrer semantics that the appliance does not consume: top-level/nested `artifactType` or `subject` is not silently treated as a runnable workload image, and every referenced digest must still be backed by verified local archive bytes.
+- Upgrade deterministic Go/Python/smoke OCI fixtures to carry standard index media type, index annotations and linux/amd64 platform descriptors so Bundle Builder, Bootstrap and Installer regression paths continuously exercise producer-realistic metadata.
+- Upgrade Lab automatic acquisition to `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V7` and bound independent Python OCI inspection to 100,000 streamed TAR entries, matching the Go authority boundary instead of calling `getmembers()` on an unbounded archive before build admission.
+- Phase C remains truthfully blocked on the same four runtime/source blockers; source-lock completeness remains `2 resolved / 2 partial / 1 missing + 1 derived`, and no Exact-SHA Physical Runtime PASS is inferred.
+
+# 0.0.237 — README product purpose and value-proposition closure
+
+- Reframed the README opening around the actual product problem: fragmented Platform Engineering operations across Kubernetes, Git, registry, GitOps, identity, PostgreSQL, policy, backup, upgrades, recovery and disconnected delivery.
+- Added the commercial/product value proposition: lifecycle automation, operational safety, standardization and self-service.
+- Added the high-level Management Plane/target architecture and clarified that the Factory remains self-contained on RKE2 while RKE2, OKD and existing Kubernetes are target identities.
+- Documented the PostgreSQL/Forgejo/Argo CD/zot authority split, capability-driven target resolution, Rancher/OpenShift/OKD product boundaries, Day-2 lifecycle, catalog/blueprint intent, AI Operator role and an end-to-end user outcome.
+- Kept four-layer release-certification truth explicit: product/documentation clarity does not imply Exact-SHA Physical Runtime PASS.
+
+# 0.0.236 — Persian Vazirmatn local-font closure
+
+- Switches both Operator Console and Bootstrap Installer to Vazirmatn when the active locale is Persian (`fa`) while preserving the existing English font stack.
+- Uses only CSS `local()` font resolution for Vazirmatn and adds Tahoma/system fallbacks; no Google Fonts, gstatic, jsDelivr, or other runtime font CDN is introduced.
+- Adds owner-level regression contracts in both consoles so Persian typography and the no-remote-font rule cannot silently regress.
+
+# 0.0.235 — Workload OCI import-addressability authority closure
+
+- Close an air-gap/runtime boundary where the management workload OCI archive could prove every image manifest/config/layer byte while failing to prove that containerd would import those bytes under the exact digest-pinned image references used by Kubernetes manifests. Top-level OCI descriptors must now bind each inventory reference through both `io.containerd.image.name` and `org.opencontainers.image.ref.name`; missing or mismatched name bindings fail closed in both Go bundle/bootstrap admission and the independent Lab runner.
+- Upgrade the embedded archive contract to `MANAGEMENT_WORKLOAD_OCI_ARCHIVE_INVENTORY_V2` and record `MANAGEMENT_WORKLOAD_OCI_IMPORT_ADDRESSABILITY_V1` inside the inventory itself. Inventory manifest digests must be unique so repository/reference ownership cannot be ambiguous.
+- Rebind every deterministic OCI fixture used by Bundle Builder, Bootstrap, Lifecycle, Host Deployment and Installer smoke paths to emit import-addressable descriptors, and add independent Go/Python negative controls that strip the descriptor annotations and require rejection before build/install.
+- Phase C remains truthfully blocked on the same four runtime/source blockers; source-lock completeness remains `2 resolved / 2 partial / 1 missing + 1 derived`. This source/runtime-semantics closure does not claim that RKE2/containerd has physically imported the exact release archive; that remains part of physical Lab certification.
+
+# 0.0.234 — Workload OCI archive content authority closure
+
+- Close an air-gap authority gap where bundle admission verified the workload archive file digest and the declared `requiredImages` independently but did not prove the archive actually contained those images. Add `internal/ociarchive` and require a real OCI Image Layout with verified `oci-layout`, top-level index, content-addressed manifest/config/layer blobs and the embedded `MANAGEMENT_WORKLOAD_OCI_ARCHIVE_INVENTORY_V1`; unreferenced/tampered blobs and image-set mismatch fail closed in both Bundle Builder and Bootstrap admission.
+- Upgrade Lab automatic acquisition to `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V6`: the source universe is now five source authorities plus one derived authority. `digest-pinned-core-workload-images` is derived from the cryptographically verified management workload OCI archive instead of being a separately supplied product-owned truth, removing a duplicated authority that could drift from the archive bytes.
+- Rebind Installer HTTP/host/remote smoke fixtures and lifecycle/host-deployment owner fixtures to deterministic real OCI-layout archives whose image references come from their actual manifest digests. Add OCI parser negative controls for blob tamper/unreferenced content and Lab V6 source/derived contract coverage.
+- Source-lock truth improves structurally from `2 resolved / 2 partial / 2 missing` to `2 resolved / 2 partial / 1 missing + 1 derived`; Phase C remains blocked on the same four runtime/source blockers because the real product-owned management workload OCI archive is not produced in this environment and RKE2/Argo CD remain partial. No Generated/Installed Runtime or Exact-SHA Physical PASS is inferred.
+
+# 0.0.233 — Optional OCM build-path parity closure
+
+- Close a hidden OCM dependency in the compatibility appliance-bundle builder: `--ocm-manifest` is now optional, matching the canonical Go builder, JSON schemas and bootstrap runtime. An OCM-free build omits the manifest from `bundle.json`, the artifact lock and the air-gap image/index authority instead of synthesizing an empty or required dependency.
+- Change installer smoke fixtures (local API simulation, host deployment and remote deployment) to exercise the canonical no-OCM Management Plane path end-to-end. OCM remains available only when explicitly supplied; automatic Lab acquisition continues to reject unowned OCM input until a source authority exists.
+- Add a behavioral compatibility-builder regression that constructs an exact-release fixture, builds without `--ocm-manifest`, and proves OCM is absent from both the bundle workload contract and air-gap index. Correct stale appliance-bundle documentation from V4 to the shipped V5 acquisition authority.
+- Phase C remains truthfully blocked on the same four runtime/source blockers; source-lock completeness remains `2 resolved / 2 partial / 2 missing` and no runtime/Physical PASS is inferred.
+
+# 0.0.232 — Bundle input-pack canonicality closure
+
+- Upgrade automatic acquisition to `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V5` without changing source-completeness truth (`2 resolved / 2 partial / 2 missing`). V5 preserves exact source-byte/build-role binding and adds a canonical input-pack boundary: files-only single-root ZIPs, no duplicate paths, no encryption/symlink/special entries, bounded file count and bounded total uncompressed bytes.
+- Reject ambiguous JSON before any build: acquisition locks, external build specs and core-image inventories now reject duplicate keys. Malformed/non-object external build specs raise structured runtime errors instead of escaping the acquisition path through `SystemExit`.
+- Require a ready input pack to contain exactly the canonical build spec plus authority-owned staged files. Extra/unowned files are rejected even when no build-spec field references them, closing hidden-payload and pack-ambiguity paths before `platformctl appliance-bundle build`.
+- Add owner negative controls for duplicate lock keys, non-object/duplicate-key build specs, duplicate ZIP paths, decompression-size limits, unowned pack files and a positive exact-owned-file-set control. Phase C remains truthfully blocked on the same four runtime/source blockers; no Generated/Installed Runtime or Exact-SHA Physical PASS is inferred.
+
+# 0.0.231 — Bundle source lock V4 input-pack source binding
+
+- Correct a false RKE2 pending-source provenance carried by 0.0.230: official tag `v1.34.10+rke2r1` resolves to commit `d419f09226d50a4777d348e5c53ea1bce3849b77`, and tagged `install.sh` resolves to Git blob `88c5f55bdfde94f2277465ece2b749c52d86c69b`. The script remains partial until independent SHA-256/byte-size admission; provenance is not promoted to a byte lock.
+- Upgrade automatic bundle acquisition to `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V4`. Every locked/pending source now owns a unique canonical `stagingPath`; ready-pack extraction re-hashes every resolved artifact against the authority SHA-256/size before `platformctl appliance-bundle build` can run, preventing a digest-locked input pack from substituting bytes that differ from the per-source authority.
+- Bind all currently consumed build-spec source roles to their exact owner authorities: RKE2 installer/install artifacts/offline images, management workload OCI archive, Argo CD, CloudNativePG and replicated-storage manifests. The core-image authority must contain exactly one inventory whose eight digest-pinned references equal the eight direct workload image references. Automatic `ocmManifest` is fail-closed until a canonical source authority owns it.
+- Add owner negative controls for source-byte tamper, build-spec path substitution, core-image semantic drift and unowned OCM input, including an integration control proving tampered authoritative bytes block automatic acquisition before the first build command. The shipped production lock remains truthfully `2 resolved / 2 partial / 2 missing`; Phase C blocker count remains four and no Generated/Installed Runtime or Exact-SHA Physical PASS is inferred.
+
+# 0.0.230 — Bundle source lock V3 multi-artifact upstream pinning
+
+- Upgrade the Phase-C acquisition authority to `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V3`, adding mutually exclusive `resolvedAuthorities`, `partialAuthorities` and `missingAuthorities`. A `ready` lock is impossible while any partial or missing authority remains.
+- Replace the single-digest authority model with per-authority multi-artifact byte locks. Fully resolve CloudNativePG `v1.30.0` from its official release manifest while preserving the existing Longhorn `v1.12.1` lock.
+- Partially pin RKE2 `v1.34.10+rke2r1`: exact SHA-256/size for the amd64 server tarball, offline image tarball and checksum file are locked, while the required tagged `install.sh` remains pending with immutable commit/blob provenance. Partially pin Argo CD `v3.5.0` to its verified tag commit and install-manifest Git blob, but keep it non-ready until byte-level SHA-256/size is admitted.
+- Reduce completely missing bundle authorities from five to two (`management-workload-oci-archive`, `digest-pinned-core-workload-images`) without pretending partial upstream provenance is a complete source lock. Phase C blocker count remains unchanged and no Physical PASS is inferred.
+
+# 0.0.229 — Management Plane Longhorn storage source authority
+
+- Close the Management Plane replicated-storage provider ambiguity with `MANAGEMENT_PLANE_STORAGE_AUTHORITY_V1`: Longhorn `v1.12.1`, V1 data engine, three replicas, scoped only to the internal three-node RKE2 production-HA appliance and explicitly `targetDefault=false`. OKD target storage remains owned by target capability/inventory policy.
+- Upgrade Lab acquisition authority to `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V2`. The lock now partitions the complete six-source production authority set into `resolvedAuthorities` and `missingAuthorities`; duplicate/overlapping/omitted authority IDs fail closed.
+- Resolve `replicated-storage-install-manifest` to the immutable Longhorn `v1.12.1` official `longhorn.yaml` release asset (`sha256:41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd`, 207054 bytes). Five authorities remain explicitly unresolved, so `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING` remains open and no runtime/Physical PASS is inferred.
+- Publish the Longhorn V1 runtime prerequisites (`iscsiadm`, `iscsid`) in the architecture model and add owner regressions that cross-check the model against the shipped immutable source lock plus negative controls for source-authority overlap and silent omission.
+
+# 0.0.228 — Phase C GitHub gate deferred rebaseline
+
+- Rebased Phase C source-completeness authority on the exact downloadable release artifact plus clean-extraction validation.
+- Removed `CANONICAL_GITHUB_FULL_SOURCE_PARITY_PENDING` from Phase C blockers and removed GitHub-main publication from Phase C exit criteria under explicit operator policy. This is a deferred external workflow, not a GitHub PASS claim.
+- Updated Developer/Agent Experience and global guardrails so external GitHub publication cannot block product phase progression or be mistaken for runtime/release evidence.
+- Phase C now has four real blockers: server-driven physical Lab certification, canonical production bundle source locks, external AI-provider runtime certification, and PostgreSQL AI-run durability runtime certification.
+
+# 0.0.226 — Lab immutable bundle auto-acquisition authority closure
+
+## 0.0.273 — Operator Console Assurance IA / Program Phase V6
+
+- Rebased the canonical program roadmap to `PROGRAM_PHASE_MODEL_V6`, splitting Operator Console closure into C1 IA/scope, C2 data-scale/refresh, C3 action/workflow/evidence and C4 end-to-end UX certification while keeping Exact-SHA Lab/AI physical certification independent in Phase D.
+- Promoted **Assurance** to a first-class operator domain: `Runtime assurance`, `Supply-chain releases`, and `Physical certification` are no longer buried under Fleet, Blueprints, or Operations.
+- Preserved compatibility-only internal route IDs while making the visible operator taxonomy `Overview -> Platforms -> Blueprints -> Fleet -> Operations -> Assurance -> Admin`.
+- Corrected stale phase wording so physical certification is not conflated with the current console source phase.
+
+## 0.0.227 — appliance bundle schema/runtime parity closure
+
+- Fixed the appliance bundle JSON Schema/runtime drift: build specs now admit and require `metadata.sourceReleaseDigest`, both bundle schemas model the required replicated-storage manifest, and OCM is optional exactly as the builder/bootstrap runtime already implements it.
+- Added a permanent owner-layer schema contract regression test and made the checked-in build example release-neutral instead of carrying a stale historical release number.
+- Preserved Phase C truth: canonical production bundle source locks remain incomplete, so no Physical PASS or source-lock closure is inferred from this contract fix.
+
+- replace the Phase-C manual-bundle-only gap with `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V1`, shipped inside the exact release at `lab/appliance-bundle-acquisition-lock.json`. A Lab run without `bundleDirectory` no longer accepts caller-selected sources: it resolves only this product-owned lock, and an incomplete lock blocks before any network access with the missing authorities preserved as structured `missingAuthorities` evidence as well as operator-readable output.
+- implement the ready-lock path without creating a release/bundle digest cycle: the release lock pins one bundle-input-pack ZIP by public HTTPS URL(s), exact byte size and SHA-256. The pack contains a release-version-bound appliance build spec with a canonical zero `sourceReleaseDigest` placeholder plus staged artifacts; the runner replaces only that placeholder with the exact release ZIP digest, builds with `platformctl` extracted from the same release, then independently verifies the sealed bundle before remote install.
+- add fail-closed acquisition controls for URL credentials/query/fragment, non-HTTPS sources, oversized/size-mismatched/digest-mismatched packs, unsafe ZIP paths and non-regular entries, unexpected lock fields, version drift, unsafe build/staging paths and non-zero pre-bound source-release digests. Unit coverage proves an incomplete lock performs no download and a ready lock binds the generated build spec to the exact release artifact.
+- tighten both provided-bundle and auto-acquired-bundle preflight so a bundle that verifies structurally but belongs to another product release is rejected before any server mutation: `platformctl appliance-bundle verify` output must bind `version`, `sourceReleaseDigest`, `bundleDigest` and `lockDigest` to the exact release ZIP. Also make warning/prerequisite/success primitives wrap-safe so long canonical blocker identifiers cannot regress mobile horizontal-overflow quality gates.
+- keep release truth explicit: the acquisition **mechanism** is now implemented, but the shipped production lock remains intentionally `incomplete` because canonical RKE2/offline artifacts, management workload OCI archive, Argo CD/CloudNativePG/replicated-storage manifests and digest-pinned core workload images are not yet fully source-locked. Phase C therefore replaces the old mechanism blocker with `LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING`; no Physical PASS is inferred.
+
+# 0.0.225 — MCP 2026-07-28 external-client interoperability closure
+
+- close a real Phase-C MCP wire-contract defect against the current 2026-07-28 protocol: requests now require the per-request protocol-version/client-capabilities envelope, transport headers are checked against the JSON-RPC body with `HeaderMismatch` (`-32020`), unsupported revisions return `UnsupportedProtocolVersion` (`-32022`), unsafe `Mcp-Name` values support the standard base64 sentinel, and every successful response carries `resultType=complete` plus server identity metadata. Trailing JSON values are rejected instead of being silently ignored.
+- add `scripts/mcp_external_client_certify.py`, a dependency-free black-box client that runs in a separate process over real TCP and validates `server/discover`, deterministic/cacheable `tools/list`, canonical read-only tool authority and project-scoped `operation_status`. The owner integration test also presents an operation from another project and requires the product handler to deny it with the project-scope MCP error.
+- add `MCP_EXTERNAL_CLIENT_INTEROPERABILITY_V1` to the Lab/program authorities and remove only `AI_MCP_SCOPED_EXTERNAL_CLIENT_INTEROPERABILITY_PENDING` from Phase C after the TCP black-box and negative authorization controls pass. The server/runtime, immutable-bundle, external-AI, PostgreSQL-physical and canonical-GitHub blockers remain independent.
+- preserve release truth: this interoperability closure is source/runtime-test evidence for MCP only. It is not Exact-SHA Physical Runtime PASS, does not certify an unavailable external AI provider, and does not imply canonical GitHub parity.
+
+# 0.0.224 — Operator Experience full viewport/accessibility closure
+
+- close the Phase-C Operator Experience source-certification gap with `OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1`: every one of the 16 Console routes and 6 Installer routes is checked at 320/390/768/1024/1440 widths; DOM naming, form labels, dialog naming, effective target sizing and horizontal overflow run in both LTR and RTL, while contrast runs on every route in both light and dark themes. Keyboard drawer traps/return-focus, data-table focus visibility, durable toast semantics and reduced-motion remain independent owner checks.
+- fix explicit-theme correctness rather than weakening the gate: system-dark selectors are now scoped to the no-override state, explicit dark receives the complete product token/component overrides, and dark primary/secondary controls use contrast-safe backgrounds/foregrounds. A cross-preference negative control proves explicit light overrides OS dark and explicit dark overrides OS light.
+- make the quality authority deterministic and fast by sampling settled states with transitions disabled only inside the contrast/DOM gate; motion behavior is still separately tested under `prefers-reduced-motion`. The full route coverage now completes without the previous repeated theme-dependent DOM scan.
+- close an Exact-ZIP verification omission: `scripts/verify_release.py --full` now executes `scripts/smoke_ui_quality.py` from the extracted artifact after live/headless UI smoke, so source-tree UI success cannot bypass the extracted-source release path.
+- remove only `OPERATOR_EXPERIENCE_FULL_VIEWPORT_ACCESSIBILITY_CERTIFICATION_PENDING` from Phase C and add the new authority/evidence references. Phase C remains `blocked` on six independent server/runtime/provider/MCP/GitHub blockers, and this source/extracted-artifact UI certification is not Exact-SHA Physical Runtime PASS.
+
+# 0.0.223 — Lab M03 PostgreSQL same-runtime certification closure
+
+- correct the M03 authority mismatch: the row now truthfully certifies a PostgreSQL primary restart/failover rather than an API restart, and is bound to the `production-ha` tier whose CloudNativePG runtime can satisfy the secure `verify-full` profile.
+- wire M03 to the exact PostgreSQL runtime installed by the same M02 run instead of accepting an unrelated external database: the runner discovers the live CNPG primary, RW service and operator-reported server CA, creates a unique ephemeral certifier role/database inside that cluster, and reaches it only through strict management SSH plus TLS `verify-full`.
+- keep certification credentials process-private: generated M03 passwords are never written to spec/state/command output, the private-stage sanitizer explicitly strips `M03_PASSWORD` and CA payloads, and sealed runtime evidence is rejected on digest mismatch or unredacted PostgreSQL credentials. A regression exposed and closed the underscore-form `M03_PASSWORD` redaction gap in the generic redactor path.
+- execute fresh/replay migrations, authority/concurrency invariants, real CNPG primary-pod restart/postmaster-identity verification, backup/restore, post-restore immutable invariants and full three-node PostgreSQL/API recovery. Cleanup of every database owned by the unique certifier identity plus the role is mandatory; cleanup failure fails M03.
+- promote M03 to `IMPLEMENTED` and make M00-M03 source automation complete, removing only `LAB_PHASE_C_MATRIX_M00_M03_AUTOMATION_PENDING`. Phase C remains `blocked` on physical server-driven runtime certification, immutable bundle acquisition, external AI/MCP/UX certification and canonical GitHub full-source parity. Row-level M03 success never implies the independent four-layer Exact-SHA Physical Runtime PASS.
+
+# 0.0.222 — Lab M02 HA interruption and recovery closure
+
+- close a real durable-operation ownership defect exposed by Phase-C HA certification design: after `platform-installer` restarted during a durable `RUNNING` bootstrap, the persisted run could remain `RUNNING` with no active worker, while `field-campaign watch` treated that state as live forever. Installer status now carries `bootstrapActive` into the campaign observer; a durable `RUNNING` run with no active worker becomes explicit `INTERRUPTED`, and only an explicit `field-campaign resume --confirmation RESUME` may re-own and continue that exact run/digest set.
+- advance the field-campaign authority schema to v4 while retaining schema-v3 runtime-binding and schema-v2 exact-SHA compatibility. `INTERRUPTED` is a first-class durable campaign state with fail-closed transitions and owner-layer tests covering interruption detection and same-run resume.
+- complete deterministic M02 source automation: the production-HA Lab runner waits for a replay-safe post-quorum bootstrap step, deliberately restarts the installer service, proves the campaign is `INTERRUPTED/RUNNING`, explicitly resumes it, waits for successful evidence collection, verifies full three-node runtime health, restarts `rke2-server` on one peer, re-verifies full HA, then reboots another peer and requires observed outage, degraded two-node quorum, a changed boot ID, active/enabled RKE2 service and full three-node API/PostgreSQL recovery.
+- promote only M02 automation status from `PARTIAL` to `IMPLEMENTED`; M03 remains pending credential-safe remote PostgreSQL harness wiring, so Phase C remains blocked and `LAB_PHASE_C_MATRIX_M00_M03_AUTOMATION_PENDING` remains truthful. No source/local test or individual M02 row may be promoted to independent four-layer Exact-SHA Physical Runtime PASS.
+- enforce the existing developer/source-history contract at the repository boundary: generated release evidence (`ARTIFACT-MANIFEST.json`, `BUILD-PROVENANCE.json`, `SBOM.spdx.json`) is now explicitly ignored in source history alongside generated binaries/releases/smoke evidence. Release ZIPs still generate and carry those files deterministically.
+
+# 0.0.221 — Clean-clone bootstrap status concurrency closure
+
+- close a clean-clone-only bootstrap test defect exposed by GitHub Actions: the status-concurrency owner test no longer combines `Simulation:false` with a simulated system adapter and therefore no longer depends on incidental host port availability on the CI runner.
+- make the concurrency proof deterministic by blocking the simulated `prepare-host` filesystem mutation only after the durable run is already `RUNNING`, then asserting `Status()` remains readable while execution is blocked. This preserves the product contract while removing environment-dependent preflight timing/port assumptions.
+- restart release identity after the 0.0.220 clean-clone failure; all artifact digests and Git evidence for this version must be bound to 0.0.221 rather than reusing 0.0.220 evidence.
+
 # 0.0.220 — Lab M01 reboot and inventory authority closure
 
 - close a real Lab SSH execution defect: multi-line remote scripts are now shell-quoted as one `sh -c` program before crossing the OpenSSH command-string boundary, with a regression proving spaces/quotes survive the serialization semantics instead of becoming positional parameters.
@@ -185,8 +1337,6 @@
 - Hardened disaster-recovery restore archive admission against absolute/parent-traversal members and symlink/hardlink entries before extraction.
 - Applied the same archive safety boundary to PostgreSQL, platform-secrets, agent-PKI, Forgejo, and zot restore paths.
 - Restore remains fail-closed before destructive extraction/mutation when archive structure is unsafe.
-
-# Changelog
 
 ## 0.0.198 — Lifecycle restore Job payload staging integrity closure
 
@@ -1137,3 +2287,11 @@
 - Fail-closed authoritative API/agent error handling and Codex Autopilot coverage closure.
 
 Only the canonical release history is kept in this file. Older repository history remains available from Git.
+
+## 0.0.332 — parallel C7W/S1/S2/H1 V41
+
+- Expanded typed MCP parity for Data Protection, Compliance Scan/Recheck and Fleet Upgrade control/read surfaces while preserving authorization-filtered tools, durable product authority and independent approval.
+- Added `MCP_EXTERNAL_CLIENT_INTEROPERABILITY_MATRIX_V2` so source-contract readiness for ChatGPT/Claude/Gemini/Grok is distinct from still-pending real external-client certification.
+- Added `COMPONENT_RUNTIME_UPGRADE_MATRIX_V1`; upgrade edges require two distinct exact source locks and cannot be inferred from a current-only runtime executor.
+- Added fail-closed release toolchain verifier; development compilation is no longer confusable with admitted production build-toolchain closure.
+- Added `BOOT_MEDIA_PROVIDER_AUTHORITY_V1` source contract with secret-reference-only BMC access, immutable media digest validation, fenced transitions and restart-safe attach/boot/power/observe sequencing. Managed bare-metal orchestration remains blocked until wired to durable execution and physical evidence.

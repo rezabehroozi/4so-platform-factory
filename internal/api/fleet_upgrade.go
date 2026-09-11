@@ -104,18 +104,18 @@ func (s *Server) listFleetGroups(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	v, err := s.store.ListFleetGroups(r.Context(), projectID)
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.FleetGroup, error)
+	if pager, ok := s.store.(fleetGroupPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.FleetGroup, error) {
+			return pager.ListFleetGroupsPage(r.Context(), ids, all, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.FleetGroup, error) { return s.store.ListFleetGroups(r.Context(), projectID) }, page, func(item controlplane.FleetGroup) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.FleetGroup) string { return item.ProjectID })
-	writeJSON(w, 200, v)
+	writeOperatorCollectionJSON(w, r, 200, v)
 }
 func (s *Server) getFleetGroup(w http.ResponseWriter, r *http.Request) {
 	v, err := s.store.GetFleetGroup(r.Context(), r.PathValue("id"))
@@ -430,18 +430,21 @@ func (s *Server) listDriftScans(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	v, err := s.store.ListDriftScans(r.Context(), projectID, r.URL.Query().Get("fleetGroupId"))
+	groupID := strings.TrimSpace(r.URL.Query().Get("fleetGroupId"))
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.DriftScan, error)
+	if pager, ok := s.store.(driftScanPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.DriftScan, error) {
+			return pager.ListDriftScansPage(r.Context(), ids, all, groupID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.DriftScan, error) {
+		return s.store.ListDriftScans(r.Context(), projectID, groupID)
+	}, page, func(item controlplane.DriftScan) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.DriftScan) string { return item.ProjectID })
-	writeJSON(w, 200, v)
+	writeOperatorCollectionJSON(w, r, 200, v)
 }
 func (s *Server) getDriftScan(w http.ResponseWriter, r *http.Request) {
 	v, err := s.store.GetDriftScan(r.Context(), r.PathValue("id"))
@@ -558,10 +561,12 @@ func (s *Server) createUpgradeCampaign(w http.ResponseWriter, r *http.Request) {
 	}
 	ids := append([]string(nil), group.ClusterIDs...)
 	sort.Strings(ids)
-	canary := in.CanaryCount
-	if canary > len(ids) {
-		canary = len(ids)
+	canary, waveSize, haltAfterFailures, err := controlplane.NormalizeDay2RolloutBounds(len(ids), in.CanaryCount, in.WaveSize, in.HaltAfterFailures)
+	if err != nil {
+		writeError(w, 422, "FLEET_GROUP_EMPTY", "fleet group has no upgrade targets")
+		return
 	}
+	in.CanaryCount, in.WaveSize, in.HaltAfterFailures = canary, waveSize, haltAfterFailures
 	targets := make([]controlplane.UpgradeCampaignTarget, 0, len(ids))
 	for i, clusterID := range ids {
 		current, e := s.latestSuccessfulBaseline(r, in.ProjectID, clusterID, in.BaselineID)
@@ -607,18 +612,21 @@ func (s *Server) listUpgradeCampaigns(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	v, err := s.store.ListUpgradeCampaigns(r.Context(), projectID, r.URL.Query().Get("fleetGroupId"))
+	groupID := strings.TrimSpace(r.URL.Query().Get("fleetGroupId"))
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.UpgradeCampaign, error)
+	if pager, ok := s.store.(upgradeCampaignPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.UpgradeCampaign, error) {
+			return pager.ListUpgradeCampaignsPage(r.Context(), ids, all, groupID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.UpgradeCampaign, error) {
+		return s.store.ListUpgradeCampaigns(r.Context(), projectID, groupID)
+	}, page, func(item controlplane.UpgradeCampaign) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.UpgradeCampaign) string { return item.ProjectID })
-	writeJSON(w, 200, v)
+	writeOperatorCollectionJSON(w, r, 200, v)
 }
 func (s *Server) getUpgradeCampaign(w http.ResponseWriter, r *http.Request) {
 	v, err := s.store.GetUpgradeCampaign(r.Context(), r.PathValue("id"))

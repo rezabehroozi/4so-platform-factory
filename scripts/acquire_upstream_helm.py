@@ -25,6 +25,8 @@ import urllib.parse
 import urllib.request
 
 from catalog_upstream_admission import DEFAULT_AUTHORITY, validate as validate_upstream_admission
+from component_upgrade_source_admission import validate as validate_upgrade_source_admission
+from upstream_acquisition_toolchain import input_limits, require_toolchain
 
 try:
     import yaml
@@ -32,8 +34,16 @@ except ImportError as exc:  # pragma: no cover - environment preflight
     raise SystemExit("PY_YAML_REQUIRED: install PyYAML on the acquisition host") from exc
 
 ROOT = Path(__file__).resolve().parents[1]
+HELM_BIN = "helm"
+CRANE_BIN = "crane"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 EXACT_VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+_INPUT_LIMITS = input_limits()
+MAX_HELM_INDEX_BYTES = _INPUT_LIMITS["maxHelmIndexBytes"]
+MAX_CHART_ARCHIVE_BYTES = _INPUT_LIMITS["maxChartArchiveBytes"]
+MAX_CHART_MEMBERS = _INPUT_LIMITS["maxChartMembers"]
+MAX_CHART_UNPACKED_BYTES = _INPUT_LIMITS["maxChartUnpackedBytes"]
+MAX_CHART_METADATA_BYTES = _INPUT_LIMITS["maxChartMetadataBytes"]
 
 
 def run(cmd: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = None, timeout: int = 600) -> str:
@@ -92,7 +102,7 @@ def constraint_matches(constraint: str, version: str) -> bool:
     return len(parts) == 3 and parts[2] == "x" and parts[:2] == vp[:2]
 
 
-def load_component(name: str) -> tuple[Path, dict]:
+def load_component(name: str, *, historical: bool = False) -> tuple[Path, dict]:
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", name):
         raise RuntimeError("COMPONENT_NAME_INVALID")
     path = ROOT / "catalog" / "components" / f"{name}.json"
@@ -103,35 +113,67 @@ def load_component(name: str) -> tuple[Path, dict]:
         raise RuntimeError("COMPONENT_IDENTITY_MISMATCH")
     spec = doc.get("spec", {})
     source = spec.get("source", {})
-    if source.get("resolved"):
+    if historical:
+        if source.get("resolved") is not True:
+            raise RuntimeError(f"HISTORICAL_TARGET_SOURCE_NOT_RESOLVED {name}")
+    elif source.get("resolved"):
         raise RuntimeError(f"COMPONENT_ALREADY_RESOLVED {name}")
-    if source.get("type") != "helm-chart" or spec.get("delivery", {}).get("type") != "helm":
+    if spec.get("delivery", {}).get("type") != "helm":
+        raise RuntimeError(f"COMPONENT_NOT_HELM_CHART {name}")
+    if historical:
+        if source.get("type") not in {"helm-chart", "external-tagged-source-set", "embedded-native"}:
+            raise RuntimeError(f"HISTORICAL_TARGET_SOURCE_TYPE_INVALID {name}")
+    elif source.get("type") != "helm-chart":
         raise RuntimeError(f"COMPONENT_NOT_HELM_CHART {name}")
     return path, doc
 
 
+def bounded_read(stream, limit: int, label: str) -> bytes:
+    if limit <= 0:
+        raise RuntimeError(f"{label}_LIMIT_INVALID")
+    raw = stream.read(limit + 1)
+    if len(raw) > limit:
+        raise RuntimeError(f"{label}_TOO_LARGE limit={limit}")
+    return raw
+
+
 def chart_metadata(chart: Path) -> dict:
+    if chart.is_symlink() or not chart.is_file():
+        raise RuntimeError("HELM_CHART_ARCHIVE_NOT_REGULAR")
+    archive_size = chart.stat().st_size
+    if archive_size <= 0 or archive_size > MAX_CHART_ARCHIVE_BYTES:
+        raise RuntimeError(f"HELM_CHART_ARCHIVE_SIZE_INVALID size={archive_size} limit={MAX_CHART_ARCHIVE_BYTES}")
     with tarfile.open(chart, "r:gz") as tf:
         members = tf.getmembers()
+        if len(members) > MAX_CHART_MEMBERS:
+            raise RuntimeError(f"HELM_CHART_MEMBER_LIMIT_EXCEEDED count={len(members)} limit={MAX_CHART_MEMBERS}")
         roots: set[str] = set()
         chart_member = None
+        unpacked = 0
         for member in members:
             raw = member.name
             parts = Path(raw.rstrip("/")).parts
             if not raw or raw.startswith("/") or "\\" in raw or ".." in parts:
                 raise RuntimeError(f"UNSAFE_CHART_PATH {raw!r}")
-            if member.issym() or member.islnk() or member.isdev() or member.isfifo():
+            if not (member.isfile() or member.isdir()) or member.issym() or member.islnk() or member.isdev() or member.isfifo():
                 raise RuntimeError(f"UNSAFE_CHART_ENTRY {raw!r}")
+            if member.size < 0:
+                raise RuntimeError(f"UNSAFE_CHART_ENTRY_SIZE {raw!r}")
+            unpacked += member.size
+            if unpacked > MAX_CHART_UNPACKED_BYTES:
+                raise RuntimeError(f"HELM_CHART_UNPACKED_LIMIT_EXCEEDED bytes={unpacked} limit={MAX_CHART_UNPACKED_BYTES}")
             if parts:
                 roots.add(parts[0])
             if len(parts) == 2 and parts[1] == "Chart.yaml":
                 chart_member = member
         if len(roots) != 1 or chart_member is None:
             raise RuntimeError("HELM_CHART_LAYOUT_INVALID")
+        if chart_member.size > MAX_CHART_METADATA_BYTES:
+            raise RuntimeError(f"HELM_CHART_METADATA_TOO_LARGE size={chart_member.size} limit={MAX_CHART_METADATA_BYTES}")
         fh = tf.extractfile(chart_member)
         if fh is None:
             raise RuntimeError("HELM_CHART_METADATA_UNREADABLE")
-        doc = yaml.safe_load(fh.read())
+        doc = yaml.safe_load(bounded_read(fh, MAX_CHART_METADATA_BYTES, "HELM_CHART_METADATA"))
     if not isinstance(doc, dict):
         raise RuntimeError("HELM_CHART_METADATA_INVALID")
     return doc
@@ -148,12 +190,13 @@ def require_https_response(source_url: str, final_url: str) -> None:
 
 def http_index_metadata(source: str, chart: str, upstream_version: str, timeout: int) -> tuple[str, str]:
     url = source.rstrip("/") + "/index.yaml"
-    with urllib.request.urlopen(url, timeout=timeout) as response:
+    request = urllib.request.Request(url, headers={"User-Agent": "4so-platform-factory-upstream-acquisition/3"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         final_url = response.geturl()
         require_https_response(url, final_url)
         if response.status != 200:
             raise RuntimeError(f"HELM_INDEX_HTTP_{response.status} {url}")
-        raw = response.read(32 * 1024 * 1024)
+        raw = bounded_read(response, MAX_HELM_INDEX_BYTES, "HELM_INDEX")
     index = yaml.safe_load(raw)
     rows = (index or {}).get("entries", {}).get(chart, [])
     wanted = normalized_version(upstream_version)
@@ -171,10 +214,8 @@ def http_index_metadata(source: str, chart: str, upstream_version: str, timeout:
 
 
 def oci_layer_digest(source: str, upstream_version: str) -> str:
-    if not shutil.which("crane"):
-        raise RuntimeError("CRANE_REQUIRED_FOR_OCI_DIGEST")
     ref = source.removeprefix("oci://") + ":" + upstream_version
-    manifest = json.loads(run(["crane", "manifest", ref], timeout=180))
+    manifest = json.loads(run([CRANE_BIN, "manifest", ref], timeout=180))
     layers = manifest.get("layers") or []
     chart_layers = [x for x in layers if "helm.chart.content" in str((x or {}).get("mediaType", ""))]
     if len(chart_layers) != 1:
@@ -195,12 +236,12 @@ def helm_env(root: Path) -> dict[str, str]:
 
 def pull_chart(source: str, chart: str, upstream_version: str, dest: Path, env: dict[str, str]) -> Path:
     if source.startswith("oci://"):
-        run(["helm", "pull", source, "--version", upstream_version, "--destination", str(dest)], env=env, timeout=300)
+        run([HELM_BIN, "pull", source, "--version", upstream_version, "--destination", str(dest)], env=env, timeout=300)
     elif source.startswith("https://"):
         alias = "pf-upstream"
-        run(["helm", "repo", "add", alias, source, "--force-update"], env=env, timeout=180)
-        run(["helm", "repo", "update"], env=env, timeout=180)
-        run(["helm", "pull", f"{alias}/{chart}", "--version", upstream_version, "--destination", str(dest)], env=env, timeout=300)
+        run([HELM_BIN, "repo", "add", alias, source, "--force-update"], env=env, timeout=180)
+        run([HELM_BIN, "repo", "update"], env=env, timeout=180)
+        run([HELM_BIN, "pull", f"{alias}/{chart}", "--version", upstream_version, "--destination", str(dest)], env=env, timeout=300)
     else:
         raise RuntimeError("SOURCE_URL_MUST_BE_HTTPS_OR_OCI")
     charts = sorted(dest.glob("*.tgz"))
@@ -233,7 +274,7 @@ def parse_rendered_yaml(raw: str) -> list[dict]:
 
 
 def render_chart(chart: Path, namespace: str, kube_version: str, values: list[Path], env: dict[str, str]) -> list[dict]:
-    cmd = ["helm", "template", "platform-factory", str(chart), "--namespace", namespace, "--include-crds", "--kube-version", kube_version]
+    cmd = [HELM_BIN, "template", "platform-factory", str(chart), "--namespace", namespace, "--include-crds", "--kube-version", kube_version]
     for value in values:
         cmd += ["--values", str(value)]
     return parse_rendered_yaml(run(cmd, env=env, timeout=300))
@@ -281,7 +322,7 @@ def pin_images(value, resolver) -> set[str]:
 
 
 def crane_digest(ref: str) -> str:
-    out = run(["crane", "digest", ref], timeout=180).strip().splitlines()[-1].strip().lower()
+    out = run([CRANE_BIN, "digest", ref], timeout=180).strip().splitlines()[-1].strip().lower()
     if not DIGEST_RE.fullmatch(out):
         raise RuntimeError(f"CRANE_DIGEST_INVALID {ref}:{out}")
     return out
@@ -340,9 +381,37 @@ def platformctl_prefix(path: str | None) -> list[str]:
 
 
 def apply_admission(args: argparse.Namespace) -> None:
-    # CatalogUpstreamAdmission is the product-owned execution authority for every
-    # unresolved Helm acquisition. Version/source CLI flags are consistency
-    # assertions only; they must never become an alternate authority path.
+    # Current and historical acquisition have separate canonical authorities.
+    # CLI flags are consistency assertions only; they never become an alternate
+    # source/version authority.
+    if args.from_upgrade_admission:
+        if not args.historical:
+            raise RuntimeError("UPGRADE_SOURCE_ADMISSION_REQUIRES_HISTORICAL_MODE")
+        if args.from_admission:
+            raise RuntimeError("ACQUISITION_AUTHORITY_MODE_CONFLICT")
+        authority = ROOT / "catalog" / "component-upgrade-source-admission.json"
+        doc = json.loads(authority.read_text())
+        errs = validate_upgrade_source_admission(doc, ROOT)
+        if errs:
+            raise RuntimeError("UPGRADE_SOURCE_ADMISSION_INVALID " + "; ".join(errs))
+        matches=[r for r in doc.get("components",[]) if r.get("component")==args.component]
+        if len(matches)!=1:
+            raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_COMPONENT_NOT_UNIQUE {args.component}")
+        entry=matches[0]
+        if entry.get("status") != "admitted-for-acquisition":
+            raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_NOT_ACQUIRABLE {args.component}:{entry.get('status')}")
+        selected=str(entry.get("previousVersion") or "")
+        source=str(entry.get("source") or "")
+        if args.version and normalized_version(args.version) != normalized_version(selected):
+            raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_VERSION_OVERRIDE_DENIED {args.version}!={selected}")
+        if args.source and args.source != source:
+            raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_SOURCE_OVERRIDE_DENIED {args.source}!={source}")
+        if args.upstream_version and normalized_version(args.upstream_version) != normalized_version(selected):
+            raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_UPSTREAM_VERSION_OVERRIDE_DENIED {args.upstream_version}!={selected}")
+        args.version=selected; args.source=source; args.upstream_version=selected
+        return
+    if args.historical:
+        raise RuntimeError("HISTORICAL_MODE_REQUIRES_UPGRADE_SOURCE_ADMISSION")
     if not args.from_admission:
         raise RuntimeError("UPSTREAM_ADMISSION_REQUIRED")
     if not args.component:
@@ -350,9 +419,7 @@ def apply_admission(args: argparse.Namespace) -> None:
     requested_authority = Path(os.path.abspath(args.authority))
     canonical_authority = Path(os.path.abspath(DEFAULT_AUTHORITY))
     if requested_authority != canonical_authority:
-        raise RuntimeError(
-            f"UPSTREAM_ADMISSION_AUTHORITY_OVERRIDE_DENIED {requested_authority}!={canonical_authority}"
-        )
+        raise RuntimeError(f"UPSTREAM_ADMISSION_AUTHORITY_OVERRIDE_DENIED {requested_authority}!={canonical_authority}")
     _, entries = validate_upstream_admission(ROOT, canonical_authority)
     matches = [e for e in entries if e.get("component") == args.component]
     if len(matches) != 1:
@@ -369,21 +436,23 @@ def apply_admission(args: argparse.Namespace) -> None:
         raise RuntimeError(f"UPSTREAM_ADMISSION_SOURCE_OVERRIDE_DENIED {args.source}!={source}")
     if args.upstream_version and normalized_version(args.upstream_version) != normalized_version(upstream):
         raise RuntimeError(f"UPSTREAM_ADMISSION_UPSTREAM_VERSION_OVERRIDE_DENIED {args.upstream_version}!={upstream}")
-    args.version = selected
-    args.source = source
-    args.upstream_version = upstream
+    args.version = selected; args.source = source; args.upstream_version = upstream
 
 
 def acquire(args: argparse.Namespace) -> int:
+    global HELM_BIN, CRANE_BIN
     apply_admission(args)
-    if not shutil.which("helm"):
-        raise RuntimeError("HELM_REQUIRED")
-    if not shutil.which("crane"):
-        raise RuntimeError("CRANE_REQUIRED")
-    component_path, component = load_component(args.component)
+    pinned = require_toolchain()
+    HELM_BIN = str(pinned["helm"][0])
+    CRANE_BIN = str(pinned["crane"][0])
+    component_path, component = load_component(args.component, historical=args.historical)
     spec = component["spec"]
     version = normalized_version(args.version)
-    if not constraint_matches(str(spec.get("release", "")), version):
+    if args.historical:
+        current=normalized_version(str(spec.get("release", "")))
+        if not EXACT_VERSION_RE.fullmatch(current) or not EXACT_VERSION_RE.fullmatch(version) or tuple(map(int,version.split('.'))) >= tuple(map(int,current.split('.'))):
+            raise RuntimeError(f"HISTORICAL_VERSION_NOT_STRICTLY_OLDER {version}!<{current}")
+    elif not constraint_matches(str(spec.get("release", "")), version):
         raise RuntimeError(f"VERSION_OUTSIDE_COMPONENT_CONSTRAINT {version} not-in {spec.get('release')}")
     chart = str(spec.get("delivery", {}).get("chart") or "").strip()
     if not chart:
@@ -394,8 +463,8 @@ def acquire(args: argparse.Namespace) -> int:
         if not value.is_file():
             raise RuntimeError(f"VALUES_FILE_NOT_FOUND {value}")
     value_inputs = repo_value_inputs(values)
-    helm_version = tool_version(["helm", "version", "--short"], "HELM")
-    crane_version = tool_version(["crane", "version"], "CRANE")
+    helm_version = tool_version([HELM_BIN, "version", "--short"], "HELM")
+    crane_version = tool_version([CRANE_BIN, "version"], "CRANE")
 
     with tempfile.TemporaryDirectory(prefix=f"4so-acquire-{args.component}-") as td:
         tmp = Path(td)
@@ -406,6 +475,9 @@ def acquire(args: argparse.Namespace) -> int:
         else:
             expected_digest, upstream_index_version = http_index_metadata(args.source, chart, upstream_version, args.network_timeout)
         artifact = pull_chart(args.source, chart, upstream_index_version, tmp, env)
+        archive_size = artifact.stat().st_size
+        if archive_size <= 0 or archive_size > MAX_CHART_ARCHIVE_BYTES:
+            raise RuntimeError(f"HELM_CHART_ARCHIVE_SIZE_INVALID size={archive_size} limit={MAX_CHART_ARCHIVE_BYTES}")
         got = sha256_file(artifact)
         if got != expected_digest:
             raise RuntimeError(f"UPSTREAM_CHART_DIGEST_MISMATCH expected={expected_digest} got={got}")
@@ -449,11 +521,15 @@ def acquire(args: argparse.Namespace) -> int:
         sbom_path = tmp / "sbom.spdx.json"
         sbom_path.write_text(json.dumps(spdx(args.component, chart, version, expected_digest, images), indent=2, sort_keys=True) + "\n")
 
-        out = Path(args.out).resolve() if args.out else ROOT / "dist" / "upstream" / f"{args.component}-{version}.zip"
+        out = Path(args.out).resolve() if args.out else ROOT / "dist" / ("upstream-history" if args.historical else "upstream") / f"{args.component}-{version}.zip"
         out.parent.mkdir(parents=True, exist_ok=True)
         ctl = platformctl_prefix(args.platformctl)
         assemble = ctl + [
             "catalog-bundle", "assemble",
+        ]
+        if args.historical:
+            assemble.append("--historical")
+        assemble += [
             "--component", str(component_path),
             "--artifact", str(artifact),
             "--render-manifest", str(render_path),
@@ -473,22 +549,29 @@ def acquire(args: argparse.Namespace) -> int:
         print(run(assemble, timeout=300), end="")
         print(run(ctl + ["catalog-bundle", "verify", "-f", str(out)], timeout=180), end="")
         if args.install:
-            print(run(ctl + ["catalog-bundle", "install", "-f", str(out), "--repo-root", str(ROOT), "--confirmation", "IMPORT"], timeout=180), end="")
+            install_action = "install-historical" if args.historical else "install"
+            confirmation = "IMPORT-HISTORICAL" if args.historical else "IMPORT"
+            print(run(ctl + ["catalog-bundle", install_action, "-f", str(out), "--repo-root", str(ROOT), "--confirmation", confirmation], timeout=180), end="")
             print(run(["python3", "scripts/validate_repository.py", "."], timeout=180), end="")
         print(f"UPSTREAM_ACQUISITION_PASS component={args.component} version={version} chartDigest={expected_digest} images={len(images)} out={out}")
     return 0
 
 
 def preflight() -> int:
-    missing = [x for x in ("helm", "crane") if not shutil.which(x)]
+    tool_status = "PASS"
+    try:
+        pinned = require_toolchain()
+        tool_status = ",".join(f"{name}@{version}" for name, (_, version) in sorted(pinned.items()))
+    except RuntimeError as exc:
+        tool_status = "BLOCKED:" + str(exc).replace(" ", "_")
     _, admission_rows = validate_upstream_admission(ROOT, DEFAULT_AUTHORITY)
     ready = [str(r.get("component")) for r in admission_rows if r.get("status") == "ready-for-acquisition"]
     review = [str(r.get("component")) for r in admission_rows if r.get("status") != "ready-for-acquisition"]
     print("UPSTREAM_ACQUISITION_PREFLIGHT tools=%s unresolved=%d ready=%d review=%d readyComponents=%s reviewComponents=%s" % (
-        "PASS" if not missing else "BLOCKED:" + ",".join(missing),
+        tool_status,
         len(admission_rows), len(ready), len(review), ",".join(ready), ",".join(review),
     ))
-    return 0 if not missing else 3
+    return 0 if not tool_status.startswith("BLOCKED:") else 3
 
 
 def self_test() -> int:
@@ -544,7 +627,9 @@ def main() -> int:
     p.add_argument("--preflight", action="store_true")
     p.add_argument("--self-test", action="store_true")
     p.add_argument("--component")
-    p.add_argument("--from-admission", action="store_true", help="resolve exact version/source only from catalog/upstream-admission.json; review-required entries fail closed")
+    p.add_argument("--from-admission", action="store_true", help="resolve current exact version/source only from catalog/upstream-admission.json")
+    p.add_argument("--from-upgrade-admission", action="store_true", help="resolve historical exact predecessor/source only from catalog/component-upgrade-source-admission.json")
+    p.add_argument("--historical", action="store_true", help="assemble an explicitly reviewed previous release for S2 without mutating the current target component")
     p.add_argument("--authority", default=str(DEFAULT_AUTHORITY), help="upstream admission authority path")
     p.add_argument("--version", help="exact numeric component/chart version; never inferred from latest")
     p.add_argument("--upstream-version", help="upstream spelling when it uses a v-prefix; defaults to --version")

@@ -1,0 +1,1152 @@
+{
+  "architecture": {
+    "authority": "DERIVED_ARCHITECTURE_EVIDENCE_V1",
+    "derived": true,
+    "edges": [
+      {
+        "from": "management-plane",
+        "relation": "uses-internal-storage-authority",
+        "to": "management-storage"
+      },
+      {
+        "from": "management-plane",
+        "relation": "may-project-observability-search-data",
+        "to": "search-projection"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "distributionIdentity": "rke2",
+          "infrastructureProvider": "existing",
+          "provisioningAdapter": "internal-rke2-appliance-installer",
+          "provisioningMode": "managed-install"
+        },
+        "id": "management-plane",
+        "kind": "control-plane",
+        "label": "4SO Management Plane",
+        "sourceAuthority": "TARGET_ARCHITECTURE_MODEL_V1"
+      },
+      {
+        "attributes": {
+          "authority": "MANAGEMENT_PLANE_STORAGE_AUTHORITY_V1",
+          "dataEngine": "v1",
+          "hostPrerequisites": [
+            "iscsiadm",
+            "iscsid"
+          ],
+          "provider": "longhorn",
+          "replicaCount": 3,
+          "scope": "management-plane-rke2-production-ha-only",
+          "sourceLockId": "replicated-storage-install-manifest",
+          "status": "SOURCE_LOCKED_RUNTIME_CERTIFICATION_PENDING",
+          "targetDefault": false,
+          "version": "v1.12.1"
+        },
+        "id": "management-storage",
+        "kind": "storage",
+        "label": "longhorn",
+        "sourceAuthority": "MANAGEMENT_PLANE_STORAGE_AUTHORITY_V1"
+      },
+      {
+        "attributes": {
+          "authoritativeStores": [
+            "postgresql-product-authority",
+            "durable-evidence-object-storage",
+            "metrics-authority"
+          ],
+          "authority": "SEARCH_PROJECTION_AUTHORITY_V2",
+          "defaultBackend": "postgresql-bounded",
+          "mcpBoundary": "AI clients use 4SO project-scoped search tools; direct unrestricted OpenSearch MCP administration is not product authority",
+          "observabilityBoundary": "OpenSearch does not replace metrics authority and is not a second default log stack; raw logs/traces remain behind observability adapters until an explicit profile chooses a backend",
+          "optionalBackends": [
+            "opensearch"
+          ],
+          "projectionSources": [
+            "managed-clusters",
+            "operations",
+            "evidence-metadata",
+            "scoped-audit-events"
+          ],
+          "rebuildAuthority": "SEARCH_PROJECTION_REBUILD_CONTRACT_V1",
+          "rebuildRequired": true,
+          "role": "derived-search-projection-not-source-of-truth",
+          "status": "DECIDED_OPTIONAL_OPENSEARCH_SCALE_PROJECTION"
+        },
+        "id": "search-projection",
+        "kind": "derived-projection",
+        "label": "Optional Search / Analytics Projection",
+        "sourceAuthority": "SEARCH_PROJECTION_AUTHORITY_V2"
+      },
+      {
+        "attributes": {
+          "description": "Upstream-conformant Kubernetes distribution identity. Installer history such as Kubespray is not part of this identity.",
+          "id": "kubernetes",
+          "importSupported": true,
+          "status": "SUPPORTED"
+        },
+        "id": "distribution:kubernetes",
+        "kind": "target-distribution",
+        "label": "kubernetes",
+        "sourceAuthority": "TARGET_ARCHITECTURE_MODEL_V1"
+      },
+      {
+        "attributes": {
+          "description": "RKE2 distribution identity. The Factory management appliance is also RKE2 but remains a separate internal boundary.",
+          "id": "rke2",
+          "importSupported": true,
+          "status": "SUPPORTED"
+        },
+        "id": "distribution:rke2",
+        "kind": "target-distribution",
+        "label": "rke2",
+        "sourceAuthority": "TARGET_ARCHITECTURE_MODEL_V1"
+      },
+      {
+        "attributes": {
+          "description": "First-class OKD identity for existing-cluster import and source-implemented Compact-3 managed-install orchestration. Connected runtime and Exact-SHA Physical certification remain independently pending.",
+          "id": "okd",
+          "importSupported": true,
+          "managedInstallSupported": true,
+          "status": "SOURCE_MANAGED_INSTALL_RUNTIME_CERTIFICATION_PENDING"
+        },
+        "id": "distribution:okd",
+        "kind": "target-distribution",
+        "label": "okd",
+        "sourceAuthority": "TARGET_ARCHITECTURE_MODEL_V1"
+      },
+      {
+        "attributes": {
+          "description": "Red Hat OpenShift identity detected from ClusterVersion authority. It is intentionally distinct from OKD and is not admitted by the current OKD target phases.",
+          "id": "openshift",
+          "status": "RECOGNIZED_NOT_YET_ADMITTED"
+        },
+        "id": "distribution:openshift",
+        "kind": "target-distribution",
+        "label": "openshift",
+        "sourceAuthority": "TARGET_ARCHITECTURE_MODEL_V1"
+      }
+    ],
+    "notRuntimeImpactProof": true
+  },
+  "authority": "DERIVED_AGENT_KNOWLEDGE_V1",
+  "claims": [
+    {
+      "evidence": [
+        {
+          "path": "VERSION",
+          "sha256": "sha256:2706447c2eb3169d71c0d0881393cfbd824eb4ae5065545fd06dbf377b955a86",
+          "size": 8
+        }
+      ],
+      "id": "release.version",
+      "value": "0.0.359"
+    },
+    {
+      "evidence": [
+        {
+          "path": "RELEASE-NAME",
+          "sha256": "sha256:cce99bc9db76d99ae3cd1d7de0965bb485b614b5a9c1cf6ee2f6f714c8ca5905",
+          "size": 61
+        }
+      ],
+      "id": "release.name",
+      "value": "engineering-safety-pagination-scope-postgres-integration-v65"
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/model.go",
+          "sha256": "sha256:3936cde5609595a6167c4aff0bea3ecc069c64a589372f8c9045d0aa479ae352",
+          "size": 16465
+        }
+      ],
+      "id": "target-model.authority",
+      "value": "TARGET_ARCHITECTURE_MODEL_V1"
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-roadmap.authority",
+      "value": "PROGRAM_PHASE_MODEL_V64"
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-roadmap.current-phase",
+      "value": "S1-exact-supply-chain-acquisition-closure"
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-roadmap.goal-ready",
+      "value": false
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/model.go",
+          "sha256": "sha256:3936cde5609595a6167c4aff0bea3ecc069c64a589372f8c9045d0aa479ae352",
+          "size": 16465
+        },
+        {
+          "path": "DESIGN.md",
+          "sha256": "sha256:e159ee24a2b303958fe730a27106239584f47431a1a8a405d4829681d2037a83",
+          "size": 85830
+        }
+      ],
+      "id": "management-plane.target",
+      "value": {
+        "distributionIdentity": "rke2",
+        "infrastructureProvider": "existing",
+        "provisioningAdapter": "internal-rke2-appliance-installer",
+        "provisioningMode": "managed-install"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/model.go",
+          "sha256": "sha256:3936cde5609595a6167c4aff0bea3ecc069c64a589372f8c9045d0aa479ae352",
+          "size": 16465
+        },
+        {
+          "path": "DESIGN.md",
+          "sha256": "sha256:e159ee24a2b303958fe730a27106239584f47431a1a8a405d4829681d2037a83",
+          "size": 85830
+        }
+      ],
+      "id": "management-plane.storage",
+      "value": {
+        "authority": "MANAGEMENT_PLANE_STORAGE_AUTHORITY_V1",
+        "dataEngine": "v1",
+        "hostPrerequisites": [
+          "iscsiadm",
+          "iscsid"
+        ],
+        "provider": "longhorn",
+        "replicaCount": 3,
+        "scope": "management-plane-rke2-production-ha-only",
+        "sourceLockId": "replicated-storage-install-manifest",
+        "status": "SOURCE_LOCKED_RUNTIME_CERTIFICATION_PENDING",
+        "targetDefault": false,
+        "version": "v1.12.1"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/model.go",
+          "sha256": "sha256:3936cde5609595a6167c4aff0bea3ecc069c64a589372f8c9045d0aa479ae352",
+          "size": 16465
+        },
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "search-projection.boundary",
+      "value": {
+        "authoritativeStores": [
+          "postgresql-product-authority",
+          "durable-evidence-object-storage",
+          "metrics-authority"
+        ],
+        "authority": "SEARCH_PROJECTION_AUTHORITY_V2",
+        "defaultBackend": "postgresql-bounded",
+        "mcpBoundary": "AI clients use 4SO project-scoped search tools; direct unrestricted OpenSearch MCP administration is not product authority",
+        "observabilityBoundary": "OpenSearch does not replace metrics authority and is not a second default log stack; raw logs/traces remain behind observability adapters until an explicit profile chooses a backend",
+        "optionalBackends": [
+          "opensearch"
+        ],
+        "projectionSources": [
+          "managed-clusters",
+          "operations",
+          "evidence-metadata",
+          "scoped-audit-events"
+        ],
+        "rebuildAuthority": "SEARCH_PROJECTION_REBUILD_CONTRACT_V1",
+        "rebuildRequired": true,
+        "role": "derived-search-projection-not-source-of-truth",
+        "status": "DECIDED_OPTIONAL_OPENSEARCH_SCALE_PROJECTION"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "README.md",
+          "sha256": "sha256:f7754a5aac36808abac28e53bb0124ae2fa5eb99d265d9ddb66acea9a8d6bb43",
+          "size": 134197
+        },
+        {
+          "path": "DESIGN.md",
+          "sha256": "sha256:e159ee24a2b303958fe730a27106239584f47431a1a8a405d4829681d2037a83",
+          "size": 85830
+        }
+      ],
+      "id": "documentation.release-contract",
+      "value": "current README/DESIGN are explanatory consumers; source/runtime/evidence remain canonical authority"
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.A-architecture-authority-rebaseline",
+      "value": {
+        "blockers": [],
+        "dependsOn": [],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.B-target-capability-supplychain-foundation",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "A-architecture-authority-rebaseline"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C1-operator-ia-scope-authority",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "B-target-capability-supplychain-foundation"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C2-console-data-scale-refresh-semantics",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "C1-operator-ia-scope-authority"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C3-console-action-workflow-evidence-convergence",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "C2-console-data-scale-refresh-semantics"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C4-console-e2e-ux-certification",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "C2-console-data-scale-refresh-semantics",
+          "C3-console-action-workflow-evidence-convergence"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.E-certified-platform-template-workspace-foundation",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "C4-console-e2e-ux-certification"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C5-installer-production-lifecycle-closure",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "E-certified-platform-template-workspace-foundation"
+        ],
+        "parallelWith": [
+          "C6-multi-agent-test-autopilot"
+        ],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C6-multi-agent-test-autopilot",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "C4-console-e2e-ux-certification"
+        ],
+        "parallelWith": [
+          "C5-installer-production-lifecycle-closure"
+        ],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C7-ai-mcp-delegated-operations",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "E-certified-platform-template-workspace-foundation"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C7R-mcp-remote-oauth-human-delegation",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "C7-ai-mcp-delegated-operations",
+          "C1-operator-ia-scope-authority"
+        ],
+        "parallelWith": [
+          "S1-exact-supply-chain-acquisition-closure",
+          "G4-data-protection-productization",
+          "G5-enterprise-identity-compliance"
+        ],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C7W-mcp-user-admin-write-parity",
+      "value": {
+        "blockers": [
+          "MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING"
+        ],
+        "dependsOn": [
+          "C7R-mcp-remote-oauth-human-delegation",
+          "C7-ai-mcp-delegated-operations"
+        ],
+        "parallelWith": [
+          "S1-exact-supply-chain-acquisition-closure",
+          "G4-data-protection-productization",
+          "G5-enterprise-identity-compliance",
+          "J1-automation-external-integrations"
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C8-console-operational-completion",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "C5-installer-production-lifecycle-closure",
+          "C6-multi-agent-test-autopilot",
+          "C7-ai-mcp-delegated-operations"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.F-okd-import-capability-certification",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "E-certified-platform-template-workspace-foundation"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.R0-release-authority-certification-rebaseline",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "F-okd-import-capability-certification"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.S1-exact-supply-chain-acquisition-closure",
+      "value": {
+        "blockers": [
+          "COMPONENT_SOURCE_ACQUISITION_PENDING",
+          "SOURCE_LOCKS_PENDING",
+          "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING",
+          "MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING",
+          "RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING"
+        ],
+        "dependsOn": [
+          "R0-release-authority-certification-rebaseline",
+          "B-target-capability-supplychain-foundation"
+        ],
+        "parallelWith": [
+          "C7W-mcp-user-admin-write-parity",
+          "G4-data-protection-productization",
+          "G5-enterprise-identity-compliance"
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.S2-component-runtime-certification-authorities",
+      "value": {
+        "blockers": [
+          "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING",
+          "COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING",
+          "COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING"
+        ],
+        "dependsOn": [
+          "S1-exact-supply-chain-acquisition-closure",
+          "F-okd-import-capability-certification"
+        ],
+        "parallelWith": [],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.G1-operational-runtime-hardening",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "R0-release-authority-certification-rebaseline",
+          "F-okd-import-capability-certification"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.G2-generalized-day2-campaign-engine",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "G1-operational-runtime-hardening"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.G3-target-node-maintenance-lifecycle",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "G2-generalized-day2-campaign-engine"
+        ],
+        "parallelWith": [
+          "S1-exact-supply-chain-acquisition-closure",
+          "S2-component-runtime-certification-authorities"
+        ],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.G4-data-protection-productization",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "G2-generalized-day2-campaign-engine",
+          "S2-component-runtime-certification-authorities"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.G5-enterprise-identity-compliance",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "G1-operational-runtime-hardening"
+        ],
+        "parallelWith": [],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.H1-baremetal-connected-managed-okd",
+      "value": {
+        "blockers": [
+          "OKD_CONNECTED_MANAGED_INSTALL_PENDING"
+        ],
+        "dependsOn": [
+          "R0-release-authority-certification-rebaseline",
+          "S1-exact-supply-chain-acquisition-closure",
+          "F-okd-import-capability-certification"
+        ],
+        "parallelWith": [],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.H2-vmware-provider",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "R0-release-authority-certification-rebaseline"
+        ],
+        "parallelWith": [
+          "H1-baremetal-connected-managed-okd",
+          "J1-automation-external-integrations"
+        ],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.I1-disconnected-okd-core",
+      "value": {
+        "blockers": [
+          "OKD_OC_MIRROR_V2_ACQUISITION_PENDING"
+        ],
+        "dependsOn": [
+          "H1-baremetal-connected-managed-okd",
+          "S1-exact-supply-chain-acquisition-closure"
+        ],
+        "parallelWith": [],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.I2-edge-sovereign-extension",
+      "value": {
+        "blockers": [
+          "EDGE_LOCAL_AUTHORITY_PENDING",
+          "EDGE_LOCAL_UI_PENDING",
+          "BOOT_SECURITY_ATTESTATION_PENDING",
+          "LOCAL_AI_DISCONNECTED_PROFILE_PENDING"
+        ],
+        "dependsOn": [
+          "B-target-capability-supplychain-foundation",
+          "E-certified-platform-template-workspace-foundation"
+        ],
+        "parallelWith": [
+          "I1-disconnected-okd-core",
+          "J3-virtual-cluster-profile"
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.J1-automation-external-integrations",
+      "value": {
+        "blockers": [
+          "TERRAFORM_PROVIDER_PENDING",
+          "CROSSPLANE_PROVIDER_PENDING"
+        ],
+        "dependsOn": [
+          "R0-release-authority-certification-rebaseline",
+          "B-target-capability-supplychain-foundation"
+        ],
+        "parallelWith": [
+          "S1-exact-supply-chain-acquisition-closure",
+          "H2-vmware-provider",
+          "J3-virtual-cluster-profile"
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.J2-finops-usage",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "G1-operational-runtime-hardening",
+          "E-certified-platform-template-workspace-foundation"
+        ],
+        "parallelWith": [
+          "J1-automation-external-integrations"
+        ],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.J3-virtual-cluster-profile",
+      "value": {
+        "blockers": [
+          "VIRTUAL_CLUSTER_PROVIDER_PENDING"
+        ],
+        "dependsOn": [
+          "E-certified-platform-template-workspace-foundation",
+          "G2-generalized-day2-campaign-engine"
+        ],
+        "parallelWith": [
+          "J1-automation-external-integrations",
+          "J2-finops-usage",
+          "I2-edge-sovereign-extension"
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.J4-product-api-contract-recovery-foundation",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "C7-ai-mcp-delegated-operations",
+          "R0-release-authority-certification-rebaseline"
+        ],
+        "parallelWith": [
+          "J1-automation-external-integrations",
+          "J3-virtual-cluster-profile"
+        ],
+        "status": "source-implemented"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.J5-resource-scope-owner-closure",
+      "value": {
+        "blockers": [
+          "RESOURCE_SCOPE_OWNER_CLASSIFICATION_PENDING"
+        ],
+        "dependsOn": [
+          "J4-product-api-contract-recovery-foundation"
+        ],
+        "parallelWith": [
+          "J1-automation-external-integrations",
+          "J3-virtual-cluster-profile"
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.H3-public-cloud-provider-adapters",
+      "value": {
+        "blockers": [
+          "AWS_PROVIDER_ADAPTER_PENDING",
+          "AZURE_PROVIDER_ADAPTER_PENDING",
+          "GCP_PROVIDER_ADAPTER_PENDING"
+        ],
+        "dependsOn": [
+          "H2-vmware-provider",
+          "J4-product-api-contract-recovery-foundation"
+        ],
+        "parallelWith": [
+          "J1-automation-external-integrations",
+          "J3-virtual-cluster-profile"
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.J6-fleet-reliability-incident-intelligence",
+      "value": {
+        "blockers": [
+          "SERVICE_HEALTH_AUTHORITY_PENDING",
+          "INCIDENT_AUTHORITY_PENDING",
+          "SLO_ERROR_BUDGET_AUTHORITY_PENDING"
+        ],
+        "dependsOn": [
+          "G1-operational-runtime-hardening",
+          "G2-generalized-day2-campaign-engine",
+          "J4-product-api-contract-recovery-foundation"
+        ],
+        "parallelWith": [
+          "J7-finops-v2-budget-forecast-rightsizing"
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.J7-finops-v2-budget-forecast-rightsizing",
+      "value": {
+        "blockers": [
+          "FINOPS_BUDGET_POLICY_PENDING",
+          "FINOPS_FORECAST_ANOMALY_PENDING",
+          "FINOPS_RIGHTSIZING_PENDING"
+        ],
+        "dependsOn": [
+          "J2-finops-usage",
+          "J4-product-api-contract-recovery-foundation"
+        ],
+        "parallelWith": [
+          "J6-fleet-reliability-incident-intelligence"
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.C9-pre-certification-feature-freeze-exact-bundle",
+      "value": {
+        "blockers": [
+          "PRE_CERTIFICATION_REQUIRED_FEATURES_OPEN",
+          "LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING"
+        ],
+        "dependsOn": [
+          "C5-installer-production-lifecycle-closure",
+          "C6-multi-agent-test-autopilot",
+          "C7-ai-mcp-delegated-operations",
+          "C7R-mcp-remote-oauth-human-delegation",
+          "C7W-mcp-user-admin-write-parity",
+          "C8-console-operational-completion",
+          "F-okd-import-capability-certification",
+          "S2-component-runtime-certification-authorities",
+          "G3-target-node-maintenance-lifecycle",
+          "G4-data-protection-productization",
+          "G5-enterprise-identity-compliance",
+          "H1-baremetal-connected-managed-okd",
+          "I1-disconnected-okd-core"
+        ],
+        "parallelWith": [],
+        "status": "blocked"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.D-exact-artifact-lab-ai-certification",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "C9-pre-certification-feature-freeze-exact-bundle"
+        ],
+        "parallelWith": [],
+        "status": "deferred-until-development-closure"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.K-optional-vm-workload-plane",
+      "value": {
+        "blockers": [
+          "VM_WORKLOAD_PLANE_PRODUCT_DECISION_PENDING"
+        ],
+        "dependsOn": [
+          "J3-virtual-cluster-profile"
+        ],
+        "parallelWith": [],
+        "status": "not-evaluated"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.L-optional-accelerator-ai-infrastructure",
+      "value": {
+        "blockers": [
+          "ACCELERATOR_INFRASTRUCTURE_PRODUCT_DECISION_PENDING"
+        ],
+        "dependsOn": [
+          "J2-finops-usage"
+        ],
+        "parallelWith": [
+          "K-optional-vm-workload-plane"
+        ],
+        "status": "not-evaluated"
+      }
+    },
+    {
+      "evidence": [
+        {
+          "path": "internal/targetmodel/program.go",
+          "sha256": "sha256:c201ddb354cd6b4f925beaa64bd60750b48aa64cd8ae4a49f47745ed8a6e5394",
+          "size": 87632
+        }
+      ],
+      "id": "program-phase.M-full-product-certification-chaos-soak-ux-ai-evals",
+      "value": {
+        "blockers": [],
+        "dependsOn": [
+          "D-exact-artifact-lab-ai-certification"
+        ],
+        "parallelWith": [],
+        "status": "deferred-until-development-closure"
+      }
+    }
+  ],
+  "derived": true,
+  "digest": "sha256:fe4de15f6ff7c0da13e8f05954ee2c39aca4f0cef04a46243e8fef34a67d13bb",
+  "discardableAndRebuildable": true,
+  "notSourceOfTruth": true,
+  "release": {
+    "releaseName": "engineering-safety-pagination-scope-postgres-integration-v65",
+    "version": "0.0.359"
+  },
+  "schemaVersion": 1,
+  "sourceAuthorities": {
+    "programRoadmap": "PROGRAM_PHASE_MODEL_V64",
+    "searchProjection": "SEARCH_PROJECTION_AUTHORITY_V2",
+    "targetArchitecture": "TARGET_ARCHITECTURE_MODEL_V1"
+  }
+}

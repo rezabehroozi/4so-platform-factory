@@ -12,32 +12,22 @@ import (
 )
 
 func (s *Server) appendOperationStep(w http.ResponseWriter, r *http.Request) {
-	op, err := s.store.GetOperation(r.Context(), r.PathValue("id"))
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	if _, err = s.requireProjectAccess(r, op.ProjectID, organizationWrite); err != nil {
-		writeScopeError(w, err)
-		return
-	}
-	actor, err := actorID(r)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "ACTOR_REQUIRED", err.Error())
-		return
-	}
 	var in struct {
-		WorkerID   string                      `json:"workerId"`
+		WorkerID   string                      `json:"workerId,omitempty"`
 		FenceToken int64                       `json:"fenceToken"`
 		StepKey    string                      `json:"stepKey"`
 		State      controlplane.OperationState `json:"state"`
 		LastError  string                      `json:"lastError,omitempty"`
 	}
-	if err = decodeJSON(w, r, &in); err != nil {
+	if err := decodeJSON(w, r, &in); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
-	if strings.TrimSpace(in.WorkerID) == "" || op.LeaseOwner != strings.TrimSpace(in.WorkerID) || op.FenceToken != in.FenceToken || op.LeaseExpiresAt == nil || !op.LeaseExpiresAt.After(time.Now().UTC()) {
+	op, worker, _, ok := s.operationForExecution(w, r, in.WorkerID, false)
+	if !ok {
+		return
+	}
+	if op.LeaseOwner != worker || op.FenceToken != in.FenceToken || op.LeaseExpiresAt == nil || !op.LeaseExpiresAt.After(time.Now().UTC()) {
 		writeStoreError(w, controlplane.ErrStaleFence)
 		return
 	}
@@ -46,7 +36,7 @@ func (s *Server) appendOperationStep(w http.ResponseWriter, r *http.Request) {
 	if in.State == controlplane.OperationSucceeded || in.State == controlplane.OperationFailed || in.State == controlplane.OperationCancelled {
 		step.FinishedAt = &now
 	}
-	created, err := s.store.AppendOperationStep(r.Context(), step, actor)
+	created, err := s.store.AppendOperationStep(r.Context(), step, worker)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -63,27 +53,13 @@ func parseOperationStepPhase(raw string) (controlplane.OperationStepPhase, error
 }
 
 func (s *Server) appendOperationStepTrace(w http.ResponseWriter, r *http.Request) {
-	op, err := s.store.GetOperation(r.Context(), r.PathValue("id"))
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	if _, err = s.requireProjectAccess(r, op.ProjectID, organizationWrite); err != nil {
-		writeScopeError(w, err)
-		return
-	}
-	actor, err := actorID(r)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "ACTOR_REQUIRED", err.Error())
-		return
-	}
 	phase, err := parseOperationStepPhase(r.PathValue("phase"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 	var in struct {
-		WorkerID      string                             `json:"workerId"`
+		WorkerID      string                             `json:"workerId,omitempty"`
 		FenceToken    int64                              `json:"fenceToken"`
 		TraceKey      string                             `json:"traceKey"`
 		Level         controlplane.OperationStepLogLevel `json:"level"`
@@ -98,6 +74,10 @@ func (s *Server) appendOperationStepTrace(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
+	op, worker, _, ok := s.operationForExecution(w, r, in.WorkerID, false)
+	if !ok {
+		return
+	}
 	payload, err := base64.StdEncoding.Strict().DecodeString(strings.TrimSpace(in.PayloadBase64))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_EVIDENCE_PAYLOAD", "payloadBase64 must be strict base64")
@@ -106,7 +86,7 @@ func (s *Server) appendOperationStepTrace(w http.ResponseWriter, r *http.Request
 	trace, evidence, err := s.store.AppendOperationStepTrace(r.Context(), controlplane.OperationStepTraceInput{
 		OperationID: op.ID, Phase: phase, StepKey: r.PathValue("stepKey"), TraceKey: in.TraceKey, Level: in.Level,
 		EventType: in.EventType, Message: in.Message, EvidenceKind: in.EvidenceKind, MediaType: in.MediaType, Location: in.Location, Payload: payload,
-	}, strings.TrimSpace(in.WorkerID), in.FenceToken, actor)
+	}, worker, in.FenceToken, worker)
 	if err != nil {
 		writeStoreError(w, err)
 		return

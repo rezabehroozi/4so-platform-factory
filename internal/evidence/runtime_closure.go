@@ -13,13 +13,20 @@ import (
 )
 
 const (
-	RuntimeClosureAPIVersion       = "platform.4so.io/v1alpha1"
-	RuntimeClosureKind             = "RuntimeClosureReport"
-	RuntimeClosureEvidenceSchema   = 1
-	RuntimeClosureCanonicalization = "sorted-string-map-json-v1"
+	RuntimeClosureAPIVersion                   = "platform.4so.io/v1alpha1"
+	RuntimeClosureKind                         = "RuntimeClosureReport"
+	RuntimeClosureLegacyEvidenceSchema         = 1
+	RuntimeClosureEvidenceSchema               = 2
+	RuntimeClosureLegacyCanonicalization       = "sorted-string-map-json-v1"
+	RuntimeClosureCanonicalization             = "sorted-string-map-json-v2"
+	RuntimeClosureExactReleaseBindingAuthority = "RUNTIME_CLOSURE_EXACT_RELEASE_BINDING_AUTHORITY_V1"
 )
 
 var sha256Pattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+
+func IsSHA256Digest(value string) bool {
+	return sha256Pattern.MatchString(strings.TrimSpace(value))
+}
 
 // RuntimeClosureInputs are the immutable values bound by a runtime-closure
 // evidence digest. Every field is a string so the canonical form is stable
@@ -36,9 +43,11 @@ type RuntimeClosureInputs struct {
 	RuntimeReportDigest    string `json:"runtimeReportDigest"`
 	RuntimeDesiredDigest   string `json:"runtimeDesiredDigest"`
 	RuntimeObservedDigest  string `json:"runtimeObservedDigest"`
+	ReleaseArtifactDigest  string `json:"releaseArtifactDigest,omitempty"`
+	ProducerBinaryDigest   string `json:"producerBinaryDigest,omitempty"`
 }
 
-func (v RuntimeClosureInputs) canonicalMap() map[string]string {
+func (v RuntimeClosureInputs) canonicalMapLegacy() map[string]string {
 	return map[string]string{
 		"campaignId":             strings.TrimSpace(v.CampaignID),
 		"projectId":              strings.TrimSpace(v.ProjectID),
@@ -54,7 +63,14 @@ func (v RuntimeClosureInputs) canonicalMap() map[string]string {
 	}
 }
 
-func (v RuntimeClosureInputs) Validate() error {
+func (v RuntimeClosureInputs) canonicalMap() map[string]string {
+	out := v.canonicalMapLegacy()
+	out["releaseArtifactDigest"] = strings.TrimSpace(v.ReleaseArtifactDigest)
+	out["producerBinaryDigest"] = strings.TrimSpace(v.ProducerBinaryDigest)
+	return out
+}
+
+func (v RuntimeClosureInputs) validateBase() error {
 	ids := map[string]string{
 		"campaignId":            v.CampaignID,
 		"projectId":             v.ProjectID,
@@ -76,7 +92,7 @@ func (v RuntimeClosureInputs) Validate() error {
 		"runtimeObservedDigest":  v.RuntimeObservedDigest,
 	}
 	for name, value := range digests {
-		if !sha256Pattern.MatchString(strings.TrimSpace(value)) {
+		if !IsSHA256Digest(value) {
 			return fmt.Errorf("%s must be a lowercase sha256 digest", name)
 		}
 	}
@@ -92,11 +108,41 @@ func (v RuntimeClosureInputs) Validate() error {
 	return nil
 }
 
+func (v RuntimeClosureInputs) Validate() error {
+	if err := v.validateBase(); err != nil {
+		return err
+	}
+	if !IsSHA256Digest(v.ReleaseArtifactDigest) {
+		return errors.New("releaseArtifactDigest must be a lowercase sha256 digest")
+	}
+	if !IsSHA256Digest(v.ProducerBinaryDigest) {
+		return errors.New("producerBinaryDigest must be a lowercase sha256 digest")
+	}
+	return nil
+}
+
+func (v RuntimeClosureInputs) ValidateLegacy() error {
+	if err := v.validateBase(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(v.ReleaseArtifactDigest) != "" || strings.TrimSpace(v.ProducerBinaryDigest) != "" {
+		return errors.New("legacy runtime closure evidence must not contain exact-release identity fields")
+	}
+	return nil
+}
+
 func (v RuntimeClosureInputs) CanonicalJSON() ([]byte, error) {
 	if err := v.Validate(); err != nil {
 		return nil, err
 	}
 	return json.Marshal(v.canonicalMap())
+}
+
+func (v RuntimeClosureInputs) LegacyCanonicalJSON() ([]byte, error) {
+	if err := v.ValidateLegacy(); err != nil {
+		return nil, err
+	}
+	return json.Marshal(v.canonicalMapLegacy())
 }
 
 func (v RuntimeClosureInputs) Digest() (string, error) {
@@ -108,23 +154,38 @@ func (v RuntimeClosureInputs) Digest() (string, error) {
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
+func (v RuntimeClosureInputs) LegacyDigest() (string, error) {
+	raw, err := v.LegacyCanonicalJSON()
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
 type RuntimeClosureEvidence struct {
 	SchemaVersion    int                  `json:"schemaVersion"`
 	Algorithm        string               `json:"algorithm"`
 	Canonicalization string               `json:"canonicalization"`
+	BindingAuthority string               `json:"bindingAuthority,omitempty"`
 	Inputs           RuntimeClosureInputs `json:"inputs"`
 	Digest           string               `json:"digest"`
 }
 
 type RuntimeClosureVerification struct {
 	Valid                 bool   `json:"valid"`
+	ProductVersion        string `json:"productVersion"`
 	CampaignID            string `json:"campaignId"`
 	ProjectID             string `json:"projectId"`
 	ClusterID             string `json:"clusterId"`
 	BaselineDeploymentID  string `json:"baselineDeploymentId"`
 	RuntimeVerificationID string `json:"runtimeVerificationId"`
 	EvidenceDigest        string `json:"evidenceDigest"`
+	EvidenceSchemaVersion int    `json:"evidenceSchemaVersion"`
 	Canonicalization      string `json:"canonicalization"`
+	ExactReleaseBound     bool   `json:"exactReleaseBound"`
+	ReleaseArtifactDigest string `json:"releaseArtifactDigest,omitempty"`
+	ProducerBinaryDigest  string `json:"producerBinaryDigest,omitempty"`
 }
 
 type reportEnvelope struct {
@@ -190,7 +251,8 @@ func boolClaim(claims map[string]any, key string, expected bool) error {
 
 // VerifyRuntimeClosureReport independently recomputes the evidence digest and
 // cross-checks it against every duplicated identity/digest carried by the
-// report. It never treats a successful HTTP response as proof by itself.
+// report. Legacy schema-v1 reports remain independently verifiable but are
+// explicitly reported as not exact-release-bound.
 func VerifyRuntimeClosureReport(raw []byte) (RuntimeClosureVerification, error) {
 	var result RuntimeClosureVerification
 	var report reportEnvelope
@@ -206,17 +268,37 @@ func VerifyRuntimeClosureReport(raw []byte) (RuntimeClosureVerification, error) 
 	if strings.TrimSpace(report.Product.Name) != "4SO Platform Factory" || strings.TrimSpace(report.Product.Version) == "" {
 		return result, errors.New("product identity or version is missing")
 	}
-	if report.Evidence.SchemaVersion != RuntimeClosureEvidenceSchema || report.Evidence.Algorithm != "sha256" || report.Evidence.Canonicalization != RuntimeClosureCanonicalization {
+	if report.Evidence.Algorithm != "sha256" {
+		return result, errors.New("unsupported runtime closure evidence algorithm")
+	}
+	var computed string
+	var err error
+	exactReleaseBound := false
+	switch report.Evidence.SchemaVersion {
+	case RuntimeClosureLegacyEvidenceSchema:
+		if report.Evidence.Canonicalization != RuntimeClosureLegacyCanonicalization || strings.TrimSpace(report.Evidence.BindingAuthority) != "" {
+			return result, errors.New("unsupported legacy runtime closure evidence contract")
+		}
+		if err = report.Evidence.Inputs.ValidateLegacy(); err != nil {
+			return result, fmt.Errorf("invalid legacy runtime closure evidence inputs: %w", err)
+		}
+		computed, err = report.Evidence.Inputs.LegacyDigest()
+	case RuntimeClosureEvidenceSchema:
+		if report.Evidence.Canonicalization != RuntimeClosureCanonicalization || report.Evidence.BindingAuthority != RuntimeClosureExactReleaseBindingAuthority {
+			return result, errors.New("unsupported runtime closure exact-release evidence contract")
+		}
+		if err = report.Evidence.Inputs.Validate(); err != nil {
+			return result, fmt.Errorf("invalid runtime closure evidence inputs: %w", err)
+		}
+		computed, err = report.Evidence.Inputs.Digest()
+		exactReleaseBound = true
+	default:
 		return result, errors.New("unsupported runtime closure evidence schema")
 	}
-	if err := report.Evidence.Inputs.Validate(); err != nil {
-		return result, fmt.Errorf("invalid runtime closure evidence inputs: %w", err)
-	}
-	computed, err := report.Evidence.Inputs.Digest()
 	if err != nil {
 		return result, err
 	}
-	if !sha256Pattern.MatchString(report.Evidence.Digest) || report.Evidence.Digest != computed {
+	if !IsSHA256Digest(report.Evidence.Digest) || report.Evidence.Digest != computed {
 		return result, errors.New("runtime closure evidence digest mismatch")
 	}
 	if report.Metadata.ID != report.Evidence.Inputs.CampaignID || report.Metadata.EvidenceDigest != computed {
@@ -258,10 +340,12 @@ func VerifyRuntimeClosureReport(raw []byte) (RuntimeClosureVerification, error) 
 		}
 	}
 	result = RuntimeClosureVerification{
-		Valid: true, CampaignID: report.Evidence.Inputs.CampaignID, ProjectID: report.Evidence.Inputs.ProjectID,
+		Valid: true, ProductVersion: strings.TrimSpace(report.Product.Version), CampaignID: report.Evidence.Inputs.CampaignID, ProjectID: report.Evidence.Inputs.ProjectID,
 		ClusterID: report.Evidence.Inputs.ClusterID, BaselineDeploymentID: report.Evidence.Inputs.BaselineDeploymentID,
 		RuntimeVerificationID: report.Evidence.Inputs.RuntimeVerificationID, EvidenceDigest: computed,
-		Canonicalization: RuntimeClosureCanonicalization,
+		EvidenceSchemaVersion: report.Evidence.SchemaVersion, Canonicalization: report.Evidence.Canonicalization,
+		ExactReleaseBound: exactReleaseBound, ReleaseArtifactDigest: report.Evidence.Inputs.ReleaseArtifactDigest,
+		ProducerBinaryDigest: report.Evidence.Inputs.ProducerBinaryDigest,
 	}
 	return result, nil
 }

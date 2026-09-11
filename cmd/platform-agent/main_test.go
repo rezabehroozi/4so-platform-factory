@@ -18,6 +18,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"platform.4so.io/factory/catalog"
@@ -25,7 +26,9 @@ import (
 	"platform.4so.io/factory/internal/baseline"
 	"platform.4so.io/factory/internal/controlplane"
 	"platform.4so.io/factory/internal/targetmodel"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -2623,5 +2626,592 @@ func TestEnrollmentPrincipalIsolationAttestationRequiresExpectedImportScopedServ
 	a.cfg.ServiceAccount = controlplane.FleetAgentServiceAccountName("imp_other")
 	if a.enrollmentPrincipalIsolated() {
 		t.Fatal("service account from a different enrollment generation was accepted")
+	}
+}
+
+func TestDiscoverOKDDistributionComponentsCapturesClusterVersionAndOperatorConditions(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
+	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	previous := serviceAccountTokenPath
+	serviceAccountTokenPath = tokenFile
+	defer func() { serviceAccountTokenPath = previous }()
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		var body string
+		switch request.URL.Path {
+		case "/apis/config.openshift.io/v1/clusteroperators":
+			body = `{"items":[{"metadata":{"name":"network"},"status":{"version":"4.19.0","conditions":[{"type":"Available","status":"True"},{"type":"Progressing","status":"False"},{"type":"Degraded","status":"False"},{"type":"Upgradeable","status":"True"}]}},{"metadata":{"name":"monitoring"},"status":{"version":"4.19.0","conditions":[{"type":"Available","status":"False","reason":"RolloutPending","message":"monitoring rollout pending"},{"type":"Progressing","status":"True"},{"type":"Degraded","status":"False"}]}}]}`
+		case "/apis/config.openshift.io/v1/clusterversions/version":
+			body = `{"metadata":{"name":"version"},"spec":{"channel":"stable-4"},"status":{"desired":{"version":"4.19.0-okd-scos.0","image":"registry.example/release@sha256:` + strings.Repeat("a", 64) + `"},"conditions":[{"type":"Available","status":"True"},{"type":"Progressing","status":"False"},{"type":"Failing","status":"False"}]}}`
+		default:
+			t.Fatalf("unexpected Kubernetes request: %s", request.URL.Path)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+	components, err := (&agent{kube: client}).discoverOpenShiftDistributionComponents(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(components) != 3 {
+		t.Fatalf("components=%+v", components)
+	}
+	byName := map[string]controlplane.ClusterAddOn{}
+	for _, component := range components {
+		byName[component.Name] = component
+	}
+	if byName["version"].Kind != "cluster-version" || byName["version"].Version != "4.19.0-okd-scos.0" || !byName["version"].Healthy || byName["version"].Degraded != "False" {
+		t.Fatalf("cluster version=%+v", byName["version"])
+	}
+	if byName["network"].Kind != "cluster-operator" || !byName["network"].Healthy {
+		t.Fatalf("network=%+v", byName["network"])
+	}
+	if byName["monitoring"].Healthy || byName["monitoring"].Progressing != "True" || byName["monitoring"].Reason != "RolloutPending" {
+		t.Fatalf("monitoring=%+v", byName["monitoring"])
+	}
+}
+func TestClusterVersionFailingConditionMapsToProductDegradedHealth(t *testing.T) {
+	conditions := []struct {
+		Type    string `json:"type"`
+		Status  string `json:"status"`
+		Reason  string `json:"reason"`
+		Message string `json:"message"`
+	}{
+		{Type: "Available", Status: "True"},
+		{Type: "Progressing", Status: "False"},
+		{Type: "Failing", Status: "True", Reason: "PayloadFailed", Message: "release payload reconciliation failed"},
+		{Type: "Upgradeable", Status: "False", Reason: "AdminAckRequired"},
+	}
+	available, progressing, degraded, upgradeable, reason, message := clusterVersionConditionSummary(conditions)
+	if available != "True" || progressing != "False" || degraded != "True" || upgradeable != "False" {
+		t.Fatalf("unexpected condition projection available=%q progressing=%q degraded=%q upgradeable=%q", available, progressing, degraded, upgradeable)
+	}
+	if reason != "PayloadFailed" || message != "release payload reconciliation failed" {
+		t.Fatalf("unexpected failure evidence reason=%q message=%q", reason, message)
+	}
+}
+
+func TestDiscoverWorkloadExplorerReadsBoundedOperationalInventory(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
+	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	previous := serviceAccountTokenPath
+	serviceAccountTokenPath = tokenFile
+	defer func() { serviceAccountTokenPath = previous }()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		var body string
+		switch request.URL.Path {
+		case "/apis/apps/v1/deployments":
+			body = `{"items":[{"metadata":{"namespace":"app","name":"web"},"spec":{"replicas":3,"template":{"spec":{"containers":[{"image":"registry.example/web@sha256:` + strings.Repeat("a", 64) + `"}]}}},"status":{"replicas":3,"readyReplicas":2}}]}`
+		case "/apis/apps/v1/statefulsets", "/apis/apps/v1/daemonsets", "/apis/batch/v1/jobs":
+			body = `{"items":[]}`
+		case "/api/v1/services":
+			body = `{"items":[{"metadata":{"namespace":"app","name":"web"},"spec":{"type":"ClusterIP","clusterIP":"10.43.1.20","ports":[{"name":"http","port":8080,"protocol":"TCP"}]}}]}`
+		case "/apis/networking.k8s.io/v1/ingresses":
+			body = `{"items":[{"metadata":{"namespace":"app","name":"web"},"spec":{"ingressClassName":"nginx","rules":[{"host":"web.example.test"}],"tls":[{"hosts":["web.example.test"]}]}}]}`
+		case "/api/v1/persistentvolumeclaims":
+			body = `{"items":[{"metadata":{"namespace":"app","name":"data"},"spec":{"storageClassName":"longhorn","resources":{"requests":{"storage":"10Gi"}}},"status":{"phase":"Bound"}}]}`
+		case "/api/v1/events":
+			body = fmt.Sprintf(`{"items":[{"metadata":{"namespace":"app"},"type":"Warning","reason":"Unhealthy","message":"readiness probe failed","count":2,"regarding":{"kind":"Deployment","name":"web"},"eventTime":%q}]}`, now.Format(time.RFC3339))
+		default:
+			t.Fatalf("unexpected Kubernetes request: %s", request.URL.Path)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+
+	explorer, err := (&agent{kube: client}).discoverWorkloadExplorer(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if explorer.Authority != controlplane.WorkloadExplorerAuthorityMethod || !explorer.Complete || explorer.Truncated {
+		t.Fatalf("unexpected explorer authority/state: %+v", explorer)
+	}
+	if len(explorer.Workloads) != 1 || explorer.Workloads[0].Kind != "Deployment" || explorer.Workloads[0].ReadyReplicas != 2 || len(explorer.Workloads[0].Images) != 1 {
+		t.Fatalf("workloads=%+v", explorer.Workloads)
+	}
+	if len(explorer.Services) != 1 || explorer.Services[0].Type != "ClusterIP" || explorer.Services[0].ClusterIP != "10.43.1.20" || explorer.Services[0].Ports[0].Port != 8080 || len(explorer.Ingresses) != 1 || explorer.Ingresses[0].Hosts[0] != "web.example.test" {
+		t.Fatalf("service/ingress mismatch services=%+v ingresses=%+v", explorer.Services, explorer.Ingresses)
+	}
+	if len(explorer.PVCs) != 1 || explorer.PVCs[0].Requested != "10Gi" || explorer.PVCs[0].Phase != "Bound" {
+		t.Fatalf("pvcs=%+v", explorer.PVCs)
+	}
+	if len(explorer.Events) != 1 || explorer.Events[0].Reason != "Unhealthy" || explorer.Events[0].RegardingName != "web" || explorer.Events[0].LastObservedAt.IsZero() {
+		t.Fatalf("events=%+v", explorer.Events)
+	}
+}
+
+func TestDiscoverWorkloadExplorerUsesKubernetesPaginationAndStopsAtBound(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
+	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	previous := serviceAccountTokenPath
+	serviceAccountTokenPath = tokenFile
+	defer func() { serviceAccountTokenPath = previous }()
+
+	serviceCalls := 0
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/api/v1/services" {
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(`{"items":[]}`)), Header: make(http.Header)}, nil
+		}
+		serviceCalls++
+		wantLimit := 100
+		continueValue := request.URL.Query().Get("continue")
+		start := 0
+		next := ""
+		switch serviceCalls {
+		case 1:
+			if continueValue != "" {
+				t.Fatalf("first service page unexpectedly had continue=%q", continueValue)
+			}
+			next = "page-2"
+		case 2:
+			if continueValue != "page-2" {
+				t.Fatalf("second service page continue=%q", continueValue)
+			}
+			start = 100
+			next = "page-3"
+		case 3:
+			wantLimit = 50
+			if continueValue != "page-3" {
+				t.Fatalf("third service page continue=%q", continueValue)
+			}
+			start = 200
+			next = "page-4"
+		default:
+			t.Fatalf("service list fetched past bounded inventory: call=%d", serviceCalls)
+		}
+		if request.URL.Query().Get("limit") != strconv.Itoa(wantLimit) {
+			t.Fatalf("service page %d limit=%q want=%d", serviceCalls, request.URL.Query().Get("limit"), wantLimit)
+		}
+		items := make([]map[string]any, wantLimit)
+		for i := range items {
+			items[i] = map[string]any{"metadata": map[string]any{"namespace": "app", "name": fmt.Sprintf("svc-%03d", start+i)}, "spec": map[string]any{"type": "ClusterIP", "clusterIP": fmt.Sprintf("10.43.%d.%d", (start+i)/250, (start+i)%250+1)}}
+		}
+		raw, err := json.Marshal(map[string]any{"metadata": map[string]any{"continue": next}, "items": items})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(raw)), Header: make(http.Header)}, nil
+	})}
+
+	explorer, err := (&agent{kube: client}).discoverWorkloadExplorer(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if serviceCalls != 3 || len(explorer.Services) != workloadExplorerItemLimit || !explorer.Truncated {
+		t.Fatalf("pagination not bounded calls=%d services=%d truncated=%v", serviceCalls, len(explorer.Services), explorer.Truncated)
+	}
+}
+
+func TestAgentSchedulerV2TaskKickIsBounded(t *testing.T) {
+	kick := make(chan struct{}, 1)
+	if !enqueueAgentTaskCycle(kick) {
+		t.Fatal("first task cycle must be queued")
+	}
+	if enqueueAgentTaskCycle(kick) {
+		t.Fatal("task queue must retain at most one pending cycle while the single writer is busy")
+	}
+	<-kick
+	if !enqueueAgentTaskCycle(kick) {
+		t.Fatal("task cycle must be queueable again after the pending epoch is consumed")
+	}
+}
+
+func TestAgentSchedulerV2TaskLaneIsSingleWriter(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	kick := make(chan struct{}, 1)
+	started := make(chan int, 2)
+	release := make(chan struct{}, 2)
+	var active atomic.Int32
+	var maxActive atomic.Int32
+	var cycles atomic.Int32
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runSingleWriterTaskLane(ctx, kick, func(context.Context) {
+			current := active.Add(1)
+			for {
+				max := maxActive.Load()
+				if current <= max || maxActive.CompareAndSwap(max, current) {
+					break
+				}
+			}
+			cycle := int(cycles.Add(1))
+			started <- cycle
+			<-release
+			active.Add(-1)
+		})
+	}()
+
+	if !enqueueAgentTaskCycle(kick) {
+		t.Fatal("queue first cycle")
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("first cycle did not start")
+	}
+	// While cycle 1 is executing, exactly one newer inventory epoch may wait.
+	if !enqueueAgentTaskCycle(kick) {
+		t.Fatal("one pending task cycle must be accepted while writer is active")
+	}
+	if enqueueAgentTaskCycle(kick) {
+		t.Fatal("a second pending task cycle must be coalesced")
+	}
+	release <- struct{}{}
+	select {
+	case cycle := <-started:
+		if cycle != 2 {
+			t.Fatalf("second cycle=%d", cycle)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("pending cycle did not run")
+	}
+	release <- struct{}{}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("task lane did not stop after context cancellation")
+	}
+	if got := maxActive.Load(); got != 1 {
+		t.Fatalf("task lane allowed concurrent writers: max active=%d", got)
+	}
+}
+
+func TestAgentSchedulerV2IncludesWorkloadLogProcessor(t *testing.T) {
+	a := &agent{}
+	processors := a.taskProcessors()
+	seen := map[string]int{}
+	for i, processor := range processors {
+		seen[processor.name] = i
+	}
+	idx, ok := seen["workload logs"]
+	if !ok {
+		t.Fatal("workload log processor is missing from the single-writer task lane")
+	}
+	if _, ok := seen["cluster maintenance"]; !ok {
+		t.Fatal("cluster maintenance processor missing")
+	}
+	if _, ok := seen["runtime certification"]; !ok {
+		t.Fatal("runtime certification processor missing")
+	}
+	if idx <= seen["cluster maintenance"] || idx >= seen["runtime certification"] {
+		t.Fatalf("workload log processor order=%d maintenance=%d certification=%d", idx, seen["cluster maintenance"], seen["runtime certification"])
+	}
+}
+
+func TestComponentRuntimeCertificationGatewayInstallReadinessPartial(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
+	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	previousTokenPath := serviceAccountTokenPath
+	serviceAccountTokenPath = tokenFile
+	defer func() { serviceAccountTokenPath = previousTokenPath }()
+	components, err := catalog.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	component := components["gateway-api"]
+	rendered, err := catalog.RenderComponent(component, "4so-component-cert", "catrel_component")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resources := make([]map[string]any, 0, len(rendered.Resources))
+	for _, resource := range rendered.Resources {
+		raw, _ := json.Marshal(resource)
+		var cloned map[string]any
+		_ = json.Unmarshal(raw, &cloned)
+		delete(cloned, "status")
+		meta, _ := cloned["metadata"].(map[string]any)
+		labels, _ := meta["labels"].(map[string]any)
+		if labels == nil {
+			labels = map[string]any{}
+			meta["labels"] = labels
+		}
+		labels["app.kubernetes.io/managed-by"] = "4so-platform-factory"
+		labels["platform.4so.io/component"] = "gateway-api"
+		labels["platform.4so.io/catalog-release-id"] = "catrel_component"
+		labels["platform.4so.io/runtime-certification-profile"] = "COMPONENT_RUNTIME_V1"
+		resources = append(resources, cloned)
+	}
+	objects := map[string]map[string]any{}
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		path := request.URL.Path
+		switch request.Method {
+		case http.MethodGet:
+			if path == "/api/v1/nodes" {
+				return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(`{"items":[{"status":{"conditions":[{"type":"Ready","status":"True"}]}}]}`)), Header: make(http.Header)}, nil
+			}
+			if path == "/api/v1/namespaces/kube-system/services/kube-dns" {
+				return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(`{"metadata":{"name":"kube-dns"}}`)), Header: make(http.Header)}, nil
+			}
+			if strings.HasPrefix(path, "/apis/gateway.networking.k8s.io/") {
+				return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(`{"items":[]}`)), Header: make(http.Header)}, nil
+			}
+			object, ok := objects[path]
+			if !ok {
+				return &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+			}
+			raw, _ := json.Marshal(object)
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(raw)), Header: make(http.Header)}, nil
+		case http.MethodPost:
+			var object map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&object); err != nil {
+				t.Fatal(err)
+			}
+			meta, _ := object["metadata"].(map[string]any)
+			name, _ := meta["name"].(string)
+			objectPath := strings.TrimRight(path, "/") + "/" + url.PathEscape(name)
+			if _, exists := objects[objectPath]; exists {
+				return &http.Response{StatusCode: http.StatusConflict, Status: "409 Conflict", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+			}
+			meta["uid"] = "uid-" + name
+			meta["resourceVersion"] = "1"
+			if object["kind"] == "CustomResourceDefinition" {
+				object["status"] = map[string]any{"conditions": []any{map[string]any{"type": "Established", "status": "True"}}}
+			}
+			objects[objectPath] = object
+			return &http.Response{StatusCode: http.StatusCreated, Status: "201 Created", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+		case http.MethodPatch:
+			current, ok := objects[path]
+			if !ok {
+				return &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+			}
+			var patch map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&patch); err != nil {
+				t.Fatal(err)
+			}
+			currentMeta, _ := current["metadata"].(map[string]any)
+			uid, _ := currentMeta["uid"].(string)
+			if strings.Contains(request.Header.Get("Content-Type"), "apply-patch") {
+				patchMeta, _ := patch["metadata"].(map[string]any)
+				patchMeta["uid"] = uid
+				patchMeta["resourceVersion"] = "3"
+				if patch["kind"] == "CustomResourceDefinition" {
+					patch["status"] = map[string]any{"conditions": []any{map[string]any{"type": "Established", "status": "True"}}}
+				}
+				objects[path] = patch
+			} else {
+				patchMeta, _ := patch["metadata"].(map[string]any)
+				patchLabels, _ := patchMeta["labels"].(map[string]any)
+				labels, _ := currentMeta["labels"].(map[string]any)
+				for k, v := range patchLabels {
+					if v == nil {
+						delete(labels, k)
+					} else {
+						labels[k] = v
+					}
+				}
+				patchAnnotations, _ := patchMeta["annotations"].(map[string]any)
+				annotations, _ := currentMeta["annotations"].(map[string]any)
+				if annotations == nil {
+					annotations = map[string]any{}
+					currentMeta["annotations"] = annotations
+				}
+				for k, v := range patchAnnotations {
+					if v == nil {
+						delete(annotations, k)
+					} else {
+						annotations[k] = v
+					}
+				}
+				currentMeta["resourceVersion"] = "2"
+			}
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+		case http.MethodDelete:
+			if _, ok := objects[path]; !ok {
+				return &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+			}
+			delete(objects, path)
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+		default:
+			t.Fatalf("unexpected component certification kube request %s %s", request.Method, path)
+			return nil, nil
+		}
+	})}
+	digest := func(ch string) string { return "sha256:" + strings.Repeat(ch, 64) }
+	task := controlplane.RuntimeCertificationTask{
+		RunID: "rtc_component", RunRevision: 2, TaskFenceToken: 1, LeaseExpiresAt: time.Now().Add(time.Hour),
+		Profile: controlplane.RuntimeCertificationComponentV1, Phase: controlplane.RuntimeCertificationPhaseInstall,
+		Namespace: "4so-component-cert", InventoryDigest: digest("1"), EnvironmentFingerprint: digest("2"),
+		CatalogReleaseID: "catrel_component", ComponentName: "gateway-api", ComponentRelease: component.Spec.Release,
+		ManifestDigest: digest("3"), SourceLockDigest: component.Spec.Source.SourceLockDigest, RenderedDigest: digest("4"),
+		TaskAttempt: 1, CleanupToken: "cleanup-component", Resources: resources,
+	}
+	a := &agent{kube: client}
+	install := a.runRuntimeCertification(context.Background(), task)
+	if !install.Success || install.Blocked {
+		t.Fatalf("component install=%+v", install)
+	}
+	runContract := controlplane.RuntimeCertificationRun{ResourceCount: len(resources), Profile: task.Profile, Phase: controlplane.RuntimeCertificationPhaseInstall, ComponentName: task.ComponentName, ComponentRelease: task.ComponentRelease}
+	if err := controlplane.ValidateRuntimeCertificationResultShape(runContract, install); err != nil {
+		t.Fatalf("component install result rejected: %v checks=%+v", err, install.Checks)
+	}
+	task.Phase = controlplane.RuntimeCertificationPhaseVerify
+	task.RunRevision = 3
+	task.TaskAttempt = 2
+	task.InstallCheckpointDigest = digest("5")
+	verify := a.runRuntimeCertification(context.Background(), task)
+	if !verify.Success || verify.Blocked {
+		t.Fatalf("component verify=%+v", verify)
+	}
+	runContract.Phase = controlplane.RuntimeCertificationPhaseVerify
+	if err := controlplane.ValidateRuntimeCertificationResultShape(runContract, verify); err != nil {
+		t.Fatalf("component verify result rejected: %v checks=%+v", err, verify.Checks)
+	}
+	task.Phase = controlplane.RuntimeCertificationPhaseFailure
+	task.RunRevision = 4
+	task.TaskAttempt = 3
+	failure := a.runRuntimeCertification(context.Background(), task)
+	if !failure.Success || failure.Blocked {
+		t.Fatalf("component failure/recovery=%+v", failure)
+	}
+	runContract.Phase = controlplane.RuntimeCertificationPhaseFailure
+	if err := controlplane.ValidateRuntimeCertificationResultShape(runContract, failure); err != nil {
+		t.Fatalf("component failure/recovery result rejected: %v checks=%+v", err, failure.Checks)
+	}
+	task.Phase = controlplane.RuntimeCertificationPhaseRemove
+	task.RunRevision = 5
+	task.TaskAttempt = 4
+	remove := a.runRuntimeCertification(context.Background(), task)
+	if !remove.Success || remove.Blocked {
+		t.Fatalf("component remove=%+v", remove)
+	}
+	runContract.Phase = controlplane.RuntimeCertificationPhaseRemove
+	if err := controlplane.ValidateRuntimeCertificationResultShape(runContract, remove); err != nil {
+		t.Fatalf("component remove result rejected: %v checks=%+v", err, remove.Checks)
+	}
+	if len(objects) != 0 {
+		t.Fatalf("component remove left orphaned resources: %d", len(objects))
+	}
+}
+
+func TestComponentRuntimeRemoveRefusesCRDWithLiveInstances(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
+	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	previousTokenPath := serviceAccountTokenPath
+	serviceAccountTokenPath = tokenFile
+	defer func() { serviceAccountTokenPath = previousTokenPath }()
+	components, err := catalog.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	component := components["gateway-api"]
+	rendered, err := catalog.RenderComponent(component, "4so-component-cert", "catrel_component")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resource map[string]any
+	for _, candidate := range rendered.Resources {
+		if candidate["kind"] == "CustomResourceDefinition" {
+			raw, _ := json.Marshal(candidate)
+			_ = json.Unmarshal(raw, &resource)
+			break
+		}
+	}
+	if resource == nil {
+		t.Fatal("gateway-api fixture has no CRD")
+	}
+	delete(resource, "status")
+	meta, _ := resource["metadata"].(map[string]any)
+	labels, _ := meta["labels"].(map[string]any)
+	if labels == nil {
+		labels = map[string]any{}
+		meta["labels"] = labels
+	}
+	labels["app.kubernetes.io/managed-by"] = "4so-platform-factory"
+	labels["platform.4so.io/component"] = "gateway-api"
+	labels["platform.4so.io/catalog-release-id"] = "catrel_component"
+	labels["platform.4so.io/runtime-certification-profile"] = "COMPONENT_RUNTIME_V1"
+	meta["uid"] = "uid-live-crd"
+	meta["resourceVersion"] = "7"
+	resource["status"] = map[string]any{"conditions": []any{map[string]any{"type": "Established", "status": "True"}}}
+	task := controlplane.RuntimeCertificationTask{Profile: controlplane.RuntimeCertificationComponentV1, Phase: controlplane.RuntimeCertificationPhaseRemove, Namespace: "4so-component-cert", CatalogReleaseID: "catrel_component", ComponentName: "gateway-api", ComponentRelease: component.Spec.Release, Resources: []map[string]any{resource}}
+	path, _, err := certificationResourcePath(task, resource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listPath, ok := componentRuntimeCRDInstanceListPath(resource)
+	if !ok {
+		t.Fatal("CRD instance list path not derived")
+	}
+	deleted := false
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == path:
+			raw, _ := json.Marshal(resource)
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(raw)), Header: make(http.Header)}, nil
+		case request.Method == http.MethodGet && request.URL.Path == listPath:
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(`{"items":[{"metadata":{"name":"live-user-resource"}}]}`)), Header: make(http.Header)}, nil
+		case request.Method == http.MethodDelete:
+			deleted = true
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+		default:
+			t.Fatalf("unexpected kube request %s %s", request.Method, request.URL.Path)
+			return nil, nil
+		}
+	})}
+	a := &agent{kube: client}
+	result := a.removeComponentRuntimeCertification(context.Background(), task)
+	if result.Success || result.Error == "" || deleted {
+		t.Fatalf("unsafe CRD removal was not rejected: result=%+v deleted=%t", result, deleted)
+	}
+	if len(result.Checks) != 1 || result.Checks[0].Status == "PASS" || !strings.Contains(result.Checks[0].Detail, "live custom resources") {
+		t.Fatalf("unexpected remove safety evidence: %+v", result.Checks)
+	}
+}
+
+func TestRuntimeCertificationExtendedPhasesAreComponentOnly(t *testing.T) {
+	digest := func(ch string) string { return "sha256:" + strings.Repeat(ch, 64) }
+	task := controlplane.RuntimeCertificationTask{
+		RunID: "rtc_noncomponent", RunRevision: 1, TaskFenceToken: 1, LeaseExpiresAt: time.Now().Add(time.Hour),
+		Profile: controlplane.RuntimeCertificationTargetV1, Phase: controlplane.RuntimeCertificationPhaseRemove,
+		Namespace: "4so-cert", InventoryDigest: digest("1"), EnvironmentFingerprint: digest("2"), CatalogReleaseID: "catrel", ManifestDigest: digest("3"), SourceLockDigest: digest("4"), RenderedDigest: digest("5"), TaskAttempt: 1, CleanupToken: "cleanup", Resources: []map[string]any{{"apiVersion": "v1", "kind": "Namespace", "metadata": map[string]any{"name": "4so-cert", "labels": map[string]any{"app.kubernetes.io/managed-by": "4so-platform-factory"}}}},
+	}
+	if err := validateRuntimeCertificationTask(task); err == nil || !strings.Contains(err.Error(), "component-only") {
+		t.Fatalf("non-component extended phase was accepted: %v", err)
+	}
+}
+
+func TestVMwareProviderProfileRequiresCAPVClusterAndMachineTemplates(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
+	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	previous := serviceAccountTokenPath
+	serviceAccountTokenPath = tokenFile
+	defer func() { serviceAccountTokenPath = previous }()
+	task := controlplane.ProviderProfileTask{ProfileID: "prv_vmware", ProfileRevision: 1, TaskFenceToken: 1, LeaseExpiresAt: time.Now().Add(time.Hour), Namespace: "4so-provider-system", ClusterClassName: "vmware-prod", WorkerClassName: "workers", InfrastructureProvider: "vmware"}
+	class := map[string]any{
+		"apiVersion": "cluster.x-k8s.io/v1beta2", "kind": "ClusterClass",
+		"metadata": map[string]any{"name": "vmware-prod", "namespace": "4so-provider-system"},
+		"spec": map[string]any{
+			"infrastructure": map[string]any{"ref": map[string]any{"apiGroup": "infrastructure.cluster.x-k8s.io", "kind": "VSphereClusterTemplate", "name": "vmware-cluster"}},
+			"workers":        map[string]any{"machineDeployments": []any{map[string]any{"class": "workers", "template": map[string]any{"infrastructure": map[string]any{"ref": map[string]any{"apiGroup": "infrastructure.cluster.x-k8s.io", "kind": "VSphereMachineTemplate", "name": "vmware-worker"}}}}}},
+		},
+	}
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		raw, _ := json.Marshal(class)
+		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(string(raw))), Header: make(http.Header)}, nil
+	})}
+	a := &agent{kube: client}
+	result := a.executeProviderProfileTask(context.Background(), task)
+	if !result.Success {
+		t.Fatalf("CAPV profile should verify: %+v", result)
+	}
+	class["spec"].(map[string]any)["infrastructure"] = map[string]any{"ref": map[string]any{"apiGroup": "infrastructure.cluster.x-k8s.io", "kind": "OtherClusterTemplate", "name": "bad"}}
+	result = a.executeProviderProfileTask(context.Background(), task)
+	if result.Success || !strings.Contains(result.Error, "VSphereClusterTemplate") {
+		t.Fatalf("unsafe CAPV profile result=%+v", result)
 	}
 }

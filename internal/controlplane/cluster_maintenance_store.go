@@ -41,12 +41,35 @@ func cloneClusterMaintenanceRun(v ClusterMaintenanceRun) ClusterMaintenanceRun {
 
 func validateDrainTimeout(seconds int) bool { return seconds >= 30 && seconds <= 3600 }
 
+const defaultHostActionTimeoutSeconds = 3600
+
+func normalizeMaintenanceAction(action TargetNodeLifecycleAction) (TargetNodeLifecycleAction, bool) {
+	action = TargetNodeLifecycleAction(strings.ToUpper(strings.TrimSpace(string(action))))
+	if action == "" {
+		action = TargetNodeActionDrain
+	}
+	switch action {
+	case TargetNodeActionDrain, TargetNodeActionOSPatch:
+		return action, true
+	default:
+		return action, false
+	}
+}
+
 func clusterMaintenanceLeaseDuration(v ClusterMaintenanceRun) time.Duration {
 	nodes := len(v.NodeNames)
 	if nodes < 1 {
 		nodes = 1
 	}
-	seconds := int64(nodes) * int64(v.DrainTimeoutSeconds)
+	secondsPerNode := int64(v.DrainTimeoutSeconds)
+	if v.Action == TargetNodeActionOSPatch {
+		host := v.HostActionTimeoutSeconds
+		if host <= 0 {
+			host = defaultHostActionTimeoutSeconds
+		}
+		secondsPerNode += int64(host)
+	}
+	seconds := int64(nodes) * secondsPerNode
 	if seconds < 30 {
 		seconds = 30
 	}
@@ -311,7 +334,28 @@ func (s *MemoryStore) prepareClusterMaintenanceRunLocked(v ClusterMaintenanceRun
 	v.InventoryDigest = inv.Digest
 	v.MaxUnavailable = window.MaxUnavailable
 	v.DrainTimeoutSeconds = window.DrainTimeoutSeconds
+	action, validAction := normalizeMaintenanceAction(v.Action)
+	if !validAction {
+		return ClusterMaintenanceRun{}, fmt.Errorf("%w: maintenance action %q is not executable through the cluster maintenance authority", ErrValidation, v.Action)
+	}
+	v.Action = action
+	if action == TargetNodeActionOSPatch {
+		descriptor := lifecycleDescriptor(action, inv, false)
+		if !descriptor.Executable {
+			blockers := append([]string(nil), descriptor.Blockers...)
+			for _, missing := range descriptor.MissingCapabilities {
+				blockers = append(blockers, "TARGET_CAPABILITY_MISSING:"+missing)
+			}
+			return ClusterMaintenanceRun{}, fmt.Errorf("%w: OS patch executor is not admitted: %s", ErrPrerequisite, strings.Join(blockers, "; "))
+		}
+		v.HostActionTimeoutSeconds = defaultHostActionTimeoutSeconds
+	} else {
+		v.HostActionTimeoutSeconds = 0
+	}
 	v.RequestedBy = strings.TrimSpace(actor)
+	if err := ValidateDay2CampaignContract(Day2ContractForMaintenance(v, window)); err != nil {
+		return ClusterMaintenanceRun{}, err
+	}
 	return v, nil
 }
 
@@ -325,7 +369,7 @@ func (s *MemoryStore) createPreparedClusterMaintenanceRunLocked(v ClusterMainten
 	v.State = ClusterMaintenanceAwaitingApproval
 	s.clusterMaintenanceRuns[v.ID] = cloneClusterMaintenanceRun(v)
 	s.idempotency["cluster-maintenance:"+v.ProjectID+":"+v.IdempotencyKey] = v.ID
-	s.appendAuditLocked(actor, "cluster_maintenance.run_requested", "clusterMaintenanceRun", v.ID, v.Revision, map[string]any{"clusterId": v.ClusterID, "windowId": v.WindowID, "operationId": v.OperationID, "nodes": v.NodeNames, "inventoryDigest": v.InventoryDigest})
+	s.appendAuditLocked(actor, "cluster_maintenance.run_requested", "clusterMaintenanceRun", v.ID, v.Revision, map[string]any{"clusterId": v.ClusterID, "windowId": v.WindowID, "operationId": v.OperationID, "action": v.Action, "nodes": v.NodeNames, "inventoryDigest": v.InventoryDigest})
 	s.appendOutboxLocked("clusterMaintenanceRun", v.ID, "cluster_maintenance.run_requested", v)
 	return cloneClusterMaintenanceRun(v), nil
 }
@@ -449,8 +493,8 @@ func (s *MemoryStore) ApproveClusterMaintenanceRun(_ context.Context, id string,
 	if v.State != ClusterMaintenanceAwaitingApproval {
 		return ClusterMaintenanceRun{}, ErrInvalidTransition
 	}
-	if strings.TrimSpace(actor) == "" || strings.TrimSpace(actor) == strings.TrimSpace(v.RequestedBy) {
-		return ClusterMaintenanceRun{}, fmt.Errorf("%w: a different approver is required", ErrPrerequisite)
+	if err := ValidateDay2IndependentApproval(v.RequestedBy, actor); err != nil {
+		return ClusterMaintenanceRun{}, err
 	}
 	window, ok := s.clusterMaintenanceWindows[v.WindowID]
 	if !ok || window.State != ClusterMaintenanceWindowActive || !window.EndsAt.After(nowUTC(s.now)) {
@@ -542,11 +586,15 @@ func (s *MemoryStore) NextClusterMaintenanceTask(_ context.Context, clusterID, a
 			}
 			continue
 		}
-		if window.State != ClusterMaintenanceWindowActive || !window.EndsAt.After(now) {
-			s.failQueuedMaintenanceRunLocked(v, op, "maintenance window expired before task claim", now)
+		if window.State != ClusterMaintenanceWindowActive {
+			s.failQueuedMaintenanceRunLocked(v, op, "maintenance window is no longer active", now)
 			continue
 		}
-		if now.Before(window.StartsAt) {
+		if err := ValidateDay2ExecutionWindow(window.StartsAt, window.EndsAt, now); err != nil {
+			if now.Before(window.StartsAt) {
+				continue
+			}
+			s.failQueuedMaintenanceRunLocked(v, op, "maintenance window expired before task claim", now)
 			continue
 		}
 		inv, iok := s.clusterInventories[clusterID]
@@ -557,6 +605,13 @@ func (s *MemoryStore) NextClusterMaintenanceTask(_ context.Context, clusterID, a
 		if err := maintenanceNodeIdentityMatches(inv, v.NodeNames, v.NodeUIDs); err != nil {
 			s.failQueuedMaintenanceRunLocked(v, op, err.Error(), now)
 			continue
+		}
+		if v.Action == TargetNodeActionOSPatch {
+			descriptor := lifecycleDescriptor(v.Action, inv, false)
+			if !descriptor.Executable {
+				s.failQueuedMaintenanceRunLocked(v, op, "OS patch target capability/executor admission changed after approval", now)
+				continue
+			}
 		}
 		v.State = ClusterMaintenanceRunning
 		v.StartedAt = &now
@@ -604,11 +659,8 @@ func (s *MemoryStore) ReportClusterMaintenanceTask(_ context.Context, clusterID,
 	if !ok || op.State != OperationRunning || op.LeaseOwner != "cluster-maintenance-agent:"+clusterID {
 		return ClusterMaintenanceRun{}, Operation{}, fmt.Errorf("%w: linked operation is not owned by the cluster maintenance agent", ErrPrerequisite)
 	}
-	if result.OperationFenceToken <= 0 || result.OperationFenceToken != op.FenceToken {
-		return ClusterMaintenanceRun{}, Operation{}, ErrStaleFence
-	}
-	if op.LeaseExpiresAt == nil || !op.LeaseExpiresAt.After(now) {
-		return ClusterMaintenanceRun{}, Operation{}, ErrLeaseHeld
+	if err := ValidateDay2Fence(op.FenceToken, result.OperationFenceToken, op.LeaseExpiresAt, now); err != nil {
+		return ClusterMaintenanceRun{}, Operation{}, err
 	}
 	if len(result.Results) == 0 {
 		return ClusterMaintenanceRun{}, Operation{}, fmt.Errorf("%w: node maintenance results are required", ErrValidation)
@@ -631,12 +683,15 @@ func (s *MemoryStore) ReportClusterMaintenanceTask(_ context.Context, clusterID,
 		if !r.Cordoned || !r.DrainAttempted || !r.Drained || !r.Uncordoned || strings.TrimSpace(r.Error) != "" {
 			allSafe = false
 		}
+		if v.Action == TargetNodeActionOSPatch && (!r.HostActionAttempted || !r.HostActionSucceeded || r.HostActionAuthority != "TARGET_NODE_HOST_MAINTENANCE_EXECUTOR_V1" || strings.TrimSpace(r.HostActionEvidence) == "") {
+			allSafe = false
+		}
 	}
 	if len(seen) != len(selected) {
 		return ClusterMaintenanceRun{}, Operation{}, fmt.Errorf("%w: result node set must match the requested nodes", ErrValidation)
 	}
 	if result.Success && !allSafe {
-		return ClusterMaintenanceRun{}, Operation{}, fmt.Errorf("%w: successful maintenance requires every node to be cordoned, drained and uncordoned", ErrValidation)
+		return ClusterMaintenanceRun{}, Operation{}, fmt.Errorf("%w: successful maintenance requires every node action to satisfy its cordon/drain/host-action/uncordon contract", ErrValidation)
 	}
 	v.Results = append([]NodeMaintenanceResult(nil), result.Results...)
 	v.FinishedAt = &now
@@ -674,7 +729,7 @@ func (s *MemoryStore) ReportClusterMaintenanceTask(_ context.Context, clusterID,
 	v.UpdatedAt = now
 	s.clusterMaintenanceRuns[runID] = cloneClusterMaintenanceRun(v)
 	s.operations[op.ID] = op
-	s.appendAuditLocked("cluster-agent", "cluster_maintenance.run_reported", "clusterMaintenanceRun", runID, v.Revision, map[string]any{"operationId": op.ID, "state": v.State, "nodes": len(v.Results), "method": ClusterMaintenanceAuthorityMethod})
+	s.appendAuditLocked("cluster-agent", "cluster_maintenance.run_reported", "clusterMaintenanceRun", runID, v.Revision, map[string]any{"operationId": op.ID, "state": v.State, "action": v.Action, "nodes": len(v.Results), "method": ClusterMaintenanceAuthorityMethod})
 	s.appendOutboxLocked("clusterMaintenanceRun", runID, "cluster_maintenance.run_completed", v)
 	s.appendOutboxLocked("operation", op.ID, "operation.completed", op)
 	return cloneClusterMaintenanceRun(v), op, nil

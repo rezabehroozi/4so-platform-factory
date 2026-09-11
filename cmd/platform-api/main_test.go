@@ -133,3 +133,31 @@ func TestPostgresPoolConfigDefaultsAndBounds(t *testing.T) {
 		t.Fatal("expected malformed max-open setting to fail closed")
 	}
 }
+
+func TestConfigureManagedOKDProductionRuntimeDisabledByDefault(t *testing.T) {
+	t.Setenv("PLATFORM_FACTORY_MANAGED_OKD_WORKER_ENABLED", "false")
+	runtime, err := configureManagedOKDProductionRuntime(nil)
+	if err != nil || runtime != nil {
+		t.Fatalf("disabled managed OKD runtime must remain inactive: runtime=%#v err=%v", runtime, err)
+	}
+}
+
+func TestConfigureManagedOKDProductionRuntimeFailsClosedWithoutHMACKey(t *testing.T) {
+	t.Setenv("PLATFORM_FACTORY_MANAGED_OKD_WORKER_ENABLED", "true")
+	t.Setenv("PLATFORM_FACTORY_MANAGED_OKD_HMAC_KEY_B64", "")
+	runtime, err := configureManagedOKDProductionRuntime(nil)
+	if err == nil || runtime != nil {
+		t.Fatalf("enabled managed OKD runtime without signing key must fail closed: runtime=%#v err=%v", runtime, err)
+	}
+}
+
+func TestManagedOKDDurationEnvRejectsOutOfBoundsValues(t *testing.T) {
+	t.Setenv("PLATFORM_FACTORY_MANAGED_OKD_COMMAND_TIMEOUT", "31m")
+	if _, err := managedOKDDurationEnv("PLATFORM_FACTORY_MANAGED_OKD_COMMAND_TIMEOUT", 2*time.Minute, 30*time.Minute); err == nil {
+		t.Fatal("expected duration above maximum to fail closed")
+	}
+	t.Setenv("PLATFORM_FACTORY_MANAGED_OKD_COMMAND_TIMEOUT", "0s")
+	if _, err := managedOKDDurationEnv("PLATFORM_FACTORY_MANAGED_OKD_COMMAND_TIMEOUT", 2*time.Minute, 30*time.Minute); err == nil {
+		t.Fatal("expected non-positive duration to fail closed")
+	}
+}

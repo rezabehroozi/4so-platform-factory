@@ -1,0 +1,30 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "MCPExternalClientInteropMatrix",
+  "authority": "MCP_EXTERNAL_CLIENT_INTEROPERABILITY_MATRIX_V2",
+  "spec": {
+    "protocol": "2026-07-28",
+    "transport": "streamable-http",
+    "resourcePath": "/mcp",
+    "sourceContractStatus": "implemented",
+    "externalCertificationStatus": "pending",
+    "blocker": "MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING",
+    "sharedRequiredChecks": [
+      "oauth-protected-resource-discovery",
+      "dedicated-audience-validation",
+      "authorization-filtered-tools-list",
+      "project-resource-scope-negative-control",
+      "revoked-delegation-negative-control",
+      "read-only-client-mutation-negative-control",
+      "administration-approval-self-approval-negative-control"
+    ],
+    "clients": [
+      {"id": "chatgpt", "displayName": "ChatGPT custom MCP", "sourceContract": "ready", "externalExecution": "pending"},
+      {"id": "claude", "displayName": "Claude remote MCP", "sourceContract": "ready", "externalExecution": "pending"},
+      {"id": "gemini", "displayName": "Gemini remote MCP", "sourceContract": "ready", "externalExecution": "pending"},
+      {"id": "grok", "displayName": "Grok custom MCP", "sourceContract": "ready", "externalExecution": "pending"}
+    ],
+    "localBlackBoxHarness": "python3 scripts/mcp_external_client_certify.py --endpoint <api>/mcp",
+    "truthRule": "Passing the local black-box harness proves product protocol/scope behavior only; it never claims that any named external client has been physically certified."
+  }
+}

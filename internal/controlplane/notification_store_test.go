@@ -245,3 +245,47 @@ func TestNotificationDeliveryClaimEqualTimestampOrderingMatchesPostgres(t *testi
 		}
 	}
 }
+
+func TestNotificationHealthCandidatesStableCursorOrdering(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	store := NewMemoryStoreWith(func() time.Time { return now }, nil)
+	org, err := store.CreateOrganization(ctx, Organization{Name: "health-cursor", DisplayName: "Health Cursor"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := store.CreateProject(ctx, Project{OrganizationID: org.ID, Name: "health-cursor", DisplayName: "Health Cursor"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Import/claim paths stamp both clusters with the same authority clock, which
+	// makes the ID tie-breaker observable instead of relying on map iteration.
+	var ids []string
+	for _, name := range []string{"alpha", "beta"} {
+		imp, err := store.CreateClusterImport(ctx, ClusterImport{ProjectID: project.ID, Name: name, DisplayName: name, TokenDigest: "sha256:enroll-" + name, ExpiresAt: now.Add(time.Hour)}, "admin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		imp, err = store.ApproveClusterImport(ctx, imp.ID, imp.Revision, "admin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, cluster, err := store.ClaimClusterImport(ctx, imp.ID, "sha256:enroll-"+name, "sha256:agent-"+name, name+"-uid", "v1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, cluster.ID)
+	}
+	first, more, err := store.ListNotificationHealthCandidates(ctx, time.Time{}, "", 1)
+	if err != nil || len(first) != 1 || !more {
+		t.Fatalf("first=%+v more=%v err=%v", first, more, err)
+	}
+	second, more, err := store.ListNotificationHealthCandidates(ctx, first[0].ChangedAt, first[0].ClusterID, 1)
+	if err != nil || len(second) != 1 || more {
+		t.Fatalf("second=%+v more=%v err=%v", second, more, err)
+	}
+	if first[0].ClusterID >= second[0].ClusterID {
+		t.Fatalf("cursor tie-break is not stable: %s >= %s", first[0].ClusterID, second[0].ClusterID)
+	}
+	_ = ids
+}

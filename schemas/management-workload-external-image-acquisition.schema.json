@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/management-workload-external-image-acquisition.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "authority", "schemaVersion", "role", "releaseArtifactDigest", "planDigest",
+    "sourceRepository", "selectedVersion", "sourceTag", "selectionChannel", "selectionEvidenceURL",
+    "registryEndpoint", "registryRepository", "platformOs", "platformArchitecture",
+    "tagRootDigest", "tagRootMediaType", "tagRootBytes", "manifestDigest", "manifestMediaType", "exactReference",
+    "config", "layers", "reachableBytes"
+  ],
+  "properties": {
+    "authority": {"const": "MANAGEMENT_WORKLOAD_EXTERNAL_IMAGE_ACQUISITION_V2"},
+    "schemaVersion": {"const": 2},
+    "role": {"enum": ["postgresql", "forgejo", "zot", "keycloak"]},
+    "releaseArtifactDigest": {"$ref": "#/$defs/digest"},
+    "planDigest": {"$ref": "#/$defs/digest"},
+    "sourceRepository": {"type": "string", "pattern": "^[a-z0-9.-]+/[A-Za-z0-9._/-]+$"},
+    "selectedVersion": {"type": "string", "minLength": 1, "maxLength": 64},
+    "sourceTag": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$", "not": {"const": "latest"}},
+    "selectionChannel": {"enum": ["postgresql-17-patch", "forgejo-lts", "zot-stable", "keycloak-current-security"]},
+    "selectionEvidenceURL": {"type": "string", "pattern": "^https://[^ ]+$"},
+    "registryEndpoint": {"type": "string", "pattern": "^[a-z0-9.-]+(?::[0-9]+)?$"},
+    "registryRepository": {"type": "string", "pattern": "^[A-Za-z0-9._/-]+$"},
+    "platformOs": {"const": "linux"},
+    "platformArchitecture": {"const": "amd64"},
+    "tagRootDigest": {"$ref": "#/$defs/digest"},
+    "tagRootMediaType": {"enum": [
+      "application/vnd.oci.image.index.v1+json",
+      "application/vnd.docker.distribution.manifest.list.v2+json",
+      "application/vnd.oci.image.manifest.v1+json",
+      "application/vnd.docker.distribution.manifest.v2+json"
+    ]},
+    "tagRootBytes": {"type": "integer", "minimum": 1, "maximum": 8388608},
+    "manifestDigest": {"$ref": "#/$defs/digest"},
+    "manifestMediaType": {"enum": [
+      "application/vnd.oci.image.manifest.v1+json",
+      "application/vnd.docker.distribution.manifest.v2+json"
+    ]},
+    "exactReference": {"type": "string", "pattern": "^[^ @]+@sha256:[0-9a-f]{64}$"},
+    "config": {"$ref": "#/$defs/descriptor"},
+    "layers": {"type": "array", "minItems": 1, "maxItems": 512, "items": {"$ref": "#/$defs/descriptor"}},
+    "reachableBytes": {"type": "integer", "minimum": 1, "maximum": 34359738368}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mediaType", "digest", "size"],
+      "properties": {
+        "mediaType": {"type": "string", "minLength": 1, "maxLength": 256},
+        "digest": {"$ref": "#/$defs/digest"},
+        "size": {"type": "integer", "minimum": 1, "maximum": 8589934592}
+      }
+    }
+  }
+}

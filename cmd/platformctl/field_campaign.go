@@ -38,6 +38,7 @@ type installerPlanResponse struct {
 
 type installerStatusResponse struct {
 	ExecutionEnabled bool           `json:"executionEnabled"`
+	BootstrapActive  bool           `json:"bootstrapActive"`
 	Run              *bootstrap.Run `json:"run"`
 }
 
@@ -104,6 +105,7 @@ func fieldCampaignPrepareCommand(args []string) {
 	if err != nil {
 		fatal(fmt.Errorf("inspect exact release artifact: %w", err))
 	}
+	platformctlBinaryDigest := bindRunningPlatformctlToExactRelease(release)
 	installerBinaryDigest, err := release.FileDigest(releaseartifact.InstallerBinaryPath)
 	if err != nil {
 		fatal(fmt.Errorf("inspect release installer binary digest: %w", err))
@@ -112,7 +114,7 @@ func fieldCampaignPrepareCommand(args []string) {
 	if err != nil {
 		fatal(err)
 	}
-	campaign, err := prepareFieldCampaign(connection, request, release.Digest, installerBinaryDigest, time.Now().UTC())
+	campaign, err := prepareFieldCampaign(connection, request, release.Digest, installerBinaryDigest, platformctlBinaryDigest, time.Now().UTC())
 	if err != nil {
 		fatal(err)
 	}
@@ -141,6 +143,7 @@ func fieldCampaignStartCommand(args []string) {
 	if err != nil {
 		fatal(err)
 	}
+	bindRunningPlatformctlToFieldCampaign(campaign)
 	connection, err := newFieldCampaignConnection(campaign.InstallerURL, *tokenFile, *caFile)
 	if err != nil {
 		fatal(err)
@@ -174,6 +177,7 @@ func fieldCampaignWatchCommand(args []string) {
 	if err != nil {
 		fatal(err)
 	}
+	bindRunningPlatformctlToFieldCampaign(campaign)
 	connection, err := newFieldCampaignConnection(campaign.InstallerURL, *tokenFile, *caFile)
 	if err != nil {
 		fatal(err)
@@ -192,6 +196,8 @@ func fieldCampaignWatchCommand(args []string) {
 	next := "collect independently verified field evidence"
 	if campaign.State == fieldcampaign.StateFailed {
 		next = "inspect lastError and use field-campaign resume with --confirmation RESUME after fixing the owning cause"
+	} else if campaign.State == fieldcampaign.StateInterrupted {
+		next = "resume the interrupted durable run with field-campaign resume --confirmation RESUME"
 	}
 	printJSON(map[string]any{"stateFile": *statePath, "campaign": campaign, "nextAction": next})
 }
@@ -215,6 +221,7 @@ func fieldCampaignResumeCommand(args []string) {
 	if err != nil {
 		fatal(err)
 	}
+	bindRunningPlatformctlToFieldCampaign(campaign)
 	connection, err := newFieldCampaignConnection(campaign.InstallerURL, *tokenFile, *caFile)
 	if err != nil {
 		fatal(err)
@@ -251,6 +258,13 @@ func fieldCampaignCollectCommand(args []string) {
 	if err = verifyCampaignReleaseArtifact(campaign, *releaseArtifact, version); err != nil {
 		fatal(err)
 	}
+	if campaign.SchemaVersion != fieldcampaign.LegacySchemaVersion {
+		release, inspectErr := releaseartifact.Inspect(*releaseArtifact, version)
+		if inspectErr != nil {
+			fatal(fmt.Errorf("inspect exact release artifact for field evidence collection: %w", inspectErr))
+		}
+		bindRunningPlatformctlToExactRelease(release)
+	}
 	connection, err := newFieldCampaignConnection(campaign.InstallerURL, *tokenFile, *caFile)
 	if err != nil {
 		fatal(err)
@@ -282,13 +296,22 @@ func verifyCampaignReleaseArtifact(campaign fieldcampaign.Campaign, path, expect
 	if release.Digest != campaign.ReleaseArtifactDigest {
 		return errors.New("exact release artifact digest does not match the prepared field campaign")
 	}
-	if campaign.SchemaVersion >= fieldcampaign.SchemaVersion {
+	if campaign.SchemaVersion >= fieldcampaign.RuntimeBindingSchemaVersion {
 		expectedInstallerDigest, digestErr := release.FileDigest(releaseartifact.InstallerBinaryPath)
 		if digestErr != nil {
 			return fmt.Errorf("inspect release installer binary digest: %w", digestErr)
 		}
 		if expectedInstallerDigest != campaign.InstallerBinaryDigest {
 			return errors.New("release installer binary digest does not match the prepared field campaign")
+		}
+	}
+	if campaign.SchemaVersion >= fieldcampaign.PlatformctlBindingSchemaVersion {
+		expectedPlatformctlDigest, digestErr := release.FileDigest(releaseartifact.PlatformctlBinaryPath)
+		if digestErr != nil {
+			return fmt.Errorf("inspect release platformctl binary digest: %w", digestErr)
+		}
+		if expectedPlatformctlDigest != campaign.PlatformctlBinaryDigest {
+			return errors.New("release platformctl binary digest does not match the prepared field campaign")
 		}
 	}
 	return nil
@@ -313,6 +336,7 @@ func fieldCampaignDiagnoseCommand(args []string) {
 	if err != nil {
 		fatal(err)
 	}
+	bindRunningPlatformctlToFieldCampaign(campaign)
 	if strings.TrimSpace(campaign.RunID) == "" {
 		fatal(errors.New("field campaign has not observed an installation run"))
 	}
@@ -412,7 +436,7 @@ func newFieldCampaignConnection(installerURL, tokenFile, caFile string) (fieldCa
 	return fieldCampaignConnection{base: base, client: client, token: token}, nil
 }
 
-func prepareFieldCampaign(connection fieldCampaignConnection, request installation.InstallRequest, releaseArtifactDigest, installerBinaryDigest string, now time.Time) (fieldcampaign.Campaign, error) {
+func prepareFieldCampaign(connection fieldCampaignConnection, request installation.InstallRequest, releaseArtifactDigest, installerBinaryDigest, platformctlBinaryDigest string, now time.Time) (fieldcampaign.Campaign, error) {
 	if err := verifyInstallerRuntimeBinding(connection, installerBinaryDigest); err != nil {
 		return fieldcampaign.Campaign{}, err
 	}
@@ -423,7 +447,7 @@ func prepareFieldCampaign(connection fieldCampaignConnection, request installati
 	if strings.TrimSpace(bundle.SourceReleaseDigest) != strings.TrimSpace(releaseArtifactDigest) {
 		return fieldcampaign.Campaign{}, errors.New("exact release artifact digest does not match the appliance bundle source release binding")
 	}
-	return fieldcampaign.New(connection.base.String(), request, planResponse.Plan.SpecDigest, bundle.BundleDigest, releaseArtifactDigest, installerBinaryDigest, planResponse.Plan.ID, preflight.Digest, planResponse.ExecutionEnabled, now)
+	return fieldcampaign.New(connection.base.String(), request, planResponse.Plan.SpecDigest, bundle.BundleDigest, releaseArtifactDigest, installerBinaryDigest, platformctlBinaryDigest, planResponse.Plan.ID, preflight.Digest, planResponse.ExecutionEnabled, now)
 }
 
 func verifyInstallerRuntimeBinding(connection fieldCampaignConnection, expectedDigest string) error {
@@ -479,7 +503,7 @@ func startFieldCampaign(connection fieldCampaignConnection, campaign *fieldcampa
 	if campaign.State != fieldcampaign.StatePrepared {
 		return fmt.Errorf("field campaign must be PREPARED, got %s", campaign.State)
 	}
-	if campaign.SchemaVersion >= fieldcampaign.SchemaVersion {
+	if campaign.SchemaVersion >= fieldcampaign.RuntimeBindingSchemaVersion {
 		if err := verifyInstallerRuntimeBinding(connection, campaign.InstallerBinaryDigest); err != nil {
 			return err
 		}
@@ -558,7 +582,13 @@ func observeFieldCampaign(connection fieldCampaignConnection, campaign *fieldcam
 	case bootstrap.RunPending:
 		next = fieldcampaign.StateStartRequested
 	case bootstrap.RunRunning:
-		next = fieldcampaign.StateRunning
+		if status.BootstrapActive {
+			next = fieldcampaign.StateRunning
+		} else {
+			next = fieldcampaign.StateInterrupted
+			campaign.LastError = "bootstrap execution interrupted; durable run requires explicit resume"
+			detail = "installation run is durably RUNNING but no installer worker owns it; explicit resume is required"
+		}
 	case bootstrap.RunFailed:
 		next = fieldcampaign.StateFailed
 	case bootstrap.RunSucceeded:
@@ -567,7 +597,7 @@ func observeFieldCampaign(connection fieldCampaignConnection, campaign *fieldcam
 		return false, false, fmt.Errorf("unsupported installation run state %q", run.State)
 	}
 	if next == previousState && previousRunID == campaign.RunID && previousRunState == campaign.RunState && previousError == campaign.LastError {
-		return next == fieldcampaign.StateFailed || next == fieldcampaign.StateSucceeded, false, nil
+		return next == fieldcampaign.StateInterrupted || next == fieldcampaign.StateFailed || next == fieldcampaign.StateSucceeded, false, nil
 	}
 	if next == previousState {
 		if err := campaign.Record("observe", detail, now); err != nil {
@@ -576,14 +606,14 @@ func observeFieldCampaign(connection fieldCampaignConnection, campaign *fieldcam
 	} else if err := campaign.Transition(next, "observe", detail, now); err != nil {
 		return false, false, err
 	}
-	return next == fieldcampaign.StateFailed || next == fieldcampaign.StateSucceeded, true, nil
+	return next == fieldcampaign.StateInterrupted || next == fieldcampaign.StateFailed || next == fieldcampaign.StateSucceeded, true, nil
 }
 
 func resumeFieldCampaign(connection fieldCampaignConnection, campaign *fieldcampaign.Campaign, now time.Time) error {
-	if campaign.State != fieldcampaign.StateFailed {
-		return fmt.Errorf("field campaign must be FAILED, got %s", campaign.State)
+	if campaign.State != fieldcampaign.StateFailed && campaign.State != fieldcampaign.StateInterrupted {
+		return fmt.Errorf("field campaign must be FAILED or INTERRUPTED, got %s", campaign.State)
 	}
-	if campaign.SchemaVersion >= fieldcampaign.SchemaVersion {
+	if campaign.SchemaVersion >= fieldcampaign.RuntimeBindingSchemaVersion {
 		if err := verifyInstallerRuntimeBinding(connection, campaign.InstallerBinaryDigest); err != nil {
 			return err
 		}
@@ -592,18 +622,27 @@ func resumeFieldCampaign(connection fieldCampaignConnection, campaign *fieldcamp
 	if err := installerRequestJSON(connection, http.MethodGet, "/api/v1/status", nil, &status); err != nil {
 		return err
 	}
-	if status.Run == nil || status.Run.ID != campaign.RunID || status.Run.State != bootstrap.RunFailed {
-		return errors.New("installer does not expose the failed run bound to this campaign")
+	if status.Run == nil || status.Run.ID != campaign.RunID {
+		return errors.New("installer does not expose the campaign-bound durable run")
 	}
 	if status.Run.SpecDigest != campaign.RequestDigest || status.Run.BundleDigest != campaign.BundleDigest || status.Run.PreflightDigest != campaign.PreflightDigest {
-		return errors.New("failed run digests do not match the campaign")
+		return errors.New("durable run digests do not match the campaign")
+	}
+	failed := status.Run.State == bootstrap.RunFailed
+	interrupted := status.Run.State == bootstrap.RunRunning && !status.BootstrapActive
+	if !failed && !interrupted {
+		return fmt.Errorf("installer durable run is not resumable: state=%s bootstrapActive=%t", status.Run.State, status.BootstrapActive)
 	}
 	var accepted map[string]string
 	if err := installerRequestJSON(connection, http.MethodPost, "/api/v1/resume", map[string]any{}, &accepted); err != nil {
 		return err
 	}
 	campaign.LastError = ""
-	return campaign.Transition(fieldcampaign.StateStartRequested, "resume", "explicit RESUME confirmation accepted and installer resume requested", now)
+	detail := "explicit RESUME confirmation accepted and failed installer run resume requested"
+	if interrupted {
+		detail = "explicit RESUME confirmation accepted for interrupted durable RUNNING installer run"
+	}
+	return campaign.Transition(fieldcampaign.StateStartRequested, "resume", detail, now)
 }
 
 func collectFieldCampaignEvidence(connection fieldCampaignConnection, campaign *fieldcampaign.Campaign, now time.Time) ([]byte, fieldevidence.Verification, error) {
@@ -630,7 +669,7 @@ func collectFieldCampaignEvidence(connection fieldCampaignConnection, campaign *
 	if verification.ReleaseArtifactDigest != campaign.ReleaseArtifactDigest {
 		return nil, empty, errors.New("field evidence report does not match campaign exact release artifact digest")
 	}
-	if campaign.SchemaVersion >= fieldcampaign.SchemaVersion && verification.InstallerBinaryDigest != campaign.InstallerBinaryDigest {
+	if campaign.SchemaVersion >= fieldcampaign.RuntimeBindingSchemaVersion && verification.InstallerBinaryDigest != campaign.InstallerBinaryDigest {
 		return nil, empty, errors.New("field evidence report does not match campaign installer binary digest")
 	}
 	if campaign.Simulation != nil && ((*campaign.Simulation && verification.ExecutionMode != "simulation") || (!*campaign.Simulation && verification.ExecutionMode != "live")) {

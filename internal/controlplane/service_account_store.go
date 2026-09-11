@@ -22,7 +22,7 @@ func normalizeTokenPermissions(role string, in []string) ([]string, error) {
 		}
 		switch permission {
 		case APITokenPermissionRead, APITokenPermissionMCPRead:
-		case APITokenPermissionOperate, APITokenPermissionAIDiagnose:
+		case APITokenPermissionOperate, APITokenPermissionMCPOperate, APITokenPermissionAIDiagnose, APITokenPermissionOperationExecute:
 			if role != "platform-operator" {
 				return nil, fmt.Errorf("%w: %s permission requires platform-operator service account", ErrValidation, permission)
 			}

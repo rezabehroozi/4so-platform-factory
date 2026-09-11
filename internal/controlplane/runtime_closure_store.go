@@ -15,6 +15,8 @@ func ValidateRuntimeClosureCampaign(v *RuntimeClosureCampaign) error {
 	v.DesiredDigest = strings.TrimSpace(v.DesiredDigest)
 	v.ObservedDigest = strings.TrimSpace(v.ObservedDigest)
 	v.EvidenceDigest = strings.TrimSpace(v.EvidenceDigest)
+	v.ReleaseArtifactDigest = strings.TrimSpace(v.ReleaseArtifactDigest)
+	v.ProducerBinaryDigest = strings.TrimSpace(v.ProducerBinaryDigest)
 	v.NextAction = strings.TrimSpace(v.NextAction)
 	v.Summary = strings.TrimSpace(v.Summary)
 	v.LastError = strings.TrimSpace(v.LastError)
@@ -28,6 +30,24 @@ func ValidateRuntimeClosureCampaign(v *RuntimeClosureCampaign) error {
 	}
 	if v.NextAction == "" {
 		return fmt.Errorf("%w: nextAction is required", ErrValidation)
+	}
+	if v.EvidenceSchemaVersion == 0 {
+		if v.ReleaseArtifactDigest != "" || v.ProducerBinaryDigest != "" {
+			return fmt.Errorf("%w: legacy runtime closure campaign must not contain exact-release identity", ErrValidation)
+		}
+	} else if v.EvidenceSchemaVersion == 2 {
+		for name, value := range map[string]string{"releaseArtifactDigest": v.ReleaseArtifactDigest, "producerBinaryDigest": v.ProducerBinaryDigest} {
+			if len(value) != 71 || !strings.HasPrefix(value, "sha256:") {
+				return fmt.Errorf("%w: %s must be a lowercase sha256 digest", ErrValidation, name)
+			}
+			for _, ch := range value[len("sha256:"):] {
+				if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f')) {
+					return fmt.Errorf("%w: %s must be a lowercase sha256 digest", ErrValidation, name)
+				}
+			}
+		}
+	} else {
+		return fmt.Errorf("%w: unsupported runtime closure evidence schema version", ErrValidation)
 	}
 	switch v.State {
 	case RuntimeClosureWaitingBaseline, RuntimeClosureWaitingApproval, RuntimeClosureWaitingVerification, RuntimeClosureFailed:

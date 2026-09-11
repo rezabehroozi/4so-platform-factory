@@ -929,6 +929,9 @@ func (s *PostgresStore) TransitionOperation(ctx context.Context, id string, expe
 		if !controlplane.CanTransition(current.State, to) {
 			return controlplane.ErrInvalidTransition
 		}
+		if !controlplane.CanDirectOperationTransition(current.State, to) {
+			return fmt.Errorf("%w: execution-plane transition %s -> %s requires its dedicated authority method", controlplane.ErrPrerequisite, current.State, to)
+		}
 		if to == controlplane.OperationRollingBack {
 			return fmt.Errorf("%w: ROLLING_BACK is compensation-authority controlled; use BeginOperationCompensation", controlplane.ErrPrerequisite)
 		}
@@ -968,7 +971,8 @@ func claimable(state controlplane.OperationState) bool {
 }
 
 func (s *PostgresStore) ClaimOperation(ctx context.Context, id, worker string, ttl time.Duration, at time.Time) (controlplane.ClaimResult, error) {
-	if strings.TrimSpace(worker) == "" || ttl <= 0 {
+	worker = strings.TrimSpace(worker)
+	if worker == "" || ttl <= 0 {
 		return controlplane.ClaimResult{}, fmt.Errorf("%w: worker and positive ttl are required", controlplane.ErrValidation)
 	}
 	at = at.UTC()
@@ -1020,8 +1024,9 @@ func (s *PostgresStore) ClaimOperation(ctx context.Context, id, worker string, t
 }
 
 func (s *PostgresStore) RenewOperationLease(ctx context.Context, id, worker string, fence int64, ttl time.Duration, at time.Time) (controlplane.ClaimResult, error) {
-	if ttl <= 0 {
-		return controlplane.ClaimResult{}, fmt.Errorf("%w: positive lease ttl is required", controlplane.ErrValidation)
+	worker = strings.TrimSpace(worker)
+	if worker == "" || ttl <= 0 {
+		return controlplane.ClaimResult{}, fmt.Errorf("%w: worker and positive lease ttl are required", controlplane.ErrValidation)
 	}
 	at = at.UTC()
 	var result controlplane.ClaimResult
@@ -1049,6 +1054,10 @@ func (s *PostgresStore) RenewOperationLease(ctx context.Context, id, worker stri
 }
 
 func (s *PostgresStore) ReleaseOperationLease(ctx context.Context, id, worker string, fence int64) error {
+	worker = strings.TrimSpace(worker)
+	if worker == "" {
+		return fmt.Errorf("%w: worker is required", controlplane.ErrValidation)
+	}
 	return s.serializable(ctx, func(tx *sql.Tx) error {
 		current, err := scanOperation(tx.QueryRowContext(ctx, `SELECT `+operationColumns+` FROM operations WHERE id=$1 FOR UPDATE`, id))
 		if err != nil {
@@ -1070,20 +1079,22 @@ func (s *PostgresStore) AppendOperationStep(ctx context.Context, step controlpla
 	}
 	var result controlplane.OperationStep
 	err := s.serializable(ctx, func(tx *sql.Tx) error {
-		var currentFence int64
-		var currentAttempt int
-		if err := tx.QueryRowContext(ctx, `SELECT fence_token,attempt FROM operations WHERE id=$1 FOR UPDATE`, step.OperationID).Scan(&currentFence, &currentAttempt); err != nil {
+		op, err := scanOperation(tx.QueryRowContext(ctx, `SELECT `+operationColumns+` FROM operations WHERE id=$1 FOR UPDATE`, step.OperationID))
+		if err != nil {
 			return mapDBError(err)
 		}
-		if currentFence != step.FenceToken {
+		if !controlplane.OperationLeaseActive(op, actor, step.FenceToken, utcNow(s.now)) {
 			return controlplane.ErrStaleFence
 		}
-		if currentAttempt < 1 {
+		if op.Attempt < 1 {
 			return fmt.Errorf("%w: operation attempt has not started", controlplane.ErrPrerequisite)
 		}
-		step.Attempt = currentAttempt
+		step.Attempt = op.Attempt
 		existing, err := scanStep(tx.QueryRowContext(ctx, `SELECT `+stepColumns+` FROM operation_steps WHERE operation_id=$1 AND attempt=$2 AND step_key=$3`, step.OperationID, step.Attempt, step.StepKey))
 		if err == nil {
+			if !controlplane.OperationStepReplayCompatible(existing, step) {
+				return controlplane.ErrIdempotencyConflict
+			}
 			result = existing
 			return nil
 		}
@@ -1105,8 +1116,11 @@ func (s *PostgresStore) AppendOperationStep(ctx context.Context, step controlpla
 		return nil
 	})
 	if errors.Is(err, controlplane.ErrDuplicateName) {
-		existing, lookupErr := scanStep(s.db.QueryRowContext(ctx, `SELECT `+stepColumns+` FROM operation_steps WHERE operation_id=$1 AND step_key=$2`, step.OperationID, step.StepKey))
+		existing, lookupErr := scanStep(s.db.QueryRowContext(ctx, `SELECT `+stepColumns+` FROM operation_steps WHERE operation_id=$1 AND attempt=$2 AND step_key=$3`, step.OperationID, step.Attempt, step.StepKey))
 		if lookupErr == nil {
+			if !controlplane.OperationStepReplayCompatible(existing, step) {
+				return controlplane.OperationStep{}, controlplane.ErrIdempotencyConflict
+			}
 			return existing, nil
 		}
 	}
@@ -1316,7 +1330,23 @@ func (s *PostgresStore) Snapshot(ctx context.Context) (controlplane.Snapshot, er
 	if err != nil {
 		return snapshot, err
 	}
+	mcpClients, err := s.ListMCPTrustedClients(ctx)
+	if err != nil {
+		return snapshot, err
+	}
+	mcpGrants, err := s.ListMCPDelegationGrants(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	mcpControlJobs, err := s.ListMCPControlJobs(ctx, "", "", 500)
+	if err != nil {
+		return snapshot, err
+	}
 	operations, err := s.ListOperations(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	operationRequestPayloads, err := s.listOperationRequestPayloads(ctx)
 	if err != nil {
 		return snapshot, err
 	}
@@ -1334,8 +1364,12 @@ func (s *PostgresStore) Snapshot(ctx context.Context) (controlplane.Snapshot, er
 	snapshot.SecurityAudit = securityAudit
 	snapshot.ServiceAccounts = serviceAccounts
 	snapshot.APITokens = apiTokens
+	snapshot.MCPTrustedClients = mcpClients
+	snapshot.MCPDelegationGrants = mcpGrants
+	snapshot.MCPControlJobs = mcpControlJobs
 	snapshot.Projects = projects
 	snapshot.Operations = operations
+	snapshot.OperationRequestPayloads = operationRequestPayloads
 	snapshot.Evidence = evidence
 	snapshot.Audit = audit
 
@@ -1344,6 +1378,34 @@ func (s *PostgresStore) Snapshot(ctx context.Context) (controlplane.Snapshot, er
 		return snapshot, err
 	}
 	snapshot.BlueprintOverlays = overlays
+
+	variableSchemas, err := s.ListVariableSchemas(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.VariableSchemas = variableSchemas
+
+	platformPolicySets, err := s.ListPlatformPolicySets(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.PlatformPolicySets = platformPolicySets
+	platformTemplates, err := s.ListPlatformTemplates(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.PlatformTemplates = platformTemplates
+
+	workspaces, err := s.ListWorkspaces(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.Workspaces = workspaces
+	workspaceBindings, err := s.ListWorkspaceBindings(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.WorkspaceBindings = workspaceBindings
 
 	revisionRows, err := s.db.QueryContext(ctx, `SELECT `+blueprintRevisionColumns+` FROM blueprint_revisions ORDER BY id`)
 	if err != nil {
@@ -1544,6 +1606,10 @@ func (s *PostgresStore) Snapshot(ctx context.Context) (controlplane.Snapshot, er
 	if err != nil {
 		return snapshot, err
 	}
+	aiExecutionClaims, err := s.listAIExecutionClaims(ctx)
+	if err != nil {
+		return snapshot, err
+	}
 	aiRuns, err := s.ListAIRuns(ctx, "")
 	if err != nil {
 		return snapshot, err
@@ -1561,9 +1627,56 @@ func (s *PostgresStore) Snapshot(ctx context.Context) (controlplane.Snapshot, er
 	snapshot.FleetGroups = fleetGroups
 	snapshot.DriftScans = driftScans
 	snapshot.UpgradeCampaigns = upgradeCampaigns
+	snapshot.AIExecutionClaims = aiExecutionClaims
 	snapshot.AIRuns = aiRuns
 	snapshot.MarketplaceRecommendations = marketplaceRecommendations
 	snapshot.RuntimeClosureCampaigns = runtimeClosureCampaigns
+
+	complianceProfiles, err := s.ListComplianceProfiles(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	complianceRuns, err := s.ListComplianceScanRuns(ctx, "", "")
+	if err != nil {
+		return snapshot, err
+	}
+	complianceFindings, err := s.ListComplianceFindings(ctx, "", "")
+	if err != nil {
+		return snapshot, err
+	}
+	complianceWaivers, err := s.ListComplianceWaivers(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	samlBrokers, err := s.ListSAMLBrokers(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	identityAdminJobs, err := s.ListIdentityAdminJobs(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.ComplianceProfiles = complianceProfiles
+	snapshot.ComplianceScanRuns = complianceRuns
+	snapshot.ComplianceFindings = complianceFindings
+	snapshot.ComplianceWaivers = complianceWaivers
+	snapshot.SAMLBrokers = samlBrokers
+	snapshot.IdentityAdminJobs = identityAdminJobs
+	finOpsRateCards, err := s.ListFinOpsRateCards(ctx, "")
+	if err != nil {
+		return snapshot, err
+	}
+	finOpsUsage, err := s.ListFinOpsUsageMeasurements(ctx, "", "", time.Time{}, time.Time{}, 5000)
+	if err != nil {
+		return snapshot, err
+	}
+	finOpsCapacity, err := s.ListFinOpsCapacityObservations(ctx, "", "", time.Time{}, time.Time{}, 5000)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.FinOpsRateCards = finOpsRateCards
+	snapshot.FinOpsUsageMeasurements = finOpsUsage
+	snapshot.FinOpsCapacityObservations = finOpsCapacity
 	for _, cluster := range clusters {
 		if inv, invErr := s.GetLatestClusterInventory(ctx, cluster.ID); invErr == nil {
 			snapshot.ClusterInventories = append(snapshot.ClusterInventories, inv)
@@ -1576,3 +1689,53 @@ func (s *PostgresStore) Snapshot(ctx context.Context) (controlplane.Snapshot, er
 }
 
 var _ controlplane.Store = (*PostgresStore)(nil)
+
+// ListClaimableOperationsByKind is the production bounded worker queue. The
+// query filters kind/state/retry-due before LIMIT; ClaimOperation subsequently
+// acquires the row lease/fence under SERIALIZABLE authority.
+func (s *PostgresStore) ListClaimableOperationsByKind(ctx context.Context, kind string, at time.Time, limit int) ([]controlplane.Operation, error) {
+	kind = strings.TrimSpace(kind)
+	if kind == "" || limit <= 0 || limit > 200 {
+		return nil, fmt.Errorf("%w: operation kind and limit 1..200 are required", controlplane.ErrValidation)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT `+operationColumns+` FROM operations
+WHERE kind=$1 AND (state='QUEUED' OR (state='RETRY_WAIT' AND next_attempt_at IS NOT NULL AND next_attempt_at <= $2) OR (state='RUNNING' AND (lease_expires_at IS NULL OR lease_expires_at <= $2)))
+ORDER BY CASE WHEN state='RETRY_WAIT' THEN next_attempt_at ELSE created_at END,id
+LIMIT $3`, kind, at.UTC(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]controlplane.Operation, 0, limit)
+	for rows.Next() {
+		v, scanErr := scanOperation(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+func (s *PostgresStore) ListClaimableOperationsByKindTargetPrefix(ctx context.Context, kind, targetPrefix string, at time.Time, limit int) ([]controlplane.Operation, error) {
+	kind, targetPrefix = strings.TrimSpace(kind), strings.TrimSpace(targetPrefix)
+	if kind == "" || targetPrefix == "" || limit <= 0 || limit > 200 {
+		return nil, fmt.Errorf("%w: operation kind, target prefix and limit 1..200 are required", controlplane.ErrValidation)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT `+operationColumns+` FROM operations
+WHERE kind=$1 AND target_ref LIKE $2 ESCAPE '\\' AND (state='QUEUED' OR (state='RETRY_WAIT' AND next_attempt_at IS NOT NULL AND next_attempt_at <= $3) OR (state='RUNNING' AND (lease_expires_at IS NULL OR lease_expires_at <= $3)))
+ORDER BY CASE WHEN state='RETRY_WAIT' THEN next_attempt_at ELSE created_at END,id LIMIT $4`, kind, strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(targetPrefix, `\\`, `\\\\`), `%`, `\\%`), `_`, `\\_`)+"%", at.UTC(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]controlplane.Operation, 0, limit)
+	for rows.Next() {
+		v, e := scanOperation(rows)
+		if e != nil {
+			return nil, e
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}

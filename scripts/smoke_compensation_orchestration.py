@@ -18,7 +18,7 @@ def req(url,method='GET',body=None,headers=None):
         except Exception:v={'raw':raw.decode(errors='replace')}
         return e.code,v,dict(e.headers)
 def start(binary,state):
-    port=free_port(); env=os.environ.copy();env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}';env['PLATFORM_FACTORY_STATE_FILE']=str(state);env['PLATFORM_FACTORY_AGENT_MTLS_REQUIRED']='false';env['PLATFORM_FACTORY_PUBLIC_URL']='https://platform.example.test';env['PLATFORM_FACTORY_FLEET_AGENT_IMAGE']='registry.local/agent@sha256:'+'a'*64;env['PLATFORM_FACTORY_RUNTIME_PROBE_IMAGE']='registry.local/probe@sha256:'+'b'*64
+    port=free_port(); env=os.environ.copy();env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true';env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}';env['PLATFORM_FACTORY_STATE_FILE']=str(state);env['PLATFORM_FACTORY_AGENT_MTLS_REQUIRED']='false';env['PLATFORM_FACTORY_PUBLIC_URL']='https://platform.example.test';env['PLATFORM_FACTORY_FLEET_AGENT_IMAGE']='registry.local/agent@sha256:'+'a'*64;env['PLATFORM_FACTORY_RUNTIME_PROBE_IMAGE']='registry.local/probe@sha256:'+'b'*64
     p=subprocess.Popen([str(binary)],env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True);base=f'http://127.0.0.1:{port}'
     for _ in range(120):
         try:

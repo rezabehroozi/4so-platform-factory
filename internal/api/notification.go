@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -27,6 +28,142 @@ type notificationRouteInput struct {
 	EventPatterns   []string                          `json:"eventPatterns"`
 	MinimumSeverity controlplane.NotificationSeverity `json:"minimumSeverity"`
 	DestinationIDs  []string                          `json:"destinationIds"`
+}
+
+type notificationRoutingPreviewInput struct {
+	OrganizationID string                            `json:"organizationId"`
+	ProjectID      string                            `json:"projectId,omitempty"`
+	EventType      string                            `json:"eventType"`
+	Severity       controlplane.NotificationSeverity `json:"severity"`
+}
+
+type notificationRoutingPreviewDestination struct {
+	ID    string                                    `json:"id"`
+	Name  string                                    `json:"name"`
+	Kind  controlplane.NotificationDestinationKind  `json:"kind"`
+	State controlplane.NotificationDestinationState `json:"state"`
+}
+
+type notificationRoutingPreviewRoute struct {
+	ID              string                                  `json:"id"`
+	Name            string                                  `json:"name"`
+	ProjectID       string                                  `json:"projectId,omitempty"`
+	MinimumSeverity controlplane.NotificationSeverity       `json:"minimumSeverity"`
+	EventPatterns   []string                                `json:"eventPatterns"`
+	Destinations    []notificationRoutingPreviewDestination `json:"destinations"`
+}
+
+type notificationRoutingPreviewResult struct {
+	Authority        string                            `json:"authority"`
+	OrganizationID   string                            `json:"organizationId"`
+	ProjectID        string                            `json:"projectId,omitempty"`
+	EventType        string                            `json:"eventType"`
+	Severity         controlplane.NotificationSeverity `json:"severity"`
+	MatchedRoutes    []notificationRoutingPreviewRoute `json:"matchedRoutes"`
+	RouteCount       int                               `json:"routeCount"`
+	DestinationCount int                               `json:"destinationCount"`
+	SideEffects      bool                              `json:"sideEffects"`
+	DeliveryCreated  bool                              `json:"deliveryCreated"`
+}
+
+func validNotificationPreviewSeverity(v controlplane.NotificationSeverity) bool {
+	switch v {
+	case controlplane.NotificationInfo, controlplane.NotificationWarning, controlplane.NotificationCritical:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeNotificationPreviewEventType(v string) (string, bool) {
+	v = strings.ToLower(strings.TrimSpace(v))
+	if v == "" || len(v) > 200 || strings.ContainsAny(v, " \t\r\n*") {
+		return "", false
+	}
+	return v, true
+}
+
+func (s *Server) notificationRoutingPreviewResult(ctx context.Context, organizationID, projectID, eventType string, severity controlplane.NotificationSeverity) (notificationRoutingPreviewResult, error) {
+	routes, err := s.store.ListNotificationRoutes(ctx, organizationID, projectID)
+	if err != nil {
+		return notificationRoutingPreviewResult{}, err
+	}
+	destinations, err := s.store.ListNotificationDestinations(ctx, organizationID)
+	if err != nil {
+		return notificationRoutingPreviewResult{}, err
+	}
+	destinationByID := make(map[string]controlplane.NotificationDestination, len(destinations))
+	for _, destination := range destinations {
+		destinationByID[destination.ID] = destination
+	}
+	event := controlplane.NotificationEvent{OrganizationID: organizationID, ProjectID: projectID, EventType: eventType, Severity: severity}
+	matched := make([]notificationRoutingPreviewRoute, 0)
+	destinationIDs := map[string]bool{}
+	for _, route := range routes {
+		// Store ListNotificationRoutes intentionally includes organization-wide rules
+		// for project previews. An organization-only preview must not accidentally
+		// claim that a project-specific rule would match a projectless event.
+		if projectID == "" && route.ProjectID != "" {
+			continue
+		}
+		if !controlplane.NotificationRouteMatches(route, event) {
+			continue
+		}
+		row := notificationRoutingPreviewRoute{ID: route.ID, Name: route.Name, ProjectID: route.ProjectID, MinimumSeverity: route.MinimumSeverity, EventPatterns: append([]string(nil), route.EventPatterns...)}
+		for _, id := range route.DestinationIDs {
+			destination, ok := destinationByID[id]
+			if !ok || destination.State != controlplane.NotificationDestinationActive {
+				continue
+			}
+			row.Destinations = append(row.Destinations, notificationRoutingPreviewDestination{ID: destination.ID, Name: destination.Name, Kind: destination.Kind, State: destination.State})
+			destinationIDs[destination.ID] = true
+		}
+		matched = append(matched, row)
+	}
+	return notificationRoutingPreviewResult{Authority: "NOTIFICATION_ROUTING_PREVIEW_AUTHORITY_V1", OrganizationID: organizationID, ProjectID: projectID, EventType: eventType, Severity: severity, MatchedRoutes: matched, RouteCount: len(matched), DestinationCount: len(destinationIDs), SideEffects: false, DeliveryCreated: false}, nil
+}
+
+func (s *Server) previewNotificationRouting(w http.ResponseWriter, r *http.Request) {
+	var in notificationRoutingPreviewInput
+	if err := decodeJSON(w, r, &in); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	in.OrganizationID = strings.TrimSpace(in.OrganizationID)
+	in.ProjectID = strings.TrimSpace(in.ProjectID)
+	eventType, ok := normalizeNotificationPreviewEventType(in.EventType)
+	if !ok || !validNotificationPreviewSeverity(in.Severity) {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_NOTIFICATION_PREVIEW", "eventType and severity INFO/WARNING/CRITICAL are required")
+		return
+	}
+	in.EventType = eventType
+	if in.ProjectID != "" {
+		project, err := s.requireProjectAccess(r, in.ProjectID, organizationRead)
+		if err != nil {
+			writeScopeError(w, err)
+			return
+		}
+		if in.OrganizationID != "" && in.OrganizationID != project.OrganizationID {
+			writeError(w, http.StatusUnprocessableEntity, "PROJECT_SCOPE_MISMATCH", "project must belong to selected organization")
+			return
+		}
+		in.OrganizationID = project.OrganizationID
+	} else {
+		if in.OrganizationID == "" {
+			writeError(w, http.StatusUnprocessableEntity, "ORGANIZATION_REQUIRED", "organizationId or projectId is required")
+			return
+		}
+		if err := s.requireOrganizationAccess(r, in.OrganizationID, organizationRead); err != nil {
+			writeScopeError(w, err)
+			return
+		}
+	}
+	result, err := s.notificationRoutingPreviewResult(r.Context(), in.OrganizationID, in.ProjectID, in.EventType, in.Severity)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func destinationFromInput(in notificationDestinationInput) controlplane.NotificationDestination {

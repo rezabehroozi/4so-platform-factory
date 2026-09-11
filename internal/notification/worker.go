@@ -27,20 +27,26 @@ import (
 const (
 	defaultPollInterval = 2 * time.Second
 	defaultHealthScan   = time.Minute
+	healthFullScanEvery = 24 * time.Hour
+	healthCandidatePage = 128
 	outboxClaimTTL      = 30 * time.Second
 	deliveryClaimTTL    = 90 * time.Second
 	deliveryClaimBatch  = 8
 )
 
 type Worker struct {
-	Store        controlplane.Store
-	Logger       *slog.Logger
-	HTTPClient   *http.Client
-	Now          func() time.Time
-	PollInterval time.Duration
-	HealthScan   time.Duration
-	workerID     string
-	lastHealth   time.Time
+	Store          controlplane.Store
+	Logger         *slog.Logger
+	HTTPClient     *http.Client
+	Now            func() time.Time
+	PollInterval   time.Duration
+	HealthScan     time.Duration
+	workerID       string
+	lastHealth     time.Time
+	healthCursorAt time.Time
+	healthCursorID string
+	healthFullScan bool
+	lastFullHealth time.Time
 }
 
 func New(store controlplane.Store, logger *slog.Logger) *Worker {
@@ -62,6 +68,10 @@ func newWorkerID() string {
 
 type healthScanLeaseStore interface {
 	ClaimNotificationHealthScanLease(context.Context, string, time.Duration, time.Time) (bool, error)
+}
+
+type healthCandidateStore interface {
+	ListNotificationHealthCandidates(context.Context, time.Time, string, int) ([]controlplane.NotificationHealthCandidate, bool, error)
 }
 
 func newWebhookHTTPClient() *http.Client {
@@ -197,14 +207,27 @@ func (w *Worker) ProcessOnce(ctx context.Context) error {
 				return leaseErr
 			}
 		}
+		more := false
 		if shouldScan {
-			if err := w.scanHealth(ctx, now); err != nil {
-				return err
+			var scanErr error
+			if _, ok := w.Store.(healthCandidateStore); ok {
+				more, scanErr = w.scanHealthIncremental(ctx, now)
+			} else {
+				scanErr = w.scanHealth(ctx, now)
+			}
+			if scanErr != nil {
+				return scanErr
 			}
 		}
-		// Followers wait for the normal scan interval instead of hammering the
-		// lease row on every dispatcher poll.
-		w.lastHealth = now
+		// A worker with more incremental pages keeps the scan due so the next
+		// dispatcher poll drains another bounded page under the HA lease.
+		// Followers still wait for the normal interval instead of hammering the
+		// lease row.
+		if shouldScan && more {
+			w.lastHealth = time.Time{}
+		} else {
+			w.lastHealth = now
+		}
 	}
 	return w.processDeliveries(ctx, now)
 }
@@ -276,7 +299,11 @@ func classifyOutboxEvent(ctx context.Context, store controlplane.Store, source c
 	eventType, title, summary := "", "", ""
 	severity := controlplane.NotificationInfo
 	switch {
-	case typeName == "operation.transitioned" && state == "FAILED":
+	case strings.EqualFold(strings.TrimSpace(source.AggregateType), "operation") && state == "FAILED":
+		// Operation failure notifications are state-authoritative rather than tied
+		// to one producer event name. Generic retry, owner-destructive and
+		// maintenance authorities emit different outbox event types but share the
+		// same durable operation FAILED state.
 		eventType, severity, title = "operation.failed", controlplane.NotificationCritical, "Operation failed"
 		summary = stringValue(payload, "lastError")
 	case typeName == "baseline_deployment.plan_stale":
@@ -315,87 +342,123 @@ func classifyOutboxEvent(ctx context.Context, store controlplane.Store, source c
 	}, true, nil
 }
 
-func (w *Worker) scanHealth(ctx context.Context, now time.Time) error {
-	projectValues, err := w.Store.ListProjects(ctx, "")
+func (w *Worker) routeClusterHealth(ctx context.Context, cluster controlplane.ManagedCluster, now time.Time) error {
+	project, err := w.Store.GetProject(ctx, cluster.ProjectID)
+	if err != nil {
+		if errors.Is(err, controlplane.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	var inventory controlplane.ClusterInventory
+	inventory, err = w.Store.GetLatestClusterInventory(ctx, cluster.ID)
+	if err != nil && !errors.Is(err, controlplane.ErrNotFound) {
+		return err
+	}
+	certificates, err := w.Store.ListAgentCertificates(ctx, cluster.ID)
 	if err != nil {
 		return err
 	}
+	health := fleethealth.Evaluate(cluster, inventory, certificates, now)
+	raw, _ := json.Marshal(health)
+	day := now.Format("2006-01-02")
+	if health.Health != "HEALTHY" {
+		severity := controlplane.NotificationWarning
+		if health.Health == "CRITICAL" || health.Health == "STALE" {
+			severity = controlplane.NotificationCritical
+		}
+		event := controlplane.NotificationEvent{OrganizationID: project.OrganizationID, ProjectID: project.ID, SourceEventID: "derived:fleet-health:" + cluster.ID + ":" + health.Health + ":" + day, AggregateType: "managedCluster", AggregateID: cluster.ID, EventType: "fleet.health.degraded", Severity: severity, Title: "Cluster health requires attention", Summary: strings.Join(health.Warnings, "; "), Payload: raw, OccurredAt: now}
+		if _, _, _, err = w.Store.RouteNotificationEvent(ctx, event, "notification-health-scanner"); err != nil {
+			return err
+		}
+	}
+	for _, cert := range health.Certificates {
+		if cert.State != "EXPIRED" && cert.State != "EXPIRING" {
+			continue
+		}
+		severity := controlplane.NotificationWarning
+		eventType := "certificate.expiring"
+		title := "Certificate is approaching expiry"
+		if cert.State == "EXPIRED" {
+			severity = controlplane.NotificationCritical
+			eventType = "certificate.expired"
+			title = "Certificate has expired"
+		}
+		payload, _ := json.Marshal(cert)
+		event := controlplane.NotificationEvent{OrganizationID: project.OrganizationID, ProjectID: project.ID, SourceEventID: "derived:certificate:" + cluster.ID + ":" + cert.Fingerprint + ":" + cert.State + ":" + day, AggregateType: "managedCluster", AggregateID: cluster.ID, EventType: eventType, Severity: severity, Title: title, Summary: fmt.Sprintf("%s certificate state=%s daysLeft=%d", cert.Name, cert.State, cert.DaysLeft), Payload: payload, OccurredAt: now}
+		if _, _, _, err = w.Store.RouteNotificationEvent(ctx, event, "notification-health-scanner"); err != nil {
+			return err
+		}
+	}
+	switch health.KubernetesSupport.Status {
+	case "EOL", "EOL_SOON":
+		severity := controlplane.NotificationWarning
+		eventType := "kubernetes.eol_soon"
+		title := "Kubernetes release is approaching end-of-life"
+		if health.KubernetesSupport.Status == "EOL" {
+			severity = controlplane.NotificationCritical
+			eventType = "kubernetes.eol"
+			title = "Kubernetes release is end-of-life"
+		}
+		payload, _ := json.Marshal(health.KubernetesSupport)
+		event := controlplane.NotificationEvent{OrganizationID: project.OrganizationID, ProjectID: project.ID, SourceEventID: "derived:kubernetes-eol:" + cluster.ID + ":" + health.KubernetesSupport.Status + ":" + day, AggregateType: "managedCluster", AggregateID: cluster.ID, EventType: eventType, Severity: severity, Title: title, Summary: fmt.Sprintf("Kubernetes %s support status is %s", health.KubernetesSupport.Minor, health.KubernetesSupport.Status), Payload: payload, OccurredAt: now}
+		if _, _, _, err = w.Store.RouteNotificationEvent(ctx, event, "notification-health-scanner"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Worker) scanHealthIncremental(ctx context.Context, now time.Time) (bool, error) {
+	store := w.Store.(healthCandidateStore)
+	if w.lastFullHealth.IsZero() || now.Sub(w.lastFullHealth) >= healthFullScanEvery {
+		if !w.healthFullScan {
+			w.healthFullScan = true
+			w.healthCursorAt = time.Time{}
+			w.healthCursorID = ""
+		}
+	}
+	candidates, more, err := store.ListNotificationHealthCandidates(ctx, w.healthCursorAt, w.healthCursorID, healthCandidatePage)
+	if err != nil {
+		return false, err
+	}
+	for _, candidate := range candidates {
+		cluster, getErr := w.Store.GetManagedCluster(ctx, candidate.ClusterID)
+		if getErr != nil {
+			if errors.Is(getErr, controlplane.ErrNotFound) {
+				continue
+			}
+			return false, getErr
+		}
+		if err = w.routeClusterHealth(ctx, cluster, now); err != nil {
+			return false, err
+		}
+		w.healthCursorAt = candidate.ChangedAt.UTC()
+		w.healthCursorID = candidate.ClusterID
+	}
+	if more {
+		return true, nil
+	}
+	// Keep the cursor on the last candidate that was actually observed. Do not
+	// advance it to wall-clock now: a cluster may commit between the final
+	// bounded query and this assignment with an UpdatedAt earlier than now.
+	// Advancing to now would skip that change forever. Re-reading the last
+	// (changedAt,id) boundary is harmless because the pager is strictly >.
+	if w.healthFullScan {
+		w.lastFullHealth = now.UTC()
+		w.healthFullScan = false
+	}
+	return false, nil
+}
+
+func (w *Worker) scanHealth(ctx context.Context, now time.Time) error {
 	clusters, err := w.Store.ListManagedClusters(ctx, "")
 	if err != nil {
 		return err
 	}
-	certificateValues, err := w.Store.ListAgentCertificates(ctx, "")
-	if err != nil {
-		return err
-	}
-	projects := map[string]controlplane.Project{}
-	inventories := map[string]controlplane.ClusterInventory{}
-	certificates := map[string][]controlplane.AgentCertificate{}
-	for _, project := range projectValues {
-		projects[project.ID] = project
-	}
 	for _, cluster := range clusters {
-		inventory, inventoryErr := w.Store.GetLatestClusterInventory(ctx, cluster.ID)
-		if inventoryErr == nil {
-			inventories[cluster.ID] = inventory
-		} else if !errors.Is(inventoryErr, controlplane.ErrNotFound) {
-			return inventoryErr
-		}
-	}
-	for _, certificate := range certificateValues {
-		certificates[certificate.ClusterID] = append(certificates[certificate.ClusterID], certificate)
-	}
-	for _, cluster := range clusters {
-		project, ok := projects[cluster.ProjectID]
-		if !ok {
-			continue
-		}
-		health := fleethealth.Evaluate(cluster, inventories[cluster.ID], certificates[cluster.ID], now)
-		raw, _ := json.Marshal(health)
-		day := now.Format("2006-01-02")
-		if health.Health != "HEALTHY" {
-			severity := controlplane.NotificationWarning
-			if health.Health == "CRITICAL" || health.Health == "STALE" {
-				severity = controlplane.NotificationCritical
-			}
-			event := controlplane.NotificationEvent{OrganizationID: project.OrganizationID, ProjectID: project.ID, SourceEventID: "derived:fleet-health:" + cluster.ID + ":" + health.Health + ":" + day, AggregateType: "managedCluster", AggregateID: cluster.ID, EventType: "fleet.health.degraded", Severity: severity, Title: "Cluster health requires attention", Summary: strings.Join(health.Warnings, "; "), Payload: raw, OccurredAt: now}
-			if _, _, _, err = w.Store.RouteNotificationEvent(ctx, event, "notification-health-scanner"); err != nil {
-				return err
-			}
-		}
-		for _, cert := range health.Certificates {
-			if cert.State != "EXPIRED" && cert.State != "EXPIRING" {
-				continue
-			}
-			severity := controlplane.NotificationWarning
-			eventType := "certificate.expiring"
-			title := "Certificate is approaching expiry"
-			if cert.State == "EXPIRED" {
-				severity = controlplane.NotificationCritical
-				eventType = "certificate.expired"
-				title = "Certificate has expired"
-			}
-			payload, _ := json.Marshal(cert)
-			event := controlplane.NotificationEvent{OrganizationID: project.OrganizationID, ProjectID: project.ID, SourceEventID: "derived:certificate:" + cluster.ID + ":" + cert.Fingerprint + ":" + cert.State + ":" + day, AggregateType: "managedCluster", AggregateID: cluster.ID, EventType: eventType, Severity: severity, Title: title, Summary: fmt.Sprintf("%s certificate state=%s daysLeft=%d", cert.Name, cert.State, cert.DaysLeft), Payload: payload, OccurredAt: now}
-			if _, _, _, err = w.Store.RouteNotificationEvent(ctx, event, "notification-health-scanner"); err != nil {
-				return err
-			}
-		}
-		switch health.KubernetesSupport.Status {
-		case "EOL", "EOL_SOON":
-			severity := controlplane.NotificationWarning
-			eventType := "kubernetes.eol_soon"
-			title := "Kubernetes release is approaching end-of-life"
-			if health.KubernetesSupport.Status == "EOL" {
-				severity = controlplane.NotificationCritical
-				eventType = "kubernetes.eol"
-				title = "Kubernetes release is end-of-life"
-			}
-			payload, _ := json.Marshal(health.KubernetesSupport)
-			event := controlplane.NotificationEvent{OrganizationID: project.OrganizationID, ProjectID: project.ID, SourceEventID: "derived:kubernetes-eol:" + cluster.ID + ":" + health.KubernetesSupport.Status + ":" + day, AggregateType: "managedCluster", AggregateID: cluster.ID, EventType: eventType, Severity: severity, Title: title, Summary: fmt.Sprintf("Kubernetes %s support status is %s", health.KubernetesSupport.Minor, health.KubernetesSupport.Status), Payload: payload, OccurredAt: now}
-			if _, _, _, err = w.Store.RouteNotificationEvent(ctx, event, "notification-health-scanner"); err != nil {
-				return err
-			}
+		if err = w.routeClusterHealth(ctx, cluster, now); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -1,0 +1,159 @@
+{
+  "archiveStagingPath": "workloads/platform-workloads.oci.tar",
+  "assemblyAuthority": "MANAGEMENT_WORKLOAD_OCI_ASSEMBLY_AUTHORITY_V1",
+  "authority": "MANAGEMENT_WORKLOAD_IMAGE_BUILD_PLAN_V5",
+  "baseImages": [
+    {
+      "blocker": "EXACT_DIGEST_FULL_DYNAMIC_DEPENDENCY_AND_NONROOT_COMPATIBILITY_PENDING",
+      "role": "api-runtime-base",
+      "state": "pending"
+    },
+    {
+      "blocker": "EXACT_DIGEST_CA_TRUST_AND_NONROOT_COMPATIBILITY_PENDING",
+      "role": "static-runtime-base",
+      "state": "pending"
+    },
+    {
+      "blocker": "EXACT_DIGEST_REQUIRED_TOOLSET_AND_ROOT_OVERRIDE_COMPATIBILITY_PENDING",
+      "role": "maintenance-toolchain-base",
+      "state": "pending"
+    }
+  ],
+  "coreImages": [
+    {
+      "blocker": "EXACT_DIGEST_AND_RUNTIME_COMPATIBILITY_PENDING",
+      "ownership": "external",
+      "registryEndpoint": "registry-1.docker.io",
+      "registryRepository": "library/postgres",
+      "repository": "docker.io/library/postgres",
+      "role": "postgresql",
+      "selectionChannel": "postgresql-17-patch",
+      "selectionEvidenceURL": "https://www.postgresql.org/docs/17/release-17-11.html",
+      "state": "pending",
+      "tag": "17.11-bookworm",
+      "version": "17.11"
+    },
+    {
+      "blocker": "EXACT_DIGEST_AND_RUNTIME_COMPATIBILITY_PENDING",
+      "ownership": "external",
+      "registryEndpoint": "codeberg.org",
+      "registryRepository": "forgejo/forgejo",
+      "repository": "codeberg.org/forgejo/forgejo",
+      "role": "forgejo",
+      "selectionChannel": "forgejo-lts",
+      "selectionEvidenceURL": "https://forgejo.org/releases/",
+      "state": "pending",
+      "tag": "15.0.7",
+      "version": "15.0.7"
+    },
+    {
+      "blocker": "EXACT_DIGEST_AND_RUNTIME_COMPATIBILITY_PENDING",
+      "ownership": "external",
+      "registryEndpoint": "ghcr.io",
+      "registryRepository": "project-zot/zot-linux-amd64",
+      "repository": "ghcr.io/project-zot/zot-linux-amd64",
+      "role": "zot",
+      "selectionChannel": "zot-stable",
+      "selectionEvidenceURL": "https://github.com/project-zot/zot/releases/tag/v2.1.20",
+      "state": "pending",
+      "tag": "v2.1.20",
+      "version": "2.1.20"
+    },
+    {
+      "blocker": "EXACT_DIGEST_AND_RUNTIME_COMPATIBILITY_PENDING",
+      "ownership": "external",
+      "registryEndpoint": "quay.io",
+      "registryRepository": "keycloak/keycloak",
+      "repository": "quay.io/keycloak/keycloak",
+      "role": "keycloak",
+      "selectionChannel": "keycloak-current-security",
+      "selectionEvidenceURL": "https://www.keycloak.org/2026/08/keycloak-2673-released",
+      "state": "pending",
+      "tag": "26.7.3",
+      "version": "26.7.3"
+    },
+    {
+      "baseImageRole": "api-runtime-base",
+      "blocker": "API_RUNTIME_DEPENDENCY_CLOSURE_AND_EXACT_RELEASE_IMAGE_BUILD_PENDING",
+      "containerRecipe": "deploy/images/Dockerfile.api-release",
+      "ownership": "product",
+      "repository": "platform.4so.local/management/platform-api",
+      "role": "platform-api",
+      "sourceReleaseMember": "bin/linux-amd64/platform-api",
+      "state": "pending"
+    },
+    {
+      "baseImageRole": "maintenance-toolchain-base",
+      "blocker": "MAINTENANCE_TOOLSET_BASE_DIGEST_AND_EXACT_IMAGE_BUILD_PENDING",
+      "containerRecipe": "deploy/images/Dockerfile.maintenance",
+      "ownership": "product",
+      "repository": "platform.4so.local/management/maintenance",
+      "role": "maintenance",
+      "state": "pending"
+    },
+    {
+      "baseImageRole": "static-runtime-base",
+      "blocker": "CA_TRUST_BASE_DIGEST_AND_EXACT_RELEASE_IMAGE_BUILD_PENDING",
+      "containerRecipe": "deploy/images/Dockerfile.agent-release",
+      "ownership": "product",
+      "repository": "platform.4so.local/management/platform-agent",
+      "role": "platform-agent",
+      "sourceReleaseMember": "bin/linux-amd64/platform-agent",
+      "state": "pending"
+    },
+    {
+      "baseImageRole": "static-runtime-base",
+      "blocker": "RUNTIME_BASE_DIGEST_AND_EXACT_RELEASE_IMAGE_BUILD_PENDING",
+      "containerRecipe": "deploy/images/Dockerfile.probe-release",
+      "ownership": "product",
+      "repository": "platform.4so.local/management/platform-probe",
+      "role": "platform-probe",
+      "sourceReleaseMember": "bin/linux-amd64/platform-probe",
+      "state": "pending"
+    }
+  ],
+  "derivedManifestImageSets": [
+    {
+      "blocker": "EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING",
+      "manifestPath": "manifests/argocd-install.yaml",
+      "resolutionLockPath": "runtime-manifests/argocd-install.image-lock.json",
+      "resolvedManifestPath": "runtime-manifests/argocd-install.yaml",
+      "sourceAuthority": "argocd-install-manifest",
+      "sourceManifestBytes": 1917766,
+      "sourceManifestSha256": "sha256:a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe",
+      "state": "pending"
+    },
+    {
+      "blocker": "EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING",
+      "manifestPath": "manifests/cloudnative-pg-install.yaml",
+      "resolutionLockPath": "runtime-manifests/cloudnative-pg-install.image-lock.json",
+      "resolvedManifestPath": "runtime-manifests/cloudnative-pg-install.yaml",
+      "sourceAuthority": "cloudnative-pg-install-manifest",
+      "sourceManifestBytes": 1262410,
+      "sourceManifestSha256": "sha256:f8bede43fe4ee0d478c2355b204a36876b2ae4faac60f2a9452280b293da3b88",
+      "state": "pending"
+    },
+    {
+      "blocker": "EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING",
+      "manifestPath": "manifests/replicated-storage-install.yaml",
+      "resolutionLockPath": "runtime-manifests/replicated-storage-install.image-lock.json",
+      "resolvedManifestPath": "runtime-manifests/replicated-storage-install.yaml",
+      "sourceAuthority": "replicated-storage-install-manifest",
+      "sourceManifestBytes": 207054,
+      "sourceManifestSha256": "sha256:41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd",
+      "state": "pending"
+    }
+  ],
+  "externalAcquisitionAuthority": "MANAGEMENT_WORKLOAD_EXTERNAL_IMAGE_ACQUISITION_V2",
+  "externalVersionSelectionAuthority": "MANAGEMENT_WORKLOAD_EXTERNAL_VERSION_SELECTION_V1",
+  "importAddressabilityAuthority": "MANAGEMENT_WORKLOAD_OCI_IMPORT_ADDRESSABILITY_V2",
+  "inventoryAuthority": "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_INVENTORY_V2",
+  "manifestImageResolutionAuthority": "MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_V1",
+  "productImageCertificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+  "releaseVersion": "0.0.359",
+  "schemaVersion": 5,
+  "targetPlatform": {
+    "architecture": "amd64",
+    "os": "linux"
+  }
+}

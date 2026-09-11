@@ -46,8 +46,24 @@ func TestPlanOrderingAndHonestExecutionStatus(t *testing.T) {
 	if p.Status != "planning-only" {
 		t.Fatalf("status=%s", p.Status)
 	}
-	if len(p.Blockers) < len(p.Steps)*4 {
-		t.Fatalf("expected source, pinning and certification blockers, got %d", len(p.Blockers))
+	blockerCounts := map[string]int{}
+	for _, blocker := range p.Blockers {
+		blockerCounts[blocker.Code]++
+	}
+	if blockerCounts["COMPONENT_VERSION_NOT_PINNED"] != 0 {
+		t.Fatalf("exact review-candidate authority regressed to mutable component release identity: %+v", blockerCounts)
+	}
+	unresolved := 0
+	for _, step := range p.Steps {
+		if !step.SourceResolved {
+			unresolved++
+		}
+	}
+	if blockerCounts["COMPONENT_SOURCE_UNRESOLVED"] != unresolved || blockerCounts["SOURCE_LOCK_MISSING"] != unresolved {
+		t.Fatalf("source blockers drifted from unresolved component truth: unresolved=%d blockers=%+v", unresolved, blockerCounts)
+	}
+	if blockerCounts["COMPONENT_NOT_RUNTIME_CERTIFIED"] != len(p.Steps) || blockerCounts["CERTIFICATION_EVIDENCE_MISSING"] != len(p.Steps) {
+		t.Fatalf("certification blockers drifted from candidate catalog truth: steps=%d blockers=%+v", len(p.Steps), blockerCounts)
 	}
 	if p.BlueprintDigest == "" || p.CatalogDigest == "" {
 		t.Fatal("plan digests are required")

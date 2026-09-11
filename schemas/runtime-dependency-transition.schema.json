@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/runtime-dependency-transition.schema.json",
+  "title": "Runtime Dependency Transition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "platform.4so.io/v1alpha1"
+    },
+    "kind": {
+      "const": "RuntimeDependencyTransition"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "status",
+        "policy",
+        "gatewayApi",
+        "kgateway",
+        "cilium",
+        "ordering",
+        "evidence"
+      ],
+      "properties": {
+        "authority": {
+          "const": "RUNTIME_DEPENDENCY_TRANSITION_V1"
+        },
+        "status": {
+          "enum": [
+            "acquisition-pending",
+            "runtime-certification-pending",
+            "complete"
+          ]
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sourceAcquisitionIndependentOfRuntimeSuitability",
+            "mutationBeforeSourceResolution",
+            "runtimeCertificationRequired",
+            "physicalPassInference"
+          ],
+          "properties": {
+            "sourceAcquisitionIndependentOfRuntimeSuitability": {
+              "const": true
+            },
+            "mutationBeforeSourceResolution": {
+              "const": false
+            },
+            "runtimeCertificationRequired": {
+              "const": true
+            },
+            "physicalPassInference": {
+              "const": false
+            }
+          }
+        },
+        "gatewayApi": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "currentRelease",
+            "currentSourceResolved",
+            "targetRelease",
+            "releaseUrl",
+            "releaseCommitShort",
+            "assets",
+            "sourceStatus"
+          ],
+          "properties": {
+            "currentRelease": {
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "currentSourceResolved": {
+              "type": "boolean"
+            },
+            "targetRelease": {
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "releaseUrl": {
+              "type": "string",
+              "pattern": "^https://"
+            },
+            "releaseCommitShort": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{7}$"
+            },
+            "sourceStatus": {
+              "enum": [
+                "pending-byte-acquisition",
+                "resolved"
+              ]
+            },
+            "assets": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "url",
+                  "size",
+                  "sha256"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "url": {
+                    "type": "string",
+                    "pattern": "^https://"
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "kgateway": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "targetRelease",
+            "source",
+            "gatewayApiCompatibility",
+            "sourceStatus"
+          ],
+          "properties": {
+            "targetRelease": {
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "source": {
+              "type": "string",
+              "pattern": "^oci://"
+            },
+            "gatewayApiCompatibility": {
+              "const": "1.4-1.6"
+            },
+            "sourceStatus": {
+              "enum": [
+                "pending-byte-acquisition",
+                "resolved"
+              ]
+            }
+          }
+        },
+        "cilium": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "targetRelease",
+            "source",
+            "requiredGatewayApiRelease",
+            "sourceStatus",
+            "runtimeStatus"
+          ],
+          "properties": {
+            "targetRelease": {
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "source": {
+              "type": "string",
+              "pattern": "^https://"
+            },
+            "requiredGatewayApiRelease": {
+              "const": "1.6.1"
+            },
+            "sourceStatus": {
+              "enum": [
+                "pending-byte-acquisition",
+                "resolved"
+              ]
+            },
+            "runtimeStatus": {
+              "enum": [
+                "dependency-transition-required",
+                "eligible"
+              ]
+            }
+          }
+        },
+        "ordering": {
+          "type": "array",
+          "minItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "url",
+              "summary"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "compatibility",
+                  "release"
+                ]
+              },
+              "url": {
+                "type": "string",
+                "pattern": "^https://"
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

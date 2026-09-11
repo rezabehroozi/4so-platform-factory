@@ -113,7 +113,7 @@ func TestSyncAndPrepareZeroToHAUsesExistingAuthorities(t *testing.T) {
 	defer server.Close()
 	base, _ := url.Parse(server.URL)
 	connection := fieldCampaignConnection{base: base, client: server.Client(), token: "test-token"}
-	trust, campaign, err := syncAndPrepareZeroToHA(connection, request, "sha256:"+strings.Repeat("9", 64), "sha256:"+strings.Repeat("8", 64), []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nunit\n-----END OPENSSH PRIVATE KEY-----\n"), []byte("known-hosts"), time.Now().UTC())
+	trust, campaign, err := syncAndPrepareZeroToHA(connection, request, "sha256:"+strings.Repeat("9", 64), "sha256:"+strings.Repeat("8", 64), "sha256:"+strings.Repeat("7", 64), []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nunit\n-----END OPENSSH PRIVATE KEY-----\n"), []byte("known-hosts"), time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}

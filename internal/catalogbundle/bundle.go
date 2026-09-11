@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	MaxBundleBytes = 256 << 20
-	MaxFileBytes   = 192 << 20
+	HistoricalSourceImportAuthority = "CATALOG_HISTORICAL_SOURCE_IMPORT_V1"
+	MaxBundleBytes                  = 256 << 20
+	MaxFileBytes                    = 192 << 20
 )
 
 var digestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
@@ -1016,6 +1017,7 @@ type upstreamAdmissionDocument struct {
 			AllowLatestResolution      bool   `json:"allowLatestResolution"`
 			AutoWidenCatalogConstraint bool   `json:"autoWidenCatalogConstraint"`
 			RuntimeCertification       string `json:"runtimeCertification"`
+			CandidateAcquisition       string `json:"candidateAcquisition"`
 			SourceAuthority            string `json:"sourceAuthority"`
 			SourceResolution           string `json:"sourceResolution"`
 			VersionSelection           string `json:"versionSelection"`
@@ -1023,15 +1025,23 @@ type upstreamAdmissionDocument struct {
 	} `json:"spec"`
 }
 
+type upstreamAdmissionReviewEvidence struct {
+	Kind    string `json:"kind"`
+	URL     string `json:"url"`
+	Summary string `json:"summary"`
+}
+
 type upstreamAdmissionEntry struct {
-	CatalogConstraint string  `json:"catalogConstraint"`
-	Chart             string  `json:"chart"`
-	Component         string  `json:"component"`
-	Rationale         string  `json:"rationale"`
-	SelectedVersion   *string `json:"selectedVersion"`
-	Source            string  `json:"source"`
-	Status            string  `json:"status"`
-	UpstreamVersion   *string `json:"upstreamVersion"`
+	CatalogConstraint string                            `json:"catalogConstraint"`
+	Chart             string                            `json:"chart"`
+	Component         string                            `json:"component"`
+	Rationale         string                            `json:"rationale"`
+	ReviewEvidence    []upstreamAdmissionReviewEvidence `json:"reviewEvidence,omitempty"`
+	SelectedVersion   *string                           `json:"selectedVersion"`
+	Source            string                            `json:"source"`
+	Status            string                            `json:"status"`
+	RuntimeStatus     string                            `json:"runtimeStatus"`
+	UpstreamVersion   *string                           `json:"upstreamVersion"`
 }
 
 func normalizedExternalVersion(v string) string {
@@ -1103,7 +1113,7 @@ func loadCanonicalUpstreamAdmission(repoRoot string) (upstreamAdmissionDocument,
 	if doc.APIVersion != "platform.4so.io/v1alpha1" || doc.Kind != "CatalogUpstreamAdmission" || strings.TrimSpace(doc.Metadata.Name) == "" {
 		return upstreamAdmissionDocument{}, fmt.Errorf("upstream admission authority identity is invalid")
 	}
-	if doc.Spec.Policy.AllowLatestResolution || doc.Spec.Policy.AutoWidenCatalogConstraint || doc.Spec.Policy.RuntimeCertification != "separate-runtime-evidence-required" || doc.Spec.Policy.SourceAuthority != "official-upstream-only" || doc.Spec.Policy.SourceResolution != "separate-immutable-acquisition-required" || doc.Spec.Policy.VersionSelection != "exact-semver-no-prerelease" {
+	if doc.Spec.Policy.AllowLatestResolution || doc.Spec.Policy.AutoWidenCatalogConstraint || doc.Spec.Policy.RuntimeCertification != "separate-runtime-evidence-required" || doc.Spec.Policy.CandidateAcquisition != "exact-source-may-be-acquired-before-runtime-clearance" || doc.Spec.Policy.SourceAuthority != "official-upstream-only" || doc.Spec.Policy.SourceResolution != "separate-immutable-acquisition-required" || doc.Spec.Policy.VersionSelection != "exact-semver-no-prerelease" {
 		return upstreamAdmissionDocument{}, fmt.Errorf("upstream admission authority policy is invalid")
 	}
 	seen := map[string]bool{}
@@ -1180,6 +1190,11 @@ func validateCanonicalUpstreamAdmissionCoverage(repoRoot string, doc upstreamAdm
 		"version-selection-required":   true,
 		"version-review-required":      true,
 	}
+	allowedRuntimeStatus := map[string]bool{
+		"eligible-after-source-resolution": true,
+		"dependency-transition-required":   true,
+		"review-required":                  true,
+	}
 	seen := map[string]bool{}
 	for _, entry := range doc.Spec.Components {
 		name := strings.TrimSpace(entry.Component)
@@ -1190,6 +1205,9 @@ func validateCanonicalUpstreamAdmissionCoverage(repoRoot string, doc upstreamAdm
 		seen[name] = true
 		if !allowedStatus[entry.Status] {
 			return fmt.Errorf("upstream admission status is invalid for %s: %s", name, entry.Status)
+		}
+		if !allowedRuntimeStatus[entry.RuntimeStatus] {
+			return fmt.Errorf("upstream admission runtime status is invalid for %s: %s", name, entry.RuntimeStatus)
 		}
 		constraint := strings.TrimSpace(entry.CatalogConstraint)
 		if !validAdmissionConstraint(constraint) {
@@ -1205,6 +1223,24 @@ func validateCanonicalUpstreamAdmissionCoverage(repoRoot string, doc upstreamAdm
 		if strings.TrimSpace(entry.Rationale) == "" {
 			return fmt.Errorf("upstream admission rationale is missing for %s", name)
 		}
+		for index, evidence := range entry.ReviewEvidence {
+			kind := strings.TrimSpace(evidence.Kind)
+			if (kind != "release" && kind != "blocker" && kind != "source-migration") || !strings.HasPrefix(strings.TrimSpace(evidence.URL), "https://") || strings.TrimSpace(evidence.Summary) == "" {
+				return fmt.Errorf("upstream admission review evidence is invalid for %s at index %d", name, index)
+			}
+		}
+		if entry.RuntimeStatus != "eligible-after-source-resolution" {
+			hasBlocker := false
+			for _, evidence := range entry.ReviewEvidence {
+				if strings.TrimSpace(evidence.Kind) == "blocker" {
+					hasBlocker = true
+					break
+				}
+			}
+			if !hasBlocker {
+				return fmt.Errorf("upstream admission runtime blocker lacks blocker evidence for %s", name)
+			}
+		}
 		selected := ""
 		if entry.SelectedVersion != nil {
 			selected = normalizedExternalVersion(*entry.SelectedVersion)
@@ -1215,6 +1251,9 @@ func validateCanonicalUpstreamAdmissionCoverage(repoRoot string, doc upstreamAdm
 				return fmt.Errorf("upstream admission upstream version mismatch for %s", name)
 			}
 		}
+		if entry.Status == "version-review-required" && (selected == "" || len(entry.ReviewEvidence) == 0) {
+			return fmt.Errorf("upstream admission version review requires exact candidate and review evidence for %s", name)
+		}
 		if entry.Status == "ready-for-acquisition" {
 			if selected == "" {
 				return fmt.Errorf("upstream admission ready component %s has no selected version", name)
@@ -1224,6 +1263,18 @@ func validateCanonicalUpstreamAdmissionCoverage(repoRoot string, doc upstreamAdm
 			}
 			if component.Spec.VersionPolicy != "exact-upstream-admitted-pending-source-acquisition" {
 				return fmt.Errorf("upstream admission version policy mismatch for %s", name)
+			}
+		} else if selected != "" {
+			// Review state blocks acquisition, not identity binding. Once an exact
+			// candidate exists, the runtime catalog must remain pinned to that
+			// candidate while source.resolved stays false. This mirrors the Python
+			// admission authority and prevents the installer from rejecting a
+			// repository merely because another component is awaiting review.
+			if strings.TrimSpace(component.Spec.Release) != selected {
+				return fmt.Errorf("upstream admission review candidate pin mismatch for %s", name)
+			}
+			if component.Spec.VersionPolicy != "exact-upstream-review-candidate-pending-decision" {
+				return fmt.Errorf("upstream admission review candidate version policy mismatch for %s", name)
 			}
 		} else if strings.TrimSpace(component.Spec.Release) != constraint {
 			return fmt.Errorf("upstream admission review component %s no longer matches its constraint", name)
@@ -1374,6 +1425,326 @@ func verifyInstallComponentContract(current, resolved catalog.Component, manifes
 	return nil
 }
 
+type catalogAuthorityTransaction struct {
+	Version                 int    `json:"version"`
+	Component               string `json:"component"`
+	OldComponent            []byte `json:"oldComponent"`
+	OldRegistry             []byte `json:"oldRegistry"`
+	OldUpgradeMatrix        []byte `json:"oldUpgradeMatrix,omitempty"`
+	OldAdmission            []byte `json:"oldAdmission,omitempty"`
+	OldDependencyTransition []byte `json:"oldDependencyTransition,omitempty"`
+}
+
+const catalogAuthorityTransactionVersion = 3
+
+func catalogAuthorityTransactionPath(repoRoot string) string {
+	return filepath.Join(repoRoot, ".state", "catalog-bundle-authority-transaction.json")
+}
+
+func loadRepositoryComponents(repoRoot string) (map[string]catalog.Component, error) {
+	dir := filepath.Join(repoRoot, "catalog", "components")
+	if err := requireRealDirectory(dir, "catalog components directory"); err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]catalog.Component, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		raw, err := readRealRegularFile(path, "catalog component "+entry.Name())
+		if err != nil {
+			return nil, err
+		}
+		var component catalog.Component
+		if err = decodeStrict(raw, &component); err != nil {
+			return nil, fmt.Errorf("decode catalog component %s: %w", entry.Name(), err)
+		}
+		if !componentNameRE.MatchString(component.Metadata.Name) || entry.Name() != component.Metadata.Name+".json" {
+			return nil, fmt.Errorf("catalog component identity mismatch for %s", entry.Name())
+		}
+		if _, exists := out[component.Metadata.Name]; exists {
+			return nil, fmt.Errorf("duplicate catalog component %s", component.Metadata.Name)
+		}
+		out[component.Metadata.Name] = component
+	}
+	return out, nil
+}
+
+func loadRuntimeCertificationRegistryFile(repoRoot string) ([]byte, catalog.ComponentRuntimeCertificationRegistry, error) {
+	path := filepath.Join(repoRoot, "catalog", "component-runtime-certification.json")
+	raw, err := readRealRegularFile(path, "component runtime certification registry")
+	if err != nil {
+		return nil, catalog.ComponentRuntimeCertificationRegistry{}, err
+	}
+	var registry catalog.ComponentRuntimeCertificationRegistry
+	if err = decodeStrict(raw, &registry); err != nil {
+		return nil, catalog.ComponentRuntimeCertificationRegistry{}, fmt.Errorf("decode component runtime certification registry: %w", err)
+	}
+	return raw, registry, nil
+}
+
+func prepareRuntimeCertificationRegistryRebind(repoRoot string, resolved catalog.Component) ([]byte, []byte, error) {
+	oldRaw, registry, err := loadRuntimeCertificationRegistryFile(repoRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+	components, err := loadRepositoryComponents(repoRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err = catalog.ValidateComponentRuntimeCertificationRegistry(registry, components); err != nil {
+		// Accept exactly one legacy/post-crash recovery shape: the verified target
+		// component was already committed as resolved, while the runtime registry
+		// still carries its prior blocked-source-lock binding. Prove all other
+		// registry rows are valid by validating a temporary pre-commit view before
+		// performing the one-way rebind. Any wider drift remains fail-closed.
+		current, ok := components[resolved.Metadata.Name]
+		recoveryAllowed := ok && current.Spec.Source.Resolved && current.Spec.Release == resolved.Spec.Release && current.Spec.Source.SourceLockDigest == resolved.Spec.Source.SourceLockDigest
+		if recoveryAllowed {
+			preCommit := current
+			preCommit.Spec.Source.Resolved = false
+			preCommit.Spec.Source.SourceLockDigest = ""
+			for _, contract := range registry.Spec.Components {
+				if contract.Component == resolved.Metadata.Name {
+					preCommit.Spec.Release = contract.Release
+					recoveryAllowed = !contract.SourceBinding.Resolved && contract.SourceBinding.Status == "blocked-source-lock" && strings.TrimSpace(contract.SourceBinding.SourceLockDigest) == ""
+					break
+				}
+			}
+			if recoveryAllowed {
+				preComponents := make(map[string]catalog.Component, len(components))
+				for name, component := range components {
+					preComponents[name] = component
+				}
+				preComponents[resolved.Metadata.Name] = preCommit
+				recoveryAllowed = catalog.ValidateComponentRuntimeCertificationRegistry(registry, preComponents) == nil
+			}
+		}
+		if !recoveryAllowed {
+			return nil, nil, fmt.Errorf("current component runtime certification authority invalid: %w", err)
+		}
+	}
+	if _, ok := components[resolved.Metadata.Name]; !ok {
+		return nil, nil, fmt.Errorf("component %s is missing from repository certification authority", resolved.Metadata.Name)
+	}
+	if err = catalog.RebindComponentRuntimeCertificationSource(&registry, resolved); err != nil {
+		return nil, nil, err
+	}
+	components[resolved.Metadata.Name] = resolved
+	if err = catalog.ValidateComponentRuntimeCertificationRegistry(registry, components); err != nil {
+		return nil, nil, fmt.Errorf("rebound component runtime certification authority invalid: %w", err)
+	}
+	newRaw, err := canonicalJSON(registry)
+	if err != nil {
+		return nil, nil, err
+	}
+	return oldRaw, newRaw, nil
+}
+
+func sourceLockAuthorityDigest(raw []byte) (string, error) {
+	var value any
+	if err := decodeStrict(raw, &value); err != nil {
+		return "", fmt.Errorf("decode source lock for upgrade matrix: %w", err)
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize source lock for upgrade matrix: %w", err)
+	}
+	sum := sha256.Sum256(canonical)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func prepareRuntimeUpgradeMatrixRebind(repoRoot string, current, resolved catalog.Component, sourceLockRaw []byte) ([]byte, []byte, error) {
+	path := filepath.Join(repoRoot, "catalog", "component-runtime-upgrade-matrix.json")
+	oldRaw, err := readRealRegularFile(path, "component runtime upgrade matrix")
+	if errors.Is(err, os.ErrNotExist) {
+		// Minimal catalog-bundle fixtures intentionally omit this repository-wide
+		// authority. Full Platform Factory repositories always carry it and the
+		// repository validator enforces coverage.
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	var doc map[string]any
+	if err = decodeStrict(oldRaw, &doc); err != nil {
+		return nil, nil, fmt.Errorf("decode component runtime upgrade matrix: %w", err)
+	}
+	if doc["kind"] != "ComponentRuntimeUpgradeMatrix" || doc["authority"] != "COMPONENT_RUNTIME_UPGRADE_MATRIX_V2" {
+		return nil, nil, fmt.Errorf("component runtime upgrade matrix identity invalid")
+	}
+	rows, ok := doc["components"].([]any)
+	if !ok {
+		return nil, nil, fmt.Errorf("component runtime upgrade matrix components invalid")
+	}
+	digest, err := sourceLockAuthorityDigest(sourceLockRaw)
+	if err != nil {
+		return nil, nil, err
+	}
+	found := false
+	for _, item := range rows {
+		row, ok := item.(map[string]any)
+		if !ok || row["component"] != resolved.Metadata.Name {
+			continue
+		}
+		found = true
+		rowRelease, _ := row["targetRelease"].(string)
+		rowDigest, _ := row["targetSourceLockDigest"].(string)
+		edges, _ := row["admittedEdges"].([]any)
+		if current.Spec.Source.Resolved {
+			if rowRelease != resolved.Spec.Release || rowDigest != digest {
+				return nil, nil, fmt.Errorf("component runtime upgrade matrix resolved binding drift for %s", resolved.Metadata.Name)
+			}
+			break
+		}
+		if rowRelease != current.Spec.Release && !releaseConstraintMatches(rowRelease, current.Spec.Release) {
+			return nil, nil, fmt.Errorf("component runtime upgrade matrix pre-import release drift for %s: matrix=%s component=%s", resolved.Metadata.Name, rowRelease, current.Spec.Release)
+		}
+		if len(edges) != 0 || row["status"] == "admitted-source-pair" {
+			return nil, nil, fmt.Errorf("component runtime upgrade matrix has admitted edges while source is unresolved for %s", resolved.Metadata.Name)
+		}
+		row["targetRelease"] = resolved.Spec.Release
+		row["targetSourceLockDigest"] = digest
+		row["status"] = "pending-source-pair"
+		row["admittedEdges"] = []any{}
+		break
+	}
+	if !found {
+		return nil, nil, fmt.Errorf("component runtime upgrade matrix missing %s", resolved.Metadata.Name)
+	}
+	newRaw, err := canonicalJSON(doc)
+	if err != nil {
+		return nil, nil, err
+	}
+	return oldRaw, newRaw, nil
+}
+
+func prepareRuntimeDependencyTransitionRebind(repoRoot string, resolved catalog.Component) ([]byte, []byte, error) {
+	if resolved.Metadata.Name != "cilium" && resolved.Metadata.Name != "kgateway" {
+		return nil, nil, nil
+	}
+	path := filepath.Join(repoRoot, "catalog", "runtime-dependency-transition.json")
+	oldRaw, err := readRealRegularFile(path, "runtime dependency transition")
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	var doc map[string]any
+	if err = decodeStrict(oldRaw, &doc); err != nil {
+		return nil, nil, fmt.Errorf("decode runtime dependency transition: %w", err)
+	}
+	if doc["kind"] != "RuntimeDependencyTransition" {
+		return nil, nil, fmt.Errorf("runtime dependency transition identity invalid")
+	}
+	spec, ok := doc["spec"].(map[string]any)
+	if !ok || spec["authority"] != "RUNTIME_DEPENDENCY_TRANSITION_V1" {
+		return nil, nil, fmt.Errorf("runtime dependency transition authority invalid")
+	}
+	key := resolved.Metadata.Name
+	row, ok := spec[key].(map[string]any)
+	if !ok {
+		return nil, nil, fmt.Errorf("runtime dependency transition missing %s", key)
+	}
+	if strings.TrimSpace(fmt.Sprint(row["targetRelease"])) != resolved.Spec.Release {
+		return nil, nil, fmt.Errorf("runtime dependency transition target release mismatch for %s", key)
+	}
+	if row["sourceStatus"] != "pending-byte-acquisition" && row["sourceStatus"] != "source-acquired" {
+		return nil, nil, fmt.Errorf("runtime dependency transition source status invalid for %s", key)
+	}
+	row["sourceStatus"] = "source-acquired"
+	newRaw, err := canonicalJSON(doc)
+	if err != nil {
+		return nil, nil, err
+	}
+	return oldRaw, newRaw, nil
+}
+
+func beginCatalogAuthorityTransaction(repoRoot string, txn catalogAuthorityTransaction) error {
+	txn.Version = catalogAuthorityTransactionVersion
+	if !componentNameRE.MatchString(txn.Component) || len(txn.OldComponent) == 0 || len(txn.OldRegistry) == 0 {
+		return fmt.Errorf("catalog authority transaction payload invalid")
+	}
+	raw, err := canonicalJSON(txn)
+	if err != nil {
+		return err
+	}
+	return atomicWrite(catalogAuthorityTransactionPath(repoRoot), raw, 0o600)
+}
+
+func restoreCatalogAuthorityTransaction(repoRoot string, txn catalogAuthorityTransaction) error {
+	if (txn.Version != 1 && txn.Version != 2 && txn.Version != catalogAuthorityTransactionVersion) || !componentNameRE.MatchString(txn.Component) || len(txn.OldComponent) == 0 || len(txn.OldRegistry) == 0 {
+		return fmt.Errorf("catalog authority transaction journal invalid")
+	}
+	componentPath := filepath.Join(repoRoot, "catalog", "components", txn.Component+".json")
+	registryPath := filepath.Join(repoRoot, "catalog", "component-runtime-certification.json")
+	if err := atomicWrite(componentPath, txn.OldComponent, 0o644); err != nil {
+		return fmt.Errorf("restore catalog component authority: %w", err)
+	}
+	if err := atomicWrite(registryPath, txn.OldRegistry, 0o644); err != nil {
+		return fmt.Errorf("restore runtime certification authority: %w", err)
+	}
+	if len(txn.OldUpgradeMatrix) > 0 {
+		if err := atomicWrite(filepath.Join(repoRoot, "catalog", "component-runtime-upgrade-matrix.json"), txn.OldUpgradeMatrix, 0o644); err != nil {
+			return fmt.Errorf("restore runtime upgrade matrix authority: %w", err)
+		}
+	}
+	if len(txn.OldAdmission) > 0 {
+		if err := atomicWrite(filepath.Join(repoRoot, "catalog", "upstream-admission.json"), txn.OldAdmission, 0o644); err != nil {
+			return fmt.Errorf("restore upstream admission authority: %w", err)
+		}
+	}
+	if len(txn.OldDependencyTransition) > 0 {
+		if err := atomicWrite(filepath.Join(repoRoot, "catalog", "runtime-dependency-transition.json"), txn.OldDependencyTransition, 0o644); err != nil {
+			return fmt.Errorf("restore runtime dependency transition authority: %w", err)
+		}
+	}
+	return nil
+}
+
+func finishCatalogAuthorityTransaction(repoRoot string) error {
+	path := catalogAuthorityTransactionPath(repoRoot)
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return syncDirectory(filepath.Dir(path))
+}
+
+func recoverCatalogAuthorityTransaction(repoRoot string) error {
+	path := catalogAuthorityTransactionPath(repoRoot)
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return fmt.Errorf("catalog authority transaction journal is not a regular file")
+	}
+	raw, err := readRealRegularFile(path, "catalog authority transaction journal")
+	if err != nil {
+		return err
+	}
+	var txn catalogAuthorityTransaction
+	if err = decodeStrict(raw, &txn); err != nil {
+		return fmt.Errorf("decode catalog authority transaction journal: %w", err)
+	}
+	if err = restoreCatalogAuthorityTransaction(repoRoot, txn); err != nil {
+		return fmt.Errorf("recover catalog authority transaction: %w", err)
+	}
+	if err = finishCatalogAuthorityTransaction(repoRoot); err != nil {
+		return fmt.Errorf("finish recovered catalog authority transaction: %w", err)
+	}
+	return nil
+}
+
 type catalogInstallLock struct {
 	file *os.File
 }
@@ -1419,6 +1790,269 @@ func (lock *catalogInstallLock) release() error {
 	return closeErr
 }
 
+func exactReleaseTuple(v string) ([3]int, bool) {
+	var out [3]int
+	parts := strings.Split(strings.TrimSpace(v), ".")
+	if len(parts) != 3 || !exactReleaseRE.MatchString(strings.TrimSpace(v)) {
+		return out, false
+	}
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return out, false
+		}
+		out[i] = n
+	}
+	return out, true
+}
+
+func strictlyOlderRelease(previous, target string) bool {
+	p, pok := exactReleaseTuple(previous)
+	t, tok := exactReleaseTuple(target)
+	if !pok || !tok {
+		return false
+	}
+	for i := range p {
+		if p[i] < t[i] {
+			return true
+		}
+		if p[i] > t[i] {
+			return false
+		}
+	}
+	return false
+}
+
+type componentUpgradeSourceAdmission struct {
+	APIVersion    string         `json:"apiVersion"`
+	Kind          string         `json:"kind"`
+	Authority     string         `json:"authority"`
+	SchemaVersion int            `json:"schemaVersion"`
+	Policy        map[string]any `json:"policy,omitempty"`
+	Components    []struct {
+		Component       string `json:"component"`
+		TargetRelease   string `json:"targetRelease"`
+		Status          string `json:"status"`
+		PreviousVersion string `json:"previousVersion"`
+		Source          string `json:"source"`
+		Rationale       string `json:"rationale"`
+		ReviewEvidence  []struct {
+			Kind      string `json:"kind"`
+			Reference string `json:"reference"`
+			Summary   string `json:"summary"`
+		} `json:"reviewEvidence"`
+	} `json:"components"`
+}
+
+func verifyHistoricalUpgradeSourceAdmission(repoRoot string, manifest Manifest, current catalog.Component) error {
+	raw, err := readRealRegularFile(filepath.Join(repoRoot, "catalog", "component-upgrade-source-admission.json"), "component upgrade source admission")
+	if err != nil {
+		return err
+	}
+	var doc componentUpgradeSourceAdmission
+	if err = decodeStrict(raw, &doc); err != nil {
+		return fmt.Errorf("decode component upgrade source admission: %w", err)
+	}
+	if doc.APIVersion != "platform.4so.io/v1alpha1" || doc.Kind != "ComponentUpgradeSourceAdmission" || doc.Authority != "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1" || doc.SchemaVersion != 1 {
+		return fmt.Errorf("component upgrade source admission identity invalid")
+	}
+	for _, required := range []string{"explicitHumanOrReleaseReviewRequired", "exactPreviousVersionRequired", "strictUpgradeDirectionRequired", "mutableTagForbidden", "admissionDoesNotEqualCertification", "reviewEvidenceRequiredForAdmission", "firstProductReleaseInstallOnlyAllowed", "historicalVersionFabricationForbidden"} {
+		value, ok := doc.Policy[required].(bool)
+		if !ok || !value {
+			return fmt.Errorf("component upgrade source admission policy missing %s", required)
+		}
+	}
+	seen := false
+	for _, row := range doc.Components {
+		if row.Component != manifest.Component {
+			continue
+		}
+		if seen {
+			return fmt.Errorf("duplicate component upgrade source admission for %s", manifest.Component)
+		}
+		seen = true
+		if row.TargetRelease != current.Spec.Release {
+			return fmt.Errorf("historical source target release drift for %s", manifest.Component)
+		}
+		if row.Status != "admitted-for-acquisition" {
+			return fmt.Errorf("historical source acquisition is not admitted for %s", manifest.Component)
+		}
+		if row.PreviousVersion != manifest.Version || strings.TrimSpace(row.Source) != strings.TrimSpace(manifest.Upstream.URL) {
+			return fmt.Errorf("historical source admission version/source mismatch for %s", manifest.Component)
+		}
+		if !strictlyOlderRelease(row.PreviousVersion, row.TargetRelease) || strings.TrimSpace(row.Rationale) == "" {
+			return fmt.Errorf("historical source admission is not a strict reviewed upgrade edge for %s", manifest.Component)
+		}
+		if len(row.ReviewEvidence) == 0 {
+			return fmt.Errorf("historical source admission review evidence missing for %s", manifest.Component)
+		}
+		for _, evidence := range row.ReviewEvidence {
+			if evidence.Kind != "upstream-release-history" || !strings.HasPrefix(strings.TrimSpace(evidence.Reference), "https://") || strings.TrimSpace(evidence.Summary) == "" {
+				return fmt.Errorf("historical source admission review evidence invalid for %s", manifest.Component)
+			}
+		}
+	}
+	if !seen {
+		return fmt.Errorf("component upgrade source admission missing %s", manifest.Component)
+	}
+	return nil
+}
+
+func verifyHistoricalComponentContract(current, historical catalog.Component, manifest Manifest) error {
+	if current.Metadata.Name != manifest.Component || historical.Metadata.Name != manifest.Component {
+		return fmt.Errorf("historical component identity mismatch for %s", manifest.Component)
+	}
+	if !current.Spec.Source.Resolved || !strictlyOlderRelease(manifest.Version, current.Spec.Release) {
+		return fmt.Errorf("historical source requires a resolved exact newer target for %s", manifest.Component)
+	}
+	expected := current
+	expected.Spec.Release = manifest.Version
+	expected.Spec.VersionPolicy = "exact-offline-import"
+	expected.Spec.Delivery.RepositoryKey = "offline-catalog-bundle"
+	expected.Spec.Source = historical.Spec.Source
+	expected.Spec.Certification.Status = "candidate"
+	expected.Spec.Certification.Profiles = nil
+	expected.Spec.Certification.EvidenceDigest = ""
+	expectedRaw, _ := canonicalJSON(expected)
+	historicalRaw, _ := canonicalJSON(historical)
+	if !bytes.Equal(expectedRaw, historicalRaw) {
+		return fmt.Errorf("historical component contract substitution detected for %s", manifest.Component)
+	}
+	return nil
+}
+
+func prepareHistoricalUpgradeMatrixAdmission(repoRoot string, current catalog.Component, historicalVersion string, historicalSourceLock []byte) ([]byte, []byte, error) {
+	path := filepath.Join(repoRoot, "catalog", "component-runtime-upgrade-matrix.json")
+	oldRaw, err := readRealRegularFile(path, "component runtime upgrade matrix")
+	if err != nil {
+		return nil, nil, err
+	}
+	var doc map[string]any
+	if err = decodeStrict(oldRaw, &doc); err != nil {
+		return nil, nil, fmt.Errorf("decode component runtime upgrade matrix: %w", err)
+	}
+	if doc["kind"] != "ComponentRuntimeUpgradeMatrix" || doc["authority"] != "COMPONENT_RUNTIME_UPGRADE_MATRIX_V2" {
+		return nil, nil, fmt.Errorf("component runtime upgrade matrix identity invalid")
+	}
+	rows, ok := doc["components"].([]any)
+	if !ok {
+		return nil, nil, fmt.Errorf("component runtime upgrade matrix components invalid")
+	}
+	historicalDigest, err := sourceLockAuthorityDigest(historicalSourceLock)
+	if err != nil {
+		return nil, nil, err
+	}
+	targetLockPath := filepath.Join(repoRoot, "catalog", "runtime", current.Metadata.Name, current.Spec.Release, "source-lock.json")
+	targetRaw, err := readRealRegularFile(targetLockPath, "target component source lock")
+	if err != nil {
+		return nil, nil, err
+	}
+	targetDigest, err := sourceLockAuthorityDigest(targetRaw)
+	if err != nil {
+		return nil, nil, err
+	}
+	if historicalDigest == targetDigest {
+		return nil, nil, fmt.Errorf("historical and target source lock digests are identical for %s", current.Metadata.Name)
+	}
+	found := false
+	for _, item := range rows {
+		row, ok := item.(map[string]any)
+		if !ok || row["component"] != current.Metadata.Name {
+			continue
+		}
+		found = true
+		if row["targetRelease"] != current.Spec.Release || row["targetSourceLockDigest"] != targetDigest {
+			return nil, nil, fmt.Errorf("component runtime upgrade matrix target binding drift for %s", current.Metadata.Name)
+		}
+		edge := map[string]any{"fromRelease": historicalVersion, "toRelease": current.Spec.Release, "fromSourceLockDigest": historicalDigest, "toSourceLockDigest": targetDigest, "status": "admitted-source-pair"}
+		edges, _ := row["admittedEdges"].([]any)
+		replaced := false
+		for i, existing := range edges {
+			em, ok := existing.(map[string]any)
+			if ok && em["fromRelease"] == historicalVersion && em["toRelease"] == current.Spec.Release {
+				edges[i] = edge
+				replaced = true
+			}
+		}
+		if !replaced {
+			edges = append(edges, edge)
+		}
+		sort.Slice(edges, func(i, j int) bool {
+			return fmt.Sprint(edges[i].(map[string]any)["fromRelease"]) < fmt.Sprint(edges[j].(map[string]any)["fromRelease"])
+		})
+		row["admittedEdges"] = edges
+		row["status"] = "admitted-source-pair"
+		break
+	}
+	if !found {
+		return nil, nil, fmt.Errorf("component runtime upgrade matrix missing %s", current.Metadata.Name)
+	}
+	newRaw, err := canonicalJSON(doc)
+	if err != nil {
+		return nil, nil, err
+	}
+	return oldRaw, newRaw, nil
+}
+
+// InstallHistorical installs an explicitly reviewed older source bundle without
+// mutating the current catalog component. It admits only the exact source pair
+// into the runtime-upgrade matrix; certification still requires execution evidence.
+func InstallHistorical(v Verified, repoRoot string) error {
+	repoRoot, err := filepath.Abs(strings.TrimSpace(repoRoot))
+	if err != nil {
+		return err
+	}
+	if _, err = os.Stat(filepath.Join(repoRoot, "VERSION")); err != nil {
+		return fmt.Errorf("repo root missing VERSION: %w", err)
+	}
+	lock, err := acquireCatalogInstallLock(repoRoot)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = lock.release() }()
+	if err = recoverCatalogAuthorityTransaction(repoRoot); err != nil {
+		return err
+	}
+	componentPath := filepath.Join(repoRoot, "catalog", "components", v.Manifest.Component+".json")
+	raw, err := readRealRegularFile(componentPath, "component contract "+v.Manifest.Component)
+	if err != nil {
+		return err
+	}
+	var current catalog.Component
+	if err = decodeStrict(raw, &current); err != nil {
+		return err
+	}
+	var historical catalog.Component
+	if err = decodeStrict(v.Files["component.json"], &historical); err != nil {
+		return err
+	}
+	if historical.Spec.Release != v.Manifest.Version || historical.Spec.Source.BundleKey != v.Manifest.BundleKey {
+		return fmt.Errorf("verified historical component payload no longer matches bundle manifest")
+	}
+	if err = verifyHistoricalComponentContract(current, historical, v.Manifest); err != nil {
+		return err
+	}
+	if err = verifyHistoricalUpgradeSourceAdmission(repoRoot, v.Manifest, current); err != nil {
+		return err
+	}
+	runtimeDir := filepath.Join(repoRoot, "catalog", "runtime", filepath.FromSlash(v.Manifest.BundleKey))
+	if !strings.HasPrefix(runtimeDir, filepath.Join(repoRoot, "catalog", "runtime")+string(os.PathSeparator)) {
+		return fmt.Errorf("bundle destination escapes runtime root")
+	}
+	oldMatrix, newMatrix, err := prepareHistoricalUpgradeMatrixAdmission(repoRoot, current, v.Manifest.Version, v.Files["source-lock.json"])
+	if err != nil {
+		return err
+	}
+	if err = installRuntimeBundle(runtimeDir, v.Files); err != nil {
+		return err
+	}
+	if err = atomicWrite(filepath.Join(repoRoot, "catalog", "component-runtime-upgrade-matrix.json"), newMatrix, 0o644); err != nil {
+		_ = atomicWrite(filepath.Join(repoRoot, "catalog", "component-runtime-upgrade-matrix.json"), oldMatrix, 0o644)
+		return err
+	}
+	return nil
+}
+
 func Install(v Verified, repoRoot string) error {
 	repoRoot, err := filepath.Abs(strings.TrimSpace(repoRoot))
 	if err != nil {
@@ -1432,6 +2066,9 @@ func Install(v Verified, repoRoot string) error {
 		return err
 	}
 	defer func() { _ = lock.release() }()
+	if err = recoverCatalogAuthorityTransaction(repoRoot); err != nil {
+		return err
+	}
 	catalogDir := filepath.Join(repoRoot, "catalog")
 	componentsDir := filepath.Join(catalogDir, "components")
 	if err = requireRealDirectory(catalogDir, "catalog directory"); err != nil {
@@ -1477,6 +2114,7 @@ func Install(v Verified, repoRoot string) error {
 	if err = verifyInstallComponentContract(current, resolved, v.Manifest); err != nil {
 		return err
 	}
+	var oldAdmission []byte
 	if v.Manifest.SourceType == "helm-chart" {
 		if current.Spec.Source.Resolved {
 			err = verifyResolvedHelmAdmissionRecoveryState(repoRoot, v.Manifest, resolved)
@@ -1486,17 +2124,62 @@ func Install(v Verified, repoRoot string) error {
 		if err != nil {
 			return err
 		}
-	}
-	if err := installRuntimeBundle(runtimeDir, v.Files); err != nil {
-		return err
-	}
-	if err := atomicWrite(componentPath, v.Files["component.json"], 0o644); err != nil {
-		return err
-	}
-	if v.Manifest.SourceType == "helm-chart" {
-		if err := retireCanonicalHelmAdmission(repoRoot, v.Manifest.Component); err != nil {
+		oldAdmission, err = readRealRegularFile(filepath.Join(catalogDir, "upstream-admission.json"), "upstream admission authority")
+		if err != nil {
 			return err
 		}
+	}
+	oldRegistry, newRegistry, err := prepareRuntimeCertificationRegistryRebind(repoRoot, resolved)
+	if err != nil {
+		return err
+	}
+	oldUpgradeMatrix, newUpgradeMatrix, err := prepareRuntimeUpgradeMatrixRebind(repoRoot, current, resolved, v.Files["source-lock.json"])
+	if err != nil {
+		return err
+	}
+	oldDependencyTransition, newDependencyTransition, err := prepareRuntimeDependencyTransitionRebind(repoRoot, resolved)
+	if err != nil {
+		return err
+	}
+	if err = installRuntimeBundle(runtimeDir, v.Files); err != nil {
+		return err
+	}
+	txn := catalogAuthorityTransaction{Component: v.Manifest.Component, OldComponent: old, OldRegistry: oldRegistry, OldUpgradeMatrix: oldUpgradeMatrix, OldAdmission: oldAdmission, OldDependencyTransition: oldDependencyTransition}
+	if err = beginCatalogAuthorityTransaction(repoRoot, txn); err != nil {
+		return err
+	}
+	rollback := func(cause error) error {
+		if restoreErr := restoreCatalogAuthorityTransaction(repoRoot, catalogAuthorityTransaction{Version: catalogAuthorityTransactionVersion, Component: txn.Component, OldComponent: txn.OldComponent, OldRegistry: txn.OldRegistry, OldUpgradeMatrix: txn.OldUpgradeMatrix, OldAdmission: txn.OldAdmission, OldDependencyTransition: txn.OldDependencyTransition}); restoreErr != nil {
+			return fmt.Errorf("%w; catalog authority rollback failed: %v", cause, restoreErr)
+		}
+		if finishErr := finishCatalogAuthorityTransaction(repoRoot); finishErr != nil {
+			return fmt.Errorf("%w; catalog authority rollback journal cleanup failed: %v", cause, finishErr)
+		}
+		return cause
+	}
+	if err = atomicWrite(componentPath, v.Files["component.json"], 0o644); err != nil {
+		return rollback(err)
+	}
+	if err = atomicWrite(filepath.Join(catalogDir, "component-runtime-certification.json"), newRegistry, 0o644); err != nil {
+		return rollback(err)
+	}
+	if len(newUpgradeMatrix) > 0 {
+		if err = atomicWrite(filepath.Join(catalogDir, "component-runtime-upgrade-matrix.json"), newUpgradeMatrix, 0o644); err != nil {
+			return rollback(err)
+		}
+	}
+	if len(newDependencyTransition) > 0 {
+		if err = atomicWrite(filepath.Join(catalogDir, "runtime-dependency-transition.json"), newDependencyTransition, 0o644); err != nil {
+			return rollback(err)
+		}
+	}
+	if v.Manifest.SourceType == "helm-chart" {
+		if err = retireCanonicalHelmAdmission(repoRoot, v.Manifest.Component); err != nil {
+			return rollback(err)
+		}
+	}
+	if err = finishCatalogAuthorityTransaction(repoRoot); err != nil {
+		return fmt.Errorf("catalog authority transaction committed but journal cleanup failed: %w", err)
 	}
 	return nil
 }
@@ -1516,6 +2199,7 @@ type AssembleInput struct {
 	UpstreamArtifact       string
 	ExpectedArtifactDigest string
 	BundleKey              string
+	Historical             bool
 }
 
 func canonicalJSON(v any) ([]byte, error) {
@@ -1544,7 +2228,11 @@ func Assemble(in AssembleInput) ([]byte, Verified, error) {
 	if strings.TrimSpace(component.Metadata.Name) == "" {
 		return nil, Verified{}, fmt.Errorf("base component name is required")
 	}
-	if !releaseConstraintMatches(component.Spec.Release, in.Version) {
+	if in.Historical {
+		if !component.Spec.Source.Resolved || !strictlyOlderRelease(in.Version, component.Spec.Release) {
+			return nil, Verified{}, fmt.Errorf("historical imported version %s must be strictly older than resolved target %s", in.Version, component.Spec.Release)
+		}
+	} else if !releaseConstraintMatches(component.Spec.Release, in.Version) {
 		return nil, Verified{}, fmt.Errorf("imported version %s does not satisfy component release constraint %s", in.Version, component.Spec.Release)
 	}
 	if in.BundleKey != component.Metadata.Name+"/"+in.Version {

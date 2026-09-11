@@ -17,18 +17,32 @@ const (
 	ServiceModeExternal ServiceMode = "external"
 )
 
+type ApplianceSizing struct {
+	Authority            string `json:"authority"`
+	Status               string `json:"status"`
+	Scope                string `json:"scope"`
+	MinimumVCPU          int    `json:"minimumVcpu"`
+	MinimumMemoryGiB     int    `json:"minimumMemoryGiB"`
+	MinimumDiskGiB       int    `json:"minimumDiskGiB"`
+	MinimumFreeDiskGiB   int    `json:"minimumFreeDiskGiB"`
+	RecommendedVCPU      int    `json:"recommendedVcpu"`
+	RecommendedMemoryGiB int    `json:"recommendedMemoryGiB"`
+	RecommendedDiskGiB   int    `json:"recommendedDiskGiB"`
+}
+
 type DeploymentProfile struct {
-	ID                    string   `json:"id"`
-	DisplayName           string   `json:"displayName"`
-	Description           string   `json:"description"`
-	Default               bool     `json:"default"`
-	Production            bool     `json:"production"`
-	HighAvailability      bool     `json:"highAvailability"`
-	MinNodes              int      `json:"minNodes"`
-	RecommendedNodes      int      `json:"recommendedNodes"`
-	SupportedConnectivity []string `json:"supportedConnectivity"`
-	CustomerInputs        []string `json:"customerInputs"`
-	ManagedServices       []string `json:"managedServices"`
+	ID                    string          `json:"id"`
+	DisplayName           string          `json:"displayName"`
+	Description           string          `json:"description"`
+	Default               bool            `json:"default"`
+	Production            bool            `json:"production"`
+	HighAvailability      bool            `json:"highAvailability"`
+	MinNodes              int             `json:"minNodes"`
+	RecommendedNodes      int             `json:"recommendedNodes"`
+	SupportedConnectivity []string        `json:"supportedConnectivity"`
+	CustomerInputs        []string        `json:"customerInputs"`
+	ManagedServices       []string        `json:"managedServices"`
+	Sizing                ApplianceSizing `json:"sizing"`
 }
 
 type ServiceSpec struct {

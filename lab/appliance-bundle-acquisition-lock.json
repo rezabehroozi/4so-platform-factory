@@ -1,0 +1,115 @@
+{
+  "authority": "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8",
+  "derivedAuthorities": [
+    "digest-pinned-core-workload-images"
+  ],
+  "inputPack": null,
+  "missingAuthorities": [
+    "management-workload-oci-archive"
+  ],
+  "partialAuthorities": [],
+  "releaseVersion": "0.0.359",
+  "resolvedAuthorities": [
+    {
+      "artifacts": [
+        {
+          "name": "longhorn.yaml",
+          "sha256": "41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd",
+          "sizeBytes": 207054,
+          "stagingPath": "manifests/replicated-storage-install.yaml",
+          "urls": [
+            "https://github.com/longhorn/longhorn/releases/download/v1.12.1/longhorn.yaml"
+          ]
+        }
+      ],
+      "id": "replicated-storage-install-manifest",
+      "kind": "kubernetes-manifest",
+      "provider": "longhorn",
+      "scope": "management-plane-rke2-production-ha-only",
+      "version": "v1.12.1"
+    },
+    {
+      "artifacts": [
+        {
+          "name": "cnpg-1.30.0.yaml",
+          "sha256": "f8bede43fe4ee0d478c2355b204a36876b2ae4faac60f2a9452280b293da3b88",
+          "sizeBytes": 1262410,
+          "stagingPath": "manifests/cloudnative-pg-install.yaml",
+          "urls": [
+            "https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.0/cnpg-1.30.0.yaml"
+          ]
+        }
+      ],
+      "id": "cloudnative-pg-install-manifest",
+      "kind": "kubernetes-manifest",
+      "provider": "cloudnative-pg",
+      "scope": "management-plane-postgresql-operator",
+      "version": "v1.30.0"
+    },
+    {
+      "artifacts": [
+        {
+          "name": "rke2.linux-amd64.tar.gz",
+          "sha256": "a4501349a4c9affeef8b7ec6a206720afe7e901486581b21e8a7d3a865a45ada",
+          "sizeBytes": 40695069,
+          "stagingPath": "rke2/rke2.linux-amd64.tar.gz",
+          "urls": [
+            "https://github.com/rancher/rke2/releases/download/v1.34.10%2Brke2r1/rke2.linux-amd64.tar.gz"
+          ]
+        },
+        {
+          "name": "rke2-images.linux-amd64.tar.zst",
+          "sha256": "03af45a72d1bd246f0474c86ba5bc39531eda0d3446ff4de82bdd298d4f6ef6b",
+          "sizeBytes": 825815300,
+          "stagingPath": "rke2/rke2-images.linux-amd64.tar.zst",
+          "urls": [
+            "https://github.com/rancher/rke2/releases/download/v1.34.10%2Brke2r1/rke2-images.linux-amd64.tar.zst"
+          ]
+        },
+        {
+          "name": "sha256sum-amd64.txt",
+          "sha256": "bdd5aadc9ff4c2cf48316ddea4763fcc5a4333dab1196caebc1704c1b7f80e15",
+          "sizeBytes": 3540,
+          "stagingPath": "rke2/sha256sum-amd64.txt",
+          "urls": [
+            "https://github.com/rancher/rke2/releases/download/v1.34.10%2Brke2r1/sha256sum-amd64.txt"
+          ]
+        },
+        {
+          "name": "install.sh",
+          "sha256": "2d24db2184dd6b1a5e281fa45cc9a8234c889394721746f89b5fe953fdaaf40a",
+          "sizeBytes": 25288,
+          "stagingPath": "rke2/install.sh",
+          "urls": [
+            "https://raw.githubusercontent.com/rancher/rke2/d419f09226d50a4777d348e5c53ea1bce3849b77/install.sh"
+          ]
+        }
+      ],
+      "id": "rke2-installer-and-offline-artifacts",
+      "kind": "release-artifact-set",
+      "provider": "rke2",
+      "scope": "management-plane-rke2-production-ha-only",
+      "version": "v1.34.10+rke2r1"
+    },
+    {
+      "artifacts": [
+        {
+          "name": "install.yaml",
+          "sha256": "a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe",
+          "sizeBytes": 1917766,
+          "stagingPath": "manifests/argocd-install.yaml",
+          "urls": [
+            "https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/install.yaml"
+          ]
+        }
+      ],
+      "id": "argocd-install-manifest",
+      "kind": "kubernetes-manifest",
+      "provider": "argocd",
+      "scope": "management-plane-gitops-reconciler",
+      "version": "v3.5.0"
+    }
+  ],
+  "schemaVersion": 8,
+  "status": "incomplete"
+}

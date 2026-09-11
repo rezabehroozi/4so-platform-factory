@@ -4,6 +4,8 @@ from __future__ import annotations
 import base64, hashlib, json, os, socket, subprocess, sys, tempfile, time
 from pathlib import Path
 
+from oci_smoke_fixture import workload_repositories, write_workload_oci_archive
+
 EXPECTED_VERSION = (Path(__file__).resolve().parents[1] / 'VERSION').read_text().strip()
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
@@ -11,9 +13,11 @@ from urllib.error import HTTPError
 def sha(data: bytes) -> str: return 'sha256:'+hashlib.sha256(data).hexdigest()
 def free_port() -> int:
     with socket.socket() as s: s.bind(('127.0.0.1',0)); return s.getsockname()[1]
-def request(url: str, token: str, method='GET', payload=None):
+def request(url: str, token: str, method='GET', payload=None, headers=None):
     body=None if payload is None else json.dumps(payload).encode()
-    req=Request(url,data=body,method=method,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})
+    request_headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'}
+    request_headers.update(headers or {})
+    req=Request(url,data=body,method=method,headers=request_headers)
     try:
         with urlopen(req,timeout=10) as response: return response.status,json.load(response)
     except HTTPError as exc: return exc.code,json.load(exc)
@@ -31,12 +35,15 @@ def main() -> int:
         assert completed.returncode==2 and 'unknown platform-installer argument' in completed.stderr,(completed.returncode,completed.stdout,completed.stderr)
         assert not cli_state.exists(),'unknown arguments must fail before installer state initialization'
         bundle=root/'bundle'; artifacts=bundle/'artifacts'; artifacts.mkdir(parents=True)
-        files={'install.sh':b'#!/bin/sh\nexit 0\n','rke2.tar.gz':b'rke2','rke2-images.tar.zst':b'rke2-images','workloads.tar.zst':b'workloads','argocd-install.yaml':('apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: argocd\n          image: registry.local/argocd@sha256:'+'1'*64+'\n').encode(),'cnpg-install.yaml':('apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: cnpg\n          image: registry.local/cnpg@sha256:'+'3'*64+'\n').encode(),'ocm-install.yaml':('apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: ocm\n          image: registry.local/ocm@sha256:'+'2'*64+'\n').encode(),'storage-install.yaml':('apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: storage\n          image: registry.local/storage@sha256:'+'4'*64+'\n').encode()}
+        refs=write_workload_oci_archive(artifacts/'workloads.oci.tar', workload_repositories())
+        def workload_manifest(name: str, ref: str) -> bytes:
+            return ('apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: '+name+'\n          image: '+ref+'\n').encode()
+        files={'install.sh':b'#!/bin/sh\nexit 0\n','rke2.tar.gz':b'rke2','rke2-images.tar.zst':b'rke2-images','workloads.oci.tar':(artifacts/'workloads.oci.tar').read_bytes(),'argocd-install.yaml':workload_manifest('argocd',refs['registry.local/argocd']),'cnpg-install.yaml':workload_manifest('cnpg',refs['registry.local/cnpg']),'storage-install.yaml':workload_manifest('storage',refs['registry.local/storage'])}
         for name,data in files.items(): (artifacts/name).write_bytes(data)
-        images=['registry.local/postgres@sha256:'+'a'*64,'registry.local/api@sha256:'+'b'*64,'registry.local/forgejo@sha256:'+'c'*64,'registry.local/zot@sha256:'+'d'*64,'registry.local/keycloak@sha256:'+'e'*64,'registry.local/maintenance@sha256:'+'f'*64,'registry.local/agent@sha256:'+'9'*64,'registry.local/probe@sha256:'+'8'*64,'registry.local/argocd@sha256:'+'1'*64,'registry.local/cnpg@sha256:'+'3'*64,'registry.local/ocm@sha256:'+'2'*64,'registry.local/storage@sha256:'+'4'*64]
+        images=sorted(refs.values())
         index_artifacts=['artifacts/'+name for name in files]; index={'version':EXPECTED_VERSION,'images':images,'artifacts':index_artifacts,'artifactDigests':{'artifacts/'+name:sha(data) for name,data in files.items()}}; (bundle/'artifacts'/'airgap-index.json').write_text(json.dumps(index,sort_keys=True)+'\n'); files['airgap-index.json']=(bundle/'artifacts'/'airgap-index.json').read_bytes()
         release_digest='sha256:'+'7'*64
-        manifest={'apiVersion':'platform.4so.io/v1alpha1','kind':'ApplianceBundle','metadata':{'version':EXPECTED_VERSION,'sourceReleaseDigest':release_digest},'spec':{'rke2':{'version':'test','installer':{'path':'artifacts/install.sh','sha256':sha(files['install.sh'])},'installArtifacts':[{'path':'artifacts/rke2.tar.gz','sha256':sha(files['rke2.tar.gz'])}],'imageArchives':[{'path':'artifacts/rke2-images.tar.zst','sha256':sha(files['rke2-images.tar.zst'])}]},'airgap':{'complete':True,'index':{'path':'artifacts/airgap-index.json','sha256':sha(files['airgap-index.json'])},'requiredImages':images},'workloads':{'imageArchives':[{'path':'artifacts/workloads.tar.zst','sha256':sha(files['workloads.tar.zst'])}],'postgresqlImage':'registry.local/postgres@sha256:'+'a'*64,'platformApiImage':'registry.local/api@sha256:'+'b'*64,'forgejoImage':'registry.local/forgejo@sha256:'+'c'*64,'zotImage':'registry.local/zot@sha256:'+'d'*64,'keycloakImage':'registry.local/keycloak@sha256:'+'e'*64,'maintenanceImage':'registry.local/maintenance@sha256:'+'f'*64,'gitOpsManifest':{'path':'artifacts/argocd-install.yaml','sha256':sha(files['argocd-install.yaml'])},'cloudNativePGManifest':{'path':'artifacts/cnpg-install.yaml','sha256':sha(files['cnpg-install.yaml'])},'ocmManifest':{'path':'artifacts/ocm-install.yaml','sha256':sha(files['ocm-install.yaml'])},'storageManifest':{'path':'artifacts/storage-install.yaml','sha256':sha(files['storage-install.yaml'])},'fleetAgentImage':'registry.local/agent@sha256:'+'9'*64,'runtimeProbeImage':'registry.local/probe@sha256:'+'8'*64}}}
+        manifest={'apiVersion':'platform.4so.io/v1alpha1','kind':'ApplianceBundle','metadata':{'version':EXPECTED_VERSION,'sourceReleaseDigest':release_digest},'spec':{'rke2':{'version':'test','installer':{'path':'artifacts/install.sh','sha256':sha(files['install.sh'])},'installArtifacts':[{'path':'artifacts/rke2.tar.gz','sha256':sha(files['rke2.tar.gz'])}],'imageArchives':[{'path':'artifacts/rke2-images.tar.zst','sha256':sha(files['rke2-images.tar.zst'])}]},'airgap':{'complete':True,'index':{'path':'artifacts/airgap-index.json','sha256':sha(files['airgap-index.json'])},'requiredImages':images},'workloads':{'imageArchives':[{'path':'artifacts/workloads.oci.tar','sha256':sha(files['workloads.oci.tar'])}],'postgresqlImage':refs['registry.local/postgres'],'platformApiImage':refs['registry.local/platform-api'],'forgejoImage':refs['registry.local/forgejo'],'zotImage':refs['registry.local/zot'],'keycloakImage':refs['registry.local/keycloak'],'maintenanceImage':refs['registry.local/maintenance'],'gitOpsManifest':{'path':'artifacts/argocd-install.yaml','sha256':sha(files['argocd-install.yaml'])},'cloudNativePGManifest':{'path':'artifacts/cnpg-install.yaml','sha256':sha(files['cnpg-install.yaml'])},'storageManifest':{'path':'artifacts/storage-install.yaml','sha256':sha(files['storage-install.yaml'])},'fleetAgentImage':refs['registry.local/platform-agent'],'runtimeProbeImage':refs['registry.local/platform-probe']}}}
         manifest_raw=(json.dumps(manifest,indent=2,sort_keys=True)+'\n').encode(); (bundle/'bundle.json').write_bytes(manifest_raw)
         all_artifacts=[]
         for rel in sorted(['artifacts/'+name for name in files]):
@@ -115,7 +122,7 @@ def main() -> int:
             assert ha_final and ha_final['state']=='SUCCEEDED',ha_final
             step_states={item['key']:item['state'] for item in ha_final['steps']}
             assert step_states and all(state=='SUCCEEDED' for state in step_states.values()),step_states
-            for required_step in ('deploy-replicated-storage','revoke-bootstrap-credential'):
+            for required_step in ('deploy-replicated-storage','verify-off-node-backup','revoke-bootstrap-credential'):
                 assert step_states.get(required_step)=='SUCCEEDED',(required_step,step_states)
             status,ha_status=request(base+'/api/v1/ha/status',token); assert status==200 and ha_status['selected'] is True,ha_status
             status,airgap_status=request(base+'/api/v1/airgap/status',token); assert status==200 and airgap_status['complete'] is True and airgap_status['verified'] is True,airgap_status
@@ -135,7 +142,33 @@ def main() -> int:
             status,diagnostic_verify=request(base+'/api/v1/diagnostics/verify',token,'POST',diagnostic); assert status==200 and diagnostic_verify['valid'] is True and diagnostic_verify['runId']==ha_final['id'],diagnostic_verify
             diagnostic_tampered=json.loads(json.dumps(diagnostic)); diagnostic_tampered['analysis']['owningLayer']='forged-owner'
             status,diagnostic_tamper=request(base+'/api/v1/diagnostics/verify',token,'POST',diagnostic_tampered); assert status==422,diagnostic_tamper
-            print('INSTALLER_HTTP_SIMULATION_SMOKE_PASS',final['id'],ha_final['id'],lifecycle['id'],dr['id'],field_verify['evidenceDigest'],diagnostic_verify['digest'])
+
+            # C5 reset/reinstall authority: reset the exact HA installation, wait for
+            # durable completion, prove the same installer access token remains valid,
+            # then execute a clean installation again from a fresh bootstrap journal.
+            status,_=request(base+'/api/v1/reset/start',token,'POST',{}, {'X-Confirm-Reset':'reset:'+ha_final['id']}); assert status==202
+            reset_final=None
+            for _ in range(140):
+                status,body=request(base+'/api/v1/status',token); assert status==200
+                reset_runs=body.get('resetRuns') or []
+                reset_final=reset_runs[-1] if reset_runs else None
+                if reset_final and reset_final['state'] in ('SUCCEEDED','FAILED'): break
+                time.sleep(.05)
+            assert reset_final and reset_final['state']=='SUCCEEDED',reset_final
+            assert all(step['state']=='SUCCEEDED' for step in reset_final['steps']),reset_final
+            status,post_reset_status=request(base+'/api/v1/status',token); assert status==200 and post_reset_status.get('run') is None,post_reset_status
+            status,replan=request(base+'/api/v1/plan',token,'POST',{'installation':installation}); assert status==200 and replan['plan']['executable'] is True,replan
+            status,repreflight=request(base+'/api/v1/preflight',token,'POST',{'installation':installation}); assert status==200 and repreflight['state']=='PASSED',repreflight
+            status,_=request(base+'/api/v1/start',token,'POST',{'installation':installation}); assert status==202
+            reinstall=None
+            for _ in range(120):
+                status,body=request(base+'/api/v1/status',token); assert status==200
+                reinstall=body.get('run')
+                if reinstall and reinstall['state'] in ('SUCCEEDED','FAILED'): break
+                time.sleep(.05)
+            assert reinstall and reinstall['state']=='SUCCEEDED',reinstall
+            assert all(step['state']=='SUCCEEDED' for step in reinstall['steps']),reinstall
+            print('INSTALLER_HTTP_SIMULATION_SMOKE_PASS',final['id'],ha_final['id'],lifecycle['id'],dr['id'],reset_final['id'],reinstall['id'],field_verify['evidenceDigest'],diagnostic_verify['digest'])
             return 0
         finally:
             process.terminate()

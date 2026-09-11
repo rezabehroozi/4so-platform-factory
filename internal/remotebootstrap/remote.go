@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"platform.4so.io/factory/internal/bootstrap"
@@ -26,13 +27,14 @@ import (
 )
 
 const (
-	APIVersion           = "platform.4so.io/v1alpha1"
-	Kind                 = "InstallerRemoteBootstrap"
-	ConfirmationDeploy   = "DEPLOY"
-	ConfirmationRollback = "ROLLBACK"
-	ConfirmationRecover  = "RECOVER"
-	StageManifestSchema  = 1
-	remoteCleanupTimeout = 15 * time.Second
+	APIVersion              = "platform.4so.io/v1alpha1"
+	Kind                    = "InstallerRemoteBootstrap"
+	ConfirmationDeploy      = "DEPLOY"
+	ConfirmationRollback    = "ROLLBACK"
+	ConfirmationRecover     = "RECOVER"
+	StageManifestSchema     = 1
+	ExpectedBundleAuthority = "REMOTE_BOOTSTRAP_EXPECTED_BUNDLE_AUTHORITY_V1"
+	remoteCleanupTimeout    = 15 * time.Second
 )
 
 type Spec struct {
@@ -52,6 +54,10 @@ type Spec struct {
 		} `json:"target"`
 		PlatformctlBinary string `json:"platformctlBinary"`
 		DeploymentSpec    string `json:"deploymentSpec"`
+		ExpectedBundle    struct {
+			BundleDigest string `json:"bundleDigest"`
+			LockDigest   string `json:"lockDigest"`
+		} `json:"expectedBundle"`
 	} `json:"spec"`
 }
 
@@ -70,15 +76,16 @@ type RemoteTarget struct {
 }
 
 type Prepared struct {
-	SchemaVersion        int                                `json:"schemaVersion"`
-	Name                 string                             `json:"name"`
-	Version              string                             `json:"version"`
-	Target               RemoteTarget                       `json:"target"`
-	StageDirectory       string                             `json:"stageDirectory"`
-	StageManifestDigest  string                             `json:"stageManifestDigest"`
-	DeploymentSpecDigest string                             `json:"deploymentSpecDigest"`
-	Admission            hostdeployment.HostAdmissionReport `json:"admission"`
-	Plan                 hostdeployment.Plan                `json:"plan"`
+	SchemaVersion          int                                `json:"schemaVersion"`
+	Name                   string                             `json:"name"`
+	Version                string                             `json:"version"`
+	Target                 RemoteTarget                       `json:"target"`
+	StageDirectory         string                             `json:"stageDirectory"`
+	StageManifestDigest    string                             `json:"stageManifestDigest"`
+	DeploymentSpecDigest   string                             `json:"deploymentSpecDigest"`
+	BundleBindingAuthority string                             `json:"bundleBindingAuthority"`
+	Admission              hostdeployment.HostAdmissionReport `json:"admission"`
+	Plan                   hostdeployment.Plan                `json:"plan"`
 }
 
 type Result struct {
@@ -167,6 +174,9 @@ func LoadSpec(path string) (Spec, error) {
 	if strings.TrimSpace(spec.Spec.PlatformctlBinary) == "" || strings.TrimSpace(spec.Spec.DeploymentSpec) == "" {
 		return spec, errors.New("platformctlBinary and deploymentSpec are required")
 	}
+	if !canonicalSHA256(spec.Spec.ExpectedBundle.BundleDigest) || !canonicalSHA256(spec.Spec.ExpectedBundle.LockDigest) {
+		return spec, errors.New("expectedBundle.bundleDigest and expectedBundle.lockDigest must be canonical sha256 digests")
+	}
 	if strings.TrimSpace(spec.Spec.Target.IdentityFile) == "" || strings.TrimSpace(spec.Spec.Target.KnownHostsFile) == "" {
 		return spec, errors.New("identityFile and knownHostsFile are required")
 	}
@@ -222,6 +232,7 @@ func Prepare(ctx context.Context, specPath string, options Options) (prepared Pr
 	if err != nil {
 		return Prepared{}, err
 	}
+	defer cleanupStageArchive(archive)
 	defer func() {
 		if cleanupErr := cleanupRemoteStage(runner, sshBinary, loaded, controlPath); cleanupErr != nil {
 			retErr = errors.Join(retErr, fmt.Errorf("cleanup remote bootstrap stage: %w", cleanupErr))
@@ -246,10 +257,13 @@ func Prepare(ctx context.Context, specPath string, options Options) (prepared Pr
 	if err = decodeStrict(planRaw, &plan); err != nil {
 		return Prepared{}, fmt.Errorf("decode remote deployment plan: %w", err)
 	}
+	if err = enforceExpectedBundleBinding(loaded.Config, plan.Bundle); err != nil {
+		return Prepared{}, fmt.Errorf("staged remote bundle binding: %w", err)
+	}
 	prepared = Prepared{
-		SchemaVersion: 1, Name: loaded.Config.Metadata.Name, Version: loaded.Config.Metadata.Version,
+		SchemaVersion: 2, Name: loaded.Config.Metadata.Name, Version: loaded.Config.Metadata.Version,
 		Target:         RemoteTarget{Host: loaded.Host, User: loaded.User, Root: loaded.Root, Architecture: normalizeArchitecture(arch), Trust: loaded.Trust},
-		StageDirectory: loaded.StageDirectory, StageManifestDigest: manifest.Digest, DeploymentSpecDigest: remoteSpecDigest,
+		StageDirectory: loaded.StageDirectory, StageManifestDigest: manifest.Digest, DeploymentSpecDigest: remoteSpecDigest, BundleBindingAuthority: ExpectedBundleAuthority,
 		Admission: admission, Plan: plan,
 	}
 	return prepared, nil
@@ -299,6 +313,7 @@ func Apply(ctx context.Context, specPath, confirmation string, options Options) 
 	if err != nil {
 		return Result{}, err
 	}
+	defer cleanupStageArchive(archive)
 	defer func() {
 		if cleanupErr := cleanupRemoteStage(runner, sshBinary, loaded, controlPath); cleanupErr != nil {
 			retErr = errors.Join(retErr, fmt.Errorf("cleanup remote bootstrap stage: %w", cleanupErr))
@@ -337,6 +352,9 @@ func Apply(ctx context.Context, specPath, confirmation string, options Options) 
 	if err = decodeStrict(planRaw, &plan); err != nil {
 		return Result{}, err
 	}
+	if err = enforceExpectedBundleBinding(loaded.Config, plan.Bundle); err != nil {
+		return Result{}, fmt.Errorf("staged remote bundle binding: %w", err)
+	}
 	if plan.SpecDigest != remoteSpecDigest {
 		return Result{}, errors.New("remote deployment spec digest does not match locally staged spec")
 	}
@@ -348,7 +366,10 @@ func Apply(ctx context.Context, specPath, confirmation string, options Options) 
 	if err = decodeStrict(stateRaw, &state); err != nil {
 		return Result{}, fmt.Errorf("decode remote deployment state: %w", err)
 	}
-	prepared := Prepared{SchemaVersion: 1, Name: loaded.Config.Metadata.Name, Version: loaded.Config.Metadata.Version, Target: RemoteTarget{Host: loaded.Host, User: loaded.User, Root: loaded.Root, Architecture: normalizeArchitecture(arch), Trust: loaded.Trust}, StageDirectory: loaded.StageDirectory, StageManifestDigest: manifest.Digest, DeploymentSpecDigest: remoteSpecDigest, Admission: admission, Plan: plan}
+	if err = enforceExpectedBundleBinding(loaded.Config, state.Plan.Bundle); err != nil {
+		return Result{}, fmt.Errorf("applied remote bundle binding: %w", err)
+	}
+	prepared := Prepared{SchemaVersion: 2, Name: loaded.Config.Metadata.Name, Version: loaded.Config.Metadata.Version, Target: RemoteTarget{Host: loaded.Host, User: loaded.User, Root: loaded.Root, Architecture: normalizeArchitecture(arch), Trust: loaded.Trust}, StageDirectory: loaded.StageDirectory, StageManifestDigest: manifest.Digest, DeploymentSpecDigest: remoteSpecDigest, BundleBindingAuthority: ExpectedBundleAuthority, Admission: admission, Plan: plan}
 	result = Result{Prepared: prepared, State: state}
 	return result, nil
 }
@@ -362,6 +383,13 @@ func Status(ctx context.Context, specPath string, options Options) (hostdeployme
 	if err = decodeStrict(raw, &state); err != nil {
 		return state, err
 	}
+	loaded, loadErr := loadAndValidate(specPath)
+	if loadErr != nil {
+		return state, loadErr
+	}
+	if err = enforceExpectedBundleBinding(loaded.Config, state.Plan.Bundle); err != nil {
+		return state, fmt.Errorf("remote deployment state bundle binding: %w", err)
+	}
 	return state, nil
 }
 
@@ -373,6 +401,13 @@ func Verify(ctx context.Context, specPath string, options Options) (hostdeployme
 	var result hostdeployment.VerifyResult
 	if err = decodeStrict(raw, &result); err != nil {
 		return result, err
+	}
+	loaded, loadErr := loadAndValidate(specPath)
+	if loadErr != nil {
+		return result, loadErr
+	}
+	if result.BundleDigest != loaded.Config.Spec.ExpectedBundle.BundleDigest || result.LockDigest != loaded.Config.Spec.ExpectedBundle.LockDigest {
+		return result, errors.New("remote verify result does not match expected bundle binding")
 	}
 	return result, nil
 }
@@ -389,6 +424,13 @@ func Rollback(ctx context.Context, specPath, confirmation string, options Option
 	if err = decodeStrict(raw, &state); err != nil {
 		return state, err
 	}
+	loaded, loadErr := loadAndValidate(specPath)
+	if loadErr != nil {
+		return state, loadErr
+	}
+	if err = enforceExpectedBundleBinding(loaded.Config, state.Plan.Bundle); err != nil {
+		return state, fmt.Errorf("remote rollback state bundle binding: %w", err)
+	}
 	return state, nil
 }
 
@@ -403,6 +445,13 @@ func Recover(ctx context.Context, specPath, confirmation string, options Options
 	var state hostdeployment.State
 	if err = decodeStrict(raw, &state); err != nil {
 		return state, err
+	}
+	loaded, loadErr := loadAndValidate(specPath)
+	if loadErr != nil {
+		return state, loadErr
+	}
+	if err = enforceExpectedBundleBinding(loaded.Config, state.Plan.Bundle); err != nil {
+		return state, fmt.Errorf("remote recovery state bundle binding: %w", err)
 	}
 	return state, nil
 }
@@ -544,6 +593,9 @@ func loadAndValidate(specPath string) (loadedSpec, error) {
 	if bundleStatus.Version != config.Metadata.Version {
 		return loadedSpec{}, fmt.Errorf("bundle version %q does not match remote bootstrap version %q", bundleStatus.Version, config.Metadata.Version)
 	}
+	if err = enforceExpectedBundleBinding(config, bundleStatus); err != nil {
+		return loadedSpec{}, err
+	}
 	cert, key := "", ""
 	if strings.TrimSpace(deployment.Spec.TLS.CertificateFile) != "" {
 		cert, err = absFrom(deploymentBase, deployment.Spec.TLS.CertificateFile)
@@ -578,6 +630,23 @@ func absFrom(base, p string) (string, error) {
 		return filepath.Abs(p)
 	}
 	return filepath.Abs(filepath.Join(base, p))
+}
+
+func canonicalSHA256(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") {
+		return false
+	}
+	_, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
+	return err == nil && value == strings.ToLower(value)
+}
+
+func enforceExpectedBundleBinding(config Spec, status bootstrap.BundleAdmissionStatus) error {
+	expected := config.Spec.ExpectedBundle
+	if status.BundleDigest != expected.BundleDigest || status.LockDigest != expected.LockDigest {
+		return fmt.Errorf("bundle binding mismatch: expected bundle=%s lock=%s got bundle=%s lock=%s", expected.BundleDigest, expected.LockDigest, status.BundleDigest, status.LockDigest)
+	}
+	return nil
 }
 
 func validateRemoteRoot(root string) error {
@@ -754,7 +823,7 @@ func remoteDeploymentSpecPath(loaded loadedSpec) string {
 	return filepath.Join(loaded.StageDirectory, "deployment.json")
 }
 
-func buildStageArchive(loaded loadedSpec) (StageManifest, *bytes.Reader, string, error) {
+func buildStageArchive(loaded loadedSpec) (StageManifest, *os.File, string, error) {
 	remoteSpec := loaded.Deployment
 	remoteSpec.Spec.InstallerBinary = filepath.Join(loaded.StageDirectory, "platform-installer")
 	remoteSpec.Spec.BundleDirectory = filepath.Join(loaded.StageDirectory, "bundle")
@@ -808,11 +877,28 @@ func buildStageArchive(loaded loadedSpec) (StageManifest, *bytes.Reader, string,
 	if err != nil {
 		return StageManifest{}, nil, "", err
 	}
-	manifest, archive, err := makeArchive(entries)
+	archive, err := os.CreateTemp("", "4so-platform-remote-stage-*.tar")
 	if err != nil {
 		return StageManifest{}, nil, "", err
 	}
-	return manifest, bytes.NewReader(archive), digest(specRaw), nil
+	if err = archive.Chmod(0o600); err != nil {
+		cleanupStageArchive(archive)
+		return StageManifest{}, nil, "", err
+	}
+	manifest, err := writeArchive(entries, archive)
+	if err != nil {
+		cleanupStageArchive(archive)
+		return StageManifest{}, nil, "", err
+	}
+	if err = archive.Sync(); err != nil {
+		cleanupStageArchive(archive)
+		return StageManifest{}, nil, "", err
+	}
+	if _, err = archive.Seek(0, io.SeekStart); err != nil {
+		cleanupStageArchive(archive)
+		return StageManifest{}, nil, "", err
+	}
+	return manifest, archive, digest(specRaw), nil
 }
 
 type stageSource struct {
@@ -821,53 +907,132 @@ type stageSource struct {
 	mode uint32
 }
 
-func makeArchive(sources map[string]stageSource) (StageManifest, []byte, error) {
+func openStageSource(path string) (*os.File, os.FileInfo, error) {
+	before, err := os.Lstat(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	if before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() {
+		return nil, nil, fmt.Errorf("stage source %s must be a regular non-symlink file", path)
+	}
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	opened, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, nil, err
+	}
+	if !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
+		_ = file.Close()
+		return nil, nil, fmt.Errorf("stage source %s changed while opening", path)
+	}
+	return file, opened, nil
+}
+
+func stageSourceUnchanged(before, after os.FileInfo) bool {
+	return os.SameFile(before, after) && before.Size() == after.Size() && before.ModTime().Equal(after.ModTime())
+}
+
+func writeArchive(sources map[string]stageSource, output io.Writer) (StageManifest, error) {
 	names := make([]string, 0, len(sources))
 	for n := range sources {
 		if err := validateRelative(n); err != nil {
-			return StageManifest{}, nil, err
+			return StageManifest{}, err
 		}
 		names = append(names, n)
 	}
 	sort.Strings(names)
 	var manifest StageManifest
 	manifest.SchemaVersion = StageManifestSchema
-	dataByName := map[string][]byte{}
+	tw := tar.NewWriter(output)
 	for _, name := range names {
 		src := sources[name]
-		var data []byte
-		var err error
+		var size int64
+		var file *os.File
+		var opened os.FileInfo
 		if src.path != "" {
-			data, err = os.ReadFile(src.path)
+			var err error
+			file, opened, err = openStageSource(src.path)
+			if err != nil {
+				_ = tw.Close()
+				return manifest, err
+			}
+			size = opened.Size()
 		} else {
-			data = src.data
+			size = int64(len(src.data))
 		}
-		if err != nil {
-			return manifest, nil, err
-		}
-		sum := sha256.Sum256(data)
-		manifest.Entries = append(manifest.Entries, StageManifestEntry{Path: name, Mode: src.mode, Size: int64(len(data)), SHA256: "sha256:" + hex.EncodeToString(sum[:])})
-		dataByName[name] = data
-	}
-	manifest.Digest = manifestDigest(manifest.Entries)
-	var buf bytes.Buffer
-	tw := tar.NewWriter(&buf)
-	for _, entry := range manifest.Entries {
-		hdr := &tar.Header{Name: entry.Path, Mode: int64(entry.Mode), Size: entry.Size, Typeflag: tar.TypeReg, ModTime: time.Unix(0, 0)}
+		hdr := &tar.Header{Name: name, Mode: int64(src.mode), Size: size, Typeflag: tar.TypeReg, ModTime: time.Unix(0, 0)}
 		if err := tw.WriteHeader(hdr); err != nil {
-			return manifest, nil, err
+			if file != nil {
+				_ = file.Close()
+			}
+			_ = tw.Close()
+			return manifest, err
 		}
-		if _, err := tw.Write(dataByName[entry.Path]); err != nil {
-			return manifest, nil, err
+		h := sha256.New()
+		writer := io.MultiWriter(tw, h)
+		if file != nil {
+			written, err := io.CopyN(writer, file, size)
+			if err != nil || written != size {
+				_ = file.Close()
+				_ = tw.Close()
+				if err == nil {
+					err = io.ErrUnexpectedEOF
+				}
+				return manifest, fmt.Errorf("read stage source %s: %w", src.path, err)
+			}
+			var extra [1]byte
+			n, readErr := file.Read(extra[:])
+			after, statErr := file.Stat()
+			closeErr := file.Close()
+			if statErr != nil {
+				_ = tw.Close()
+				return manifest, statErr
+			}
+			if closeErr != nil {
+				_ = tw.Close()
+				return manifest, closeErr
+			}
+			if n != 0 || (readErr != nil && !errors.Is(readErr, io.EOF)) || !stageSourceUnchanged(opened, after) {
+				_ = tw.Close()
+				return manifest, fmt.Errorf("stage source %s changed while snapshotting", src.path)
+			}
+		} else {
+			if _, err := writer.Write(src.data); err != nil {
+				_ = tw.Close()
+				return manifest, err
+			}
 		}
+		manifest.Entries = append(manifest.Entries, StageManifestEntry{Path: name, Mode: src.mode, Size: size, SHA256: "sha256:" + hex.EncodeToString(h.Sum(nil))})
 	}
 	if err := tw.Close(); err != nil {
+		return manifest, err
+	}
+	manifest.Digest = manifestDigest(manifest.Entries)
+	return manifest, nil
+}
+
+func makeArchive(sources map[string]stageSource) (StageManifest, []byte, error) {
+	var buf bytes.Buffer
+	manifest, err := writeArchive(sources, &buf)
+	if err != nil {
 		return manifest, nil, err
 	}
 	return manifest, buf.Bytes(), nil
 }
 
-func receiveStage(ctx context.Context, runner Runner, sshBinary string, loaded loadedSpec, controlPath string, manifest StageManifest, archive *bytes.Reader) error {
+func cleanupStageArchive(archive *os.File) {
+	if archive == nil {
+		return
+	}
+	name := archive.Name()
+	_ = archive.Close()
+	_ = os.Remove(name)
+}
+
+func receiveStage(ctx context.Context, runner Runner, sshBinary string, loaded loadedSpec, controlPath string, manifest StageManifest, archive io.Reader) error {
 	_, err := runSSH(ctx, runner, sshBinary, loaded, archive, shellQuote(controlPath)+" installer-remote receive-stage --dir "+shellQuote(loaded.StageDirectory)+" --manifest-digest "+shellQuote(manifest.Digest))
 	return err
 }

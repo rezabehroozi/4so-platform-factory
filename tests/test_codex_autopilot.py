@@ -224,3 +224,49 @@ class ExactSHARealTestPreflight(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class BrowserTriagePrerequisiteTests(unittest.TestCase):
+    def test_operator_console_repair_ensures_browser_prerequisites(self):
+        stage = AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 10)
+        fake = type("R", (), {"returncode": 0, "stdout": '{"ready":true,"os":"linux"}\n'})()
+        with mock.patch.object(AUTOPILOT, "_run", return_value=fake) as run:
+            ok, detail = AUTOPILOT._ensure_browser_triage_for_stage(ROOT, stage)
+        self.assertTrue(ok)
+        self.assertIn('"ready":true', detail)
+        command = run.call_args.args[0]
+        self.assertIn("browser_triage_bootstrap.py", command[1])
+        self.assertIn("--ensure", command)
+
+    def test_non_console_repair_does_not_install_browser_prerequisites(self):
+        stage = AUTOPILOT.Stage("go-tests", ("go", "test", "./..."), 10)
+        with mock.patch.object(AUTOPILOT, "_run") as run:
+            ok, detail = AUTOPILOT._ensure_browser_triage_for_stage(ROOT, stage)
+        self.assertTrue(ok)
+        self.assertEqual(detail, "")
+        run.assert_not_called()
+
+class AutopilotReportTests(unittest.TestCase):
+    def test_report_is_machine_readable_and_excludes_raw_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = AUTOPILOT.Stage("smoke-ui-live", ("true",), 10)
+            result = AUTOPILOT.StageResult("smoke-ui-live", "FAIL", 1, 0.25, "fp-1", "password=super-secret")
+            summarized = AUTOPILOT._report_result(stage, result)
+            AUTOPILOT._write_autopilot_report(root, stages=[stage], graph_signature="graph", repair=True, phase="deterministic", next_index=0, repair_count=1, status="REPAIRING", current_stage="smoke-ui-live", stage_results=[summarized], last_failure={"stage":"ui-live","specialist":"operator-console","status":"FAIL","fingerprint":"fp-1","reason":"bounded failure"})
+            raw = (root / ".state" / "codex-autopilot-report.json").read_text(encoding="utf-8")
+            self.assertNotIn("super-secret", raw)
+            data = json.loads(raw)
+            self.assertEqual(data["authority"], "AUTOPILOT_CAMPAIGN_REPORT_V1")
+            self.assertTrue(data["notProductAuthority"])
+            self.assertEqual(data["stageResults"][0]["specialist"], "operator-console")
+            self.assertNotIn("output_tail", data["stageResults"][0])
+
+class CheckpointSafeStageTests(unittest.TestCase):
+    def test_canonical_go_stages_are_checkpoint_safe_shards(self):
+        stages = AUTOPILOT.canonical_stages(ROOT)
+        names = {stage.name for stage in stages}
+        for prefix in ("go-unit-", "go-vet-", "go-race-"):
+            self.assertTrue(all(f"{prefix}{i}" in names for i in range(1, 5)))
+        self.assertNotIn("go-tests", names)
+        source = (ROOT / "scripts" / "run_go_package_shard.py").read_text(encoding="utf-8")
+        self.assertIn("AUTOPILOT_STAGE_SHARD_AUTHORITY_V2", source)

@@ -29,12 +29,16 @@ import (
 	"platform.4so.io/factory/internal/api"
 	"platform.4so.io/factory/internal/apitoken"
 	"platform.4so.io/factory/internal/auth"
+	"platform.4so.io/factory/internal/bootmedia"
 	"platform.4so.io/factory/internal/controlplane"
+	"platform.4so.io/factory/internal/identityadmin"
 	"platform.4so.io/factory/internal/integrations"
+	"platform.4so.io/factory/internal/managedinstall"
 	"platform.4so.io/factory/internal/marketplace"
 	"platform.4so.io/factory/internal/notification"
 	"platform.4so.io/factory/internal/persistence"
 	"platform.4so.io/factory/internal/pgdriver"
+	"platform.4so.io/factory/internal/releaseartifact"
 	"platform.4so.io/factory/webconsole"
 )
 
@@ -255,6 +259,130 @@ func loadPublicCAPEM() (string, error) {
 	return string(raw), nil
 }
 
+type managedOKDProductionRuntime struct {
+	executor *managedinstall.Executor
+	media    *managedinstall.MediaStore
+	poll     time.Duration
+}
+
+func decodeManagedOKDHMACKey() ([]byte, error) {
+	encoded := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_HMAC_KEY_B64"))
+	if encoded == "" {
+		return nil, fmt.Errorf("PLATFORM_FACTORY_MANAGED_OKD_HMAC_KEY_B64 is required when Managed OKD worker is enabled")
+	}
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decode Managed OKD HMAC key: %w", err)
+	}
+	if len(raw) < 32 {
+		return nil, fmt.Errorf("Managed OKD HMAC key must contain at least 32 bytes")
+	}
+	return raw, nil
+}
+
+func managedOKDDurationEnv(name string, fallback, max time.Duration) (time.Duration, error) {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 || (max > 0 && d > max) {
+		return 0, fmt.Errorf("%s must be a positive duration not exceeding %s", name, max)
+	}
+	return d, nil
+}
+
+func configureManagedOKDProductionRuntime(apiServer *api.Server) (*managedOKDProductionRuntime, error) {
+	if !strings.EqualFold(strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_WORKER_ENABLED")), "true") {
+		return nil, nil
+	}
+	key, err := decodeManagedOKDHMACKey()
+	if err != nil {
+		return nil, err
+	}
+	installTimeout, err := managedOKDDurationEnv("PLATFORM_FACTORY_MANAGED_OKD_INSTALL_TIMEOUT", 90*time.Minute, 6*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	commandTimeout, err := managedOKDDurationEnv("PLATFORM_FACTORY_MANAGED_OKD_COMMAND_TIMEOUT", 2*time.Minute, 30*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	registrationTimeout, err := managedOKDDurationEnv("PLATFORM_FACTORY_MANAGED_OKD_REGISTRATION_TIMEOUT", 30*time.Minute, 2*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	poll, err := managedOKDDurationEnv("PLATFORM_FACTORY_MANAGED_OKD_POLL_INTERVAL", 2*time.Second, time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	mediaTTL, err := managedOKDDurationEnv("PLATFORM_FACTORY_MANAGED_OKD_MEDIA_TTL", 6*time.Hour, 24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	mediaPublicURL := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_MEDIA_PUBLIC_URL"))
+	if mediaPublicURL == "" {
+		mediaPublicURL = strings.TrimRight(strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_PUBLIC_URL")), "/")
+	}
+	media := &managedinstall.MediaStore{
+		Root:       os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_MEDIA_ROOT"),
+		PublicBase: mediaPublicURL,
+		SigningKey: key,
+		TTL:        mediaTTL,
+	}
+	// Force validation before any request can queue work against a half-configured
+	// runtime. ResolveAgentISOMediaURL additionally re-verifies the exact ISO bytes.
+	if err := media.Validate(); err != nil {
+		return nil, fmt.Errorf("managed OKD media runtime: %w", err)
+	}
+	ocMirrorPath := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_OC_MIRROR_PATH"))
+	ocMirrorSHA := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_OC_MIRROR_SHA256"))
+	disconnectedRegistry := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_DISCONNECTED_MIRROR_REGISTRY"))
+	disconnectedValues := 0
+	for _, value := range []string{ocMirrorPath, ocMirrorSHA, disconnectedRegistry} {
+		if value != "" {
+			disconnectedValues++
+		}
+	}
+	if disconnectedValues != 0 && disconnectedValues != 3 {
+		return nil, fmt.Errorf("disconnected Managed OKD runtime requires PLATFORM_FACTORY_MANAGED_OKD_OC_MIRROR_PATH, PLATFORM_FACTORY_MANAGED_OKD_OC_MIRROR_SHA256 and PLATFORM_FACTORY_MANAGED_OKD_DISCONNECTED_MIRROR_REGISTRY together")
+	}
+	workspace := &managedinstall.WorkspaceRuntime{Config: managedinstall.WorkspaceRuntimeConfig{
+		WorkspaceRoot:              os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_WORKSPACE_ROOT"),
+		WorkRoot:                   os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_WORK_ROOT"),
+		OpenShiftInstall:           os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_OPENSHIFT_INSTALL_PATH"),
+		OpenShiftInstallSHA:        os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_OPENSHIFT_INSTALL_SHA256"),
+		OC:                         os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_OC_PATH"),
+		OCSHA:                      os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_OC_SHA256"),
+		OCMirror:                   ocMirrorPath,
+		OCMirrorSHA:                ocMirrorSHA,
+		DisconnectedMirrorRegistry: disconnectedRegistry,
+		InstallTimeout:             installTimeout,
+		CommandTimeout:             commandTimeout,
+	}}
+	if err := workspace.Validate(); err != nil {
+		return nil, fmt.Errorf("managed OKD exact workspace runtime: %w", err)
+	}
+	registrar, err := apiServer.NewManagedOKDRegistrar(workspace, key, registrationTimeout)
+	if err != nil {
+		return nil, err
+	}
+	resolver := bootmedia.FileCredentialResolver{Root: os.Getenv("PLATFORM_FACTORY_MANAGED_OKD_REDFISH_CREDENTIAL_ROOT")}
+	if err := resolver.Validate(); err != nil {
+		return nil, fmt.Errorf("managed OKD Redfish credential resolver: %w", err)
+	}
+	redfish := &bootmedia.RedfishProvider{Resolver: resolver}
+	composite := managedinstall.CompositeInstaller{InstallRuntime: workspace, Registrar: registrar}
+	executor := &managedinstall.Executor{BootProvider: redfish, MediaResolver: media, Installer: composite}
+	if disconnectedValues == 3 {
+		if err := workspace.ValidateDisconnected(); err != nil {
+			return nil, fmt.Errorf("managed OKD disconnected runtime: %w", err)
+		}
+		executor.DisconnectedInstaller = workspace
+	}
+	return &managedOKDProductionRuntime{executor: executor, media: media, poll: poll}, nil
+}
+
 func loadAgentPKI() (*agentpki.Signer, []byte, error) {
 	certFile := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_AGENT_CA_CERT_FILE"))
 	keyFile := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_AGENT_CA_KEY_FILE"))
@@ -358,6 +486,17 @@ func main() {
 	defer closeStore()
 
 	apiServer := api.New(version, components, logger, store)
+	if releaseDigest := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_SOURCE_RELEASE_DIGEST")); releaseDigest != "" {
+		producerDigest, digestErr := releaseartifact.RunningExecutableDigest()
+		if digestErr != nil {
+			logger.Error("runtime closure producer identity failed", "error", digestErr)
+			os.Exit(1)
+		}
+		if configErr := apiServer.ConfigureRuntimeClosureReleaseIdentity(releaseDigest, producerDigest); configErr != nil {
+			logger.Error("runtime closure release identity configuration failed", "error", configErr)
+			os.Exit(1)
+		}
+	}
 	catalogSigningKey, catalogSigningMode, err := loadCatalogSigningKey(localDevelopment)
 	if err != nil {
 		logger.Error("catalog signing key configuration failed", "error", err)
@@ -399,6 +538,15 @@ func main() {
 		agentPublicURL = os.Getenv("PLATFORM_FACTORY_PUBLIC_URL")
 	}
 	apiServer.ConfigureFleetImport(os.Getenv("PLATFORM_FACTORY_FLEET_AGENT_IMAGE"), os.Getenv("PLATFORM_FACTORY_RUNTIME_PROBE_IMAGE"), agentPublicURL, publicCA)
+	managedOKDRuntime, err := configureManagedOKDProductionRuntime(apiServer)
+	if err != nil {
+		logger.Error("managed OKD production runtime configuration failed", "error", err)
+		os.Exit(1)
+	}
+	if managedOKDRuntime != nil {
+		apiServer.ConfigureManagedOKDInstallExecutor(managedOKDRuntime.executor)
+		logger.Info("managed OKD production executor configured", "authority", managedinstall.WorkspaceRuntimeAuthority, "mediaAuthority", managedinstall.MediaStoreAuthority)
+	}
 	aiConfig, err := airuntime.ConfigFromEnv(os.Getenv)
 	if err != nil {
 		logger.Error("AI runtime configuration failed", "error", err)
@@ -421,12 +569,23 @@ func main() {
 		groupTTL = parsed
 	}
 	apiServer.ConfigureIdentityAuthority(groupTTL)
+	mcpResourceURL := strings.TrimRight(strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_PUBLIC_URL")), "/")
+	if mcpResourceURL != "" {
+		mcpResourceURL += "/mcp"
+	}
+	mcpAudience := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_MCP_OAUTH_AUDIENCE"))
+	if mcpAudience == "" {
+		mcpAudience = "platform-mcp"
+	}
+
 	authManager, err := auth.New(auth.Config{
 		Enabled:             strings.EqualFold(os.Getenv("PLATFORM_FACTORY_OIDC_ENABLED"), "true"),
 		Issuer:              os.Getenv("PLATFORM_FACTORY_OIDC_ISSUER"),
 		InternalBase:        os.Getenv("PLATFORM_FACTORY_OIDC_INTERNAL_BASE"),
 		ClientID:            os.Getenv("PLATFORM_FACTORY_OIDC_CLIENT_ID"),
 		RedirectURL:         os.Getenv("PLATFORM_FACTORY_OIDC_REDIRECT_URL"),
+		MCPResourceURL:      mcpResourceURL,
+		MCPAudience:         mcpAudience,
 		SessionSecret:       os.Getenv("PLATFORM_FACTORY_SESSION_SECRET"),
 		BootstrapToken:      os.Getenv("PLATFORM_FACTORY_BOOTSTRAP_TOKEN"),
 		LocalDevelopment:    localDevelopment,
@@ -450,6 +609,9 @@ func main() {
 		os.Exit(1)
 	}
 	root := http.NewServeMux()
+	if managedOKDRuntime != nil {
+		root.Handle("/managed-install-media/", managedOKDRuntime.media.Handler())
+	}
 	authManager.Routes(root)
 	root.Handle("/api/", authManager.RequireAPI(apiServer.Handler()))
 	root.Handle("/mcp", authManager.RequireAPI(apiServer.Handler()))
@@ -485,6 +647,10 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if managedOKDRuntime != nil {
+		go apiServer.RunManagedOKDInstallWorker(ctx, managedOKDRuntime.poll)
+		logger.Info("managed OKD durable worker started", "pollInterval", managedOKDRuntime.poll)
+	}
 	notificationEnabled := !strings.EqualFold(os.Getenv("PLATFORM_FACTORY_NOTIFICATION_DISPATCHER_DISABLED"), "true")
 	if notificationEnabled {
 		notificationWorker := notification.New(store, logger)
@@ -508,6 +674,71 @@ func main() {
 		logger.Info("notification dispatcher started", "backend", store.Backend(), "pollInterval", notificationWorker.PollInterval, "healthScanInterval", notificationWorker.HealthScan)
 	} else {
 		logger.Warn("notification dispatcher disabled by configuration")
+	}
+	dataProtectionSchedulerEnabled := !strings.EqualFold(os.Getenv("PLATFORM_FACTORY_DATA_PROTECTION_SCHEDULER_DISABLED"), "true")
+	if dataProtectionSchedulerEnabled {
+		poll, parseErr := api.DataProtectionSchedulerPollInterval(os.Getenv("PLATFORM_FACTORY_DATA_PROTECTION_SCHEDULER_POLL_INTERVAL"))
+		if parseErr != nil {
+			logger.Error("invalid data protection scheduler poll interval", "error", parseErr)
+			os.Exit(1)
+		}
+		go apiServer.RunDataProtectionScheduler(ctx, poll)
+		logger.Info("data protection scheduler started", "backend", store.Backend(), "pollInterval", poll, "timezone", "UTC")
+	} else {
+		logger.Warn("data protection scheduler disabled by configuration")
+	}
+
+	supportBundleWorkerEnabled := !strings.EqualFold(os.Getenv("PLATFORM_FACTORY_SUPPORT_BUNDLE_WORKER_DISABLED"), "true")
+	if supportBundleWorkerEnabled {
+		poll := 2 * time.Second
+		if raw := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_SUPPORT_BUNDLE_POLL_INTERVAL")); raw != "" {
+			d, parseErr := time.ParseDuration(raw)
+			if parseErr != nil || d <= 0 || d > time.Minute {
+				logger.Error("invalid support bundle poll interval", "value", raw)
+				os.Exit(1)
+			}
+			poll = d
+		}
+		go apiServer.RunSupportBundleWorker(ctx, poll)
+		logger.Info("durable support bundle worker started", "backend", store.Backend(), "pollInterval", poll)
+	} else {
+		logger.Warn("durable support bundle worker disabled by configuration")
+	}
+
+	identityAdminWorkerDisabled := strings.EqualFold(os.Getenv("PLATFORM_FACTORY_IDENTITY_ADMIN_WORKER_DISABLED"), "true")
+	identityURL := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_INTERNAL_IDENTITY_URL"))
+	if !identityAdminWorkerDisabled && identityURL != "" {
+		client := &identityadmin.KeycloakClient{
+			BaseURL:      identityURL,
+			Realm:        strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_KEYCLOAK_REALM")),
+			AdminRealm:   strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_KEYCLOAK_ADMIN_REALM")),
+			AdminUser:    strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_KEYCLOAK_ADMIN_USERNAME")),
+			PasswordFile: strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_KEYCLOAK_ADMIN_PASSWORD_FILE")),
+		}
+		if err := client.Validate(); err != nil {
+			logger.Error("identity admin reconciler configuration invalid", "error", err)
+			os.Exit(1)
+		}
+		poll := 2 * time.Second
+		if raw := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_IDENTITY_ADMIN_POLL_INTERVAL")); raw != "" {
+			d, parseErr := time.ParseDuration(raw)
+			if parseErr != nil || d <= 0 || d > time.Minute {
+				logger.Error("invalid identity admin poll interval", "value", raw)
+				os.Exit(1)
+			}
+			poll = d
+		}
+		owner := "platform-api"
+		if hostname, hostErr := os.Hostname(); hostErr == nil && strings.TrimSpace(hostname) != "" {
+			owner = "platform-api/" + strings.TrimSpace(hostname)
+		}
+		worker := &identityadmin.Worker{Store: store, Reconciler: client, Logger: logger, Owner: owner, PollInterval: poll}
+		go worker.Run(ctx)
+		logger.Info("durable identity admin worker started", "backend", store.Backend(), "pollInterval", poll)
+	} else if identityAdminWorkerDisabled {
+		logger.Warn("durable identity admin worker disabled by configuration")
+	} else {
+		logger.Info("durable identity admin worker inactive", "reason", "internal identity URL is not configured")
 	}
 	shutdownDone := make(chan struct{})
 	go func() {

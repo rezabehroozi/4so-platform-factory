@@ -1,7 +1,9 @@
 package controlplane
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -58,6 +60,35 @@ func queueGenericOperation(t *testing.T, store *MemoryStore, ctx context.Context
 		t.Fatal(err)
 	}
 	return op
+}
+
+func TestOperationStepReplayRejectsSemanticConflict(t *testing.T) {
+	store, ctx, project, _, _, now := retryFixture(t)
+	op, _, err := store.CreateOperation(ctx, OperationRequest{ProjectID: project.ID, Kind: "step-idempotency", TargetRef: "target/demo", DesiredRevision: testDigest(9199), Risk: "low", Class: OperationClassMutating}, "step-idempotency", "operator", "req-step-idempotency")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op = queueGenericOperation(t, store, ctx, op)
+	claim, err := store.ClaimOperation(ctx, op.ID, "worker-step", time.Minute, *now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, _ = store.GetOperation(ctx, op.ID)
+	op, err = store.StartOperationAttempt(ctx, op.ID, op.Revision, "worker-step", claim.FenceToken, "worker-step")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := store.AppendOperationStep(ctx, OperationStep{OperationID: op.ID, StepKey: "apply", State: OperationRunning, FenceToken: claim.FenceToken}, "worker-step")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay, err := store.AppendOperationStep(ctx, OperationStep{OperationID: op.ID, StepKey: "apply", State: OperationRunning, FenceToken: claim.FenceToken}, "worker-step")
+	if err != nil || replay.ID != first.ID {
+		t.Fatalf("compatible replay=%+v first=%+v err=%v", replay, first, err)
+	}
+	if _, err = store.AppendOperationStep(ctx, OperationStep{OperationID: op.ID, StepKey: "apply", State: OperationFailed, FenceToken: claim.FenceToken, LastError: "different outcome"}, "worker-step"); !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("conflicting step replay was accepted: %v", err)
+	}
 }
 
 func TestBoundedRetryAndPerAttemptStepHistory(t *testing.T) {
@@ -199,5 +230,128 @@ func TestLegacyOperationSnapshotRestoresWithRetryDefaults(t *testing.T) {
 	steps, err := store.ListOperationSteps(context.Background(), "op_legacy")
 	if err != nil || len(steps) != 1 || steps[0].Attempt != 1 {
 		t.Fatalf("legacy steps=%+v err=%v", steps, err)
+	}
+}
+
+func TestExpiredOperationLeaseRejectsWorkerMutationsBeforeReclaim(t *testing.T) {
+	store, ctx, project, _, _, now := retryFixture(t)
+	op, _, err := store.CreateOperation(ctx, OperationRequest{ProjectID: project.ID, Kind: "config.apply", TargetRef: "project:" + project.ID, DesiredRevision: testDigest(9450), Risk: "medium", Class: OperationClassMutating}, "expired-lease-1", "operator", "req")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op = queueGenericOperation(t, store, ctx, op)
+	claim, err := store.ClaimOperation(ctx, op.ID, "worker-expired", time.Minute, *now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, _ = store.GetOperation(ctx, op.ID)
+	op, err = store.StartOperationAttempt(ctx, op.ID, op.Revision, "worker-expired", claim.FenceToken, "worker-expired")
+	if err != nil {
+		t.Fatal(err)
+	}
+	*now = now.Add(2 * time.Minute)
+	if _, err = store.BeginOperationVerification(ctx, op.ID, op.Revision, "worker-expired", claim.FenceToken, "worker-expired"); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("expired verification accepted: %v", err)
+	}
+	if _, err = store.ReportOperationFailure(ctx, op.ID, op.Revision, "worker-expired", claim.FenceToken, OperationFailureReport{Class: OperationFailurePermanent, Message: "late failure"}, "worker-expired"); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("expired failure report accepted: %v", err)
+	}
+	if _, err = store.AppendOperationStep(ctx, OperationStep{OperationID: op.ID, StepKey: "late-step", State: OperationRunning, FenceToken: claim.FenceToken}, "worker-expired"); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("expired operation step accepted: %v", err)
+	}
+	op, err = store.RequestOperationCancellation(ctx, op.ID, op.Revision, "operator", "lease expired")
+	if err != nil || op.State != OperationCancelRequested {
+		t.Fatalf("cancel request op=%+v err=%v", op, err)
+	}
+	if _, err = store.AcknowledgeOperationCancellation(ctx, op.ID, op.Revision, "worker-expired", claim.FenceToken, "worker-expired"); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("expired cancellation ack accepted: %v", err)
+	}
+}
+
+func TestExpiredOperationLeaseRejectsCompletion(t *testing.T) {
+	store, ctx, project, _, _, now := retryFixture(t)
+	op, _, err := store.CreateOperation(ctx, OperationRequest{ProjectID: project.ID, Kind: "config.verify", TargetRef: "project:" + project.ID, DesiredRevision: testDigest(9460), Risk: "medium", Class: OperationClassMutating}, "expired-lease-complete", "operator", "req")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op = queueGenericOperation(t, store, ctx, op)
+	claim, err := store.ClaimOperation(ctx, op.ID, "worker-expired", time.Minute, *now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, _ = store.GetOperation(ctx, op.ID)
+	op, err = store.StartOperationAttempt(ctx, op.ID, op.Revision, "worker-expired", claim.FenceToken, "worker-expired")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, err = store.BeginOperationVerification(ctx, op.ID, op.Revision, "worker-expired", claim.FenceToken, "worker-expired")
+	if err != nil {
+		t.Fatal(err)
+	}
+	*now = now.Add(2 * time.Minute)
+	if _, err = store.CompleteOperation(ctx, op.ID, op.Revision, "worker-expired", claim.FenceToken, "worker-expired"); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("expired completion accepted: %v", err)
+	}
+}
+
+func TestRetryWaitRejectedClaimIsSideEffectFree(t *testing.T) {
+	store, ctx, project, cluster, _, now := retryFixture(t)
+	op, _, err := store.CreateOperation(ctx, OperationRequest{ProjectID: project.ID, Kind: "cluster.reconcile", TargetRef: "cluster:" + cluster.ID, DesiredRevision: testDigest(9300), Risk: "high", Class: OperationClassMutating}, "retry-side-effect-free", "operator", "req")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op = queueGenericOperation(t, store, ctx, op)
+	claim, err := store.ClaimOperation(ctx, op.ID, "worker-a", time.Minute, *now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, _ = store.GetOperation(ctx, op.ID)
+	op, err = store.StartOperationAttempt(ctx, op.ID, op.Revision, "worker-a", claim.FenceToken, "worker-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, err = store.ReportOperationFailure(ctx, op.ID, op.Revision, "worker-a", claim.FenceToken, OperationFailureReport{Class: OperationFailureTransientNetwork, Code: "retry", Message: "retry"}, "worker-a")
+	if err != nil || op.State != OperationRetryWait || op.NextAttemptAt == nil {
+		t.Fatalf("retry state=%+v err=%v", op, err)
+	}
+	*now = op.NextAttemptAt.Add(time.Second)
+	before, err := store.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.ClaimOperation(ctx, op.ID, "   ", time.Minute, *now); !errors.Is(err, ErrValidation) {
+		t.Fatalf("blank worker err=%v", err)
+	}
+	after, err := store.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeRaw, _ := json.Marshal(before)
+	afterRaw, _ := json.Marshal(after)
+	if !bytes.Equal(beforeRaw, afterRaw) {
+		t.Fatalf("rejected claim mutated authority\nbefore=%s\nafter=%s", beforeRaw, afterRaw)
+	}
+}
+
+func TestOperationLeaseWorkerIdentityIsCanonical(t *testing.T) {
+	s := deterministicStore()
+	_, prj := bootstrap(t, s)
+	op, _, _ := s.CreateOperation(context.Background(), OperationRequest{ProjectID: prj.ID, Kind: "test", TargetRef: "target", DesiredRevision: "rev", Risk: "high"}, "worker-normalization", "actor", "r")
+	op, _ = s.TransitionOperation(context.Background(), op.ID, op.Revision, OperationPlanning, "", "actor")
+	op, _ = s.TransitionOperation(context.Background(), op.ID, op.Revision, OperationQueued, "", "actor")
+	at := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	claim, err := s.ClaimOperation(context.Background(), op.ID, "  worker-a  ", time.Minute, at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claim.LeaseOwner != "worker-a" {
+		t.Fatalf("claim owner=%q", claim.LeaseOwner)
+	}
+	renewed, err := s.RenewOperationLease(context.Background(), op.ID, " worker-a ", claim.FenceToken, time.Minute, at.Add(10*time.Second))
+	if err != nil || renewed.LeaseOwner != "worker-a" {
+		t.Fatalf("renew=%+v err=%v", renewed, err)
+	}
+	if err = s.ReleaseOperationLease(context.Background(), op.ID, "\tworker-a\n", claim.FenceToken); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -7,6 +7,7 @@ system, runtime dependency, or agent harness.
 """
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 import os
@@ -25,10 +26,51 @@ smoke_ui = importlib.util.module_from_spec(SMOKE_SPEC)
 SMOKE_SPEC.loader.exec_module(smoke_ui)
 
 CONSOLE_PAGES = [
-    "overview", "workspace", "installation", "clusters", "providers", "blueprints", "marketplace", "baselines",
-    "verification", "fleet", "tenants", "operations", "notifications", "services", "catalog", "validator",
+    "overview", "workspace", "installation", "clusters", "providers", "blueprints", "templates", "marketplace", "baselines",
+    "verification", "fleet", "workspaces", "tenants", "operations", "notifications", "services", "catalog", "validator",
 ]
 INSTALLER_PAGES = ["overview", "installation", "progress", "health", "recovery", "lifecycle"]
+
+
+def parse_shard(value: str) -> tuple[int, int]:
+    raw = str(value or "").strip()
+    if not raw:
+        return (0, 1)
+    try:
+        index_text, count_text = raw.split("/", 1)
+        index, count = int(index_text), int(count_text)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError("shard must be INDEX/COUNT") from exc
+    if count < 1 or index < 0 or index >= count:
+        raise argparse.ArgumentTypeError("shard requires COUNT>=1 and 0<=INDEX<COUNT")
+    return index, count
+
+
+def select_shard(routes: list[str], shard: tuple[int, int]) -> list[str]:
+    index, count = shard
+    return [route for position, route in enumerate(routes) if position % count == index]
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--scope", choices=("all", "console", "installer"), default="all",
+        help="limit this checkpoint to one UI surface; default keeps the historical full gate",
+    )
+    parser.add_argument(
+        "--shard", type=parse_shard, default=(0, 1), metavar="INDEX/COUNT",
+        help="checkpoint-safe route shard; default 0/1 preserves full route coverage",
+    )
+    auxiliary = parser.add_mutually_exclusive_group()
+    auxiliary.add_argument(
+        "--skip-auxiliary", action="store_true",
+        help="run only the selected route matrix; use with a separate --auxiliary-only checkpoint",
+    )
+    auxiliary.add_argument(
+        "--auxiliary-only", action="store_true",
+        help="run only non-route focus/theme/motion/feedback checks for the selected scope",
+    )
+    return parser.parse_args(argv)
 
 
 def evidence_dir() -> Path:
@@ -81,13 +123,23 @@ DOM_AUDIT_JS = r"""() => {
     !el.getAttribute('aria-label') && !el.getAttribute('aria-labelledby')
   ).map(el => el.outerHTML.slice(0, 160));
   const undersizedTargets = [...document.querySelectorAll('button,a[href],input,select,textarea,summary')].filter(visible).filter(el => {
-    const r = el.getBoundingClientRect();
+    let target = el;
+    if (el.tagName === 'INPUT' && ['checkbox','radio'].includes(String(el.type).toLowerCase())) {
+      const label = el.closest('label');
+      if (label && visible(label)) target = label;
+    }
+    const r = target.getBoundingClientRect();
     return r.width < 24 || r.height < 24;
-  }).map(el => ({tag:el.tagName,id:el.id,width:Math.round(el.getBoundingClientRect().width),height:Math.round(el.getBoundingClientRect().height)}));
+  }).map(el => {
+    let target = el;
+    if (el.tagName === 'INPUT' && ['checkbox','radio'].includes(String(el.type).toLowerCase())) target = el.closest('label') || el;
+    const r=target.getBoundingClientRect();
+    return {tag:el.tagName,id:el.id,width:Math.round(r.width),height:Math.round(r.height)};
+  });
   return {duplicateIds, unnamedActions, unlabeledFields, unnamedDialogs, undersizedTargets};
 }"""
 
-CONTRAST_JS = r"""el => {
+CONTRAST_AUDIT_JS = r"""() => {
   function rgba(value) {
     const match = String(value).match(/rgba?\(([^)]+)\)/);
     if (!match) return [0,0,0,0];
@@ -106,13 +158,30 @@ CONTRAST_JS = r"""el => {
     });
     return .2126*values[0] + .7152*values[1] + .0722*values[2];
   }
-  let layers = [], current = el;
-  while (current) { layers.push(rgba(getComputedStyle(current).backgroundColor)); current = current.parentElement; }
-  let background = [255,255,255,1];
-  for (let index=layers.length-1; index>=0; index--) background = composite(layers[index], background);
-  const foreground = rgba(getComputedStyle(el).color);
-  const a=luminance(foreground), b=luminance(background);
-  return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+  function visible(el) {
+    const s=getComputedStyle(el), r=el.getBoundingClientRect();
+    return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0 && !el.disabled;
+  }
+  function ratio(el) {
+    let layers=[], current=el;
+    while (current) { layers.push(rgba(getComputedStyle(current).backgroundColor)); current=current.parentElement; }
+    let background=[255,255,255,1];
+    for (let index=layers.length-1; index>=0; index--) background=composite(layers[index], background);
+    const foreground=rgba(getComputedStyle(el).color), a=luminance(foreground), b=luminance(background);
+    return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+  }
+  const selectors=['#primary-nav button.active','#section-nav button.active','button.primary','button.secondary','button.danger','button.link-button','summary','.badge'];
+  const failures=[];
+  for (const selector of selectors) {
+    let seen=0;
+    for (const el of document.querySelectorAll(selector)) {
+      if (!visible(el)) continue;
+      if (seen++ >= 6) break;
+      const value=ratio(el);
+      if (value < 4.5) failures.push({selector,ratio:value,text:String(el.innerText || el.getAttribute('aria-label') || selector).trim().slice(0,50)});
+    }
+  }
+  return failures;
 }"""
 
 
@@ -124,44 +193,83 @@ def audit_dom(page, label: str, failures: list[str]) -> None:
 
 
 def audit_contrast(page, label: str, failures: list[str]) -> None:
-    selectors = [
-        "#primary-nav button.active", "#section-nav button.active", "button.primary", "button.secondary",
-        "button.danger", "button.link-button", "summary", ".badge",
-    ]
-    for selector in selectors:
-        locator = page.locator(selector)
-        for index in range(min(locator.count(), 6)):
-            item = locator.nth(index)
-            if not item.is_visible() or item.is_disabled():
-                continue
-            ratio = float(item.evaluate(CONTRAST_JS))
-            if ratio < 4.5:
-                text = (item.inner_text() or item.get_attribute("aria-label") or selector).strip()[:50]
-                failures.append(f"{label}:contrast:{selector}:{ratio:.2f}:{text}")
+    for item in page.evaluate(CONTRAST_AUDIT_JS):
+        failures.append(f"{label}:contrast:{item['selector']}:{float(item['ratio']):.2f}:{item['text']}")
 
 
-def audit_console(browser, root: Path, failures: list[str]) -> None:
-    document = smoke_ui.inline_document(root / "webconsole/static")
-    # Narrow responsive + RTL mirrors beyond the legacy canonical set.
-    for width in (280, 414):
-        context = browser.new_context(viewport={"width": width, "height": 900})
+def _set_direction(page, direction: str) -> None:
+    current = page.evaluate("document.documentElement.dir || 'ltr'")
+    if current != direction:
+        page.evaluate("document.querySelector(\"#language-toggle\").click()")
+        page.wait_for_timeout(1)
+    observed = page.evaluate("document.documentElement.dir || 'ltr'")
+    if observed != direction:
+        raise AssertionError(f"direction switch failed: expected={direction} observed={observed}")
+
+
+def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list[str], failures: list[str]) -> dict[str, int]:
+    widths = (320, 390, 768, 1024, 1440)
+    themes = ("light", "dark")
+    directions = ("ltr", "rtl")
+    accessibility_states = 0
+    contrast_states = 0
+    app = "installer" if installer else "console"
+    for width in widths:
+        height = 844 if width == 390 else 900
+        context = browser.new_context(viewport={"width": width, "height": height})
         page = context.new_page()
-        smoke_ui.prepare_page(page, document, installer=False)
-        for route in CONSOLE_PAGES:
-            page.evaluate("route => navigate(route)", route)
-            page.wait_for_timeout(25)
-            if page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 2"):
-                failures.append(f"console:{width}:ltr-overflow:{route}")
-        page.evaluate("document.querySelector('#language-toggle').click()")
-        for route in CONSOLE_PAGES:
-            page.evaluate("route => navigate(route)", route)
-            page.wait_for_timeout(25)
-            if page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 2"):
-                failures.append(f"console:{width}:rtl-overflow:{route}")
-        audit_dom(page, f"console:{width}:rtl", failures)
-        context.close()
+        smoke_ui.prepare_page(page, document, installer=installer)
+        page.add_style_tag(content="*,*::before,*::after{transition:none!important;animation:none!important}")
 
-    # State, focus, a11y and contrast in both themes.
+        # DOM semantics, target sizing and overflow do not change with theme.
+        # Exercise every route at every supported viewport in both LTR and RTL.
+        page.emulate_media(color_scheme="light")
+        if not installer:
+            page.evaluate("theme => applyConsoleTheme(theme)", "light")
+        for direction in directions:
+            _set_direction(page, direction)
+            for route in routes:
+                if installer:
+                    page.evaluate("route => document.querySelector(`#nav [data-page='${route}']`).click()", route)
+                else:
+                    page.evaluate("route => navigate(route)", route)
+                label = f"{app}:{width}:accessibility:{direction}:{route}"
+                if page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 2"):
+                    failures.append(f"{label}:horizontal-overflow")
+                audit_dom(page, label, failures)
+                accessibility_states += 1
+
+        # Contrast is direction-independent, but it can vary by viewport, route
+        # visibility and explicit/system theme. Exercise every route at every
+        # supported viewport in both light and dark.
+        _set_direction(page, "ltr")
+        for theme in themes:
+            page.emulate_media(color_scheme=theme)
+            if not installer:
+                page.evaluate("theme => applyConsoleTheme(theme)", theme)
+            for route in routes:
+                if installer:
+                    page.evaluate("route => document.querySelector(`#nav [data-page='${route}']`).click()", route)
+                else:
+                    page.evaluate("route => navigate(route)", route)
+                audit_contrast(page, f"{app}:{width}:contrast:{theme}:{route}", failures)
+                contrast_states += 1
+        context.close()
+    return {
+        "widths": len(widths), "themes": len(themes), "directions": len(directions), "routes": len(routes),
+        "accessibilityRouteStates": accessibility_states, "contrastRouteStates": contrast_states,
+    }
+
+def audit_console(browser, root: Path, failures: list[str], *, routes: list[str] | None = None, run_auxiliary: bool = True, run_matrix: bool = True) -> dict[str, int]:
+    document = smoke_ui.inline_document(root / "webconsole/static")
+    selected = list(CONSOLE_PAGES if routes is None else routes)
+    coverage = _audit_route_matrix(browser, document, installer=False, routes=selected, failures=failures) if run_matrix else {
+        "widths": 0, "themes": 0, "directions": 0, "routes": 0, "accessibilityRouteStates": 0, "contrastRouteStates": 0
+    }
+    if not run_auxiliary:
+        return coverage
+
+    # Explicit focus visibility and durable feedback contracts in both themes.
     for theme in ("light", "dark"):
         context = browser.new_context(viewport={"width": 1440, "height": 900}, color_scheme=theme)
         page = context.new_page()
@@ -177,8 +285,6 @@ def audit_console(browser, root: Path, failures: list[str]) -> None:
         focus = shell.evaluate("el => { const s=getComputedStyle(el); return {style:s.outlineStyle,width:parseFloat(s.outlineWidth)||0,color:s.outlineColor}; }")
         if focus["style"] == "none" or focus["width"] < 2:
             failures.append(f"console:{theme}:data-table-focus-not-visible:{focus}")
-        audit_dom(page, f"console:{theme}", failures)
-        audit_contrast(page, f"console:{theme}", failures)
         feedback = page.evaluate("""() => {
           const originalSetTimeout = window.setTimeout, delays=[];
           window.setTimeout=(fn, delay, ...args)=>{delays.push(delay);return 1;};
@@ -189,12 +295,10 @@ def audit_console(browser, root: Path, failures: list[str]) -> None:
             const errorRawGlyph=(errorButton?.textContent||'').trim();
             const errorHasIcon=!!errorButton?.querySelector('svg use[href=\"#icon-close\"]');
             const errorScheduled=delays.includes(5200);
-            error?.remove();
-            delays.length=0;
+            error?.remove(); delays.length=0;
             toast('quality success','success');
             const success=document.querySelector('#toast-region .toast.success');
-            const successScheduled=delays.includes(5200);
-            success?.remove();
+            const successScheduled=delays.includes(5200); success?.remove();
             return {errorRawGlyph,errorHasIcon,errorScheduled,successScheduled};
           } finally { window.setTimeout=originalSetTimeout; }
         }""")
@@ -204,12 +308,29 @@ def audit_console(browser, root: Path, failures: list[str]) -> None:
             failures.append(f"console:{theme}:toast-durability:{feedback}")
         context.close()
 
-    # Real keyboard drawer trap and return-focus contract.
+    # Explicit console theme preference must override the opposite OS preference.
+    # This prevents system-dark selectors from contaminating an explicit light
+    # preference (and vice versa).
+    for system_theme, explicit_theme in (("dark", "light"), ("light", "dark")):
+        context = browser.new_context(viewport={"width": 1440, "height": 900}, color_scheme=system_theme)
+        page = context.new_page(); smoke_ui.prepare_page(page, document, installer=False)
+        page.add_style_tag(content="*,*::before,*::after{transition:none!important;animation:none!important}")
+        page.evaluate("theme => applyConsoleTheme(theme)", explicit_theme)
+        observed = page.evaluate("""() => ({
+          theme: document.documentElement.dataset.theme,
+          body: getComputedStyle(document.body).backgroundColor,
+          secondaryColor: getComputedStyle(document.querySelector('button.secondary')).color,
+          secondaryBackground: getComputedStyle(document.querySelector('button.secondary')).backgroundColor
+        })""")
+        if observed.get("theme") != explicit_theme:
+            failures.append(f"console:theme-override:{system_theme}->{explicit_theme}:attribute:{observed}")
+        audit_contrast(page, f"console:theme-override:{system_theme}->{explicit_theme}", failures)
+        context.close()
+
+    # Keyboard mobile-navigation trap and return-focus contract.
     context = browser.new_context(viewport={"width": 390, "height": 844})
-    page = context.new_page()
-    smoke_ui.prepare_page(page, document, installer=False)
-    page.locator("#mobile-nav-toggle").click()
-    page.keyboard.press("Shift+Tab")
+    page = context.new_page(); smoke_ui.prepare_page(page, document, installer=False)
+    page.locator("#mobile-nav-toggle").click(); page.keyboard.press("Shift+Tab")
     if page.evaluate("document.activeElement?.id") != "logout": failures.append("console:focus-trap:shift-tab")
     page.keyboard.press("Tab")
     if page.evaluate("document.activeElement?.dataset?.section") != "home": failures.append("console:focus-trap:tab-wrap")
@@ -217,38 +338,43 @@ def audit_console(browser, root: Path, failures: list[str]) -> None:
     if not page.evaluate("document.activeElement === document.querySelector('#mobile-nav-toggle')"): failures.append("console:focus-trap:return-focus")
     context.close()
 
-    # Reuse the existing Data Workspace owner harness once; this includes sort/filter/unavailable/read-only state contracts.
+    # Reduced-motion must suppress animated transitions rather than merely changing color.
+    context = browser.new_context(viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
+    page = context.new_page(); smoke_ui.prepare_page(page, document, installer=False)
+    motion = page.evaluate("""() => {
+      const probe=document.querySelector('.page.active') || document.body;
+      const s=getComputedStyle(probe);
+      return {animationDuration:s.animationDuration,transitionDuration:s.transitionDuration};
+    }""")
+    def duration_seconds(value: str) -> float:
+        value = value.strip()
+        if value.endswith("ms"):
+            return float(value[:-2]) / 1000.0
+        if value.endswith("s"):
+            return float(value[:-1])
+        return 999.0
+    if duration_seconds(motion["animationDuration"]) > 0.00001 or duration_seconds(motion["transitionDuration"]) > 0.00001:
+        failures.append(f"console:reduced-motion-not-respected:{motion}")
+    context.close()
+
     owner = smoke_ui.check_console(browser, root, {"width": 414, "height": 900})
     if owner.get("errors") or owner.get("horizontalOverflow") or owner.get("errorStates"):
         failures.append(f"console:data-workspace-owner:{owner}")
+    return coverage
 
 
-def audit_installer(browser, root: Path, failures: list[str]) -> None:
+def audit_installer(browser, root: Path, failures: list[str], *, routes: list[str] | None = None, run_auxiliary: bool = True, run_matrix: bool = True) -> dict[str, int]:
     document = smoke_ui.inline_document(root / "cmd/platform-installer/static", installer=True)
-    for width in (280, 414):
-        context = browser.new_context(viewport={"width": width, "height": 900})
-        page = context.new_page()
-        smoke_ui.prepare_page(page, document, installer=True)
-        for route in INSTALLER_PAGES:
-            page.evaluate("route => document.querySelector(`#nav [data-page='${route}']`).click()", route)
-            page.wait_for_timeout(25)
-            if page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 2"):
-                failures.append(f"installer:{width}:ltr-overflow:{route}")
-        page.evaluate("document.querySelector('#language-toggle').click()")
-        for route in INSTALLER_PAGES:
-            page.evaluate("route => document.querySelector(`#nav [data-page='${route}']`).click()", route)
-            page.wait_for_timeout(25)
-            if page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 2"):
-                failures.append(f"installer:{width}:rtl-overflow:{route}")
-        audit_dom(page, f"installer:{width}:rtl", failures)
-        context.close()
+    selected = list(INSTALLER_PAGES if routes is None else routes)
+    coverage = _audit_route_matrix(browser, document, installer=True, routes=selected, failures=failures) if run_matrix else {
+        "widths": 0, "themes": 0, "directions": 0, "routes": 0, "accessibilityRouteStates": 0, "contrastRouteStates": 0
+    }
+    if not run_auxiliary:
+        return coverage
 
     for theme in ("light", "dark"):
         context = browser.new_context(viewport={"width": 1440, "height": 900}, color_scheme=theme)
-        page = context.new_page()
-        smoke_ui.prepare_page(page, document, installer=True)
-        audit_dom(page, f"installer:{theme}", failures)
-        audit_contrast(page, f"installer:{theme}", failures)
+        page = context.new_page(); smoke_ui.prepare_page(page, document, installer=True)
         feedback = page.evaluate("""() => {
           const originalSetTimeout = window.setTimeout, delays=[];
           window.setTimeout=(fn, delay, ...args)=>{delays.push(delay);return 1;};
@@ -259,12 +385,10 @@ def audit_installer(browser, root: Path, failures: list[str]) -> None:
             const errorRawGlyph=(errorButton?.textContent||'').trim();
             const errorHasIcon=!!errorButton?.querySelector('svg use[href=\"#icon-close\"]');
             const errorScheduled=delays.includes(5200);
-            error?.remove();
-            delays.length=0;
+            error?.remove(); delays.length=0;
             toast('quality success','success');
             const success=document.querySelector('#toast-region .toast.success');
-            const successScheduled=delays.includes(5200);
-            success?.remove();
+            const successScheduled=delays.includes(5200); success?.remove();
             return {errorRawGlyph,errorHasIcon,errorScheduled,successScheduled};
           } finally { window.setTimeout=originalSetTimeout; }
         }""")
@@ -275,32 +399,70 @@ def audit_installer(browser, root: Path, failures: list[str]) -> None:
         context.close()
 
     context = browser.new_context(viewport={"width": 390, "height": 844})
-    page = context.new_page()
-    smoke_ui.prepare_page(page, document, installer=True)
-    page.locator("#menu-toggle").click()
-    page.keyboard.press("Shift+Tab")
+    page = context.new_page(); smoke_ui.prepare_page(page, document, installer=True)
+    page.locator("#menu-toggle").click(); page.keyboard.press("Shift+Tab")
     if page.evaluate("document.activeElement?.dataset?.page") != "lifecycle": failures.append("installer:focus-trap:shift-tab")
     page.keyboard.press("Tab")
     if page.evaluate("document.activeElement?.dataset?.page") != "overview": failures.append("installer:focus-trap:tab-wrap")
     page.keyboard.press("Escape")
     if not page.evaluate("document.activeElement === document.querySelector('#menu-toggle')"): failures.append("installer:focus-trap:return-focus")
     context.close()
+    return coverage
 
-
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
     root = ROOT
     failures = static_quality_failures(root)
+    shard_index, shard_count = args.shard
+    run_matrix = not args.auxiliary_only
+    run_auxiliary = args.auxiliary_only or (not args.skip_auxiliary and shard_index == 0)
+    console_routes = select_shard(CONSOLE_PAGES, args.shard) if args.scope in {"all", "console"} and run_matrix else []
+    installer_routes = select_shard(INSTALLER_PAGES, args.shard) if args.scope in {"all", "installer"} and run_matrix else []
+    if run_matrix and args.scope in {"all", "console"} and not console_routes:
+        failures.append(f"console:empty-shard:{shard_index}/{shard_count}")
+    if run_matrix and args.scope in {"all", "installer"} and not installer_routes:
+        failures.append(f"installer:empty-shard:{shard_index}/{shard_count}")
+
     system_chromium = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+    coverage: dict[str, dict[str, int]] = {}
     with sync_playwright() as playwright:
         chromium = system_chromium or playwright.chromium.executable_path
         if not chromium or not Path(chromium).is_file():
             raise SystemExit("UI_QUALITY_BROWSER_MISSING")
         browser = playwright.chromium.launch(headless=True, executable_path=chromium, args=["--no-sandbox"])
-        audit_console(browser, root, failures)
-        audit_installer(browser, root, failures)
+        if args.scope in {"all", "console"}:
+            coverage["console"] = audit_console(
+                browser, root, failures, routes=console_routes, run_auxiliary=run_auxiliary, run_matrix=run_matrix
+            )
+        if args.scope in {"all", "installer"}:
+            coverage["installer"] = audit_installer(
+                browser, root, failures, routes=installer_routes, run_auxiliary=run_auxiliary, run_matrix=run_matrix
+            )
         browser.close()
-    result = {"schemaVersion": 1, "status": "PASS" if not failures else "FAIL", "failures": failures}
-    output = evidence_dir() / "product-console-quality-gates.json"
+
+    result = {
+        "schemaVersion": 3,
+        "authority": "OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1",
+        "status": "PASS" if not failures else "FAIL",
+        "checkpoint": {
+            "scope": args.scope,
+            "shardIndex": shard_index,
+            "shardCount": shard_count,
+            "routeMatrix": run_matrix,
+            "auxiliaryChecks": run_auxiliary,
+            "consoleRoutes": console_routes,
+            "installerRoutes": installer_routes,
+        },
+        "coverage": coverage,
+        "failures": failures,
+    }
+    if args.scope == "all" and args.shard == (0, 1) and not args.skip_auxiliary and not args.auxiliary_only:
+        suffix = ""
+    elif args.auxiliary_only:
+        suffix = f"-{args.scope}-auxiliary"
+    else:
+        suffix = f"-{args.scope}-{shard_index}-of-{shard_count}"
+    output = evidence_dir() / f"product-console-quality-gates{suffix}.json"
     output.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print("UI_QUALITY_GATES_" + result["status"], output)
     if failures:

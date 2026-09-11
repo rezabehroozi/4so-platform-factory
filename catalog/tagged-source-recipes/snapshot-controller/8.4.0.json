@@ -1,0 +1,23 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "TaggedSourceAcquisitionRecipe",
+  "metadata": {"component": "snapshot-controller", "version": "8.4.0"},
+  "spec": {
+    "authority": "TAGGED_SOURCE_ACQUISITION_RECIPE_V1",
+    "repository": "kubernetes-csi/external-snapshotter",
+    "tag": "v8.4.0",
+    "commitSHA": "f21cb02763e7cd6a7fc84846f106b83119b5371d",
+    "releaseURL": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.4.0",
+    "channel": "stable",
+    "licenseSPDX": "Apache-2.0",
+    "licenseFile": "LICENSE",
+    "files": [
+      {"sourcePath":"LICENSE","archivePath":"LICENSE","render":false},
+      {"sourcePath":"client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml","archivePath":"snapshot.storage.k8s.io_volumesnapshotclasses.yaml","render":true},
+      {"sourcePath":"client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml","archivePath":"snapshot.storage.k8s.io_volumesnapshotcontents.yaml","render":true},
+      {"sourcePath":"client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml","archivePath":"snapshot.storage.k8s.io_volumesnapshots.yaml","render":true},
+      {"sourcePath":"deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml","archivePath":"rbac-snapshot-controller.yaml","render":true},
+      {"sourcePath":"deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml","archivePath":"setup-snapshot-controller.yaml","render":true}
+    ]
+  }
+}

@@ -14,14 +14,22 @@ import (
 
 const maintenanceProfileColumns = `id,project_id,cluster_id,revision,environment,default_drain_timeout_seconds,updated_by,created_at,updated_at`
 const maintenanceWindowColumns = `id,project_id,cluster_id,revision,name,starts_at,ends_at,max_unavailable,drain_timeout_seconds,state,created_by,cancelled_by,cancelled_at,created_at,updated_at`
-const maintenanceRunColumns = `id,project_id,cluster_id,window_id,operation_id,revision,state,node_names,node_uids,inventory_digest,max_unavailable,drain_timeout_seconds,requested_by,approved_by,approved_at,started_at,finished_at,results,last_error,idempotency_key,request_digest,created_at,updated_at`
+const maintenanceRunColumns = `id,project_id,cluster_id,window_id,operation_id,revision,state,action,node_names,node_uids,inventory_digest,max_unavailable,drain_timeout_seconds,host_action_timeout_seconds,requested_by,approved_by,approved_at,started_at,finished_at,results,last_error,idempotency_key,request_digest,created_at,updated_at`
 
 func maintenanceLeaseDurationPG(v controlplane.ClusterMaintenanceRun) time.Duration {
 	nodes := len(v.NodeNames)
 	if nodes < 1 {
 		nodes = 1
 	}
-	seconds := int64(nodes) * int64(v.DrainTimeoutSeconds)
+	secondsPerNode := int64(v.DrainTimeoutSeconds)
+	if v.Action == controlplane.TargetNodeActionOSPatch {
+		host := v.HostActionTimeoutSeconds
+		if host <= 0 {
+			host = 3600
+		}
+		secondsPerNode += int64(host)
+	}
+	seconds := int64(nodes) * secondsPerNode
 	if seconds < 30 {
 		seconds = 30
 	}
@@ -133,10 +141,11 @@ func scanMaintenanceWindow(row interface{ Scan(...any) error }) (controlplane.Cl
 }
 func scanMaintenanceRun(row interface{ Scan(...any) error }) (controlplane.ClusterMaintenanceRun, error) {
 	var v controlplane.ClusterMaintenanceRun
-	var state string
+	var state, action string
 	var nodes, nodeUIDs, results []byte
-	err := row.Scan(&v.ID, &v.ProjectID, &v.ClusterID, &v.WindowID, &v.OperationID, &v.Revision, &state, &nodes, &nodeUIDs, &v.InventoryDigest, &v.MaxUnavailable, &v.DrainTimeoutSeconds, &v.RequestedBy, &v.ApprovedBy, &v.ApprovedAt, &v.StartedAt, &v.FinishedAt, &results, &v.LastError, &v.IdempotencyKey, &v.RequestDigest, &v.CreatedAt, &v.UpdatedAt)
+	err := row.Scan(&v.ID, &v.ProjectID, &v.ClusterID, &v.WindowID, &v.OperationID, &v.Revision, &state, &action, &nodes, &nodeUIDs, &v.InventoryDigest, &v.MaxUnavailable, &v.DrainTimeoutSeconds, &v.HostActionTimeoutSeconds, &v.RequestedBy, &v.ApprovedBy, &v.ApprovedAt, &v.StartedAt, &v.FinishedAt, &results, &v.LastError, &v.IdempotencyKey, &v.RequestDigest, &v.CreatedAt, &v.UpdatedAt)
 	v.State = controlplane.ClusterMaintenanceRunState(state)
+	v.Action = controlplane.TargetNodeLifecycleAction(action)
 	if len(nodes) > 0 {
 		if decodeErr := decodeJSONColumn(nodes, &v.NodeNames, "postgres_cluster_maintenance.NodeNames"); decodeErr != nil {
 			return v, decodeErr
@@ -322,8 +331,8 @@ func (s *PostgresStore) CancelClusterMaintenanceWindow(ctx context.Context, id s
 
 func latestInventoryTx(ctx context.Context, tx *sql.Tx, clusterID string) (controlplane.ClusterInventory, error) {
 	var v controlplane.ClusterInventory
-	var nodes, addons, storageClasses, capacity, certificates, networking, apiResources, crds, caps []byte
-	e := tx.QueryRowContext(ctx, `SELECT id,revision,cluster_id,observed_at,distribution,distribution_evidence_method,distribution_evidence_uid,distribution_evidence_version,kubernetes_version,nodes,addons,storage_classes,capacity,certificates,networking,api_resources,crds,api_discovery_complete,crd_discovery_complete,schema_discovery_version,schema_discovery_digest,schema_discovery_complete,capabilities,digest,created_at,updated_at FROM cluster_inventory_snapshots WHERE cluster_id=$1 ORDER BY observed_at DESC,id DESC LIMIT 1`, clusterID).Scan(&v.ID, &v.Revision, &v.ClusterID, &v.ObservedAt, &v.Distribution, &v.DistributionEvidenceMethod, &v.DistributionEvidenceUID, &v.DistributionEvidenceVersion, &v.KubernetesVersion, &nodes, &addons, &storageClasses, &capacity, &certificates, &networking, &apiResources, &crds, &v.APIDiscoveryComplete, &v.CRDDiscoveryComplete, &v.SchemaDiscoveryVersion, &v.SchemaDiscoveryDigest, &v.SchemaDiscoveryComplete, &caps, &v.Digest, &v.CreatedAt, &v.UpdatedAt)
+	var nodes, addons, storageClasses, capacity, certificates, networking, workloadExplorer, apiResources, crds, caps []byte
+	e := tx.QueryRowContext(ctx, `SELECT id,revision,cluster_id,observed_at,distribution,distribution_evidence_method,distribution_evidence_uid,distribution_evidence_version,kubernetes_version,nodes,addons,storage_classes,capacity,certificates,networking,workload_explorer,api_resources,crds,api_discovery_complete,crd_discovery_complete,schema_discovery_version,schema_discovery_digest,schema_discovery_complete,capabilities,digest,created_at,updated_at FROM cluster_inventory_snapshots WHERE cluster_id=$1 ORDER BY observed_at DESC,id DESC LIMIT 1`, clusterID).Scan(&v.ID, &v.Revision, &v.ClusterID, &v.ObservedAt, &v.Distribution, &v.DistributionEvidenceMethod, &v.DistributionEvidenceUID, &v.DistributionEvidenceVersion, &v.KubernetesVersion, &nodes, &addons, &storageClasses, &capacity, &certificates, &networking, &workloadExplorer, &apiResources, &crds, &v.APIDiscoveryComplete, &v.CRDDiscoveryComplete, &v.SchemaDiscoveryVersion, &v.SchemaDiscoveryDigest, &v.SchemaDiscoveryComplete, &caps, &v.Digest, &v.CreatedAt, &v.UpdatedAt)
 	if e != nil {
 		return v, mapDBError(e)
 	}
@@ -343,6 +352,9 @@ func latestInventoryTx(ctx context.Context, tx *sql.Tx, clusterID string) (contr
 		return v, decodeErr
 	}
 	if decodeErr := decodeJSONColumn(networking, &v.Networking, "postgres_cluster_maintenance.Networking"); decodeErr != nil {
+		return v, decodeErr
+	}
+	if decodeErr := decodeJSONColumn(workloadExplorer, &v.WorkloadExplorer, "postgres_cluster_maintenance.WorkloadExplorer"); decodeErr != nil {
 		return v, decodeErr
 	}
 	if decodeErr := decodeJSONColumn(apiResources, &v.APIResources, "postgres_cluster_maintenance.APIResources"); decodeErr != nil {
@@ -402,6 +414,41 @@ func maintenanceNodeIdentityMatchesPG(inv controlplane.ClusterInventory, names [
 	return nil
 }
 
+func normalizeMaintenanceActionPG(action controlplane.TargetNodeLifecycleAction) (controlplane.TargetNodeLifecycleAction, bool) {
+	action = controlplane.TargetNodeLifecycleAction(strings.ToUpper(strings.TrimSpace(string(action))))
+	if action == "" {
+		action = controlplane.TargetNodeActionDrain
+	}
+	switch action {
+	case controlplane.TargetNodeActionDrain, controlplane.TargetNodeActionOSPatch:
+		return action, true
+	default:
+		return action, false
+	}
+}
+
+func admitMaintenanceActionPG(v *controlplane.ClusterMaintenanceRun, inv controlplane.ClusterInventory) error {
+	action, ok := normalizeMaintenanceActionPG(v.Action)
+	if !ok {
+		return fmt.Errorf("%w: maintenance action %q is not executable through cluster maintenance authority", controlplane.ErrValidation, v.Action)
+	}
+	v.Action = action
+	if action == controlplane.TargetNodeActionOSPatch {
+		d := controlplane.DescribeTargetNodeLifecycleAction(action, inv)
+		if !d.Executable {
+			blockers := append([]string(nil), d.Blockers...)
+			for _, missing := range d.MissingCapabilities {
+				blockers = append(blockers, "TARGET_CAPABILITY_MISSING:"+missing)
+			}
+			return fmt.Errorf("%w: OS patch executor is not admitted: %s", controlplane.ErrPrerequisite, strings.Join(blockers, "; "))
+		}
+		v.HostActionTimeoutSeconds = 3600
+	} else {
+		v.HostActionTimeoutSeconds = 0
+	}
+	return nil
+}
+
 func (s *PostgresStore) CreateClusterMaintenanceRun(ctx context.Context, v controlplane.ClusterMaintenanceRun, actor string) (controlplane.ClusterMaintenanceRun, bool, error) {
 	var out controlplane.ClusterMaintenanceRun
 	replay := false
@@ -447,6 +494,9 @@ func (s *PostgresStore) CreateClusterMaintenanceRun(ctx context.Context, v contr
 		if e != nil {
 			return e
 		}
+		if e = admitMaintenanceActionPG(&v, inv); e != nil {
+			return e
+		}
 		op, e := scanOperation(tx.QueryRowContext(ctx, `SELECT `+operationColumns+` FROM operations WHERE id=$1 FOR UPDATE`, v.OperationID))
 		if e != nil {
 			return mapDBError(e)
@@ -463,10 +513,13 @@ func (s *PostgresStore) CreateClusterMaintenanceRun(ctx context.Context, v contr
 		v.MaxUnavailable = window.MaxUnavailable
 		v.DrainTimeoutSeconds = window.DrainTimeoutSeconds
 		v.RequestedBy = actor
+		if e = controlplane.ValidateDay2CampaignContract(controlplane.Day2ContractForMaintenance(v, window)); e != nil {
+			return e
+		}
 		nodesRaw, _ := json.Marshal(v.NodeNames)
 		nodeUIDsRaw, _ := json.Marshal(v.NodeUIDs)
 		resultsRaw, _ := json.Marshal(v.Results)
-		_, e = tx.ExecContext(ctx, `INSERT INTO cluster_maintenance_runs(id,project_id,cluster_id,window_id,operation_id,revision,state,node_names,node_uids,inventory_digest,max_unavailable,drain_timeout_seconds,requested_by,results,last_error,idempotency_key,request_digest,created_at,updated_at) VALUES($1,$2,$3,$4,$5,1,$6,$7::jsonb,$8::jsonb,$9,$10,$11,$12,$13::jsonb,'',$14,$15,$16,$16)`, v.ID, v.ProjectID, v.ClusterID, v.WindowID, v.OperationID, string(v.State), nodesRaw, nodeUIDsRaw, v.InventoryDigest, v.MaxUnavailable, v.DrainTimeoutSeconds, actor, resultsRaw, v.IdempotencyKey, v.RequestDigest, now)
+		_, e = tx.ExecContext(ctx, `INSERT INTO cluster_maintenance_runs(id,project_id,cluster_id,window_id,operation_id,revision,state,action,node_names,node_uids,inventory_digest,max_unavailable,drain_timeout_seconds,host_action_timeout_seconds,requested_by,results,last_error,idempotency_key,request_digest,created_at,updated_at) VALUES($1,$2,$3,$4,$5,1,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14,$15::jsonb,'',$16,$17,$18,$18)`, v.ID, v.ProjectID, v.ClusterID, v.WindowID, v.OperationID, string(v.State), string(v.Action), nodesRaw, nodeUIDsRaw, v.InventoryDigest, v.MaxUnavailable, v.DrainTimeoutSeconds, v.HostActionTimeoutSeconds, actor, resultsRaw, v.IdempotencyKey, v.RequestDigest, now)
 		if e != nil {
 			return mapDBError(e)
 		}
@@ -546,6 +599,9 @@ func (s *PostgresStore) CreateClusterMaintenanceRunRequest(ctx context.Context, 
 		if e != nil {
 			return e
 		}
+		if e = admitMaintenanceActionPG(&v, inv); e != nil {
+			return e
+		}
 
 		op, e = scanOperation(tx.QueryRowContext(ctx, `SELECT `+operationColumns+` FROM operations WHERE project_id=$1 AND idempotency_key=$2 FOR UPDATE`, opRequest.ProjectID, opKey))
 		if e == nil {
@@ -618,10 +674,13 @@ func (s *PostgresStore) CreateClusterMaintenanceRunRequest(ctx context.Context, 
 		v.MaxUnavailable = window.MaxUnavailable
 		v.DrainTimeoutSeconds = window.DrainTimeoutSeconds
 		v.RequestedBy = actor
+		if e = controlplane.ValidateDay2CampaignContract(controlplane.Day2ContractForMaintenance(v, window)); e != nil {
+			return e
+		}
 		nodesRaw, _ := json.Marshal(v.NodeNames)
 		nodeUIDsRaw, _ := json.Marshal(v.NodeUIDs)
 		resultsRaw, _ := json.Marshal(v.Results)
-		if _, e = tx.ExecContext(ctx, `INSERT INTO cluster_maintenance_runs(id,project_id,cluster_id,window_id,operation_id,revision,state,node_names,node_uids,inventory_digest,max_unavailable,drain_timeout_seconds,requested_by,results,last_error,idempotency_key,request_digest,created_at,updated_at) VALUES($1,$2,$3,$4,$5,1,$6,$7::jsonb,$8::jsonb,$9,$10,$11,$12,$13::jsonb,'',$14,$15,$16,$16)`, v.ID, v.ProjectID, v.ClusterID, v.WindowID, v.OperationID, string(v.State), nodesRaw, nodeUIDsRaw, v.InventoryDigest, v.MaxUnavailable, v.DrainTimeoutSeconds, actor, resultsRaw, v.IdempotencyKey, v.RequestDigest, now); e != nil {
+		if _, e = tx.ExecContext(ctx, `INSERT INTO cluster_maintenance_runs(id,project_id,cluster_id,window_id,operation_id,revision,state,action,node_names,node_uids,inventory_digest,max_unavailable,drain_timeout_seconds,host_action_timeout_seconds,requested_by,results,last_error,idempotency_key,request_digest,created_at,updated_at) VALUES($1,$2,$3,$4,$5,1,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14,$15::jsonb,'',$16,$17,$18,$18)`, v.ID, v.ProjectID, v.ClusterID, v.WindowID, v.OperationID, string(v.State), string(v.Action), nodesRaw, nodeUIDsRaw, v.InventoryDigest, v.MaxUnavailable, v.DrainTimeoutSeconds, v.HostActionTimeoutSeconds, actor, resultsRaw, v.IdempotencyKey, v.RequestDigest, now); e != nil {
 			return mapDBError(e)
 		}
 		if e = s.appendAuditTx(ctx, tx, actor, "cluster_maintenance.run_requested", "clusterMaintenanceRun", v.ID, 1, "", map[string]any{"clusterId": v.ClusterID, "windowId": v.WindowID, "operationId": v.OperationID, "nodes": v.NodeNames, "inventoryDigest": v.InventoryDigest}); e != nil {
@@ -677,8 +736,8 @@ func (s *PostgresStore) ApproveClusterMaintenanceRun(ctx context.Context, id str
 		if v.State != controlplane.ClusterMaintenanceAwaitingApproval {
 			return controlplane.ErrInvalidTransition
 		}
-		if strings.TrimSpace(actor) == "" || actor == v.RequestedBy {
-			return controlplane.ErrPrerequisite
+		if e = controlplane.ValidateDay2IndependentApproval(v.RequestedBy, actor); e != nil {
+			return e
 		}
 		window, e := scanMaintenanceWindow(tx.QueryRowContext(ctx, `SELECT `+maintenanceWindowColumns+` FROM cluster_maintenance_windows WHERE id=$1 FOR UPDATE`, v.WindowID))
 		if e != nil {
@@ -800,13 +859,19 @@ func (s *PostgresStore) NextClusterMaintenanceTask(ctx context.Context, clusterI
 				}
 				continue
 			}
-			if window.State != controlplane.ClusterMaintenanceWindowActive || !window.EndsAt.After(now) {
-				if e = s.failQueuedClusterMaintenanceTx(ctx, tx, v, op, "maintenance window expired before task claim", now); e != nil {
+			if window.State != controlplane.ClusterMaintenanceWindowActive {
+				if e = s.failQueuedClusterMaintenanceTx(ctx, tx, v, op, "maintenance window is no longer active", now); e != nil {
 					return e
 				}
 				continue
 			}
-			if now.Before(window.StartsAt) {
+			if e = controlplane.ValidateDay2ExecutionWindow(window.StartsAt, window.EndsAt, now); e != nil {
+				if now.Before(window.StartsAt) {
+					continue
+				}
+				if e = s.failQueuedClusterMaintenanceTx(ctx, tx, v, op, "maintenance window expired before task claim", now); e != nil {
+					return e
+				}
 				continue
 			}
 			if inv.Digest != v.InventoryDigest || clusterDigest != v.InventoryDigest {
@@ -820,6 +885,15 @@ func (s *PostgresStore) NextClusterMaintenanceTask(ctx context.Context, clusterI
 					return e
 				}
 				continue
+			}
+			if v.Action == controlplane.TargetNodeActionOSPatch {
+				d := controlplane.DescribeTargetNodeLifecycleAction(v.Action, inv)
+				if !d.Executable {
+					if e = s.failQueuedClusterMaintenanceTx(ctx, tx, v, op, "OS patch target capability/executor admission changed after approval", now); e != nil {
+						return e
+					}
+					continue
+				}
 			}
 			v.State = controlplane.ClusterMaintenanceRunning
 			v.StartedAt = &now
@@ -889,11 +963,8 @@ func (s *PostgresStore) ReportClusterMaintenanceTask(ctx context.Context, cluste
 		if op.State != controlplane.OperationRunning || op.LeaseOwner != "cluster-maintenance-agent:"+clusterID {
 			return controlplane.ErrPrerequisite
 		}
-		if result.OperationFenceToken <= 0 || result.OperationFenceToken != op.FenceToken {
-			return controlplane.ErrStaleFence
-		}
-		if op.LeaseExpiresAt == nil || !op.LeaseExpiresAt.After(now) {
-			return controlplane.ErrLeaseHeld
+		if e = controlplane.ValidateDay2Fence(op.FenceToken, result.OperationFenceToken, op.LeaseExpiresAt, now); e != nil {
+			return e
 		}
 		if len(result.Results) == 0 {
 			return controlplane.ErrValidation
@@ -914,6 +985,9 @@ func (s *PostgresStore) ReportClusterMaintenanceTask(ctx context.Context, cluste
 				needsOperator = true
 			}
 			if !r.Cordoned || !r.DrainAttempted || !r.Drained || !r.Uncordoned || strings.TrimSpace(r.Error) != "" {
+				allSafe = false
+			}
+			if v.Action == controlplane.TargetNodeActionOSPatch && (!r.HostActionAttempted || !r.HostActionSucceeded || r.HostActionAuthority != "TARGET_NODE_HOST_MAINTENANCE_EXECUTOR_V1" || strings.TrimSpace(r.HostActionEvidence) == "") {
 				allSafe = false
 			}
 		}
@@ -960,7 +1034,7 @@ func (s *PostgresStore) ReportClusterMaintenanceTask(ctx context.Context, cluste
 		if _, e = tx.ExecContext(ctx, `UPDATE operations SET revision=$2,state=$3,lease_owner='',lease_expires_at=NULL,last_error=$4,updated_at=$5 WHERE id=$1`, op.ID, op.Revision, string(op.State), op.LastError, now); e != nil {
 			return e
 		}
-		if e = s.appendAuditTx(ctx, tx, "cluster-agent", "cluster_maintenance.run_reported", "clusterMaintenanceRun", runID, v.Revision, "", map[string]any{"operationId": op.ID, "state": v.State, "nodes": len(v.Results), "method": controlplane.ClusterMaintenanceAuthorityMethod}); e != nil {
+		if e = s.appendAuditTx(ctx, tx, "cluster-agent", "cluster_maintenance.run_reported", "clusterMaintenanceRun", runID, v.Revision, "", map[string]any{"operationId": op.ID, "state": v.State, "action": v.Action, "nodes": len(v.Results), "method": controlplane.ClusterMaintenanceAuthorityMethod}); e != nil {
 			return e
 		}
 		if e = s.appendOutboxTx(ctx, tx, "clusterMaintenanceRun", runID, "cluster_maintenance.run_completed", v); e != nil {

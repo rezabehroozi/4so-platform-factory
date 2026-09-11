@@ -1,0 +1,49 @@
+{
+  "authority": "PERSIAN_PRODUCT_COPY_QA_V1",
+  "locale": "fa",
+  "policy": "task-first human product language; preserve established technical nouns only when they improve comprehension; Persian sentences must explain user intent, state and next action rather than mirror English implementation terminology",
+  "auditedSurfaces": [
+    "webconsole/static/app.js",
+    "webconsole/static/index.html",
+    "cmd/platform-installer/static/app.js",
+    "cmd/platform-installer/static/index.html"
+  ],
+  "forbiddenRoboticPhrases": [
+    "آمادگی Journey محصول",
+    "عملیات durable",
+    "Traceهای عملیات",
+    "Actionهای ممیزی",
+    "Workflow ناموفق محصول",
+    "Capabilityهای مفقود",
+    "Certification فیزیکی",
+    "مرجع چرخه عمر نود وجود ندارد",
+    "درخواست موجود چرخه عمر نود Provider دوباره استفاده شد",
+    "Credential خام را اینجا قرار ندهید",
+    "Diagnosis مبتنی بر Context",
+    "Mutationهای MCP در Allow-list",
+    "Automation identityهای Scope‌شده",
+    "Product Operationهای Allow-list شده",
+    "Server-side و Operational State",
+    "Roadmap canonical محصول",
+    "Contract فعلی Maintenance",
+    "چرا این عملیات Fail شد",
+    "هر مرحله قابل Resume و وابسته به Health است",
+    "این کارت‌ها از شواهد واقعی Runtime نصب‌کننده می‌آیند، نه Metric ساختگی"
+  ],
+  "principles": [
+    "lead with the user's task or state, not internal authority names",
+    "keep technical product nouns such as Kubernetes, RKE2, MCP and OIDC when they are the clearest established term",
+    "translate verbs and explanatory prose into natural Persian instead of mixing English grammar into Persian sentences",
+    "blocked/error copy must explain what is missing and what the user can do next",
+    "normal users never need OAuth scope strings, tool names, revision internals or implementation-layer vocabulary",
+    "apply the pinned persian-writing orthography and register rules to user-facing Persian copy",
+    "Latin protocol/product identifiers may remain; English grammar/adjectives inside Persian prose fail the release gate"
+  ],
+  "persianWritingAuthority": "PERSIAN_WRITING_GATE_V1",
+  "register": "formal-but-human",
+  "upstream": {
+    "repository": "https://github.com/ali2000hos/persian-writing",
+    "version": "1.3.5",
+    "commit": "118c2167f30cafe18df13c0ba85f98f50dad1894"
+  }
+}

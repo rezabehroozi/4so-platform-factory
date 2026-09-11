@@ -1,0 +1,10 @@
+ARG RUNTIME_IMAGE
+FROM ${RUNTIME_IMAGE}
+ARG SOURCE_RELEASE_DIGEST
+LABEL platform.4so.io/product-role="platform-api" \
+      platform.4so.io/source-release-digest="${SOURCE_RELEASE_DIGEST}"
+COPY bin/linux-amd64/platform-api /platform-api
+EXPOSE 8080
+ENV PLATFORM_FACTORY_LISTEN=0.0.0.0:8080
+USER 65532:65532
+ENTRYPOINT ["/platform-api"]

@@ -28,6 +28,11 @@ ALLOWED_STATUS = {
     "version-selection-required",
     "version-review-required",
 }
+ALLOWED_RUNTIME_STATUS = {
+    "eligible-after-source-resolution",
+    "dependency-transition-required",
+    "review-required",
+}
 
 
 def normalized(v: str | None) -> str:
@@ -105,6 +110,7 @@ def load_authority(path: Path = DEFAULT_AUTHORITY, root: Path = ROOT) -> dict:
         "versionSelection": "exact-semver-no-prerelease",
         "sourceResolution": "separate-immutable-acquisition-required",
         "runtimeCertification": "separate-runtime-evidence-required",
+        "candidateAcquisition": "exact-source-may-be-acquired-before-runtime-clearance",
         "autoWidenCatalogConstraint": False,
         "allowLatestResolution": False,
     }
@@ -139,6 +145,9 @@ def validate(root: Path = ROOT, authority_path: Path = DEFAULT_AUTHORITY) -> tup
         status = str(entry.get("status") or "")
         if status not in ALLOWED_STATUS:
             raise RuntimeError(f"UPSTREAM_ADMISSION_STATUS_INVALID {name}:{status}")
+        runtime_status = str(entry.get("runtimeStatus") or "")
+        if runtime_status not in ALLOWED_RUNTIME_STATUS:
+            raise RuntimeError(f"UPSTREAM_ADMISSION_RUNTIME_STATUS_INVALID {name}:{runtime_status}")
         constraint = str(entry.get("catalogConstraint") or "")
         if not constraint or not (EXACT.fullmatch(normalized(constraint)) or re.fullmatch(r"[0-9]+\.[0-9]+\.x", normalized(constraint))):
             raise RuntimeError(f"UPSTREAM_ADMISSION_CONSTRAINT_INVALID {name}:{constraint}")
@@ -150,6 +159,16 @@ def validate(root: Path = ROOT, authority_path: Path = DEFAULT_AUTHORITY) -> tup
             raise RuntimeError(f"UPSTREAM_ADMISSION_SOURCE_INVALID {name}:{source}")
         if not str(entry.get("rationale") or "").strip():
             raise RuntimeError(f"UPSTREAM_ADMISSION_RATIONALE_MISSING {name}")
+        evidence = entry.get("reviewEvidence") or []
+        if not isinstance(evidence, list):
+            raise RuntimeError(f"UPSTREAM_ADMISSION_REVIEW_EVIDENCE_INVALID {name}")
+        for index, item in enumerate(evidence):
+            if not isinstance(item, dict):
+                raise RuntimeError(f"UPSTREAM_ADMISSION_REVIEW_EVIDENCE_INVALID {name}:{index}")
+            if item.get("kind") not in {"release", "blocker", "source-migration"} or not str(item.get("url") or "").startswith("https://") or not str(item.get("summary") or "").strip():
+                raise RuntimeError(f"UPSTREAM_ADMISSION_REVIEW_EVIDENCE_INVALID {name}:{index}")
+        if runtime_status != "eligible-after-source-resolution" and not any(item.get("kind") == "blocker" for item in evidence):
+            raise RuntimeError(f"UPSTREAM_ADMISSION_RUNTIME_BLOCKER_EVIDENCE_MISSING {name}")
         selected = entry.get("selectedVersion")
         upstream = entry.get("upstreamVersion")
         if selected is not None:
@@ -158,6 +177,8 @@ def validate(root: Path = ROOT, authority_path: Path = DEFAULT_AUTHORITY) -> tup
                 raise RuntimeError(f"UPSTREAM_ADMISSION_VERSION_INVALID {name}:{selected} not-in {constraint}")
             if not upstream or normalized(str(upstream)) != selected:
                 raise RuntimeError(f"UPSTREAM_ADMISSION_UPSTREAM_VERSION_INVALID {name}:{upstream}")
+        if status == "version-review-required" and (selected is None or not evidence):
+            raise RuntimeError(f"UPSTREAM_ADMISSION_VERSION_REVIEW_EVIDENCE_MISSING {name}")
         if status == "ready-for-acquisition":
             if selected is None:
                 raise RuntimeError(f"UPSTREAM_ADMISSION_READY_VERSION_MISSING {name}")
@@ -165,10 +186,37 @@ def validate(root: Path = ROOT, authority_path: Path = DEFAULT_AUTHORITY) -> tup
                 raise RuntimeError(f"UPSTREAM_ADMISSION_CATALOG_PIN_MISMATCH {name}:{spec.get('release')}!={selected}")
             if spec.get("versionPolicy") != "exact-upstream-admitted-pending-source-acquisition":
                 raise RuntimeError(f"UPSTREAM_ADMISSION_VERSION_POLICY_INVALID {name}")
+        elif selected is not None:
+            # Review state is a policy decision blocker, not permission to keep
+            # runtime identity mutable. Once an exact candidate is selected, the
+            # catalog must bind to that exact candidate while source.resolved
+            # remains false and acquisition stays forbidden until review clears.
+            if str(spec.get("release") or "") != selected:
+                raise RuntimeError(f"UPSTREAM_ADMISSION_REVIEW_CANDIDATE_PIN_MISMATCH {name}:{spec.get('release')}!={selected}")
+            if spec.get("versionPolicy") != "exact-upstream-review-candidate-pending-decision":
+                raise RuntimeError(f"UPSTREAM_ADMISSION_REVIEW_VERSION_POLICY_INVALID {name}")
         elif str(spec.get("release") or "") != constraint:
             raise RuntimeError(f"UPSTREAM_ADMISSION_REVIEW_COMPONENT_MUTATED {name}:{spec.get('release')}!={constraint}")
         if (spec.get("source") or {}).get("resolved"):
             raise RuntimeError(f"UPSTREAM_ADMISSION_CONTAINS_RESOLVED_COMPONENT {name}")
+
+    # Source acquisition is intentionally independent from runtime suitability.
+    # Exact bytes may be acquired for inspection/evidence while installation and
+    # certification remain blocked by runtimeStatus. Cilium 1.20 must stay
+    # dependency-transition-required until Gateway API 1.6.1 is both current and
+    # immutably resolved.
+    gateway_path = require_real_repo_file(root, root / "catalog" / "components" / "gateway-api.json", "gateway api component")
+    gateway = json.loads(gateway_path.read_text()).get("spec") or {}
+    gateway_release = normalized(str(gateway.get("release") or ""))
+    gateway_resolved = bool((gateway.get("source") or {}).get("resolved"))
+    cilium = by_name.get("cilium") or {}
+    cilium_selected = normalized(str(cilium.get("selectedVersion") or ""))
+    if cilium_selected.startswith("1.20.") and (gateway_release != "1.6.1" or not gateway_resolved):
+        if cilium.get("runtimeStatus") != "dependency-transition-required":
+            raise RuntimeError(
+                f"UPSTREAM_ADMISSION_RUNTIME_DEPENDENCY_STATUS_INVALID cilium:{cilium_selected} must remain dependency-transition-required until resolved gateway-api:1.6.1; current={gateway_release}:resolved={str(gateway_resolved).lower()}"
+            )
+
     return doc, [by_name[n] for n in sorted(by_name)]
 
 
@@ -186,11 +234,16 @@ def summary(entries: list[dict]) -> dict:
     counts: dict[str, int] = {}
     for e in entries:
         counts[e["status"]] = counts.get(e["status"], 0) + 1
+    runtime_counts: dict[str, int] = {}
+    for e in entries:
+        runtime_counts[e["runtimeStatus"]] = runtime_counts.get(e["runtimeStatus"], 0) + 1
     return {
         "components": len(entries),
         "readyForAcquisition": counts.get("ready-for-acquisition", 0),
         "reviewRequired": len(entries) - counts.get("ready-for-acquisition", 0),
+        "runtimeBlocked": sum(v for k, v in runtime_counts.items() if k != "eligible-after-source-resolution"),
         "statusCounts": dict(sorted(counts.items())),
+        "runtimeStatusCounts": dict(sorted(runtime_counts.items())),
     }
 
 
@@ -206,9 +259,10 @@ def main() -> int:
         if a.json:
             print(json.dumps({"status": "PASS", **out, "entries": entries}, indent=2, sort_keys=True))
         else:
-            print("UPSTREAM_ADMISSION_PASS components=%d ready=%d review=%d statuses=%s" % (
-                out["components"], out["readyForAcquisition"], out["reviewRequired"],
+            print("UPSTREAM_ADMISSION_PASS components=%d ready=%d review=%d runtime_blocked=%d statuses=%s runtime=%s" % (
+                out["components"], out["readyForAcquisition"], out["reviewRequired"], out["runtimeBlocked"],
                 ",".join(f"{k}:{v}" for k, v in out["statusCounts"].items()),
+                ",".join(f"{k}:{v}" for k, v in out["runtimeStatusCounts"].items()),
             ))
         if a.commands:
             for e in entries:

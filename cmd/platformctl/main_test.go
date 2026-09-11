@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +17,7 @@ import (
 	"platform.4so.io/factory/internal/bootstrap"
 	"platform.4so.io/factory/internal/evidence"
 	"platform.4so.io/factory/internal/fieldevidence"
+	"platform.4so.io/factory/internal/releaseartifact"
 )
 
 func closureReportFixture(t *testing.T) []byte {
@@ -23,6 +28,7 @@ func closureReportFixture(t *testing.T) []byte {
 		BaselineDesiredDigest: "sha256:" + strings.Repeat("2", 64), BaselineObservedDigest: "sha256:" + strings.Repeat("2", 64),
 		RuntimeVerificationID: "verification-cli", RuntimeReportDigest: "sha256:" + strings.Repeat("3", 64),
 		RuntimeDesiredDigest: "sha256:" + strings.Repeat("2", 64), RuntimeObservedDigest: "sha256:" + strings.Repeat("2", 64),
+		ReleaseArtifactDigest: "sha256:" + strings.Repeat("4", 64), ProducerBinaryDigest: "sha256:" + strings.Repeat("5", 64),
 	}
 	digest, err := inputs.Digest()
 	if err != nil {
@@ -39,7 +45,7 @@ func closureReportFixture(t *testing.T) []byte {
 		"runtimeVerification": map[string]any{"id": inputs.RuntimeVerificationID, "projectId": inputs.ProjectID, "clusterId": inputs.ClusterID, "reportDigest": inputs.RuntimeReportDigest, "desiredDigest": inputs.RuntimeDesiredDigest, "observedDigest": inputs.RuntimeObservedDigest},
 		"result":              map[string]any{"state": "SUCCEEDED", "summary": "complete", "nextAction": "download-runtime-closure-report", "lastError": ""},
 		"claims":              map[string]any{"runtimeClosed": true, "runtimeCertified": false, "productionReady": false, "haCertified": false},
-		"evidence":            evidence.RuntimeClosureEvidence{SchemaVersion: evidence.RuntimeClosureEvidenceSchema, Algorithm: "sha256", Canonicalization: evidence.RuntimeClosureCanonicalization, Inputs: inputs, Digest: digest},
+		"evidence":            evidence.RuntimeClosureEvidence{SchemaVersion: evidence.RuntimeClosureEvidenceSchema, Algorithm: "sha256", Canonicalization: evidence.RuntimeClosureCanonicalization, BindingAuthority: evidence.RuntimeClosureExactReleaseBindingAuthority, Inputs: inputs, Digest: digest},
 	}
 	raw, err := json.Marshal(report)
 	if err != nil {
@@ -203,5 +209,124 @@ func TestDownloadFieldEvidenceRejectsTampering(t *testing.T) {
 	base, _ := validateAPIURL(server.URL)
 	if _, _, err := downloadFieldEvidenceReport(server.Client(), base, "bootstrap-token"); err == nil {
 		t.Fatal("tampered field evidence accepted")
+	}
+}
+
+func TestClosureHTTPClientDisablesImplicitProxy(t *testing.T) {
+	client, err := closureHTTPClient("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("unexpected transport %T", client.Transport)
+	}
+	if transport.Proxy != nil {
+		t.Fatal("credential-bearing control-plane client must not trust environment proxies")
+	}
+}
+
+func TestControlPlaneTransportRejectsUnsafeResolutionBeforeDial(t *testing.T) {
+	lookup := func(context.Context, string, string) ([]netip.Addr, error) {
+		return []netip.Addr{netip.MustParseAddr("169.254.169.254")}, nil
+	}
+	dialed := false
+	dial := func(context.Context, string, string) (net.Conn, error) {
+		dialed = true
+		return nil, errors.New("unexpected dial")
+	}
+	client, err := newClosureHTTPClient("", lookup, dial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := client.Transport.(*http.Transport)
+	if _, err = transport.DialContext(context.Background(), "tcp", "installer.example:443"); err == nil || !strings.Contains(err.Error(), "unsafe address") {
+		t.Fatalf("unsafe resolution was not rejected: %v", err)
+	}
+	if dialed {
+		t.Fatal("unsafe address reached dial boundary")
+	}
+}
+
+func TestControlPlaneTransportPinsValidatedPrivateAddress(t *testing.T) {
+	lookupCalls := 0
+	lookup := func(context.Context, string, string) ([]netip.Addr, error) {
+		lookupCalls++
+		return []netip.Addr{netip.MustParseAddr("10.23.45.67")}, nil
+	}
+	var dialAddress string
+	clientSide, peer := net.Pipe()
+	defer peer.Close()
+	dial := func(_ context.Context, _ string, address string) (net.Conn, error) {
+		dialAddress = address
+		return clientSide, nil
+	}
+	client, err := newClosureHTTPClient("", lookup, dial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := client.Transport.(*http.Transport)
+	conn, err := transport.DialContext(context.Background(), "tcp", "installer.internal:9443")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.Close()
+	if lookupCalls != 1 || dialAddress != "10.23.45.67:9443" {
+		t.Fatalf("resolution/dial authority mismatch calls=%d address=%q", lookupCalls, dialAddress)
+	}
+}
+
+func TestNamedAccessTokenRequiresPrivateRegularFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bootstrap.token")
+	if err := os.WriteFile(path, []byte("private-bootstrap-token-abcdefghijklmnopqrstuvwxyz\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := namedAccessToken(path, "IGNORED_TOKEN_ENV")
+	if err != nil || got != "private-bootstrap-token-abcdefghijklmnopqrstuvwxyz" {
+		t.Fatalf("private token read failed got=%q err=%v", got, err)
+	}
+	if err = os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = namedAccessToken(path, "IGNORED_TOKEN_ENV"); err == nil || !strings.Contains(err.Error(), "permissions") {
+		t.Fatalf("group/other-readable token file accepted: %v", err)
+	}
+	if err = os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "token-link")
+	if err = os.Symlink(path, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = namedAccessToken(link, "IGNORED_TOKEN_ENV"); err == nil || !strings.Contains(err.Error(), "non-symlink") {
+		t.Fatalf("symlink token file accepted: %v", err)
+	}
+}
+
+func TestVerifyRuntimeClosureExactReleaseMatchesReleaseAndProducerBinary(t *testing.T) {
+	result, err := evidence.VerifyRuntimeClosureReport(closureReportFixture(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := releaseartifact.Inspection{
+		Digest:  result.ReleaseArtifactDigest,
+		Version: result.ProductVersion,
+		FileDigests: map[string]string{
+			releaseartifact.PlatformAPIBinaryPath: strings.TrimPrefix(result.ProducerBinaryDigest, "sha256:"),
+		},
+	}
+	if err := verifyRuntimeClosureExactRelease(result, release); err != nil {
+		t.Fatal(err)
+	}
+	badRelease := release
+	badRelease.Digest = "sha256:" + strings.Repeat("9", 64)
+	if err := verifyRuntimeClosureExactRelease(result, badRelease); err == nil || !strings.Contains(err.Error(), "release artifact digest") {
+		t.Fatalf("release mismatch was accepted: %v", err)
+	}
+	badProducer := release
+	badProducer.FileDigests = map[string]string{releaseartifact.PlatformAPIBinaryPath: strings.Repeat("8", 64)}
+	if err := verifyRuntimeClosureExactRelease(result, badProducer); err == nil || !strings.Contains(err.Error(), "producer binary digest") {
+		t.Fatalf("producer mismatch was accepted: %v", err)
 	}
 }

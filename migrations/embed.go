@@ -60,6 +60,44 @@ func compatibilityForVersion(version int64) (Compatibility, string, error) {
 		return CompatibilityRollingSafe, "v52 adds a nullable inventory observation-epoch timestamp; old writers remain schema-compatible while new binaries fail closed until a fresh observed inventory establishes authority", nil
 	case version == 53:
 		return CompatibilityRollingSafe, "v53 adds an independent AI advisory-run table; existing writers and authorities are unchanged and new binaries may begin recording redacted AI metadata", nil
+	case version == 54:
+		return CompatibilityRollingSafe, "v54 adds an independent durable AI dispatch-claim table; old writers remain schema-compatible while new writers acquire at-most-once provider dispatch authority before model egress", nil
+	case version == 55:
+		return CompatibilityRollingSafe, "v55 adds defaulted immutable runtime-closure exact-release identity columns; old writers remain schema-compatible as legacy schema 0 while new writers persist exact release and producer binary digests", nil
+	case version == 56:
+		return CompatibilityRollingSafe, "v56 adds an independent immutable project-scoped variable-schema authority; existing writers and runtime tables are unchanged", nil
+	case version == 57:
+		return CompatibilityRollingSafe, "v57 adds immutable project-scoped platform policy-set/template authorities and insert-time reference guards; existing writers and runtime tables are unchanged", nil
+	case version == 58:
+		return CompatibilityRollingSafe, "v58 adds independent project-scoped workspace and namespace-binding authorities with insert/update reference guards; existing writers and runtime tables are unchanged", nil
+	case version == 59:
+		return CompatibilityRollingSafe, "v59 adds a defaulted workload-explorer JSON projection to cluster inventory snapshots; old writers remain valid and new readers treat missing observations as incomplete rather than authoritative", nil
+	case version == 60:
+		return CompatibilityQuiescedRequired, "v60 introduces an executable OS_PATCH maintenance action; old agents interpret legacy maintenance tasks as drain-only and must be stopped before OS patch runs can be created", nil
+	case version == 61:
+		return CompatibilityQuiescedRequired, "v61 introduces exact CAPI Machine remove/replace mutation envelopes; old agents do not honor node/inventory/window identity fencing and must be stopped before destructive provider-node mutations are admitted", nil
+	case version == 62:
+		return CompatibilityRollingSafe, "v62 adds independent trusted MCP client and human delegation grant authorities; existing writers and resource tables remain schema-compatible while new binaries enforce delegation on human MCP requests", nil
+	case version == 63:
+		return CompatibilityRollingSafe, "v63 adds defaulted component identity columns and expands runtime-certification profile admission; old writers remain schema-compatible while new binaries bind component certification to exact component/release identity", nil
+	case version == 64:
+		return CompatibilityQuiescedRequired, "v64 introduces component-only FAILURE_RECOVERY and REMOVE task phases; old agents reject these phase values and must be stopped before new binaries can advance a component certification beyond VERIFY", nil
+	case version == 65:
+		return CompatibilityRollingSafe, "v65 adds independent backup-policy and target data-protection run authorities; old agents ignore the new task endpoint while existing writers remain schema-compatible", nil
+	case version == 66:
+		return CompatibilityRollingSafe, "v66 adds independent compliance profile/scan/finding/waiver authorities; old agents ignore the new scan task lane while existing writers remain schema-compatible", nil
+	case version == 67:
+		return CompatibilityRollingSafe, "v67 adds product-owned SAML broker desired state and durable identity-admin jobs; existing writers remain schema-compatible and Keycloak reconciliation is performed only by new API workers using server-held credentials", nil
+	case version == 68:
+		return CompatibilityRollingSafe, "v68 adds immutable bounded request payloads for durable operations; existing operation writers remain schema-compatible while new critical workflows can atomically bind sealed non-secret input", nil
+	case version == 69:
+		return CompatibilityRollingSafe, "v69 adds an independent durable MCP control-job authority; existing API writers remain schema-compatible while new MCP mutation bridges record idempotent fail-closed execution envelopes", nil
+	case version == 70:
+		return CompatibilityRollingSafe, "v70 adds independent immutable FinOps rate-card, usage-measurement and capacity-observation authorities; existing writers and runtime tables remain unchanged", nil
+	case version == 71:
+		return CompatibilityRollingSafe, "v71 adds defaulted VMware infrastructure identity, endpoint and external-secret reference columns to provider profiles; old writers continue producing the unchanged unspecified-provider shape while new writers opt into the stricter VMware contract", nil
+	case version == 72:
+		return CompatibilityRollingSafe, "v72 adds defaulted MCP recovery-resolution metadata; old writers keep the empty legacy shape while new operators may terminally reconcile only RECOVERY_REQUIRED jobs from authoritative readback and evidence", nil
 	default:
 		return "", "", fmt.Errorf("migration %d is missing an explicit mixed-version compatibility classification", version)
 	}

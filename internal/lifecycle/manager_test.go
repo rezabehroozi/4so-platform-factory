@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"platform.4so.io/factory/internal/bootstrap"
+	"platform.4so.io/factory/internal/testsupport"
 )
 
 type lifecycleOutputSystem struct {
@@ -32,7 +33,22 @@ func (s *lifecycleOutputSystem) Output(ctx context.Context, name string, args []
 
 func lifecycleBundle(t *testing.T, root string) {
 	t.Helper()
-	files := map[string][]byte{"artifacts/install.sh": []byte("#!/bin/sh\n"), "artifacts/rke2.tar.gz": []byte("rke2"), "artifacts/rke2-images.tar.zst": []byte("images"), "artifacts/workloads.tar.zst": []byte("workloads"), "artifacts/argocd-install.yaml": []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: argocd\n          image: registry/argocd@sha256:" + repeat("1", 64) + "\n"), "artifacts/ocm-install.yaml": []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: ocm\n          image: registry/ocm@sha256:" + repeat("2", 64) + "\n"), "artifacts/cnpg-install.yaml": []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: cnpg\n          image: registry/cnpg@sha256:" + repeat("3", 64) + "\n"), "artifacts/storage-install.yaml": []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: storage\n          image: registry/storage@sha256:" + repeat("4", 64) + "\n")}
+	archivePath := filepath.Join(root, "artifacts/workloads.oci.tar")
+	if err := os.MkdirAll(filepath.Dir(archivePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	refs, err := testsupport.WriteWorkloadOCIArchive(archivePath, testsupport.WorkloadRepositories("registry/", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byRepo := testsupport.RefsByRepository(refs)
+	files := map[string][]byte{
+		"artifacts/install.sh": []byte("#!/bin/sh\n"), "artifacts/rke2.tar.gz": []byte("rke2"), "artifacts/rke2-images.tar.zst": []byte("images"),
+		"artifacts/argocd-install.yaml":  []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: argocd\n          image: " + byRepo["registry/argocd"] + "\n"),
+		"artifacts/ocm-install.yaml":     []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: ocm\n          image: " + byRepo["registry/ocm"] + "\n"),
+		"artifacts/cnpg-install.yaml":    []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: cnpg\n          image: " + byRepo["registry/cnpg"] + "\n"),
+		"artifacts/storage-install.yaml": []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: storage\n          image: " + byRepo["registry/storage"] + "\n"),
+	}
 	for name, data := range files {
 		path := filepath.Join(root, name)
 		_ = os.MkdirAll(filepath.Dir(path), 0o755)
@@ -41,7 +57,11 @@ func lifecycleBundle(t *testing.T, root string) {
 		}
 	}
 	digest := func(name string) string {
-		sum := sha256.Sum256(files[name])
+		raw, readErr := os.ReadFile(filepath.Join(root, name))
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		sum := sha256.Sum256(raw)
 		return "sha256:" + hex.EncodeToString(sum[:])
 	}
 	var bundle bootstrap.BundleManifest
@@ -52,21 +72,21 @@ func lifecycleBundle(t *testing.T, root string) {
 	bundle.Spec.RKE2.Installer = bootstrap.Artifact{Path: "artifacts/install.sh", SHA256: digest("artifacts/install.sh")}
 	bundle.Spec.RKE2.InstallArtifacts = []bootstrap.Artifact{{Path: "artifacts/rke2.tar.gz", SHA256: digest("artifacts/rke2.tar.gz")}}
 	bundle.Spec.RKE2.ImageArchives = []bootstrap.Artifact{{Path: "artifacts/rke2-images.tar.zst", SHA256: digest("artifacts/rke2-images.tar.zst")}}
-	bundle.Spec.Workloads.ImageArchives = []bootstrap.Artifact{{Path: "artifacts/workloads.tar.zst", SHA256: digest("artifacts/workloads.tar.zst")}}
-	bundle.Spec.Workloads.PostgreSQLImage = "registry/postgres@sha256:" + repeat("a", 64)
-	bundle.Spec.Workloads.PlatformAPIImage = "registry/api@sha256:" + repeat("b", 64)
-	bundle.Spec.Workloads.ForgejoImage = "registry/forgejo@sha256:" + repeat("c", 64)
-	bundle.Spec.Workloads.ZotImage = "registry/zot@sha256:" + repeat("d", 64)
-	bundle.Spec.Workloads.KeycloakImage = "registry/keycloak@sha256:" + repeat("e", 64)
-	bundle.Spec.Workloads.MaintenanceImage = "registry/maintenance@sha256:" + repeat("f", 64)
+	bundle.Spec.Workloads.ImageArchives = []bootstrap.Artifact{{Path: "artifacts/workloads.oci.tar", SHA256: digest("artifacts/workloads.oci.tar")}}
+	bundle.Spec.Workloads.PostgreSQLImage = byRepo["registry/postgres"]
+	bundle.Spec.Workloads.PlatformAPIImage = byRepo["registry/platform-api"]
+	bundle.Spec.Workloads.ForgejoImage = byRepo["registry/forgejo"]
+	bundle.Spec.Workloads.ZotImage = byRepo["registry/zot"]
+	bundle.Spec.Workloads.KeycloakImage = byRepo["registry/keycloak"]
+	bundle.Spec.Workloads.MaintenanceImage = byRepo["registry/maintenance"]
+	bundle.Spec.Workloads.FleetAgentImage = byRepo["registry/platform-agent"]
+	bundle.Spec.Workloads.RuntimeProbeImage = byRepo["registry/platform-probe"]
 	bundle.Spec.Workloads.GitOpsManifest = bootstrap.Artifact{Path: "artifacts/argocd-install.yaml", SHA256: digest("artifacts/argocd-install.yaml")}
 	bundle.Spec.Workloads.CloudNativePGManifest = bootstrap.Artifact{Path: "artifacts/cnpg-install.yaml", SHA256: digest("artifacts/cnpg-install.yaml")}
 	bundle.Spec.Workloads.OCMManifest = bootstrap.Artifact{Path: "artifacts/ocm-install.yaml", SHA256: digest("artifacts/ocm-install.yaml")}
 	bundle.Spec.Workloads.StorageManifest = bootstrap.Artifact{Path: "artifacts/storage-install.yaml", SHA256: digest("artifacts/storage-install.yaml")}
-	bundle.Spec.Workloads.FleetAgentImage = "registry/agent@sha256:" + repeat("9", 64)
-	bundle.Spec.Workloads.RuntimeProbeImage = "registry/probe@sha256:" + repeat("8", 64)
-	images := []string{bundle.Spec.Workloads.PostgreSQLImage, bundle.Spec.Workloads.PlatformAPIImage, bundle.Spec.Workloads.ForgejoImage, bundle.Spec.Workloads.ZotImage, bundle.Spec.Workloads.KeycloakImage, bundle.Spec.Workloads.MaintenanceImage, bundle.Spec.Workloads.FleetAgentImage, bundle.Spec.Workloads.RuntimeProbeImage, "registry/argocd@sha256:" + repeat("1", 64), "registry/ocm@sha256:" + repeat("2", 64), "registry/cnpg@sha256:" + repeat("3", 64), "registry/storage@sha256:" + repeat("4", 64)}
-	indexRaw, _ := json.Marshal(map[string]any{"version": "0.0.16", "images": images, "artifacts": []string{"artifacts/install.sh", "artifacts/rke2.tar.gz", "artifacts/rke2-images.tar.zst", "artifacts/workloads.tar.zst", "artifacts/argocd-install.yaml", "artifacts/cnpg-install.yaml", "artifacts/ocm-install.yaml", "artifacts/storage-install.yaml"}})
+	images := append([]string(nil), refs...)
+	indexRaw, _ := json.Marshal(map[string]any{"version": "0.0.16", "images": images, "artifacts": []string{"artifacts/install.sh", "artifacts/rke2.tar.gz", "artifacts/rke2-images.tar.zst", "artifacts/workloads.oci.tar", "artifacts/argocd-install.yaml", "artifacts/cnpg-install.yaml", "artifacts/ocm-install.yaml", "artifacts/storage-install.yaml"}})
 	if err := os.WriteFile(filepath.Join(root, "artifacts/airgap-index.json"), indexRaw, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -79,6 +99,7 @@ func lifecycleBundle(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 }
+
 func repeat(value string, count int) string {
 	out := ""
 	for i := 0; i < count; i++ {
@@ -99,6 +120,62 @@ func waitRun(t *testing.T, m *Manager, id string) Run {
 	t.Fatal("run timeout")
 	return Run{}
 }
+
+func TestLifecycleAdmissionBindsBundleDigestAndRejectsDrift(t *testing.T) {
+	bundle := t.TempDir()
+	lifecycleBundle(t, bundle)
+	_, acceptedDigest, err := bootstrap.LoadBundle(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := t.TempDir()
+	system := &bootstrap.SimulatedSystem{Root: t.TempDir()}
+	m, err := New(Options{StateDir: state, BundleDir: bundle, Simulation: true, System: system})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup, err := m.StartBackup(context.Background(), "forgejo", "evaluation-single-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup = waitRun(t, m, backup.ID)
+	if backup.State != StateSucceeded || backup.BundleDigest != acceptedDigest {
+		t.Fatalf("lifecycle admission did not persist exact bundle authority: %+v want=%s", backup, acceptedDigest)
+	}
+
+	manifestPath := filepath.Join(bundle, "bundle.json")
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The bundle digest is over the accepted manifest bytes. A formatting-only
+	// rewrite must therefore still be detected as exact-artifact drift while
+	// remaining structurally and semantically valid.
+	if err = os.WriteFile(manifestPath, append(raw, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, observedDigest, loadErr := bootstrap.LoadBundle(bundle); loadErr != nil {
+		t.Fatalf("drifted bundle must remain structurally valid: %v", loadErr)
+	} else if observedDigest == acceptedDigest {
+		t.Fatal("test did not change bundle digest")
+	}
+
+	err = m.performRestore(context.Background(), "lifecycle-forgejo-restore-drift", "forgejo", backup.BackupID, backup.ProfileID, backup.BundleDigest)
+	if err == nil || !strings.Contains(err.Error(), "appliance bundle changed after lifecycle operation admission") {
+		t.Fatalf("bundle drift was not rejected before restore replay: %v", err)
+	}
+	if len(system.Commands) != 0 {
+		t.Fatalf("bundle-drift rejection reached runtime side effects: %v", system.Commands)
+	}
+}
+
+func TestLifecycleUpdateMissingRunFailsClosed(t *testing.T) {
+	m := &Manager{stateDir: t.TempDir(), active: map[string]bool{}, reconciling: map[string]bool{}}
+	if err := m.update("missing-run", func(*Run) {}); err == nil || !strings.Contains(err.Error(), "was not found") {
+		t.Fatalf("missing lifecycle update was silently accepted: %v", err)
+	}
+}
+
 func TestLifecycleLoadRejectsAmbiguousDuplicateRunIDs(t *testing.T) {
 	bundle := t.TempDir()
 	lifecycleBundle(t, bundle)
@@ -116,6 +193,52 @@ func TestLifecycleLoadRejectsAmbiguousDuplicateRunIDs(t *testing.T) {
 	}
 	if _, err = New(Options{StateDir: state, BundleDir: bundle, Simulation: true, System: &bootstrap.SimulatedSystem{Root: t.TempDir()}}); err == nil || !strings.Contains(err.Error(), "duplicate lifecycle run id") {
 		t.Fatalf("ambiguous lifecycle state was accepted: %v", err)
+	}
+}
+
+func TestLifecycleLoadRejectsInvalidRunAuthorityBeforeReconcile(t *testing.T) {
+	bundle := t.TempDir()
+	lifecycleBundle(t, bundle)
+	cases := []struct {
+		name string
+		run  Run
+		want string
+	}{
+		{
+			name: "unknown-service-cannot-fall-through-to-zot",
+			run:  Run{ID: "lifecycle-invalid-service", Service: "not-zot", ProfileID: "evaluation-single-node", Action: ActionBackup, State: StateRunning, CreatedAt: time.Now().UTC()},
+			want: "invalid service authority",
+		},
+		{
+			name: "malformed-accepted-bundle-digest",
+			run:  Run{ID: "lifecycle-invalid-digest", Service: "forgejo", ProfileID: "evaluation-single-node", BundleDigest: "sha256:not-a-digest", Action: ActionBackup, State: StateRunning, CreatedAt: time.Now().UTC()},
+			want: "invalid accepted bundle digest",
+		},
+		{
+			name: "unknown-action",
+			run:  Run{ID: "lifecycle-invalid-action", Service: "forgejo", ProfileID: "evaluation-single-node", Action: Action("destroy"), State: StateRunning, CreatedAt: time.Now().UTC()},
+			want: "invalid action authority",
+		},
+		{
+			name: "unknown-state",
+			run:  Run{ID: "lifecycle-invalid-state", Service: "forgejo", ProfileID: "evaluation-single-node", Action: ActionBackup, State: State("MUTATING"), CreatedAt: time.Now().UTC()},
+			want: "invalid state authority",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			state := t.TempDir()
+			raw, err := json.Marshal([]Run{tc.run})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = os.WriteFile(filepath.Join(state, "lifecycle-runs.json"), raw, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = New(Options{StateDir: state, BundleDir: bundle, Simulation: true, System: &bootstrap.SimulatedSystem{Root: t.TempDir()}}); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("invalid durable authority was accepted: %v", err)
+			}
+		})
 	}
 }
 
@@ -238,9 +361,13 @@ func TestInterruptedLifecycleRunRemainsBlockingAfterRestart(t *testing.T) {
 func TestInterruptedLifecycleRunReconcilesAfterRestart(t *testing.T) {
 	bundle := t.TempDir()
 	lifecycleBundle(t, bundle)
+	_, bundleDigest, err := bootstrap.LoadBundle(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
 	state := t.TempDir()
 	now := time.Now().UTC()
-	runs := []Run{{ID: "lifecycle-forgejo-backup-interrupted", Service: "forgejo", ProfileID: "evaluation-single-node", Action: ActionBackup, State: StateRunning, CreatedAt: now, StartedAt: &now}}
+	runs := []Run{{ID: "lifecycle-forgejo-backup-interrupted", Service: "forgejo", ProfileID: "evaluation-single-node", BundleDigest: bundleDigest, Action: ActionBackup, State: StateRunning, CreatedAt: now, StartedAt: &now}}
 	raw, _ := json.Marshal(runs)
 	if err := os.WriteFile(filepath.Join(state, "lifecycle-runs.json"), raw, 0o600); err != nil {
 		t.Fatal(err)
@@ -261,6 +388,32 @@ func TestInterruptedLifecycleRunReconcilesAfterRestart(t *testing.T) {
 	}
 	if _, err = os.Stat(filepath.Join(state, "backups", run.BackupID, "backup.json")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLegacyInterruptedLifecycleRunWithoutBundleDigestFailsClosed(t *testing.T) {
+	bundle := t.TempDir()
+	lifecycleBundle(t, bundle)
+	state := t.TempDir()
+	now := time.Now().UTC()
+	runs := []Run{{ID: "lifecycle-forgejo-backup-legacy", Service: "forgejo", ProfileID: "evaluation-single-node", Action: ActionBackup, State: StateRunning, CreatedAt: now, StartedAt: &now}}
+	raw, _ := json.Marshal(runs)
+	if err := os.WriteFile(filepath.Join(state, "lifecycle-runs.json"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m, err := New(Options{StateDir: state, BundleDir: bundle, Simulation: true, System: &bootstrap.SimulatedSystem{Root: t.TempDir()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed := m.Reconcile(context.Background()); resumed != 1 {
+		t.Fatalf("reconciled runs=%d", resumed)
+	}
+	run := waitRun(t, m, runs[0].ID)
+	if run.State != StateFailed || !strings.Contains(run.Error, "missing its accepted bundle digest") {
+		t.Fatalf("legacy interrupted run did not fail closed: %+v", run)
+	}
+	if _, statErr := os.Stat(filepath.Join(state, "backups", run.BackupID, "backup.json")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("legacy ambiguous replay created backup side effect: %v", statErr)
 	}
 }
 
@@ -627,7 +780,7 @@ func TestLifecycleBackupPersistsProfileAndHARejectsLegacyProfilelessBackup(t *te
 	if err := os.WriteFile(filepath.Join(state, "backups", run.BackupID, "backup.json"), raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.performRestore(context.Background(), "lifecycle-forgejo-restore-legacy", "forgejo", run.BackupID, "production-standard-ha"); err == nil || !strings.Contains(err.Error(), "legacy lifecycle backup") {
+	if err := m.performRestore(context.Background(), "lifecycle-forgejo-restore-legacy", "forgejo", run.BackupID, "production-standard-ha", run.BundleDigest); err == nil || !strings.Contains(err.Error(), "legacy lifecycle backup") {
 		t.Fatalf("profileless legacy HA backup must fail closed, got %v", err)
 	}
 }
@@ -837,6 +990,8 @@ func (s *blockingLifecycleNodeSystem) Output(ctx context.Context, name string, a
 }
 
 func TestUpgradeRecoveryAdmissionRevalidatesSourceAfterRuntimePreparation(t *testing.T) {
+	bundle := t.TempDir()
+	lifecycleBundle(t, bundle)
 	previous := "registry/zot@sha256:" + repeat("a", 64)
 	requested := "registry/zot@sha256:" + repeat("b", 64)
 	source := Run{
@@ -845,7 +1000,7 @@ func TestUpgradeRecoveryAdmissionRevalidatesSourceAfterRuntimePreparation(t *tes
 		UpgradePhase: UpgradePhaseRecoveryRequired, CreatedAt: time.Now().UTC(),
 	}
 	system := &blockingLifecycleNodeSystem{SimulatedSystem: &bootstrap.SimulatedSystem{Root: t.TempDir()}, entered: make(chan struct{}, 1), release: make(chan struct{})}
-	m := &Manager{stateDir: t.TempDir(), backupDir: t.TempDir(), bundleDir: t.TempDir(), system: system, now: time.Now, runs: []Run{source}, active: map[string]bool{}, reconciling: map[string]bool{}}
+	m := &Manager{stateDir: t.TempDir(), backupDir: t.TempDir(), bundleDir: bundle, system: system, now: time.Now, runs: []Run{source}, active: map[string]bool{}, reconciling: map[string]bool{}}
 
 	type result struct {
 		run Run
@@ -888,6 +1043,8 @@ func TestUpgradeRecoveryAdmissionRevalidatesSourceAfterRuntimePreparation(t *tes
 }
 
 func TestUpgradeRecoveryRetryInheritsRestoreCompletedBoundary(t *testing.T) {
+	bundle := t.TempDir()
+	lifecycleBundle(t, bundle)
 	previous := "registry/zot@sha256:" + repeat("a", 64)
 	requested := "registry/zot@sha256:" + repeat("b", 64)
 	source := Run{
@@ -900,7 +1057,7 @@ func TestUpgradeRecoveryRetryInheritsRestoreCompletedBoundary(t *testing.T) {
 		Action: ActionUpgradeRecovery, State: StateFailed, BackupID: source.BackupID, PreviousImage: previous, RequestedImage: requested,
 		UpgradeRecoveryPhase: UpgradeRecoveryPhaseRestoreCompleted, SourceUpgradeRunID: source.ID, Error: "resume verification persistence failed", CreatedAt: time.Now().UTC(),
 	}
-	m := &Manager{stateDir: t.TempDir(), backupDir: t.TempDir(), bundleDir: t.TempDir(), simulation: true, system: &bootstrap.SimulatedSystem{Root: t.TempDir()}, now: time.Now, runs: []Run{source, prior}, active: map[string]bool{}, reconciling: map[string]bool{}}
+	m := &Manager{stateDir: t.TempDir(), backupDir: t.TempDir(), bundleDir: bundle, simulation: true, system: &bootstrap.SimulatedSystem{Root: t.TempDir()}, now: time.Now, runs: []Run{source, prior}, active: map[string]bool{}, reconciling: map[string]bool{}}
 
 	retry, err := m.StartUpgradeRecovery(context.Background(), UpgradeRecoveryRequest{UpgradeRunID: source.ID}, source.ProfileID)
 	if err != nil {
@@ -916,6 +1073,8 @@ func TestUpgradeRecoveryRetryInheritsRestoreCompletedBoundary(t *testing.T) {
 }
 
 func TestUpgradeRecoveryRetryInheritsResumeVerifiedBoundary(t *testing.T) {
+	bundle := t.TempDir()
+	lifecycleBundle(t, bundle)
 	previous := "registry/zot@sha256:" + repeat("a", 64)
 	requested := "registry/zot@sha256:" + repeat("b", 64)
 	source := Run{
@@ -928,7 +1087,7 @@ func TestUpgradeRecoveryRetryInheritsResumeVerifiedBoundary(t *testing.T) {
 		Action: ActionUpgradeRecovery, State: StateFailed, BackupID: source.BackupID, PreviousImage: previous, RequestedImage: requested,
 		UpgradeRecoveryPhase: UpgradeRecoveryPhaseResumeVerified, SourceUpgradeRunID: source.ID, Error: "final source closure persistence failed", CreatedAt: time.Now().UTC(),
 	}
-	m := &Manager{stateDir: t.TempDir(), backupDir: t.TempDir(), bundleDir: t.TempDir(), simulation: true, system: &bootstrap.SimulatedSystem{Root: t.TempDir()}, now: time.Now, runs: []Run{source, prior}, active: map[string]bool{}, reconciling: map[string]bool{}}
+	m := &Manager{stateDir: t.TempDir(), backupDir: t.TempDir(), bundleDir: bundle, simulation: true, system: &bootstrap.SimulatedSystem{Root: t.TempDir()}, now: time.Now, runs: []Run{source, prior}, active: map[string]bool{}, reconciling: map[string]bool{}}
 
 	retry, err := m.StartUpgradeRecovery(context.Background(), UpgradeRecoveryRequest{UpgradeRunID: source.ID}, source.ProfileID)
 	if err != nil {
@@ -944,6 +1103,8 @@ func TestUpgradeRecoveryRetryInheritsResumeVerifiedBoundary(t *testing.T) {
 }
 
 func TestUpgradeRecoveryRetryRejectsMismatchedPriorAuthority(t *testing.T) {
+	bundle := t.TempDir()
+	lifecycleBundle(t, bundle)
 	previous := "registry/zot@sha256:" + repeat("a", 64)
 	requested := "registry/zot@sha256:" + repeat("b", 64)
 	source := Run{
@@ -956,7 +1117,7 @@ func TestUpgradeRecoveryRetryRejectsMismatchedPriorAuthority(t *testing.T) {
 		Action: ActionUpgradeRecovery, State: StateFailed, BackupID: "zot-different-backup", PreviousImage: previous, RequestedImage: requested,
 		UpgradeRecoveryPhase: UpgradeRecoveryPhaseRestoreCompleted, SourceUpgradeRunID: source.ID, CreatedAt: time.Now().UTC(),
 	}
-	m := &Manager{stateDir: t.TempDir(), backupDir: t.TempDir(), bundleDir: t.TempDir(), simulation: true, system: &bootstrap.SimulatedSystem{Root: t.TempDir()}, now: time.Now, runs: []Run{source, prior}, active: map[string]bool{}, reconciling: map[string]bool{}}
+	m := &Manager{stateDir: t.TempDir(), backupDir: t.TempDir(), bundleDir: bundle, simulation: true, system: &bootstrap.SimulatedSystem{Root: t.TempDir()}, now: time.Now, runs: []Run{source, prior}, active: map[string]bool{}, reconciling: map[string]bool{}}
 	if _, err := m.StartUpgradeRecovery(context.Background(), UpgradeRecoveryRequest{UpgradeRunID: source.ID}, source.ProfileID); err == nil || !strings.Contains(err.Error(), "does not match source upgrade authority") {
 		t.Fatalf("mismatched prior recovery authority did not fail closed: %v", err)
 	}
@@ -1171,5 +1332,36 @@ func TestRestoreAdmissionRejectsPayloadSizeAuthorityMismatch(t *testing.T) {
 	m := &Manager{stateDir: state, backupDir: filepath.Join(state, "backups"), now: time.Now}
 	if _, err := m.validateBackupForRestore("zot", backupID, "evaluation-single-node"); err == nil || !strings.Contains(err.Error(), "verification failed") {
 		t.Fatalf("restore admission must reject size mismatch, got %v", err)
+	}
+}
+
+func TestUpgradeInterruptionRecoveryMatrixCoversEveryDurableBoundary(t *testing.T) {
+	matrix := UpgradeInterruptionRecoveryMatrix()
+	if UpgradeInterruptionRecoveryMatrixAuthority != "INSTALLER_UPGRADE_INTERRUPTION_RECOVERY_MATRIX_V1" {
+		t.Fatalf("authority=%q", UpgradeInterruptionRecoveryMatrixAuthority)
+	}
+	if len(matrix) != 6 {
+		t.Fatalf("matrix scenarios=%d want 6", len(matrix))
+	}
+	seen := map[string]UpgradeInterruptionRecoveryScenario{}
+	for _, scenario := range matrix {
+		if scenario.Checkpoint == "" || scenario.PersistedPhase == "" || scenario.RestartBehavior == "" || scenario.RecoveryBoundary == "" {
+			t.Fatalf("incomplete scenario: %+v", scenario)
+		}
+		if _, exists := seen[scenario.PersistedPhase]; exists {
+			t.Fatalf("duplicate phase %q", scenario.PersistedPhase)
+		}
+		seen[scenario.PersistedPhase] = scenario
+	}
+	for _, phase := range []string{
+		string(UpgradePhaseBackupPending), string(UpgradePhaseApplyPending), string(UpgradePhaseApplyVerified),
+		string(UpgradePhaseRecoveryRequired), string(UpgradeRecoveryPhaseRestoreCompleted), string(UpgradeRecoveryPhaseResumeVerified),
+	} {
+		if _, ok := seen[phase]; !ok {
+			t.Fatalf("durable interruption phase %q is missing from matrix", phase)
+		}
+	}
+	if seen[string(UpgradePhaseRecoveryRequired)].AutomaticReplay {
+		t.Fatal("RECOVERY_REQUIRED must never automatically replay the failed upgrade")
 	}
 }

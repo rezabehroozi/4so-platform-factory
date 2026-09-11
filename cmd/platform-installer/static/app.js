@@ -37,15 +37,15 @@ const faPageCopy = {
   installation: ['نصب', 'درخواست معتبر بسازید و پیش از اجرا همهٔ خطاها و هشدارها را بررسی کنید.'],
   progress: ['پیشرفت اجرا', 'اجرای مرحله‌ای را مشاهده و فقط از مرحلهٔ ناموفق ادامه دهید.'],
   health: ['سلامت پلتفرم', 'شواهد واقعی GitOps، کلاستر HA و بستهٔ Air-gap را بررسی کنید.'],
-  recovery: ['بازیابی بحران', 'فقط Backupهای خارج از نود و تأییدشده را ایجاد یا Restore کنید.'],
-  lifecycle: ['چرخهٔ عمر سرویس‌ها', 'از سرویس‌های مدیریت‌شده Backup بگیرید، Restore یا Upgrade digest-pinned انجام دهید.']
+  recovery: ['بازیابی بحران', 'فقط نسخه‌های پشتیبان تأییدشده و خارج از نود را ایجاد یا بازیابی کنید.'],
+  lifecycle: ['چرخهٔ عمر سرویس‌ها', 'از سرویس‌های مدیریت‌شده نسخهٔ پشتیبان بگیرید، آن‌ها را بازیابی کنید یا ارتقای قفل‌شده به هش انجام دهید.']
 };
 const faNav = ['نمای کلی','نصب','پیشرفت','سلامت پلتفرم','بازیابی بحران','چرخهٔ عمر سرویس‌ها'];
 const enNav = ['Overview','Installation','Progress','Platform health','Disaster recovery','Service lifecycle'];
 
 const faLiteral = {
   "Platform Factory": "کارخانه پلتفرم",
-  "Appliance installer": "نصب‌کننده Appliance",
+  "Appliance installer": "نصب‌کننده پلتفرم",
   "Overview": "نمای کلی",
   "Installation": "نصب",
   "Progress": "پیشرفت",
@@ -59,9 +59,9 @@ const faLiteral = {
   "Connected": "متصل",
   "Connect": "اتصال",
   "Reconnect": "اتصال مجدد",
-  "Safe bootstrap workflow": "Workflow امن راه‌اندازی",
+  "Safe bootstrap workflow": "مسیر امن راه‌اندازی",
   "Plan first. Execute only an approved, executable plan.": "ابتدا برنامه بسازید؛ فقط برنامهٔ تأییدشده و قابل‌اجرا را اجرا کنید.",
-  "The installer validates the digest-locked bundle, host topology, connectivity, TLS, managed services, off-node backup and runtime prerequisites before it allows mutation.": "نصب‌کننده پیش از هر تغییر، Bundle قفل‌شده با Digest، توپولوژی Host، ارتباط، TLS، سرویس‌های مدیریت‌شده، Backup خارج از نود و پیش‌نیازهای Runtime را اعتبارسنجی می‌کند.",
+  "The installer validates the digest-locked bundle, host topology, connectivity, TLS, managed services, off-node backup and runtime prerequisites before it allows mutation.": "نصب‌کننده پیش از هر تغییر، بستهٔ قفل‌شده به هش، توپولوژی میزبان، ارتباط، TLS، سرویس‌های مدیریت‌شده، نسخهٔ پشتیبان خارج از نود و پیش‌نیازهای زمان اجرا را اعتبارسنجی می‌کند.",
   "NOT STARTED": "شروع نشده",
   "Execution": "اجرا",
   "Unknown": "نامشخص",
@@ -71,15 +71,15 @@ const faLiteral = {
   "No steps executed": "هیچ مرحله‌ای اجرا نشده است",
   "Evidence": "شواهد",
   "Pending": "در انتظار",
-  "Runtime verification not complete": "تأیید Runtime کامل نشده است",
+  "Runtime verification not complete": "بررسی سلامت اجرا کامل نشده است",
   "Next action": "اقدام بعدی",
-  "Derived from current runtime state; no demo data is shown.": "از وضعیت واقعی Runtime استخراج می‌شود؛ هیچ دادهٔ نمایشی نشان داده نمی‌شود.",
+  "Derived from current runtime state; no demo data is shown.": "این اطلاعات از وضعیت واقعی سیستم خوانده می‌شود و دادهٔ نمونه یا ساختگی نمایش داده نمی‌شود.",
   "Connect with the bootstrap token.": "با توکن راه‌اندازی متصل شوید.",
   "Current run": "اجرای فعلی",
-  "Immutable identifiers and latest failure, when present.": "شناسه‌های تغییرناپذیر و آخرین خطا، در صورت وجود.",
+  "Immutable identifiers and latest failure, when present.": "شناسه‌های ثابت اجرای نصب و آخرین خطا، در صورت وجود.",
   "No installation run loaded.": "هیچ اجرای نصبی بارگذاری نشده است.",
   "Installation request": "درخواست نصب",
-  "All values are explicit. Credentials are accepted only as secret references, except the dedicated SSH-key vault action.": "همهٔ مقادیر صریح‌اند. Credential فقط به‌صورت Secret Reference پذیرفته می‌شود، به‌جز مسیر اختصاصی ذخیره کلید SSH.",
+  "All values are explicit. Credentials are accepted only as secret references, except the dedicated SSH-key vault action.": "همهٔ مقادیر باید مشخص باشند. اطلاعات محرمانه فقط با مرجع امن پذیرفته می‌شود؛ کلید SSH نیز فقط از مسیر اختصاصی ذخیرهٔ امن وارد می‌شود.",
   "1. Deployment profile": "۱. پروفایل استقرار",
   "Load the product-supported profiles after connecting.": "پس از اتصال، پروفایل‌های پشتیبانی‌شده محصول بارگذاری می‌شوند.",
   "Connect to load profiles": "برای بارگذاری پروفایل‌ها متصل شوید",
@@ -87,39 +87,39 @@ const faLiteral = {
   "Restricted egress": "خروجی شبکه محدود",
   "Disconnected / air-gap": "قطع از شبکه / Air-gap",
   "Infrastructure": "زیرساخت",
-  "Existing Linux hosts": "Hostهای Linux موجود",
+  "Existing Linux hosts": "سرورهای Linux موجود",
   "Existing Kubernetes cluster": "کلاستر Kubernetes موجود",
   "No profile selected.": "پروفایلی انتخاب نشده است.",
   "2. Infrastructure and access": "۲. زیرساخت و دسترسی",
   "The selected profile controls the required node count and HA topology.": "پروفایل انتخاب‌شده تعداد نود و توپولوژی HA موردنیاز را تعیین می‌کند.",
   "Management nodes": "نودهای مدیریت",
   "Use exactly three nodes for Production Standard HA.": "برای Production Standard HA دقیقاً سه نود استفاده کنید.",
-  "Credential reference": "مرجع Credential",
-  "Never paste a password or token.": "هرگز Password یا Token خام وارد نکنید.",
+  "Credential reference": "مرجع اطلاعات دسترسی",
+  "Never paste a password or token.": "هرگز رمز عبور یا توکن خام وارد نکنید.",
   "SSH user": "کاربر SSH",
   "Storage class": "StorageClass",
   "Region": "Region",
   "Store SSH private key securely": "ذخیره امن کلید خصوصی SSH",
-  "Pin HA host keys": "ثبت کلید میزبان‌های HA",
-  "HA SSH trust has not been checked.": "اعتماد SSH برای HA هنوز بررسی نشده است.",
-  "Paste trusted OpenSSH known_hosts entries for the remote HA peers. The installer stores only public host keys and shows their SHA256 fingerprints.": "ورودی‌های مورداعتماد OpenSSH known_hosts برای نودهای راه‌دور HA را وارد کنید. نصب‌کننده فقط کلید عمومی میزبان را ذخیره می‌کند و اثرانگشت SHA256 را نمایش می‌دهد.",
+  "Pin HA host keys": "تأیید کلید میزبان‌های HA",
+  "HA SSH trust has not been checked.": "کلیدهای SSH سرورهای HA هنوز تأیید نشده‌اند.",
+  "Paste trusted OpenSSH known_hosts entries for the remote HA peers. The installer stores only public host keys and shows their SHA256 fingerprints.": "کلیدهای عمومی مورداعتماد سرورهای HA را در قالب OpenSSH known_hosts وارد کنید. نصب‌کننده فقط کلید عمومی را ذخیره می‌کند و اثرانگشت SHA256 آن را نشان می‌دهد.",
   "Trusted known_hosts entries": "ورودی‌های مورداعتماد known_hosts",
-  "Use explicit peer IPs or hostnames. Hashed entries, wildcards and unknown key types are rejected.": "IP یا نام میزبان صریح نودهای Peer را وارد کنید. ورودی Hash‌شده، Wildcard و نوع کلید ناشناخته رد می‌شود.",
-  "Store pinned host keys": "ذخیره کلیدهای میزبان Pin‌شده",
-  "3. Endpoint and TLS": "۳. Endpoint و TLS",
-  "The final product endpoint must use HTTPS.": "Endpoint نهایی محصول باید HTTPS باشد.",
-  "Public endpoint": "Endpoint عمومی",
+  "Use explicit peer IPs or hostnames. Hashed entries, wildcards and unknown key types are rejected.": "IP یا نام دقیق هر سرور را وارد کنید. ورودی‌های hash‌شده، wildcard و نوع کلید ناشناخته پذیرفته نمی‌شوند.",
+  "Store pinned host keys": "ذخیره کلیدهای تأییدشده",
+  "3. Endpoint and TLS": "۳. نشانی سرویس و TLS",
+  "The final product endpoint must use HTTPS.": "نشانی نهایی پلتفرم باید با HTTPS در دسترس باشد.",
+  "Public endpoint": "نشانی عمومی",
   "DNS zone": "زون DNS",
   "TLS mode": "حالت TLS",
   "Managed ACME": "ACME مدیریت‌شده",
   "Managed private CA": "CA خصوصی مدیریت‌شده",
-  "Bootstrap self-signed": "Self-signed راه‌اندازی",
+  "Bootstrap self-signed": "گواهی موقت خودامضا",
   "External certificate": "گواهی خارجی",
-  "Certificate secret reference": "مرجع Secret گواهی",
+  "Certificate secret reference": "مرجع امن گواهی",
   "Bootstrap administrator email": "ایمیل مدیر راه‌اندازی",
   "4. Platform services": "۴. سرویس‌های پلتفرم",
-  "Managed services are the safe default. External modes expose only the fields required by the selected adapter.": "سرویس‌های مدیریت‌شده پیش‌فرض امن هستند. حالت خارجی فقط فیلدهای لازم Adapter انتخاب‌شده را نشان می‌دهد.",
-  "I reviewed the generated warnings, blockers and rollback boundaries and accept the declared installation risk when required by the profile.": "هشدارها، بلاکرها و مرزهای Rollback را بررسی کرده‌ام و در صورت الزام پروفایل، ریسک اعلام‌شده نصب را می‌پذیرم.",
+  "Managed services are the safe default. External modes expose only the fields required by the selected adapter.": "سرویس‌های مدیریت‌شده انتخاب پیشنهادی و امن هستند. در حالت خارجی فقط تنظیمات لازم برای همان اتصال نمایش داده می‌شود.",
+  "I reviewed the generated warnings, blockers and rollback boundaries and accept the declared installation risk when required by the profile.": "هشدارها، موانع و محدودیت‌های بازگشت را بررسی کرده‌ام و در صورت نیاز پروفایل، ریسک‌های اعلام‌شدهٔ نصب را می‌پذیرم.",
   "Validate and create plan": "اعتبارسنجی و ساخت برنامه",
   "Clear request": "پاک‌کردن درخواست",
   "Validated plan": "برنامه اعتبارسنجی‌شده",
@@ -130,94 +130,99 @@ const faLiteral = {
   "Start installation": "شروع نصب",
   "Download bootstrap CA": "دانلود CA راه‌اندازی",
   "Execution progress": "پیشرفت اجرا",
-  "Every step is resumable and health-gated. A failed run resumes from the failed or pending step.": "هر مرحله قابل Resume و وابسته به Health است. اجرای ناموفق از همان مرحلهٔ شکست‌خورده یا در انتظار ادامه می‌یابد.",
+  "Every step is resumable and health-gated. A failed run resumes from the failed or pending step.": "هر مرحله قابل ادامه است و فقط پس از بررسی سلامت مرحلهٔ قبل جلو می‌رود. در صورت خطا، نصب از همان مرحلهٔ ناموفق یا در انتظار ادامه پیدا می‌کند.",
   "Resume failed run": "ادامه اجرای ناموفق",
+  "Reset and clean reinstall": "بازنشانی و نصب پاک",
+  "Explicitly uninstall only product-owned RKE2 and generated installer state. Installer access token and pinned HA SSH trust are preserved so a clean reinstall can be planned after reset.": "فقط RKE2 متعلق به محصول و فایل‌های ایجادشده توسط نصب‌کننده حذف می‌شوند. توکن دسترسی نصب‌کننده و کلیدهای SSH تأییدشدهٔ سرورهای HA حفظ می‌شود تا پس از بازنشانی نصب پاک دوباره برنامه‌ریزی شود.",
+  "Reset installation": "بازنشانی نصب",
+  "Resume interrupted reset": "ادامه بازنشانی قطع‌شده",
+  "No reset run exists.": "هیچ اجرای بازنشانی وجود ندارد.",
   "No run loaded.": "اجرایی بارگذاری نشده است.",
-  "These cards are sourced from installer runtime evidence, not placeholder metrics.": "این کارت‌ها از شواهد واقعی Runtime نصب‌کننده می‌آیند، نه Metric ساختگی.",
+  "These cards are sourced from installer runtime evidence, not placeholder metrics.": "این کارت‌ها از شواهد واقعی نصب‌کننده ساخته می‌شوند و هیچ شاخص ساختگی نمایش داده نمی‌شود.",
   "Refresh": "بازخوانی",
   "GitOps handover": "تحویل GitOps",
-  "Desired-state publication and reconciliation.": "انتشار Desired State و Reconciliation.",
+  "Desired-state publication and reconciliation.": "انتشار وضعیت مطلوب و همگام‌سازی GitOps.",
   "Management HA": "HA مدیریت",
-  "Node readiness and quorum evidence.": "شواهد آمادگی نود و Quorum.",
-  "Air-gap bundle": "Bundle قطع از شبکه",
-  "Local artifact and image completeness.": "کامل‌بودن Artifact و Imageهای محلی.",
+  "Node readiness and quorum evidence.": "وضعیت آمادگی نودها و quorum کلاستر.",
+  "Air-gap bundle": "بستهٔ نصب آفلاین",
+  "Local artifact and image completeness.": "کامل‌بودن فایل‌ها و imageهای موردنیاز در محیط آفلاین.",
   "Off-node disaster recovery": "بازیابی بحران خارج از نود",
-  "Backup PostgreSQL authority, Forgejo repositories and zot blobs to the configured S3-compatible destination.": "از PostgreSQL Authority، Repositoryهای Forgejo و Blobهای zot در مقصد S3-compatible پیکربندی‌شده Backup بگیرید.",
-  "Create appliance backup": "ساخت Backup Appliance",
-  "Available restore points": "Restore Pointهای موجود",
-  "Only completed backups are selectable.": "فقط Backupهای کامل‌شده قابل انتخاب‌اند.",
+  "Backup PostgreSQL authority, Forgejo repositories and zot blobs to the configured S3-compatible destination.": "از دادهٔ مرجع PostgreSQL، مخزن‌های Forgejo و داده‌های zot در مقصد S3-compatible پیکربندی‌شده نسخهٔ پشتیبان بگیرید.",
+  "Create appliance backup": "ساخت نسخهٔ پشتیبان پلتفرم",
+  "Available restore points": "نقاط بازیابی موجود",
+  "Only completed backups are selectable.": "فقط نسخه‌های پشتیبان کامل‌شده قابل انتخاب هستند.",
   "Recovery runs": "اجراهای بازیابی",
-  "Recent backup and restore operations.": "آخرین عملیات Backup و Restore.",
+  "Recent backup and restore operations.": "آخرین عملیات پشتیبان‌گیری و بازیابی.",
   "Managed service lifecycle": "چرخه عمر سرویس‌های مدیریت‌شده",
-  "Backup, restore and digest-pinned upgrade for Forgejo, zot and Keycloak.": "Backup، Restore و Upgrade قفل‌شده با Digest برای Forgejo، zot و Keycloak.",
+  "Backup, restore and digest-pinned upgrade for Forgejo, zot and Keycloak.": "پشتیبان‌گیری، بازیابی و ارتقای نسخه‌قفل‌شده برای Forgejo، zot و Keycloak.",
   "Service": "سرویس",
   "Forgejo Git": "Git مبتنی بر Forgejo",
   "zot Registry": "Registry مبتنی بر zot",
   "Keycloak Identity": "Identity مبتنی بر Keycloak",
-  "Upgrade image": "Image ارتقا",
-  "Mutable tags are rejected by the backend.": "Tag قابل‌تغییر توسط Backend رد می‌شود.",
-  "Create service backup": "ساخت Backup سرویس",
-  "Backup and upgrade": "Backup و ارتقا",
-  "Service backups": "Backupهای سرویس",
-  "Select an existing verified backup to restore.": "یک Backup موجود و تأییدشده را برای Restore انتخاب کنید.",
+  "Upgrade image": "تصویر ارتقا",
+  "Mutable tags are rejected by the backend.": "برچسب قابل‌تغییر در سمت سرور رد می‌شود.",
+  "Create service backup": "ساخت نسخهٔ پشتیبان سرویس",
+  "Backup and upgrade": "پشتیبان‌گیری و ارتقا",
+  "Service backups": "نسخه‌های پشتیبان سرویس",
+  "Select an existing verified backup to restore.": "یک نسخهٔ پشتیبان موجود و تأییدشده را برای بازیابی انتخاب کنید.",
   "Lifecycle runs": "اجراهای چرخه عمر",
   "Recent actions for all managed services.": "آخرین اقدامات تمام سرویس‌های مدیریت‌شده.",
   "Connect to installer": "اتصال به نصب‌کننده",
-  "The token is retained only for this browser tab.": "توکن فقط در همین Tab مرورگر نگه داشته می‌شود.",
+  "The token is retained only for this browser tab.": "توکن فقط در همین زبانهٔ مرورگر نگه داشته می‌شود.",
   "Bootstrap token": "توکن راه‌اندازی",
   "Store HA SSH key": "ذخیره کلید SSH مربوط به HA",
-  "Pin HA host keys": "ثبت کلید میزبان‌های HA",
-  "The private key is validated, stored mode 0600 and never returned by the API.": "کلید خصوصی اعتبارسنجی و با Mode 0600 ذخیره می‌شود و هرگز از API بازگردانده نمی‌شود.",
+  "Pin HA host keys": "تأیید کلید میزبان‌های HA",
+  "The private key is validated, stored mode 0600 and never returned by the API.": "کلید خصوصی اعتبارسنجی می‌شود، با مجوز 0600 ذخیره می‌شود و هرگز از API بازگردانده نمی‌شود.",
   "OpenSSH private key": "کلید خصوصی OpenSSH",
   "Store key": "ذخیره کلید",
   "Confirm action": "تأیید عملیات",
   "Confirmation": "تأیید",
   "Cancel": "انصراف",
   "Confirm": "تأیید",
-  "No runtime evidence is available yet.": "هنوز شواهد Runtime موجود نیست.",
+  "No runtime evidence is available yet.": "هنوز شواهد زمان اجرا موجود نیست.",
   "No persisted installation request": "درخواست نصب ذخیره‌شده‌ای وجود ندارد",
   "Create a validated plan": "ساخت برنامه اعتبارسنجی‌شده",
   "Open Installation, provide real environment values and resolve every blocker.": "بخش نصب را باز کنید، مقادیر واقعی محیط را وارد و همهٔ بلاکرها را رفع کنید.",
   "Open installation": "بازکردن نصب",
   "No installation run exists.": "اجرای نصبی وجود ندارد.",
-  "Simulation runtime": "Runtime شبیه‌سازی",
-  "Host runtime": "Runtime واقعی Host",
+  "Simulation runtime": "زمان اجرای شبیه‌سازی‌شده",
+  "Host runtime": "زمان اجرای واقعی میزبان",
   "Execution in progress": "اجرا در حال انجام است",
   "Verified": "تأییدشده",
-  "Authenticated persistence restart check passed": "بررسی احراز‌شدهٔ Restart و Persistence موفق بود",
-  "Final runtime verification has not passed": "تأیید نهایی Runtime هنوز موفق نشده است",
+  "Authenticated persistence restart check passed": "بررسی احراز‌شدهٔ راه‌اندازی مجدد و ماندگاری داده موفق بود",
+  "Final runtime verification has not passed": "تأیید نهایی زمان اجرا هنوز موفق نشده است",
   "State": "وضعیت",
   "Restore": "Restore",
-  "No completed appliance backup exists.": "Backup کامل‌شده‌ای برای Appliance وجود ندارد.",
+  "No completed appliance backup exists.": "نسخهٔ پشتیبان کامل‌شده‌ای برای پلتفرم وجود ندارد.",
   "No disaster-recovery run exists.": "اجرای بازیابی بحران وجود ندارد.",
-  "No backup exists for this service.": "برای این سرویس Backup موجود نیست.",
+  "No backup exists for this service.": "برای این سرویس نسخهٔ پشتیبان موجود نیست.",
   "No lifecycle run exists.": "اجرای چرخه عمر وجود ندارد.",
-  "Create backup": "ساخت Backup",
-  "Start restore": "شروع Restore",
+  "Create backup": "ساخت نسخهٔ پشتیبان",
+  "Start restore": "شروع بازیابی",
   "Resume": "ادامه",
-  "Backup accepted.": "Backup پذیرفته شد.",
-  "Restore accepted.": "Restore پذیرفته شد.",
-  "Service backup accepted.": "Backup سرویس پذیرفته شد.",
-  "Service restore accepted.": "Restore سرویس پذیرفته شد.",
+  "Backup accepted.": "درخواست پشتیبان‌گیری پذیرفته شد.",
+  "Restore accepted.": "درخواست بازیابی پذیرفته شد.",
+  "Service backup accepted.": "درخواست پشتیبان‌گیری سرویس پذیرفته شد.",
+  "Service restore accepted.": "درخواست بازیابی سرویس پذیرفته شد.",
   "Upgrade accepted.": "ارتقا پذیرفته شد.",
   "Connected to installer.": "اتصال به نصب‌کننده برقرار شد.",
   "SSH private key stored securely.": "کلید خصوصی SSH به‌صورت امن ذخیره شد.",
-  "Execution is disabled. Planning and evidence inspection remain available; host mutation cannot start.": "اجرا غیرفعال است. برنامه‌ریزی و مشاهده شواهد در دسترس‌اند، اما تغییر روی Host آغاز نمی‌شود.",
-  "Run host preflight": "اجرای پیش‌بررسی Host",
-  "Host preflight": "پیش‌بررسی Host",
-  "Read-only checks run before approval and are repeated by Start and Resume.": "بررسی‌های فقط‌خواندنی پیش از تأیید اجرا می‌شوند و در Start و Resume دوباره تکرار می‌شوند.",
+  "Execution is disabled. Planning and evidence inspection remain available; host mutation cannot start.": "اجرا غیرفعال است. برنامه‌ریزی و مشاهدهٔ شواهد در دسترس‌اند، اما تغییری روی میزبان آغاز نمی‌شود.",
+  "Run host preflight": "اجرای پیش‌بررسی میزبان",
+  "Host preflight": "پیش‌بررسی میزبان",
+  "Read-only checks run before approval and are repeated by Start and Resume.": "بررسی‌های فقط‌خواندنی پیش از تأیید اجرا می‌شوند و در شروع و ادامه دوباره تکرار می‌شوند.",
   "Field execution evidence": "شواهد اجرای میدانی",
-  "Bundle, preflight, installation, GitOps, HA, air-gap, lifecycle and DR snapshots bound by one digest.": "Snapshotهای Bundle، پیش‌بررسی، نصب، GitOps، HA، Air-gap، چرخه عمر و DR با یک Digest به هم متصل می‌شوند.",
+  "Bundle, preflight, installation, GitOps, HA, air-gap, lifecycle and DR snapshots bound by one digest.": "تصویرهای وضعیتِ بسته، پیش‌بررسی، نصب، GitOps، HA، نصب آفلاین، چرخهٔ عمر و DR با یک هش مشترک به هم متصل می‌شوند.",
   "Download report": "دریافت گزارش",
   "Verify evidence": "اعتبارسنجی شواهد",
   "A report becomes available after an installation run exists.": "پس از ایجاد اجرای نصب، گزارش در دسترس قرار می‌گیرد.",
   "Failure diagnostics": "عیب‌یابی خطای اجرا",
-  "Capture a verified, tamper-evident snapshot of the failed step and every related runtime authority before changing the environment.": "پیش از تغییر محیط، Snapshot تأییدشده و قابل تشخیص دست‌کاری از مرحلهٔ ناموفق و همهٔ Authorityهای مرتبط Runtime ثبت کنید.",
+  "Capture a verified, tamper-evident snapshot of the failed step and every related runtime authority before changing the environment.": "پیش از تغییر محیط، یک تصویر وضعیت تأییدشده و قابل تشخیص دست‌کاری از مرحلهٔ ناموفق و همهٔ مراجع مرتبط زمان اجرا ثبت کنید.",
   "Download diagnostics": "دریافت گزارش عیب‌یابی",
   "Verify diagnostics": "اعتبارسنجی گزارش عیب‌یابی",
   "Diagnostics become available after an installation run exists.": "پس از ایجاد اجرای نصب، گزارش عیب‌یابی در دسترس قرار می‌گیرد.",
   "Plan only": "فقط برنامه‌ریزی",
-  "Host mutation may start after approval": "تغییر Host پس از تأیید می‌تواند آغاز شود",
+  "Host mutation may start after approval": "تغییر میزبان پس از تأیید می‌تواند آغاز شود",
   "Execution environment variable is disabled": "متغیر محیطی اجرا غیرفعال است",
   "No additional customer action.": "اقدام دیگری از سمت مشتری لازم نیست.",
   "No blockers remain. Review the sequence and execution policy before starting.": "بلاکِری باقی نمانده است. پیش از شروع، ترتیب اجرا و سیاست اجرایی را بررسی کنید.",
@@ -416,7 +421,7 @@ const serviceDefinitions = {
   objectStorage: {title:'Evidence and backup storage', managed:'local-evidence', fields:['url','credentialRef','bucket','prefix','region']},
   identity: {title:'Identity and SSO', managed:'keycloak', fields:['issuerUrl','clientId','credentialRef','adminEmail']}
 };
-const fieldLabels = {url:'HTTPS endpoint',credentialRef:'Credential reference',organization:'Organization',repository:'Repository',webhookMode:'Webhook mode',region:'Region',bucket:'Bucket',prefix:'Prefix',issuerUrl:'OIDC issuer URL',clientId:'OIDC client ID',adminEmail:'Bootstrap administrator email'};
+const fieldLabels = {url:'HTTPS endpoint',credentialRef:'Credential reference',organization:'Organization',repository:'Repository',webhookMode:'Webhook mode',region:'Region',bucket:'مخزن S3',prefix:'پیشوند مسیر',issuerUrl:'OIDC issuer URL',clientId:'OIDC client ID',adminEmail:'Bootstrap administrator email'};
 function providerFromIntegration(id) { return String(id || '').replace(/^managed-/,'').replace(/^external-/,''); }
 function renderServices() {
   $('#service-editor').innerHTML = Object.entries(serviceDefinitions).map(([kind,def]) => {
@@ -457,7 +462,7 @@ function selectedProfile() { return state.profiles.find(item => item.id === $('#
 function syncProfile() {
   const profile = selectedProfile();
   if (!profile) { $('#profile-summary').textContent = 'No profile selected.'; return; }
-  $('#profile-summary').innerHTML = `<strong>${esc(profile.displayName)}</strong><br>${esc(profile.description)}<br>${profile.production ? 'Production' : 'Evaluation'} · minimum ${esc(profile.minNodes)} node(s) · recommended ${esc(profile.recommendedNodes)}.`;
+  const sizing=profile.sizing||{}; const sizingText=sizing.minimumVcpu?`<br>Per ${esc(sizing.scope||'appliance')}: minimum ${esc(sizing.minimumVcpu)} vCPU · ${esc(sizing.minimumMemoryGiB)} GiB RAM · ${esc(sizing.minimumDiskGiB)} GiB disk (${esc(sizing.minimumFreeDiskGiB||0)} GiB free); recommended ${esc(sizing.recommendedVcpu)} vCPU · ${esc(sizing.recommendedMemoryGiB)} GiB RAM · ${esc(sizing.recommendedDiskGiB)} GiB disk.`:''; $('#profile-summary').innerHTML = `<strong>${esc(profile.displayName)}</strong><br>${esc(profile.description)}<br>${profile.production ? 'Production' : 'Evaluation'} · minimum ${esc(profile.minNodes)} node(s) · recommended ${esc(profile.recommendedNodes)}.${sizingText}`;
   const allowed = new Set(profile.supportedConnectivity || []);
   $$('#connectivity option').forEach(option => option.disabled = allowed.size && !allowed.has(option.value));
   if (allowed.size && !allowed.has($('#connectivity').value)) $('#connectivity').value = [...allowed][0];
@@ -629,7 +634,8 @@ async function loadBundleStatus(options = {}) {
 $('#verify-bundle').onclick = async () => { if (!state.connected) { toast('Connect first.','error'); return; } const bundle=await loadBundleStatus(); toast(bundle.verified ? 'Bundle verification passed.' : bundle.error, bundle.verified ? 'success' : 'error'); };
 
 function renderStatus(status, health) {
-  state.status = status; state.health = health;
+  state.status = status;
+  renderResetStatus(status); state.health = health;
   const run = status.run;
   $('#overview-version').textContent = `Version ${health?.version || run?.version || '—'}`;
   $('#metric-execution').textContent = status.executionEnabled ? 'Enabled' : 'Plan only';
@@ -667,6 +673,36 @@ async function coordinatedRequest(key, work){
   catch(error){if(error?.name==='AbortError')return null;throw error;}
   finally{if(state.requests.get(key)===controller)state.requests.delete(key);}
 }
+function renderResetStatus(status) {
+  const runs=Array.isArray(status?.resetRuns)?status.resetRuns:[];
+  const latest=runs.length?runs[runs.length-1]:null;
+  if(!latest){
+    $('#reset-status').innerHTML='<div class="empty-state">No reset run exists.</div>';
+  }else{
+    const completed=(latest.steps||[]).filter(step=>step.state==='SUCCEEDED').length;
+    $('#reset-status').innerHTML=detailsHTML([
+      ['Authority',latest.authority||'—'],['Reset ID',latest.id||'—'],['Source run',latest.sourceRunId||'—'],['State',latest.state||'—'],
+      ['Progress',`${completed} / ${(latest.steps||[]).length}`],['Updated',formatDate(latest.updatedAt)],['Last error',latest.lastError||'None']
+    ]);
+  }
+  const source=status?.run;
+  const blocking=latest&&latest.state!=='SUCCEEDED';
+  $('#start-reset').disabled=!status?.executionEnabled || !source || !['SUCCEEDED','FAILED'].includes(source.state) || Boolean(blocking) || status?.resetActive===true || status?.bootstrapActive===true;
+  $('#resume-reset').disabled=!status?.executionEnabled || !blocking || status?.resetActive===true;
+}
+
+$('#start-reset').onclick=async()=>{
+  const source=state.status?.run;if(!source)return;
+  const ok=await confirmAction({title:'Reset installation',message:`Reset ${source.id}. Product-owned RKE2 and generated installer/lifecycle state will be removed. Off-node backups, installer access token and pinned SSH trust are preserved.`,phrase:'RESET',button:'Reset installation'});
+  if(!ok)return;
+  try{await api('/api/v1/reset/start',{method:'POST',headers:{'X-Confirm-Reset':`reset:${source.id}`},body:{}});toast('Journaled reset accepted.');setTimeout(refreshStatus,500);}catch(error){toast(error.message,'error');}
+};
+$('#resume-reset').onclick=async()=>{
+  const runs=state.status?.resetRuns||[];const latest=runs.length?runs[runs.length-1]:null;if(!latest||latest.state==='SUCCEEDED')return;
+  const ok=await confirmAction({title:'Resume interrupted reset',message:`Resume reset ${latest.id} from its durable step boundary.`,phrase:'RESUME',button:'Resume reset'});if(!ok)return;
+  try{await api('/api/v1/reset/resume',{method:'POST',headers:{'X-Confirm-Reset-Resume':`resume:${latest.id}`},body:{}});toast('Reset resume accepted.');setTimeout(refreshStatus,500);}catch(error){toast(error.message,'error');}
+};
+
 async function refreshStatus() {
   if (!state.token || document.visibilityState==='hidden') return;
   return coordinatedRequest('status', async signal => {

@@ -54,6 +54,14 @@ func TestInstallerConsoleJourneyContract(t *testing.T) {
 	if strings.Contains(html, `option value="existing-kubernetes"`) {
 		t.Fatal("executable installer advertises planning-only existing-kubernetes infrastructure")
 	}
+	if strings.Contains(html, `id="admin-email"`) {
+		t.Fatal("installer exposes a duplicate bootstrap administrator email field outside the identity service authority")
+	}
+	for _, identityEmailContract := range []string{"fields:['issuerUrl','clientId','credentialRef','adminEmail']", "kind === 'identity' && name === 'adminEmail'", "spec.adminEmail = value('adminEmail')"} {
+		if !strings.Contains(js, identityEmailContract) {
+			t.Fatalf("identity service admin-email authority missing %q", identityEmailContract)
+		}
+	}
 	for _, interruptedResumeContract := range []string{
 		"const interrupted = run.state==='RUNNING' && status.bootstrapActive !== true",
 		"run.state==='FAILED' || interrupted",
@@ -238,6 +246,24 @@ func TestRestoreActionsRequireServerSideExactConfirmation(t *testing.T) {
 			}
 		} else if !strings.Contains(res.Body.String(), "RESTORE_CONFIRMATION_REQUIRED") {
 			t.Fatalf("%s body=%s", tc.path, res.Body.String())
+		}
+	}
+}
+
+func TestInstallerPersianLocalFontContract(t *testing.T) {
+	cssBytes, err := fs.ReadFile(staticFiles, "static/styles.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	css := string(cssBytes)
+	for _, contract := range []string{`font-family: "Vazirmatn Local"`, `src: local("Vazirmatn"), local("Vazirmatn Regular")`, `--font-fa:`, `html[lang="fa"]`} {
+		if !strings.Contains(css, contract) {
+			t.Fatalf("Persian local-font contract missing %q", contract)
+		}
+	}
+	for _, remote := range []string{"fonts.googleapis.com", "fonts.gstatic.com", "cdn.jsdelivr.net"} {
+		if strings.Contains(css, remote) {
+			t.Fatalf("Persian font must not depend on remote runtime font source %q", remote)
 		}
 	}
 }

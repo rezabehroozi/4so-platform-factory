@@ -18,8 +18,10 @@ import (
 	"platform.4so.io/factory/internal/domain"
 	"platform.4so.io/factory/internal/installation"
 	"platform.4so.io/factory/internal/integrations"
+	"platform.4so.io/factory/internal/managedinstall"
 	"platform.4so.io/factory/internal/marketplace"
 	"platform.4so.io/factory/internal/plan"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -27,24 +29,27 @@ import (
 )
 
 type Server struct {
-	components              map[string]catalog.Component
-	store                   controlplane.Store
-	logger                  *slog.Logger
-	mux                     *http.ServeMux
-	version                 string
-	requestSeq              atomic.Uint64
-	services                *integrations.Client
-	fleetAgentImage         string
-	fleetPublicURL          string
-	publicCAPEM             string
-	runtimeProbeImage       string
-	marketplaceAdvisor      marketplace.Advisor
-	aiRuntime               *airuntime.Runtime
-	agentPKI                *agentpki.Signer
-	agentMTLSRequired       bool
-	catalogSigner           ed25519.PrivateKey
-	catalogSignerMode       string
-	oidcGroupPropagationTTL time.Duration
+	components                   map[string]catalog.Component
+	store                        controlplane.Store
+	logger                       *slog.Logger
+	mux                          *http.ServeMux
+	version                      string
+	requestSeq                   atomic.Uint64
+	services                     *integrations.Client
+	fleetAgentImage              string
+	fleetPublicURL               string
+	publicCAPEM                  string
+	runtimeProbeImage            string
+	runtimeClosureReleaseDigest  string
+	runtimeClosureProducerDigest string
+	marketplaceAdvisor           *marketplace.ControlledAdvisor
+	aiRuntime                    *airuntime.Runtime
+	agentPKI                     *agentpki.Signer
+	agentMTLSRequired            bool
+	catalogSigner                ed25519.PrivateKey
+	catalogSignerMode            string
+	oidcGroupPropagationTTL      time.Duration
+	managedOKDInstallExecutor    *managedinstall.Executor
 }
 
 func New(version string, components map[string]catalog.Component, logger *slog.Logger, stores ...controlplane.Store) *Server {
@@ -67,6 +72,10 @@ type readinessCounter interface {
 
 type controlPlaneSummaryCounter interface {
 	ControlPlaneSummaryCounts(context.Context, []string, []string, []string, bool, bool) (controlplane.ControlPlaneSummaryCounts, error)
+}
+
+type controlPlaneAttentionStore interface {
+	ControlPlaneAttention(context.Context, []string, bool, int) ([]controlplane.OperatorAttentionItem, error)
 }
 
 type operationPageStore interface {
@@ -115,7 +124,7 @@ func (s *Server) readinessCounts(ctx context.Context) (int, int, error) {
 }
 
 func (s *Server) ConfigureSystemServices(client *integrations.Client) { s.services = client }
-func (s *Server) ConfigureMarketplaceAdvisor(advisor marketplace.Advisor) {
+func (s *Server) ConfigureMarketplaceAdvisor(advisor *marketplace.ControlledAdvisor) {
 	s.marketplaceAdvisor = advisor
 }
 func (s *Server) ConfigureAIRuntime(runtime *airuntime.Runtime) { s.aiRuntime = runtime }
@@ -138,6 +147,10 @@ func (s *Server) ConfigureCatalogSigner(privateKey ed25519.PrivateKey, mode stri
 
 func (s *Server) ConfigureIdentityAuthority(groupPropagationTTL time.Duration) {
 	s.oidcGroupPropagationTTL = groupPropagationTTL
+}
+
+func (s *Server) ConfigureManagedOKDInstallExecutor(executor *managedinstall.Executor) {
+	s.managedOKDInstallExecutor = executor
 }
 
 func (s *Server) ConfigureFleetImport(agentImage, runtimeProbeImage, publicURL, publicCAPEM string) {
@@ -167,7 +180,25 @@ func (s *Server) routes() {
 		writeJSON(w, http.StatusOK, map[string]string{"product": "4SO Platform Factory", "version": s.version})
 	})
 	s.mux.HandleFunc("GET /api/v1/access/context", s.accessContext)
+	s.mux.HandleFunc("GET /api/v1/access/resource-scopes", s.resourceScopeRegistry)
 	s.mux.HandleFunc("GET /api/v1/identity/authority", s.identityAuthority)
+	s.mux.HandleFunc("POST /api/v1/identity/saml-brokers", s.createSAMLBroker)
+	s.mux.HandleFunc("GET /api/v1/identity/saml-brokers", s.listSAMLBrokers)
+	s.mux.HandleFunc("PUT /api/v1/identity/saml-brokers/{id}", s.updateSAMLBroker)
+	s.mux.HandleFunc("DELETE /api/v1/identity/saml-brokers/{id}", s.deleteSAMLBroker)
+	s.mux.HandleFunc("GET /api/v1/identity/admin-jobs", s.listIdentityAdminJobs)
+	s.mux.HandleFunc("GET /api/v1/identity/admin-jobs/{id}", s.getIdentityAdminJob)
+	s.mux.HandleFunc("POST /api/v1/identity/admin-jobs/{id}/approve", s.approveIdentityAdminJob)
+	s.mux.HandleFunc("POST /api/v1/compliance/profiles", s.createComplianceProfile)
+	s.mux.HandleFunc("GET /api/v1/compliance/profiles", s.listComplianceProfiles)
+	s.mux.HandleFunc("POST /api/v1/compliance/scans", s.createComplianceScan)
+	s.mux.HandleFunc("GET /api/v1/compliance/scans", s.listComplianceScans)
+	s.mux.HandleFunc("GET /api/v1/compliance/scans/{id}", s.getComplianceScan)
+	s.mux.HandleFunc("GET /api/v1/compliance/findings", s.listComplianceFindings)
+	s.mux.HandleFunc("POST /api/v1/compliance/findings/{fingerprint}/recheck", s.recheckComplianceFinding)
+	s.mux.HandleFunc("POST /api/v1/compliance/waivers", s.createComplianceWaiver)
+	s.mux.HandleFunc("POST /api/v1/compliance/waivers/{id}/approve", s.approveComplianceWaiver)
+	s.mux.HandleFunc("POST /api/v1/compliance/waivers/{id}/revoke", s.revokeComplianceWaiver)
 	s.mux.HandleFunc("POST /api/v1/identity/group-mappings", s.createOIDCGroupMapping)
 	s.mux.HandleFunc("GET /api/v1/identity/group-mappings", s.listOIDCGroupMappings)
 	s.mux.HandleFunc("POST /api/v1/identity/group-mappings/{id}/revoke", s.revokeOIDCGroupMapping)
@@ -176,6 +207,7 @@ func (s *Server) routes() {
 		writeJSON(w, http.StatusOK, catalog.Sorted(s.components))
 	})
 	s.mux.HandleFunc("GET /api/v1/catalog/summary", s.catalogSummary)
+	s.mux.HandleFunc("GET /api/v1/catalog/runtime-certification-authority", s.componentRuntimeCertificationAuthority)
 	s.mux.HandleFunc("GET /api/v1/catalog-governance/signing-identity", s.catalogSigningIdentity)
 	s.mux.HandleFunc("POST /api/v1/catalog-trust-keys", s.createCatalogTrustKey)
 	s.mux.HandleFunc("GET /api/v1/catalog-trust-keys", s.listCatalogTrustKeys)
@@ -198,8 +230,22 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/blueprints/validate", s.validate)
 	s.mux.HandleFunc("POST /api/v1/compatibility/evaluate", s.evaluateCompatibility)
 	s.mux.HandleFunc("GET /api/v1/target-architecture-model", s.getTargetArchitectureModel)
+	s.mux.HandleFunc("GET /api/v1/mcp/delegation-architecture", s.getMCPDelegationArchitecture)
+	s.mux.HandleFunc("POST /api/v1/mcp/trusted-clients", s.createMCPTrustedClient)
+	s.mux.HandleFunc("GET /api/v1/mcp/trusted-clients", s.listMCPTrustedClients)
+	s.mux.HandleFunc("POST /api/v1/mcp/trusted-clients/{id}/revoke", s.revokeMCPTrustedClient)
+	s.mux.HandleFunc("POST /api/v1/mcp/delegation-grants/preview", s.previewMCPDelegation)
+	s.mux.HandleFunc("POST /api/v1/mcp/delegation-grants", s.createMCPDelegationGrant)
+	s.mux.HandleFunc("GET /api/v1/mcp/delegation-grants", s.listMCPDelegationGrants)
+	s.mux.HandleFunc("POST /api/v1/mcp/delegation-grants/{id}/revoke", s.revokeMCPDelegationGrant)
+	s.mux.HandleFunc("GET /api/v1/day2-campaign-engine", s.getDay2CampaignEngine)
 	s.mux.HandleFunc("GET /api/v1/lab/guide", s.getLabGuide)
 	s.mux.HandleFunc("GET /api/v1/ai/policy", s.getAIPolicy)
+	s.mux.HandleFunc("GET /api/v1/ai/capabilities", s.aiCapabilities)
+	s.mux.HandleFunc("GET /api/v1/ai/persian-writing", s.aiPersianWriting)
+	s.mux.HandleFunc("GET /api/v1/ai/control-jobs", s.listAIControlJobs)
+	s.mux.HandleFunc("GET /api/v1/ai/control-jobs/{id}", s.getAIControlJob)
+	s.mux.HandleFunc("POST /api/v1/ai/control-jobs/{id}/resolve-recovery", s.resolveAIControlJobRecovery)
 	s.mux.HandleFunc("POST /api/v1/ai/diagnose", s.diagnoseAI)
 	s.mux.HandleFunc("GET /api/v1/ai/runs", s.listAIRuns)
 	s.mux.HandleFunc("GET /api/v1/ai/runs/{id}", s.getAIRun)
@@ -208,6 +254,22 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/blueprint-overlays", s.createBlueprintOverlay)
 	s.mux.HandleFunc("GET /api/v1/blueprint-overlays", s.listBlueprintOverlays)
 	s.mux.HandleFunc("GET /api/v1/blueprint-overlays/{id}", s.getBlueprintOverlay)
+	s.mux.HandleFunc("POST /api/v1/variable-schemas", s.createVariableSchema)
+	s.mux.HandleFunc("GET /api/v1/variable-schemas", s.listVariableSchemas)
+	s.mux.HandleFunc("GET /api/v1/variable-schemas/{id}", s.getVariableSchema)
+	s.mux.HandleFunc("POST /api/v1/platform-policy-sets", s.createPlatformPolicySet)
+	s.mux.HandleFunc("GET /api/v1/platform-policy-sets", s.listPlatformPolicySets)
+	s.mux.HandleFunc("GET /api/v1/platform-policy-sets/{id}", s.getPlatformPolicySet)
+	s.mux.HandleFunc("POST /api/v1/platform-templates", s.createPlatformTemplate)
+	s.mux.HandleFunc("GET /api/v1/platform-templates", s.listPlatformTemplates)
+	s.mux.HandleFunc("GET /api/v1/platform-templates/{id}", s.getPlatformTemplate)
+	s.mux.HandleFunc("GET /api/v1/platform-templates/{id}/admission", s.getPlatformTemplateAdmission)
+	s.mux.HandleFunc("POST /api/v1/workspaces", s.createWorkspace)
+	s.mux.HandleFunc("GET /api/v1/workspaces", s.listWorkspaces)
+	s.mux.HandleFunc("GET /api/v1/workspaces/{id}", s.getWorkspace)
+	s.mux.HandleFunc("POST /api/v1/workspaces/{id}/bindings", s.createWorkspaceBinding)
+	s.mux.HandleFunc("GET /api/v1/workspaces/{id}/bindings", s.listWorkspaceBindings)
+	s.mux.HandleFunc("POST /api/v1/workspaces/{id}/bindings/{bindingId}/revoke", s.revokeWorkspaceBinding)
 	s.mux.HandleFunc("POST /api/v1/plans", s.createPlan)
 	s.mux.HandleFunc("POST /api/v1/blueprint-releases", s.createBlueprintRelease)
 	s.mux.HandleFunc("GET /api/v1/blueprint-releases", s.listBlueprintReleases)
@@ -222,7 +284,13 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/blueprint-releases/compare", s.compareBlueprintReleases)
 	s.mux.HandleFunc("GET /api/v1/installations/profiles", s.installationProfiles)
 	s.mux.HandleFunc("GET /api/v1/installations/integrations", s.installationIntegrations)
+	s.mux.HandleFunc("GET /api/v1/installations/recovery-authority", s.installationRecoveryAuthority)
+	s.mux.HandleFunc("GET /api/v1/autopilot/status", s.autopilotStatus)
 	s.mux.HandleFunc("POST /api/v1/installations/plans", s.createInstallationPlan)
+	s.mux.HandleFunc("GET /api/v1/managed-okd-installs/runtime", s.managedOKDInstallRuntime)
+	s.mux.HandleFunc("POST /api/v1/managed-okd-installs", s.createManagedOKDInstall)
+	s.mux.HandleFunc("GET /api/v1/managed-okd-installs/{id}", s.getManagedOKDInstall)
+	s.mux.HandleFunc("POST /api/v1/managed-okd-installs/{id}/approve", s.approveManagedOKDInstall)
 	s.mux.HandleFunc("GET /api/v1/git-authority", s.gitAuthority)
 	s.mux.HandleFunc("POST /api/v1/git-credentials", s.createGitCredential)
 	s.mux.HandleFunc("GET /api/v1/git-credentials", s.listGitCredentials)
@@ -245,6 +313,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/drift-scans/{id}/targets/{clusterId}/findings/{fingerprint}/remediate", s.remediateDriftFinding)
 
 	s.mux.HandleFunc("GET /api/v1/control-plane/summary", s.controlPlaneSummary)
+	s.mux.HandleFunc("GET /api/v1/operations/queue-center", s.operationsQueueCenter)
+	s.mux.HandleFunc("GET /api/v1/logs", s.productLogs)
+	s.mux.HandleFunc("GET /api/v1/control-plane/attention", s.controlPlaneAttention)
 	s.mux.HandleFunc("POST /api/v1/organizations", s.createOrganization)
 	s.mux.HandleFunc("GET /api/v1/organizations", s.listOrganizations)
 	s.mux.HandleFunc("GET /api/v1/organizations/{id}", s.getOrganization)
@@ -267,6 +338,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/operations/{id}", s.getOperation)
 	s.mux.HandleFunc("POST /api/v1/operations/{id}/transition", s.transitionOperation)
 	s.mux.HandleFunc("POST /api/v1/operations/{id}/claim", s.claimOperation)
+	s.mux.HandleFunc("POST /api/v1/operations/{id}/lease/renew", s.renewOperationLease)
 	s.mux.HandleFunc("POST /api/v1/operations/{id}/attempt/start", s.startOperationAttempt)
 	s.mux.HandleFunc("POST /api/v1/operations/{id}/attempt/verify", s.beginOperationVerification)
 	s.mux.HandleFunc("POST /api/v1/operations/{id}/attempt/failure", s.reportOperationFailure)
@@ -284,6 +356,18 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/operations/{id}/evidence/{evidenceId}/payload", s.getOperationEvidencePayload)
 	s.mux.HandleFunc("GET /api/v1/audit-events", s.listAudit)
 	s.mux.HandleFunc("GET /api/v1/notification-event-types", s.notificationEventTypes)
+	s.mux.HandleFunc("GET /api/v1/notification-provider-contracts", s.notificationProviderContracts)
+	s.mux.HandleFunc("POST /api/v1/notification-routing/preview", s.previewNotificationRouting)
+	s.mux.HandleFunc("POST /api/v1/external-registry/admission", s.admitExternalRegistry)
+	s.mux.HandleFunc("POST /api/v1/finops/rate-cards", s.createFinOpsRateCard)
+	s.mux.HandleFunc("GET /api/v1/finops/rate-cards", s.listFinOpsRateCards)
+	s.mux.HandleFunc("GET /api/v1/finops/rate-cards/{id}", s.getFinOpsRateCard)
+	s.mux.HandleFunc("POST /api/v1/finops/usage-measurements", s.createFinOpsUsageMeasurement)
+	s.mux.HandleFunc("GET /api/v1/finops/usage-measurements", s.listFinOpsUsageMeasurements)
+	s.mux.HandleFunc("POST /api/v1/finops/capacity-observations", s.createFinOpsCapacityObservation)
+	s.mux.HandleFunc("GET /api/v1/finops/capacity-observations", s.listFinOpsCapacityObservations)
+	s.mux.HandleFunc("GET /api/v1/finops/showback", s.getFinOpsShowback)
+	s.mux.HandleFunc("GET /api/v1/finops/chargeback-export", s.exportFinOpsChargeback)
 	s.mux.HandleFunc("POST /api/v1/notification-destinations", s.createNotificationDestination)
 	s.mux.HandleFunc("GET /api/v1/notification-destinations", s.listNotificationDestinations)
 	s.mux.HandleFunc("GET /api/v1/notification-destinations/{id}", s.getNotificationDestination)
@@ -292,6 +376,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/notification-routes", s.createNotificationRoute)
 	s.mux.HandleFunc("GET /api/v1/notification-routes", s.listNotificationRoutes)
 	s.mux.HandleFunc("GET /api/v1/notification-routes/{id}", s.getNotificationRoute)
+	s.mux.HandleFunc("GET /api/v1/notification-routes/{id}/policy-digest", s.notificationRoutePolicyDigest)
 	s.mux.HandleFunc("PUT /api/v1/notification-routes/{id}", s.updateNotificationRoute)
 	s.mux.HandleFunc("GET /api/v1/notification-events", s.listNotificationEvents)
 	s.mux.HandleFunc("GET /api/v1/notification-events/{id}", s.getNotificationEvent)
@@ -317,6 +402,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/clusters/{id}/revocation-rbac-acknowledgement", s.acknowledgeClusterTargetRBACRevocation)
 	s.mux.HandleFunc("PUT /api/v1/clusters/{id}/maintenance-profile", s.upsertClusterMaintenanceProfile)
 	s.mux.HandleFunc("GET /api/v1/clusters/{id}/maintenance-profile", s.getClusterMaintenanceProfile)
+	s.mux.HandleFunc("GET /api/v1/clusters/{id}/node-lifecycle-authority", s.getTargetNodeLifecycleAuthority)
+	s.mux.HandleFunc("POST /api/v1/clusters/{id}/node-lifecycle-plans", s.planTargetNodeLifecycle)
+	s.mux.HandleFunc("POST /api/v1/clusters/{id}/provider-binding", s.bindTargetNodeProvider)
+	s.mux.HandleFunc("POST /api/v1/clusters/{id}/node-lifecycle-actions", s.executeTargetNodeLifecycleAction)
 	s.mux.HandleFunc("POST /api/v1/clusters/{id}/maintenance-windows", s.createClusterMaintenanceWindow)
 	s.mux.HandleFunc("GET /api/v1/clusters/{id}/maintenance-windows", s.listClusterMaintenanceWindows)
 	s.mux.HandleFunc("POST /api/v1/clusters/{id}/maintenance-windows/{windowId}/cancel", s.cancelClusterMaintenanceWindow)
@@ -330,9 +419,19 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/clusters/{id}/agent-certificates", s.listAgentCertificates)
 	s.mux.HandleFunc("POST /api/v1/clusters/{id}/agent-certificates/{certId}/revoke", s.revokeAgentCertificate)
 	s.mux.HandleFunc("GET /api/v1/clusters/{id}/timeline", s.clusterTimeline)
+	s.mux.HandleFunc("GET /api/v1/clusters/{id}/workloads", s.clusterWorkloadExplorer)
+	s.mux.HandleFunc("POST /api/v1/workload-log-queries", s.createWorkloadLogQuery)
+	s.mux.HandleFunc("GET /api/v1/workload-log-queries/{id}", s.getWorkloadLogQuery)
+	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/workload-log-tasks/next", s.nextWorkloadLogTask)
+	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/workload-log-tasks/{operationId}/result", s.reportWorkloadLogTask)
+	s.mux.HandleFunc("GET /api/v1/search", s.searchProjectionQuery)
+	s.mux.HandleFunc("GET /api/v1/search/projection/rebuild", s.searchProjectionRebuild)
 	s.mux.HandleFunc("GET /api/v1/fleet/health", s.fleetHealth)
 	s.mux.HandleFunc("GET /api/v1/support-bundles/profiles", s.supportBundleProfiles)
 	s.mux.HandleFunc("POST /api/v1/support-bundles", s.createSupportBundle)
+	s.mux.HandleFunc("POST /api/v1/support-bundle-jobs", s.createSupportBundleJob)
+	s.mux.HandleFunc("GET /api/v1/support-bundle-jobs/{id}", s.getSupportBundleJob)
+	s.mux.HandleFunc("GET /api/v1/support-bundle-jobs/{id}/download", s.downloadSupportBundleJob)
 	s.mux.HandleFunc("GET /api/v1/baselines", s.listBaselines)
 	s.mux.HandleFunc("POST /api/v1/baseline-deployments", s.createBaselineDeployment)
 	s.mux.HandleFunc("GET /api/v1/baseline-deployments", s.listBaselineDeployments)
@@ -377,6 +476,22 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/recovery-checkpoints", s.listRecoveryCheckpoints)
 	s.mux.HandleFunc("GET /api/v1/recovery-checkpoints/{id}", s.getRecoveryCheckpoint)
 	s.mux.HandleFunc("POST /api/v1/recovery-checkpoints/{id}/revoke", s.revokeRecoveryCheckpoint)
+	s.mux.HandleFunc("POST /api/v1/backup-policies", s.createBackupPolicy)
+	s.mux.HandleFunc("PUT /api/v1/backup-policies/{id}", s.updateBackupPolicy)
+	s.mux.HandleFunc("GET /api/v1/backup-policies", s.listBackupPolicies)
+	s.mux.HandleFunc("GET /api/v1/backup-policies/{id}", s.getBackupPolicy)
+	s.mux.HandleFunc("POST /api/v1/backup-policies/{id}/enable", s.enableBackupPolicy)
+	s.mux.HandleFunc("POST /api/v1/backup-policies/{id}/disable", s.disableBackupPolicy)
+	s.mux.HandleFunc("POST /api/v1/backup-runs", s.createBackupRun)
+	s.mux.HandleFunc("POST /api/v1/restore-runs", s.createRestoreRun)
+	s.mux.HandleFunc("POST /api/v1/restore-drills", s.createRestoreDrill)
+	s.mux.HandleFunc("GET /api/v1/data-protection-runs", s.listDataProtectionRuns)
+	s.mux.HandleFunc("GET /api/v1/data-protection-runs/{id}", s.getDataProtectionRun)
+	s.mux.HandleFunc("POST /api/v1/restore-runs/{id}/approve", s.approveRestoreRun)
+	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/compliance-scan-tasks/next", s.nextComplianceScanTask)
+	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/compliance-scan-tasks/{runId}/result", s.reportComplianceScanTask)
+	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/data-protection-tasks/next", s.nextDataProtectionTask)
+	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/data-protection-tasks/{runId}/result", s.reportDataProtectionTask)
 	s.mux.HandleFunc("POST /api/v1/upgrade-campaigns", s.createUpgradeCampaign)
 	s.mux.HandleFunc("GET /api/v1/upgrade-campaigns", s.listUpgradeCampaigns)
 	s.mux.HandleFunc("GET /api/v1/upgrade-campaigns/{id}", s.getUpgradeCampaign)
@@ -436,6 +551,10 @@ func (s *Server) installationProfiles(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) installationIntegrations(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, installation.Integrations())
+}
+
+func (s *Server) installationRecoveryAuthority(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, installation.RecoveryConsoleModel())
 }
 
 func (s *Server) createInstallationPlan(w http.ResponseWriter, r *http.Request) {
@@ -730,15 +849,71 @@ func (s *Server) catalogSummary(w http.ResponseWriter, _ *http.Request) {
 	certification := map[string]int{}
 	risk := map[string]int{}
 	resolved := 0
+	componentAuthority := make(map[string]catalog.Component, len(s.components))
 	for _, c := range s.components {
 		certification[c.Spec.Certification.Status]++
 		risk[c.Spec.Risk]++
+		componentAuthority[c.Metadata.Name] = c
 		if c.Spec.Source.Resolved {
 			resolved++
 		}
 	}
+	admission, err := catalog.LoadUpstreamAdmission()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "CATALOG_UPSTREAM_ADMISSION_UNAVAILABLE", "upstream acquisition admission authority is unavailable")
+		return
+	}
+	if err = catalog.ValidateUpstreamAdmission(admission, componentAuthority); err != nil {
+		writeError(w, http.StatusInternalServerError, "CATALOG_UPSTREAM_ADMISSION_INVALID", "upstream acquisition admission authority failed validation")
+		return
+	}
+	ready := 0
+	runtimeBlocked := 0
+	for _, row := range admission.Spec.Components {
+		if row.Status == "ready-for-acquisition" {
+			ready++
+		}
+		if row.RuntimeStatus != "eligible-after-source-resolution" {
+			runtimeBlocked++
+		}
+	}
 	renderable := len(catalog.ResolvedRenderable(s.components))
-	writeJSON(w, http.StatusOK, map[string]any{"componentCount": len(s.components), "resolvedComponentCount": resolved, "renderableComponentCount": renderable, "unresolvedComponentCount": len(s.components) - resolved, "digest": catalog.Digest(s.components), "certification": certification, "risk": risk})
+	runtimeTransition, transitionErr := catalog.LoadRuntimeDependencyTransition()
+	if transitionErr != nil || catalog.ValidateRuntimeDependencyTransition(runtimeTransition, componentAuthority, admission) != nil {
+		writeError(w, http.StatusInternalServerError, "RUNTIME_DEPENDENCY_TRANSITION_AUTHORITY_INVALID", "runtime dependency transition authority failed validation")
+		return
+	}
+	runtimeRegistry, runtimeRegistryErr := catalog.LoadComponentRuntimeCertificationRegistry()
+	if runtimeRegistryErr != nil || catalog.ValidateComponentRuntimeCertificationRegistry(runtimeRegistry, s.components) != nil {
+		writeError(w, http.StatusInternalServerError, "COMPONENT_RUNTIME_CERTIFICATION_AUTHORITY_INVALID", "component runtime certification authority failed validation")
+		return
+	}
+	runtimeStats := catalog.ComponentRuntimeCertificationStatistics(runtimeRegistry)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"componentCount":                len(s.components),
+		"resolvedComponentCount":        resolved,
+		"renderableComponentCount":      renderable,
+		"unresolvedComponentCount":      len(s.components) - resolved,
+		"digest":                        catalog.Digest(s.components),
+		"certification":                 certification,
+		"risk":                          risk,
+		"runtimeCertificationAuthority": map[string]any{"authority": runtimeRegistry.Metadata.Name, "stats": runtimeStats},
+		"runtimeDependencyTransition": map[string]any{
+			"authority":             runtimeTransition.Spec.Authority,
+			"status":                runtimeTransition.Spec.Status,
+			"gatewayTargetRelease":  runtimeTransition.Spec.GatewayAPI.TargetRelease,
+			"kgatewayTargetRelease": runtimeTransition.Spec.KGateway.TargetRelease,
+			"ciliumTargetRelease":   runtimeTransition.Spec.Cilium.TargetRelease,
+		},
+		"upstreamAdmission": map[string]any{
+			"authority":           admission.Metadata.Name,
+			"total":               len(admission.Spec.Components),
+			"readyForAcquisition": ready,
+			"reviewRequired":      len(admission.Spec.Components) - ready,
+			"runtimeBlocked":      runtimeBlocked,
+			"components":          admission.Spec.Components,
+		},
+	})
 }
 func (s *Server) tenantPlans(w http.ResponseWriter, _ *http.Request) {
 	plans, err := catalog.LoadTenantPlans()
@@ -851,22 +1026,198 @@ func (s *Server) createPlan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, p)
 }
 
-func (s *Server) controlPlaneSummary(w http.ResponseWriter, r *http.Request) {
-	allowedOrganizations, all, err := s.accessibleOrganizationSet(r)
+type requestedReadScope struct {
+	organizations               map[string]bool
+	projects                    map[string]bool
+	resourceOrganizations       map[string]bool
+	allOrganizationsAndProjects bool
+	allResourceOrganizations    bool
+	explicitOrganizationID      string
+	explicitProjectID           string
+}
+
+// resolveRequestedReadScope turns the console's selected organization/project
+// context into the same authorization-aware sets used by collection handlers.
+// It is deliberately fail-closed: an explicit scope is never widened merely
+// because the principal has broader platform access.
+func (s *Server) resolveRequestedReadScope(w http.ResponseWriter, r *http.Request) (requestedReadScope, bool) {
+	allowedOrganizations, allOrganizations, err := s.accessibleOrganizationSet(r)
 	if err != nil {
 		writeStoreError(w, err)
-		return
+		return requestedReadScope{}, false
 	}
-	allowedProjects, _, err := s.accessibleProjectSet(r)
+	allowedProjects, allProjects, err := s.accessibleProjectSet(r)
 	if err != nil {
 		writeStoreError(w, err)
-		return
+		return requestedReadScope{}, false
 	}
 	resourceOrganizations, allResourceOrganizations, err := s.resourceOrganizationSet(r)
 	if err != nil {
 		writeStoreError(w, err)
+		return requestedReadScope{}, false
+	}
+
+	organizationID := strings.TrimSpace(r.URL.Query().Get("organizationId"))
+	projectID := strings.TrimSpace(r.URL.Query().Get("projectId"))
+	if projectID != "" {
+		project, accessErr := s.requireProjectAccess(r, projectID, organizationRead)
+		if accessErr != nil {
+			writeScopeError(w, accessErr)
+			return requestedReadScope{}, false
+		}
+		if organizationID != "" && project.OrganizationID != organizationID {
+			writeError(w, http.StatusBadRequest, "SCOPE_SELECTION_MISMATCH", "projectId does not belong to organizationId")
+			return requestedReadScope{}, false
+		}
+		return requestedReadScope{
+			organizations:               map[string]bool{project.OrganizationID: true},
+			projects:                    map[string]bool{project.ID: true},
+			resourceOrganizations:       map[string]bool{},
+			allOrganizationsAndProjects: false,
+			allResourceOrganizations:    false,
+			explicitOrganizationID:      project.OrganizationID,
+			explicitProjectID:           project.ID,
+		}, true
+	}
+	if organizationID != "" {
+		if err = s.requireOrganizationAccess(r, organizationID, organizationRead); err != nil {
+			writeScopeError(w, err)
+			return requestedReadScope{}, false
+		}
+		organizationProjects, listErr := s.store.ListProjects(r.Context(), organizationID)
+		if listErr != nil {
+			writeStoreError(w, listErr)
+			return requestedReadScope{}, false
+		}
+		selectedProjects := make(map[string]bool, len(organizationProjects))
+		for _, project := range organizationProjects {
+			if allProjects || allowedProjects[project.ID] {
+				selectedProjects[project.ID] = true
+			}
+		}
+		return requestedReadScope{
+			organizations:               map[string]bool{organizationID: true},
+			projects:                    selectedProjects,
+			resourceOrganizations:       map[string]bool{organizationID: true},
+			allOrganizationsAndProjects: false,
+			allResourceOrganizations:    false,
+			explicitOrganizationID:      organizationID,
+		}, true
+	}
+	return requestedReadScope{
+		organizations:               allowedOrganizations,
+		projects:                    allowedProjects,
+		resourceOrganizations:       resourceOrganizations,
+		allOrganizationsAndProjects: allOrganizations && allProjects,
+		allResourceOrganizations:    allResourceOrganizations,
+	}, true
+}
+
+func normalizedAttentionLimit(raw string) (int, error) {
+	if strings.TrimSpace(raw) == "" {
+		return 9, nil
+	}
+	limit, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || limit <= 0 || limit > 50 {
+		return 0, fmt.Errorf("limit must be an integer between 1 and 50")
+	}
+	return limit, nil
+}
+
+func (s *Server) controlPlaneAttention(w http.ResponseWriter, r *http.Request) {
+	limit, err := normalizedAttentionLimit(r.URL.Query().Get("limit"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_LIMIT", err.Error())
 		return
 	}
+	scope, ok := s.resolveRequestedReadScope(w, r)
+	if !ok {
+		return
+	}
+	projectIDs := boolSetIDs(scope.projects)
+	if store, ok := s.store.(controlPlaneAttentionStore); ok {
+		items, err := store.ControlPlaneAttention(r.Context(), projectIDs, scope.allOrganizationsAndProjects, limit)
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "STORE_UNAVAILABLE", "control-plane attention authority is unavailable")
+			s.logger.Error("control-plane attention query failed", "error", err)
+			return
+		}
+		w.Header().Set("X-Result-Limit", strconv.Itoa(limit))
+		writeJSON(w, http.StatusOK, items)
+		return
+	}
+
+	// Development-store fallback only. Runtime PostgreSQL implements the bounded
+	// query above so Overview polling never materializes full resource families.
+	snap, err := s.store.Snapshot(r.Context())
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	allowed := scope.projects
+	all := scope.allOrganizationsAndProjects
+	visible := func(projectID string) bool { return all || allowed[projectID] }
+	items := make([]controlplane.OperatorAttentionItem, 0)
+	add := func(kind, id, projectID, name, state, message, page string, updatedAt time.Time) {
+		if visible(projectID) {
+			items = append(items, controlplane.OperatorAttentionItem{Kind: kind, ID: id, ProjectID: projectID, DisplayName: name, State: state, Message: message, Page: page, UpdatedAt: updatedAt})
+		}
+	}
+	for _, v := range snap.BaselineDeployments {
+		if v.State == controlplane.BaselineDeploymentFailed {
+			add("baseline-deployment", v.ID, v.ProjectID, v.BaselineID+"@"+v.BaselineVersion, string(v.State), v.LastError, "baselines", v.UpdatedAt)
+		}
+	}
+	for _, v := range snap.RuntimeVerifications {
+		if v.State == controlplane.RuntimeVerificationFailed {
+			add("runtime-verification", v.ID, v.ProjectID, v.ID, string(v.State), v.LastError, "verification", v.UpdatedAt)
+		}
+	}
+	for _, v := range snap.RuntimeClosureCampaigns {
+		if v.State == controlplane.RuntimeClosureFailed {
+			add("runtime-closure", v.ID, v.ProjectID, v.ID, string(v.State), v.LastError, "verification", v.UpdatedAt)
+		}
+	}
+	for _, v := range snap.Tenants {
+		if v.State == controlplane.TenantFailed {
+			add("tenant", v.ID, v.ProjectID, v.DisplayName, string(v.State), v.LastError, "tenants", v.UpdatedAt)
+		}
+	}
+	for _, v := range snap.ProviderProfiles {
+		if v.State == controlplane.ProviderProfileFailed {
+			add("provider-profile", v.ID, v.ProjectID, v.DisplayName, string(v.State), v.LastError, "providers", v.UpdatedAt)
+		}
+	}
+	for _, v := range snap.ProviderClusters {
+		if v.State == controlplane.ProviderClusterFailed {
+			add("provider-cluster", v.ID, v.ProjectID, v.DisplayName, string(v.State), v.LastError, "providers", v.UpdatedAt)
+		}
+	}
+	now := time.Now().UTC()
+	for _, v := range snap.ManagedClusters {
+		offline := v.ConnectionState != "REVOKED" && (v.LastSeenAt == nil || now.Sub(v.LastSeenAt.UTC()) > 3*time.Minute)
+		if offline {
+			add("managed-cluster", v.ID, v.ProjectID, v.DisplayName, "OFFLINE", "Cluster heartbeat or inventory is stale.", "clusters", v.UpdatedAt)
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool { return items[i].UpdatedAt.After(items[j].UpdatedAt) })
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	w.Header().Set("X-Result-Limit", strconv.Itoa(limit))
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (s *Server) controlPlaneSummary(w http.ResponseWriter, r *http.Request) {
+	scope, ok := s.resolveRequestedReadScope(w, r)
+	if !ok {
+		return
+	}
+	allowedOrganizations := scope.organizations
+	allowedProjects := scope.projects
+	resourceOrganizations := scope.resourceOrganizations
+	all := scope.allOrganizationsAndProjects
+	allResourceOrganizations := scope.allResourceOrganizations
 	if counter, ok := s.store.(controlPlaneSummaryCounter); ok {
 		organizationIDs := boolSetIDs(allowedOrganizations)
 		projectIDs := boolSetIDs(allowedProjects)
@@ -880,10 +1231,14 @@ func (s *Server) controlPlaneSummary(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"organizations": counts.Organizations, "projects": counts.Projects, "blueprintRevisions": counts.BlueprintRevisions,
 			"assignments": counts.Assignments, "operations": counts.Operations, "operationStates": counts.OperationStates,
-			"unpublishedOutbox": counts.UnpublishedOutbox, "auditEvents": counts.AuditEvents, "evidence": counts.Evidence,
-			"clusterImports": counts.ClusterImports, "managedClusters": counts.ManagedClusters, "baselineDeployments": counts.BaselineDeployments,
-			"runtimeVerifications": counts.RuntimeVerifications, "runtimeClosureCampaigns": counts.RuntimeClosureCampaigns,
-			"entitlements": counts.Entitlements, "oemProfiles": counts.OEMProfiles, "tenants": counts.Tenants,
+			"notificationDeliveryStates": counts.NotificationDeliveryStates,
+			"unpublishedOutbox":          counts.UnpublishedOutbox, "auditEvents": counts.AuditEvents, "evidence": counts.Evidence,
+			"clusterImports": counts.ClusterImports, "managedClusters": counts.ManagedClusters, "connectedClusters": counts.ConnectedClusters,
+			"baselineDeployments": counts.BaselineDeployments, "successfulBaselineDeployments": counts.SuccessfulBaselineDeployments,
+			"runtimeVerifications": counts.RuntimeVerifications, "successfulRuntimeVerifications": counts.SuccessfulRuntimeVerifications,
+			"runtimeClosureCampaigns": counts.RuntimeClosureCampaigns, "successfulRuntimeClosureCampaigns": counts.SuccessfulRuntimeClosureCampaigns,
+			"failedProductWorkflows": counts.FailedProductWorkflows,
+			"entitlements":           counts.Entitlements, "oemProfiles": counts.OEMProfiles, "tenants": counts.Tenants,
 			"providerProfiles": counts.ProviderProfiles, "providerClusters": counts.ProviderClusters,
 			"clusterMutationEnabled": true, "clusterMutationScope": "organization-membership-scoped", "authorityBackend": s.store.Backend(),
 		})
@@ -916,9 +1271,13 @@ func (s *Server) controlPlaneSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	index := buildScopeIndex(snap, resourceOrganizations, allowedProjects)
 	states := map[controlplane.OperationState]int{}
+	notificationStates := map[controlplane.NotificationDeliveryState]int{}
 	organizations, projects, revisions, assignments, operations, evidence := 0, 0, 0, 0, 0, 0
-	clusterImports, managedClusters, baselineDeployments, runtimeVerifications, runtimeClosures := 0, 0, 0, 0, 0
+	clusterImports, managedClusters, connectedClusters := 0, 0, 0
+	baselineDeployments, successfulBaselines, runtimeVerifications, successfulVerifications, runtimeClosures, successfulClosures := 0, 0, 0, 0, 0, 0
+	failedProductWorkflows := 0
 	entitlements, oemProfiles, tenants, providerProfiles, providerClusters := 0, 0, 0, 0, 0
+	now := time.Now().UTC()
 	for _, v := range snap.Organizations {
 		if allowedOrganizations[v.ID] {
 			organizations++
@@ -950,6 +1309,17 @@ func (s *Server) controlPlaneSummary(w http.ResponseWriter, r *http.Request) {
 			evidence++
 		}
 	}
+	visibleNotificationEvents := map[string]bool{}
+	for _, event := range snap.NotificationEvents {
+		if (event.ProjectID != "" && allowedProjects[event.ProjectID]) || (event.ProjectID == "" && resourceOrganizations[event.OrganizationID]) {
+			visibleNotificationEvents[event.ID] = true
+		}
+	}
+	for _, delivery := range snap.NotificationDeliveries {
+		if visibleNotificationEvents[delivery.EventID] {
+			notificationStates[delivery.State]++
+		}
+	}
 	for _, v := range snap.ClusterImports {
 		if allowedProjects[v.ProjectID] {
 			clusterImports++
@@ -958,21 +1328,42 @@ func (s *Server) controlPlaneSummary(w http.ResponseWriter, r *http.Request) {
 	for _, v := range snap.ManagedClusters {
 		if allowedProjects[v.ProjectID] {
 			managedClusters++
+			if v.ConnectionState != "REVOKED" && v.LastSeenAt != nil && now.Sub(v.LastSeenAt.UTC()) <= 3*time.Minute {
+				connectedClusters++
+			}
 		}
 	}
 	for _, v := range snap.BaselineDeployments {
 		if allowedProjects[v.ProjectID] {
 			baselineDeployments++
+			if v.State == controlplane.BaselineDeploymentSucceeded {
+				successfulBaselines++
+			}
+			if v.State == controlplane.BaselineDeploymentFailed {
+				failedProductWorkflows++
+			}
 		}
 	}
 	for _, v := range snap.RuntimeVerifications {
 		if allowedProjects[v.ProjectID] {
 			runtimeVerifications++
+			if v.State == controlplane.RuntimeVerificationSucceeded {
+				successfulVerifications++
+			}
+			if v.State == controlplane.RuntimeVerificationFailed {
+				failedProductWorkflows++
+			}
 		}
 	}
 	for _, v := range snap.RuntimeClosureCampaigns {
 		if allowedProjects[v.ProjectID] {
 			runtimeClosures++
+			if v.State == controlplane.RuntimeClosureSucceeded {
+				successfulClosures++
+			}
+			if v.State == controlplane.RuntimeClosureFailed {
+				failedProductWorkflows++
+			}
 		}
 	}
 	for _, v := range snap.Entitlements {
@@ -988,16 +1379,25 @@ func (s *Server) controlPlaneSummary(w http.ResponseWriter, r *http.Request) {
 	for _, v := range snap.Tenants {
 		if allowedProjects[v.ProjectID] {
 			tenants++
+			if v.State == controlplane.TenantFailed {
+				failedProductWorkflows++
+			}
 		}
 	}
 	for _, v := range snap.ProviderProfiles {
 		if allowedProjects[v.ProjectID] {
 			providerProfiles++
+			if v.State == controlplane.ProviderProfileFailed {
+				failedProductWorkflows++
+			}
 		}
 	}
 	for _, v := range snap.ProviderClusters {
 		if allowedProjects[v.ProjectID] {
 			providerClusters++
+			if v.State == controlplane.ProviderClusterFailed {
+				failedProductWorkflows++
+			}
 		}
 	}
 	unpublished := 0
@@ -1012,7 +1412,7 @@ func (s *Server) controlPlaneSummary(w http.ResponseWriter, r *http.Request) {
 			auditEvents++
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"organizations": organizations, "projects": projects, "blueprintRevisions": revisions, "assignments": assignments, "operations": operations, "operationStates": states, "unpublishedOutbox": unpublished, "auditEvents": auditEvents, "evidence": evidence, "clusterImports": clusterImports, "managedClusters": managedClusters, "baselineDeployments": baselineDeployments, "runtimeVerifications": runtimeVerifications, "runtimeClosureCampaigns": runtimeClosures, "entitlements": entitlements, "oemProfiles": oemProfiles, "tenants": tenants, "providerProfiles": providerProfiles, "providerClusters": providerClusters, "clusterMutationEnabled": true, "clusterMutationScope": "organization-membership-scoped", "authorityBackend": s.store.Backend()})
+	writeJSON(w, http.StatusOK, map[string]any{"organizations": organizations, "projects": projects, "blueprintRevisions": revisions, "assignments": assignments, "operations": operations, "operationStates": states, "notificationDeliveryStates": notificationStates, "unpublishedOutbox": unpublished, "auditEvents": auditEvents, "evidence": evidence, "clusterImports": clusterImports, "managedClusters": managedClusters, "connectedClusters": connectedClusters, "baselineDeployments": baselineDeployments, "successfulBaselineDeployments": successfulBaselines, "runtimeVerifications": runtimeVerifications, "successfulRuntimeVerifications": successfulVerifications, "runtimeClosureCampaigns": runtimeClosures, "successfulRuntimeClosureCampaigns": successfulClosures, "failedProductWorkflows": failedProductWorkflows, "entitlements": entitlements, "oemProfiles": oemProfiles, "tenants": tenants, "providerProfiles": providerProfiles, "providerClusters": providerClusters, "clusterMutationEnabled": true, "clusterMutationScope": "organization-membership-scoped", "authorityBackend": s.store.Backend()})
 }
 func (s *Server) accessContext(w http.ResponseWriter, r *http.Request) {
 	principal, authenticated := requestPrincipal(r)
@@ -1298,27 +1698,14 @@ func (s *Server) createOperation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, op)
 }
 func (s *Server) listOperations(w http.ResponseWriter, r *http.Request) {
-	projectID := strings.TrimSpace(r.URL.Query().Get("projectId"))
-	var (
-		allowed map[string]bool
-		all     bool
-		err     error
-	)
-	if projectID != "" {
-		if _, err = s.requireProjectAccess(r, projectID, organizationRead); err != nil {
-			writeScopeError(w, err)
-			return
-		}
-		// An explicit project filter has already crossed the authoritative
-		// project-access gate. Keep the collection query pinned to that project.
-		allowed = map[string]bool{projectID: true}
-	} else {
-		allowed, all, err = s.accessibleProjectSet(r)
-		if err != nil {
-			writeStoreError(w, err)
-			return
-		}
+	scope, ok := s.resolveRequestedReadScope(w, r)
+	if !ok {
+		return
 	}
+	projectID := scope.explicitProjectID
+	allowed := scope.projects
+	all := scope.allOrganizationsAndProjects
+	var err error
 	limit := 0
 	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
 		parsed, parseErr := strconv.Atoi(raw)
@@ -1433,12 +1820,11 @@ func limitAuditTail(events []controlplane.AuditEvent, limit int) []controlplane.
 
 func (s *Server) listAudit(w http.ResponseWriter, r *http.Request) {
 	limit := normalizedAuditLimit(r.URL.Query().Get("limit"))
-	_, all, err := s.accessibleOrganizationSet(r)
-	if err != nil {
-		writeStoreError(w, err)
+	scope, ok := s.resolveRequestedReadScope(w, r)
+	if !ok {
 		return
 	}
-	if all {
+	if scope.allOrganizationsAndProjects && scope.allResourceOrganizations {
 		v, err := s.store.ListAudit(r.Context(), limit)
 		if err != nil {
 			writeStoreError(w, err)
@@ -1447,18 +1833,8 @@ func (s *Server) listAudit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, v)
 		return
 	}
-	allowedProjects, _, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	resourceOrganizations, _, err := s.resourceOrganizationSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
 	if pager, ok := s.store.(auditScopedPageStore); ok {
-		values, err := pager.ListAuditPageByScopes(r.Context(), boolSetIDs(resourceOrganizations), boolSetIDs(allowedProjects), limit)
+		values, err := pager.ListAuditPageByScopes(r.Context(), boolSetIDs(scope.resourceOrganizations), boolSetIDs(scope.projects), limit)
 		if err != nil {
 			writeStoreError(w, err)
 			return
@@ -1471,7 +1847,7 @@ func (s *Server) listAudit(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
-	index := buildScopeIndex(snapshot, resourceOrganizations, allowedProjects)
+	index := buildScopeIndex(snapshot, scope.resourceOrganizations, scope.projects)
 	filtered := make([]controlplane.AuditEvent, 0, len(snapshot.Audit))
 	for _, event := range snapshot.Audit {
 		if auditVisible(event, index) {

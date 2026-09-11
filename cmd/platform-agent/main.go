@@ -33,6 +33,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -55,6 +56,7 @@ type config struct {
 	CertificateSecret            string
 	Interval                     time.Duration
 	RuntimeProbeImage            string
+	AgentImage                   string
 	ObservabilityMetricsURL      string
 	ObservabilityLogsURL         string
 	ObservabilityAlertsURL       string
@@ -85,6 +87,13 @@ type storedCredential struct {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "host-maintenance" {
+		if err := runHostMaintenanceCommand(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	action, cliErr := daemoncli.Parse(os.Args[1:])
 	if cliErr != nil {
 		fmt.Fprintln(os.Stderr, cliErr)
@@ -113,6 +122,7 @@ func main() {
 		CertificateSecret:            env("PLATFORM_AGENT_CERTIFICATE_SECRET", "4so-platform-agent-certificate"),
 		Interval:                     60 * time.Second,
 		RuntimeProbeImage:            strings.TrimSpace(os.Getenv("PLATFORM_RUNTIME_PROBE_IMAGE")),
+		AgentImage:                   strings.TrimSpace(os.Getenv("PLATFORM_AGENT_IMAGE")),
 		ObservabilityMetricsURL:      strings.TrimRight(strings.TrimSpace(os.Getenv("PLATFORM_OBSERVABILITY_METRICS_URL")), "/"),
 		ObservabilityLogsURL:         strings.TrimRight(strings.TrimSpace(os.Getenv("PLATFORM_OBSERVABILITY_LOGS_URL")), "/"),
 		ObservabilityAlertsURL:       strings.TrimRight(strings.TrimSpace(os.Getenv("PLATFORM_OBSERVABILITY_ALERTS_URL")), "/"),
@@ -192,46 +202,38 @@ func (a *agent) run(ctx context.Context) error {
 		case <-timer.C:
 		}
 	}
+
+	// AGENT_SCHEDULER_V2 keeps liveness/inventory collection independent from
+	// mutation execution. The task lane remains deliberately single-writer: one
+	// sequential task cycle may be running and at most one newer inventory epoch
+	// may be queued. This prevents a slow mutation from making the Agent appear
+	// stale/offline without introducing concurrent Kubernetes writers.
+	taskKick := make(chan struct{}, 1)
+	var taskWG sync.WaitGroup
+	taskWG.Add(1)
+	go func() {
+		defer taskWG.Done()
+		a.runTaskLane(ctx, taskKick)
+	}()
+	defer taskWG.Wait()
+
 	cycle := uint64(1)
 	for {
 		if err := a.ensureCertificateFresh(ctx); err != nil {
 			a.log.Warn("agent certificate rotation check failed", "error", err)
 		}
-		// Inventory is the authority epoch for every agent task. Never consume a
-		// task before the control plane has accepted a fresh identity/capability
-		// observation for this cycle.
+		// Inventory is the authority epoch for every agent task. Never enqueue a
+		// task cycle before the control plane has accepted a fresh
+		// identity/capability observation for this cycle.
 		if err := a.report(ctx); err != nil {
 			a.log.Warn("inventory report failed; mutation/task polling suppressed", "error", err)
 			if heartbeatErr := a.heartbeat(ctx); heartbeatErr != nil {
 				a.log.Warn("heartbeat failed", "error", heartbeatErr)
 			}
-			goto wait
+		} else if !enqueueAgentTaskCycle(taskKick) {
+			a.log.Debug("agent task lane busy; newest accepted inventory epoch already queued")
 		}
-		if err := a.processDriftTask(ctx); err != nil {
-			a.log.Warn("drift task failed", "error", err)
-		}
-		if err := a.processBaselineTask(ctx); err != nil {
-			a.log.Warn("baseline task failed", "error", err)
-		}
-		if err := a.processTenantTask(ctx); err != nil {
-			a.log.Warn("tenant task failed", "error", err)
-		}
-		if err := a.processProviderProfileTask(ctx); err != nil {
-			a.log.Warn("provider profile task failed", "error", err)
-		}
-		if err := a.processProviderClusterTask(ctx); err != nil {
-			a.log.Warn("provider cluster task failed", "error", err)
-		}
-		if err := a.processClusterMaintenanceTask(ctx); err != nil {
-			a.log.Warn("cluster maintenance task failed", "error", err)
-		}
-		if err := a.processRuntimeCertificationTask(ctx); err != nil {
-			a.log.Warn("runtime certification task failed", "error", err)
-		}
-		if err := a.processRuntimeVerificationTask(ctx); err != nil {
-			a.log.Warn("runtime verification task failed", "error", err)
-		}
-	wait:
+
 		delay := agentPollDelay(a.clusterID, a.cfg.Interval, cycle)
 		cycle++
 		timer := time.NewTimer(delay)
@@ -242,6 +244,68 @@ func (a *agent) run(ctx context.Context) error {
 			}
 			return ctx.Err()
 		case <-timer.C:
+		}
+	}
+}
+
+func enqueueAgentTaskCycle(taskKick chan<- struct{}) bool {
+	select {
+	case taskKick <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *agent) runTaskLane(ctx context.Context, taskKick <-chan struct{}) {
+	runSingleWriterTaskLane(ctx, taskKick, a.processTaskCycle)
+}
+
+func runSingleWriterTaskLane(ctx context.Context, taskKick <-chan struct{}, cycle func(context.Context)) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-taskKick:
+			cycle(ctx)
+		}
+	}
+}
+
+type agentTaskProcessor struct {
+	name string
+	run  func(context.Context) error
+}
+
+func (a *agent) taskProcessors() []agentTaskProcessor {
+	return []agentTaskProcessor{
+		{name: "drift", run: a.processDriftTask},
+		{name: "baseline", run: a.processBaselineTask},
+		{name: "tenant", run: a.processTenantTask},
+		{name: "provider profile", run: a.processProviderProfileTask},
+		{name: "provider cluster", run: a.processProviderClusterTask},
+		{name: "cluster maintenance", run: a.processClusterMaintenanceTask},
+		{name: "workload logs", run: a.processWorkloadLogTask},
+		{name: "runtime certification", run: a.processRuntimeCertificationTask},
+		{name: "data protection", run: a.processDataProtectionTask},
+		{name: "compliance scan", run: a.processComplianceScanTask},
+		{name: "runtime verification", run: a.processRuntimeVerificationTask},
+	}
+}
+
+func (a *agent) processTaskCycle(ctx context.Context) {
+	cycleStarted := time.Now()
+	a.log.Debug("agent task cycle started", "scheduler", "AGENT_SCHEDULER_V2")
+	defer func() {
+		a.log.Debug("agent task cycle completed", "scheduler", "AGENT_SCHEDULER_V2", "duration_ms", time.Since(cycleStarted).Milliseconds())
+	}()
+	processors := a.taskProcessors()
+	for _, processor := range processors {
+		if ctx.Err() != nil {
+			return
+		}
+		if err := processor.run(ctx); err != nil {
+			a.log.Warn(processor.name+" task failed", "error", err)
 		}
 	}
 }
@@ -288,8 +352,11 @@ func (a *agent) loadOrClaim(ctx context.Context) error {
 			if accepted, err := a.acceptStoredCertificate(ctx, credential); err != nil {
 				return err
 			} else if accepted {
-				if err = a.writeFileCredential(credential); err != nil && a.log != nil {
-					a.log.Warn("local certificate cache could not be refreshed", "error", err)
+				if err = a.writeFileCredential(credential); err != nil {
+					if a.log != nil {
+						a.log.Error("authoritative certificate accepted but local cache refresh failed", "error", err)
+					}
+					return fmt.Errorf("refresh local certificate cache from authoritative Secret: %w", err)
 				}
 				return nil
 			}
@@ -658,6 +725,386 @@ func (a *agent) clusterUID(ctx context.Context) (string, error) {
 	return namespace.Metadata.UID, nil
 }
 
+const workloadExplorerItemLimit = 250
+const workloadExplorerEventLimit = 100
+const workloadExplorerPageSize = 100
+
+func workloadListPagePath(base string, limit int, continueToken string) string {
+	values := url.Values{}
+	if limit > 0 {
+		values.Set("limit", strconv.Itoa(limit))
+	}
+	if strings.TrimSpace(continueToken) != "" {
+		values.Set("continue", continueToken)
+	}
+	if len(values) == 0 {
+		return base
+	}
+	return base + "?" + values.Encode()
+}
+
+func workloadPageLimit(remaining int) int {
+	if remaining < 1 {
+		return 0
+	}
+	if remaining < workloadExplorerPageSize {
+		return remaining
+	}
+	return workloadExplorerPageSize
+}
+
+func workloadImages(containers []struct {
+	Image string `json:"image"`
+}) []string {
+	out := make([]string, 0, len(containers))
+	seen := map[string]bool{}
+	for _, container := range containers {
+		image := strings.TrimSpace(container.Image)
+		if image != "" && !seen[image] {
+			seen[image] = true
+			out = append(out, image)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func clusterEventLess(a, b controlplane.ClusterEventObservation) bool {
+	if !a.LastObservedAt.Equal(b.LastObservedAt) {
+		return a.LastObservedAt.After(b.LastObservedAt)
+	}
+	if a.Namespace != b.Namespace {
+		return a.Namespace < b.Namespace
+	}
+	if a.Type != b.Type {
+		return a.Type < b.Type
+	}
+	if a.Reason != b.Reason {
+		return a.Reason < b.Reason
+	}
+	if a.RegardingKind != b.RegardingKind {
+		return a.RegardingKind < b.RegardingKind
+	}
+	if a.RegardingName != b.RegardingName {
+		return a.RegardingName < b.RegardingName
+	}
+	if a.Message != b.Message {
+		return a.Message < b.Message
+	}
+	return a.Count < b.Count
+}
+
+func (a *agent) discoverWorkloadExplorer(ctx context.Context) (controlplane.ClusterWorkloadExplorer, error) {
+	out := controlplane.ClusterWorkloadExplorer{Authority: controlplane.WorkloadExplorerAuthorityMethod, Complete: true}
+	type listMeta struct {
+		Continue string `json:"continue"`
+	}
+	type controllerList struct {
+		Metadata listMeta `json:"metadata"`
+		Items    []struct {
+			Metadata struct{ Name, Namespace string } `json:"metadata"`
+			Spec     struct {
+				Replicas *int `json:"replicas"`
+				Template struct {
+					Spec struct {
+						Containers []struct {
+							Image string `json:"image"`
+						} `json:"containers"`
+					} `json:"spec"`
+				} `json:"template"`
+			} `json:"spec"`
+			Status struct{ Replicas, ReadyReplicas, AvailableReplicas, NumberReady, Succeeded, Failed int } `json:"status"`
+		} `json:"items"`
+	}
+	controllerPaths := []struct{ path, kind string }{
+		{"/apis/apps/v1/deployments", "Deployment"},
+		{"/apis/apps/v1/statefulsets", "StatefulSet"},
+		{"/apis/apps/v1/daemonsets", "DaemonSet"},
+		{"/apis/batch/v1/jobs", "Job"},
+	}
+	for targetIndex, target := range controllerPaths {
+		if len(out.Workloads) >= workloadExplorerItemLimit {
+			// We deliberately did not query the remaining controller families.
+			out.Truncated = true
+			break
+		}
+		continueToken := ""
+		for {
+			remaining := workloadExplorerItemLimit - len(out.Workloads)
+			pageLimit := workloadPageLimit(remaining)
+			if pageLimit == 0 {
+				out.Truncated = true
+				break
+			}
+			var list controllerList
+			if err := a.kubeJSON(ctx, http.MethodGet, workloadListPagePath(target.path, pageLimit, continueToken), nil, &list); err != nil {
+				return out, fmt.Errorf("workload explorer %s: %w", strings.ToLower(target.kind), err)
+			}
+			for _, item := range list.Items {
+				desired := item.Status.Replicas
+				if item.Spec.Replicas != nil {
+					desired = *item.Spec.Replicas
+				}
+				ready := item.Status.ReadyReplicas
+				if target.kind == "DaemonSet" {
+					ready = item.Status.NumberReady
+				}
+				out.Workloads = append(out.Workloads, controlplane.ClusterWorkloadObservation{Kind: target.kind, Namespace: item.Metadata.Namespace, Name: item.Metadata.Name, DesiredReplicas: desired, ReadyReplicas: ready, Succeeded: item.Status.Succeeded, Failed: item.Status.Failed, Images: workloadImages(item.Spec.Template.Spec.Containers)})
+				if len(out.Workloads) >= workloadExplorerItemLimit {
+					break
+				}
+			}
+			continueToken = strings.TrimSpace(list.Metadata.Continue)
+			if continueToken == "" {
+				break
+			}
+			if len(out.Workloads) >= workloadExplorerItemLimit {
+				out.Truncated = true
+				break
+			}
+		}
+		if len(out.Workloads) >= workloadExplorerItemLimit && targetIndex < len(controllerPaths)-1 {
+			out.Truncated = true
+		}
+	}
+	sort.Slice(out.Workloads, func(i, j int) bool {
+		a, b := out.Workloads[i], out.Workloads[j]
+		if a.Namespace != b.Namespace {
+			return a.Namespace < b.Namespace
+		}
+		if a.Kind != b.Kind {
+			return a.Kind < b.Kind
+		}
+		return a.Name < b.Name
+	})
+
+	var servicePageToken string
+	for {
+		remaining := workloadExplorerItemLimit - len(out.Services)
+		pageLimit := workloadPageLimit(remaining)
+		if pageLimit == 0 {
+			out.Truncated = true
+			break
+		}
+		var services struct {
+			Metadata listMeta `json:"metadata"`
+			Items    []struct {
+				Metadata struct{ Name, Namespace string } `json:"metadata"`
+				Spec     struct {
+					Type        string   `json:"type"`
+					ClusterIP   string   `json:"clusterIP"`
+					ExternalIPs []string `json:"externalIPs"`
+					Ports       []struct {
+						Name     string `json:"name"`
+						Port     int    `json:"port"`
+						Protocol string `json:"protocol"`
+					} `json:"ports"`
+				} `json:"spec"`
+			} `json:"items"`
+		}
+		if err := a.kubeJSON(ctx, http.MethodGet, workloadListPagePath("/api/v1/services", pageLimit, servicePageToken), nil, &services); err != nil {
+			return out, fmt.Errorf("workload explorer services: %w", err)
+		}
+		for _, item := range services.Items {
+			ports := make([]controlplane.ClusterServicePortObservation, 0, len(item.Spec.Ports))
+			for _, p := range item.Spec.Ports {
+				ports = append(ports, controlplane.ClusterServicePortObservation{Name: p.Name, Port: p.Port, Protocol: p.Protocol})
+			}
+			external := append([]string(nil), item.Spec.ExternalIPs...)
+			sort.Strings(external)
+			out.Services = append(out.Services, controlplane.ClusterServiceObservation{Namespace: item.Metadata.Namespace, Name: item.Metadata.Name, Type: item.Spec.Type, ClusterIP: item.Spec.ClusterIP, ExternalIPs: external, Ports: ports})
+			if len(out.Services) >= workloadExplorerItemLimit {
+				break
+			}
+		}
+		servicePageToken = strings.TrimSpace(services.Metadata.Continue)
+		if servicePageToken == "" {
+			break
+		}
+		if len(out.Services) >= workloadExplorerItemLimit {
+			out.Truncated = true
+			break
+		}
+	}
+	sort.Slice(out.Services, func(i, j int) bool {
+		if out.Services[i].Namespace != out.Services[j].Namespace {
+			return out.Services[i].Namespace < out.Services[j].Namespace
+		}
+		return out.Services[i].Name < out.Services[j].Name
+	})
+
+	var ingressPageToken string
+	for {
+		remaining := workloadExplorerItemLimit - len(out.Ingresses)
+		pageLimit := workloadPageLimit(remaining)
+		if pageLimit == 0 {
+			out.Truncated = true
+			break
+		}
+		var ingresses struct {
+			Metadata listMeta `json:"metadata"`
+			Items    []struct {
+				Metadata struct {
+					Name, Namespace string
+					Annotations     map[string]string `json:"annotations"`
+				} `json:"metadata"`
+				Spec struct {
+					IngressClassName *string `json:"ingressClassName"`
+					Rules            []struct {
+						Host string `json:"host"`
+					} `json:"rules"`
+					TLS []struct {
+						Hosts []string `json:"hosts"`
+					} `json:"tls"`
+				} `json:"spec"`
+			} `json:"items"`
+		}
+		if err := a.kubeJSON(ctx, http.MethodGet, workloadListPagePath("/apis/networking.k8s.io/v1/ingresses", pageLimit, ingressPageToken), nil, &ingresses); err != nil {
+			return out, fmt.Errorf("workload explorer ingresses: %w", err)
+		}
+		for _, item := range ingresses.Items {
+			class := ""
+			if item.Spec.IngressClassName != nil {
+				class = *item.Spec.IngressClassName
+			} else {
+				class = item.Metadata.Annotations["kubernetes.io/ingress.class"]
+			}
+			hosts := []string{}
+			for _, r := range item.Spec.Rules {
+				if strings.TrimSpace(r.Host) != "" {
+					hosts = append(hosts, r.Host)
+				}
+			}
+			tls := []string{}
+			for _, t := range item.Spec.TLS {
+				tls = append(tls, t.Hosts...)
+			}
+			sort.Strings(hosts)
+			sort.Strings(tls)
+			out.Ingresses = append(out.Ingresses, controlplane.ClusterIngressObservation{Namespace: item.Metadata.Namespace, Name: item.Metadata.Name, Class: class, Hosts: hosts, TLSHosts: tls})
+			if len(out.Ingresses) >= workloadExplorerItemLimit {
+				break
+			}
+		}
+		ingressPageToken = strings.TrimSpace(ingresses.Metadata.Continue)
+		if ingressPageToken == "" {
+			break
+		}
+		if len(out.Ingresses) >= workloadExplorerItemLimit {
+			out.Truncated = true
+			break
+		}
+	}
+	sort.Slice(out.Ingresses, func(i, j int) bool {
+		if out.Ingresses[i].Namespace != out.Ingresses[j].Namespace {
+			return out.Ingresses[i].Namespace < out.Ingresses[j].Namespace
+		}
+		return out.Ingresses[i].Name < out.Ingresses[j].Name
+	})
+
+	var pvcPageToken string
+	for {
+		remaining := workloadExplorerItemLimit - len(out.PVCs)
+		pageLimit := workloadPageLimit(remaining)
+		if pageLimit == 0 {
+			out.Truncated = true
+			break
+		}
+		var pvcs struct {
+			Metadata listMeta `json:"metadata"`
+			Items    []struct {
+				Metadata struct{ Name, Namespace string } `json:"metadata"`
+				Spec     struct {
+					StorageClassName *string `json:"storageClassName"`
+					Resources        struct {
+						Requests map[string]string `json:"requests"`
+					} `json:"resources"`
+				} `json:"spec"`
+				Status struct {
+					Phase string `json:"phase"`
+				} `json:"status"`
+			} `json:"items"`
+		}
+		if err := a.kubeJSON(ctx, http.MethodGet, workloadListPagePath("/api/v1/persistentvolumeclaims", pageLimit, pvcPageToken), nil, &pvcs); err != nil {
+			return out, fmt.Errorf("workload explorer persistent volume claims: %w", err)
+		}
+		for _, item := range pvcs.Items {
+			sc := ""
+			if item.Spec.StorageClassName != nil {
+				sc = *item.Spec.StorageClassName
+			}
+			out.PVCs = append(out.PVCs, controlplane.ClusterPVCObservation{Namespace: item.Metadata.Namespace, Name: item.Metadata.Name, StorageClass: sc, Phase: item.Status.Phase, Requested: item.Spec.Resources.Requests["storage"]})
+			if len(out.PVCs) >= workloadExplorerItemLimit {
+				break
+			}
+		}
+		pvcPageToken = strings.TrimSpace(pvcs.Metadata.Continue)
+		if pvcPageToken == "" {
+			break
+		}
+		if len(out.PVCs) >= workloadExplorerItemLimit {
+			out.Truncated = true
+			break
+		}
+	}
+	sort.Slice(out.PVCs, func(i, j int) bool {
+		if out.PVCs[i].Namespace != out.PVCs[j].Namespace {
+			return out.PVCs[i].Namespace < out.PVCs[j].Namespace
+		}
+		return out.PVCs[i].Name < out.PVCs[j].Name
+	})
+
+	var eventPageToken string
+	for {
+		remaining := workloadExplorerEventLimit - len(out.Events)
+		pageLimit := workloadPageLimit(remaining)
+		if pageLimit == 0 {
+			out.Truncated = true
+			break
+		}
+		var events struct {
+			Metadata listMeta `json:"metadata"`
+			Items    []struct {
+				Metadata              struct{ Namespace string } `json:"metadata"`
+				Type, Reason, Message string
+				Count                 int
+				Regarding             struct{ Kind, Name string } `json:"regarding"`
+				InvolvedObject        struct{ Kind, Name string } `json:"involvedObject"`
+				EventTime             time.Time                   `json:"eventTime"`
+				LastTimestamp         time.Time                   `json:"lastTimestamp"`
+			} `json:"items"`
+		}
+		if err := a.kubeJSON(ctx, http.MethodGet, workloadListPagePath("/api/v1/events", pageLimit, eventPageToken), nil, &events); err != nil {
+			return out, fmt.Errorf("workload explorer events: %w", err)
+		}
+		for _, item := range events.Items {
+			kind, name := item.Regarding.Kind, item.Regarding.Name
+			if kind == "" {
+				kind = item.InvolvedObject.Kind
+				name = item.InvolvedObject.Name
+			}
+			last := item.EventTime
+			if last.IsZero() {
+				last = item.LastTimestamp
+			}
+			out.Events = append(out.Events, controlplane.ClusterEventObservation{Namespace: item.Metadata.Namespace, Type: item.Type, Reason: item.Reason, RegardingKind: kind, RegardingName: name, Message: item.Message, Count: item.Count, LastObservedAt: last})
+			if len(out.Events) >= workloadExplorerEventLimit {
+				break
+			}
+		}
+		eventPageToken = strings.TrimSpace(events.Metadata.Continue)
+		if eventPageToken == "" {
+			break
+		}
+		if len(out.Events) >= workloadExplorerEventLimit {
+			out.Truncated = true
+			break
+		}
+	}
+	sort.Slice(out.Events, func(i, j int) bool { return clusterEventLess(out.Events[i], out.Events[j]) })
+	return out, nil
+}
+
 func (a *agent) report(ctx context.Context) error {
 	var nodes struct {
 		Items []struct {
@@ -774,12 +1221,30 @@ func (a *agent) report(ctx context.Context) error {
 	}
 	sort.Slice(classes, func(i, j int) bool { return classes[i].Name < classes[j].Name })
 
+	workloadExplorer, workloadErr := a.discoverWorkloadExplorer(ctx)
+	if workloadErr != nil {
+		return workloadErr
+	}
+
 	networking := detectClusterNetworking(deployments.Items)
 	networking.GatewayAPI = a.kubeDiscoveryAvailable(ctx, "/apis/gateway.networking.k8s.io/v1")
 	apiResources, crds, apiDiscoveryComplete, crdDiscoveryComplete := a.discoverAPISurface(ctx)
 	distribution, distributionEvidenceMethod, distributionEvidenceUID, distributionEvidenceVersion, err := a.detectDistributionAuthority(ctx, distribution, kubernetesVersion, crds, crdDiscoveryComplete)
 	if err != nil {
 		return fmt.Errorf("inventory distribution authority: %w", err)
+	}
+	if distribution == targetmodel.DistributionOKD || distribution == targetmodel.DistributionOpenShift {
+		distributionComponents, discoverErr := a.discoverOpenShiftDistributionComponents(ctx)
+		if discoverErr != nil {
+			return fmt.Errorf("inventory distribution health authority: %w", discoverErr)
+		}
+		addons = append(addons, distributionComponents...)
+		sort.Slice(addons, func(i, j int) bool {
+			if addons[i].Kind == addons[j].Kind {
+				return addons[i].Namespace+"/"+addons[i].Name < addons[j].Namespace+"/"+addons[j].Name
+			}
+			return addons[i].Kind < addons[j].Kind
+		})
 	}
 	schemaDiscoveryVersion, schemaDiscoveryDigest, schemaDiscoveryComplete := a.discoverSchemaAuthority(ctx)
 	_ = a.ensureObservabilityAdapterDiscovery(ctx)
@@ -808,7 +1273,7 @@ func (a *agent) report(ctx context.Context) error {
 		return fmt.Errorf("inventory cluster identity continuity: %w", err)
 	}
 
-	capabilities := []string{"outbound-agent", "read-only-inventory", "agent-mtls", "capacity-inventory", "certificate-inventory", "cert.dns", "cert.tls"}
+	capabilities := []string{"outbound-agent", "read-only-inventory", "agent-mtls", "agent-scheduler-v2", "capacity-inventory", "certificate-inventory", "cert.dns", "cert.tls"}
 	if a.enrollmentPrincipalIsolated() {
 		capabilities = append(capabilities, controlplane.TargetEnrollmentPrincipalIsolatedCapability)
 	}
@@ -826,6 +1291,9 @@ func (a *agent) report(ctx context.Context) error {
 	}
 	if networking.GatewayAPI {
 		capabilities = append(capabilities, "gateway-api")
+	}
+	if workloadExplorer.Complete {
+		capabilities = append(capabilities, "workload-explorer-read")
 	}
 	if len(apiResources) > 0 {
 		capabilities = append(capabilities, "api-surface-inventory")
@@ -850,6 +1318,9 @@ func (a *agent) report(ctx context.Context) error {
 		capabilities = append(capabilities, storageCaps...)
 		capabilities = append(capabilities, "storage-backup-adapter-auto-discovered")
 	}
+	if a.dataProtectionCapabilityAvailable(ctx) {
+		capabilities = append(capabilities, controlplane.DataProtectionAgentCapability)
+	}
 	basisCapabilities := append([]string(nil), capabilities...)
 	// The control plane owns this marker after comparing the reported kube-system
 	// UID. The agent already has that UID here, so include the expected server-owned
@@ -857,7 +1328,7 @@ func (a *agent) report(ctx context.Context) error {
 	basisCapabilities = append(basisCapabilities, controlplane.TargetIdentityContinuityCapability)
 	basisDigest := controlplane.ClusterInventoryMutationBasisDigest(controlplane.ClusterInventory{
 		Distribution: distribution, DistributionEvidenceMethod: distributionEvidenceMethod, DistributionEvidenceUID: distributionEvidenceUID, DistributionEvidenceVersion: distributionEvidenceVersion,
-		KubernetesVersion: kubernetesVersion, Nodes: outNodes, AddOns: addons, StorageClasses: classes, Capacity: capacity, Certificates: certificates, Networking: networking,
+		KubernetesVersion: kubernetesVersion, Nodes: outNodes, AddOns: addons, StorageClasses: classes, Capacity: capacity, Certificates: certificates, Networking: networking, WorkloadExplorer: workloadExplorer,
 		APIResources: apiResources, CRDs: crds, APIDiscoveryComplete: apiDiscoveryComplete, CRDDiscoveryComplete: crdDiscoveryComplete,
 		SchemaDiscoveryVersion: schemaDiscoveryVersion, SchemaDiscoveryDigest: schemaDiscoveryDigest, SchemaDiscoveryComplete: schemaDiscoveryComplete, Capabilities: basisCapabilities,
 	})
@@ -868,9 +1339,15 @@ func (a *agent) report(ctx context.Context) error {
 			controlplane.ClusterMaintenanceFencedReportCapability,
 			controlplane.TargetMutationRBACActiveCapability,
 		)
+		if a.nodeHostMaintenanceExecutorReady(ctx, distribution) {
+			capabilities = append(capabilities, controlplane.TargetNodeHostMaintenanceCapability, controlplane.TargetNodeOSPatchCapability)
+		}
+		if a.providerMachineLifecycleReady(ctx) {
+			capabilities = append(capabilities, controlplane.TargetNodeProviderMachineLifecycleCapability)
+		}
 	}
 	sort.Strings(capabilities)
-	payload := map[string]any{"observedAt": time.Now().UTC(), "externalUid": externalUID, "distribution": distribution, "distributionEvidenceMethod": distributionEvidenceMethod, "distributionEvidenceUid": distributionEvidenceUID, "distributionEvidenceVersion": distributionEvidenceVersion, "kubernetesVersion": kubernetesVersion, "nodes": outNodes, "addOns": addons, "storageClasses": classes, "capacity": capacity, "certificates": certificates, "networking": networking, "apiResources": apiResources, "crds": crds, "apiDiscoveryComplete": apiDiscoveryComplete, "crdDiscoveryComplete": crdDiscoveryComplete, "schemaDiscoveryVersion": schemaDiscoveryVersion, "schemaDiscoveryDigest": schemaDiscoveryDigest, "schemaDiscoveryComplete": schemaDiscoveryComplete, "capabilities": capabilities}
+	payload := map[string]any{"observedAt": time.Now().UTC(), "externalUid": externalUID, "distribution": distribution, "distributionEvidenceMethod": distributionEvidenceMethod, "distributionEvidenceUid": distributionEvidenceUID, "distributionEvidenceVersion": distributionEvidenceVersion, "kubernetesVersion": kubernetesVersion, "nodes": outNodes, "addOns": addons, "storageClasses": classes, "capacity": capacity, "certificates": certificates, "networking": networking, "workloadExplorer": workloadExplorer, "apiResources": apiResources, "crds": crds, "apiDiscoveryComplete": apiDiscoveryComplete, "crdDiscoveryComplete": crdDiscoveryComplete, "schemaDiscoveryVersion": schemaDiscoveryVersion, "schemaDiscoveryDigest": schemaDiscoveryDigest, "schemaDiscoveryComplete": schemaDiscoveryComplete, "capabilities": capabilities}
 	return a.hubJSON(ctx, http.MethodPost, a.cfg.Hub+"/agent/v1/clusters/"+a.clusterID+"/inventory", payload, "", &map[string]any{})
 }
 
@@ -915,6 +1392,156 @@ func (a *agent) detectDistributionAuthority(ctx context.Context, heuristic, kube
 	return heuristic, controlplane.DistributionEvidenceKubeletV1, "", strings.TrimSpace(kubernetesVersion), nil
 }
 
+func conditionValue(conditions []struct {
+	Type    string `json:"type"`
+	Status  string `json:"status"`
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}, wanted string) (string, string, string) {
+	for _, condition := range conditions {
+		if strings.EqualFold(strings.TrimSpace(condition.Type), wanted) {
+			return strings.TrimSpace(condition.Status), strings.TrimSpace(condition.Reason), strings.TrimSpace(condition.Message)
+		}
+	}
+	return "Unknown", "ConditionMissing", wanted + " condition is not reported"
+}
+
+func clusterVersionConditionSummary(conditions []struct {
+	Type    string `json:"type"`
+	Status  string `json:"status"`
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}) (available, progressing, degraded, upgradeable, reason, message string) {
+	available, availableReason, availableMessage := conditionValue(conditions, "Available")
+	progressing, progressingReason, progressingMessage := conditionValue(conditions, "Progressing")
+	// ClusterVersion reports release failure through the Failing condition, while
+	// ClusterOperator reports Degraded. Project both onto the product's Degraded
+	// field so the control plane has one health vocabulary without losing the
+	// upstream condition semantics.
+	degraded, degradedReason, degradedMessage := conditionValue(conditions, "Failing")
+	upgradeable, upgradeableReason, upgradeableMessage := conditionValue(conditions, "Upgradeable")
+	if strings.EqualFold(degraded, "True") {
+		return available, progressing, degraded, upgradeable, degradedReason, degradedMessage
+	}
+	if !strings.EqualFold(available, "True") {
+		return available, progressing, degraded, upgradeable, availableReason, availableMessage
+	}
+	if strings.EqualFold(progressing, "True") {
+		return available, progressing, degraded, upgradeable, progressingReason, progressingMessage
+	}
+	if strings.EqualFold(upgradeable, "False") {
+		return available, progressing, degraded, upgradeable, upgradeableReason, upgradeableMessage
+	}
+	return available, progressing, degraded, upgradeable, "", ""
+}
+
+func distributionConditionSummary(conditions []struct {
+	Type    string `json:"type"`
+	Status  string `json:"status"`
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}) (available, progressing, degraded, upgradeable, reason, message string) {
+	available, availableReason, availableMessage := conditionValue(conditions, "Available")
+	progressing, progressingReason, progressingMessage := conditionValue(conditions, "Progressing")
+	degraded, degradedReason, degradedMessage := conditionValue(conditions, "Degraded")
+	upgradeable, upgradeableReason, upgradeableMessage := conditionValue(conditions, "Upgradeable")
+	if strings.EqualFold(degraded, "True") {
+		return available, progressing, degraded, upgradeable, degradedReason, degradedMessage
+	}
+	if !strings.EqualFold(available, "True") {
+		return available, progressing, degraded, upgradeable, availableReason, availableMessage
+	}
+	if strings.EqualFold(progressing, "True") {
+		return available, progressing, degraded, upgradeable, progressingReason, progressingMessage
+	}
+	if strings.EqualFold(upgradeable, "False") {
+		return available, progressing, degraded, upgradeable, upgradeableReason, upgradeableMessage
+	}
+	return available, progressing, degraded, upgradeable, "", ""
+}
+
+func (a *agent) discoverOpenShiftDistributionComponents(ctx context.Context) ([]controlplane.ClusterAddOn, error) {
+	type condition struct {
+		Type    string `json:"type"`
+		Status  string `json:"status"`
+		Reason  string `json:"reason"`
+		Message string `json:"message"`
+	}
+	type clusterOperator struct {
+		Metadata struct {
+			Name string `json:"name"`
+		} `json:"metadata"`
+		Status struct {
+			Version    string      `json:"version"`
+			Conditions []condition `json:"conditions"`
+		} `json:"status"`
+	}
+	var operators struct {
+		Items []clusterOperator `json:"items"`
+	}
+	found, err := a.kubeJSONOptional(ctx, "/apis/config.openshift.io/v1/clusteroperators", &operators)
+	if err != nil {
+		return nil, err
+	}
+	if !found || len(operators.Items) == 0 {
+		return nil, fmt.Errorf("ClusterOperator inventory is unavailable")
+	}
+
+	type clusterVersion struct {
+		Metadata struct {
+			Name string `json:"name"`
+		} `json:"metadata"`
+		Spec struct {
+			Channel string `json:"channel"`
+		} `json:"spec"`
+		Status struct {
+			Desired struct {
+				Version string `json:"version"`
+				Image   string `json:"image"`
+			} `json:"desired"`
+			Conditions []condition `json:"conditions"`
+		} `json:"status"`
+	}
+	var cv clusterVersion
+	found, err = a.kubeJSONOptional(ctx, "/apis/config.openshift.io/v1/clusterversions/version", &cv)
+	if err != nil {
+		return nil, err
+	}
+	if !found || cv.Metadata.Name != "version" || strings.TrimSpace(cv.Status.Desired.Version) == "" {
+		return nil, fmt.Errorf("ClusterVersion/version health authority is unavailable")
+	}
+
+	toAnonymous := func(values []condition) []struct {
+		Type    string `json:"type"`
+		Status  string `json:"status"`
+		Reason  string `json:"reason"`
+		Message string `json:"message"`
+	} {
+		out := make([]struct {
+			Type    string `json:"type"`
+			Status  string `json:"status"`
+			Reason  string `json:"reason"`
+			Message string `json:"message"`
+		}, 0, len(values))
+		for _, v := range values {
+			out = append(out, struct {
+				Type    string `json:"type"`
+				Status  string `json:"status"`
+				Reason  string `json:"reason"`
+				Message string `json:"message"`
+			}{v.Type, v.Status, v.Reason, v.Message})
+		}
+		return out
+	}
+	available, progressing, degraded, upgradeable, reason, message := clusterVersionConditionSummary(toAnonymous(cv.Status.Conditions))
+	components := []controlplane.ClusterAddOn{{Name: "version", Kind: "cluster-version", Version: strings.TrimSpace(cv.Status.Desired.Version), Healthy: strings.EqualFold(available, "True") && !strings.EqualFold(progressing, "True") && !strings.EqualFold(degraded, "True"), Available: available, Progressing: progressing, Degraded: degraded, Upgradeable: upgradeable, Reason: reason, Message: message}}
+	for _, operator := range operators.Items {
+		available, progressing, degraded, upgradeable, reason, message := distributionConditionSummary(toAnonymous(operator.Status.Conditions))
+		components = append(components, controlplane.ClusterAddOn{Name: strings.TrimSpace(operator.Metadata.Name), Kind: "cluster-operator", Version: strings.TrimSpace(operator.Status.Version), Healthy: strings.EqualFold(available, "True") && !strings.EqualFold(progressing, "True") && !strings.EqualFold(degraded, "True"), Available: available, Progressing: progressing, Degraded: degraded, Upgradeable: upgradeable, Reason: reason, Message: message})
+	}
+	return components, nil
+}
+
 func (a *agent) enrollmentPrincipalIsolated() bool {
 	if strings.TrimSpace(a.cfg.ImportID) == "" || strings.TrimSpace(a.cfg.ServiceAccount) == "" {
 		return false
@@ -935,6 +1562,25 @@ func (a *agent) mutationRBACActive(ctx context.Context, expectedBasisDigest stri
 		{"", "v1", "nodes", "patch", ""},
 		{"", "v1", "pods/eviction", "create", ""},
 		{"cluster.x-k8s.io", "v1beta2", "clusters", "create", "4so-provider-system"},
+	}
+	for _, check := range checks {
+		allowed, err := a.selfSubjectAccessAllowed(ctx, check.group, check.version, check.resource, check.verb, check.namespace)
+		if err != nil || !allowed {
+			return false
+		}
+	}
+	return true
+}
+
+func (a *agent) providerMachineLifecycleReady(ctx context.Context) bool {
+	checks := []struct{ group, version, resource, verb, namespace string }{
+		{"cluster.x-k8s.io", "v1beta1", "machines", "get", "4so-provider-system"},
+		{"cluster.x-k8s.io", "v1beta1", "machines", "list", "4so-provider-system"},
+		{"cluster.x-k8s.io", "v1beta1", "machines", "patch", "4so-provider-system"},
+		{"cluster.x-k8s.io", "v1beta1", "machines", "delete", "4so-provider-system"},
+		{"cluster.x-k8s.io", "v1beta1", "machinesets", "get", "4so-provider-system"},
+		{"cluster.x-k8s.io", "v1beta1", "machinedeployments", "get", "4so-provider-system"},
+		{"cluster.x-k8s.io", "v1beta2", "clusters", "patch", "4so-provider-system"},
 	}
 	for _, check := range checks {
 		allowed, err := a.selfSubjectAccessAllowed(ctx, check.group, check.version, check.resource, check.verb, check.namespace)
@@ -2580,7 +3226,58 @@ func (a *agent) nextRuntimeCertificationTask(ctx context.Context) (controlplane.
 	return task, true, nil
 }
 
+const (
+	componentRuntimeTaskMaxResources = 256
+	componentRuntimeTaskMaxBytes     = 4 << 20
+)
+
+func componentRuntimeResourcePath(resource map[string]any) (string, string, error) {
+	apiVersion, _ := resource["apiVersion"].(string)
+	kind, _ := resource["kind"].(string)
+	metadata, _ := resource["metadata"].(map[string]any)
+	name, _ := metadata["name"].(string)
+	namespace, _ := metadata["namespace"].(string)
+	apiVersion, kind, name, namespace = strings.TrimSpace(apiVersion), strings.TrimSpace(kind), strings.TrimSpace(name), strings.TrimSpace(namespace)
+	if apiVersion == "" || kind == "" || name == "" {
+		return "", "", fmt.Errorf("component runtime resource identity is incomplete")
+	}
+	escape := url.PathEscape
+	identity := apiVersion + "/" + kind + "/" + namespace + "/" + name
+	type mapping struct {
+		collection string
+		namespaced bool
+	}
+	mappings := map[string]mapping{
+		"apiextensions.k8s.io/v1|CustomResourceDefinition":                 {"/apis/apiextensions.k8s.io/v1/customresourcedefinitions", false},
+		"admissionregistration.k8s.io/v1|ValidatingAdmissionPolicy":        {"/apis/admissionregistration.k8s.io/v1/validatingadmissionpolicies", false},
+		"admissionregistration.k8s.io/v1|ValidatingAdmissionPolicyBinding": {"/apis/admissionregistration.k8s.io/v1/validatingadmissionpolicybindings", false},
+		"v1|ServiceAccount":                               {"/api/v1/namespaces/%s/serviceaccounts", true},
+		"rbac.authorization.k8s.io/v1|ClusterRole":        {"/apis/rbac.authorization.k8s.io/v1/clusterroles", false},
+		"rbac.authorization.k8s.io/v1|ClusterRoleBinding": {"/apis/rbac.authorization.k8s.io/v1/clusterrolebindings", false},
+		"rbac.authorization.k8s.io/v1|Role":               {"/apis/rbac.authorization.k8s.io/v1/namespaces/%s/roles", true},
+		"rbac.authorization.k8s.io/v1|RoleBinding":        {"/apis/rbac.authorization.k8s.io/v1/namespaces/%s/rolebindings", true},
+		"apps/v1|Deployment":                              {"/apis/apps/v1/namespaces/%s/deployments", true},
+	}
+	m, ok := mappings[apiVersion+"|"+kind]
+	if !ok {
+		return "", "", fmt.Errorf("component runtime resource %s/%s is outside executable allowlist", apiVersion, kind)
+	}
+	collection := m.collection
+	if m.namespaced {
+		if namespace == "" {
+			return "", "", fmt.Errorf("component runtime resource %s requires namespace", identity)
+		}
+		collection = fmt.Sprintf(collection, escape(namespace))
+	} else if namespace != "" {
+		return "", "", fmt.Errorf("cluster-scoped component runtime resource %s must not set namespace", identity)
+	}
+	return collection + "/" + escape(name), identity, nil
+}
+
 func certificationResourcePath(task controlplane.RuntimeCertificationTask, resource map[string]any) (string, string, error) {
+	if task.Profile == controlplane.RuntimeCertificationComponentV1 {
+		return componentRuntimeResourcePath(resource)
+	}
 	kind, _ := resource["kind"].(string)
 	metadata, _ := resource["metadata"].(map[string]any)
 	name, _ := metadata["name"].(string)
@@ -2613,11 +3310,28 @@ func validateRuntimeCertificationTask(task controlplane.RuntimeCertificationTask
 	if !strings.HasPrefix(task.InventoryDigest, "sha256:") || !strings.HasPrefix(task.EnvironmentFingerprint, "sha256:") || !strings.HasPrefix(task.ManifestDigest, "sha256:") || !strings.HasPrefix(task.SourceLockDigest, "sha256:") || !strings.HasPrefix(task.RenderedDigest, "sha256:") {
 		return fmt.Errorf("runtime certification context is not digest-bound")
 	}
-	if task.Profile != controlplane.RuntimeCertificationFoundationV1 && task.Profile != controlplane.RuntimeCertificationObservabilityV1 && task.Profile != controlplane.RuntimeCertificationTargetV1 {
+	if task.Profile != controlplane.RuntimeCertificationFoundationV1 && task.Profile != controlplane.RuntimeCertificationObservabilityV1 && task.Profile != controlplane.RuntimeCertificationTargetV1 && task.Profile != controlplane.RuntimeCertificationComponentV1 {
 		return fmt.Errorf("unsupported runtime certification profile")
 	}
-	if task.Phase != controlplane.RuntimeCertificationPhaseInstall && task.Phase != controlplane.RuntimeCertificationPhaseVerify {
+	if task.Phase != controlplane.RuntimeCertificationPhaseInstall && task.Phase != controlplane.RuntimeCertificationPhaseVerify && task.Phase != controlplane.RuntimeCertificationPhaseFailure && task.Phase != controlplane.RuntimeCertificationPhaseRemove {
 		return fmt.Errorf("unsupported runtime certification phase")
+	}
+	if task.Profile != controlplane.RuntimeCertificationComponentV1 && (task.Phase == controlplane.RuntimeCertificationPhaseFailure || task.Phase == controlplane.RuntimeCertificationPhaseRemove) {
+		return fmt.Errorf("extended runtime certification phases are component-only")
+	}
+	if len(task.Resources) > componentRuntimeTaskMaxResources {
+		return fmt.Errorf("runtime certification task exceeds resource limit")
+	}
+	rawResources, err := json.Marshal(task.Resources)
+	if err != nil || len(rawResources) > componentRuntimeTaskMaxBytes {
+		return fmt.Errorf("runtime certification task exceeds serialized payload limit")
+	}
+	if task.Profile == controlplane.RuntimeCertificationComponentV1 {
+		if strings.TrimSpace(task.ComponentName) == "" || strings.TrimSpace(task.ComponentRelease) == "" {
+			return fmt.Errorf("component runtime certification identity is incomplete")
+		}
+	} else if strings.TrimSpace(task.ComponentName) != "" || strings.TrimSpace(task.ComponentRelease) != "" {
+		return fmt.Errorf("component runtime identity is not allowed for non-component profile")
 	}
 	seen := map[string]bool{}
 	for _, resource := range task.Resources {
@@ -2635,7 +3349,7 @@ func validateRuntimeCertificationTask(task controlplane.RuntimeCertificationTask
 			return fmt.Errorf("resource %s is missing managed-by identity", identity)
 		}
 	}
-	if len(task.Resources) != 6 {
+	if task.Profile != controlplane.RuntimeCertificationComponentV1 && len(task.Resources) != 6 {
 		return fmt.Errorf("foundation certification requires exactly six allowlisted resources")
 	}
 	return nil
@@ -2646,6 +3360,18 @@ func (a *agent) runRuntimeCertification(ctx context.Context, task controlplane.R
 	if err := validateRuntimeCertificationTask(task); err != nil {
 		result.Error = err.Error()
 		return result
+	}
+	if task.Profile == controlplane.RuntimeCertificationComponentV1 {
+		switch task.Phase {
+		case controlplane.RuntimeCertificationPhaseInstall:
+			return a.installComponentRuntimeCertification(ctx, task)
+		case controlplane.RuntimeCertificationPhaseVerify:
+			return a.verifyComponentRuntimeCertification(ctx, task)
+		case controlplane.RuntimeCertificationPhaseFailure:
+			return a.failureRecoverComponentRuntimeCertification(ctx, task)
+		case controlplane.RuntimeCertificationPhaseRemove:
+			return a.removeComponentRuntimeCertification(ctx, task)
+		}
 	}
 	if task.Phase == controlplane.RuntimeCertificationPhaseInstall {
 		return a.installRuntimeCertification(ctx, task)
@@ -2715,15 +3441,23 @@ func (a *agent) ensureRuntimeCertificationNamespace(ctx context.Context, task co
 	return true, nil
 }
 
+func metadataString(metadata map[string]any, key string) string {
+	value, ok := metadata[key].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
 func runtimeCertificationResourceOwnedByDesired(current, desired map[string]any) bool {
 	currentMeta, _ := current["metadata"].(map[string]any)
 	desiredMeta, _ := desired["metadata"].(map[string]any)
-	if strings.TrimSpace(fmt.Sprint(currentMeta["name"])) != strings.TrimSpace(fmt.Sprint(desiredMeta["name"])) || strings.TrimSpace(fmt.Sprint(currentMeta["namespace"])) != strings.TrimSpace(fmt.Sprint(desiredMeta["namespace"])) {
+	if metadataString(currentMeta, "name") != metadataString(desiredMeta, "name") || metadataString(currentMeta, "namespace") != metadataString(desiredMeta, "namespace") {
 		return false
 	}
 	currentLabels, _ := currentMeta["labels"].(map[string]any)
 	desiredLabels, _ := desiredMeta["labels"].(map[string]any)
-	for _, key := range []string{"app.kubernetes.io/managed-by", "platform.4so.io/component"} {
+	for _, key := range []string{"app.kubernetes.io/managed-by", "platform.4so.io/component", "platform.4so.io/catalog-release-id", "platform.4so.io/runtime-certification-profile"} {
 		if desiredLabels[key] != nil && currentLabels[key] != desiredLabels[key] {
 			return false
 		}
@@ -2891,6 +3625,419 @@ func (a *agent) runtimeCertificationCleanupRef(ctx context.Context, path, owner,
 		return runtimeCertificationCleanupRef{}, err
 	}
 	return runtimeCertificationCleanupRef{Path: path, Owner: owner, CleanupToken: token, UID: uid}, nil
+}
+
+func componentRuntimeResourceReady(resource, current map[string]any) (bool, string) {
+	kind, _ := resource["kind"].(string)
+	switch kind {
+	case "CustomResourceDefinition":
+		status, _ := current["status"].(map[string]any)
+		conditions, _ := status["conditions"].([]any)
+		for _, item := range conditions {
+			condition, _ := item.(map[string]any)
+			if condition["type"] == "Established" && condition["status"] == "True" {
+				return true, "CRD Established=True"
+			}
+		}
+		return false, "CRD Established=True condition is missing"
+	case "Deployment":
+		metadata, _ := current["metadata"].(map[string]any)
+		status, _ := current["status"].(map[string]any)
+		generation := int64(0)
+		if v, ok := metadata["generation"].(float64); ok {
+			generation = int64(v)
+		}
+		observed := int64(0)
+		if v, ok := status["observedGeneration"].(float64); ok {
+			observed = int64(v)
+		}
+		ready := int64(0)
+		if v, ok := status["readyReplicas"].(float64); ok {
+			ready = int64(v)
+		}
+		desired := int64(1)
+		spec, _ := resource["spec"].(map[string]any)
+		if v, ok := spec["replicas"].(float64); ok {
+			desired = int64(v)
+		}
+		if generation > 0 && observed >= generation && ready >= desired {
+			return true, fmt.Sprintf("deployment ready=%d desired=%d observedGeneration=%d", ready, desired, observed)
+		}
+		return false, fmt.Sprintf("deployment not ready: ready=%d desired=%d generation=%d observed=%d", ready, desired, generation, observed)
+	default:
+		return true, "resource persisted with exact desired ownership/read-back"
+	}
+}
+
+func (a *agent) installComponentRuntimeCertification(ctx context.Context, task controlplane.RuntimeCertificationTask) controlplane.RuntimeCertificationResult {
+	result := controlplane.RuntimeCertificationResult{Phase: task.Phase, InventoryDigest: task.InventoryDigest, RenderedDigest: task.RenderedDigest}
+	checks := []controlplane.RuntimeCheck{}
+	started := time.Now()
+	fresh := true
+	for _, resource := range task.Resources {
+		path, _, err := certificationResourcePath(task, resource)
+		if err != nil {
+			result.Error = err.Error()
+			result.Checks = checks
+			return result
+		}
+		_, found, err := a.getKubeObject(ctx, path)
+		if err != nil {
+			result.Error = err.Error()
+			result.Checks = checks
+			return result
+		}
+		if found {
+			fresh = false
+			break
+		}
+	}
+	checks = append(checks, check("fresh-install-target", started, fresh, "all component resources absent before first mutation"))
+	if !fresh {
+		result.Checks, result.Error = checks, "component fresh-install target contains existing resources"
+		return result
+	}
+	for _, resource := range task.Resources {
+		path, identity, err := certificationResourcePath(task, resource)
+		if err != nil {
+			result.Error = err.Error()
+			result.Checks = checks
+			return result
+		}
+		collection, err := kubeCollectionPath(path)
+		if err != nil {
+			result.Error = err.Error()
+			result.Checks = checks
+			return result
+		}
+		started = time.Now()
+		created, conflict, err := a.createKubeObject(ctx, collection, resource)
+		if err != nil || !created || conflict {
+			detail := "resource create failed"
+			if err != nil {
+				detail = err.Error()
+			}
+			checks = append(checks, check("apply/"+identity, started, false, detail))
+			result.Checks, result.Error = checks, detail
+			return result
+		}
+		current, found, getErr := a.getKubeObject(ctx, path)
+		owned := getErr == nil && found && runtimeCertificationResourceOwnedByDesired(current, resource)
+		desiredMatch := getErr == nil && found && kubeObjectContainsDesiredFields(current, resource)
+		ok := owned && desiredMatch
+		detail := fmt.Sprintf("resource created; found=%t owned=%t desiredMatch=%t", found, owned, desiredMatch)
+		if getErr != nil {
+			detail = getErr.Error()
+		}
+		checks = append(checks, check("apply/"+identity, started, ok, detail))
+		if !ok {
+			result.Checks, result.Error = checks, "component resource read-back failed"
+			return result
+		}
+	}
+	// Exercise a real, non-destructive failure control against the Kubernetes API:
+	// re-creating an already-owned object must be rejected with HTTP 409. This
+	// proves duplicate mutation does not silently replace/adopt runtime state.
+	firstPath, firstIdentity, err := certificationResourcePath(task, task.Resources[0])
+	if err != nil {
+		result.Checks, result.Error = checks, err.Error()
+		return result
+	}
+	collection, err := kubeCollectionPath(firstPath)
+	if err != nil {
+		result.Checks, result.Error = checks, err.Error()
+		return result
+	}
+	started = time.Now()
+	created, conflict, err := a.createKubeObject(ctx, collection, task.Resources[0])
+	negativeOK := err == nil && !created && conflict
+	detail := fmt.Sprintf("duplicate create rejected for %s; created=%t conflict=%t", firstIdentity, created, conflict)
+	if err != nil {
+		detail = err.Error()
+	}
+	checks = append(checks, check("component-failure-control/duplicate-create-conflict", started, negativeOK, detail))
+	if !negativeOK {
+		result.Checks, result.Error = checks, "component duplicate-create failure control did not fail closed"
+		return result
+	}
+	result.Success, result.Checks = true, checks
+	return result
+}
+
+func (a *agent) verifyComponentRuntimeCertification(ctx context.Context, task controlplane.RuntimeCertificationTask) controlplane.RuntimeCertificationResult {
+	result := controlplane.RuntimeCertificationResult{Phase: task.Phase, InventoryDigest: task.InventoryDigest, RenderedDigest: task.RenderedDigest}
+	checks := []controlplane.RuntimeCheck{}
+	started := time.Now()
+	checkpointOK := strings.HasPrefix(task.InstallCheckpointDigest, "sha256:")
+	checks = append(checks, check("durable-install-checkpoint", started, checkpointOK, "install checkpoint="+task.InstallCheckpointDigest))
+	allPass := checkpointOK
+	for _, resource := range task.Resources {
+		path, identity, err := certificationResourcePath(task, resource)
+		if err != nil {
+			result.Error = err.Error()
+			result.Checks = checks
+			return result
+		}
+		started = time.Now()
+		current, found, getErr := a.getKubeObject(ctx, path)
+		persisted := getErr == nil && found && runtimeCertificationResourceOwnedByDesired(current, resource) && kubeObjectContainsDesiredFields(current, resource)
+		detail := "resource persists with exact desired ownership/read-back"
+		if getErr != nil {
+			detail = getErr.Error()
+		}
+		checks = append(checks, check("verify/"+identity, started, persisted, detail))
+		if !persisted {
+			allPass = false
+		}
+		started = time.Now()
+		ready, readyDetail := false, "resource unavailable for readiness"
+		if persisted {
+			ready, readyDetail = componentRuntimeResourceReady(resource, current)
+		}
+		checks = append(checks, check("component-readiness/"+identity, started, ready, readyDetail))
+		if !ready {
+			allPass = false
+		}
+	}
+	dependencyChecks := []struct {
+		key string
+		fn  func(context.Context) bool
+	}{
+		{"nodes-ready", func(ctx context.Context) bool {
+			ready, total, err := a.nodeReadiness(ctx)
+			return err == nil && total > 0 && ready == total
+		}},
+		{"cluster-dns-service", func(ctx context.Context) bool {
+			for _, p := range []string{"/api/v1/namespaces/kube-system/services/kube-dns", "/api/v1/namespaces/kube-system/services/coredns"} {
+				_, found, err := a.getKubeObject(ctx, p)
+				if err == nil && found {
+					return true
+				}
+			}
+			return false
+		}},
+		{"kubernetes-api-tls", func(ctx context.Context) bool { _, _, err := a.nodeReadiness(ctx); return err == nil }},
+	}
+	for _, dep := range dependencyChecks {
+		started = time.Now()
+		ok := dep.fn(ctx)
+		checks = append(checks, check(dep.key, started, ok, "component runtime cluster health prerequisite"))
+		checks = append(checks, check("component-dependency/"+dep.key, started, ok, "component runtime dependency prerequisite"))
+		if !ok {
+			allPass = false
+		}
+	}
+	result.Success, result.Checks = allPass, checks
+	if !allPass {
+		result.Error = "one or more component runtime readiness checks failed"
+	}
+	return result
+}
+
+func componentRuntimeCRDInstanceListPath(resource map[string]any) (string, bool) {
+	kind, _ := resource["kind"].(string)
+	if kind != "CustomResourceDefinition" {
+		return "", false
+	}
+	spec, _ := resource["spec"].(map[string]any)
+	group, _ := spec["group"].(string)
+	names, _ := spec["names"].(map[string]any)
+	plural, _ := names["plural"].(string)
+	versions, _ := spec["versions"].([]any)
+	version := ""
+	for _, raw := range versions {
+		item, _ := raw.(map[string]any)
+		served, _ := item["served"].(bool)
+		name, _ := item["name"].(string)
+		if served && strings.TrimSpace(name) != "" {
+			version = strings.TrimSpace(name)
+			break
+		}
+	}
+	if strings.TrimSpace(group) == "" || strings.TrimSpace(plural) == "" || version == "" {
+		return "", false
+	}
+	return "/apis/" + url.PathEscape(strings.TrimSpace(group)) + "/" + url.PathEscape(version) + "/" + url.PathEscape(strings.TrimSpace(plural)), true
+}
+
+const componentRuntimeFailureTokenAnnotation = "platform.4so.io/runtime-certification-failure-token"
+
+func componentRuntimePriorCleanupToken(task controlplane.RuntimeCertificationTask, phase controlplane.RuntimeCertificationPhase, token string) bool {
+	for _, generation := range task.PriorCleanupGenerations {
+		if generation.Phase == phase && strings.TrimSpace(generation.Token) == strings.TrimSpace(token) && strings.TrimSpace(token) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func componentRuntimeFailureToken(resource map[string]any) string {
+	metadata, _ := resource["metadata"].(map[string]any)
+	annotations, _ := metadata["annotations"].(map[string]any)
+	token, _ := annotations[componentRuntimeFailureTokenAnnotation].(string)
+	return strings.TrimSpace(token)
+}
+
+func (a *agent) clearComponentRuntimeFailureToken(ctx context.Context, path string) error {
+	patch := map[string]any{"metadata": map[string]any{"annotations": map[string]any{componentRuntimeFailureTokenAnnotation: nil}}}
+	return a.mergePatchKubeObject(ctx, path, patch)
+}
+
+func (a *agent) failureRecoverComponentRuntimeCertification(ctx context.Context, task controlplane.RuntimeCertificationTask) controlplane.RuntimeCertificationResult {
+	result := controlplane.RuntimeCertificationResult{Phase: task.Phase, InventoryDigest: task.InventoryDigest, RenderedDigest: task.RenderedDigest}
+	checks := []controlplane.RuntimeCheck{}
+	if len(task.Resources) == 0 {
+		result.Error = "component failure-recovery requires at least one resource"
+		return result
+	}
+	resource := task.Resources[0]
+	path, identity, err := certificationResourcePath(task, resource)
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	current, found, err := a.getKubeObject(ctx, path)
+	if err != nil || !found {
+		result.Error = "component failure-recovery target is absent"
+		return result
+	}
+	ownedDesired := runtimeCertificationResourceOwnedByDesired(current, resource)
+	priorToken := componentRuntimeFailureToken(current)
+	resumingOwnDrift := !ownedDesired && componentRuntimePriorCleanupToken(task, controlplane.RuntimeCertificationPhaseFailure, priorToken)
+	if !ownedDesired && !resumingOwnDrift {
+		result.Error = "component failure-recovery target is no longer owned and has no prior fenced failure token"
+		return result
+	}
+	originalUID, err := kubeObjectUID(current)
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	started := time.Now()
+	drifted := current
+	if !resumingOwnDrift {
+		patch := map[string]any{"metadata": map[string]any{
+			"labels":      map[string]any{"app.kubernetes.io/managed-by": "4so-certification-drift"},
+			"annotations": map[string]any{componentRuntimeFailureTokenAnnotation: task.CleanupToken},
+		}}
+		if err = a.mergePatchKubeObject(ctx, path, patch); err != nil {
+			checks = append(checks, check("component-failure-recovery/drift-injected", started, false, err.Error()))
+			result.Checks, result.Error = checks, err.Error()
+			return result
+		}
+		drifted, found, err = a.getKubeObject(ctx, path)
+		driftUID, uidErr := kubeObjectUID(drifted)
+		driftObserved := err == nil && found && uidErr == nil && driftUID == originalUID && !runtimeCertificationResourceOwnedByDesired(drifted, resource) && componentRuntimeFailureToken(drifted) == task.CleanupToken
+		checks = append(checks, check("component-failure-recovery/drift-injected", started, driftObserved, "fenced ownership drift injected without object replacement for "+identity))
+		if !driftObserved {
+			result.Checks, result.Error = checks, "component ownership drift was not observed"
+			return result
+		}
+	} else {
+		checks = append(checks, check("component-failure-recovery/drift-injected", started, true, "resumed self-owned drift from prior fenced failure attempt for "+identity))
+	}
+	started = time.Now()
+	if err = a.serverSideApplyConditional(ctx, path, resource, drifted); err != nil {
+		checks = append(checks, check("component-failure-recovery/reconciled", started, false, err.Error()))
+		result.Checks, result.Error = checks, err.Error()
+		return result
+	}
+	if err = a.clearComponentRuntimeFailureToken(ctx, path); err != nil {
+		checks = append(checks, check("component-failure-recovery/reconciled", started, false, "desired state reapplied but fenced failure token could not be cleared: "+err.Error()))
+		result.Checks, result.Error = checks, err.Error()
+		return result
+	}
+	restored, found, getErr := a.getKubeObject(ctx, path)
+	restoredUID, restoredUIDErr := kubeObjectUID(restored)
+	reconciled := getErr == nil && found && restoredUIDErr == nil && restoredUID == originalUID && runtimeCertificationResourceOwnedByDesired(restored, resource) && componentRuntimeFailureToken(restored) == "" && kubeObjectContainsDesiredFields(restored, resource)
+	checks = append(checks, check("component-failure-recovery/reconciled", started, reconciled, "desired ownership restored on the same Kubernetes UID and fenced drift token removed"))
+	if !reconciled {
+		result.Checks, result.Error = checks, "component desired state was not restored after injected drift"
+		return result
+	}
+	started = time.Now()
+	ready, detail := componentRuntimeResourceReady(resource, restored)
+	checks = append(checks, check("component-failure-recovery/readiness-restored", started, ready, detail))
+	result.Success, result.Checks = ready, checks
+	if !ready {
+		result.Error = "component readiness did not recover after injected drift"
+	}
+	return result
+}
+
+func (a *agent) removeComponentRuntimeCertification(ctx context.Context, task controlplane.RuntimeCertificationTask) controlplane.RuntimeCertificationResult {
+	result := controlplane.RuntimeCertificationResult{Phase: task.Phase, InventoryDigest: task.InventoryDigest, RenderedDigest: task.RenderedDigest}
+	checks := []controlplane.RuntimeCheck{}
+	removeRetry := false
+	for _, generation := range task.PriorCleanupGenerations {
+		if generation.Phase == controlplane.RuntimeCertificationPhaseRemove {
+			removeRetry = true
+			break
+		}
+	}
+	for i := len(task.Resources) - 1; i >= 0; i-- {
+		resource := task.Resources[i]
+		path, identity, err := certificationResourcePath(task, resource)
+		if err != nil {
+			result.Checks, result.Error = checks, err.Error()
+			return result
+		}
+		started := time.Now()
+		current, found, getErr := a.getKubeObject(ctx, path)
+		if getErr != nil {
+			checks = append(checks, check("component-remove/"+identity, started, false, getErr.Error()))
+			result.Checks, result.Error = checks, getErr.Error()
+			return result
+		}
+		if !found {
+			if removeRetry {
+				checks = append(checks, check("component-remove/"+identity, started, true, "resource already absent after prior fenced REMOVE attempt"))
+				continue
+			}
+			checks = append(checks, check("component-remove/"+identity, started, false, "resource disappeared before first REMOVE attempt"))
+			result.Checks, result.Error = checks, "component resource disappeared before first remove attempt"
+			return result
+		}
+		if !runtimeCertificationResourceOwnedByDesired(current, resource) {
+			checks = append(checks, check("component-remove/"+identity, started, false, "refusing to delete resource not owned by exact component certification desired state"))
+			result.Checks, result.Error = checks, "component remove ownership check failed"
+			return result
+		}
+		if listPath, ok := componentRuntimeCRDInstanceListPath(resource); ok {
+			instances, listErr := a.listKubeObjects(ctx, listPath)
+			if listErr != nil {
+				checks = append(checks, check("component-remove/"+identity, started, false, "cannot prove CRD has zero instances: "+listErr.Error()))
+				result.Checks, result.Error = checks, "component CRD remove safety check failed"
+				return result
+			}
+			if len(instances) != 0 {
+				checks = append(checks, check("component-remove/"+identity, started, false, fmt.Sprintf("refusing to delete CRD with %d live custom resources", len(instances))))
+				result.Checks, result.Error = checks, "component CRD has live custom resources"
+				return result
+			}
+		}
+		uid, uidErr := kubeObjectUID(current)
+		rv, rvErr := kubeObjectResourceVersion(current)
+		if uidErr != nil || rvErr != nil {
+			detail := "component remove identity precondition missing"
+			if uidErr != nil {
+				detail = uidErr.Error()
+			} else if rvErr != nil {
+				detail = rvErr.Error()
+			}
+			checks = append(checks, check("component-remove/"+identity, started, false, detail))
+			result.Checks, result.Error = checks, detail
+			return result
+		}
+		if err = a.deleteKubeObjectWithUIDAndResourceVersionAndWait(ctx, path, uid, rv, 30*time.Second); err != nil {
+			checks = append(checks, check("component-remove/"+identity, started, false, err.Error()))
+			result.Checks, result.Error = checks, err.Error()
+			return result
+		}
+		checks = append(checks, check("component-remove/"+identity, started, true, "owned resource removed with UID/resourceVersion preconditions"))
+	}
+	result.Success, result.Checks = true, checks
+	return result
 }
 
 func (a *agent) installRuntimeCertification(ctx context.Context, task controlplane.RuntimeCertificationTask) controlplane.RuntimeCertificationResult {
@@ -4167,6 +5314,11 @@ func validateProviderProfileTask(task controlplane.ProviderProfileTask) error {
 			return fmt.Errorf("provider profile class name is invalid")
 		}
 	}
+	switch strings.TrimSpace(task.InfrastructureProvider) {
+	case "", "unspecified", "vmware":
+	default:
+		return fmt.Errorf("provider profile infrastructure provider is invalid")
+	}
 	return nil
 }
 
@@ -4174,6 +5326,36 @@ func stableObjectDigest(value any) string {
 	raw, _ := json.Marshal(value)
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func providerTemplateRef(value any) (string, string) {
+	m, _ := value.(map[string]any)
+	ref, _ := m["ref"].(map[string]any)
+	group, _ := ref["apiGroup"].(string)
+	kind, _ := ref["kind"].(string)
+	return strings.TrimSpace(group), strings.TrimSpace(kind)
+}
+
+func validateVMwareClusterClass(spec map[string]any, workerClass string) error {
+	group, kind := providerTemplateRef(spec["infrastructure"])
+	if group != "infrastructure.cluster.x-k8s.io" || kind != "VSphereClusterTemplate" {
+		return fmt.Errorf("VMware provider ClusterClass requires infrastructure.cluster.x-k8s.io VSphereClusterTemplate")
+	}
+	workers, _ := spec["workers"].(map[string]any)
+	machineDeployments, _ := workers["machineDeployments"].([]any)
+	for _, item := range machineDeployments {
+		entry, _ := item.(map[string]any)
+		if entry["class"] != workerClass {
+			continue
+		}
+		template, _ := entry["template"].(map[string]any)
+		group, kind = providerTemplateRef(template["infrastructure"])
+		if group != "infrastructure.cluster.x-k8s.io" || kind != "VSphereMachineTemplate" {
+			return fmt.Errorf("VMware provider worker class requires infrastructure.cluster.x-k8s.io VSphereMachineTemplate")
+		}
+		return nil
+	}
+	return fmt.Errorf("the admitted worker class is not present in ClusterClass")
 }
 
 func (a *agent) executeProviderProfileTask(ctx context.Context, task controlplane.ProviderProfileTask) controlplane.ProviderProfileTaskResult {
@@ -4202,19 +5384,26 @@ func (a *agent) executeProviderProfileTask(ctx context.Context, task controlplan
 		return result
 	}
 	spec, _ := object["spec"].(map[string]any)
-	workers, _ := spec["workers"].(map[string]any)
-	machineDeployments, _ := workers["machineDeployments"].([]any)
-	workerClassFound := false
-	for _, item := range machineDeployments {
-		entry, _ := item.(map[string]any)
-		if entry["class"] == task.WorkerClassName {
-			workerClassFound = true
-			break
+	if task.InfrastructureProvider == "vmware" {
+		if err := validateVMwareClusterClass(spec, task.WorkerClassName); err != nil {
+			result.Error = err.Error()
+			return result
 		}
-	}
-	if !workerClassFound {
-		result.Error = "the admitted worker class is not present in ClusterClass"
-		return result
+	} else {
+		workers, _ := spec["workers"].(map[string]any)
+		machineDeployments, _ := workers["machineDeployments"].([]any)
+		workerClassFound := false
+		for _, item := range machineDeployments {
+			entry, _ := item.(map[string]any)
+			if entry["class"] == task.WorkerClassName {
+				workerClassFound = true
+				break
+			}
+		}
+		if !workerClassFound {
+			result.Error = "the admitted worker class is not present in ClusterClass"
+			return result
+		}
 	}
 	result.Success = true
 	result.ObservedVersion = "cluster.x-k8s.io/v1beta2"
@@ -4284,9 +5473,263 @@ func (a *agent) nextProviderClusterTask(ctx context.Context) (controlplane.Provi
 	return task, true, nil
 }
 
+const targetNodeMutationRecoveryAnnotation = "platform.4so.io/target-node-mutation-recovery"
+
+func (a *agent) listKubeObjects(ctx context.Context, path string) ([]map[string]any, error) {
+	req, err := a.kubeRequest(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	res, err := a.kube.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode/100 != 2 {
+		raw, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		return nil, fmt.Errorf("list Kubernetes resources %s: %s", res.Status, string(raw))
+	}
+	var body struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err = json.NewDecoder(res.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+	return body.Items, nil
+}
+
+func (a *agent) mergePatchKubeObject(ctx context.Context, path string, patch map[string]any) error {
+	raw, err := json.Marshal(patch)
+	if err != nil {
+		return err
+	}
+	req, err := a.kubeRequest(ctx, http.MethodPatch, path, bytes.NewReader(raw), "application/merge-patch+json")
+	if err != nil {
+		return err
+	}
+	res, err := a.kube.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+	if res.StatusCode/100 != 2 {
+		return fmt.Errorf("merge patch %s: status=%d body=%s", path, res.StatusCode, string(body))
+	}
+	return nil
+}
+
+func machineNodeIdentity(object map[string]any) (name, uid string) {
+	status, _ := object["status"].(map[string]any)
+	ref, _ := status["nodeRef"].(map[string]any)
+	name, _ = ref["name"].(string)
+	uid, _ = ref["uid"].(string)
+	return strings.TrimSpace(name), strings.TrimSpace(uid)
+}
+func machineReady(object map[string]any) bool {
+	status, _ := object["status"].(map[string]any)
+	conditions, _ := status["conditions"].([]any)
+	for _, raw := range conditions {
+		c, _ := raw.(map[string]any)
+		if c["type"] == "Ready" && c["status"] == "True" {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *agent) targetNodeMutationRecovery(ctx context.Context, task controlplane.ProviderClusterTask) (controlplane.TargetNodeProviderMutation, bool, error) {
+	cluster, found, err := a.getKubeObject(ctx, providerClusterPath(task))
+	if err != nil || !found {
+		return controlplane.TargetNodeProviderMutation{}, false, err
+	}
+	metadata, _ := cluster["metadata"].(map[string]any)
+	annotations, _ := metadata["annotations"].(map[string]any)
+	raw, _ := annotations[targetNodeMutationRecoveryAnnotation].(string)
+	if strings.TrimSpace(raw) == "" {
+		return controlplane.TargetNodeProviderMutation{}, false, nil
+	}
+	var m controlplane.TargetNodeProviderMutation
+	if err = json.Unmarshal([]byte(raw), &m); err != nil {
+		return m, false, fmt.Errorf("decode target-node recovery evidence: %w", err)
+	}
+	want := task.TargetNodeMutation
+	if m.Authority != controlplane.TargetNodeProviderMachineLifecycleAuthority || m.Action != want.Action || m.TargetClusterID != want.TargetClusterID || m.NodeName != want.NodeName || m.NodeUID != want.NodeUID || m.InventoryDigest != want.InventoryDigest || m.WindowID != want.WindowID {
+		return m, false, fmt.Errorf("target-node recovery evidence does not match task fence")
+	}
+	return m, true, nil
+}
+
+func (a *agent) persistTargetNodeMutationRecovery(ctx context.Context, task controlplane.ProviderClusterTask, m controlplane.TargetNodeProviderMutation) error {
+	cluster, found, err := a.getKubeObject(ctx, providerClusterPath(task))
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("provider Cluster missing before target-node mutation")
+	}
+	rv, err := kubeObjectResourceVersion(cluster)
+	if err != nil {
+		return err
+	}
+	raw, _ := json.Marshal(m)
+	return a.mergePatchKubeObject(ctx, providerClusterPath(task), map[string]any{"metadata": map[string]any{"resourceVersion": rv, "annotations": map[string]any{targetNodeMutationRecoveryAnnotation: string(raw)}}})
+}
+func (a *agent) clearTargetNodeMutationRecovery(ctx context.Context, task controlplane.ProviderClusterTask) error {
+	cluster, found, err := a.getKubeObject(ctx, providerClusterPath(task))
+	if err != nil || !found {
+		return err
+	}
+	rv, err := kubeObjectResourceVersion(cluster)
+	if err != nil {
+		return err
+	}
+	return a.mergePatchKubeObject(ctx, providerClusterPath(task), map[string]any{"metadata": map[string]any{"resourceVersion": rv, "annotations": map[string]any{targetNodeMutationRecoveryAnnotation: nil}}})
+}
+
+func (a *agent) resolveExactTargetMachine(ctx context.Context, task controlplane.ProviderClusterTask) (controlplane.TargetNodeProviderMutation, error) {
+	if recovered, ok, err := a.targetNodeMutationRecovery(ctx, task); err != nil {
+		return recovered, err
+	} else if ok {
+		return recovered, nil
+	}
+	m := task.TargetNodeMutation
+	selector := url.QueryEscape("cluster.x-k8s.io/cluster-name=" + task.ResourceName)
+	items, err := a.listKubeObjects(ctx, "/apis/cluster.x-k8s.io/v1beta1/namespaces/"+task.Namespace+"/machines?labelSelector="+selector)
+	if err != nil {
+		return m, err
+	}
+	matches := []map[string]any{}
+	for _, obj := range items {
+		metadata, _ := obj["metadata"].(map[string]any)
+		labels, _ := metadata["labels"].(map[string]any)
+		if _, cp := labels["cluster.x-k8s.io/control-plane"]; cp {
+			continue
+		}
+		nodeName, nodeUID := machineNodeIdentity(obj)
+		if nodeName == m.NodeName && nodeUID == m.NodeUID {
+			matches = append(matches, obj)
+		}
+	}
+	if len(matches) != 1 {
+		return m, fmt.Errorf("exact worker Machine resolution requires exactly one nodeRef match; got %d", len(matches))
+	}
+	obj := matches[0]
+	metadata, _ := obj["metadata"].(map[string]any)
+	labels, _ := metadata["labels"].(map[string]any)
+	name, _ := metadata["name"].(string)
+	uid, err := kubeObjectUID(obj)
+	if err != nil {
+		return m, err
+	}
+	rv, err := kubeObjectResourceVersion(obj)
+	if err != nil {
+		return m, err
+	}
+	ms, _ := labels["cluster.x-k8s.io/set-name"].(string)
+	md, _ := labels["cluster.x-k8s.io/deployment-name"].(string)
+	if strings.TrimSpace(ms) == "" || strings.TrimSpace(md) == "" {
+		return m, fmt.Errorf("exact worker Machine lacks MachineSet/MachineDeployment ownership labels")
+	}
+	m.MachineName, m.MachineUID, m.MachineResourceVersion, m.MachineSetName, m.MachineDeploymentName = strings.TrimSpace(name), uid, rv, strings.TrimSpace(ms), strings.TrimSpace(md)
+	m.EvidenceDigest = ""
+	m.EvidenceDigest = stableObjectDigest(m)
+	if err = a.persistTargetNodeMutationRecovery(ctx, task, m); err != nil {
+		return m, err
+	}
+	return m, nil
+}
+
+func (a *agent) exactMachinePath(task controlplane.ProviderClusterTask, m controlplane.TargetNodeProviderMutation) string {
+	return "/apis/cluster.x-k8s.io/v1beta1/namespaces/" + task.Namespace + "/machines/" + url.PathEscape(m.MachineName)
+}
+
+func (a *agent) applyTargetNodeProviderMutation(ctx context.Context, task controlplane.ProviderClusterTask) (controlplane.TargetNodeProviderMutation, error) {
+	m, err := a.resolveExactTargetMachine(ctx, task)
+	if err != nil {
+		return m, err
+	}
+	path := a.exactMachinePath(task, m)
+	current, found, err := a.getKubeObject(ctx, path)
+	if err != nil {
+		return m, err
+	}
+	if found {
+		uid, err := kubeObjectUID(current)
+		if err != nil {
+			return m, err
+		}
+		if uid != m.MachineUID {
+			return m, fmt.Errorf("exact Machine UID changed after recovery fence")
+		}
+		rv, err := kubeObjectResourceVersion(current)
+		if err != nil {
+			return m, err
+		}
+		if m.Action == controlplane.TargetNodeActionRemove {
+			if err = a.mergePatchKubeObject(ctx, path, map[string]any{"metadata": map[string]any{"resourceVersion": rv, "annotations": map[string]any{"cluster.x-k8s.io/delete-machine": "", "platform.4so.io/target-node-mutation-evidence": m.EvidenceDigest}}}); err != nil {
+				return m, err
+			}
+		} else {
+			_, err = a.requestKubeObjectDeletionWithPreconditions(ctx, path, m.MachineUID, rv)
+			if err != nil {
+				return m, err
+			}
+		}
+	}
+	if m.Action == controlplane.TargetNodeActionRemove {
+		if err = a.applyProviderClusterResource(ctx, task); err != nil {
+			return m, err
+		}
+	}
+	return m, nil
+}
+
+func (a *agent) inspectTargetNodeProviderMutation(ctx context.Context, task controlplane.ProviderClusterTask) (bool, error) {
+	m := task.TargetNodeMutation
+	if strings.TrimSpace(m.MachineName) == "" || strings.TrimSpace(m.MachineUID) == "" {
+		return false, fmt.Errorf("target-node mutation identity evidence missing during inspect")
+	}
+	old, found, err := a.getKubeObject(ctx, a.exactMachinePath(task, m))
+	if err != nil {
+		return false, err
+	}
+	if found {
+		uid, _ := kubeObjectUID(old)
+		if uid == m.MachineUID {
+			return false, nil
+		}
+	}
+	if controlplane.IsTargetNodeProviderReplacementAction(m.Action) {
+		selector := url.QueryEscape("cluster.x-k8s.io/deployment-name=" + m.MachineDeploymentName + ",cluster.x-k8s.io/cluster-name=" + task.ResourceName)
+		items, err := a.listKubeObjects(ctx, "/apis/cluster.x-k8s.io/v1beta1/namespaces/"+task.Namespace+"/machines?labelSelector="+selector)
+		if err != nil {
+			return false, err
+		}
+		readyReplacement := false
+		for _, obj := range items {
+			uid, _ := kubeObjectUID(obj)
+			if uid != m.MachineUID && machineReady(obj) {
+				readyReplacement = true
+				break
+			}
+		}
+		if !readyReplacement {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 func validateProviderClusterTask(task controlplane.ProviderClusterTask) error {
 	if task.ProviderClusterID == "" || task.ClusterRevision < 1 || task.TaskFenceToken <= 0 || task.LeaseExpiresAt.IsZero() || task.Namespace != "4so-provider-system" || !strings.HasPrefix(task.ResourceName, "pf-") || len(task.ResourceName) > 63 {
 		return fmt.Errorf("provider cluster task identity or target is invalid")
+	}
+	if task.TargetNodeMutation.Authority != "" {
+		m := task.TargetNodeMutation
+		if m.Authority != controlplane.TargetNodeProviderMachineLifecycleAuthority || (m.Action != controlplane.TargetNodeActionRemove && m.Action != controlplane.TargetNodeActionReplace && m.Action != controlplane.TargetNodeActionCertificateRenewal && m.Action != controlplane.TargetNodeActionRemediate) || m.TargetClusterID == "" || m.NodeName == "" || m.NodeUID == "" || !strings.HasPrefix(m.InventoryDigest, "sha256:") || m.WindowID == "" || m.WindowEndsAt.IsZero() {
+			return fmt.Errorf("provider target-node mutation envelope is invalid")
+		}
 	}
 	switch task.Action {
 	case "APPLY":
@@ -4388,7 +5831,15 @@ func (a *agent) executeProviderClusterTask(ctx context.Context, task controlplan
 	path := providerClusterPath(task)
 	switch task.Action {
 	case "APPLY":
-		if err := a.applyProviderClusterResource(ctx, task); err != nil {
+		if task.TargetNodeMutation.Authority != "" {
+			m, err := a.applyTargetNodeProviderMutation(ctx, task)
+			if err != nil {
+				result.Error = err.Error()
+				return result
+			}
+			result.TargetNodeMutation = m
+			task.TargetNodeMutation = m
+		} else if err := a.applyProviderClusterResource(ctx, task); err != nil {
 			result.Error = err.Error()
 			return result
 		}
@@ -4410,6 +5861,21 @@ func (a *agent) executeProviderClusterTask(ctx context.Context, task controlplan
 		}
 		return result
 	case "INSPECT":
+		if task.TargetNodeMutation.Authority != "" {
+			ready, err := a.inspectTargetNodeProviderMutation(ctx, task)
+			if err != nil {
+				result.Error = err.Error()
+				return result
+			}
+			result.TargetNodeMutation = task.TargetNodeMutation
+			if !ready {
+				result.Success = true
+				result.Ready = false
+				result.ObservedDigest = task.DesiredDigest
+				result.Phase = "TargetNodeMutationReconciling"
+				return result
+			}
+		}
 		object, found, err := a.getKubeObject(ctx, path)
 		if err != nil {
 			result.Error = err.Error()
@@ -4427,6 +5893,13 @@ func (a *agent) executeProviderClusterTask(ctx context.Context, task controlplan
 		result.Success = true
 		result.ObservedDigest = digest
 		result.Ready, result.Phase = providerClusterReady(object)
+		if result.Ready && task.TargetNodeMutation.Authority != "" {
+			if err := a.clearTargetNodeMutationRecovery(ctx, task); err != nil {
+				result.Success = false
+				result.Ready = false
+				result.Error = "clear target-node recovery evidence: " + err.Error()
+			}
+		}
 		return result
 	case "DELETE":
 		object, found, err := a.getKubeObject(ctx, path)
@@ -4550,7 +6023,21 @@ func (a *agent) nextClusterMaintenanceTask(ctx context.Context) (controlplane.Cl
 	return task, true, nil
 }
 
+func maintenanceTaskAction(task controlplane.ClusterMaintenanceTask) controlplane.TargetNodeLifecycleAction {
+	if task.Action == "" {
+		return controlplane.TargetNodeActionDrain
+	}
+	return task.Action
+}
+
 func validateClusterMaintenanceTask(task controlplane.ClusterMaintenanceTask) error {
+	action := maintenanceTaskAction(task)
+	if action != controlplane.TargetNodeActionDrain && action != controlplane.TargetNodeActionOSPatch {
+		return fmt.Errorf("unsupported cluster maintenance action %s", action)
+	}
+	if action == controlplane.TargetNodeActionOSPatch && (task.HostActionTimeoutSeconds < 60 || task.HostActionTimeoutSeconds > 7200) {
+		return fmt.Errorf("invalid OS patch host action timeout")
+	}
 	if task.Method != controlplane.ClusterMaintenanceAuthorityMethod || strings.TrimSpace(task.RunID) == "" || task.RunRevision <= 0 || strings.TrimSpace(task.OperationID) == "" || task.OperationFenceToken <= 0 || task.LeaseExpiresAt.IsZero() || !task.LeaseExpiresAt.After(time.Now().UTC()) || strings.TrimSpace(task.ClusterID) == "" || len(task.NodeNames) == 0 || !strings.HasPrefix(task.InventoryDigest, "sha256:") || task.DrainTimeoutSeconds < 30 || task.DrainTimeoutSeconds > 3600 {
 		return fmt.Errorf("invalid cluster maintenance task contract")
 	}
@@ -4797,6 +6284,10 @@ func (a *agent) drainMaintenanceNode(ctx context.Context, node string, timeout t
 }
 
 func (a *agent) maintainNode(ctx context.Context, node, expectedUID string, timeout time.Duration) controlplane.NodeMaintenanceResult {
+	return a.maintainNodeTask(ctx, controlplane.ClusterMaintenanceTask{Action: controlplane.TargetNodeActionDrain}, node, expectedUID, timeout)
+}
+
+func (a *agent) maintainNodeTask(ctx context.Context, task controlplane.ClusterMaintenanceTask, node, expectedUID string, timeout time.Duration) controlplane.NodeMaintenanceResult {
 	result := controlplane.NodeMaintenanceResult{NodeName: node}
 	var view maintenanceNodeView
 	if err := a.kubeJSON(ctx, http.MethodGet, "/api/v1/nodes/"+url.PathEscape(node), nil, &view); err != nil {
@@ -4821,16 +6312,38 @@ func (a *agent) maintainNode(ctx context.Context, node, expectedUID string, time
 	if drainErr == nil {
 		result.Drained = true
 	}
+	var hostErr error
+	if drainErr == nil && maintenanceTaskAction(task) == controlplane.TargetNodeActionOSPatch {
+		result.HostActionAttempted = true
+		hostTimeout := time.Duration(task.HostActionTimeoutSeconds) * time.Second
+		hostCtx, cancel := context.WithTimeout(ctx, hostTimeout)
+		hostResult, evidence, err := a.executeOSPatchJob(hostCtx, task, node, expectedUID)
+		cancel()
+		if err != nil {
+			hostErr = err
+		} else {
+			result.HostActionSucceeded = true
+			result.HostActionAuthority = hostResult.Authority
+			result.HostActionEvidence = evidence
+			result.RebootRequired = hostResult.RebootRequired
+		}
+	}
 	uncordonErr := a.setNodeUnschedulable(ctx, node, expectedUID, false)
 	if uncordonErr == nil {
 		result.Uncordoned = true
 	}
-	if drainErr != nil && uncordonErr != nil {
-		result.Error = drainErr.Error() + "; uncordon failed: " + uncordonErr.Error()
-	} else if drainErr != nil {
-		result.Error = drainErr.Error()
-	} else if uncordonErr != nil {
-		result.Error = "uncordon failed: " + uncordonErr.Error()
+	parts := []string{}
+	if drainErr != nil {
+		parts = append(parts, drainErr.Error())
+	}
+	if hostErr != nil {
+		parts = append(parts, "host action failed: "+hostErr.Error())
+	}
+	if uncordonErr != nil {
+		parts = append(parts, "uncordon failed: "+uncordonErr.Error())
+	}
+	if len(parts) > 0 {
+		result.Error = strings.Join(parts, "; ")
 	}
 	return result
 }
@@ -4841,8 +6354,11 @@ func (a *agent) executeClusterMaintenanceTask(ctx context.Context, task controlp
 		result.Error = err.Error()
 		return result
 	}
+	if task.Action == "" {
+		task.Action = controlplane.TargetNodeActionDrain
+	}
 	for _, node := range task.NodeNames {
-		nr := a.maintainNode(ctx, node, task.NodeUIDs[node], time.Duration(task.DrainTimeoutSeconds)*time.Second)
+		nr := a.maintainNodeTask(ctx, task, node, task.NodeUIDs[node], time.Duration(task.DrainTimeoutSeconds)*time.Second)
 		result.Results = append(result.Results, nr)
 		if nr.Error != "" {
 			result.Error = "node " + node + ": " + nr.Error

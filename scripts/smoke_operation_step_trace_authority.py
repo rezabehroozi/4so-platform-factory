@@ -30,6 +30,7 @@ def req(url,method='GET',body=None,headers=None,raw=False):
 
 def start(binary,state):
     port=free_port(); env=os.environ.copy()
+    env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true'
     env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}'
     env['PLATFORM_FACTORY_STATE_FILE']=str(state)
     env['PLATFORM_FACTORY_AGENT_MTLS_REQUIRED']='false'

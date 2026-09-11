@@ -2,6 +2,8 @@ package hostdeployment
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	"platform.4so.io/factory/internal/bundlebuilder"
+	"platform.4so.io/factory/internal/testsupport"
 )
 
 func TestStagedApplyVerifyRollback(t *testing.T) {
@@ -180,7 +183,26 @@ func mustLoadSpec(t *testing.T, path string) Spec {
 func buildBundle(t *testing.T, root, version string) string {
 	t.Helper()
 	staging := filepath.Join(root, "staging")
-	files := map[string]string{"rke2/install.sh": "#!/bin/sh\nexit 0\n", "rke2/rke2.tar.gz": "rke2", "rke2/images.tar.zst": "rke2-images", "workloads/images.tar.zst": "workloads", "manifests/argocd.yaml": testManifest("argocd", "1"), "manifests/cnpg.yaml": testManifest("cnpg", "2"), "manifests/ocm.yaml": testManifest("ocm", "3"), "manifests/storage.yaml": testManifest("storage", "4")}
+	if err := os.MkdirAll(filepath.Join(staging, "workloads"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	refs, err := testsupport.WriteWorkloadOCIArchive(filepath.Join(staging, "workloads/images.oci.tar"), testsupport.WorkloadRepositories("registry.local/", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byRepo := testsupport.RefsByRepository(refs)
+	manifest := func(name, repo string) string {
+		return "apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: " + name + "\n          image: " + byRepo[repo] + "\n"
+	}
+	files := map[string]string{
+		"rke2/install.sh":        "#!/bin/sh\nexit 0\n",
+		"rke2/rke2.tar.gz":       "rke2",
+		"rke2/images.tar.zst":    "rke2-images",
+		"manifests/argocd.yaml":  manifest("argocd", "registry.local/argocd"),
+		"manifests/cnpg.yaml":    manifest("cnpg", "registry.local/cnpg"),
+		"manifests/ocm.yaml":     manifest("ocm", "registry.local/ocm"),
+		"manifests/storage.yaml": manifest("storage", "registry.local/storage"),
+	}
 	for name, content := range files {
 		path := filepath.Join(staging, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -197,19 +219,31 @@ func buildBundle(t *testing.T, root, version string) string {
 	spec.Spec.RKE2.Installer = "rke2/install.sh"
 	spec.Spec.RKE2.InstallArtifacts = []string{"rke2/rke2.tar.gz"}
 	spec.Spec.RKE2.ImageArchives = []string{"rke2/images.tar.zst"}
-	spec.Spec.Workloads.ImageArchives = []string{"workloads/images.tar.zst"}
-	spec.Spec.Workloads.PostgreSQLImage = testImage("postgres", "a")
-	spec.Spec.Workloads.PlatformAPIImage = testImage("api", "b")
-	spec.Spec.Workloads.ForgejoImage = testImage("forgejo", "c")
-	spec.Spec.Workloads.ZotImage = testImage("zot", "d")
-	spec.Spec.Workloads.KeycloakImage = testImage("keycloak", "e")
-	spec.Spec.Workloads.MaintenanceImage = testImage("maintenance", "f")
+	spec.Spec.Workloads.ImageArchives = []string{"workloads/images.oci.tar"}
+	spec.Spec.Workloads.PostgreSQLImage = byRepo["registry.local/postgres"]
+	spec.Spec.Workloads.PlatformAPIImage = byRepo["registry.local/platform-api"]
+	spec.Spec.Workloads.ForgejoImage = byRepo["registry.local/forgejo"]
+	spec.Spec.Workloads.ZotImage = byRepo["registry.local/zot"]
+	spec.Spec.Workloads.KeycloakImage = byRepo["registry.local/keycloak"]
+	spec.Spec.Workloads.MaintenanceImage = byRepo["registry.local/maintenance"]
 	spec.Spec.Workloads.GitOpsManifest = "manifests/argocd.yaml"
 	spec.Spec.Workloads.CloudNativePGManifest = "manifests/cnpg.yaml"
 	spec.Spec.Workloads.OCMManifest = "manifests/ocm.yaml"
 	spec.Spec.Workloads.StorageManifest = "manifests/storage.yaml"
-	spec.Spec.Workloads.FleetAgentImage = testImage("agent", "9")
-	spec.Spec.Workloads.RuntimeProbeImage = testImage("probe", "8")
+	spec.Spec.Workloads.FleetAgentImage = byRepo["registry.local/platform-agent"]
+	spec.Spec.Workloads.RuntimeProbeImage = byRepo["registry.local/platform-probe"]
+	paths := []string{spec.Spec.RKE2.Installer, spec.Spec.Workloads.GitOpsManifest, spec.Spec.Workloads.CloudNativePGManifest, spec.Spec.Workloads.OCMManifest, spec.Spec.Workloads.StorageManifest}
+	paths = append(paths, spec.Spec.RKE2.InstallArtifacts...)
+	paths = append(paths, spec.Spec.RKE2.ImageArchives...)
+	paths = append(paths, spec.Spec.Workloads.ImageArchives...)
+	for _, relative := range paths {
+		raw, readErr := os.ReadFile(filepath.Join(staging, relative))
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		sum := sha256.Sum256(raw)
+		spec.Spec.SourceArtifacts = append(spec.Spec.SourceArtifacts, bundlebuilder.SourceArtifactBinding{Path: relative, SHA256: "sha256:" + hex.EncodeToString(sum[:]), SizeBytes: int64(len(raw))})
+	}
 	raw, _ := json.MarshalIndent(spec, "", "  ")
 	specPath := filepath.Join(root, "bundle-build.json")
 	if err := os.WriteFile(specPath, append(raw, '\n'), 0o600); err != nil {
@@ -220,12 +254,6 @@ func buildBundle(t *testing.T, root, version string) string {
 		t.Fatal(err)
 	}
 	return output
-}
-func testImage(name, digit string) string {
-	return "registry.local/" + name + "@sha256:" + strings.Repeat(digit, 64)
-}
-func testManifest(name, digit string) string {
-	return "apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: " + name + "\n          image: " + testImage(name, digit) + "\n"
 }
 
 func TestInterruptedApplyRequiresExplicitRecovery(t *testing.T) {

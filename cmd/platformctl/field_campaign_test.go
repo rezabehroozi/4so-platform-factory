@@ -107,7 +107,8 @@ func TestFieldCampaignPrepareStartWatchCollect(t *testing.T) {
 			} else if statusCalls == 2 {
 				observed.State = bootstrap.RunRunning
 			}
-			_ = json.NewEncoder(w).Encode(installerStatusResponse{ExecutionEnabled: true, Run: &observed})
+			active := observed.State == bootstrap.RunPending || observed.State == bootstrap.RunRunning
+			_ = json.NewEncoder(w).Encode(installerStatusResponse{ExecutionEnabled: true, BootstrapActive: active, Run: &observed})
 		case "/api/v1/field-evidence/report":
 			_ = json.NewEncoder(w).Encode(report)
 		case "/api/v1/diagnostics/report":
@@ -119,7 +120,7 @@ func TestFieldCampaignPrepareStartWatchCollect(t *testing.T) {
 	defer server.Close()
 	base, _ := url.Parse(server.URL)
 	connection := fieldCampaignConnection{base: base, client: server.Client(), token: "token"}
-	campaign, err := prepareFieldCampaign(connection, request, digest("9"), installerDigest, time.Now().UTC().Add(-time.Hour))
+	campaign, err := prepareFieldCampaign(connection, request, digest("9"), installerDigest, digest("7"), time.Now().UTC().Add(-time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,6 +154,64 @@ func TestFieldCampaignPrepareStartWatchCollect(t *testing.T) {
 	}
 }
 
+func TestFieldCampaignInterruptedRunningRunRequiresExplicitResume(t *testing.T) {
+	digest := func(ch string) string { return "sha256:" + strings.Repeat(ch, 64) }
+	request := campaignRequestFixture()
+	now := time.Date(2026, 8, 29, 4, 0, 0, 0, time.UTC)
+	installerDigest := digest("8")
+	campaign, err := fieldcampaign.New("http://installer.example", request, digest("1"), digest("2"), digest("9"), installerDigest, digest("7"), "plan-interrupt", digest("3"), true, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = campaign.Transition(fieldcampaign.StateStartRequested, "start", "started", now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	campaign.RunID = "bootstrap-interrupted"
+	campaign.RunState = string(bootstrap.RunRunning)
+	simulation := false
+	campaign.Simulation = &simulation
+	if err = campaign.Transition(fieldcampaign.StateRunning, "observe", "running", now.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	run := bootstrap.Run{ID: campaign.RunID, State: bootstrap.RunRunning, SpecDigest: campaign.RequestDigest, BundleDigest: campaign.BundleDigest, PreflightDigest: campaign.PreflightDigest, Simulation: false}
+	resumeCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/access/status":
+			_ = json.NewEncoder(w).Encode(map[string]any{"installerBinaryDigest": installerDigest})
+		case "/api/v1/status":
+			_ = json.NewEncoder(w).Encode(installerStatusResponse{ExecutionEnabled: true, BootstrapActive: false, Run: &run})
+		case "/api/v1/resume":
+			resumeCalls++
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "accepted"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	base, _ := url.Parse(server.URL)
+	campaign.InstallerURL = server.URL
+	if err = campaign.Seal(); err != nil {
+		t.Fatal(err)
+	}
+	connection := fieldCampaignConnection{base: base, client: server.Client(), token: "token"}
+	terminal, changed, err := observeFieldCampaign(connection, &campaign, now.Add(3*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !terminal || !changed || campaign.State != fieldcampaign.StateInterrupted || campaign.RunState != string(bootstrap.RunRunning) || !strings.Contains(campaign.LastError, "interrupted") {
+		t.Fatalf("interrupted campaign was not surfaced truthfully: %+v", campaign)
+	}
+	if err = resumeFieldCampaign(connection, &campaign, now.Add(4*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if resumeCalls != 1 || campaign.State != fieldcampaign.StateStartRequested || campaign.LastError != "" {
+		t.Fatalf("interrupted campaign did not resume exactly once: calls=%d campaign=%+v", resumeCalls, campaign)
+	}
+}
+
 func TestFieldCampaignStartRejectsChangedBundle(t *testing.T) {
 	digest := func(ch string) string { return "sha256:" + strings.Repeat(ch, 64) }
 	request := campaignRequestFixture()
@@ -178,7 +237,7 @@ func TestFieldCampaignStartRejectsChangedBundle(t *testing.T) {
 	defer server.Close()
 	base, _ := url.Parse(server.URL)
 	connection := fieldCampaignConnection{base: base, client: server.Client(), token: "token"}
-	campaign, err := fieldcampaign.New(server.URL, request, digest("1"), digest("2"), digest("9"), digest("8"), "install-plan-1", preflight.Digest, true, time.Now().UTC())
+	campaign, err := fieldcampaign.New(server.URL, request, digest("1"), digest("2"), digest("9"), digest("8"), digest("7"), "install-plan-1", preflight.Digest, true, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +258,7 @@ func TestCollectFieldCampaignEvidenceRejectsDifferentBundleWithSameRunAndRelease
 	if err := campaignPreflight.Seal(); err != nil {
 		t.Fatal(err)
 	}
-	campaign, err := fieldcampaign.New("http://installer.example", request, digest("1"), digest("2"), digest("9"), digest("8"), "plan-1", campaignPreflight.Digest, true, time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC))
+	campaign, err := fieldcampaign.New("http://installer.example", request, digest("1"), digest("2"), digest("9"), digest("8"), digest("7"), "plan-1", campaignPreflight.Digest, true, time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +404,7 @@ func TestFieldCampaignStartRejectsDifferentRunningInstallerBinary(t *testing.T) 
 	if err := preflight.Seal(); err != nil {
 		t.Fatal(err)
 	}
-	campaign, err := fieldcampaign.New("http://installer.example", request, digest("1"), digest("2"), digest("9"), digest("8"), "plan-1", preflight.Digest, true, time.Now().UTC())
+	campaign, err := fieldcampaign.New("http://installer.example", request, digest("1"), digest("2"), digest("9"), digest("8"), digest("7"), "plan-1", preflight.Digest, true, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}

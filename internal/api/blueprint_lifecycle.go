@@ -221,18 +221,20 @@ func (s *Server) listBlueprintReleases(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	items, err := s.store.ListBlueprintReleases(r.Context(), projectID)
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.BlueprintRelease, error)
+	if pager, ok := s.store.(blueprintReleasePageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.BlueprintRelease, error) {
+			return pager.ListBlueprintReleasesPage(r.Context(), ids, all, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.BlueprintRelease, error) {
+		return s.store.ListBlueprintReleases(r.Context(), projectID)
+	}, page, func(item controlplane.BlueprintRelease) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	items = filterProjectScoped(items, allowed, all, func(v controlplane.BlueprintRelease) string { return v.ProjectID })
-	writeJSON(w, http.StatusOK, items)
+	writeOperatorCollectionJSON(w, r, http.StatusOK, v)
 }
 
 func (s *Server) getBlueprintRelease(w http.ResponseWriter, r *http.Request) {

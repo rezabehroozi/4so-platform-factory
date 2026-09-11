@@ -68,6 +68,56 @@ func fixtureInput(t *testing.T) AssembleInput {
 	}
 }
 
+func writeRuntimeCertificationRegistrySet(t *testing.T, root string, components []string) {
+	t.Helper()
+	dir := filepath.Join(root, "catalog")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stages := []string{"install", "readiness", "dependency", "upgrade", "remove", "failure"}
+	rows := make([]any, 0, len(components))
+	for _, component := range components {
+		lifecycle := make([]any, 0, len(stages))
+		for _, stage := range stages {
+			status, authority := "source-gated-component-executor", "COMPONENT_RUNTIME_V1"
+			if stage == "upgrade" {
+				status, authority = "pending-upgrade-matrix", "COMPONENT_RUNTIME_UPGRADE_V1"
+			}
+			lifecycle = append(lifecycle, map[string]any{
+				"name": stage, "status": status, "evidenceContract": "component-" + stage + "-evidence/v1", "authority": authority,
+			})
+		}
+		rows = append(rows, map[string]any{
+			"component":     component,
+			"release":       "1.20.1",
+			"sourceBinding": map[string]any{"status": "blocked-source-lock", "resolved": false, "sourceLockDigest": ""},
+			"executor":      map[string]any{"status": "source-gated-component-executor", "profile": "COMPONENT_RUNTIME_V1", "owner": "catalog-component"},
+			"lifecycle":     lifecycle,
+		})
+	}
+	doc := map[string]any{
+		"apiVersion": "platform.4so.io/v1alpha1",
+		"kind":       "ComponentRuntimeCertificationRegistry",
+		"metadata":   map[string]any{"name": catalog.ComponentRuntimeCertificationAuthority},
+		"spec": map[string]any{
+			"policy": map[string]any{
+				"sourceBinding":           "exact-component-release-and-source-lock",
+				"executorBinding":         "component-owned-no-generic-runtime-certification-claim",
+				"requiredLifecycleStages": stages,
+				"replacementPolicy":       "resolved-source-replacement-denied-without-explicit-versioned-migration",
+			},
+			"components": rows,
+		},
+	}
+	raw, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(dir, "component-runtime-certification.json"), append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func writeHelmAdmission(t *testing.T, root, component, chart, version, source, upstreamVersion string, status string) {
 	t.Helper()
 	if upstreamVersion == "" {
@@ -85,11 +135,12 @@ func writeHelmAdmission(t *testing.T, root, component, chart, version, source, u
 			"components": []any{map[string]any{
 				"component": component, "chart": chart, "catalogConstraint": version,
 				"selectedVersion": version, "upstreamVersion": upstreamVersion,
-				"source": source, "status": status, "rationale": "test fixture",
+				"source": source, "status": status, "runtimeStatus": "eligible-after-source-resolution", "rationale": "test fixture",
 			}},
 			"policy": map[string]any{
 				"allowLatestResolution": false, "autoWidenCatalogConstraint": false,
 				"runtimeCertification": "separate-runtime-evidence-required",
+				"candidateAcquisition": "exact-source-may-be-acquired-before-runtime-clearance",
 				"sourceAuthority":      "official-upstream-only",
 				"sourceResolution":     "separate-immutable-acquisition-required",
 				"versionSelection":     "exact-semver-no-prerelease",
@@ -101,6 +152,32 @@ func writeHelmAdmission(t *testing.T, root, component, chart, version, source, u
 		t.Fatal(err)
 	}
 	if err = os.WriteFile(filepath.Join(dir, "upstream-admission.json"), append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeRuntimeCertificationRegistrySet(t, root, []string{component})
+}
+
+func writeRuntimeUpgradeMatrix(t *testing.T, root, component, release string) {
+	t.Helper()
+	dir := filepath.Join(root, "catalog")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	doc := map[string]any{
+		"apiVersion":    "platform.4so.io/v1alpha1",
+		"kind":          "ComponentRuntimeUpgradeMatrix",
+		"authority":     "COMPONENT_RUNTIME_UPGRADE_MATRIX_V2",
+		"schemaVersion": 1,
+		"components": []any{map[string]any{
+			"component": component, "targetRelease": release, "targetSourceLockDigest": "",
+			"status": "pending-source-pair", "admittedEdges": []any{}, "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1",
+		}},
+	}
+	raw, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(dir, "component-runtime-upgrade-matrix.json"), append(raw, '\n'), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -178,6 +255,7 @@ func TestInstallIsIdempotentAndRefusesResolvedReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeHelmAdmission(t, root, "cilium", "cilium", "1.20.1", "oci://quay.io/cilium/charts/cilium", "1.20.1", "ready-for-acquisition")
+	writeRuntimeUpgradeMatrix(t, root, "cilium", "1.20.x")
 	if err = os.MkdirAll(filepath.Join(root, "catalog", "components"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -187,6 +265,38 @@ func TestInstallIsIdempotentAndRefusesResolvedReplacement(t *testing.T) {
 	}
 	if err = Install(v, root); err != nil {
 		t.Fatal(err)
+	}
+	registryRaw, err := os.ReadFile(filepath.Join(root, "catalog", "component-runtime-certification.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var registry catalog.ComponentRuntimeCertificationRegistry
+	if err = json.Unmarshal(registryRaw, &registry); err != nil {
+		t.Fatal(err)
+	}
+	var resolvedComponent catalog.Component
+	if err = json.Unmarshal(v.Files["component.json"], &resolvedComponent); err != nil {
+		t.Fatal(err)
+	}
+	if err = catalog.ValidateComponentRuntimeCertificationRegistry(registry, map[string]catalog.Component{"cilium": resolvedComponent}); err != nil {
+		t.Fatalf("runtime certification registry was not rebound atomically: %v", err)
+	}
+	upgradeRaw, err := os.ReadFile(filepath.Join(root, "catalog", "component-runtime-upgrade-matrix.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var upgrade map[string]any
+	if err = json.Unmarshal(upgradeRaw, &upgrade); err != nil {
+		t.Fatal(err)
+	}
+	rows := upgrade["components"].([]any)
+	row := rows[0].(map[string]any)
+	expectedUpgradeDigest, err := sourceLockAuthorityDigest(v.Files["source-lock.json"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row["targetRelease"] != "1.20.1" || row["targetSourceLockDigest"] != expectedUpgradeDigest || row["status"] != "pending-source-pair" || len(row["admittedEdges"].([]any)) != 0 {
+		t.Fatalf("runtime upgrade matrix was not rebound atomically: %+v", row)
 	}
 	authorityRaw, err := os.ReadFile(filepath.Join(root, "catalog", "upstream-admission.json"))
 	if err != nil {
@@ -297,7 +407,7 @@ func writeHelmAdmissionSet(t *testing.T, root string, components []string) {
 		rows = append(rows, map[string]any{
 			"component": component, "chart": "cilium", "catalogConstraint": "1.20.1",
 			"selectedVersion": "1.20.1", "upstreamVersion": "1.20.1",
-			"source": "oci://quay.io/cilium/charts/cilium", "status": "ready-for-acquisition", "rationale": "concurrency regression fixture",
+			"source": "oci://quay.io/cilium/charts/cilium", "status": "ready-for-acquisition", "runtimeStatus": "eligible-after-source-resolution", "rationale": "concurrency regression fixture",
 		})
 	}
 	doc := map[string]any{
@@ -309,6 +419,7 @@ func writeHelmAdmissionSet(t *testing.T, root string, components []string) {
 			"policy": map[string]any{
 				"allowLatestResolution": false, "autoWidenCatalogConstraint": false,
 				"runtimeCertification": "separate-runtime-evidence-required",
+				"candidateAcquisition": "exact-source-may-be-acquired-before-runtime-clearance",
 				"sourceAuthority":      "official-upstream-only",
 				"sourceResolution":     "separate-immutable-acquisition-required",
 				"versionSelection":     "exact-semver-no-prerelease",
@@ -322,6 +433,7 @@ func writeHelmAdmissionSet(t *testing.T, root string, components []string) {
 	if err = os.WriteFile(filepath.Join(dir, "upstream-admission.json"), append(raw, '\n'), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	writeRuntimeCertificationRegistrySet(t, root, components)
 }
 
 func TestConcurrentInstallsSerializeSharedAdmissionRetirement(t *testing.T) {
@@ -950,6 +1062,123 @@ func TestBundleAcceptsRealisticSBOMDependencyVersionsButRequiresChartIdentity(t 
 	}
 }
 
+func TestInstallRecoversDurableAuthorityTransactionJournal(t *testing.T) {
+	_, v, err := Assemble(fixtureInput(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err = os.WriteFile(filepath.Join(root, "VERSION"), []byte("test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	componentsDir := filepath.Join(root, "catalog", "components")
+	if err = os.MkdirAll(componentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	base := fixtureInput(t).BaseComponent
+	componentPath := filepath.Join(componentsDir, "cilium.json")
+	if err = os.WriteFile(componentPath, base, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeHelmAdmission(t, root, "cilium", "cilium", "1.20.1", "oci://quay.io/cilium/charts/cilium", "1.20.1", "ready-for-acquisition")
+	writeRuntimeUpgradeMatrix(t, root, "cilium", "1.20.x")
+	oldRegistry, err := os.ReadFile(filepath.Join(root, "catalog", "component-runtime-certification.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldAdmission, err := os.ReadFile(filepath.Join(root, "catalog", "upstream-admission.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldUpgradeMatrix, err := os.ReadFile(filepath.Join(root, "catalog", "component-runtime-upgrade-matrix.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := catalogAuthorityTransaction{Component: "cilium", OldComponent: base, OldRegistry: oldRegistry, OldUpgradeMatrix: oldUpgradeMatrix, OldAdmission: oldAdmission}
+	if err = beginCatalogAuthorityTransaction(root, txn); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a crash after all three authority files were partially committed.
+	if err = atomicWrite(componentPath, v.Files["component.json"], 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var rebound catalog.ComponentRuntimeCertificationRegistry
+	if err = json.Unmarshal(oldRegistry, &rebound); err != nil {
+		t.Fatal(err)
+	}
+	var resolved catalog.Component
+	if err = json.Unmarshal(v.Files["component.json"], &resolved); err != nil {
+		t.Fatal(err)
+	}
+	if err = catalog.RebindComponentRuntimeCertificationSource(&rebound, resolved); err != nil {
+		t.Fatal(err)
+	}
+	reboundRaw, err := json.MarshalIndent(rebound, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = atomicWrite(filepath.Join(root, "catalog", "component-runtime-certification.json"), append(reboundRaw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var oldMatrixDoc map[string]any
+	if err = json.Unmarshal(oldUpgradeMatrix, &oldMatrixDoc); err != nil {
+		t.Fatal(err)
+	}
+	matrixRow := oldMatrixDoc["components"].([]any)[0].(map[string]any)
+	matrixDigest, digestErr := sourceLockAuthorityDigest(v.Files["source-lock.json"])
+	if digestErr != nil {
+		t.Fatal(digestErr)
+	}
+	matrixRow["targetRelease"] = "1.20.1"
+	matrixRow["targetSourceLockDigest"] = matrixDigest
+	partialMatrixRaw, err := json.MarshalIndent(oldMatrixDoc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = atomicWrite(filepath.Join(root, "catalog", "component-runtime-upgrade-matrix.json"), append(partialMatrixRaw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err = retireCanonicalHelmAdmission(root, "cilium"); err != nil {
+		t.Fatal(err)
+	}
+	if err = Install(v, root); err != nil {
+		t.Fatalf("install did not recover durable authority transaction: %v", err)
+	}
+	if _, statErr := os.Stat(catalogAuthorityTransactionPath(root)); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("transaction journal survived successful recovery: %v", statErr)
+	}
+	finalRegistryRaw, err := os.ReadFile(filepath.Join(root, "catalog", "component-runtime-certification.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var finalRegistry catalog.ComponentRuntimeCertificationRegistry
+	if err = json.Unmarshal(finalRegistryRaw, &finalRegistry); err != nil {
+		t.Fatal(err)
+	}
+	if err = catalog.ValidateComponentRuntimeCertificationRegistry(finalRegistry, map[string]catalog.Component{"cilium": resolved}); err != nil {
+		t.Fatalf("recovered runtime certification authority invalid: %v", err)
+	}
+	finalUpgradeRaw, err := os.ReadFile(filepath.Join(root, "catalog", "component-runtime-upgrade-matrix.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var finalUpgrade map[string]any
+	if err = json.Unmarshal(finalUpgradeRaw, &finalUpgrade); err != nil {
+		t.Fatal(err)
+	}
+	finalUpgradeRow := finalUpgrade["components"].([]any)[0].(map[string]any)
+	if finalUpgradeRow["targetRelease"] != "1.20.1" || finalUpgradeRow["targetSourceLockDigest"] != matrixDigest {
+		t.Fatalf("recovered runtime upgrade matrix authority invalid: %+v", finalUpgradeRow)
+	}
+	doc, err := loadCanonicalUpstreamAdmission(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = findUpstreamAdmissionEntry(&doc, "cilium"); !errors.Is(err, errUpstreamAdmissionComponentMissing) {
+		t.Fatalf("recovered install left stale admission: %v", err)
+	}
+}
+
 func TestInstallRecoversCrashAfterResolvedComponentCommitBeforeAdmissionRetirement(t *testing.T) {
 	_, v, err := Assemble(fixtureInput(t))
 	if err != nil {
@@ -1207,5 +1436,203 @@ func TestInstallRejectsSymlinkedExistingRuntimeFileBeforeCatalogMutation(t *test
 	}
 	if _, findErr := findUpstreamAdmissionEntry(&doc, "cilium"); findErr != nil {
 		t.Fatalf("admission row retired before runtime file path rejection: %v", findErr)
+	}
+}
+
+func TestCanonicalAdmissionAllowsExactReviewCandidateBesideReadyInstall(t *testing.T) {
+	root := t.TempDir()
+	componentsDir := filepath.Join(root, "catalog", "components")
+	if err := os.MkdirAll(componentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	base := fixtureInput(t).BaseComponent
+	var ready map[string]any
+	if err := json.Unmarshal(base, &ready); err != nil {
+		t.Fatal(err)
+	}
+	readySpec := ready["spec"].(map[string]any)
+	readySpec["release"] = "1.20.1"
+	readySpec["versionPolicy"] = "exact-upstream-admitted-pending-source-acquisition"
+	if raw, err := json.MarshalIndent(ready, "", "  "); err != nil {
+		t.Fatal(err)
+	} else if err = os.WriteFile(filepath.Join(componentsDir, "cilium.json"), append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var review map[string]any
+	if err := json.Unmarshal(base, &review); err != nil {
+		t.Fatal(err)
+	}
+	review["metadata"].(map[string]any)["name"] = "kyverno"
+	reviewSpec := review["spec"].(map[string]any)
+	reviewSpec["release"] = "3.8.2"
+	reviewSpec["versionPolicy"] = "exact-upstream-admitted-pending-source-acquisition"
+	reviewSpec["delivery"].(map[string]any)["chart"] = "kyverno"
+	writeReview := func() {
+		raw, err := json.MarshalIndent(review, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(filepath.Join(componentsDir, "kyverno.json"), append(raw, '\n'), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeReview()
+
+	doc := upstreamAdmissionDocument{
+		APIVersion: "platform.4so.io/v1alpha1",
+		Kind:       "CatalogUpstreamAdmission",
+	}
+	doc.Metadata.Name = "review-candidate-regression"
+	doc.Spec.Policy.AllowLatestResolution = false
+	doc.Spec.Policy.AutoWidenCatalogConstraint = false
+	doc.Spec.Policy.RuntimeCertification = "separate-runtime-evidence-required"
+	doc.Spec.Policy.CandidateAcquisition = "exact-source-may-be-acquired-before-runtime-clearance"
+	doc.Spec.Policy.SourceAuthority = "official-upstream-only"
+	doc.Spec.Policy.SourceResolution = "separate-immutable-acquisition-required"
+	doc.Spec.Policy.VersionSelection = "exact-semver-no-prerelease"
+	readyVersion, reviewVersion := "1.20.1", "3.8.2"
+	doc.Spec.Components = []upstreamAdmissionEntry{
+		{Component: "cilium", Chart: "cilium", CatalogConstraint: "1.20.x", SelectedVersion: &readyVersion, UpstreamVersion: &readyVersion, Source: "oci://quay.io/cilium/charts/cilium", Status: "ready-for-acquisition", RuntimeStatus: "eligible-after-source-resolution", Rationale: "ready fixture"},
+		{Component: "kyverno", Chart: "kyverno", CatalogConstraint: "3.8.x", SelectedVersion: &reviewVersion, UpstreamVersion: &reviewVersion, Source: "https://kyverno.github.io/kyverno/", Status: "ready-for-acquisition", RuntimeStatus: "review-required", Rationale: "review fixture", ReviewEvidence: []upstreamAdmissionReviewEvidence{{Kind: "blocker", URL: "https://example.test/issue", Summary: "review remains open"}}},
+	}
+	if err := validateCanonicalUpstreamAdmissionCoverage(root, doc); err != nil {
+		t.Fatalf("exact review candidate incorrectly blocked unrelated ready install: %v", err)
+	}
+
+	reviewSpec["release"] = "3.8.1"
+	writeReview()
+	if err := validateCanonicalUpstreamAdmissionCoverage(root, doc); err == nil || !strings.Contains(err.Error(), "catalog pin mismatch") {
+		t.Fatalf("review candidate release drift was accepted: %v", err)
+	}
+	reviewSpec["release"] = "3.8.2"
+	reviewSpec["versionPolicy"] = "resolve-verify-and-pin-before-execution"
+	writeReview()
+	if err := validateCanonicalUpstreamAdmissionCoverage(root, doc); err == nil || !strings.Contains(err.Error(), "version policy mismatch") {
+		t.Fatalf("runtime-blocked acquisition candidate version-policy drift was accepted: %v", err)
+	}
+}
+
+func writeUpgradeSourceAdmission(t *testing.T, root, component, target, previous, source, status string) {
+	t.Helper()
+	evidence := []any{}
+	if status == "admitted-for-acquisition" {
+		evidence = []any{map[string]any{"kind": "upstream-release-history", "reference": "https://example.test/releases", "summary": "reviewed exact predecessor"}}
+	}
+	doc := map[string]any{
+		"apiVersion": "platform.4so.io/v1alpha1", "kind": "ComponentUpgradeSourceAdmission", "authority": "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1", "schemaVersion": 1,
+		"policy":     map[string]any{"explicitHumanOrReleaseReviewRequired": true, "exactPreviousVersionRequired": true, "strictUpgradeDirectionRequired": true, "mutableTagForbidden": true, "admissionDoesNotEqualCertification": true, "reviewEvidenceRequiredForAdmission": true, "firstProductReleaseInstallOnlyAllowed": true, "historicalVersionFabricationForbidden": true},
+		"components": []any{map[string]any{"component": component, "targetRelease": target, "status": status, "previousVersion": previous, "source": source, "rationale": "reviewed test edge", "reviewEvidence": evidence}},
+	}
+	raw, _ := json.MarshalIndent(doc, "", "  ")
+	if err := os.WriteFile(filepath.Join(root, "catalog", "component-upgrade-source-admission.json"), append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInstallHistoricalAdmitsExactSourcePairWithoutChangingCurrentComponent(t *testing.T) {
+	_, currentBundle, err := Assemble(fixtureInput(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err = os.WriteFile(filepath.Join(root, "VERSION"), []byte("test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeHelmAdmission(t, root, "cilium", "cilium", "1.20.1", "oci://quay.io/cilium/charts/cilium", "1.20.1", "ready-for-acquisition")
+	writeRuntimeUpgradeMatrix(t, root, "cilium", "1.20.x")
+	if err = os.MkdirAll(filepath.Join(root, "catalog", "components"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(root, "catalog", "components", "cilium.json"), fixtureInput(t).BaseComponent, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err = Install(currentBundle, root); err != nil {
+		t.Fatal(err)
+	}
+	currentRaw, err := os.ReadFile(filepath.Join(root, "catalog", "components", "cilium.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h := fixtureInput(t)
+	h.BaseComponent = currentRaw
+	h.Historical = true
+	h.Version = "1.19.0"
+	h.SourceRevision = "1.19.0"
+	h.UpstreamArtifact = "cilium-1.19.0.tgz"
+	h.BundleKey = "cilium/1.19.0"
+	h.Artifact = helmChartTGZ(t, "cilium", "1.19.0")
+	h.ExpectedArtifactDigest = sha(h.Artifact)
+	h.SBOM = []byte("{\n  \"spdxVersion\": \"SPDX-2.3\", \"SPDXID\": \"SPDXRef-DOCUMENT\", \"name\": \"cilium-1.19.0-test-fixture\", \"packages\": [{\"SPDXID\":\"SPDXRef-Package-cilium\",\"name\":\"cilium\",\"versionInfo\":\"1.19.0\"}]\n}\n")
+	_, historical, err := Assemble(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeUpgradeSourceAdmission(t, root, "cilium", "1.20.1", "1.19.0", h.SourceURL, "admitted-for-acquisition")
+	if err = InstallHistorical(historical, root); err != nil {
+		t.Fatal(err)
+	}
+	afterRaw, err := os.ReadFile(filepath.Join(root, "catalog", "components", "cilium.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(currentRaw, afterRaw) {
+		t.Fatal("historical install changed current component authority")
+	}
+	if _, err = os.Stat(filepath.Join(root, "catalog", "runtime", "cilium", "1.19.0", "source-lock.json")); err != nil {
+		t.Fatal(err)
+	}
+	matrixRaw, err := os.ReadFile(filepath.Join(root, "catalog", "component-runtime-upgrade-matrix.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var matrix map[string]any
+	if err = json.Unmarshal(matrixRaw, &matrix); err != nil {
+		t.Fatal(err)
+	}
+	row := matrix["components"].([]any)[0].(map[string]any)
+	if row["status"] != "admitted-source-pair" || len(row["admittedEdges"].([]any)) != 1 {
+		t.Fatalf("historical pair not admitted: %#v", row)
+	}
+	edge := row["admittedEdges"].([]any)[0].(map[string]any)
+	if edge["fromRelease"] != "1.19.0" || edge["toRelease"] != "1.20.1" {
+		t.Fatalf("wrong edge: %#v", edge)
+	}
+}
+
+func TestInstallHistoricalRequiresExplicitAdmission(t *testing.T) {
+	_, currentBundle, err := Assemble(fixtureInput(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	_ = os.WriteFile(filepath.Join(root, "VERSION"), []byte("test\n"), 0o644)
+	writeHelmAdmission(t, root, "cilium", "cilium", "1.20.1", "oci://quay.io/cilium/charts/cilium", "1.20.1", "ready-for-acquisition")
+	writeRuntimeUpgradeMatrix(t, root, "cilium", "1.20.x")
+	_ = os.MkdirAll(filepath.Join(root, "catalog", "components"), 0o755)
+	_ = os.WriteFile(filepath.Join(root, "catalog", "components", "cilium.json"), fixtureInput(t).BaseComponent, 0o644)
+	if err = Install(currentBundle, root); err != nil {
+		t.Fatal(err)
+	}
+	currentRaw, _ := os.ReadFile(filepath.Join(root, "catalog", "components", "cilium.json"))
+	h := fixtureInput(t)
+	h.BaseComponent = currentRaw
+	h.Historical = true
+	h.Version = "1.19.0"
+	h.SourceRevision = "1.19.0"
+	h.UpstreamArtifact = "cilium-1.19.0.tgz"
+	h.BundleKey = "cilium/1.19.0"
+	h.Artifact = helmChartTGZ(t, "cilium", "1.19.0")
+	h.ExpectedArtifactDigest = sha(h.Artifact)
+	h.SBOM = []byte("{\"spdxVersion\":\"SPDX-2.3\",\"SPDXID\":\"SPDXRef-DOCUMENT\",\"name\":\"h\",\"packages\":[{\"SPDXID\":\"SPDXRef-Package-cilium\",\"name\":\"cilium\",\"versionInfo\":\"1.19.0\"}]}\n")
+	_, historical, err := Assemble(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeUpgradeSourceAdmission(t, root, "cilium", "1.20.1", "", "", "review-required")
+	if err = InstallHistorical(historical, root); err == nil || !strings.Contains(err.Error(), "not admitted") {
+		t.Fatalf("expected admission rejection, got %v", err)
 	}
 }

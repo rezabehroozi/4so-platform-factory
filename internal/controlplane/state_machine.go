@@ -19,6 +19,25 @@ var allowedTransitions = map[OperationState]map[OperationState]bool{
 
 func CanTransition(from, to OperationState) bool { return allowedTransitions[from][to] }
 
+// CanDirectOperationTransition defines the narrow orchestration-only surface
+// exposed by the generic TransitionOperation method. Execution-plane state
+// changes are authority-controlled by the lease/fence-aware attempt, failure,
+// verification, completion, cancellation and compensation methods instead.
+func CanDirectOperationTransition(from, to OperationState) bool {
+	switch from {
+	case OperationDraft:
+		return to == OperationPlanning
+	case OperationPlanning:
+		return to == OperationPlanFailed || to == OperationAwaitingApproval || to == OperationQueued
+	case OperationPlanFailed:
+		return to == OperationPlanning
+	case OperationApproved:
+		return to == OperationQueued
+	default:
+		return false
+	}
+}
+
 func IsTerminal(state OperationState) bool {
 	switch state {
 	case OperationSucceeded, OperationRolledBack, OperationCancelled:

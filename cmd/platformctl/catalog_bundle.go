@@ -9,7 +9,25 @@ import (
 	"strings"
 
 	"platform.4so.io/factory/internal/catalogbundle"
+	"platform.4so.io/factory/internal/durablefile"
 )
+
+func writeCatalogBundleOutput(path string, raw []byte) error {
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("catalog bundle output path is a symlink: %s", path)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("catalog bundle output path is not a regular file: %s", path)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("inspect catalog bundle output path: %w", err)
+	}
+	if err := durablefile.Replace(path, raw, 0o755, 0o644); err != nil {
+		return fmt.Errorf("write catalog bundle output: %w", err)
+	}
+	return nil
+}
 
 func catalogBundleCommand(args []string) {
 	if len(args) == 0 {
@@ -19,11 +37,13 @@ func catalogBundleCommand(args []string) {
 	if len(args) > 1 && (args[1] == "--help" || args[1] == "-h") {
 		switch args[0] {
 		case "assemble":
-			fmt.Fprintln(os.Stderr, "usage: platformctl catalog-bundle assemble --component FILE --artifact FILE --render-manifest FILE --image-inventory FILE --licenses FILE --sbom FILE [--render-generation FILE] --version VERSION [--source-type helm-chart|external-tagged-source-set] --source-url URL --source-revision REV --upstream-artifact-name NAME --artifact-digest sha256:HEX --bundle-key COMPONENT/VERSION --out BUNDLE.zip")
+			fmt.Fprintln(os.Stderr, "usage: platformctl catalog-bundle assemble --component FILE --artifact FILE --render-manifest FILE --image-inventory FILE --licenses FILE --sbom FILE [--render-generation FILE] --version VERSION [--historical] [--source-type helm-chart|external-tagged-source-set] --source-url URL --source-revision REV --upstream-artifact-name NAME --artifact-digest sha256:HEX --bundle-key COMPONENT/VERSION --out BUNDLE.zip")
 		case "verify":
 			fmt.Fprintln(os.Stderr, "usage: platformctl catalog-bundle verify -f BUNDLE.zip")
 		case "install":
 			fmt.Fprintln(os.Stderr, "usage: platformctl catalog-bundle install -f BUNDLE.zip --repo-root DIR --confirmation IMPORT")
+		case "install-historical":
+			fmt.Fprintln(os.Stderr, "usage: platformctl catalog-bundle install-historical -f BUNDLE.zip --repo-root DIR --confirmation IMPORT-HISTORICAL")
 		default:
 			usage()
 		}
@@ -40,6 +60,7 @@ func catalogBundleCommand(args []string) {
 		licenses := fs.String("licenses", "", "license manifest JSON")
 		sbom := fs.String("sbom", "", "SPDX JSON SBOM")
 		renderGeneration := fs.String("render-generation", "", "Helm render generation evidence JSON; required for helm-chart sources")
+		historical := fs.Bool("historical", false, "assemble an explicitly reviewed older source bundle for S2; does not make it installable as current")
 		version := fs.String("version", "", "exact upstream version")
 		sourceType := fs.String("source-type", "helm-chart", "source type")
 		sourceURL := fs.String("source-url", "", "upstream artifact source URL")
@@ -68,14 +89,11 @@ func catalogBundleCommand(args []string) {
 		if strings.TrimSpace(*renderGeneration) != "" {
 			generation = read(*renderGeneration)
 		}
-		raw, verified, err := catalogbundle.Assemble(catalogbundle.AssembleInput{BaseComponent: read(*component), Artifact: read(*artifact), RenderManifest: read(*renderManifest), ImageInventory: read(*images), Licenses: read(*licenses), SBOM: read(*sbom), RenderGeneration: generation, Version: *version, SourceType: *sourceType, SourceURL: *sourceURL, SourceRevision: *sourceRevision, UpstreamArtifact: *upstreamArtifact, ExpectedArtifactDigest: *artifactDigest, BundleKey: *bundleKey})
+		raw, verified, err := catalogbundle.Assemble(catalogbundle.AssembleInput{BaseComponent: read(*component), Artifact: read(*artifact), RenderManifest: read(*renderManifest), ImageInventory: read(*images), Licenses: read(*licenses), SBOM: read(*sbom), RenderGeneration: generation, Version: *version, SourceType: *sourceType, SourceURL: *sourceURL, SourceRevision: *sourceRevision, UpstreamArtifact: *upstreamArtifact, ExpectedArtifactDigest: *artifactDigest, BundleKey: *bundleKey, Historical: *historical})
 		if err != nil {
 			fatal(err)
 		}
-		if err = os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
-			fatal(err)
-		}
-		if err = os.WriteFile(*out, raw, 0o644); err != nil {
+		if err = writeCatalogBundleOutput(*out, raw); err != nil {
 			fatal(err)
 		}
 		printJSON(map[string]any{"assembled": true, "out": *out, "component": verified.Manifest.Component, "version": verified.Manifest.Version, "bundleDigest": verified.BundleDigest, "upstreamArtifactDigest": verified.Manifest.Upstream.ArtifactDigest, "resourceCount": verified.ResourceCount, "imageCount": verified.ImageCount, "offlineReady": true, "networkFetchRequired": false})
@@ -121,6 +139,28 @@ func catalogBundleCommand(args []string) {
 			"bundleDigest": verified.BundleDigest, "runtimeBundleDir": filepath.Join(root, "catalog", "runtime", filepath.FromSlash(verified.Manifest.BundleKey)),
 			"componentContract":    filepath.Join(root, "catalog", "components", verified.Manifest.Component+".json"),
 			"networkFetchRequired": false, "next": "rebuild the release so the verified bundle is embedded into catalog/runtime",
+		})
+	case "install-historical":
+		fs := flag.NewFlagSet("catalog-bundle install-historical", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		file := fs.String("f", "", "offline historical external catalog bundle zip")
+		repo := fs.String("repo-root", ".", "Platform Factory source root")
+		confirmation := fs.String("confirmation", "", "must be IMPORT-HISTORICAL")
+		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 || strings.TrimSpace(*file) == "" || *confirmation != "IMPORT-HISTORICAL" {
+			fatal(fmt.Errorf("catalog-bundle install-historical requires -f BUNDLE.zip --repo-root DIR --confirmation IMPORT-HISTORICAL"))
+		}
+		verified, err := catalogbundle.VerifyFile(*file)
+		if err != nil {
+			fatal(err)
+		}
+		if err = catalogbundle.InstallHistorical(verified, *repo); err != nil {
+			fatal(err)
+		}
+		root, _ := filepath.Abs(*repo)
+		printJSON(map[string]any{
+			"installedHistorical": true, "component": verified.Manifest.Component, "version": verified.Manifest.Version,
+			"bundleDigest": verified.BundleDigest, "runtimeBundleDir": filepath.Join(root, "catalog", "runtime", filepath.FromSlash(verified.Manifest.BundleKey)),
+			"currentComponentUnchanged": true, "authority": catalogbundle.HistoricalSourceImportAuthority, "upgradeMatrixAdmissionOnly": true, "runtimeCertificationPass": false, "networkFetchRequired": false,
 		})
 	default:
 		usage()

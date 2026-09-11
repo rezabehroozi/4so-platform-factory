@@ -442,3 +442,108 @@ func TestDeniedRequestSurfacesSecurityAuditBackpressure(t *testing.T) {
 		t.Fatalf("body=%s", w.Body.String())
 	}
 }
+
+func TestMCPProtectedResourceMetadata(t *testing.T) {
+	manager, err := New(Config{
+		Enabled:        true,
+		Issuer:         "https://identity.example.test/realms/4so",
+		InternalBase:   "https://identity.internal",
+		ClientID:       "platform-console",
+		RedirectURL:    "https://platform.example.test/auth/callback",
+		MCPResourceURL: "https://platform.example.test/mcp",
+		MCPAudience:    "platform-mcp",
+		SessionSecret:  strings.Repeat("s", 40),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	manager.Routes(mux)
+	r := httptest.NewRequest(http.MethodGet, "https://platform.example.test/.well-known/oauth-protected-resource", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var payload struct {
+		Resource             string   `json:"resource"`
+		AuthorizationServers []string `json:"authorization_servers"`
+		ScopesSupported      []string `json:"scopes_supported"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Resource != "https://platform.example.test/mcp" || len(payload.AuthorizationServers) != 1 || payload.AuthorizationServers[0] != "https://identity.example.test/realms/4so" {
+		t.Fatalf("payload=%+v", payload)
+	}
+	if strings.Join(payload.ScopesSupported, ",") != "mcp.read,mcp.operate" {
+		t.Fatalf("scopes=%v", payload.ScopesSupported)
+	}
+}
+
+func TestMCPUnauthorizedIncludesProtectedResourceChallenge(t *testing.T) {
+	manager, err := New(Config{
+		Enabled:        true,
+		Issuer:         "https://identity.example.test/realms/4so",
+		InternalBase:   "https://identity.internal",
+		ClientID:       "platform-console",
+		RedirectURL:    "https://platform.example.test/auth/callback",
+		MCPResourceURL: "https://platform.example.test/mcp",
+		MCPAudience:    "platform-mcp",
+		SessionSecret:  strings.Repeat("s", 40),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := manager.RequireAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Fatal("handler must not be reached") }))
+	r := httptest.NewRequest(http.MethodPost, "https://platform.example.test/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	want := `Bearer resource_metadata="https://platform.example.test/.well-known/oauth-protected-resource"`
+	if got := w.Header().Get("WWW-Authenticate"); got != want {
+		t.Fatalf("WWW-Authenticate=%q want=%q", got, want)
+	}
+}
+
+func TestMCPBearerUsesDedicatedAudience(t *testing.T) {
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	kid := "mcp-key"
+	jwks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := base64.RawURLEncoding.EncodeToString(key.PublicKey.N.Bytes())
+		e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.PublicKey.E)).Bytes())
+		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{"kid": kid, "kty": "RSA", "use": "sig", "n": n, "e": e}}})
+	}))
+	defer jwks.Close()
+	issuer := "https://identity.example.test/realms/4so"
+	manager, err := New(Config{Enabled: true, Issuer: issuer, InternalBase: jwks.URL, ClientID: "platform-console", RedirectURL: "https://platform.example.test/auth/callback", MCPAudience: "platform-mcp", SessionSecret: strings.Repeat("s", 40)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	makeToken := func(aud string) string {
+		header, _ := json.Marshal(map[string]string{"alg": "RS256", "kid": kid})
+		claims, _ := json.Marshal(map[string]any{"sub": "user-1", "iss": issuer, "aud": aud, "exp": time.Now().Add(time.Hour).Unix(), "realm_access": map[string]any{"roles": []string{"platform-admin"}}})
+		left := base64.RawURLEncoding.EncodeToString(header) + "." + base64.RawURLEncoding.EncodeToString(claims)
+		digest := sha256.Sum256([]byte(left))
+		signature, _ := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
+		return left + "." + base64.RawURLEncoding.EncodeToString(signature)
+	}
+	mcpReq := httptest.NewRequest(http.MethodPost, "https://platform.example.test/mcp", nil)
+	mcpReq.Header.Set("Authorization", "Bearer "+makeToken("platform-mcp"))
+	principal, err := manager.authenticate(mcpReq)
+	if err != nil || principal.Subject != "user-1" {
+		t.Fatalf("MCP audience rejected: principal=%+v err=%v", principal, err)
+	}
+	wrong := httptest.NewRequest(http.MethodPost, "https://platform.example.test/mcp", nil)
+	wrong.Header.Set("Authorization", "Bearer "+makeToken("platform-console"))
+	if _, err := manager.authenticate(wrong); err == nil {
+		t.Fatal("MCP accepted UI-console audience")
+	}
+	apiReq := httptest.NewRequest(http.MethodGet, "https://platform.example.test/api/v1/version", nil)
+	apiReq.Header.Set("Authorization", "Bearer "+makeToken("platform-console"))
+	if _, err := manager.authenticate(apiReq); err != nil {
+		t.Fatalf("normal API audience unexpectedly rejected: %v", err)
+	}
+}

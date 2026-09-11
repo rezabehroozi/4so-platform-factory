@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"platform.4so.io/factory/internal/installation"
 	"strings"
 	"testing"
 )
@@ -102,8 +103,8 @@ func TestHASSHCommandsUsePinnedTrustAndStreamedInput(t *testing.T) {
 }
 
 func TestHAPeerPreflightCommandIsReadOnlyAndChecksReadiness(t *testing.T) {
-	command := haPeerPreflightCommand()
-	for _, required := range []string{"uname -s", "id -u", "test -d /run/systemd/system", "systemctl show --property=Version --value", "/etc/rancher/rke2", "/var/lib/rancher/rke2", "/etc/rancher/k3s", "/var/lib/rancher/k3s", "/etc/kubernetes", "/var/lib/kubelet", "/usr/local/bin/rke2", "/usr/local/bin/k3s", "/usr/local/bin/kubelet", "/usr/local/bin/kubeadm", "rke2-server.service", "rke2-agent.service", "k3s.service", "k3s-agent.service", "kubelet.service", "ss -H -ltn", "80 443 6443 9345"} {
+	command := haPeerPreflightCommand(installation.ApplianceSizing{MinimumVCPU: 8, MinimumMemoryGiB: 16, MinimumDiskGiB: 160, MinimumFreeDiskGiB: 120})
+	for _, required := range []string{"uname -s", "id -u", "test -d /run/systemd/system", "systemctl show --property=Version --value", "timedatectl show --property=NTPSynchronized --value", "getconf _NPROCESSORS_ONLN", "df -Pk /var/lib", "findmnt -n -o FSTYPE -T /var/lib", "ip -4 route show default", "/etc/rancher/rke2", "/var/lib/rancher/rke2", "/etc/rancher/k3s", "/var/lib/rancher/k3s", "/etc/kubernetes", "/var/lib/kubelet", "/usr/local/bin/rke2", "/usr/local/bin/k3s", "/usr/local/bin/kubelet", "/usr/local/bin/kubeadm", "rke2-server.service", "rke2-agent.service", "k3s.service", "k3s-agent.service", "kubelet.service", "ss -H -ltn", "80 443 6443 9345"} {
 		if !strings.Contains(command, required) {
 			t.Fatalf("HA peer preflight command missing %q: %s", required, command)
 		}

@@ -318,3 +318,87 @@ func TestScopedNotificationCollectionsUseBoundedAuthorizationAwareQueries(t *tes
 		t.Fatalf("delivery list performed %d per-row event lookups; want 0", store.getNotificationEvents)
 	}
 }
+
+func TestNotificationRoutingPreviewIsProjectScopedAndSideEffectFree(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	ctx := context.Background()
+	org, err := store.CreateOrganization(ctx, controlplane.Organization{Name: "notif-preview", DisplayName: "Notification Preview"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectA, err := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "a-preview", DisplayName: "A Preview"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectB, err := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "b-preview", DisplayName: "B Preview"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	destination, err := store.CreateNotificationDestination(ctx, controlplane.NotificationDestination{OrganizationID: org.ID, Name: "console-preview", Kind: controlplane.NotificationDestinationConsole, TimeoutSeconds: 5}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	orgRoute, err := store.CreateNotificationRoute(ctx, controlplane.NotificationRoute{OrganizationID: org.ID, Name: "org-critical", Enabled: true, EventPatterns: []string{"operation.*"}, MinimumSeverity: controlplane.NotificationWarning, DestinationIDs: []string{destination.ID}}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoute, err := store.CreateNotificationRoute(ctx, controlplane.NotificationRoute{OrganizationID: org.ID, ProjectID: projectA.ID, Name: "project-cluster", Enabled: true, EventPatterns: []string{"cluster.*"}, MinimumSeverity: controlplane.NotificationInfo, DestinationIDs: []string{destination.ID}}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateNotificationRoute(ctx, controlplane.NotificationRoute{OrganizationID: org.ID, ProjectID: projectB.ID, Name: "foreign-route", Enabled: true, EventPatterns: []string{"operation.*"}, MinimumSeverity: controlplane.NotificationInfo, DestinationIDs: []string{destination.ID}}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+
+	s := scopedServer(t, store)
+	principal := auth.Principal{Subject: "preview-reader", Roles: []string{"platform-viewer"}, Authentication: "api-token", OrganizationID: org.ID, ProjectID: projectA.ID, Expires: time.Now().Add(time.Hour).Unix()}
+	preview := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/notification-routing/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(auth.WithPrincipal(req.Context(), principal))
+		w := httptest.NewRecorder()
+		s.Handler().ServeHTTP(w, req)
+		return w
+	}
+
+	w := preview(`{"projectId":"` + projectA.ID + `","eventType":"operation.failed","severity":"CRITICAL"}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("operation preview status=%d body=%s", w.Code, w.Body.String())
+	}
+	var operationResult notificationRoutingPreviewResult
+	if err := json.Unmarshal(w.Body.Bytes(), &operationResult); err != nil {
+		t.Fatal(err)
+	}
+	if operationResult.Authority != "NOTIFICATION_ROUTING_PREVIEW_AUTHORITY_V1" || operationResult.SideEffects || operationResult.DeliveryCreated || operationResult.RouteCount != 1 || len(operationResult.MatchedRoutes) != 1 || operationResult.MatchedRoutes[0].ID != orgRoute.ID {
+		t.Fatalf("unexpected operation preview: %#v", operationResult)
+	}
+
+	w = preview(`{"projectId":"` + projectA.ID + `","eventType":"cluster.offline","severity":"INFO"}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("cluster preview status=%d body=%s", w.Code, w.Body.String())
+	}
+	var clusterResult notificationRoutingPreviewResult
+	if err := json.Unmarshal(w.Body.Bytes(), &clusterResult); err != nil {
+		t.Fatal(err)
+	}
+	if clusterResult.RouteCount != 1 || len(clusterResult.MatchedRoutes) != 1 || clusterResult.MatchedRoutes[0].ID != projectRoute.ID {
+		t.Fatalf("unexpected cluster preview: %#v", clusterResult)
+	}
+
+	w = preview(`{"projectId":"` + projectB.ID + `","eventType":"operation.failed","severity":"CRITICAL"}`)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("foreign project preview status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	events, err := store.ListNotificationEvents(ctx, org.ID, projectA.ID, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deliveries, err := store.ListNotificationDeliveries(ctx, org.ID, projectA.ID, "", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 0 || len(deliveries) != 0 {
+		t.Fatalf("routing preview created side effects: events=%d deliveries=%d", len(events), len(deliveries))
+	}
+}

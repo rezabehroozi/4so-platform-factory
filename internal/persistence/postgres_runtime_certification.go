@@ -11,13 +11,13 @@ import (
 	"platform.4so.io/factory/internal/controlplane"
 )
 
-const runtimeCertificationColumns = `id,project_id,cluster_id,catalog_release_id,catalog_revision_id,revision,profile,state,phase,namespace,inventory_digest,environment_fingerprint,manifest_digest,source_lock_digest,rendered_digest,resource_count,checks,cleanup_generations,install_checkpoint_digest,evidence_digest,requested_by,idempotency_key,request_digest,task_attempt,task_fence_token,task_lease_expires_at,started_at,install_checkpoint_at,finished_at,expires_at,revoked_by,revoked_at,last_error,created_at,updated_at`
+const runtimeCertificationColumns = `id,project_id,cluster_id,catalog_release_id,catalog_revision_id,component_name,component_release,revision,profile,state,phase,namespace,inventory_digest,environment_fingerprint,manifest_digest,source_lock_digest,rendered_digest,resource_count,checks,cleanup_generations,install_checkpoint_digest,evidence_digest,requested_by,idempotency_key,request_digest,task_attempt,task_fence_token,task_lease_expires_at,started_at,install_checkpoint_at,finished_at,expires_at,revoked_by,revoked_at,last_error,created_at,updated_at`
 
 func scanRuntimeCertification(row interface{ Scan(...any) error }) (controlplane.RuntimeCertificationRun, error) {
 	var v controlplane.RuntimeCertificationRun
 	var profile, state, phase string
 	var checksRaw, cleanupRaw []byte
-	err := row.Scan(&v.ID, &v.ProjectID, &v.ClusterID, &v.CatalogReleaseID, &v.CatalogRevisionID, &v.Revision, &profile, &state, &phase, &v.Namespace, &v.InventoryDigest, &v.EnvironmentFingerprint, &v.ManifestDigest, &v.SourceLockDigest, &v.RenderedDigest, &v.ResourceCount, &checksRaw, &cleanupRaw, &v.InstallCheckpointDigest, &v.EvidenceDigest, &v.RequestedBy, &v.IdempotencyKey, &v.RequestDigest, &v.TaskAttempt, &v.TaskFenceToken, &v.TaskLeaseExpiresAt, &v.StartedAt, &v.InstallCheckpointAt, &v.FinishedAt, &v.ExpiresAt, &v.RevokedBy, &v.RevokedAt, &v.LastError, &v.CreatedAt, &v.UpdatedAt)
+	err := row.Scan(&v.ID, &v.ProjectID, &v.ClusterID, &v.CatalogReleaseID, &v.CatalogRevisionID, &v.ComponentName, &v.ComponentRelease, &v.Revision, &profile, &state, &phase, &v.Namespace, &v.InventoryDigest, &v.EnvironmentFingerprint, &v.ManifestDigest, &v.SourceLockDigest, &v.RenderedDigest, &v.ResourceCount, &checksRaw, &cleanupRaw, &v.InstallCheckpointDigest, &v.EvidenceDigest, &v.RequestedBy, &v.IdempotencyKey, &v.RequestDigest, &v.TaskAttempt, &v.TaskFenceToken, &v.TaskLeaseExpiresAt, &v.StartedAt, &v.InstallCheckpointAt, &v.FinishedAt, &v.ExpiresAt, &v.RevokedBy, &v.RevokedAt, &v.LastError, &v.CreatedAt, &v.UpdatedAt)
 	v.Profile = controlplane.RuntimeCertificationProfile(profile)
 	v.State = controlplane.RuntimeCertificationState(state)
 	v.Phase = controlplane.RuntimeCertificationPhase(phase)
@@ -54,10 +54,10 @@ func (s *PostgresStore) CreateRuntimeCertification(ctx context.Context, v contro
 	if err != nil || controlplane.VerifyCatalogReleaseSignature(release, key) != nil {
 		return controlplane.RuntimeCertificationRun{}, false, controlplane.ErrInvalidTransition
 	}
-	if release.CurrentRevisionID != v.CatalogRevisionID || release.ManifestDigest != v.ManifestDigest || v.InventoryDigest != inv.Digest || v.EnvironmentFingerprint != controlplane.RuntimeEnvironmentFingerprint(inv) || v.ResourceCount <= 0 {
+	if release.CurrentRevisionID != v.CatalogRevisionID || release.ManifestDigest != v.ManifestDigest || v.InventoryDigest != inv.Digest || v.EnvironmentFingerprint != controlplane.RuntimeEnvironmentFingerprint(inv) || v.ResourceCount <= 0 || (v.Profile == controlplane.RuntimeCertificationComponentV1 && (strings.TrimSpace(v.ComponentName) == "" || strings.TrimSpace(v.ComponentRelease) == "")) || (v.Profile != controlplane.RuntimeCertificationComponentV1 && (strings.TrimSpace(v.ComponentName) != "" || strings.TrimSpace(v.ComponentRelease) != "")) {
 		return controlplane.RuntimeCertificationRun{}, false, controlplane.ErrValidation
 	}
-	if v.Profile != controlplane.RuntimeCertificationFoundationV1 && v.Profile != controlplane.RuntimeCertificationObservabilityV1 && v.Profile != controlplane.RuntimeCertificationTargetV1 {
+	if v.Profile != controlplane.RuntimeCertificationFoundationV1 && v.Profile != controlplane.RuntimeCertificationObservabilityV1 && v.Profile != controlplane.RuntimeCertificationTargetV1 && v.Profile != controlplane.RuntimeCertificationComponentV1 {
 		return controlplane.RuntimeCertificationRun{}, false, controlplane.ErrValidation
 	}
 	var out controlplane.RuntimeCertificationRun
@@ -112,7 +112,7 @@ func (s *PostgresStore) CreateRuntimeCertification(ctx context.Context, v contro
 			v.LastError = "required runtime certification capabilities are missing"
 		}
 		checksRaw, _ := json.Marshal(v.Checks)
-		_, e = tx.ExecContext(ctx, `INSERT INTO runtime_certification_runs(id,project_id,cluster_id,catalog_release_id,catalog_revision_id,revision,profile,state,phase,namespace,inventory_digest,environment_fingerprint,manifest_digest,source_lock_digest,rendered_digest,resource_count,checks,cleanup_generations,requested_by,idempotency_key,request_digest,started_at,finished_at,last_error,created_at,updated_at) VALUES($1,$2,$3,$4,$5,1,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18,$19,$20,$21,$22,$23,$24,$24)`, v.ID, v.ProjectID, v.ClusterID, v.CatalogReleaseID, v.CatalogRevisionID, string(v.Profile), string(v.State), string(v.Phase), v.Namespace, v.InventoryDigest, v.EnvironmentFingerprint, v.ManifestDigest, v.SourceLockDigest, v.RenderedDigest, v.ResourceCount, checksRaw, []byte("[]"), actor, v.IdempotencyKey, v.RequestDigest, v.StartedAt, v.FinishedAt, v.LastError, now)
+		_, e = tx.ExecContext(ctx, `INSERT INTO runtime_certification_runs(id,project_id,cluster_id,catalog_release_id,catalog_revision_id,component_name,component_release,revision,profile,state,phase,namespace,inventory_digest,environment_fingerprint,manifest_digest,source_lock_digest,rendered_digest,resource_count,checks,cleanup_generations,requested_by,idempotency_key,request_digest,started_at,finished_at,last_error,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22,$23,$24,$25,$26,$26)`, v.ID, v.ProjectID, v.ClusterID, v.CatalogReleaseID, v.CatalogRevisionID, v.ComponentName, v.ComponentRelease, string(v.Profile), string(v.State), string(v.Phase), v.Namespace, v.InventoryDigest, v.EnvironmentFingerprint, v.ManifestDigest, v.SourceLockDigest, v.RenderedDigest, v.ResourceCount, checksRaw, []byte("[]"), actor, v.IdempotencyKey, v.RequestDigest, v.StartedAt, v.FinishedAt, v.LastError, now)
 		if e != nil {
 			return mapDBError(e)
 		}
@@ -204,8 +204,6 @@ func (s *PostgresStore) NextRuntimeCertificationTask(ctx context.Context, cluste
 			v.State = controlplane.RuntimeCertificationInstalling
 			v.Phase = controlplane.RuntimeCertificationPhaseInstall
 			v.StartedAt = &now
-		} else if v.State == controlplane.RuntimeCertificationVerifying {
-			v.Phase = controlplane.RuntimeCertificationPhaseVerify
 		}
 		lease := now.Add(controlplane.AgentTaskLeaseDuration)
 		v.TaskAttempt++
@@ -247,7 +245,7 @@ func (s *PostgresStore) ReportRuntimeCertificationTask(ctx context.Context, clus
 		if result.InventoryDigest != v.InventoryDigest || result.RenderedDigest != v.RenderedDigest || result.Phase != v.Phase {
 			return controlplane.ErrValidation
 		}
-		if (v.Phase == controlplane.RuntimeCertificationPhaseInstall && v.State != controlplane.RuntimeCertificationInstalling) || (v.Phase == controlplane.RuntimeCertificationPhaseVerify && v.State != controlplane.RuntimeCertificationVerifying) {
+		if (v.Phase == controlplane.RuntimeCertificationPhaseInstall && v.State != controlplane.RuntimeCertificationInstalling) || (v.Phase != controlplane.RuntimeCertificationPhaseInstall && v.State != controlplane.RuntimeCertificationVerifying) {
 			return controlplane.ErrInvalidTransition
 		}
 		if e = controlplane.ValidateRuntimeCertificationResultShape(v, result); e != nil {
@@ -271,22 +269,39 @@ func (s *PostgresStore) ReportRuntimeCertificationTask(ctx context.Context, clus
 				v.LastError = "runtime certification checks failed"
 			}
 			v.FinishedAt = &now
-		} else if v.Phase == controlplane.RuntimeCertificationPhaseInstall {
-			v.InstallCheckpointDigest = controlplane.RuntimeCertificationCheckpointDigest(v, result.Checks)
-			v.InstallCheckpointAt = &now
-			v.State = controlplane.RuntimeCertificationVerifying
-			v.Phase = controlplane.RuntimeCertificationPhaseVerify
-			v.LastError = ""
 		} else {
-			if v.InstallCheckpointDigest == "" || v.InstallCheckpointAt == nil {
+			switch v.Phase {
+			case controlplane.RuntimeCertificationPhaseInstall:
+				v.InstallCheckpointDigest = controlplane.RuntimeCertificationCheckpointDigest(v, result.Checks)
+				v.InstallCheckpointAt = &now
+				v.State = controlplane.RuntimeCertificationVerifying
+				v.Phase = controlplane.RuntimeCertificationPhaseVerify
+				v.LastError = ""
+			case controlplane.RuntimeCertificationPhaseVerify:
+				if v.InstallCheckpointDigest == "" || v.InstallCheckpointAt == nil {
+					return controlplane.ErrInvalidTransition
+				}
+				if v.Profile == controlplane.RuntimeCertificationComponentV1 {
+					v.State = controlplane.RuntimeCertificationVerifying
+					v.Phase = controlplane.RuntimeCertificationPhaseFailure
+				} else {
+					v.State = controlplane.RuntimeCertificationSucceeded
+				}
+			case controlplane.RuntimeCertificationPhaseFailure:
+				v.State = controlplane.RuntimeCertificationVerifying
+				v.Phase = controlplane.RuntimeCertificationPhaseRemove
+			case controlplane.RuntimeCertificationPhaseRemove:
+				v.State = controlplane.RuntimeCertificationSucceeded
+			default:
 				return controlplane.ErrInvalidTransition
 			}
-			v.State = controlplane.RuntimeCertificationSucceeded
-			v.LastError = ""
-			v.FinishedAt = &now
-			expires := now.Add(controlplane.RuntimeCertificationValidity)
-			v.ExpiresAt = &expires
-			v.EvidenceDigest = controlplane.RuntimeCertificationEvidenceDigest(v)
+			if v.State == controlplane.RuntimeCertificationSucceeded {
+				v.LastError = ""
+				v.FinishedAt = &now
+				expires := now.Add(controlplane.RuntimeCertificationValidity)
+				v.ExpiresAt = &expires
+				v.EvidenceDigest = controlplane.RuntimeCertificationEvidenceDigest(v)
+			}
 		}
 		v.TaskLeaseExpiresAt = nil
 		v.Revision++

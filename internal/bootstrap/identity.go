@@ -223,7 +223,7 @@ func keycloakManifest(bundle BundleManifest, request installation.InstallRequest
 	redirect := strings.TrimRight(request.Network.PublicEndpoint, "/") + "/auth/callback"
 	webOrigin := strings.TrimRight(request.Network.PublicEndpoint, "/")
 	realm := map[string]any{
-		"realm": "platform", "enabled": true, "displayName": "4SO Platform Factory", "registrationAllowed": false,
+		"realm": "platform", "enabled": true, "organizationsEnabled": true, "displayName": "4SO Platform Factory", "registrationAllowed": false,
 		"roles":  map[string]any{"realm": []map[string]any{{"name": "platform-admin"}, {"name": "platform-operator"}, {"name": "platform-viewer"}}},
 		"groups": []map[string]any{{"name": "platform-admins"}},
 		"clients": []map[string]any{{

@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -31,6 +29,7 @@ import (
 	"platform.4so.io/factory/internal/releaseartifact"
 	"platform.4so.io/factory/internal/releasereadiness"
 	"platform.4so.io/factory/internal/supportbundle"
+	"platform.4so.io/factory/internal/targetmodel"
 )
 
 const (
@@ -45,9 +44,12 @@ func usage() {
   platformctl validate -f blueprint.json
   platformctl plan -f blueprint.json
   platformctl release-readiness -f blueprint.json
+  platformctl target-architecture
+  platformctl compliance evaluate -f kubernetes-objects.json
   platformctl ai policy
   platformctl ai redact -f context.json
   platformctl ai diagnose -f failure-packet.json
+  platformctl ai certify-provider --release-artifact RELEASE.zip --out ai-provider-certification.json --confirmation CERTIFY
   platformctl catalog-summary
   platformctl catalog-bundle assemble --component component.json --artifact upstream.bin --render-manifest resources.json --image-inventory images.json --licenses licenses.json --sbom sbom.spdx.json [--render-generation render-generation.json] --version VERSION [--source-type helm-chart|external-tagged-source-set] --source-url URL --source-revision REV --upstream-artifact-name NAME --artifact-digest sha256:HEX --bundle-key COMPONENT/VERSION --out bundle.zip
   platformctl catalog-bundle verify -f external-bundle.zip
@@ -58,8 +60,8 @@ func usage() {
   platformctl agent-pki init --server-name HOST --out-cert FILE --out-key FILE --out-server-cert FILE --out-server-key FILE --confirmation INIT
   platformctl appliance-bundle build --spec build.json --staging DIR --out DIR --release-artifact RELEASE.zip
   platformctl appliance-bundle verify --dir DIR
-  platformctl runtime-closure verify-report -f closure-report.json
-  platformctl runtime-closure fetch-report --api-url https://platform.example --campaign-id ID --out report.json [--token-file FILE] [--ca-file FILE]
+  platformctl runtime-closure verify-report -f closure-report.json [--release-artifact RELEASE.zip]
+  platformctl runtime-closure fetch-report --api-url https://platform.example --campaign-id ID --out report.json [--release-artifact RELEASE.zip] [--token-file FILE] [--ca-file FILE]
   platformctl field-evidence verify-report -f field-evidence.json --release-artifact RELEASE.zip
   platformctl field-evidence fetch-report --installer-url https://installer.example --out field-evidence.json [--token-file FILE] [--ca-file FILE]
 	  platformctl field-diagnostics verify-report -f diagnostic.json
@@ -110,12 +112,18 @@ func main() {
 		catalogBundleCommand(os.Args[2:])
 	case "image-bundle":
 		imageBundleCommand(os.Args[2:])
+	case "workload-oci":
+		workloadOCICommand(os.Args[2:])
 	case "agent-pki":
 		agentPKICommand(os.Args[2:])
 	case "validate", "plan":
 		blueprintCommand(os.Args[1], os.Args[2:])
 	case "release-readiness":
 		releaseReadinessCommand(os.Args[2:])
+	case "target-architecture":
+		targetArchitectureCommand(os.Args[2:])
+	case "compliance":
+		complianceCommand(os.Args[2:])
 	case "ai":
 		aiCommand(os.Args[2:])
 	case "runtime-closure":
@@ -231,6 +239,13 @@ func supportBundleCommand(args []string) {
 		"redactions":   report.Redactions,
 		"bundleDigest": report.Digest,
 	})
+}
+
+func targetArchitectureCommand(args []string) {
+	if len(args) != 0 {
+		fatal(fmt.Errorf("target-architecture does not accept arguments"))
+	}
+	printJSON(targetmodel.ArchitectureModel())
 }
 
 func catalogSummary() {
@@ -367,6 +382,7 @@ func buildApplianceBundle(args []string) {
 	if err != nil {
 		fatal(fmt.Errorf("inspect exact release artifact: %w", err))
 	}
+	bindRunningPlatformctlToExactRelease(release)
 	if release.Digest != buildSpec.Metadata.SourceReleaseDigest {
 		fatal(errors.New("build spec sourceReleaseDigest does not match the exact release artifact SHA-256"))
 	}
@@ -566,6 +582,7 @@ func verifyClosureReport(args []string) {
 	fs := flag.NewFlagSet("runtime-closure verify-report", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	file := fs.String("f", "", "runtime closure report (JSON)")
+	releaseArtifact := fs.String("release-artifact", "", "exact release ZIP required for schema-v2 exact-release verification")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			usage()
@@ -586,6 +603,19 @@ func verifyClosureReport(args []string) {
 	if err != nil {
 		fatal(err)
 	}
+	if result.ExactReleaseBound {
+		if strings.TrimSpace(*releaseArtifact) == "" {
+			fatal(errors.New("schema-v2 runtime closure report requires --release-artifact for independent exact-release verification"))
+		}
+		release, inspectErr := releaseartifact.Inspect(*releaseArtifact, result.ProductVersion)
+		if inspectErr != nil {
+			fatal(inspectErr)
+		}
+		bindRunningPlatformctlToExactRelease(release)
+		if verifyErr := verifyRuntimeClosureExactRelease(result, release); verifyErr != nil {
+			fatal(verifyErr)
+		}
+	}
 	printJSON(result)
 }
 
@@ -595,6 +625,7 @@ func fetchClosureReport(args []string) {
 	apiURL := fs.String("api-url", "", "platform API base URL")
 	campaignID := fs.String("campaign-id", "", "runtime closure campaign ID")
 	output := fs.String("out", "", "output report path")
+	releaseArtifact := fs.String("release-artifact", "", "exact release ZIP required for schema-v2 exact-release verification")
 	tokenFile := fs.String("token-file", "", "file containing a bearer token; PLATFORM_ACCESS_TOKEN is used when omitted")
 	caFile := fs.String("ca-file", "", "PEM CA file for a private platform endpoint")
 	if err := fs.Parse(args); err != nil {
@@ -624,6 +655,19 @@ func fetchClosureReport(args []string) {
 	raw, result, err := downloadClosureReport(client, base, *campaignID, token)
 	if err != nil {
 		fatal(err)
+	}
+	if result.ExactReleaseBound {
+		if strings.TrimSpace(*releaseArtifact) == "" {
+			fatal(errors.New("schema-v2 runtime closure report requires --release-artifact for independent exact-release verification"))
+		}
+		release, inspectErr := releaseartifact.Inspect(*releaseArtifact, result.ProductVersion)
+		if inspectErr != nil {
+			fatal(inspectErr)
+		}
+		bindRunningPlatformctlToExactRelease(release)
+		if verifyErr := verifyRuntimeClosureExactRelease(result, release); verifyErr != nil {
+			fatal(verifyErr)
+		}
 	}
 	if err := writeAtomicPrivate(*output, raw); err != nil {
 		fatal(err)
@@ -687,7 +731,7 @@ func namedAccessToken(file, environment string) (string, error) {
 	if strings.TrimSpace(file) == "" {
 		return strings.TrimSpace(os.Getenv(environment)), nil
 	}
-	raw, err := readLimitedFile(file, 64<<10)
+	raw, err := readPrivateTokenFile(file, 64<<10)
 	if err != nil {
 		return "", err
 	}
@@ -699,30 +743,7 @@ func namedAccessToken(file, environment string) (string, error) {
 }
 
 func closureHTTPClient(caFile string) (*http.Client, error) {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = http.ProxyFromEnvironment
-	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-	if strings.TrimSpace(caFile) != "" {
-		raw, err := readLimitedFile(caFile, 2<<20)
-		if err != nil {
-			return nil, err
-		}
-		pool, err := x509.SystemCertPool()
-		if err != nil || pool == nil {
-			pool = x509.NewCertPool()
-		}
-		if !pool.AppendCertsFromPEM(raw) {
-			return nil, errors.New("ca-file does not contain a valid PEM certificate")
-		}
-		transport.TLSClientConfig.RootCAs = pool
-	}
-	return &http.Client{
-		Transport: transport,
-		Timeout:   30 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return errors.New("platform API redirects are denied to preserve endpoint authority and credentials")
-		},
-	}, nil
+	return newClosureHTTPClient(caFile, nil, nil)
 }
 
 func readLimitedFile(path string, limit int64) ([]byte, error) {

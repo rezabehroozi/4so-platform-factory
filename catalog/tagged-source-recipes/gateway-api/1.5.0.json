@@ -1,0 +1,27 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "TaggedSourceAcquisitionRecipe",
+  "metadata": {"component": "gateway-api", "version": "1.5.0"},
+  "spec": {
+    "authority": "TAGGED_SOURCE_ACQUISITION_RECIPE_V1",
+    "repository": "kubernetes-sigs/gateway-api",
+    "tag": "v1.5.0",
+    "commitSHA": "3797b631d20f9ff4e2b4571f62d91d84a1fbdf5a",
+    "releaseURL": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
+    "channel": "standard",
+    "licenseSPDX": "Apache-2.0",
+    "licenseFile": "LICENSE",
+    "files": [
+      {"sourcePath":"LICENSE","archivePath":"LICENSE","render":false},
+      {"sourcePath":"config/crd/standard/gateway.networking.k8s.io_backendtlspolicies.yaml","archivePath":"gateway.networking.k8s.io_backendtlspolicies.yaml","render":true},
+      {"sourcePath":"config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml","archivePath":"gateway.networking.k8s.io_gatewayclasses.yaml","render":true},
+      {"sourcePath":"config/crd/standard/gateway.networking.k8s.io_gateways.yaml","archivePath":"gateway.networking.k8s.io_gateways.yaml","render":true},
+      {"sourcePath":"config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml","archivePath":"gateway.networking.k8s.io_grpcroutes.yaml","render":true},
+      {"sourcePath":"config/crd/standard/gateway.networking.k8s.io_httproutes.yaml","archivePath":"gateway.networking.k8s.io_httproutes.yaml","render":true},
+      {"sourcePath":"config/crd/standard/gateway.networking.k8s.io_listenersets.yaml","archivePath":"gateway.networking.k8s.io_listenersets.yaml","render":true},
+      {"sourcePath":"config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml","archivePath":"gateway.networking.k8s.io_referencegrants.yaml","render":true},
+      {"sourcePath":"config/crd/standard/gateway.networking.k8s.io_tlsroutes.yaml","archivePath":"gateway.networking.k8s.io_tlsroutes.yaml","render":true},
+      {"sourcePath":"config/crd/standard/gateway.networking.k8s.io_vap_safeupgrades.yaml","archivePath":"gateway.networking.k8s.io_vap_safeupgrades.yaml","render":true}
+    ]
+  }
+}

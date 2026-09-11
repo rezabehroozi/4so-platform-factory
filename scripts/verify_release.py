@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import os
 import posixpath
 import re
+import signal
 import shutil
 import stat
 import subprocess
@@ -24,6 +26,97 @@ FORBIDDEN = (
     bytes((107, 117, 98, 97, 114, 97)),
     bytes((104, 111, 115, 116, 105, 114, 97, 110)),
 )
+
+FULL_VERIFIER_AUTHORITY = "CHECKPOINT_SAFE_FULL_VERIFIER_V2"
+SHARD_AUTHORITY = "AUTOPILOT_STAGE_SHARD_AUTHORITY_V2"
+
+
+def run_bounded_command(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout_seconds: int,
+) -> tuple[int, str, str]:
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL,
+        start_new_session=(os.name == "posix"),
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout_seconds)
+        return process.returncode, stdout or "", stderr or ""
+    except subprocess.TimeoutExpired:
+        if os.name == "posix":
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        else:
+            process.terminate()
+        try:
+            stdout, stderr = process.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            if os.name == "posix":
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            else:
+                process.kill()
+            stdout, stderr = process.communicate()
+        stderr = (stderr or "") + (
+            f"\nCOMMAND_TIMEOUT timeout={timeout_seconds} command={' '.join(command)}\n"
+        )
+        return 124, stdout or "", stderr
+
+
+def run_parallel_commands(
+    label: str,
+    commands: list[list[str]],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    workers: int,
+    timeout_seconds: int,
+) -> int:
+    """Run replayable independent gates concurrently without reducing coverage."""
+    workers = max(1, min(workers, len(commands) or 1))
+
+    def execute(command: list[str]) -> tuple[int, str, str]:
+        return run_bounded_command(
+            command,
+            cwd=cwd,
+            env=env,
+            timeout_seconds=timeout_seconds,
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(execute, command) for command in commands]
+        results = [future.result() for future in futures]
+
+    for command, (returncode, stdout, stderr) in zip(commands, results):
+        print("+", " ".join(command), flush=True)
+        if stdout:
+            sys.stdout.write(stdout)
+        if stderr:
+            sys.stderr.write(stderr)
+        if returncode:
+            print(
+                f"{label}_FAILED rc={returncode} command={' '.join(command)}",
+                file=sys.stderr,
+            )
+            return returncode
+    print(
+        f"{label}_PASS authority={FULL_VERIFIER_AUTHORITY} "
+        f"commands={len(commands)} workers={workers}"
+    )
+    return 0
 
 
 def sha(path: Path) -> str:
@@ -60,6 +153,16 @@ def snapshot_archive(source: Path, target: Path) -> str:
             os.fsync(out.fileno())
         if written != opened.st_size:
             raise SystemExit("ARCHIVE_SOURCE_CHANGED_SIZE_WHILE_SNAPSHOTTING")
+        after = os.fstat(fd)
+        if (
+            (opened.st_dev, opened.st_ino) != (after.st_dev, after.st_ino)
+            or after.st_size != opened.st_size
+            or after.st_mtime_ns != opened.st_mtime_ns
+            or after.st_ctime_ns != opened.st_ctime_ns
+        ):
+            raise SystemExit("ARCHIVE_SOURCE_CHANGED_WHILE_SNAPSHOTTING")
+        if hashlib.sha256(target.read_bytes()).hexdigest() != h.hexdigest():
+            raise SystemExit("ARCHIVE_SNAPSHOT_DIGEST_CHANGED_AFTER_PUBLICATION")
         return h.hexdigest()
     finally:
         os.close(fd)
@@ -323,33 +426,106 @@ def main() -> int:
         validate_brand_independence(root)
 
         if args.full:
-            build_ldflags = f"-s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version={version}"
-            verify_binary = Path(tempfile.gettempdir()) / f"platform-api-verify-{os.getpid()}"
-            installer_binary = Path(tempfile.gettempdir()) / f"platform-installer-verify-{os.getpid()}"
-            agent_binary = Path(tempfile.gettempdir()) / f"platform-agent-verify-{os.getpid()}"
-            probe_binary = Path(tempfile.gettempdir()) / f"platform-probe-verify-{os.getpid()}"
-            ctl_binary = Path(tempfile.gettempdir()) / f"platformctl-verify-{os.getpid()}"
-            package_result = subprocess.run(
-                ["go", "list", "./..."], cwd=root, text=True, capture_output=True, check=False
+            print(
+                f"FULL_VERIFIER_START authority={FULL_VERIFIER_AUTHORITY} shardAuthority={SHARD_AUTHORITY} version={version}",
+                flush=True,
             )
-            if package_result.returncode:
-                sys.stderr.write(package_result.stderr)
-                return package_result.returncode
-            go_packages = [line.strip() for line in package_result.stdout.splitlines() if line.strip()]
-            unit_commands = [["go", "test", "-count=1", package] for package in go_packages]
-            vet_commands = [["go", "vet", package] for package in go_packages]
-            race_commands = [["go", "test", "-race", "-count=1", package] for package in go_packages]
-            commands = [
-                ["python3", "scripts/validate_repository.py", "."],
-                *unit_commands,
-                *vet_commands,
-                *race_commands,
-                ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"],
-                ["go", "build", "-trimpath", "-ldflags", build_ldflags, "-o", str(verify_binary), "./cmd/platform-api"],
-                ["go", "build", "-trimpath", "-ldflags", build_ldflags, "-o", str(installer_binary), "./cmd/platform-installer"],
-                ["go", "build", "-trimpath", "-ldflags", build_ldflags, "-o", str(agent_binary), "./cmd/platform-agent"],
-                ["go", "build", "-trimpath", "-ldflags", build_ldflags, "-o", str(probe_binary), "./cmd/platform-probe"],
-                ["go", "build", "-trimpath", "-ldflags", build_ldflags, "-o", str(ctl_binary), "./cmd/platformctl"],
+            verify_environment = os.environ.copy()
+            verify_environment["PLATFORM_FACTORY_DEVELOPMENT_MODE"] = "true"
+
+            # Checkpoint-safe package execution: all packages are still covered,
+            # but each package has its own Go timeout and each shard is an
+            # independently replayable Autopilot checkpoint.
+            unit_shards = [
+                ["python3", "scripts/run_go_package_shard.py", "--shard", str(shard)]
+                for shard in range(1, 5)
+            ]
+            vet_shards = [
+                ["python3", "scripts/run_go_package_shard.py", "--vet", "--shard", str(shard)]
+                for shard in range(1, 5)
+            ]
+            race_shards = [
+                ["python3", "scripts/run_go_package_shard.py", "--race", "--shard", str(shard)]
+                for shard in range(1, 5)
+            ]
+
+            source_gate_commands: list[tuple[list[str], int]] = [
+                (["python3", "scripts/validate_repository.py", "."], 240),
+                (["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"], 420),
+                (["python3", "scripts/test_lab_runner.py"], 300),
+                (["python3", "scripts/lab_runner.py", "self-test"], 300),
+                (["python3", "scripts/catalog_upstream_admission.py"], 180),
+                (["python3", "scripts/acquire_upstream_helm.py", "--self-test"], 180),
+                (["python3", "scripts/acquire_upstream_tagged_source.py", "--self-test"], 180),
+                (["python3", "scripts/acquire_historical_upgrade_batch.py", "--self-test"], 180),
+                (["python3", "scripts/generate_agent_knowledge.py", "--check"], 180),
+                (["python3", "scripts/browser_triage_profile.py", "--check"], 120),
+                (["python3", "scripts/browser_triage_bootstrap.py", "--self-test"], 120),
+            ]
+            for command, timeout_seconds in source_gate_commands:
+                print("+", " ".join(command), flush=True)
+                returncode, stdout, stderr = run_bounded_command(
+                    command, cwd=root, env=verify_environment, timeout_seconds=timeout_seconds
+                )
+                if stdout:
+                    sys.stdout.write(stdout)
+                if stderr:
+                    sys.stderr.write(stderr)
+                if returncode:
+                    return returncode
+
+            for label, shard_commands, workers, timeout_seconds in (
+                ("GO_UNIT_SHARD_GATE", unit_shards, 4, 900),
+                ("GO_VET_SHARD_GATE", vet_shards, 4, 900),
+                ("GO_RACE_SHARD_GATE", race_shards, 2, 1200),
+            ):
+                rc = run_parallel_commands(
+                    label,
+                    shard_commands,
+                    cwd=root,
+                    env=verify_environment,
+                    workers=workers,
+                    timeout_seconds=timeout_seconds,
+                )
+                if rc:
+                    return rc
+
+            # Build host binaries from the extracted source. The packaged
+            # linux-amd64 binaries have already been checked byte-for-byte by
+            # provenance/SBOM validation above; these builds prove source
+            # rebuildability and feed the same smoke matrix as `make smoke`.
+            build_command = ["make", "build"]
+            print("+", " ".join(build_command), flush=True)
+            returncode, stdout, stderr = run_bounded_command(
+                build_command, cwd=root, env=verify_environment, timeout_seconds=1200
+            )
+            if stdout:
+                sys.stdout.write(stdout)
+            if stderr:
+                sys.stderr.write(stderr)
+            if returncode:
+                return returncode
+
+            for name in ("platform-api", "platformctl", "platform-installer", "platform-agent", "platform-probe"):
+                binary = root / "bin" / name
+                version_probe = subprocess.run(
+                    [str(binary), "version"], cwd=root, env=verify_environment, text=True, capture_output=True, check=False
+                )
+                if version_probe.returncode != 0 or version_probe.stdout.strip() != version:
+                    print(
+                        "EXTRACTED_BINARY_VERSION_MISMATCH",
+                        name,
+                        "expected",
+                        version,
+                        "actual",
+                        version_probe.stdout.strip() or version_probe.stderr.strip(),
+                        file=sys.stderr,
+                    )
+                    return 1
+            print("EXTRACTED_BINARY_VERSION_GATE_PASS", version, 5)
+
+            ctl_binary = root / "bin" / "platformctl"
+            cli_help_commands = [
                 [str(ctl_binary), "runtime-closure", "verify-report", "--help"],
                 [str(ctl_binary), "field-evidence", "verify-report", "--help"],
                 [str(ctl_binary), "field-diagnostics", "verify-report", "--help"],
@@ -369,61 +545,74 @@ def main() -> int:
                 [str(ctl_binary), "image-bundle", "assemble", "--help"],
                 [str(ctl_binary), "image-bundle", "verify", "--help"],
                 [str(ctl_binary), "image-bundle", "push", "--help"],
-                ["python3", "scripts/smoke_api.py", str(verify_binary)],
-                ["python3", "scripts/smoke_blueprint_lifecycle.py", str(verify_binary)],
-                ["python3", "scripts/smoke_blueprint_overlay_ownership.py", str(verify_binary)],
-                ["python3", "scripts/smoke_blueprint_authoring_parity.py", str(verify_binary)],
-                ["python3", "scripts/smoke_compatibility_matrix.py", str(verify_binary)],
-                ["python3", "scripts/smoke_catalog_governance.py", str(verify_binary)],
-                ["python3", "scripts/smoke_plan_safety.py", str(verify_binary)],
-                ["python3", "scripts/smoke_planning_impact.py", str(verify_binary)],
-                ["python3", "scripts/smoke_evidence_collection_completion.py", str(verify_binary)],
-                ["python3", "scripts/smoke_rollback_feasibility.py"],
-                ["python3", "scripts/smoke_operation_retry_recovery.py", str(verify_binary)],
-                ["python3", "scripts/smoke_operation_step_trace_authority.py", str(verify_binary)],
-                ["python3", "scripts/smoke_compensation_orchestration.py", str(verify_binary)],
-                ["python3", "scripts/smoke_owner_destructive_recovery.py", str(verify_binary)],
-                ["python3", "scripts/smoke_tenant_resize_protected_delete.py", str(verify_binary)],
-                ["python3", "scripts/smoke_cluster_maintenance.py", str(verify_binary)],
-                ["python3", "scripts/smoke_oidc_group_authz_audit.py", str(verify_binary)],
-                ["python3", "scripts/smoke_git_credential_reference.py", str(verify_binary)],
-                ["python3", "scripts/smoke_git_pull_request_lkg.py", str(verify_binary)],
-                ["python3", "scripts/smoke_git_three_way_drift.py", str(verify_binary)],
-                ["python3", "scripts/smoke_upgrade_control.py", str(verify_binary)],
-                ["python3", "scripts/smoke_notification_routing.py", str(verify_binary)],
-                ["python3", "scripts/smoke_executable_catalog.py", str(verify_binary)],
-                ["python3", "scripts/smoke_external_catalog_bundle.py", str(ctl_binary)],
-                ["python3", "scripts/smoke_canonical_gateway_api.py", str(verify_binary)],
-                ["python3", "scripts/smoke_canonical_snapshot_controller.py", str(verify_binary)],
-                ["python3", "scripts/smoke_image_mirror_runtime.py", str(verify_binary), str(ctl_binary)],
-                ["python3", "scripts/smoke_runtime_certification.py", str(verify_binary)],
-                ["python3", "scripts/smoke_service_account_token.py", str(verify_binary)],
-                ["python3", "scripts/smoke_agent_mtls.py", str(verify_binary), str(ctl_binary)],
-                ["python3", "scripts/smoke_fleet_support.py", str(verify_binary), str(ctl_binary)],
-                ["python3", "scripts/smoke_installer.py", str(installer_binary), str(root / "bin" / "linux-amd64" / "platformctl")],
-                ["python3", "scripts/smoke_installer_host.py", str(ctl_binary), str(installer_binary)],
-                ["python3", "scripts/smoke_installer_remote.py", str(ctl_binary), str(installer_binary)],
-                ["python3", "scripts/smoke_ui_live.py", str(verify_binary), "."],
-                ["python3", "scripts/smoke_ui.py", "."],
             ]
-            smoke_environment = os.environ.copy()
-            # Full extracted-artifact verification owns the same local smoke
-            # contract as `make smoke`. Preserve production fail-closed defaults
-            # in the binaries while explicitly enabling development-mode auth
-            # only for the isolated smoke processes.
-            smoke_environment["PLATFORM_FACTORY_DEVELOPMENT_MODE"] = "true"
-            try:
-                for command in commands:
-                    result = subprocess.run(command, cwd=root, env=smoke_environment, text=True, check=False)
-                    if result.returncode:
-                        return result.returncode
-            finally:
-                verify_binary.unlink(missing_ok=True)
-                installer_binary.unlink(missing_ok=True)
-                agent_binary.unlink(missing_ok=True)
-                probe_binary.unlink(missing_ok=True)
-                ctl_binary.unlink(missing_ok=True)
-            print("EXTRACTED_SOURCE_VERIFICATION_PASS")
+            rc = run_parallel_commands(
+                "CLI_HELP_GATE",
+                cli_help_commands,
+                cwd=root,
+                env=verify_environment,
+                workers=4,
+                timeout_seconds=120,
+            )
+            if rc:
+                return rc
+
+            # Backend smoke parity with `make smoke`. The first three shards are
+            # independent API/control-plane smoke; installer lifecycle remains a
+            # separate checkpoint because it owns destructive/recovery semantics.
+            regular_smoke_shards = [
+                ["python3", "scripts/run_smoke_shard.py", "--shard", str(shard)]
+                for shard in range(1, 4)
+            ]
+            rc = run_parallel_commands(
+                "BACKEND_SMOKE_SHARD_GATE",
+                regular_smoke_shards,
+                cwd=root,
+                env=verify_environment,
+                workers=3,
+                timeout_seconds=1800,
+            )
+            if rc:
+                return rc
+            installer_smoke = ["python3", "scripts/run_smoke_shard.py", "--shard", "4"]
+            print("+", " ".join(installer_smoke), flush=True)
+            returncode, stdout, stderr = run_bounded_command(
+                installer_smoke, cwd=root, env=verify_environment, timeout_seconds=1800
+            )
+            if stdout:
+                sys.stdout.write(stdout)
+            if stderr:
+                sys.stderr.write(stderr)
+            if returncode:
+                return returncode
+
+            # UI/full-product parity: rendered/headless, quality/accessibility,
+            # Persian coverage, live API authority and the C4 workflow E2E.
+            ui_commands: list[tuple[list[str], int]] = [
+                (["python3", "scripts/smoke_ui.py", "."], 900),
+                (["python3", "scripts/smoke_ui_quality.py"], 900),
+                (["python3", "scripts/persian_ui_lint.py", "--root", "."], 180),
+                (["python3", "scripts/console_localization_coverage.py", "--root", "."], 180),
+                (["python3", "scripts/smoke_ui_localization_runtime.py", "."], 300),
+                (["python3", "scripts/smoke_ui_live.py", "./bin/platform-api", "."], 900),
+                (
+                    ["python3", "scripts/smoke_ui_workflow_e2e.py", "./bin/platform-api", "./bin/platform-installer"],
+                    1200,
+                ),
+            ]
+            for command, timeout_seconds in ui_commands:
+                print("+", " ".join(command), flush=True)
+                returncode, stdout, stderr = run_bounded_command(
+                    command, cwd=root, env=verify_environment, timeout_seconds=timeout_seconds
+                )
+                if stdout:
+                    sys.stdout.write(stdout)
+                if stderr:
+                    sys.stderr.write(stderr)
+                if returncode:
+                    return returncode
+
+            print(f"EXTRACTED_SOURCE_VERIFICATION_PASS authority={FULL_VERIFIER_AUTHORITY}")
     return 0
 
 

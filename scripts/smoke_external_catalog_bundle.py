@@ -30,7 +30,7 @@ def req(base, path, method="GET", body=None, headers=None):
 
 
 def start_api(binary, root, state):
-    port=free_port(); env=os.environ.copy(); env["PLATFORM_FACTORY_LISTEN"]=f"127.0.0.1:{port}"; env["PLATFORM_FACTORY_STATE_FILE"]=str(state)
+    port=free_port(); env=os.environ.copy(); env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true'; env["PLATFORM_FACTORY_LISTEN"]=f"127.0.0.1:{port}"; env["PLATFORM_FACTORY_STATE_FILE"]=str(state)
     p=subprocess.Popen([str(binary)],cwd=root,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True); base=f"http://127.0.0.1:{port}"
     for _ in range(100):
         try:
@@ -68,6 +68,53 @@ def digest(path: Path) -> str:
     return "sha256:"+hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def write_runtime_certification_registry(repo: Path, component: str, release: str):
+    path=repo/'catalog/component-runtime-certification.json'; path.parent.mkdir(parents=True,exist_ok=True)
+    stages=['install','readiness','dependency','upgrade','remove','failure']
+    doc={
+        'apiVersion':'platform.4so.io/v1alpha1',
+        'kind':'ComponentRuntimeCertificationRegistry',
+        'metadata':{'name':'COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1'},
+        'spec':{
+            'policy':{
+                'sourceBinding':'exact-component-release-and-source-lock',
+                'executorBinding':'component-owned-no-generic-runtime-certification-claim',
+                'requiredLifecycleStages':stages,
+                'replacementPolicy':'resolved-source-replacement-denied-without-explicit-versioned-migration',
+            },
+            'components':[{
+                'component':component,
+                'release':release,
+                'sourceBinding':{'status':'blocked-source-lock','resolved':False,'sourceLockDigest':''},
+                'executor':{'status':'source-gated-component-executor','profile':'COMPONENT_RUNTIME_V1','owner':'catalog-component'},
+                'lifecycle':[{'name':stage,'status':('pending-upgrade-matrix' if stage=='upgrade' else 'source-gated-component-executor'),'evidenceContract':f'component-{stage}-evidence/v1','authority':('COMPONENT_RUNTIME_UPGRADE_V1' if stage=='upgrade' else 'COMPONENT_RUNTIME_V1')} for stage in stages],
+            }],
+        },
+    }
+    path.write_text(json.dumps(doc,indent=2,sort_keys=True)+'\n')
+
+
+def pin_runtime_certification_release(repo: Path, component: str, release: str):
+    path=repo/'catalog/component-runtime-certification.json'
+    doc=json.loads(path.read_text())
+    rows=[row for row in doc['spec']['components'] if row.get('component')==component]
+    assert len(rows)==1,rows
+    row=rows[0]
+    assert row['sourceBinding']=={'status':'blocked-source-lock','resolved':False,'sourceLockDigest':''},row['sourceBinding']
+    row['release']=release
+    path.write_text(json.dumps(doc,indent=2,sort_keys=True)+'\n')
+
+
+def assert_runtime_certification_binding(repo: Path, component: str, release: str, source_lock: str):
+    doc=json.loads((repo/'catalog/component-runtime-certification.json').read_text())
+    rows=[row for row in doc['spec']['components'] if row.get('component')==component]
+    assert len(rows)==1,rows
+    row=rows[0]
+    assert row['release']==release,row
+    assert row['sourceBinding']=={'status':'source-ready','resolved':True,'sourceLockDigest':source_lock},row['sourceBinding']
+    assert row['executor']=={'status':'component-install-readiness-dependency-failure-remove-partial','profile':'COMPONENT_RUNTIME_V1','owner':'catalog-component'},row['executor']
+
+
 def admit_helm_component(repo: Path, component: str, chart: str, version: str, source: str):
     authority = repo/'catalog/upstream-admission.json'
     authority.parent.mkdir(parents=True, exist_ok=True)
@@ -86,6 +133,7 @@ def admit_helm_component(repo: Path, component: str, chart: str, version: str, s
                     'allowLatestResolution':False,
                     'autoWidenCatalogConstraint':False,
                     'runtimeCertification':'separate-runtime-evidence-required',
+                    'candidateAcquisition':'exact-source-may-be-acquired-before-runtime-clearance',
                     'sourceAuthority':'official-upstream-only',
                     'sourceResolution':'separate-immutable-acquisition-required',
                     'versionSelection':'exact-semver-no-prerelease',
@@ -101,6 +149,8 @@ def admit_helm_component(repo: Path, component: str, chart: str, version: str, s
         'selectedVersion':version,
         'source':source,
         'status':'ready-for-acquisition',
+        'runtimeStatus':'dependency-transition-required',
+        'reviewEvidence':[{'kind':'blocker','url':'https://docs.cilium.io/en/stable/operations/upgrade/','summary':'Fixture preserves canonical Gateway API dependency transition hold.'}],
         'upstreamVersion':version,
     })
     rows.sort(key=lambda row: row['component'])
@@ -166,6 +216,7 @@ def main():
         assert bad_digest.returncode!=0,(bad_digest.stdout,bad_digest.stderr)
 
         repo=t/'repo'; (repo/'catalog/components').mkdir(parents=True); (repo/'VERSION').write_text('test\n'); shutil.copy2(component,repo/'catalog/components/cilium.json')
+        write_runtime_certification_registry(repo,'cilium',version)
         admit_helm_component(repo,'cilium','cilium',version,'oci://quay.io/cilium/charts/cilium')
         installed=json.loads(run(str(ctl),'catalog-bundle','install','-f',str(bundle),'--repo-root',str(repo),'--confirmation','IMPORT').stdout)
         assert installed['installed'] is True and installed['networkFetchRequired'] is False,installed
@@ -174,6 +225,7 @@ def main():
         run(str(ctl),'catalog-bundle','install','-f',str(bundle),'--repo-root',str(repo),'--confirmation','IMPORT')
         resolved=json.loads((repo/'catalog/components/cilium.json').read_text())
         src=resolved['spec']['source']; assert src['resolved'] is True and src['type']=='helm-chart' and src['bundleKey']==f'cilium/{version}' and src['renderManifestDigest'].startswith('sha256:'),src
+        assert_runtime_certification_binding(repo,'cilium',version,src['sourceLockDigest'])
         assert resolved['spec']['delivery']['type']=='helm' and resolved['spec']['delivery']['chart']=='cilium',resolved['spec']['delivery']
         for name in ('artifact.bin','bundle-manifest.json','render-manifest.json','source-lock.json','image-inventory.json','licenses.json','sbom.spdx.json','provenance.json'):
             assert (repo/'catalog/runtime/cilium'/version/name).is_file(),name
@@ -190,10 +242,16 @@ def main():
 
         # Prove import -> rebuild -> runtime catalog/render in an isolated source tree.
         rebuild=t/'rebuild-source'; shutil.copytree(root,rebuild,ignore=shutil.ignore_patterns('.git','bin','dist','release','__pycache__'))
+        # Source admission has a separate exact-version pin step before immutable
+        # acquisition. Model that source commit consistently across the component
+        # and runtime-certification release binding; source remains unresolved.
         shutil.copy2(component,rebuild/'catalog/components/cilium.json')
+        pin_runtime_certification_release(rebuild,'cilium',version)
         shutil.rmtree(rebuild/'catalog/runtime/cilium',ignore_errors=True)
         admit_helm_component(rebuild,'cilium','cilium',version,'oci://quay.io/cilium/charts/cilium')
         run(str(ctl),'catalog-bundle','install','-f',str(bundle),'--repo-root',str(rebuild),'--confirmation','IMPORT')
+        rebuilt_component=json.loads((rebuild/'catalog/components/cilium.json').read_text())
+        assert_runtime_certification_binding(rebuild,'cilium',version,rebuilt_component['spec']['source']['sourceLockDigest'])
         validation=subprocess.run([sys.executable,'scripts/validate_repository.py','.'],cwd=rebuild,text=True,capture_output=True); assert validation.returncode==0,(validation.stdout,validation.stderr)
         retired=json.loads((rebuild/'catalog/upstream-admission.json').read_text())
         assert not any(row.get('component')=='cilium' for row in retired['spec']['components']),retired

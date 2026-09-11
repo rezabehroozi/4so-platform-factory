@@ -12,6 +12,8 @@ import subprocess
 import sys
 import tempfile
 
+from oci_smoke_fixture import workload_repositories, write_workload_oci_archive
+
 
 def run(command: list[str], *, env: dict[str, str], expect: int = 0) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(command, text=True, capture_output=True, check=False, env=env)
@@ -22,18 +24,19 @@ def run(command: list[str], *, env: dict[str, str], expect: int = 0) -> subproce
 
 
 
-def make_release_archive(root: Path, version: str) -> tuple[Path, str]:
+def make_release_archive(root: Path, version: str, platformctl: Path) -> tuple[Path, str]:
     archive = root / "release.zip"
     release_name = "installer-smoke-fixture"
     release_root = f"4so-platform-factory-{version}-{release_name}"
     version_raw = (version + "\n").encode()
     release_name_raw = (release_name + "\n").encode()
+    platformctl_raw = platformctl.read_bytes()
     manifest_raw = (json.dumps({
         "schemaVersion": 2,
         "product": "4SO Platform Factory",
         "version": version,
         "releaseName": release_name,
-        "fileCount": 2,
+        "fileCount": 3,
         "files": [
             {
                 "path": "VERSION",
@@ -47,27 +50,47 @@ def make_release_archive(root: Path, version: str) -> tuple[Path, str]:
                 "size": len(release_name_raw),
                 "mode": "0o644",
             },
+            {
+                "path": "bin/linux-amd64/platformctl",
+                "sha256": hashlib.sha256(platformctl_raw).hexdigest(),
+                "size": len(platformctl_raw),
+                "mode": "0o755",
+            },
         ],
     }, sort_keys=True) + "\n").encode()
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as zf:
-        for relative, raw in (("VERSION", version_raw), ("RELEASE-NAME", release_name_raw), ("ARTIFACT-MANIFEST.json", manifest_raw)):
+        entries = (
+            ("VERSION", version_raw, 0o644),
+            ("RELEASE-NAME", release_name_raw, 0o644),
+            ("bin/linux-amd64/platformctl", platformctl_raw, 0o755),
+            ("ARTIFACT-MANIFEST.json", manifest_raw, 0o644),
+        )
+        for relative, raw, mode in entries:
             info = zipfile.ZipInfo(f"{release_root}/{relative}")
             info.create_system = 3
-            info.external_attr = ((stat.S_IFREG | 0o644) & 0xFFFF) << 16
+            info.external_attr = ((stat.S_IFREG | mode) & 0xFFFF) << 16
             info.compress_type = zipfile.ZIP_STORED
             zf.writestr(info, raw)
     digest = "sha256:" + hashlib.sha256(archive.read_bytes()).hexdigest()
     return archive, digest
 
-def image(name: str, digit: str) -> str:
-    return f"registry.local/{name}@sha256:{digit * 64}"
-
-
-def manifest(name: str, digit: str) -> str:
+def manifest(name: str, image_ref: str) -> str:
     return (
         "apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n"
-        f"      containers:\n        - name: {name}\n          image: {image(name, digit)}\n"
+        f"      containers:\n        - name: {name}\n          image: {image_ref}\n"
     )
+
+
+def source_artifact_bindings(staging: Path) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for path in sorted(item for item in staging.rglob("*") if item.is_file()):
+        raw = path.read_bytes()
+        rows.append({
+            "path": path.relative_to(staging).as_posix(),
+            "sha256": "sha256:" + hashlib.sha256(raw).hexdigest(),
+            "sizeBytes": len(raw),
+        })
+    return rows
 
 
 def main() -> int:
@@ -82,17 +105,16 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
-        release_archive, release_digest = make_release_archive(root, version)
+        release_archive, release_digest = make_release_archive(root, version, Path(ctl))
         staging = root / "staging"
+        refs = write_workload_oci_archive(staging / "workloads/images.oci.tar", workload_repositories())
         files = {
             "rke2/install.sh": "#!/bin/sh\nexit 0\n",
             "rke2/rke2.tar.gz": "rke2",
             "rke2/images.tar.zst": "rke2-images",
-            "workloads/images.tar.zst": "workloads",
-            "manifests/argocd.yaml": manifest("argocd", "1"),
-            "manifests/cnpg.yaml": manifest("cnpg", "2"),
-            "manifests/ocm.yaml": manifest("ocm", "3"),
-            "manifests/storage.yaml": manifest("storage", "4"),
+            "manifests/argocd.yaml": manifest("argocd", refs["registry.local/argocd"]),
+            "manifests/cnpg.yaml": manifest("cnpg", refs["registry.local/cnpg"]),
+            "manifests/storage.yaml": manifest("storage", refs["registry.local/storage"]),
         }
         for relative, content in files.items():
             path = staging / relative
@@ -103,14 +125,14 @@ def main() -> int:
             "kind": "ApplianceBundleBuild",
             "metadata": {"version": version, "sourceReleaseDigest": release_digest},
             "spec": {
+                "sourceArtifacts": source_artifact_bindings(staging),
                 "rke2": {"version": "v1.34.0+rke2r1", "installer": "rke2/install.sh", "installArtifacts": ["rke2/rke2.tar.gz"], "imageArchives": ["rke2/images.tar.zst"]},
                 "workloads": {
-                    "imageArchives": ["workloads/images.tar.zst"],
-                    "postgresqlImage": image("postgres", "a"), "platformApiImage": image("api", "b"),
-                    "forgejoImage": image("forgejo", "c"), "zotImage": image("zot", "d"), "keycloakImage": image("keycloak", "e"),
-                    "maintenanceImage": image("maintenance", "f"), "gitOpsManifest": "manifests/argocd.yaml", "cloudNativePGManifest": "manifests/cnpg.yaml",
-                    "ocmManifest": "manifests/ocm.yaml",
-                    "storageManifest": "manifests/storage.yaml", "fleetAgentImage": image("agent", "9"), "runtimeProbeImage": image("probe", "8")
+                    "imageArchives": ["workloads/images.oci.tar"],
+                    "postgresqlImage": refs["registry.local/postgres"], "platformApiImage": refs["registry.local/platform-api"],
+                    "forgejoImage": refs["registry.local/forgejo"], "zotImage": refs["registry.local/zot"], "keycloakImage": refs["registry.local/keycloak"],
+                    "maintenanceImage": refs["registry.local/maintenance"], "gitOpsManifest": "manifests/argocd.yaml", "cloudNativePGManifest": "manifests/cnpg.yaml",
+                    "storageManifest": "manifests/storage.yaml", "fleetAgentImage": refs["registry.local/platform-agent"], "runtimeProbeImage": refs["registry.local/platform-probe"]
                 },
             },
         }
@@ -155,16 +177,34 @@ def main() -> int:
         env["PATH"] = str(fake_bin) + os.pathsep + env.get("PATH", "")
         env["FAKE_SSH_LOG"] = str(ssh_log)
 
+        bundle_verified = json.loads(run([ctl, "appliance-bundle", "verify", "--dir", str(bundle)], env=env).stdout)
+        if not bundle_verified.get("verified") or not bundle_verified.get("bundleDigest") or not bundle_verified.get("lockDigest"):
+            raise SystemExit("REMOTE_INSTALLER_BUNDLE_BINDING_INVALID")
+
         remote = {
             "apiVersion": "platform.4so.io/v1alpha1", "kind": "InstallerRemoteBootstrap",
             "metadata": {"name": "remote-smoke", "version": version},
             "spec": {
                 "target": {"host": "remote-node.test", "user": "root", "identityFile": str(identity), "knownHostsFile": str(known), "root": str(target_root)},
-                "platformctlBinary": ctl, "deploymentSpec": str(deployment_path)
+                "platformctlBinary": ctl, "deploymentSpec": str(deployment_path),
+                "expectedBundle": {"bundleDigest": bundle_verified["bundleDigest"], "lockDigest": bundle_verified["lockDigest"]}
             }
         }
         remote_path = root / "remote-bootstrap.json"
         remote_path.write_text(json.dumps(remote, indent=2) + "\n", encoding="utf-8")
+
+        # Exact expected-bundle binding must fail before any SSH/network activity.
+        bad_remote = json.loads(json.dumps(remote))
+        bad_remote["spec"]["expectedBundle"]["bundleDigest"] = "sha256:" + "0" * 64
+        bad_remote_path = root / "remote-bootstrap-bad-bundle.json"
+        bad_remote_path.write_text(json.dumps(bad_remote, indent=2) + "\n", encoding="utf-8")
+        before_bad = ssh_log.read_text(encoding="utf-8") if ssh_log.exists() else ""
+        rejected = run([ctl, "installer-remote", "plan", "--spec", str(bad_remote_path)], env=env, expect=1)
+        if "bundle binding mismatch" not in (rejected.stdout + rejected.stderr):
+            raise SystemExit("REMOTE_INSTALLER_BUNDLE_BINDING_NEGATIVE_CONTROL_MISSING")
+        after_bad = ssh_log.read_text(encoding="utf-8") if ssh_log.exists() else ""
+        if after_bad != before_bad:
+            raise SystemExit("REMOTE_INSTALLER_BUNDLE_BINDING_REJECTION_USED_SSH")
 
         admission = json.loads(run([ctl, "installer-remote", "preflight", "--spec", str(remote_path)], env=env).stdout)
         if not admission.get("ready") or not admission.get("digest"):

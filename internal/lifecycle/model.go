@@ -45,6 +45,7 @@ type Run struct {
 	Service              string               `json:"service"`
 	ProfileID            string               `json:"profileId"`
 	ExecutionNode        string               `json:"executionNode,omitempty"`
+	BundleDigest         string               `json:"bundleDigest,omitempty"`
 	Action               Action               `json:"action"`
 	State                State                `json:"state"`
 	BackupID             string               `json:"backupId,omitempty"`
@@ -86,6 +87,32 @@ type UpgradeRequest struct {
 type UpgradeRecoveryRequest struct {
 	UpgradeRunID string `json:"upgradeRunId"`
 }
+
+const UpgradeInterruptionRecoveryMatrixAuthority = "INSTALLER_UPGRADE_INTERRUPTION_RECOVERY_MATRIX_V1"
+
+type UpgradeInterruptionRecoveryScenario struct {
+	Checkpoint       string `json:"checkpoint"`
+	PersistedPhase   string `json:"persistedPhase"`
+	RestartBehavior  string `json:"restartBehavior"`
+	RecoveryBoundary string `json:"recoveryBoundary"`
+	AutomaticReplay  bool   `json:"automaticReplay"`
+}
+
+// UpgradeInterruptionRecoveryMatrix is descriptive authority for the durable
+// boundaries already enforced by Manager. It is intentionally source/runtime
+// semantics evidence only; physical interruption evidence belongs to the exact-
+// artifact certification phase.
+func UpgradeInterruptionRecoveryMatrix() []UpgradeInterruptionRecoveryScenario {
+	return []UpgradeInterruptionRecoveryScenario{
+		{Checkpoint: "before-pre-upgrade-backup", PersistedPhase: string(UpgradePhaseBackupPending), RestartBehavior: "resume the same run and idempotently establish the bound backup before any image mutation", RecoveryBoundary: "no destructive recovery required", AutomaticReplay: true},
+		{Checkpoint: "after-backup-before-image-apply", PersistedPhase: string(UpgradePhaseApplyPending), RestartBehavior: "resume the same run only when the digest-pinned previous image and requested image still match durable authority", RecoveryBoundary: "image drift fails closed", AutomaticReplay: true},
+		{Checkpoint: "after-image-apply-before-final-state", PersistedPhase: string(UpgradePhaseApplyVerified), RestartBehavior: "verify the requested digest and replicas; never replay SetImage after verified completion", RecoveryBoundary: "verification drift fails closed", AutomaticReplay: true},
+		{Checkpoint: "upgrade-rollout-or-image-verification-failure", PersistedPhase: string(UpgradePhaseRecoveryRequired), RestartBehavior: "do not image-only rollback or replay the failed upgrade", RecoveryBoundary: "explicit confirmation-bound upgrade recovery restores the exact bound backup and previous digest", AutomaticReplay: false},
+		{Checkpoint: "recovery-after-state-restore", PersistedPhase: string(UpgradeRecoveryPhaseRestoreCompleted), RestartBehavior: "resume recovery after the destructive restore boundary without restoring the backup twice", RecoveryBoundary: "verify previous digest and replicas before closure", AutomaticReplay: true},
+		{Checkpoint: "recovery-after-resume-verification", PersistedPhase: string(UpgradeRecoveryPhaseResumeVerified), RestartBehavior: "re-verify the previous digest and replicas and close the source upgrade authority without repeating destructive work", RecoveryBoundary: "source upgrade becomes RECOVERY_COMPLETED", AutomaticReplay: true},
+	}
+}
+
 type BackupRequest struct {
 	Service string `json:"service"`
 }

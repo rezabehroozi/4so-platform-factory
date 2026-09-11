@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -13,8 +14,8 @@ import (
 	"platform.4so.io/factory/internal/targetmodel"
 )
 
-const providerProfileColumns = `id,project_id,management_cluster_id,revision,name,display_name,adapter,namespace,cluster_class_name,worker_class_name,default_kubernetes_version,kubernetes_series,architectures,distribution_profiles,max_worker_replicas,state,desired_digest,observed_digest,requested_by,idempotency_key,request_digest,task_attempt,task_fence_token,task_lease_expires_at,last_error,created_at,updated_at`
-const providerClusterColumns = `id,project_id,provider_profile_id,management_cluster_id,revision,name,display_name,resource_name,namespace,state,desired,applied,desired_digest,observed_digest,pending_action,requested_by,approved_by,approved_at,idempotency_key,request_digest,task_attempt,task_fence_token,task_lease_expires_at,phase,COALESCE(destructive_operation_id,''),compatibility_decision,last_error,created_at,updated_at`
+const providerProfileColumns = `id,project_id,management_cluster_id,revision,name,display_name,adapter,namespace,cluster_class_name,worker_class_name,default_kubernetes_version,kubernetes_series,architectures,distribution_profiles,infrastructure_provider,infrastructure_endpoint,credential_ref,max_worker_replicas,state,desired_digest,observed_digest,requested_by,idempotency_key,request_digest,task_attempt,task_fence_token,task_lease_expires_at,last_error,created_at,updated_at`
+const providerClusterColumns = `id,project_id,provider_profile_id,management_cluster_id,revision,name,display_name,resource_name,namespace,state,desired,applied,desired_digest,observed_digest,pending_action,requested_by,approved_by,approved_at,idempotency_key,request_digest,task_attempt,task_fence_token,task_lease_expires_at,phase,COALESCE(destructive_operation_id,''),compatibility_decision,target_node_mutation,last_error,created_at,updated_at`
 
 var providerDNSLabel = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 var providerKubeVersion = regexp.MustCompile(`^v1\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$`)
@@ -24,7 +25,7 @@ func scanProviderProfile(row interface{ Scan(...any) error }) (controlplane.Prov
 	var v controlplane.ProviderProfile
 	var series, architectures, distributions []byte
 	var state string
-	err := row.Scan(&v.ID, &v.ProjectID, &v.ManagementClusterID, &v.Revision, &v.Name, &v.DisplayName, &v.Adapter, &v.Namespace, &v.ClusterClassName, &v.WorkerClassName, &v.DefaultKubernetesVersion, &series, &architectures, &distributions, &v.MaxWorkerReplicas, &state, &v.DesiredDigest, &v.ObservedDigest, &v.RequestedBy, &v.IdempotencyKey, &v.RequestDigest, &v.TaskAttempt, &v.TaskFenceToken, &v.TaskLeaseExpiresAt, &v.LastError, &v.CreatedAt, &v.UpdatedAt)
+	err := row.Scan(&v.ID, &v.ProjectID, &v.ManagementClusterID, &v.Revision, &v.Name, &v.DisplayName, &v.Adapter, &v.Namespace, &v.ClusterClassName, &v.WorkerClassName, &v.DefaultKubernetesVersion, &series, &architectures, &distributions, &v.InfrastructureProvider, &v.InfrastructureEndpoint, &v.CredentialRef, &v.MaxWorkerReplicas, &state, &v.DesiredDigest, &v.ObservedDigest, &v.RequestedBy, &v.IdempotencyKey, &v.RequestDigest, &v.TaskAttempt, &v.TaskFenceToken, &v.TaskLeaseExpiresAt, &v.LastError, &v.CreatedAt, &v.UpdatedAt)
 	v.State = controlplane.ProviderProfileState(state)
 	if len(series) > 0 {
 		if decodeErr := decodeJSONColumn(series, &v.KubernetesSeries, "postgres_provider.KubernetesSeries"); decodeErr != nil {
@@ -44,7 +45,9 @@ func scanProviderProfile(row interface{ Scan(...any) error }) (controlplane.Prov
 	v.DistributionProfiles = targetmodel.CanonicalDistributionSet(v.DistributionProfiles)
 	v.DistributionIdentities = append([]string(nil), v.DistributionProfiles...)
 	v.ProvisioningMode = targetmodel.ProvisioningModeFromAdapter(v.Adapter)
-	v.InfrastructureProvider = targetmodel.InfrastructureUnspecified
+	if v.InfrastructureProvider == "" {
+		v.InfrastructureProvider = targetmodel.InfrastructureUnspecified
+	}
 	return v, err
 }
 
@@ -68,9 +71,9 @@ func normalizeProviderClusterTargetModel(spec *controlplane.ProviderClusterSpec)
 
 func scanProviderCluster(row interface{ Scan(...any) error }) (controlplane.ProviderCluster, error) {
 	var v controlplane.ProviderCluster
-	var desired, applied, compatRaw []byte
+	var desired, applied, compatRaw, mutationRaw []byte
 	var state string
-	err := row.Scan(&v.ID, &v.ProjectID, &v.ProviderProfileID, &v.ManagementClusterID, &v.Revision, &v.Name, &v.DisplayName, &v.ResourceName, &v.Namespace, &state, &desired, &applied, &v.DesiredDigest, &v.ObservedDigest, &v.PendingAction, &v.RequestedBy, &v.ApprovedBy, &v.ApprovedAt, &v.IdempotencyKey, &v.RequestDigest, &v.TaskAttempt, &v.TaskFenceToken, &v.TaskLeaseExpiresAt, &v.Phase, &v.DestructiveOperationID, &compatRaw, &v.LastError, &v.CreatedAt, &v.UpdatedAt)
+	err := row.Scan(&v.ID, &v.ProjectID, &v.ProviderProfileID, &v.ManagementClusterID, &v.Revision, &v.Name, &v.DisplayName, &v.ResourceName, &v.Namespace, &state, &desired, &applied, &v.DesiredDigest, &v.ObservedDigest, &v.PendingAction, &v.RequestedBy, &v.ApprovedBy, &v.ApprovedAt, &v.IdempotencyKey, &v.RequestDigest, &v.TaskAttempt, &v.TaskFenceToken, &v.TaskLeaseExpiresAt, &v.Phase, &v.DestructiveOperationID, &compatRaw, &mutationRaw, &v.LastError, &v.CreatedAt, &v.UpdatedAt)
 	v.State = controlplane.ProviderClusterState(state)
 	if len(desired) > 0 {
 		if decodeErr := decodeJSONColumn(desired, &v.Desired, "postgres_provider.Desired"); decodeErr != nil {
@@ -84,6 +87,11 @@ func scanProviderCluster(row interface{ Scan(...any) error }) (controlplane.Prov
 		}
 	}
 	normalizeProviderClusterTargetModel(&v.Applied)
+	if len(mutationRaw) > 0 {
+		if decodeErr := decodeJSONColumn(mutationRaw, &v.TargetNodeMutation, "postgres_provider.TargetNodeMutation"); decodeErr != nil {
+			return v, decodeErr
+		}
+	}
 	if len(compatRaw) > 0 {
 		if decodeErr := decodeJSONColumn(compatRaw, &v.Compatibility, "postgres_provider.Compatibility"); decodeErr != nil {
 			return v, decodeErr
@@ -106,6 +114,38 @@ func providerSeriesFor(v string) string {
 		return ""
 	}
 	return "v" + parts[0] + "." + parts[1]
+}
+
+func normalizeProviderInfrastructure(v *controlplane.ProviderProfile) error {
+	v.InfrastructureProvider = strings.ToLower(strings.TrimSpace(v.InfrastructureProvider))
+	v.InfrastructureEndpoint = strings.TrimSpace(v.InfrastructureEndpoint)
+	v.CredentialRef = strings.TrimSpace(v.CredentialRef)
+	if v.InfrastructureProvider == "" {
+		v.InfrastructureProvider = targetmodel.InfrastructureUnspecified
+	}
+	switch v.InfrastructureProvider {
+	case targetmodel.InfrastructureUnspecified:
+		if v.InfrastructureEndpoint != "" || v.CredentialRef != "" {
+			return controlplane.ErrValidation
+		}
+		return nil
+	case targetmodel.InfrastructureVMware:
+		u, err := url.Parse(v.InfrastructureEndpoint)
+		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+			return controlplane.ErrValidation
+		}
+		const prefix = "external-secret://4so-provider-system/"
+		name := strings.TrimPrefix(v.CredentialRef, prefix)
+		if !strings.HasPrefix(v.CredentialRef, prefix) || name == "" || strings.Contains(name, "..") || !providerDNSLabel.MatchString(strings.ReplaceAll(name, ".", "-")) {
+			return controlplane.ErrValidation
+		}
+		if len(v.Architectures) != 1 || strings.ToLower(strings.TrimSpace(v.Architectures[0])) != "amd64" {
+			return controlplane.ErrValidation
+		}
+		return nil
+	default:
+		return controlplane.ErrValidation
+	}
 }
 
 func normalizeProviderProfile(v *controlplane.ProviderProfile) error {
@@ -142,6 +182,9 @@ func normalizeProviderProfile(v *controlplane.ProviderProfile) error {
 	v.KubernetesSeries = series
 	dummy := controlplane.ProviderClusterSpec{}
 	controlplane.NormalizeProviderCompatibility(v, &dummy)
+	if err := normalizeProviderInfrastructure(v); err != nil {
+		return err
+	}
 	if len(v.Architectures) == 0 || len(v.DistributionProfiles) == 0 {
 		return controlplane.ErrValidation
 	}
@@ -221,7 +264,7 @@ func (s *PostgresStore) CreateProviderProfile(ctx context.Context, v controlplan
 		series, _ := json.Marshal(v.KubernetesSeries)
 		architectures, _ := json.Marshal(v.Architectures)
 		distributions, _ := json.Marshal(v.DistributionProfiles)
-		_, e = tx.ExecContext(ctx, `INSERT INTO provider_profiles(id,project_id,management_cluster_id,revision,name,display_name,adapter,namespace,cluster_class_name,worker_class_name,default_kubernetes_version,kubernetes_series,architectures,distribution_profiles,max_worker_replicas,state,desired_digest,requested_by,idempotency_key,request_digest,created_at,updated_at) VALUES($1,$2,$3,1,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13::jsonb,$14,$15,$16,$17,$18,$19,$20,$20)`, v.ID, v.ProjectID, v.ManagementClusterID, v.Name, v.DisplayName, v.Adapter, v.Namespace, v.ClusterClassName, v.WorkerClassName, v.DefaultKubernetesVersion, series, architectures, distributions, v.MaxWorkerReplicas, string(v.State), v.DesiredDigest, actor, v.IdempotencyKey, v.RequestDigest, now)
+		_, e = tx.ExecContext(ctx, `INSERT INTO provider_profiles(id,project_id,management_cluster_id,revision,name,display_name,adapter,namespace,cluster_class_name,worker_class_name,default_kubernetes_version,kubernetes_series,architectures,distribution_profiles,infrastructure_provider,infrastructure_endpoint,credential_ref,max_worker_replicas,state,desired_digest,requested_by,idempotency_key,request_digest,created_at,updated_at) VALUES($1,$2,$3,1,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13::jsonb,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$24)`, v.ID, v.ProjectID, v.ManagementClusterID, v.Name, v.DisplayName, v.Adapter, v.Namespace, v.ClusterClassName, v.WorkerClassName, v.DefaultKubernetesVersion, series, architectures, distributions, v.InfrastructureProvider, v.InfrastructureEndpoint, v.CredentialRef, v.MaxWorkerReplicas, string(v.State), v.DesiredDigest, actor, v.IdempotencyKey, v.RequestDigest, now)
 		if e != nil {
 			return mapDBError(e)
 		}
@@ -523,6 +566,106 @@ func (s *PostgresStore) QueueProviderClusterChange(ctx context.Context, id strin
 	return out, err
 }
 
+func (s *PostgresStore) QueueTargetNodeProviderMutation(ctx context.Context, id string, expected int64, mutation controlplane.TargetNodeProviderMutation, desired controlplane.ProviderClusterSpec, actor, requestDigest string) (controlplane.ProviderCluster, error) {
+	var out controlplane.ProviderCluster
+	err := s.serializable(ctx, func(tx *sql.Tx) error {
+		v, e := scanProviderCluster(tx.QueryRowContext(ctx, `SELECT `+providerClusterColumns+` FROM provider_clusters WHERE id=$1 FOR UPDATE`, id))
+		if e != nil {
+			return mapDBError(e)
+		}
+		if v.Revision != expected {
+			return controlplane.ErrConflict
+		}
+		if v.State != controlplane.ProviderClusterActive {
+			return controlplane.ErrInvalidTransition
+		}
+		action := controlplane.TargetNodeLifecycleAction(strings.ToUpper(strings.TrimSpace(string(mutation.Action))))
+		if action != controlplane.TargetNodeActionRemove && action != controlplane.TargetNodeActionReplace && action != controlplane.TargetNodeActionCertificateRenewal && action != controlplane.TargetNodeActionRemediate {
+			return controlplane.ErrValidation
+		}
+		managementInventory, e := latestInventoryTx(ctx, tx, v.ManagementClusterID)
+		if e != nil {
+			return e
+		}
+		if !inventoryHasCapabilityPG(managementInventory, controlplane.TargetNodeProviderMachineLifecycleCapability) {
+			return controlplane.ErrPrerequisite
+		}
+		now := utcNow(s.now)
+		if mutation.Authority != controlplane.TargetNodeProviderMachineLifecycleAuthority || strings.TrimSpace(mutation.TargetClusterID) == "" || strings.TrimSpace(mutation.NodeName) == "" || strings.TrimSpace(mutation.NodeUID) == "" || !strings.HasPrefix(mutation.InventoryDigest, "sha256:") || strings.TrimSpace(mutation.WindowID) == "" || !mutation.WindowEndsAt.After(now) {
+			return controlplane.ErrPrerequisite
+		}
+		window, e := scanMaintenanceWindow(tx.QueryRowContext(ctx, `SELECT `+maintenanceWindowColumns+` FROM cluster_maintenance_windows WHERE id=$1 FOR UPDATE`, mutation.WindowID))
+		if e != nil {
+			return mapDBError(e)
+		}
+		if window.ClusterID != mutation.TargetClusterID || window.State != controlplane.ClusterMaintenanceWindowActive || !window.EndsAt.Equal(mutation.WindowEndsAt) || now.Before(window.StartsAt) || !window.EndsAt.After(now) {
+			return controlplane.ErrMaintenanceWindow
+		}
+		inv, e := latestInventoryTx(ctx, tx, mutation.TargetClusterID)
+		if e != nil {
+			return e
+		}
+		if inv.Digest != mutation.InventoryDigest {
+			return controlplane.ErrConflict
+		}
+		nodeOK, nodeEligible := false, false
+		for _, n := range inv.Nodes {
+			if n.Name == mutation.NodeName && n.UID == mutation.NodeUID {
+				nodeOK = true
+				nodeEligible = controlplane.TargetNodeProviderMutationEligibleFor(action, n)
+				break
+			}
+		}
+		if !nodeOK {
+			return controlplane.ErrConflict
+		}
+		if !nodeEligible {
+			return controlplane.ErrPrerequisite
+		}
+		profile, e := scanProviderProfile(tx.QueryRowContext(ctx, `SELECT `+providerProfileColumns+` FROM provider_profiles WHERE id=$1`, v.ProviderProfileID))
+		if e != nil {
+			return mapDBError(e)
+		}
+		desired.KubernetesVersion = normalizeProviderVersion(desired.KubernetesVersion)
+		if e = providerSpecAdmitted(profile, &desired); e != nil {
+			return e
+		}
+		if action == controlplane.TargetNodeActionRemove {
+			if v.Desired.WorkerReplicas <= 1 || desired.WorkerReplicas != v.Desired.WorkerReplicas-1 || desired.ControlPlaneReplicas != v.Desired.ControlPlaneReplicas || desired.KubernetesVersion != v.Desired.KubernetesVersion {
+				return controlplane.ErrValidation
+			}
+		} else if desired != v.Desired {
+			return controlplane.ErrValidation
+		}
+		if !strings.HasPrefix(requestDigest, "sha256:") {
+			return controlplane.ErrValidation
+		}
+		v.Desired = desired
+		v.DesiredDigest = controlplane.ProviderClusterDesiredDigest(v.ProviderProfileID, v.Name, desired)
+		v.TargetNodeMutation = mutation
+		v.PendingAction = "TARGET_NODE_" + string(action)
+		v.RequestDigest = requestDigest
+		v.RequestedBy = actor
+		v.ApprovedBy = ""
+		v.ApprovedAt = nil
+		v.State = controlplane.ProviderClusterAwaitingApproval
+		v.LastError = ""
+		v.Revision++
+		v.UpdatedAt = now
+		desiredRaw, _ := json.Marshal(v.Desired)
+		mutationRaw, _ := json.Marshal(v.TargetNodeMutation)
+		if _, e = tx.ExecContext(ctx, `UPDATE provider_clusters SET revision=$2,state=$3,desired=$4::jsonb,desired_digest=$5,pending_action=$6,requested_by=$7,approved_by='',approved_at=NULL,request_digest=$8,target_node_mutation=$9::jsonb,last_error='',updated_at=$10 WHERE id=$1`, v.ID, v.Revision, string(v.State), desiredRaw, v.DesiredDigest, v.PendingAction, actor, requestDigest, mutationRaw, now); e != nil {
+			return e
+		}
+		if e = s.appendAuditTx(ctx, tx, actor, "provider_cluster.target_node_"+strings.ToLower(string(action))+".approval_requested", "providerCluster", id, v.Revision, "", map[string]any{"targetClusterId": mutation.TargetClusterID, "nodeName": mutation.NodeName, "nodeUid": mutation.NodeUID, "inventoryDigest": mutation.InventoryDigest, "windowId": mutation.WindowID}); e != nil {
+			return e
+		}
+		out = v
+		return s.appendOutboxTx(ctx, tx, "providerCluster", id, "provider_cluster.approval.requested", v)
+	})
+	return out, err
+}
+
 func (s *PostgresStore) ApproveProviderCluster(ctx context.Context, id string, expected int64, actor string) (controlplane.ProviderCluster, error) {
 	var out controlplane.ProviderCluster
 	err := s.serializable(ctx, func(tx *sql.Tx) error {
@@ -574,7 +717,7 @@ func (s *PostgresStore) RetryProviderCluster(ctx context.Context, id string, exp
 		}
 		if v.PendingAction == "DELETE" {
 			return fmt.Errorf("%w: destructive provider cluster delete retry requires a fresh recovery-bound request", controlplane.ErrPrerequisite)
-		} else if v.PendingAction == "PROVISION" || v.PendingAction == "SCALE" || v.PendingAction == "UPGRADE" {
+		} else if v.PendingAction == "PROVISION" || v.PendingAction == "SCALE" || v.PendingAction == "UPGRADE" || controlplane.IsTargetNodeProviderPendingAction(v.PendingAction) {
 			v.State = controlplane.ProviderClusterQueued
 		} else {
 			return controlplane.ErrValidation
@@ -607,6 +750,38 @@ func (s *PostgresStore) NextProviderClusterTask(ctx context.Context, clusterID, 
 		v, e := scanProviderCluster(tx.QueryRowContext(ctx, `SELECT `+providerClusterColumns+` FROM provider_clusters WHERE management_cluster_id=$1 AND (state IN ('QUEUED','DELETE_QUEUED') OR (state IN ('APPLYING','RECONCILING','DELETING') AND (task_lease_expires_at IS NULL OR task_lease_expires_at<=$2))) ORDER BY updated_at,id LIMIT 1 FOR UPDATE SKIP LOCKED`, clusterID, now))
 		if e != nil {
 			return mapDBError(e)
+		}
+		if controlplane.IsTargetNodeProviderPendingAction(v.PendingAction) {
+			m := v.TargetNodeMutation
+			inv, ie := latestInventoryTx(ctx, tx, m.TargetClusterID)
+			if ie != nil {
+				return ie
+			}
+			window, we := scanMaintenanceWindow(tx.QueryRowContext(ctx, `SELECT `+maintenanceWindowColumns+` FROM cluster_maintenance_windows WHERE id=$1 FOR UPDATE`, m.WindowID))
+			if we != nil {
+				return mapDBError(we)
+			}
+			nodeOK := false
+			if inv.Digest == m.InventoryDigest {
+				for _, n := range inv.Nodes {
+					if n.Name == m.NodeName && n.UID == m.NodeUID {
+						nodeOK = controlplane.TargetNodeProviderMutationEligibleFor(m.Action, n)
+						break
+					}
+				}
+			}
+			if !nodeOK || window.State != controlplane.ClusterMaintenanceWindowActive || now.Before(window.StartsAt) || !window.EndsAt.After(now) || !window.EndsAt.Equal(m.WindowEndsAt) {
+				v.State = controlplane.ProviderClusterFailed
+				v.LastError = "target-node mutation identity/window fence changed before claim"
+				v.Revision++
+				v.UpdatedAt = now
+				mutationRaw, _ := json.Marshal(v.TargetNodeMutation)
+				if _, e = tx.ExecContext(ctx, `UPDATE provider_clusters SET revision=$2,state=$3,last_error=$4,target_node_mutation=$5::jsonb,updated_at=$6 WHERE id=$1`, v.ID, v.Revision, string(v.State), v.LastError, mutationRaw, now); e != nil {
+					return e
+				}
+				noTask = true
+				return nil
+			}
 		}
 		if v.State == controlplane.ProviderClusterDeleting && v.TaskLeaseExpiresAt != nil {
 			message := "provider cluster destructive task lease expired; explicit recovery-bound retry is required"
@@ -709,6 +884,14 @@ func (s *PostgresStore) ReportProviderClusterTask(ctx context.Context, clusterID
 		} else {
 			switch action {
 			case "APPLY":
+				if controlplane.IsTargetNodeProviderPendingAction(v.PendingAction) {
+					m := result.TargetNodeMutation
+					if m.Authority != controlplane.TargetNodeProviderMachineLifecycleAuthority || m.NodeName != v.TargetNodeMutation.NodeName || m.NodeUID != v.TargetNodeMutation.NodeUID || m.InventoryDigest != v.TargetNodeMutation.InventoryDigest || strings.TrimSpace(m.MachineName) == "" || strings.TrimSpace(m.MachineUID) == "" || strings.TrimSpace(m.MachineResourceVersion) == "" || strings.TrimSpace(m.MachineSetName) == "" || strings.TrimSpace(m.MachineDeploymentName) == "" || !strings.HasPrefix(m.EvidenceDigest, "sha256:") {
+						v.State, v.LastError = controlplane.ProviderClusterFailed, "target-node provider mutation evidence is incomplete"
+						break
+					}
+					v.TargetNodeMutation = m
+				}
 				if result.ObservedDigest != v.DesiredDigest {
 					v.State, v.LastError = controlplane.ProviderClusterFailed, "provider cluster desired/observed digest mismatch"
 				} else {
@@ -740,7 +923,8 @@ func (s *PostgresStore) ReportProviderClusterTask(ctx context.Context, clusterID
 		v.TaskLeaseExpiresAt = nil
 		v.Revision, v.UpdatedAt = v.Revision+1, now
 		applied, _ := json.Marshal(v.Applied)
-		_, e = tx.ExecContext(ctx, `UPDATE provider_clusters SET revision=$2,state=$3,applied=$4::jsonb,observed_digest=$5,pending_action=$6,phase=$7,last_error=$8,task_lease_expires_at=NULL,updated_at=$9 WHERE id=$1`, v.ID, v.Revision, string(v.State), applied, v.ObservedDigest, v.PendingAction, v.Phase, v.LastError, now)
+		mutationRaw, _ := json.Marshal(v.TargetNodeMutation)
+		_, e = tx.ExecContext(ctx, `UPDATE provider_clusters SET revision=$2,state=$3,applied=$4::jsonb,observed_digest=$5,pending_action=$6,phase=$7,last_error=$8,task_lease_expires_at=NULL,target_node_mutation=$9::jsonb,updated_at=$10 WHERE id=$1`, v.ID, v.Revision, string(v.State), applied, v.ObservedDigest, v.PendingAction, v.Phase, v.LastError, mutationRaw, now)
 		if e != nil {
 			return e
 		}

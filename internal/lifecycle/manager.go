@@ -209,7 +209,28 @@ func (m *Manager) StartUpgradeRecovery(ctx context.Context, request UpgradeRecov
 	if err != nil {
 		return Run{}, err
 	}
-	executionNode, err := m.prepareStart(ctx)
+	// Reject an invalid source before doing runtime/bundle preparation, then
+	// revalidate it after preparation under the mutation lock. The second
+	// check is the race authority; the first keeps API errors truthful and
+	// avoids touching runtime prerequisites for an ineligible source.
+	m.mu.Lock()
+	initial := m.findLocked(upgradeRunID)
+	if initial == nil {
+		m.mu.Unlock()
+		return Run{}, errors.New("upgrade run was not found")
+	}
+	initialSource := *initial
+	m.mu.Unlock()
+	if initialSource.Action != ActionUpgrade || initialSource.State != StateFailed || initialSource.UpgradePhase != UpgradePhaseRecoveryRequired {
+		return Run{}, errors.New("upgrade recovery requires a failed upgrade in RECOVERY_REQUIRED state")
+	}
+	if initialSource.ProfileID != profileID {
+		return Run{}, fmt.Errorf("upgrade recovery profile %s does not match installed profile %s", initialSource.ProfileID, profileID)
+	}
+	if !safeID(initialSource.BackupID) || !digestImage.MatchString(strings.TrimSpace(initialSource.PreviousImage)) {
+		return Run{}, errors.New("upgrade recovery authority is missing the exact backup or previous digest")
+	}
+	executionNode, bundleDigest, err := m.prepareStart(ctx)
 	if err != nil {
 		return Run{}, err
 	}
@@ -244,7 +265,7 @@ func (m *Manager) StartUpgradeRecovery(ctx context.Context, request UpgradeRecov
 		return Run{}, err
 	}
 	run := Run{
-		Service: source.Service, ProfileID: profileID, ExecutionNode: executionNode, Action: ActionUpgradeRecovery,
+		Service: source.Service, ProfileID: profileID, ExecutionNode: executionNode, BundleDigest: bundleDigest, Action: ActionUpgradeRecovery,
 		BackupID: source.BackupID, PreviousImage: source.PreviousImage, RequestedImage: source.RequestedImage,
 		UpgradeRecoveryPhase: recoveryPhase, SourceUpgradeRunID: source.ID,
 	}
@@ -290,13 +311,31 @@ func (m *Manager) recoveryRetryPhaseLocked(source Run) (UpgradeRecoveryPhase, er
 	return phase, nil
 }
 
-func (m *Manager) prepareStart(ctx context.Context) (string, error) {
-	if m.requireBundleLock {
-		if _, err := bootstrap.InspectBundle(m.bundleDir, true); err != nil {
-			return "", fmt.Errorf("bundle admission: %w", err)
-		}
+func (m *Manager) prepareStart(ctx context.Context) (string, string, error) {
+	_, bundleDigest, err := m.loadBundle()
+	if err != nil {
+		return "", "", fmt.Errorf("bundle admission: %w", err)
 	}
-	return m.resolveExecutionNode(ctx)
+	node, err := m.resolveExecutionNode(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	return node, bundleDigest, nil
+}
+
+func (m *Manager) loadBoundBundle(expectedDigest string) (bootstrap.BundleManifest, error) {
+	expectedDigest = strings.TrimSpace(expectedDigest)
+	if !backupDigest.MatchString(expectedDigest) {
+		return bootstrap.BundleManifest{}, errors.New("durable lifecycle run is missing its accepted bundle digest; automatic replay is forbidden")
+	}
+	bundle, observedDigest, err := m.loadBundle()
+	if err != nil {
+		return bootstrap.BundleManifest{}, err
+	}
+	if observedDigest != expectedDigest {
+		return bootstrap.BundleManifest{}, fmt.Errorf("appliance bundle changed after lifecycle operation admission: accepted %s observed %s", expectedDigest, observedDigest)
+	}
+	return bundle, nil
 }
 
 func (m *Manager) recoveryBlockerLocked(service string) *Run {
@@ -376,11 +415,12 @@ func (m *Manager) enqueueLocked(run Run) (Run, error) {
 }
 
 func (m *Manager) start(ctx context.Context, run Run) (Run, error) {
-	executionNode, err := m.prepareStart(ctx)
+	executionNode, bundleDigest, err := m.prepareStart(ctx)
 	if err != nil {
 		return Run{}, err
 	}
 	run.ExecutionNode = executionNode
+	run.BundleDigest = bundleDigest
 	m.mu.Lock()
 	run, err = m.enqueueLocked(run)
 	m.mu.Unlock()
@@ -455,16 +495,18 @@ func (m *Manager) execute(ctx context.Context, id string) {
 			return
 		}
 	}
-	if _, profileErr := normalizeProfile(run.ProfileID); profileErr != nil {
+	if normalizedService, serviceErr := normalizeService(run.Service); serviceErr != nil || normalizedService != run.Service {
+		err = errors.New("durable lifecycle service is invalid or non-canonical; refusing mutation")
+	} else if _, profileErr := normalizeProfile(run.ProfileID); profileErr != nil {
 		err = fmt.Errorf("durable lifecycle profile is invalid or missing: %w", profileErr)
 	} else if !m.simulation && strings.TrimSpace(run.ExecutionNode) == "" {
 		err = errors.New("durable lifecycle execution node is missing; refusing hostPath mutation after restart")
 	} else {
 		switch run.Action {
 		case ActionBackup:
-			err = m.performBackup(ctx, run.ID, run.Service, run.BackupID, run.ProfileID)
+			err = m.performBackup(ctx, run.ID, run.Service, run.BackupID, run.ProfileID, run.BundleDigest)
 		case ActionRestore:
-			err = m.performRestore(ctx, run.ID, run.Service, run.BackupID, run.ProfileID)
+			err = m.performRestore(ctx, run.ID, run.Service, run.BackupID, run.ProfileID, run.BundleDigest)
 		case ActionUpgrade:
 			run.PreviousImage, err = m.performUpgrade(ctx, id, run)
 		case ActionUpgradeRecovery:
@@ -568,7 +610,7 @@ func (m *Manager) resolveExecutionNode(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("installer host %q is not a registered Kubernetes node", host)
 }
 
-func (m *Manager) performBackup(ctx context.Context, operationID, service, id, profileID string) error {
+func (m *Manager) performBackup(ctx context.Context, operationID, service, id, profileID, bundleDigest string) error {
 	if !safeID(id) {
 		return errors.New("backupId is invalid")
 	}
@@ -586,7 +628,7 @@ func (m *Manager) performBackup(ctx context.Context, operationID, service, id, p
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect existing backup: %w", err)
 	}
-	bundle, _, err := m.loadBundle()
+	bundle, err := m.loadBoundBundle(bundleDigest)
 	if err != nil {
 		return err
 	}
@@ -650,14 +692,14 @@ func (m *Manager) validateBackupForRestore(service, id, profileID string) (Backu
 	return meta, nil
 }
 
-func (m *Manager) restoreBackupWhileQuiesced(ctx context.Context, operationID, service, id, profileID string) error {
+func (m *Manager) restoreBackupWhileQuiesced(ctx context.Context, operationID, service, id, profileID, bundleDigest string) error {
 	if _, err := m.validateBackupForRestore(service, id, profileID); err != nil {
 		return err
 	}
 	if m.simulation {
 		return nil
 	}
-	bundle, _, err := m.loadBundle()
+	bundle, err := m.loadBoundBundle(bundleDigest)
 	if err != nil {
 		return err
 	}
@@ -673,7 +715,10 @@ func (m *Manager) restoreBackupWhileQuiesced(ctx context.Context, operationID, s
 	return nil
 }
 
-func (m *Manager) performRestore(ctx context.Context, operationID, service, id, profileID string) error {
+func (m *Manager) performRestore(ctx context.Context, operationID, service, id, profileID, bundleDigest string) error {
+	if _, err := m.loadBoundBundle(bundleDigest); err != nil {
+		return err
+	}
 	if _, err := m.validateBackupForRestore(service, id, profileID); err != nil {
 		return err
 	}
@@ -684,7 +729,7 @@ func (m *Manager) performRestore(ctx context.Context, operationID, service, id, 
 	if err := m.quiesceWorkload(ctx, operationID, kind, name, service, replicas); err != nil {
 		return err
 	}
-	if err := m.restoreBackupWhileQuiesced(ctx, operationID, service, id, profileID); err != nil {
+	if err := m.restoreBackupWhileQuiesced(ctx, operationID, service, id, profileID, bundleDigest); err != nil {
 		return requireDestructiveRecovery(err)
 	}
 	if err := m.resumeWorkload(ctx, operationID, kind, name, replicas); err != nil {
@@ -726,6 +771,9 @@ func (m *Manager) performUpgradeRecovery(ctx context.Context, id string, run Run
 	if m.simulation {
 		switch run.UpgradeRecoveryPhase {
 		case UpgradeRecoveryPhaseRestorePending:
+			if _, err := m.loadBoundBundle(run.BundleDigest); err != nil {
+				return err
+			}
 			if _, err := m.validateBackupForRestore(run.Service, run.BackupID, run.ProfileID); err != nil {
 				return fmt.Errorf("validate upgrade recovery backup: %w", err)
 			}
@@ -748,6 +796,9 @@ func (m *Manager) performUpgradeRecovery(ctx context.Context, id string, run Run
 	kind, name, replicas := workloadTarget(run.Service, run.ProfileID)
 	options := m.workloadOptions(id, kind, name)
 	if run.UpgradeRecoveryPhase == UpgradeRecoveryPhaseRestorePending {
+		if _, err := m.loadBoundBundle(run.BundleDigest); err != nil {
+			return err
+		}
 		if _, err := m.validateBackupForRestore(run.Service, run.BackupID, run.ProfileID); err != nil {
 			return fmt.Errorf("validate upgrade recovery backup: %w", err)
 		}
@@ -764,7 +815,7 @@ func (m *Manager) performUpgradeRecovery(ctx context.Context, id string, run Run
 		// RESTORE_COMPLETED is persisted while writers are still quiesced. Once
 		// this boundary is durable, reconciliation must never rewind the backup a
 		// second time: the service may have resumed and accepted newer writes.
-		if err = m.restoreBackupWhileQuiesced(ctx, id, run.Service, run.BackupID, run.ProfileID); err != nil {
+		if err = m.restoreBackupWhileQuiesced(ctx, id, run.Service, run.BackupID, run.ProfileID, run.BundleDigest); err != nil {
 			return requireDestructiveRecovery(err)
 		}
 		if err = m.update(id, func(target *Run) { target.UpgradeRecoveryPhase = UpgradeRecoveryPhaseRestoreCompleted }); err != nil {
@@ -826,7 +877,7 @@ func (m *Manager) performUpgrade(ctx context.Context, id string, run Run) (strin
 		previous := run.PreviousImage
 		switch run.UpgradePhase {
 		case UpgradePhaseBackupPending:
-			if err := m.performBackup(ctx, id, run.Service, run.BackupID, run.ProfileID); err != nil {
+			if err := m.performBackup(ctx, id, run.Service, run.BackupID, run.ProfileID, run.BundleDigest); err != nil {
 				return previous, fmt.Errorf("pre-upgrade backup: %w", err)
 			}
 			if previous == "" {
@@ -899,7 +950,7 @@ func (m *Manager) performUpgrade(ctx context.Context, id string, run Run) (strin
 	}
 
 	if run.UpgradePhase == UpgradePhaseBackupPending {
-		if err := m.performBackup(ctx, id, run.Service, run.BackupID, run.ProfileID); err != nil {
+		if err := m.performBackup(ctx, id, run.Service, run.BackupID, run.ProfileID, run.BundleDigest); err != nil {
 			return run.PreviousImage, fmt.Errorf("pre-upgrade backup: %w", err)
 		}
 		kind, name := workload(run.Service)
@@ -1311,18 +1362,20 @@ func (m *Manager) verifyBackupPayload(meta BackupMetadata) error {
 func (m *Manager) update(id string, fn func(*Run)) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if run := m.findLocked(id); run != nil {
-		previousRuns := append([]Run(nil), m.runs...)
-		previousActive := make(map[string]bool, len(m.active))
-		for key, value := range m.active {
-			previousActive[key] = value
-		}
-		fn(run)
-		if err := m.saveLocked(); err != nil {
-			m.runs = previousRuns
-			m.active = previousActive
-			return fmt.Errorf("persist lifecycle operation %s: %w", id, err)
-		}
+	run := m.findLocked(id)
+	if run == nil {
+		return fmt.Errorf("lifecycle operation %s was not found", id)
+	}
+	previousRuns := append([]Run(nil), m.runs...)
+	previousActive := make(map[string]bool, len(m.active))
+	for key, value := range m.active {
+		previousActive[key] = value
+	}
+	fn(run)
+	if err := m.saveLocked(); err != nil {
+		m.runs = previousRuns
+		m.active = previousActive
+		return fmt.Errorf("persist lifecycle operation %s: %w", id, err)
 	}
 	return nil
 }
@@ -1357,6 +1410,33 @@ func (m *Manager) load() error {
 	seenProducedBackups := map[string]struct{}{}
 	recoveryAuthorityByService := map[string]Run{}
 	for _, run := range m.runs {
+		if !safeID(run.ID) {
+			return fmt.Errorf("lifecycle durable state contains invalid run id %q", run.ID)
+		}
+		service, serviceErr := normalizeService(run.Service)
+		if serviceErr != nil || service != run.Service {
+			return fmt.Errorf("lifecycle run %q has invalid service authority %q", run.ID, run.Service)
+		}
+		profile, profileErr := normalizeProfile(run.ProfileID)
+		if profileErr != nil || profile != run.ProfileID {
+			return fmt.Errorf("lifecycle run %q has invalid profile authority %q", run.ID, run.ProfileID)
+		}
+		switch run.Action {
+		case ActionBackup, ActionRestore, ActionUpgrade, ActionUpgradeRecovery:
+		default:
+			return fmt.Errorf("lifecycle run %q has invalid action authority %q", run.ID, run.Action)
+		}
+		switch run.State {
+		case StateQueued, StateRunning, StateSucceeded, StateFailed:
+		default:
+			return fmt.Errorf("lifecycle run %q has invalid state authority %q", run.ID, run.State)
+		}
+		if run.BundleDigest != "" && !backupDigest.MatchString(strings.TrimSpace(run.BundleDigest)) {
+			return fmt.Errorf("lifecycle run %q has invalid accepted bundle digest", run.ID)
+		}
+		if run.BackupID != "" && !safeID(run.BackupID) {
+			return fmt.Errorf("lifecycle run %q has invalid backup authority %q", run.ID, run.BackupID)
+		}
 		if _, exists := seenRunIDs[run.ID]; exists {
 			return fmt.Errorf("duplicate lifecycle run id %q in durable state", run.ID)
 		}

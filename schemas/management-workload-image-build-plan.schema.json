@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/management-workload-image-build-plan.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "authority",
+    "schemaVersion",
+    "releaseVersion",
+    "targetPlatform",
+    "archiveStagingPath",
+    "coreImages",
+    "baseImages",
+    "derivedManifestImageSets",
+    "manifestImageResolutionAuthority",
+    "externalVersionSelectionAuthority",
+    "externalAcquisitionAuthority",
+    "assemblyAuthority",
+    "inventoryAuthority",
+    "importAddressabilityAuthority",
+    "productImageCertificationAuthority"
+  ],
+  "properties": {
+    "authority": {
+      "const": "MANAGEMENT_WORKLOAD_IMAGE_BUILD_PLAN_V5"
+    },
+    "schemaVersion": {
+      "const": 5
+    },
+    "releaseVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "targetPlatform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "architecture"
+      ],
+      "properties": {
+        "os": {
+          "const": "linux"
+        },
+        "architecture": {
+          "const": "amd64"
+        }
+      }
+    },
+    "archiveStagingPath": {
+      "const": "workloads/platform-workloads.oci.tar"
+    },
+    "coreImages": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/coreImage"
+      }
+    },
+    "baseImages": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/baseImage"
+      }
+    },
+    "derivedManifestImageSets": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/derivedSet"
+      }
+    },
+    "assemblyAuthority": {
+      "const": "MANAGEMENT_WORKLOAD_OCI_ASSEMBLY_AUTHORITY_V1"
+    },
+    "inventoryAuthority": {
+      "const": "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_INVENTORY_V2"
+    },
+    "importAddressabilityAuthority": {
+      "const": "MANAGEMENT_WORKLOAD_OCI_IMPORT_ADDRESSABILITY_V2"
+    },
+    "productImageCertificationAuthority": {
+      "const": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1"
+    },
+    "manifestImageResolutionAuthority": {
+      "const": "MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_V1"
+    },
+    "externalVersionSelectionAuthority": {
+      "const": "MANAGEMENT_WORKLOAD_EXTERNAL_VERSION_SELECTION_V1"
+    },
+    "externalAcquisitionAuthority": {
+      "const": "MANAGEMENT_WORKLOAD_EXTERNAL_IMAGE_ACQUISITION_V2"
+    }
+  },
+  "$defs": {
+    "role": {
+      "enum": [
+        "postgresql",
+        "forgejo",
+        "zot",
+        "keycloak",
+        "platform-api",
+        "maintenance",
+        "platform-agent",
+        "platform-probe"
+      ]
+    },
+    "baseRole": {
+      "enum": [
+        "api-runtime-base",
+        "static-runtime-base",
+        "maintenance-toolchain-base"
+      ]
+    },
+    "pending": {
+      "const": "pending"
+    },
+    "coreImage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "ownership",
+            "repository",
+            "registryEndpoint",
+            "registryRepository",
+            "version",
+            "tag",
+            "selectionChannel",
+            "selectionEvidenceURL",
+            "state",
+            "blocker"
+          ],
+          "properties": {
+            "role": {
+              "enum": [
+                "postgresql",
+                "forgejo",
+                "zot",
+                "keycloak"
+              ]
+            },
+            "ownership": {
+              "const": "external"
+            },
+            "repository": {
+              "type": "string",
+              "pattern": "^[a-z0-9.-]+/[A-Za-z0-9._/-]+$"
+            },
+            "state": {
+              "$ref": "#/$defs/pending"
+            },
+            "blocker": {
+              "type": "string",
+              "minLength": 1
+            },
+            "registryEndpoint": {
+              "type": "string",
+              "pattern": "^[a-z0-9.-]+(?::[0-9]+)?$"
+            },
+            "registryRepository": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._/-]+$"
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            },
+            "tag": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$",
+              "not": {
+                "const": "latest"
+              }
+            },
+            "selectionChannel": {
+              "enum": [
+                "postgresql-17-patch",
+                "forgejo-lts",
+                "zot-stable",
+                "keycloak-current-security"
+              ]
+            },
+            "selectionEvidenceURL": {
+              "type": "string",
+              "pattern": "^https://[^ ]+$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "ownership",
+            "repository",
+            "state",
+            "containerRecipe",
+            "baseImageRole",
+            "blocker"
+          ],
+          "properties": {
+            "role": {
+              "enum": [
+                "platform-api",
+                "maintenance",
+                "platform-agent",
+                "platform-probe"
+              ]
+            },
+            "ownership": {
+              "const": "product"
+            },
+            "repository": {
+              "type": "string",
+              "pattern": "^[a-z0-9.-]+/[A-Za-z0-9._/-]+$"
+            },
+            "state": {
+              "$ref": "#/$defs/pending"
+            },
+            "sourceReleaseMember": {
+              "type": "string",
+              "pattern": "^bin/linux-amd64/platform-(api|agent|probe)$"
+            },
+            "containerRecipe": {
+              "type": "string",
+              "pattern": "^deploy/images/Dockerfile\\.[A-Za-z0-9.-]+$"
+            },
+            "baseImageRole": {
+              "$ref": "#/$defs/baseRole"
+            },
+            "blocker": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "baseImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "state",
+        "blocker"
+      ],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/baseRole"
+        },
+        "state": {
+          "$ref": "#/$defs/pending"
+        },
+        "blocker": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "derivedSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceAuthority",
+        "manifestPath",
+        "sourceManifestSha256",
+        "sourceManifestBytes",
+        "resolvedManifestPath",
+        "resolutionLockPath",
+        "state",
+        "blocker"
+      ],
+      "properties": {
+        "sourceAuthority": {
+          "enum": [
+            "argocd-install-manifest",
+            "cloudnative-pg-install-manifest",
+            "replicated-storage-install-manifest"
+          ]
+        },
+        "manifestPath": {
+          "enum": [
+            "manifests/argocd-install.yaml",
+            "manifests/cloudnative-pg-install.yaml",
+            "manifests/replicated-storage-install.yaml"
+          ]
+        },
+        "sourceManifestSha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "sourceManifestBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "resolvedManifestPath": {
+          "type": "string",
+          "pattern": "^runtime-manifests/[A-Za-z0-9._-]+\\.yaml$"
+        },
+        "resolutionLockPath": {
+          "type": "string",
+          "pattern": "^runtime-manifests/[A-Za-z0-9._-]+\\.image-lock\\.json$"
+        },
+        "state": {
+          "$ref": "#/$defs/pending"
+        },
+        "blocker": {
+          "const": "EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING"
+        }
+      }
+    }
+  }
+}

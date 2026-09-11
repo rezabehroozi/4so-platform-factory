@@ -59,18 +59,20 @@ func (s *Server) listRecoveryCheckpoints(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-	v, err := s.store.ListRecoveryCheckpoints(r.Context(), projectID, clusterID)
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.RecoveryCheckpoint, error)
+	if pager, ok := s.store.(recoveryCheckpointPageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.RecoveryCheckpoint, error) {
+			return pager.ListRecoveryCheckpointsPage(r.Context(), ids, all, clusterID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.RecoveryCheckpoint, error) {
+		return s.store.ListRecoveryCheckpoints(r.Context(), projectID, clusterID)
+	}, page, func(item controlplane.RecoveryCheckpoint) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	v = filterProjectScoped(v, allowed, all, func(item controlplane.RecoveryCheckpoint) string { return item.ProjectID })
-	writeJSON(w, 200, v)
+	writeOperatorCollectionJSON(w, r, 200, v)
 }
 
 func (s *Server) getRecoveryCheckpoint(w http.ResponseWriter, r *http.Request) {

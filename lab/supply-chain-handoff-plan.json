@@ -1,0 +1,797 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "SupplyChainHandoffPlan",
+  "metadata": {
+    "name": "platform-factory-pre-certification-supply-chain-handoff"
+  },
+  "spec": {
+    "authority": "SUPPLY_CHAIN_HANDOFF_V1",
+    "componentAcquisition": {
+      "alreadySourceLocked": [
+        {
+          "component": "gateway-api",
+          "path": "catalog/runtime/gateway-api/1.5.1/source-lock.json",
+          "release": "1.5.1",
+          "sha256": "6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960"
+        },
+        {
+          "component": "secure-namespace-foundation",
+          "path": "catalog/runtime/secure-namespace-foundation/1.0.0/source-lock.json",
+          "release": "1.0.0",
+          "sha256": "155fa19222df71b320488177d1a7c8df9ab8d57b2fbe765e7483309972de77e2"
+        },
+        {
+          "component": "snapshot-controller",
+          "path": "catalog/runtime/snapshot-controller/8.5.0/source-lock.json",
+          "release": "8.5.0",
+          "sha256": "8d2920686614f056aff9eaab522aee634b2ab392efa1258d81661de584873067"
+        }
+      ],
+      "ready": [
+        {
+          "component": "alloy",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "1.11.0",
+          "source": "https://grafana.github.io/helm-charts",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "1.11.0"
+        },
+        {
+          "component": "argocd",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "10.2.3",
+          "source": "https://argoproj.github.io/argo-helm",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "10.2.3"
+        },
+        {
+          "component": "capsule",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "0.13.11",
+          "source": "oci://ghcr.io/projectcapsule/charts/capsule",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "0.13.11"
+        },
+        {
+          "component": "ceph-csi-operator",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "1.0.4",
+          "source": "https://ceph.github.io/ceph-csi-operator/",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "1.0.4"
+        },
+        {
+          "component": "ceph-csi-rbd",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "1.0.4",
+          "source": "https://ceph.github.io/ceph-csi-operator-charts",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "1.0.4"
+        },
+        {
+          "component": "cert-manager",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "1.21.1",
+          "source": "https://charts.jetstack.io",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "v1.21.1"
+        },
+        {
+          "component": "cilium",
+          "runtimeStatus": "dependency-transition-required",
+          "selectedVersion": "1.20.1",
+          "source": "https://helm.cilium.io",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "1.20.1"
+        },
+        {
+          "component": "external-dns",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "1.21.1",
+          "source": "https://kubernetes-sigs.github.io/external-dns/",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "1.21.1"
+        },
+        {
+          "component": "external-secrets",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "2.8.0",
+          "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "2.8.0"
+        },
+        {
+          "component": "grafana",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "12.10.0",
+          "source": "https://grafana-community.github.io/helm-charts",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "12.10.0"
+        },
+        {
+          "component": "kgateway",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "2.4.1",
+          "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "v2.4.1"
+        },
+        {
+          "component": "kyverno",
+          "runtimeStatus": "review-required",
+          "selectedVersion": "3.8.2",
+          "source": "https://kyverno.github.io/kyverno/",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "3.8.2"
+        },
+        {
+          "component": "loki",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "18.12.1",
+          "source": "https://grafana-community.github.io/helm-charts",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "18.12.1"
+        },
+        {
+          "component": "metallb",
+          "runtimeStatus": "review-required",
+          "selectedVersion": "0.16.1",
+          "source": "https://metallb.github.io/metallb",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "0.16.1"
+        },
+        {
+          "component": "tetragon",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "1.7.0",
+          "source": "https://helm.cilium.io",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "1.7.0"
+        },
+        {
+          "component": "velero",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "12.1.0",
+          "source": "https://vmware-tanzu.github.io/helm-charts/",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "12.1.0"
+        },
+        {
+          "component": "victoria-metrics",
+          "runtimeStatus": "eligible-after-source-resolution",
+          "selectedVersion": "0.90.2",
+          "source": "https://victoriametrics.github.io/helm-charts/",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "0.90.2"
+        }
+      ],
+      "reviewBlocked": [],
+      "runtimeHolds": [
+        {
+          "component": "cilium",
+          "runtimeStatus": "dependency-transition-required",
+          "selectedVersion": "1.20.1",
+          "source": "https://helm.cilium.io",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "1.20.1"
+        },
+        {
+          "component": "kyverno",
+          "runtimeStatus": "review-required",
+          "selectedVersion": "3.8.2",
+          "source": "https://kyverno.github.io/kyverno/",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "3.8.2"
+        },
+        {
+          "component": "metallb",
+          "runtimeStatus": "review-required",
+          "selectedVersion": "0.16.1",
+          "source": "https://metallb.github.io/metallb",
+          "status": "ready-for-acquisition",
+          "upstreamVersion": "0.16.1"
+        }
+      ],
+      "stageManifestPath": "components/stage-manifest.json"
+    },
+    "componentUpgradePairRequirements": [
+      {
+        "component": "alloy",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "1.11.0",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "argocd",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "10.2.3",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "capsule",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "0.13.11",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "ceph-csi-operator",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "1.0.4",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "ceph-csi-rbd",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "1.0.4",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "cert-manager",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "1.21.1",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "cilium",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "1.20.1",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "external-dns",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "1.21.1",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "external-secrets",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "2.8.0",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "gateway-api",
+        "pairState": "target-only",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "1.5.1",
+        "targetSourceLockPresent": true
+      },
+      {
+        "component": "grafana",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "12.10.0",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "kgateway",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "2.4.1",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "kyverno",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "3.8.2",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "loki",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "18.12.1",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "metallb",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "0.16.1",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "secure-namespace-foundation",
+        "pairState": "install-only-first-product-release",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "historical-version-fabrication-forbidden",
+        "targetRelease": "1.0.0",
+        "targetSourceLockPresent": true
+      },
+      {
+        "component": "snapshot-controller",
+        "pairState": "target-only",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "8.5.0",
+        "targetSourceLockPresent": true
+      },
+      {
+        "component": "tetragon",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "1.7.0",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "velero",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "12.1.0",
+        "targetSourceLockPresent": false
+      },
+      {
+        "component": "victoria-metrics",
+        "pairState": "target-source-pending",
+        "previousExactSourceLocks": [],
+        "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
+        "targetRelease": "0.90.2",
+        "targetSourceLockPresent": false
+      }
+    ],
+    "componentUpgradeSourceAdmission": {
+      "admitted": [
+        {
+          "component": "alloy",
+          "previousVersion": "1.10.1",
+          "source": "https://grafana.github.io/helm-charts",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "1.11.0"
+        },
+        {
+          "component": "argocd",
+          "previousVersion": "10.2.2",
+          "source": "https://argoproj.github.io/argo-helm",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "10.2.3"
+        },
+        {
+          "component": "capsule",
+          "previousVersion": "0.13.10",
+          "source": "oci://ghcr.io/projectcapsule/charts/capsule",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "0.13.11"
+        },
+        {
+          "component": "ceph-csi-operator",
+          "previousVersion": "1.0.3",
+          "source": "https://ceph.github.io/ceph-csi-operator/",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "1.0.4"
+        },
+        {
+          "component": "ceph-csi-rbd",
+          "previousVersion": "1.0.3",
+          "source": "https://ceph.github.io/ceph-csi-operator-charts",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "1.0.4"
+        },
+        {
+          "component": "cert-manager",
+          "previousVersion": "1.21.0",
+          "source": "https://charts.jetstack.io",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "1.21.1"
+        },
+        {
+          "component": "cilium",
+          "previousVersion": "1.20.0",
+          "source": "https://helm.cilium.io",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "1.20.1"
+        },
+        {
+          "component": "external-dns",
+          "previousVersion": "1.21.0",
+          "source": "https://kubernetes-sigs.github.io/external-dns/",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "1.21.1"
+        },
+        {
+          "component": "external-secrets",
+          "previousVersion": "2.7.0",
+          "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "2.8.0"
+        },
+        {
+          "component": "gateway-api",
+          "previousVersion": "1.5.0",
+          "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "1.5.1"
+        },
+        {
+          "component": "grafana",
+          "previousVersion": "12.9.0",
+          "source": "https://grafana-community.github.io/helm-charts",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "12.10.0"
+        },
+        {
+          "component": "kgateway",
+          "previousVersion": "2.4.0",
+          "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "2.4.1"
+        },
+        {
+          "component": "kyverno",
+          "previousVersion": "3.8.1",
+          "source": "https://kyverno.github.io/kyverno/",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "3.8.2"
+        },
+        {
+          "component": "loki",
+          "previousVersion": "18.12.0",
+          "source": "https://grafana-community.github.io/helm-charts",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "18.12.1"
+        },
+        {
+          "component": "metallb",
+          "previousVersion": "0.16.0",
+          "source": "https://metallb.github.io/metallb",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "0.16.1"
+        },
+        {
+          "component": "snapshot-controller",
+          "previousVersion": "8.4.0",
+          "source": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.4.0",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "8.5.0"
+        },
+        {
+          "component": "tetragon",
+          "previousVersion": "1.6.1",
+          "source": "https://helm.cilium.io",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "1.7.0"
+        },
+        {
+          "component": "velero",
+          "previousVersion": "12.0.3",
+          "source": "https://vmware-tanzu.github.io/helm-charts/",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "12.1.0"
+        },
+        {
+          "component": "victoria-metrics",
+          "previousVersion": "0.90.1",
+          "source": "https://victoriametrics.github.io/helm-charts/",
+          "status": "admitted-for-acquisition",
+          "targetRelease": "0.90.2"
+        }
+      ],
+      "authority": "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1",
+      "installOnlyFirstProductRelease": [
+        {
+          "component": "secure-namespace-foundation",
+          "previousVersion": "",
+          "source": "",
+          "status": "install-only-first-product-release",
+          "targetRelease": "1.0.0"
+        }
+      ],
+      "reviewRequired": []
+    },
+    "historicalComponentAcquisition": {
+      "alreadyHistoricalSourceLocked": [],
+      "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
+      "helmReady": [],
+      "installOnlyFirstProductRelease": [
+        {
+          "component": "secure-namespace-foundation",
+          "targetRelease": "1.0.0"
+        }
+      ],
+      "stageManifestPath": "historical/stage-manifest.json",
+      "taggedSourceSetReady": [
+        {
+          "component": "gateway-api",
+          "previousVersion": "1.5.0",
+          "recipeCommitSHA": "3797b631d20f9ff4e2b4571f62d91d84a1fbdf5a",
+          "recipePath": "catalog/tagged-source-recipes/gateway-api/1.5.0.json",
+          "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
+          "targetRelease": "1.5.1"
+        },
+        {
+          "component": "snapshot-controller",
+          "previousVersion": "8.4.0",
+          "recipeCommitSHA": "f21cb02763e7cd6a7fc84846f106b83119b5371d",
+          "recipePath": "catalog/tagged-source-recipes/snapshot-controller/8.4.0.json",
+          "source": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.4.0",
+          "targetRelease": "8.5.0"
+        }
+      ],
+      "waitingCurrentSource": [
+        {
+          "component": "alloy",
+          "previousVersion": "1.10.1",
+          "source": "https://grafana.github.io/helm-charts",
+          "targetRelease": "1.11.0"
+        },
+        {
+          "component": "argocd",
+          "previousVersion": "10.2.2",
+          "source": "https://argoproj.github.io/argo-helm",
+          "targetRelease": "10.2.3"
+        },
+        {
+          "component": "capsule",
+          "previousVersion": "0.13.10",
+          "source": "oci://ghcr.io/projectcapsule/charts/capsule",
+          "targetRelease": "0.13.11"
+        },
+        {
+          "component": "ceph-csi-operator",
+          "previousVersion": "1.0.3",
+          "source": "https://ceph.github.io/ceph-csi-operator/",
+          "targetRelease": "1.0.4"
+        },
+        {
+          "component": "ceph-csi-rbd",
+          "previousVersion": "1.0.3",
+          "source": "https://ceph.github.io/ceph-csi-operator-charts",
+          "targetRelease": "1.0.4"
+        },
+        {
+          "component": "cert-manager",
+          "previousVersion": "1.21.0",
+          "source": "https://charts.jetstack.io",
+          "targetRelease": "1.21.1"
+        },
+        {
+          "component": "cilium",
+          "previousVersion": "1.20.0",
+          "source": "https://helm.cilium.io",
+          "targetRelease": "1.20.1"
+        },
+        {
+          "component": "external-dns",
+          "previousVersion": "1.21.0",
+          "source": "https://kubernetes-sigs.github.io/external-dns/",
+          "targetRelease": "1.21.1"
+        },
+        {
+          "component": "external-secrets",
+          "previousVersion": "2.7.0",
+          "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
+          "targetRelease": "2.8.0"
+        },
+        {
+          "component": "grafana",
+          "previousVersion": "12.9.0",
+          "source": "https://grafana-community.github.io/helm-charts",
+          "targetRelease": "12.10.0"
+        },
+        {
+          "component": "kgateway",
+          "previousVersion": "2.4.0",
+          "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+          "targetRelease": "2.4.1"
+        },
+        {
+          "component": "kyverno",
+          "previousVersion": "3.8.1",
+          "source": "https://kyverno.github.io/kyverno/",
+          "targetRelease": "3.8.2"
+        },
+        {
+          "component": "loki",
+          "previousVersion": "18.12.0",
+          "source": "https://grafana-community.github.io/helm-charts",
+          "targetRelease": "18.12.1"
+        },
+        {
+          "component": "metallb",
+          "previousVersion": "0.16.0",
+          "source": "https://metallb.github.io/metallb",
+          "targetRelease": "0.16.1"
+        },
+        {
+          "component": "tetragon",
+          "previousVersion": "1.6.1",
+          "source": "https://helm.cilium.io",
+          "targetRelease": "1.7.0"
+        },
+        {
+          "component": "velero",
+          "previousVersion": "12.0.3",
+          "source": "https://vmware-tanzu.github.io/helm-charts/",
+          "targetRelease": "12.1.0"
+        },
+        {
+          "component": "victoria-metrics",
+          "previousVersion": "0.90.1",
+          "source": "https://victoriametrics.github.io/helm-charts/",
+          "targetRelease": "0.90.2"
+        }
+      ]
+    },
+    "managementWorkloads": {
+      "archiveStagingPath": "workloads/platform-workloads.oci.tar",
+      "externalImages": [
+        {
+          "layoutPath": "management/external/forgejo/layout",
+          "lockPath": "management/external/forgejo/acquisition-lock.json",
+          "repository": "codeberg.org/forgejo/forgejo",
+          "role": "forgejo",
+          "selectionChannel": "forgejo-lts",
+          "selectionEvidenceURL": "https://forgejo.org/releases/",
+          "tag": "15.0.7",
+          "version": "15.0.7"
+        },
+        {
+          "layoutPath": "management/external/keycloak/layout",
+          "lockPath": "management/external/keycloak/acquisition-lock.json",
+          "repository": "quay.io/keycloak/keycloak",
+          "role": "keycloak",
+          "selectionChannel": "keycloak-current-security",
+          "selectionEvidenceURL": "https://www.keycloak.org/2026/08/keycloak-2673-released",
+          "tag": "26.7.3",
+          "version": "26.7.3"
+        },
+        {
+          "layoutPath": "management/external/postgresql/layout",
+          "lockPath": "management/external/postgresql/acquisition-lock.json",
+          "repository": "docker.io/library/postgres",
+          "role": "postgresql",
+          "selectionChannel": "postgresql-17-patch",
+          "selectionEvidenceURL": "https://www.postgresql.org/docs/17/release-17-11.html",
+          "tag": "17.11-bookworm",
+          "version": "17.11"
+        },
+        {
+          "layoutPath": "management/external/zot/layout",
+          "lockPath": "management/external/zot/acquisition-lock.json",
+          "repository": "ghcr.io/project-zot/zot-linux-amd64",
+          "role": "zot",
+          "selectionChannel": "zot-stable",
+          "selectionEvidenceURL": "https://github.com/project-zot/zot/releases/tag/v2.1.20",
+          "tag": "v2.1.20",
+          "version": "2.1.20"
+        }
+      ],
+      "manifestImageResolution": [
+        {
+          "manifestPath": "manifests/argocd-install.yaml",
+          "resolutionLockPath": "runtime-manifests/argocd-install.image-lock.json",
+          "resolvedManifestPath": "runtime-manifests/argocd-install.yaml",
+          "sourceAuthority": "argocd-install-manifest",
+          "sourceManifestBytes": 1917766,
+          "sourceManifestSha256": "sha256:a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe",
+          "stagedResolutionPath": "management/manifests/argocd-install-manifest.resolution.json"
+        },
+        {
+          "manifestPath": "manifests/cloudnative-pg-install.yaml",
+          "resolutionLockPath": "runtime-manifests/cloudnative-pg-install.image-lock.json",
+          "resolvedManifestPath": "runtime-manifests/cloudnative-pg-install.yaml",
+          "sourceAuthority": "cloudnative-pg-install-manifest",
+          "sourceManifestBytes": 1262410,
+          "sourceManifestSha256": "sha256:f8bede43fe4ee0d478c2355b204a36876b2ae4faac60f2a9452280b293da3b88",
+          "stagedResolutionPath": "management/manifests/cloudnative-pg-install-manifest.resolution.json"
+        },
+        {
+          "manifestPath": "manifests/replicated-storage-install.yaml",
+          "resolutionLockPath": "runtime-manifests/replicated-storage-install.image-lock.json",
+          "resolvedManifestPath": "runtime-manifests/replicated-storage-install.yaml",
+          "sourceAuthority": "replicated-storage-install-manifest",
+          "sourceManifestBytes": 207054,
+          "sourceManifestSha256": "sha256:41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd",
+          "stagedResolutionPath": "management/manifests/replicated-storage-install-manifest.resolution.json"
+        }
+      ],
+      "productImages": [
+        {
+          "baseImageRole": "maintenance-toolchain-base",
+          "containerRecipe": "deploy/images/Dockerfile.maintenance",
+          "repository": "platform.4so.local/management/maintenance",
+          "role": "maintenance",
+          "sourceReleaseMember": "",
+          "state": "pending"
+        },
+        {
+          "baseImageRole": "static-runtime-base",
+          "containerRecipe": "deploy/images/Dockerfile.agent-release",
+          "repository": "platform.4so.local/management/platform-agent",
+          "role": "platform-agent",
+          "sourceReleaseMember": "bin/linux-amd64/platform-agent",
+          "state": "pending"
+        },
+        {
+          "baseImageRole": "api-runtime-base",
+          "containerRecipe": "deploy/images/Dockerfile.api-release",
+          "repository": "platform.4so.local/management/platform-api",
+          "role": "platform-api",
+          "sourceReleaseMember": "bin/linux-amd64/platform-api",
+          "state": "pending"
+        },
+        {
+          "baseImageRole": "static-runtime-base",
+          "containerRecipe": "deploy/images/Dockerfile.probe-release",
+          "repository": "platform.4so.local/management/platform-probe",
+          "role": "platform-probe",
+          "sourceReleaseMember": "bin/linux-amd64/platform-probe",
+          "state": "pending"
+        }
+      ]
+    },
+    "openBlockers": [
+      "COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING",
+      "COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING",
+      "COMPONENT_SOURCE_ACQUISITION_PENDING",
+      "MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING",
+      "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING",
+      "RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING",
+      "SOURCE_LOCKS_PENDING",
+      "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING"
+    ],
+    "releaseToolchain": {
+      "admissionStatus": "blocked",
+      "archiveFile": "go1.27.1.linux-amd64.tar.gz",
+      "archiveSha256": "63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445",
+      "archiveSize": 70553950,
+      "archiveURL": "https://go.dev/dl/go1.27.1.linux-amd64.tar.gz",
+      "goarch": "amd64",
+      "goos": "linux",
+      "installPath": "vendor/toolchains/go1.27.1.linux-amd64.tar.gz",
+      "stagePath": "toolchain/go1.27.1.linux-amd64.tar.gz",
+      "version": "go1.27.1"
+    },
+    "releaseVersion": "0.0.359",
+    "runtimeDependencyTransition": {
+      "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
+      "ciliumTargetRelease": "1.20.1",
+      "gatewayTargetRelease": "1.6.1",
+      "kgatewayTargetRelease": "2.4.1",
+      "status": "acquisition-pending"
+    },
+    "schemaVersion": 1,
+    "truthModel": {
+      "canonicalAuthorities": [
+        "catalog/components/*",
+        "catalog/upstream-admission.json",
+        "catalog/runtime/*/*/source-lock.json",
+        "lab/management-workload-image-build-plan.json",
+        "lab/release-build-toolchain-lock.json",
+        "catalog/component-upgrade-source-admission.json",
+        "catalog/tagged-source-recipes/*",
+        "catalog/runtime-dependency-transition.json"
+      ],
+      "derivedEvidenceOnly": true,
+      "physicalPassInferenceForbidden": true,
+      "stagingNeverPromotesRuntimeCertification": true,
+      "stagingNeverPromotesSourceResolution": true
+    }
+  }
+}

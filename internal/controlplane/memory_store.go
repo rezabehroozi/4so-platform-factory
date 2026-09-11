@@ -24,8 +24,17 @@ type MemoryStore struct {
 	securityAudit                []SecurityAuditEvent
 	serviceAccounts              map[string]ServiceAccount
 	apiTokens                    map[string]APIToken
+	mcpTrustedClients            map[string]MCPTrustedClient
+	mcpDelegationGrants          map[string]MCPDelegationGrant
+	mcpControlJobs               map[string]MCPControlJob
+	mcpControlJobIdempotency     map[string]string
 	projects                     map[string]Project
 	blueprintOverlays            map[string]BlueprintOverlay
+	variableSchemas              map[string]VariableSchema
+	platformPolicySets           map[string]PlatformPolicySet
+	platformTemplates            map[string]PlatformTemplate
+	workspaces                   map[string]Workspace
+	workspaceBindings            map[string]WorkspaceBinding
 	revisions                    map[string]BlueprintRevision
 	blueprintReleases            map[string]BlueprintRelease
 	catalogTrustKeys             map[string]CatalogTrustKey
@@ -58,6 +67,8 @@ type MemoryStore struct {
 	baselineDeployments          map[string]BaselineDeployment
 	runtimeVerifications         map[string]RuntimeVerification
 	runtimeCertifications        map[string]RuntimeCertificationRun
+	backupPolicies               map[string]BackupPolicy
+	dataProtectionRuns           map[string]DataProtectionRun
 	recoveryCheckpoints          map[string]RecoveryCheckpoint
 	fleetGroups                  map[string]FleetGroup
 	gitCredentials               map[string]GitCredential
@@ -71,9 +82,20 @@ type MemoryStore struct {
 	tenants                      map[string]TenantEnvironment
 	providerProfiles             map[string]ProviderProfile
 	providerClusters             map[string]ProviderCluster
+	aiExecutionClaims            map[string]AIExecutionClaim
 	aiRuns                       map[string]AIRun
 	marketplaceRecommendations   map[string]MarketplaceRecommendation
 	runtimeClosureCampaigns      map[string]RuntimeClosureCampaign
+	complianceProfiles           map[string]ComplianceProfile
+	complianceScanRuns           map[string]ComplianceScanRun
+	complianceFindings           map[string]ComplianceFindingRecord
+	complianceWaivers            map[string]ComplianceWaiver
+	samlBrokers                  map[string]SAMLBroker
+	identityAdminJobs            map[string]IdentityAdminJob
+	operationRequestPayloads     map[string]OperationRequestPayload
+	finOpsRateCards              map[string]FinOpsRateCard
+	finOpsUsageMeasurements      map[string]FinOpsUsageMeasurement
+	finOpsCapacityObservations   map[string]FinOpsCapacityObservation
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -89,12 +111,12 @@ func NewMemoryStoreWith(now func() time.Time, id func(string) string) *MemorySto
 	}
 	return &MemoryStore{
 		now: now, id: id,
-		organizations: map[string]Organization{}, organizationMemberships: map[string]OrganizationMembership{}, oidcGroupMappings: map[string]OIDCGroupMapping{}, securityAudit: []SecurityAuditEvent{}, serviceAccounts: map[string]ServiceAccount{}, apiTokens: map[string]APIToken{}, projects: map[string]Project{}, blueprintOverlays: map[string]BlueprintOverlay{},
+		organizations: map[string]Organization{}, organizationMemberships: map[string]OrganizationMembership{}, oidcGroupMappings: map[string]OIDCGroupMapping{}, securityAudit: []SecurityAuditEvent{}, serviceAccounts: map[string]ServiceAccount{}, apiTokens: map[string]APIToken{}, mcpTrustedClients: map[string]MCPTrustedClient{}, mcpDelegationGrants: map[string]MCPDelegationGrant{}, mcpControlJobs: map[string]MCPControlJob{}, mcpControlJobIdempotency: map[string]string{}, projects: map[string]Project{}, blueprintOverlays: map[string]BlueprintOverlay{}, variableSchemas: map[string]VariableSchema{}, platformPolicySets: map[string]PlatformPolicySet{}, platformTemplates: map[string]PlatformTemplate{}, workspaces: map[string]Workspace{}, workspaceBindings: map[string]WorkspaceBinding{},
 		revisions: map[string]BlueprintRevision{}, blueprintReleases: map[string]BlueprintRelease{}, catalogTrustKeys: map[string]CatalogTrustKey{}, catalogRevisions: map[string]CatalogRevision{}, catalogReleases: map[string]CatalogRelease{}, assignments: map[string]Assignment{},
 		operations: map[string]Operation{}, steps: map[string]OperationStep{}, stepTraces: map[string]OperationStepTrace{}, compensationSteps: map[string]OperationCompensationStep{}, outbox: map[string]OutboxEvent{}, notificationDestinations: map[string]NotificationDestination{}, notificationRoutes: map[string]NotificationRoute{}, notificationEvents: map[string]NotificationEvent{}, notificationDeliveries: map[string]NotificationDelivery{}, notificationAttempts: map[string]NotificationDeliveryAttempt{},
 		evidence: map[string]EvidenceMetadata{}, evidencePayloads: map[string][]byte{}, idempotency: map[string]string{},
-		clusterImports: map[string]ClusterImport{}, managedClusters: map[string]ManagedCluster{}, clusterMaintenanceProfiles: map[string]ClusterMaintenanceProfile{}, clusterMaintenanceWindows: map[string]ClusterMaintenanceWindow{}, clusterMaintenanceRuns: map[string]ClusterMaintenanceRun{}, agentCertificates: map[string]AgentCertificate{}, clusterInventories: map[string]ClusterInventory{}, baselineDeployments: map[string]BaselineDeployment{}, runtimeVerifications: map[string]RuntimeVerification{}, runtimeCertifications: map[string]RuntimeCertificationRun{}, recoveryCheckpoints: map[string]RecoveryCheckpoint{}, fleetGroups: map[string]FleetGroup{}, gitCredentials: map[string]GitCredential{}, gitProviders: map[string]GitProvider{}, gitPullRequests: map[string]GitPullRequest{}, managedGitRevisions: map[string]ManagedGitRevision{}, driftScans: map[string]DriftScan{}, upgradeCampaigns: map[string]UpgradeCampaign{},
-		entitlements: map[string]Entitlement{}, oemProfiles: map[string]OEMProfile{}, tenants: map[string]TenantEnvironment{}, providerProfiles: map[string]ProviderProfile{}, providerClusters: map[string]ProviderCluster{}, aiRuns: map[string]AIRun{}, marketplaceRecommendations: map[string]MarketplaceRecommendation{}, runtimeClosureCampaigns: map[string]RuntimeClosureCampaign{},
+		clusterImports: map[string]ClusterImport{}, managedClusters: map[string]ManagedCluster{}, clusterMaintenanceProfiles: map[string]ClusterMaintenanceProfile{}, clusterMaintenanceWindows: map[string]ClusterMaintenanceWindow{}, clusterMaintenanceRuns: map[string]ClusterMaintenanceRun{}, agentCertificates: map[string]AgentCertificate{}, clusterInventories: map[string]ClusterInventory{}, baselineDeployments: map[string]BaselineDeployment{}, runtimeVerifications: map[string]RuntimeVerification{}, runtimeCertifications: map[string]RuntimeCertificationRun{}, backupPolicies: map[string]BackupPolicy{}, dataProtectionRuns: map[string]DataProtectionRun{}, recoveryCheckpoints: map[string]RecoveryCheckpoint{}, fleetGroups: map[string]FleetGroup{}, gitCredentials: map[string]GitCredential{}, gitProviders: map[string]GitProvider{}, gitPullRequests: map[string]GitPullRequest{}, managedGitRevisions: map[string]ManagedGitRevision{}, driftScans: map[string]DriftScan{}, upgradeCampaigns: map[string]UpgradeCampaign{},
+		entitlements: map[string]Entitlement{}, oemProfiles: map[string]OEMProfile{}, tenants: map[string]TenantEnvironment{}, providerProfiles: map[string]ProviderProfile{}, providerClusters: map[string]ProviderCluster{}, aiExecutionClaims: map[string]AIExecutionClaim{}, aiRuns: map[string]AIRun{}, marketplaceRecommendations: map[string]MarketplaceRecommendation{}, runtimeClosureCampaigns: map[string]RuntimeClosureCampaign{}, complianceProfiles: map[string]ComplianceProfile{}, complianceScanRuns: map[string]ComplianceScanRun{}, complianceFindings: map[string]ComplianceFindingRecord{}, complianceWaivers: map[string]ComplianceWaiver{}, samlBrokers: map[string]SAMLBroker{}, identityAdminJobs: map[string]IdentityAdminJob{}, operationRequestPayloads: map[string]OperationRequestPayload{}, finOpsRateCards: map[string]FinOpsRateCard{}, finOpsUsageMeasurements: map[string]FinOpsUsageMeasurement{}, finOpsCapacityObservations: map[string]FinOpsCapacityObservation{},
 	}
 }
 
@@ -389,6 +411,334 @@ func (s *MemoryStore) RevokeOrganizationMembership(_ context.Context, organizati
 	s.appendAuditLocked(actor, "organization_membership.revoked", "organizationMembership", id, current.Revision, map[string]any{"organizationId": organizationID, "subject": subject})
 	s.appendOutboxLocked("organizationMembership", id, "organization_membership.revoked", current)
 	return current, nil
+}
+
+func (s *MemoryStore) CreateVariableSchema(_ context.Context, schema VariableSchema, actor string) (VariableSchema, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.projects[strings.TrimSpace(schema.ProjectID)]; !ok {
+		return VariableSchema{}, ErrNotFound
+	}
+	var err error
+	schema, err = NormalizeVariableSchema(schema)
+	if err != nil {
+		return VariableSchema{}, err
+	}
+	for _, existing := range s.variableSchemas {
+		if existing.ProjectID == schema.ProjectID && existing.Name == schema.Name && existing.Version == schema.Version {
+			return VariableSchema{}, ErrDuplicateName
+		}
+	}
+	now := nowUTC(s.now)
+	schema.ResourceMeta = ResourceMeta{ID: s.id("vsc"), Revision: 1, CreatedAt: now, UpdatedAt: now}
+	schema.CreatedBy = strings.TrimSpace(actor)
+	s.variableSchemas[schema.ID] = cloneVariableSchema(schema)
+	s.appendAuditLocked(actor, "variable_schema.created", "variableSchema", schema.ID, schema.Revision, map[string]any{"projectId": schema.ProjectID, "name": schema.Name, "version": schema.Version, "digest": schema.Digest})
+	s.appendOutboxLocked("variableSchema", schema.ID, "variable_schema.created", schema)
+	return cloneVariableSchema(schema), nil
+}
+
+func (s *MemoryStore) GetVariableSchema(_ context.Context, id string) (VariableSchema, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.variableSchemas[id]
+	if !ok {
+		return VariableSchema{}, ErrNotFound
+	}
+	return cloneVariableSchema(v), nil
+}
+
+func (s *MemoryStore) ListVariableSchemas(_ context.Context, projectID string) ([]VariableSchema, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	projectID = strings.TrimSpace(projectID)
+	out := []VariableSchema{}
+	for _, v := range s.variableSchemas {
+		if projectID == "" || v.ProjectID == projectID {
+			out = append(out, cloneVariableSchema(v))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		if out[i].Version != out[j].Version {
+			return out[i].Version < out[j].Version
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) CreatePlatformPolicySet(_ context.Context, policy PlatformPolicySet, actor string) (PlatformPolicySet, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.projects[strings.TrimSpace(policy.ProjectID)]; !ok {
+		return PlatformPolicySet{}, ErrNotFound
+	}
+	var err error
+	policy, err = NormalizePlatformPolicySet(policy)
+	if err != nil {
+		return PlatformPolicySet{}, err
+	}
+	for _, existing := range s.platformPolicySets {
+		if existing.ProjectID == policy.ProjectID && existing.Name == policy.Name && existing.Version == policy.Version {
+			return PlatformPolicySet{}, ErrDuplicateName
+		}
+	}
+	now := nowUTC(s.now)
+	policy.ResourceMeta = ResourceMeta{ID: s.id("pps"), Revision: 1, CreatedAt: now, UpdatedAt: now}
+	policy.CreatedBy = strings.TrimSpace(actor)
+	s.platformPolicySets[policy.ID] = clonePlatformPolicySet(policy)
+	s.appendAuditLocked(actor, "platform_policy_set.created", "platformPolicySet", policy.ID, policy.Revision, map[string]any{"projectId": policy.ProjectID, "name": policy.Name, "version": policy.Version, "digest": policy.Digest})
+	s.appendOutboxLocked("platformPolicySet", policy.ID, "platform_policy_set.created", policy)
+	return clonePlatformPolicySet(policy), nil
+}
+
+func (s *MemoryStore) GetPlatformPolicySet(_ context.Context, id string) (PlatformPolicySet, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.platformPolicySets[strings.TrimSpace(id)]
+	if !ok {
+		return PlatformPolicySet{}, ErrNotFound
+	}
+	return clonePlatformPolicySet(v), nil
+}
+
+func (s *MemoryStore) ListPlatformPolicySets(_ context.Context, projectID string) ([]PlatformPolicySet, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	projectID = strings.TrimSpace(projectID)
+	out := []PlatformPolicySet{}
+	for _, v := range s.platformPolicySets {
+		if projectID == "" || v.ProjectID == projectID {
+			out = append(out, clonePlatformPolicySet(v))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		if out[i].Version != out[j].Version {
+			return out[i].Version < out[j].Version
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) CreatePlatformTemplate(_ context.Context, template PlatformTemplate, actor string) (PlatformTemplate, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	projectID := strings.TrimSpace(template.ProjectID)
+	if _, ok := s.projects[projectID]; !ok {
+		return PlatformTemplate{}, ErrNotFound
+	}
+	blueprint, ok := s.blueprintReleases[strings.TrimSpace(template.BlueprintReleaseID)]
+	if !ok || blueprint.ProjectID != projectID {
+		return PlatformTemplate{}, ErrNotFound
+	}
+	if blueprint.State != BlueprintPublished || !blueprint.ExecutionReady || strings.TrimSpace(blueprint.CurrentBlueprintDigest) == "" {
+		return PlatformTemplate{}, fmt.Errorf("%w: platform template requires a published execution-ready blueprint release", ErrValidation)
+	}
+	schema, ok := s.variableSchemas[strings.TrimSpace(template.VariableSchemaID)]
+	if !ok || schema.ProjectID != projectID {
+		return PlatformTemplate{}, ErrNotFound
+	}
+	policy, ok := s.platformPolicySets[strings.TrimSpace(template.PolicySetID)]
+	if !ok || policy.ProjectID != projectID {
+		return PlatformTemplate{}, ErrNotFound
+	}
+	template.BlueprintDigest = blueprint.CurrentBlueprintDigest
+	template.VariableSchemaDigest = schema.Digest
+	template.PolicySetDigest = policy.Digest
+	var err error
+	template, err = NormalizePlatformTemplate(template)
+	if err != nil {
+		return PlatformTemplate{}, err
+	}
+	for _, existing := range s.platformTemplates {
+		if existing.ProjectID == template.ProjectID && existing.Name == template.Name && existing.Version == template.Version {
+			return PlatformTemplate{}, ErrDuplicateName
+		}
+	}
+	now := nowUTC(s.now)
+	template.ResourceMeta = ResourceMeta{ID: s.id("ptm"), Revision: 1, CreatedAt: now, UpdatedAt: now}
+	template.CreatedBy = strings.TrimSpace(actor)
+	s.platformTemplates[template.ID] = clonePlatformTemplate(template)
+	s.appendAuditLocked(actor, "platform_template.created", "platformTemplate", template.ID, template.Revision, map[string]any{"projectId": template.ProjectID, "name": template.Name, "version": template.Version, "digest": template.Digest, "blueprintReleaseId": template.BlueprintReleaseID, "variableSchemaId": template.VariableSchemaID, "policySetId": template.PolicySetID})
+	s.appendOutboxLocked("platformTemplate", template.ID, "platform_template.created", template)
+	return clonePlatformTemplate(template), nil
+}
+
+func (s *MemoryStore) GetPlatformTemplate(_ context.Context, id string) (PlatformTemplate, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.platformTemplates[strings.TrimSpace(id)]
+	if !ok {
+		return PlatformTemplate{}, ErrNotFound
+	}
+	return clonePlatformTemplate(v), nil
+}
+
+func (s *MemoryStore) ListPlatformTemplates(_ context.Context, projectID string) ([]PlatformTemplate, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	projectID = strings.TrimSpace(projectID)
+	out := []PlatformTemplate{}
+	for _, v := range s.platformTemplates {
+		if projectID == "" || v.ProjectID == projectID {
+			out = append(out, clonePlatformTemplate(v))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		if out[i].Version != out[j].Version {
+			return out[i].Version < out[j].Version
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) CreateWorkspace(_ context.Context, workspace Workspace, actor string) (Workspace, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	projectID := strings.TrimSpace(workspace.ProjectID)
+	if _, ok := s.projects[projectID]; !ok {
+		return Workspace{}, ErrNotFound
+	}
+	workspace.ProjectID = projectID
+	var err error
+	workspace, err = NormalizeWorkspace(workspace)
+	if err != nil {
+		return Workspace{}, err
+	}
+	for _, existing := range s.workspaces {
+		if existing.ProjectID == workspace.ProjectID && existing.Name == workspace.Name {
+			return Workspace{}, ErrDuplicateName
+		}
+	}
+	now := nowUTC(s.now)
+	workspace.ResourceMeta = ResourceMeta{ID: s.id("wsp"), Revision: 1, CreatedAt: now, UpdatedAt: now}
+	workspace.CreatedBy = strings.TrimSpace(actor)
+	s.workspaces[workspace.ID] = cloneWorkspace(workspace)
+	s.appendAuditLocked(actor, "workspace.created", "workspace", workspace.ID, workspace.Revision, map[string]any{"projectId": workspace.ProjectID, "name": workspace.Name, "digest": workspace.Digest})
+	s.appendOutboxLocked("workspace", workspace.ID, "workspace.created", workspace)
+	return cloneWorkspace(workspace), nil
+}
+
+func (s *MemoryStore) GetWorkspace(_ context.Context, id string) (Workspace, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.workspaces[strings.TrimSpace(id)]
+	if !ok {
+		return Workspace{}, ErrNotFound
+	}
+	return cloneWorkspace(v), nil
+}
+
+func (s *MemoryStore) ListWorkspaces(_ context.Context, projectID string) ([]Workspace, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	projectID = strings.TrimSpace(projectID)
+	out := []Workspace{}
+	for _, v := range s.workspaces {
+		if projectID == "" || v.ProjectID == projectID {
+			out = append(out, cloneWorkspace(v))
+		}
+	}
+	sortWorkspaces(out)
+	return out, nil
+}
+
+func (s *MemoryStore) CreateWorkspaceBinding(_ context.Context, binding WorkspaceBinding, actor string) (WorkspaceBinding, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	workspace, ok := s.workspaces[strings.TrimSpace(binding.WorkspaceID)]
+	if !ok {
+		return WorkspaceBinding{}, ErrNotFound
+	}
+	cluster, ok := s.managedClusters[strings.TrimSpace(binding.ClusterID)]
+	if !ok {
+		return WorkspaceBinding{}, ErrNotFound
+	}
+	if cluster.ProjectID != workspace.ProjectID {
+		return WorkspaceBinding{}, ErrNotFound
+	}
+	binding.ProjectID = workspace.ProjectID
+	binding.WorkspaceID = workspace.ID
+	binding.ClusterID = cluster.ID
+	binding.State = WorkspaceBindingActive
+	binding.CreatedBy = strings.TrimSpace(actor)
+	var err error
+	binding, err = NormalizeWorkspaceBinding(binding)
+	if err != nil {
+		return WorkspaceBinding{}, err
+	}
+	for _, existing := range s.workspaceBindings {
+		if existing.State == WorkspaceBindingActive && existing.ProjectID == binding.ProjectID && existing.ClusterID == binding.ClusterID && existing.Namespace == binding.Namespace {
+			return WorkspaceBinding{}, ErrDuplicateName
+		}
+	}
+	now := nowUTC(s.now)
+	binding.ResourceMeta = ResourceMeta{ID: s.id("wsb"), Revision: 1, CreatedAt: now, UpdatedAt: now}
+	s.workspaceBindings[binding.ID] = cloneWorkspaceBinding(binding)
+	s.appendAuditLocked(actor, "workspace_binding.created", "workspaceBinding", binding.ID, binding.Revision, map[string]any{"workspaceId": binding.WorkspaceID, "projectId": binding.ProjectID, "clusterId": binding.ClusterID, "namespace": binding.Namespace})
+	s.appendOutboxLocked("workspaceBinding", binding.ID, "workspace_binding.created", binding)
+	return cloneWorkspaceBinding(binding), nil
+}
+
+func (s *MemoryStore) GetWorkspaceBinding(_ context.Context, id string) (WorkspaceBinding, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.workspaceBindings[strings.TrimSpace(id)]
+	if !ok {
+		return WorkspaceBinding{}, ErrNotFound
+	}
+	return cloneWorkspaceBinding(v), nil
+}
+
+func (s *MemoryStore) ListWorkspaceBindings(_ context.Context, workspaceID string) ([]WorkspaceBinding, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	workspaceID = strings.TrimSpace(workspaceID)
+	out := []WorkspaceBinding{}
+	for _, v := range s.workspaceBindings {
+		if workspaceID == "" || v.WorkspaceID == workspaceID {
+			out = append(out, cloneWorkspaceBinding(v))
+		}
+	}
+	sortWorkspaceBindings(out)
+	return out, nil
+}
+
+func (s *MemoryStore) RevokeWorkspaceBinding(_ context.Context, id string, expectedRevision int64, actor string) (WorkspaceBinding, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id = strings.TrimSpace(id)
+	v, ok := s.workspaceBindings[id]
+	if !ok {
+		return WorkspaceBinding{}, ErrNotFound
+	}
+	if v.Revision != expectedRevision {
+		return WorkspaceBinding{}, ErrConflict
+	}
+	if v.State != WorkspaceBindingActive {
+		return WorkspaceBinding{}, ErrInvalidTransition
+	}
+	now := nowUTC(s.now)
+	v.State = WorkspaceBindingRevoked
+	v.RevokedBy = strings.TrimSpace(actor)
+	v.RevokedAt = &now
+	v.Revision++
+	v.UpdatedAt = now
+	s.workspaceBindings[id] = cloneWorkspaceBinding(v)
+	s.appendAuditLocked(actor, "workspace_binding.revoked", "workspaceBinding", id, v.Revision, map[string]any{"workspaceId": v.WorkspaceID, "projectId": v.ProjectID, "clusterId": v.ClusterID, "namespace": v.Namespace})
+	s.appendOutboxLocked("workspaceBinding", id, "workspace_binding.revoked", v)
+	return cloneWorkspaceBinding(v), nil
 }
 
 func (s *MemoryStore) CreateBlueprintOverlay(_ context.Context, overlay BlueprintOverlay, actor string) (BlueprintOverlay, error) {
@@ -981,6 +1331,9 @@ func (s *MemoryStore) transitionOperationLocked(id string, expected int64, to Op
 	if !CanTransition(op.State, to) {
 		return Operation{}, ErrInvalidTransition
 	}
+	if !CanDirectOperationTransition(op.State, to) {
+		return Operation{}, fmt.Errorf("%w: execution-plane transition %s -> %s requires its dedicated authority method", ErrPrerequisite, op.State, to)
+	}
 	if to == OperationRollingBack {
 		return Operation{}, fmt.Errorf("%w: ROLLING_BACK is compensation-authority controlled; use BeginOperationCompensation", ErrPrerequisite)
 	}
@@ -1008,6 +1361,10 @@ func (s *MemoryStore) TransitionOperation(_ context.Context, id string, expected
 }
 
 func (s *MemoryStore) ClaimOperation(_ context.Context, id, worker string, ttl time.Duration, at time.Time) (ClaimResult, error) {
+	worker = strings.TrimSpace(worker)
+	if worker == "" || ttl <= 0 {
+		return ClaimResult{}, fmt.Errorf("%w: worker and positive ttl are required", ErrValidation)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	op, ok := s.operations[id]
@@ -1030,10 +1387,7 @@ func (s *MemoryStore) ClaimOperation(_ context.Context, id, worker string, ttl t
 	if op.State != OperationQueued && op.State != OperationRunning && op.State != OperationVerifying && op.State != OperationRollingBack && op.State != OperationCancelRequested {
 		return ClaimResult{}, ErrNotClaimable
 	}
-	if worker == "" || ttl <= 0 {
-		return ClaimResult{}, fmt.Errorf("%w: worker and positive ttl are required", ErrValidation)
-	}
-	if op.LeaseExpiresAt != nil && op.LeaseExpiresAt.After(at) && op.LeaseOwner != worker {
+	if op.LeaseExpiresAt != nil && op.LeaseExpiresAt.After(at) && strings.TrimSpace(op.LeaseOwner) != worker {
 		return ClaimResult{}, ErrLeaseHeld
 	}
 	expires := at.Add(ttl)
@@ -1047,17 +1401,18 @@ func (s *MemoryStore) ClaimOperation(_ context.Context, id, worker string, ttl t
 	return ClaimResult{OperationID: id, LeaseOwner: worker, LeaseExpiresAt: expires, FenceToken: op.FenceToken}, nil
 }
 func (s *MemoryStore) RenewOperationLease(_ context.Context, id, worker string, fence int64, ttl time.Duration, at time.Time) (ClaimResult, error) {
+	worker = strings.TrimSpace(worker)
+	if worker == "" || ttl <= 0 {
+		return ClaimResult{}, fmt.Errorf("%w: worker and positive lease ttl are required", ErrValidation)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	op, ok := s.operations[id]
 	if !ok {
 		return ClaimResult{}, ErrNotFound
 	}
-	if op.FenceToken != fence || op.LeaseOwner != worker {
+	if op.FenceToken != fence || strings.TrimSpace(op.LeaseOwner) != worker {
 		return ClaimResult{}, ErrStaleFence
-	}
-	if ttl <= 0 {
-		return ClaimResult{}, fmt.Errorf("%w: positive lease ttl is required", ErrValidation)
 	}
 	if op.LeaseExpiresAt == nil || !op.LeaseExpiresAt.After(at.UTC()) {
 		return ClaimResult{}, ErrLeaseHeld
@@ -1070,13 +1425,17 @@ func (s *MemoryStore) RenewOperationLease(_ context.Context, id, worker string, 
 	return ClaimResult{OperationID: id, LeaseOwner: worker, LeaseExpiresAt: expires, FenceToken: fence}, nil
 }
 func (s *MemoryStore) ReleaseOperationLease(_ context.Context, id, worker string, fence int64) error {
+	worker = strings.TrimSpace(worker)
+	if worker == "" {
+		return fmt.Errorf("%w: worker is required", ErrValidation)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	op, ok := s.operations[id]
 	if !ok {
 		return ErrNotFound
 	}
-	if op.FenceToken != fence || op.LeaseOwner != worker {
+	if op.FenceToken != fence || strings.TrimSpace(op.LeaseOwner) != worker {
 		return ErrStaleFence
 	}
 	op.LeaseOwner = ""
@@ -1094,7 +1453,7 @@ func (s *MemoryStore) AppendOperationStep(_ context.Context, step OperationStep,
 	if !ok {
 		return OperationStep{}, ErrNotFound
 	}
-	if step.FenceToken != op.FenceToken {
+	if !OperationLeaseActive(op, actor, step.FenceToken, nowUTC(s.now)) {
 		return OperationStep{}, ErrStaleFence
 	}
 	if step.StepKey == "" {
@@ -1106,6 +1465,9 @@ func (s *MemoryStore) AppendOperationStep(_ context.Context, step OperationStep,
 	step.Attempt = op.Attempt
 	key := fmt.Sprintf("%s:%d:%s", step.OperationID, step.Attempt, step.StepKey)
 	if existing, ok := s.steps[key]; ok {
+		if !OperationStepReplayCompatible(existing, step) {
+			return OperationStep{}, ErrIdempotencyConflict
+		}
 		return existing, nil
 	}
 	now := nowUTC(s.now)
@@ -1269,11 +1631,36 @@ func (s *MemoryStore) Snapshot(_ context.Context) (Snapshot, error) {
 		v.Permissions = append([]string(nil), v.Permissions...)
 		snap.APITokens = append(snap.APITokens, v)
 	}
+	for _, v := range s.mcpTrustedClients {
+		v.RedirectURIs = append([]string(nil), v.RedirectURIs...)
+		snap.MCPTrustedClients = append(snap.MCPTrustedClients, v)
+	}
+	for _, v := range s.mcpDelegationGrants {
+		snap.MCPDelegationGrants = append(snap.MCPDelegationGrants, v)
+	}
+	for _, v := range s.mcpControlJobs {
+		snap.MCPControlJobs = append(snap.MCPControlJobs, cloneMCPControlJob(v))
+	}
 	for _, v := range s.projects {
 		snap.Projects = append(snap.Projects, v)
 	}
 	for _, v := range s.blueprintOverlays {
 		snap.BlueprintOverlays = append(snap.BlueprintOverlays, cloneOverlay(v))
+	}
+	for _, v := range s.variableSchemas {
+		snap.VariableSchemas = append(snap.VariableSchemas, cloneVariableSchema(v))
+	}
+	for _, v := range s.platformPolicySets {
+		snap.PlatformPolicySets = append(snap.PlatformPolicySets, clonePlatformPolicySet(v))
+	}
+	for _, v := range s.platformTemplates {
+		snap.PlatformTemplates = append(snap.PlatformTemplates, clonePlatformTemplate(v))
+	}
+	for _, v := range s.workspaces {
+		snap.Workspaces = append(snap.Workspaces, cloneWorkspace(v))
+	}
+	for _, v := range s.workspaceBindings {
+		snap.WorkspaceBindings = append(snap.WorkspaceBindings, cloneWorkspaceBinding(v))
 	}
 	for _, v := range s.revisions {
 		v.Payload = append([]byte(nil), v.Payload...)
@@ -1371,6 +1758,14 @@ func (s *MemoryStore) Snapshot(_ context.Context) (Snapshot, error) {
 	for _, v := range s.runtimeCertifications {
 		snap.RuntimeCertifications = append(snap.RuntimeCertifications, cloneRuntimeCertification(v))
 	}
+	for _, v := range s.backupPolicies {
+		v.IncludedNamespaces = append([]string(nil), v.IncludedNamespaces...)
+		snap.BackupPolicies = append(snap.BackupPolicies, v)
+	}
+	for _, v := range s.dataProtectionRuns {
+		v.Checks = append([]RuntimeCheck(nil), v.Checks...)
+		snap.DataProtectionRuns = append(snap.DataProtectionRuns, v)
+	}
 	for _, v := range s.recoveryCheckpoints {
 		snap.RecoveryCheckpoints = append(snap.RecoveryCheckpoints, v)
 	}
@@ -1413,6 +1808,9 @@ func (s *MemoryStore) Snapshot(_ context.Context) (Snapshot, error) {
 	for _, v := range s.providerClusters {
 		snap.ProviderClusters = append(snap.ProviderClusters, v)
 	}
+	for _, v := range s.aiExecutionClaims {
+		snap.AIExecutionClaims = append(snap.AIExecutionClaims, v)
+	}
 	for _, v := range s.aiRuns {
 		snap.AIRuns = append(snap.AIRuns, cloneAIRun(v))
 	}
@@ -1422,6 +1820,37 @@ func (s *MemoryStore) Snapshot(_ context.Context) (Snapshot, error) {
 	}
 	for _, v := range s.runtimeClosureCampaigns {
 		snap.RuntimeClosureCampaigns = append(snap.RuntimeClosureCampaigns, v)
+	}
+	for _, v := range s.complianceProfiles {
+		snap.ComplianceProfiles = append(snap.ComplianceProfiles, v)
+	}
+	for _, v := range s.complianceScanRuns {
+		snap.ComplianceScanRuns = append(snap.ComplianceScanRuns, v)
+	}
+	for _, v := range s.complianceFindings {
+		snap.ComplianceFindings = append(snap.ComplianceFindings, v)
+	}
+	for _, v := range s.complianceWaivers {
+		snap.ComplianceWaivers = append(snap.ComplianceWaivers, v)
+	}
+	for _, v := range s.samlBrokers {
+		snap.SAMLBrokers = append(snap.SAMLBrokers, v)
+	}
+	for _, v := range s.identityAdminJobs {
+		snap.IdentityAdminJobs = append(snap.IdentityAdminJobs, v)
+	}
+	for _, v := range s.finOpsRateCards {
+		snap.FinOpsRateCards = append(snap.FinOpsRateCards, cloneFinOpsRateCard(v))
+	}
+	for _, v := range s.finOpsUsageMeasurements {
+		snap.FinOpsUsageMeasurements = append(snap.FinOpsUsageMeasurements, cloneFinOpsUsageMeasurement(v))
+	}
+	for _, v := range s.finOpsCapacityObservations {
+		snap.FinOpsCapacityObservations = append(snap.FinOpsCapacityObservations, cloneFinOpsCapacityObservation(v))
+	}
+	for _, v := range s.operationRequestPayloads {
+		v.Payload = append([]byte(nil), v.Payload...)
+		snap.OperationRequestPayloads = append(snap.OperationRequestPayloads, v)
 	}
 	CanonicalizeSnapshot(&snap)
 	return snap, nil
@@ -1439,6 +1868,11 @@ func CanonicalizeSnapshot(s *Snapshot) {
 	sort.Slice(s.APITokens, func(i, j int) bool { return s.APITokens[i].ID < s.APITokens[j].ID })
 	sort.Slice(s.Projects, func(i, j int) bool { return s.Projects[i].ID < s.Projects[j].ID })
 	sort.Slice(s.BlueprintOverlays, func(i, j int) bool { return s.BlueprintOverlays[i].ID < s.BlueprintOverlays[j].ID })
+	sort.Slice(s.VariableSchemas, func(i, j int) bool { return s.VariableSchemas[i].ID < s.VariableSchemas[j].ID })
+	sort.Slice(s.PlatformPolicySets, func(i, j int) bool { return s.PlatformPolicySets[i].ID < s.PlatformPolicySets[j].ID })
+	sort.Slice(s.PlatformTemplates, func(i, j int) bool { return s.PlatformTemplates[i].ID < s.PlatformTemplates[j].ID })
+	sort.Slice(s.Workspaces, func(i, j int) bool { return s.Workspaces[i].ID < s.Workspaces[j].ID })
+	sort.Slice(s.WorkspaceBindings, func(i, j int) bool { return s.WorkspaceBindings[i].ID < s.WorkspaceBindings[j].ID })
 	sort.Slice(s.Revisions, func(i, j int) bool { return s.Revisions[i].ID < s.Revisions[j].ID })
 	sort.Slice(s.BlueprintReleases, func(i, j int) bool { return s.BlueprintReleases[i].ID < s.BlueprintReleases[j].ID })
 	sort.Slice(s.CatalogTrustKeys, func(i, j int) bool { return s.CatalogTrustKeys[i].ID < s.CatalogTrustKeys[j].ID })
@@ -1493,9 +1927,27 @@ func CanonicalizeSnapshot(s *Snapshot) {
 	sort.Slice(s.Tenants, func(i, j int) bool { return s.Tenants[i].ID < s.Tenants[j].ID })
 	sort.Slice(s.ProviderProfiles, func(i, j int) bool { return s.ProviderProfiles[i].ID < s.ProviderProfiles[j].ID })
 	sort.Slice(s.ProviderClusters, func(i, j int) bool { return s.ProviderClusters[i].ID < s.ProviderClusters[j].ID })
+	sort.Slice(s.AIExecutionClaims, func(i, j int) bool { return s.AIExecutionClaims[i].ID < s.AIExecutionClaims[j].ID })
 	sort.Slice(s.AIRuns, func(i, j int) bool { return s.AIRuns[i].ID < s.AIRuns[j].ID })
 	sort.Slice(s.MarketplaceRecommendations, func(i, j int) bool { return s.MarketplaceRecommendations[i].ID < s.MarketplaceRecommendations[j].ID })
 	sort.Slice(s.RuntimeClosureCampaigns, func(i, j int) bool { return s.RuntimeClosureCampaigns[i].ID < s.RuntimeClosureCampaigns[j].ID })
+	sort.Slice(s.ComplianceProfiles, func(i, j int) bool { return s.ComplianceProfiles[i].ID < s.ComplianceProfiles[j].ID })
+	sort.Slice(s.ComplianceScanRuns, func(i, j int) bool { return s.ComplianceScanRuns[i].ID < s.ComplianceScanRuns[j].ID })
+	sort.Slice(s.ComplianceFindings, func(i, j int) bool {
+		if s.ComplianceFindings[i].RunID != s.ComplianceFindings[j].RunID {
+			return s.ComplianceFindings[i].RunID < s.ComplianceFindings[j].RunID
+		}
+		return s.ComplianceFindings[i].Fingerprint < s.ComplianceFindings[j].Fingerprint
+	})
+	sort.Slice(s.ComplianceWaivers, func(i, j int) bool { return s.ComplianceWaivers[i].ID < s.ComplianceWaivers[j].ID })
+	sort.Slice(s.SAMLBrokers, func(i, j int) bool { return s.SAMLBrokers[i].ID < s.SAMLBrokers[j].ID })
+	sort.Slice(s.IdentityAdminJobs, func(i, j int) bool { return s.IdentityAdminJobs[i].ID < s.IdentityAdminJobs[j].ID })
+	sort.Slice(s.FinOpsRateCards, func(i, j int) bool { return s.FinOpsRateCards[i].ID < s.FinOpsRateCards[j].ID })
+	sort.Slice(s.FinOpsUsageMeasurements, func(i, j int) bool { return s.FinOpsUsageMeasurements[i].ID < s.FinOpsUsageMeasurements[j].ID })
+	sort.Slice(s.FinOpsCapacityObservations, func(i, j int) bool { return s.FinOpsCapacityObservations[i].ID < s.FinOpsCapacityObservations[j].ID })
+	sort.Slice(s.OperationRequestPayloads, func(i, j int) bool {
+		return s.OperationRequestPayloads[i].OperationID < s.OperationRequestPayloads[j].OperationID
+	})
 }
 func cloneMap(in map[string]any) map[string]any {
 	if in == nil {
@@ -1568,6 +2020,10 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 		return err
 	}
 	normalizedManagedClusters := normalizeRestoredManagedClusterAuthority(snapshot.ManagedClusters, snapshot.Audit)
+	organizationsByID := make(map[string]Organization, len(snapshot.Organizations))
+	for _, organization := range snapshot.Organizations {
+		organizationsByID[organization.ID] = organization
+	}
 	projectsByID := make(map[string]Project, len(snapshot.Projects))
 	for _, project := range snapshot.Projects {
 		projectsByID[project.ID] = project
@@ -1579,6 +2035,92 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	clustersByID := make(map[string]ManagedCluster, len(normalizedManagedClusters))
 	for _, cluster := range normalizedManagedClusters {
 		clustersByID[cluster.ID] = cluster
+	}
+	backupPoliciesByID := make(map[string]BackupPolicy, len(snapshot.BackupPolicies))
+	backupPolicyNames := map[string]string{}
+	for _, original := range snapshot.BackupPolicies {
+		policy := cloneBackupPolicy(original)
+		cluster, ok := clustersByID[policy.ClusterID]
+		if !ok {
+			return fmt.Errorf("%w: backup policy cluster %q does not exist", ErrValidation, policy.ClusterID)
+		}
+		if _, ok := projectsByID[policy.ProjectID]; !ok {
+			return fmt.Errorf("%w: backup policy project %q does not exist", ErrValidation, policy.ProjectID)
+		}
+		if policy.State != BackupPolicyActive && policy.State != BackupPolicyDisabled {
+			return fmt.Errorf("%w: backup policy %q state is invalid", ErrValidation, policy.ID)
+		}
+		originalDigest := policy.DesiredDigest
+		if err := ValidateBackupPolicy(&policy, cluster); err != nil {
+			return err
+		}
+		if originalDigest != "" && originalDigest != policy.DesiredDigest {
+			return fmt.Errorf("%w: backup policy %q desired digest mismatch", ErrValidation, policy.ID)
+		}
+		key := policy.ProjectID + "\x00" + policy.ClusterID + "\x00" + policy.Name
+		if existing, ok := backupPolicyNames[key]; ok && existing != policy.ID {
+			return fmt.Errorf("%w: duplicate backup policy name in cluster scope", ErrValidation)
+		}
+		backupPolicyNames[key] = policy.ID
+		backupPoliciesByID[policy.ID] = original
+	}
+	dataProtectionRunsByID := make(map[string]DataProtectionRun, len(snapshot.DataProtectionRuns))
+	dataProtectionIdempotency := map[string]string{}
+	for _, run := range snapshot.DataProtectionRuns {
+		policy, ok := backupPoliciesByID[run.PolicyID]
+		if !ok || policy.ProjectID != run.ProjectID || policy.ClusterID != run.ClusterID {
+			return fmt.Errorf("%w: data protection run %q has invalid policy scope", ErrValidation, run.ID)
+		}
+		if _, ok := projectsByID[run.ProjectID]; !ok {
+			return fmt.Errorf("%w: data protection run project %q does not exist", ErrValidation, run.ProjectID)
+		}
+		if _, ok := clustersByID[run.ClusterID]; !ok {
+			return fmt.Errorf("%w: data protection run cluster %q does not exist", ErrValidation, run.ClusterID)
+		}
+		if run.Kind != DataProtectionBackup && run.Kind != DataProtectionRestore && run.Kind != DataProtectionRestoreDrill {
+			return fmt.Errorf("%w: data protection run %q kind is invalid", ErrValidation, run.ID)
+		}
+		switch run.State {
+		case DataProtectionRequested, DataProtectionAwaitingApproval, DataProtectionQueued, DataProtectionRunning, DataProtectionSucceeded, DataProtectionFailed:
+		default:
+			return fmt.Errorf("%w: data protection run %q state is invalid", ErrValidation, run.ID)
+		}
+		if !validSHA256(run.InventoryDigest) || !validSHA256(run.PolicyDigest) || !validSHA256(run.RequestDigest) || strings.TrimSpace(run.IdempotencyKey) == "" {
+			return fmt.Errorf("%w: data protection run %q digest/idempotency authority is invalid", ErrValidation, run.ID)
+		}
+		key := run.ProjectID + "\x00" + run.IdempotencyKey
+		if existing, ok := dataProtectionIdempotency[key]; ok && existing != run.ID {
+			return fmt.Errorf("%w: duplicate data protection idempotency key", ErrValidation)
+		}
+		dataProtectionIdempotency[key] = run.ID
+		dataProtectionRunsByID[run.ID] = run
+	}
+	recoveryCheckpointsByID := make(map[string]RecoveryCheckpoint, len(snapshot.RecoveryCheckpoints))
+	for _, checkpoint := range snapshot.RecoveryCheckpoints {
+		recoveryCheckpointsByID[checkpoint.ID] = checkpoint
+	}
+	for _, run := range snapshot.DataProtectionRuns {
+		if run.BackupRunID != "" {
+			backup, ok := dataProtectionRunsByID[run.BackupRunID]
+			if !ok || backup.Kind != DataProtectionBackup || backup.ProjectID != run.ProjectID || backup.ClusterID != run.ClusterID || backup.PolicyID != run.PolicyID {
+				return fmt.Errorf("%w: data protection run %q has invalid source backup binding", ErrValidation, run.ID)
+			}
+		}
+		if run.RecoveryCheckpointID != "" {
+			cp, ok := recoveryCheckpointsByID[run.RecoveryCheckpointID]
+			if !ok || cp.ProjectID != run.ProjectID || cp.ClusterID != run.ClusterID {
+				return fmt.Errorf("%w: data protection run %q has invalid recovery checkpoint binding", ErrValidation, run.ID)
+			}
+		}
+	}
+	for i := range snapshot.AIExecutionClaims {
+		claim := snapshot.AIExecutionClaims[i]
+		if err := ValidateAIExecutionClaim(&claim); err != nil {
+			return err
+		}
+		if _, ok := projectsByID[claim.ProjectID]; !ok {
+			return fmt.Errorf("%w: AI execution claim project %q does not exist", ErrValidation, claim.ProjectID)
+		}
 	}
 	for i := range snapshot.AIRuns {
 		run := cloneAIRun(snapshot.AIRuns[i])
@@ -1601,6 +2143,205 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 			}
 		}
 	}
+	aiRunsByID := make(map[string]AIRun, len(snapshot.AIRuns))
+	for _, run := range snapshot.AIRuns {
+		aiRunsByID[run.ID] = run
+	}
+	for _, claim := range snapshot.AIExecutionClaims {
+		if claim.State == AIExecutionCompleted {
+			run, ok := aiRunsByID[claim.AIRunID]
+			if !ok || run.ProjectID != claim.ProjectID || run.IdempotencyKey != claim.IdempotencyKey || run.RequestDigest != claim.RequestDigest {
+				return fmt.Errorf("%w: completed AI execution claim is not bound to its durable AI run", ErrValidation)
+			}
+		}
+	}
+	for _, schema := range snapshot.VariableSchemas {
+		normalized, err := NormalizeVariableSchema(schema)
+		if err != nil {
+			return err
+		}
+		if _, ok := projectsByID[normalized.ProjectID]; !ok {
+			return fmt.Errorf("%w: variable schema project %q does not exist", ErrValidation, normalized.ProjectID)
+		}
+		if schema.Digest != "" && schema.Digest != normalized.Digest {
+			return fmt.Errorf("%w: variable schema %q digest mismatch", ErrValidation, schema.ID)
+		}
+	}
+	policySetsByID := make(map[string]PlatformPolicySet, len(snapshot.PlatformPolicySets))
+	for _, policy := range snapshot.PlatformPolicySets {
+		normalized, err := NormalizePlatformPolicySet(policy)
+		if err != nil {
+			return err
+		}
+		if _, ok := projectsByID[normalized.ProjectID]; !ok {
+			return fmt.Errorf("%w: platform policy-set project %q does not exist", ErrValidation, normalized.ProjectID)
+		}
+		if policy.Digest != "" && policy.Digest != normalized.Digest {
+			return fmt.Errorf("%w: platform policy-set %q digest mismatch", ErrValidation, policy.ID)
+		}
+		policySetsByID[policy.ID] = normalized
+	}
+	blueprintReleasesByID := make(map[string]BlueprintRelease, len(snapshot.BlueprintReleases))
+	for _, release := range snapshot.BlueprintReleases {
+		blueprintReleasesByID[release.ID] = release
+	}
+	variableSchemasByID := make(map[string]VariableSchema, len(snapshot.VariableSchemas))
+	for _, schema := range snapshot.VariableSchemas {
+		variableSchemasByID[schema.ID] = schema
+	}
+	for _, template := range snapshot.PlatformTemplates {
+		normalized, err := NormalizePlatformTemplate(template)
+		if err != nil {
+			return err
+		}
+		if _, ok := projectsByID[normalized.ProjectID]; !ok {
+			return fmt.Errorf("%w: platform template project %q does not exist", ErrValidation, normalized.ProjectID)
+		}
+		blueprint, blueprintOK := blueprintReleasesByID[normalized.BlueprintReleaseID]
+		schema, schemaOK := variableSchemasByID[normalized.VariableSchemaID]
+		policy, policyOK := policySetsByID[normalized.PolicySetID]
+		if !blueprintOK || !schemaOK || !policyOK || blueprint.ProjectID != normalized.ProjectID || schema.ProjectID != normalized.ProjectID || policy.ProjectID != normalized.ProjectID {
+			return fmt.Errorf("%w: platform template %q has invalid cross-authority binding", ErrValidation, template.ID)
+		}
+		if normalized.BlueprintDigest != blueprint.CurrentBlueprintDigest || normalized.VariableSchemaDigest != schema.Digest || normalized.PolicySetDigest != policy.Digest {
+			return fmt.Errorf("%w: platform template %q binding digest mismatch", ErrValidation, template.ID)
+		}
+		if template.Digest != "" && template.Digest != normalized.Digest {
+			return fmt.Errorf("%w: platform template %q digest mismatch", ErrValidation, template.ID)
+		}
+	}
+
+	workspacesByID := make(map[string]Workspace, len(snapshot.Workspaces))
+	workspaceNames := map[string]string{}
+	for _, workspace := range snapshot.Workspaces {
+		normalized, err := NormalizeWorkspace(workspace)
+		if err != nil {
+			return err
+		}
+		if _, ok := projectsByID[normalized.ProjectID]; !ok {
+			return fmt.Errorf("%w: workspace project %q does not exist", ErrValidation, normalized.ProjectID)
+		}
+		if workspace.Digest != "" && workspace.Digest != normalized.Digest {
+			return fmt.Errorf("%w: workspace %q digest mismatch", ErrValidation, workspace.ID)
+		}
+		key := normalized.ProjectID + "\x00" + normalized.Name
+		if existing, ok := workspaceNames[key]; ok && existing != workspace.ID {
+			return fmt.Errorf("%w: duplicate workspace name %q in project", ErrValidation, normalized.Name)
+		}
+		workspaceNames[key] = workspace.ID
+		workspacesByID[workspace.ID] = normalized
+	}
+	activeWorkspaceScopes := map[string]string{}
+	for _, binding := range snapshot.WorkspaceBindings {
+		normalized, err := NormalizeWorkspaceBinding(binding)
+		if err != nil {
+			return err
+		}
+		workspace, ok := workspacesByID[normalized.WorkspaceID]
+		if !ok || workspace.ProjectID != normalized.ProjectID {
+			return fmt.Errorf("%w: workspace binding %q has invalid workspace authority", ErrValidation, binding.ID)
+		}
+		cluster, ok := clustersByID[normalized.ClusterID]
+		if !ok || cluster.ProjectID != normalized.ProjectID {
+			return fmt.Errorf("%w: workspace binding %q crosses project cluster authority", ErrValidation, binding.ID)
+		}
+		if normalized.State == WorkspaceBindingActive {
+			key := normalized.ProjectID + "\x00" + normalized.ClusterID + "\x00" + normalized.Namespace
+			if existing, ok := activeWorkspaceScopes[key]; ok && existing != normalized.ID {
+				return fmt.Errorf("%w: namespace scope is bound to multiple active workspaces", ErrValidation)
+			}
+			activeWorkspaceScopes[key] = normalized.ID
+		}
+	}
+	if err := ValidateComplianceSnapshot(snapshot.ComplianceProfiles, snapshot.ComplianceScanRuns, snapshot.ComplianceFindings, snapshot.ComplianceWaivers, projectsByID, clustersByID); err != nil {
+		return err
+	}
+	if err := ValidateIdentityAdminSnapshot(organizationsByID, snapshot.SAMLBrokers, snapshot.IdentityAdminJobs); err != nil {
+		return err
+	}
+	finOpsRateCardNames := map[string]string{}
+	for i, original := range snapshot.FinOpsRateCards {
+		normalized, err := NormalizeFinOpsRateCard(original)
+		if err != nil {
+			return err
+		}
+		if _, ok := organizationsByID[normalized.OrganizationID]; !ok {
+			return fmt.Errorf("%w: FinOps rate-card organization %q does not exist", ErrValidation, normalized.OrganizationID)
+		}
+		if original.Digest != "" && original.Digest != normalized.Digest {
+			return fmt.Errorf("%w: FinOps rate-card %q digest mismatch", ErrValidation, original.ID)
+		}
+		key := normalized.OrganizationID + "\x00" + normalizeName(normalized.Name) + "\x00" + normalized.Version
+		if existing, ok := finOpsRateCardNames[key]; ok && existing != original.ID {
+			return fmt.Errorf("%w: duplicate FinOps rate-card name/version", ErrValidation)
+		}
+		finOpsRateCardNames[key] = original.ID
+		for j := 0; j < i; j++ {
+			other, err := NormalizeFinOpsRateCard(snapshot.FinOpsRateCards[j])
+			if err != nil {
+				return err
+			}
+			if other.OrganizationID == normalized.OrganizationID && other.Currency == normalized.Currency && finOpsIntervalsOverlap(other.EffectiveFrom, other.EffectiveUntil, normalized.EffectiveFrom, normalized.EffectiveUntil) {
+				return fmt.Errorf("%w: overlapping FinOps rate cards", ErrValidation)
+			}
+		}
+	}
+	finOpsUsageKeys := map[string]string{}
+	for _, original := range snapshot.FinOpsUsageMeasurements {
+		normalized, err := NormalizeFinOpsUsageMeasurement(original)
+		if err != nil {
+			return err
+		}
+		project, ok := projectsByID[normalized.ProjectID]
+		if !ok || project.OrganizationID != normalized.OrganizationID {
+			return fmt.Errorf("%w: FinOps usage project scope is invalid", ErrValidation)
+		}
+		if normalized.ClusterID != "" {
+			cluster, ok := clustersByID[normalized.ClusterID]
+			if !ok || cluster.ProjectID != normalized.ProjectID {
+				return fmt.Errorf("%w: FinOps usage cluster scope is invalid", ErrValidation)
+			}
+		}
+		if normalized.WorkspaceID != "" {
+			workspace, ok := workspacesByID[normalized.WorkspaceID]
+			if !ok || workspace.ProjectID != normalized.ProjectID {
+				return fmt.Errorf("%w: FinOps usage workspace scope is invalid", ErrValidation)
+			}
+		}
+		if original.Digest != "" && original.Digest != normalized.Digest {
+			return fmt.Errorf("%w: FinOps usage %q digest mismatch", ErrValidation, original.ID)
+		}
+		key := finOpsUsageIdempotencyKey(normalized)
+		if existing, ok := finOpsUsageKeys[key]; ok && existing != original.ID {
+			return fmt.Errorf("%w: duplicate FinOps usage source event", ErrValidation)
+		}
+		finOpsUsageKeys[key] = original.ID
+	}
+	finOpsCapacityKeys := map[string]string{}
+	for _, original := range snapshot.FinOpsCapacityObservations {
+		normalized, err := NormalizeFinOpsCapacityObservation(original)
+		if err != nil {
+			return err
+		}
+		project, ok := projectsByID[normalized.ProjectID]
+		if !ok || project.OrganizationID != normalized.OrganizationID {
+			return fmt.Errorf("%w: FinOps capacity project scope is invalid", ErrValidation)
+		}
+		if normalized.ClusterID != "" {
+			cluster, ok := clustersByID[normalized.ClusterID]
+			if !ok || cluster.ProjectID != normalized.ProjectID {
+				return fmt.Errorf("%w: FinOps capacity cluster scope is invalid", ErrValidation)
+			}
+		}
+		if original.Digest != "" && original.Digest != normalized.Digest {
+			return fmt.Errorf("%w: FinOps capacity %q digest mismatch", ErrValidation, original.ID)
+		}
+		key := finOpsCapacityIdempotencyKey(normalized)
+		if existing, ok := finOpsCapacityKeys[key]; ok && existing != original.ID {
+			return fmt.Errorf("%w: duplicate FinOps capacity source event", ErrValidation)
+		}
+		finOpsCapacityKeys[key] = original.ID
+	}
 	activeClusterUIDs := map[string]string{}
 	for _, cluster := range normalizedManagedClusters {
 		uid := strings.TrimSpace(cluster.ExternalUID)
@@ -1620,8 +2361,17 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	s.securityAudit = nil
 	s.serviceAccounts = map[string]ServiceAccount{}
 	s.apiTokens = map[string]APIToken{}
+	s.mcpTrustedClients = map[string]MCPTrustedClient{}
+	s.mcpDelegationGrants = map[string]MCPDelegationGrant{}
+	s.mcpControlJobs = map[string]MCPControlJob{}
+	s.mcpControlJobIdempotency = map[string]string{}
 	s.projects = map[string]Project{}
 	s.blueprintOverlays = map[string]BlueprintOverlay{}
+	s.variableSchemas = map[string]VariableSchema{}
+	s.platformPolicySets = map[string]PlatformPolicySet{}
+	s.platformTemplates = map[string]PlatformTemplate{}
+	s.workspaces = map[string]Workspace{}
+	s.workspaceBindings = map[string]WorkspaceBinding{}
 	s.revisions = map[string]BlueprintRevision{}
 	s.blueprintReleases = map[string]BlueprintRelease{}
 	s.catalogTrustKeys = map[string]CatalogTrustKey{}
@@ -1648,6 +2398,8 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	s.baselineDeployments = map[string]BaselineDeployment{}
 	s.runtimeVerifications = map[string]RuntimeVerification{}
 	s.runtimeCertifications = map[string]RuntimeCertificationRun{}
+	s.backupPolicies = map[string]BackupPolicy{}
+	s.dataProtectionRuns = map[string]DataProtectionRun{}
 	s.fleetGroups = map[string]FleetGroup{}
 	s.gitCredentials = map[string]GitCredential{}
 	s.gitProviders = map[string]GitProvider{}
@@ -1660,9 +2412,20 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	s.tenants = map[string]TenantEnvironment{}
 	s.providerProfiles = map[string]ProviderProfile{}
 	s.providerClusters = map[string]ProviderCluster{}
+	s.aiExecutionClaims = map[string]AIExecutionClaim{}
 	s.aiRuns = map[string]AIRun{}
 	s.marketplaceRecommendations = map[string]MarketplaceRecommendation{}
 	s.runtimeClosureCampaigns = map[string]RuntimeClosureCampaign{}
+	s.complianceProfiles = map[string]ComplianceProfile{}
+	s.complianceScanRuns = map[string]ComplianceScanRun{}
+	s.complianceFindings = map[string]ComplianceFindingRecord{}
+	s.complianceWaivers = map[string]ComplianceWaiver{}
+	s.samlBrokers = map[string]SAMLBroker{}
+	s.identityAdminJobs = map[string]IdentityAdminJob{}
+	s.operationRequestPayloads = map[string]OperationRequestPayload{}
+	s.finOpsRateCards = map[string]FinOpsRateCard{}
+	s.finOpsUsageMeasurements = map[string]FinOpsUsageMeasurement{}
+	s.finOpsCapacityObservations = map[string]FinOpsCapacityObservation{}
 	for _, v := range snapshot.Organizations {
 		s.organizations[v.ID] = v
 	}
@@ -1680,11 +2443,52 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 		v.Permissions = append([]string(nil), v.Permissions...)
 		s.apiTokens[v.ID] = v
 	}
+	for _, v := range snapshot.MCPTrustedClients {
+		v.RedirectURIs = append([]string(nil), v.RedirectURIs...)
+		s.mcpTrustedClients[v.ID] = v
+	}
+	for _, v := range snapshot.MCPDelegationGrants {
+		s.mcpDelegationGrants[v.ID] = v
+	}
+	for _, v := range snapshot.MCPControlJobs {
+		v = cloneMCPControlJob(v)
+		s.mcpControlJobs[v.ID] = v
+		s.mcpControlJobIdempotency[mcpControlJobIdempotencyScope(v)] = v.ID
+	}
 	for _, v := range snapshot.Projects {
 		s.projects[v.ID] = v
 	}
 	for _, v := range snapshot.BlueprintOverlays {
 		s.blueprintOverlays[v.ID] = cloneOverlay(v)
+	}
+	for _, v := range snapshot.VariableSchemas {
+		normalized, _ := NormalizeVariableSchema(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		normalized.CreatedBy = v.CreatedBy
+		s.variableSchemas[v.ID] = cloneVariableSchema(normalized)
+	}
+	for _, v := range snapshot.PlatformPolicySets {
+		normalized, _ := NormalizePlatformPolicySet(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		normalized.CreatedBy = v.CreatedBy
+		s.platformPolicySets[v.ID] = clonePlatformPolicySet(normalized)
+	}
+	for _, v := range snapshot.PlatformTemplates {
+		normalized, _ := NormalizePlatformTemplate(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		normalized.CreatedBy = v.CreatedBy
+		s.platformTemplates[v.ID] = clonePlatformTemplate(normalized)
+	}
+	for _, v := range snapshot.Workspaces {
+		normalized, _ := NormalizeWorkspace(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		normalized.CreatedBy = v.CreatedBy
+		s.workspaces[v.ID] = cloneWorkspace(normalized)
+	}
+	for _, v := range snapshot.WorkspaceBindings {
+		normalized, _ := NormalizeWorkspaceBinding(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.workspaceBindings[v.ID] = cloneWorkspaceBinding(normalized)
 	}
 	for _, v := range snapshot.Revisions {
 		v = NormalizeBlueprintRevisionResolution(v)
@@ -1806,6 +2610,15 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	for _, v := range snapshot.RuntimeCertifications {
 		s.runtimeCertifications[v.ID] = cloneRuntimeCertification(v)
 	}
+	for _, v := range snapshot.BackupPolicies {
+		v.IncludedNamespaces = append([]string(nil), v.IncludedNamespaces...)
+		s.backupPolicies[v.ID] = v
+	}
+	for _, v := range snapshot.DataProtectionRuns {
+		v.Checks = append([]RuntimeCheck(nil), v.Checks...)
+		s.dataProtectionRuns[v.ID] = v
+		s.idempotency["dataProtectionRun:"+v.ProjectID+":"+v.IdempotencyKey] = v.ID
+	}
 	for _, v := range snapshot.RecoveryCheckpoints {
 		s.recoveryCheckpoints[v.ID] = v
 	}
@@ -1848,6 +2661,9 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	for _, v := range snapshot.ProviderClusters {
 		s.providerClusters[v.ID] = v
 	}
+	for _, v := range snapshot.AIExecutionClaims {
+		s.aiExecutionClaims[v.ID] = v
+	}
 	for _, v := range snapshot.AIRuns {
 		s.aiRuns[v.ID] = cloneAIRun(v)
 	}
@@ -1857,6 +2673,48 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	}
 	for _, v := range snapshot.RuntimeClosureCampaigns {
 		s.runtimeClosureCampaigns[v.ID] = v
+	}
+	for _, v := range snapshot.ComplianceProfiles {
+		s.complianceProfiles[v.ID] = v
+	}
+	for _, v := range snapshot.ComplianceScanRuns {
+		s.complianceScanRuns[v.ID] = v
+		s.idempotency["complianceScan:"+v.ProjectID+":"+v.IdempotencyKey] = v.ID
+	}
+	for _, v := range snapshot.ComplianceFindings {
+		s.complianceFindings[v.ID] = v
+	}
+	for _, v := range snapshot.ComplianceWaivers {
+		s.complianceWaivers[v.ID] = v
+	}
+	for _, v := range snapshot.SAMLBrokers {
+		s.samlBrokers[v.ID] = v
+	}
+	for _, v := range snapshot.IdentityAdminJobs {
+		s.identityAdminJobs[v.ID] = v
+		s.idempotency["identityAdmin:"+v.OrganizationID+":"+v.IdempotencyKey] = v.ID
+	}
+	for _, v := range snapshot.FinOpsRateCards {
+		normalized, _ := NormalizeFinOpsRateCard(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.finOpsRateCards[v.ID] = cloneFinOpsRateCard(normalized)
+	}
+	for _, v := range snapshot.FinOpsUsageMeasurements {
+		normalized, _ := NormalizeFinOpsUsageMeasurement(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.finOpsUsageMeasurements[v.ID] = cloneFinOpsUsageMeasurement(normalized)
+	}
+	for _, v := range snapshot.FinOpsCapacityObservations {
+		normalized, _ := NormalizeFinOpsCapacityObservation(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.finOpsCapacityObservations[v.ID] = cloneFinOpsCapacityObservation(normalized)
+	}
+	for _, v := range snapshot.OperationRequestPayloads {
+		if _, ok := s.operations[v.OperationID]; !ok || v.PayloadDigest != OperationRequestPayloadDigest(v.Payload) || strings.TrimSpace(v.MediaType) == "" {
+			return fmt.Errorf("%w: invalid durable operation request payload for %q", ErrValidation, v.OperationID)
+		}
+		v.Payload = append([]byte(nil), v.Payload...)
+		s.operationRequestPayloads[v.OperationID] = v
 	}
 	return nil
 }

@@ -128,17 +128,26 @@ func TestOperationStateMachine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	op, err = s.TransitionOperation(context.Background(), op.ID, op.Revision, OperationRunning, "", "worker")
+	if _, err = s.TransitionOperation(context.Background(), op.ID, op.Revision, OperationRunning, "", "worker"); !errors.Is(err, ErrPrerequisite) {
+		t.Fatalf("direct execution transition bypass accepted: %v", err)
+	}
+	at := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	claim, err := s.ClaimOperation(context.Background(), op.ID, "worker", time.Minute, at)
 	if err != nil {
 		t.Fatal(err)
 	}
-	op, err = s.TransitionOperation(context.Background(), op.ID, op.Revision, OperationVerifying, "", "worker")
+	op, _ = s.GetOperation(context.Background(), op.ID)
+	op, err = s.StartOperationAttempt(context.Background(), op.ID, op.Revision, "worker", claim.FenceToken, "worker")
 	if err != nil {
 		t.Fatal(err)
 	}
-	op, err = s.TransitionOperation(context.Background(), op.ID, op.Revision, OperationSucceeded, "", "worker")
+	op, err = s.BeginOperationVerification(context.Background(), op.ID, op.Revision, "worker", claim.FenceToken, "worker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, err = s.CompleteOperation(context.Background(), op.ID, op.Revision, "worker", claim.FenceToken, "worker")
 	if err != nil || !IsTerminal(op.State) {
-		t.Fatalf("terminal transition failed %v %#v", err, op)
+		t.Fatalf("terminal completion failed %v %#v", err, op)
 	}
 }
 

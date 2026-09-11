@@ -353,6 +353,7 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - {name: PLATFORM_FACTORY_LISTEN, value: "0.0.0.0:8080"}
+            - {name: PLATFORM_FACTORY_SOURCE_RELEASE_DIGEST, value: %s}
             - name: PLATFORM_FACTORY_POSTGRES_DSN
               valueFrom: {secretKeyRef: {name: platform-database, key: dsn}}
             - {name: PLATFORM_FACTORY_POSTGRES_MAX_OPEN_CONNS, value: "20"}
@@ -396,12 +397,19 @@ spec:
             limits: {cpu: "2", memory: 1Gi}
           volumeMounts:
             - {name: agent-mtls, mountPath: /etc/4so-agent-mtls, readOnly: true}
+            - {name: identity-admin, mountPath: /run/secrets/platform, readOnly: true}
           readinessProbe: {httpGet: {path: /readyz, port: 8080}, initialDelaySeconds: 5, periodSeconds: 5}
           startupProbe: {httpGet: {path: /readyz, port: 8080}, periodSeconds: 5, failureThreshold: 24}
           livenessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 15, timeoutSeconds: 3, failureThreshold: 4}
       volumes:
         - name: agent-mtls
           secret: {secretName: platform-agent-mtls, defaultMode: 0400}
+        - name: identity-admin
+          secret:
+            secretName: platform-internal-services
+            defaultMode: 0400
+            items:
+              - {key: identity-admin-password, path: identity-admin-password}
 ---
 apiVersion: v1
 kind: Service
@@ -411,7 +419,7 @@ spec:
   ports:
     - {name: http, port: 8080, targetPort: 8080}
     - {name: agent-mtls, port: 8443, targetPort: 8443}
-`, enc("platform"), enc(password), enc("keycloak"), enc(keycloakDBPassword), enc("forgejo"), enc(forgejoDBPassword), enc(password), enc(dsn), enc(forgejoPassword), enc(identityPassword), enc(request.Services.Identity.AdminEmail), enc(sessionSecret), enc(bootstrapToken), enc(catalogSigningKey), base64.StdEncoding.EncodeToString(agentCAPEM), base64.StdEncoding.EncodeToString(agentCAKeyPEM), base64.StdEncoding.EncodeToString(tlsCertPEM), base64.StdEncoding.EncodeToString(tlsKeyPEM), bundle.Spec.Workloads.PostgreSQLImage, yamlScalar(storageClass), bundle.Spec.Workloads.PlatformAPIImage, yamlScalar(issuer), yamlScalar(redirect), yamlScalar(bundle.Spec.Workloads.FleetAgentImage), yamlScalar(bundle.Spec.Workloads.RuntimeProbeImage), yamlScalar(strings.TrimRight(request.Network.PublicEndpoint, "/")), yamlScalar(agentPublicURL), yamlScalar(enc(string(caPEM))))
+`, enc("platform"), enc(password), enc("keycloak"), enc(keycloakDBPassword), enc("forgejo"), enc(forgejoDBPassword), enc(password), enc(dsn), enc(forgejoPassword), enc(identityPassword), enc(request.Services.Identity.AdminEmail), enc(sessionSecret), enc(bootstrapToken), enc(catalogSigningKey), base64.StdEncoding.EncodeToString(agentCAPEM), base64.StdEncoding.EncodeToString(agentCAKeyPEM), base64.StdEncoding.EncodeToString(tlsCertPEM), base64.StdEncoding.EncodeToString(tlsKeyPEM), bundle.Spec.Workloads.PostgreSQLImage, yamlScalar(storageClass), bundle.Spec.Workloads.PlatformAPIImage, yamlScalar(bundle.Metadata.SourceReleaseDigest), yamlScalar(issuer), yamlScalar(redirect), yamlScalar(bundle.Spec.Workloads.FleetAgentImage), yamlScalar(bundle.Spec.Workloads.RuntimeProbeImage), yamlScalar(strings.TrimRight(request.Network.PublicEndpoint, "/")), yamlScalar(agentPublicURL), yamlScalar(enc(string(caPEM))))
 }
 
 func (r *Runner) waitHADatabase(ctx context.Context, run Run, name string) error {

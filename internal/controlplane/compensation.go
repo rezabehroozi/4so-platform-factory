@@ -146,7 +146,7 @@ func (s *MemoryStore) RecordOperationForwardStepCompleted(_ context.Context, id,
 	if op.State != OperationRunning && op.State != OperationVerifying {
 		return OperationCompensationStep{}, Operation{}, ErrInvalidTransition
 	}
-	if op.LeaseOwner != worker || op.FenceToken != fence {
+	if !OperationLeaseActive(op, worker, fence, nowUTC(s.now)) {
 		return OperationCompensationStep{}, Operation{}, ErrStaleFence
 	}
 	if op.CompensationPlanDigest == "" {
@@ -319,7 +319,7 @@ func (s *MemoryStore) CompleteOperationCompensationStep(_ context.Context, id, s
 	if !ok {
 		return OperationCompensationStep{}, Operation{}, ErrNotFound
 	}
-	if op.State != OperationRollingBack || op.LeaseOwner != worker || op.FenceToken != fence {
+	if op.State != OperationRollingBack || !OperationLeaseActive(op, worker, fence, nowUTC(s.now)) {
 		return OperationCompensationStep{}, Operation{}, ErrStaleFence
 	}
 	key := id + ":" + strings.TrimSpace(stepKey)
@@ -379,7 +379,7 @@ func (s *MemoryStore) ReportOperationCompensationStepFailure(_ context.Context, 
 	if !ok {
 		return OperationCompensationStep{}, Operation{}, ErrNotFound
 	}
-	if op.State != OperationRollingBack || op.LeaseOwner != worker || op.FenceToken != fence {
+	if op.State != OperationRollingBack || !OperationLeaseActive(op, worker, fence, nowUTC(s.now)) {
 		return OperationCompensationStep{}, Operation{}, ErrStaleFence
 	}
 	key := id + ":" + strings.TrimSpace(stepKey)

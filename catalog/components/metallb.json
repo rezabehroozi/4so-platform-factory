@@ -69,7 +69,7 @@
       "deployment/controller",
       "daemonset/speaker"
     ],
-    "release": "0.16.x",
+    "release": "0.16.1",
     "requiresCapabilities": [],
     "risk": "high",
     "rollback": {
@@ -88,7 +88,7 @@
       "type": "helm-chart"
     },
     "supportTier": "research-candidate",
-    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
     "wave": 24
   }
 }

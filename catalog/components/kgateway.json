@@ -68,7 +68,7 @@
     "readiness": [
       "deployment/kgateway"
     ],
-    "release": "2.3.x",
+    "release": "2.4.1",
     "requiresCapabilities": [
       "gateway-api-crds"
     ],
@@ -89,7 +89,7 @@
       "type": "helm-chart"
     },
     "supportTier": "research-candidate",
-    "versionPolicy": "resolve-verify-and-pin-before-execution",
+    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
     "wave": 25
   }
 }

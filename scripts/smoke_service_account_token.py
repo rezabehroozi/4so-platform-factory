@@ -22,7 +22,7 @@ def request(url, method='GET', body=None, headers=None):
         return e.code, parsed, dict(e.headers)
 
 def start(binary, root, state_file):
-    port=free_port(); env=os.environ.copy(); env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}'; env['PLATFORM_FACTORY_STATE_FILE']=str(state_file)
+    port=free_port(); env=os.environ.copy(); env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true'; env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}'; env['PLATFORM_FACTORY_STATE_FILE']=str(state_file)
     proc=subprocess.Popen([str(binary)], cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     base=f'http://127.0.0.1:{port}'
     for _ in range(100):

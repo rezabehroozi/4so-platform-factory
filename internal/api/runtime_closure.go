@@ -74,16 +74,26 @@ func (s *Server) createRuntimeClosureCampaign(w http.ResponseWriter, r *http.Req
 		writeStoreError(w, controlplane.ErrNotFound)
 		return
 	}
+	if !evidence.IsSHA256Digest(s.runtimeClosureReleaseDigest) || !evidence.IsSHA256Digest(s.runtimeClosureProducerDigest) {
+		writeError(w, http.StatusServiceUnavailable, "RUNTIME_CLOSURE_EXACT_RELEASE_IDENTITY_UNAVAILABLE", "runtime closure requires an exact release artifact digest and running platform-api binary digest")
+		return
+	}
 	state, nextAction, summary, lastError, err := closureStateForBaseline(baseline)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, "RUNTIME_CLOSURE_BASELINE_STATE_INVALID", err.Error())
 		return
 	}
-	requestDigest := digestValue(in)
+	requestDigest := digestValue(struct {
+		Input                 createRuntimeClosureCampaignInput `json:"input"`
+		EvidenceSchemaVersion int                               `json:"evidenceSchemaVersion"`
+		ReleaseArtifactDigest string                            `json:"releaseArtifactDigest"`
+		ProducerBinaryDigest  string                            `json:"producerBinaryDigest"`
+	}{in, evidence.RuntimeClosureEvidenceSchema, s.runtimeClosureReleaseDigest, s.runtimeClosureProducerDigest})
 	campaign, replay, err := s.store.CreateRuntimeClosureCampaign(r.Context(), controlplane.RuntimeClosureCampaign{
 		ProjectID: in.ProjectID, ClusterID: in.ClusterID, BaselineDeploymentID: in.BaselineDeploymentID,
 		State: state, DesiredDigest: baseline.DesiredDigest, NextAction: nextAction, Summary: summary,
 		LastError: lastError, IdempotencyKey: key, RequestDigest: requestDigest,
+		EvidenceSchemaVersion: evidence.RuntimeClosureEvidenceSchema, ReleaseArtifactDigest: s.runtimeClosureReleaseDigest, ProducerBinaryDigest: s.runtimeClosureProducerDigest,
 	}, actor)
 	if err != nil {
 		writeStoreError(w, err)
@@ -105,18 +115,21 @@ func (s *Server) listRuntimeClosureCampaigns(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
-	items, err := s.store.ListRuntimeClosureCampaigns(r.Context(), projectID, r.URL.Query().Get("clusterId"))
+	clusterID := strings.TrimSpace(r.URL.Query().Get("clusterId"))
+	var page func([]string, bool, *controlplane.CollectionCursor, int) ([]controlplane.RuntimeClosureCampaign, error)
+	if pager, ok := s.store.(runtimeClosurePageStore); ok {
+		page = func(ids []string, all bool, cursor *controlplane.CollectionCursor, limit int) ([]controlplane.RuntimeClosureCampaign, error) {
+			return pager.ListRuntimeClosureCampaignsPage(r.Context(), ids, all, clusterID, cursor, limit)
+		}
+	}
+	v, err := boundedProjectCollection(s, w, r, projectID, func() ([]controlplane.RuntimeClosureCampaign, error) {
+		return s.store.ListRuntimeClosureCampaigns(r.Context(), projectID, clusterID)
+	}, page, func(item controlplane.RuntimeClosureCampaign) string { return item.ProjectID })
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	allowed, all, err := s.accessibleProjectSet(r)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	items = filterProjectScoped(items, allowed, all, func(item controlplane.RuntimeClosureCampaign) string { return item.ProjectID })
-	writeJSON(w, http.StatusOK, items)
+	writeOperatorCollectionJSON(w, r, http.StatusOK, v)
 }
 
 func (s *Server) getRuntimeClosureCampaign(w http.ResponseWriter, r *http.Request) {
@@ -156,6 +169,10 @@ func (s *Server) advanceRuntimeClosureCampaign(w http.ResponseWriter, r *http.Re
 	if campaign.State == controlplane.RuntimeClosureSucceeded {
 		setRevisionETag(w, campaign.Revision)
 		writeJSON(w, http.StatusOK, campaign)
+		return
+	}
+	if campaign.EvidenceSchemaVersion != evidence.RuntimeClosureEvidenceSchema || !evidence.IsSHA256Digest(campaign.ReleaseArtifactDigest) || !evidence.IsSHA256Digest(campaign.ProducerBinaryDigest) {
+		writeError(w, http.StatusConflict, "RUNTIME_CLOSURE_LEGACY_CAMPAIGN_RECREATE_REQUIRED", "legacy runtime closure campaigns cannot be promoted to exact-release-bound evidence; create a new campaign")
 		return
 	}
 	if _, err = s.requireProjectAccess(r, campaign.ProjectID, organizationWrite); err != nil {
@@ -237,6 +254,7 @@ func (s *Server) advanceRuntimeClosureCampaign(w http.ResponseWriter, r *http.Re
 						BaselineDesiredDigest: baseline.DesiredDigest, BaselineObservedDigest: baseline.ObservedDigest,
 						RuntimeVerificationID: verification.ID, RuntimeReportDigest: verification.ReportDigest,
 						RuntimeDesiredDigest: verification.DesiredDigest, RuntimeObservedDigest: verification.ObservedDigest,
+						ReleaseArtifactDigest: campaign.ReleaseArtifactDigest, ProducerBinaryDigest: campaign.ProducerBinaryDigest,
 					}
 					evidenceDigest, digestErr := inputs.Digest()
 					if digestErr != nil {
@@ -389,12 +407,22 @@ func (s *Server) runtimeClosureCampaignReport(w http.ResponseWriter, r *http.Req
 				BaselineDesiredDigest: baseline.DesiredDigest, BaselineObservedDigest: baseline.ObservedDigest,
 				RuntimeVerificationID: value.ID, RuntimeReportDigest: value.ReportDigest,
 				RuntimeDesiredDigest: value.DesiredDigest, RuntimeObservedDigest: value.ObservedDigest,
+				ReleaseArtifactDigest: campaign.ReleaseArtifactDigest, ProducerBinaryDigest: campaign.ProducerBinaryDigest,
 			}
-			digest, digestErr := inputs.Digest()
-			if digestErr == nil && digest == campaign.EvidenceDigest {
-				closureEvidence = evidence.RuntimeClosureEvidence{
-					SchemaVersion: evidence.RuntimeClosureEvidenceSchema, Algorithm: "sha256",
-					Canonicalization: evidence.RuntimeClosureCanonicalization, Inputs: inputs, Digest: digest,
+			if campaign.EvidenceSchemaVersion == evidence.RuntimeClosureEvidenceSchema {
+				digest, digestErr := inputs.Digest()
+				if digestErr == nil && digest == campaign.EvidenceDigest {
+					closureEvidence = evidence.RuntimeClosureEvidence{
+						SchemaVersion: evidence.RuntimeClosureEvidenceSchema, Algorithm: "sha256", Canonicalization: evidence.RuntimeClosureCanonicalization,
+						BindingAuthority: evidence.RuntimeClosureExactReleaseBindingAuthority, Inputs: inputs, Digest: digest,
+					}
+				}
+			} else if campaign.EvidenceSchemaVersion == 0 {
+				inputs.ReleaseArtifactDigest = ""
+				inputs.ProducerBinaryDigest = ""
+				digest, digestErr := inputs.LegacyDigest()
+				if digestErr == nil && digest == campaign.EvidenceDigest {
+					closureEvidence = evidence.RuntimeClosureEvidence{SchemaVersion: evidence.RuntimeClosureLegacyEvidenceSchema, Algorithm: "sha256", Canonicalization: evidence.RuntimeClosureLegacyCanonicalization, Inputs: inputs, Digest: digest}
 				}
 			}
 		}

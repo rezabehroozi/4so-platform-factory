@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"platform.4so.io/factory/internal/controlplane"
@@ -116,13 +117,19 @@ func TestBuildScopeIndexCoversScopedAuditResourceFamiliesWithoutCrossTenantLeak(
 
 type scopedAuditPagerProbe struct {
 	controlplane.Store
-	page          []controlplane.AuditEvent
-	scopedCalls   int
-	snapshotCalls int
+	page            []controlplane.AuditEvent
+	scopedCalls     int
+	snapshotCalls   int
+	organizationIDs []string
+	projectIDs      []string
+	limit           int
 }
 
-func (s *scopedAuditPagerProbe) ListAuditPageByScopes(context.Context, []string, []string, int) ([]controlplane.AuditEvent, error) {
+func (s *scopedAuditPagerProbe) ListAuditPageByScopes(_ context.Context, organizationIDs, projectIDs []string, limit int) ([]controlplane.AuditEvent, error) {
 	s.scopedCalls++
+	s.organizationIDs = append([]string(nil), organizationIDs...)
+	s.projectIDs = append([]string(nil), projectIDs...)
+	s.limit = limit
 	return append([]controlplane.AuditEvent(nil), s.page...), nil
 }
 
@@ -165,5 +172,61 @@ func TestMemoryAuditOrderingMatchesNewestFirstContract(t *testing.T) {
 	}
 	if len(events) != 2 || events[0].ResourceID != project.ID || events[1].ResourceID != org.ID {
 		t.Fatalf("audit ordering is not newest-first: %#v", events)
+	}
+}
+
+func TestAuditHonorsExplicitProjectScope(t *testing.T) {
+	ctx := context.Background()
+	base := controlplane.NewMemoryStore()
+	org, err := base.CreateOrganization(ctx, controlplane.Organization{Name: "audit-project-org", DisplayName: "Audit Project Org"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := base.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "audit-project", DisplayName: "Audit Project"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe := &scopedAuditPagerProbe{Store: base, page: []controlplane.AuditEvent{{ID: "audit-project-row", ResourceID: project.ID, Action: "project.read"}}}
+	s := New("test", nil, nil, probe)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/audit-events?projectId="+project.ID+"&limit=25", nil)
+	res := httptest.NewRecorder()
+	s.Handler().ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", res.Code, res.Body.String())
+	}
+	if probe.scopedCalls != 1 || probe.snapshotCalls != 0 {
+		t.Fatalf("explicit project audit must use bounded scoped pager: scoped=%d snapshot=%d", probe.scopedCalls, probe.snapshotCalls)
+	}
+	if len(probe.projectIDs) != 1 || probe.projectIDs[0] != project.ID {
+		t.Fatalf("project scope=%v want=%s", probe.projectIDs, project.ID)
+	}
+	if len(probe.organizationIDs) != 0 {
+		t.Fatalf("project scope must exclude organization-wide audit resources: %v", probe.organizationIDs)
+	}
+	if probe.limit != 25 {
+		t.Fatalf("limit=%d want=25", probe.limit)
+	}
+}
+
+func TestAuditHonorsExplicitOrganizationScope(t *testing.T) {
+	ctx := context.Background()
+	base := controlplane.NewMemoryStore()
+	orgA, _ := base.CreateOrganization(ctx, controlplane.Organization{Name: "audit-org-a", DisplayName: "Audit Org A"}, "admin")
+	orgB, _ := base.CreateOrganization(ctx, controlplane.Organization{Name: "audit-org-b", DisplayName: "Audit Org B"}, "admin")
+	projectA, _ := base.CreateProject(ctx, controlplane.Project{OrganizationID: orgA.ID, Name: "audit-a", DisplayName: "Audit A"}, "admin")
+	_, _ = base.CreateProject(ctx, controlplane.Project{OrganizationID: orgB.ID, Name: "audit-b", DisplayName: "Audit B"}, "admin")
+	probe := &scopedAuditPagerProbe{Store: base, page: []controlplane.AuditEvent{{ID: "audit-org-row", ResourceID: orgA.ID, Action: "organization.read"}}}
+	s := New("test", nil, nil, probe)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/audit-events?organizationId="+orgA.ID+"&limit=10", nil)
+	res := httptest.NewRecorder()
+	s.Handler().ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", res.Code, res.Body.String())
+	}
+	if len(probe.organizationIDs) != 1 || probe.organizationIDs[0] != orgA.ID {
+		t.Fatalf("organization scope=%v want=%s", probe.organizationIDs, orgA.ID)
+	}
+	if len(probe.projectIDs) != 1 || probe.projectIDs[0] != projectA.ID {
+		t.Fatalf("project scope under organization=%v want=%s", probe.projectIDs, projectA.ID)
 	}
 }

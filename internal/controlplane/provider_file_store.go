@@ -68,6 +68,12 @@ func (f *FileStore) RetryProviderCluster(ctx context.Context, id string, rev int
 	return mutate(f, ctx, func() (ProviderCluster, error) { return f.MemoryStore.RetryProviderCluster(ctx, id, rev, actor) })
 }
 
+func (f *FileStore) QueueTargetNodeProviderMutation(ctx context.Context, id string, rev int64, mutation TargetNodeProviderMutation, desired ProviderClusterSpec, actor, requestDigest string) (ProviderCluster, error) {
+	return mutate(f, ctx, func() (ProviderCluster, error) {
+		return f.MemoryStore.QueueTargetNodeProviderMutation(ctx, id, rev, mutation, desired, actor, requestDigest)
+	})
+}
+
 func (f *FileStore) NextProviderClusterTask(ctx context.Context, clusterID, token string) (ProviderCluster, ProviderProfile, error) {
 	f.writeMu.Lock()
 	defer f.writeMu.Unlock()

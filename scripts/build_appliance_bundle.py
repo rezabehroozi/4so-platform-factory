@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse, hashlib, json, os, posixpath, re, shutil, stat, tempfile, zipfile
 from pathlib import Path
 
+from lab_runner import _inspect_management_workload_oci_archive
+
 
 def digest(path: Path) -> str:
     h = hashlib.sha256()
@@ -178,19 +180,68 @@ def manifest_images(path: Path) -> list[str]:
     return sorted(set(images))
 
 
+def _same_file_state(first: os.stat_result, second: os.stat_result) -> bool:
+    return (
+        os.path.samestat(first, second)
+        and first.st_size == second.st_size
+        and first.st_mtime_ns == second.st_mtime_ns
+        and first.st_ctime_ns == second.st_ctime_ns
+    )
+
+
+def _copy_regular_source(value: str, dst: Path) -> dict[str, str]:
+    # Do not call Path.resolve(): it follows the final symlink before we can
+    # reject it and previously let compatibility builds silently accept a
+    # symlink source. The exact fd opened below is the authority we copy.
+    src = Path(os.path.abspath(os.path.expanduser(value)))
+    try:
+        before = src.lstat()
+    except OSError as exc:
+        raise SystemExit(f"artifact is missing or unreadable: {src}: {exc}") from exc
+    if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode) or before.st_size <= 0:
+        raise SystemExit(f"artifact must be a non-empty regular non-symlink file: {src}")
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(src, flags)
+    except OSError as exc:
+        raise SystemExit(f"artifact cannot be opened safely: {src}: {exc}") from exc
+    try:
+        opened = os.fstat(fd)
+        if not stat.S_ISREG(opened.st_mode) or not _same_file_state(before, opened):
+            raise SystemExit(f"artifact changed while opening: {src}")
+        if dst.exists():
+            raise SystemExit(f"duplicate artifact basename {src.name!r}; use platformctl build spec to preserve canonical paths")
+        out_fd = os.open(dst, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        h = hashlib.sha256(); written = 0
+        try:
+            with os.fdopen(os.dup(fd), "rb", closefd=True) as source, os.fdopen(out_fd, "wb", closefd=True) as output:
+                out_fd = -1
+                while True:
+                    chunk = source.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    output.write(chunk); h.update(chunk); written += len(chunk)
+                output.flush(); os.fsync(output.fileno())
+        finally:
+            if out_fd >= 0:
+                os.close(out_fd)
+        after = os.fstat(fd)
+        if not _same_file_state(opened, after) or written != opened.st_size:
+            try: dst.unlink()
+            except FileNotFoundError: pass
+            raise SystemExit(f"artifact changed while copying: {src}")
+        return {"path": "artifacts/" + dst.name, "sha256": "sha256:" + h.hexdigest()}
+    finally:
+        os.close(fd)
+
+
 def copy_rows(values: list[str], target: Path) -> list[dict[str, str]]:
     rows = []
     for value in values:
-        src = Path(value).resolve()
-        info = src.lstat() if src.exists() else None
-        if info is None or not src.is_file() or src.is_symlink() or info.st_size <= 0:
-            raise SystemExit(f"artifact must be a non-empty regular non-symlink file: {src}")
-        dst = target / src.name
-        if dst.exists() and digest(dst) != digest(src):
-            raise SystemExit(f"conflicting artifact name: {src.name}; use platformctl build spec to preserve paths")
-        if not dst.exists():
-            shutil.copy2(src, dst)
-        rows.append({"path": "artifacts/" + dst.name, "sha256": digest(dst)})
+        src = Path(os.path.abspath(os.path.expanduser(value)))
+        rows.append(_copy_regular_source(value, target / src.name))
     return rows
 
 
@@ -212,7 +263,7 @@ def main() -> int:
     p.add_argument("--maintenance-image", required=True)
     p.add_argument("--gitops-manifest", required=True)
     p.add_argument("--cloudnative-pg-manifest", required=True)
-    p.add_argument("--ocm-manifest", required=True)
+    p.add_argument("--ocm-manifest", help="optional OCM install manifest; omit when OCM integration is disabled")
     p.add_argument("--storage-manifest", required=True)
     p.add_argument("--fleet-agent-image", required=True)
     p.add_argument("--runtime-probe-image", required=True)
@@ -232,14 +283,42 @@ def main() -> int:
     workload_archives = copy_rows(a.workload_image_archive, artifacts)
     gitops = copy_rows([a.gitops_manifest], artifacts)[0]
     cnpg = copy_rows([a.cloudnative_pg_manifest], artifacts)[0]
-    ocm = copy_rows([a.ocm_manifest], artifacts)[0]
+    ocm = copy_rows([a.ocm_manifest], artifacts)[0] if a.ocm_manifest else None
     storage = copy_rows([a.storage_manifest], artifacts)[0]
     images = [image_ref(v) for v in [a.postgres_image, a.platform_api_image, a.forgejo_image, a.zot_image, a.keycloak_image, a.maintenance_image, a.fleet_agent_image, a.runtime_probe_image]]
-    for source in [Path(a.gitops_manifest), Path(a.cloudnative_pg_manifest), Path(a.ocm_manifest), Path(a.storage_manifest)]:
-        images.extend(manifest_images(source.resolve()))
+    manifest_rows = [gitops, cnpg, storage]
+    if ocm is not None:
+        manifest_rows.append(ocm)
+    for row in manifest_rows:
+        images.extend(manifest_images(root / row["path"]))
     images = sorted(set(images))
 
-    indexed = [installer, gitops, cnpg, ocm, storage] + rke2_install + rke2_images + workload_archives
+    # Compatibility mode must preserve the same workload-image authority as the
+    # canonical Go bundle builder.  A digest-pinned reference in the CLI/build
+    # spec is only a claim until the staged OCI archive proves that exact
+    # manifest digest is present and import-addressable under that reference.
+    # Reuse the Lab Python authority validator instead of maintaining a third
+    # OCI parser with subtly different semantics.
+    archive_images: list[str] = []
+    for row in workload_archives:
+        copied_archive = root / row["path"]
+        try:
+            archive_images.extend(_inspect_management_workload_oci_archive(copied_archive))
+        except RuntimeError as exc:
+            raise SystemExit(f"workload OCI archive {copied_archive}: {exc}") from exc
+    if len(archive_images) != len(set(archive_images)):
+        raise SystemExit("workload OCI archives contain duplicate image references")
+    if sorted(archive_images) != images:
+        missing = sorted(set(images) - set(archive_images))
+        extra = sorted(set(archive_images) - set(images))
+        raise SystemExit(
+            "workload OCI archives must contain exactly all required product and operator/storage images"
+            f"; missing={missing} extra={extra}"
+        )
+
+    indexed = [installer, gitops, cnpg, storage] + rke2_install + rke2_images + workload_archives
+    if ocm is not None:
+        indexed.append(ocm)
     artifact_paths = sorted(row["path"] for row in indexed)
     artifact_digests = {row["path"]: row["sha256"] for row in indexed}
     index = {"version": a.version, "images": images, "artifacts": artifact_paths, "artifactDigests": artifact_digests}
@@ -269,11 +348,12 @@ def main() -> int:
                 **by_name,
                 "gitOpsManifest": gitops,
                 "cloudNativePGManifest": cnpg,
-                "ocmManifest": ocm,
                 "storageManifest": storage,
             },
         },
     }
+    if ocm is not None:
+        manifest["spec"]["workloads"]["ocmManifest"] = ocm
     manifest_raw = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()
     (root / "bundle.json").write_bytes(manifest_raw)
 

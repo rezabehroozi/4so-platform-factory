@@ -49,3 +49,53 @@ func TestPostgresGovernedReleaseRevisionPairsUseSerializableTransactions(t *test
 		}
 	}
 }
+
+func TestPostgresPlatformTemplateCreationLocksAuthorityBindings(t *testing.T) {
+	raw, err := os.ReadFile("postgres_platform_template.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, term := range []string{
+		"func (s *PostgresStore) CreatePlatformTemplate",
+		"s.serializable(ctx",
+		"FROM blueprint_releases WHERE id=$1 FOR SHARE",
+		"FROM variable_schemas WHERE id=$1 FOR SHARE",
+		"FROM platform_policy_sets WHERE id=$1 FOR SHARE",
+		"platform_template.created",
+	} {
+		if !strings.Contains(source, term) {
+			t.Fatalf("postgres platform-template authority missing %q", term)
+		}
+	}
+}
+
+func TestPostgresOperationExecutionAuthorityIncludesLeaseExpiryAndAttemptScopedStepReplay(t *testing.T) {
+	checks := map[string][]string{
+		"postgres_operation_retry.go": {
+			"OperationLeaseActive(op, worker, fence, now)",
+			"operation.failure_reported",
+		},
+		"postgres_compensation.go": {
+			"OperationLeaseActive(op, worker, fence",
+		},
+		"postgres_store.go": {
+			"CanDirectOperationTransition",
+			"OperationLeaseActive(op, actor, step.FenceToken",
+			"OperationStepReplayCompatible(existing, step)",
+			"WHERE operation_id=$1 AND attempt=$2 AND step_key=$3",
+		},
+	}
+	for file, terms := range checks {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := string(raw)
+		for _, term := range terms {
+			if !strings.Contains(source, term) {
+				t.Fatalf("%s missing operation execution authority primitive %q", file, term)
+			}
+		}
+	}
+}

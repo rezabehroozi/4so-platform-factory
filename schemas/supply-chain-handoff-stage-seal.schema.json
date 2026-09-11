@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://4so.local/schemas/supply-chain-handoff-stage-seal.schema.json",
+  "title": "Supply Chain Handoff Stage Seal",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {"const": "platform.4so.io/v1alpha1"},
+    "kind": {"const": "SupplyChainHandoffStageSeal"},
+    "metadata": {"type": "object", "required": ["name"], "additionalProperties": false, "properties": {"name": {"type": "string", "minLength": 1}}},
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "schemaVersion", "releaseVersion", "handoffAuthority", "handoffPlanSha256", "inventorySha256", "fileCount", "totalBytes", "files", "truthModel"],
+      "properties": {
+        "authority": {"const": "SUPPLY_CHAIN_HANDOFF_SEAL_V1"},
+        "schemaVersion": {"const": 1},
+        "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "handoffAuthority": {"const": "SUPPLY_CHAIN_HANDOFF_V1"},
+        "handoffPlanSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "inventorySha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "fileCount": {"type": "integer", "minimum": 0, "maximum": 200000},
+        "totalBytes": {"type": "integer", "minimum": 0, "maximum": 53687091200},
+        "files": {"type": "array", "maxItems": 200000, "items": {"type": "object", "additionalProperties": false, "required": ["path", "sizeBytes", "sha256"], "properties": {"path": {"type": "string", "minLength": 1}, "sizeBytes": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}},
+        "truthModel": {"type": "object", "additionalProperties": false, "required": ["transportEvidenceOnly", "sealNeverPromotesSourceResolution", "sealNeverPromotesRuntimeCertification", "physicalPassInferenceForbidden"], "properties": {"transportEvidenceOnly": {"const": true}, "sealNeverPromotesSourceResolution": {"const": true}, "sealNeverPromotesRuntimeCertification": {"const": true}, "physicalPassInferenceForbidden": {"const": true}}}
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import hashlib, hmac, json, os, socket, subprocess, sys, tempfile, threading, time, urllib.error, urllib.request
+import hashlib, hmac, ipaddress, json, os, socket, subprocess, sys, tempfile, threading, time, urllib.error, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -43,9 +43,39 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status); self.send_header('Content-Type','text/plain'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload)
     def log_message(self,*_): pass
 
+def non_loopback_ipv4():
+    # The production webhook client correctly blocks loopback/link-local SSRF
+    # targets. The smoke server therefore must advertise an address on the
+    # host/container's real egress interface instead of assuming hostname DNS
+    # is non-loopback. UDP connect performs route selection without requiring a
+    # successful remote exchange.
+    candidates=[]
+    try:
+        probe=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+        try:
+            probe.connect(('192.0.2.1',9))
+            candidates.append(probe.getsockname()[0])
+        finally:
+            probe.close()
+    except OSError:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(),None,socket.AF_INET,socket.SOCK_STREAM):
+            candidates.append(info[4][0])
+    except OSError:
+        pass
+    for raw in candidates:
+        try:
+            addr=ipaddress.ip_address(raw)
+        except ValueError:
+            continue
+        if addr.version==4 and not (addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_unspecified):
+            return str(addr)
+    raise RuntimeError('notification smoke requires one non-loopback IPv4 interface for SSRF-safe webhook delivery')
+
 def start_webhook():
     state=WebhookState(); Handler.state=state
-    host=socket.gethostbyname(socket.gethostname())
+    host=non_loopback_ipv4()
     server=ThreadingHTTPServer(('0.0.0.0',0),Handler); thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
     return server,state,f'http://{host}:{server.server_address[1]}/notify'
 
@@ -54,7 +84,7 @@ def notification_secret_prefix(organization_id):
     return 'PLATFORM_FACTORY_NOTIFICATION_SECRET_'+canonical+'_'
 
 def start_api(binary,state_file,credential_org=None):
-    port=free_port(); env=os.environ.copy()
+    port=free_port(); env=os.environ.copy(); env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true'
     env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}'
     env['PLATFORM_FACTORY_STATE_FILE']=str(state_file)
     env['PLATFORM_FACTORY_AGENT_MTLS_REQUIRED']='false'

@@ -64,6 +64,7 @@ def source_rows(stage: Path) -> list[dict[str, object]]:
         "ARTIFACT-MANIFEST.json",
         "BUILD-PROVENANCE.json",
         "SBOM.spdx.json",
+        "DERIVED-AGENT-KNOWLEDGE.json",
     }
     for file in source_files(stage):
         rel = str(file.relative_to(stage))
@@ -103,6 +104,7 @@ def build_provenance(stage: Path, version: str, release_name: str) -> None:
                     **metadata,
                 }
             )
+    go_version = subprocess.run(["go", "version"], capture_output=True, text=True, check=True).stdout.strip()
     provenance = {
         "schemaVersion": 1,
         "product": "4SO Platform Factory",
@@ -110,6 +112,7 @@ def build_provenance(stage: Path, version: str, release_name: str) -> None:
         "releaseName": release_name,
         "buildType": "deterministic-local-release",
         "created": FIXED_CREATED,
+        "goToolchain": go_version,
         "sourceTreeDigest": "sha256:" + sha_bytes(canonical),
         "sourceFileCount": len(sources),
         "module": "platform.4so.io/factory",
@@ -241,6 +244,27 @@ def main() -> int:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
             dst.chmod(0o755)
+
+    knowledge = subprocess.run(
+        [
+            "python3",
+            str(stage / "scripts" / "generate_agent_knowledge.py"),
+            "--root",
+            str(stage),
+            "--binary",
+            str(stage / "bin" / "linux-amd64" / "platformctl"),
+            "--out",
+            str(stage / "DERIVED-AGENT-KNOWLEDGE.json"),
+            "--check",
+        ],
+        cwd=stage,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if knowledge.returncode != 0:
+        raise SystemExit(f"DERIVED_AGENT_KNOWLEDGE_BUILD_FAILED {knowledge.stdout}{knowledge.stderr}")
+    print(knowledge.stdout.strip())
 
     build_provenance(stage, version, release_name)
     build_sbom(stage, version, release_name)

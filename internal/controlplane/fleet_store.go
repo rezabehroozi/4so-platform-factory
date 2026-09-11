@@ -52,7 +52,7 @@ func ClusterMutationRBACActivationCurrent(c ManagedCluster) bool {
 
 func ClusterTaskAdmitted(c ManagedCluster) bool {
 	return c.ConnectionState == "CONNECTED" &&
-		targetmodel.SupportedDistribution(c.Distribution) &&
+		ClusterMutationAdmissionEligible(c) &&
 		c.InventoryDigest != "" && c.InventoryUpdatedAt != nil && c.LastSeenAt != nil &&
 		c.InventoryUpdatedAt.Equal(*c.LastSeenAt) &&
 		clusterHasCapability(c, TargetMutationRBACActiveCapability) &&
@@ -127,7 +127,10 @@ func NormalizeClusterInventoryIdentityAuthority(inv ClusterInventory, verified b
 
 func NormalizeClusterInventoryForAdmission(inv ClusterInventory) ClusterInventory {
 	inv.Distribution = targetmodel.CanonicalDistribution(inv.Distribution)
-	if targetmodel.SupportedDistribution(inv.Distribution) {
+	if inv.Distribution == targetmodel.DistributionOKD {
+		inv = NormalizeOKDInventoryAuthority(inv)
+	}
+	if ClusterInventoryMutationEligible(inv) {
 		return inv
 	}
 	return NormalizeClusterInventoryReadOnly(inv)
@@ -235,7 +238,7 @@ func NormalizeClusterInventoryMutationAuthority(inv ClusterInventory, current Ma
 	// authorized. Semantic drift therefore fails closed until re-issued.
 	inv.Capabilities = removeClusterCapability(inv.Capabilities, TargetMutationRBACActivationIssuedCapability)
 	inv.Capabilities = removeClusterCapability(inv.Capabilities, TargetMutationRBACEverIssuedCapability)
-	allowActive := issued && identityVerified && targetmodel.SupportedDistribution(targetmodel.CanonicalDistribution(inv.Distribution)) && reportedActive
+	allowActive := issued && identityVerified && ClusterInventoryMutationEligible(inv) && reportedActive
 	if strings.TrimSpace(imp.AgentServiceAccount) != "" && !principalAttested {
 		allowActive = false
 	}
@@ -254,7 +257,7 @@ func ClusterCapabilitiesWithServerMutationAuthority(inv ClusterInventory, previo
 		values = append(values, TargetMutationRBACEverIssuedCapability)
 	}
 	if clusterHasCapability(previous, TargetMutationRBACActivationIssuedCapability) &&
-		identityVerified && targetmodel.SupportedDistribution(inv.Distribution) &&
+		identityVerified && ClusterInventoryMutationEligible(inv) &&
 		secureEqual(strings.TrimSpace(previous.MutationRBACIssuedForDigest), strings.TrimSpace(basisDigest)) {
 		values = append(values, TargetMutationRBACActivationIssuedCapability)
 	}
@@ -301,6 +304,22 @@ func cloneClusterInventory(v ClusterInventory) ClusterInventory {
 	v.StorageClasses = append([]ClusterStorageClass(nil), v.StorageClasses...)
 	v.Certificates = append([]ClusterCertificateObservation(nil), v.Certificates...)
 	v.Networking.IngressControllers = append([]string(nil), v.Networking.IngressControllers...)
+	v.WorkloadExplorer.Workloads = append([]ClusterWorkloadObservation(nil), v.WorkloadExplorer.Workloads...)
+	for i := range v.WorkloadExplorer.Workloads {
+		v.WorkloadExplorer.Workloads[i].Images = append([]string(nil), v.WorkloadExplorer.Workloads[i].Images...)
+	}
+	v.WorkloadExplorer.Services = append([]ClusterServiceObservation(nil), v.WorkloadExplorer.Services...)
+	for i := range v.WorkloadExplorer.Services {
+		v.WorkloadExplorer.Services[i].ExternalIPs = append([]string(nil), v.WorkloadExplorer.Services[i].ExternalIPs...)
+		v.WorkloadExplorer.Services[i].Ports = append([]ClusterServicePortObservation(nil), v.WorkloadExplorer.Services[i].Ports...)
+	}
+	v.WorkloadExplorer.Ingresses = append([]ClusterIngressObservation(nil), v.WorkloadExplorer.Ingresses...)
+	for i := range v.WorkloadExplorer.Ingresses {
+		v.WorkloadExplorer.Ingresses[i].Hosts = append([]string(nil), v.WorkloadExplorer.Ingresses[i].Hosts...)
+		v.WorkloadExplorer.Ingresses[i].TLSHosts = append([]string(nil), v.WorkloadExplorer.Ingresses[i].TLSHosts...)
+	}
+	v.WorkloadExplorer.PVCs = append([]ClusterPVCObservation(nil), v.WorkloadExplorer.PVCs...)
+	v.WorkloadExplorer.Events = append([]ClusterEventObservation(nil), v.WorkloadExplorer.Events...)
 	v.APIResources = append([]ClusterAPIResourceObservation(nil), v.APIResources...)
 	for i := range v.APIResources {
 		v.APIResources[i].Verbs = append([]string(nil), v.APIResources[i].Verbs...)
@@ -585,7 +604,7 @@ func (s *MemoryStore) AuthorizeClusterMutationRBACActivation(_ context.Context, 
 	if !ok {
 		return ManagedCluster{}, ClusterImport{}, ErrNotFound
 	}
-	if !targetmodel.SupportedDistribution(c.Distribution) || !ClusterInventoryAuthorityFreshAt(c, nowUTC(s.now)) || !clusterHasCapability(c, TargetIdentityContinuityCapability) {
+	if !ClusterMutationAdmissionEligible(c) || !ClusterInventoryAuthorityFreshAt(c, nowUTC(s.now)) || !clusterHasCapability(c, TargetIdentityContinuityCapability) {
 		return ManagedCluster{}, ClusterImport{}, ErrPrerequisite
 	}
 	if s.hasUnacknowledgedRevokedClusterForUIDLocked(c.ExternalUID, c.ID) {
@@ -757,6 +776,7 @@ func ClusterInventoryDigest(v ClusterInventory) string {
 		Capacity                    ClusterCapacity                 `json:"capacity"`
 		Certificates                []ClusterCertificateObservation `json:"certificates"`
 		Networking                  ClusterNetworking               `json:"networking"`
+		WorkloadExplorer            ClusterWorkloadExplorer         `json:"workloadExplorer"`
 		APIResources                []ClusterAPIResourceObservation `json:"apiResources"`
 		CRDs                        []ClusterCRDObservation         `json:"crds"`
 		APIDiscoveryComplete        bool                            `json:"apiDiscoveryComplete"`
@@ -765,7 +785,7 @@ func ClusterInventoryDigest(v ClusterInventory) string {
 		SchemaDiscoveryDigest       string                          `json:"schemaDiscoveryDigest"`
 		SchemaDiscoveryComplete     bool                            `json:"schemaDiscoveryComplete"`
 		Capabilities                []string                        `json:"capabilities"`
-	}{v.Distribution, v.DistributionEvidenceMethod, v.DistributionEvidenceUID, v.DistributionEvidenceVersion, v.KubernetesVersion, v.Nodes, v.AddOns, v.StorageClasses, v.Capacity, v.Certificates, v.Networking, v.APIResources, v.CRDs, v.APIDiscoveryComplete, v.CRDDiscoveryComplete, v.SchemaDiscoveryVersion, v.SchemaDiscoveryDigest, v.SchemaDiscoveryComplete, v.Capabilities})
+	}{v.Distribution, v.DistributionEvidenceMethod, v.DistributionEvidenceUID, v.DistributionEvidenceVersion, v.KubernetesVersion, v.Nodes, v.AddOns, v.StorageClasses, v.Capacity, v.Certificates, v.Networking, v.WorkloadExplorer, v.APIResources, v.CRDs, v.APIDiscoveryComplete, v.CRDDiscoveryComplete, v.SchemaDiscoveryVersion, v.SchemaDiscoveryDigest, v.SchemaDiscoveryComplete, v.Capabilities})
 	return digestBytes(raw)
 }
 func digestBytes(raw []byte) string { return fmt.Sprintf("sha256:%x", sha256Sum(raw)) }

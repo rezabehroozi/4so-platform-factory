@@ -1,0 +1,376 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/appliance-bundle-acquisition-lock.schema.json",
+  "title": "4SO Platform Factory Lab Appliance Bundle Acquisition Lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "authority",
+    "schemaVersion",
+    "releaseVersion",
+    "status",
+    "inputPack",
+    "resolvedAuthorities",
+    "partialAuthorities",
+    "missingAuthorities",
+    "derivedAuthorities"
+  ],
+  "properties": {
+    "authority": {
+      "const": "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8"
+    },
+    "schemaVersion": {
+      "const": 8
+    },
+    "releaseVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "incomplete"
+      ]
+    },
+    "inputPack": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "urls",
+            "sha256",
+            "sizeBytes",
+            "format",
+            "buildSpecPath",
+            "stagingDirectory"
+          ],
+          "properties": {
+            "urls": {
+              "$ref": "#/$defs/urls"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "sizeBytes": {
+              "$ref": "#/$defs/sizeBytes"
+            },
+            "format": {
+              "const": "zip"
+            },
+            "buildSpecPath": {
+              "$ref": "#/$defs/relativePath"
+            },
+            "stagingDirectory": {
+              "$ref": "#/$defs/relativePath"
+            }
+          }
+        }
+      ]
+    },
+    "resolvedAuthorities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/resolvedAuthority"
+      }
+    },
+    "partialAuthorities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/partialAuthority"
+      }
+    },
+    "missingAuthorities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "derivedAuthorities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "digest-pinned-core-workload-images"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)\\.(?:/|$))(?!.*//).+$"
+    },
+    "urls": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^https://[^?#]+$"
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sizeBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 34359738368
+    },
+    "lockedArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "stagingPath",
+        "urls",
+        "sha256",
+        "sizeBytes"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^/\\\\]+$"
+        },
+        "stagingPath": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "urls": {
+          "$ref": "#/$defs/urls"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sizeBytes": {
+          "$ref": "#/$defs/sizeBytes"
+        }
+      }
+    },
+    "pendingArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "stagingPath",
+        "reason",
+        "sourceRef",
+        "contentAddress"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stagingPath": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceRef": {
+          "type": "string",
+          "pattern": "^https://[^?#]+$"
+        },
+        "contentAddress": {
+          "type": "string",
+          "pattern": "^git-sha1:[a-f0-9]{40}$"
+        }
+      }
+    },
+    "authorityBase": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "kubernetes-manifest",
+            "release-artifact",
+            "release-artifact-set",
+            "image-inventory",
+            "oci-archive"
+          ]
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifacts": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/lockedArtifact"
+          }
+        }
+      }
+    },
+    "resolvedAuthority": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/authorityBase"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "kind",
+            "provider",
+            "version",
+            "scope",
+            "artifacts"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {},
+            "provider": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string"
+            },
+            "artifacts": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/lockedArtifact"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "partialAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "provider",
+        "version",
+        "scope",
+        "artifacts",
+        "pendingArtifacts"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "kubernetes-manifest",
+            "release-artifact",
+            "release-artifact-set",
+            "image-inventory",
+            "oci-archive"
+          ]
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifacts": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/lockedArtifact"
+          }
+        },
+        "pendingArtifacts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/pendingArtifact"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ready"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "inputPack": {
+            "type": "object"
+          },
+          "missingAuthorities": {
+            "maxItems": 0
+          },
+          "partialAuthorities": {
+            "maxItems": 0
+          },
+          "resolvedAuthorities": {
+            "minItems": 5
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "incomplete"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "inputPack": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

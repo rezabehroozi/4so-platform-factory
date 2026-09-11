@@ -1,8 +1,8 @@
 {
   "apiVersion": "platform.4so.io/v1alpha1",
   "kind": "LabCertificationGuide",
-  "schemaVersion": 2,
-  "authority": "LAB_CERTIFICATION_MATRIX_V1",
+  "schemaVersion": 3,
+  "authority": "LAB_CERTIFICATION_MATRIX_V2",
   "principles": [
     "Deterministic scripts execute tests; AI never decides PASS or Physical PASS.",
     "Every physical run is bound to the exact release ZIP SHA-256 and freshly collected evidence.",
@@ -13,7 +13,7 @@
   "serverTiers": [
     {
       "id": "current-import-minimum",
-      "displayName": "Current OKD import certification \u2014 minimum",
+      "displayName": "Current OKD import certification — minimum",
       "physicalServers": 4,
       "roles": [
         "management-primary",
@@ -108,7 +108,7 @@
       "group": "Artifact",
       "name": "Exact-SHA integrity and provenance",
       "serverTier": "current-import-minimum",
-      "phase": "C-ai-native-operator-experience-lab-mcp-foundation",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": false,
       "aiEligible": false,
       "actions": [
@@ -118,14 +118,16 @@
         "bind run to exact SHA"
       ],
       "automationStatus": "IMPLEMENTED",
-      "automationDetail": "Exact archive verification, SHA binding, distinct physical server inventory validation/digest binding and management-host preflight are automated."
+      "automationDetail": "Exact archive verification, persistent private SHA snapshot binding, exclusive run-state fencing, immutable release/topology/spec/bundle run-state binding, distinct physical server inventory validation/digest binding and management-host preflight are automated.",
+      "featureOwnerPhase": "C5-installer-production-lifecycle-closure",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M01",
       "group": "Management install",
       "name": "Fresh single-node management install",
       "serverTier": "current-import-minimum",
-      "phase": "C-ai-native-operator-experience-lab-mcp-foundation",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": true,
       "aiEligible": true,
       "actions": [
@@ -137,14 +139,16 @@
         "restart and re-verify"
       ],
       "automationStatus": "IMPLEMENTED",
-      "automationDetail": "Fresh single-node management installation, exact-artifact field evidence, real host boot-id change, installer-service recovery, post-reboot installer verification and post-reboot exact-SHA evidence recollection are automated. Physical PASS still requires the independent four-layer release gate."
+      "automationDetail": "Fresh single-node management installation validates managed identity adminEmail and appliance dnsZone before mutation, uses only the exact verified disconnected bundle, seals the exported Installer access token under LAB_INSTALLER_ACCESS_TOKEN_FILE_AUTHORITY_V1 for safe same-binding resume, and automates exact-artifact field evidence, real host boot-id change, installer-service recovery, post-reboot Installer verification and post-reboot exact-SHA evidence recollection. Physical PASS still requires the independent four-layer release gate.",
+      "featureOwnerPhase": "C5-installer-production-lifecycle-closure",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M02",
       "group": "Management HA",
       "name": "Fresh three-node management HA",
       "serverTier": "production-ha",
-      "phase": "C-ai-native-operator-experience-lab-mcp-foundation",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": true,
       "aiEligible": true,
       "actions": [
@@ -154,34 +158,40 @@
         "one management node reboot",
         "durable operation resume"
       ],
-      "automationStatus": "PARTIAL",
-      "automationDetail": "Fresh three-node management HA installation is automated; quorum fault/reboot/resume certification is still pending."
+      "automationStatus": "IMPLEMENTED",
+      "automationDetail": "Fresh three-node management HA installation additionally requires an explicit HTTPS public endpoint and external S3 URL/bucket/external-secret credential authority before mutation, uses the same exact disconnected bundle/token-resume boundary, then performs deterministic post-quorum Installer-service interruption, durable same-run explicit resume, full three-node quorum verification, a real rke2-server peer restart, observed peer reboot outage, degraded two-node quorum proof, boot-ID change and full three-node recovery. These automated actions produce row evidence only; they do not imply the independent four-layer release Physical PASS.",
+      "featureOwnerPhase": "C5-installer-production-lifecycle-closure",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M03",
       "group": "Persistence",
       "name": "PostgreSQL exact-runtime persistence and migration",
-      "serverTier": "current-import-minimum",
-      "phase": "C-ai-native-operator-experience-lab-mcp-foundation",
+      "serverTier": "production-ha",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": true,
       "aiEligible": true,
       "actions": [
         "migration",
         "CRUD",
-        "API restart",
+        "PostgreSQL primary restart/failover",
+        "AI dispatch/result atomicity and durability",
         "backup",
         "restore",
-        "post-restore authority verification"
+        "post-restore authority verification",
+        "three-node API/PostgreSQL recovery"
       ],
-      "automationStatus": "PENDING",
-      "automationDetail": "The standalone PostgreSQL runtime-certification harness exists, but remote credential-safe wiring into the lab runner is pending."
+      "automationStatus": "IMPLEMENTED",
+      "automationDetail": "The production-HA runner binds M03 to the exact CloudNativePG runtime installed by the same M02 run. It discovers the current primary/service/cluster CA over strict management SSH, creates an ephemeral certifier role/database inside that runtime without persisting credentials, tunnels to the service with TLS verify-full, runs migrations/CRUD/concurrency and AI dispatch/result atomicity under AI_RUN_POSTGRES_DURABILITY_RUNTIME_AUTHORITY_V1, proves the durable AI claim/run pair survives a real primary restart, verifies backup/restore plus post-restore AI durability, re-verifies three-node PostgreSQL/API recovery, and drops all certifier-owned databases plus the role. Row evidence remains independent from the four-layer release Physical PASS, and the AI/PostgreSQL blocker remains pending until physical execution.",
+      "featureOwnerPhase": "C5-installer-production-lifecycle-closure",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M04",
       "group": "OKD import",
       "name": "OKD identity/read-only import",
       "serverTier": "current-import-minimum",
-      "phase": "D-okd-import-identity-security-certification",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": false,
       "aiEligible": true,
       "actions": [
@@ -193,14 +203,16 @@
         "reconnect"
       ],
       "automationStatus": "PENDING_PHASE",
-      "automationDetail": "Scheduled for Phase D after target-cluster API/agent enrollment input is wired into the runner."
+      "automationDetail": "Feature owner F-okd-import-capability-certification; certification execution is deferred to D-exact-artifact-lab-ai-certification after its prerequisite gates close.",
+      "featureOwnerPhase": "F-okd-import-capability-certification",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M05",
       "group": "OKD security",
       "name": "Revocation fence and same-UID re-enrollment",
       "serverTier": "current-import-minimum",
-      "phase": "D-okd-import-identity-security-certification",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": true,
       "aiEligible": true,
       "actions": [
@@ -213,14 +225,16 @@
         "prove old principal denied"
       ],
       "automationStatus": "PENDING_PHASE",
-      "automationDetail": "Scheduled for Phase D after real target-side RBAC fence apply/deny evidence is wired."
+      "automationDetail": "Feature owner F-okd-import-capability-certification; certification execution is deferred to D-exact-artifact-lab-ai-certification after its prerequisite gates close.",
+      "featureOwnerPhase": "F-okd-import-capability-certification",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M06",
       "group": "Capability ownership",
       "name": "OKD native capability/health translation",
       "serverTier": "current-import-minimum",
-      "phase": "E-capability-catalog-blueprint-ai-explainability",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": false,
       "aiEligible": true,
       "actions": [
@@ -232,14 +246,16 @@
         "degraded discovery negative controls"
       ],
       "automationStatus": "PENDING_PHASE",
-      "automationDetail": "Scheduled for Phase E."
+      "automationDetail": "Feature owner F-okd-import-capability-certification; certification execution is deferred to D-exact-artifact-lab-ai-certification after its prerequisite gates close.",
+      "featureOwnerPhase": "F-okd-import-capability-certification",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M07",
       "group": "Day-2",
       "name": "Imported target lifecycle",
       "serverTier": "day2-replacement",
-      "phase": "F-day2-managed-compact3-workflow-convergence",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": true,
       "aiEligible": true,
       "actions": [
@@ -252,14 +268,16 @@
         "recovery-required evidence"
       ],
       "automationStatus": "PENDING_PHASE",
-      "automationDetail": "Scheduled for Phase F."
+      "automationDetail": "Feature owner G3-target-node-maintenance-lifecycle; certification execution is deferred to D-exact-artifact-lab-ai-certification after its prerequisite gates close.",
+      "featureOwnerPhase": "G3-target-node-maintenance-lifecycle",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M08",
       "group": "Managed install",
       "name": "Connected managed Compact-3",
       "serverTier": "production-ha",
-      "phase": "F-day2-managed-compact3-workflow-convergence",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": true,
       "aiEligible": true,
       "actions": [
@@ -272,14 +290,16 @@
         "converge into normal import authority"
       ],
       "automationStatus": "PENDING_PHASE",
-      "automationDetail": "Scheduled for Phase F; requires the pinned openshift-install/FCOS acquisition and BootMediaProvider path."
+      "automationDetail": "Feature owner H1-baremetal-connected-managed-okd; certification execution is deferred to D-exact-artifact-lab-ai-certification after its prerequisite gates close.",
+      "featureOwnerPhase": "H1-baremetal-connected-managed-okd",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M09",
       "group": "Disconnected",
       "name": "Disconnected install and catalog delivery",
       "serverTier": "full-multicluster",
-      "phase": "G-disconnected-upgrade-recovery-local-ai",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": true,
       "aiEligible": true,
       "actions": [
@@ -292,14 +312,16 @@
         "prove no hidden internet dependency"
       ],
       "automationStatus": "PENDING_PHASE",
-      "automationDetail": "Scheduled for Phase G."
+      "automationDetail": "Feature owner I1-disconnected-okd-core; certification execution is deferred to D-exact-artifact-lab-ai-certification after its prerequisite gates close.",
+      "featureOwnerPhase": "I1-disconnected-okd-core",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M10",
       "group": "Upgrade",
       "name": "CVO upgrade/degraded/recovery semantics",
       "serverTier": "full-multicluster",
-      "phase": "G-disconnected-upgrade-recovery-local-ai",
+      "phase": "D-exact-artifact-lab-ai-certification",
       "destructive": true,
       "aiEligible": true,
       "actions": [
@@ -312,14 +334,16 @@
         "prove no fake rollback"
       ],
       "automationStatus": "PENDING_PHASE",
-      "automationDetail": "Scheduled for Phase G."
+      "automationDetail": "Feature owner I1-disconnected-okd-core; certification execution is deferred to D-exact-artifact-lab-ai-certification after its prerequisite gates close.",
+      "featureOwnerPhase": "I1-disconnected-okd-core",
+      "executionPhase": "D-exact-artifact-lab-ai-certification"
     },
     {
       "id": "M11",
       "group": "Failure/chaos",
       "name": "Management and target failure controls",
       "serverTier": "day2-replacement",
-      "phase": "H-full-product-certification-chaos-soak-ux-ai-evals",
+      "phase": "M-full-product-certification-chaos-soak-ux-ai-evals",
       "destructive": true,
       "aiEligible": true,
       "actions": [
@@ -333,14 +357,16 @@
         "resume/retry/idempotency"
       ],
       "automationStatus": "PENDING_PHASE",
-      "automationDetail": "Scheduled for Phase H."
+      "automationDetail": "Feature owner M-full-product-certification-chaos-soak-ux-ai-evals; certification execution is deferred to M-full-product-certification-chaos-soak-ux-ai-evals after its prerequisite gates close.",
+      "featureOwnerPhase": "M-full-product-certification-chaos-soak-ux-ai-evals",
+      "executionPhase": "M-full-product-certification-chaos-soak-ux-ai-evals"
     },
     {
       "id": "M12",
       "group": "Load/soak",
       "name": "High-load and long-running soak",
       "serverTier": "full-multicluster",
-      "phase": "H-full-product-certification-chaos-soak-ux-ai-evals",
+      "phase": "M-full-product-certification-chaos-soak-ux-ai-evals",
       "destructive": false,
       "aiEligible": true,
       "actions": [
@@ -353,14 +379,16 @@
         "audit/evidence completeness"
       ],
       "automationStatus": "PENDING_PHASE",
-      "automationDetail": "Scheduled for Phase H."
+      "automationDetail": "Feature owner M-full-product-certification-chaos-soak-ux-ai-evals; certification execution is deferred to M-full-product-certification-chaos-soak-ux-ai-evals after its prerequisite gates close.",
+      "featureOwnerPhase": "M-full-product-certification-chaos-soak-ux-ai-evals",
+      "executionPhase": "M-full-product-certification-chaos-soak-ux-ai-evals"
     },
     {
       "id": "M13",
       "group": "Multi-cluster",
       "name": "Two-cluster isolation and concurrent lifecycle",
       "serverTier": "full-multicluster",
-      "phase": "H-full-product-certification-chaos-soak-ux-ai-evals",
+      "phase": "M-full-product-certification-chaos-soak-ux-ai-evals",
       "destructive": true,
       "aiEligible": true,
       "actions": [
@@ -373,7 +401,9 @@
         "cross-cluster evidence isolation"
       ],
       "automationStatus": "PENDING_PHASE",
-      "automationDetail": "Scheduled for Phase H."
+      "automationDetail": "Feature owner M-full-product-certification-chaos-soak-ux-ai-evals; certification execution is deferred to M-full-product-certification-chaos-soak-ux-ai-evals after its prerequisite gates close.",
+      "featureOwnerPhase": "M-full-product-certification-chaos-soak-ux-ai-evals",
+      "executionPhase": "M-full-product-certification-chaos-soak-ux-ai-evals"
     }
   ],
   "aiPolicy": {
@@ -413,24 +443,82 @@
     "runtimeAuthority": "UNIFIED_AI_RUNTIME_V1",
     "egressPolicy": "central redaction before every provider; bounded JSON context; raw prompts and credentials are not durable authority",
     "durableAudit": "successful model calls become project-scoped ai_runs with prompt/context/output digests, token usage and redaction count",
-    "executionAuthority": "AI is advisory only; all changes continue through deterministic product plans, RBAC, approvals and durable operations"
+    "executionAuthority": "AI is advisory only; all changes continue through deterministic product plans, RBAC, approvals and durable operations",
+    "providerTransportAuthority": "AI_PROVIDER_TRANSPORT_AUTHORITY_V2"
   },
   "mcp": {
     "protocol": "2026-07-28",
     "transport": "streamable-http",
     "path": "/mcp",
-    "defaultAccess": "read-only",
+    "defaultAccess": "read-only; delegated mutation requires explicit mcp.operate on a platform-operator service account or operator/admin product role",
     "tools": [
       "lab_guide",
       "target_architecture_model",
+      "mcp_delegation_architecture",
+      "mcp_action_registry",
       "ai_runtime_policy",
+      "project_clusters",
+      "project_operations",
+      "ops_search",
+      "notification_routing_preview",
       "cluster_summary",
+      "cluster_maintenance_context",
+      "target_node_lifecycle_plan",
+      "target_node_lifecycle_authority",
       "operation_status",
-      "ai_run"
+      "ai_run",
+      "identity_admin_job",
+      "backup_policies",
+      "data_protection_runs",
+      "upgrade_campaigns",
+      "upgrade_campaign",
+      "managed_okd_install_runtime",
+      "managed_okd_install",
+      "workspaces",
+      "workspace",
+      "workspace_bindings",
+      "projects",
+      "platform_version",
+      "baselines",
+      "tenancy_plans",
+      "day2_campaign_engine",
+      "catalog_signing_identity"
     ],
-    "mutatingTools": [],
+    "mutatingTools": [
+      "operation_cancel",
+      "drift_scan_request",
+      "runtime_verification_request",
+      "support_bundle_request",
+      "cluster_maintenance_request",
+      "upgrade_campaign_request",
+      "saml_broker_change_request",
+      "saml_broker_delete_request",
+      "identity_admin_job_approve",
+      "cluster_maintenance_approve",
+      "upgrade_campaign_approve",
+      "backup_run_request",
+      "restore_run_request",
+      "restore_drill_request",
+      "restore_run_approve",
+      "compliance_scan_request",
+      "compliance_recheck_request",
+      "upgrade_campaign_pause",
+      "upgrade_campaign_resume",
+      "upgrade_campaign_cancel",
+      "upgrade_campaign_revalidate",
+      "managed_okd_install_request",
+      "managed_okd_install_approve",
+      "workspace_create",
+      "workspace_binding_create",
+      "workspace_binding_revoke",
+      "project_create"
+    ],
     "permission": "mcp.read",
-    "authorization": "authentication + dedicated capability scope + project authorization for project-scoped resources"
+    "authorization": "product authentication plus scoped RBAC; read tools require mcp.read for API tokens; delegated mutations require mcp.operate and write access; approval tools are exposed only to human ADMINISTRATION delegations, re-evaluate current RBAC/resource scope and reject requester self-approval; identity administration remains job-backed and Keycloak credentials remain server-side",
+    "conformanceAuthority": "MCP_EXTERNAL_CLIENT_INTEROPERABILITY_V1",
+    "externalClient": "python3 scripts/mcp_external_client_certify.py --endpoint <api>/mcp; separate-process TCP black-box validation with project-scope negative control",
+    "operationPermission": "mcp.operate",
+    "delegatedOperationAuthority": "MCP_AGENT_DELEGATED_OPERATION_AUTHORITY_V1"
   },
   "runner": {
     "command": "python3 scripts/lab_runner.py",
@@ -443,13 +531,12 @@
     ],
     "currentFullyAutomatedRows": [
       "M00",
-      "M01"
+      "M01",
+      "M02",
+      "M03"
     ],
-    "currentPartiallyAutomatedRows": [
-      "M02"
-    ],
+    "currentPartiallyAutomatedRows": [],
     "currentDeferredRows": [
-      "M03",
       "M04",
       "M05",
       "M06",

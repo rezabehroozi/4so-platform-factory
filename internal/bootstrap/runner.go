@@ -29,6 +29,7 @@ type RunnerOptions struct {
 	RequireBundleLock bool
 	System            System
 	Now               func() time.Time
+	TLSKeyGenerator   TLSKeyGenerator
 }
 
 type Runner struct {
@@ -39,7 +40,9 @@ type Runner struct {
 	requireBundleLock bool
 	system            System
 	now               func() time.Time
+	tlsKeyGenerator   TLSKeyGenerator
 	journal           *Journal
+	resetJournal      *ResetJournal
 	mu                sync.Mutex
 	active            bool
 }
@@ -75,6 +78,7 @@ var bootstrapInterruptedPolicies = map[string]interruptedStepPolicy{
 	"deploy-fleet-hub":            interruptedReplaySafe,
 	"verify-fleet-hub":            interruptedReplaySafe,
 	"configure-off-node-backup":   interruptedReplaySafe,
+	"verify-off-node-backup":      interruptedReplaySafe,
 	"verify-embedded-services":    interruptedReplaySafe,
 	"verify-runtime":              interruptedReplaySafe,
 	"verify-ha-services":          interruptedReplaySafe,
@@ -103,6 +107,7 @@ var bootstrapSteps = []struct{ key, title string }{
 	{"deploy-fleet-hub", "Deploy the bundled Open Cluster Management hub"},
 	{"verify-fleet-hub", "Verify the fleet registration control plane"},
 	{"configure-off-node-backup", "Configure the external S3-compatible disaster-recovery target"},
+	{"verify-off-node-backup", "Verify credentialed S3 write, read-back integrity and delete semantics"},
 	{"verify-embedded-services", "Verify Git, registry and identity health"},
 	{"verify-runtime", "Verify authenticated PostgreSQL-backed API persistence across restart"},
 	{"verify-ha-services", "Verify HA database and control-plane service availability"},
@@ -133,7 +138,15 @@ func NewRunner(options RunnerOptions) (*Runner, error) {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
-	return &Runner{version: options.Version, bundleDir: options.BundleDir, stateDir: options.StateDir, simulation: options.Simulation, requireBundleLock: options.RequireBundleLock, system: options.System, now: options.Now, journal: NewJournal(options.StateDir)}, nil
+	if options.TLSKeyGenerator == nil {
+		options.TLSKeyGenerator = ProductionTLSKeyGenerator
+		if options.Simulation {
+			// Simulation validates lifecycle semantics and artifact handling, not RSA
+			// entropy cost. Production remains pinned to RSA-3072.
+			options.TLSKeyGenerator = SimulationTLSKeyGenerator
+		}
+	}
+	return &Runner{version: options.Version, bundleDir: options.BundleDir, stateDir: options.StateDir, simulation: options.Simulation, requireBundleLock: options.RequireBundleLock, system: options.System, now: options.Now, tlsKeyGenerator: options.TLSKeyGenerator, journal: NewJournal(options.StateDir), resetJournal: NewResetJournal(options.StateDir)}, nil
 }
 
 func (r *Runner) Status() (*Run, error) {
@@ -499,6 +512,8 @@ func (r *Runner) executeStep(ctx context.Context, key string, run Run) error {
 		return r.verifyFleetHub(ctx)
 	case "configure-off-node-backup":
 		return r.configureOffNodeBackup(ctx, run, bundle)
+	case "verify-off-node-backup":
+		return r.verifyOffNodeBackup(ctx, run, bundle)
 	case "verify-embedded-services":
 		return r.verifyEmbeddedServices(ctx, bundle)
 	case "verify-runtime":
@@ -843,7 +858,7 @@ func (r *Runner) prepareHost(run Run) error {
 			}
 		}
 	}
-	if err := ensureTLSMaterial(r.system, run.Request.Network.PublicEndpoint, run.Request.Network.DNSZone); err != nil {
+	if err := ensureTLSMaterial(r.system, run.Request.Network.PublicEndpoint, run.Request.Network.DNSZone, r.tlsKeyGenerator); err != nil {
 		return err
 	}
 	if err := ensureAgentPKI(r.system); err != nil {
@@ -1489,6 +1504,7 @@ spec:
           env:
             - name: PLATFORM_FACTORY_LISTEN
               value: 0.0.0.0:8080
+            - {name: PLATFORM_FACTORY_SOURCE_RELEASE_DIGEST, value: %s}
             - name: PLATFORM_FACTORY_POSTGRES_DSN
               valueFrom:
                 secretKeyRef:
@@ -1577,6 +1593,9 @@ spec:
             - name: agent-mtls
               mountPath: /etc/4so-agent-mtls
               readOnly: true
+            - name: identity-admin
+              mountPath: /run/secrets/platform
+              readOnly: true
           
           readinessProbe:
             httpGet:
@@ -1602,6 +1621,13 @@ spec:
           secret:
             secretName: platform-agent-mtls
             defaultMode: 0400
+        - name: identity-admin
+          secret:
+            secretName: platform-internal-services
+            defaultMode: 0400
+            items:
+              - key: identity-admin-password
+                path: identity-admin-password
 ---
 apiVersion: v1
 kind: Service
@@ -1618,7 +1644,7 @@ spec:
     - name: agent-mtls
       port: 8443
       targetPort: 8443
-`, encodedPassword, encodedDSN, encodedForgejoPassword, encodedIdentityPassword, encodedAdminEmail, encodedSession, encodedBootstrap, encodedCatalogSigningKey, encodedAgentCA, encodedAgentCAKey, encodedTLSCert, encodedTLSKey, bundle.Spec.Workloads.PostgreSQLImage, bundle.Spec.Workloads.PlatformAPIImage, yamlScalar(issuer), yamlScalar(redirect), yamlScalar(bundle.Spec.Workloads.FleetAgentImage), yamlScalar(bundle.Spec.Workloads.RuntimeProbeImage), yamlScalar(strings.TrimRight(request.Network.PublicEndpoint, "/")), yamlScalar(agentPublicURL), yamlScalar(encodedCA))
+`, encodedPassword, encodedDSN, encodedForgejoPassword, encodedIdentityPassword, encodedAdminEmail, encodedSession, encodedBootstrap, encodedCatalogSigningKey, encodedAgentCA, encodedAgentCAKey, encodedTLSCert, encodedTLSKey, bundle.Spec.Workloads.PostgreSQLImage, bundle.Spec.Workloads.PlatformAPIImage, yamlScalar(bundle.Metadata.SourceReleaseDigest), yamlScalar(issuer), yamlScalar(redirect), yamlScalar(bundle.Spec.Workloads.FleetAgentImage), yamlScalar(bundle.Spec.Workloads.RuntimeProbeImage), yamlScalar(strings.TrimRight(request.Network.PublicEndpoint, "/")), yamlScalar(agentPublicURL), yamlScalar(encodedCA))
 }
 
 func forgejoManifest(bundle BundleManifest, request installation.InstallRequest) string {

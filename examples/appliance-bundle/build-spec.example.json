@@ -2,10 +2,52 @@
   "apiVersion": "platform.4so.io/v1alpha1",
   "kind": "ApplianceBundleBuild",
   "metadata": {
-    "version": "0.0.125",
+    "version": "0.0.0",
     "sourceReleaseDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   },
   "spec": {
+    "sourceArtifacts": [
+      {
+        "path": "rke2/install.sh",
+        "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        "sizeBytes": 1
+      },
+      {
+        "path": "rke2/rke2.linux-amd64.tar.gz",
+        "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+        "sizeBytes": 1
+      },
+      {
+        "path": "rke2/sha256sum-amd64.txt",
+        "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+        "sizeBytes": 1
+      },
+      {
+        "path": "rke2/rke2-images.linux-amd64.tar.zst",
+        "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000004",
+        "sizeBytes": 1
+      },
+      {
+        "path": "workloads/platform-workloads.oci.tar",
+        "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000005",
+        "sizeBytes": 1
+      },
+      {
+        "path": "manifests/argocd-install.yaml",
+        "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000006",
+        "sizeBytes": 1
+      },
+      {
+        "path": "manifests/cloudnative-pg-install.yaml",
+        "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000007",
+        "sizeBytes": 1
+      },
+      {
+        "path": "manifests/replicated-storage-install.yaml",
+        "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000008",
+        "sizeBytes": 1
+      }
+    ],
     "rke2": {
       "version": "v1.34.0+rke2r1",
       "installer": "rke2/install.sh",
@@ -29,7 +71,6 @@
       "maintenanceImage": "registry.example/platform/maintenance@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
       "gitOpsManifest": "manifests/argocd-install.yaml",
       "cloudNativePGManifest": "manifests/cloudnative-pg-install.yaml",
-      "ocmManifest": "manifests/ocm-install.yaml",
       "storageManifest": "manifests/replicated-storage-install.yaml",
       "fleetAgentImage": "registry.example/platform/agent@sha256:9999999999999999999999999999999999999999999999999999999999999999",
       "runtimeProbeImage": "registry.example/platform/probe@sha256:8888888888888888888888888888888888888888888888888888888888888888"

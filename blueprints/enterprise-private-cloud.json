@@ -63,6 +63,10 @@
       },
       {
         "enabled": true,
+        "name": "ceph-csi-operator"
+      },
+      {
+        "enabled": true,
         "name": "ceph-csi-rbd"
       },
       {

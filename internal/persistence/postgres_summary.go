@@ -108,9 +108,19 @@ SELECT
   (SELECT count(*) FROM evidence_metadata e JOIN operation_scope o ON o.id=e.operation_id),
   (SELECT count(*) FROM cluster_imports WHERE project_id IN (SELECT id FROM selected_projects)),
   (SELECT count(*) FROM managed_clusters WHERE project_id IN (SELECT id FROM selected_projects)),
+  (SELECT count(*) FROM managed_clusters WHERE project_id IN (SELECT id FROM selected_projects) AND connection_state <> 'REVOKED' AND last_seen_at IS NOT NULL AND last_seen_at >= now() - interval '3 minutes'),
   (SELECT count(*) FROM baseline_deployments WHERE project_id IN (SELECT id FROM selected_projects)),
+  (SELECT count(*) FROM baseline_deployments WHERE project_id IN (SELECT id FROM selected_projects) AND state='SUCCEEDED'),
   (SELECT count(*) FROM runtime_verifications WHERE project_id IN (SELECT id FROM selected_projects)),
+  (SELECT count(*) FROM runtime_verifications WHERE project_id IN (SELECT id FROM selected_projects) AND state='SUCCEEDED'),
   (SELECT count(*) FROM runtime_closure_campaigns WHERE project_id IN (SELECT id FROM selected_projects)),
+  (SELECT count(*) FROM runtime_closure_campaigns WHERE project_id IN (SELECT id FROM selected_projects) AND state='SUCCEEDED'),
+  ((SELECT count(*) FROM baseline_deployments WHERE project_id IN (SELECT id FROM selected_projects) AND state='FAILED') +
+   (SELECT count(*) FROM runtime_verifications WHERE project_id IN (SELECT id FROM selected_projects) AND state='FAILED') +
+   (SELECT count(*) FROM runtime_closure_campaigns WHERE project_id IN (SELECT id FROM selected_projects) AND state='FAILED') +
+   (SELECT count(*) FROM tenant_environments WHERE project_id IN (SELECT id FROM selected_projects) AND state='FAILED') +
+   (SELECT count(*) FROM provider_profiles WHERE project_id IN (SELECT id FROM selected_projects) AND state='FAILED') +
+   (SELECT count(*) FROM provider_clusters WHERE project_id IN (SELECT id FROM selected_projects) AND state='FAILED')),
   (SELECT count(*) FROM entitlements WHERE organization_id IN (SELECT id FROM resource_orgs)),
   (SELECT count(*) FROM oem_profiles WHERE organization_id IN (SELECT id FROM resource_orgs)),
   (SELECT count(*) FROM tenant_environments WHERE project_id IN (SELECT id FROM selected_projects)),
@@ -120,8 +130,9 @@ SELECT
 	var out controlplane.ControlPlaneSummaryCounts
 	err = s.db.QueryRowContext(ctx, query, string(orgJSON), string(projectJSON), string(resourceOrgJSON), allOrganizationsAndProjects, allResourceOrganizations).Scan(
 		&out.Organizations, &out.Projects, &out.BlueprintRevisions, &out.Assignments, &out.Operations,
-		&out.UnpublishedOutbox, &out.AuditEvents, &out.Evidence, &out.ClusterImports, &out.ManagedClusters,
-		&out.BaselineDeployments, &out.RuntimeVerifications, &out.RuntimeClosureCampaigns, &out.Entitlements,
+		&out.UnpublishedOutbox, &out.AuditEvents, &out.Evidence, &out.ClusterImports, &out.ManagedClusters, &out.ConnectedClusters,
+		&out.BaselineDeployments, &out.SuccessfulBaselineDeployments, &out.RuntimeVerifications, &out.SuccessfulRuntimeVerifications,
+		&out.RuntimeClosureCampaigns, &out.SuccessfulRuntimeClosureCampaigns, &out.FailedProductWorkflows, &out.Entitlements,
 		&out.OEMProfiles, &out.Tenants, &out.ProviderProfiles, &out.ProviderClusters,
 	)
 	if err != nil {
@@ -149,6 +160,10 @@ SELECT state,count(*) FROM operations WHERE project_id IN (SELECT id FROM select
 	if err = rows.Err(); err != nil {
 		return controlplane.ControlPlaneSummaryCounts{}, err
 	}
+	out.NotificationDeliveryStates, err = s.notificationDeliveryStateCounts(ctx, organizationIDs, projectIDs, resourceOrganizationIDs, allOrganizationsAndProjects, allResourceOrganizations)
+	if err != nil {
+		return controlplane.ControlPlaneSummaryCounts{}, err
+	}
 	return out, nil
 }
 
@@ -164,9 +179,19 @@ func (s *PostgresStore) globalControlPlaneSummaryCounts(ctx context.Context) (co
   (SELECT count(*) FROM evidence_metadata),
   (SELECT count(*) FROM cluster_imports),
   (SELECT count(*) FROM managed_clusters),
+  (SELECT count(*) FROM managed_clusters WHERE connection_state <> 'REVOKED' AND last_seen_at IS NOT NULL AND last_seen_at >= now() - interval '3 minutes'),
   (SELECT count(*) FROM baseline_deployments),
+  (SELECT count(*) FROM baseline_deployments WHERE state='SUCCEEDED'),
   (SELECT count(*) FROM runtime_verifications),
+  (SELECT count(*) FROM runtime_verifications WHERE state='SUCCEEDED'),
   (SELECT count(*) FROM runtime_closure_campaigns),
+  (SELECT count(*) FROM runtime_closure_campaigns WHERE state='SUCCEEDED'),
+  ((SELECT count(*) FROM baseline_deployments WHERE state='FAILED') +
+   (SELECT count(*) FROM runtime_verifications WHERE state='FAILED') +
+   (SELECT count(*) FROM runtime_closure_campaigns WHERE state='FAILED') +
+   (SELECT count(*) FROM tenant_environments WHERE state='FAILED') +
+   (SELECT count(*) FROM provider_profiles WHERE state='FAILED') +
+   (SELECT count(*) FROM provider_clusters WHERE state='FAILED')),
   (SELECT count(*) FROM entitlements),
   (SELECT count(*) FROM oem_profiles),
   (SELECT count(*) FROM tenant_environments),
@@ -175,8 +200,9 @@ func (s *PostgresStore) globalControlPlaneSummaryCounts(ctx context.Context) (co
 	var out controlplane.ControlPlaneSummaryCounts
 	if err := s.db.QueryRowContext(ctx, query).Scan(
 		&out.Organizations, &out.Projects, &out.BlueprintRevisions, &out.Assignments, &out.Operations,
-		&out.UnpublishedOutbox, &out.AuditEvents, &out.Evidence, &out.ClusterImports, &out.ManagedClusters,
-		&out.BaselineDeployments, &out.RuntimeVerifications, &out.RuntimeClosureCampaigns, &out.Entitlements,
+		&out.UnpublishedOutbox, &out.AuditEvents, &out.Evidence, &out.ClusterImports, &out.ManagedClusters, &out.ConnectedClusters,
+		&out.BaselineDeployments, &out.SuccessfulBaselineDeployments, &out.RuntimeVerifications, &out.SuccessfulRuntimeVerifications,
+		&out.RuntimeClosureCampaigns, &out.SuccessfulRuntimeClosureCampaigns, &out.FailedProductWorkflows, &out.Entitlements,
 		&out.OEMProfiles, &out.Tenants, &out.ProviderProfiles, &out.ProviderClusters,
 	); err != nil {
 		return controlplane.ControlPlaneSummaryCounts{}, fmt.Errorf("global control-plane summary aggregates: %w", err)
@@ -197,6 +223,51 @@ func (s *PostgresStore) globalControlPlaneSummaryCounts(ctx context.Context) (co
 	}
 	if err = rows.Err(); err != nil {
 		return controlplane.ControlPlaneSummaryCounts{}, err
+	}
+	out.NotificationDeliveryStates, err = s.notificationDeliveryStateCounts(ctx, nil, nil, nil, true, true)
+	if err != nil {
+		return controlplane.ControlPlaneSummaryCounts{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) notificationDeliveryStateCounts(ctx context.Context, organizationIDs, projectIDs, resourceOrganizationIDs []string, allOrganizationsAndProjects, allResourceOrganizations bool) (map[controlplane.NotificationDeliveryState]int, error) {
+	projectJSON, err := json.Marshal(projectIDs)
+	if err != nil {
+		return nil, err
+	}
+	resourceOrgJSON, err := json.Marshal(resourceOrganizationIDs)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, `
+WITH selected_projects AS (
+  SELECT id FROM projects WHERE $3::boolean OR id IN (SELECT jsonb_array_elements_text($1::jsonb))
+), resource_orgs AS (
+  SELECT id FROM organizations WHERE $4::boolean OR id IN (SELECT jsonb_array_elements_text($2::jsonb))
+), visible_events AS (
+  SELECT id FROM notification_events
+  WHERE (project_id IS NOT NULL AND project_id IN (SELECT id FROM selected_projects))
+     OR (project_id IS NULL AND organization_id IN (SELECT id FROM resource_orgs))
+)
+SELECT d.state,count(*) FROM notification_deliveries d
+JOIN visible_events e ON e.id=d.event_id
+GROUP BY d.state`, string(projectJSON), string(resourceOrgJSON), allOrganizationsAndProjects, allResourceOrganizations)
+	if err != nil {
+		return nil, fmt.Errorf("notification delivery state aggregates: %w", err)
+	}
+	defer rows.Close()
+	out := map[controlplane.NotificationDeliveryState]int{}
+	for rows.Next() {
+		var state string
+		var count int
+		if scanErr := rows.Scan(&state, &count); scanErr != nil {
+			return nil, scanErr
+		}
+		out[controlplane.NotificationDeliveryState(state)] = count
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

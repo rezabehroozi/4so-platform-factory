@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import datetime
 import hashlib
 import json
 import os
@@ -115,16 +116,36 @@ def canonical_stages(root: Path) -> list[Stage]:
     version = (root / "VERSION").read_text().strip()
     return [
         Stage("repository-validation", ("python3", "scripts/validate_repository.py", "."), 180),
-        Stage("go-tests", ("go", "test", "./..."), 900),
+Stage("go-unit-1", ("python3", "scripts/run_go_package_shard.py", "--shard", "1"), 900),
+        Stage("go-unit-2", ("python3", "scripts/run_go_package_shard.py", "--shard", "2"), 900),
+        Stage("go-unit-3", ("python3", "scripts/run_go_package_shard.py", "--shard", "3"), 900),
+        Stage("go-unit-4", ("python3", "scripts/run_go_package_shard.py", "--shard", "4"), 900),
         Stage("python-tests", ("python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"), 300),
+        Stage("lab-runner-tests", ("python3", "scripts/test_lab_runner.py"), 300),
+        Stage("lab-runner-self-test", ("python3", "scripts/lab_runner.py", "self-test"), 300),
+        Stage("derived-agent-knowledge", ("python3", "scripts/generate_agent_knowledge.py", "--check"), 180),
+        Stage("browser-triage-profile", ("python3", "scripts/browser_triage_profile.py", "--check"), 60),
+        Stage("browser-triage-prerequisites-policy", ("python3", "scripts/browser_triage_bootstrap.py", "--self-test"), 60),
         Stage("upstream-acquisition-self-test", ("python3", "scripts/acquire_upstream_helm.py", "--self-test"), 120),
-        Stage("go-vet", ("go", "vet", "./..."), 600),
-        Stage("go-race", ("go", "test", "-race", "./..."), 1800),
-        # `make smoke` owns the local build. Running `make build` immediately
-        # before it only recompiles the same binaries and adds no defect signal.
-        Stage("smoke", ("make", "smoke"), 1800),
+Stage("go-vet-1", ("python3", "scripts/run_go_package_shard.py", "--vet", "--shard", "1"), 600),
+        Stage("go-vet-2", ("python3", "scripts/run_go_package_shard.py", "--vet", "--shard", "2"), 600),
+        Stage("go-vet-3", ("python3", "scripts/run_go_package_shard.py", "--vet", "--shard", "3"), 600),
+        Stage("go-vet-4", ("python3", "scripts/run_go_package_shard.py", "--vet", "--shard", "4"), 600),
+        Stage("go-race-1", ("python3", "scripts/run_go_package_shard.py", "--race", "--shard", "1"), 900),
+        Stage("go-race-2", ("python3", "scripts/run_go_package_shard.py", "--race", "--shard", "2"), 900),
+        Stage("go-race-3", ("python3", "scripts/run_go_package_shard.py", "--race", "--shard", "3"), 900),
+        Stage("go-race-4", ("python3", "scripts/run_go_package_shard.py", "--race", "--shard", "4"), 900),
+        Stage("build-for-smoke", ("make", "build"), 900),
+        Stage("smoke-1", ("python3", "scripts/run_smoke_shard.py", "--shard", "1"), 900),
+        Stage("smoke-2", ("python3", "scripts/run_smoke_shard.py", "--shard", "2"), 900),
+        Stage("smoke-3", ("python3", "scripts/run_smoke_shard.py", "--shard", "3"), 900),
+        Stage("smoke-4", ("python3", "scripts/run_smoke_shard.py", "--shard", "4"), 900),
         Stage("binary-version", ("python3", "-c", _version_check_program(version)), 120),
-        Stage("smoke-ui", ("make", "smoke-ui"), 900),
+        Stage("smoke-ui-rendered", ("python3", "scripts/smoke_ui.py", "."), 900),
+        Stage("smoke-ui-quality", ("python3", "scripts/smoke_ui_quality.py"), 900),
+        Stage("persian-ui-lint", ("python3", "scripts/persian_ui_lint.py", "--root", "."), 120),
+        Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py", "./bin/platform-api", "."), 900),
+        Stage("smoke-ui-workflow-e2e", ("python3", "scripts/smoke_ui_workflow_e2e.py", "./bin/platform-api", "./bin/platform-installer"), 900),
         Stage("build-release", ("make", "build-release"), 900),
         Stage("package", ("python3", "scripts/build_release.py", "."), 900),
         Stage("artifact-quick-verify", ("python3", "-c", _artifact_verify_program(version, full=False)), 600),
@@ -196,9 +217,9 @@ def _release_readiness(root: Path) -> tuple[dict | None, str | None]:
         return None, f"release readiness returned invalid JSON: {exc}"
     required = {
         "planId", "deploymentExecutable", "productReleaseReady",
-        "productReleaseBlockers", "deploymentContextBlockers",
-        "productBlockerCodes", "deploymentContextBlockerCodes",
-        "physicalRuntimeStatus", "phases",
+        "productReleaseBlockers", "roadmapFeatureBlockers", "deploymentContextBlockers",
+        "productBlockerCodes", "roadmapFeatureBlockerCodes", "deploymentContextBlockerCodes",
+        "physicalRuntimeStatus", "programRoadmap", "phases",
     }
     if not isinstance(document, dict) or not required.issubset(document):
         return None, "release readiness response is missing canonical authority fields"
@@ -214,15 +235,65 @@ def _readiness_code_names(document: dict, field: str) -> list[str]:
     return sorted(str(code) for code, count in value.items() if isinstance(count, int) and count > 0)
 
 
-def _codex_command() -> list[str] | None:
+def _codex_command(*, sandbox: str = "workspace-write") -> list[str] | None:
     override = os.environ.get("PLATFORM_FACTORY_CODEX_COMMAND", "").strip()
     if override:
+        # Test/custom wrappers own their sandbox contract. Native Codex is
+        # explicitly constrained below.
         return shlex.split(override)
     if shutil.which("codex"):
-        # `codex exec` is the documented non-interactive entry point. Keep the
-        # command minimal and let user configuration choose model/sandbox.
-        return ["codex", "exec", "--ephemeral", "--skip-git-repo-check", "--sandbox", "workspace-write"]
+        # `codex exec` is the documented non-interactive entry point. Triage is
+        # always read-only; only the single repair worker gets workspace-write.
+        return ["codex", "exec", "--ephemeral", "--skip-git-repo-check", "--sandbox", sandbox]
     return None
+
+
+def _stage_specialist(stage: Stage) -> str:
+    name = stage.name
+    if name.startswith("smoke-ui") or name == "persian-ui-lint":
+        return "operator-console"
+    if name in {"derived-agent-knowledge", "browser-triage-profile", "browser-triage-prerequisites-policy"}:
+        return "developer-agent-experience"
+    if name == "smoke-4" or "installer" in name:
+        return "installer-runtime"
+    if name.startswith(("artifact-", "package", "build-release", "upstream-")):
+        return "supply-chain-release"
+    if name.startswith("lab-"):
+        return "lab-certification"
+    if name.startswith("smoke-"):
+        return "product-runtime"
+    return "backend-correctness"
+
+
+_SECRET_PATTERNS = [
+    re.compile(r"(?i)(authorization\s*[:=]\s*bearer\s+)[^\s]+"),
+    re.compile(r"(?i)((?:password|passwd|token|secret|api[_-]?key|dsn)\s*[:=]\s*)[^\s,;]+"),
+    re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----", re.S),
+]
+
+
+def _redact_failure_text(text: str) -> str:
+    redacted = text
+    for pattern in _SECRET_PATTERNS:
+        redacted = pattern.sub(lambda match: (match.group(1) if match.lastindex else "") + "[REDACTED]", redacted)
+    return redacted
+
+
+def _triage_prompt(stage: Stage, result: StageResult, iteration: int) -> str:
+    return textwrap.dedent(f"""
+        You are the read-only 4SO Platform Factory triage agent for specialist
+        `{_stage_specialist(stage)}`. Do not edit files and do not run destructive
+        commands. Classify this failure as one of CODE_DEFECT, TEST_DEFECT,
+        ENVIRONMENT, SUPPLY_CHAIN, or UNKNOWN. Identify the narrowest likely owner
+        and the smallest proof command. Never recommend weakening a correct gate.
+
+        Stage: {stage.name}
+        Iteration: {iteration}
+        Fingerprint: {result.fingerprint}
+        Command: {' '.join(stage.command)}
+        Redacted output tail:
+        {_redact_failure_text(result.output_tail)}
+    """).strip()
 
 
 def _python_module_available(name: str) -> bool:
@@ -284,6 +355,9 @@ def environment_preflight(*, require_codex: bool) -> tuple[list[str], dict[str, 
         details["browser"] = browser
     else:
         missing.append("chromium-or-chrome")
+    for optional_tool in ("node", "npx"):
+        optional_path = shutil.which(optional_tool)
+        details["optional:" + optional_tool] = optional_path or "unavailable"
     for module in ("yaml", "playwright"):
         if _python_module_available(module):
             details["python:" + module] = "available"
@@ -316,9 +390,10 @@ def print_environment_preflight(*, require_codex: bool) -> int:
     return 0
 
 
-def _repair_prompt(stage: Stage, result: StageResult, iteration: int) -> str:
+def _repair_prompt(stage: Stage, result: StageResult, iteration: int, triage: str = "") -> str:
     return textwrap.dedent(f"""
-        You are the 4SO Platform Factory correctness repair worker.
+        You are the single-writer 4SO Platform Factory correctness repair worker
+        for specialist `{_stage_specialist(stage)}`.
 
         The canonical local validation stage `{stage.name}` failed on iteration {iteration}.
         Fix only a confirmed defect that explains this failure. Do not add product features,
@@ -332,14 +407,17 @@ def _repair_prompt(stage: Stage, result: StageResult, iteration: int) -> str:
 
         Failure fingerprint: {result.fingerprint}
         Command: {' '.join(stage.command)}
-        Output tail:
-        {result.output_tail}
+        Redacted output tail:
+        {_redact_failure_text(result.output_tail)}
+
+        Read-only triage result:
+        {_redact_failure_text(triage)}
     """).strip()
 
 
 def run_stage(root: Path, stage: Stage) -> StageResult:
     started = time.monotonic()
-    env = {"CGO_ENABLED": "1"} if stage.name in {"go-tests", "go-vet", "go-race"} else None
+    env = {"CGO_ENABLED": "1"} if stage.name.startswith(("go-unit-", "go-vet-", "go-race-")) else None
     try:
         p = _run(stage.command, cwd=root, timeout=stage.timeout, env=env, track_state_root=root, active_label="stage:" + stage.name)
         elapsed = time.monotonic() - started
@@ -354,24 +432,50 @@ def run_stage(root: Path, stage: Stage) -> StageResult:
         return StageResult(stage.name, "TIMEOUT", 124, elapsed, fp, _tail(str(raw)))
 
 
+def _ensure_browser_triage_for_stage(root: Path, stage: Stage) -> tuple[bool, str]:
+    if _stage_specialist(stage) != "operator-console":
+        return True, ""
+    script = root / "scripts" / "browser_triage_bootstrap.py"
+    try:
+        result = _run((sys.executable, str(script), "--ensure", "--json"), cwd=root, timeout=600, track_state_root=root, active_label="browser-triage-prerequisites:" + stage.name)
+    except subprocess.TimeoutExpired:
+        return False, "BROWSER_TRIAGE_PREREQUISITE_INSTALL_TIMEOUT"
+    if result.returncode != 0:
+        return False, "BROWSER_TRIAGE_PREREQUISITE_INSTALL_FAILED\n" + _redact_failure_text(_tail(result.stdout, 80))
+    return True, _tail(result.stdout, 20)
+
+
 def invoke_codex(root: Path, stage: Stage, result: StageResult, iteration: int, timeout: int) -> tuple[bool, str]:
-    base = _codex_command()
-    if not base:
+    browser_ready, browser_detail = _ensure_browser_triage_for_stage(root, stage)
+    if not browser_ready:
+        return False, browser_detail
+    triage_base = _codex_command(sandbox="read-only")
+    repair_base = _codex_command(sandbox="workspace-write")
+    if not triage_base or not repair_base:
         return False, "CODEX_CLI_UNAVAILABLE"
-    prompt = _repair_prompt(stage, result, iteration)
-    cmd = [*base, prompt]
+    try:
+        triage_run = _run(tuple([*triage_base, _triage_prompt(stage, result, iteration)]), cwd=root, timeout=min(timeout, 300), track_state_root=root, active_label="codex-triage:" + stage.name)
+    except subprocess.TimeoutExpired:
+        return False, "CODEX_TRIAGE_TIMEOUT"
+    triage_tail = _tail(triage_run.stdout, 120)
+    if triage_run.returncode != 0:
+        return False, f"CODEX_TRIAGE_FAILED rc={triage_run.returncode}\n{_redact_failure_text(triage_tail)}"
+    prompt = _repair_prompt(stage, result, iteration, triage_tail)
+    cmd = [*repair_base, prompt]
     try:
         p = _run(tuple(cmd), cwd=root, timeout=timeout, track_state_root=root, active_label="codex-repair:" + stage.name)
     except subprocess.TimeoutExpired:
         return False, "CODEX_REPAIR_TIMEOUT"
     tail = _tail(p.stdout, 120)
     if p.returncode != 0:
-        return False, f"CODEX_REPAIR_FAILED rc={p.returncode}\n{tail}"
-    return True, tail
+        return False, f"CODEX_REPAIR_FAILED rc={p.returncode}\n{_redact_failure_text(tail)}"
+    return True, _redact_failure_text(tail)
 
 
 _AUTOPILOT_STATE_SCHEMA = 1
+_AUTOPILOT_REPORT_SCHEMA = 1
 _AUTOPILOT_STATE_RELATIVE = Path(".state") / "codex-autopilot-run.json"
+_AUTOPILOT_REPORT_RELATIVE = Path(".state") / "codex-autopilot-report.json"
 _FINGERPRINT_EXCLUDED_DIRS = {".git", ".state", "bin", "release", "__pycache__", ".pytest_cache"}
 
 
@@ -406,6 +510,69 @@ def _stage_graph_signature(stages: list[Stage], *, repair: bool) -> str:
 
 def _checkpoint_path(root: Path) -> Path:
     return root / _AUTOPILOT_STATE_RELATIVE
+
+
+def _report_path(root: Path) -> Path:
+    return root / _AUTOPILOT_REPORT_RELATIVE
+
+
+def _report_result(stage: Stage, result: StageResult) -> dict:
+    # Deliberately exclude output_tail. Failure packets may contain environment
+    # detail even after redaction and are not needed by the Operator Console.
+    return {
+        "name": result.name,
+        "specialist": _stage_specialist(stage),
+        "status": result.status,
+        "returncode": result.returncode,
+        "elapsedSeconds": round(float(result.elapsed_seconds), 3),
+        "fingerprint": result.fingerprint,
+    }
+
+
+def _read_report_results(root: Path, graph_signature: str) -> list[dict]:
+    path = _report_path(root)
+    if not path.is_file() or path.is_symlink():
+        return []
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    if data.get("schemaVersion") != _AUTOPILOT_REPORT_SCHEMA or data.get("graphSignature") != graph_signature:
+        return []
+    rows = data.get("stageResults")
+    if not isinstance(rows, list):
+        return []
+    safe: list[dict] = []
+    for row in rows[-100:]:
+        if not isinstance(row, dict):
+            continue
+        safe.append({key: row.get(key) for key in ("name", "specialist", "status", "returncode", "elapsedSeconds", "fingerprint")})
+    return safe
+
+
+def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature: str, repair: bool, phase: str, next_index: int, repair_count: int, status: str, current_stage: str | None, stage_results: list[dict], last_failure: dict | None = None) -> None:
+    stage = next((item for item in stages if item.name == current_stage), None)
+    body = {
+        "schemaVersion": _AUTOPILOT_REPORT_SCHEMA,
+        "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+        "derived": True,
+        "notProductAuthority": True,
+        "graphSignature": graph_signature,
+        "repair": repair,
+        "status": status,
+        "phase": phase,
+        "stageCount": len(stages),
+        "nextIndex": next_index,
+        "currentStage": current_stage or "",
+        "currentSpecialist": _stage_specialist(stage) if stage else "",
+        "repairCount": repair_count,
+        "resumeEligible": _checkpoint_path(root).is_file(),
+        "updatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "stageResults": stage_results[-100:],
+    }
+    if last_failure:
+        body["lastFailure"] = {key: last_failure.get(key) for key in ("stage", "specialist", "status", "fingerprint", "reason") if last_failure.get(key) not in (None, "")}
+    _write_state_raw(_report_path(root), body)
 
 
 def _process_start_ticks(pid: int) -> str | None:
@@ -595,8 +762,12 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
     if state:
         print(f"AUTOPILOT_RESUME=PASS phase={phase} nextIndex={next_index} repairs={repair_count}", flush=True)
 
-    def terminal(code: int) -> int:
+    report_rows = _read_report_results(root, graph_signature)
+    _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase=phase, next_index=next_index, repair_count=repair_count, status="RUNNING", current_stage=(state or {}).get("currentStage"), stage_results=report_rows)
+
+    def terminal(code: int, status: str, *, current_stage: str | None = None, last_failure: dict | None = None) -> int:
         _clear_checkpoint(root)
+        _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase=phase, next_index=next_index, repair_count=repair_count, status=status, current_stage=current_stage, stage_results=report_rows, last_failure=last_failure)
         return code
 
     if phase == "forward":
@@ -604,9 +775,12 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
             stage = stages[index]
             while True:
                 _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name)
+                _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index, repair_count=repair_count, status="RUNNING", current_stage=stage.name, stage_results=report_rows)
                 print(f"AUTOPILOT_STAGE_START name={stage.name} timeout={stage.timeout}", flush=True)
                 result = run_stage(root, stage)
                 results.append(result)
+                report_rows.append(_report_result(stage, result))
+                _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index + (1 if result.status == "PASS" else 0), repair_count=repair_count, status="RUNNING" if result.status == "PASS" else result.status, current_stage=stage.name, stage_results=report_rows, last_failure=None if result.status == "PASS" else {"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
                 print(json.dumps(dataclasses.asdict(result), sort_keys=True), flush=True)
                 if result.status == "PASS":
                     _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index + 1, repair_count=repair_count, seen_failures=seen_failures)
@@ -617,25 +791,26 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name)
                 if result.status == "TIMEOUT":
                     print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason=TIMEOUT fingerprint={result.fingerprint}", flush=True)
-                    return terminal(3)
+                    return terminal(3, "ENVIRONMENT_BLOCKED", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "TIMEOUT"})
                 if not repair:
                     print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} fingerprint={result.fingerprint}", flush=True)
-                    return terminal(2)
+                    return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
                 if seen_failures[key] >= 2:
                     print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} reason=NO_PROGRESS fingerprint={result.fingerprint}", flush=True)
-                    return terminal(2)
+                    return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "NO_PROGRESS"})
                 if repair_count >= max_repairs:
                     print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} reason=REPAIR_LIMIT fingerprint={result.fingerprint}", flush=True)
-                    return terminal(2)
+                    return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "REPAIR_LIMIT"})
 
                 repair_count += 1
+                _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index, repair_count=repair_count, status="REPAIRING", current_stage=stage.name, stage_results=report_rows, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
                 ok, detail = invoke_codex(root, stage, result, repair_count, codex_timeout)
                 print(f"AUTOPILOT_CODEX_REPAIR iteration={repair_count} status={'PASS' if ok else 'BLOCKED'}", flush=True)
                 if detail:
                     print(detail, flush=True)
                 if not ok:
                     print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason=CODEX_UNAVAILABLE_OR_FAILED", flush=True)
-                    return terminal(3)
+                    return terminal(3, "ENVIRONMENT_BLOCKED", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "CODEX_UNAVAILABLE_OR_FAILED"})
                 # Codex intentionally changed the workspace. Persist the new
                 # fingerprint while keeping the same failing-stage boundary so
                 # a runner crash immediately after repair resumes by proving the
@@ -655,21 +830,25 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
 
     if phase == "convergence":
         print(f"AUTOPILOT_CONVERGENCE_START stages={len(stages)} repairs={repair_count}", flush=True)
+        _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=next_index, repair_count=repair_count, status="RUNNING", current_stage=None, stage_results=report_rows)
         convergence_state = _load_checkpoint(root, graph_signature=graph_signature, repair=repair) or {}
         convergence_index = int(convergence_state.get("nextIndex", next_index))
         for index in range(convergence_index, len(stages)):
             stage = stages[index]
             _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures)
+            _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=index, repair_count=repair_count, status="RUNNING", current_stage=stage.name, stage_results=report_rows)
             print(f"AUTOPILOT_CONVERGENCE_STAGE_START name={stage.name} timeout={stage.timeout}", flush=True)
             result = run_stage(root, stage)
             results.append(result)
+            report_rows.append(_report_result(stage, result))
+            _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=index + (1 if result.status == "PASS" else 0), repair_count=repair_count, status="RUNNING" if result.status == "PASS" else result.status, current_stage=stage.name, stage_results=report_rows, last_failure=None if result.status == "PASS" else {"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
             print(json.dumps(dataclasses.asdict(result), sort_keys=True), flush=True)
             if result.status == "TIMEOUT":
                 print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason=CONVERGENCE_TIMEOUT fingerprint={result.fingerprint}", flush=True)
-                return terminal(3)
+                return terminal(3, "ENVIRONMENT_BLOCKED", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "CONVERGENCE_TIMEOUT"})
             if result.status != "PASS":
                 print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} reason=CONVERGENCE_REGRESSION fingerprint={result.fingerprint}", flush=True)
-                return terminal(2)
+                return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "CONVERGENCE_REGRESSION"})
             _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=index + 1, repair_count=repair_count, seen_failures=seen_failures)
         print(f"AUTOPILOT_CONVERGENCE_PASS stages={len(stages)} repairs={repair_count}", flush=True)
 
@@ -677,13 +856,13 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
         unresolved = unresolved_components(root)
         if unresolved:
             print("AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED reason=SUPPLY_CHAIN_UNRESOLVED count=%d components=%s" % (len(unresolved), ",".join(unresolved)), flush=True)
-            return terminal(3)
+            return terminal(3, "ENVIRONMENT_BLOCKED", last_failure={"stage": "supply-chain", "specialist": "supply-chain-release", "status": "BLOCKED", "reason": "SUPPLY_CHAIN_UNRESOLVED"})
 
     if emit_ready_result:
         print(f"AUTOPILOT_RESULT=READY_FOR_REAL_TEST stages={len(stages)} repairs={repair_count}", flush=True)
     else:
         print(f"AUTOPILOT_LOCAL_GATES_PASS stages={len(stages)} repairs={repair_count}", flush=True)
-    return terminal(0)
+    return terminal(0, "PASS")
 
 def _field_campaign_args() -> list[str]:
     args: list[str] = []
@@ -1055,6 +1234,18 @@ def run_real_test(root: Path, *, timeout: int) -> int:
     return 0
 
 
+def _feature_freeze_closed(readiness: dict) -> bool:
+    phases = readiness.get("phases", [])
+    if not isinstance(phases, list):
+        return False
+    for phase in phases:
+        if not isinstance(phase, dict):
+            continue
+        if phase.get("id") == "C9-pre-certification-feature-freeze-exact-bundle":
+            return phase.get("status") in {"source-implemented", "certified", "complete"}
+    return False
+
+
 def run_autopilot(root: Path, *, repair: bool, max_repairs: int, codex_timeout: int, start_stage: str | None = None, stop_stage: str | None = None, real_test: bool = False, real_test_timeout: int = 7200, release_ready: bool = False) -> int:
     # A repair run must discover a missing Codex CLI before spending time on
     # expensive repository stages. Read-only validation does not require Codex.
@@ -1089,6 +1280,9 @@ def run_autopilot(root: Path, *, repair: bool, max_repairs: int, codex_timeout: 
     product_codes = _readiness_code_names(readiness, "productBlockerCodes")
     deployment_codes = _readiness_code_names(readiness, "deploymentContextBlockerCodes")
     unresolved = unresolved_components(root)
+    if real_test and not _feature_freeze_closed(readiness):
+        print("AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED reason=FEATURE_FREEZE_NOT_CLOSED requiredPhase=C9-pre-certification-feature-freeze-exact-bundle", flush=True)
+        return 3
     if product_blocker_count:
         print(
             "AUTOPILOT_RELEASE_READINESS=BLOCKED reason=PRODUCT_RELEASE_BLOCKED "
@@ -1247,6 +1441,13 @@ def self_test() -> int:
             fp2 = _fingerprint(1, "stable failure\n")
             if fp1 != fp2:
                 raise AssertionError("failure fingerprint is not deterministic")
+            redacted = _redact_failure_text("password=hunter2 Authorization: Bearer abc123 token=qwerty")
+            if "hunter2" in redacted or "abc123" in redacted or "qwerty" in redacted:
+                raise AssertionError(f"failure redaction leaked a secret: {redacted}")
+            if _feature_freeze_closed({"phases": [{"id": "C9-pre-certification-feature-freeze-exact-bundle", "status": "blocked"}]}):
+                raise AssertionError("blocked C9 must not authorize physical testing")
+            if not _feature_freeze_closed({"phases": [{"id": "C9-pre-certification-feature-freeze-exact-bundle", "status": "source-implemented"}]}):
+                raise AssertionError("closed C9 must authorize physical testing")
 
             # Canonical correctness passes must not replay an entire extracted
             # artifact verification or compile twice before smoke. Full artifact
@@ -1257,7 +1458,7 @@ def self_test() -> int:
             names = [item.name for item in canonical_stages(release_root)]
             if "build" in names or "artifact-full-verify" in names:
                 raise AssertionError(f"duplicate canonical stage regression: {names}")
-            if names.index("smoke") > names.index("binary-version"):
+            if names.index("smoke-1") > names.index("binary-version"):
                 raise AssertionError(f"binary version must verify the binaries built by smoke: {names}")
 
             # Release readiness must be delegated to the canonical CLI phase
@@ -1271,16 +1472,19 @@ def self_test() -> int:
             fake_ctl.write_text(
                 "#!/bin/sh\n"
                 "printf '%s\n' '{\"planId\":\"plan-test\",\"deploymentExecutable\":false,"
-                "\"productReleaseReady\":false,\"productReleaseBlockers\":1,"
-                "\"deploymentContextBlockers\":1,\"productBlockerCodes\":{\"SOURCE_LOCK_MISSING\":1},"
+                "\"productReleaseReady\":false,\"productReleaseBlockers\":2,\"roadmapFeatureBlockers\":1,"
+                "\"deploymentContextBlockers\":1,\"productBlockerCodes\":{\"SOURCE_LOCK_MISSING\":1,\"TARGET_NODE_LIFECYCLE_PENDING\":1},"
+                "\"roadmapFeatureBlockerCodes\":{\"TARGET_NODE_LIFECYCLE_PENDING\":1},"
                 "\"deploymentContextBlockerCodes\":{\"GIT_REVISION_NOT_IMMUTABLE\":1},"
-                "\"physicalRuntimeStatus\":\"not-evaluated\",\"phases\":[]}'\n"
+                "\"physicalRuntimeStatus\":\"not-evaluated\",\"programRoadmap\":{\"authority\":\"PROGRAM_PHASE_MODEL_V26\",\"goalReady\":false,\"phases\":[]},\"phases\":[]}'\n"
             )
             fake_ctl.chmod(0o755)
             readiness_doc, readiness_error = _release_readiness(release_fixture)
             if readiness_error is not None or readiness_doc is None or bool(readiness_doc.get("productReleaseReady")):
                 raise AssertionError((readiness_doc, readiness_error))
-            if _readiness_code_names(readiness_doc, "productBlockerCodes") != ["SOURCE_LOCK_MISSING"]:
+            if _readiness_code_names(readiness_doc, "productBlockerCodes") != ["SOURCE_LOCK_MISSING", "TARGET_NODE_LIFECYCLE_PENDING"]:
+                raise AssertionError(readiness_doc)
+            if _readiness_code_names(readiness_doc, "roadmapFeatureBlockerCodes") != ["TARGET_NODE_LIFECYCLE_PENDING"]:
                 raise AssertionError(readiness_doc)
             if _readiness_code_names(readiness_doc, "deploymentContextBlockerCodes") != ["GIT_REVISION_NOT_IMMUTABLE"]:
                 raise AssertionError(readiness_doc)

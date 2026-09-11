@@ -12,7 +12,7 @@ def request(url,method='GET',body=None,headers=None):
  req=urllib.request.Request(url,data=data,method=method,headers=h)
  with urllib.request.urlopen(req,timeout=5) as r:return r.status,json.loads(r.read()),dict(r.headers)
 def start(binary,root,state_file):
- port=free_port();env=os.environ.copy();env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}';env['PLATFORM_FACTORY_STATE_FILE']=str(state_file)
+ port=free_port();env=os.environ.copy(); env['PLATFORM_FACTORY_DEVELOPMENT_MODE']='true';env['PLATFORM_FACTORY_LISTEN']=f'127.0.0.1:{port}';env['PLATFORM_FACTORY_STATE_FILE']=str(state_file)
  proc=subprocess.Popen([str(binary)],cwd=root,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
  base=f'http://127.0.0.1:{port}'
  for _ in range(80):
@@ -31,11 +31,19 @@ def main():
  with tempfile.TemporaryDirectory() as td:
   state=Path(td)/'state'/'control-plane.json';proc,base,ready=start(binary,root,state)
   try:
-   assert ready['catalogComponents']==19 and ready['catalogDigest'].startswith('sha256:')
-   status,summary,_=request(base+'/api/v1/catalog/summary');assert status==200 and summary['componentCount']==19
+   expected_catalog_components=len(list((root/'catalog'/'components').glob('*.json')))
+   assert ready['catalogComponents']==expected_catalog_components and ready['catalogDigest'].startswith('sha256:')
+   status,summary,_=request(base+'/api/v1/catalog/summary');assert status==200 and summary['componentCount']==expected_catalog_components
+   admission_authority=json.loads((root/'catalog/upstream-admission.json').read_text())['spec']['components']
+   upstream=summary['upstreamAdmission'];assert upstream['total']==len(admission_authority) and len(upstream['components'])==len(admission_authority)
+   expected_ready=sum(1 for row in admission_authority if row.get('status')=='ready-for-acquisition')
+   assert upstream['readyForAcquisition']==expected_ready and upstream['reviewRequired']==len(admission_authority)-expected_ready
+   assert {row['component'] for row in upstream['components']}=={row['component'] for row in admission_authority}
    blueprint=json.loads((root/'blueprints/enterprise-private-cloud.json').read_text())
+   expected_plan_steps=sum(1 for c in blueprint['spec']['components'] if c.get('enabled',True))
    status,validation,_=request(base+'/api/v1/blueprints/validate','POST',blueprint);assert status==200 and validation['valid'] is True
-   status,plan,_=request(base+'/api/v1/plans','POST',blueprint);assert status==201 and plan['executable'] is False and len(plan['steps'])==18 and len(plan['blockers'])>=75
+   status,plan,_=request(base+'/api/v1/plans','POST',blueprint);assert status==201 and plan['executable'] is False and len(plan['steps'])==expected_plan_steps
+   blocker_codes={b.get('code') for b in plan['blockers']};assert {'CERTIFICATION_EVIDENCE_MISSING','COMPONENT_NOT_RUNTIME_CERTIFIED','COMPONENT_SOURCE_UNRESOLVED','SOURCE_LOCK_MISSING'} <= blocker_codes
    status,profiles,_=request(base+'/api/v1/installations/profiles');assert status==200 and len(profiles)==3 and any(p.get('default') for p in profiles)
    install_request={'profileId':'production-standard-ha','connectivity':'connected','infrastructure':{'provider':'existing-hosts','existingCluster':False,'nodeAddresses':['10.0.0.1','10.0.0.2','10.0.0.3'],'credentialRef':'secret://infra/admin'},'network':{'publicEndpoint':'https://platform.example.test','dnsZone':'example.test','tlsMode':'managed-acme'},'services':{'git':{},'registry':{},'database':{},'objectStorage':{'mode':'external','provider':'s3-compatible','url':'https://s3.example.test','credentialRef':'secret://storage/backup'},'identity':{'adminEmail':'admin@example.test'}},'acceptRisk':True}
    status,install_plan,_=request(base+'/api/v1/installations/plans','POST',install_request);assert status==201 and install_plan['executable'] is False and install_plan['authorityGate']=='blocked-pending-postgresql-runtime' and len(install_plan['steps'])==11

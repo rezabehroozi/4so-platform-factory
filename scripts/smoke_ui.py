@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import argparse
+import concurrent.futures
 import json
 import shutil
 import os
@@ -87,8 +88,8 @@ def prepare_page(page, document: str, *, installer: bool) -> None:
         }"""
     )
     if installer:
-        mock = """async (input, init={}) => {
-          const path = String(input).replace(/^https?:\\/\\/[^/]+/, '').split('?')[0];
+        mock = r"""async (input, init={}) => {
+          const path = String(input).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
           let body = {};
           if (path === '/healthz') body = {status: 'ok', version: 'test-version'};
           else if (path === '/api/v1/status') body = {executionEnabled: false, run: null};
@@ -104,8 +105,8 @@ def prepare_page(page, document: str, *, installer: bool) -> None:
           return new Response(JSON.stringify(body), {status: 200, headers: {'content-type': 'application/json'}});
         }""".replace("__PROFILE__", json.dumps(PROFILE, separators=(",", ":")))
     else:
-        mock = """async (input, init={}) => {
-          const path = String(input).replace(/^https?:\\/\\/[^/]+/, '').split('?')[0];
+        mock = r"""async (input, init={}) => {
+          const path = String(input).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
           let body = [];
           if (path === '/auth/session') body = {name: 'Local operator', sub: 'local-development'};
           else if (path === '/api/v1/version') body = {version: 'test-version'};
@@ -119,11 +120,15 @@ def prepare_page(page, document: str, *, installer: bool) -> None:
           else if (path === '/api/v1/blueprints/authoring-roundtrip') { const bp = JSON.parse(init.body || '{}'); body={method:'BLUEPRINT_VISUAL_API_AUTHORING_PARITY_V1',fieldCount:27,blueprint:bp,canonicalJson:JSON.stringify(bp),digest:'sha256:'+'a'.repeat(64),validation:{valid:true,findings:[]}}; }
           else if (path === '/api/v1/compatibility/evaluate') { const request = JSON.parse(init.body || '{}'); body={authority:'PLATFORM_COMPATIBILITY_MATRIX_V1',constraintCount:1,providerDimension:true,serverReconstructed:true,decision:{method:'PLATFORM_COMPATIBILITY_MATRIX_V1',status:'PASS',target:request.target,checks:[{constraint:'blueprint/ui-parity',dimension:'kubernetes',status:'PASS',target:request.target?.kubernetesVersion||'',allowed:['1.34..1.35'],authority:'PLATFORM_COMPATIBILITY_MATRIX_V1',message:'Kubernetes minor is admitted'},{constraint:'blueprint/ui-parity',dimension:'architecture',status:'PASS',target:request.target?.architecture||'',allowed:['amd64'],authority:'PLATFORM_COMPATIBILITY_MATRIX_V1',message:'target is admitted'},{constraint:'blueprint/ui-parity',dimension:'distribution',status:'PASS',target:request.target?.distribution||'',allowed:['rke2'],authority:'PLATFORM_COMPATIBILITY_MATRIX_V1',message:'target is admitted'},{constraint:'blueprint/ui-parity',dimension:'provider',status:'PASS',target:request.target?.provider||'',allowed:['*'],authority:'PLATFORM_COMPATIBILITY_MATRIX_V1',message:'target is admitted'}],digest:'sha256:'+'c'.repeat(64)}}; }
           else if (path === '/api/v1/blueprint-releases') body = [];
-          else if (path === '/api/v1/control-plane/summary') body = {organizations: 0, projects: 0, operations: 0, outboxPending: 0};
+          else if (path === '/api/v1/control-plane/summary') body = {organizations: 1, projects: 1, managedClusters: 1, connectedClusters: 1, baselineDeployments: 1, successfulBaselineDeployments: 1, runtimeVerifications: 1, successfulRuntimeVerifications: 1, runtimeClosureCampaigns: 1, successfulRuntimeClosureCampaigns: 1, failedProductWorkflows: 0, operations: 0, outboxPending: 0};
+          else if (path === '/api/v1/operations/queue-center') body = {authority:'OPERATIONS_QUEUE_CENTER_V1',backend:'memory',limit:100,lanes:[{id:'operations',pending:0,executing:0,retryWait:0,attention:0,deadLetter:0,expiredClaims:0,loadedItems:0,truncated:false},{id:'agent-tasks',pending:0,executing:0,retryWait:0,attention:0,deadLetter:0,expiredClaims:0,loadedItems:0,truncated:false},{id:'notifications',pending:0,executing:0,retryWait:0,attention:0,deadLetter:0,expiredClaims:0,loadedItems:0,truncated:false},{id:'outbox',pending:0,executing:0,retryWait:0,attention:0,deadLetter:0,expiredClaims:0,loadedItems:0,truncated:false}],items:[],safety:{readOnly:true,rawWorkerControls:false,scopeBeforeLimit:true,itemWindowBounded:true,outboxItemsExposed:false,agentTaskItemsExposed:false,agentTaskPayloadsExposed:false}};
+          else if (path === '/api/v1/logs') body = {authority:'PRODUCT_LOG_CENTER_V1',backend:'memory',entries:[],limit:100,windowCounts:{operation:0,audit:0,notification:0},windowTruncated:false,resultTruncated:false,searchComplete:true,searchSemantics:'LATEST_AUTHORIZED_PRODUCT_LOG_WINDOWS_V1',payloadPolicy:'METADATA_AND_REDACTED_MESSAGES_ONLY',runtimeWorkloadTail:false};
+          else if (path.startsWith('/api/v1/control-plane/attention?')) body = [];
           else if (path === '/api/v1/ai/policy') body = {runtimeAuthority:'UNIFIED_AI_RUNTIME_V1',enabled:true,provider:'openai-responses',model:'ui-smoke-model',maxInputBytes:16384,maxOutputTokens:800,redactionRequired:true,structuredOutputRequired:true,rawPromptPersisted:false,advisoryOnly:true,canDecidePass:false,canDecidePhysicalPass:false};
           else if (path === '/api/v1/ai/runs') body = [{id:'air_ui',projectId:'project-ui',revision:1,purpose:'operator-diagnosis',provider:'openai-responses',model:'ui-smoke-model',promptId:'operator.failure-diagnosis.v1',promptDigest:'sha256:'+'1'.repeat(64),contextDigest:'sha256:'+'2'.repeat(64),outputDigest:'sha256:'+'3'.repeat(64),requestDigest:'sha256:'+'4'.repeat(64),redactionCount:2,inputTokens:120,cachedTokens:40,outputTokens:80,output:{classification:'environment',confidence:91,owner:'runtime',summary:'Synthetic secret-safe UI smoke advisory',recommendedChecks:['Verify deterministic evidence'],recommendedFix:'Use normal product workflow after evidence review'},linkedResourceType:'operation',linkedResourceId:'op-ui',advisoryOnly:true,createdAt:'2026-08-28T08:00:00Z',updatedAt:'2026-08-28T08:00:00Z'}];
-          else if (path === '/api/v1/lab/guide') body = {authority:'LAB_CERTIFICATION_MATRIX_V1',serverTiers:[{id:'current-import-minimum',displayName:'Current import minimum',physicalServers:4,roles:['management-1','okd-control-1','okd-control-2','okd-control-3'],purpose:'Import certification'}],matrix:[{id:'M00',group:'artifact',name:'Exact SHA',serverTier:'current-import-minimum',phase:'C-ai-native-operator-experience-lab-mcp-foundation',destructive:false,aiEligible:false,actions:['verify exact SHA'],automationStatus:'IMPLEMENTED',automationDetail:'Artifact integrity'}],aiPolicy:{defaultMode:'failure-only',maxFailurePacketBytes:16384,maxOutputTokens:1200},mcp:{protocol:'2026-07-28',transport:'streamable-http',path:'/mcp',defaultAccess:'read-only',permission:'mcp.read',authorization:'capability + project authorization',tools:['lab_guide','target_architecture_model','ai_runtime_policy','cluster_summary','operation_status','ai_run'],mutatingTools:[]}};
-          else if (path === '/api/v1/target-architecture-model') body = {authority:'TARGET_ARCHITECTURE_MODEL_V1',distributions:[{id:'kubernetes',status:'SUPPORTED'},{id:'okd',status:'RECOGNIZED_NOT_YET_ADMITTED'}],capabilityResolver:{authority:'TARGET_CAPABILITY_RESOLVER_V1'},programRoadmap:{authority:'PROGRAM_PHASE_MODEL_V3',currentPhase:'C-ai-native-operator-experience-lab-mcp-foundation',goalReady:false,globalGuardrails:['physical pass exact sha'],tracks:[{id:'operator-experience',title:'Operator Experience / UI / UX',objective:'Complete truthful operator workflows',requirements:['responsive RTL accessibility']},{id:'ai-native',title:'AI-Native Control Plane',objective:'Explain and diagnose authority',requirements:['redaction and durable audit']},{id:'mcp-agent-surface',title:'MCP / External Agent Surface',objective:'Scoped external reads',requirements:['mcp.read project authorization']}],phases:[{id:'C-ai-native-operator-experience-lab-mcp-foundation',status:'blocked'}]}};
+          else if (path === '/api/v1/lab/guide') body = {authority:'LAB_CERTIFICATION_MATRIX_V2',serverTiers:[{id:'current-import-minimum',displayName:'Current import minimum',physicalServers:4,roles:['management-1','okd-control-1','okd-control-2','okd-control-3'],purpose:'Import certification'}],matrix:[{id:'M00',group:'artifact',name:'Exact SHA',serverTier:'current-import-minimum',phase:'D-exact-artifact-lab-ai-certification',destructive:false,aiEligible:false,actions:['verify exact SHA'],automationStatus:'IMPLEMENTED',automationDetail:'Artifact integrity'}],aiPolicy:{defaultMode:'failure-only',maxFailurePacketBytes:16384,maxOutputTokens:1200},mcp:{protocol:'2026-07-28',transport:'streamable-http',path:'/mcp',defaultAccess:'read-only',permission:'mcp.read',operationPermission:'mcp.operate',authorization:'capability + project authorization + revision + audit',tools:['lab_guide','target_architecture_model','mcp_delegation_architecture','ai_runtime_policy','project_clusters','project_operations','ops_search','cluster_summary','operation_status','ai_run'],mutatingTools:['operation_cancel','drift_scan_request','runtime_verification_request','cluster_maintenance_request','upgrade_campaign_request']}};
+          else if (path === '/api/v1/day2-campaign-engine') body = {authority:'GENERALIZED_DAY2_CAMPAIGN_ENGINE_V1',stageOrder:['PLAN','IMPACT','WINDOW','APPROVAL','CANARY_WAVES','FENCE','EXECUTE','VERIFY','EVIDENCE','RECOVERY'],adapters:[{id:'node-maintenance'},{id:'fleet-upgrade'}]};
+          else if (path === '/api/v1/target-architecture-model') body = {authority:'TARGET_ARCHITECTURE_MODEL_V1',distributions:[{id:'kubernetes',status:'SUPPORTED'},{id:'okd',status:'SUPPORTED_FOR_IMPORT',importSupported:true}],capabilityResolver:{authority:'TARGET_CAPABILITY_RESOLVER_V1'},searchProjection:{authority:'SEARCH_PROJECTION_AUTHORITY_V2',defaultBackend:'postgresql-bounded',status:'DECIDED_OPTIONAL_OPENSEARCH_SCALE_PROJECTION',rebuildRequired:true},programRoadmap:{authority:'PROGRAM_PHASE_MODEL_V26',currentPhase:'S1-exact-supply-chain-acquisition-closure',goalReady:false,globalGuardrails:['physical pass exact sha'],tracks:[{id:'operator-experience',title:'Operator Experience / UI / UX',objective:'Complete truthful operator workflows',requirements:['responsive RTL accessibility']},{id:'ai-native',title:'AI-Native Control Plane',objective:'Explain and diagnose authority',requirements:['redaction and durable audit']},{id:'mcp-agent-surface',title:'MCP / External Agent Surface',objective:'Scoped external reads',requirements:['mcp.read/mcp.operate project authorization']}],phases:[{id:'C1-operator-ia-scope-authority',status:'source-implemented'},{id:'C4-console-e2e-ux-certification',status:'source-implemented'},{id:'C5-installer-production-lifecycle-closure',status:'source-implemented'},{id:'C9-pre-certification-feature-freeze-exact-bundle',status:'blocked'},{id:'D-exact-artifact-lab-ai-certification',status:'deferred-until-development-closure'}]}};
           else if (!path.startsWith('/api/v1/')) body = {};
           return new Response(JSON.stringify(body), {status: 200, headers: {'content-type': 'application/json'}});
         }""".replace("__PROFILE__", json.dumps(PROFILE, separators=(",", ":")))
@@ -147,6 +152,90 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
     live_contract = page.evaluate("() => ({marketplace: livePages.has('marketplace'), tenants: livePages.has('tenants'), ai: livePages.has('ai')})")
     if not live_contract.get('marketplace') or not live_contract.get('tenants') or not live_contract.get('ai'):
         errors.append('async-marketplace-tenant-ai-live-refresh-missing')
+    action_workflow_contract = page.evaluate(r"""() => {
+      const originalOperations=state.operations, originalCampaigns=state.upgradeCampaigns, originalOutcome=state.mutationOutcome;
+      const originalDestinations=state.notificationDestinations, originalServiceAccounts=state.serviceAccounts, originalTokens=state.apiTokens, originalManagedGitRevisions=state.managedGitRevisions;
+      const originalMaintenanceWindows=state.clusterMaintenanceWindows, originalMaintenanceRuns=state.clusterMaintenanceRuns, originalWorkspaceBindings=state.workspaceBindings, originalCatalogTrustKeys=state.catalogTrustKeys, originalDriftScans=state.driftScans, originalMemberships=state.organizationMemberships, originalOIDCMappings=state.oidcGroupMappings, originalDeliveries=state.notificationDeliveries;
+      try {
+        state.operations=[{id:'op-cancel-requested',projectId:'',state:'CANCEL_REQUESTED',revision:2,kind:'smoke'}];
+        const cancel=document.createElement('button');cancel.type='button';cancel.dataset.operationCancel='op-cancel-requested';document.body.append(cancel);applyAccessMode();
+        const cancelDisabled=cancel.disabled===true && String(cancel.title||'').includes('already requested');
+        cancel.remove();
+        state.upgradeCampaigns=[{id:'upgrade-running',projectId:'',state:'RUNNING',targets:[{state:'APPLYING'}]}];
+        const revalidate=document.createElement('button');revalidate.type='button';revalidate.dataset.upgradeAction='revalidate';revalidate.dataset.id='upgrade-running';document.body.append(revalidate);applyAccessMode();
+        const revalidateDisabled=revalidate.disabled===true && String(revalidate.title||'').includes('only between waves');
+        revalidate.remove();
+        state.notificationDestinations=[{id:'ntd-disabled',organizationId:'',state:'DISABLED',revision:3}];
+        const destinationEdit=document.createElement('button');destinationEdit.type='button';destinationEdit.dataset.notificationDestinationAction='edit';destinationEdit.dataset.id='ntd-disabled';document.body.append(destinationEdit);applyAccessMode();
+        const disabledDestinationEdit=destinationEdit.disabled===true && String(destinationEdit.title||'').includes('DISABLED');
+        destinationEdit.remove();
+        state.serviceAccounts=[{id:'svc-revoked',organizationId:'',state:'REVOKED'}];state.apiTokens={'svc-revoked':[{id:'tok-active',state:'ACTIVE',expiresAt:'2099-01-01T00:00:00Z'}]};
+        const tokenRotate=document.createElement('button');tokenRotate.type='button';tokenRotate.dataset.apiTokenAction='rotate';tokenRotate.dataset.accountId='svc-revoked';tokenRotate.dataset.tokenId='tok-active';document.body.append(tokenRotate);applyAccessMode();
+        const revokedAccountTokenDisabled=tokenRotate.disabled===true && String(tokenRotate.title||'').includes('service account');
+        tokenRotate.remove();
+        state.managedGitRevisions=[{id:'lkg-current',organization:'platform',repository:'desired-state',branch:'main',commitSha:'abc',lastKnownGood:true,updatedAt:'2026-09-02T00:00:00Z'}];
+        const rollback=document.createElement('button');rollback.type='button';rollback.dataset.gitLkgRollback='lkg-current';document.body.append(rollback);applyAccessMode();
+        const lkgNoopDisabled=rollback.disabled===true && String(rollback.title||'').includes('no-op');
+        rollback.remove();
+        state.clusterMaintenanceWindows=[{id:'mw-cancelled',state:'CANCELLED'}];
+        const maintenanceWindow=document.createElement('button');maintenanceWindow.type='button';maintenanceWindow.dataset.maintenanceWindowAction='run';maintenanceWindow.dataset.id='mw-cancelled';document.body.append(maintenanceWindow);applyAccessMode();
+        const maintenanceWindowDisabled=maintenanceWindow.disabled===true && String(maintenanceWindow.title||'').includes('CANCELLED');maintenanceWindow.remove();
+        state.clusterMaintenanceRuns=[{id:'mr-running',state:'RUNNING'}];
+        const maintenanceRun=document.createElement('button');maintenanceRun.type='button';maintenanceRun.dataset.maintenanceRunAction='approve';maintenanceRun.dataset.id='mr-running';document.body.append(maintenanceRun);applyAccessMode();
+        const maintenanceRunDisabled=maintenanceRun.disabled===true && String(maintenanceRun.title||'').includes('RUNNING');maintenanceRun.remove();
+        state.workspaceBindings=[{id:'wb-revoked',projectId:'',state:'REVOKED'}];
+        const workspaceBinding=document.createElement('button');workspaceBinding.type='button';workspaceBinding.dataset.workspaceBindingAction='revoke';workspaceBinding.dataset.id='wb-revoked';document.body.append(workspaceBinding);applyAccessMode();
+        const workspaceBindingDisabled=workspaceBinding.disabled===true && String(workspaceBinding.title||'').includes('REVOKED');workspaceBinding.remove();
+        state.catalogTrustKeys=[{id:'trust-revoked',state:'REVOKED'}];
+        const trustRevoke=document.createElement('button');trustRevoke.type='button';trustRevoke.dataset.catalogTrustAction='revoke';trustRevoke.dataset.id='trust-revoked';document.body.append(trustRevoke);applyAccessMode();
+        const trustRevokeDisabled=trustRevoke.disabled===true && String(trustRevoke.title||'').includes('REVOKED');trustRevoke.remove();
+        state.driftScans=[{id:'scan-stale',targets:[{clusterId:'cluster-a',git:{adoptable:false},findings:[{fingerprint:'finding-a',remediation:{mode:'GUIDANCE',eligible:false}}]}]}];
+        const driftAdopt=document.createElement('button');driftAdopt.type='button';driftAdopt.dataset.driftAction='adopt-git';driftAdopt.dataset.scanId='scan-stale';driftAdopt.dataset.clusterId='cluster-a';document.body.append(driftAdopt);applyAccessMode();
+        const driftAdoptDisabled=driftAdopt.disabled===true && String(driftAdopt.title||'').includes('no longer adoptable');driftAdopt.remove();
+        const driftRemediate=document.createElement('button');driftRemediate.type='button';driftRemediate.dataset.driftAction='remediate-finding';driftRemediate.dataset.scanId='scan-stale';driftRemediate.dataset.clusterId='cluster-a';driftRemediate.dataset.fingerprint='finding-a';document.body.append(driftRemediate);applyAccessMode();
+        const driftRemediateDisabled=driftRemediate.disabled===true && String(driftRemediate.title||'').includes('no longer eligible');driftRemediate.remove();
+        state.organizationMemberships=[{subject:'subject-a',state:'REVOKED'}];
+        const membership=document.createElement('button');membership.type='button';membership.dataset.membershipRevoke='subject-a';document.body.append(membership);applyAccessMode();
+        const membershipDisabled=membership.disabled===true && String(membership.title||'').includes('REVOKED');membership.remove();
+        state.oidcGroupMappings=[{id:'mapping-revoked',state:'REVOKED'}];
+        const mapping=document.createElement('button');mapping.type='button';mapping.dataset.oidcMappingRevoke='mapping-revoked';document.body.append(mapping);applyAccessMode();
+        const mappingDisabled=mapping.disabled===true && String(mapping.title||'').includes('REVOKED');mapping.remove();
+        state.notificationDeliveries=[{id:'delivery-done',state:'SUCCEEDED'}];
+        const deadLetter=document.createElement('button');deadLetter.type='button';deadLetter.dataset.notificationRetryDeadLetter='delivery-done';document.body.append(deadLetter);applyAccessMode();
+        const deadLetterDisabled=deadLetter.disabled===true && String(deadLetter.title||'').includes('SUCCEEDED');deadLetter.remove();
+        captureMutationOutcome('/api/v1/drift-scans/s/targets/c/findings/f/remediate','POST',{operation:{id:'op-evidence',state:'QUEUED',kind:'DRIFT_REMEDIATION'}});
+        const banner=document.querySelector('#mutation-outcome');
+        const truthfulOutcome=banner?.hidden===false && banner.textContent.includes('terminal success is not implied') && banner.textContent.includes('op-evidence');
+        return {cancelDisabled,revalidateDisabled,disabledDestinationEdit,revokedAccountTokenDisabled,lkgNoopDisabled,maintenanceWindowDisabled,maintenanceRunDisabled,workspaceBindingDisabled,trustRevokeDisabled,driftAdoptDisabled,driftRemediateDisabled,membershipDisabled,mappingDisabled,deadLetterDisabled,truthfulOutcome};
+      } finally {
+        state.operations=originalOperations;state.upgradeCampaigns=originalCampaigns;state.notificationDestinations=originalDestinations;state.serviceAccounts=originalServiceAccounts;state.apiTokens=originalTokens;state.managedGitRevisions=originalManagedGitRevisions;state.clusterMaintenanceWindows=originalMaintenanceWindows;state.clusterMaintenanceRuns=originalMaintenanceRuns;state.workspaceBindings=originalWorkspaceBindings;state.catalogTrustKeys=originalCatalogTrustKeys;state.driftScans=originalDriftScans;state.organizationMemberships=originalMemberships;state.oidcGroupMappings=originalOIDCMappings;state.notificationDeliveries=originalDeliveries;state.mutationOutcome=originalOutcome;renderMutationOutcome();
+      }
+    }""")
+    if not action_workflow_contract.get('cancelDisabled'):
+        errors.append('c3-cancel-requested-action-not-disabled')
+    if not action_workflow_contract.get('revalidateDisabled'):
+        errors.append('c3-running-upgrade-revalidate-not-disabled-during-active-target')
+    if not action_workflow_contract.get('disabledDestinationEdit'):
+        errors.append('c3-disabled-notification-destination-edit-not-fenced')
+    if not action_workflow_contract.get('revokedAccountTokenDisabled'):
+        errors.append('c3-revoked-service-account-token-action-not-fenced')
+    if not action_workflow_contract.get('lkgNoopDisabled'):
+        errors.append('c3-git-lkg-noop-rollback-not-fenced')
+    for key, error_code in [
+        ('maintenanceWindowDisabled','c3-maintenance-window-state-not-fenced'),
+        ('maintenanceRunDisabled','c3-maintenance-run-state-not-fenced'),
+        ('workspaceBindingDisabled','c3-workspace-binding-state-not-fenced'),
+        ('trustRevokeDisabled','c3-catalog-trust-state-not-fenced'),
+        ('driftAdoptDisabled','c3-drift-adoption-state-not-fenced'),
+        ('driftRemediateDisabled','c3-drift-remediation-state-not-fenced'),
+        ('membershipDisabled','c3-membership-revoke-state-not-fenced'),
+        ('mappingDisabled','c3-oidc-mapping-revoke-state-not-fenced'),
+        ('deadLetterDisabled','c3-dead-letter-retry-state-not-fenced'),
+    ]:
+        if not action_workflow_contract.get(key):
+            errors.append(error_code)
+    if not action_workflow_contract.get('truthfulOutcome'):
+        errors.append('c3-authoritative-mutation-outcome-missing')
     session_contract = page.evaluate(r"""async () => {
       const originalFetch = window.fetch;
       const originalRedirectPending = state.sessionRedirectPending;
@@ -288,7 +377,7 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
       const originalFetch = window.fetch;
       window.fetch = async (input, init={}) => {
         const path = String(input).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
-        if (path === '/api/v1/clusters') return new Response(JSON.stringify({error:{message:'cluster authority down'}}), {status:503, headers:{'content-type':'application/json'}});
+        if (path === '/api/v1/control-plane/attention') return new Response(JSON.stringify({error:{message:'attention authority down'}}), {status:503, headers:{'content-type':'application/json'}});
         return originalFetch(input, init);
       };
       try {
@@ -304,8 +393,33 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
         };
       } finally { window.fetch = originalFetch; }
     }""")
-    if 'Cluster authority unavailable' not in overview_partial_contract.get('metrics', '') or 'Authority unavailable; retry before acting.' not in overview_partial_contract.get('clusterCheck', '') or overview_partial_contract.get('clusterHasContinue') or 'Partial data' not in overview_partial_contract.get('degraded', '') or 'Attention data unavailable' not in overview_partial_contract.get('attention', ''):
-        errors.append('overview-partial-authority-masquerades-as-zero-or-actionable')
+    # Cluster collection failure must not invalidate bounded summary authority.
+    # Metrics/readiness remain summary-backed, while detail/attention surfaces are partial.
+    if 'Connected clusters' not in overview_partial_contract.get('metrics', '') or '1' not in overview_partial_contract.get('metrics', '') or 'Summary authority unavailable' in overview_partial_contract.get('metrics', '') or 'Authority unavailable; retry before acting.' in overview_partial_contract.get('clusterCheck', '') or overview_partial_contract.get('clusterHasContinue') or 'Partial data' not in overview_partial_contract.get('degraded', '') or 'Attention data unavailable' not in overview_partial_contract.get('attention', ''):
+        errors.append('overview-collection-outage-invalidates-bounded-summary-authority')
+
+    overview_summary_failure_contract = page.evaluate(r"""async () => {
+      const originalFetch = window.fetch;
+      window.fetch = async (input, init={}) => {
+        const path = String(input).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
+        if (path === '/api/v1/control-plane/summary') return new Response(JSON.stringify({error:{message:'summary authority down'}}), {status:503, headers:{'content-type':'application/json'}});
+        return originalFetch(input, init);
+      };
+      try {
+        await navigate('overview');
+        const metrics = document.querySelector('#overview-metrics').innerText;
+        const clusterCheck = [...document.querySelectorAll('#journey-checklist .check-item')].find(item => item.innerText.includes('Connect a Kubernetes cluster'));
+        return {
+          metrics,
+          clusterCheck: clusterCheck?.innerText || '',
+          clusterHasContinue: !!clusterCheck?.querySelector('[data-navigate]'),
+          degraded: document.querySelector('#page-degraded-banner').innerText,
+          attention: document.querySelector('#attention-list').innerText
+        };
+      } finally { window.fetch = originalFetch; }
+    }""")
+    if 'Summary authority unavailable' not in overview_summary_failure_contract.get('metrics', '') or 'Authority unavailable; retry before acting.' not in overview_summary_failure_contract.get('clusterCheck', '') or overview_summary_failure_contract.get('clusterHasContinue') or 'Partial data' not in overview_summary_failure_contract.get('degraded', ''):
+        errors.append('overview-summary-outage-masquerades-as-zero-or-actionable')
     overview_hard_failure_contract = page.evaluate(r"""async () => {
       const originalFetch = window.fetch;
       await navigate('overview');
@@ -355,8 +469,8 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
     if not interaction_contract.get('expanded') or not interaction_contract.get('recent'):
         errors.append('expanded-or-recent-interaction-does-not-pause-live-refresh')
     pages = [
-        "overview", "workspace", "installation", "clusters", "providers", "blueprints", "marketplace", "baselines",
-        "verification", "fleet", "tenants", "operations", "ai", "lab", "notifications", "services", "catalog", "validator",
+        "overview", "workspace", "installation", "clusters", "providers", "blueprints", "templates", "marketplace", "baselines",
+        "verification", "fleet", "workspaces", "tenants", "operations", "ai", "lab", "notifications", "services", "catalog", "validator",
     ]
     activated: list[str] = []
     for name in pages:
@@ -366,9 +480,29 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
             errors.append(f"page-not-active:{name}")
         if page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 2"):
             errors.append(f"horizontal-overflow:{name}")
+        guide = page.locator(f"#{name} > .page-outcome-strip")
+        if guide.count() != 1 or not guide.inner_text().strip():
+            errors.append(f"page-outcome-guidance-missing:{name}")
         activated.append(name)
-    page.evaluate("() => navigate('ai')")
-    page.wait_for_timeout(120)
+    page.evaluate("async () => { await navigate('clusters'); }")
+    platform_entry = page.evaluate(r"""() => ({
+      paths: document.querySelectorAll('#platform-start [data-platform-path]').length,
+      managedStages: document.querySelectorAll('#managed-okd-form [data-managed-okd-stage]').length,
+      managedHidden: !document.querySelector('#managed-okd-console')?.open,
+      outcome: document.querySelector('#clusters > .page-outcome-strip')?.innerText || ''
+    })""")
+    if platform_entry.get('paths') != 3 or platform_entry.get('managedStages') != 3 or not platform_entry.get('managedHidden') or 'DONE WHEN' not in platform_entry.get('outcome','').upper():
+        errors.append(f"platform-task-entry-contract:{platform_entry}")
+    page.locator('[data-platform-path="okd"]').click()
+    page.wait_for_timeout(40)
+    if not page.locator('#managed-okd-console').evaluate('el => el.open') or not page.locator('[data-managed-okd-stage="1"]').is_visible():
+        errors.append('managed-okd-task-path-does-not-open-stage-1')
+    # navigate() performs asynchronous page loading. Await it here so the
+    # owner-level AI workspace assertions do not race newer delegated-access
+    # fetches added to the AI page. A fixed sleep can pass or fail depending on
+    # browser/CPU load and is not an authority contract.
+    page.evaluate("async () => { await navigate('ai'); }")
+    page.locator('[data-ai-run-inspect="air_ui"]').wait_for(state="attached")
     ai_surface = page.evaluate(r"""() => ({
       authority: document.querySelector('#ai-runtime-details')?.innerText || '',
       access: document.querySelector('#ai-mcp-access')?.innerText || '',
@@ -526,6 +660,86 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
         errors.append('maintenance-cross-cluster-stale-state-not-reset')
     if maintenance_contract.get('race') != {'clusterId':'race-b','environment':'DEVELOPMENT','profileTimeout':'300'}:
         errors.append('maintenance-stale-response-overwrites-current-cluster')
+    global_scope_contract = page.evaluate(r"""async () => {
+      const originalConfirmAction = confirmAction;
+      const originalLoadPage = loadPage;
+      const originalSession = state.session;
+      const originalAccessContext = state.accessContext;
+      const originalPermissionContextReady = state.permissionContextReady;
+      const originalScope = {...state.globalScope};
+      const originalOrganizations = state.scopeOrganizations.slice();
+      const originalProjects = state.scopeProjects.slice();
+      const originalScopeReady = state.scopeReady;
+      const originalScopeTransitioning = state.scopeTransitioning;
+      const originalController = state.pageLoadController;
+      const dirtyForm = document.querySelector('.page.active form') || document.querySelector('#compatibility-form');
+      try {
+        state.session={sub:'scope-smoke',roles:['platform-operator']};
+        state.accessContext={subject:'scope-smoke',globalRole:'platform-operator',allOrganizations:false,effectiveOrganizationRoles:{'org-a':'organization-operator','org-b':'organization-viewer'},effectiveProjectRoles:{'project-a':'project-operator','project-b':'project-viewer'}};
+        state.permissionContextReady=true;
+        state.scopeOrganizations=[{id:'org-a',name:'org-a',displayName:'Org A'},{id:'org-b',name:'org-b',displayName:'Org B'}];
+        state.scopeProjects=[{id:'project-a',organizationId:'org-a',name:'project-a',displayName:'Project A'},{id:'project-b',organizationId:'org-b',name:'project-b',displayName:'Project B'}];
+        state.scopeReady=true;
+        state.scopeTransitioning=false;
+        state.globalScope={organizationId:'',projectId:''};
+        renderGlobalScope();
+
+        dirtyForm.dataset.dirty='true';
+        confirmAction=async()=>false;
+        const dirtyChanged=await changeGlobalScope('org-a','project-a');
+        const dirtyRejected=!dirtyChanged&&state.globalScope.projectId===''&&dirtyForm.dataset.dirty==='true';
+
+        clearDirtyForms(dirtyForm);
+        let aborted=false;
+        const controller=new AbortController();
+        controller.signal.addEventListener('abort',()=>{aborted=true;},{once:true});
+        state.pageLoadController=controller;
+        confirmAction=async()=>true;
+        loadPage=async()=>true;
+        const changed=await changeGlobalScope('org-a','project-a');
+        const scopedSummary=scopedRequestPath('/api/v1/control-plane/summary?limit=5','GET');
+        const scopedOperations=scopedRequestPath('/api/v1/operations?limit=5','GET');
+
+        const stale=document.createElement('button');
+        stale.dataset.projectScope='project-b';
+        document.body.appendChild(stale);
+        const staleReason=scopedMutationReason(stale);
+        stale.remove();
+
+        let mutationBlocked=false;
+        try{assertGlobalScopeRequest('/api/v1/clusters','POST',{projectId:'project-b'});}catch(error){mutationBlocked=error.code==='GLOBAL_SCOPE_MISMATCH';}
+        const orgValue=document.querySelector('#global-organization-scope')?.value||'';
+        const projectValue=document.querySelector('#global-project-scope')?.value||'';
+        return {dirtyRejected,changed,aborted,scopedSummary,scopedOperations,staleReason,mutationBlocked,orgValue,projectValue};
+      } finally {
+        confirmAction=originalConfirmAction;
+        loadPage=originalLoadPage;
+        state.session=originalSession;
+        state.accessContext=originalAccessContext;
+        state.permissionContextReady=originalPermissionContextReady;
+        state.globalScope=originalScope;
+        state.scopeOrganizations=originalOrganizations;
+        state.scopeProjects=originalProjects;
+        state.scopeReady=originalScopeReady;
+        state.scopeTransitioning=originalScopeTransitioning;
+        state.pageLoadController=originalController;
+        clearDirtyForms(dirtyForm);
+        renderGlobalScope();
+        applyAccessMode();
+      }
+    }""")
+    if not global_scope_contract.get('dirtyRejected'):
+        errors.append(f"global-scope-dirty-guard:{global_scope_contract}")
+    if not global_scope_contract.get('changed') or not global_scope_contract.get('aborted'):
+        errors.append(f"global-scope-abort-reload:{global_scope_contract}")
+    if 'organizationId=org-a' not in global_scope_contract.get('scopedSummary','') or 'projectId=project-a' not in global_scope_contract.get('scopedSummary',''):
+        errors.append(f"global-scope-summary-query:{global_scope_contract}")
+    if 'organizationId=org-a' not in global_scope_contract.get('scopedOperations','') or 'projectId=project-a' not in global_scope_contract.get('scopedOperations',''):
+        errors.append(f"global-scope-operations-query:{global_scope_contract}")
+    if 'outside the selected global scope' not in global_scope_contract.get('staleReason','') or not global_scope_contract.get('mutationBlocked'):
+        errors.append(f"global-scope-stale-mutation-fence:{global_scope_contract}")
+    if global_scope_contract.get('orgValue')!='org-a' or global_scope_contract.get('projectValue')!='project-a':
+        errors.append(f"global-scope-selector-authority:{global_scope_contract}")
     page.evaluate("() => navigate('services')")
     page.wait_for_timeout(120)
     git_authority_text = page.locator('#git-authority-summary').inner_text()
@@ -672,19 +886,28 @@ def main() -> int:
     evidence_dir = smoke_evidence_dir(root)
 
     def run_matrix(kind: str) -> list[dict[str, object]]:
-        runs: list[dict[str, object]] = []
-        for width in (320, 390, 768, 1024, 1440):
+        widths = (320, 390, 768, 1024, 1440)
+        def run_width(width: int) -> tuple[int, dict[str, object]]:
             # Isolate the full Python + Playwright driver + Chromium lifecycle per
-            # viewport. Browser-only restarts still shared the Node driver pipe and
-            # could turn a completed viewport into a later EPIPE in long matrices.
+            # viewport. Viewports are independent, so run a bounded matrix in
+            # parallel; this materially shortens Autopilot/UI feedback without
+            # sharing a browser/Node pipe or weakening any viewport assertion.
             result_file = evidence_dir / f".{kind}-{width}-result.json"
             command = [sys.executable, str(Path(__file__).resolve()), str(root), "--single-kind", kind, "--single-width", str(width), "--single-result", str(result_file)]
-            completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120, env={**os.environ, "PLATFORM_FACTORY_SMOKE_EVIDENCE_DIR": str(evidence_dir)})
+            completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=150, env={**os.environ, "PLATFORM_FACTORY_SMOKE_EVIDENCE_DIR": str(evidence_dir)})
             if completed.returncode != 0:
                 raise RuntimeError(f"UI viewport process failed kind={kind} width={width} rc={completed.returncode}: {completed.stderr.strip() or completed.stdout.strip()}")
-            runs.append(json.loads(result_file.read_text(encoding="utf-8")))
-            result_file.unlink(missing_ok=True)
-        return runs
+            try:
+                return width, json.loads(result_file.read_text(encoding="utf-8"))
+            finally:
+                result_file.unlink(missing_ok=True)
+        by_width: dict[int, dict[str, object]] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(widths), thread_name_prefix=f"ui-{kind}") as executor:
+            futures = [executor.submit(run_width, width) for width in widths]
+            for future in concurrent.futures.as_completed(futures):
+                width, result = future.result()
+                by_width[width] = result
+        return [by_width[width] for width in widths]
 
     product_console = run_matrix("console")
     bootstrap_installer = run_matrix("installer")

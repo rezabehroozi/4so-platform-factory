@@ -446,6 +446,9 @@ func (s *MemoryStore) CreateUpgradeCampaign(_ context.Context, v UpgradeCampaign
 	if err := s.prepareUpgradeSafetyLocked(&v, v.RecoveryCheckpointIDs, now); err != nil {
 		return UpgradeCampaign{}, false, err
 	}
+	if err := ValidateDay2UpgradeTopology(v); err != nil {
+		return UpgradeCampaign{}, false, err
+	}
 	v.ResourceMeta = ResourceMeta{ID: s.id("upg"), Revision: 1, CreatedAt: now, UpdatedAt: now}
 	v.State = UpgradeCampaignAwaitingApproval
 	v.RequestedBy = actor
@@ -491,6 +494,9 @@ func (s *MemoryStore) ApproveUpgradeCampaign(_ context.Context, id string, expec
 	}
 	if v.State != UpgradeCampaignAwaitingApproval {
 		return UpgradeCampaign{}, ErrInvalidTransition
+	}
+	if err := ValidateDay2IndependentApproval(v.RequestedBy, actor); err != nil {
+		return UpgradeCampaign{}, err
 	}
 	now := nowUTC(s.now)
 	if err := s.validateUpgradeSafetyLocked(v, now, false); err != nil {
@@ -730,6 +736,9 @@ func (s *MemoryStore) UpdateUpgradeCampaign(_ context.Context, next UpgradeCampa
 	}
 	if next.ProjectID != current.ProjectID || next.FleetGroupID != current.FleetGroupID || next.BaselineID != current.BaselineID || next.TargetVersion != current.TargetVersion || next.IdempotencyKey != current.IdempotencyKey || next.RequestDigest != current.RequestDigest || next.PlanContextDigest != current.PlanContextDigest || !next.MaintenanceWindowStart.Equal(current.MaintenanceWindowStart) || !next.MaintenanceWindowEnd.Equal(current.MaintenanceWindowEnd) {
 		return UpgradeCampaign{}, ErrValidation
+	}
+	if err := ValidateDay2UpgradeProgression(current, next); err != nil {
+		return UpgradeCampaign{}, err
 	}
 	now := nowUTC(s.now)
 	if current.State == UpgradeCampaignQueued && next.State == UpgradeCampaignRunning {
