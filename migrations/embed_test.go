@@ -101,6 +101,23 @@ func TestPostgresAuthorityMigrationContract(t *testing.T) {
 	}
 }
 
+func TestInitialOrganizationNameUniquenessUsesValidExpressionIndex(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) == 0 {
+		t.Fatal("missing initial migration")
+	}
+	sql := all[0].SQL
+	if strings.Contains(sql, "CONSTRAINT organizations_name_key UNIQUE (lower(name))") {
+		t.Fatal("PostgreSQL does not allow expression keys in UNIQUE table constraints")
+	}
+	if !strings.Contains(sql, "CREATE UNIQUE INDEX organizations_name_key ON organizations(lower(name));") {
+		t.Fatal("initial migration must enforce case-insensitive organization names with an expression index")
+	}
+}
+
 func TestMigrationMixedVersionCompatibilityIsExplicit(t *testing.T) {
 	all, err := All()
 	if err != nil {
