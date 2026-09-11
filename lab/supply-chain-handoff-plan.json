@@ -10,19 +10,19 @@
       "alreadySourceLocked": [
         {
           "component": "gateway-api",
-          "path": "catalog/runtime/gateway-api/1.5.1/source-lock.json",
+          "path": "catalog\\runtime\\gateway-api\\1.5.1\\source-lock.json",
           "release": "1.5.1",
           "sha256": "6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960"
         },
         {
           "component": "secure-namespace-foundation",
-          "path": "catalog/runtime/secure-namespace-foundation/1.0.0/source-lock.json",
+          "path": "catalog\\runtime\\secure-namespace-foundation\\1.0.0\\source-lock.json",
           "release": "1.0.0",
           "sha256": "155fa19222df71b320488177d1a7c8df9ab8d57b2fbe765e7483309972de77e2"
         },
         {
           "component": "snapshot-controller",
-          "path": "catalog/runtime/snapshot-controller/8.5.0/source-lock.json",
+          "path": "catalog\\runtime\\snapshot-controller\\8.5.0\\source-lock.json",
           "release": "8.5.0",
           "sha256": "8d2920686614f056aff9eaab522aee634b2ab392efa1258d81661de584873067"
         }
@@ -520,7 +520,7 @@
           "component": "gateway-api",
           "previousVersion": "1.5.0",
           "recipeCommitSHA": "3797b631d20f9ff4e2b4571f62d91d84a1fbdf5a",
-          "recipePath": "catalog/tagged-source-recipes/gateway-api/1.5.0.json",
+          "recipePath": "catalog\\tagged-source-recipes\\gateway-api\\1.5.0.json",
           "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
           "targetRelease": "1.5.1"
         },
@@ -528,7 +528,7 @@
           "component": "snapshot-controller",
           "previousVersion": "8.4.0",
           "recipeCommitSHA": "f21cb02763e7cd6a7fc84846f106b83119b5371d",
-          "recipePath": "catalog/tagged-source-recipes/snapshot-controller/8.4.0.json",
+          "recipePath": "catalog\\tagged-source-recipes\\snapshot-controller\\8.4.0.json",
           "source": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.4.0",
           "targetRelease": "8.5.0"
         }
@@ -768,7 +768,7 @@
       "stagePath": "toolchain/go1.27.1.linux-amd64.tar.gz",
       "version": "go1.27.1"
     },
-    "releaseVersion": "0.0.361",
+    "releaseVersion": "0.0.362",
     "runtimeDependencyTransition": {
       "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
       "ciliumTargetRelease": "1.20.1",

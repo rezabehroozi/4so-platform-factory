@@ -47,6 +47,20 @@ jobs:
       - name: Python tests
         run: python3 -m unittest discover -s tests -p 'test_*.py'
 
+      - name: Autopilot checkpoint and recovery self-test
+        run: python3 scripts/codex_autopilot.py --self-test
+
+      - name: Installer isolated smoke shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(cat VERSION)"
+          ldflags="-s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version=${version}"
+          mkdir -p bin
+          CGO_ENABLED=0 go build -trimpath -ldflags "$ldflags" -o bin/platformctl ./cmd/platformctl
+          CGO_ENABLED=0 go build -trimpath -ldflags "$ldflags" -o bin/platform-installer ./cmd/platform-installer
+          python3 scripts/run_smoke_shard.py --shard 4
+
       - name: Explicit clean-clone verification
         env:
           GH_TOKEN: ${{ github.token }}

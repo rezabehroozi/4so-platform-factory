@@ -28,7 +28,7 @@
       "physicalPassFromSourceBuildAllowed": false,
       "supportedToolchainRequired": true
     },
-    "releaseVersion": "0.0.361",
+    "releaseVersion": "0.0.362",
     "requiredClosure": [
       "acquire candidateExactCompiler archive out-of-band or from a trusted connected acquisition runner",
       "verify exact archive byte size and sha256 before atomic install into vendor/toolchains",

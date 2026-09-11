@@ -150,7 +150,7 @@
   "inventoryAuthority": "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_INVENTORY_V2",
   "manifestImageResolutionAuthority": "MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_V1",
   "productImageCertificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
-  "releaseVersion": "0.0.361",
+  "releaseVersion": "0.0.362",
   "schemaVersion": 5,
   "targetPlatform": {
     "architecture": "amd64",
