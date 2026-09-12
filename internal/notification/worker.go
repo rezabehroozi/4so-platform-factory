@@ -22,6 +22,7 @@ import (
 
 	"platform.4so.io/factory/internal/controlplane"
 	"platform.4so.io/factory/internal/fleethealth"
+	"platform.4so.io/factory/internal/reliability"
 )
 
 const (
@@ -361,6 +362,18 @@ func (w *Worker) routeClusterHealth(ctx context.Context, cluster controlplane.Ma
 	}
 	health := fleethealth.Evaluate(cluster, inventory, certificates, now)
 	raw, _ := json.Marshal(health)
+	reliabilityStore, ok := w.Store.(controlplane.ReliabilityStore)
+	if !ok {
+		return fmt.Errorf("%w: notification health scanner requires reliability persistence", controlplane.ErrPrerequisite)
+	}
+	sum := sha256.Sum256(raw)
+	_, _, err = reliabilityStore.CreateHealthObservation(ctx, reliability.HealthObservation{
+		OrganizationID: project.OrganizationID, ProjectID: project.ID, ClusterID: cluster.ID,
+		Health: health.Health, ObservedAt: now.UTC(), SourceDigest: "sha256:" + hex.EncodeToString(sum[:]),
+	})
+	if err != nil {
+		return err
+	}
 	day := now.Format("2006-01-02")
 	if health.Health != "HEALTHY" {
 		severity := controlplane.NotificationWarning

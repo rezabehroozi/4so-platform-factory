@@ -253,14 +253,18 @@ func TestDefaultWebhookClientBlocksLoopbackAndLinkLocalTargets(t *testing.T) {
 	}
 }
 
-type healthSnapshotRejectStore struct{ controlplane.Store }
+type healthSnapshotRejectStore struct {
+	controlplane.Store
+	controlplane.ReliabilityStore
+}
 
 func (healthSnapshotRejectStore) Snapshot(context.Context) (controlplane.Snapshot, error) {
 	return controlplane.Snapshot{}, io.ErrUnexpectedEOF
 }
 
 func TestHealthScannerDoesNotLoadCanonicalSnapshot(t *testing.T) {
-	store := healthSnapshotRejectStore{Store: controlplane.NewMemoryStore()}
+	base := controlplane.NewMemoryStore()
+	store := healthSnapshotRejectStore{Store: base, ReliabilityStore: base}
 	worker := New(store, nil)
 	if err := worker.scanHealth(context.Background(), time.Now().UTC()); err != nil {
 		t.Fatalf("health scan unexpectedly depended on canonical snapshot: %v", err)
@@ -309,6 +313,7 @@ func TestOutboxPublishUsesCurrentTimeForLeaseFence(t *testing.T) {
 
 type incrementalHealthTestStore struct {
 	controlplane.Store
+	controlplane.ReliabilityStore
 	candidateCalls int
 	listAllCalls   int
 	cluster        controlplane.ManagedCluster
@@ -357,11 +362,12 @@ func TestHealthScannerUsesIncrementalCandidatePages(t *testing.T) {
 	lastSeen := now
 	base := controlplane.NewMemoryStore()
 	store := &incrementalHealthTestStore{
-		Store:     base,
-		cluster:   controlplane.ManagedCluster{ResourceMeta: controlplane.ResourceMeta{ID: "clu-incremental", UpdatedAt: now.Add(-time.Minute)}, ProjectID: "prj-incremental", ConnectionState: "CONNECTED", KubernetesVersion: "v1.35.0", LastSeenAt: &lastSeen},
-		project:   controlplane.Project{ResourceMeta: controlplane.ResourceMeta{ID: "prj-incremental"}, OrganizationID: "org-incremental"},
-		inventory: controlplane.ClusterInventory{ResourceMeta: controlplane.ResourceMeta{ID: "inv-incremental", UpdatedAt: now.Add(-time.Minute)}, ClusterID: "clu-incremental", ObservedAt: now, KubernetesVersion: "v1.35.0", Digest: "sha256:" + strings.Repeat("a", 64)},
-		changedAt: now.Add(-time.Minute),
+		Store:            base,
+		ReliabilityStore: base,
+		cluster:          controlplane.ManagedCluster{ResourceMeta: controlplane.ResourceMeta{ID: "clu-incremental", UpdatedAt: now.Add(-time.Minute)}, ProjectID: "prj-incremental", ConnectionState: "CONNECTED", KubernetesVersion: "v1.35.0", LastSeenAt: &lastSeen},
+		project:          controlplane.Project{ResourceMeta: controlplane.ResourceMeta{ID: "prj-incremental"}, OrganizationID: "org-incremental"},
+		inventory:        controlplane.ClusterInventory{ResourceMeta: controlplane.ResourceMeta{ID: "inv-incremental", UpdatedAt: now.Add(-time.Minute)}, ClusterID: "clu-incremental", ObservedAt: now, KubernetesVersion: "v1.35.0", Digest: "sha256:" + strings.Repeat("a", 64)},
+		changedAt:        now.Add(-time.Minute),
 	}
 	worker := New(store, nil)
 	worker.Now = func() time.Time { return now }
@@ -380,5 +386,42 @@ func TestHealthScannerUsesIncrementalCandidatePages(t *testing.T) {
 	}
 	if worker.lastFullHealth.IsZero() || worker.healthFullScan {
 		t.Fatalf("cold-start full sweep did not finish incrementally: lastFull=%v full=%v", worker.lastFullHealth, worker.healthFullScan)
+	}
+}
+
+type routeFailureReliabilityStore struct {
+	controlplane.Store
+	controlplane.ReliabilityStore
+}
+
+func (routeFailureReliabilityStore) RouteNotificationEvent(context.Context, controlplane.NotificationEvent, string) (controlplane.NotificationEvent, []controlplane.NotificationDelivery, bool, error) {
+	return controlplane.NotificationEvent{}, nil, false, errors.New("forced notification routing failure")
+}
+
+func TestClusterHealthObservationPersistsBeforeNotificationRouting(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 9, 12, 19, 0, 0, 0, time.UTC)
+	base := controlplane.NewMemoryStore()
+	org, err := base.CreateOrganization(ctx, controlplane.Organization{Name: "reliability", DisplayName: "Reliability"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := base.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "prod", DisplayName: "Prod"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := routeFailureReliabilityStore{Store: base, ReliabilityStore: base}
+	worker := New(store, nil)
+	cluster := controlplane.ManagedCluster{ResourceMeta: controlplane.ResourceMeta{ID: "clu-durable"}, ProjectID: project.ID, ConnectionState: "DISCONNECTED"}
+
+	if err = worker.routeClusterHealth(ctx, cluster, now); err == nil || !strings.Contains(err.Error(), "forced notification routing failure") {
+		t.Fatalf("expected routing failure after durable observation, got %v", err)
+	}
+	rows, err := base.ListHealthObservations(ctx, project.ID, cluster.ID, now.Add(-time.Second), now.Add(time.Second), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].ProjectID != project.ID || rows[0].ClusterID != cluster.ID || rows[0].ObservedAt != now {
+		t.Fatalf("durable health observation missing before routing failure: %#v", rows)
 	}
 }
