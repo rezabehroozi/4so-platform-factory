@@ -100,6 +100,8 @@ func compatibilityForVersion(version int64) (Compatibility, string, error) {
 		return CompatibilityRollingSafe, "v72 adds defaulted MCP recovery-resolution metadata; old writers keep the empty legacy shape while new operators may terminally reconcile only RECOVERY_REQUIRED jobs from authoritative readback and evidence", nil
 	case version == 73:
 		return CompatibilityRollingSafe, "v73 adds an independent immutable FinOps budget-policy authority; existing writers and measured FinOps evidence remain unchanged while new readers derive forecast, anomaly and rightsizing views", nil
+	case version == 74:
+		return CompatibilityRollingSafe, "v74 adds independent product reliability observation, incident and immutable SLO authorities; existing telemetry/runtime writers remain unchanged", nil
 	default:
 		return "", "", fmt.Errorf("migration %d is missing an explicit mixed-version compatibility classification", version)
 	}
