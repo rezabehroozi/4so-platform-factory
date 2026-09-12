@@ -277,6 +277,17 @@ func TestSpecialistCollectionCursorContinuationHasNoOverlap(t *testing.T) {
 	}
 }
 
+func TestBoundedCollectionWindowPreservesEmptyArray(t *testing.T) {
+	items := []controlplane.ManagedCluster{}
+	got := boundedCollectionWindow(items, nil, 10, func(v controlplane.ManagedCluster) controlplane.ResourceMeta { return v.ResourceMeta })
+	if got == nil {
+		t.Fatal("empty collection window must remain a non-nil slice so JSON encodes [] instead of null")
+	}
+	if len(got) != 0 {
+		t.Fatalf("empty collection window len=%d want=0", len(got))
+	}
+}
+
 func TestSpecialistCollectionRejectsMalformedCursorBeforePager(t *testing.T) {
 	server, probe, org, own, _ := operatorCollectionScopedServer(t)
 	w := projectScopedCollectionRequest(server, http.MethodGet, "/api/v1/clusters?cursor=malformed", org, own)

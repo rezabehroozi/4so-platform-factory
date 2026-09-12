@@ -2,6 +2,8 @@ package webconsole
 
 import (
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
@@ -420,5 +422,14 @@ func TestOperatorConsoleFailsClosedOnUnknownResourceScope(t *testing.T) {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("resource scope console fail-closed contract missing %q", contract)
 		}
+	}
+}
+
+func TestHandlerServesFaviconWithout404(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
+	w := httptest.NewRecorder()
+	Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("favicon status=%d want=%d", w.Code, http.StatusNoContent)
 	}
 }
