@@ -213,8 +213,14 @@ def main() -> int:
             assert page.locator("#clusters.page.active").count()==1
             page.locator("#clusters details[data-operator-action='maintenance']").evaluate("el => el.open = true")
             maintenance_text=page.locator("#cluster-maintenance-panel").inner_text()
-            assert "KUBERNETES_NODE_MAINTENANCE_V1" in maintenance_text and "PRODUCTION" in maintenance_text and "ui-live-maintenance" in maintenance_text and "AWAITING_APPROVAL" in maintenance_text,maintenance_text
-            assert page.locator(f'#maintenance-run-grid [data-maintenance-run-action="inspect"][data-id="{maintenance_run_id}"]').count()==1,maintenance_text
+            assert "KUBERNETES_NODE_MAINTENANCE_V1" in maintenance_text and "PRODUCTION" in maintenance_text,maintenance_text
+            window_card=page.locator("#maintenance-window-grid .resource-card").first
+            run_card=page.locator("#maintenance-run-grid .resource-card").first
+            window_card.scroll_into_view_if_needed(); run_card.scroll_into_view_if_needed()
+            window_text=window_card.inner_text(); run_text=run_card.inner_text()
+            assert "ui-live-maintenance" in window_text,window_text
+            assert "AWAITING_APPROVAL" in run_text,run_text
+            assert page.locator(f'#maintenance-run-grid [data-maintenance-run-action="inspect"][data-id="{maintenance_run_id}"]').count()==1,run_text
 
             page.evaluate("() => navigate('catalog')"); page.wait_for_timeout(250)
             assert page.locator("#catalog.page.active").count()==1
@@ -269,14 +275,18 @@ def main() -> int:
             plan_text=plan_card.inner_text()
             assert "MEDIUM" in plan_text and "RECOMMENDED" in plan_text,plan_text
             assert plan_card.locator("[data-baseline-action='approve']").count()==1,plan_text
-            plan_card.locator("details > summary").filter(has_text="Impact, capacity & maintenance").click()
-            impact_text=plan_card.inner_text()
+            impact_summary=plan_card.locator("details > summary").filter(has_text="Impact, capacity & maintenance")
+            impact_summary.click(); impact_details=impact_summary.locator("xpath=.."); impact_details.scroll_into_view_if_needed()
+            impact_text=impact_details.inner_text()
             assert "PLATFORM_COMPATIBILITY_MATRIX_V1" in impact_text and "Compatibility matrix" in impact_text and "amd64" in impact_text and "rke2" in impact_text and "imported" in impact_text and "API / CRD compatibility" in impact_text and "Strict schema dry-run" in impact_text and "Rollback feasibility" in impact_text and "Evidence collection" in impact_text and "Current usage" in impact_text and "UNKNOWN" in impact_text and "free headroom" in impact_text,impact_text
-            plan_card.locator("details > summary").filter(has_text="Evidence collection plan (6)").click()
-            evidence_text=plan_card.inner_text()
-            assert "BASELINE_EVIDENCE_COLLECTION_V1" in evidence_text and "KUBE_RESOURCE_READBACK" in evidence_text and "90 days" in evidence_text,evidence_text
-            plan_card.locator("details > summary").filter(has_text="Rollback feasibility (5)").click()
-            rollback_text=plan_card.inner_text()
+            evidence_summary=plan_card.locator("details > summary").filter(has_text="Evidence collection plan (6)")
+            evidence_summary.click(); evidence_details=evidence_summary.locator("xpath=.."); evidence_details.scroll_into_view_if_needed()
+            evidence_text=evidence_details.inner_text()
+            assert "BASELINE_EVIDENCE_COLLECTION_V1" in impact_text,impact_text
+            assert "KUBE_RESOURCE_READBACK" in evidence_text and "90 days" in evidence_text,evidence_text
+            rollback_summary=plan_card.locator("details > summary").filter(has_text="Rollback feasibility (5)")
+            rollback_summary.click(); rollback_details=rollback_summary.locator("xpath=.."); rollback_details.scroll_into_view_if_needed()
+            rollback_text=rollback_details.inner_text()
             assert "DELETE_CREATED_RESOURCE" in rollback_text and "Authorization: PASS" in rollback_text,rollback_text
             plan_card.locator("[data-baseline-action='approve']").click(); confirm(page); page.wait_for_timeout(300)
             status,approved_plan=api_req(api_base,f"/api/v1/baseline-deployments/{ui_plan_id}")

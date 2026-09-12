@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -97,6 +98,36 @@ func TestPostgresAuthorityMigrationContract(t *testing.T) {
 	for _, migration := range all {
 		if !strings.HasPrefix(migration.Checksum, "sha256:") {
 			t.Fatalf("bad checksum %s", migration.Checksum)
+		}
+	}
+}
+
+func TestInitialOrganizationNameUniquenessUsesValidExpressionIndex(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) == 0 {
+		t.Fatal("missing initial migration")
+	}
+	sql := all[0].SQL
+	if strings.Contains(sql, "CONSTRAINT organizations_name_key UNIQUE (lower(name))") {
+		t.Fatal("PostgreSQL does not allow expression keys in UNIQUE table constraints")
+	}
+	if !strings.Contains(sql, "CREATE UNIQUE INDEX organizations_name_key ON organizations(lower(name));") {
+		t.Fatal("initial migration must enforce case-insensitive organization names with an expression index")
+	}
+}
+
+func TestNoMigrationUsesExpressionsInsideUniqueTableConstraints(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid := regexp.MustCompile(`(?i)\bUNIQUE\s*\([^\n;]*\blower\s*\(`)
+	for _, migration := range all {
+		if invalid.MatchString(migration.SQL) {
+			t.Fatalf("migration %d uses an expression inside a UNIQUE table constraint; use a unique expression index", migration.Version)
 		}
 	}
 }
@@ -267,6 +298,12 @@ func TestFinOpsAuthorityMigrationIsAdditiveAndRollingSafe(t *testing.T) {
 	m := all[69]
 	if m.Version != 70 || m.Compatibility != CompatibilityRollingSafe {
 		t.Fatalf("migration 70 compatibility mismatch: %#v", m)
+	}
+	if strings.Contains(m.SQL, "jsonb_object_length(") {
+		t.Fatal("migration 70 uses non-existent PostgreSQL jsonb_object_length function")
+	}
+	if !strings.Contains(m.SQL, "rates <> '{}'::jsonb") {
+		t.Fatal("migration 70 must reject an empty rate-card object with PostgreSQL-native jsonb comparison")
 	}
 	for _, term := range []string{
 		"CREATE TABLE finops_rate_cards",

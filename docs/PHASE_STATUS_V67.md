@@ -1,6 +1,6 @@
-# Current Phase Status — PROGRAM_PHASE_MODEL_V67
+﻿# Current Phase Status â€” PROGRAM_PHASE_MODEL_V67
 
-Release **0.0.361** closes J7 FinOps v2 at source/software level without changing the independent Physical/Exact-SHA truth boundary. The release adds durable budget authority plus deterministic forecast, anomaly and review-only rightsizing derived from the measured J2 FinOps evidence.
+Release **0.0.362** retains the J7 FinOps v2 source/software closure and hardens the deterministic Lab/Autopilot recovery path without changing the independent Physical/Exact-SHA truth boundary. Non-PASS Autopilot outcomes retain checkpoint authority, Windows recovery terminates the PID-creation-time-bound descendant process tree, and Field Campaign recovery requires explicit RESUME confirmation before the same exact-release campaign can continue.
 
 ## Progress authority
 
@@ -34,4 +34,4 @@ The external/runtime blockers remain explicit: `OKD_CONNECTED_MANAGED_INSTALL_PE
 
 ## Truth boundary
 
-0.0.361 claims source-level J7 FinOps v2 closure and the associated backend-parity fixes. It does **not** claim Fleet Incident/SLO completion, Terraform/Crossplane provider completion, AWS/Azure/GCP runtime support, Virtual Cluster runtime support, complete Edge/Sovereign autonomy, PostgreSQL native RLS closure, Connected/Disconnected OKD physical installation, Exact-SHA Physical Runtime PASS, named external MCP-client live certification, or production readiness.
+0.0.362 retains source-level J7 FinOps v2 closure and adds Autopilot/Installer recovery hardening and the associated backend-parity fixes. It does **not** claim Fleet Incident/SLO completion, Terraform/Crossplane provider completion, AWS/Azure/GCP runtime support, Virtual Cluster runtime support, complete Edge/Sovereign autonomy, PostgreSQL native RLS closure, Connected/Disconnected OKD physical installation, Exact-SHA Physical Runtime PASS, named external MCP-client live certification, or production readiness.

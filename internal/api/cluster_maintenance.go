@@ -84,11 +84,15 @@ func (s *Server) getClusterMaintenanceProfile(w http.ResponseWriter, r *http.Req
 	}
 	v, err := s.store.GetClusterMaintenanceProfile(r.Context(), cluster.ID)
 	if err != nil {
+		if errors.Is(err, controlplane.ErrNotFound) {
+			writeJSON(w, 200, map[string]any{"profile": nil, "profileStatus": "NOT_CONFIGURED", "method": controlplane.ClusterMaintenanceAuthorityMethod})
+			return
+		}
 		writeStoreError(w, err)
 		return
 	}
 	setRevisionETag(w, v.Revision)
-	writeJSON(w, 200, map[string]any{"profile": v, "method": controlplane.ClusterMaintenanceAuthorityMethod})
+	writeJSON(w, 200, map[string]any{"profile": v, "profileStatus": "CONFIGURED", "method": controlplane.ClusterMaintenanceAuthorityMethod})
 }
 func (s *Server) createClusterMaintenanceWindow(w http.ResponseWriter, r *http.Request) {
 	cluster, err := s.store.GetManagedCluster(r.Context(), r.PathValue("id"))

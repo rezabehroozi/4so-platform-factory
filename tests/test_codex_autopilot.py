@@ -168,7 +168,7 @@ class ExactSHARealTestPreflight(unittest.TestCase):
             release.write_bytes(b"fixture")
             stage = AUTOPILOT._exact_artifact_full_stage(release)
             self.assertEqual(stage.name, "artifact-full-verify")
-            self.assertEqual(stage.command, ("python3", "scripts/verify_release.py", str(release.resolve()), "--full"))
+            self.assertEqual(stage.command, ("python3", "scripts/verify_release.py", str(AUTOPILOT._absolute_path_no_symlink_resolution(str(release))), "--full"))
 
     def test_real_test_rejects_schema_v2_campaign_even_with_release_file(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -184,6 +184,70 @@ class ExactSHARealTestPreflight(unittest.TestCase):
             with mock.patch.dict(os.environ, self.base_env(state, release), clear=True), mock.patch.object(AUTOPILOT, "unresolved_components", return_value=[]):
                 missing, _ = AUTOPILOT._real_test_preflight(ROOT)
             self.assertIn("FIELD_CAMPAIGN_EXACT_SHA_BINDING", missing)
+
+    def test_failed_campaign_without_confirmation_diagnoses_but_does_not_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "VERSION").write_text((ROOT / "VERSION").read_text(encoding="utf-8"), encoding="utf-8")
+            (root / "bin").mkdir()
+            (root / "bin" / "platformctl").write_text("placeholder", encoding="utf-8")
+            release, digest, installer_digest = self.make_release(root)
+            state = root / "campaign.json"
+            state.write_text(json.dumps({
+                "apiVersion": "platform.4so.io/v1alpha1", "kind": "FieldExecutionCampaign", "schemaVersion": 3,
+                "state": "FAILED", "runState": "FAILED", "simulation": False,
+                "releaseArtifactDigest": digest, "installerBinaryDigest": installer_digest,
+                "id": "campaign-failed", "lastError": "fixture failure",
+            }), encoding="utf-8")
+            commands = []
+            def fake_run_logged(command, *, root, timeout):
+                commands.append(list(command))
+                return 0, "diagnostic collected"
+            with mock.patch.dict(os.environ, self.base_env(state, release), clear=True), mock.patch.object(AUTOPILOT, "_run_logged", side_effect=fake_run_logged):
+                result = AUTOPILOT._run_field_campaign_real(root, state, root / "evidence", 600)
+            self.assertEqual(result.status, "FAIL")
+            self.assertIn("FIELD_CAMPAIGN_RESUME_CONFIRMATION_REQUIRED", result.output_tail)
+            self.assertTrue(any(cmd[1:3] == ["field-campaign", "diagnose"] for cmd in commands), commands)
+            self.assertFalse(any(cmd[1:3] == ["field-campaign", "resume"] for cmd in commands), commands)
+
+    def test_interrupted_campaign_with_confirmation_resumes_watches_and_reverifies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "VERSION").write_text((ROOT / "VERSION").read_text(encoding="utf-8"), encoding="utf-8")
+            (root / "bin").mkdir()
+            (root / "bin" / "platformctl").write_text("placeholder", encoding="utf-8")
+            release, digest, installer_digest = self.make_release(root)
+            state = root / "campaign.json"
+            campaign = {
+                "apiVersion": "platform.4so.io/v1alpha1", "kind": "FieldExecutionCampaign", "schemaVersion": 3,
+                "state": "INTERRUPTED", "runState": "RUNNING", "simulation": False,
+                "releaseArtifactDigest": digest, "installerBinaryDigest": installer_digest,
+                "id": "campaign-interrupted",
+            }
+            state.write_text(json.dumps(campaign), encoding="utf-8")
+            commands = []
+            def fake_run_logged(command, *, root, timeout):
+                commands.append(list(command))
+                if command[1:3] == ["field-campaign", "resume"]:
+                    campaign["state"] = "RUNNING"
+                    state.write_text(json.dumps(campaign), encoding="utf-8")
+                elif command[1:3] == ["field-campaign", "watch"]:
+                    campaign.update({"state":"SUCCEEDED", "runState":"SUCCEEDED", "evidenceVerified":False})
+                    state.write_text(json.dumps(campaign), encoding="utf-8")
+                elif command[1:3] == ["field-campaign", "collect"]:
+                    campaign.update({"evidenceVerified":True, "evidenceDigest":"sha256:" + "9" * 64})
+                    state.write_text(json.dumps(campaign), encoding="utf-8")
+                return 0, "ok"
+            env = self.base_env(state, release)
+            env["PLATFORM_FACTORY_AUTOPILOT_FIELD_RESUME_CONFIRMATION"] = "RESUME"
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(AUTOPILOT, "_run_logged", side_effect=fake_run_logged):
+                result = AUTOPILOT._run_field_campaign_real(root, state, root / "evidence", 600)
+            self.assertEqual(result.status, "PASS", result.output_tail)
+            verbs = [cmd[1:3] for cmd in commands]
+            self.assertIn(["field-campaign", "resume"], verbs)
+            self.assertLess(verbs.index(["field-campaign", "resume"]), verbs.index(["field-campaign", "watch"]))
+            self.assertIn(["field-campaign", "collect"], verbs)
+            self.assertIn(["field-evidence", "verify-report"], verbs)
 
     def test_real_test_always_refreshes_and_reverifies_field_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -218,7 +282,7 @@ class ExactSHARealTestPreflight(unittest.TestCase):
             self.assertEqual(result.status, "PASS", result.output_tail)
             collect = next(cmd for cmd in commands if cmd[1:3] == ["field-campaign", "collect"])
             self.assertIn("--release-artifact", collect)
-            self.assertIn(str(release.resolve()), collect)
+            self.assertIn(str(AUTOPILOT._absolute_path_no_symlink_resolution(str(release))), collect)
             self.assertTrue(any(cmd[1:3] == ["field-evidence", "verify-report"] for cmd in commands), commands)
 
 
@@ -260,6 +324,45 @@ class AutopilotReportTests(unittest.TestCase):
             self.assertTrue(data["notProductAuthority"])
             self.assertEqual(data["stageResults"][0]["specialist"], "operator-console")
             self.assertNotIn("output_tail", data["stageResults"][0])
+
+class ProcessTreeTimeoutTests(unittest.TestCase):
+    def test_timeout_terminates_descendant_process_tree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            orphan = root / "orphan-marker"
+            child = "import pathlib,time;time.sleep(1.5);pathlib.Path('orphan-marker').write_text('alive')"
+            parent = "import subprocess,sys,time;subprocess.Popen([sys.executable,'-c',%r]);time.sleep(10)" % child
+            result = AUTOPILOT.run_stage(root, AUTOPILOT.Stage("timeout-tree-regression", (sys.executable, "-c", parent), 1))
+            self.assertEqual(result.status, "TIMEOUT")
+            import time
+            time.sleep(1.0)
+            self.assertFalse(orphan.exists(), "timed-out stage left a descendant process alive")
+
+class CheckpointRetentionTests(unittest.TestCase):
+    def test_timeout_retains_checkpoint_for_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = AUTOPILOT.Stage("timeout-stage", ("true",), 1)
+            timed_out = AUTOPILOT.StageResult("timeout-stage", "TIMEOUT", 124, 1.0, "fp-timeout", "timed out")
+            with mock.patch.object(AUTOPILOT, "run_stage", return_value=timed_out):
+                code = AUTOPILOT._execute_stages(root, [stage], repair=False, max_repairs=0, codex_timeout=1, enforce_supply_chain=False, emit_ready_result=False)
+            self.assertEqual(code, 3)
+            checkpoint = AUTOPILOT._checkpoint_path(root)
+            self.assertTrue(checkpoint.is_file(), "timeout erased resumable checkpoint")
+            state = json.loads(checkpoint.read_text(encoding="utf-8"))
+            self.assertEqual(state["phase"], "forward")
+            self.assertEqual(state["nextIndex"], 0)
+            self.assertEqual(state["currentStage"], "timeout-stage")
+
+    def test_pass_clears_checkpoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = AUTOPILOT.Stage("pass-stage", ("true",), 1)
+            passed = AUTOPILOT.StageResult("pass-stage", "PASS", 0, 0.01, "fp-pass", "ok")
+            with mock.patch.object(AUTOPILOT, "run_stage", return_value=passed):
+                code = AUTOPILOT._execute_stages(root, [stage], repair=False, max_repairs=0, codex_timeout=1, enforce_supply_chain=False, emit_ready_result=False)
+            self.assertEqual(code, 0)
+            self.assertFalse(AUTOPILOT._checkpoint_path(root).exists())
 
 class CheckpointSafeStageTests(unittest.TestCase):
     def test_canonical_go_stages_are_checkpoint_safe_shards(self):

@@ -10,9 +10,9 @@ CREATE TABLE organizations (
     name text NOT NULL,
     display_name text NOT NULL,
     created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    CONSTRAINT organizations_name_key UNIQUE (lower(name))
+    updated_at timestamptz NOT NULL
 );
+CREATE UNIQUE INDEX organizations_name_key ON organizations(lower(name));
 
 CREATE TABLE projects (
     id text PRIMARY KEY,

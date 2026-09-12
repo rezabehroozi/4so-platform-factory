@@ -11,7 +11,7 @@ CREATE TABLE finops_rate_cards (
   currency text NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
   effective_from timestamptz NOT NULL,
   effective_until timestamptz CHECK (effective_until IS NULL OR effective_until > effective_from),
-  rates jsonb NOT NULL CHECK (jsonb_typeof(rates)='object' AND jsonb_object_length(rates) > 0),
+  rates jsonb NOT NULL CHECK (jsonb_typeof(rates)='object' AND rates <> '{}'::jsonb),
   digest text NOT NULL CHECK (digest ~ '^sha256:[0-9a-f]{64}$'),
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,

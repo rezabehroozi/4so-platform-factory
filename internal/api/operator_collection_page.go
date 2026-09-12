@@ -76,7 +76,7 @@ func operatorCollectionCursor(r *http.Request) (*controlplane.CollectionCursor, 
 }
 
 func boundedCollectionWindow[T any](items []T, cursor *controlplane.CollectionCursor, limit int, metaOf func(T) controlplane.ResourceMeta) []T {
-	out := append([]T(nil), items...)
+	out := append([]T{}, items...)
 	sort.SliceStable(out, func(i, j int) bool {
 		a, b := metaOf(out[i]), metaOf(out[j])
 		if a.UpdatedAt.Equal(b.UpdatedAt) {

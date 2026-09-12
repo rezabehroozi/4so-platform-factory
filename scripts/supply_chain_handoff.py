@@ -73,7 +73,7 @@ def _source_lock(root: Path, component: str, release: str) -> dict | None:
     lock = _json(path)
     if str(lock.get("component") or "") != component or str(lock.get("version") or "") != release:
         raise RuntimeError(f"SOURCE_LOCK_IDENTITY_INVALID {component}:{release}")
-    return {"path": str(path.relative_to(root)), "sha256": _sha256(path)}
+    return {"path": path.relative_to(root).as_posix(), "sha256": _sha256(path)}
 
 
 def _previous_locks(root: Path, component: str, target: str) -> list[dict]:
@@ -248,7 +248,7 @@ def build(root: Path = ROOT) -> dict:
             recipe_path = root / "catalog" / "tagged-source-recipes" / name / f"{previous}.json"
             if recipe_path.is_file():
                 recipe = _json(recipe_path)
-                item["recipePath"] = str(recipe_path.relative_to(root))
+                item["recipePath"] = recipe_path.relative_to(root).as_posix()
                 item["recipeCommitSHA"] = str((recipe.get("spec") or {}).get("commitSHA") or "")
             historical["taggedSourceSetReady"].append(item)
         else:
@@ -436,16 +436,16 @@ def stage_audit(stage: Path, plan: dict, *, strict: bool = False) -> tuple[list[
             invalid.append(tc["stagePath"] + ":sha256")
     comp_manifest = stage / spec["componentAcquisition"]["stageManifestPath"]
     if not comp_manifest.exists():
-        missing.append(str(comp_manifest.relative_to(stage)))
+        missing.append(comp_manifest.relative_to(stage).as_posix())
     elif comp_manifest.is_symlink() or not comp_manifest.is_file():
-        invalid.append(str(comp_manifest.relative_to(stage)) + ":not-regular")
+        invalid.append(comp_manifest.relative_to(stage).as_posix() + ":not-regular")
     historical = spec.get("historicalComponentAcquisition") or {}
     if (historical.get("helmReady") or []) or (historical.get("taggedSourceSetReady") or []):
         hist_manifest = stage / str(historical.get("stageManifestPath") or "historical/stage-manifest.json")
         if not hist_manifest.exists():
-            missing.append(str(hist_manifest.relative_to(stage)))
+            missing.append(hist_manifest.relative_to(stage).as_posix())
         elif hist_manifest.is_symlink() or not hist_manifest.is_file():
-            invalid.append(str(hist_manifest.relative_to(stage)) + ":not-regular")
+            invalid.append(hist_manifest.relative_to(stage).as_posix() + ":not-regular")
     for row in spec["managementWorkloads"]["externalImages"]:
         for key in ("layoutPath", "lockPath"):
             p = stage / row[key]

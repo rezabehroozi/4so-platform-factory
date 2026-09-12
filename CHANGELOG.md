@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.362 ? Autopilot resumability and Installer Linux-CI hardening
+
+- Keep executable roadmap authority at `PROGRAM_PHASE_MODEL_V67` and keep pre-physical Core+Expansion source/software closure truthful at **30/35 (85%)**; this reliability hardening closes no additional roadmap phase and claims no Physical/Exact-SHA PASS.
+- Preserve `.state/codex-autopilot-run.json` on TIMEOUT/CODE_DEFECT/environment-blocked outcomes instead of deleting the failing-stage boundary; a successful PASS remains the only normal terminal outcome that clears the checkpoint.
+- Make timeout/restart cleanup cross-platform without weakening PID-reuse safety: Windows binds checkpointed processes to `GetProcessTimes` creation identity and terminates the full descendant tree with native `taskkill /T`, while POSIX process-group semantics remain unchanged.
+- Add explicit live Field Campaign recovery orchestration. `FAILED` always collects diagnostic evidence first; `FAILED`/`INTERRUPTED` can resume only with exact operator opt-in `PLATFORM_FACTORY_AUTOPILOT_FIELD_RESUME_CONFIRMATION=RESUME`, then must watch to terminal success, freshly collect exact-release-bound evidence and independently verify it.
+- Add focused regression coverage for checkpoint retention/cleanup, descendant-process termination, fail-closed no-confirmation behavior and explicit resume?watch?collect?verify convergence; make Autopilot self-test fixtures portable without adding production executable fallbacks.
+- Promote Autopilot self-test plus the isolated Installer smoke shard into Ubuntu pull-request CI so Linux-only `openat`/`O_NOFOLLOW`/`flock` source paths are verified on their supported execution platform rather than bypassed on Windows.
+
 ## 0.0.361 — J7 FinOps v2 budget, forecast, anomaly and rightsizing source closure
 
 - Advance executable roadmap authority to `PROGRAM_PHASE_MODEL_V67` and close J7 at source/software level; `PROGRAM_PROGRESS_MODEL_V2` now reports **30/35 (85%)** pre-physical Core+Expansion software phases source-closed while Core remains **25/25 (100%)** source-closed and **19/25 (76%)** phase/release-ready.

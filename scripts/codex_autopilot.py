@@ -62,7 +62,18 @@ def _terminate_process_tree(process: subprocess.Popen[str], *, grace_seconds: fl
         except ProcessLookupError:
             pass
     else:
-        process.terminate()
+        # Windows has no POSIX process groups. Terminating only the direct
+        # parent leaves Go/Python/browser descendants alive, contaminating a
+        # checkpoint retry. taskkill /T is the native bounded tree operation.
+        taskkill = shutil.which("taskkill")
+        if taskkill:
+            subprocess.run(
+                [taskkill, "/PID", str(process.pid), "/T", "/F"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, check=False,
+            )
+        else:
+            process.terminate()
     try:
         stdout, _ = process.communicate(timeout=grace_seconds)
         return stdout or ""
@@ -576,6 +587,37 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
 
 
 def _process_start_ticks(pid: int) -> str | None:
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.GetProcessTimes.argtypes = [
+                wintypes.HANDLE,
+                ctypes.POINTER(wintypes.FILETIME), ctypes.POINTER(wintypes.FILETIME),
+                ctypes.POINTER(wintypes.FILETIME), ctypes.POINTER(wintypes.FILETIME),
+            ]
+            kernel32.GetProcessTimes.restype = wintypes.BOOL
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel32.CloseHandle.restype = wintypes.BOOL
+            handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+            if not handle:
+                return None
+            try:
+                creation = wintypes.FILETIME()
+                exit_time = wintypes.FILETIME()
+                kernel_time = wintypes.FILETIME()
+                user_time = wintypes.FILETIME()
+                if not kernel32.GetProcessTimes(handle, ctypes.byref(creation), ctypes.byref(exit_time), ctypes.byref(kernel_time), ctypes.byref(user_time)):
+                    return None
+                value = (int(creation.dwHighDateTime) << 32) | int(creation.dwLowDateTime)
+                return str(value)
+            finally:
+                kernel32.CloseHandle(handle)
+        except (OSError, AttributeError, ValueError):
+            return None
     if os.name != "posix":
         return None
     try:
@@ -659,6 +701,19 @@ def _cleanup_checkpoint_process(root: Path, state: dict) -> None:
         if _process_start_ticks(pid) == current_ticks:
             try:
                 os.killpg(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    elif os.name == "nt":
+        taskkill = shutil.which("taskkill")
+        if taskkill:
+            subprocess.run(
+                [taskkill, "/PID", str(pid), "/T", "/F"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, check=False,
+            )
+        elif _process_start_ticks(pid) == current_ticks:
+            try:
+                os.kill(pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
     state.pop("activeProcess", None)
@@ -766,7 +821,8 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
     _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase=phase, next_index=next_index, repair_count=repair_count, status="RUNNING", current_stage=(state or {}).get("currentStage"), stage_results=report_rows)
 
     def terminal(code: int, status: str, *, current_stage: str | None = None, last_failure: dict | None = None) -> int:
-        _clear_checkpoint(root)
+        if code == 0 and status == "PASS":
+            _clear_checkpoint(root)
         _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase=phase, next_index=next_index, repair_count=repair_count, status=status, current_stage=current_stage, stage_results=report_rows, last_failure=last_failure)
         return code
 
@@ -932,28 +988,41 @@ def _run_field_campaign_real(root: Path, state_path: Path, evidence_dir: Path, t
         doc = _load_field_campaign(state_path)
         state = str(doc.get("state") or "")
 
-    if state in {"START_REQUESTED", "RUNNING"}:
-        watch_timeout = max(60, timeout - int(time.monotonic()-started))
-        rc, raw = _run_logged([str(ctl), "field-campaign", "watch", "--state", str(state_path), "--poll-interval", "5s", "--timeout", f"{watch_timeout}s", *extra], root=root, timeout=watch_timeout + 30)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    resume_confirmation = os.environ.get("PLATFORM_FACTORY_AUTOPILOT_FIELD_RESUME_CONFIRMATION", "").strip()
+    if state == "FAILED":
+        diagnostic = evidence_dir / "field-diagnostic.json"
+        rc, raw = _run_logged([str(ctl), "field-campaign", "diagnose", "--state", str(state_path), "--out", str(diagnostic), *extra], root=root, timeout=180)
         output.append(raw)
-        if rc not in (0,):
+        if rc != 0:
+            joined = "\n".join(output + [f"FIELD_DIAGNOSTIC_COLLECTION_FAILED rc={rc}"])
+            status = "TIMEOUT" if rc == 124 else "FAIL"
+            return StageResult("field-campaign-real", status, rc, time.monotonic()-started, _fingerprint(rc, joined), _tail(joined))
+        output.append(f"FIELD_DIAGNOSTIC={diagnostic}")
+
+    if state in {"FAILED", "INTERRUPTED"}:
+        if resume_confirmation != "RESUME":
+            joined = "\n".join(output + [f"FIELD_CAMPAIGN_RESUME_CONFIRMATION_REQUIRED state={state} required=RESUME"])
+            return StageResult("field-campaign-real", "FAIL", 1, time.monotonic()-started, _fingerprint(1, joined), _tail(joined))
+        rc, raw = _run_logged([str(ctl), "field-campaign", "resume", "--state", str(state_path), "--confirmation", "RESUME", *extra], root=root, timeout=120)
+        output.append(raw)
+        if rc != 0:
             joined = "\n".join(output)
             status = "TIMEOUT" if rc == 124 else "FAIL"
             return StageResult("field-campaign-real", status, rc, time.monotonic()-started, _fingerprint(rc, joined), _tail(joined))
         doc = _load_field_campaign(state_path)
         state = str(doc.get("state") or "")
 
-    evidence_dir.mkdir(parents=True, exist_ok=True)
-    if state == "FAILED":
-        diagnostic = evidence_dir / "field-diagnostic.json"
-        rc, raw = _run_logged([str(ctl), "field-campaign", "diagnose", "--state", str(state_path), "--out", str(diagnostic), *extra], root=root, timeout=180)
+    if state in {"START_REQUESTED", "RUNNING"}:
+        watch_timeout = max(60, timeout - int(time.monotonic()-started))
+        rc, raw = _run_logged([str(ctl), "field-campaign", "watch", "--state", str(state_path), "--poll-interval", "5s", "--timeout", f"{watch_timeout}s", *extra], root=root, timeout=watch_timeout + 30)
         output.append(raw)
-        joined = "\n".join(output)
         if rc != 0:
-            joined += f"\nFIELD_DIAGNOSTIC_COLLECTION_FAILED rc={rc}"
-        else:
-            joined += f"\nFIELD_DIAGNOSTIC={diagnostic}"
-        return StageResult("field-campaign-real", "FAIL", 1, time.monotonic()-started, _fingerprint(1, joined), _tail(joined))
+            joined = "\n".join(output)
+            status = "TIMEOUT" if rc == 124 else "FAIL"
+            return StageResult("field-campaign-real", status, rc, time.monotonic()-started, _fingerprint(rc, joined), _tail(joined))
+        doc = _load_field_campaign(state_path)
+        state = str(doc.get("state") or "")
 
     if state != "SUCCEEDED":
         joined = "\n".join(output + [f"FIELD_CAMPAIGN_NON_TERMINAL state={state}"])
@@ -1468,18 +1537,26 @@ def self_test() -> int:
             (release_fixture / "blueprints").mkdir(parents=True)
             (release_fixture / "bin").mkdir()
             (release_fixture / "blueprints" / "enterprise-private-cloud.json").write_text("{}\n")
-            fake_ctl = release_fixture / "bin" / "platformctl"
-            fake_ctl.write_text(
-                "#!/bin/sh\n"
-                "printf '%s\n' '{\"planId\":\"plan-test\",\"deploymentExecutable\":false,"
-                "\"productReleaseReady\":false,\"productReleaseBlockers\":2,\"roadmapFeatureBlockers\":1,"
-                "\"deploymentContextBlockers\":1,\"productBlockerCodes\":{\"SOURCE_LOCK_MISSING\":1,\"TARGET_NODE_LIFECYCLE_PENDING\":1},"
-                "\"roadmapFeatureBlockerCodes\":{\"TARGET_NODE_LIFECYCLE_PENDING\":1},"
-                "\"deploymentContextBlockerCodes\":{\"GIT_REVISION_NOT_IMMUTABLE\":1},"
-                "\"physicalRuntimeStatus\":\"not-evaluated\",\"programRoadmap\":{\"authority\":\"PROGRAM_PHASE_MODEL_V26\",\"goalReady\":false,\"phases\":[]},\"phases\":[]}'\n"
+            readiness_output = (
+                '{"planId":"plan-test","deploymentExecutable":false,'
+                '"productReleaseReady":false,"productReleaseBlockers":2,"roadmapFeatureBlockers":1,'
+                '"deploymentContextBlockers":1,"productBlockerCodes":{"SOURCE_LOCK_MISSING":1,"TARGET_NODE_LIFECYCLE_PENDING":1},'
+                '"roadmapFeatureBlockerCodes":{"TARGET_NODE_LIFECYCLE_PENDING":1},'
+                '"deploymentContextBlockerCodes":{"GIT_REVISION_NOT_IMMUTABLE":1},'
+                '"physicalRuntimeStatus":"not-evaluated","programRoadmap":{"authority":"PROGRAM_PHASE_MODEL_V26","goalReady":false,"phases":[]},"phases":[]}\n'
             )
-            fake_ctl.chmod(0o755)
-            readiness_doc, readiness_error = _release_readiness(release_fixture)
+            if os.name == "nt":
+                original_run = globals()["_run"]
+                globals()["_run"] = lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, readiness_output, None)
+                try:
+                    readiness_doc, readiness_error = _release_readiness(release_fixture)
+                finally:
+                    globals()["_run"] = original_run
+            else:
+                fake_ctl = release_fixture / "bin" / "platformctl"
+                fake_ctl.write_text("#!/bin/sh\nprintf '%s' " + shlex.quote(readiness_output) + "\n")
+                fake_ctl.chmod(0o755)
+                readiness_doc, readiness_error = _release_readiness(release_fixture)
             if readiness_error is not None or readiness_doc is None or bool(readiness_doc.get("productReleaseReady")):
                 raise AssertionError((readiness_doc, readiness_error))
             if _readiness_code_names(readiness_doc, "productBlockerCodes") != ["SOURCE_LOCK_MISSING", "TARGET_NODE_LIFECYCLE_PENDING"]:
@@ -1496,8 +1573,8 @@ def self_test() -> int:
             old_cmd = os.environ.pop("PLATFORM_FACTORY_CODEX_COMMAND", None)
             fake_bin = root / "fake-bin"
             fake_bin.mkdir(exist_ok=True)
-            fake_codex = fake_bin / "codex"
-            fake_codex.write_text("#!/bin/sh\nexit 0\n")
+            fake_codex = fake_bin / ("codex.cmd" if os.name == "nt" else "codex")
+            fake_codex.write_text("@exit /b 0\n" if os.name == "nt" else "#!/bin/sh\nexit 0\n")
             fake_codex.chmod(0o755)
             os.environ["PATH"] = str(fake_bin) + os.pathsep + old_path
             default_cmd = _codex_command()

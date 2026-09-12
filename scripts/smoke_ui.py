@@ -69,7 +69,7 @@ def inline_document(static_dir: Path, *, installer: bool = False) -> str:
     return html
 
 
-def prepare_page(page, document: str, *, installer: bool) -> None:
+def prepare_page(page, document: str, *, installer: bool, resource_scope_registry: dict[str, object] | None = None) -> None:
     page.evaluate(
         """() => {
           const makeStore = () => {
@@ -109,6 +109,8 @@ def prepare_page(page, document: str, *, installer: bool) -> None:
           const path = String(input).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
           let body = [];
           if (path === '/auth/session') body = {name: 'Local operator', sub: 'local-development'};
+          else if (path === '/api/v1/access/context') body = {subject:'local-development',globalRole:'platform-admin',allOrganizations:true,effectiveOrganizationRoles:{},effectiveProjectRoles:{}};
+          else if (path === '/api/v1/access/resource-scopes') body = __RESOURCE_SCOPE_REGISTRY__;
           else if (path === '/api/v1/version') body = {version: 'test-version'};
           else if (path === '/api/v1/installations/profiles') body = [__PROFILE__];
           else if (path === '/api/v1/installations/integrations') body = {};
@@ -131,7 +133,7 @@ def prepare_page(page, document: str, *, installer: bool) -> None:
           else if (path === '/api/v1/target-architecture-model') body = {authority:'TARGET_ARCHITECTURE_MODEL_V1',distributions:[{id:'kubernetes',status:'SUPPORTED'},{id:'okd',status:'SUPPORTED_FOR_IMPORT',importSupported:true}],capabilityResolver:{authority:'TARGET_CAPABILITY_RESOLVER_V1'},searchProjection:{authority:'SEARCH_PROJECTION_AUTHORITY_V2',defaultBackend:'postgresql-bounded',status:'DECIDED_OPTIONAL_OPENSEARCH_SCALE_PROJECTION',rebuildRequired:true},programRoadmap:{authority:'PROGRAM_PHASE_MODEL_V26',currentPhase:'S1-exact-supply-chain-acquisition-closure',goalReady:false,globalGuardrails:['physical pass exact sha'],tracks:[{id:'operator-experience',title:'Operator Experience / UI / UX',objective:'Complete truthful operator workflows',requirements:['responsive RTL accessibility']},{id:'ai-native',title:'AI-Native Control Plane',objective:'Explain and diagnose authority',requirements:['redaction and durable audit']},{id:'mcp-agent-surface',title:'MCP / External Agent Surface',objective:'Scoped external reads',requirements:['mcp.read/mcp.operate project authorization']}],phases:[{id:'C1-operator-ia-scope-authority',status:'source-implemented'},{id:'C4-console-e2e-ux-certification',status:'source-implemented'},{id:'C5-installer-production-lifecycle-closure',status:'source-implemented'},{id:'C9-pre-certification-feature-freeze-exact-bundle',status:'blocked'},{id:'D-exact-artifact-lab-ai-certification',status:'deferred-until-development-closure'}]}};
           else if (!path.startsWith('/api/v1/')) body = {};
           return new Response(JSON.stringify(body), {status: 200, headers: {'content-type': 'application/json'}});
-        }""".replace("__PROFILE__", json.dumps(PROFILE, separators=(",", ":")))
+        }""".replace("__PROFILE__", json.dumps(PROFILE, separators=(",", ":"))).replace("__RESOURCE_SCOPE_REGISTRY__", json.dumps(resource_scope_registry or {}, separators=(",", ":")))
     page.evaluate(f"window.fetch = {mock}")
     page.set_content(document, wait_until="load")
     page.wait_for_timeout(250)
@@ -148,7 +150,8 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
     context = browser.new_context(viewport=viewport)
     page = context.new_page()
     errors = browser_errors(page)
-    prepare_page(page, inline_document(root / "webconsole/static"), installer=False)
+    resource_scope_registry = json.loads((root / "internal/api/resource_scope_registry.json").read_text(encoding="utf-8"))
+    prepare_page(page, inline_document(root / "webconsole/static"), installer=False, resource_scope_registry=resource_scope_registry)
     live_contract = page.evaluate("() => ({marketplace: livePages.has('marketplace'), tenants: livePages.has('tenants'), ai: livePages.has('ai')})")
     if not live_contract.get('marketplace') or not live_contract.get('tenants') or not live_contract.get('ai'):
         errors.append('async-marketplace-tenant-ai-live-refresh-missing')
@@ -242,11 +245,11 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
       state.sessionRedirectPending = true;
       window.fetch = async (input, init={}) => {
         const path = String(input).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
-        if (path === '/api/v1/session-expired-smoke') return new Response(JSON.stringify({error:{message:'expired'}}), {status:401, headers:{'content-type':'application/json'}});
+        if (path === '/api/v1/operations/session-expired-smoke') return new Response(JSON.stringify({error:{message:'expired'}}), {status:401, headers:{'content-type':'application/json'}});
         return originalFetch(input, init);
       };
       try {
-        await softApi('/api/v1/session-expired-smoke', [], 'session-expired-smoke');
+        await softApi('/api/v1/operations/session-expired-smoke', [], 'session-expired-smoke');
         return {propagated:false};
       } catch (error) {
         return {propagated:true, status:error.status, sessionExpired:error.sessionExpired===true};
@@ -268,7 +271,7 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
         if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
         signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {once:true});
       });
-      const pending = softApi('/api/v1/abort-smoke', [], 'abort-smoke');
+      const pending = softApi('/api/v1/operations/abort-smoke', [], 'abort-smoke');
       controller.abort();
       let propagated = false;
       try { await pending; } catch (error) { propagated = error?.name === 'AbortError'; }
@@ -288,7 +291,7 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
           const path=String(input).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
           if(path==='/auth/session')return new Response(JSON.stringify({sub:'permission-smoke',roles:['platform-operator']}),{status:200,headers:{'content-type':'application/json'}});
           if(path==='/api/v1/access/context')return new Response(JSON.stringify({subject:'permission-smoke',globalRole:'platform-operator',allOrganizations:false,effectiveOrganizationRoles:{'org-view':'organization-viewer','org-op':'organization-operator'},effectiveProjectRoles:{'project-view':'project-viewer','project-op':'project-operator'}}),{status:200,headers:{'content-type':'application/json'}});
-          if(path==='/api/v1/permission-promote-smoke')return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});
+          if(path==='/api/v1/operations/permission-promote-smoke')return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});
           return originalFetch(input,init);
         };
         const mutationButton=document.querySelector('#cluster-import-form button[type="submit"]');
@@ -303,7 +306,7 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
         applyAccessMode(viewerSafeActionProbe.parentElement);
         const viewerSafeActionEnabled=viewerSafeActionProbe.disabled===false;
         viewerSafeActionProbe.remove();
-        const promoted=await api('/api/v1/permission-promote-smoke',{method:'POST',body:{}});
+        const promoted=await api('/api/v1/operations/permission-promote-smoke',{method:'POST',body:{}});
         const promotedRole=state.session?.roles?.[0]||'';
         const enabledAfterPromotion=mutationButton?.disabled===false;
         const scopedViewerProbe=document.createElement('button');
@@ -331,10 +334,10 @@ def check_console(browser, root: Path, viewport: dict[str, int]) -> dict[str, ob
           const path=String(input).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
           if(path==='/auth/session')return new Response(JSON.stringify({sub:'permission-smoke',roles:['platform-viewer']}),{status:200,headers:{'content-type':'application/json'}});
           if(path==='/api/v1/access/context')return new Response(JSON.stringify({subject:'permission-smoke',globalRole:'platform-viewer',allOrganizations:false,effectiveOrganizationRoles:{'org-view':'organization-viewer'},effectiveProjectRoles:{'project-view':'project-viewer'}}),{status:200,headers:{'content-type':'application/json'}});
-          if(path==='/api/v1/permission-demote-smoke')return new Response(JSON.stringify({error:{message:'forbidden'}}),{status:403,headers:{'content-type':'application/json'}});
+          if(path==='/api/v1/operations/permission-demote-smoke')return new Response(JSON.stringify({error:{message:'forbidden'}}),{status:403,headers:{'content-type':'application/json'}});
           return originalFetch(input,init);
         };
-        let denied=false;try{await api('/api/v1/permission-demote-smoke',{method:'POST',body:{}});}catch(error){denied=error.status===403;}
+        let denied=false;try{await api('/api/v1/operations/permission-demote-smoke',{method:'POST',body:{}});}catch(error){denied=error.status===403;}
         return {promoted:promoted?.ok===true,promotedRole,disabledAsViewer,installationPlanEnabledForViewer,marketplaceRecommendMutationClassified,gitCredentialRevokeMutationClassified,blueprintCompareReadOnlyClassified,viewerSafeActionEnabled,enabledAfterPromotion,scopedViewerDenied,scopedOperatorAllowed,scopedAdminDenied,intrinsicDisabledPreserved,denied,demotedRole:state.session?.roles?.[0]||'',readOnly:document.body.classList.contains('read-only-session'),confirmClosedAfterDemotion:!confirmDialog.open};
       } finally { window.fetch=originalFetch;state.session=originalSession;state.sessionRedirectPending=originalPending;state.accessContext=originalAccessContext;state.permissionContextReady=originalPermissionContextReady;applyAccessMode(); }
     }""")
