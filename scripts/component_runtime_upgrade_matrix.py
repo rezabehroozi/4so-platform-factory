@@ -7,7 +7,7 @@ locks and distinct exact source digests. A current-only lock therefore remains
 PENDING_SOURCE_PAIR and cannot satisfy S2.
 """
 from __future__ import annotations
-import argparse, hashlib, json, pathlib, sys
+import argparse, hashlib, json, pathlib
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 AUTHORITY="COMPONENT_RUNTIME_UPGRADE_MATRIX_V2"
 FIRST_RELEASE_STATUS="install-only-first-product-release"
@@ -93,9 +93,12 @@ def validate(d):
     actual={x.get('component') for x in comps}
     if actual!=expected: errs.append(f'component coverage mismatch missing={sorted(expected-actual)} extra={sorted(actual-expected)}')
     for c in comps:
+        # Edges belong to the component under inspection. Reading them after the
+        # first-release check would validate the previous row and silently admit a
+        # fabricated upgrade edge on an install-only component.
+        edges=c.get('admittedEdges') or []
         if c.get('status') not in {'pending-source-pair','admitted-source-pair',FIRST_RELEASE_STATUS}: errs.append(f"{c.get('component')}: invalid status")
         if c.get('status')==FIRST_RELEASE_STATUS and (edges or c.get('upgradeExecutor')!='install-readiness-failure-remove-only'): errs.append(f"{c.get('component')}: first release must be install-only without upgrade edge")
-        edges=c.get('admittedEdges') or []
         if c.get('status')=='admitted-source-pair' and not edges: errs.append(f"{c.get('component')}: admitted without edge")
         for e in edges:
             if not e.get('fromSourceLockDigest') or not e.get('toSourceLockDigest'): errs.append(f"{c.get('component')}: edge missing exact source lock")

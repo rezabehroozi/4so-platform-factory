@@ -183,6 +183,231 @@ class LabRunnerContractTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "bounded regular non-symlink"):
                 lab._load_runtime_json_object(oversized, label="runtime state")
 
+    def test_bundle_acquisition_pinned_https_connection_rejects_proxy_tunnel(self):
+        pinned = ((lab.socket.AF_INET, lab.socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443)),)
+        conn = lab._PinnedHTTPSConnection("downloads.example.com", pinned_infos=pinned, context=object())
+        conn._tunnel_host = "proxy.example.invalid"
+        with self.assertRaisesRegex(OSError, "proxy tunnels are not permitted"):
+            conn.connect()
+
+    def test_bundle_acquisition_pinned_https_connection_resolves_default_timeout_sentinel(self):
+        # http.client passes the _GLOBAL_DEFAULT_TIMEOUT sentinel whenever the caller
+        # supplied no explicit timeout; a pinned socket must resolve it instead of
+        # raising TypeError out of the acquisition path.
+        pinned = ((lab.socket.AF_INET, lab.socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443)),)
+        seen = []
+
+        class FakeSocket:
+            def settimeout(self, timeout):
+                seen.append(timeout)
+
+            def connect(self, address):
+                seen.append(address)
+
+            def setsockopt(self, *args):
+                pass
+
+            def close(self):
+                pass
+
+        class FakeTLSContext:
+            def wrap_socket(self, sock, *, server_hostname):
+                seen.append(server_hostname)
+                return sock
+
+        with mock.patch.object(lab.socket, "socket", return_value=FakeSocket()):
+            conn = lab._PinnedHTTPSConnection("downloads.example.com.", pinned_infos=pinned, context=FakeTLSContext())
+            conn.connect()
+        self.assertEqual([lab.socket.getdefaulttimeout(), ("8.8.8.8", 443), "downloads.example.com"], seen)
+
+    def test_pinned_control_plane_https_connection_keeps_supplied_tls_context(self):
+        pinned = ((lab.socket.AF_INET, lab.socket.SOCK_STREAM, 6, "", ("127.0.0.1", 6443)),)
+        seen = []
+
+        class FakeSocket:
+            def settimeout(self, timeout):
+                pass
+
+            def connect(self, address):
+                seen.append(address)
+
+            def setsockopt(self, *args):
+                pass
+
+            def close(self):
+                pass
+
+        class FakeContext:
+            def wrap_socket(self, sock, *, server_hostname):
+                seen.append(server_hostname)
+                return sock
+
+        context = FakeContext()
+        with mock.patch.object(lab.socket, "socket", return_value=FakeSocket()):
+            conn = lab._PinnedControlPlaneHTTPSConnection("factory.example.invalid", pinned_infos=pinned, context=context, timeout=5)
+            conn.connect()
+        # The supplied context is the exact Lab control-plane TLS policy; it must be
+        # used verbatim rather than replaced by a stdlib-copied default context.
+        self.assertIs(context, conn._context)
+        self.assertEqual([("127.0.0.1", 6443), "factory.example.invalid"], seen)
+
+    def test_pinned_socket_dial_closes_descriptor_when_tls_setup_fails(self):
+        pinned = ((lab.socket.AF_INET, lab.socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443)),)
+        closed = []
+
+        class FakeSocket:
+            def settimeout(self, timeout):
+                pass
+
+            def connect(self, address):
+                pass
+
+            def setsockopt(self, *args):
+                pass
+
+            def close(self):
+                closed.append(True)
+
+        class ExplodingContext:
+            def wrap_socket(self, sock, *, server_hostname):
+                raise ValueError("unsupported TLS server name")
+
+        with mock.patch.object(lab.socket, "socket", return_value=FakeSocket()):
+            with self.assertRaisesRegex(ValueError, "unsupported TLS server name"):
+                lab._pinned_socket(pinned, timeout=1, context=ExplodingContext(), server_hostname="downloads.example.com")
+        self.assertEqual([True], closed)
+
+    def _plan_spec_with_locked_bundle_authority(self, root: Path, *, resolved_ids: list[str], missing_ids: list[str], tamper_manifest_sha: bool = False) -> dict:
+        version = "9.9.9"
+        spec = self._spec(root)
+        release_root = root / "release-tree"
+        plan = self._image_plan_value(version)
+        manifest_by_authority = {row["sourceAuthority"]: row["manifestPath"] for row in plan["derivedManifestImageSets"]}
+        resolved = []
+        for index, authority_id in enumerate(resolved_ids):
+            path = manifest_by_authority.get(authority_id, f"fixture/{index}-{authority_id}.bin")
+            resolved.append({
+                "id": authority_id,
+                "kind": "kubernetes-manifest" if authority_id in manifest_by_authority else "release-artifact",
+                "provider": "fixture-provider",
+                "version": "v1.0.0",
+                "scope": "fixture-scope",
+                "artifacts": [{
+                    "name": Path(path).name,
+                    "stagingPath": path,
+                    "sha256": f"{index + 1:064x}",
+                    "sizeBytes": 100 + index,
+                    "urls": [f"https://downloads.example.invalid/{index}-{authority_id}"],
+                }],
+            })
+        lock_path = self._write_acquisition_lock(release_root, version=version, status="incomplete", missing=missing_ids, resolved=resolved)
+        lock_value = json.loads(lock_path.read_text(encoding="utf-8"))
+        by_id = {row.get("id"): row for row in lock_value.get("resolvedAuthorities", []) if isinstance(row, dict)}
+        for row in plan["derivedManifestImageSets"]:
+            authority = by_id.get(row["sourceAuthority"])
+            artifacts = authority.get("artifacts", []) if isinstance(authority, dict) else []
+            if len(artifacts) == 1:
+                row["sourceManifestSha256"] = "sha256:" + artifacts[0]["sha256"]
+                row["sourceManifestBytes"] = artifacts[0]["sizeBytes"]
+        if tamper_manifest_sha:
+            plan["derivedManifestImageSets"][0]["sourceManifestSha256"] = "sha256:" + "e" * 64
+        archive = root / "locked-release.zip"
+        prefix = f"4so-platform-factory-{version}-plan"
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr(prefix + "/VERSION", version + "\n")
+            zf.writestr(prefix + "/RELEASE-NAME", "plan\n")
+            zf.writestr(prefix + "/" + lab.BUNDLE_ACQUISITION_LOCK_REL, lock_path.read_bytes())
+            zf.writestr(prefix + "/" + lab.MANAGEMENT_WORKLOAD_IMAGE_PLAN_REL, json.dumps(plan, separators=(",", ":")))
+        spec["spec"]["releaseArtifact"] = str(archive)
+        return spec
+
+    def test_plan_projects_exact_management_workload_image_plan_without_acquisition_authority(self):
+        # Planning runs against the shipped incomplete acquisition state. It must emit
+        # the exact image-plan projection bound to the same lock instead of crashing,
+        # and it must never claim the bundle itself is acquired.
+        manifests = ["argocd-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"]
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            spec = self._plan_spec_with_locked_bundle_authority(
+                root, resolved_ids=manifests, missing_ids=["management-workload-oci-archive", "rke2-installer-and-offline-artifacts"]
+            )
+            plan = lab.plan_document(spec)
+            acquisition = plan["bundleAcquisition"]
+            self.assertEqual("incomplete", acquisition["status"])
+            self.assertEqual(["management-workload-oci-archive", "rke2-installer-and-offline-artifacts"], sorted(acquisition["missingAuthorities"]))
+            projection = acquisition["managementWorkloadImagePlan"]
+            self.assertIsNotNone(projection)
+            self.assertEqual(lab.MANAGEMENT_WORKLOAD_IMAGE_PLAN_AUTHORITY, projection["authority"])
+            self.assertEqual(lab.MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_AUTHORITY, projection["manifestImageResolutionAuthority"])
+            self.assertRegex(projection["digest"], r"^sha256:[0-9a-f]{64}$")
+            self.assertRegex(projection["sourceBindingDigest"], r"^sha256:[0-9a-f]{64}$")
+            lock, lock_digest = lab._load_exact_bundle_acquisition_lock(
+                Path(spec["spec"]["releaseArtifact"]), "9.9.9", plan["releaseSha256"]
+            )
+            image_plan, _ = lab._load_exact_management_workload_image_plan(Path(spec["spec"]["releaseArtifact"]), "9.9.9", plan["releaseSha256"])
+            self.assertEqual(lab._verify_management_workload_image_plan_lock_binding(image_plan, lock), projection["sourceBindingDigest"])
+            self.assertEqual(lock_digest, acquisition["lockDigest"])
+
+    def test_plan_drops_image_plan_source_binding_until_manifest_authorities_resolve(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            spec = self._plan_spec_with_locked_bundle_authority(
+                root,
+                resolved_ids=["cloudnative-pg-install-manifest", "replicated-storage-install-manifest"],
+                missing_ids=["management-workload-oci-archive", "argocd-install-manifest", "rke2-installer-and-offline-artifacts"],
+            )
+            plan = lab.plan_document(spec)
+            acquisition = plan["bundleAcquisition"]
+            self.assertEqual("incomplete", acquisition["status"])
+            projection = acquisition["managementWorkloadImagePlan"]
+            self.assertIsNotNone(projection)
+            # A plan may show what is pending, but it cannot present an unbound
+            # manifest source set as if it had been locked.
+            self.assertEqual("", projection["sourceBindingDigest"])
+
+    def test_plan_fails_closed_on_image_plan_lock_drift(self):
+        manifests = ["argocd-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"]
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            spec = self._plan_spec_with_locked_bundle_authority(
+                root,
+                resolved_ids=manifests,
+                missing_ids=["management-workload-oci-archive", "rke2-installer-and-offline-artifacts"],
+                tamper_manifest_sha=True,
+            )
+            plan = lab.plan_document(spec)
+            acquisition = plan["bundleAcquisition"]
+            self.assertEqual("invalid", acquisition["status"])
+            self.assertEqual([lab.BUNDLE_SOURCE_LOCKS_BLOCKER], acquisition["missingAuthorities"])
+            self.assertIn("drifts from acquisition lock", acquisition["error"])
+            self.assertNotIn("managementWorkloadImagePlan", acquisition)
+
+    def test_shipped_plan_projector_matches_execution_authority(self):
+        # The plan-time and acquisition-time projections of the same exact release must
+        # stay byte-identical; a shared owner is the only authority.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            manifests = ["argocd-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"]
+            spec = self._plan_spec_with_locked_bundle_authority(
+                root, resolved_ids=manifests, missing_ids=["management-workload-oci-archive", "rke2-installer-and-offline-artifacts"]
+            )
+            plan = lab.plan_document(spec)
+            artifact = Path(spec["spec"]["releaseArtifact"])
+            version, sha = "9.9.9", plan["releaseSha256"]
+            lock, _ = lab._load_exact_bundle_acquisition_lock(artifact, version, sha)
+            self.assertEqual(plan["bundleAcquisition"]["managementWorkloadImagePlan"], lab._management_workload_image_plan_projection(artifact, version, sha, lock))
+            # Once the workload archive itself is locked there is no pending image plan
+            # to project, and neither path may invent one.
+            archive_lock = {
+                **lock,
+                "missingAuthorities": ["rke2-installer-and-offline-artifacts"],
+                "resolvedAuthorities": list(lock["resolvedAuthorities"]) + [{
+                    "id": "management-workload-oci-archive", "kind": "oci-archive", "provider": "4so", "version": "v1.0.0", "scope": "fixture",
+                    "artifacts": [{"name": "platform-workloads.oci.tar", "stagingPath": "workloads/platform-workloads.oci.tar", "sha256": "c" * 64, "sizeBytes": 4096, "urls": ["https://downloads.example.invalid/workloads.tar"]}],
+                }],
+            }
+            self.assertIsNone(lab._management_workload_image_plan_projection(artifact, version, sha, archive_lock))
+
     def test_inventory_digest_is_order_independent_and_plan_bound(self):
         with tempfile.TemporaryDirectory() as td:
             spec = self._spec(Path(td))
@@ -1283,6 +1508,26 @@ class LabRunnerContractTests(unittest.TestCase):
             lock = {"resolvedAuthorities": resolved}
             with self.assertRaisesRegex(RuntimeError, "sha256 mismatch"):
                 lab._verify_input_pack_source_bindings(pack_root, {"stagingDirectory":"staging"}, lock, generated)
+
+    def test_ready_source_binding_rejects_duplicate_image_references_across_archives(self):
+        # Two workload archives may not present the same image reference twice: that
+        # is an assembled bundle, not one exact admitted authority set.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pack_root = root / "pack"
+            resolved, files, build_spec = self._ready_source_fixture()
+            self._materialize_ready_source_fixture(pack_root, files, build_spec)
+            copy_rel = "workloads/platform-workloads-copy.oci.tar"
+            payload = files["workloads/platform-workloads.oci.tar"]
+            (pack_root / "staging" / copy_rel).write_bytes(payload)
+            for row in resolved:
+                if row["id"] == "management-workload-oci-archive":
+                    row["artifacts"].append({"name": Path(copy_rel).name, "stagingPath": copy_rel, "urls": ["https://downloads.example.invalid/" + copy_rel], "sha256": hashlib.sha256(payload).hexdigest(), "sizeBytes": len(payload)})
+            build_spec["spec"]["workloads"]["imageArchives"] = sorted(["workloads/platform-workloads.oci.tar", copy_rel])
+            (pack_root / "build-spec.json").write_text(json.dumps(build_spec), encoding="utf-8")
+            generated, _ = lab._normalize_acquired_build_spec(pack_root, {"buildSpecPath":"build-spec.json","stagingDirectory":"staging"}, version="9.9.9", artifact_sha="a"*64, out_path=root/"generated.json")
+            with self.assertRaisesRegex(RuntimeError, "duplicate image references"):
+                lab._verify_input_pack_source_bindings(pack_root, {"stagingDirectory":"staging"}, {"resolvedAuthorities": resolved}, generated)
 
     def test_ready_source_binding_rejects_build_spec_path_substitution(self):
         with tempfile.TemporaryDirectory() as td:

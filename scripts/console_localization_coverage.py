@@ -41,7 +41,13 @@ def parse_dynamic_entries(js: str) -> dict[str, str]:
         re.M,
     )
     for key_raw, value_raw in pair_re.findall(match.group(1)):
-        entries[json.loads(key_raw)] = json.loads(value_raw)
+        key = json.loads(key_raw)
+        # A repeated key silently replaces the reviewed entry, so a later copy could
+        # change operator-facing Persian text while the coverage baseline still
+        # reports zero gaps. The dictionary must declare each source string once.
+        if key in entries:
+            raise SystemExit(f"LOCALIZATION_DYNAMIC_DUPLICATE_KEY {key}")
+        entries[key] = json.loads(value_raw)
     return entries
 
 
