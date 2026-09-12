@@ -741,7 +741,9 @@ dialog { border-radius:12px; }
 .action-console-body > .two-column > article.panel + article.panel { padding-inline-start:22px; border-inline-start:1px solid var(--border); }
 
 .inline-action-disclosure { margin:0 0 12px; border-block:1px solid var(--border); }
-.inline-action-disclosure > summary { min-height:44px; display:grid; grid-template-columns:minmax(150px,max-content) minmax(0,1fr); align-items:center; gap:12px; padding:5px 2px; }
+.inline-action-disclosure > summary { min-height:44px; display:grid; grid-template-columns:16px minmax(0,1fr); align-items:center; column-gap:8px; row-gap:2px; padding:5px 2px; }
+.inline-action-disclosure > summary::before { grid-column:1; grid-row:1 / span 2; margin-inline-end:0; }
+.inline-action-disclosure > summary .summary-title,.inline-action-disclosure > summary .summary-help { grid-column:2; min-width:0; overflow-wrap:anywhere; }
 .inline-action-disclosure .summary-title { font-size:12px; }
 .inline-action-disclosure .summary-help { font-size:11px; color:var(--muted); }
 .inline-action-body { padding:10px 0 14px; }
@@ -763,7 +765,8 @@ dialog { border-radius:12px; }
 }
 @media (max-width:650px) {
   .section-nav-group button { min-height:44px; padding-inline:9px; }
-  .action-console > summary, .inline-action-disclosure > summary { grid-template-columns:1fr; gap:2px; align-content:center; }
+  .action-console > summary { grid-template-columns:1fr; gap:2px; align-content:center; }
+  .inline-action-disclosure > summary { grid-template-columns:16px minmax(0,1fr); gap:2px 8px; align-content:center; }
   .action-console > summary .summary-title { grid-column:1; grid-row:auto; padding-inline-start:24px; }
   .action-console > summary .summary-help { grid-column:1; grid-row:auto; padding-inline-start:24px; }
   .action-console > summary::before { grid-column:1; grid-row:1; }

@@ -87,6 +87,25 @@ def css_theme_reference_failures(css_path: Path) -> list[str]:
     return [f"undefined-css-token:{name}" for name in sorted(references - definitions)]
 
 
+def load_console_resource_scope_registry(root: Path = ROOT) -> dict[str, object]:
+    registry = json.loads((root / "internal/api/resource_scope_registry.json").read_text(encoding="utf-8"))
+    families = registry.get("families")
+    if registry.get("authority") != "RESOURCE_SCOPE_REGISTRY_V1" or not isinstance(families, list):
+        raise RuntimeError("UI_QUALITY_RESOURCE_SCOPE_REGISTRY_INVALID")
+    if registry.get("classifiedCount") != len(families):
+        raise RuntimeError("UI_QUALITY_RESOURCE_SCOPE_REGISTRY_INCOMPLETE")
+    return registry
+
+
+def prepare_quality_page(page, document: str, *, installer: bool, root: Path = ROOT) -> None:
+    if installer:
+        smoke_ui.prepare_page(page, document, installer=True)
+        return
+    smoke_ui.prepare_page(
+        page, document, installer=False, resource_scope_registry=load_console_resource_scope_registry(root)
+    )
+
+
 def static_quality_failures(root: Path) -> list[str]:
     failures: list[str] = []
     for rel in ("webconsole/static/styles.css", "cmd/platform-installer/static/styles.css"):
@@ -207,7 +226,7 @@ def _set_direction(page, direction: str) -> None:
         raise AssertionError(f"direction switch failed: expected={direction} observed={observed}")
 
 
-def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list[str], failures: list[str]) -> dict[str, int]:
+def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list[str], failures: list[str], root: Path = ROOT) -> dict[str, int]:
     widths = (320, 390, 768, 1024, 1440)
     themes = ("light", "dark")
     directions = ("ltr", "rtl")
@@ -218,7 +237,7 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
         height = 844 if width == 390 else 900
         context = browser.new_context(viewport={"width": width, "height": height})
         page = context.new_page()
-        smoke_ui.prepare_page(page, document, installer=installer)
+        prepare_quality_page(page, document, installer=installer, root=root)
         page.add_style_tag(content="*,*::before,*::after{transition:none!important;animation:none!important}")
 
         # DOM semantics, target sizing and overflow do not change with theme.
@@ -263,7 +282,7 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
 def audit_console(browser, root: Path, failures: list[str], *, routes: list[str] | None = None, run_auxiliary: bool = True, run_matrix: bool = True) -> dict[str, int]:
     document = smoke_ui.inline_document(root / "webconsole/static")
     selected = list(CONSOLE_PAGES if routes is None else routes)
-    coverage = _audit_route_matrix(browser, document, installer=False, routes=selected, failures=failures) if run_matrix else {
+    coverage = _audit_route_matrix(browser, document, installer=False, routes=selected, failures=failures, root=root) if run_matrix else {
         "widths": 0, "themes": 0, "directions": 0, "routes": 0, "accessibilityRouteStates": 0, "contrastRouteStates": 0
     }
     if not run_auxiliary:
@@ -273,7 +292,7 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
     for theme in ("light", "dark"):
         context = browser.new_context(viewport={"width": 1440, "height": 900}, color_scheme=theme)
         page = context.new_page()
-        smoke_ui.prepare_page(page, document, installer=False)
+        prepare_quality_page(page, document, installer=False, root=root)
         page.evaluate("() => navigate('operations')")
         page.wait_for_timeout(50)
         page.evaluate("""() => {
@@ -313,7 +332,7 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
     # preference (and vice versa).
     for system_theme, explicit_theme in (("dark", "light"), ("light", "dark")):
         context = browser.new_context(viewport={"width": 1440, "height": 900}, color_scheme=system_theme)
-        page = context.new_page(); smoke_ui.prepare_page(page, document, installer=False)
+        page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
         page.add_style_tag(content="*,*::before,*::after{transition:none!important;animation:none!important}")
         page.evaluate("theme => applyConsoleTheme(theme)", explicit_theme)
         observed = page.evaluate("""() => ({
@@ -329,7 +348,7 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
 
     # Keyboard mobile-navigation trap and return-focus contract.
     context = browser.new_context(viewport={"width": 390, "height": 844})
-    page = context.new_page(); smoke_ui.prepare_page(page, document, installer=False)
+    page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
     page.locator("#mobile-nav-toggle").click(); page.keyboard.press("Shift+Tab")
     if page.evaluate("document.activeElement?.id") != "logout": failures.append("console:focus-trap:shift-tab")
     page.keyboard.press("Tab")
@@ -340,7 +359,7 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
 
     # Reduced-motion must suppress animated transitions rather than merely changing color.
     context = browser.new_context(viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
-    page = context.new_page(); smoke_ui.prepare_page(page, document, installer=False)
+    page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
     motion = page.evaluate("""() => {
       const probe=document.querySelector('.page.active') || document.body;
       const s=getComputedStyle(probe);
@@ -366,7 +385,7 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
 def audit_installer(browser, root: Path, failures: list[str], *, routes: list[str] | None = None, run_auxiliary: bool = True, run_matrix: bool = True) -> dict[str, int]:
     document = smoke_ui.inline_document(root / "cmd/platform-installer/static", installer=True)
     selected = list(INSTALLER_PAGES if routes is None else routes)
-    coverage = _audit_route_matrix(browser, document, installer=True, routes=selected, failures=failures) if run_matrix else {
+    coverage = _audit_route_matrix(browser, document, installer=True, routes=selected, failures=failures, root=root) if run_matrix else {
         "widths": 0, "themes": 0, "directions": 0, "routes": 0, "accessibilityRouteStates": 0, "contrastRouteStates": 0
     }
     if not run_auxiliary:
@@ -374,7 +393,7 @@ def audit_installer(browser, root: Path, failures: list[str], *, routes: list[st
 
     for theme in ("light", "dark"):
         context = browser.new_context(viewport={"width": 1440, "height": 900}, color_scheme=theme)
-        page = context.new_page(); smoke_ui.prepare_page(page, document, installer=True)
+        page = context.new_page(); prepare_quality_page(page, document, installer=True, root=root)
         feedback = page.evaluate("""() => {
           const originalSetTimeout = window.setTimeout, delays=[];
           window.setTimeout=(fn, delay, ...args)=>{delays.push(delay);return 1;};
@@ -399,7 +418,7 @@ def audit_installer(browser, root: Path, failures: list[str], *, routes: list[st
         context.close()
 
     context = browser.new_context(viewport={"width": 390, "height": 844})
-    page = context.new_page(); smoke_ui.prepare_page(page, document, installer=True)
+    page = context.new_page(); prepare_quality_page(page, document, installer=True, root=root)
     page.locator("#menu-toggle").click(); page.keyboard.press("Shift+Tab")
     if page.evaluate("document.activeElement?.dataset?.page") != "lifecycle": failures.append("installer:focus-trap:shift-tab")
     page.keyboard.press("Tab")

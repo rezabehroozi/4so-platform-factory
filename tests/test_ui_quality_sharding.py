@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("smoke_ui_quality", ROOT / "scripts" / "smoke_ui_quality.py")
@@ -34,6 +35,24 @@ class UIQualityShardingTests(unittest.TestCase):
             module.select_shard(module.INSTALLER_PAGES, (1, 2)),
             [route for index, route in enumerate(module.INSTALLER_PAGES) if index % 2 == 1],
         )
+
+    def test_console_quality_page_injects_canonical_resource_scope_registry(self):
+        self.assertTrue(hasattr(module, "prepare_quality_page"), "quality harness needs one authority-aware page preparation helper")
+        calls = []
+        with mock.patch.object(module.smoke_ui, "prepare_page", side_effect=lambda *args, **kwargs: calls.append((args, kwargs))):
+            module.prepare_quality_page(object(), "document", installer=False, root=ROOT)
+        self.assertEqual(len(calls), 1)
+        registry = calls[0][1].get("resource_scope_registry")
+        self.assertEqual(registry.get("authority"), "RESOURCE_SCOPE_REGISTRY_V1")
+        self.assertEqual(registry.get("classifiedCount"), len(registry.get("families", [])))
+
+    def test_installer_quality_page_does_not_inject_console_scope_registry(self):
+        self.assertTrue(hasattr(module, "prepare_quality_page"), "quality harness needs one authority-aware page preparation helper")
+        calls = []
+        with mock.patch.object(module.smoke_ui, "prepare_page", side_effect=lambda *args, **kwargs: calls.append((args, kwargs))):
+            module.prepare_quality_page(object(), "document", installer=True, root=ROOT)
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("resource_scope_registry", calls[0][1])
 
 
 if __name__ == "__main__":
