@@ -111,6 +111,18 @@ func TestInstallerConsoleDesignSystemContract(t *testing.T) {
 	}
 }
 
+func TestInstallerHandlerServesFaviconWithout404(t *testing.T) {
+	server := &installerServer{}
+	mux := http.NewServeMux()
+	server.routes(mux)
+	req := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
+	res := httptest.NewRecorder()
+	mux.ServeHTTP(res, req)
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("favicon status=%d want=%d body=%s", res.Code, http.StatusNoContent, res.Body.String())
+	}
+}
+
 func TestInstallerIntegrationsRoute(t *testing.T) {
 	authValue := "test-bootstrap-token-abcdefghijklmnopqrstuvwxyz"
 	access, _, err := installeraccess.LoadOrCreate(t.TempDir(), authValue, time.Now())

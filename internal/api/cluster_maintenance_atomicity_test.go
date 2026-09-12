@@ -10,6 +10,19 @@ import (
 	"platform.4so.io/factory/internal/controlplane"
 )
 
+func TestMaintenanceProfileMissingIsNotConfiguredState(t *testing.T) {
+	ctx := context.Background()
+	store := controlplane.NewMemoryStore()
+	org, _ := store.CreateOrganization(ctx, controlplane.Organization{Name: "maintenance-profile-state-org", DisplayName: "Maintenance Profile State Org"}, "operator")
+	project, _ := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "maintenance-profile-state", DisplayName: "Maintenance Profile State"}, "operator")
+	cluster, _, _ := seedAPICluster(t, store, project, "maintenance-profile-state-cluster", 78)
+	h := New("0.0.test", nil, nil, store).Handler()
+	w := apiRequest(t, h, http.MethodGet, "/api/v1/clusters/"+cluster.ID+"/maintenance-profile", "", nil)
+	if w.Code != http.StatusOK { t.Fatalf("status=%d body=%s", w.Code, w.Body.String()) }
+	body := decodeBody[struct { Profile *controlplane.ClusterMaintenanceProfile `json:"profile"`; ProfileStatus string `json:"profileStatus"`; Method string `json:"method"` }](t, w)
+	if body.Profile != nil || body.ProfileStatus != "NOT_CONFIGURED" || body.Method != controlplane.ClusterMaintenanceAuthorityMethod { t.Fatalf("unexpected body: %+v", body) }
+}
+
 func TestMaintenanceRunValidationDoesNotLeaveOrphanOperation(t *testing.T) {
 	ctx := context.Background()
 	store := controlplane.NewMemoryStore()

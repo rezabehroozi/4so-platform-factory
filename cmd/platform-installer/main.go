@@ -211,6 +211,7 @@ func (s *installerServer) routes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/lifecycle/upgrade", s.auth(http.HandlerFunc(s.lifecycleUpgrade)))
 	mux.Handle("POST /api/v1/lifecycle/upgrade-recovery", s.auth(http.HandlerFunc(s.lifecycleUpgradeRecovery)))
 	content, _ := fs.Sub(staticFiles, "static")
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	mux.Handle("/", http.FileServer(http.FS(content)))
 }
 
