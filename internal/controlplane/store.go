@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"platform.4so.io/factory/internal/compliance"
+	"platform.4so.io/factory/internal/reliability"
 )
 
 // Store is the durable authority boundary used by the API and operation workers.
@@ -377,6 +378,19 @@ type ClusterImportCredentialSnapshot struct {
 	AgentTokenDigest string `json:"agentTokenDigest,omitempty"`
 }
 
+type ReliabilityStore interface {
+	CreateHealthObservation(context.Context, reliability.HealthObservation) (reliability.HealthObservation, bool, error)
+	ListHealthObservations(context.Context, string, string, time.Time, time.Time, int) ([]reliability.HealthObservation, error)
+	CreateIncident(context.Context, reliability.Incident, string) (reliability.Incident, error)
+	GetIncident(context.Context, string) (reliability.Incident, error)
+	ListIncidents(context.Context, string, string, int) ([]reliability.Incident, error)
+	TransitionIncident(context.Context, string, int64, string, string, string) (reliability.Incident, error)
+	CreateSLOPolicy(context.Context, reliability.SLOPolicy, string) (reliability.SLOPolicy, error)
+	CreateSLOPolicyRevision(context.Context, string, int64, reliability.SLOPolicy, string) (reliability.SLOPolicy, error)
+	GetSLOPolicy(context.Context, string) (reliability.SLOPolicy, error)
+	ListSLOPolicies(context.Context, string, string, int) ([]reliability.SLOPolicy, error)
+}
+
 type Snapshot struct {
 	Organizations              []Organization                    `json:"organizations"`
 	OrganizationMemberships    []OrganizationMembership          `json:"organizationMemberships"`
@@ -454,4 +468,7 @@ type Snapshot struct {
 	FinOpsRateCards            []FinOpsRateCard                  `json:"finOpsRateCards,omitempty"`
 	FinOpsUsageMeasurements    []FinOpsUsageMeasurement          `json:"finOpsUsageMeasurements,omitempty"`
 	FinOpsCapacityObservations []FinOpsCapacityObservation       `json:"finOpsCapacityObservations,omitempty"`
+	HealthObservations         []reliability.HealthObservation   `json:"healthObservations,omitempty"`
+	Incidents                  []reliability.Incident            `json:"incidents,omitempty"`
+	SLOPolicies                []reliability.SLOPolicy           `json:"sloPolicies,omitempty"`
 }

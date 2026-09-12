@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"platform.4so.io/factory/internal/reliability"
 )
 
 type MemoryStore struct {
@@ -97,6 +99,9 @@ type MemoryStore struct {
 	finOpsRateCards              map[string]FinOpsRateCard
 	finOpsUsageMeasurements      map[string]FinOpsUsageMeasurement
 	finOpsCapacityObservations   map[string]FinOpsCapacityObservation
+	healthObservations           map[string]reliability.HealthObservation
+	incidents                    map[string]reliability.Incident
+	sloPolicies                  map[string]reliability.SLOPolicy
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -117,7 +122,7 @@ func NewMemoryStoreWith(now func() time.Time, id func(string) string) *MemorySto
 		operations: map[string]Operation{}, steps: map[string]OperationStep{}, stepTraces: map[string]OperationStepTrace{}, compensationSteps: map[string]OperationCompensationStep{}, outbox: map[string]OutboxEvent{}, notificationDestinations: map[string]NotificationDestination{}, notificationRoutes: map[string]NotificationRoute{}, notificationEvents: map[string]NotificationEvent{}, notificationDeliveries: map[string]NotificationDelivery{}, notificationAttempts: map[string]NotificationDeliveryAttempt{},
 		evidence: map[string]EvidenceMetadata{}, evidencePayloads: map[string][]byte{}, idempotency: map[string]string{},
 		clusterImports: map[string]ClusterImport{}, managedClusters: map[string]ManagedCluster{}, clusterMaintenanceProfiles: map[string]ClusterMaintenanceProfile{}, clusterMaintenanceWindows: map[string]ClusterMaintenanceWindow{}, clusterMaintenanceRuns: map[string]ClusterMaintenanceRun{}, agentCertificates: map[string]AgentCertificate{}, clusterInventories: map[string]ClusterInventory{}, baselineDeployments: map[string]BaselineDeployment{}, runtimeVerifications: map[string]RuntimeVerification{}, runtimeCertifications: map[string]RuntimeCertificationRun{}, backupPolicies: map[string]BackupPolicy{}, dataProtectionRuns: map[string]DataProtectionRun{}, recoveryCheckpoints: map[string]RecoveryCheckpoint{}, fleetGroups: map[string]FleetGroup{}, gitCredentials: map[string]GitCredential{}, gitProviders: map[string]GitProvider{}, gitPullRequests: map[string]GitPullRequest{}, managedGitRevisions: map[string]ManagedGitRevision{}, driftScans: map[string]DriftScan{}, upgradeCampaigns: map[string]UpgradeCampaign{},
-		entitlements: map[string]Entitlement{}, oemProfiles: map[string]OEMProfile{}, tenants: map[string]TenantEnvironment{}, providerProfiles: map[string]ProviderProfile{}, providerClusters: map[string]ProviderCluster{}, aiExecutionClaims: map[string]AIExecutionClaim{}, aiRuns: map[string]AIRun{}, marketplaceRecommendations: map[string]MarketplaceRecommendation{}, runtimeClosureCampaigns: map[string]RuntimeClosureCampaign{}, complianceProfiles: map[string]ComplianceProfile{}, complianceScanRuns: map[string]ComplianceScanRun{}, complianceFindings: map[string]ComplianceFindingRecord{}, complianceWaivers: map[string]ComplianceWaiver{}, samlBrokers: map[string]SAMLBroker{}, identityAdminJobs: map[string]IdentityAdminJob{}, operationRequestPayloads: map[string]OperationRequestPayload{}, finOpsBudgetPolicies: map[string]FinOpsBudgetPolicy{}, finOpsRateCards: map[string]FinOpsRateCard{}, finOpsUsageMeasurements: map[string]FinOpsUsageMeasurement{}, finOpsCapacityObservations: map[string]FinOpsCapacityObservation{},
+		entitlements: map[string]Entitlement{}, oemProfiles: map[string]OEMProfile{}, tenants: map[string]TenantEnvironment{}, providerProfiles: map[string]ProviderProfile{}, providerClusters: map[string]ProviderCluster{}, aiExecutionClaims: map[string]AIExecutionClaim{}, aiRuns: map[string]AIRun{}, marketplaceRecommendations: map[string]MarketplaceRecommendation{}, runtimeClosureCampaigns: map[string]RuntimeClosureCampaign{}, complianceProfiles: map[string]ComplianceProfile{}, complianceScanRuns: map[string]ComplianceScanRun{}, complianceFindings: map[string]ComplianceFindingRecord{}, complianceWaivers: map[string]ComplianceWaiver{}, samlBrokers: map[string]SAMLBroker{}, identityAdminJobs: map[string]IdentityAdminJob{}, operationRequestPayloads: map[string]OperationRequestPayload{}, finOpsBudgetPolicies: map[string]FinOpsBudgetPolicy{}, finOpsRateCards: map[string]FinOpsRateCard{}, finOpsUsageMeasurements: map[string]FinOpsUsageMeasurement{}, finOpsCapacityObservations: map[string]FinOpsCapacityObservation{}, healthObservations: map[string]reliability.HealthObservation{}, incidents: map[string]reliability.Incident{}, sloPolicies: map[string]reliability.SLOPolicy{},
 	}
 }
 
@@ -1852,6 +1857,15 @@ func (s *MemoryStore) Snapshot(_ context.Context) (Snapshot, error) {
 	for _, v := range s.finOpsCapacityObservations {
 		snap.FinOpsCapacityObservations = append(snap.FinOpsCapacityObservations, cloneFinOpsCapacityObservation(v))
 	}
+	for _, v := range s.healthObservations {
+		snap.HealthObservations = append(snap.HealthObservations, v)
+	}
+	for _, v := range s.incidents {
+		snap.Incidents = append(snap.Incidents, v)
+	}
+	for _, v := range s.sloPolicies {
+		snap.SLOPolicies = append(snap.SLOPolicies, v)
+	}
 	for _, v := range s.operationRequestPayloads {
 		v.Payload = append([]byte(nil), v.Payload...)
 		snap.OperationRequestPayloads = append(snap.OperationRequestPayloads, v)
@@ -1950,6 +1964,14 @@ func CanonicalizeSnapshot(s *Snapshot) {
 	sort.Slice(s.FinOpsRateCards, func(i, j int) bool { return s.FinOpsRateCards[i].ID < s.FinOpsRateCards[j].ID })
 	sort.Slice(s.FinOpsUsageMeasurements, func(i, j int) bool { return s.FinOpsUsageMeasurements[i].ID < s.FinOpsUsageMeasurements[j].ID })
 	sort.Slice(s.FinOpsCapacityObservations, func(i, j int) bool { return s.FinOpsCapacityObservations[i].ID < s.FinOpsCapacityObservations[j].ID })
+	sort.Slice(s.HealthObservations, func(i, j int) bool { return s.HealthObservations[i].ID < s.HealthObservations[j].ID })
+	sort.Slice(s.Incidents, func(i, j int) bool { return s.Incidents[i].ID < s.Incidents[j].ID })
+	sort.Slice(s.SLOPolicies, func(i, j int) bool {
+		if s.SLOPolicies[i].Name != s.SLOPolicies[j].Name {
+			return s.SLOPolicies[i].Name < s.SLOPolicies[j].Name
+		}
+		return s.SLOPolicies[i].Revision < s.SLOPolicies[j].Revision
+	})
 	sort.Slice(s.OperationRequestPayloads, func(i, j int) bool {
 		return s.OperationRequestPayloads[i].OperationID < s.OperationRequestPayloads[j].OperationID
 	})
@@ -2465,6 +2487,9 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	s.finOpsRateCards = map[string]FinOpsRateCard{}
 	s.finOpsUsageMeasurements = map[string]FinOpsUsageMeasurement{}
 	s.finOpsCapacityObservations = map[string]FinOpsCapacityObservation{}
+	s.healthObservations = map[string]reliability.HealthObservation{}
+	s.incidents = map[string]reliability.Incident{}
+	s.sloPolicies = map[string]reliability.SLOPolicy{}
 	for _, v := range snapshot.Organizations {
 		s.organizations[v.ID] = v
 	}
@@ -2752,6 +2777,15 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 		normalized, _ := NormalizeFinOpsCapacityObservation(v)
 		normalized.ResourceMeta = v.ResourceMeta
 		s.finOpsCapacityObservations[v.ID] = cloneFinOpsCapacityObservation(normalized)
+	}
+	for _, v := range snapshot.HealthObservations {
+		s.healthObservations[v.ID] = v
+	}
+	for _, v := range snapshot.Incidents {
+		s.incidents[v.ID] = v
+	}
+	for _, v := range snapshot.SLOPolicies {
+		s.sloPolicies[v.ID] = v
 	}
 	for _, v := range snapshot.OperationRequestPayloads {
 		if _, ok := s.operations[v.OperationID]; !ok || v.PayloadDigest != OperationRequestPayloadDigest(v.Payload) || strings.TrimSpace(v.MediaType) == "" {
