@@ -605,3 +605,69 @@ func (r *Runner) HAStatus() (map[string]any, error) {
 	status["steps"] = steps
 	return status, nil
 }
+
+func haPeerTimePreparationCommand(connectivity installation.ConnectivityMode) string {
+	verify := `command -v timedatectl >/dev/null 2>&1; test "$(timedatectl show --property=NTPSynchronized --value)" = yes`
+	if connectivity == installation.ConnectivityDisconnected {
+		return `set -eu; ` + verify + ` || { echo "disconnected installation requires reachable local NTP" >&2; exit 16; }`
+	}
+	sources := haShellQuote(managedChronySources)
+	return `set -eu; if ` + verify + `; then exit 0; fi; ` +
+		`if ! command -v chronyc >/dev/null 2>&1; then ` +
+		`if command -v apt-get >/dev/null 2>&1; then DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y chrony; ` +
+		`elif command -v dnf >/dev/null 2>&1; then dnf install -y chrony; ` +
+		`elif command -v yum >/dev/null 2>&1; then yum install -y chrony; ` +
+		`else echo "chrony unavailable and no supported package manager found" >&2; exit 16; fi; fi; ` +
+		`mkdir -p /etc/chrony/sources.d; printf '%s' ` + sources + ` > /etc/chrony/sources.d/4so-time.sources; ` +
+		`systemctl enable --now chrony >/dev/null 2>&1 || systemctl enable --now chronyd >/dev/null 2>&1; ` +
+		`chronyc reload sources >/dev/null; chronyc burst 4/4 >/dev/null 2>&1 || true; chronyc makestep >/dev/null 2>&1 || true; ` +
+		`chronyc waitsync 30 0.1 >/dev/null 2>&1 || true; ` + verify +
+		` || { echo "HA peer time synchronization repair did not converge" >&2; chronyc tracking >&2 || true; chronyc sources -n >&2 || true; exit 16; }`
+}
+
+func (r *Runner) preparePeerTimeSynchronization(ctx context.Context, request installation.InstallRequest) error {
+	if r.simulation || request.ProfileID != "production-standard-ha" {
+		return nil
+	}
+	peers := request.Infrastructure.NodeAddresses[1:]
+	if err := r.validateSSHIdentity(request.Infrastructure.CredentialRef, request.Infrastructure.SSHUser); err != nil {
+		return err
+	}
+	if err := r.validateSSHHostTrust(peers); err != nil {
+		return err
+	}
+	run := Run{Request: request}
+	command := haPeerTimePreparationCommand(request.Connectivity)
+	for _, peer := range peers {
+		if err := validateSSHHost(peer); err != nil {
+			return err
+		}
+		if err := r.remoteRun(ctx, run, peer, command); err != nil {
+			return fmt.Errorf("prepare HA peer time synchronization %s: %w", peer, err)
+		}
+	}
+	return nil
+}
+
+func (r *Runner) prepareHAPeerTimeSynchronization(ctx context.Context, request installation.InstallRequest) error {
+	if r.simulation || request.ProfileID != "production-standard-ha" {
+		return nil
+	}
+	peers := request.Infrastructure.NodeAddresses[1:]
+	if err := r.validateSSHIdentity(request.Infrastructure.CredentialRef, request.Infrastructure.SSHUser); err != nil {
+		return err
+	}
+	if err := r.validateSSHHostTrust(peers); err != nil {
+		return err
+	}
+	if _, err := r.system.Output(ctx, "ssh", []string{"-V"}, nil); err != nil {
+		return fmt.Errorf("OpenSSH client is unavailable for HA time preparation: %w", err)
+	}
+	probeRun := Run{Request: request}
+	for _, peer := range peers {
+		if err := r.remoteRun(ctx, probeRun, peer, haPeerTimePreparationCommand(request.Connectivity)); err != nil {
+			return fmt.Errorf("prepare HA peer %s time synchronization: %w", peer, err)
+		}
+	}
+	return nil
+}

@@ -330,6 +330,95 @@ func (r *Runner) verifyTimeSynchronization(ctx context.Context) error {
 	return nil
 }
 
+const managedChronySourcesPath = "/etc/chrony/sources.d/4so-time.sources"
+
+var managedChronySources = strings.Join([]string{
+	"server time.windows.com iburst",
+	"server time.apple.com iburst",
+	"server rolex.ripe.net iburst",
+	"server 162.159.200.1 iburst",
+	"server 162.159.200.123 iburst",
+	"pool 0.pool.ntp.org iburst maxsources 2",
+	"pool 1.pool.ntp.org iburst maxsources 2",
+}, "\n") + "\n"
+
+func (r *Runner) ensureTimeSynchronization(ctx context.Context) error {
+	if err := r.verifyTimeSynchronization(ctx); err == nil {
+		return nil
+	}
+	if !r.system.IsRoot() {
+		return errors.New("time synchronization repair requires root privileges")
+	}
+	if _, err := r.system.Output(ctx, "chronyc", []string{"tracking"}, nil); err != nil {
+		if err := r.installChrony(ctx); err != nil {
+			return fmt.Errorf("install chrony: %w", err)
+		}
+	}
+	if err := r.system.MkdirAll(filepath.Dir(managedChronySourcesPath), 0o755); err != nil {
+		return fmt.Errorf("create chrony sources directory: %w", err)
+	}
+	if err := r.system.WriteFile(managedChronySourcesPath, []byte(managedChronySources), 0o644); err != nil {
+		return fmt.Errorf("write managed chrony sources: %w", err)
+	}
+	if err := r.enableChrony(ctx); err != nil {
+		return err
+	}
+	if _, err := r.system.Output(ctx, "chronyc", []string{"reload", "sources"}, nil); err != nil {
+		return fmt.Errorf("reload chrony sources: %w", err)
+	}
+	_, _ = r.system.Output(ctx, "chronyc", []string{"burst", "4/4"}, nil)
+	_, _ = r.system.Output(ctx, "chronyc", []string{"makestep"}, nil)
+	_, _ = r.system.Output(ctx, "chronyc", []string{"waitsync", "30", "0.1"}, nil)
+	if err := r.verifyTimeSynchronization(ctx); err != nil {
+		tracking, _ := r.system.Output(ctx, "chronyc", []string{"tracking"}, nil)
+		sources, _ := r.system.Output(ctx, "chronyc", []string{"sources", "-n"}, nil)
+		return fmt.Errorf("time synchronization repair did not converge: %w; tracking=%q sources=%q", err, strings.TrimSpace(string(tracking)), strings.TrimSpace(string(sources)))
+	}
+	return nil
+}
+
+func (r *Runner) installChrony(ctx context.Context) error {
+	switch {
+	case r.system.Exists("/usr/bin/apt-get"):
+		env := map[string]string{"DEBIAN_FRONTEND": "noninteractive"}
+		if err := r.system.Run(ctx, "apt-get", []string{"update"}, env); err != nil {
+			return err
+		}
+		return r.system.Run(ctx, "apt-get", []string{"install", "-y", "chrony"}, env)
+	case r.system.Exists("/usr/bin/dnf"):
+		return r.system.Run(ctx, "dnf", []string{"install", "-y", "chrony"}, nil)
+	case r.system.Exists("/usr/bin/yum"):
+		return r.system.Run(ctx, "yum", []string{"install", "-y", "chrony"}, nil)
+	default:
+		return errors.New("chrony is unavailable and no supported package manager was found")
+	}
+}
+
+func (r *Runner) enableChrony(ctx context.Context) error {
+	if err := r.system.Run(ctx, "systemctl", []string{"enable", "--now", "chrony"}, nil); err == nil {
+		return nil
+	}
+	if err := r.system.Run(ctx, "systemctl", []string{"enable", "--now", "chronyd"}, nil); err != nil {
+		return fmt.Errorf("enable chrony service: %w", err)
+	}
+	return nil
+}
+
+func (r *Runner) prepareTimeSynchronization(ctx context.Context, connectivity installation.ConnectivityMode) error {
+	if r.simulation {
+		return nil
+	}
+	if connectivity == installation.ConnectivityDisconnected {
+		if err := r.verifyTimeSynchronization(ctx); err != nil {
+			return fmt.Errorf("disconnected installation requires reachable local NTP: %w", err)
+		}
+		return nil
+	}
+	if err := r.ensureTimeSynchronization(ctx); err != nil {
+		return fmt.Errorf("repair host time synchronization: %w", err)
+	}
+	return nil
+}
 func verifyTCPEndpointReachability(ctx context.Context, rawURL string) error {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || parsed.Hostname() == "" {
