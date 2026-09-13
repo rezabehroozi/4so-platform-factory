@@ -1,4 +1,5 @@
 import hashlib
+import io
 import importlib.util
 import json
 import os
@@ -399,3 +400,26 @@ class AutopilotEventLogTests(unittest.TestCase):
             AUTOPILOT._checkpoint_forward(root, graph_signature="graph", repair=True, next_index=2, repair_count=1, seen_failures={}, run_id="run-resume")
             state = json.loads(AUTOPILOT._checkpoint_path(root).read_text(encoding="utf-8"))
             self.assertEqual(state["runId"], "run-resume")
+
+    def test_report_links_run_id_and_event_journal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            log = AUTOPILOT._AutopilotEventLog(root, "run-report")
+            log.append("run-start", status="RUNNING", nextIndex=0)
+            stage = AUTOPILOT.Stage("unit", ("true",), 1)
+            AUTOPILOT._write_autopilot_report(root, stages=[stage], graph_signature="graph", repair=False, phase="forward", next_index=0, repair_count=0, status="RUNNING", current_stage="unit", stage_results=[], run_id="run-report")
+            report = json.loads(AUTOPILOT._report_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(report["runId"], "run-report")
+            self.assertEqual(Path(report["eventLog"]), AUTOPILOT._event_log_path(root, "run-report"))
+
+    def test_event_summary_cli_prints_latest_structured_summary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            log = AUTOPILOT._AutopilotEventLog(root, "run-cli")
+            log.append("terminal", status="PASS", nextIndex=3)
+            with mock.patch.object(AUTOPILOT, "ROOT", root), mock.patch.object(sys, "argv", ["codex_autopilot.py", "--event-summary"]), mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+                code = AUTOPILOT.main()
+            self.assertEqual(code, 0)
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["runId"], "run-cli")
+            self.assertEqual(payload["status"], "PASS")

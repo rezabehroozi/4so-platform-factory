@@ -645,13 +645,25 @@ def _read_report_results(root: Path, graph_signature: str) -> list[dict]:
     return safe
 
 
-def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature: str, repair: bool, phase: str, next_index: int, repair_count: int, status: str, current_stage: str | None, stage_results: list[dict], last_failure: dict | None = None) -> None:
+def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature: str, repair: bool, phase: str, next_index: int, repair_count: int, status: str, current_stage: str | None, stage_results: list[dict], last_failure: dict | None = None, run_id: str | None = None) -> None:
     stage = next((item for item in stages if item.name == current_stage), None)
+    resolved_run_id = str(run_id or "").strip()
+    if not resolved_run_id:
+        checkpoint = _checkpoint_path(root)
+        if checkpoint.is_file():
+            try:
+                resolved_run_id = str(json.loads(checkpoint.read_text(encoding="utf-8")).get("runId") or "").strip()
+            except (OSError, json.JSONDecodeError):
+                resolved_run_id = ""
+    if not resolved_run_id:
+        resolved_run_id = str(_summarize_event_log(root).get("runId") or "").strip()
     body = {
         "schemaVersion": _AUTOPILOT_REPORT_SCHEMA,
         "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
         "derived": True,
         "notProductAuthority": True,
+        "runId": resolved_run_id,
+        "eventLog": str(_event_log_path(root, resolved_run_id)) if resolved_run_id else "",
         "graphSignature": graph_signature,
         "repair": repair,
         "status": status,
@@ -1698,6 +1710,7 @@ def self_test() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="4SO Platform Factory bounded Codex correctness autopilot")
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--event-summary", action="store_true", help="print the latest structured autopilot event-log summary and exit")
     ap.add_argument("--preflight", action="store_true", help="check deterministic test/repair host prerequisites without running the suite")
     ap.add_argument("--repair", action="store_true", help="invoke Codex on deterministic failures")
     ap.add_argument("--max-repairs", type=int, default=3)
@@ -1710,6 +1723,9 @@ def main() -> int:
     args = ap.parse_args()
     if args.self_test:
         return self_test()
+    if args.event_summary:
+        print(json.dumps(_summarize_event_log(ROOT), sort_keys=True))
+        return 0
     if args.preflight:
         return print_environment_preflight(require_codex=args.repair)
     if args.max_repairs < 0 or args.max_repairs > 10:
