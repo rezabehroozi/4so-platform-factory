@@ -373,3 +373,29 @@ class CheckpointSafeStageTests(unittest.TestCase):
         self.assertNotIn("go-tests", names)
         source = (ROOT / "scripts" / "run_go_package_shard.py").read_text(encoding="utf-8")
         self.assertIn("AUTOPILOT_STAGE_SHARD_AUTHORITY_V2", source)
+
+
+class AutopilotEventLogTests(unittest.TestCase):
+    def test_event_log_is_append_only_and_summarizes_last_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            log = AUTOPILOT._AutopilotEventLog(root, "run-test")
+            log.append("run-start", phase="forward", status="RUNNING", nextIndex=0)
+            log.append("stage-result", phase="forward", stage="unit", specialist="go-runtime", status="PASS", returncode=0, fingerprint="fp-pass", nextIndex=1)
+            log.append("terminal", phase="forward", stage="smoke", specialist="operator-console", status="CODE_DEFECT", fingerprint="fp-fail", reason="NO_PROGRESS", nextIndex=1)
+            summary = AUTOPILOT._summarize_event_log(root)
+            self.assertEqual(summary["runId"], "run-test")
+            self.assertEqual(summary["eventCount"], 3)
+            self.assertEqual(summary["status"], "CODE_DEFECT")
+            self.assertEqual(summary["nextIndex"], 1)
+            self.assertEqual(summary["passedStages"], ["unit"])
+            self.assertEqual(summary["lastFailure"]["stage"], "smoke")
+            raw = AUTOPILOT._event_log_path(root, "run-test").read_text(encoding="utf-8")
+            self.assertEqual(len([line for line in raw.splitlines() if line.strip()]), 3)
+
+    def test_checkpoint_preserves_run_id_for_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            AUTOPILOT._checkpoint_forward(root, graph_signature="graph", repair=True, next_index=2, repair_count=1, seen_failures={}, run_id="run-resume")
+            state = json.loads(AUTOPILOT._checkpoint_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(state["runId"], "run-resume")

@@ -485,8 +485,10 @@ def invoke_codex(root: Path, stage: Stage, result: StageResult, iteration: int, 
 
 _AUTOPILOT_STATE_SCHEMA = 1
 _AUTOPILOT_REPORT_SCHEMA = 1
+_AUTOPILOT_EVENT_SCHEMA = 1
 _AUTOPILOT_STATE_RELATIVE = Path(".state") / "codex-autopilot-run.json"
 _AUTOPILOT_REPORT_RELATIVE = Path(".state") / "codex-autopilot-report.json"
+_AUTOPILOT_EVENTS_RELATIVE = Path(".state") / "codex-autopilot-events"
 _FINGERPRINT_EXCLUDED_DIRS = {".git", ".state", "bin", "release", "__pycache__", ".pytest_cache"}
 
 
@@ -525,6 +527,88 @@ def _checkpoint_path(root: Path) -> Path:
 
 def _report_path(root: Path) -> Path:
     return root / _AUTOPILOT_REPORT_RELATIVE
+
+
+def _event_log_path(root: Path, run_id: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", str(run_id).strip()) or "unknown"
+    return root / _AUTOPILOT_EVENTS_RELATIVE / f"{safe}.jsonl"
+
+
+def _new_run_id() -> str:
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"ap-{stamp}-{os.urandom(4).hex()}"
+
+
+class _AutopilotEventLog:
+    def __init__(self, root: Path, run_id: str) -> None:
+        self.root = root
+        self.run_id = str(run_id).strip()
+        if not self.run_id:
+            raise ValueError("autopilot run id is required")
+        self.path = _event_log_path(root, self.run_id)
+
+    def append(self, event: str, **fields: object) -> None:
+        body: dict[str, object] = {
+            "schemaVersion": _AUTOPILOT_EVENT_SCHEMA,
+            "authority": "AUTOPILOT_EVENT_LOG_V1",
+            "runId": self.run_id,
+            "event": str(event),
+            "at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+        for key, value in fields.items():
+            if value is None or isinstance(value, (str, int, float, bool)):
+                body[str(key)] = value
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(body, sort_keys=True, separators=(",", ":")) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+def _summarize_event_log(root: Path) -> dict:
+    directory = root / _AUTOPILOT_EVENTS_RELATIVE
+    if not directory.is_dir():
+        return {}
+    candidates = [p for p in directory.glob("*.jsonl") if p.is_file() and not p.is_symlink()]
+    if not candidates:
+        return {}
+    path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
+    events: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            events.append(row)
+    if not events:
+        return {}
+    passed: list[str] = []
+    last_failure: dict = {}
+    next_index = 0
+    status = str(events[-1].get("status") or "RUNNING")
+    for row in events:
+        if "nextIndex" in row:
+            try:
+                next_index = int(row["nextIndex"])
+            except (TypeError, ValueError):
+                pass
+        if row.get("event") == "stage-result" and row.get("status") == "PASS":
+            stage = str(row.get("stage") or "")
+            if stage and stage not in passed:
+                passed.append(stage)
+        if row.get("status") not in (None, "", "PASS", "RUNNING") and row.get("stage"):
+            last_failure = {key: row.get(key) for key in ("stage", "specialist", "status", "fingerprint", "reason") if row.get(key) not in (None, "")}
+    return {
+        "runId": str(events[-1].get("runId") or ""),
+        "eventCount": len(events),
+        "status": status,
+        "nextIndex": next_index,
+        "passedStages": passed,
+        "lastFailure": last_failure,
+        "path": str(path),
+    }
 
 
 def _report_result(stage: Stage, result: StageResult) -> dict:
@@ -765,24 +849,26 @@ def _load_checkpoint(root: Path, *, graph_signature: str, repair: bool) -> dict 
     return state
 
 
-def _checkpoint_forward(root: Path, *, graph_signature: str, repair: bool, next_index: int, repair_count: int, seen_failures: dict[tuple[str, str], int], current_stage: str | None = None) -> None:
+def _checkpoint_forward(root: Path, *, graph_signature: str, repair: bool, next_index: int, repair_count: int, seen_failures: dict[tuple[str, str], int], current_stage: str | None = None, run_id: str | None = None) -> None:
     _write_checkpoint(root, {
         "graphSignature": graph_signature,
         "repair": repair,
         "phase": "forward",
         "nextIndex": next_index,
         "currentStage": current_stage,
+        "runId": run_id or "",
         "repairCount": repair_count,
         "seenFailures": [{"stage": key[0], "fingerprint": key[1], "count": value} for key, value in sorted(seen_failures.items())],
     })
 
 
-def _checkpoint_convergence(root: Path, *, graph_signature: str, repair: bool, next_index: int, repair_count: int, seen_failures: dict[tuple[str, str], int]) -> None:
+def _checkpoint_convergence(root: Path, *, graph_signature: str, repair: bool, next_index: int, repair_count: int, seen_failures: dict[tuple[str, str], int], run_id: str | None = None) -> None:
     _write_checkpoint(root, {
         "graphSignature": graph_signature,
         "repair": repair,
         "phase": "convergence",
         "nextIndex": next_index,
+        "runId": run_id or "",
         "repairCount": repair_count,
         "seenFailures": [{"stage": key[0], "fingerprint": key[1], "count": value} for key, value in sorted(seen_failures.items())],
     })
@@ -817,10 +903,16 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
     if state:
         print(f"AUTOPILOT_RESUME=PASS phase={phase} nextIndex={next_index} repairs={repair_count}", flush=True)
 
+    run_id = str((state or {}).get("runId") or _new_run_id())
+    event_log = _AutopilotEventLog(root, run_id)
+    event_log.append("run-resume" if state else "run-start", phase=phase, status="RUNNING", nextIndex=next_index, repairCount=repair_count, graphSignature=graph_signature)
+
     report_rows = _read_report_results(root, graph_signature)
     _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase=phase, next_index=next_index, repair_count=repair_count, status="RUNNING", current_stage=(state or {}).get("currentStage"), stage_results=report_rows)
 
     def terminal(code: int, status: str, *, current_stage: str | None = None, last_failure: dict | None = None) -> int:
+        failure = last_failure or {}
+        event_log.append("terminal", phase=phase, stage=current_stage or failure.get("stage"), specialist=failure.get("specialist"), status=status, code=code, fingerprint=failure.get("fingerprint"), reason=failure.get("reason"), nextIndex=next_index, repairCount=repair_count)
         if code == 0 and status == "PASS":
             _clear_checkpoint(root)
         _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase=phase, next_index=next_index, repair_count=repair_count, status=status, current_stage=current_stage, stage_results=report_rows, last_failure=last_failure)
@@ -830,21 +922,23 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
         for index in range(next_index, len(stages)):
             stage = stages[index]
             while True:
-                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name)
+                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, run_id=run_id)
                 _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index, repair_count=repair_count, status="RUNNING", current_stage=stage.name, stage_results=report_rows)
+                event_log.append("stage-start", phase="forward", stage=stage.name, specialist=_stage_specialist(stage), status="RUNNING", nextIndex=index, repairCount=repair_count)
                 print(f"AUTOPILOT_STAGE_START name={stage.name} timeout={stage.timeout}", flush=True)
                 result = run_stage(root, stage)
                 results.append(result)
                 report_rows.append(_report_result(stage, result))
+                event_log.append("stage-result", phase="forward", stage=stage.name, specialist=_stage_specialist(stage), status=result.status, returncode=result.returncode, fingerprint=result.fingerprint, nextIndex=index + (1 if result.status == "PASS" else 0), repairCount=repair_count)
                 _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index + (1 if result.status == "PASS" else 0), repair_count=repair_count, status="RUNNING" if result.status == "PASS" else result.status, current_stage=stage.name, stage_results=report_rows, last_failure=None if result.status == "PASS" else {"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
                 print(json.dumps(dataclasses.asdict(result), sort_keys=True), flush=True)
                 if result.status == "PASS":
-                    _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index + 1, repair_count=repair_count, seen_failures=seen_failures)
+                    _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index + 1, repair_count=repair_count, seen_failures=seen_failures, run_id=run_id)
                     break
 
                 key = (stage.name, result.fingerprint)
                 seen_failures[key] = seen_failures.get(key, 0) + 1
-                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name)
+                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, run_id=run_id)
                 if result.status == "TIMEOUT":
                     print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason=TIMEOUT fingerprint={result.fingerprint}", flush=True)
                     return terminal(3, "ENVIRONMENT_BLOCKED", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "TIMEOUT"})
@@ -859,6 +953,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                     return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "REPAIR_LIMIT"})
 
                 repair_count += 1
+                event_log.append("repair-start", phase="forward", stage=stage.name, specialist=_stage_specialist(stage), status="REPAIRING", fingerprint=result.fingerprint, nextIndex=index, repairCount=repair_count)
                 _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index, repair_count=repair_count, status="REPAIRING", current_stage=stage.name, stage_results=report_rows, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
                 ok, detail = invoke_codex(root, stage, result, repair_count, codex_timeout)
                 print(f"AUTOPILOT_CODEX_REPAIR iteration={repair_count} status={'PASS' if ok else 'BLOCKED'}", flush=True)
@@ -871,7 +966,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 # fingerprint while keeping the same failing-stage boundary so
                 # a runner crash immediately after repair resumes by proving the
                 # repaired owner stage rather than replaying earlier green work.
-                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name)
+                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, run_id=run_id)
 
         # Repairs are incremental: rerun only the failing owner stage while
         # fixing, then execute one final no-repair convergence pass. Persist the
@@ -880,7 +975,8 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
         if repair and repair_count > 0:
             phase = "convergence"
             next_index = 0
-            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=0, repair_count=repair_count, seen_failures=seen_failures)
+            event_log.append("phase-transition", phase="convergence", status="RUNNING", nextIndex=0, repairCount=repair_count)
+            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=0, repair_count=repair_count, seen_failures=seen_failures, run_id=run_id)
         else:
             phase = "done"
 
@@ -891,12 +987,14 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
         convergence_index = int(convergence_state.get("nextIndex", next_index))
         for index in range(convergence_index, len(stages)):
             stage = stages[index]
-            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures)
+            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, run_id=run_id)
             _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=index, repair_count=repair_count, status="RUNNING", current_stage=stage.name, stage_results=report_rows)
+            event_log.append("stage-start", phase="convergence", stage=stage.name, specialist=_stage_specialist(stage), status="RUNNING", nextIndex=index, repairCount=repair_count)
             print(f"AUTOPILOT_CONVERGENCE_STAGE_START name={stage.name} timeout={stage.timeout}", flush=True)
             result = run_stage(root, stage)
             results.append(result)
             report_rows.append(_report_result(stage, result))
+            event_log.append("stage-result", phase="convergence", stage=stage.name, specialist=_stage_specialist(stage), status=result.status, returncode=result.returncode, fingerprint=result.fingerprint, nextIndex=index + (1 if result.status == "PASS" else 0), repairCount=repair_count)
             _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=index + (1 if result.status == "PASS" else 0), repair_count=repair_count, status="RUNNING" if result.status == "PASS" else result.status, current_stage=stage.name, stage_results=report_rows, last_failure=None if result.status == "PASS" else {"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
             print(json.dumps(dataclasses.asdict(result), sort_keys=True), flush=True)
             if result.status == "TIMEOUT":
@@ -905,7 +1003,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
             if result.status != "PASS":
                 print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} reason=CONVERGENCE_REGRESSION fingerprint={result.fingerprint}", flush=True)
                 return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "CONVERGENCE_REGRESSION"})
-            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=index + 1, repair_count=repair_count, seen_failures=seen_failures)
+            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=index + 1, repair_count=repair_count, seen_failures=seen_failures, run_id=run_id)
         print(f"AUTOPILOT_CONVERGENCE_PASS stages={len(stages)} repairs={repair_count}", flush=True)
 
     if enforce_supply_chain:
