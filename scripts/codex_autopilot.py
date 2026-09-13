@@ -726,6 +726,65 @@ def _process_start_ticks(pid: int) -> str | None:
     except (OSError, IndexError):
         return None
 
+class _AutopilotRunLock:
+    def __init__(self, root: Path):
+        self.path = root / ".state" / "codex-autopilot.lock"
+        self.pid = os.getpid()
+        self.start_ticks = _process_start_ticks(self.pid)
+        self.acquired = False
+
+    @staticmethod
+    def _owner_alive(state: dict) -> bool:
+        try:
+            pid = int(state.get("pid", 0))
+        except (TypeError, ValueError):
+            return False
+        expected = str(state.get("startTicks") or "")
+        current = _process_start_ticks(pid) if pid > 1 else None
+        return bool(current and expected and current == expected)
+
+    def acquire(self) -> None:
+        if not self.start_ticks:
+            raise RuntimeError("AUTOPILOT_RUN_LOCK_IDENTITY_UNAVAILABLE")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "authority": "AUTOPILOT_SINGLE_RUN_LOCK_V1",
+            "pid": self.pid,
+            "startTicks": self.start_ticks,
+            "acquiredAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+        for _ in range(2):
+            try:
+                fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError:
+                try:
+                    state = json.loads(self.path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise RuntimeError("AUTOPILOT_RUN_LOCK_INVALID") from exc
+                if self._owner_alive(state):
+                    raise RuntimeError("AUTOPILOT_RUN_ALREADY_ACTIVE")
+                self.path.unlink(missing_ok=True)
+                continue
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, sort_keys=True)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            self.acquired = True
+            return
+        raise RuntimeError("AUTOPILOT_RUN_LOCK_ACQUIRE_FAILED")
+
+    def release(self) -> None:
+        if not self.acquired:
+            return
+        try:
+            state = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            self.acquired = False
+            return
+        if state.get("pid") == self.pid and str(state.get("startTicks") or "") == self.start_ticks:
+            self.path.unlink(missing_ok=True)
+        self.acquired = False
 
 def _write_state_raw(path: Path, state: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1426,6 +1485,29 @@ def _feature_freeze_closed(readiness: dict) -> bool:
 
 
 def run_autopilot(root: Path, *, repair: bool, max_repairs: int, codex_timeout: int, start_stage: str | None = None, stop_stage: str | None = None, real_test: bool = False, real_test_timeout: int = 7200, release_ready: bool = False) -> int:
+    lock = _AutopilotRunLock(root)
+    try:
+        lock.acquire()
+    except RuntimeError as exc:
+        print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED reason={exc}", flush=True)
+        return 3
+    try:
+        return _run_autopilot_locked(
+            root,
+            repair=repair,
+            max_repairs=max_repairs,
+            codex_timeout=codex_timeout,
+            start_stage=start_stage,
+            stop_stage=stop_stage,
+            real_test=real_test,
+            real_test_timeout=real_test_timeout,
+            release_ready=release_ready,
+        )
+    finally:
+        lock.release()
+
+
+def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_timeout: int, start_stage: str | None = None, stop_stage: str | None = None, real_test: bool = False, real_test_timeout: int = 7200, release_ready: bool = False) -> int:
     # A repair run must discover a missing Codex CLI before spending time on
     # expensive repository stages. Read-only validation does not require Codex.
     if print_environment_preflight(require_codex=repair) != 0:
