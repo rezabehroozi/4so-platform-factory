@@ -386,6 +386,19 @@ def validate_persian_writing_integration(root: Path, errors: list[tuple[str,str]
     report=module.build_report(root)
     if not report.get('complete') or report.get('issueCount')!=0:
         errors.append(('PERSIAN_WRITING_GATE_FAILED',json.dumps((report.get('issues') or [])[:5],ensure_ascii=False)))
+    # The report is a checked-in derived artifact that ships in the release manifest, and
+    # `make persian-ui-lint` rewrites it without failing, so nothing else notices when copy
+    # changes and the committed statistics keep describing the previous tree.
+    report_path = root/'webconsole/persian_writing_report.json'
+    if (root/'webconsole/static/app.js').is_file():
+        if not report_path.is_file():
+            errors.append(('PERSIAN_WRITING_REPORT_MISSING', str(report_path.relative_to(root))))
+        else:
+            committed = load_json(report_path, errors)
+            if isinstance(committed, dict):
+                drift = sorted(k for k in set(committed) | set(report) if committed.get(k) != report.get(k))
+                if drift:
+                    errors.append(('PERSIAN_WRITING_REPORT_STALE', f'{report_path.relative_to(root)}: {", ".join(drift[:8])}'))
     return int(report.get('uniquePersianStrings') or 0)
 
 def validate_mcp_route_parity(root: Path, errors: list[tuple[str,str]]) -> int:
