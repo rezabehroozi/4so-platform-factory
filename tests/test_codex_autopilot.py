@@ -423,3 +423,50 @@ class AutopilotEventLogTests(unittest.TestCase):
             payload = json.loads(out.getvalue())
             self.assertEqual(payload["runId"], "run-cli")
             self.assertEqual(payload["status"], "PASS")
+
+
+class AutopilotRunLockTests(unittest.TestCase):
+    def test_live_owner_blocks_second_run_and_release_allows_next(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = AUTOPILOT._AutopilotRunLock(root)
+            first.acquire()
+            try:
+                second = AUTOPILOT._AutopilotRunLock(root)
+                with self.assertRaisesRegex(RuntimeError, "RUN_ALREADY_ACTIVE"):
+                    second.acquire()
+            finally:
+                first.release()
+            second = AUTOPILOT._AutopilotRunLock(root)
+            second.acquire()
+            second.release()
+
+    def test_stale_owner_lock_is_reclaimed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / ".state"
+            state.mkdir()
+            (state / "codex-autopilot.lock").write_text(
+                json.dumps({"pid": 99999999, "startTicks": "dead"}), encoding="utf-8"
+            )
+            lock = AUTOPILOT._AutopilotRunLock(root)
+            lock.acquire()
+            self.assertEqual(json.loads((state / "codex-autopilot.lock").read_text())["pid"], os.getpid())
+            lock.release()
+
+    def test_run_autopilot_rejects_concurrent_owner_before_preflight(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lock = AUTOPILOT._AutopilotRunLock(root)
+            lock.acquire()
+            try:
+                with mock.patch.object(
+                    AUTOPILOT, "print_environment_preflight", side_effect=AssertionError("run body entered")
+                ) as preflight:
+                    code = AUTOPILOT.run_autopilot(
+                        root, repair=False, max_repairs=0, codex_timeout=1
+                    )
+                    self.assertEqual(code, 3)
+                    preflight.assert_not_called()
+            finally:
+                lock.release()
