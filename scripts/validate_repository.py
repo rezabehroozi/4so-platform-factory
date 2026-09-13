@@ -1705,6 +1705,66 @@ def validate_test_suite_authority(root: Path, errors: list[tuple[str,str]]) -> i
     return checked
 
 
+DATASET_GUARD_REFERENCE = re.compile(r'if\s*\(\s*(?:button|control|el|target)\.dataset\.([A-Za-z][A-Za-z0-9]*)\s*\)\s*\{')
+EXPLICIT_MUTATION_KEYS = re.compile(r'explicitMutationKeys\s*=\s*new Set\(\[(.*?)\]\)', re.S)
+
+
+def camel_to_kebab(name: str) -> str:
+    return re.sub(r'([A-Z])', lambda match: '-' + match.group(1).lower(), name)
+
+
+def console_action_state_failures(js_text: str, markup_text: str, label: str) -> list[str]:
+    """Reject client-side preconditions that read a value the markup never emits.
+
+    A console mutation button is disabled when operationalActionStateReason() returns a
+    reason, and those guards identify the target record through ``button.dataset.<key>``.
+    If the attribute is emitted as a valueless flag, or not at all, the guard branch
+    never runs: the button stays enabled against a record that no longer satisfies the
+    state contract, and the operator only learns about it from the rejected API write.
+    Bindings may be emitted by the static page or by a rendered template, so both are
+    treated as one markup surface.
+    """
+    failures: list[str] = []
+    for key in sorted(set(DATASET_GUARD_REFERENCE.findall(js_text))):
+        attribute = camel_to_kebab(key)
+        if re.search(rf'\bdata-{re.escape(attribute)}\s*=', markup_text) is None:
+            failures.append(
+                f'{label}: guard reads dataset.{key} but no data-{attribute}="…" value is emitted, '
+                'so the precondition is silently skipped'
+            )
+    declared = EXPLICIT_MUTATION_KEYS.search(js_text)
+    if declared:
+        for key in sorted({k for k in re.findall(r"'([A-Za-z][A-Za-z0-9]*)'", declared.group(1))}):
+            attribute = camel_to_kebab(key)
+            if re.search(rf'\bdata-{re.escape(attribute)}\b', markup_text) is None:
+                failures.append(
+                    f'{label}: explicitMutationKeys lists {key} but no data-{attribute} attribute is ever emitted'
+                )
+    return failures
+
+
+CONSOLE_SURFACES = (
+    ('webconsole/static/app.js', 'webconsole/static/index.html'),
+    ('cmd/platform-installer/static/app.js', 'cmd/platform-installer/static/index.html'),
+)
+
+
+def validate_console_action_state_contract(root: Path, errors: list[tuple[str, str]]) -> int:
+    """Count the mutation guards the consoles declare and require each one to be bound."""
+    checked = 0
+    for script_relative, page_relative in CONSOLE_SURFACES:
+        script_path = root / script_relative
+        if not script_path.is_file():
+            continue
+        js_text = script_path.read_text(encoding='utf-8')
+        page_path = root / page_relative
+        markup_text = js_text + '\n' + (page_path.read_text(encoding='utf-8') if page_path.is_file() else '')
+        checked += len(set(DATASET_GUARD_REFERENCE.findall(js_text)))
+        for failure in console_action_state_failures(js_text, markup_text, script_relative):
+            errors.append(('CONSOLE_ACTION_STATE_GUARD_UNBOUND', failure))
+    return checked
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('root', nargs='?', default='.')
@@ -1761,6 +1821,7 @@ def main() -> int:
     policy_files = validate_policy_templates(root, errors)
     validate_migration_sequence(root, errors)
     owner_test_count = validate_test_suite_authority(root, errors)
+    action_state_guard_count = validate_console_action_state_contract(root, errors)
 
     if errors:
         print('REPOSITORY_VALIDATION_FAIL')
@@ -1782,6 +1843,7 @@ def main() -> int:
     print('PERSIAN_WRITING_GATE_PASS', persian_string_count)
     print('UPSTREAM_ACQUISITION_TOOLCHAIN_GATE_PASS', acquisition_toolchain_count)
     print('TEST_SUITE_AUTHORITY_GATE_PASS', owner_test_count)
+    print('CONSOLE_ACTION_STATE_GATE_PASS', action_state_guard_count)
     print('REPOSITORY_VALIDATION_PASS', len(files))
     return 0
 
