@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"platform.4so.io/factory/internal/installation"
 )
@@ -171,5 +172,85 @@ func TestNoProxyCoverageHandlesExactSuffixAndCIDRWithoutWildcardingUnrelatedHost
 	}
 	if noProxyCovers(".example.test", "notexample.test") {
 		t.Fatal("suffix matching must not cover unrelated host")
+	}
+}
+
+type repairableTimeTestSystem struct {
+	*SimulatedSystem
+	synchronized bool
+}
+
+func (s *repairableTimeTestSystem) Output(ctx context.Context, name string, args []string, environment map[string]string) ([]byte, error) {
+	if name == "timedatectl" && slices.Equal(args, []string{"show", "--property=NTPSynchronized", "--value"}) {
+		if s.synchronized {
+			return []byte("yes\n"), nil
+		}
+		return []byte("no\n"), nil
+	}
+	if name == "chronyc" && slices.Equal(args, []string{"reload", "sources"}) {
+		s.synchronized = true
+		return []byte("200 OK\n"), nil
+	}
+	return s.SimulatedSystem.Output(ctx, name, args, environment)
+}
+
+func TestEnsureTimeSynchronizationRepairsChronySourcesAndRechecks(t *testing.T) {
+	system := &repairableTimeTestSystem{SimulatedSystem: &SimulatedSystem{Root: t.TempDir()}}
+	runner := &Runner{system: system}
+	if err := runner.ensureTimeSynchronization(context.Background()); err != nil {
+		t.Fatalf("time synchronization remediation failed: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(system.Root, "etc", "chrony", "sources.d", "4so-time.sources"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	for _, source := range []string{"time.windows.com", "time.apple.com", "rolex.ripe.net", "162.159.200.1", "162.159.200.123", "0.pool.ntp.org", "1.pool.ntp.org"} {
+		if !strings.Contains(text, source) {
+			t.Fatalf("time source %q missing from durable remediation: %s", source, text)
+		}
+	}
+}
+
+func TestStartRepairsTimeBeforeLivePreflight(t *testing.T) {
+	bundle := t.TempDir()
+	makeBundle(t, bundle)
+	system := &repairableTimeTestSystem{SimulatedSystem: &SimulatedSystem{Root: t.TempDir()}}
+	runner, err := NewRunner(RunnerOptions{
+		Version: "0.0.16", BundleDir: bundle, StateDir: t.TempDir(),
+		Simulation: false, System: system,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = runner.Start(context.Background(), bootstrapRequest())
+	if !system.synchronized {
+		t.Fatal("live Start did not repair time before evaluating the read-only preflight")
+	}
+	if _, err := os.Stat(filepath.Join(system.Root, "etc", "chrony", "sources.d", "4so-time.sources")); err != nil {
+		t.Fatalf("managed time sources were not persisted before preflight: %v", err)
+	}
+}
+
+func TestResumeRepairsTimeBeforeReevaluatingPreflight(t *testing.T) {
+	bundle := t.TempDir()
+	makeBundle(t, bundle)
+	system := &repairableTimeTestSystem{SimulatedSystem: &SimulatedSystem{Root: t.TempDir()}}
+	runner, err := NewRunner(RunnerOptions{Version: "0.0.16", BundleDir: bundle, StateDir: t.TempDir(), Simulation: false, System: system})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, bundleDigest, err := runner.PlanUnlocked(bootstrapRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	run := Run{ID: "bootstrap-time-resume", Version: "0.0.16", State: RunFailed, Request: plan.EffectiveRequest, SpecDigest: plan.SpecDigest, BundleDigest: bundleDigest, CreatedAt: now, UpdatedAt: now, Steps: []Step{{Key: "preflight", Title: "Preflight", State: StepPending}}}
+	if err := runner.journal.Save(run); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = runner.Resume(context.Background())
+	if !system.synchronized {
+		t.Fatal("live Resume did not repair time before reevaluating preflight")
 	}
 }

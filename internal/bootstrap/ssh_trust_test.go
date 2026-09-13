@@ -136,3 +136,21 @@ func TestSSHTrustInputsRemainRepairableBetweenInterruptedAttempts(t *testing.T) 
 		t.Fatalf("interrupted bootstrap must permit SSH credential repair before Resume: %v", err)
 	}
 }
+
+func TestHAPeerTimePreparationSeparatesConnectedRepairFromDisconnectedVerify(t *testing.T) {
+	connected := haPeerTimePreparationCommand(installation.ConnectivityConnected)
+	for _, required := range []string{"time.windows.com", "time.apple.com", "rolex.ripe.net", "162.159.200.1", "162.159.200.123", "chronyc reload sources", "chronyc waitsync", "systemctl enable --now"} {
+		if !strings.Contains(connected, required) {
+			t.Fatalf("connected HA time preparation missing %q: %s", required, connected)
+		}
+	}
+	disconnected := haPeerTimePreparationCommand(installation.ConnectivityDisconnected)
+	for _, forbidden := range []string{"time.windows.com", "time.apple.com", "rolex.ripe.net", "systemctl enable --now", "apt-get install", "dnf install", "yum install"} {
+		if strings.Contains(disconnected, forbidden) {
+			t.Fatalf("disconnected HA time preparation mutates public time authority via %q: %s", forbidden, disconnected)
+		}
+	}
+	if !strings.Contains(disconnected, "requires reachable local NTP") || !strings.Contains(disconnected, "NTPSynchronized") {
+		t.Fatalf("disconnected HA time preparation must fail closed on local NTP: %s", disconnected)
+	}
+}

@@ -194,6 +194,12 @@ func (r *Runner) Start(ctx context.Context, request installation.InstallRequest)
 		return Run{}, fmt.Errorf("bootstrap plan is not executable: %s", strings.Join(plan.Blockers, "; "))
 	}
 	request = plan.EffectiveRequest
+	if err := r.prepareTimeSynchronization(ctx, request.Connectivity); err != nil {
+		return Run{}, err
+	}
+	if err := r.prepareHAPeerTimeSynchronization(ctx, request); err != nil {
+		return Run{}, err
+	}
 	preflight, err := r.preflightUnlocked(ctx, request)
 	if err != nil {
 		return Run{}, err
@@ -255,6 +261,12 @@ func (r *Runner) Resume(ctx context.Context) (Run, error) {
 		return *run, err
 	}
 	if !bootstrapStepSucceeded(*run, "preflight") {
+		if err = r.prepareTimeSynchronization(ctx, run.Request.Connectivity); err != nil {
+			return *run, err
+		}
+		if err = r.prepareHAPeerTimeSynchronization(ctx, run.Request); err != nil {
+			return *run, err
+		}
 		preflight, preflightErr := r.preflightUnlocked(ctx, run.Request)
 		if preflightErr != nil {
 			return *run, preflightErr
