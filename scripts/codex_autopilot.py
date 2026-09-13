@@ -337,39 +337,67 @@ def _browser_executable() -> str | None:
         or _playwright_browser_executable()
     )
 
-def environment_preflight(*, require_codex: bool) -> tuple[list[str], dict[str, str]]:
+_FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
+
+def _environment_requirements(stages: list[Stage] | None) -> set[str]:
+    if stages is None:
+        return set(_FULL_ENVIRONMENT_REQUIREMENTS)
+    required: set[str] = set()
+    for stage in stages:
+        name = stage.name
+        if name.startswith(("go-unit-", "go-vet-")):
+            required.add("go")
+        if name.startswith("go-race-"):
+            required.update({"go", "c-compiler", "libpq"})
+        if name in {"build-for-smoke", "build-release"}:
+            required.update({"go", "make", "c-compiler", "libpq"})
+        if name == "upstream-acquisition-self-test":
+            required.add("yaml")
+        if name.startswith("smoke-ui-"):
+            required.update({"browser", "playwright"})
+    return required
+
+def environment_preflight(*, require_codex: bool, stages: list[Stage] | None = None) -> tuple[list[str], dict[str, str]]:
+    requirements = _environment_requirements(stages)
     missing: list[str] = []
     details: dict[str, str] = {}
     for tool in ("go", "make"):
+        if tool not in requirements:
+            continue
         path = shutil.which(tool)
         if path:
             details[tool] = path
         else:
             missing.append(tool)
-    compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
-    if compiler:
-        details["c-compiler"] = compiler
-    else:
-        missing.append("c-compiler")
-    pg_config = shutil.which("pg_config")
-    pkg_config = shutil.which("pkg-config")
-    libpq_ok = bool(pg_config)
-    if not libpq_ok and pkg_config:
-        probe = subprocess.run([pkg_config, "--exists", "libpq"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-        libpq_ok = probe.returncode == 0
-    if libpq_ok:
-        details["libpq"] = pg_config or "pkg-config:libpq"
-    else:
-        missing.append("libpq-dev")
-    browser = _browser_executable()
-    if browser:
-        details["browser"] = browser
-    else:
-        missing.append("chromium-or-chrome")
+    if "c-compiler" in requirements:
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if compiler:
+            details["c-compiler"] = compiler
+        else:
+            missing.append("c-compiler")
+    if "libpq" in requirements:
+        pg_config = shutil.which("pg_config")
+        pkg_config = shutil.which("pkg-config")
+        libpq_ok = bool(pg_config)
+        if not libpq_ok and pkg_config:
+            probe = subprocess.run([pkg_config, "--exists", "libpq"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            libpq_ok = probe.returncode == 0
+        if libpq_ok:
+            details["libpq"] = pg_config or "pkg-config:libpq"
+        else:
+            missing.append("libpq-dev")
+    if "browser" in requirements:
+        browser = _browser_executable()
+        if browser:
+            details["browser"] = browser
+        else:
+            missing.append("chromium-or-chrome")
     for optional_tool in ("node", "npx"):
         optional_path = shutil.which(optional_tool)
         details["optional:" + optional_tool] = optional_path or "unavailable"
     for module in ("yaml", "playwright"):
+        if module not in requirements:
+            continue
         if _python_module_available(module):
             details["python:" + module] = "available"
         else:
@@ -390,9 +418,8 @@ def environment_preflight(*, require_codex: bool) -> tuple[list[str], dict[str, 
         missing.append("codex-cli-or-PLATFORM_FACTORY_CODEX_COMMAND")
     return missing, details
 
-
-def print_environment_preflight(*, require_codex: bool) -> int:
-    missing, details = environment_preflight(require_codex=require_codex)
+def print_environment_preflight(*, require_codex: bool, stages: list[Stage] | None = None) -> int:
+    missing, details = environment_preflight(require_codex=require_codex, stages=stages)
     print("AUTOPILOT_PREFLIGHT_DETAILS=" + json.dumps(details, sort_keys=True), flush=True)
     if missing:
         print("AUTOPILOT_PREFLIGHT=BLOCKED missing=" + ",".join(missing), flush=True)
@@ -1507,23 +1534,30 @@ def run_autopilot(root: Path, *, repair: bool, max_repairs: int, codex_timeout: 
         lock.release()
 
 
-def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_timeout: int, start_stage: str | None = None, stop_stage: str | None = None, real_test: bool = False, real_test_timeout: int = 7200, release_ready: bool = False) -> int:
-    # A repair run must discover a missing Codex CLI before spending time on
-    # expensive repository stages. Read-only validation does not require Codex.
-    if print_environment_preflight(require_codex=repair) != 0:
-        return 3
-
+def _select_stages(root: Path, start_stage: str | None, stop_stage: str | None) -> list[Stage]:
     stages = canonical_stages(root)
-    names = [s.name for s in stages]
+    names = [stage.name for stage in stages]
     if start_stage:
         if start_stage not in names:
             raise SystemExit(f"unknown start stage {start_stage}")
         stages = stages[names.index(start_stage):]
     if stop_stage:
-        current_names = [s.name for s in stages]
+        current_names = [stage.name for stage in stages]
         if stop_stage not in current_names:
             raise SystemExit(f"unknown stop stage {stop_stage}")
-        stages = stages[:current_names.index(stop_stage)+1]
+        stages = stages[:current_names.index(stop_stage) + 1]
+    return stages
+
+
+def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_timeout: int, start_stage: str | None = None, stop_stage: str | None = None, real_test: bool = False, real_test_timeout: int = 7200, release_ready: bool = False) -> int:
+    stages = _select_stages(root, start_stage, stop_stage)
+
+    # Preflight only what the selected stage slice actually executes. Full runs
+    # preserve the strict all-toolchain contract, while scoped resumes avoid
+    # unrelated browser/build prerequisites. Repair still requires Codex.
+    selected_for_preflight = None if start_stage is None and stop_stage is None else stages
+    if print_environment_preflight(require_codex=repair, stages=selected_for_preflight) != 0:
+        return 3
 
     # Local correctness and external supply-chain closure are distinct states.
     # Codex repair owns deterministic repository defects; unresolved third-party
@@ -1809,7 +1843,10 @@ def main() -> int:
         print(json.dumps(_summarize_event_log(ROOT), sort_keys=True))
         return 0
     if args.preflight:
-        return print_environment_preflight(require_codex=args.repair)
+        selected = None
+        if args.start_stage is not None or args.stop_stage is not None:
+            selected = _select_stages(ROOT, args.start_stage, args.stop_stage)
+        return print_environment_preflight(require_codex=args.repair, stages=selected)
     if args.max_repairs < 0 or args.max_repairs > 10:
         raise SystemExit("--max-repairs must be between 0 and 10")
     if args.real_test_timeout < 300 or args.real_test_timeout > 86400:

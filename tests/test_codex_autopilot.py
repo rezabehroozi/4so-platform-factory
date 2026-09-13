@@ -470,3 +470,74 @@ class AutopilotRunLockTests(unittest.TestCase):
                     preflight.assert_not_called()
             finally:
                 lock.release()
+
+
+class StageAwareEnvironmentPreflightTests(unittest.TestCase):
+    def unavailable(self, name):
+        return None
+
+    def test_python_only_stage_does_not_require_unrelated_toolchains(self):
+        stage = AUTOPILOT.Stage("repository-validation", ("python3", "scripts/validate_repository.py", "."), 180)
+        with mock.patch.object(AUTOPILOT.shutil, "which", side_effect=self.unavailable), \
+             mock.patch.object(AUTOPILOT, "_python_module_available", return_value=True), \
+             mock.patch.object(AUTOPILOT, "_codex_command", return_value=None):
+            missing, _ = AUTOPILOT.environment_preflight(require_codex=False, stages=[stage])
+        self.assertEqual(missing, [])
+
+    def test_go_race_stage_requires_go_c_toolchain_and_libpq_not_browser(self):
+        stage = AUTOPILOT.Stage("go-race-1", ("python3", "scripts/run_go_package_shard.py", "--race", "--shard", "1"), 900)
+        with mock.patch.object(AUTOPILOT.shutil, "which", side_effect=self.unavailable), \
+             mock.patch.object(AUTOPILOT, "_python_module_available", return_value=True), \
+             mock.patch.object(AUTOPILOT, "_codex_command", return_value=None):
+            missing, _ = AUTOPILOT.environment_preflight(require_codex=False, stages=[stage])
+        self.assertEqual(set(missing), {"go", "c-compiler", "libpq-dev"})
+
+    def test_ui_stage_requires_browser_and_playwright_only(self):
+        stage = AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 900)
+        with mock.patch.object(AUTOPILOT.shutil, "which", side_effect=self.unavailable), \
+             mock.patch.object(AUTOPILOT, "_python_module_available", return_value=False), \
+             mock.patch.object(AUTOPILOT, "_codex_command", return_value=None):
+            missing, _ = AUTOPILOT.environment_preflight(require_codex=False, stages=[stage])
+        self.assertEqual(set(missing), {"chromium-or-chrome", "python-module:playwright"})
+
+    def test_full_run_preserves_strict_environment_contract(self):
+        with mock.patch.object(AUTOPILOT.shutil, "which", side_effect=self.unavailable), \
+             mock.patch.object(AUTOPILOT, "_python_module_available", return_value=False), \
+             mock.patch.object(AUTOPILOT, "_codex_command", return_value=None):
+            missing, _ = AUTOPILOT.environment_preflight(require_codex=False)
+        self.assertEqual(set(missing), {
+            "go", "make", "c-compiler", "libpq-dev", "chromium-or-chrome",
+            "python-module:yaml", "python-module:playwright",
+        })
+
+class StageSlicingPreflightOrderTests(unittest.TestCase):
+    def test_sliced_run_preflights_only_selected_stages(self):
+        stages = [
+            AUTOPILOT.Stage("first", ("python3", "first.py"), 10),
+            AUTOPILOT.Stage("selected", ("python3", "selected.py"), 10),
+            AUTOPILOT.Stage("last", ("python3", "last.py"), 10),
+        ]
+        with mock.patch.object(AUTOPILOT, "canonical_stages", return_value=stages), \
+             mock.patch.object(AUTOPILOT, "print_environment_preflight", return_value=3) as preflight:
+            code = AUTOPILOT._run_autopilot_locked(
+                Path("."), repair=False, max_repairs=0, codex_timeout=1,
+                start_stage="selected", stop_stage="selected",
+            )
+        self.assertEqual(code, 3)
+        selected = preflight.call_args.kwargs["stages"]
+        self.assertEqual([stage.name for stage in selected], ["selected"])
+
+class StageAwarePreflightCLITests(unittest.TestCase):
+    def test_preflight_cli_honors_stage_slice(self):
+        stages = [
+            AUTOPILOT.Stage("first", ("python3", "first.py"), 10),
+            AUTOPILOT.Stage("selected", ("python3", "selected.py"), 10),
+            AUTOPILOT.Stage("last", ("python3", "last.py"), 10),
+        ]
+        argv = ["codex_autopilot.py", "--preflight", "--start-stage", "selected", "--stop-stage", "selected"]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch.object(AUTOPILOT, "canonical_stages", return_value=stages), \
+             mock.patch.object(AUTOPILOT, "print_environment_preflight", return_value=0) as preflight:
+            self.assertEqual(AUTOPILOT.main(), 0)
+        selected = preflight.call_args.kwargs["stages"]
+        self.assertEqual([stage.name for stage in selected], ["selected"])
