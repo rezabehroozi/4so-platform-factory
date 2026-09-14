@@ -24,9 +24,13 @@ type reliabilitySLOPolicyInput struct {
 }
 
 type reliabilityErrorBudgetView struct {
-	Policy     reliability.SLOPolicy             `json:"policy"`
+	Policy     reliability.SLOPolicy              `json:"policy"`
 	Projection reliability.ErrorBudgetProjection `json:"projection"`
-	Reason     string                            `json:"reason,omitempty"`
+	Reason     string                             `json:"reason,omitempty"`
+}
+
+func writeSLOStoreUnavailable(w http.ResponseWriter) {
+	writeError(w, http.StatusInternalServerError, "RELIABILITY_STORE_UNAVAILABLE", "control-plane store does not expose reliability authority")
 }
 
 func expectedSLORevision(r *http.Request) (int64, error) {
@@ -80,7 +84,7 @@ func (s *Server) createReliabilitySLOPolicy(w http.ResponseWriter, r *http.Reque
 	}
 	store, ok := s.store.(controlplane.ReliabilityStore)
 	if !ok {
-		writeReliabilityStoreUnavailable(w)
+		writeSLOStoreUnavailable(w)
 		return
 	}
 	input.PredecessorID = strings.TrimSpace(input.PredecessorID)
@@ -173,7 +177,7 @@ func (s *Server) listReliabilitySLOPolicies(w http.ResponseWriter, r *http.Reque
 	}
 	store, ok := s.store.(controlplane.ReliabilityStore)
 	if !ok {
-		writeReliabilityStoreUnavailable(w)
+		writeSLOStoreUnavailable(w)
 		return
 	}
 	rows, err := store.ListSLOPolicies(r.Context(), projectID, strings.TrimSpace(r.URL.Query().Get("name")), 200)
@@ -196,7 +200,7 @@ func (s *Server) reliabilityErrorBudgets(w http.ResponseWriter, r *http.Request)
 	}
 	store, ok := s.store.(controlplane.ReliabilityStore)
 	if !ok {
-		writeReliabilityStoreUnavailable(w)
+		writeSLOStoreUnavailable(w)
 		return
 	}
 	policies, err := store.ListSLOPolicies(r.Context(), projectID, strings.TrimSpace(r.URL.Query().Get("name")), 200)
