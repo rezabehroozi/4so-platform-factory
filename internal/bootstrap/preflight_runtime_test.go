@@ -205,9 +205,14 @@ func TestEnsureTimeSynchronizationRepairsChronySourcesAndRechecks(t *testing.T) 
 		t.Fatal(err)
 	}
 	text := string(raw)
-	for _, source := range []string{"time.windows.com", "time.apple.com", "rolex.ripe.net", "162.159.200.1", "162.159.200.123", "0.pool.ntp.org", "1.pool.ntp.org"} {
+	for _, source := range []string{"time.windows.com", "time.apple.com", "time.facebook.com", "rolex.ripe.net", "time.nist.gov", "ntp.nict.jp", "162.159.200.1", "162.159.200.123", "0.pool.ntp.org", "1.pool.ntp.org", "time.google.com", "time.cloudflare.com", "ntp.ubuntu.com"} {
 		if !strings.Contains(text, source) {
 			t.Fatalf("time source %q missing from durable remediation: %s", source, text)
+		}
+	}
+	for _, diagnostic := range []string{"server time.google.com iburst noselect", "server time.cloudflare.com iburst noselect", "server ntp.ubuntu.com iburst noselect"} {
+		if !strings.Contains(text, diagnostic) {
+			t.Fatalf("SNI-prone time source must remain diagnostic-only %q: %s", diagnostic, text)
 		}
 	}
 }
