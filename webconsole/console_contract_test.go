@@ -433,3 +433,30 @@ func TestHandlerServesFaviconWithout404(t *testing.T) {
 		t.Fatalf("favicon status=%d want=%d", w.Code, http.StatusNoContent)
 	}
 }
+
+func TestFleetReliabilityConsoleContract(t *testing.T) {
+	htmlBytes, err := fs.ReadFile(content, "static/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	html, js := string(htmlBytes), string(jsBytes)
+	for _, id := range []string{"reliability-summary", "reliability-cluster-grid", "reliability-incident-grid", "reliability-slo-grid", "reliability-incident-form", "reliability-slo-form"} {
+		if !strings.Contains(html, `id="`+id+`"`) {
+			t.Fatalf("fleet reliability DOM contract missing %q", id)
+		}
+	}
+	for _, route := range []string{"/api/v1/reliability/service-health", "/api/v1/reliability/incidents", "/api/v1/reliability/slo-policies", "/api/v1/reliability/error-budgets"} {
+		if !strings.Contains(js, route) {
+			t.Fatalf("fleet reliability API journey missing %q", route)
+		}
+	}
+	for _, contract := range []string{"reliabilityCoverageStatus", "UNKNOWN", "data-reliability-incident-action", "If-Match", "reliabilityErrorBudgets", "$('#reliability-incident-form').onsubmit", "$('#reliability-incident-grid').onclick", "$('#reliability-slo-form').onsubmit", "resolutionSummary"} {
+		if !strings.Contains(js, contract) {
+			t.Fatalf("fleet reliability behavior contract missing %q", contract)
+		}
+	}
+}
