@@ -67,6 +67,7 @@ func TestSLOPolicyRejectsInvalidObjectiveAndWindow(t *testing.T) {
 		"objective-over-10000": {OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 10001, WindowSeconds: 3600, ObservationIntervalSeconds: 60},
 		"zero-window":           {OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 0, ObservationIntervalSeconds: 60},
 		"zero-interval":         {OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 0},
+		"partial-interval":      {OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 3650, ObservationIntervalSeconds: 60},
 	} {
 		if err := ValidateSLOPolicy(policy); err == nil {
 			t.Fatalf("%s must fail validation", name)
@@ -120,5 +121,30 @@ func TestErrorBudgetIgnoresObservationsFromOtherClusters(t *testing.T) {
 	}
 	if projection.RemainingBudgetBasisPoints == nil || projection.BurnRatioMilli == nil || *projection.BurnRatioMilli != 0 {
 		t.Fatalf("complete target coverage must publish a zero-burn budget projection: %#v", projection)
+	}
+}
+
+func TestErrorBudgetDuplicateIntervalFailsClosed(t *testing.T) {
+	start := time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC)
+	end := start.Add(2 * time.Minute)
+	policy := SLOPolicy{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 120, ObservationIntervalSeconds: 60}
+	observations := []HealthObservation{
+		{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Health: "HEALTHY", ObservedAt: start.Add(5 * time.Second), SourceDigest: "sha256:a"},
+		{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Health: "HEALTHY", ObservedAt: start.Add(30 * time.Second), SourceDigest: "sha256:b"},
+	}
+	projection, err := ProjectErrorBudget(policy, observations, start, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projection.CoverageStatus != CoverageUnknown || projection.RemainingBudgetBasisPoints != nil || projection.BurnRatioMilli != nil {
+		t.Fatalf("duplicate interval must fail closed instead of masking a missing interval: %#v", projection)
+	}
+}
+
+func TestErrorBudgetWindowMustMatchPolicyWindow(t *testing.T) {
+	start := time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC)
+	policy := SLOPolicy{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}
+	if _, err := ProjectErrorBudget(policy, nil, start, start.Add(30*time.Minute)); err == nil {
+		t.Fatal("error budget projection accepted a window that does not match the policy authority")
 	}
 }

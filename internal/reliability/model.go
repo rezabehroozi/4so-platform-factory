@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 )
@@ -138,6 +137,9 @@ func ValidateSLOPolicy(policy SLOPolicy) error {
 	if policy.ObservationIntervalSeconds <= 0 || policy.ObservationIntervalSeconds > policy.WindowSeconds {
 		return errors.New("SLO observation interval must be positive and no larger than the window")
 	}
+	if policy.WindowSeconds%policy.ObservationIntervalSeconds != 0 {
+		return errors.New("SLO window must be an exact multiple of the observation interval")
+	}
 	return nil
 }
 
@@ -151,11 +153,14 @@ func ProjectErrorBudget(policy SLOPolicy, observations []HealthObservation, wind
 		return ErrorBudgetProjection{}, errors.New("error budget window must have positive duration")
 	}
 	windowSeconds := int64(windowEnd.Sub(windowStart) / time.Second)
-	expected := int(windowSeconds / policy.ObservationIntervalSeconds)
-	if expected <= 0 {
-		return ErrorBudgetProjection{}, errors.New("error budget window is shorter than one observation interval")
+	if windowSeconds != policy.WindowSeconds {
+		return ErrorBudgetProjection{}, errors.New("error budget projection window must match the SLO policy window")
 	}
-	filtered := make([]HealthObservation, 0, len(observations))
+	expected := int(policy.WindowSeconds / policy.ObservationIntervalSeconds)
+	interval := time.Duration(policy.ObservationIntervalSeconds) * time.Second
+	buckets := make(map[int]HealthObservation, expected)
+	observed := 0
+	duplicate := false
 	for _, observation := range observations {
 		if observation.OrganizationID != policy.OrganizationID || observation.ProjectID != policy.ProjectID || observation.ClusterID != policy.ClusterID {
 			continue
@@ -164,15 +169,24 @@ func ProjectErrorBudget(policy SLOPolicy, observations []HealthObservation, wind
 		if at.Before(windowStart) || !at.Before(windowEnd) {
 			continue
 		}
-		filtered = append(filtered, observation)
+		observed++
+		bucket := int(at.Sub(windowStart) / interval)
+		if _, exists := buckets[bucket]; exists {
+			duplicate = true
+			continue
+		}
+		buckets[bucket] = observation
 	}
-	sort.Slice(filtered, func(i, j int) bool { return filtered[i].ObservedAt.Before(filtered[j].ObservedAt) })
-	projection := ErrorBudgetProjection{CoverageStatus: CoverageUnknown, ExpectedObservations: expected, ObservedObservations: len(filtered)}
-	if len(filtered) != expected {
+	projection := ErrorBudgetProjection{CoverageStatus: CoverageUnknown, ExpectedObservations: expected, ObservedObservations: observed}
+	if duplicate || len(buckets) != expected {
 		return projection, nil
 	}
 	bad := 0
-	for _, observation := range filtered {
+	for index := 0; index < expected; index++ {
+		observation, exists := buckets[index]
+		if !exists {
+			return projection, nil
+		}
 		switch observation.Health {
 		case "HEALTHY":
 		case "WARNING", "DEGRADED", "STALE", "CRITICAL":
