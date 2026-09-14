@@ -123,6 +123,10 @@ func (s *MemoryStore) TransitionIncident(_ context.Context, id string, expected 
 	return next, nil
 }
 
+func sameSLOIdentity(a, b reliability.SLOPolicy) bool {
+	return a.ProjectID == b.ProjectID && a.ClusterID == b.ClusterID && a.Name == b.Name
+}
+
 func (s *MemoryStore) CreateSLOPolicy(_ context.Context, v reliability.SLOPolicy, actor string) (reliability.SLOPolicy, error) {
 	if strings.TrimSpace(actor) == "" {
 		return reliability.SLOPolicy{}, fmt.Errorf("%w: actor is required", ErrValidation)
@@ -132,6 +136,11 @@ func (s *MemoryStore) CreateSLOPolicy(_ context.Context, v reliability.SLOPolicy
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	for _, existing := range s.sloPolicies {
+		if sameSLOIdentity(existing, v) {
+			return reliability.SLOPolicy{}, ErrConflict
+		}
+	}
 	v.ID = s.id("slo")
 	v.Revision = 1
 	s.sloPolicies[v.ID] = v
@@ -149,6 +158,15 @@ func (s *MemoryStore) CreateSLOPolicyRevision(_ context.Context, predecessor str
 		return reliability.SLOPolicy{}, ErrNotFound
 	}
 	if current.Revision != expected {
+		return reliability.SLOPolicy{}, ErrConflict
+	}
+	latest := current.Revision
+	for _, existing := range s.sloPolicies {
+		if sameSLOIdentity(existing, current) && existing.Revision > latest {
+			latest = existing.Revision
+		}
+	}
+	if latest != current.Revision {
 		return reliability.SLOPolicy{}, ErrConflict
 	}
 	next.OrganizationID, next.ProjectID, next.ClusterID, next.Name = current.OrganizationID, current.ProjectID, current.ClusterID, current.Name
