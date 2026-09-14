@@ -871,6 +871,7 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 		add("state-directory", "Validate canonical installer state authority", CheckSkipped, "simulation mode uses an isolated state root")
 		add("existing-installer-state", "Detect stale installer-owned bootstrap authority", CheckSkipped, "simulation mode uses an isolated filesystem")
 		add("systemd", "Verify systemd availability", CheckSkipped, "simulation mode does not execute the host systemd check")
+		add("clone-identity", "Verify unique cloned-host identity", CheckSkipped, "simulation mode does not inspect host identity")
 		add("time-sync", "Verify host time synchronization", CheckSkipped, "simulation mode does not execute the host NTP synchronization check")
 		add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckSkipped, "simulation mode does not inspect physical host capacity")
 		add("filesystem", "Verify local runtime filesystem", CheckSkipped, "simulation mode does not inspect the host filesystem type")
@@ -900,6 +901,11 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 			add("systemd", "Verify systemd runtime readiness", CheckBlocked, err.Error())
 		} else {
 			add("systemd", "Verify systemd runtime readiness", CheckPassed, "systemd manager is installed, running and reachable")
+		}
+		if err := r.verifyCloneSafety(ctx, request); err != nil {
+			add("clone-identity", "Verify unique cloned-host identity", CheckBlocked, err.Error())
+		} else {
+			add("clone-identity", "Verify unique cloned-host identity", CheckPassed, "hostname, machine-id, DMI UUID, SSH host key and MAC identity are unique across the management topology")
 		}
 		if err := r.verifyTimeSynchronization(ctx); err != nil {
 			add("time-sync", "Verify host time synchronization", CheckBlocked, err.Error())

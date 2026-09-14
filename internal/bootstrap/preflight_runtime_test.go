@@ -181,6 +181,9 @@ type repairableTimeTestSystem struct {
 }
 
 func (s *repairableTimeTestSystem) Output(ctx context.Context, name string, args []string, environment map[string]string) ([]byte, error) {
+	if name == "sh" && len(args) == 2 && args[0] == "-c" && args[1] == cloneIdentityProbeCommand {
+		return []byte("hostname=fixture-node\nmachine-id=fixture-machine\ndmi-uuid=fixture-dmi\nssh-key=ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQfixture\nmac=00:11:22:33:44:55\n"), nil
+	}
 	if name == "timedatectl" && slices.Equal(args, []string{"show", "--property=NTPSynchronized", "--value"}) {
 		if s.synchronized {
 			return []byte("yes\n"), nil

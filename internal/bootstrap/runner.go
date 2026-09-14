@@ -194,6 +194,9 @@ func (r *Runner) Start(ctx context.Context, request installation.InstallRequest)
 		return Run{}, fmt.Errorf("bootstrap plan is not executable: %s", strings.Join(plan.Blockers, "; "))
 	}
 	request = plan.EffectiveRequest
+	if err := r.prepareCloneSafety(ctx, request); err != nil {
+		return Run{}, fmt.Errorf("prepare cloned host identity: %w", err)
+	}
 	if err := r.prepareTimeSynchronization(ctx, request.Connectivity); err != nil {
 		return Run{}, err
 	}
@@ -261,6 +264,9 @@ func (r *Runner) Resume(ctx context.Context) (Run, error) {
 		return *run, err
 	}
 	if !bootstrapStepSucceeded(*run, "preflight") {
+		if err = r.prepareCloneSafety(ctx, run.Request); err != nil {
+			return *run, fmt.Errorf("prepare cloned host identity: %w", err)
+		}
 		if err = r.prepareTimeSynchronization(ctx, run.Request.Connectivity); err != nil {
 			return *run, err
 		}
