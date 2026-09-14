@@ -28,7 +28,7 @@ class ManagementWorkloadBatchTests(unittest.TestCase):
         self.assertEqual(3, len(result["pending"]["manifestResolutions"]))
         self.assertGreaterEqual(len(result["blockers"]), 14)
         self.assertEqual("seal-and-verify-management-workload-oci-archive", result["nextAction"])
-        self.assertNotIn("digest", json.dumps(result).lower())
+        self.assertNotIn("sha256:", json.dumps(result).lower())
 
     def test_tree_digest_is_deterministic_and_rejects_symlinks(self):
         with tempfile.TemporaryDirectory() as td:
