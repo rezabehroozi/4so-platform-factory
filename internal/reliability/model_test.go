@@ -74,6 +74,13 @@ func TestSLOPolicyRejectsInvalidObjectiveAndWindow(t *testing.T) {
 	}
 }
 
+func TestSLOPolicyRequiresExplicitClusterTarget(t *testing.T) {
+	policy := SLOPolicy{OrganizationID: "org-1", ProjectID: "prj-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}
+	if err := ValidateSLOPolicy(policy); err == nil {
+		t.Fatal("SLO policy without a cluster target must fail closed")
+	}
+}
+
 func TestErrorBudgetIsUnknownWhenObservationCoverageIsIncomplete(t *testing.T) {
 	start := time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC)
 	end := start.Add(time.Hour)
