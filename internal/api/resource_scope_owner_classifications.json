@@ -213,6 +213,10 @@
       "evidence": "internal/api/recovery_checkpoint.go; RecoveryCheckpoint carries ProjectID and create/list/get/revoke authorize the project",
       "scope": "PROJECT_SCOPED"
     },
+    "reliability": {
+      "evidence": "internal/api/reliability_service_health.go, internal/api/reliability_incidents.go and internal/api/reliability_slo.go; every reliability read/mutation binds an explicit ProjectID or resolves the owning project before authorization",
+      "scope": "PROJECT_SCOPED"
+    },
     "restore-drills": {
       "evidence": "internal/api/data_protection.go; restore drill creation persists project-scoped DataProtectionRun after requireProjectAccess",
       "scope": "PROJECT_SCOPED"

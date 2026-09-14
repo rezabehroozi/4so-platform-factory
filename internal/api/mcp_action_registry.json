@@ -819,6 +819,26 @@
         "rationale": "All 4 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
       },
       {
+        "family": "reliability",
+        "routeCount": 9,
+        "mutationCount": 4,
+        "callableRouteCount": 9,
+        "securityExcludedRouteCount": 0,
+        "disposition": "typed-tool-complete",
+        "toolNames": [
+          "api_get_reliability_service_health",
+          "api_get_reliability_incidents",
+          "api_post_reliability_incidents",
+          "api_get_reliability_incidents_by_id",
+          "api_post_reliability_incidents_by_id_acknowledge",
+          "api_post_reliability_incidents_by_id_resolve",
+          "api_get_reliability_slo_policies",
+          "api_post_reliability_slo_policies",
+          "api_get_reliability_error_budgets"
+        ],
+        "rationale": "All 9 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
+      },
+      {
         "family": "restore-drills",
         "routeCount": 1,
         "mutationCount": 1,

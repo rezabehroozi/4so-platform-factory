@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 )
@@ -38,23 +37,26 @@ type HealthObservation struct {
 }
 
 type Incident struct {
-	ID                string `json:"id"`
-	OrganizationID    string `json:"organizationId"`
-	ProjectID         string `json:"projectId"`
-	ClusterID         string `json:"clusterId,omitempty"`
-	Service           string `json:"service,omitempty"`
-	Severity          string `json:"severity"`
-	State             string `json:"state"`
-	Revision          int64  `json:"revision"`
-	AcknowledgedBy    string `json:"acknowledgedBy,omitempty"`
-	ResolvedBy        string `json:"resolvedBy,omitempty"`
-	ResolutionSummary string `json:"resolutionSummary,omitempty"`
+	ID                string    `json:"id"`
+	OrganizationID    string    `json:"organizationId"`
+	ProjectID         string    `json:"projectId"`
+	ClusterID         string    `json:"clusterId,omitempty"`
+	Service           string    `json:"service,omitempty"`
+	Severity          string    `json:"severity"`
+	State             string    `json:"state"`
+	Revision          int64     `json:"revision"`
+	AcknowledgedBy    string    `json:"acknowledgedBy,omitempty"`
+	ResolvedBy        string    `json:"resolvedBy,omitempty"`
+	ResolutionSummary string    `json:"resolutionSummary,omitempty"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 type SLOPolicy struct {
 	ID                         string `json:"id"`
 	OrganizationID             string `json:"organizationId"`
 	ProjectID                  string `json:"projectId"`
+	ClusterID                  string `json:"clusterId"`
 	Name                       string `json:"name"`
 	Revision                   int64  `json:"revision"`
 	ObjectiveBasisPoints       int    `json:"objectiveBasisPoints"`
@@ -63,12 +65,12 @@ type SLOPolicy struct {
 }
 
 type ErrorBudgetProjection struct {
-	CoverageStatus                  string `json:"coverageStatus"`
-	ExpectedObservations            int    `json:"expectedObservations"`
-	ObservedObservations            int    `json:"observedObservations"`
-	BadObservations                 int    `json:"badObservations"`
-	RemainingBudgetBasisPoints      *int   `json:"remainingBudgetBasisPoints,omitempty"`
-	BurnRatioMilli                  *int   `json:"burnRatioMilli,omitempty"`
+	CoverageStatus             string `json:"coverageStatus"`
+	ExpectedObservations       int    `json:"expectedObservations"`
+	ObservedObservations       int    `json:"observedObservations"`
+	BadObservations            int    `json:"badObservations"`
+	RemainingBudgetBasisPoints *int   `json:"remainingBudgetBasisPoints,omitempty"`
+	BurnRatioMilli             *int   `json:"burnRatioMilli,omitempty"`
 }
 
 func ObservationIdentity(observation HealthObservation) (string, error) {
@@ -125,8 +127,8 @@ func TransitionIncident(current Incident, action, actor, summary string) (Incide
 }
 
 func ValidateSLOPolicy(policy SLOPolicy) error {
-	if strings.TrimSpace(policy.OrganizationID) == "" || strings.TrimSpace(policy.ProjectID) == "" || strings.TrimSpace(policy.Name) == "" {
-		return errors.New("SLO policy organization, project and name are required")
+	if strings.TrimSpace(policy.OrganizationID) == "" || strings.TrimSpace(policy.ProjectID) == "" || strings.TrimSpace(policy.ClusterID) == "" || strings.TrimSpace(policy.Name) == "" {
+		return errors.New("SLO policy organization, project, cluster and name are required")
 	}
 	if policy.ObjectiveBasisPoints <= 0 || policy.ObjectiveBasisPoints > 10000 {
 		return errors.New("SLO objective must be between 1 and 10000 basis points")
@@ -136,6 +138,9 @@ func ValidateSLOPolicy(policy SLOPolicy) error {
 	}
 	if policy.ObservationIntervalSeconds <= 0 || policy.ObservationIntervalSeconds > policy.WindowSeconds {
 		return errors.New("SLO observation interval must be positive and no larger than the window")
+	}
+	if policy.WindowSeconds%policy.ObservationIntervalSeconds != 0 {
+		return errors.New("SLO window must be an exact multiple of the observation interval")
 	}
 	return nil
 }
@@ -150,28 +155,40 @@ func ProjectErrorBudget(policy SLOPolicy, observations []HealthObservation, wind
 		return ErrorBudgetProjection{}, errors.New("error budget window must have positive duration")
 	}
 	windowSeconds := int64(windowEnd.Sub(windowStart) / time.Second)
-	expected := int(windowSeconds / policy.ObservationIntervalSeconds)
-	if expected <= 0 {
-		return ErrorBudgetProjection{}, errors.New("error budget window is shorter than one observation interval")
+	if windowSeconds != policy.WindowSeconds {
+		return ErrorBudgetProjection{}, errors.New("error budget projection window must match the SLO policy window")
 	}
-	filtered := make([]HealthObservation, 0, len(observations))
+	expected := int(policy.WindowSeconds / policy.ObservationIntervalSeconds)
+	interval := time.Duration(policy.ObservationIntervalSeconds) * time.Second
+	buckets := make(map[int]HealthObservation, expected)
+	observed := 0
+	duplicate := false
 	for _, observation := range observations {
-		if observation.OrganizationID != policy.OrganizationID || observation.ProjectID != policy.ProjectID {
+		if observation.OrganizationID != policy.OrganizationID || observation.ProjectID != policy.ProjectID || observation.ClusterID != policy.ClusterID {
 			continue
 		}
 		at := observation.ObservedAt.UTC()
 		if at.Before(windowStart) || !at.Before(windowEnd) {
 			continue
 		}
-		filtered = append(filtered, observation)
+		observed++
+		bucket := int(at.Sub(windowStart) / interval)
+		if _, exists := buckets[bucket]; exists {
+			duplicate = true
+			continue
+		}
+		buckets[bucket] = observation
 	}
-	sort.Slice(filtered, func(i, j int) bool { return filtered[i].ObservedAt.Before(filtered[j].ObservedAt) })
-	projection := ErrorBudgetProjection{CoverageStatus: CoverageUnknown, ExpectedObservations: expected, ObservedObservations: len(filtered)}
-	if len(filtered) != expected {
+	projection := ErrorBudgetProjection{CoverageStatus: CoverageUnknown, ExpectedObservations: expected, ObservedObservations: observed}
+	if duplicate || len(buckets) != expected {
 		return projection, nil
 	}
 	bad := 0
-	for _, observation := range filtered {
+	for index := 0; index < expected; index++ {
+		observation, exists := buckets[index]
+		if !exists {
+			return projection, nil
+		}
 		switch observation.Health {
 		case "HEALTHY":
 		case "WARNING", "DEGRADED", "STALE", "CRITICAL":

@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 336,
-  "routeDigest": "sha256:6cb0a8ad13655a388b6e3fd53fdb8e5b523d8d565e184e183008ccf07d882b6e",
+  "routeCount": 345,
+  "routeDigest": "sha256:d04523caff59bb03d7c271274bfda4a6cf51a2eecdfee2815d20e2d1937549f2",
   "routes": [
     {
       "family": "version",
@@ -36,6 +36,93 @@
       "path": "/api/v1/access/resource-scopes",
       "pathParams": [],
       "resourceScope": "DYNAMIC_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "reliability",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/reliability/service-health",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "reliability",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/reliability/incidents",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "reliability",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/reliability/incidents",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "reliability",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/reliability/incidents/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "reliability",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/reliability/incidents/{id}/acknowledge",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "reliability",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/reliability/incidents/{id}/resolve",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "reliability",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/reliability/slo-policies",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "reliability",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/reliability/slo-policies",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "reliability",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/reliability/error-budgets",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
       "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
     {

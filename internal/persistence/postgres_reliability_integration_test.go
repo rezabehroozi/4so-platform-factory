@@ -84,19 +84,19 @@ func TestPostgresIntegrationReliabilityAuthority(t *testing.T) {
 		t.Fatalf("incident resolve=%#v err=%v", resolved, err)
 	}
 
-	policy, err := store.CreateSLOPolicy(ctx, reliability.SLOPolicy{OrganizationID: org.ID, ProjectID: projectA.ID, Name: "api-availability", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}, "integration-admin")
-	if err != nil || policy.Revision != 1 {
+	policy, err := store.CreateSLOPolicy(ctx, reliability.SLOPolicy{OrganizationID: org.ID, ProjectID: projectA.ID, ClusterID: clusterA, Name: "api-availability", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}, "integration-admin")
+	if err != nil || policy.Revision != 1 || policy.ClusterID != clusterA {
 		t.Fatalf("SLO create=%#v err=%v", policy, err)
 	}
 	revised, err := store.CreateSLOPolicyRevision(ctx, policy.ID, policy.Revision, reliability.SLOPolicy{ObjectiveBasisPoints: 9995, WindowSeconds: 7200, ObservationIntervalSeconds: 60}, "integration-admin")
-	if err != nil || revised.Revision != 2 || revised.ID == policy.ID {
+	if err != nil || revised.Revision != 2 || revised.ID == policy.ID || revised.ClusterID != clusterA {
 		t.Fatalf("SLO revision=%#v err=%v", revised, err)
 	}
 	if _, err = store.CreateSLOPolicyRevision(ctx, policy.ID, policy.Revision, reliability.SLOPolicy{ObjectiveBasisPoints: 9999, WindowSeconds: 7200, ObservationIntervalSeconds: 60}, "integration-admin"); !errors.Is(err, controlplane.ErrConflict) {
 		t.Fatalf("stale SLO predecessor must conflict, got %v", err)
 	}
 	policies, err := store.ListSLOPolicies(ctx, projectA.ID, "api-availability", 10)
-	if err != nil || len(policies) != 2 || policies[0].ProjectID != projectA.ID || policies[1].ProjectID != projectA.ID {
+	if err != nil || len(policies) != 2 || policies[0].ProjectID != projectA.ID || policies[1].ProjectID != projectA.ID || policies[0].ClusterID != clusterA || policies[1].ClusterID != clusterA {
 		t.Fatalf("project-scoped SLO revisions invalid rows=%#v err=%v", policies, err)
 	}
 	if _, err = db.ExecContext(ctx, `DELETE FROM slo_policies WHERE id=$1`, policy.ID); err == nil {
