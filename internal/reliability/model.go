@@ -37,17 +37,19 @@ type HealthObservation struct {
 }
 
 type Incident struct {
-	ID                string `json:"id"`
-	OrganizationID    string `json:"organizationId"`
-	ProjectID         string `json:"projectId"`
-	ClusterID         string `json:"clusterId,omitempty"`
-	Service           string `json:"service,omitempty"`
-	Severity          string `json:"severity"`
-	State             string `json:"state"`
-	Revision          int64  `json:"revision"`
-	AcknowledgedBy    string `json:"acknowledgedBy,omitempty"`
-	ResolvedBy        string `json:"resolvedBy,omitempty"`
-	ResolutionSummary string `json:"resolutionSummary,omitempty"`
+	ID                string    `json:"id"`
+	OrganizationID    string    `json:"organizationId"`
+	ProjectID         string    `json:"projectId"`
+	ClusterID         string    `json:"clusterId,omitempty"`
+	Service           string    `json:"service,omitempty"`
+	Severity          string    `json:"severity"`
+	State             string    `json:"state"`
+	Revision          int64     `json:"revision"`
+	AcknowledgedBy    string    `json:"acknowledgedBy,omitempty"`
+	ResolvedBy        string    `json:"resolvedBy,omitempty"`
+	ResolutionSummary string    `json:"resolutionSummary,omitempty"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 type SLOPolicy struct {
