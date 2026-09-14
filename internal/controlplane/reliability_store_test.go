@@ -43,9 +43,13 @@ func exerciseReliabilityStore(t *testing.T, s ReliabilityStore) {
 	if err != nil || ack.Revision != 2 || ack.State != reliability.IncidentAcknowledged {
 		t.Fatalf("ack incident: %#v err=%v", ack, err)
 	}
-	policy, err := s.CreateSLOPolicy(ctx, reliability.SLOPolicy{OrganizationID: "org-a", ProjectID: "prj-a", ClusterID: "clu-a", Name: "cluster-api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}, "operator-a")
+	policyInput := reliability.SLOPolicy{OrganizationID: "org-a", ProjectID: "prj-a", ClusterID: "clu-a", Name: "cluster-api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}
+	policy, err := s.CreateSLOPolicy(ctx, policyInput, "operator-a")
 	if err != nil || policy.Revision != 1 || policy.ID == "" {
 		t.Fatalf("create SLO policy: %#v err=%v", policy, err)
+	}
+	if _, err = s.CreateSLOPolicy(ctx, policyInput, "operator-a"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate SLO identity must conflict, got %v", err)
 	}
 	next := policy
 	next.ClusterID = "clu-other"
@@ -57,6 +61,9 @@ func exerciseReliabilityStore(t *testing.T, s ReliabilityStore) {
 	original, err := s.GetSLOPolicy(ctx, policy.ID)
 	if err != nil || original.ObjectiveBasisPoints != 9990 || original.Revision != 1 || original.ClusterID != "clu-a" {
 		t.Fatalf("SLO immutability failed: %#v err=%v", original, err)
+	}
+	if _, err = s.CreateSLOPolicyRevision(ctx, policy.ID, 1, next, "operator-a"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("non-latest SLO predecessor must conflict, got %v", err)
 	}
 	if _, err = s.CreateSLOPolicyRevision(ctx, policy.ID, 99, next, "operator-a"); !errors.Is(err, ErrConflict) {
 		t.Fatalf("expected stale SLO revision conflict, got %v", err)
