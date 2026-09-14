@@ -70,8 +70,11 @@ func (s *MemoryStore) CreateIncident(_ context.Context, v reliability.Incident, 
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := s.now().UTC().Truncate(time.Microsecond)
 	v.ID = s.id("inc")
 	v.Revision = 1
+	v.CreatedAt = now
+	v.UpdatedAt = now
 	s.incidents[v.ID] = v
 	return v, nil
 }
@@ -98,7 +101,12 @@ func (s *MemoryStore) ListIncidents(_ context.Context, projectID, state string, 
 			rows = append(rows, v)
 		}
 	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].UpdatedAt.Equal(rows[j].UpdatedAt) {
+			return rows[i].ID > rows[j].ID
+		}
+		return rows[i].UpdatedAt.After(rows[j].UpdatedAt)
+	})
 	if len(rows) > limit {
 		rows = rows[:limit]
 	}
@@ -119,6 +127,7 @@ func (s *MemoryStore) TransitionIncident(_ context.Context, id string, expected 
 	if err != nil {
 		return reliability.Incident{}, fmt.Errorf("%w: %v", ErrValidation, err)
 	}
+	next.UpdatedAt = s.now().UTC().Truncate(time.Microsecond)
 	s.incidents[id] = next
 	return next, nil
 }
@@ -188,6 +197,7 @@ func (s *MemoryStore) GetSLOPolicy(_ context.Context, id string) (reliability.SL
 	}
 	return v, nil
 }
+
 func (s *MemoryStore) ListSLOPolicies(_ context.Context, projectID, name string, limit int) ([]reliability.SLOPolicy, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
