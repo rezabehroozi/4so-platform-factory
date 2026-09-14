@@ -12,7 +12,7 @@ import (
 )
 
 const healthObservationColumns = `id,organization_id,project_id,cluster_id,health,observed_at,source_digest`
-const incidentColumns = `id,organization_id,project_id,cluster_id,service,severity,state,revision,acknowledged_by,resolved_by,resolution_summary`
+const incidentColumns = `id,organization_id,project_id,cluster_id,service,severity,state,revision,acknowledged_by,resolved_by,resolution_summary,created_at,updated_at`
 const sloPolicyColumns = `id,organization_id,project_id,cluster_id,name,revision,objective_basis_points,window_seconds,observation_interval_seconds`
 
 func scanHealthObservation(row interface{ Scan(...any) error }) (reliability.HealthObservation, error) {
@@ -23,7 +23,7 @@ func scanHealthObservation(row interface{ Scan(...any) error }) (reliability.Hea
 
 func scanIncident(row interface{ Scan(...any) error }) (reliability.Incident, error) {
 	var v reliability.Incident
-	err := row.Scan(&v.ID, &v.OrganizationID, &v.ProjectID, &v.ClusterID, &v.Service, &v.Severity, &v.State, &v.Revision, &v.AcknowledgedBy, &v.ResolvedBy, &v.ResolutionSummary)
+	err := row.Scan(&v.ID, &v.OrganizationID, &v.ProjectID, &v.ClusterID, &v.Service, &v.Severity, &v.State, &v.Revision, &v.AcknowledgedBy, &v.ResolvedBy, &v.ResolutionSummary, &v.CreatedAt, &v.UpdatedAt)
 	return v, err
 }
 
@@ -130,6 +130,7 @@ func (s *PostgresStore) CreateIncident(ctx context.Context, in reliability.Incid
 		if err != nil {
 			return mapDBError(err)
 		}
+		in.CreatedAt, in.UpdatedAt = now, now
 		return s.appendAuditTx(ctx, tx, actor, "reliability.incident.created", "incident", in.ID, 1, "", map[string]any{"projectId": in.ProjectID, "severity": in.Severity})
 	})
 	return in, err
@@ -174,7 +175,9 @@ func (s *PostgresStore) TransitionIncident(ctx context.Context, id string, expec
 		if err != nil {
 			return fmt.Errorf("%w: %v", controlplane.ErrValidation, err)
 		}
-		result, err := tx.ExecContext(ctx, `UPDATE incidents SET state=$3,revision=$4,acknowledged_by=$5,resolved_by=$6,resolution_summary=$7,updated_at=$8 WHERE id=$1 AND revision=$2`, id, expected, next.State, next.Revision, next.AcknowledgedBy, next.ResolvedBy, next.ResolutionSummary, utcNow(s.now))
+		now := utcNow(s.now)
+		next.UpdatedAt = now
+		result, err := tx.ExecContext(ctx, `UPDATE incidents SET state=$3,revision=$4,acknowledged_by=$5,resolved_by=$6,resolution_summary=$7,updated_at=$8 WHERE id=$1 AND revision=$2`, id, expected, next.State, next.Revision, next.AcknowledgedBy, next.ResolvedBy, next.ResolutionSummary, now)
 		if err != nil {
 			return mapDBError(err)
 		}
