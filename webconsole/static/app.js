@@ -769,7 +769,7 @@ const faDynamic = {
   "Read-only source material used to author catalog candidates. These records are not themselves published governed releases.": "این منابع فقط برای ساخت نسخه‌های کاندید Catalog استفاده می‌شوند. خود این رکوردها نسخهٔ منتشرشده و موردتأیید محصول نیستند.",
   "Create SLO policy": "ایجاد سیاست SLO",
   "Create incident": "ایجاد رخداد",
-  "Immutable cluster-targeted SLO policy and fail-closed coverage.": "سیاست SLO تغییرناپذیر برای کلاستر انتخاب‌شده با پوشش fail-closed.",
+  "Immutable cluster-targeted SLO policy and fail-closed coverage.": "سیاست SLO تغییرناپذیر برای کلاستر انتخاب‌شده که در حالت ابهام یا نقص پوشش، نتیجه را معتبر اعلام نمی‌کند.",
   "Incidents": "رخدادها",
   "Objective (basis points)": "هدف (واحد basis point)",
   "Observation interval": "فاصلهٔ مشاهده",
