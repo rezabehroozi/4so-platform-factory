@@ -15,6 +15,9 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 AUTHORITY = "MANAGEMENT_WORKLOAD_STAGED_BATCH_V1"
+DIAGNOSTIC_AUTHORITY = "MANAGEMENT_WORKLOAD_ACQUISITION_DIAGNOSTIC_V1"
+ACQUISITION_LOCK_AUTHORITY = "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8"
+MANAGEMENT_WORKLOAD_SOURCE_AUTHORITY = "management-workload-oci-archive"
 MANIFEST = "stage-manifest.json"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 ROLE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
@@ -89,6 +92,64 @@ def load_plan(root: Path = ROOT) -> tuple[dict, list[dict]]:
             "selectionEvidenceURL": str(row.get("selectionEvidenceURL") or ""),
         })
     return plan, sorted(rows, key=lambda r: r["role"])
+
+
+def diagnose(root: Path = ROOT) -> dict:
+    """Return a read-only, fail-closed acquisition diagnosis without network or build mutation."""
+    plan, external_rows = load_plan(root)
+    version = regular_file(root / "VERSION", "VERSION").read_text().strip()
+    lock = json.loads(regular_file(root / "lab" / "appliance-bundle-acquisition-lock.json", "BUNDLE_ACQUISITION_LOCK").read_text())
+    if lock.get("authority") != ACQUISITION_LOCK_AUTHORITY or lock.get("schemaVersion") != 8:
+        raise RuntimeError("MANAGEMENT_ACQUISITION_LOCK_AUTHORITY_INVALID")
+    if plan.get("releaseVersion") != version or lock.get("releaseVersion") != version:
+        raise RuntimeError("MANAGEMENT_ACQUISITION_RELEASE_VERSION_DRIFT")
+    status = str(lock.get("status") or "")
+    if status not in {"ready", "incomplete"}:
+        raise RuntimeError("MANAGEMENT_ACQUISITION_LOCK_STATUS_INVALID")
+    missing = lock.get("missingAuthorities") or []
+    if not isinstance(missing, list) or any(not isinstance(item, str) or not item.strip() for item in missing):
+        raise RuntimeError("MANAGEMENT_ACQUISITION_MISSING_AUTHORITIES_INVALID")
+    missing = sorted(item.strip() for item in missing)
+    resolved = sorted(str(row.get("id") or "") for row in (lock.get("resolvedAuthorities") or []) if isinstance(row, dict))
+    partial = sorted(str(row.get("id") or "") for row in (lock.get("partialAuthorities") or []) if isinstance(row, dict))
+
+    pending_external = sorted(row["role"] for row in external_rows if any(not row[key] for key in ("repository", "tag", "version", "selectionChannel", "selectionEvidenceURL")) or next((src.get("state") for src in plan.get("coreImages", []) if src.get("role") == row["role"]), "pending") != "ready")
+    pending_base = sorted(str(row.get("role") or "") for row in (plan.get("baseImages") or []) if row.get("state") != "ready")
+    pending_product = sorted(str(row.get("role") or "") for row in (plan.get("coreImages") or []) if row.get("ownership") == "product" and row.get("state") != "ready")
+    pending_manifests = sorted(str(row.get("manifestPath") or "") for row in (plan.get("derivedManifestImageSets") or []) if row.get("state") != "ready")
+
+    blockers = []
+    for row in plan.get("baseImages") or []:
+        if row.get("state") != "ready":
+            blockers.append({"stage": "base-image", "subject": str(row.get("role") or ""), "blocker": str(row.get("blocker") or "UNSPECIFIED")})
+    for row in plan.get("coreImages") or []:
+        if row.get("state") != "ready":
+            blockers.append({"stage": "external-image" if row.get("ownership") == "external" else "product-image", "subject": str(row.get("role") or ""), "blocker": str(row.get("blocker") or "UNSPECIFIED")})
+    for row in plan.get("derivedManifestImageSets") or []:
+        if row.get("state") != "ready":
+            blockers.append({"stage": "manifest-resolution", "subject": str(row.get("manifestPath") or ""), "blocker": str(row.get("blocker") or "UNSPECIFIED")})
+    blockers.sort(key=lambda row: (row["stage"], row["subject"], row["blocker"]))
+
+    authoritative_ready = status == "ready" and not missing and not partial and MANAGEMENT_WORKLOAD_SOURCE_AUTHORITY in resolved
+    return {
+        "authority": DIAGNOSTIC_AUTHORITY,
+        "releaseVersion": version,
+        "status": "READY" if authoritative_ready else "BLOCKED",
+        "acquisitionLockStatus": status,
+        "missingAuthorities": missing,
+        "partialAuthorities": partial,
+        "resolvedAuthorities": resolved,
+        "managementWorkloadArchiveResolved": MANAGEMENT_WORKLOAD_SOURCE_AUTHORITY in resolved,
+        "canStartExternalAcquisition": bool(external_rows) and all(all(row[key] for key in ("repository", "tag", "version", "selectionChannel", "selectionEvidenceURL")) for row in external_rows),
+        "pending": {
+            "externalImages": pending_external,
+            "baseImages": pending_base,
+            "productImages": pending_product,
+            "manifestResolutions": pending_manifests,
+        },
+        "blockers": blockers,
+        "nextAction": "seal-and-verify-management-workload-oci-archive" if not authoritative_ready else "bundle-source-authority-ready",
+    }
 
 
 def platformctl(path: str) -> Path:
@@ -247,16 +308,22 @@ def assemble(stage: Path, release: Path, ctl: Path, out: Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     group = ap.add_mutually_exclusive_group(required=True)
+    group.add_argument("--diagnose", action="store_true")
     group.add_argument("--stage-out")
     group.add_argument("--verify-staged")
     group.add_argument("--assemble-staged")
-    ap.add_argument("--release", required=True)
-    ap.add_argument("--platformctl", required=True)
+    ap.add_argument("--release")
+    ap.add_argument("--platformctl")
     ap.add_argument("--out")
     args = ap.parse_args()
-    release = Path(args.release).resolve(); regular_file(release, "EXACT_RELEASE")
-    ctl = platformctl(args.platformctl)
     try:
+        if args.diagnose:
+            print(json.dumps(diagnose(ROOT), sort_keys=True))
+            return 0
+        if not args.release or not args.platformctl:
+            raise RuntimeError("--release and --platformctl are required for staging, verification and assembly")
+        release = Path(args.release).resolve(); regular_file(release, "EXACT_RELEASE")
+        ctl = platformctl(args.platformctl)
         if args.stage_out:
             stage = Path(args.stage_out).resolve(); acquire(stage, release, ctl)
             print(f"MANAGEMENT_WORKLOAD_BATCH_STAGE_PASS roles=4 stage={stage}")

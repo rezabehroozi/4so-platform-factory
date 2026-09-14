@@ -15,6 +15,21 @@ class ManagementWorkloadBatchTests(unittest.TestCase):
         self.assertEqual({"15.0.7", "26.7.3", "17.11", "2.1.20"}, {r["version"] for r in rows})
         self.assertTrue(all(r["tag"] != "latest" for r in rows))
 
+    def test_diagnose_reports_current_missing_authority_without_fake_readiness(self):
+        result = mod.diagnose(ROOT)
+        self.assertEqual(mod.DIAGNOSTIC_AUTHORITY, result["authority"])
+        self.assertEqual("BLOCKED", result["status"])
+        self.assertEqual(["management-workload-oci-archive"], result["missingAuthorities"])
+        self.assertFalse(result["managementWorkloadArchiveResolved"])
+        self.assertTrue(result["canStartExternalAcquisition"])
+        self.assertEqual(["forgejo", "keycloak", "postgresql", "zot"], result["pending"]["externalImages"])
+        self.assertEqual(["api-runtime-base", "maintenance-toolchain-base", "static-runtime-base"], result["pending"]["baseImages"])
+        self.assertEqual(["maintenance", "platform-agent", "platform-api", "platform-probe"], result["pending"]["productImages"])
+        self.assertEqual(3, len(result["pending"]["manifestResolutions"]))
+        self.assertGreaterEqual(len(result["blockers"]), 14)
+        self.assertEqual("seal-and-verify-management-workload-oci-archive", result["nextAction"])
+        self.assertNotIn("sha256:", json.dumps(result).lower())
+
     def test_tree_digest_is_deterministic_and_rejects_symlinks(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td); (root/"a").write_bytes(b"a"); (root/"d").mkdir(); (root/"d"/"b").write_bytes(b"b")
