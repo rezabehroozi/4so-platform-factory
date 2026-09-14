@@ -13,7 +13,7 @@ import (
 
 const healthObservationColumns = `id,organization_id,project_id,cluster_id,health,observed_at,source_digest`
 const incidentColumns = `id,organization_id,project_id,cluster_id,service,severity,state,revision,acknowledged_by,resolved_by,resolution_summary`
-const sloPolicyColumns = `id,organization_id,project_id,name,revision,objective_basis_points,window_seconds,observation_interval_seconds`
+const sloPolicyColumns = `id,organization_id,project_id,cluster_id,name,revision,objective_basis_points,window_seconds,observation_interval_seconds`
 
 func scanHealthObservation(row interface{ Scan(...any) error }) (reliability.HealthObservation, error) {
 	var v reliability.HealthObservation
@@ -30,7 +30,7 @@ func scanIncident(row interface{ Scan(...any) error }) (reliability.Incident, er
 func scanSLOPolicy(row interface{ Scan(...any) error }) (reliability.SLOPolicy, error) {
 	var v reliability.SLOPolicy
 	var objective int64
-	err := row.Scan(&v.ID, &v.OrganizationID, &v.ProjectID, &v.Name, &v.Revision, &objective, &v.WindowSeconds, &v.ObservationIntervalSeconds)
+	err := row.Scan(&v.ID, &v.OrganizationID, &v.ProjectID, &v.ClusterID, &v.Name, &v.Revision, &objective, &v.WindowSeconds, &v.ObservationIntervalSeconds)
 	v.ObjectiveBasisPoints = int(objective)
 	return v, err
 }
@@ -197,15 +197,15 @@ func (s *PostgresStore) CreateSLOPolicy(ctx context.Context, in reliability.SLOP
 	in.ID = s.id("slo")
 	in.Revision = 1
 	err := s.serializable(ctx, func(tx *sql.Tx) error {
-		if err := validateReliabilityScope(ctx, tx, in.OrganizationID, in.ProjectID, ""); err != nil {
+		if err := validateReliabilityScope(ctx, tx, in.OrganizationID, in.ProjectID, in.ClusterID); err != nil {
 			return err
 		}
 		now := utcNow(s.now)
-		_, err := tx.ExecContext(ctx, `INSERT INTO slo_policies(id,organization_id,project_id,name,revision,objective_basis_points,window_seconds,observation_interval_seconds,created_at) VALUES($1,$2,$3,$4,1,$5,$6,$7,$8)`, in.ID, in.OrganizationID, in.ProjectID, in.Name, in.ObjectiveBasisPoints, in.WindowSeconds, in.ObservationIntervalSeconds, now)
+		_, err := tx.ExecContext(ctx, `INSERT INTO slo_policies(id,organization_id,project_id,cluster_id,name,revision,objective_basis_points,window_seconds,observation_interval_seconds,created_at) VALUES($1,$2,$3,$4,$5,1,$6,$7,$8,$9)`, in.ID, in.OrganizationID, in.ProjectID, in.ClusterID, in.Name, in.ObjectiveBasisPoints, in.WindowSeconds, in.ObservationIntervalSeconds, now)
 		if err != nil {
 			return mapDBError(err)
 		}
-		return s.appendAuditTx(ctx, tx, actor, "reliability.slo_policy.created", "sloPolicy", in.ID, 1, "", map[string]any{"projectId": in.ProjectID, "name": in.Name})
+		return s.appendAuditTx(ctx, tx, actor, "reliability.slo_policy.created", "sloPolicy", in.ID, 1, "", map[string]any{"projectId": in.ProjectID, "clusterId": in.ClusterID, "name": in.Name})
 	})
 	return in, err
 }
@@ -225,23 +225,23 @@ func (s *PostgresStore) CreateSLOPolicyRevision(ctx context.Context, predecessor
 			return controlplane.ErrConflict
 		}
 		var latest int64
-		if err = tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(revision),0) FROM slo_policies WHERE project_id=$1 AND name=$2`, current.ProjectID, current.Name).Scan(&latest); err != nil {
+		if err = tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(revision),0) FROM slo_policies WHERE project_id=$1 AND cluster_id=$2 AND name=$3`, current.ProjectID, current.ClusterID, current.Name).Scan(&latest); err != nil {
 			return err
 		}
 		if latest != current.Revision {
 			return controlplane.ErrConflict
 		}
-		next.OrganizationID, next.ProjectID, next.Name = current.OrganizationID, current.ProjectID, current.Name
+		next.OrganizationID, next.ProjectID, next.ClusterID, next.Name = current.OrganizationID, current.ProjectID, current.ClusterID, current.Name
 		next.Revision = current.Revision + 1
 		if err = reliability.ValidateSLOPolicy(next); err != nil {
 			return fmt.Errorf("%w: %v", controlplane.ErrValidation, err)
 		}
 		next.ID = s.id("slo")
-		if _, err = tx.ExecContext(ctx, `INSERT INTO slo_policies(id,organization_id,project_id,name,revision,objective_basis_points,window_seconds,observation_interval_seconds,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, next.ID, next.OrganizationID, next.ProjectID, next.Name, next.Revision, next.ObjectiveBasisPoints, next.WindowSeconds, next.ObservationIntervalSeconds, utcNow(s.now)); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO slo_policies(id,organization_id,project_id,cluster_id,name,revision,objective_basis_points,window_seconds,observation_interval_seconds,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, next.ID, next.OrganizationID, next.ProjectID, next.ClusterID, next.Name, next.Revision, next.ObjectiveBasisPoints, next.WindowSeconds, next.ObservationIntervalSeconds, utcNow(s.now)); err != nil {
 			return mapDBError(err)
 		}
 		out = next
-		return s.appendAuditTx(ctx, tx, actor, "reliability.slo_policy.revised", "sloPolicy", out.ID, out.Revision, "", map[string]any{"projectId": out.ProjectID, "name": out.Name, "predecessorId": predecessor})
+		return s.appendAuditTx(ctx, tx, actor, "reliability.slo_policy.revised", "sloPolicy", out.ID, out.Revision, "", map[string]any{"projectId": out.ProjectID, "clusterId": out.ClusterID, "name": out.Name, "predecessorId": predecessor})
 	})
 	return out, err
 }
@@ -255,7 +255,7 @@ func (s *PostgresStore) ListSLOPolicies(ctx context.Context, projectID, name str
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT `+sloPolicyColumns+` FROM slo_policies WHERE project_id=$1 AND ($2='' OR name=$2) ORDER BY name ASC,revision ASC,id ASC LIMIT $3`, strings.TrimSpace(projectID), strings.TrimSpace(name), limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+sloPolicyColumns+` FROM slo_policies WHERE project_id=$1 AND ($2='' OR name=$2) ORDER BY cluster_id ASC,name ASC,revision ASC,id ASC LIMIT $3`, strings.TrimSpace(projectID), strings.TrimSpace(name), limit)
 	if err != nil {
 		return nil, err
 	}

@@ -151,7 +151,7 @@ func (s *MemoryStore) CreateSLOPolicyRevision(_ context.Context, predecessor str
 	if current.Revision != expected {
 		return reliability.SLOPolicy{}, ErrConflict
 	}
-	next.OrganizationID, next.ProjectID, next.Name = current.OrganizationID, current.ProjectID, current.Name
+	next.OrganizationID, next.ProjectID, next.ClusterID, next.Name = current.OrganizationID, current.ProjectID, current.ClusterID, current.Name
 	next.Revision = current.Revision + 1
 	if err := reliability.ValidateSLOPolicy(next); err != nil {
 		return reliability.SLOPolicy{}, fmt.Errorf("%w: %v", ErrValidation, err)
@@ -183,6 +183,9 @@ func (s *MemoryStore) ListSLOPolicies(_ context.Context, projectID, name string,
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].ClusterID != rows[j].ClusterID {
+			return rows[i].ClusterID < rows[j].ClusterID
+		}
 		if rows[i].Name != rows[j].Name {
 			return rows[i].Name < rows[j].Name
 		}

@@ -58,15 +58,15 @@ func TestIncidentLifecycleRequiresActorAndResolutionSummary(t *testing.T) {
 }
 
 func TestSLOPolicyRejectsInvalidObjectiveAndWindow(t *testing.T) {
-	valid := SLOPolicy{OrganizationID: "org-1", ProjectID: "prj-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}
+	valid := SLOPolicy{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}
 	if err := ValidateSLOPolicy(valid); err != nil {
 		t.Fatalf("valid policy rejected: %v", err)
 	}
 	for name, policy := range map[string]SLOPolicy{
-		"zero-objective": {OrganizationID: "org-1", ProjectID: "prj-1", Name: "api", ObjectiveBasisPoints: 0, WindowSeconds: 3600, ObservationIntervalSeconds: 60},
-		"objective-over-10000": {OrganizationID: "org-1", ProjectID: "prj-1", Name: "api", ObjectiveBasisPoints: 10001, WindowSeconds: 3600, ObservationIntervalSeconds: 60},
-		"zero-window": {OrganizationID: "org-1", ProjectID: "prj-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 0, ObservationIntervalSeconds: 60},
-		"zero-interval": {OrganizationID: "org-1", ProjectID: "prj-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 0},
+		"zero-objective":        {OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 0, WindowSeconds: 3600, ObservationIntervalSeconds: 60},
+		"objective-over-10000": {OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 10001, WindowSeconds: 3600, ObservationIntervalSeconds: 60},
+		"zero-window":           {OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 0, ObservationIntervalSeconds: 60},
+		"zero-interval":         {OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 0},
 	} {
 		if err := ValidateSLOPolicy(policy); err == nil {
 			t.Fatalf("%s must fail validation", name)
@@ -84,7 +84,7 @@ func TestSLOPolicyRequiresExplicitClusterTarget(t *testing.T) {
 func TestErrorBudgetIsUnknownWhenObservationCoverageIsIncomplete(t *testing.T) {
 	start := time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC)
 	end := start.Add(time.Hour)
-	policy := SLOPolicy{OrganizationID: "org-1", ProjectID: "prj-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}
+	policy := SLOPolicy{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}
 	observations := []HealthObservation{
 		{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Health: "HEALTHY", ObservedAt: start, SourceDigest: "sha256:a"},
 		{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-1", Health: "CRITICAL", ObservedAt: start.Add(30 * time.Minute), SourceDigest: "sha256:b"},
@@ -98,5 +98,27 @@ func TestErrorBudgetIsUnknownWhenObservationCoverageIsIncomplete(t *testing.T) {
 	}
 	if projection.RemainingBudgetBasisPoints != nil || projection.BurnRatioMilli != nil {
 		t.Fatalf("unknown coverage must not publish numeric budget claims: %#v", projection)
+	}
+}
+
+func TestErrorBudgetIgnoresObservationsFromOtherClusters(t *testing.T) {
+	start := time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC)
+	end := start.Add(2 * time.Minute)
+	policy := SLOPolicy{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-target", Name: "api", ObjectiveBasisPoints: 9990, WindowSeconds: 120, ObservationIntervalSeconds: 60}
+	observations := []HealthObservation{
+		{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-target", Health: "HEALTHY", ObservedAt: start, SourceDigest: "sha256:a"},
+		{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-target", Health: "HEALTHY", ObservedAt: start.Add(time.Minute), SourceDigest: "sha256:b"},
+		{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-other", Health: "CRITICAL", ObservedAt: start, SourceDigest: "sha256:c"},
+		{OrganizationID: "org-1", ProjectID: "prj-1", ClusterID: "clu-other", Health: "CRITICAL", ObservedAt: start.Add(time.Minute), SourceDigest: "sha256:d"},
+	}
+	projection, err := ProjectErrorBudget(policy, observations, start, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projection.CoverageStatus != CoverageComplete || projection.ObservedObservations != 2 || projection.BadObservations != 0 {
+		t.Fatalf("foreign cluster observations poisoned target SLO coverage: %#v", projection)
+	}
+	if projection.RemainingBudgetBasisPoints == nil || projection.BurnRatioMilli == nil || *projection.BurnRatioMilli != 0 {
+		t.Fatalf("complete target coverage must publish a zero-burn budget projection: %#v", projection)
 	}
 }

@@ -55,6 +55,7 @@ type SLOPolicy struct {
 	ID                         string `json:"id"`
 	OrganizationID             string `json:"organizationId"`
 	ProjectID                  string `json:"projectId"`
+	ClusterID                  string `json:"clusterId"`
 	Name                       string `json:"name"`
 	Revision                   int64  `json:"revision"`
 	ObjectiveBasisPoints       int    `json:"objectiveBasisPoints"`
@@ -63,12 +64,12 @@ type SLOPolicy struct {
 }
 
 type ErrorBudgetProjection struct {
-	CoverageStatus                  string `json:"coverageStatus"`
-	ExpectedObservations            int    `json:"expectedObservations"`
-	ObservedObservations            int    `json:"observedObservations"`
-	BadObservations                 int    `json:"badObservations"`
-	RemainingBudgetBasisPoints      *int   `json:"remainingBudgetBasisPoints,omitempty"`
-	BurnRatioMilli                  *int   `json:"burnRatioMilli,omitempty"`
+	CoverageStatus             string `json:"coverageStatus"`
+	ExpectedObservations       int    `json:"expectedObservations"`
+	ObservedObservations       int    `json:"observedObservations"`
+	BadObservations            int    `json:"badObservations"`
+	RemainingBudgetBasisPoints *int   `json:"remainingBudgetBasisPoints,omitempty"`
+	BurnRatioMilli             *int   `json:"burnRatioMilli,omitempty"`
 }
 
 func ObservationIdentity(observation HealthObservation) (string, error) {
@@ -125,8 +126,8 @@ func TransitionIncident(current Incident, action, actor, summary string) (Incide
 }
 
 func ValidateSLOPolicy(policy SLOPolicy) error {
-	if strings.TrimSpace(policy.OrganizationID) == "" || strings.TrimSpace(policy.ProjectID) == "" || strings.TrimSpace(policy.Name) == "" {
-		return errors.New("SLO policy organization, project and name are required")
+	if strings.TrimSpace(policy.OrganizationID) == "" || strings.TrimSpace(policy.ProjectID) == "" || strings.TrimSpace(policy.ClusterID) == "" || strings.TrimSpace(policy.Name) == "" {
+		return errors.New("SLO policy organization, project, cluster and name are required")
 	}
 	if policy.ObjectiveBasisPoints <= 0 || policy.ObjectiveBasisPoints > 10000 {
 		return errors.New("SLO objective must be between 1 and 10000 basis points")
@@ -156,7 +157,7 @@ func ProjectErrorBudget(policy SLOPolicy, observations []HealthObservation, wind
 	}
 	filtered := make([]HealthObservation, 0, len(observations))
 	for _, observation := range observations {
-		if observation.OrganizationID != policy.OrganizationID || observation.ProjectID != policy.ProjectID {
+		if observation.OrganizationID != policy.OrganizationID || observation.ProjectID != policy.ProjectID || observation.ClusterID != policy.ClusterID {
 			continue
 		}
 		at := observation.ObservedAt.UTC()

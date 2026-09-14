@@ -43,18 +43,19 @@ func exerciseReliabilityStore(t *testing.T, s ReliabilityStore) {
 	if err != nil || ack.Revision != 2 || ack.State != reliability.IncidentAcknowledged {
 		t.Fatalf("ack incident: %#v err=%v", ack, err)
 	}
-	policy, err := s.CreateSLOPolicy(ctx, reliability.SLOPolicy{OrganizationID: "org-a", ProjectID: "prj-a", Name: "cluster-api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}, "operator-a")
+	policy, err := s.CreateSLOPolicy(ctx, reliability.SLOPolicy{OrganizationID: "org-a", ProjectID: "prj-a", ClusterID: "clu-a", Name: "cluster-api", ObjectiveBasisPoints: 9990, WindowSeconds: 3600, ObservationIntervalSeconds: 60}, "operator-a")
 	if err != nil || policy.Revision != 1 || policy.ID == "" {
 		t.Fatalf("create SLO policy: %#v err=%v", policy, err)
 	}
 	next := policy
+	next.ClusterID = "clu-other"
 	next.ObjectiveBasisPoints = 9950
 	revision, err := s.CreateSLOPolicyRevision(ctx, policy.ID, 1, next, "operator-a")
-	if err != nil || revision.Revision != 2 || revision.ID == policy.ID {
+	if err != nil || revision.Revision != 2 || revision.ID == policy.ID || revision.ClusterID != policy.ClusterID {
 		t.Fatalf("create SLO revision: %#v err=%v", revision, err)
 	}
 	original, err := s.GetSLOPolicy(ctx, policy.ID)
-	if err != nil || original.ObjectiveBasisPoints != 9990 || original.Revision != 1 {
+	if err != nil || original.ObjectiveBasisPoints != 9990 || original.Revision != 1 || original.ClusterID != "clu-a" {
 		t.Fatalf("SLO immutability failed: %#v err=%v", original, err)
 	}
 	if _, err = s.CreateSLOPolicyRevision(ctx, policy.ID, 99, next, "operator-a"); !errors.Is(err, ErrConflict) {
@@ -86,7 +87,7 @@ func TestFileReliabilityStorePersistsAcrossRestart(t *testing.T) {
 		t.Fatalf("file incident persistence: %#v err=%v", incidents, err)
 	}
 	policies, err := reopened.ListSLOPolicies(context.Background(), "prj-a", "cluster-api", 20)
-	if err != nil || len(policies) != 2 {
+	if err != nil || len(policies) != 2 || policies[0].ClusterID != "clu-a" || policies[1].ClusterID != "clu-a" {
 		t.Fatalf("file SLO persistence: %#v err=%v", policies, err)
 	}
 }
