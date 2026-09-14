@@ -335,11 +335,17 @@ const managedChronySourcesPath = "/etc/chrony/sources.d/4so-time.sources"
 var managedChronySources = strings.Join([]string{
 	"server time.windows.com iburst",
 	"server time.apple.com iburst",
+	"server time.facebook.com iburst",
 	"server rolex.ripe.net iburst",
+	"server time.nist.gov iburst",
+	"server ntp.nict.jp iburst",
 	"server 162.159.200.1 iburst",
 	"server 162.159.200.123 iburst",
 	"pool 0.pool.ntp.org iburst maxsources 2",
 	"pool 1.pool.ntp.org iburst maxsources 2",
+	"server time.google.com iburst noselect",
+	"server time.cloudflare.com iburst noselect",
+	"server ntp.ubuntu.com iburst noselect",
 }, "\n") + "\n"
 
 func (r *Runner) ensureTimeSynchronization(ctx context.Context) error {
