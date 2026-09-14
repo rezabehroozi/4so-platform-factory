@@ -1,7 +1,7 @@
 {
   "authority": "RESOURCE_SCOPE_REGISTRY_V1",
   "classificationAuthority": "RESOURCE_SCOPE_OWNER_CLASSIFICATIONS_V1",
-  "classifiedCount": 73,
+  "classifiedCount": 74,
   "families": [
     {
       "evidence": "internal/api/server.go; effective scope is derived from the authenticated principal and server-side organization/project authorization",
@@ -322,6 +322,12 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
+      "evidence": "internal/api/reliability_service_health.go, internal/api/reliability_incidents.go and internal/api/reliability_slo.go; every reliability read/mutation binds an explicit ProjectID or resolves the owning project before authorization",
+      "family": "reliability",
+      "scope": "PROJECT_SCOPED",
+      "status": "OWNER_CLASSIFIED"
+    },
+    {
       "evidence": "internal/api/data_protection.go; restore drill creation persists project-scoped DataProtectionRun after requireProjectAccess",
       "family": "restore-drills",
       "scope": "PROJECT_SCOPED",
@@ -442,7 +448,7 @@
       "status": "OWNER_CLASSIFIED"
     }
   ],
-  "familyCount": 73,
+  "familyCount": 74,
   "ownerReviewRequiredCount": 0,
   "policy": {
     "inferenceAllowed": false,

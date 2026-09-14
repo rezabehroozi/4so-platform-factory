@@ -12,7 +12,7 @@ import (
 
 func TestProjectServiceHealthFailsClosedOnMissingAndStaleCoverage(t *testing.T) {
 	now := time.Date(2026, 9, 14, 7, 0, 0, 0, time.UTC)
-	clusters := []controlplane.ManagedCluster{{ID: "clu-b", ProjectID: "prj-a"}, {ID: "clu-a", ProjectID: "prj-a"}}
+	clusters := []controlplane.ManagedCluster{{ResourceMeta: controlplane.ResourceMeta{ID: "clu-b"}, ProjectID: "prj-a"}, {ResourceMeta: controlplane.ResourceMeta{ID: "clu-a"}, ProjectID: "prj-a"}}
 	observations := []reliability.HealthObservation{
 		{ProjectID: "prj-a", ClusterID: "clu-a", Health: "HEALTHY", ObservedAt: now.Add(-time.Minute), SourceDigest: "sha256:secret-a"},
 		{ProjectID: "prj-other", ClusterID: "clu-b", Health: "HEALTHY", ObservedAt: now.Add(-time.Minute), SourceDigest: "sha256:foreign"},
@@ -28,7 +28,9 @@ func TestProjectServiceHealthFailsClosedOnMissingAndStaleCoverage(t *testing.T) 
 		t.Fatalf("missing observation must be UNKNOWN: %#v", projection.Clusters)
 	}
 	raw, err := json.Marshal(projection)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(string(raw), "secret-a") || strings.Contains(string(raw), "sourceDigest") {
 		t.Fatalf("service-health projection leaked raw observation evidence: %s", raw)
 	}
@@ -36,9 +38,9 @@ func TestProjectServiceHealthFailsClosedOnMissingAndStaleCoverage(t *testing.T) 
 
 func TestProjectServiceHealthRejectsStaleOrUnrecognizedLatestObservation(t *testing.T) {
 	now := time.Date(2026, 9, 14, 7, 0, 0, 0, time.UTC)
-	clusters := []controlplane.ManagedCluster{{ID: "clu-a", ProjectID: "prj-a"}, {ID: "clu-b", ProjectID: "prj-a"}}
+	clusters := []controlplane.ManagedCluster{{ResourceMeta: controlplane.ResourceMeta{ID: "clu-a"}, ProjectID: "prj-a"}, {ResourceMeta: controlplane.ResourceMeta{ID: "clu-b"}, ProjectID: "prj-a"}}
 	observations := []reliability.HealthObservation{
-		{ProjectID: "prj-a", ClusterID: "clu-a", Health: "HEALTHY", ObservedAt: now.Add(-serviceHealthStaleAfter-time.Second)},
+		{ProjectID: "prj-a", ClusterID: "clu-a", Health: "HEALTHY", ObservedAt: now.Add(-serviceHealthStaleAfter - time.Second)},
 		{ProjectID: "prj-a", ClusterID: "clu-b", Health: "MAGIC", ObservedAt: now.Add(-time.Minute)},
 	}
 	projection := projectServiceHealth("prj-a", now, clusters, observations, false)
@@ -51,7 +53,7 @@ func TestProjectServiceHealthRejectsStaleOrUnrecognizedLatestObservation(t *test
 
 func TestProjectServiceHealthObservationTruncationInvalidatesClaims(t *testing.T) {
 	now := time.Date(2026, 9, 14, 7, 0, 0, 0, time.UTC)
-	clusters := []controlplane.ManagedCluster{{ID: "clu-a", ProjectID: "prj-a"}}
+	clusters := []controlplane.ManagedCluster{{ResourceMeta: controlplane.ResourceMeta{ID: "clu-a"}, ProjectID: "prj-a"}}
 	observations := []reliability.HealthObservation{{ProjectID: "prj-a", ClusterID: "clu-a", Health: "HEALTHY", ObservedAt: now.Add(-time.Minute)}}
 	projection := projectServiceHealth("prj-a", now, clusters, observations, true)
 	if !projection.Truncated || projection.CoverageStatus != serviceHealthCoverageUnknown || projection.Clusters[0].Health != serviceHealthCoverageUnknown {
@@ -61,7 +63,7 @@ func TestProjectServiceHealthObservationTruncationInvalidatesClaims(t *testing.T
 
 func TestServiceHealthPageIncompletenessPreservesAuthoritativeRowsButNotProjectCoverage(t *testing.T) {
 	now := time.Date(2026, 9, 14, 7, 0, 0, 0, time.UTC)
-	clusters := []controlplane.ManagedCluster{{ID: "clu-a", ProjectID: "prj-a"}}
+	clusters := []controlplane.ManagedCluster{{ResourceMeta: controlplane.ResourceMeta{ID: "clu-a"}, ProjectID: "prj-a"}}
 	observations := []reliability.HealthObservation{{ProjectID: "prj-a", ClusterID: "clu-a", Health: "HEALTHY", ObservedAt: now.Add(-time.Minute)}}
 	projection := markServiceHealthPageIncomplete(projectServiceHealth("prj-a", now, clusters, observations, false), true)
 	if !projection.Truncated || projection.CoverageStatus != serviceHealthCoverageUnknown {

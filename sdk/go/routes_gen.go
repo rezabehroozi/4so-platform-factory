@@ -2,13 +2,22 @@
 package factorysdk
 
 const ProductAPIContractAuthority = "PRODUCT_API_CONTRACT_AUTHORITY_V1"
-const ProductAPIContractDigest = "sha256:6cb0a8ad13655a388b6e3fd53fdb8e5b523d8d565e184e183008ccf07d882b6e"
-const ProductAPIRouteCount = 336
+const ProductAPIContractDigest = "sha256:d04523caff59bb03d7c271274bfda4a6cf51a2eecdfee2815d20e2d1937549f2"
+const ProductAPIRouteCount = 345
 
 var Routes = []Route{
 	{Method: "GET", Path: "/api/v1/version", Family: "version", PathParams: nil, Mutation: false, ResourceScope: "PLATFORM_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/access/context", Family: "access", PathParams: nil, Mutation: false, ResourceScope: "DYNAMIC_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/access/resource-scopes", Family: "access", PathParams: nil, Mutation: false, ResourceScope: "DYNAMIC_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "GET", Path: "/api/v1/reliability/service-health", Family: "reliability", PathParams: nil, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "GET", Path: "/api/v1/reliability/incidents", Family: "reliability", PathParams: nil, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/reliability/incidents", Family: "reliability", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "GET", Path: "/api/v1/reliability/incidents/{id}", Family: "reliability", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/reliability/incidents/{id}/acknowledge", Family: "reliability", PathParams: []string{"id"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/reliability/incidents/{id}/resolve", Family: "reliability", PathParams: []string{"id"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "GET", Path: "/api/v1/reliability/slo-policies", Family: "reliability", PathParams: nil, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/reliability/slo-policies", Family: "reliability", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "GET", Path: "/api/v1/reliability/error-budgets", Family: "reliability", PathParams: nil, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/identity/authority", Family: "identity", PathParams: nil, Mutation: false, ResourceScope: "DYNAMIC_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/identity/saml-brokers", Family: "identity", PathParams: nil, Mutation: true, ResourceScope: "DYNAMIC_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/identity/saml-brokers", Family: "identity", PathParams: nil, Mutation: false, ResourceScope: "DYNAMIC_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},

@@ -30,7 +30,7 @@ func TestPostgresIncidentTransitionRejectsStaleRevision(t *testing.T) {
 	now := fixedPGTime()
 	db, script := openScriptDB(t,
 		scriptStep{kind: "begin"},
-		scriptStep{kind: "query", contains: "FROM incidents WHERE id=$1 FOR UPDATE", columns: []string{"id", "organization_id", "project_id", "cluster_id", "service", "severity", "state", "revision", "acknowledged_by", "resolved_by", "resolution_summary"}, rows: [][]driver.Value{{"inc_a", "org_a", "project_a", "", "api", "critical", reliability.IncidentOpen, int64(2), "", "", ""}}},
+		scriptStep{kind: "query", contains: "FROM incidents WHERE id=$1 FOR UPDATE", columns: []string{"id", "organization_id", "project_id", "cluster_id", "service", "severity", "state", "revision", "acknowledged_by", "resolved_by", "resolution_summary", "created_at", "updated_at"}, rows: [][]driver.Value{{"inc_a", "org_a", "project_a", "", "api", "critical", reliability.IncidentOpen, int64(2), "", "", "", now, now}}},
 		scriptStep{kind: "rollback"},
 	)
 	store, _ := NewPostgresStoreWith(db, func() time.Time { return now }, fixedPGID)
