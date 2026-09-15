@@ -495,6 +495,7 @@ class StageAwareEnvironmentPreflightTests(unittest.TestCase):
     def test_ui_stage_requires_browser_and_playwright_only(self):
         stage = AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 900)
         with mock.patch.object(AUTOPILOT.shutil, "which", side_effect=self.unavailable), \
+             mock.patch.object(AUTOPILOT, "_playwright_browser_executable", return_value=None), \
              mock.patch.object(AUTOPILOT, "_python_module_available", return_value=False), \
              mock.patch.object(AUTOPILOT, "_codex_command", return_value=None):
             missing, _ = AUTOPILOT.environment_preflight(require_codex=False, stages=[stage])
@@ -502,6 +503,7 @@ class StageAwareEnvironmentPreflightTests(unittest.TestCase):
 
     def test_full_run_preserves_strict_environment_contract(self):
         with mock.patch.object(AUTOPILOT.shutil, "which", side_effect=self.unavailable), \
+             mock.patch.object(AUTOPILOT, "_playwright_browser_executable", return_value=None), \
              mock.patch.object(AUTOPILOT, "_python_module_available", return_value=False), \
              mock.patch.object(AUTOPILOT, "_codex_command", return_value=None):
             missing, _ = AUTOPILOT.environment_preflight(require_codex=False)
