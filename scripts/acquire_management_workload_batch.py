@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 import os
@@ -281,14 +282,42 @@ def prepare_role_stage_dir(role_dir: Path) -> None:
 def acquire(stage: Path, release: Path, ctl: Path) -> None:
     regular_dir(stage, "MANAGEMENT_STAGE", create=True)
     _, rows = load_plan(ROOT)
-    entries = []
-    for row in rows:
+    plan_path = ROOT / "lab" / "management-workload-image-build-plan.json"
+
+    def verify_role(row: dict, role_dir: Path) -> dict:
+        layout, lock = role_dir / "layout", role_dir / "acquisition-lock.json"
+        verified = run_json([str(ctl), "workload-oci", "verify-external", "--release", str(release), "--plan", str(plan_path), "--role", row["role"], "--layout", str(layout), "--lock", str(lock)])
+        return stage_entry(row, role_dir, verified)
+
+    def acquire_role(row: dict) -> dict:
         role_dir = stage / row["role"]
         prepare_role_stage_dir(role_dir)
         layout, lock = role_dir / "layout", role_dir / "acquisition-lock.json"
-        run_json([str(ctl), "workload-oci", "acquire-external", "--release", str(release), "--plan", str(ROOT / "lab" / "management-workload-image-build-plan.json"), "--role", row["role"], "--out-layout", str(layout), "--out-lock", str(lock)])
-        verified = run_json([str(ctl), "workload-oci", "verify-external", "--release", str(release), "--plan", str(ROOT / "lab" / "management-workload-image-build-plan.json"), "--role", row["role"], "--layout", str(layout), "--lock", str(lock)])
-        entries.append(stage_entry(row, role_dir, verified))
+        run_json([str(ctl), "workload-oci", "acquire-external", "--release", str(release), "--plan", str(plan_path), "--role", row["role"], "--out-layout", str(layout), "--out-lock", str(lock)])
+        return verify_role(row, role_dir)
+
+    entries = []
+    pending = []
+    for row in rows:
+        role_dir = stage / row["role"]
+        if role_dir.exists():
+            st = role_dir.lstat()
+            if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+                raise RuntimeError(f"MANAGEMENT_STAGE_ROLE_ALREADY_EXISTS {row['role']}")
+            names = {child.name for child in role_dir.iterdir()}
+            if names == {"layout", "acquisition-lock.json"}:
+                entries.append(verify_role(row, role_dir))
+                continue
+            if names:
+                raise RuntimeError(f"MANAGEMENT_STAGE_ROLE_ALREADY_EXISTS {row['role']}")
+        pending.append(row)
+
+    if pending:
+        with ThreadPoolExecutor(max_workers=min(4, len(pending))) as pool:
+            futures = {pool.submit(acquire_role, row): row["role"] for row in pending}
+            for future in as_completed(futures):
+                entries.append(future.result())
+
     atomic_json(stage / MANIFEST, manifest(entries, release))
 
 
