@@ -262,3 +262,30 @@ func TestResumeRepairsTimeBeforeReevaluatingPreflight(t *testing.T) {
 		t.Fatal("live Resume did not repair time before reevaluating preflight")
 	}
 }
+
+func TestManagedChronySourcesUseDiverseProvidersAndQuarantineHijackProneDNS(t *testing.T) {
+	for _, required := range []string{
+		"server time.windows.com iburst",
+		"server time.apple.com iburst",
+		"server rolex.ripe.net iburst",
+		"server time.nist.gov iburst",
+		"server ntp.nict.jp iburst",
+		"server 162.159.200.1 iburst",
+		"server 162.159.200.123 iburst",
+		"pool 0.pool.ntp.org iburst maxsources 2",
+		"pool 1.pool.ntp.org iburst maxsources 2",
+	} {
+		if !strings.Contains(managedChronySources, required) {
+			t.Fatalf("managed chrony sources missing resilient provider %q: %s", required, managedChronySources)
+		}
+	}
+	for _, diagnostic := range []string{
+		"server time.google.com iburst noselect",
+		"server time.cloudflare.com iburst noselect",
+		"server ntp.ubuntu.com iburst noselect",
+	} {
+		if !strings.Contains(managedChronySources, diagnostic) {
+			t.Fatalf("DNS/SNI-prone source must be monitored but never selected: %q", diagnostic)
+		}
+	}
+}
