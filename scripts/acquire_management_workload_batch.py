@@ -267,15 +267,24 @@ def validate_manifest(stage: Path, doc: dict, release: Path, rows: list[dict]) -
     return [by_role[role] for role in sorted(by_role)]
 
 
+def prepare_role_stage_dir(role_dir: Path) -> None:
+    if role_dir.exists():
+        st = role_dir.lstat()
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+            raise RuntimeError(f"MANAGEMENT_STAGE_ROLE_ALREADY_EXISTS {role_dir.name}")
+        if any(role_dir.iterdir()):
+            raise RuntimeError(f"MANAGEMENT_STAGE_ROLE_ALREADY_EXISTS {role_dir.name}")
+        role_dir.rmdir()
+    role_dir.mkdir(mode=0o755)
+
+
 def acquire(stage: Path, release: Path, ctl: Path) -> None:
     regular_dir(stage, "MANAGEMENT_STAGE", create=True)
     _, rows = load_plan(ROOT)
     entries = []
     for row in rows:
         role_dir = stage / row["role"]
-        if role_dir.exists():
-            raise RuntimeError(f"MANAGEMENT_STAGE_ROLE_ALREADY_EXISTS {row['role']}")
-        role_dir.mkdir(mode=0o755)
+        prepare_role_stage_dir(role_dir)
         layout, lock = role_dir / "layout", role_dir / "acquisition-lock.json"
         run_json([str(ctl), "workload-oci", "acquire-external", "--release", str(release), "--plan", str(ROOT / "lab" / "management-workload-image-build-plan.json"), "--role", row["role"], "--out-layout", str(layout), "--out-lock", str(lock)])
         verified = run_json([str(ctl), "workload-oci", "verify-external", "--release", str(release), "--plan", str(ROOT / "lab" / "management-workload-image-build-plan.json"), "--role", row["role"], "--layout", str(layout), "--lock", str(lock)])

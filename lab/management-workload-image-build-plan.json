@@ -36,7 +36,7 @@
     {
       "blocker": "EXACT_DIGEST_AND_RUNTIME_COMPATIBILITY_PENDING",
       "ownership": "external",
-      "registryEndpoint": "codeberg.org",
+      "registryEndpoint": "data.forgejo.org",
       "registryRepository": "forgejo/forgejo",
       "repository": "codeberg.org/forgejo/forgejo",
       "role": "forgejo",

@@ -115,6 +115,7 @@ func NewPublicClient() *Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	transport.ResponseHeaderTimeout = 30 * time.Second
 	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
 		host, port, err := net.SplitHostPort(address)
 		if err != nil {
@@ -149,7 +150,7 @@ func NewPublicClient() *Client {
 		}
 		return nil, last
 	}
-	return &Client{HTTP: &http.Client{Transport: transport, Timeout: 2 * time.Minute, CheckRedirect: checkPublicRedirect}}
+	return &Client{HTTP: &http.Client{Transport: transport, CheckRedirect: checkPublicRedirect}}
 }
 
 func checkPublicRedirect(req *http.Request, via []*http.Request) error {
@@ -722,6 +723,8 @@ func writeJSONAtomicNew(path string, doc any) error {
 
 func (c *Client) Acquire(ctx context.Context, spec Spec, outLayout, outLock string) (Result, error) {
 	var empty Result
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	defer cancel()
 	if c == nil || c.HTTP == nil {
 		return empty, errors.New("registry HTTP client is required")
 	}
