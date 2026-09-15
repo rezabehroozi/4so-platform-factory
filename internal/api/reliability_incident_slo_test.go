@@ -1,28 +1,27 @@
 package api
 
 import (
-	"context"
-	"fmt"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"platform.4so.io/factory/internal/auth"
-	"platform.4so.io/factory/internal/controlplane"
-	"platform.4so.io/factory/internal/reliability"
 )
 
 func reliabilityRequest(t *testing.T, handler http.HandlerFunc, principal auth.Principal, method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
-	if body != "" { req.Header.Set("Content-Type", "application/json") }
-	for k, v := range headers { req.Header.Set(k, v) }
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
 	parts := strings.Split(strings.Trim(req.URL.Path, "/"), "/")
-	if len(parts) > 4 && parts[2] == "reliability" && parts[3] == "incidents" { req.SetPathValue("id", parts[4]) }
+	if len(parts) > 4 && parts[2] == "reliability" && parts[3] == "incidents" {
+		req.SetPathValue("id", parts[4])
+	}
 	req = req.WithContext(auth.WithPrincipal(req.Context(), principal))
 	w := httptest.NewRecorder()
 	handler(w, req)

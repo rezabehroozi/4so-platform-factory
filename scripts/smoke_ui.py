@@ -18,7 +18,6 @@ import subprocess
 import sys
 import tempfile
 
-from playwright.sync_api import sync_playwright
 
 
 PROFILE = {
@@ -849,6 +848,7 @@ def assert_compatibility_ui_contract(root: Path) -> None:
         if token not in js: raise AssertionError(f'compatibility UI renderer missing: {token}')
 
 def run_single_viewport(root: Path, kind: str, width: int) -> dict[str, object]:
+    from playwright.sync_api import sync_playwright
     system_chromium = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
     playwright = sync_playwright().start()
     browser = None

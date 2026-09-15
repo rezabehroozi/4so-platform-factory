@@ -187,7 +187,7 @@ func TestBuildIncludesCanonicalProgramRoadmapWithoutConflatingPhysicalRuntime(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.ProgramRoadmap.Authority != "PROGRAM_PHASE_MODEL_V67" || report.ProgramRoadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" {
+	if report.ProgramRoadmap.Authority != "PROGRAM_PHASE_MODEL_V68" || report.ProgramRoadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" {
 		t.Fatalf("unexpected program roadmap: %#v", report.ProgramRoadmap)
 	}
 	if report.ProgramRoadmap.GoalReady {

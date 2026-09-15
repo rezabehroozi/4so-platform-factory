@@ -16,10 +16,10 @@ class ReleaseDocumentationTruthTest(unittest.TestCase):
         root = Path(temp.name)
         (root / "internal/targetmodel").mkdir(parents=True)
         (root / "docs").mkdir()
-        (root / "internal/targetmodel/program.go").write_text('package targetmodel\nconst ProgramAuthorityMethod = "PROGRAM_PHASE_MODEL_V57"\n')
-        (root / "docs/PHASE_STATUS_V57.md").write_text('# Current Phase Status — PROGRAM_PHASE_MODEL_V57\nRelease **0.0.351**\n')
-        (root / "README.md").write_text('PROGRAM_PHASE_MODEL_V57\nRelease 0.0.351 advances closure. See `docs/PHASE_STATUS_V57.md`.\n')
-        (root / "CHANGELOG.md").write_text('# Changelog\n\n## 0.0.351 — current\n\n## 0.0.350 — old\n')
+        (root / "internal/targetmodel/program.go").write_text('package targetmodel\nconst ProgramAuthorityMethod = "PROGRAM_PHASE_MODEL_V57"\n', encoding="utf-8")
+        (root / "docs/PROGRAM_STATUS.md").write_text('# Current Program Status - PROGRAM_PHASE_MODEL_V57\nRelease **0.0.351**\n', encoding="utf-8")
+        (root / "README.md").write_text('PROGRAM_PHASE_MODEL_V57\nCurrent status: `docs/PROGRAM_STATUS.md`.\n', encoding="utf-8")
+        (root / "CHANGELOG.md").write_text('# Changelog\n\n## 0.0.351 - current\n\n## 0.0.350 - old\n', encoding="utf-8")
         return temp, root
 
     def validate(self, root):
@@ -32,30 +32,35 @@ class ReleaseDocumentationTruthTest(unittest.TestCase):
         with temp:
             self.assertEqual(self.validate(root), [])
 
-    def test_duplicate_current_readme_summary_is_rejected(self):
+    def test_missing_current_readme_status_link_is_rejected(self):
         temp, root = self.fixture()
         with temp:
-            with (root / 'README.md').open('a') as fh:
-                fh.write('Release 0.0.351 advances duplicate.\n')
-            self.assertIn('CURRENT_README_RELEASE_SUMMARY_COUNT_INVALID', [code for code, _ in self.validate(root)])
+            (root / 'README.md').write_text('PROGRAM_PHASE_MODEL_V57\n', encoding='utf-8')
+            self.assertIn('CURRENT_README_PROGRAM_STATUS_LINK_MISSING', [code for code, _ in self.validate(root)])
 
     def test_stale_top_changelog_is_rejected(self):
         temp, root = self.fixture()
         with temp:
-            (root / 'CHANGELOG.md').write_text('# Changelog\n\n## 0.0.350 — stale\n')
+            (root / 'CHANGELOG.md').write_text('# Changelog\n\n## 0.0.350 - stale\n', encoding='utf-8')
             self.assertIn('CURRENT_CHANGELOG_TOP_VERSION_MISMATCH', [code for code, _ in self.validate(root)])
 
-    def test_missing_current_phase_status_is_rejected(self):
+    def test_missing_current_program_status_is_rejected(self):
         temp, root = self.fixture()
         with temp:
-            (root / 'docs/PHASE_STATUS_V57.md').unlink()
-            self.assertIn('CURRENT_PHASE_STATUS_MISSING', [code for code, _ in self.validate(root)])
+            (root / 'docs/PROGRAM_STATUS.md').unlink()
+            self.assertIn('CURRENT_PROGRAM_STATUS_MISSING', [code for code, _ in self.validate(root)])
 
-    def test_phase_authority_mismatch_is_rejected(self):
+    def test_program_status_authority_mismatch_is_rejected(self):
         temp, root = self.fixture()
         with temp:
-            (root / 'docs/PHASE_STATUS_V57.md').write_text('# wrong\nRelease **0.0.351**\n')
-            self.assertIn('CURRENT_PHASE_STATUS_AUTHORITY_MISMATCH', [code for code, _ in self.validate(root)])
+            (root / 'docs/PROGRAM_STATUS.md').write_text('# wrong\nRelease **0.0.351**\n', encoding='utf-8')
+            self.assertIn('CURRENT_PROGRAM_STATUS_AUTHORITY_MISMATCH', [code for code, _ in self.validate(root)])
+
+    def test_program_status_version_mismatch_is_rejected(self):
+        temp, root = self.fixture()
+        with temp:
+            (root / 'docs/PROGRAM_STATUS.md').write_text('# Current Program Status - PROGRAM_PHASE_MODEL_V57\nRelease **0.0.350**\n', encoding='utf-8')
+            self.assertIn('CURRENT_PROGRAM_STATUS_VERSION_MISMATCH', [code for code, _ in self.validate(root)])
 
 
 if __name__ == '__main__':

@@ -51,10 +51,11 @@ def load_json(path: Path, errors: list[tuple[str,str]]):
 
 
 def validate_release_documentation_truth(root: Path, version: str, release_name: str, errors: list[tuple[str, str]]) -> tuple[str, Path | None]:
-    """Bind current release identity to executable roadmap and current documentation.
+    """Bind executable roadmap authority to one canonical current status document.
 
-    Historical prose is intentionally not scanned. Only the current-release surfaces
-    are authoritative, and any ambiguity there is fail-closed.
+    Versioned PHASE_STATUS files are historical records only. Current truth is the
+    executable roadmap plus docs/PROGRAM_STATUS.md and README; Git/CHANGELOG retain
+    history without forcing one new status artifact per roadmap revision.
     """
     program_path = root / 'internal/targetmodel/program.go'
     if not program_path.is_file():
@@ -65,16 +66,16 @@ def validate_release_documentation_truth(root: Path, version: str, release_name:
     if not match:
         errors.append(('PROGRAM_AUTHORITY_UNREADABLE', 'internal/targetmodel/program.go'))
         return '', None
-    authority, phase_number = match.group(1), match.group(2)
-    phase_path = root / 'docs' / f'PHASE_STATUS_V{phase_number}.md'
-    if not phase_path.is_file():
-        errors.append(('CURRENT_PHASE_STATUS_MISSING', str(phase_path.relative_to(root))))
-        return authority, phase_path
-    phase_text = phase_path.read_text(encoding='utf-8', errors='strict')
-    if authority not in phase_text:
-        errors.append(('CURRENT_PHASE_STATUS_AUTHORITY_MISMATCH', authority))
-    if f'Release **{version}**' not in phase_text:
-        errors.append(('CURRENT_PHASE_STATUS_VERSION_MISMATCH', version))
+    authority = match.group(1)
+    status_path = root / 'docs' / 'PROGRAM_STATUS.md'
+    if not status_path.is_file():
+        errors.append(('CURRENT_PROGRAM_STATUS_MISSING', str(status_path.relative_to(root))))
+        return authority, status_path
+    status_text = status_path.read_text(encoding='utf-8', errors='strict')
+    if authority not in status_text:
+        errors.append(('CURRENT_PROGRAM_STATUS_AUTHORITY_MISMATCH', authority))
+    if f'Release **{version}**' not in status_text:
+        errors.append(('CURRENT_PROGRAM_STATUS_VERSION_MISMATCH', version))
 
     readme_path = root / 'README.md'
     changelog_path = root / 'CHANGELOG.md'
@@ -82,13 +83,10 @@ def validate_release_documentation_truth(root: Path, version: str, release_name:
         errors.append(('CURRENT_README_MISSING', 'README.md'))
     else:
         readme = readme_path.read_text(encoding='utf-8', errors='strict')
-        summary_count = len(re.findall(rf'(?m)^Release {re.escape(version)} advances\b', readme))
-        if summary_count != 1:
-            errors.append(('CURRENT_README_RELEASE_SUMMARY_COUNT_INVALID', f'{version}:{summary_count}'))
         if authority not in readme:
             errors.append(('CURRENT_README_AUTHORITY_MISMATCH', authority))
-        if f'docs/PHASE_STATUS_V{phase_number}.md' not in readme:
-            errors.append(('CURRENT_README_PHASE_LINK_MISSING', f'PHASE_STATUS_V{phase_number}.md'))
+        if 'docs/PROGRAM_STATUS.md' not in readme:
+            errors.append(('CURRENT_README_PROGRAM_STATUS_LINK_MISSING', 'docs/PROGRAM_STATUS.md'))
 
     if not changelog_path.is_file():
         errors.append(('CURRENT_CHANGELOG_MISSING', 'CHANGELOG.md'))
@@ -100,12 +98,9 @@ def validate_release_documentation_truth(root: Path, version: str, release_name:
         if headings.count(version) != 1:
             errors.append(('CURRENT_CHANGELOG_VERSION_COUNT_INVALID', f'{version}:{headings.count(version)}'))
 
-    # Release-name is intentionally not copied into prose as an authority; its
-    # canonical syntax is validated separately and bound into artifact manifests.
     if not release_name:
         errors.append(('RELEASE_NAME_EMPTY', 'RELEASE-NAME'))
-    return authority, phase_path
-
+    return authority, status_path
 
 def public_https_source_url(value: object) -> bool:
     if not isinstance(value, str):
@@ -1617,12 +1612,25 @@ def validate_source_runtime_surfaces(root: Path, version: str, current_program_a
     if 'support_bundle_request' not in mcp_text or 'support.bundle.generate' not in (root/'internal/api/support_bundle_async.go').read_text():
         errors.append(('MCP_SUPPORT_BUNDLE_JOB_PARITY_MISSING', 'support_bundle_request'))
     if current_phase_doc is not None and current_phase_doc.is_file():
-        phase_text = current_phase_doc.read_text(encoding='utf-8')
-        for marker_text in (current_program_authority,'PROGRAM_PROGRESS_MODEL_V2',version,'SUPPLY_CHAIN_HANDOFF_V1','SUPPLY_CHAIN_HANDOFF_SEAL_V1','COMPONENT_UPGRADE_SOURCE_ADMISSION_V1','CATALOG_HISTORICAL_SOURCE_IMPORT_V1','HISTORICAL_UPGRADE_STAGED_BATCH_V1','TAGGED_SOURCE_ACQUISITION_RECIPE_V1','RUNTIME_DEPENDENCY_TRANSITION_V1','MANAGEMENT_WORKLOAD_STAGED_BATCH_V1','UPSTREAM_STAGED_BATCH_V1','FEATURE_CERTIFICATION_REGISTRY_V2','FEATURE_CERTIFICATION_CONTRACT_COVERAGE_V1','OKD_CONNECTED_MANAGED_INSTALL_PENDING','OKD_OC_MIRROR_V2_ACQUISITION_PENDING','RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING','COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING'):
-            if marker_text and marker_text not in phase_text:
-                errors.append(('CURRENT_PHASE_STATUS_INVALID', marker_text))
-        if 'BAREMETAL_BOOT_MEDIA_PROVIDER_PENDING' in phase_text:
-            errors.append(('CURRENT_PHASE_STATUS_STALE_BOOT_MEDIA_BLOCKER', 'BAREMETAL_BOOT_MEDIA_PROVIDER_PENDING'))
+        status_text = current_phase_doc.read_text(encoding='utf-8')
+        for marker_text in (
+            current_program_authority,
+            'PROGRAM_PROGRESS_MODEL_V2',
+            version,
+            'W1-core-closure-blitz',
+            'SERVICE_HEALTH_AUTHORITY_V1',
+            'INCIDENT_AUTHORITY_V1',
+            'SLO_ERROR_BUDGET_AUTHORITY_V1',
+            'MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING',
+            'MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING',
+            'OKD_CONNECTED_MANAGED_INSTALL_PENDING',
+            'OKD_OC_MIRROR_V2_ACQUISITION_PENDING',
+            'COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING',
+        ):
+            if marker_text and marker_text not in status_text:
+                errors.append(('CURRENT_PROGRAM_STATUS_INVALID', marker_text))
+        if 'SERVICE_HEALTH_AUTHORITY_PENDING' in status_text or 'INCIDENT_AUTHORITY_PENDING' in status_text or 'SLO_ERROR_BUDGET_AUTHORITY_PENDING' in status_text:
+            errors.append(('CURRENT_PROGRAM_STATUS_STALE_J6_BLOCKER', 'J6 source authority is already implemented'))
 
 
 def validate_blueprint_set(root: Path, components: dict[str,dict], errors: list[tuple[str,str]]) -> list[Path]:

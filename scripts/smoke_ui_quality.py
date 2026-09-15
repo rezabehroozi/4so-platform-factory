@@ -16,7 +16,6 @@ import re
 import shutil
 import tempfile
 
-from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
 SMOKE_SPEC = importlib.util.spec_from_file_location("platform_factory_smoke_ui", ROOT / "scripts" / "smoke_ui.py")
@@ -429,6 +428,7 @@ def audit_installer(browser, root: Path, failures: list[str], *, routes: list[st
     return coverage
 
 def main(argv: list[str] | None = None) -> int:
+    from playwright.sync_api import sync_playwright
     args = parse_args(argv)
     root = ROOT
     failures = static_quality_failures(root)
