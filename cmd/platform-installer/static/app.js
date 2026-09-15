@@ -171,7 +171,6 @@ const faLiteral = {
   "The token is retained only for this browser tab.": "توکن فقط در همین زبانهٔ مرورگر نگه داشته می‌شود.",
   "Bootstrap token": "توکن راه‌اندازی",
   "Store HA SSH key": "ذخیره کلید SSH مربوط به HA",
-  "Pin HA host keys": "تأیید کلید میزبان‌های HA",
   "The private key is validated, stored mode 0600 and never returned by the API.": "کلید خصوصی اعتبارسنجی می‌شود، با مجوز 0600 ذخیره می‌شود و هرگز از API بازگردانده نمی‌شود.",
   "OpenSSH private key": "کلید خصوصی OpenSSH",
   "Store key": "ذخیره کلید",

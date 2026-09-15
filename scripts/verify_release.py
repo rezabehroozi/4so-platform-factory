@@ -100,7 +100,9 @@ def run_parallel_commands(
         futures = [pool.submit(execute, command) for command in commands]
         results = [future.result() for future in futures]
 
-    for command, (returncode, stdout, stderr) in zip(commands, results):
+    # strict=True keeps a shrunken result list from silently skipping the remaining
+    # release gates: every submitted command must be reported.
+    for command, (returncode, stdout, stderr) in zip(commands, results, strict=True):
         print("+", " ".join(command), flush=True)
         if stdout:
             sys.stdout.write(stdout)

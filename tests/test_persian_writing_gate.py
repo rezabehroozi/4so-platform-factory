@@ -64,6 +64,20 @@ class PersianWritingGateTest(unittest.TestCase):
         self.assertTrue(report["complete"], report["issues"][:10])
         self.assertEqual(0, report["issueCount"])
 
+    def test_checked_in_report_is_the_current_derived_artifact(self):
+        """The shipped report must match what the gate computes for this tree.
+
+        `make persian-ui-lint` rewrites the report instead of asserting on it, so a copy
+        change that is never regenerated leaves a manifest-listed artifact describing
+        strings that no longer exist.
+        """
+        report = MOD.build_report(ROOT)
+        committed = json.loads((ROOT / "webconsole" / "persian_writing_report.json").read_text(encoding="utf-8"))
+        drift = sorted(k for k in set(committed) | set(report) if committed.get(k) != report.get(k))
+        self.assertEqual([], drift)
+        self.assertEqual(report["uniquePersianStrings"], committed["uniquePersianStrings"])
+        self.assertEqual(report["scannedStringOccurrences"], committed["scannedStringOccurrences"])
+
 
 if __name__ == "__main__":
     unittest.main()

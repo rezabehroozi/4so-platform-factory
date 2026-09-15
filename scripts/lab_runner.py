@@ -755,34 +755,104 @@ def _validate_public_https_urls(urls: Any, *, label: str) -> list[str]:
     return urls
 
 
+def _pinned_socket_timeout(value: Any) -> Any:
+    """Resolve an http.client timeout into a value a raw socket accepts.
+
+    ``http.client`` passes the ``socket._GLOBAL_DEFAULT_TIMEOUT`` sentinel whenever
+    the caller supplied no explicit timeout. A pinned connection dials the
+    admitted address itself, so it must apply the same resolution rule as
+    ``socket.create_connection`` instead of handing the sentinel to ``settimeout``.
+    """
+    if value is None or value is socket._GLOBAL_DEFAULT_TIMEOUT:
+        return socket.getdefaulttimeout()
+    return value
+
+
+def _tls_server_hostname(host: str) -> str:
+    """Return the SNI and certificate-verification name for a pinned connection host.
+
+    A trailing dot is a legal DNS spelling in a URL authority but is not a valid
+    TLS server name; verified public sources are spelled without it so that
+    certificate hostname checking cannot be broken by an equivalent URL.
+    """
+    return host.rstrip(".") or host
+
+
+def _pinned_socket(
+    infos: tuple[tuple[Any, ...], ...],
+    *,
+    timeout: Any,
+    source_address: Any = None,
+    context: Any = None,
+    server_hostname: str = "",
+    nodelay: bool = False,
+    failure_label: str = "any admitted address",
+) -> socket.socket:
+    """Open one socket to the first admitted address, optionally wrapped in TLS.
+
+    Validation and dialing share a single resolved address set, so a rebinding DNS
+    answer can never be reached. Every failure path closes its own socket, so a TLS
+    handshake or parameter failure cannot leak a descriptor out of the Lab runner.
+    """
+    last_error: OSError | None = None
+    for family, socktype, proto, _canonname, sockaddr in infos:
+        sock = socket.socket(family, socktype, proto)
+        try:
+            sock.settimeout(_pinned_socket_timeout(timeout))
+            if source_address:
+                sock.bind(source_address)
+            sock.connect(sockaddr)
+            if nodelay:
+                try:
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                except OSError:
+                    pass
+            if context is not None:
+                return context.wrap_socket(sock, server_hostname=server_hostname)
+            return sock
+        except OSError as exc:
+            last_error = exc
+            sock.close()
+        except BaseException:
+            sock.close()
+            raise
+    raise OSError(f"unable to connect to {failure_label}: {last_error}")
+
+
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
     """HTTPSConnection that connects only to addresses admitted by one DNS lookup."""
 
-    def __init__(self, host: str, *, pinned_infos: tuple[tuple[Any, ...], ...], **kwargs: Any):
-        super().__init__(host, **kwargs)
+    def __init__(self, host: str, *, pinned_infos: tuple[tuple[Any, ...], ...], context: Any = None, **kwargs: Any):
+        check_hostname = kwargs.pop("check_hostname", None)
+        if context is None:
+            super().__init__(host, check_hostname=check_hostname, **kwargs)
+        else:
+            # An acquisition context is the exact TLS policy the caller configured,
+            # so it is kept verbatim. HTTPSConnection.__init__ would clone the
+            # context and probe its attributes, which silently rewrites that policy
+            # for a pinned connection and refuses a purpose-built context object
+            # outright. The inherited HTTPConnection.connect() stays unreachable:
+            # connect() below dials the admitted address set itself.
+            http.client.HTTPConnection.__init__(self, host, **kwargs)
+            self._context = context
+            if check_hostname is not None:
+                self._context.check_hostname = check_hostname
+            if getattr(self._context, "check_hostname", False) and getattr(self._context, "verify_mode", ssl.CERT_REQUIRED) == ssl.CERT_NONE:
+                raise ValueError("check_hostname needs a SSL context with either CERT_OPTIONAL or CERT_REQUIRED")
         self._pinned_infos = pinned_infos
 
     def connect(self) -> None:
         if self._tunnel_host:
             raise OSError("HTTP proxy tunnels are not permitted for automatic public-source acquisition")
-        last_error: OSError | None = None
-        for family, socktype, proto, _canonname, sockaddr in self._pinned_infos:
-            sock = socket.socket(family, socktype, proto)
-            try:
-                sock.settimeout(self.timeout)
-                if self.source_address:
-                    sock.bind(self.source_address)
-                sock.connect(sockaddr)
-                try:
-                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                except OSError:
-                    pass
-                self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
-                return
-            except OSError as exc:
-                last_error = exc
-                sock.close()
-        raise OSError(f"unable to connect to any admitted public HTTPS address: {last_error}")
+        self.sock = _pinned_socket(
+            self._pinned_infos,
+            timeout=self.timeout,
+            source_address=self.source_address,
+            context=self._context,
+            server_hostname=_tls_server_hostname(self.host),
+            nodelay=True,
+            failure_label="any admitted public HTTPS address",
+        )
 
 
 class _PinnedPublicHTTPSHandler(urllib.request.HTTPSHandler):
@@ -882,38 +952,32 @@ class _PinnedControlPlaneHTTPConnection(http.client.HTTPConnection):
         self._pinned_infos = pinned_infos
 
     def connect(self) -> None:
-        last_error: OSError | None = None
-        for family, socktype, proto, _canonname, sockaddr in self._pinned_infos:
-            sock = socket.socket(family, socktype, proto)
-            try:
-                sock.settimeout(self.timeout)
-                sock.connect(sockaddr)
-                self.sock = sock
-                return
-            except OSError as exc:
-                last_error = exc
-                sock.close()
-        raise OSError(f"unable to connect to admitted Lab control-plane address: {last_error}")
+        self.sock = _pinned_socket(
+            self._pinned_infos,
+            timeout=self.timeout,
+            source_address=self.source_address,
+            failure_label="admitted Lab control-plane address",
+        )
 
 
 class _PinnedControlPlaneHTTPSConnection(http.client.HTTPSConnection):
     def __init__(self, host: str, *, pinned_infos: tuple[tuple[Any, ...], ...], context: ssl.SSLContext, **kwargs: Any):
-        super().__init__(host, context=context, **kwargs)
+        # The Lab control-plane context carries the exact minimum-TLS policy, so it
+        # is used verbatim rather than through the stdlib copy-on-supply behaviour.
+        kwargs.pop("check_hostname", None)
+        http.client.HTTPConnection.__init__(self, host, **kwargs)
+        self._context = context
         self._pinned_infos = pinned_infos
 
     def connect(self) -> None:
-        last_error: OSError | None = None
-        for family, socktype, proto, _canonname, sockaddr in self._pinned_infos:
-            sock = socket.socket(family, socktype, proto)
-            try:
-                sock.settimeout(self.timeout)
-                sock.connect(sockaddr)
-                self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
-                return
-            except OSError as exc:
-                last_error = exc
-                sock.close()
-        raise OSError(f"unable to connect to admitted Lab control-plane address: {last_error}")
+        self.sock = _pinned_socket(
+            self._pinned_infos,
+            timeout=self.timeout,
+            source_address=self.source_address,
+            context=self._context,
+            server_hostname=_tls_server_hostname(self.host),
+            failure_label="admitted Lab control-plane address",
+        )
 
 
 class _PinnedControlPlaneHTTPHandler(urllib.request.HTTPHandler):
@@ -1292,6 +1356,35 @@ def _load_management_workload_image_plan(release_root: Path, version: str) -> tu
 def _load_exact_management_workload_image_plan(archive: Path, version: str, expected_sha256: str) -> tuple[dict[str, Any], str]:
     raw = _read_exact_release_member(archive, MANAGEMENT_WORKLOAD_IMAGE_PLAN_REL, expected_sha256=expected_sha256, max_bytes=MAX_MANAGEMENT_WORKLOAD_IMAGE_PLAN_BYTES)
     return _parse_management_workload_image_plan(raw, version)
+
+
+def _management_workload_image_plan_projection(artifact: Path, version: str, artifact_sha: str, lock: dict[str, Any]) -> dict[str, Any] | None:
+    """Project the exact-release management workload image plan into Lab evidence.
+
+    The projection exists only while the appliance bundle acquisition lock still
+    awaits the management workload OCI archive. A source-binding digest is emitted
+    only when every derived manifest source authority is already resolved in that
+    same lock, so neither a plan nor a blocked acquisition result can imply
+    acquisition authority that has not actually been proven. Plan and execution
+    share this owner so their emitted evidence cannot drift apart.
+    """
+    pending = "management-workload-oci-archive" in lock.get("missingAuthorities", []) or any(
+        isinstance(row, dict) and row.get("id") == "management-workload-oci-archive" for row in lock.get("partialAuthorities", [])
+    )
+    if not pending:
+        return None
+    image_plan, image_plan_digest = _load_exact_management_workload_image_plan(artifact, version, artifact_sha)
+    resolved_ids = {str(row.get("id", "")) for row in lock.get("resolvedAuthorities", []) if isinstance(row, dict)}
+    required_manifest_sources = {str(row["sourceAuthority"]) for row in image_plan.get("derivedManifestImageSets", [])}
+    source_binding = _verify_management_workload_image_plan_lock_binding(image_plan, lock) if required_manifest_sources.issubset(resolved_ids) else ""
+    return {
+        "authority": image_plan["authority"],
+        "digest": image_plan_digest,
+        "manifestImageResolutionAuthority": image_plan["manifestImageResolutionAuthority"],
+        "sourceBindingDigest": source_binding,
+        "assemblyAuthority": image_plan["assemblyAuthority"],
+        "pendingResolution": image_plan["pendingResolution"],
+    }
 
 def _load_bundle_acquisition_lock(release_root: Path, version: str) -> tuple[dict[str, Any], str]:
     """Load a local lock for source-tree validation/tests; physical Lab uses the exact ZIP loader below."""
@@ -1896,19 +1989,12 @@ def _resolve_acquired_manifest_images(pack_root: Path, pack: dict[str, Any], loc
     proof_raw = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return {"authority": MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_AUTHORITY, "sourceBindingDigest": binding_digest, "rows": rows, "digest": "sha256:" + hashlib.sha256(proof_raw).hexdigest()}
 
-def _verify_input_pack_source_bindings(pack_root: Path, pack: dict[str, Any], lock: dict[str, Any], build_spec_path: Path, derived_manifest_resolution: dict[str, Any] | None = None) -> dict[str, Any]:
-    staging_rel = _safe_relative_path(pack["stagingDirectory"], label="inputPack.stagingDirectory")
-    staging = pack_root / staging_rel
-    if not staging.is_dir() or staging.is_symlink():
-        raise RuntimeError("bundle input pack stagingDirectory is missing or unsafe")
-    build_spec = _load_runtime_json_object(build_spec_path, label="normalized bundle input pack build spec")
-    if not isinstance(build_spec, dict):
-        raise RuntimeError("bundle input pack build spec must be an object")
+def _verify_locked_authority_bytes(staging: Path, by_id: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, list[str]], list[Path]]:
+    """Prove every canonical source authority byte-for-byte inside the staged pack.
 
-    by_id = {item["id"]: item for item in lock.get("resolvedAuthorities", [])}
-    if set(by_id) != _BUNDLE_REQUIRED_SOURCE_AUTHORITIES:
-        raise RuntimeError("ready bundle source binding requires all canonical source authorities")
-
+    Returns the immutable proof rows, the staging paths bound per authority, and the
+    workload archive files that must later be opened directly. A size or digest
+    mismatch is a hard failure: a bundle is never partially admitted."""
     proof_rows: list[dict[str, Any]] = []
     bound_paths: dict[str, list[str]] = {}
     workload_archive_paths: list[Path] = []
@@ -1928,16 +2014,21 @@ def _verify_input_pack_source_bindings(pack_root: Path, pack: dict[str, Any], lo
             if authority_id == "management-workload-oci-archive":
                 workload_archive_paths.append(target)
         bound_paths[authority_id] = sorted(paths)
+    return proof_rows, bound_paths, workload_archive_paths
 
-    spec = build_spec.get("spec") or {}
-    source_artifacts = spec.get("sourceArtifacts") if isinstance(spec, dict) else None
-    derived_rows = list((derived_manifest_resolution or {}).get("rows", []))
-    source_manifest_paths = {str(row.get("sourcePath", "")) for row in derived_rows if isinstance(row, dict)}
+
+def _verify_derived_manifest_resolution_rows(staging: Path, derived_rows: list[Any]) -> list[str]:
+    """Prove each derived manifest resolution row against its own resolution lock.
+
+    Returns the exact image references those locks admitted, so a resolved manifest
+    can never claim an image the management workload archive does not contain."""
     validated_derived_images: list[str] = []
     for index, row in enumerate(derived_rows):
         if not isinstance(row, dict):
             raise RuntimeError(f"manifest image resolution row {index} must be an object")
-        source_rel = _safe_relative_path(str(row.get("sourcePath", "")), label=f"manifestImageResolution.rows[{index}].sourcePath")
+        # The source manifest path is validated even though only the resolved/lock
+        # paths are opened: a non-canonical evidence path must fail the batch.
+        _safe_relative_path(str(row.get("sourcePath", "")), label=f"manifestImageResolution.rows[{index}].sourcePath")
         resolved_rel = _safe_relative_path(str(row.get("resolvedPath", "")), label=f"manifestImageResolution.rows[{index}].resolvedPath")
         lock_rel = _safe_relative_path(str(row.get("lockPath", "")), label=f"manifestImageResolution.rows[{index}].lockPath")
         resolved_size, resolved_sha = _locked_regular_file_digest(staging / resolved_rel, label=f"derived resolved manifest {resolved_rel}")
@@ -1957,13 +2048,14 @@ def _verify_input_pack_source_bindings(pack_root: Path, pack: dict[str, Any], lo
         if not exact_images or exact_images != sorted(str(value).strip() for value in row.get("images", [])):
             raise RuntimeError(f"derived manifest resolution lock {lock_rel} image set differs from manifest image resolution evidence")
         validated_derived_images.extend(exact_images)
-    if source_artifacts is not None:
-        expected_bindings = [{"path": row["stagingPath"], "sha256": "sha256:" + row["sha256"], "sizeBytes": row["sizeBytes"]} for row in proof_rows if row["stagingPath"] not in source_manifest_paths]
-        for row in derived_rows:
-            expected_bindings.append({"path": row["resolvedPath"], "sha256": row["resolvedSha256"], "sizeBytes": row["resolvedBytes"]})
-        expected_bindings = sorted(expected_bindings, key=lambda row: row["path"] )
-        if source_artifacts != expected_bindings:
-            raise RuntimeError("normalized bundle build spec sourceArtifacts do not exactly match locked and derived source authority bytes")
+    return validated_derived_images
+
+
+def _verify_build_spec_source_roles(spec: dict[str, Any], bound_paths: dict[str, list[str]], derived_rows: list[Any]) -> None:
+    """Bind every build-spec source role to the exact locked or derived staging paths.
+
+    A role naming a file the canonical authority set never produced, or dropping one
+    it did, fails the batch here instead of being reconciled during the build."""
     rke2 = spec.get("rke2") or {}
     workloads = spec.get("workloads") or {}
     if not isinstance(spec, dict) or not isinstance(rke2, dict) or not isinstance(workloads, dict):
@@ -1994,6 +2086,12 @@ def _verify_input_pack_source_bindings(pack_root: Path, pack: dict[str, Any], lo
         if canonical != expected_paths:
             raise RuntimeError(f"build spec source role {authority_id} does not exactly match locked/derived staging paths")
 
+
+def _verify_management_workload_oci_content(workload_archive_paths: list[Path], validated_derived_images: list[str], build_spec: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Open each admitted workload archive and cross-check its image references.
+
+    Returns the archive image references and the derived core workload references
+    the caller seals into durable evidence."""
     if not workload_archive_paths:
         raise RuntimeError("management workload OCI archive authority must resolve to at least one archive artifact")
     archive_refs: list[str] = []
@@ -2006,7 +2104,14 @@ def _verify_input_pack_source_bindings(pack_root: Path, pack: dict[str, Any], lo
     spec_refs = _core_image_refs_from_build_spec(build_spec)
     if not set(spec_refs).issubset(set(archive_refs)):
         raise RuntimeError("derived core workload image authority does not match OCI archive content")
+    return archive_refs, spec_refs
 
+
+def _verify_pack_file_closure(pack_root: Path, staging_rel: str, pack: dict[str, Any], proof_rows: list[dict[str, Any]], derived_rows: list[Any]) -> None:
+    """Require the extracted pack to hold exactly the files its own evidence names.
+
+    Extra or missing files mean the archive was assembled outside the canonical
+    acquisition path, so the batch is rejected before any build starts."""
     build_spec_rel = _safe_relative_path(pack["buildSpecPath"], label="inputPack.buildSpecPath")
     expected_pack_files = {build_spec_rel}
     expected_pack_files.update(f"{staging_rel}/{row['stagingPath']}" for row in proof_rows)
@@ -2023,6 +2128,40 @@ def _verify_input_pack_source_bindings(pack_root: Path, pack: dict[str, Any], lo
         extra = sorted(actual_pack_files - expected_pack_files)
         missing = sorted(expected_pack_files - actual_pack_files)
         raise RuntimeError(f"bundle input pack file ownership mismatch extra={extra} missing={missing}")
+
+
+def _verify_input_pack_source_bindings(pack_root: Path, pack: dict[str, Any], lock: dict[str, Any], build_spec_path: Path, derived_manifest_resolution: dict[str, Any] | None = None) -> dict[str, Any]:
+    staging_rel = _safe_relative_path(pack["stagingDirectory"], label="inputPack.stagingDirectory")
+    staging = pack_root / staging_rel
+    if not staging.is_dir() or staging.is_symlink():
+        raise RuntimeError("bundle input pack stagingDirectory is missing or unsafe")
+    build_spec = _load_runtime_json_object(build_spec_path, label="normalized bundle input pack build spec")
+    if not isinstance(build_spec, dict):
+        raise RuntimeError("bundle input pack build spec must be an object")
+
+    by_id = {item["id"]: item for item in lock.get("resolvedAuthorities", [])}
+    if set(by_id) != _BUNDLE_REQUIRED_SOURCE_AUTHORITIES:
+        raise RuntimeError("ready bundle source binding requires all canonical source authorities")
+
+    proof_rows, bound_paths, workload_archive_paths = _verify_locked_authority_bytes(staging, by_id)
+
+    spec = build_spec.get("spec") or {}
+    source_artifacts = spec.get("sourceArtifacts") if isinstance(spec, dict) else None
+    derived_rows = list((derived_manifest_resolution or {}).get("rows", []))
+    source_manifest_paths = {str(row.get("sourcePath", "")) for row in derived_rows if isinstance(row, dict)}
+    validated_derived_images = _verify_derived_manifest_resolution_rows(staging, derived_rows)
+    if source_artifacts is not None:
+        expected_bindings = [{"path": row["stagingPath"], "sha256": "sha256:" + row["sha256"], "sizeBytes": row["sizeBytes"]} for row in proof_rows if row["stagingPath"] not in source_manifest_paths]
+        for row in derived_rows:
+            expected_bindings.append({"path": row["resolvedPath"], "sha256": row["resolvedSha256"], "sizeBytes": row["resolvedBytes"]})
+        expected_bindings = sorted(expected_bindings, key=lambda row: row["path"] )
+        if source_artifacts != expected_bindings:
+            raise RuntimeError("normalized bundle build spec sourceArtifacts do not exactly match locked and derived source authority bytes")
+    _verify_build_spec_source_roles(spec, bound_paths, derived_rows)
+
+    archive_refs, spec_refs = _verify_management_workload_oci_content(workload_archive_paths, validated_derived_images, build_spec)
+
+    _verify_pack_file_closure(pack_root, staging_rel, pack, proof_rows, derived_rows)
 
     derived_proof = {"authority": "digest-pinned-core-workload-images", "images": spec_refs, "derivedFrom": "management-workload-oci-archive"}
     manifest_proof = None
@@ -2065,15 +2204,7 @@ def _auto_acquire_bundle(body: dict[str, Any], artifact: Path, release_root: Pat
     _, version, artifact_sha = _release_identity(artifact)
     lock, lock_digest = _load_exact_bundle_acquisition_lock(artifact, version, artifact_sha)
     if lock["status"] != "ready":
-        image_plan = None
-        image_plan_digest = ""
-        if "management-workload-oci-archive" in lock.get("missingAuthorities", []) or any(item.get("id") == "management-workload-oci-archive" for item in lock.get("partialAuthorities", [])):
-            image_plan, image_plan_digest = _load_exact_management_workload_image_plan(artifact, version, artifact_sha)
-            resolved_ids = {str(row.get("id", "")) for row in lock.get("resolvedAuthorities", []) if isinstance(row, dict)}
-            required_manifest_sources = {str(row["sourceAuthority"]) for row in image_plan.get("derivedManifestImageSets", [])}
-            image_plan_source_binding = _verify_management_workload_image_plan_lock_binding(image_plan, lock) if required_manifest_sources.issubset(resolved_ids) else ""
-        else:
-            image_plan_source_binding = ""
+        image_plan_projection = _management_workload_image_plan_projection(artifact, version, artifact_sha, lock)
         return None, {
             "stage": "bundle-auto-acquisition-authority",
             "command": [BUNDLE_ACQUISITION_AUTHORITY],
@@ -2088,7 +2219,7 @@ def _auto_acquire_bundle(body: dict[str, Any], artifact: Path, release_root: Pat
             "partialAuthorities": list(lock.get("partialAuthorities", [])),
             "missingAuthorities": list(lock["missingAuthorities"]),
             "acquisitionLockDigest": lock_digest,
-            "managementWorkloadImagePlan": ({"authority": image_plan["authority"], "digest": image_plan_digest, "manifestImageResolutionAuthority": image_plan["manifestImageResolutionAuthority"], "sourceBindingDigest": image_plan_source_binding, "assemblyAuthority": image_plan["assemblyAuthority"], "pendingResolution": image_plan["pendingResolution"]} if image_plan else None),
+            "managementWorkloadImagePlan": image_plan_projection,
         }
     pack = lock["inputPack"]
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -2289,10 +2420,6 @@ def plan_document(spec: dict[str, Any]) -> dict[str, Any]:
             artifact = Path(body["releaseArtifact"])
             try:
                 acquisition_lock, lock_digest = _load_exact_bundle_acquisition_lock(artifact, version, artifact_sha)
-                image_plan = None
-                image_plan_digest = ""
-                if "management-workload-oci-archive" in acquisition_lock.get("missingAuthorities", []) or any(item.get("id") == "management-workload-oci-archive" for item in acquisition_lock.get("partialAuthorities", [])):
-                    image_plan, image_plan_digest = _load_exact_management_workload_image_plan(artifact, version, artifact_sha)
                 bundle_acquisition = {
                     "authority": BUNDLE_ACQUISITION_AUTHORITY,
                     "exactReleaseBindingAuthority": BUNDLE_ACQUISITION_EXACT_RELEASE_AUTHORITY,
@@ -2301,7 +2428,7 @@ def plan_document(spec: dict[str, Any]) -> dict[str, Any]:
                     "partialAuthorities": list(acquisition_lock.get("partialAuthorities", [])),
                     "missingAuthorities": list(acquisition_lock.get("missingAuthorities", [])),
                     "lockDigest": lock_digest,
-                    "managementWorkloadImagePlan": ({"authority": image_plan["authority"], "digest": image_plan_digest, "manifestImageResolutionAuthority": image_plan["manifestImageResolutionAuthority"], "sourceBindingDigest": image_plan_source_binding, "assemblyAuthority": image_plan["assemblyAuthority"], "pendingResolution": image_plan["pendingResolution"]} if image_plan else None),
+                    "managementWorkloadImagePlan": _management_workload_image_plan_projection(artifact, version, artifact_sha, acquisition_lock),
                 }
             except RuntimeError as exc:
                 bundle_acquisition = {"authority": BUNDLE_ACQUISITION_AUTHORITY, "status": "invalid", "missingAuthorities": [BUNDLE_SOURCE_LOCKS_BLOCKER], "error": _tail(str(exc), 1000)}
