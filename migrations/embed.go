@@ -104,6 +104,8 @@ func compatibilityForVersion(version int64) (Compatibility, string, error) {
 		return CompatibilityRollingSafe, "v74 adds independent product reliability observation, incident and immutable SLO authorities; existing telemetry/runtime writers remain unchanged", nil
 	case version == 75:
 		return CompatibilityRollingSafe, "v75 adds a defaulted immutable SLO cluster target and rekeys SLO revision identity by project/cluster/name; old writers remain schema-compatible while new binaries fail closed on untargeted legacy policies", nil
+	case version == 76:
+		return CompatibilityRollingSafe, "v76 adds a nullable incident-to-operation evidence link with same-project insert validation; old writers remain schema-compatible while new binaries may attach bounded canonical evidence metadata", nil
 	default:
 		return "", "", fmt.Errorf("migration %d is missing an explicit mixed-version compatibility classification", version)
 	}

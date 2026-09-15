@@ -46,3 +46,37 @@ func (s *MemoryStore) ListEvidencePageByProject(_ context.Context, projectID str
 	}
 	return out, nil
 }
+
+func (s *MemoryStore) ListEvidencePageByOperation(_ context.Context, operationID string, limit int) ([]EvidenceMetadata, error) {
+	operationID = strings.TrimSpace(operationID)
+	if operationID == "" {
+		return []EvidenceMetadata{}, nil
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.operations[operationID]; !ok {
+		return nil, ErrNotFound
+	}
+	out := make([]EvidenceMetadata, 0, min(limit, len(s.evidence)))
+	for _, evidence := range s.evidence {
+		if evidence.OperationID == operationID {
+			out = append(out, evidence)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].UpdatedAt.Equal(out[j].UpdatedAt) {
+			return out[i].UpdatedAt.After(out[j].UpdatedAt)
+		}
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
+		return out[i].ID > out[j].ID
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}

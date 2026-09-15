@@ -11,9 +11,9 @@ import (
 
 const (
 	HealthObservationAuthority = "HEALTH_OBSERVATION_AUTHORITY_V1"
-	ServiceHealthAuthority      = "SERVICE_HEALTH_AUTHORITY_V1"
-	IncidentAuthority           = "INCIDENT_AUTHORITY_V1"
-	SLOErrorBudgetAuthority     = "SLO_ERROR_BUDGET_AUTHORITY_V1"
+	ServiceHealthAuthority     = "SERVICE_HEALTH_AUTHORITY_V1"
+	IncidentAuthority          = "INCIDENT_AUTHORITY_V1"
+	SLOErrorBudgetAuthority    = "SLO_ERROR_BUDGET_AUTHORITY_V1"
 
 	IncidentOpen         = "OPEN"
 	IncidentAcknowledged = "ACKNOWLEDGED"
@@ -40,6 +40,7 @@ type Incident struct {
 	ID                string    `json:"id"`
 	OrganizationID    string    `json:"organizationId"`
 	ProjectID         string    `json:"projectId"`
+	OperationID       string    `json:"operationId,omitempty"`
 	ClusterID         string    `json:"clusterId,omitempty"`
 	Service           string    `json:"service,omitempty"`
 	Severity          string    `json:"severity"`

@@ -12,7 +12,7 @@ import (
 )
 
 const healthObservationColumns = `id,organization_id,project_id,cluster_id,health,observed_at,source_digest`
-const incidentColumns = `id,organization_id,project_id,cluster_id,service,severity,state,revision,acknowledged_by,resolved_by,resolution_summary,created_at,updated_at`
+const incidentColumns = `id,organization_id,project_id,COALESCE(operation_id,''),cluster_id,service,severity,state,revision,acknowledged_by,resolved_by,resolution_summary,created_at,updated_at`
 const sloPolicyColumns = `id,organization_id,project_id,cluster_id,name,revision,objective_basis_points,window_seconds,observation_interval_seconds`
 
 func scanHealthObservation(row interface{ Scan(...any) error }) (reliability.HealthObservation, error) {
@@ -23,7 +23,7 @@ func scanHealthObservation(row interface{ Scan(...any) error }) (reliability.Hea
 
 func scanIncident(row interface{ Scan(...any) error }) (reliability.Incident, error) {
 	var v reliability.Incident
-	err := row.Scan(&v.ID, &v.OrganizationID, &v.ProjectID, &v.ClusterID, &v.Service, &v.Severity, &v.State, &v.Revision, &v.AcknowledgedBy, &v.ResolvedBy, &v.ResolutionSummary, &v.CreatedAt, &v.UpdatedAt)
+	err := row.Scan(&v.ID, &v.OrganizationID, &v.ProjectID, &v.OperationID, &v.ClusterID, &v.Service, &v.Severity, &v.State, &v.Revision, &v.AcknowledgedBy, &v.ResolvedBy, &v.ResolutionSummary, &v.CreatedAt, &v.UpdatedAt)
 	return v, err
 }
 
@@ -125,8 +125,17 @@ func (s *PostgresStore) CreateIncident(ctx context.Context, in reliability.Incid
 		if err := validateReliabilityScope(ctx, tx, in.OrganizationID, in.ProjectID, in.ClusterID); err != nil {
 			return err
 		}
+		if strings.TrimSpace(in.OperationID) != "" {
+			var operationProject string
+			if err := tx.QueryRowContext(ctx, `SELECT project_id FROM operations WHERE id=$1`, in.OperationID).Scan(&operationProject); err != nil {
+				return mapDBError(err)
+			}
+			if operationProject != in.ProjectID {
+				return fmt.Errorf("%w: incident operation is outside project authority", controlplane.ErrValidation)
+			}
+		}
 		now := utcNow(s.now)
-		_, err := tx.ExecContext(ctx, `INSERT INTO incidents(id,organization_id,project_id,cluster_id,service,severity,state,revision,acknowledged_by,resolved_by,resolution_summary,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,1,'','','',$8,$8)`, in.ID, in.OrganizationID, in.ProjectID, in.ClusterID, in.Service, in.Severity, in.State, now)
+		_, err := tx.ExecContext(ctx, `INSERT INTO incidents(id,organization_id,project_id,operation_id,cluster_id,service,severity,state,revision,acknowledged_by,resolved_by,resolution_summary,created_at,updated_at) VALUES($1,$2,$3,NULLIF($4,''),$5,$6,$7,$8,1,'','','',$9,$9)`, in.ID, in.OrganizationID, in.ProjectID, in.OperationID, in.ClusterID, in.Service, in.Severity, in.State, now)
 		if err != nil {
 			return mapDBError(err)
 		}

@@ -37,3 +37,36 @@ LIMIT $2`, projectID, limit)
 	}
 	return out, rows.Err()
 }
+
+// ListEvidencePageByOperation keeps incident detail evidence bounded and operation-owned.
+func (s *PostgresStore) ListEvidencePageByOperation(ctx context.Context, operationID string, limit int) ([]controlplane.EvidenceMetadata, error) {
+	operationID = strings.TrimSpace(operationID)
+	if operationID == "" {
+		return []controlplane.EvidenceMetadata{}, nil
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	var exists int
+	if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM operations WHERE id=$1`, operationID).Scan(&exists); err != nil {
+		return nil, mapDBError(err)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT `+evidenceColumns+`
+FROM evidence_metadata
+WHERE operation_id=$1
+ORDER BY updated_at DESC,created_at DESC,id DESC
+LIMIT $2`, operationID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []controlplane.EvidenceMetadata{}
+	for rows.Next() {
+		value, scanErr := scanEvidence(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, value)
+	}
+	return out, rows.Err()
+}

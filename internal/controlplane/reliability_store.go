@@ -70,6 +70,15 @@ func (s *MemoryStore) CreateIncident(_ context.Context, v reliability.Incident, 
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if strings.TrimSpace(v.OperationID) != "" {
+		op, ok := s.operations[v.OperationID]
+		if !ok {
+			return reliability.Incident{}, ErrNotFound
+		}
+		if op.ProjectID != v.ProjectID {
+			return reliability.Incident{}, fmt.Errorf("%w: incident operation is outside project authority", ErrValidation)
+		}
+	}
 	now := s.now().UTC().Truncate(time.Microsecond)
 	v.ID = s.id("inc")
 	v.Revision = 1

@@ -10,14 +10,41 @@ import (
 )
 
 type reliabilityIncidentCreateInput struct {
-	ProjectID string `json:"projectId"`
-	ClusterID string `json:"clusterId,omitempty"`
-	Service   string `json:"service,omitempty"`
-	Severity  string `json:"severity"`
+	ProjectID   string `json:"projectId"`
+	OperationID string `json:"operationId,omitempty"`
+	ClusterID   string `json:"clusterId,omitempty"`
+	Service     string `json:"service,omitempty"`
+	Severity    string `json:"severity"`
 }
 
 type reliabilityIncidentResolveInput struct {
 	ResolutionSummary string `json:"resolutionSummary"`
+}
+
+const reliabilityIncidentEvidenceLimit = 50
+
+type reliabilityIncidentEvidenceView struct {
+	ID          string `json:"id"`
+	OperationID string `json:"operationId"`
+	Phase       string `json:"phase,omitempty"`
+	StepKey     string `json:"stepKey,omitempty"`
+	Attempt     int    `json:"attempt,omitempty"`
+	Kind        string `json:"kind"`
+	Digest      string `json:"digest"`
+	MediaType   string `json:"mediaType"`
+	Size        int64  `json:"size"`
+	HasPayload  bool   `json:"hasPayload"`
+	Sealed      bool   `json:"sealed"`
+}
+
+type reliabilityIncidentDetail struct {
+	reliability.Incident
+	Evidence          []reliabilityIncidentEvidenceView `json:"evidence,omitempty"`
+	EvidenceTruncated bool                              `json:"evidenceTruncated,omitempty"`
+}
+
+func projectReliabilityIncidentEvidence(in controlplane.EvidenceMetadata) reliabilityIncidentEvidenceView {
+	return reliabilityIncidentEvidenceView{ID: in.ID, OperationID: in.OperationID, Phase: string(in.Phase), StepKey: in.StepKey, Attempt: in.Attempt, Kind: in.Kind, Digest: in.Digest, MediaType: in.MediaType, Size: in.Size, HasPayload: in.HasPayload, Sealed: in.Sealed}
 }
 
 func (s *Server) reliabilityStore() (controlplane.ReliabilityStore, bool) {
@@ -87,6 +114,7 @@ func (s *Server) createReliabilityIncident(w http.ResponseWriter, r *http.Reques
 	created, err := store.CreateIncident(r.Context(), reliability.Incident{
 		OrganizationID: project.OrganizationID,
 		ProjectID:      project.ID,
+		OperationID:    strings.TrimSpace(input.OperationID),
 		ClusterID:      input.ClusterID,
 		Service:        strings.TrimSpace(input.Service),
 		Severity:       strings.TrimSpace(input.Severity),
@@ -150,7 +178,29 @@ func (s *Server) getReliabilityIncident(w http.ResponseWriter, r *http.Request) 
 		writeScopeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, incident)
+	if strings.TrimSpace(incident.OperationID) == "" {
+		writeJSON(w, http.StatusOK, incident)
+		return
+	}
+	evidenceStore, ok := s.store.(controlplane.OperationEvidencePageStore)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "EVIDENCE_STORE_UNAVAILABLE", "control-plane store does not expose bounded operation evidence metadata")
+		return
+	}
+	rows, err := evidenceStore.ListEvidencePageByOperation(r.Context(), incident.OperationID, reliabilityIncidentEvidenceLimit+1)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	truncated := len(rows) > reliabilityIncidentEvidenceLimit
+	if truncated {
+		rows = rows[:reliabilityIncidentEvidenceLimit]
+	}
+	views := make([]reliabilityIncidentEvidenceView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, projectReliabilityIncidentEvidence(row))
+	}
+	writeJSON(w, http.StatusOK, reliabilityIncidentDetail{Incident: incident, Evidence: views, EvidenceTruncated: truncated})
 }
 
 func (s *Server) acknowledgeReliabilityIncident(w http.ResponseWriter, r *http.Request) {

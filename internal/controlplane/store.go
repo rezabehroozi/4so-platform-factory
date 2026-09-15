@@ -378,6 +378,10 @@ type ClusterImportCredentialSnapshot struct {
 	AgentTokenDigest string `json:"agentTokenDigest,omitempty"`
 }
 
+type OperationEvidencePageStore interface {
+	ListEvidencePageByOperation(context.Context, string, int) ([]EvidenceMetadata, error)
+}
+
 type ReliabilityStore interface {
 	CreateHealthObservation(context.Context, reliability.HealthObservation) (reliability.HealthObservation, bool, error)
 	ListHealthObservations(context.Context, string, string, time.Time, time.Time, int) ([]reliability.HealthObservation, error)
