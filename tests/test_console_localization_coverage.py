@@ -48,6 +48,26 @@ class ConsoleLocalizationCoverageTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('NEW_GAP Assurance', result.stderr)
 
+    def test_duplicate_dynamic_dictionary_key_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            (target / 'webconsole/static').mkdir(parents=True)
+            for rel in ('static/index.html', 'static/app.js', 'localization_coverage_baseline.json', 'persian_glossary.json'):
+                src = ROOT / 'webconsole' / rel
+                dst = target / 'webconsole' / rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+            app = target / 'webconsole/static/app.js'
+            text = app.read_text(encoding='utf-8')
+            self.assertIn('  "Assurance": "تضمین",\n', text)
+            # Repeating a reviewed key makes the later entry replace the first one in
+            # the browser dictionary while the coverage report still looks complete.
+            text = text.replace('  "Assurance": "تضمین",\n', '  "Assurance": "تضمین",\n  "Assurance": "تضمین‌نشده",\n', 1)
+            app.write_text(text, encoding='utf-8')
+            result = subprocess.run(['python3', str(SCRIPT), '--root', str(target)], text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('LOCALIZATION_DYNAMIC_DUPLICATE_KEY Assurance', result.stderr)
+
     def test_write_baseline_refuses_nonzero_gap(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp)

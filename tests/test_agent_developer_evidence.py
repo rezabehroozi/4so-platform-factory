@@ -178,13 +178,23 @@ class DeveloperEvidenceTests(unittest.TestCase):
             }
             (root / "webconsole" / "persian_copy_quality.json").write_text(json.dumps(copy_policy, ensure_ascii=False), encoding="utf-8")
             (root / "webconsole" / "static" / "index.html").write_text('<option value="fa">فارسی</option>', encoding="utf-8")
-            (root / "webconsole" / "static" / "app.js").write_text("کلاستر ي\u202e", encoding="utf-8")
+            (root / "webconsole" / "static" / "app.js").write_text(
+                'const faDynamic = {\n  "Node": "نود",\n  "Cluster": "کلاستر ي\u202e",\n  "Node": "گره",\n};\n',
+                encoding="utf-8",
+            )
             errors = PERSIAN.scan(root)
             self.assertTrue(any("Arabic codepoint" in item for item in errors), errors)
             self.assertTrue(any("bidi control" in item for item in errors), errors)
+            # A shadowed dictionary entry silently replaces reviewed operator copy.
+            self.assertTrue(any("duplicate translation key" in item for item in errors), errors)
 
     def test_current_console_passes_persian_gate(self):
         self.assertEqual(PERSIAN.scan(ROOT), [])
+
+    def test_current_embedded_translations_declare_each_source_string_once(self):
+        for relative in ("webconsole/static/app.js", "cmd/platform-installer/static/app.js"):
+            findings = PERSIAN.duplicate_translation_keys((ROOT / relative).read_text(encoding="utf-8"))
+            self.assertEqual([], findings, relative)
 
 
 if __name__ == "__main__":

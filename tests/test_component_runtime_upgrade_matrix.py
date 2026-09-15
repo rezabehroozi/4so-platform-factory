@@ -77,6 +77,51 @@ class ComponentRuntimeUpgradeMatrixTests(unittest.TestCase):
         self.assertEqual([],row['admittedEdges'])
         self.assertEqual('install-readiness-failure-remove-only',row['upgradeExecutor'])
 
+    def matrix(self, rows):
+        return {
+            'authority': mod.AUTHORITY,
+            'policy': {'exactVersionDirectionRequired': True, 'sourceLockSelfIdentityRequired': True},
+            'components': rows,
+        }
+
+    def edge(self, frm='0.9.0', to='1.0.0'):
+        return {'fromRelease': frm, 'toRelease': to, 'fromSourceLockDigest': 'b' * 64, 'toSourceLockDigest': 'a' * 64}
+
+    def install_only_row(self, name='demo', release='1.0.0', *, edges=None):
+        return {
+            'component': name, 'targetRelease': release, 'targetSourceLockDigest': 'a' * 64,
+            'status': mod.FIRST_RELEASE_STATUS, 'admittedEdges': edges if edges is not None else [],
+            'upgradeExecutor': 'install-readiness-failure-remove-only',
+        }
+
+    def pending_row(self, name='other', release='2.0.0'):
+        return {
+            'component': name, 'targetRelease': release, 'targetSourceLockDigest': 'c' * 64,
+            'status': 'pending-source-pair', 'admittedEdges': [], 'upgradeExecutor': 'COMPONENT_RUNTIME_UPGRADE_V1',
+        }
+
+    def test_validator_accepts_install_only_row_as_first_component(self):
+        self.component()
+        self.lock('demo', '1.0.0')
+        errs = mod.validate(self.matrix([self.install_only_row()]))
+        self.assertEqual([], errs)
+
+    def test_validator_rejects_fabricated_edge_on_install_only_component_after_a_bare_row(self):
+        # A forged upgrade edge on an install-only component must be rejected from the
+        # component under inspection, never inherited from the previous row.
+        self.component()
+        self.component(name='other', release='2.0.0')
+        rows = [self.pending_row(), self.install_only_row(edges=[self.edge()])]
+        errs = mod.validate(self.matrix(rows))
+        self.assertIn('demo: first release must be install-only without upgrade edge', errs)
+
+    def test_validator_rejects_wrong_executor_on_install_only_component(self):
+        self.component()
+        row = self.install_only_row()
+        row['upgradeExecutor'] = 'COMPONENT_RUNTIME_UPGRADE_V1'
+        errs = mod.validate(self.matrix([row]))
+        self.assertIn('demo: first release must be install-only without upgrade edge', errs)
+
     def test_validator_rejects_reverse_edge_even_if_digests_differ(self):
         doc = {
             'authority': mod.AUTHORITY,
