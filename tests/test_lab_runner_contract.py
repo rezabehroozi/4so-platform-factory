@@ -931,7 +931,7 @@ class LabRunnerContractTests(unittest.TestCase):
             "archiveStagingPath": "workloads/platform-workloads.oci.tar",
             "coreImages": [
                 {"role":"postgresql","ownership":"external","repository":"docker.io/library/postgres","registryEndpoint":"registry-1.docker.io","registryRepository":"library/postgres","version":"17.11","tag":"17.11-bookworm","selectionChannel":"postgresql-17-patch","selectionEvidenceURL":"https://www.postgresql.org/docs/17/release-17-11.html","state":"pending","blocker":"EXACT_DIGEST_AND_RUNTIME_COMPATIBILITY_PENDING"},
-                {"role":"forgejo","ownership":"external","repository":"codeberg.org/forgejo/forgejo","registryEndpoint":"codeberg.org","registryRepository":"forgejo/forgejo","version":"15.0.7","tag":"15.0.7","selectionChannel":"forgejo-lts","selectionEvidenceURL":"https://forgejo.org/releases/","state":"pending","blocker":"EXACT_DIGEST_AND_RUNTIME_COMPATIBILITY_PENDING"},
+                {"role":"forgejo","ownership":"external","repository":"codeberg.org/forgejo/forgejo","registryEndpoint":"data.forgejo.org","registryRepository":"forgejo/forgejo","version":"15.0.7","tag":"15.0.7","selectionChannel":"forgejo-lts","selectionEvidenceURL":"https://forgejo.org/releases/","state":"pending","blocker":"EXACT_DIGEST_AND_RUNTIME_COMPATIBILITY_PENDING"},
                 {"role":"zot","ownership":"external","repository":"ghcr.io/project-zot/zot-linux-amd64","registryEndpoint":"ghcr.io","registryRepository":"project-zot/zot-linux-amd64","version":"2.1.20","tag":"v2.1.20","selectionChannel":"zot-stable","selectionEvidenceURL":"https://github.com/project-zot/zot/releases/tag/v2.1.20","state":"pending","blocker":"EXACT_DIGEST_AND_RUNTIME_COMPATIBILITY_PENDING"},
                 {"role":"keycloak","ownership":"external","repository":"quay.io/keycloak/keycloak","registryEndpoint":"quay.io","registryRepository":"keycloak/keycloak","version":"26.7.3","tag":"26.7.3","selectionChannel":"keycloak-current-security","selectionEvidenceURL":"https://www.keycloak.org/2026/08/keycloak-2673-released","state":"pending","blocker":"EXACT_DIGEST_AND_RUNTIME_COMPATIBILITY_PENDING"},
                 {"role":"platform-api","ownership":"product","repository":"platform.4so.local/management/platform-api","state":"pending","sourceReleaseMember":"bin/linux-amd64/platform-api","containerRecipe":"deploy/images/Dockerfile.api-release","baseImageRole":"api-runtime-base","blocker":"API_RUNTIME_DEPENDENCY_CLOSURE_AND_EXACT_RELEASE_IMAGE_BUILD_PENDING"},
@@ -1186,6 +1186,8 @@ class LabRunnerContractTests(unittest.TestCase):
         self.assertEqual("17.11", postgresql["version"])
         self.assertEqual("17.11-bookworm", postgresql["tag"])
         self.assertEqual("registry-1.docker.io", postgresql["registryEndpoint"])
+        forgejo = next(row for row in plan["pendingResolution"] if row["role"] == "forgejo")
+        self.assertEqual("data.forgejo.org", forgejo["registryEndpoint"])
 
     def test_manifest_image_resolution_rejects_repository_absent_from_exact_oci_archive(self):
         with tempfile.TemporaryDirectory() as td:

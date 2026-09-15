@@ -16,6 +16,7 @@ import (
 	"platform.4so.io/factory/internal/ociarchive"
 	"strings"
 	"testing"
+	"time"
 )
 
 func tdigest(raw []byte) string {
@@ -109,6 +110,31 @@ func (f *fixtureRegistry) serve(base string, w http.ResponseWriter, r *http.Requ
 	}
 }
 
+func TestPublicClientUsesBoundedOperationDeadlineInsteadOfWholeBodyTimeout(t *testing.T) {
+	client := NewPublicClient()
+	if client.HTTP.Timeout != 0 {
+		t.Fatalf("public client whole-response timeout=%s; large OCI blobs must be bounded by operation context instead", client.HTTP.Timeout)
+	}
+	transport, ok := client.HTTP.Transport.(*http.Transport)
+	if !ok || transport.ResponseHeaderTimeout <= 0 || transport.TLSHandshakeTimeout <= 0 {
+		t.Fatalf("public transport header/TLS timeouts are not bounded: %#v", client.HTTP.Transport)
+	}
+
+	var remaining time.Duration
+	probe := NewTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		deadline, ok := req.Context().Deadline()
+		if !ok {
+			return nil, fmt.Errorf("request context has no acquisition deadline")
+		}
+		remaining = time.Until(deadline)
+		return nil, fmt.Errorf("probe stop")
+	})})
+	spec := Spec{Role: "fixture", SourceRepository: "registry.example/team/app", RegistryEndpoint: "registry.example", RegistryRepo: "team/app", SelectedVersion: "1.2.3", Tag: "v1.2.3", SelectionChannel: "fixture-stable", SelectionEvidenceURL: "https://example.test/releases/1.2.3", ReleaseArtifactDigest: "sha256:" + strings.Repeat("a", 64), PlanDigest: "sha256:" + strings.Repeat("b", 64), OS: "linux", Architecture: "amd64"}
+	_, err := probe.Acquire(context.Background(), spec, filepath.Join(t.TempDir(), "layout"), filepath.Join(t.TempDir(), "lock.json"))
+	if err == nil || remaining <= 0 || remaining > 30*time.Minute || remaining < 29*time.Minute {
+		t.Fatalf("acquisition deadline remaining=%s err=%v", remaining, err)
+	}
+}
 func TestAcquireBearerIndexPlatformAndBlobIntegrity(t *testing.T) {
 	srv, spec, manifest, index := registryFixture(t, nil)
 	defer srv.Close()

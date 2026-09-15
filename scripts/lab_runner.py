@@ -1222,7 +1222,7 @@ def _parse_management_workload_image_plan(raw: bytes, version: str) -> tuple[dic
         raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: management workload OCI authority chain is invalid")
     expected_external = {
         "postgresql": {"repository":"docker.io/library/postgres","registryEndpoint":"registry-1.docker.io","registryRepository":"library/postgres","version":"17.11","tag":"17.11-bookworm","selectionChannel":"postgresql-17-patch","selectionEvidenceURL":"https://www.postgresql.org/docs/17/release-17-11.html"},
-        "forgejo": {"repository":"codeberg.org/forgejo/forgejo","registryEndpoint":"codeberg.org","registryRepository":"forgejo/forgejo","version":"15.0.7","tag":"15.0.7","selectionChannel":"forgejo-lts","selectionEvidenceURL":"https://forgejo.org/releases/"},
+        "forgejo": {"repository":"codeberg.org/forgejo/forgejo","registryEndpoint":"data.forgejo.org","registryRepository":"forgejo/forgejo","version":"15.0.7","tag":"15.0.7","selectionChannel":"forgejo-lts","selectionEvidenceURL":"https://forgejo.org/releases/"},
         "zot": {"repository":"ghcr.io/project-zot/zot-linux-amd64","registryEndpoint":"ghcr.io","registryRepository":"project-zot/zot-linux-amd64","version":"2.1.20","tag":"v2.1.20","selectionChannel":"zot-stable","selectionEvidenceURL":"https://github.com/project-zot/zot/releases/tag/v2.1.20"},
         "keycloak": {"repository":"quay.io/keycloak/keycloak","registryEndpoint":"quay.io","registryRepository":"keycloak/keycloak","version":"26.7.3","tag":"26.7.3","selectionChannel":"keycloak-current-security","selectionEvidenceURL":"https://www.keycloak.org/2026/08/keycloak-2673-released"},
     }

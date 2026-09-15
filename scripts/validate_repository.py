@@ -749,7 +749,7 @@ def validate_management_workload_image_plan(root: Path, version: str, errors: li
             errors.append(('MANAGEMENT_WORKLOAD_IMAGE_PLAN_CORE_ROLE_INVALID', str(image_plan_path.relative_to(root))))
         expected_external = {
             'postgresql': ('docker.io/library/postgres','registry-1.docker.io','library/postgres','17.11','17.11-bookworm','postgresql-17-patch','https://www.postgresql.org/docs/17/release-17-11.html'),
-            'forgejo': ('codeberg.org/forgejo/forgejo','codeberg.org','forgejo/forgejo','15.0.7','15.0.7','forgejo-lts','https://forgejo.org/releases/'),
+            'forgejo': ('codeberg.org/forgejo/forgejo','data.forgejo.org','forgejo/forgejo','15.0.7','15.0.7','forgejo-lts','https://forgejo.org/releases/'),
             'zot': ('ghcr.io/project-zot/zot-linux-amd64','ghcr.io','project-zot/zot-linux-amd64','2.1.20','v2.1.20','zot-stable','https://github.com/project-zot/zot/releases/tag/v2.1.20'),
             'keycloak': ('quay.io/keycloak/keycloak','quay.io','keycloak/keycloak','26.7.3','26.7.3','keycloak-current-security','https://www.keycloak.org/2026/08/keycloak-2673-released'),
         }

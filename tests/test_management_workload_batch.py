@@ -2,7 +2,10 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import threading
+import time
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("acquire_management_workload_batch", ROOT / "scripts" / "acquire_management_workload_batch.py")
@@ -55,6 +58,68 @@ class ManagementWorkloadBatchTests(unittest.TestCase):
             release.write_bytes(b"two")
             with self.assertRaisesRegex(RuntimeError, "RELEASE_DRIFT"):
                 mod.validate_manifest(root, doc, release, rows)
+
+    def test_prepare_role_stage_dir_recovers_empty_failed_attempt_but_rejects_nonempty(self):
+        with tempfile.TemporaryDirectory() as td:
+            role = Path(td) / "forgejo"
+            role.mkdir()
+            mod.prepare_role_stage_dir(role)
+            self.assertTrue(role.is_dir())
+            self.assertEqual([], list(role.iterdir()))
+            (role / "unknown.partial").write_text("do-not-delete")
+            with self.assertRaisesRegex(RuntimeError, "ROLE_ALREADY_EXISTS"):
+                mod.prepare_role_stage_dir(role)
+            self.assertEqual("do-not-delete", (role / "unknown.partial").read_text())
+
+    def test_acquire_parallelizes_missing_roles_and_reuses_verified_completed_role(self):
+        rows = [
+            {"role":"forgejo","repository":"codeberg.org/forgejo/forgejo","tag":"15.0.7","version":"15.0.7","selectionChannel":"forgejo-lts","selectionEvidenceURL":"https://forgejo.org/releases/"},
+            {"role":"zot","repository":"ghcr.io/project-zot/zot-linux-amd64","tag":"v2.1.20","version":"2.1.20","selectionChannel":"zot-stable","selectionEvidenceURL":"https://github.com/project-zot/zot/releases/tag/v2.1.20"},
+            {"role":"keycloak","repository":"quay.io/keycloak/keycloak","tag":"26.7.3","version":"26.7.3","selectionChannel":"keycloak-current-security","selectionEvidenceURL":"https://www.keycloak.org/2026/08/keycloak-2673-released"},
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            stage = Path(td) / "stage"
+            stage.mkdir()
+            complete = stage / "forgejo"
+            (complete / "layout").mkdir(parents=True)
+            (complete / "acquisition-lock.json").write_text("{}")
+            release = Path(td) / "release.zip"
+            release.write_bytes(b"release")
+            ctl = Path(td) / "platformctl"
+            ctl.write_bytes(b"ctl")
+            active = 0
+            max_active = 0
+            lock = threading.Lock()
+            acquired = []
+            verified = []
+
+            def fake_run(cmd, timeout=1800):
+                nonlocal active, max_active
+                role = cmd[cmd.index("--role") + 1]
+                if "acquire-external" in cmd:
+                    acquired.append(role)
+                    with lock:
+                        active += 1
+                        max_active = max(max_active, active)
+                    time.sleep(0.08)
+                    with lock:
+                        active -= 1
+                    return {"acquired": True}
+                verified.append(role)
+                return {"verified": True, "result": {"exactReference": rows[[r["role"] for r in rows].index(role)]["repository"] + "@sha256:" + "a"*64}}
+
+            def fake_stage_entry(row, role_dir, verify_result):
+                return {**row, "manifestDigest":"sha256:"+"a"*64, "exactReference":row["repository"]+"@sha256:"+"a"*64, "layoutPath":f"{row['role']}/layout", "lockPath":f"{row['role']}/acquisition-lock.json", "lockDigest":"sha256:"+"b"*64, "layoutTreeDigest":"sha256:"+"c"*64, "layoutFileCount":1, "layoutBytes":1}
+
+            with mock.patch.object(mod, "load_plan", return_value=({}, rows)), mock.patch.object(mod, "run_json", side_effect=fake_run), mock.patch.object(mod, "stage_entry", side_effect=fake_stage_entry):
+                mod.acquire(stage, release, ctl)
+
+            self.assertNotIn("forgejo", acquired)
+            self.assertEqual({"zot", "keycloak"}, set(acquired))
+            self.assertEqual({"forgejo", "zot", "keycloak"}, set(verified))
+            self.assertGreaterEqual(max_active, 2)
+            doc = json.loads((stage / mod.MANIFEST).read_text())
+            self.assertEqual(["forgejo", "keycloak", "zot"], [row["role"] for row in doc["spec"]["entries"]])
 
     def test_stage_entry_rejects_mutable_or_wrong_exact_reference(self):
         _, rows = mod.load_plan(ROOT); row = rows[0]
