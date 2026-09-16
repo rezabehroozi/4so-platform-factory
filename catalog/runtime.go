@@ -17,6 +17,8 @@ import (
 var (
 	renderNamespace   = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 	renderKubeVersion = regexp.MustCompile(`^[0-9]+\.[0-9]+(?:\.[0-9]+)?$`)
+	taggedGitCommit = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	taggedGitCommitShort = regexp.MustCompile(`^[0-9a-f]{7}$`)
 )
 
 type SourceEvidence struct {
@@ -99,6 +101,7 @@ type taggedSourceSetIndex struct {
 		Project            string `json:"project"`
 		ReleaseURL         string `json:"releaseUrl"`
 		Revision           string `json:"revision"`
+		ReleaseCommit      string `json:"releaseCommit"`
 		ReleaseCommitShort string `json:"releaseCommitShort"`
 		Channel            string `json:"channel"`
 	} `json:"upstream"`
@@ -153,6 +156,9 @@ func verifyTaggedSourceSetArtifact(c Component) error {
 	var idx taggedSourceSetIndex
 	if err := json.Unmarshal(idxRaw, &idx); err != nil {
 		return fmt.Errorf("decode tagged source index: %w", err)
+	}
+	if !taggedGitCommitShort.MatchString(idx.Upstream.ReleaseCommitShort) || (idx.Upstream.ReleaseCommit != "" && (!taggedGitCommit.MatchString(idx.Upstream.ReleaseCommit) || !strings.HasPrefix(idx.Upstream.ReleaseCommit, idx.Upstream.ReleaseCommitShort))) {
+		return fmt.Errorf("tagged source-set release commit identity mismatch")
 	}
 	if idx.APIVersion != "platform.4so.io/v1alpha1" || idx.Kind != "UpstreamSourceSet" || idx.Component != c.Metadata.Name || idx.Version != c.Spec.Release || strings.TrimSpace(idx.Upstream.ReleaseURL) == "" || idx.Upstream.Revision != "v"+c.Spec.Release || idx.Assembly.NetworkFetchRequired || idx.Assembly.Method != "deterministic-zip-from-official-tag-files" || len(idx.Files) == 0 {
 		return fmt.Errorf("tagged source-set identity/offline contract mismatch")

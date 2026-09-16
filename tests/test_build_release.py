@@ -2,6 +2,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +34,13 @@ class ReleaseSourceTreeBoundary(unittest.TestCase):
             residue.write_text("interrupted replacement\n", encoding="utf-8")
             with self.assertRaisesRegex(SystemExit, "SOURCE_TREE_STALE_DURABLE_TEMP_FORBIDDEN"):
                 BUILD.source_files(root, apply_excludes=True)
+
+    def test_go_toolchain_version_uses_explicit_go_authority_from_environment(self):
+        completed = mock.Mock(stdout="go version go1.27.1 linux/amd64\n")
+        with mock.patch.dict(BUILD.os.environ, {"GO": "/opt/4so/go1.27.1/bin/go"}, clear=False):
+            with mock.patch.object(BUILD.subprocess, "run", return_value=completed) as run:
+                self.assertEqual("go version go1.27.1 linux/amd64", BUILD.go_toolchain_version())
+        run.assert_called_once_with(["/opt/4so/go1.27.1/bin/go", "version"], capture_output=True, text=True, check=True)
 
 
 if __name__ == "__main__":

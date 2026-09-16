@@ -10,6 +10,7 @@
         "catalogConstraint": "1.11.x",
         "chart": "alloy",
         "component": "alloy",
+      "licenseSPDX": "Apache-2.0",
         "rationale": "Exact chart release selected from the product's admitted 1.11 series; acquisition must still verify upstream index digest, immutable render and image digests.",
         "selectedVersion": "1.11.0",
         "source": "https://grafana.github.io/helm-charts",

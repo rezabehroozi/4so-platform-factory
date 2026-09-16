@@ -752,12 +752,11 @@
       "COMPONENT_SOURCE_ACQUISITION_PENDING",
       "MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING",
       "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING",
-      "RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING",
       "SOURCE_LOCKS_PENDING",
       "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING"
     ],
     "releaseToolchain": {
-      "admissionStatus": "blocked",
+      "admissionStatus": "admitted",
       "archiveFile": "go1.27.1.linux-amd64.tar.gz",
       "archiveSha256": "63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445",
       "archiveSize": 70553950,

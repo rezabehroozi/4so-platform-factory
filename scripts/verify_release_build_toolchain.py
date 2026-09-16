@@ -6,14 +6,15 @@ passes when the lock names an exact compiler version and archive SHA-256 and the
 active compiler/provenance match. No network download is performed here.
 """
 from __future__ import annotations
-import argparse, hashlib, json, pathlib, re, subprocess, sys
+import argparse, hashlib, json, os, pathlib, re, subprocess, sys
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 LOCK=ROOT/'lab'/'release-build-toolchain-lock.json'
 AUTH='RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1'
 HEX=re.compile(r'^[0-9a-f]{64}$')
 
 def current_go():
-    p=subprocess.run(['go','version'],text=True,capture_output=True)
+    go_binary=os.environ.get('GO','go').strip() or 'go'
+    p=subprocess.run([go_binary,'version'],text=True,capture_output=True)
     return p.returncode,(p.stdout or p.stderr).strip()
 
 def validate(lock, *, active=None, archive_path=None):

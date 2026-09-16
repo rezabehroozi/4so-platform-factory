@@ -34,6 +34,7 @@ type UpstreamAdmissionComponent struct {
 	CatalogConstraint string                            `json:"catalogConstraint"`
 	Chart             string                            `json:"chart"`
 	Component         string                            `json:"component"`
+	LicenseSPDX       string                            `json:"licenseSPDX,omitempty"`
 	Rationale         string                            `json:"rationale"`
 	ReviewEvidence    []UpstreamAdmissionReviewEvidence `json:"reviewEvidence,omitempty"`
 	SelectedVersion   *string                           `json:"selectedVersion"`
@@ -44,6 +45,7 @@ type UpstreamAdmissionComponent struct {
 }
 
 var upstreamAdmissionExactVersion = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+var upstreamAdmissionSPDXID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+-]{0,127}$`)
 var upstreamAdmissionConstraint = regexp.MustCompile(`^[0-9]+\.[0-9]+\.(?:[0-9]+|x)$`)
 
 var upstreamAdmissionStatuses = map[string]struct{}{
@@ -161,6 +163,9 @@ func ValidateUpstreamAdmission(admission UpstreamAdmission, components map[strin
 		source := strings.TrimSpace(row.Source)
 		if !strings.HasPrefix(source, "https://") && !strings.HasPrefix(source, "oci://") {
 			return fmt.Errorf("upstream admission component %q has invalid source %q", name, row.Source)
+		}
+		if license := strings.TrimSpace(row.LicenseSPDX); license != "" && !upstreamAdmissionSPDXID.MatchString(license) {
+			return fmt.Errorf("upstream admission component %q has invalid SPDX license %q", name, row.LicenseSPDX)
 		}
 		if strings.TrimSpace(row.Rationale) == "" {
 			return fmt.Errorf("upstream admission component %q is missing rationale", name)

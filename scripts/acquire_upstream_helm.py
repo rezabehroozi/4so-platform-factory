@@ -436,7 +436,12 @@ def apply_admission(args: argparse.Namespace) -> None:
         raise RuntimeError(f"UPSTREAM_ADMISSION_SOURCE_OVERRIDE_DENIED {args.source}!={source}")
     if args.upstream_version and normalized_version(args.upstream_version) != normalized_version(upstream):
         raise RuntimeError(f"UPSTREAM_ADMISSION_UPSTREAM_VERSION_OVERRIDE_DENIED {args.upstream_version}!={upstream}")
+    canonical_license = str(entry.get("licenseSPDX") or "").strip()
+    if args.license_spdx and (not canonical_license or args.license_spdx.strip() != canonical_license):
+        raise RuntimeError(f"UPSTREAM_ADMISSION_LICENSE_OVERRIDE_DENIED {args.component}")
     args.version = selected; args.source = source; args.upstream_version = upstream
+    if canonical_license:
+        args.license_spdx = canonical_license
 
 
 def acquire(args: argparse.Namespace) -> int:

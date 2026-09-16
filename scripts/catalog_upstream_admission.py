@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AUTHORITY = ROOT / "catalog" / "upstream-admission.json"
 EXACT = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+SPDX_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+-]{0,127}$")
 ALLOWED_STATUS = {
     "ready-for-acquisition",
     "architecture-review-required",
@@ -157,6 +158,9 @@ def validate(root: Path = ROOT, authority_path: Path = DEFAULT_AUTHORITY) -> tup
         source = str(entry.get("source") or "")
         if not (source.startswith("https://") or source.startswith("oci://")):
             raise RuntimeError(f"UPSTREAM_ADMISSION_SOURCE_INVALID {name}:{source}")
+        license_spdx = str(entry.get("licenseSPDX") or "").strip()
+        if license_spdx and not SPDX_ID.fullmatch(license_spdx):
+            raise RuntimeError(f"UPSTREAM_ADMISSION_LICENSE_SPDX_INVALID {name}:{license_spdx}")
         if not str(entry.get("rationale") or "").strip():
             raise RuntimeError(f"UPSTREAM_ADMISSION_RATIONALE_MISSING {name}")
         evidence = entry.get("reviewEvidence") or []

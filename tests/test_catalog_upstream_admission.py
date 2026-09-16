@@ -141,6 +141,15 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
         self.assertNotIn(str(row["source"]), cmd)
         self.assertNotIn(str(row["selectedVersion"]), cmd)
 
+    def test_alloy_license_override_is_canonical_and_applied(self):
+        _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
+        alloy = next(r for r in rows if r["component"] == "alloy")
+        self.assertEqual("Apache-2.0", alloy["licenseSPDX"])
+        from types import SimpleNamespace
+        args = SimpleNamespace(from_upgrade_admission=False, historical=False, from_admission=True, component="alloy", authority=str(ROOT / "catalog" / "upstream-admission.json"), version=None, source=None, upstream_version=None, license_spdx=None)
+        acquire_mod.apply_admission(args)
+        self.assertEqual("Apache-2.0", args.license_spdx)
+
     def test_symlinked_canonical_authority_is_rejected(self):
         authority = (ROOT / "catalog" / "upstream-admission.json").read_text()
         with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as outside_td:

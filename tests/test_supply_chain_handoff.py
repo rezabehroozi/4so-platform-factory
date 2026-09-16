@@ -29,7 +29,12 @@ class SupplyChainHandoffTests(unittest.TestCase):
         self.assertEqual(3, len(spec["managementWorkloads"]["manifestImageResolution"]))
         self.assertEqual(20, len(spec["componentUpgradePairRequirements"]))
         self.assertEqual(0, sum(1 for row in spec["componentUpgradePairRequirements"] if row["pairState"] == "pair-present"))
-        self.assertEqual("blocked", spec["releaseToolchain"]["admissionStatus"])
+        self.assertEqual("admitted", spec["releaseToolchain"]["admissionStatus"])
+        self.assertEqual("go1.27.1", spec["releaseToolchain"]["version"])
+        self.assertEqual(
+            "63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445",
+            spec["releaseToolchain"]["archiveSha256"],
+        )
 
     def test_runtime_holds_remain_exact_and_do_not_leave_ready_set(self):
         plan = mod.build(ROOT)

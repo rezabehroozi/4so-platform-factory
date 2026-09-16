@@ -34,6 +34,8 @@ var digestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 var exactReleaseRE = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 var kubeVersionRE = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 var componentNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
+var gitCommitRE = regexp.MustCompile(`^[0-9a-f]{40}$`)
+var gitCommitShortRE = regexp.MustCompile(`^[0-9a-f]{7}$`)
 
 var errUpstreamAdmissionComponentMissing = errors.New("upstream admission component missing")
 
@@ -156,6 +158,7 @@ type taggedSourceSetIndex struct {
 		Project            string `json:"project"`
 		ReleaseURL         string `json:"releaseUrl"`
 		Revision           string `json:"revision"`
+		ReleaseCommit      string `json:"releaseCommit"`
 		ReleaseCommitShort string `json:"releaseCommitShort"`
 		Channel            string `json:"channel"`
 	} `json:"upstream"`
@@ -392,6 +395,9 @@ func verifyTaggedSourceSet(raw []byte, component, version, upstreamURL, upstream
 	var idx taggedSourceSetIndex
 	if err := decodeStrict(idxRaw, &idx); err != nil {
 		return fmt.Errorf("decode tagged source index: %w", err)
+	}
+	if !gitCommitShortRE.MatchString(idx.Upstream.ReleaseCommitShort) || (idx.Upstream.ReleaseCommit != "" && (!gitCommitRE.MatchString(idx.Upstream.ReleaseCommit) || !strings.HasPrefix(idx.Upstream.ReleaseCommit, idx.Upstream.ReleaseCommitShort))) {
+		return fmt.Errorf("tagged source-set release commit identity mismatch")
 	}
 	if idx.APIVersion != "platform.4so.io/v1alpha1" || idx.Kind != "UpstreamSourceSet" || idx.Component != component || idx.Version != version || idx.Upstream.Revision != "v"+version || idx.Upstream.Revision != strings.TrimSpace(upstreamRevision) || idx.Upstream.ReleaseURL != strings.TrimSpace(upstreamURL) || idx.Assembly.NetworkFetchRequired || idx.Assembly.Method != "deterministic-zip-from-official-tag-files" || len(idx.Files) == 0 {
 		return fmt.Errorf("tagged source-set identity/offline contract mismatch")

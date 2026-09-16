@@ -190,6 +190,16 @@ def atomic_json(path: Path, value: dict) -> None:
         raise
 
 
+def verified_exact_reference(doc: dict) -> str:
+    if doc.get("verified") is not True:
+        return ""
+    direct = str(doc.get("exactReference") or "")
+    if direct:
+        return direct
+    nested = doc.get("result") or {}
+    return str(nested.get("exactReference") or "")
+
+
 def stage_entry(role_row: dict, role_dir: Path, verified: dict) -> dict:
     layout = role_dir / "layout"
     lock = regular_file(role_dir / "acquisition-lock.json", "MANAGEMENT_STAGE_LOCK")
@@ -203,7 +213,7 @@ def stage_entry(role_row: dict, role_dir: Path, verified: dict) -> dict:
     manifest_digest = str(lock_doc.get("manifestDigest") or "")
     if not DIGEST_RE.fullmatch(manifest_digest) or exact != role_row["repository"] + "@" + manifest_digest:
         raise RuntimeError(f"MANAGEMENT_STAGE_EXACT_REFERENCE_INVALID {role_row['role']}")
-    if verified.get("verified") is not True or ((verified.get("result") or {}).get("exactReference")) != exact:
+    if verified_exact_reference(verified) != exact:
         raise RuntimeError(f"MANAGEMENT_STAGE_OWNER_VERIFY_INVALID {role_row['role']}")
     td, files, total = tree_digest(layout)
     return {
@@ -328,7 +338,7 @@ def verify(stage: Path, release: Path, ctl: Path) -> list[dict]:
     entries = validate_manifest(stage, doc, release, rows)
     for entry in entries:
         result = run_json([str(ctl), "workload-oci", "verify-external", "--release", str(release), "--plan", str(ROOT / "lab" / "management-workload-image-build-plan.json"), "--role", entry["role"], "--layout", str(stage / entry["layoutPath"]), "--lock", str(stage / entry["lockPath"])])
-        if result.get("verified") is not True or ((result.get("result") or {}).get("exactReference")) != entry["exactReference"]:
+        if verified_exact_reference(result) != entry["exactReference"]:
             raise RuntimeError(f"MANAGEMENT_STAGE_OFFLINE_OWNER_VERIFY_INVALID {entry['role']}")
     return entries
 

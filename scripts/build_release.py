@@ -87,6 +87,11 @@ def elf_metadata(path: Path) -> dict[str, object]:
     return {"gnuBuildID": build_id, "runtimeNeeded": needed}
 
 
+def go_toolchain_version() -> str:
+    go_binary = os.environ.get("GO", "go").strip() or "go"
+    return subprocess.run([go_binary, "version"], capture_output=True, text=True, check=True).stdout.strip()
+
+
 def build_provenance(stage: Path, version: str, release_name: str) -> None:
     sources = source_rows(stage)
     canonical = json.dumps(sources, separators=(",", ":"), sort_keys=True).encode("utf-8")
@@ -104,7 +109,7 @@ def build_provenance(stage: Path, version: str, release_name: str) -> None:
                     **metadata,
                 }
             )
-    go_version = subprocess.run(["go", "version"], capture_output=True, text=True, check=True).stdout.strip()
+    go_version = go_toolchain_version()
     provenance = {
         "schemaVersion": 1,
         "product": "4SO Platform Factory",
