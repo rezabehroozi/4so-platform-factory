@@ -1645,3 +1645,18 @@ func TestUpstreamAdmissionStrictDecoderAcceptsCanonicalLicenseSPDX(t *testing.T)
 		t.Fatalf("canonical licenseSPDX rejected by strict admission decoder: %v", err)
 	}
 }
+
+func TestReservedEndpointPlaceholderAllowsConfigMapShellExpansion(t *testing.T) {
+	resource := map[string]any{"data": map[string]any{"redis_liveness.sh": "redis-cli -a \"${REDIS_PASSWORD}\"\nif [ \"${response:0:7}\" != LOADING ]; then exit 1; fi"}}
+	if renderResourceHasReservedEndpointPlaceholder(resource) { t.Fatal("shell expansion inside ConfigMap data was rejected") }
+}
+
+func TestReservedEndpointPlaceholderRejectsEndpointExpansion(t *testing.T) {
+	for _, resource := range []map[string]any{
+		{"spec": map[string]any{"server": "https://${ARGO_HOST}"}},
+		{"data": map[string]any{"url": "https://${ARGO_HOST}/api"}},
+		{"spec": map[string]any{"endpoint": "https://example.invalid"}},
+	} {
+		if !renderResourceHasReservedEndpointPlaceholder(resource) { t.Fatalf("reserved endpoint placeholder accepted: %#v", resource) }
+	}
+}

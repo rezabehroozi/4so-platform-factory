@@ -349,6 +349,31 @@ func collectRenderImages(v any, out map[string]bool) {
 	}
 }
 
+func renderResourceHasReservedEndpointPlaceholder(value any) bool {
+	return scanReservedEndpointPlaceholder(value, nil)
+}
+
+func scanReservedEndpointPlaceholder(value any, path []string) bool {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			if scanReservedEndpointPlaceholder(child, append(path, key)) { return true }
+		}
+	case []any:
+		for _, child := range typed { if scanReservedEndpointPlaceholder(child, path) { return true } }
+	case string:
+		if strings.Contains(typed, "example.invalid") { return true }
+		if !strings.Contains(typed, "${") { return false }
+		lower := strings.ToLower(typed)
+		if strings.Contains(lower, "://${") { return true }
+		last := ""; if len(path) > 0 { last = strings.ToLower(path[len(path)-1]) }
+		for _, token := range []string{"url","uri","endpoint","host","server","address","registry","repository","image"} { if strings.Contains(last, token) { return true } }
+		for _, part := range path { switch strings.ToLower(part) { case "data", "stringdata", "command", "args": return false } }
+		return true
+	}
+	return false
+}
+
 func verifyRenderImageParity(resources []map[string]any, images imageInventory) error {
 	manifestImages := map[string]bool{}
 	for _, resource := range resources {
@@ -731,9 +756,8 @@ func Verify(raw []byte) (Verified, error) {
 			return Verified{}, fmt.Errorf("duplicate render resource %s", id)
 		}
 		seen[id] = true
-		enc, _ := json.Marshal(r)
-		if bytes.Contains(enc, []byte("example.invalid")) || bytes.Contains(enc, []byte("${")) {
-			return Verified{}, fmt.Errorf("render resource contains placeholder/reserved endpoint")
+		if renderResourceHasReservedEndpointPlaceholder(r) {
+			return Verified{}, fmt.Errorf("render resource %s contains placeholder/reserved endpoint", id)
 		}
 	}
 

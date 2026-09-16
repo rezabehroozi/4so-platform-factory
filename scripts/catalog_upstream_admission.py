@@ -159,6 +159,8 @@ def validate(root: Path = ROOT, authority_path: Path = DEFAULT_AUTHORITY) -> tup
         if not (source.startswith("https://") or source.startswith("oci://")):
             raise RuntimeError(f"UPSTREAM_ADMISSION_SOURCE_INVALID {name}:{source}")
         license_spdx = str(entry.get("licenseSPDX") or "").strip()
+        if status == "ready-for-acquisition" and not license_spdx:
+            raise RuntimeError(f"UPSTREAM_ADMISSION_LICENSE_SPDX_MISSING {name}")
         if license_spdx and not SPDX_ID.fullmatch(license_spdx):
             raise RuntimeError(f"UPSTREAM_ADMISSION_LICENSE_SPDX_INVALID {name}:{license_spdx}")
         if not str(entry.get("rationale") or "").strip():

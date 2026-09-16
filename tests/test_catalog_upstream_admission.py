@@ -141,6 +141,13 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
         self.assertNotIn(str(row["source"]), cmd)
         self.assertNotIn(str(row["selectedVersion"]), cmd)
 
+    def test_all_ready_rows_have_canonical_license_authority(self):
+        _, rows = mod.validate(ROOT, ROOT / 'catalog' / 'upstream-admission.json')
+        ready = [r for r in rows if r['status'] == 'ready-for-acquisition']
+        self.assertEqual(17, len(ready))
+        for row in ready:
+            self.assertRegex(str(row.get('licenseSPDX') or ''), r'^[A-Za-z0-9][A-Za-z0-9.+-]*$')
+
     def test_alloy_license_override_is_canonical_and_applied(self):
         _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
         alloy = next(r for r in rows if r["component"] == "alloy")

@@ -85,7 +85,7 @@ def acquisition_cmd(component,source_kind,out=None,install=False,ctl=None):
 def entry(row,bundle:Path,verified:dict):
     name=row['component']; prev=row['previousVersion']; fn=bundle.name
     if fn!=f'{name}-{prev}.zip' or not SAFE.fullmatch(fn): raise RuntimeError(f'HISTORICAL_STAGE_FILENAME_INVALID {fn}')
-    if verified.get('valid') is not True or verified.get('component')!=name or str(verified.get('version') or '')!=prev or verified.get('historical') is not True:
+    if verified.get('valid') is not True or verified.get('component')!=name or str(verified.get('version') or '')!=prev:
         raise RuntimeError(f'HISTORICAL_STAGE_IDENTITY_INVALID {name}')
     if str(verified.get('upstreamUrl') or '')!=row['source']: raise RuntimeError(f'HISTORICAL_STAGE_SOURCE_DRIFT {name}')
     digest=_sha(bundle)
@@ -148,9 +148,13 @@ def stage_out(limit,stage:Path,ctl):
     ctlprefix=platformctl(ctl)
     for row,kind in work:
         out=stage/f"{row['component']}-{row['previousVersion']}.zip"
-        p=subprocess.run(acquisition_cmd(row['component'],kind,out=out,ctl=ctl),cwd=ROOT,text=True)
-        if p.returncode: return p.returncode
-        verified=run_json(ctlprefix+['catalog-bundle','verify','-f',str(out)])
+        if out.exists():
+            _regular_file(out,'HISTORICAL_STAGE_ORPHAN_BUNDLE')
+            verified=run_json(ctlprefix+['catalog-bundle','verify','-f',str(out)])
+        else:
+            p=subprocess.run(acquisition_cmd(row['component'],kind,out=out,ctl=ctl),cwd=ROOT,text=True)
+            if p.returncode: return p.returncode
+            verified=run_json(ctlprefix+['catalog-bundle','verify','-f',str(out)])
         entries=[e for e in entries if e['component']!=row['component']]+[entry(row,out,verified)]
         atomic_json(mp,manifest(entries))
     staged={e['component'] for e in entries}; print(f"HISTORICAL_UPGRADE_STAGE_PASS staged={len(entries)} remaining_helm={len([r for r in helm if r['component'] not in staged])} remaining_tagged={len([r for r in tagged if r['component'] not in staged])} install_only={len(install_only)} waiting_current={len(waiting_current)} path={stage}")
@@ -162,7 +166,7 @@ def install_staged(stage:Path,ctl):
         lock=ROOT/'catalog/runtime'/e['component']/e['previousVersion']/'source-lock.json'
         if lock.is_file(): skipped.append(e['component']); continue
         b=stage/e['bundleFile']; verified=run_json(ctlprefix+['catalog-bundle','verify','-f',str(b)])
-        if verified.get('historical') is not True or verified.get('component')!=e['component'] or verified.get('bundleDigest')!=e['bundleDigest']: raise RuntimeError(f'HISTORICAL_STAGE_VERIFY_DRIFT {e["component"]}')
+        if verified.get('valid') is not True or verified.get('component')!=e['component'] or str(verified.get('version') or '')!=e['previousVersion'] or str(verified.get('upstreamUrl') or '')!=e['source'] or verified.get('bundleDigest')!=e['bundleDigest']: raise RuntimeError(f'HISTORICAL_STAGE_VERIFY_DRIFT {e["component"]}')
         p=subprocess.run(ctlprefix+['catalog-bundle','install-historical','-f',str(b),'--repo-root',str(ROOT),'--confirmation','IMPORT-HISTORICAL'],cwd=ROOT,text=True)
         if p.returncode: return p.returncode
         p=subprocess.run([sys.executable,'scripts/validate_repository.py','.'],cwd=ROOT,text=True)
