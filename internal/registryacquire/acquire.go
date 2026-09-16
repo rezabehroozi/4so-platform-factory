@@ -412,6 +412,10 @@ func (c *Client) token(ctx context.Context, challenge, repo string) (string, err
 }
 
 func (c *Client) do(ctx context.Context, method, endpoint, repo, bearer string, accept []string) (*http.Response, string, error) {
+	return c.doWithHeaders(ctx, method, endpoint, repo, bearer, accept, nil)
+}
+
+func (c *Client) doWithHeaders(ctx context.Context, method, endpoint, repo, bearer string, accept []string, headers map[string]string) (*http.Response, string, error) {
 	makeReq := func(token string) (*http.Request, error) {
 		req, err := http.NewRequestWithContext(ctx, method, endpoint, nil)
 		if err != nil {
@@ -419,6 +423,9 @@ func (c *Client) do(ctx context.Context, method, endpoint, repo, bearer string, 
 		}
 		if len(accept) > 0 {
 			req.Header.Set("Accept", strings.Join(accept, ", "))
+		}
+		for key, value := range headers {
+			req.Header.Set(key, value)
 		}
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
@@ -592,7 +599,11 @@ func parseManifest(raw []byte, mt string) (manifestDocument, error) {
 	return doc, nil
 }
 
-func ensureNewDir(path string) (string, error) {
+func partialLayoutPath(path string) string {
+	return filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+".partial")
+}
+
+func ensureResumableDir(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return "", errors.New("output OCI layout path is required")
@@ -610,11 +621,51 @@ func ensureNewDir(path string) (string, error) {
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return "", err
 	}
-	tmp, err := os.MkdirTemp(parent, ".registry-acquire-*")
-	if err != nil {
+	partial := partialLayoutPath(abs)
+	info, err := os.Lstat(partial)
+	if os.IsNotExist(err) {
+		if err := os.Mkdir(partial, 0o755); err != nil {
+			return "", err
+		}
+		return partial, nil
+	}
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return "", errors.New("partial OCI layout must be a real directory")
+	}
+	if err := filepath.WalkDir(partial, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, relErr := filepath.Rel(partial, path)
+		if relErr != nil {
+			return relErr
+		}
+		if rel == "." {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("partial OCI layout path %q is a symlink", rel)
+		}
+		if entry.IsDir() {
+			if rel != "blobs" && rel != "blobs/sha256" {
+				return fmt.Errorf("partial OCI layout contains unowned directory %q", rel)
+			}
+			return nil
+		}
+		info, infoErr := entry.Info()
+		if infoErr != nil || !info.Mode().IsRegular() {
+			return fmt.Errorf("partial OCI layout path %q is not a regular file", rel)
+		}
+		parts := strings.Split(rel, "/")
+		if len(parts) != 3 || parts[0] != "blobs" || parts[1] != "sha256" || !digestRE.MatchString("sha256:"+parts[2]) || info.Size() > maxImageBytes {
+			return fmt.Errorf("partial OCI layout contains unowned file %q", rel)
+		}
+		return nil
+	}); err != nil {
 		return "", err
 	}
-	return tmp, nil
+	return partial, nil
 }
 
 func writeBlobRaw(root, digest string, raw []byte) error {
@@ -629,51 +680,100 @@ func writeBlobRaw(root, digest string, raw []byte) error {
 }
 
 func (c *Client) downloadBlob(ctx context.Context, spec Spec, d manifestDescriptor, bearer, root string) (string, int64, error) {
+	path := filepath.Join(root, "blobs", "sha256", strings.TrimPrefix(d.Digest, "sha256:"))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return bearer, 0, err
+	}
+	hash := sha256.New()
+	var offset int64
+	exists := false
+	if before, statErr := os.Lstat(path); statErr == nil {
+		exists = true
+		if before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() || before.Size() > d.Size {
+			return bearer, 0, fmt.Errorf("partial blob %s has invalid file type or size", d.Digest)
+		}
+		f, openErr := os.Open(path)
+		if openErr != nil {
+			return bearer, 0, openErr
+		}
+		after, afterErr := f.Stat()
+		if afterErr != nil || !os.SameFile(before, after) {
+			_ = f.Close()
+			return bearer, 0, fmt.Errorf("partial blob %s changed while opening", d.Digest)
+		}
+		n, readErr := io.Copy(hash, io.LimitReader(f, d.Size+1))
+		closeErr := f.Close()
+		if readErr != nil || closeErr != nil || n != before.Size() {
+			return bearer, 0, fmt.Errorf("partial blob %s could not be read safely", d.Digest)
+		}
+		offset = n
+		if offset == d.Size {
+			got := "sha256:" + hex.EncodeToString(hash.Sum(nil))
+			if got != d.Digest {
+				return bearer, 0, fmt.Errorf("partial blob %s digest mismatch", d.Digest)
+			}
+			return bearer, d.Size, nil
+		}
+	} else if !os.IsNotExist(statErr) {
+		return bearer, 0, statErr
+	}
+
+	headers := map[string]string{}
+	if offset > 0 {
+		headers["Range"] = fmt.Sprintf("bytes=%d-", offset)
+	}
 	ep := requestURL(spec.RegistryEndpoint, spec.RegistryRepo, "blobs", d.Digest)
-	resp, token, err := c.do(ctx, http.MethodGet, ep, spec.RegistryRepo, bearer, nil)
+	resp, token, err := c.doWithHeaders(ctx, http.MethodGet, ep, spec.RegistryRepo, bearer, nil, headers)
 	if err != nil {
 		return bearer, 0, err
 	}
-	if resp.StatusCode != http.StatusOK {
+	if offset > 0 {
+		expected := fmt.Sprintf("bytes %d-%d/%d", offset, d.Size-1, d.Size)
+		if resp.StatusCode != http.StatusPartialContent || resp.Header.Get("Content-Range") != expected {
+			_ = resp.Body.Close()
+			return token, 0, fmt.Errorf("registry blob %s did not honor resume range", d.Digest)
+		}
+	} else if resp.StatusCode != http.StatusOK {
 		_ = resp.Body.Close()
 		return token, 0, fmt.Errorf("registry blob GET %s returned HTTP %d", d.Digest, resp.StatusCode)
 	}
-	path := filepath.Join(root, "blobs", "sha256", strings.TrimPrefix(d.Digest, "sha256:"))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		_ = resp.Body.Close()
-		return token, 0, err
+	flags := os.O_WRONLY | os.O_CREATE | os.O_EXCL
+	if exists {
+		flags = os.O_WRONLY | os.O_TRUNC
+		if offset > 0 {
+			flags = os.O_WRONLY | os.O_APPEND
+		}
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	f, err := os.OpenFile(path, flags, 0o644)
 	if err != nil {
 		_ = resp.Body.Close()
 		return token, 0, err
 	}
-	hash := sha256.New()
-	limited := io.LimitReader(resp.Body, d.Size+1)
-	n, copyErr := io.Copy(io.MultiWriter(f, hash), limited)
+	remaining := d.Size - offset
+	n, copyErr := io.Copy(io.MultiWriter(f, hash), io.LimitReader(resp.Body, remaining+1))
 	closeBodyErr := resp.Body.Close()
 	syncErr := f.Sync()
 	closeFileErr := f.Close()
 	if copyErr != nil {
-		return token, n, copyErr
+		return token, offset + n, copyErr
 	}
 	if closeBodyErr != nil {
-		return token, n, closeBodyErr
+		return token, offset + n, closeBodyErr
 	}
 	if syncErr != nil {
-		return token, n, syncErr
+		return token, offset + n, syncErr
 	}
 	if closeFileErr != nil {
-		return token, n, closeFileErr
+		return token, offset + n, closeFileErr
 	}
-	if n != d.Size {
-		return token, n, fmt.Errorf("registry blob %s size %d does not match descriptor %d", d.Digest, n, d.Size)
+	if n != remaining {
+		return token, offset + n, fmt.Errorf("registry blob %s size %d does not match descriptor %d", d.Digest, offset+n, d.Size)
 	}
 	got := "sha256:" + hex.EncodeToString(hash.Sum(nil))
 	if got != d.Digest {
-		return token, n, fmt.Errorf("registry blob %s body digest is %s", d.Digest, got)
+		return token, offset + n, fmt.Errorf("registry blob %s body digest is %s", d.Digest, got)
 	}
-	return token, n, nil
+	return token, d.Size, nil
 }
 
 func writeJSONAtomicNew(path string, doc any) error {
@@ -734,16 +834,10 @@ func (c *Client) Acquire(ctx context.Context, spec Spec, outLayout, outLock stri
 	if !digestRE.MatchString(spec.ReleaseArtifactDigest) || !digestRE.MatchString(spec.PlanDigest) {
 		return empty, errors.New("external image acquisition requires exact release and plan digests")
 	}
-	tmp, err := ensureNewDir(outLayout)
+	tmp, err := ensureResumableDir(outLayout)
 	if err != nil {
 		return empty, err
 	}
-	keep := false
-	defer func() {
-		if !keep {
-			_ = os.RemoveAll(tmp)
-		}
-	}()
 	raw, rootDigest, rootMT, bearer, err := c.fetchManifest(ctx, spec, spec.Tag, "")
 	if err != nil {
 		return empty, err
@@ -812,7 +906,6 @@ func (c *Client) Acquire(ctx context.Context, spec Spec, outLayout, outLock stri
 		_ = os.Remove(outLock)
 		return empty, err
 	}
-	keep = true
 	_ = bearer
 	return result, nil
 }

@@ -57,6 +57,10 @@ type fixtureRegistry struct {
 	wrongBlob                                              bool
 	duplicatePlatform                                      bool
 	wrongScope                                             bool
+	resumeLayerAt                                          int
+	rejectLayerGET                                         bool
+	sawRange                                               bool
+	layerRequests                                          int
 }
 
 func (f *fixtureRegistry) serve(base string, w http.ResponseWriter, r *http.Request) {
@@ -100,6 +104,23 @@ func (f *fixtureRegistry) serve(base string, w http.ResponseWriter, r *http.Requ
 	case r.Method == http.MethodGet && r.URL.Path == prefix+"blobs/"+f.configDigest:
 		_, _ = w.Write(f.config)
 	case r.Method == http.MethodGet && r.URL.Path == prefix+"blobs/"+f.layerDigest:
+		f.layerRequests++
+		if f.rejectLayerGET {
+			http.Error(w, "layer GET forbidden by fixture", http.StatusInternalServerError)
+			return
+		}
+		if f.resumeLayerAt > 0 {
+			expected := fmt.Sprintf("bytes=%d-", f.resumeLayerAt)
+			if r.Header.Get("Range") != expected {
+				http.Error(w, "range required", http.StatusInternalServerError)
+				return
+			}
+			f.sawRange = true
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", f.resumeLayerAt, len(f.layer)-1, len(f.layer)))
+			w.WriteHeader(http.StatusPartialContent)
+			_, _ = w.Write(f.layer[f.resumeLayerAt:])
+			return
+		}
 		if f.wrongBlob {
 			_, _ = w.Write([]byte("tampered-layer"))
 		} else {
@@ -135,6 +156,84 @@ func TestPublicClientUsesBoundedOperationDeadlineInsteadOfWholeBodyTimeout(t *te
 		t.Fatalf("acquisition deadline remaining=%s err=%v", remaining, err)
 	}
 }
+func TestAcquireResumesDigestBoundPartialBlobWithRange(t *testing.T) {
+	var fixture *fixtureRegistry
+	srv, spec, _, _ := registryFixture(t, func(f *fixtureRegistry) { fixture = f; f.resumeLayerAt = 5 })
+	defer srv.Close()
+	out := filepath.Join(t.TempDir(), "layout")
+	lock := filepath.Join(t.TempDir(), "lock.json")
+	partial := filepath.Join(filepath.Dir(out), "."+filepath.Base(out)+".partial")
+	blob := filepath.Join(partial, "blobs", "sha256", strings.TrimPrefix(fixture.layerDigest, "sha256:"))
+	if err := os.MkdirAll(filepath.Dir(blob), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(blob, fixture.layer[:fixture.resumeLayerAt], 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := NewTestClient(srv.Client()).Acquire(context.Background(), spec, out, lock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !fixture.sawRange || fixture.layerRequests != 1 {
+		t.Fatalf("resume range was not used: saw=%v requests=%d", fixture.sawRange, fixture.layerRequests)
+	}
+	raw, err := os.ReadFile(filepath.Join(out, "blobs", "sha256", strings.TrimPrefix(fixture.layerDigest, "sha256:")))
+	if err != nil || !bytes.Equal(raw, fixture.layer) {
+		t.Fatalf("resumed layer mismatch err=%v", err)
+	}
+	if _, err := os.Stat(partial); !os.IsNotExist(err) {
+		t.Fatalf("partial layout still exists after promotion: %v", err)
+	}
+	if verified, err := VerifyOffline(spec, out, lock); err != nil || verified.ManifestDigest != got.ManifestDigest {
+		t.Fatalf("offline verify after resume failed: %+v %v", verified, err)
+	}
+}
+
+func TestAcquireReusesVerifiedCompletePartialBlobWithoutNetwork(t *testing.T) {
+	var fixture *fixtureRegistry
+	srv, spec, _, _ := registryFixture(t, func(f *fixtureRegistry) { fixture = f; f.rejectLayerGET = true })
+	defer srv.Close()
+	out := filepath.Join(t.TempDir(), "layout")
+	lock := filepath.Join(t.TempDir(), "lock.json")
+	partial := filepath.Join(filepath.Dir(out), "."+filepath.Base(out)+".partial")
+	blob := filepath.Join(partial, "blobs", "sha256", strings.TrimPrefix(fixture.layerDigest, "sha256:"))
+	if err := os.MkdirAll(filepath.Dir(blob), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(blob, fixture.layer, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewTestClient(srv.Client()).Acquire(context.Background(), spec, out, lock); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.layerRequests != 0 {
+		t.Fatalf("verified complete blob was fetched again: %d", fixture.layerRequests)
+	}
+}
+
+func TestAcquireRejectsCorruptCompletePartialBlob(t *testing.T) {
+	var fixture *fixtureRegistry
+	srv, spec, _, _ := registryFixture(t, func(f *fixtureRegistry) { fixture = f })
+	defer srv.Close()
+	out := filepath.Join(t.TempDir(), "layout")
+	lock := filepath.Join(t.TempDir(), "lock.json")
+	partial := filepath.Join(filepath.Dir(out), "."+filepath.Base(out)+".partial")
+	blob := filepath.Join(partial, "blobs", "sha256", strings.TrimPrefix(fixture.layerDigest, "sha256:"))
+	if err := os.MkdirAll(filepath.Dir(blob), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(blob, bytes.Repeat([]byte{'x'}, len(fixture.layer)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := NewTestClient(srv.Client()).Acquire(context.Background(), spec, out, lock)
+	if err == nil || !strings.Contains(err.Error(), "partial blob") {
+		t.Fatalf("corrupt complete partial blob was not rejected: %v", err)
+	}
+	if fixture.layerRequests != 0 {
+		t.Fatalf("corrupt complete partial blob triggered network fetch: %d", fixture.layerRequests)
+	}
+}
+
 func TestAcquireBearerIndexPlatformAndBlobIntegrity(t *testing.T) {
 	srv, spec, manifest, index := registryFixture(t, nil)
 	defer srv.Close()

@@ -283,7 +283,14 @@ def prepare_role_stage_dir(role_dir: Path) -> None:
         st = role_dir.lstat()
         if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
             raise RuntimeError(f"MANAGEMENT_STAGE_ROLE_ALREADY_EXISTS {role_dir.name}")
-        if any(role_dir.iterdir()):
+        names = {child.name for child in role_dir.iterdir()}
+        if names == {".layout.partial"}:
+            partial = role_dir / ".layout.partial"
+            pst = partial.lstat()
+            if stat.S_ISLNK(pst.st_mode) or not stat.S_ISDIR(pst.st_mode):
+                raise RuntimeError(f"MANAGEMENT_STAGE_ROLE_ALREADY_EXISTS {role_dir.name}")
+            return
+        if names:
             raise RuntimeError(f"MANAGEMENT_STAGE_ROLE_ALREADY_EXISTS {role_dir.name}")
         role_dir.rmdir()
     role_dir.mkdir(mode=0o755)
@@ -317,6 +324,9 @@ def acquire(stage: Path, release: Path, ctl: Path) -> None:
             names = {child.name for child in role_dir.iterdir()}
             if names == {"layout", "acquisition-lock.json"}:
                 entries.append(verify_role(row, role_dir))
+                continue
+            if names == {".layout.partial"}:
+                pending.append(row)
                 continue
             if names:
                 raise RuntimeError(f"MANAGEMENT_STAGE_ROLE_ALREADY_EXISTS {row['role']}")
