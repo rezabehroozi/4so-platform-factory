@@ -1637,3 +1637,11 @@ func TestInstallHistoricalRequiresExplicitAdmission(t *testing.T) {
 		t.Fatalf("expected admission rejection, got %v", err)
 	}
 }
+
+func TestUpstreamAdmissionStrictDecoderAcceptsCanonicalLicenseSPDX(t *testing.T) {
+	raw := []byte(`{"catalogConstraint":"1.11.x","chart":"alloy","component":"alloy","licenseSPDX":"Apache-2.0","rationale":"fixture","selectedVersion":"1.11.0","source":"https://example.test/charts","status":"ready-for-acquisition","runtimeStatus":"eligible-after-source-resolution","upstreamVersion":"1.11.0"}`)
+	var entry upstreamAdmissionEntry
+	if err := decodeStrict(raw, &entry); err != nil {
+		t.Fatalf("canonical licenseSPDX rejected by strict admission decoder: %v", err)
+	}
+}

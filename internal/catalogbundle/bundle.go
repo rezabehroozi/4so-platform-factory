@@ -1041,6 +1041,7 @@ type upstreamAdmissionEntry struct {
 	CatalogConstraint string                            `json:"catalogConstraint"`
 	Chart             string                            `json:"chart"`
 	Component         string                            `json:"component"`
+	LicenseSPDX       string                            `json:"licenseSPDX,omitempty"`
 	Rationale         string                            `json:"rationale"`
 	ReviewEvidence    []upstreamAdmissionReviewEvidence `json:"reviewEvidence,omitempty"`
 	SelectedVersion   *string                           `json:"selectedVersion"`
