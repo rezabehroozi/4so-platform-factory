@@ -118,6 +118,7 @@ func TestCertifyProductImageExactPayloadAndTrust(t *testing.T) {
 	releaseDigest := "sha256:" + strings.Repeat("a", 64)
 	root, ref := writeProductLayout(t, "platform.4so.local/management/platform-agent", "platform-agent", releaseDigest, "65532:65532", []string{"/platform-agent"}, []fixtureFile{
 		{path: ".", mode: 0o755, typeflag: tar.TypeDir},
+		{path: "boot/", mode: 0o755, typeflag: tar.TypeDir},
 		{path: "platform-agent", raw: binary, mode: 0o755},
 		{path: "etc/ssl/certs/ca-certificates.crt", raw: []byte("certificate-bundle"), mode: 0o644},
 	})

@@ -179,10 +179,11 @@ func scanLayerTargets(blob sourceBlob, mediaType string, targets map[string]*lay
 		if hdr.Typeflag == tar.TypeDir && (hdr.Name == "." || hdr.Name == "./") {
 			continue
 		}
-		if hdr.Typeflag == tar.TypeDir && (hdr.Name == "." || hdr.Name == "./") {
-			continue
+		entryName := hdr.Name
+		if hdr.Typeflag == tar.TypeDir && strings.HasSuffix(entryName, "/") {
+			entryName = strings.TrimSuffix(entryName, "/")
 		}
-		name, pathErr := canonicalLayerPath(hdr.Name)
+		name, pathErr := canonicalLayerPath(entryName)
 		if pathErr != nil {
 			return pathErr
 		}
