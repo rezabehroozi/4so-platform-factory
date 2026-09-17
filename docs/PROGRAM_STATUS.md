@@ -53,3 +53,34 @@ These are closure/evidence blockers, not a reason to reopen completed source wor
 ## Truth boundary
 
 The release gate remains independent across Source Semantics, Generated/Installed Runtime Semantics, Runtime-Realism Negative Controls and Exact-SHA Physical Runtime. Passing the first three never authorizes a Physical PASS claim. Phase D/M remain deferred until C9 development/feature closure.
+
+## Reporting and handoff contract
+
+Every progress report for 4SO Platform Factory MUST include these fields, even when the value is unchanged:
+
+- **Code progress %**: report overall pre-physical software closure and, separately when useful, mandatory Core source closure.
+- **Lab progress %**: derive from explicit Lab closure gates; never inflate it from source/test progress.
+- **Last completed stage %**: name the most recently completed stage and show its own completion percentage/evidence.
+- **Blockers**: list every current blocker with owner/lane and whether it is software, supply-chain, environment, or physical-runtime related.
+- **Actions Reza must do**: always present this section. If nothing requires Reza, say `None` explicitly.
+- **Git state**: all real changes MUST land on canonical `main`; keep `main == origin/main`, divergence `0/0`, and remove side branches after any temporary development work. Never claim sync without fresh evidence.
+- **Lab per-node state**: when Lab was probed in the current wave, report reachability, time sync, installed/active services, and material blockers per node.
+- **Next execution checkpoint**: state the exact next actions so a new chat or AI agent can resume without rediscovery.
+
+`docs/PROGRAM_STATUS.md` is also the canonical human-readable handoff file. It must remain sufficient for a fresh chat/agent to understand what is complete, what is blocked, the current exact Git/release authority, the current Lab state, and the immediate next execution chain. Machine-readable derived knowledge remains in `DERIVED-AGENT-KNOWLEDGE.json`; do not create redundant handoff/worklog files unless an executable consumer genuinely needs one.
+
+## Current handoff checkpoint — 2026-09-17
+
+- Canonical Git: `main == origin/main == 0c2f47519fa32ee4178f6ad294218b438cd0691b`; last fresh divergence `0/0`; remote branch set contains only `main`.
+- Exact FULL release for this checkpoint: `4so-platform-factory-0.0.362-0c2f475-FULL.zip`, SHA-256 `553c7f0b4497476cdcca6c8b50e1d79835147eeea7ac4d5f6f3a9ccece6a9933`, 1005 entries.
+- Full Verifier for that exact ZIP is currently running; do not claim final Full Verifier PASS until its terminal success marker and exit code `0` are observed.
+- Fresh Windows→Lab sweep: vm-lab06..vm-lab12 are 7/7 reachable, chrony 7/7 active with `ntp.ripe.net` selected, KVM 7/7 present, and raw `/dev/sdb` `/dev/sdc` `/dev/sdd` remain untouched.
+- vm-lab06: installer service active, but RKE2/containerd inactive. Exact execution remains intentionally blocked until the sealed ApplianceBundle is complete.
+- vm-lab07: PostgreSQL active; RKE2/containerd inactive; used as supply-chain/product-certification staging worker.
+- RKE2 `v1.34.10+rke2r1` offline artifact set is fully acquired and SHA/size verified on vm-lab06.
+- Management external images PostgreSQL/Forgejo/Zot/Keycloak are 4/4 acquired, offline verified, and assembled successfully for the current release lane.
+- Product images `platform-api`, `platform-agent`, and `platform-probe` have real exact-release certification evidence; static base uses exact distroless nonroot+CA authority.
+- Three locked manifest source files have now been re-acquired from their canonical locked URLs and exact size/SHA verified: Argo CD, CloudNativePG, and Longhorn.
+- Manifest inspection currently requires 11 mutable image references to be resolved into exact digests: Argo CD=3, CloudNativePG=1, Longhorn=7.
+- Remaining Lab bundle blockers: maintenance-toolchain-base/product maintenance image; exact acquisition/assembly of the 11 manifest images; digest-pinned runtime manifest generation; final management OCI archive; sealed ApplianceBundle; exact installer deployment/execution; RKE2 production-standard-ha bootstrap; runtime health/evidence.
+- Physical PASS remains NOT RUN and must never be inferred from the software, supply-chain, or verifier gates above.
