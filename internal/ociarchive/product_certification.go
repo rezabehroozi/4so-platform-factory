@@ -176,6 +176,12 @@ func scanLayerTargets(blob sourceBlob, mediaType string, targets map[string]*lay
 		if entries > maxProductLayerEntries {
 			return fmt.Errorf("product image layer %s exceeds entry limit", blob.digest)
 		}
+		if hdr.Typeflag == tar.TypeDir && (hdr.Name == "." || hdr.Name == "./") {
+			continue
+		}
+		if hdr.Typeflag == tar.TypeDir && (hdr.Name == "." || hdr.Name == "./") {
+			continue
+		}
 		name, pathErr := canonicalLayerPath(hdr.Name)
 		if pathErr != nil {
 			return pathErr
