@@ -86,8 +86,10 @@ func writeProductLayout(t *testing.T, repo, role, releaseDigest, user string, en
 	layer := writeBlob(t, root, layerRaw)
 	layer.MediaType = "application/vnd.oci.image.layer.v1.tar+gzip"
 	configRaw, _ := json.Marshal(map[string]any{
-		"architecture": "amd64", "os": "linux",
-		"config": map[string]any{"User": user, "Entrypoint": entrypoint, "Labels": map[string]string{"platform.4so.io/product-role": role, "platform.4so.io/source-release-digest": releaseDigest}},
+		"architecture": "amd64", "os": "linux", "created": "2026-01-01T00:00:00Z",
+		"rootfs":  map[string]any{"type": "layers", "diff_ids": []string{fixtureDigest([]byte("diff"))}},
+		"history": []map[string]any{{"created": "2026-01-01T00:00:00Z", "created_by": "fixture", "comment": "oci-standard"}},
+		"config":  map[string]any{"User": user, "Entrypoint": entrypoint, "Env": []string{"PATH=/usr/bin"}, "ExposedPorts": map[string]any{"8080/tcp": map[string]any{}}, "Volumes": map[string]any{"/data": map[string]any{}}, "StopSignal": "SIGTERM", "Labels": map[string]string{"platform.4so.io/product-role": role, "platform.4so.io/source-release-digest": releaseDigest}},
 	})
 	config := writeBlob(t, root, configRaw)
 	config.MediaType = "application/vnd.oci.image.config.v1+json"

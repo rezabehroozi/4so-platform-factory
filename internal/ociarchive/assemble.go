@@ -207,11 +207,12 @@ func collectSourceDescriptor(root string, desc descriptor, blobs map[string]sour
 	switch desc.MediaType {
 	case "application/vnd.oci.image.index.v1+json", "application/vnd.docker.distribution.manifest.list.v2+json":
 		var value struct {
-			SchemaVersion int          `json:"schemaVersion"`
-			MediaType     string       `json:"mediaType,omitempty"`
-			ArtifactType  string       `json:"artifactType,omitempty"`
-			Subject       *descriptor  `json:"subject,omitempty"`
-			Manifests     []descriptor `json:"manifests"`
+			SchemaVersion int               `json:"schemaVersion"`
+			MediaType     string            `json:"mediaType,omitempty"`
+			ArtifactType  string            `json:"artifactType,omitempty"`
+			Subject       *descriptor       `json:"subject,omitempty"`
+			Manifests     []descriptor      `json:"manifests"`
+			Annotations   map[string]string `json:"annotations,omitempty"`
 		}
 		if err = decodeCanonicalJSON(raw, &value); err != nil || value.SchemaVersion != 2 || len(value.Manifests) == 0 || value.ArtifactType != "" || value.Subject != nil || (value.MediaType != "" && value.MediaType != desc.MediaType) {
 			return fmt.Errorf("source OCI nested index %q is invalid", desc.Digest)
@@ -223,12 +224,13 @@ func collectSourceDescriptor(root string, desc descriptor, blobs map[string]sour
 		}
 	case "application/vnd.oci.image.manifest.v1+json", "application/vnd.docker.distribution.manifest.v2+json":
 		var value struct {
-			SchemaVersion int          `json:"schemaVersion"`
-			MediaType     string       `json:"mediaType,omitempty"`
-			ArtifactType  string       `json:"artifactType,omitempty"`
-			Subject       *descriptor  `json:"subject,omitempty"`
-			Config        descriptor   `json:"config"`
-			Layers        []descriptor `json:"layers"`
+			SchemaVersion int               `json:"schemaVersion"`
+			MediaType     string            `json:"mediaType,omitempty"`
+			ArtifactType  string            `json:"artifactType,omitempty"`
+			Subject       *descriptor       `json:"subject,omitempty"`
+			Config        descriptor        `json:"config"`
+			Layers        []descriptor      `json:"layers"`
+			Annotations   map[string]string `json:"annotations,omitempty"`
 		}
 		if err = decodeCanonicalJSON(raw, &value); err != nil || value.SchemaVersion != 2 || value.ArtifactType != "" || value.Subject != nil || (value.MediaType != "" && value.MediaType != desc.MediaType) {
 			return fmt.Errorf("source OCI image manifest %q is invalid", desc.Digest)

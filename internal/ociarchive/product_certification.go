@@ -54,10 +54,28 @@ type ProductImageCertification struct {
 type productConfig struct {
 	Architecture string `json:"architecture"`
 	OS           string `json:"os"`
-	Config       struct {
-		User       string            `json:"User"`
-		Entrypoint []string          `json:"Entrypoint"`
-		Labels     map[string]string `json:"Labels"`
+	Created      string `json:"created,omitempty"`
+	RootFS       struct {
+		Type    string   `json:"type"`
+		DiffIDs []string `json:"diff_ids"`
+	} `json:"rootfs,omitempty"`
+	History []struct {
+		Created    string `json:"created,omitempty"`
+		CreatedBy  string `json:"created_by,omitempty"`
+		Author     string `json:"author,omitempty"`
+		Comment    string `json:"comment,omitempty"`
+		EmptyLayer bool   `json:"empty_layer,omitempty"`
+	} `json:"history,omitempty"`
+	Config struct {
+		User         string              `json:"User"`
+		Entrypoint   []string            `json:"Entrypoint"`
+		Cmd          []string            `json:"Cmd,omitempty"`
+		Env          []string            `json:"Env,omitempty"`
+		WorkingDir   string              `json:"WorkingDir,omitempty"`
+		StopSignal   string              `json:"StopSignal,omitempty"`
+		ExposedPorts map[string]struct{} `json:"ExposedPorts,omitempty"`
+		Volumes      map[string]struct{} `json:"Volumes,omitempty"`
+		Labels       map[string]string   `json:"Labels"`
 	} `json:"config"`
 }
 
