@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -158,6 +159,10 @@ func NormalizeRequest(request InstallRequest) InstallRequest {
 		request.Infrastructure.SSHUser = "root"
 	}
 	request.Infrastructure.StorageClass = strings.TrimSpace(request.Infrastructure.StorageClass)
+	for index := range request.Infrastructure.StorageDataDevices {
+		request.Infrastructure.StorageDataDevices[index] = strings.TrimSpace(request.Infrastructure.StorageDataDevices[index])
+	}
+	request.Infrastructure.StorageDeviceMode = strings.TrimSpace(request.Infrastructure.StorageDeviceMode)
 	request.Infrastructure.Region = strings.TrimSpace(request.Infrastructure.Region)
 	request.Network.PublicEndpoint = strings.TrimSpace(request.Network.PublicEndpoint)
 	request.Network.DNSZone = strings.TrimSuffix(strings.TrimSpace(request.Network.DNSZone), ".")
@@ -232,6 +237,35 @@ func validClusterInterface(value string) bool {
 		return false
 	}
 	return true
+}
+
+func validStorageDevicePath(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || !strings.HasPrefix(value, "/dev/") || path.Clean(value) != value {
+		return false
+	}
+	for _, ch := range strings.TrimPrefix(value, "/dev/") {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == '.' || ch == '/' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func hasDuplicateStorageDevices(values []string) bool {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		key := strings.TrimSpace(value)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			return true
+		}
+		seen[key] = struct{}{}
+	}
+	return false
 }
 
 func validDNSSubdomain(value string) bool {
@@ -399,6 +433,24 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 		if request.Infrastructure.StorageClass == "" {
 			blockers = append(blockers, "production-standard-ha requires a replicated storageClass")
 		}
+		if len(request.Infrastructure.StorageDataDevices) == 0 {
+			blockers = append(blockers, "production-standard-ha requires at least one explicit storageDataDevices entry; root-disk Longhorn scheduling is forbidden")
+		}
+		if request.Infrastructure.StorageDeviceMode != "format-empty" {
+			blockers = append(blockers, "production-standard-ha requires storageDeviceMode format-empty for dedicated Longhorn data devices")
+		}
+		if hasDuplicateStorageDevices(request.Infrastructure.StorageDataDevices) {
+			blockers = append(blockers, "storageDataDevices must be unique")
+		}
+		for _, device := range request.Infrastructure.StorageDataDevices {
+			if !validStorageDevicePath(device) {
+				blockers = append(blockers, "storageDataDevices must contain canonical Linux /dev paths")
+				break
+			}
+			if strings.HasPrefix(device, "/dev/sd") || strings.HasPrefix(device, "/dev/vd") || strings.HasPrefix(device, "/dev/xvd") {
+				warnings = append(warnings, "kernel storage device names can reorder across hardware changes; /dev/disk/by-id paths are preferred when available")
+			}
+		}
 		if request.Infrastructure.StorageClass != "" && !validDNSSubdomain(request.Infrastructure.StorageClass) {
 			blockers = append(blockers, "production-standard-ha storageClass must be a valid lowercase DNS subdomain")
 		}
@@ -478,7 +530,7 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 	}
 
 	steps := []PlanStep{
-		{Order: 10, Stage: "foundation", Key: "preflight", Title: "Validate installer request, sealed bundle, host access, east-west topology, required ports and credentials", Executor: "bootstrap-controller", Risk: "low", Verification: []string{"local and HA peer host admission", "pinned SSH reachability", "east-west cluster addresses are already assigned to the declared interface", "required bootstrap ports available"}, Rollback: "no mutation"},
+		{Order: 10, Stage: "foundation", Key: "preflight", Title: "Validate installer request, sealed bundle, host access, east-west topology, required ports and credentials", Executor: "bootstrap-controller", Risk: "low", Verification: []string{"local and HA peer host admission", "pinned SSH reachability", "east-west cluster addresses are already assigned to the declared interface", "dedicated Longhorn devices are explicit, blank or product-owned, and not the root disk", "required bootstrap ports available"}, Rollback: "no mutation"},
 		{Order: 20, Stage: "authority", Key: "authority-runtime-gate", Title: "Verify PostgreSQL authority runtime certification", Executor: "authority-gate", Risk: "critical", DependsOn: []string{"preflight"}, Verification: []string{"migration integration", "transaction atomicity", "lease/fencing", "crash/restart", "backup/restore"}, Rollback: "no installation mutation until gate passes"},
 		{Order: 30, Stage: "foundation", Key: "management-kubernetes", Title: "Bootstrap or validate the management Kubernetes cluster", Executor: "rke2-or-existing-cluster-adapter", Risk: "critical", DependsOn: []string{"authority-runtime-gate"}, Verification: []string{"API availability", "quorum", "storage readiness"}, Rollback: "remove only resources created by the operation"},
 		{Order: 40, Stage: "foundation", Key: "database", Title: "Install or connect PostgreSQL authority", Executor: "database-adapter", Risk: "critical", DependsOn: []string{"management-kubernetes"}, Verification: []string{"TLS connection", "migration", "backup target", "restore rehearsal"}, Rollback: "restore previous database release and snapshot"},
@@ -501,6 +553,7 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 	customerActions := []string{
 		"choose evaluation, standard HA or integrated enterprise profile",
 		"provide host addresses or an existing-cluster enrollment reference",
+		"for Standard HA, provide explicit dedicated Longhorn data devices that are safe to format when empty",
 		"provide product endpoint, DNS ownership and TLS mode",
 		"provide only secret references and a backup destination",
 		"review and approve the generated risk plan",
