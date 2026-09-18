@@ -18,13 +18,14 @@
     },
     "language": "go",
     "moduleGoDirective": "1.23",
-    "observedBuilder": "go1.23.2 linux/amd64",
+    "observedBuilder": "go1.27.1 linux/amd64 + gcc 15.2.0 + GNU ld 2.46 + glibc 2.43 + PostgreSQL libpq 17.11",
     "policy": {
       "compilerVersionMustMatchBuildProvenance": true,
       "exactCompilerArchiveDigestRequired": true,
       "networkAutoDownloadDuringReleaseBuildAllowed": false,
       "physicalPassFromSourceBuildAllowed": false,
-      "supportedToolchainRequired": true
+      "supportedToolchainRequired": true,
+      "exactCGOToolchainRequired": true
     },
     "releaseVersion": "0.0.362",
     "requiredClosure": [
@@ -32,7 +33,8 @@
       "verify exact archive byte size and sha256 before atomic install into vendor/toolchains",
       "verify offline Go install reports the exact candidate version/GOOS/GOARCH",
       "record exact go version/GOOS/GOARCH/CGO in BUILD-PROVENANCE",
-      "rebuild release binaries using only the admitted offline toolchain and compare artifact manifest"
+      "rebuild release binaries using only the admitted offline toolchain and compare artifact manifest",
+      "verify exact CGO compiler/linker/libc/libpq identity before release build"
     ],
     "exactCompiler": {
       "version": "go1.27.1",
@@ -42,6 +44,15 @@
       "archiveSha256": "63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445",
       "archiveSize": 70553950,
       "localArchivePath": "vendor/toolchains/go1.27.1.linux-amd64.tar.gz"
+    },
+    "exactCGOToolchain": {
+      "ccVersion": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+      "ldVersion": "GNU ld (GNU Binutils for Ubuntu) 2.46",
+      "libcVersion": "ldd (Ubuntu GLIBC 2.43-2ubuntu2.4) 2.43",
+      "libpqHeaderPath": "/usr/include/postgresql/libpq-fe.h",
+      "libpqHeaderSha256": "499d984421f5490be016f7d49a8599e7f8be120f0cf80c200e872265064be7c0",
+      "libpqLibraryPath": "/usr/lib/x86_64-linux-gnu/libpq.so.5",
+      "libpqLibrarySha256": "aa8213fade4f9bd37945f5ea38736b71e840778d228ac25cd9c4ac0af3288af6"
     }
   }
 }
