@@ -125,6 +125,7 @@ var resetSteps = []struct{ key, title string }{
 	{"validate-source", "Bind reset to the exact persisted installation authority"},
 	{"uninstall-remote-rke2", "Uninstall product-owned RKE2 from remote HA management nodes"},
 	{"uninstall-local-rke2", "Uninstall product-owned RKE2 from the local management node"},
+	{"reset-storage-devices", "Unmount and clear only explicitly owned 4SO Longhorn data devices"},
 	{"purge-generated-state", "Remove generated installer, lifecycle and local backup state while preserving operator access inputs"},
 	{"verify-clean-hosts", "Verify product-owned Kubernetes runtime and generated bootstrap state are absent"},
 }
@@ -355,6 +356,8 @@ func (r *Runner) executeResetStep(ctx context.Context, key string, run ResetRun)
 		return nil
 	case "uninstall-local-rke2":
 		return r.uninstallLocalRKE2(ctx)
+	case "reset-storage-devices":
+		return r.resetHAStorageDevices(ctx, run.Request)
 	case "purge-generated-state":
 		return r.purgeGeneratedInstallerState()
 	case "verify-clean-hosts":
@@ -455,6 +458,9 @@ func (r *Runner) verifyResetClean(ctx context.Context, run ResetRun) error {
 	}
 	if residue := r.productOwnedRKE2Residue(ctx); len(residue) > 0 {
 		return fmt.Errorf("local product-owned RKE2 residue remains after reset: %s", strings.Join(residue, ", "))
+	}
+	if err := r.verifyHAStorageReset(ctx, run.Request); err != nil {
+		return err
 	}
 	if !r.simulation && run.Request.ProfileID == "production-standard-ha" {
 		bootstrapRun := Run{Request: run.Request}
