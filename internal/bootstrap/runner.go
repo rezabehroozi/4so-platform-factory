@@ -1589,6 +1589,12 @@ spec:
               value: http://platform-keycloak:8080
             - name: PLATFORM_FACTORY_INTERNAL_GITOPS_URL
               value: http://argocd-server.platform-gitops.svc.cluster.local
+            - name: PLATFORM_FACTORY_INTERNAL_GITOPS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: platform-internal-services
+                  key: argocd-observer-token
+                  optional: true
             - name: PLATFORM_FACTORY_OIDC_ENABLED
               value: "true"
             - name: PLATFORM_FACTORY_OIDC_ISSUER
