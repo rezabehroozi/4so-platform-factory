@@ -956,20 +956,20 @@ func (r *Runner) configureRKE2(run Run) error {
 		return err
 	}
 	config := fmt.Sprintf("write-kubeconfig-mode: \"0600\"\nnode-ip: %s\ntoken: %s\ntls-san:\n  - %s\n  - %s\n  - %s\n", yamlScalar(nodeAddress), yamlScalar(tokenRaw), yamlScalar(endpoint.Hostname()), yamlScalar(accessAddresses[0]), yamlScalar(nodeAddress))
-	if iface := strings.TrimSpace(run.Request.Infrastructure.ClusterInterface); iface != "" {
-		config += "flannel-iface: " + yamlScalar(iface) + "\n"
-	}
 	if run.Request.ProfileID == "production-standard-ha" {
 		config += "etcd-expose-metrics: true\n"
+		if iface := strings.TrimSpace(run.Request.Infrastructure.ClusterInterface); iface != "" {
+			canalConfig := fmt.Sprintf("apiVersion: helm.cattle.io/v1\nkind: HelmChartConfig\nmetadata:\n  name: rke2-canal\n  namespace: kube-system\nspec:\n  valuesContent: |-\n    flannel:\n      iface: %s\n", yamlScalar(iface))
+			if err := r.system.WriteFile("/var/lib/rancher/rke2/server/manifests/rke2-canal-config.yaml", []byte(canalConfig), 0o600); err != nil {
+				return err
+			}
+		}
 		for index, peer := range accessAddresses[1:] {
 			clusterPeer := peer
 			if index+1 < len(clusterAddresses) {
 				clusterPeer = clusterAddresses[index+1]
 			}
 			peerConfig := fmt.Sprintf("server: https://%s:9345\nwrite-kubeconfig-mode: \"0600\"\nnode-ip: %s\ntoken: %s\ntls-san:\n  - %s\n  - %s\n  - %s\n", nodeAddress, clusterPeer, yamlScalar(tokenRaw), yamlScalar(endpoint.Hostname()), yamlScalar(peer), yamlScalar(clusterPeer))
-			if iface := strings.TrimSpace(run.Request.Infrastructure.ClusterInterface); iface != "" {
-				peerConfig += "flannel-iface: " + yamlScalar(iface) + "\n"
-			}
 			path := filepath.Join(r.stateDir, "ha-nodes", peer, "config.yaml")
 			if err := writePrivateFile(path, []byte(peerConfig)); err != nil {
 				return err
