@@ -350,6 +350,10 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 
 	warnings := []string{}
 	blockers := []string{}
+	functionalRKE2Milestone := request.ExecutionMilestone == "rke2-quorum"
+	functionalStorageMilestone := request.ExecutionMilestone == "ha-storage"
+	functionalMilestone := functionalRKE2Milestone || functionalStorageMilestone
+	fullExecution := !functionalMilestone
 	if !contains(profile.SupportedConnectivity, string(request.Connectivity)) {
 		blockers = append(blockers, fmt.Sprintf("profile %s does not support connectivity mode %s", profile.ID, request.Connectivity))
 	}
@@ -437,31 +441,33 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 		if len(clusterAddresses) == 0 {
 			warnings = append(warnings, "HA east-west traffic will use nodeAddresses; set clusterNodeAddresses when SSH/public access and cluster traffic use different NICs")
 		}
-		if request.Infrastructure.StorageClass == "" {
-			blockers = append(blockers, "production-standard-ha requires a replicated storageClass")
-		}
-		if len(request.Infrastructure.StorageDataDevices) == 0 {
-			blockers = append(blockers, "production-standard-ha requires at least one explicit storageDataDevices entry; root-disk Longhorn scheduling is forbidden")
-		}
-		if request.Infrastructure.StorageDeviceMode != "format-empty" {
-			blockers = append(blockers, "production-standard-ha requires storageDeviceMode format-empty for dedicated Longhorn data devices")
-		}
-		if hasDuplicateStorageDevices(request.Infrastructure.StorageDataDevices) {
-			blockers = append(blockers, "storageDataDevices must be unique")
-		}
-		for _, device := range request.Infrastructure.StorageDataDevices {
-			if !validStorageDevicePath(device) {
-				blockers = append(blockers, "storageDataDevices must contain canonical Linux /dev paths")
-				break
+		if !functionalRKE2Milestone {
+			if request.Infrastructure.StorageClass == "" {
+				blockers = append(blockers, "production-standard-ha requires a replicated storageClass")
 			}
-			if strings.HasPrefix(device, "/dev/sd") || strings.HasPrefix(device, "/dev/vd") || strings.HasPrefix(device, "/dev/xvd") {
-				warnings = append(warnings, "kernel storage device names can reorder across hardware changes; /dev/disk/by-id paths are preferred when available")
+			if len(request.Infrastructure.StorageDataDevices) == 0 {
+				blockers = append(blockers, "production-standard-ha requires at least one explicit storageDataDevices entry; root-disk Longhorn scheduling is forbidden")
+			}
+			if request.Infrastructure.StorageDeviceMode != "format-empty" {
+				blockers = append(blockers, "production-standard-ha requires storageDeviceMode format-empty for dedicated Longhorn data devices")
+			}
+			if hasDuplicateStorageDevices(request.Infrastructure.StorageDataDevices) {
+				blockers = append(blockers, "storageDataDevices must be unique")
+			}
+			for _, device := range request.Infrastructure.StorageDataDevices {
+				if !validStorageDevicePath(device) {
+					blockers = append(blockers, "storageDataDevices must contain canonical Linux /dev paths")
+					break
+				}
+				if strings.HasPrefix(device, "/dev/sd") || strings.HasPrefix(device, "/dev/vd") || strings.HasPrefix(device, "/dev/xvd") {
+					warnings = append(warnings, "kernel storage device names can reorder across hardware changes; /dev/disk/by-id paths are preferred when available")
+				}
+			}
+			if request.Infrastructure.StorageClass != "" && !validDNSSubdomain(request.Infrastructure.StorageClass) {
+				blockers = append(blockers, "production-standard-ha storageClass must be a valid lowercase DNS subdomain")
 			}
 		}
-		if request.Infrastructure.StorageClass != "" && !validDNSSubdomain(request.Infrastructure.StorageClass) {
-			blockers = append(blockers, "production-standard-ha storageClass must be a valid lowercase DNS subdomain")
-		}
-		if request.Services.ObjectStorage.Mode != ServiceModeExternal || request.Services.ObjectStorage.Bucket == "" {
+		if fullExecution && (request.Services.ObjectStorage.Mode != ServiceModeExternal || request.Services.ObjectStorage.Bucket == "") {
 			blockers = append(blockers, "production-standard-ha requires external S3-compatible object storage with bucket")
 		}
 	}
@@ -469,7 +475,7 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 		if request.Infrastructure.CredentialRef != "secret://installer/ssh-private-key" {
 			blockers = append(blockers, "production-standard-ha appliance bootstrap requires credentialRef secret://installer/ssh-private-key")
 		}
-		if !validPlatformExternalSecretRef(request.Services.ObjectStorage.CredentialRef) {
+		if fullExecution && !validPlatformExternalSecretRef(request.Services.ObjectStorage.CredentialRef) {
 			blockers = append(blockers, "production-standard-ha appliance bootstrap requires object storage credentialRef external-secret://platform-system/<valid-kubernetes-secret>")
 		}
 		if request.Network.TLSMode == "bootstrap-self-signed" {
@@ -508,17 +514,20 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 	if request.Services.Git.Mode == ServiceModeExternal && (request.Services.Git.Organization == "" || request.Services.Git.Repository == "") {
 		blockers = append(blockers, "external Git requires organization and repository")
 	}
-	if request.Services.Identity.Mode == ServiceModeManaged && request.Services.Identity.AdminEmail == "" {
+	if fullExecution && request.Services.Identity.Mode == ServiceModeManaged && request.Services.Identity.AdminEmail == "" {
 		blockers = append(blockers, "managed identity requires bootstrap administrator email")
 	}
 	if request.Services.Identity.Mode == ServiceModeExternal && (request.Services.Identity.IssuerURL == "" || request.Services.Identity.ClientID == "") {
 		blockers = append(blockers, "external identity requires issuerUrl and clientId")
 	}
-	if profile.Production && request.Services.ObjectStorage.Mode == ServiceModeManaged && request.Services.ObjectStorage.Provider == "local-evidence" {
+	if fullExecution && profile.Production && request.Services.ObjectStorage.Mode == ServiceModeManaged && request.Services.ObjectStorage.Provider == "local-evidence" {
 		blockers = append(blockers, "production profiles require a certified durable S3-compatible object storage target")
 	}
 	if profile.Production && !request.AcceptRisk {
 		blockers = append(blockers, "production profile requires explicit risk acceptance after plan review")
+	}
+	if functionalMilestone {
+		warnings = append(warnings, "functional Lab milestone stops before the full production dependency stack and is not Final Physical Certification")
 	}
 	if request.Connectivity == ConnectivityDisconnected {
 		warnings = append(warnings, "disconnected installation uses only the digest-locked local bundle and requires reachable local DNS/NTP")
