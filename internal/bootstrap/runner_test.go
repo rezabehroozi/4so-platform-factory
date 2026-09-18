@@ -776,7 +776,7 @@ func TestBootstrapStepsSkipOptionalOCMWhenNotBundled(t *testing.T) {
 		}
 	}
 	bundle.Spec.Workloads.OCMManifest = Artifact{Path: "artifacts/ocm.yaml", SHA256: "sha256:" + strings.Repeat("a", 64)}
-	steps = bootstrapStepsForBundle(bundle, "")
+	steps = bootstrapStepsForBundle(bundle, "", "")
 	seen := map[string]bool{}
 	for _, step := range steps {
 		seen[step.key] = true
