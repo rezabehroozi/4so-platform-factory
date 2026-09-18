@@ -189,6 +189,7 @@ func NormalizeRequest(request InstallRequest) InstallRequest {
 	request.Services.Identity.IssuerURL = strings.TrimSpace(request.Services.Identity.IssuerURL)
 	request.Services.Identity.ClientID = strings.TrimSpace(request.Services.Identity.ClientID)
 	request.ExecutionMilestone = strings.TrimSpace(request.ExecutionMilestone)
+	request.ExecutionStartStep = strings.TrimSpace(request.ExecutionStartStep)
 	return request
 }
 
@@ -412,6 +413,14 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 	}
 	if request.ExecutionMilestone != "" && request.ExecutionMilestone != "full" && request.ProfileID != "production-standard-ha" {
 		blockers = append(blockers, "functional execution milestones are only supported for production-standard-ha")
+	}
+	if request.ExecutionStartStep != "" {
+		if request.ExecutionStartStep != "prepare-storage-devices" {
+			blockers = append(blockers, "executionStartStep must be prepare-storage-devices when set")
+		}
+		if request.ExecutionMilestone != "ha-storage" || request.ProfileID != "production-standard-ha" {
+			blockers = append(blockers, "executionStartStep prepare-storage-devices requires production-standard-ha with executionMilestone ha-storage")
+		}
 	}
 	if profile.ID == "production-standard-ha" {
 		if len(request.Infrastructure.NodeAddresses) != 3 {
