@@ -116,7 +116,7 @@ var bootstrapSteps = []struct{ key, title string }{
 	{"revoke-bootstrap-credential", "Revoke the installer bootstrap credential from the running control plane"},
 }
 
-func bootstrapStepsForBundle(bundle BundleManifest, milestone string) []struct{ key, title string } {
+func bootstrapStepsForBundle(bundle BundleManifest, milestone, startStep string) []struct{ key, title string } {
 	steps := make([]struct{ key, title string }, 0, len(bootstrapSteps))
 	stopAfter := ""
 	switch strings.TrimSpace(milestone) {
@@ -128,7 +128,14 @@ func bootstrapStepsForBundle(bundle BundleManifest, milestone string) []struct{ 
 	default:
 		stopAfter = ""
 	}
+	started := strings.TrimSpace(startStep) == ""
 	for _, item := range bootstrapSteps {
+		if !started {
+			if item.key != strings.TrimSpace(startStep) {
+				continue
+			}
+			started = true
+		}
 		if (item.key == "deploy-fleet-hub" || item.key == "verify-fleet-hub") && strings.TrimSpace(bundle.Spec.Workloads.OCMManifest.Path) == "" {
 			continue
 		}
@@ -235,7 +242,7 @@ func (r *Runner) Start(ctx context.Context, request installation.InstallRequest)
 	if err != nil {
 		return Run{}, err
 	}
-	for _, item := range bootstrapStepsForBundle(bundle, request.ExecutionMilestone) {
+	for _, item := range bootstrapStepsForBundle(bundle, request.ExecutionMilestone, request.ExecutionStartStep) {
 		run.Steps = append(run.Steps, Step{Key: item.key, Title: item.title, State: StepPending})
 	}
 	if err = r.journal.Save(run); err != nil {
