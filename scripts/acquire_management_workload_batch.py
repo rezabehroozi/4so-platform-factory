@@ -181,9 +181,14 @@ def atomic_json(path: Path, value: dict) -> None:
         with os.fdopen(fd, "wb") as fh:
             fh.write(raw); fh.flush(); os.fsync(fh.fileno())
         os.chmod(tmp, 0o644); os.replace(tmp, path)
-        dfd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-        try: os.fsync(dfd)
-        finally: os.close(dfd)
+        # Directory fsync is a POSIX durability boundary. Windows cannot open a
+        # directory with os.open() for fsync, and ReplaceFile/MoveFileEx semantics
+        # are already handled by os.replace(). Never turn that platform difference
+        # into a false acquisition failure on the canonical Windows control host.
+        if os.name != "nt":
+            dfd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try: os.fsync(dfd)
+            finally: os.close(dfd)
     except Exception:
         try: os.unlink(tmp)
         except OSError: pass
