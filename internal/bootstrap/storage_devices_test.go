@@ -91,3 +91,34 @@ func TestLonghornDisksReadyRejectsAnyForeignSchedulableDisk(t *testing.T) {
 		t.Fatalf("foreign root-backed Longhorn disk must fail readiness")
 	}
 }
+
+func TestStorageDeviceResetRequiresExactOwnershipMarkerBeforeWipe(t *testing.T) {
+	command := storageDeviceResetCommand([]string{"/dev/sdb"})
+	for _, contract := range []string{
+		"refusing to reset storage device without exact 4SO mount ownership",
+		"refusing to reset unmounted 4SO storage device",
+		"refusing to reset storage device without 4SO ownership marker",
+		"MANAGEMENT_PLANE_STORAGE_DEVICE_V1",
+		"refusing to reset storage device with mismatched 4SO ownership marker",
+		"refusing to reset storage device mounted from unexpected source",
+	} {
+		if !strings.Contains(command, contract) {
+			t.Fatalf("storage reset command missing ownership guard %q", contract)
+		}
+	}
+	markerGuard := strings.Index(command, "without 4SO ownership marker")
+	wipe := strings.Index(command, "wipefs -a")
+	if markerGuard < 0 || wipe < 0 || markerGuard > wipe {
+		t.Fatalf("destructive wipe is not ordered after marker ownership verification")
+	}
+}
+
+func TestStorageDeviceResetNeverTreatsLabelAloneAsOwnership(t *testing.T) {
+	command := storageDeviceResetCommand([]string{"/dev/sdb"})
+	labelCheck := strings.Index(command, "4so-lh-00")
+	markerCheck := strings.Index(command, "MANAGEMENT_PLANE_STORAGE_DEVICE_V1")
+	wipe := strings.Index(command, "wipefs -a")
+	if labelCheck < 0 || markerCheck < 0 || wipe < 0 || !(labelCheck < markerCheck && markerCheck < wipe) {
+		t.Fatalf("reset must require label plus durable ownership marker before wipe")
+	}
+}
