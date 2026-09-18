@@ -1608,3 +1608,20 @@ func TestZotManifestDoesNotEnableUIWithoutSearchExtension(t *testing.T) {
 		t.Fatalf("managed Zot manifest must explicitly disable UI when search is not enabled:\n%s", manifest)
 	}
 }
+
+func TestKeycloakManifestUsesManagementHealthReadiness(t *testing.T) {
+	bundle := BundleManifest{}
+	bundle.Spec.Workloads.KeycloakImage = "quay.io/keycloak/keycloak@sha256:" + strings.Repeat("a", 64)
+	request := installation.InstallRequest{ProfileID: "production-standard-ha"}
+	request.Network.PublicEndpoint = "https://platform.example.test"
+	request.Network.DNSZone = "example.test"
+	manifest := keycloakManifest(bundle, request)
+	for _, want := range []string{"path: /health/ready", "port: 9000", "name: management"} {
+		if !strings.Contains(manifest, want) {
+			t.Fatalf("Keycloak manifest missing readiness contract %q:\n%s", want, manifest)
+		}
+	}
+	if strings.Contains(manifest, "path: /realms/platform/.well-known/openid-configuration\n              port: 8080") {
+		t.Fatalf("Keycloak readiness must not use hostname-sensitive public realm endpoint")
+	}
+}
