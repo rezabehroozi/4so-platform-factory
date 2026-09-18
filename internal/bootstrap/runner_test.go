@@ -246,7 +246,7 @@ func TestBundleRejectsTraversal(t *testing.T) {
 func haBootstrapRequest() installation.InstallRequest {
 	return installation.InstallRequest{
 		ProfileID: "production-standard-ha", Connectivity: installation.ConnectivityDisconnected,
-		Infrastructure: installation.InfrastructureSpec{Provider: "existing-hosts", NodeAddresses: []string{"10.0.0.11", "10.0.0.12", "10.0.0.13"}, CredentialRef: sshCredentialRef, SSHUser: "root", StorageClass: "replicated-rwx"},
+		Infrastructure: installation.InfrastructureSpec{Provider: "existing-hosts", NodeAddresses: []string{"10.0.0.11", "10.0.0.12", "10.0.0.13"}, CredentialRef: sshCredentialRef, SSHUser: "root", StorageClass: "replicated-rwx", StorageDataDevices: []string{"/dev/sdb", "/dev/sdc", "/dev/sdd"}, StorageDeviceMode: "format-empty"},
 		Network:        installation.NetworkSpec{PublicEndpoint: "https://platform.example.test", DNSZone: "example.test", TLSMode: "managed-private-ca"},
 		Services: installation.ServicesSpec{
 			Git:           installation.GitSpec{ServiceSpec: installation.ServiceSpec{Mode: installation.ServiceModeManaged}},
