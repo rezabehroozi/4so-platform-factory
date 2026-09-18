@@ -10,6 +10,7 @@ import ipaddress
 import json
 import re
 import stat
+import sys
 import tarfile
 import urllib.parse
 
@@ -1794,6 +1795,15 @@ def validate_console_action_state_contract(root: Path, errors: list[tuple[str, s
 
 
 def main() -> int:
+    # The canonical control host is Windows. Validation details can contain
+    # Persian text, so never let the active legacy console code page hide the
+    # actual invariant failure behind UnicodeEncodeError.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+            except (AttributeError, OSError):
+                pass
     parser = argparse.ArgumentParser()
     parser.add_argument('root', nargs='?', default='.')
     args = parser.parse_args()
