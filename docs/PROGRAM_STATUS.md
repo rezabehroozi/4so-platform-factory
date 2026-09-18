@@ -84,3 +84,20 @@ Every progress report for 4SO Platform Factory MUST include these fields, even w
 - Manifest inspection currently requires 11 mutable image references to be resolved into exact digests: Argo CD=3, CloudNativePG=1, Longhorn=7.
 - Remaining Lab bundle blockers: maintenance-toolchain-base/product maintenance image; exact acquisition/assembly of the 11 manifest images; digest-pinned runtime manifest generation; final management OCI archive; sealed ApplianceBundle; exact installer deployment/execution; RKE2 production-standard-ha bootstrap; runtime health/evidence.
 - Physical PASS remains NOT RUN and must never be inferred from the software, supply-chain, or verifier gates above.
+
+## Current handoff checkpoint - 2026-09-18
+
+- Canonical Git before this status update: `main == origin/main == 7b63965aa7ca351708257fb3ce317316c781487c`; fresh divergence `0/0`; remote branch set contains only `main`.
+- Major Lab-driven HA network closure is implemented end-to-end. `nodeAddresses` remain the SSH/access authority, while optional `clusterNodeAddresses` plus `clusterInterface` explicitly bind RKE2/etcd east-west traffic to an already configured private/L2 network.
+- The installer never invents, assigns or rewrites east-west IP addresses or routes. Planning rejects malformed interfaces, duplicate/non-IP cluster addresses, count mismatches, and an interface without explicit cluster addresses.
+- Live HA preflight now verifies the local east-west address is already assigned, peer routes resolve through the declared interface, and every remote peer already owns its declared east-west address before mutation.
+- RKE2 configuration uses east-west addresses for `node-ip` and HA join endpoint while preserving access/public addresses in TLS SANs. HA status exposes access nodes, cluster nodes, cluster interface and whether the topology is split.
+- Installer Console now provides dedicated HA east-west address/interface fields, submits them through the real request contract, validates obvious count/interface errors client-side, and includes Persian copy for the new workflow.
+- Linux exact-toolchain regression PASS with Go `1.27.1 linux/amd64`: `go test ./internal/installation ./internal/bootstrap ./cmd/platform-installer`.
+- Repository validation PASS after the change: `REPOSITORY_VALIDATION_PASS 1000`. Persian writing gate PASS with 1352 scanned string occurrences; localization coverage remains zero known text/attribute gaps.
+- Canonical Windows control-host supply-chain bug fixed: staged management OCI atomic JSON writes retain POSIX directory-fsync durability on Linux but no longer fail falsely on Windows where directory file descriptors cannot be opened for `fsync`. `tests.test_management_workload_batch` is 8/8 PASS on Windows.
+- Release build authority is now fail-closed on exact Go + CGO identity. The Windows host correctly rejects release construction because its active toolchain is `go1.27.0 windows/amd64`; source/test work may continue there, but Exact Release must be built by the admitted Linux/amd64 CGO authority.
+- UI browser smoke on Windows is environment-blocked only because Chromium/Playwright browser bytes are absent; Persian UI and localization gates PASS independently. This is not a Physical or product runtime PASS.
+- The previous FULL ZIP at commit `0c2f475` is historical and MUST NOT be treated as current-main Exact Release. A new FULL ZIP and Full Verifier remain required for the final current-main SHA after this status commit.
+- Physical Lab state from the last verified sweep remains 7/7 reachable with chrony/KVM healthy and raw `/dev/sdb`, `/dev/sdc`, `/dev/sdd` untouched. No newer Physical PASS is claimed by this software wave.
+- Immediate Lab continuation: determine the already-configured second-NIC IPs/interfaces from Windows-to-Lab read-only evidence; populate `clusterNodeAddresses`/`clusterInterface` only from that evidence; finish management OCI/manifest resolution and sealed ApplianceBundle; build the Exact Release on the admitted Linux builder; then run production-standard-ha preflight/bootstrap and capture Exact-SHA physical evidence.
