@@ -78,6 +78,8 @@ type InfrastructureSpec struct {
 	CredentialRef        string   `json:"credentialRef,omitempty"`
 	SSHUser              string   `json:"sshUser,omitempty"`
 	StorageClass         string   `json:"storageClass,omitempty"`
+	StorageDataDevices   []string `json:"storageDataDevices,omitempty"`
+	StorageDeviceMode    string   `json:"storageDeviceMode,omitempty"`
 	Region               string   `json:"region,omitempty"`
 }
 
