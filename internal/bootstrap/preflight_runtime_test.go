@@ -289,3 +289,65 @@ func TestManagedChronySourcesUseDiverseProvidersAndQuarantineHijackProneDNS(t *t
 		}
 	}
 }
+
+type clusterRouteTestSystem struct {
+	*SimulatedSystem
+	addressOutput string
+	routes        map[string]string
+}
+
+func (s *clusterRouteTestSystem) Output(ctx context.Context, name string, args []string, environment map[string]string) ([]byte, error) {
+	if name == "ip" && slices.Equal(args, []string{"-4", "-o", "addr", "show", "dev", "ens224"}) {
+		return []byte(s.addressOutput), nil
+	}
+	if name == "ip" && len(args) == 4 && slices.Equal(args[:3], []string{"-4", "route", "get"}) {
+		if route, ok := s.routes[args[3]]; ok {
+			return []byte(route), nil
+		}
+		return nil, errors.New("route not found")
+	}
+	return s.SimulatedSystem.Output(ctx, name, args, environment)
+}
+
+func TestHAClusterNetworkRequiresDeclaredInterfaceRouteOwnership(t *testing.T) {
+	req := haBootstrapRequest()
+	req.Infrastructure.NodeAddresses = []string{"203.0.113.11", "203.0.113.12", "203.0.113.13"}
+	req.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12", "10.77.0.13"}
+	req.Infrastructure.ClusterInterface = "ens224"
+	system := &clusterRouteTestSystem{
+		SimulatedSystem: &SimulatedSystem{Root: t.TempDir()},
+		addressOutput:    "2: ens224    inet 10.77.0.11/24 brd 10.77.0.255 scope global ens224\n",
+		routes: map[string]string{
+			"10.77.0.12": "10.77.0.12 dev ens224 src 10.77.0.11 uid 0\n",
+			"10.77.0.13": "10.77.0.13 dev ens224 src 10.77.0.11 uid 0\n",
+		},
+	}
+	runner := &Runner{system: system}
+	detail, err := runner.verifyLocalClusterNetwork(context.Background(), req)
+	if err != nil {
+		t.Fatalf("valid east-west interface/route topology rejected: %v", err)
+	}
+	if !strings.Contains(detail, "2 peer route(s) use that interface") {
+		t.Fatalf("route evidence missing from detail: %s", detail)
+	}
+
+	system.routes["10.77.0.13"] = "10.77.0.13 dev eth0 src 203.0.113.11 uid 0\n"
+	if _, err = runner.verifyLocalClusterNetwork(context.Background(), req); err == nil || !strings.Contains(err.Error(), "expected \"ens224\"") {
+		t.Fatalf("wrong-NIC east-west route was not rejected: %v", err)
+	}
+}
+
+func TestHAClusterNetworkNeverAcceptsUnassignedAddress(t *testing.T) {
+	req := haBootstrapRequest()
+	req.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12", "10.77.0.13"}
+	req.Infrastructure.ClusterInterface = "ens224"
+	system := &clusterRouteTestSystem{
+		SimulatedSystem: &SimulatedSystem{Root: t.TempDir()},
+		addressOutput:    "2: ens224    inet 10.77.0.99/24 brd 10.77.0.255 scope global ens224\n",
+		routes:           map[string]string{},
+	}
+	runner := &Runner{system: system}
+	if _, err := runner.verifyLocalClusterNetwork(context.Background(), req); err == nil || !strings.Contains(err.Error(), "will not assign or invent east-west IP addresses") {
+		t.Fatalf("unassigned east-west IP was not fail-closed: %v", err)
+	}
+}
