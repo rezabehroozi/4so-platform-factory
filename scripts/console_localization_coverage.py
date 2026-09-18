@@ -7,7 +7,7 @@ term. The baseline is zero-gap and cannot be rewritten to accept regressions.
 """
 from __future__ import annotations
 
-from bs4 import BeautifulSoup, NavigableString
+from html.parser import HTMLParser
 from pathlib import Path
 import argparse
 import hashlib
@@ -70,54 +70,94 @@ def has_valid_translation(source: str, translated: str | None, protected: set[st
     return source in protected and translated == source
 
 
-def is_technical(value: str, element) -> bool:
+def is_technical(value: str, tag: str, attrs: dict[str, str]) -> bool:
     if value in TECHNICAL_EXACT or TECHNICAL_RE.fullmatch(value):
         return True
-    classes = set(element.get("class") or []) if getattr(element, "get", None) else set()
+    classes = set((attrs.get("class") or "").split())
     if "technical" in classes:
         return True
     # Exact machine-facing option values are not operator prose.
-    if getattr(element, "name", "") == "option" and value.lower() in {
+    if tag == "option" and value.lower() in {
         "connected", "restricted", "baseline", "privileged", "namespace", "low", "medium", "high", "critical"
     }:
         return True
     return False
 
 
+VOID_TAGS = {
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+    "meta", "param", "source", "track", "wbr",
+}
+
+
+class ConsoleHTMLCollector(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.stack: list[tuple[str, dict[str, str]]] = []
+        self.text_nodes: list[tuple[str, str, dict[str, str]]] = []
+        self.attributes: list[tuple[str, str, str, dict[str, str]]] = []
+
+    @staticmethod
+    def _attrs(items: list[tuple[str, str | None]]) -> dict[str, str]:
+        return {str(key): "" if value is None else str(value) for key, value in items}
+
+    def _record_start(self, tag: str, items: list[tuple[str, str | None]], *, push: bool) -> None:
+        attrs = self._attrs(items)
+        for attr in ATTRIBUTES:
+            raw = attrs.get(attr)
+            if raw is not None:
+                self.attributes.append((attr, raw, tag, attrs))
+        if push:
+            self.stack.append((tag, attrs))
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._record_start(tag, attrs, push=tag not in VOID_TAGS)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._record_start(tag, attrs, push=False)
+
+    def handle_endtag(self, tag: str) -> None:
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index][0] == tag:
+                del self.stack[index:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        tag, attrs = self.stack[-1] if self.stack else ("", {})
+        self.text_nodes.append((data, tag, attrs))
+
+
 def collect(root: Path) -> dict[str, list[str]]:
     html_path = root / "webconsole/static/index.html"
     js_path = root / "webconsole/static/app.js"
-    soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
+    parser = ConsoleHTMLCollector()
+    parser.feed(html_path.read_text(encoding="utf-8"))
+    parser.close()
     dynamic = parse_dynamic_entries(js_path.read_text(encoding="utf-8"))
     protected = protected_terms(root)
     gaps: dict[str, set[str]] = {"text": set(), "attribute": set()}
 
-    for node in soup.find_all(string=True):
-        if not isinstance(node, NavigableString):
+    for raw, tag, attrs in parser.text_nodes:
+        if tag in SKIP_TAGS or "data-i18n" in attrs:
             continue
-        element = node.parent
-        if element.name in SKIP_TAGS or element.has_attr("data-i18n"):
-            continue
-        value = " ".join(str(node).split())
+        value = " ".join(raw.split())
         if not value or not re.search(r"[A-Za-z]", value):
             continue
         if value in dynamic and has_valid_translation(value, dynamic.get(value), protected):
             continue
-        if is_technical(value, element):
+        if is_technical(value, tag, attrs):
             continue
         gaps["text"].add(value)
 
-    for element in soup.find_all(True):
-        for attr in ATTRIBUTES:
-            raw = element.get(attr)
-            if not raw or not re.search(r"[A-Za-z]", raw):
-                continue
-            value = " ".join(raw.split())
-            if value in dynamic and has_valid_translation(value, dynamic.get(value), protected):
-                continue
-            if is_technical(value, element):
-                continue
-            gaps["attribute"].add(f"{attr}:{value}")
+    for attr, raw, tag, attrs in parser.attributes:
+        if not raw or not re.search(r"[A-Za-z]", raw):
+            continue
+        value = " ".join(raw.split())
+        if value in dynamic and has_valid_translation(value, dynamic.get(value), protected):
+            continue
+        if is_technical(value, tag, attrs):
+            continue
+        gaps["attribute"].add(f"{attr}:{value}")
 
     return {key: sorted(values) for key, values in gaps.items()}
 
