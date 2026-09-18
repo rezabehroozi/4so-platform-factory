@@ -105,6 +105,17 @@ func (r *Runner) deployGitOpsController(ctx context.Context, bundle BundleManife
 	}
 	kubectl := "/var/lib/rancher/rke2/bin/kubectl"
 	kubeconfig := "/etc/rancher/rke2/rke2.yaml"
+	if err = waitUntil(ctx, 2*time.Second, 5*time.Minute, func() error {
+		return r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "get", "configmap", "argocd-cmd-params-cm"}, nil)
+	}); err != nil {
+		return fmt.Errorf("wait for Argo CD command parameters: %w", err)
+	}
+	if err = r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "patch", "configmap", "argocd-cmd-params-cm", "--type=merge", "-p", `{"data":{"server.insecure":"true"}}`}, nil); err != nil {
+		return fmt.Errorf("configure Argo CD internal HTTP endpoint: %w", err)
+	}
+	if err = r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "restart", "deployment/argocd-server"}, nil); err != nil {
+		return fmt.Errorf("restart Argo CD server after internal HTTP configuration: %w", err)
+	}
 	checks := [][]string{
 		{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "deployment/argocd-server", "--timeout=10m"},
 		{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "deployment/argocd-repo-server", "--timeout=10m"},
