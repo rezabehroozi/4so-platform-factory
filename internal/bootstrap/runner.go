@@ -1873,6 +1873,8 @@ metadata:
   namespace: platform-system
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: platform-zot
