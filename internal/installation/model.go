@@ -105,6 +105,7 @@ type InstallRequest struct {
 	Network            NetworkSpec        `json:"network"`
 	Services           ServicesSpec       `json:"services"`
 	ExecutionMilestone string             `json:"executionMilestone,omitempty"`
+	ExecutionStartStep string             `json:"executionStartStep,omitempty"`
 	AcceptRisk         bool               `json:"acceptRisk"`
 }
 
