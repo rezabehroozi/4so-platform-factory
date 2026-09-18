@@ -34,7 +34,7 @@ def validate(lock, *, active=None, archive_path=None):
         if goos!='linux' or goarch!='amd64': errs.append('admitted compiler platform must be linux/amd64')
         if size<=0: errs.append('admitted lock missing exact compiler archive size')
         if active is not None:
-            match=re.fullmatch(r'go version (\\S+) (\\S+)/(\\S+)', active.strip())
+            match=re.fullmatch(r'go version (\S+) (\S+)/(\S+)', active.strip())
             if match is None or (match.group(1),match.group(2),match.group(3))!=(version,goos,goarch):
                 errs.append(f'active compiler mismatch: lock={version} {goos}/{goarch} active={active}')
         if archive_path:
