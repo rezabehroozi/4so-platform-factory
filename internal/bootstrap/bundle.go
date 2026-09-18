@@ -73,6 +73,130 @@ func LoadBundle(dir string) (BundleManifest, string, error) {
 	return bundle, sha256Digest(raw), nil
 }
 
+func functionalMilestone(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "rke2-quorum", "ha-storage":
+		return true
+	default:
+		return false
+	}
+}
+
+func functionalBundleArtifacts(bundle BundleManifest, milestone string) []Artifact {
+	artifacts := []Artifact{bundle.Spec.RKE2.Installer}
+	artifacts = append(artifacts, bundle.Spec.RKE2.InstallArtifacts...)
+	artifacts = append(artifacts, bundle.Spec.RKE2.ImageArchives...)
+	if strings.TrimSpace(milestone) == "ha-storage" {
+		artifacts = append(artifacts, bundle.Spec.Workloads.StorageManifest)
+	}
+	return artifacts
+}
+
+func validateFunctionalBundle(dir string, bundle BundleManifest, milestone string) error {
+	if bundle.APIVersion != "platform.4so.io/v1alpha1" || bundle.Kind != "ApplianceBundle" {
+		return fmt.Errorf("unsupported appliance bundle contract")
+	}
+	if !functionalMilestone(milestone) {
+		return fmt.Errorf("unsupported functional Lab milestone %q", milestone)
+	}
+	if strings.TrimSpace(bundle.Metadata.Version) == "" || strings.TrimSpace(bundle.Spec.RKE2.Version) == "" {
+		return fmt.Errorf("bundle and RKE2 versions are required")
+	}
+	if strings.TrimSpace(bundle.Spec.RKE2.Installer.Path) == "" || len(bundle.Spec.RKE2.InstallArtifacts) == 0 || len(bundle.Spec.RKE2.ImageArchives) == 0 {
+		return fmt.Errorf("functional Lab bundle requires RKE2 installer, install artifacts and image archive")
+	}
+	if milestone == "ha-storage" && strings.TrimSpace(bundle.Spec.Workloads.StorageManifest.Path) == "" {
+		return fmt.Errorf("ha-storage milestone requires the replicated-storage install manifest")
+	}
+	seen := map[string]bool{}
+	for _, artifact := range functionalBundleArtifacts(bundle, milestone) {
+		if strings.TrimSpace(artifact.Path) == "" {
+			return fmt.Errorf("functional Lab bundle contains an empty artifact path")
+		}
+		if seen[artifact.Path] {
+			return fmt.Errorf("duplicate bundle artifact path %q", artifact.Path)
+		}
+		seen[artifact.Path] = true
+		path, err := safeBundlePath(dir, artifact.Path)
+		if err != nil {
+			return err
+		}
+		if !digestPattern.MatchString(artifact.SHA256) {
+			return fmt.Errorf("artifact %q requires sha256 digest", artifact.Path)
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			return fmt.Errorf("open bundle artifact %q: %w", artifact.Path, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() <= 0 {
+			return fmt.Errorf("bundle artifact %q must be a non-empty regular non-symlink file", artifact.Path)
+		}
+		got, err := hashFile(path)
+		if err != nil {
+			return fmt.Errorf("hash bundle artifact %q: %w", artifact.Path, err)
+		}
+		if got != artifact.SHA256 {
+			return fmt.Errorf("bundle artifact %q digest mismatch", artifact.Path)
+		}
+	}
+	return nil
+}
+
+func LoadBundleForMilestone(dir, milestone string) (BundleManifest, string, error) {
+	if !functionalMilestone(milestone) {
+		return LoadBundle(dir)
+	}
+	var bundle BundleManifest
+	raw, err := os.ReadFile(filepath.Join(dir, "bundle.json"))
+	if err != nil {
+		return bundle, "", fmt.Errorf("read bundle manifest: %w", err)
+	}
+	if err = decodeStrictJSON(raw, &bundle); err != nil {
+		return bundle, "", fmt.Errorf("decode bundle manifest: %w", err)
+	}
+	if err = validateFunctionalBundle(dir, bundle, strings.TrimSpace(milestone)); err != nil {
+		return bundle, "", err
+	}
+	return bundle, sha256Digest(raw), nil
+}
+
+func InspectBundleForMilestone(dir string, requireLock bool, milestone string) (BundleAdmissionStatus, error) {
+	if !functionalMilestone(milestone) {
+		return InspectBundle(dir, requireLock)
+	}
+	bundle, bundleDigest, err := LoadBundleForMilestone(dir, milestone)
+	if err != nil {
+		return BundleAdmissionStatus{}, err
+	}
+	artifacts := functionalBundleArtifacts(bundle, milestone)
+	records := make([]BundleLockArtifact, 0, len(artifacts))
+	var total int64
+	for _, artifact := range artifacts {
+		path, pathErr := safeBundlePath(dir, artifact.Path)
+		if pathErr != nil {
+			return BundleAdmissionStatus{}, pathErr
+		}
+		info, statErr := os.Stat(path)
+		if statErr != nil {
+			return BundleAdmissionStatus{}, statErr
+		}
+		records = append(records, BundleLockArtifact{Path: artifact.Path, SHA256: artifact.SHA256, Size: info.Size()})
+		total += info.Size()
+	}
+	sort.Slice(records, func(i, j int) bool { return records[i].Path < records[j].Path })
+	return BundleAdmissionStatus{
+		Verified: true,
+		Version: bundle.Metadata.Version,
+		RKE2Version: bundle.Spec.RKE2.Version,
+		SourceReleaseDigest: bundle.Metadata.SourceReleaseDigest,
+		BundleDigest: bundleDigest,
+		LockRequired: false,
+		ArtifactCount: len(records),
+		TotalBytes: total,
+		Artifacts: records,
+	}, nil
+}
+
 func InspectBundle(dir string, requireLock bool) (BundleAdmissionStatus, error) {
 	bundle, bundleDigest, err := LoadBundle(dir)
 	if err != nil {
