@@ -477,6 +477,8 @@ function syncProfile() {
 function syncInfrastructure() {
   const existingCluster = $('#provider').value === 'existing-kubernetes';
   $('#nodes-field').hidden = existingCluster;
+  $('#cluster-nodes-field').hidden = existingCluster;
+  $('#cluster-interface-field').hidden = existingCluster;
   $('#ssh-user-field').hidden = existingCluster;
   $('#nodes').required = !existingCluster;
   if (existingCluster && $('#credential-ref').value === 'secret://installer/ssh-private-key') $('#credential-ref').value = '';
@@ -495,6 +497,8 @@ function buildInstallRequest() {
       provider: $('#provider').value,
       existingCluster,
       nodeAddresses: existingCluster ? [] : $('#nodes').value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean),
+      clusterNodeAddresses: existingCluster ? [] : $('#cluster-nodes').value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean),
+      clusterInterface: existingCluster ? '' : $('#cluster-interface').value.trim(),
       credentialRef: $('#credential-ref').value.trim(),
       sshUser: existingCluster ? '' : $('#ssh-user').value.trim(),
       storageClass: $('#storage-class').value.trim(),
@@ -568,6 +572,12 @@ $('#installation-form').onsubmit = async event => {
   const profile = selectedProfile();
   if (profile && request.infrastructure.provider !== 'existing-kubernetes' && request.infrastructure.nodeAddresses.length < profile.minNodes) {
     toast(`The selected profile requires at least ${profile.minNodes} node(s).`,'error'); return;
+  }
+  if (profile?.id === 'production-standard-ha' && request.infrastructure.clusterNodeAddresses.length && request.infrastructure.clusterNodeAddresses.length !== request.infrastructure.nodeAddresses.length) {
+    toast('HA east-west addresses must contain one IP for each management access node.','error'); return;
+  }
+  if (profile?.id === 'production-standard-ha' && request.infrastructure.clusterInterface && !request.infrastructure.clusterNodeAddresses.length) {
+    toast('An HA interface requires explicit east-west addresses; the installer never assigns IPs.','error'); return;
   }
   try {
     const result = await api('/api/v1/plan',{method:'POST',body:{installation:request}});
