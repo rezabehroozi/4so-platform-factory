@@ -760,6 +760,7 @@ func (r *Runner) verifyLocalClusterNetwork(ctx context.Context, request installa
 	if err != nil {
 		return "", fmt.Errorf("inspect cluster network: %w", err)
 	}
+	found := false
 	for _, line := range strings.Split(string(raw), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 4 {
@@ -769,32 +770,336 @@ func (r *Runner) verifyLocalClusterNetwork(ctx context.Context, request installa
 			continue
 		}
 		for _, field := range fields {
-			address := strings.SplitN(field, "/", 2)[0]
-			if address != expected {
-				continue
+			if strings.SplitN(field, "/", 2)[0] == expected {
+				found = true
+				break
 			}
-			if iface == "" {
-				return "cluster address " + expected + " is already assigned; installer will not mutate host networking", nil
-			}
-			return "cluster address " + expected + " is already assigned to interface " + iface + "; installer will not mutate host networking", nil
+		}
+		if found {
+			break
 		}
 	}
-	if iface != "" {
-		return "", fmt.Errorf("cluster address %s is not assigned to interface %s; installer will not assign or invent east-west IP addresses", expected, iface)
+	if !found {
+		if iface != "" {
+			return "", fmt.Errorf("cluster address %s is not assigned to interface %s; installer will not assign or invent east-west IP addresses", expected, iface)
+		}
+		return "", fmt.Errorf("cluster address %s is not assigned to this host; installer will not assign or invent east-west IP addresses", expected)
 	}
-	return "", fmt.Errorf("cluster address %s is not assigned to this host; installer will not assign or invent east-west IP addresses", expected)
+	for _, peer := range addresses[1:] {
+		peer = strings.Trim(strings.TrimSpace(peer), "[]")
+		if peer == "" || net.ParseIP(peer) == nil {
+			return "", fmt.Errorf("peer cluster address %q is invalid", peer)
+		}
+		routeRaw, routeErr := r.system.Output(ctx, "ip", []string{"-4", "route", "get", peer}, nil)
+		if routeErr != nil {
+			return "", fmt.Errorf("inspect route to cluster peer %s: %w", peer, routeErr)
+		}
+		if iface != "" {
+			fields := strings.Fields(string(routeRaw))
+			routeInterface := ""
+			for i := 0; i+1 < len(fields); i++ {
+				if fields[i] == "dev" {
+					routeInterface = fields[i+1]
+					break
+				}
+			}
+			if routeInterface != iface {
+				return "", fmt.Errorf("route to cluster peer %s uses interface %q, expected %q; installer will not rewrite host routes", peer, routeInterface, iface)
+			}
+		}
+	}
+	if iface == "" {
+		return fmt.Sprintf("cluster address %s is assigned and %d peer route(s) resolve; installer will not mutate host networking", expected, len(addresses)-1), nil
+	}
+	return fmt.Sprintf("cluster address %s is assigned to interface %s and %d peer route(s) use that interface; installer will not mutate host networking", expected, iface, len(addresses)-1), nil
 }
 
-func clusterPeerProbeCommand(clusterAddress, clusterInterface string) string {
+func clusterPeerProbeCommand(clusterAddress, clusterInterface, primaryClusterAddress string) string {
 	clusterAddress = strings.Trim(strings.TrimSpace(clusterAddress), "[]")
 	clusterInterface = strings.TrimSpace(clusterInterface)
 	if clusterAddress == "" {
 		return ""
 	}
-	if clusterInterface != "" {
-		return "; ip link show dev " + haShellQuote(clusterInterface) + " >/dev/null 2>&1 || { echo " + haShellQuote("cluster interface is missing: "+clusterInterface) + " >&2; exit 16; }; ip -4 -o addr show dev " + haShellQuote(clusterInterface) + " | awk '{print $4}' | cut -d/ -f1 | grep -Fxq " + haShellQuote(clusterAddress) + " || { echo " + haShellQuote("cluster address "+clusterAddress+" is not assigned to interface "+clusterInterface) + " >&2; exit 16; }"
+	primaryClusterAddress = strings.Trim(strings.TrimSpace(primaryClusterAddress), "[]")
+	routeProbe := ""
+	if primaryClusterAddress != "" && primaryClusterAddress != clusterAddress {
+		routeProbe = "; ip -4 route get " + haShellQuote(primaryClusterAddress) + " >/dev/null 2>&1 || { echo " + haShellQuote("no route to primary cluster address "+primaryClusterAddress) + " >&2; exit 17; }"
+		if clusterInterface != "" {
+			routeProbe += "; ip -4 route get " + haShellQuote(primaryClusterAddress) + " | tr ' ' '\\n' | grep -A1 '^dev
+
+func (r *Runner) preflightUnlocked(ctx context.Context, request installation.InstallRequest) (PreflightReport, error) {
+	plan, planErr := installation.CreateBootstrapPlan(request)
+	if planErr == nil {
+		request = plan.EffectiveRequest
 	}
-	return "; ip -4 -o addr show | awk '{print $4}' | cut -d/ -f1 | grep -Fxq " + haShellQuote(clusterAddress) + " || { echo " + haShellQuote("cluster address "+clusterAddress+" is not assigned") + " >&2; exit 16; }"
+	sizing := installation.ApplianceSizing{}
+	if planErr == nil {
+		sizing = plan.Profile.Sizing
+	}
+	report := PreflightReport{
+		APIVersion: PreflightAPIVersion, Kind: PreflightKind, SchemaVersion: PreflightSchema,
+		State: PreflightPassed, Version: r.version, ProfileID: strings.TrimSpace(request.ProfileID),
+		Connectivity: string(request.Connectivity), Simulation: r.simulation, GeneratedAt: r.now().UTC(),
+	}
+	if planErr == nil {
+		report.RequestDigest = plan.SpecDigest
+	}
+	add := func(key, title, state, detail string) {
+		report.Checks = append(report.Checks, PreflightCheck{Key: key, Title: title, State: state, Detail: detail})
+		if state == CheckBlocked {
+			report.State = PreflightBlocked
+		}
+	}
+	if planErr != nil {
+		add("installation-plan", "Validate installation request", CheckBlocked, planErr.Error())
+	} else if !plan.Executable {
+		add("installation-plan", "Validate installation request", CheckBlocked, "plan is not executable: "+strings.Join(plan.Blockers, "; "))
+	} else {
+		add("installation-plan", "Validate installation request", CheckPassed, "request is supported and the generated plan is executable")
+	}
+	admission, bundleErr := InspectBundle(r.bundleDir, r.requireBundleLock)
+	if bundleErr != nil {
+		add("bundle-admission", "Verify sealed appliance bundle", CheckBlocked, bundleErr.Error())
+	} else {
+		report.BundleDigest = admission.BundleDigest
+		add("bundle-admission", "Verify sealed appliance bundle", CheckPassed, "bundle manifest, lock, exact index, files and digests are valid")
+	}
+	if request.ProfileID != "evaluation-single-node" && request.ProfileID != "production-standard-ha" {
+		add("profile", "Validate executable deployment profile", CheckBlocked, fmt.Sprintf("version %s executes evaluation-single-node and production-standard-ha", r.version))
+	} else {
+		add("profile", "Validate executable deployment profile", CheckPassed, "selected profile is implemented by this installer")
+	}
+	if !r.system.IsRoot() {
+		add("root", "Verify privileged installer execution", CheckBlocked, "bootstrap installer must run as root")
+	} else {
+		add("root", "Verify privileged installer execution", CheckPassed, "installer has root privileges")
+	}
+	nodeCount := len(request.Infrastructure.NodeAddresses)
+	addressesValid := true
+	for _, host := range request.Infrastructure.NodeAddresses {
+		if err := validateSSHHost(host); err != nil {
+			add("host-addresses", "Validate management node addresses", CheckBlocked, err.Error())
+			addressesValid = false
+			break
+		}
+	}
+	if addressesValid && !uniqueNodeAddresses(request.Infrastructure.NodeAddresses) {
+		add("host-addresses", "Validate management node addresses", CheckBlocked, "management node addresses must be unique")
+		addressesValid = false
+	}
+	if addressesValid {
+		add("host-addresses", "Validate management node addresses", CheckPassed, "all management node addresses are explicit, unique IP addresses or DNS hostnames")
+	}
+	switch request.ProfileID {
+	case "evaluation-single-node":
+		if nodeCount != 1 {
+			add("topology", "Validate management topology", CheckBlocked, "evaluation bootstrap requires exactly one management node")
+		} else {
+			add("topology", "Validate management topology", CheckPassed, "exactly one management node is configured")
+		}
+	case "production-standard-ha":
+		if nodeCount != 3 {
+			add("topology", "Validate management topology", CheckBlocked, "HA bootstrap requires exactly three management nodes")
+		} else {
+			add("topology", "Validate management topology", CheckPassed, "exactly three management nodes are configured")
+		}
+		if err := r.validateSSHIdentity(request.Infrastructure.CredentialRef, request.Infrastructure.SSHUser); err != nil {
+			add("ssh-credential", "Validate restricted HA SSH credential", CheckBlocked, err.Error())
+		} else {
+			add("ssh-credential", "Validate restricted HA SSH credential", CheckPassed, "HA SSH private key reference, user and permissions are valid")
+		}
+		peers := []string{}
+		if len(request.Infrastructure.NodeAddresses) > 1 {
+			peers = request.Infrastructure.NodeAddresses[1:]
+		}
+		clusterAddresses := effectiveClusterNodeAddresses(request)
+		if err := r.validateSSHHostTrust(peers); err != nil {
+			add("ssh-host-trust", "Validate pinned HA SSH host keys", CheckBlocked, err.Error())
+		} else {
+			add("ssh-host-trust", "Validate pinned HA SSH host keys", CheckPassed, "every remote HA peer has an explicitly pinned host key")
+		}
+		if r.simulation {
+			add("ssh-client", "Verify OpenSSH client availability", CheckSkipped, "simulation mode does not execute the SSH client check")
+			for index, peer := range peers {
+				add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckSkipped, "simulation mode does not execute remote readiness checks for "+peer)
+			}
+		} else if _, err := r.system.Output(ctx, "ssh", []string{"-V"}, nil); err != nil {
+			add("ssh-client", "Verify OpenSSH client availability", CheckBlocked, err.Error())
+		} else {
+			add("ssh-client", "Verify OpenSSH client availability", CheckPassed, "OpenSSH client is available; SCP is not required")
+			probeRun := Run{Request: request}
+			for index, peer := range peers {
+				clusterAddress := ""
+				if index+1 < len(clusterAddresses) {
+					clusterAddress = clusterAddresses[index+1]
+				}
+				primaryClusterAddress := ""
+				if len(clusterAddresses) > 0 {
+					primaryClusterAddress = clusterAddresses[0]
+				}
+				command := haPeerPreflightCommand(sizing) + clusterPeerProbeCommand(clusterAddress, request.Infrastructure.ClusterInterface, primaryClusterAddress)
+				if _, err := r.system.Output(ctx, "ssh", r.sshArgs(probeRun, peer, command), nil); err != nil {
+					add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckBlocked, fmt.Sprintf("%s: %v", peer, err))
+				} else {
+					add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckPassed, peer+": pinned SSH connectivity, Linux/root/systemd/NTP readiness, clean Kubernetes runtime state and required free ports verified")
+				}
+			}
+		}
+	default:
+		add("topology", "Validate management topology", CheckBlocked, "unsupported profile topology")
+	}
+	if request.Connectivity == installation.ConnectivityDisconnected {
+		if bundleErr != nil || !admission.Verified {
+			add("disconnected", "Validate disconnected installation assets", CheckBlocked, "disconnected installation requires a complete admitted bundle")
+		} else {
+			bundle, _, err := LoadBundle(r.bundleDir)
+			if err != nil || !bundle.Spec.Airgap.Complete {
+				add("disconnected", "Validate disconnected installation assets", CheckBlocked, "bundle does not declare a complete air-gap set")
+			} else {
+				add("disconnected", "Validate disconnected installation assets", CheckPassed, "complete air-gap bundle is available locally")
+			}
+		}
+	} else {
+		add("disconnected", "Validate disconnected installation assets", CheckSkipped, "connectivity mode does not require disconnected admission")
+	}
+	if bundleErr == nil && admission.Version != r.version {
+		add("version", "Match installer and bundle versions", CheckBlocked, fmt.Sprintf("bundle version %s does not match installer version %s", admission.Version, r.version))
+	} else if bundleErr == nil {
+		add("version", "Match installer and bundle versions", CheckPassed, "installer and bundle versions match")
+	} else {
+		add("version", "Match installer and bundle versions", CheckBlocked, "bundle version cannot be trusted until admission passes")
+	}
+	if r.simulation {
+		add("state-directory", "Validate canonical installer state authority", CheckSkipped, "simulation mode uses an isolated state root")
+		add("existing-installer-state", "Detect stale installer-owned bootstrap authority", CheckSkipped, "simulation mode uses an isolated filesystem")
+		add("systemd", "Verify systemd availability", CheckSkipped, "simulation mode does not execute the host systemd check")
+		add("clone-identity", "Verify unique cloned-host identity", CheckSkipped, "simulation mode does not inspect host identity")
+		add("time-sync", "Verify host time synchronization", CheckSkipped, "simulation mode does not execute the host NTP synchronization check")
+		add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckSkipped, "simulation mode does not inspect physical host capacity")
+		add("filesystem", "Verify local runtime filesystem", CheckSkipped, "simulation mode does not inspect the host filesystem type")
+		add("default-route", "Verify management network route and MTU evidence", CheckSkipped, "simulation mode does not inspect the host network route")
+		if request.ProfileID == "production-standard-ha" {
+			add("cluster-network", "Verify HA east-west cluster address", CheckSkipped, "simulation mode does not inspect host interface/address assignment")
+		}
+		add("proxy-bypass", "Verify proxy bypass for management-local endpoints", CheckSkipped, "simulation mode does not inherit host proxy admission")
+		if request.Services.ObjectStorage.Mode == installation.ServiceModeExternal {
+			add("object-storage-reachability", "Verify external object storage endpoint reachability", CheckSkipped, "simulation mode does not execute DNS/TCP endpoint probes")
+		}
+		add("existing-kubernetes", "Detect conflicting Kubernetes runtime residue", CheckSkipped, "simulation mode uses an isolated filesystem")
+		for _, port := range []string{"80", "443", "6443", "9345"} {
+			add("port-"+port, "Verify local port "+port, CheckSkipped, "simulation mode does not reserve host ports")
+		}
+	} else {
+		if r.usesLocalHostFilesystem() && filepath.Clean(r.stateDir) != canonicalLiveInstallerStateDir {
+			add("state-directory", "Validate canonical installer state authority", CheckBlocked, "live bootstrap requires state directory "+canonicalLiveInstallerStateDir+"; alternate state roots would split the durable journal from product-owned host credentials and runtime state")
+		} else if r.usesLocalHostFilesystem() {
+			add("state-directory", "Validate canonical installer state authority", CheckPassed, "live bootstrap journal, credentials and host-owned runtime state share one canonical state root")
+		} else {
+			add("state-directory", "Validate canonical installer state authority", CheckSkipped, "non-local test/system adapter owns filesystem path translation")
+		}
+		if residue := r.existingBootstrapAuthorityResidue(); len(residue) > 0 {
+			add("existing-installer-state", "Detect stale installer-owned bootstrap authority", CheckBlocked, "generated bootstrap state is present without a resumable owning run ("+strings.Join(residue, ", ")+"); do not reuse stale credentials in a new installation")
+		} else {
+			add("existing-installer-state", "Detect stale installer-owned bootstrap authority", CheckPassed, "no generated bootstrap credentials or state from a previous installation were found")
+		}
+		if err := r.verifySystemdOperational(ctx); err != nil {
+			add("systemd", "Verify systemd runtime readiness", CheckBlocked, err.Error())
+		} else {
+			add("systemd", "Verify systemd runtime readiness", CheckPassed, "systemd manager is installed, running and reachable")
+		}
+		if err := r.verifyCloneSafety(ctx, request); err != nil {
+			add("clone-identity", "Verify unique cloned-host identity", CheckBlocked, err.Error())
+		} else {
+			add("clone-identity", "Verify unique cloned-host identity", CheckPassed, "hostname, machine-id, DMI UUID, SSH host key and MAC identity are unique across the management topology")
+		}
+		if err := r.verifyTimeSynchronization(ctx); err != nil {
+			add("time-sync", "Verify host time synchronization", CheckBlocked, err.Error())
+		} else {
+			add("time-sync", "Verify host time synchronization", CheckPassed, "host clock is synchronized before certificates, leases and distributed control-plane state are created")
+		}
+		if request.ProfileID == "production-standard-ha" {
+			if detail, err := r.verifyLocalClusterNetwork(ctx, request); err != nil {
+				add("cluster-network", "Verify HA east-west cluster address", CheckBlocked, err.Error())
+			} else {
+				add("cluster-network", "Verify HA east-west cluster address", CheckPassed, detail)
+			}
+		}
+		if capacity, err := r.probeHostCapacity(ctx); err != nil {
+			add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckBlocked, err.Error())
+		} else if err := enforceSizing(capacity, sizing); err != nil {
+			add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckBlocked, err.Error())
+		} else {
+			add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckPassed, fmt.Sprintf("observed %d vCPU, %d GiB memory, %d GiB /var/lib filesystem with %d GiB free; source baseline minimum is %d vCPU, %d GiB memory, %d GiB disk with %d GiB free", capacity.VCPU, capacity.MemoryGiB, capacity.DiskGiB, capacity.FreeDiskGiB, sizing.MinimumVCPU, sizing.MinimumMemoryGiB, sizing.MinimumDiskGiB, sizing.MinimumFreeDiskGiB))
+		}
+		if fsType, err := r.verifyFilesystemLocality(ctx); err != nil {
+			add("filesystem", "Verify local runtime filesystem", CheckBlocked, err.Error())
+		} else {
+			add("filesystem", "Verify local runtime filesystem", CheckPassed, "/var/lib is backed by local filesystem type "+fsType)
+		}
+		if detail, err := r.verifyDefaultRoute(ctx); err != nil {
+			add("default-route", "Verify management network route and MTU evidence", CheckBlocked, err.Error())
+		} else {
+			add("default-route", "Verify management network route and MTU evidence", CheckPassed, detail)
+		}
+		if proxy, err := verifyProxyBypass(request); err != nil {
+			add("proxy-bypass", "Verify proxy bypass for management-local endpoints", CheckBlocked, err.Error())
+		} else if proxy == "" {
+			add("proxy-bypass", "Verify proxy bypass for management-local endpoints", CheckSkipped, "installer process has no HTTP(S) proxy configured")
+		} else {
+			add("proxy-bypass", "Verify proxy bypass for management-local endpoints", CheckPassed, "configured proxy has NO_PROXY coverage for loopback, management nodes and the product endpoint")
+		}
+		if request.Services.ObjectStorage.Mode == installation.ServiceModeExternal {
+			if err := verifyTCPEndpointReachability(ctx, request.Services.ObjectStorage.URL); err != nil {
+				add("object-storage-reachability", "Verify external object storage endpoint reachability", CheckBlocked, err.Error())
+			} else {
+				add("object-storage-reachability", "Verify external object storage endpoint reachability", CheckPassed, "endpoint DNS and TCP connectivity are available before bootstrap mutation; credentialed read/write certification remains a lifecycle gate")
+			}
+		}
+		if residue := r.existingKubernetesResidue(ctx); len(residue) > 0 {
+			add("existing-kubernetes", "Detect conflicting Kubernetes runtime residue", CheckBlocked, "Kubernetes runtime residue is present on a fresh-install host ("+strings.Join(residue, ", ")+"); use the persisted Resume path or explicitly reset the host before starting a new installation")
+		} else {
+			add("existing-kubernetes", "Detect conflicting Kubernetes runtime residue", CheckPassed, "no conflicting RKE2, K3s or kubelet/kubeadm state, binary or systemd unit was found")
+		}
+		for _, port := range []string{"80", "443", "6443", "9345"} {
+			listener, listenErr := net.Listen("tcp", ":"+port)
+			if listenErr != nil {
+				add("port-"+port, "Verify local port "+port, CheckBlocked, "required local port is unavailable: "+listenErr.Error())
+				continue
+			}
+			_ = listener.Close()
+			add("port-"+port, "Verify local port "+port, CheckPassed, "required local port is available")
+		}
+	}
+	if strings.TrimSpace(report.RequestDigest) == "" {
+		report.RequestDigest = "sha256:" + strings.Repeat("0", 64)
+	}
+	if err := report.Seal(); err != nil {
+		return report, err
+	}
+	if err := r.writePreflightReport(report); err != nil {
+		return report, err
+	}
+	return report, nil
+}
+
+func haPeerPreflightCommand(sizing installation.ApplianceSizing) string {
+	return fmt.Sprintf(`set -eu; test "$(uname -s)" = Linux; test "$(id -u)" = 0; command -v systemctl >/dev/null 2>&1; test -d /run/systemd/system; systemctl show --property=Version --value >/dev/null 2>&1; command -v timedatectl >/dev/null 2>&1; test "$(timedatectl show --property=NTPSynchronized --value)" = yes; cpu="$(getconf _NPROCESSORS_ONLN)"; mem_kib="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)"; set -- $(df -Pk /var/lib | tail -1); disk_kib="$2"; free_kib="$4"; test "$cpu" -ge %d || { echo "vCPU $cpu below required %d" >&2; exit 14; }; test "$mem_kib" -ge %d || { echo "memory below required %d GiB" >&2; exit 14; }; test "$disk_kib" -ge %d || { echo "/var/lib filesystem below required %d GiB" >&2; exit 14; }; test "$free_kib" -ge %d || { echo "/var/lib free space below required %d GiB" >&2; exit 14; }; command -v findmnt >/dev/null 2>&1; fs="$(findmnt -n -o FSTYPE -T /var/lib)"; case "$fs" in nfs|nfs4|cifs|smb3|9p|fuse.sshfs|ceph|glusterfs) echo "/var/lib uses unsupported network/distributed filesystem $fs" >&2; exit 15;; esac; command -v ip >/dev/null 2>&1; ip -4 route show default | grep -q '^default '; for p in /etc/rancher/rke2 /var/lib/rancher/rke2 /usr/local/bin/rke2 /usr/bin/rke2 /usr/local/bin/rke2-uninstall.sh /usr/local/bin/rke2-killall.sh /etc/rancher/k3s /var/lib/rancher/k3s /etc/kubernetes /var/lib/kubelet /usr/local/bin/k3s /usr/bin/k3s /usr/local/bin/kubelet /usr/bin/kubelet /usr/local/bin/kubeadm /usr/bin/kubeadm; do if [ -e "$p" ]; then echo "Kubernetes runtime residue is present: $p" >&2; exit 12; fi; done; for u in rke2-server.service rke2-agent.service k3s.service k3s-agent.service kubelet.service; do if systemctl cat "$u" >/dev/null 2>&1; then echo "Kubernetes systemd unit is already installed: $u" >&2; exit 12; fi; done; command -v ss >/dev/null 2>&1; listeners="$(ss -H -ltn | awk '{print $4}')"; for p in 80 443 6443 9345; do if printf '%%s\n' "$listeners" | grep -Eq "(^|:)$p$"; then echo "required port $p is already in use" >&2; exit 13; fi; done`, sizing.MinimumVCPU, sizing.MinimumVCPU, sizing.MinimumMemoryGiB*1024*1024, sizing.MinimumMemoryGiB, sizing.MinimumDiskGiB*1024*1024, sizing.MinimumDiskGiB, sizing.MinimumFreeDiskGiB*1024*1024, sizing.MinimumFreeDiskGiB)
+}
+
+func (r *Runner) writePreflightReport(report PreflightReport) error {
+	raw, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+	return durablefile.Replace(filepath.Join(r.stateDir, "preflight-report.json"), append(raw, '\n'), 0o700, 0o600)
+}
+ | tail -1 | grep -Fxq " + haShellQuote(clusterInterface) + " || { echo " + haShellQuote("route to primary cluster address "+primaryClusterAddress+" does not use "+clusterInterface) + " >&2; exit 17; }"
+		}
+	}
+	if clusterInterface != "" {
+		return "; ip link show dev " + haShellQuote(clusterInterface) + " >/dev/null 2>&1 || { echo " + haShellQuote("cluster interface is missing: "+clusterInterface) + " >&2; exit 16; }; ip -4 -o addr show dev " + haShellQuote(clusterInterface) + " | awk '{print $4}' | cut -d/ -f1 | grep -Fxq " + haShellQuote(clusterAddress) + " || { echo " + haShellQuote("cluster address "+clusterAddress+" is not assigned to interface "+clusterInterface) + " >&2; exit 16; }" + routeProbe
+	}
+	return "; ip -4 -o addr show | awk '{print $4}' | cut -d/ -f1 | grep -Fxq " + haShellQuote(clusterAddress) + " || { echo " + haShellQuote("cluster address "+clusterAddress+" is not assigned") + " >&2; exit 16; }" + routeProbe
 }
 
 func (r *Runner) preflightUnlocked(ctx context.Context, request installation.InstallRequest) (PreflightReport, error) {
