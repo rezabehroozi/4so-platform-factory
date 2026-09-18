@@ -74,7 +74,7 @@
               <label><span>Credential reference</span><input id="credential-ref" class="technical" required placeholder="secret://installer/ssh-private-key" dir="ltr"><small>Never paste a password or token.</small></label>
               <label id="ssh-user-field"><span>SSH user</span><input id="ssh-user" class="technical" placeholder="root" dir="ltr"></label>
               <label><span>Storage class</span><input id="storage-class" class="technical" placeholder="Replicated class for HA" dir="ltr"></label>
-              <label id="storage-devices-field" class="span-2"><span>Dedicated HA data devices</span><textarea id="storage-devices" class="technical compact" placeholder="/dev/sdb&#10;/dev/sdc&#10;/dev/sdd" dir="ltr"></textarea><small>The same whole-disk paths must exist on every HA node. Root disks, partitions, mounted disks and disks with foreign signatures are rejected.</small></label>
+              <label id="storage-devices-field" class="span-2"><span>Dedicated HA data devices</span><textarea id="storage-devices" class="technical compact" placeholder="/dev/sdb&#10;/dev/sdc&#10;/dev/sdd" dir="ltr"></textarea><small>The same whole-disk paths must exist on every HA node. root disks, partitions, mounted disks and disks with foreign signatures are rejected.</small></label>
               <label id="storage-device-mode-field"><span>Storage device action</span><select id="storage-device-mode"><option value="format-empty">Format empty devices and bind to Longhorn</option></select><small>Only explicitly listed empty disks are formatted. 4SO-owned ext4 disks are resume-safe.</small></label>
               <label><span>Region</span><input id="region" class="technical" placeholder="Optional infrastructure region" dir="ltr"></label>
             </div>
