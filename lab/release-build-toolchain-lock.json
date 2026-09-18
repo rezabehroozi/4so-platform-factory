@@ -18,7 +18,7 @@
     },
     "language": "go",
     "moduleGoDirective": "1.23",
-    "observedBuilder": "go1.27.1 linux/amd64 + gcc 15.2.0 + GNU ld 2.46 + glibc 2.43 + PostgreSQL libpq 17.11",
+    "observedBuilder": "go1.27.1 linux/amd64 + gcc 15.2.0 + GNU ld 2.46 + glibc 2.43 + PostgreSQL libpq 17.11 canonical libpq.so.5.18",
     "policy": {
       "compilerVersionMustMatchBuildProvenance": true,
       "exactCompilerArchiveDigestRequired": true,
@@ -51,7 +51,7 @@
       "libcVersion": "ldd (Ubuntu GLIBC 2.43-2ubuntu2.4) 2.43",
       "libpqHeaderPath": "/usr/include/postgresql/libpq-fe.h",
       "libpqHeaderSha256": "499d984421f5490be016f7d49a8599e7f8be120f0cf80c200e872265064be7c0",
-      "libpqLibraryPath": "/usr/lib/x86_64-linux-gnu/libpq.so.5",
+      "libpqLibraryPath": "/usr/lib/x86_64-linux-gnu/libpq.so.5.18",
       "libpqLibrarySha256": "aa8213fade4f9bd37945f5ea38736b71e840778d228ac25cd9c4ac0af3288af6"
     }
   }
