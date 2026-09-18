@@ -2,6 +2,7 @@ import base64
 import hashlib
 import importlib.util
 import json
+import jsonschema
 import io
 import tarfile
 import os
@@ -90,6 +91,38 @@ class LabRunnerContractTests(unittest.TestCase):
             },
         }
         return spec
+
+    def test_production_ha_schema_matches_runtime_topology_contract(self):
+        with tempfile.TemporaryDirectory() as td:
+            spec = self._production_ha_spec(Path(td))
+            schema = json.loads((ROOT / "schemas" / "lab-execution.schema.json").read_text(encoding="utf-8"))
+            jsonschema.Draft202012Validator(schema).validate(spec)
+
+            missing = json.loads(json.dumps(spec))
+            missing["spec"]["management"].pop("clusterInterface")
+            with self.assertRaises(jsonschema.ValidationError):
+                jsonschema.Draft202012Validator(schema).validate(missing)
+
+            missing = json.loads(json.dumps(spec))
+            missing["spec"]["management"].pop("storageDataDevices")
+            with self.assertRaises(jsonschema.ValidationError):
+                jsonschema.Draft202012Validator(schema).validate(missing)
+
+    def test_lab_schema_rejects_duplicate_ha_devices_and_cluster_addresses(self):
+        with tempfile.TemporaryDirectory() as td:
+            spec = self._production_ha_spec(Path(td))
+            schema = json.loads((ROOT / "schemas" / "lab-execution.schema.json").read_text(encoding="utf-8"))
+            validator = jsonschema.Draft202012Validator(schema)
+
+            duplicate_ips = json.loads(json.dumps(spec))
+            duplicate_ips["spec"]["management"]["clusterNodeAddresses"] = ["10.77.35.11", "10.77.35.11", "10.77.35.13"]
+            with self.assertRaises(jsonschema.ValidationError):
+                validator.validate(duplicate_ips)
+
+            duplicate_devices = json.loads(json.dumps(spec))
+            duplicate_devices["spec"]["management"]["storageDataDevices"] = ["/dev/sdb", "/dev/sdb"]
+            with self.assertRaises(jsonschema.ValidationError):
+                validator.validate(duplicate_devices)
 
     def test_management_admin_email_is_required_before_server_driven_install(self):
         with tempfile.TemporaryDirectory() as td:
