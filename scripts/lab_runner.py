@@ -2393,6 +2393,34 @@ def _validate_management_install_inputs(body: dict[str, Any]) -> None:
     storage_class = str(management.get("storageClass", "replicated-rwx")).strip()
     if not _valid_lab_dns_subdomain(storage_class):
         raise SystemExit("three-node management certification requires a valid lowercase spec.management.storageClass")
+    cluster_addresses = management.get("clusterNodeAddresses")
+    if not isinstance(cluster_addresses, list) or len(cluster_addresses) != 3:
+        raise SystemExit("three-node management certification requires exactly three spec.management.clusterNodeAddresses")
+    normalized_cluster_addresses = [str(value).strip() for value in cluster_addresses]
+    if len(set(normalized_cluster_addresses)) != 3:
+        raise SystemExit("three-node management certification requires unique spec.management.clusterNodeAddresses")
+    for value in normalized_cluster_addresses:
+        try:
+            address = ipaddress.ip_address(value)
+        except ValueError as exc:
+            raise SystemExit("three-node management certification requires literal IPv4 spec.management.clusterNodeAddresses") from exc
+        if address.version != 4:
+            raise SystemExit("three-node management certification currently requires IPv4 spec.management.clusterNodeAddresses")
+    cluster_interface = str(management.get("clusterInterface", "")).strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,15}", cluster_interface):
+        raise SystemExit("three-node management certification requires a valid spec.management.clusterInterface")
+    storage_devices = management.get("storageDataDevices")
+    if not isinstance(storage_devices, list) or not storage_devices:
+        raise SystemExit("three-node management certification requires non-empty spec.management.storageDataDevices")
+    normalized_devices = [str(value).strip() for value in storage_devices]
+    if len(set(normalized_devices)) != len(normalized_devices):
+        raise SystemExit("three-node management certification requires unique spec.management.storageDataDevices")
+    for device in normalized_devices:
+        parts = device.split("/")
+        if not device.startswith("/dev/") or any(part in {"", ".", ".."} for part in parts[2:]) or re.fullmatch(r"/dev/[A-Za-z0-9._/-]+", device) is None:
+            raise SystemExit("three-node management certification requires canonical Linux /dev paths in spec.management.storageDataDevices")
+    if str(management.get("storageDeviceMode", "")).strip() != "format-empty":
+        raise SystemExit("three-node management certification requires spec.management.storageDeviceMode=format-empty")
     object_storage = management.get("objectStorage")
     if not isinstance(object_storage, dict):
         raise SystemExit("three-node management certification requires spec.management.objectStorage")
@@ -3056,6 +3084,10 @@ def _install_request(body: dict[str, Any]) -> dict[str, Any]:
     }
     if ha:
         req["infrastructure"]["storageClass"] = str(mgmt.get("storageClass", "replicated-rwx"))
+        req["infrastructure"]["clusterNodeAddresses"] = [str(value).strip() for value in mgmt.get("clusterNodeAddresses", [])]
+        req["infrastructure"]["clusterInterface"] = str(mgmt.get("clusterInterface", "")).strip()
+        req["infrastructure"]["storageDataDevices"] = [str(value).strip() for value in mgmt.get("storageDataDevices", [])]
+        req["infrastructure"]["storageDeviceMode"] = str(mgmt.get("storageDeviceMode", "")).strip()
         obj = mgmt.get("objectStorage") or {}
         req["services"]["objectStorage"] = {"mode":"external","provider":"s3-compatible", **{k:v for k,v in obj.items() if v not in (None,"")}}
     return req
