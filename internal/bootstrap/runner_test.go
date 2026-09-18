@@ -1594,3 +1594,17 @@ func TestBootstrapStepsForStorageContinuationNeverReplayRKE2(t *testing.T) {
 		}
 	}
 }
+
+func TestZotManifestDoesNotEnableUIWithoutSearchExtension(t *testing.T) {
+	bundle := BundleManifest{}
+	bundle.Spec.Workloads.ZotImage = "registry.local/zot@sha256:" + strings.Repeat("a", 64)
+	request := installation.InstallRequest{}
+	request.Infrastructure.StorageClass = "replicated-rwx"
+	manifest := zotManifest(bundle, request)
+	if strings.Contains(manifest, `"ui": {"enable": true}`) {
+		t.Fatalf("managed Zot must not enable UI without the required search extension:\n%s", manifest)
+	}
+	if !strings.Contains(manifest, `"ui": {"enable": false}`) {
+		t.Fatalf("managed Zot manifest must explicitly disable UI when search is not enabled:\n%s", manifest)
+	}
+}
