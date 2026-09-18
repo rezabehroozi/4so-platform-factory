@@ -921,7 +921,12 @@ func (r *Runner) configureRKE2(run Run) error {
 	if err != nil {
 		return err
 	}
-	nodeAddress := run.Request.Infrastructure.NodeAddresses[0]
+	accessAddresses := run.Request.Infrastructure.NodeAddresses
+	clusterAddresses := effectiveClusterNodeAddresses(run.Request)
+	if len(accessAddresses) == 0 || len(clusterAddresses) == 0 {
+		return errors.New("RKE2 configuration requires at least one management node address")
+	}
+	nodeAddress := clusterAddresses[0]
 	tokenRaw, err := r.readSecret("/var/lib/4so-platform-installer/secrets/rke2-token")
 	if err != nil {
 		return err
@@ -929,8 +934,12 @@ func (r *Runner) configureRKE2(run Run) error {
 	config := fmt.Sprintf("write-kubeconfig-mode: \"0600\"\nnode-ip: %s\ntoken: %s\ntls-san:\n  - %s\n  - %s\n", yamlScalar(nodeAddress), yamlScalar(tokenRaw), yamlScalar(endpoint.Hostname()), yamlScalar(nodeAddress))
 	if run.Request.ProfileID == "production-standard-ha" {
 		config += "etcd-expose-metrics: true\n"
-		for _, peer := range run.Request.Infrastructure.NodeAddresses[1:] {
-			peerConfig := fmt.Sprintf("server: https://%s:9345\nwrite-kubeconfig-mode: \"0600\"\nnode-ip: %s\ntoken: %s\ntls-san:\n  - %s\n  - %s\n", nodeAddress, peer, yamlScalar(tokenRaw), yamlScalar(endpoint.Hostname()), peer)
+		for index, peer := range accessAddresses[1:] {
+			clusterPeer := peer
+			if index+1 < len(clusterAddresses) {
+				clusterPeer = clusterAddresses[index+1]
+			}
+			peerConfig := fmt.Sprintf("server: https://%s:9345\nwrite-kubeconfig-mode: \"0600\"\nnode-ip: %s\ntoken: %s\ntls-san:\n  - %s\n  - %s\n  - %s\n", nodeAddress, clusterPeer, yamlScalar(tokenRaw), yamlScalar(endpoint.Hostname()), yamlScalar(peer), yamlScalar(clusterPeer))
 			path := filepath.Join(r.stateDir, "ha-nodes", peer, "config.yaml")
 			if err := writePrivateFile(path, []byte(peerConfig)); err != nil {
 				return err
