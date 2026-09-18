@@ -331,11 +331,12 @@ spec:
                   name: platform-internal-services
                   key: identity-admin-password
           ports:
-            - containerPort: 8080
+            - {name: http, containerPort: 8080}
+            - {name: management, containerPort: 9000}
           readinessProbe:
             httpGet:
-              path: /realms/platform/.well-known/openid-configuration
-              port: 8080
+              path: /health/ready
+              port: 9000
             initialDelaySeconds: 20
             periodSeconds: 5
           volumeMounts:
