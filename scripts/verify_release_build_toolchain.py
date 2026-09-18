@@ -20,11 +20,52 @@ def current_go():
         return 127,f'go unavailable: {exc}'
     return p.returncode,(p.stdout or p.stderr).strip()
 
+def command_first_line(command):
+    try:
+        p=subprocess.run(command,text=True,capture_output=True)
+    except OSError as exc:
+        return 127,f'{command[0]} unavailable: {exc}'
+    lines=[x.strip() for x in (p.stdout or p.stderr).splitlines() if x.strip()]
+    return p.returncode,(lines[0] if lines else '')
+
+def file_sha256(path):
+    p=pathlib.Path(path)
+    if not p.is_file() or p.is_symlink():
+        return ''
+    h=hashlib.sha256()
+    with p.open('rb') as fh:
+        for chunk in iter(lambda: fh.read(1024*1024),b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+def validate_active_cgo(lock):
+    spec=lock.get('spec',{})
+    expected=spec.get('exactCGOToolchain') or {}
+    if spec.get('admissionStatus')!='admitted':
+        return []
+    errs=[]
+    commands={
+        'ccVersion':['gcc','--version'],
+        'ldVersion':['ld','--version'],
+        'libcVersion':['ldd','--version'],
+    }
+    for key,cmd in commands.items():
+        rc,actual=command_first_line(cmd)
+        if rc!=0 or actual!=str(expected.get(key) or ''):
+            errs.append(f'active CGO {key} mismatch: lock={expected.get(key)} active={actual}')
+    for path_key,digest_key in (('libpqHeaderPath','libpqHeaderSha256'),('libpqLibraryPath','libpqLibrarySha256')):
+        path=str(expected.get(path_key) or '')
+        actual=file_sha256(path) if path else ''
+        wanted=str(expected.get(digest_key) or '')
+        if not HEX.fullmatch(wanted) or actual!=wanted:
+            errs.append(f'active CGO {digest_key} mismatch: lock={wanted} active={actual}')
+    return errs
+
 def validate(lock, *, active=None, archive_path=None):
     errs=[]; spec=lock.get('spec',{})
     if lock.get('authority')!=AUTH: errs.append('authority mismatch')
     policy=spec.get('policy',{})
-    if not all(policy.get(k) is True for k in ['supportedToolchainRequired','exactCompilerArchiveDigestRequired','compilerVersionMustMatchBuildProvenance']): errs.append('required fail-closed policy disabled')
+    if not all(policy.get(k) is True for k in ['supportedToolchainRequired','exactCompilerArchiveDigestRequired','compilerVersionMustMatchBuildProvenance','exactCGOToolchainRequired']): errs.append('required fail-closed policy disabled')
     if policy.get('networkAutoDownloadDuringReleaseBuildAllowed') is not False: errs.append('network auto-download must be forbidden')
     status=spec.get('admissionStatus')
     exact=spec.get('exactCompiler') or {}
@@ -36,6 +77,11 @@ def validate(lock, *, active=None, archive_path=None):
         if not archive: errs.append('admitted lock missing offline archiveFile')
         if goos!='linux' or goarch!='amd64': errs.append('admitted compiler platform must be linux/amd64')
         if size<=0: errs.append('admitted lock missing exact compiler archive size')
+        cgo=spec.get('exactCGOToolchain') or {}
+        for key in ('ccVersion','ldVersion','libcVersion','libpqHeaderPath','libpqLibraryPath'):
+            if not str(cgo.get(key) or '').strip(): errs.append(f'admitted lock missing exact CGO {key}')
+        for key in ('libpqHeaderSha256','libpqLibrarySha256'):
+            if not HEX.fullmatch(str(cgo.get(key) or '')): errs.append(f'admitted lock missing exact CGO {key}')
         if active is not None:
             match=re.fullmatch(r'go version (\S+) (\S+)/(\S+)', active.strip())
             if match is None or (match.group(1),match.group(2),match.group(3))!=(version,goos,goarch):
@@ -85,6 +131,8 @@ def main():
         else:
             archive_path=str(ROOT.joinpath(*rel_path.parts))
     errs += validate(lock,active=active if rc==0 else None,archive_path=archive_path)
+    if status=='admitted':
+        errs += validate_active_cgo(lock)
     if args.require_admitted and status!='admitted': errs.append('release toolchain lock is not admitted')
     if errs:
         print('RELEASE_BUILD_TOOLCHAIN_BLOCKED ' + '; '.join(errs)); return 2 if status=='blocked' else 1
