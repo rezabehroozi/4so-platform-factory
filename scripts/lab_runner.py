@@ -9,10 +9,13 @@ from __future__ import annotations
 import argparse
 import base64
 import contextlib
-import fcntl
 import hashlib
 import http.client
 import json
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 import ipaddress
 import os
 import posixpath
@@ -394,6 +397,37 @@ def _spec_with_persistent_release_snapshot(spec: dict[str, Any], target: Path) -
     return cloned, existing
 
 
+def _lock_run_state_fd(fd: int) -> None:
+    if os.name == "nt":
+        # msvcrt.locking is byte-range based. Keep one durable byte in the lock
+        # file and lock byte zero without blocking so the canonical Windows
+        # control host has the same single-writer semantics as POSIX flock.
+        if os.fstat(fd).st_size == 0:
+            os.write(fd, b"\\0")
+            os.fsync(fd)
+        os.lseek(fd, 0, os.SEEK_SET)
+        try:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        except OSError as exc:
+            raise SystemExit("another Lab execution is already active for this --state-dir") from exc
+        return
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        raise SystemExit("another Lab execution is already active for this --state-dir") from exc
+
+
+def _unlock_run_state_fd(fd: int) -> None:
+    if os.name == "nt":
+        os.lseek(fd, 0, os.SEEK_SET)
+        try:
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+        return
+    fcntl.flock(fd, fcntl.LOCK_UN)
+
+
 @contextlib.contextmanager
 def _exclusive_run_state(state: Path):
     """Fence one mutating Lab execution per state directory."""
@@ -407,19 +441,20 @@ def _exclusive_run_state(state: Path):
         fd = os.open(lock_path, flags, 0o600)
     except OSError as exc:
         raise SystemExit(f"lab run-state lock cannot be opened safely: {exc}") from exc
+    locked = False
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode):
             raise SystemExit("lab run-state lock must be a regular file")
-        os.fchmod(fd, 0o600)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise SystemExit("another Lab execution is already active for this --state-dir") from exc
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
+        _lock_run_state_fd(fd)
+        locked = True
         yield
     finally:
         try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            if locked:
+                _unlock_run_state_fd(fd)
         finally:
             os.close(fd)
 
