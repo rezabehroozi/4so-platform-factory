@@ -39,6 +39,7 @@ type Config struct {
 	ZotURL                     string
 	KeycloakURL                string
 	ArgoCDURL                  string
+	ArgoCDToken                string
 	RepositoryBootstrapEnabled bool
 }
 
@@ -129,6 +130,7 @@ func New(config Config) *Client {
 	config.ZotURL = strings.TrimRight(strings.TrimSpace(config.ZotURL), "/")
 	config.KeycloakURL = strings.TrimRight(strings.TrimSpace(config.KeycloakURL), "/")
 	config.ArgoCDURL = strings.TrimRight(strings.TrimSpace(config.ArgoCDURL), "/")
+	config.ArgoCDToken = strings.TrimSpace(config.ArgoCDToken)
 	return &Client{config: config, http: &http.Client{Timeout: 8 * time.Second}}
 }
 
@@ -280,6 +282,10 @@ func (c *Client) argocdStatus(ctx context.Context) ServiceStatus {
 	if !result.Configured {
 		return result
 	}
+	if c.config.ArgoCDToken == "" {
+		result.Error = "Argo CD observation token is not configured"
+		return result
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.config.ArgoCDURL+"/healthz", nil)
 	if err != nil {
 		result.Error = err.Error()
@@ -308,10 +314,14 @@ func (c *Client) ObserveGitOpsApplication(ctx context.Context, application strin
 	if application == "" || !safeName(application) {
 		return GitOpsApplicationObservation{}, errors.New("application name is required")
 	}
+	if c.config.ArgoCDToken == "" {
+		return GitOpsApplicationObservation{}, errors.New("managed Argo CD observation token is not configured")
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.config.ArgoCDURL+"/api/v1/applications/"+url.PathEscape(application), nil)
 	if err != nil {
 		return GitOpsApplicationObservation{}, err
 	}
+	request.Header.Set("Authorization", "Bearer "+c.config.ArgoCDToken)
 	response, err := c.http.Do(request)
 	if err != nil {
 		return GitOpsApplicationObservation{}, err
