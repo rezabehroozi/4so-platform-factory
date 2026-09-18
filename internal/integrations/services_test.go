@@ -239,7 +239,7 @@ func TestStatusAndRepositoryBootstrap(t *testing.T) {
 	resolver := func(context.Context) (GitConnection, error) {
 		return GitConnection{ProviderID: "gitp_test", ProviderName: "test", BaseURL: forgejo.URL, CredentialID: "gitcred_test", Username: "admin", SecretRef: "env://PF_TEST_FORGEJO_PASSWORD"}, nil
 	}
-	client := New(Config{GitConnectionResolver: resolver, ZotURL: zot.URL, KeycloakURL: keycloak.URL, ArgoCDURL: keycloak.URL})
+	client := New(Config{GitConnectionResolver: resolver, ZotURL: zot.URL, KeycloakURL: keycloak.URL, ArgoCDURL: keycloak.URL, ArgoCDToken: "status-token"})
 	statuses := client.Status(context.Background())
 	if len(statuses) != 4 || !statuses[0].Healthy || !statuses[1].Healthy || !statuses[2].Healthy {
 		t.Fatalf("statuses=%+v", statuses)
@@ -315,6 +315,10 @@ func TestObserveGitOpsApplicationAuthority(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
+		if got := r.Header.Get("Authorization"); got != "Bearer observer-token" {
+			http.Error(w, "missing observer authority", http.StatusUnauthorized)
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"metadata": map[string]string{"name": "platform-appliance"},
 			"status": map[string]any{
@@ -324,13 +328,24 @@ func TestObserveGitOpsApplicationAuthority(t *testing.T) {
 		})
 	}))
 	defer argo.Close()
-	client := New(Config{ArgoCDURL: argo.URL})
+	client := New(Config{ArgoCDURL: argo.URL, ArgoCDToken: "observer-token"})
 	obs, err := client.ObserveGitOpsApplication(context.Background(), "platform-appliance")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if obs.Application != "platform-appliance" || obs.SyncStatus != "Synced" || obs.HealthStatus != "Healthy" || obs.Revision != "0123456789abcdef0123456789abcdef01234567" {
 		t.Fatalf("observation=%+v", obs)
+	}
+}
+
+func TestObserveGitOpsApplicationRequiresObserverToken(t *testing.T) {
+	client := New(Config{ArgoCDURL: "http://argocd.invalid"})
+	if _, err := client.ObserveGitOpsApplication(context.Background(), "platform-appliance"); err == nil || !strings.Contains(err.Error(), "observation token") {
+		t.Fatalf("expected missing observation token to fail closed, got %v", err)
+	}
+	status := client.Status(context.Background())[3]
+	if status.Healthy || !strings.Contains(status.Error, "observation token") {
+		t.Fatalf("missing observer token must degrade managed GitOps status: %+v", status)
 	}
 }
 
