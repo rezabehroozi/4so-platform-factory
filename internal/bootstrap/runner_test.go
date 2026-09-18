@@ -1458,3 +1458,58 @@ func TestTLSKeyGeneratorSecurityBoundary(t *testing.T) {
 		t.Fatalf("simulation key generator must remain test-only cost reduction: simulation=%d production=%d", simulationKey.N.BitLen(), productionKey.N.BitLen())
 	}
 }
+
+func TestConfigureRKE2SeparatesAccessAndEastWestAddresses(t *testing.T) {
+	state := t.TempDir()
+	system := &SimulatedSystem{Root: t.TempDir()}
+	if err := system.WriteFile("/var/lib/4so-platform-installer/secrets/rke2-token", []byte("token-123\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runner := &Runner{stateDir: state, system: system}
+	req := haBootstrapRequest()
+	req.Infrastructure.NodeAddresses = []string{"203.0.113.11", "203.0.113.12", "203.0.113.13"}
+	req.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12", "10.77.0.13"}
+	req.Infrastructure.ClusterInterface = "ens224"
+	if err := runner.configureRKE2(Run{Request: req}); err != nil {
+		t.Fatal(err)
+	}
+
+	localRaw, err := os.ReadFile(system.path("/etc/rancher/rke2/config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := string(localRaw)
+	if !strings.Contains(local, `node-ip: "10.77.0.11"`) || strings.Contains(local, `node-ip: "203.0.113.11"`) {
+		t.Fatalf("local RKE2 config did not bind east-west address:\n%s", local)
+	}
+
+	peerPath := filepath.Join(state, "ha-nodes", "203.0.113.12", "config.yaml")
+	peerRaw, err := os.ReadFile(peerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	peer := string(peerRaw)
+	for _, want := range []string{
+		`server: https://10.77.0.11:9345`,
+		`node-ip: 10.77.0.12`,
+		`  - "203.0.113.12"`,
+		`  - "10.77.0.12"`,
+	} {
+		if !strings.Contains(peer, want) {
+			t.Fatalf("peer RKE2 config missing %q:\n%s", want, peer)
+		}
+	}
+}
+
+func TestEffectiveClusterNodeAddressesFallsBackWithoutMutation(t *testing.T) {
+	req := haBootstrapRequest()
+	got := effectiveClusterNodeAddresses(req)
+	if len(got) != len(req.Infrastructure.NodeAddresses) || got[0] != req.Infrastructure.NodeAddresses[0] {
+		t.Fatalf("legacy HA request must fall back to access addresses: %#v", got)
+	}
+	req.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12", "10.77.0.13"}
+	got = effectiveClusterNodeAddresses(req)
+	if got[0] != "10.77.0.11" || got[2] != "10.77.0.13" {
+		t.Fatalf("explicit east-west addresses were not selected: %#v", got)
+	}
+}
