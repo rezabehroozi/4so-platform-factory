@@ -92,6 +92,30 @@ def go_toolchain_version() -> str:
     return subprocess.run([go_binary, "version"], capture_output=True, text=True, check=True).stdout.strip()
 
 
+def command_first_line(command: list[str]) -> str:
+    proc = subprocess.run(command, capture_output=True, text=True, check=True)
+    lines = [line.strip() for line in (proc.stdout or proc.stderr).splitlines() if line.strip()]
+    if not lines:
+        raise SystemExit(f"BUILD_TOOLCHAIN_IDENTITY_EMPTY {command[0]}")
+    return lines[0]
+
+
+def cgo_toolchain_identity(stage: Path) -> dict[str, str]:
+    lock = json.loads((stage / "lab" / "release-build-toolchain-lock.json").read_text(encoding="utf-8"))
+    exact = ((lock.get("spec") or {}).get("exactCGOToolchain") or {})
+    header = Path(str(exact.get("libpqHeaderPath") or ""))
+    library = Path(str(exact.get("libpqLibraryPath") or ""))
+    return {
+        "ccVersion": command_first_line(["gcc", "--version"]),
+        "ldVersion": command_first_line(["ld", "--version"]),
+        "libcVersion": command_first_line(["ldd", "--version"]),
+        "libpqHeaderPath": str(header),
+        "libpqHeaderSha256": sha(header),
+        "libpqLibraryPath": str(library),
+        "libpqLibrarySha256": sha(library),
+    }
+
+
 def build_provenance(stage: Path, version: str, release_name: str) -> None:
     sources = source_rows(stage)
     canonical = json.dumps(sources, separators=(",", ":"), sort_keys=True).encode("utf-8")
@@ -118,6 +142,7 @@ def build_provenance(stage: Path, version: str, release_name: str) -> None:
         "buildType": "deterministic-local-release",
         "created": FIXED_CREATED,
         "goToolchain": go_version,
+        "cgoToolchain": cgo_toolchain_identity(stage),
         "sourceTreeDigest": "sha256:" + sha_bytes(canonical),
         "sourceFileCount": len(sources),
         "module": "platform.4so.io/factory",
