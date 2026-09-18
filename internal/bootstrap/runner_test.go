@@ -1530,6 +1530,15 @@ func TestHAStatusExposesAccessAndEastWestTopology(t *testing.T) {
 	if status["selected"] != true || status["networkSplit"] != true || status["clusterInterface"] != "ens224" {
 		t.Fatalf("HA network status missing split-network authority: %#v", status)
 	}
+	if status["storageDeviceMode"] != "format-empty" {
+		t.Fatalf("HA storage device mode missing from status: %#v", status)
+	}
+	if devices, ok := status["storageDataDevices"].([]string); !ok || len(devices) != 3 || devices[0] != "/dev/sdb" {
+		t.Fatalf("HA storage device authority missing from status: %#v", status["storageDataDevices"])
+	}
+	if mounts, ok := status["storageMounts"].([]string); !ok || len(mounts) != 3 || mounts[0] != "/var/lib/longhorn/disks/disk-00" {
+		t.Fatalf("HA storage mount authority missing from status: %#v", status["storageMounts"])
+	}
 	access, ok := status["nodes"].([]string)
 	if !ok || len(access) != 3 || access[0] != "203.0.113.11" {
 		t.Fatalf("HA access-node status invalid: %#v", status["nodes"])
