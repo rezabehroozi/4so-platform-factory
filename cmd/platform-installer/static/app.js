@@ -108,7 +108,7 @@ const faLiteral = {
   "The same whole-disk paths must exist on every HA node. root disks, partitions, mounted disks and disks with foreign signatures are rejected.": "همان مسیرهای دیسک کامل باید روی همه نودهای HA وجود داشته باشند. دیسک سیستم، پارتیشن، دیسک mount شده و دیسک دارای امضای ناشناخته رد می‌شود.",
   "Storage device action": "عملیات دیسک داده",
   "Format empty devices and bind to Longhorn": "فرمت دیسک‌های خالی و اتصال به Longhorn",
-  "Only explicitly listed empty disks are formatted. 4SO-owned ext4 disks are resume-safe.": "فقط دیسک‌های خالی که صریحاً وارد شده‌اند فرمت می‌شوند. دیسک ext4 متعلق به 4SO در Resume قابل استفاده مجدد است.",
+  "Only explicitly listed empty disks are formatted. 4SO-owned ext4 disks are resume-safe.": "فقط دیسک‌های خالی که صریحاً وارد شده‌اند فرمت می‌شوند. دیسک فایل‌سیستم اختصاصی متعلق به 4SO در ادامهٔ نصب قابل استفادهٔ مجدد است.",
   "Region": "Region",
   "Store SSH private key securely": "ذخیره امن کلید خصوصی SSH",
   "Pin HA host keys": "تأیید کلید میزبان‌های HA",
