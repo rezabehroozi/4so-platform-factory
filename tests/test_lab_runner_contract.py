@@ -77,6 +77,10 @@ class LabRunnerContractTests(unittest.TestCase):
             "adminEmail": "admin@factory.example.invalid",
             "dnsZone": "example.invalid",
             "storageClass": "replicated-rwx",
+            "clusterNodeAddresses": ["10.77.35.11", "10.77.35.12", "10.77.35.13"],
+            "clusterInterface": "ens35",
+            "storageDataDevices": ["/dev/sdb", "/dev/sdc", "/dev/sdd"],
+            "storageDeviceMode": "format-empty",
             "objectStorage": {
                 "url": "https://s3.example.invalid",
                 "bucket": "platform-backups",
@@ -104,7 +108,7 @@ class LabRunnerContractTests(unittest.TestCase):
     def test_three_node_management_inputs_fail_closed_before_field_campaign(self):
         with tempfile.TemporaryDirectory() as td:
             spec = self._production_ha_spec(Path(td))
-            for field, expected in (("dnsZone", "dnsZone"), ("publicEndpoint", "publicEndpoint"), ("objectStorage", "objectStorage")):
+            for field, expected in (("dnsZone", "dnsZone"), ("publicEndpoint", "publicEndpoint"), ("clusterNodeAddresses", "clusterNodeAddresses"), ("clusterInterface", "clusterInterface"), ("storageDataDevices", "storageDataDevices"), ("storageDeviceMode", "storageDeviceMode"), ("objectStorage", "objectStorage")):
                 changed = json.loads(json.dumps(spec))
                 changed["spec"]["management"].pop(field)
                 with self.subTest(field=field):
@@ -133,6 +137,10 @@ class LabRunnerContractTests(unittest.TestCase):
             self.assertEqual("disconnected", ha_req["connectivity"])
             self.assertEqual("production-standard-ha", ha_req["profileId"])
             self.assertEqual("example.invalid", ha_req["network"]["dnsZone"])
+            self.assertEqual(["10.77.35.11", "10.77.35.12", "10.77.35.13"], ha_req["infrastructure"]["clusterNodeAddresses"])
+            self.assertEqual("ens35", ha_req["infrastructure"]["clusterInterface"])
+            self.assertEqual(["/dev/sdb", "/dev/sdc", "/dev/sdd"], ha_req["infrastructure"]["storageDataDevices"])
+            self.assertEqual("format-empty", ha_req["infrastructure"]["storageDeviceMode"])
             self.assertEqual("platform-backups", ha_req["services"]["objectStorage"]["bucket"])
             self.assertEqual("admin@factory.example.invalid", ha_req["services"]["identity"]["adminEmail"])
 
@@ -1780,3 +1788,23 @@ class LabRunnerContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_three_node_management_rejects_unsafe_cluster_and_storage_topology(self):
+        with tempfile.TemporaryDirectory() as td:
+            base = self._production_ha_spec(Path(td))
+            cases = [
+                ("cluster-count", lambda spec: spec["spec"]["management"].__setitem__("clusterNodeAddresses", ["10.77.35.11", "10.77.35.12"]), "clusterNodeAddresses"),
+                ("cluster-duplicate", lambda spec: spec["spec"]["management"].__setitem__("clusterNodeAddresses", ["10.77.35.11", "10.77.35.11", "10.77.35.13"]), "unique"),
+                ("cluster-hostname", lambda spec: spec["spec"]["management"].__setitem__("clusterNodeAddresses", ["node-a", "10.77.35.12", "10.77.35.13"]), "literal IPv4"),
+                ("interface", lambda spec: spec["spec"]["management"].__setitem__("clusterInterface", "ens35;reboot"), "clusterInterface"),
+                ("storage-relative", lambda spec: spec["spec"]["management"].__setitem__("storageDataDevices", ["sdb"]), "canonical Linux /dev paths"),
+                ("storage-traversal", lambda spec: spec["spec"]["management"].__setitem__("storageDataDevices", ["/dev/disk/by-id/../sdb"]), "canonical Linux /dev paths"),
+                ("storage-duplicate", lambda spec: spec["spec"]["management"].__setitem__("storageDataDevices", ["/dev/sdb", "/dev/sdb"]), "unique"),
+                ("storage-mode", lambda spec: spec["spec"]["management"].__setitem__("storageDeviceMode", "reuse-any"), "format-empty"),
+            ]
+            for name, mutate, expected in cases:
+                changed = json.loads(json.dumps(base))
+                mutate(changed)
+                with self.subTest(name=name):
+                    with self.assertRaisesRegex(SystemExit, expected):
+                        lab.validate_spec(changed)
