@@ -185,15 +185,15 @@ func InspectBundleForMilestone(dir string, requireLock bool, milestone string) (
 	}
 	sort.Slice(records, func(i, j int) bool { return records[i].Path < records[j].Path })
 	return BundleAdmissionStatus{
-		Verified: true,
-		Version: bundle.Metadata.Version,
-		RKE2Version: bundle.Spec.RKE2.Version,
+		Verified:            true,
+		Version:             bundle.Metadata.Version,
+		RKE2Version:         bundle.Spec.RKE2.Version,
 		SourceReleaseDigest: bundle.Metadata.SourceReleaseDigest,
-		BundleDigest: bundleDigest,
-		LockRequired: false,
-		ArtifactCount: len(records),
-		TotalBytes: total,
-		Artifacts: records,
+		BundleDigest:        bundleDigest,
+		LockRequired:        false,
+		ArtifactCount:       len(records),
+		TotalBytes:          total,
+		Artifacts:           records,
 	}, nil
 }
 
