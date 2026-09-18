@@ -1513,3 +1513,29 @@ func TestEffectiveClusterNodeAddressesFallsBackWithoutMutation(t *testing.T) {
 		t.Fatalf("explicit east-west addresses were not selected: %#v", got)
 	}
 }
+
+func TestHAStatusExposesAccessAndEastWestTopology(t *testing.T) {
+	req := haBootstrapRequest()
+	req.Infrastructure.NodeAddresses = []string{"203.0.113.11", "203.0.113.12", "203.0.113.13"}
+	req.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12", "10.77.0.13"}
+	req.Infrastructure.ClusterInterface = "ens224"
+	runner := &Runner{journal: NewJournal(t.TempDir())}
+	if err := runner.journal.Save(Run{ID: "bootstrap-ha-network-status", State: RunRunning, Request: req}); err != nil {
+		t.Fatal(err)
+	}
+	status, err := runner.HAStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status["selected"] != true || status["networkSplit"] != true || status["clusterInterface"] != "ens224" {
+		t.Fatalf("HA network status missing split-network authority: %#v", status)
+	}
+	access, ok := status["nodes"].([]string)
+	if !ok || len(access) != 3 || access[0] != "203.0.113.11" {
+		t.Fatalf("HA access-node status invalid: %#v", status["nodes"])
+	}
+	cluster, ok := status["clusterNodes"].([]string)
+	if !ok || len(cluster) != 3 || cluster[0] != "10.77.0.11" {
+		t.Fatalf("HA cluster-node status invalid: %#v", status["clusterNodes"])
+	}
+}
