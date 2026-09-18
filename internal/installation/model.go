@@ -55,6 +55,11 @@ type ServiceSpec struct {
 	Region        string      `json:"region,omitempty"`
 }
 
+type DatabaseSpec struct {
+	ServiceSpec
+	VolumeSize string `json:"volumeSize,omitempty"`
+}
+
 type GitSpec struct {
 	ServiceSpec
 	Organization string `json:"organization,omitempty"`
@@ -93,7 +98,7 @@ type NetworkSpec struct {
 type ServicesSpec struct {
 	Git           GitSpec      `json:"git"`
 	Registry      ServiceSpec  `json:"registry"`
-	Database      ServiceSpec  `json:"database"`
+	Database      DatabaseSpec `json:"database"`
 	ObjectStorage ServiceSpec  `json:"objectStorage"`
 	Identity      IdentitySpec `json:"identity"`
 }
