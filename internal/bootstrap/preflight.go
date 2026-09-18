@@ -942,20 +942,30 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 		} else {
 			add("ssh-client", "Verify OpenSSH client availability", CheckPassed, "OpenSSH client is available; SCP is not required")
 			probeRun := Run{Request: request}
-			for index, peer := range peers {
-				clusterAddress := ""
-				if index+1 < len(clusterAddresses) {
-					clusterAddress = clusterAddresses[index+1]
+			if request.ExecutionStartStep == "prepare-storage-devices" {
+				for index, peer := range peers {
+					if _, err := r.system.Output(ctx, "ssh", r.sshArgs(probeRun, peer, "set -eu; systemctl is-active --quiet rke2-server; test -s /etc/rancher/rke2/rke2.yaml"), nil); err != nil {
+						add(fmt.Sprintf("ha-peer-%d", index+1), "Verify existing HA peer runtime", CheckBlocked, fmt.Sprintf("%s: %v", peer, err))
+					} else {
+						add(fmt.Sprintf("ha-peer-%d", index+1), "Verify existing HA peer runtime", CheckPassed, peer+": existing RKE2 server is active and kubeconfig is present")
+					}
 				}
-				primaryClusterAddress := ""
-				if len(clusterAddresses) > 0 {
-					primaryClusterAddress = clusterAddresses[0]
-				}
-				command := haPeerPreflightCommand(sizing) + clusterPeerProbeCommand(clusterAddress, request.Infrastructure.ClusterInterface, primaryClusterAddress)
-				if _, err := r.system.Output(ctx, "ssh", r.sshArgs(probeRun, peer, command), nil); err != nil {
-					add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckBlocked, fmt.Sprintf("%s: %v", peer, err))
-				} else {
-					add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckPassed, peer+": pinned SSH connectivity, Linux/root/systemd/NTP readiness, clean Kubernetes runtime state and required free ports verified")
+			} else {
+				for index, peer := range peers {
+					clusterAddress := ""
+					if index+1 < len(clusterAddresses) {
+						clusterAddress = clusterAddresses[index+1]
+					}
+					primaryClusterAddress := ""
+					if len(clusterAddresses) > 0 {
+						primaryClusterAddress = clusterAddresses[0]
+					}
+					command := haPeerPreflightCommand(sizing) + clusterPeerProbeCommand(clusterAddress, request.Infrastructure.ClusterInterface, primaryClusterAddress)
+					if _, err := r.system.Output(ctx, "ssh", r.sshArgs(probeRun, peer, command), nil); err != nil {
+						add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckBlocked, fmt.Sprintf("%s: %v", peer, err))
+					} else {
+						add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckPassed, peer+": pinned SSH connectivity, Linux/root/systemd/NTP readiness, clean Kubernetes runtime state and required free ports verified")
+					}
 				}
 			}
 		}
@@ -1075,19 +1085,39 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 				add("object-storage-reachability", "Verify external object storage endpoint reachability", CheckPassed, "endpoint DNS and TCP connectivity are available before bootstrap mutation; credentialed read/write certification remains a lifecycle gate")
 			}
 		}
-		if residue := r.existingKubernetesResidue(ctx); len(residue) > 0 {
-			add("existing-kubernetes", "Detect conflicting Kubernetes runtime residue", CheckBlocked, "Kubernetes runtime residue is present on a fresh-install host ("+strings.Join(residue, ", ")+"); use the persisted Resume path or explicitly reset the host before starting a new installation")
-		} else {
-			add("existing-kubernetes", "Detect conflicting Kubernetes runtime residue", CheckPassed, "no conflicting RKE2, K3s or kubelet/kubeadm state, binary or systemd unit was found")
-		}
-		for _, port := range []string{"80", "443", "6443", "9345"} {
-			listener, listenErr := net.Listen("tcp", ":"+port)
-			if listenErr != nil {
-				add("port-"+port, "Verify local port "+port, CheckBlocked, "required local port is unavailable: "+listenErr.Error())
-				continue
+		if request.ExecutionStartStep == "prepare-storage-devices" {
+			if err := r.verifyHAQuorum(ctx, Run{Request: request}); err != nil {
+				add("existing-ha-continuation", "Verify existing HA quorum for staged continuation", CheckBlocked, err.Error())
+			} else {
+				add("existing-ha-continuation", "Verify existing HA quorum for staged continuation", CheckPassed, "three Ready management nodes, exact east-west InternalIPs and three etcd voting members are proven")
 			}
-			_ = listener.Close()
-			add("port-"+port, "Verify local port "+port, CheckPassed, "required local port is available")
+			add("existing-kubernetes", "Detect conflicting Kubernetes runtime residue", CheckPassed, "existing RKE2 runtime is explicitly admitted as the staged continuation authority")
+			add("port-6443", "Verify local Kubernetes API ownership", CheckPassed, "existing admitted RKE2 quorum owns the Kubernetes API port")
+			add("port-9345", "Verify local RKE2 supervisor ownership", CheckPassed, "existing admitted RKE2 quorum owns the supervisor port")
+			for _, port := range []string{"80", "443"} {
+				listener, listenErr := net.Listen("tcp", ":"+port)
+				if listenErr != nil {
+					add("port-"+port, "Verify local port "+port, CheckBlocked, "required local port is unavailable: "+listenErr.Error())
+					continue
+				}
+				_ = listener.Close()
+				add("port-"+port, "Verify local port "+port, CheckPassed, "required local port is available")
+			}
+		} else {
+			if residue := r.existingKubernetesResidue(ctx); len(residue) > 0 {
+				add("existing-kubernetes", "Detect conflicting Kubernetes runtime residue", CheckBlocked, "Kubernetes runtime residue is present on a fresh-install host ("+strings.Join(residue, ", ")+"); use the persisted Resume path or explicitly reset the host before starting a new installation")
+			} else {
+				add("existing-kubernetes", "Detect conflicting Kubernetes runtime residue", CheckPassed, "no conflicting RKE2, K3s or kubelet/kubeadm state, binary or systemd unit was found")
+			}
+			for _, port := range []string{"80", "443", "6443", "9345"} {
+				listener, listenErr := net.Listen("tcp", ":"+port)
+				if listenErr != nil {
+					add("port-"+port, "Verify local port "+port, CheckBlocked, "required local port is unavailable: "+listenErr.Error())
+					continue
+				}
+				_ = listener.Close()
+				add("port-"+port, "Verify local port "+port, CheckPassed, "required local port is available")
+			}
 		}
 	}
 	if strings.TrimSpace(report.RequestDigest) == "" {
