@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	longhornNamespace    = "longhorn-system"
-	longhornMountRoot    = "/var/lib/longhorn/disks"
-	storageClaimRoot     = "/var/lib/4so-platform-installer/storage-claims"
+	longhornNamespace     = "longhorn-system"
+	longhornMountRoot     = "/var/lib/longhorn/disks"
+	storageClaimRoot      = "/var/lib/4so-platform-installer/storage-claims"
 	storageClaimAuthority = "MANAGEMENT_PLANE_STORAGE_CLAIM_V1"
 )
 
@@ -93,7 +93,6 @@ func (r *Runner) prepareHAStorageDevices(ctx context.Context, run Run) error {
 	}
 	return nil
 }
-
 
 func storageDeviceResetCommand(devices []string) string {
 	command := `set -eu; command -v readlink >/dev/null 2>&1; command -v blkid >/dev/null 2>&1; command -v wipefs >/dev/null 2>&1; command -v lsblk >/dev/null 2>&1; command -v mountpoint >/dev/null 2>&1; command -v findmnt >/dev/null 2>&1`
