@@ -325,6 +325,11 @@ class AutopilotReportTests(unittest.TestCase):
             self.assertTrue(data["notProductAuthority"])
             self.assertEqual(data["stageResults"][0]["specialist"], "operator-console")
             self.assertNotIn("output_tail", data["stageResults"][0])
+            self.assertIn("workspaceFingerprint", data)
+            self.assertIn("gitHead", data)
+            self.assertEqual(data["nextStage"], "smoke-ui-live")
+            self.assertTrue(data["invocation"])
+            self.assertIn("rerun the same invocation", data["resumeHint"])
 
 class ProcessTreeTimeoutTests(unittest.TestCase):
     def test_timeout_terminates_descendant_process_tree(self):
@@ -353,6 +358,10 @@ class CheckpointRetentionTests(unittest.TestCase):
             state = json.loads(checkpoint.read_text(encoding="utf-8"))
             self.assertEqual(state["phase"], "forward")
             self.assertEqual(state["nextIndex"], 0)
+            self.assertIn("workspaceFingerprint", state)
+            self.assertIn("gitHead", state)
+            self.assertTrue(state["invocation"])
+            self.assertTrue(state["updatedAt"].endswith("Z"))
             self.assertEqual(state["currentStage"], "timeout-stage")
 
     def test_pass_clears_checkpoint(self):

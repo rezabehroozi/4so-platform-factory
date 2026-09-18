@@ -672,6 +672,25 @@ def _read_report_results(root: Path, graph_signature: str) -> list[dict]:
     return safe
 
 
+def _git_head(root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _autopilot_invocation() -> list[str]:
+    return [str(Path(sys.executable).resolve()), *sys.argv]
+
+
 def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature: str, repair: bool, phase: str, next_index: int, repair_count: int, status: str, current_stage: str | None, stage_results: list[dict], last_failure: dict | None = None, run_id: str | None = None) -> None:
     stage = next((item for item in stages if item.name == current_stage), None)
     resolved_run_id = str(run_id or "").strip()
@@ -701,6 +720,13 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "currentSpecialist": _stage_specialist(stage) if stage else "",
         "repairCount": repair_count,
         "resumeEligible": _checkpoint_path(root).is_file(),
+        "gitHead": _git_head(root),
+        "workspaceFingerprint": _workspace_fingerprint(root),
+        "checkpointPath": str(_checkpoint_path(root)),
+        "reportPath": str(_report_path(root)),
+        "nextStage": stages[next_index].name if 0 <= next_index < len(stages) else "",
+        "invocation": _autopilot_invocation(),
+        "resumeHint": "rerun the same invocation; the durable checkpoint resumes the exact graph cursor",
         "updatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
         "stageResults": stage_results[-100:],
     }
@@ -907,6 +933,9 @@ def _write_checkpoint(root: Path, payload: dict) -> None:
     body = dict(payload)
     body["schemaVersion"] = _AUTOPILOT_STATE_SCHEMA
     body["workspaceFingerprint"] = _workspace_fingerprint(root)
+    body["gitHead"] = _git_head(root)
+    body["invocation"] = _autopilot_invocation()
+    body["updatedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     _write_state_raw(path, body)
 
 
