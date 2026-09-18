@@ -76,7 +76,7 @@ func (r *Runner) joinHAControllerNodes(ctx context.Context, run Run) error {
 		if err := r.remoteCopy(ctx, run, installer, peer, "/var/lib/4so-platform-installer/bundle/rke2/install.sh", "0700"); err != nil {
 			return err
 		}
-		bundle, _, loadErr := LoadBundle(r.bundleDir)
+		bundle, _, loadErr := LoadBundleForMilestone(r.bundleDir, run.Request.ExecutionMilestone)
 		if loadErr != nil {
 			return loadErr
 		}
