@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -474,6 +475,29 @@ func TestPostgresSerializableRetriesCommitSerializationFailure(t *testing.T) {
 		t.Fatalf("commit retry err=%v attempts=%d", err, attempts)
 	}
 	script.done(t)
+}
+
+func TestNotificationDeliveryClaimQueryUsesContiguousParameters(t *testing.T) {
+	source, err := os.ReadFile("postgres_notification.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(source)
+	start := strings.Index(text, "func (s *PostgresStore) ClaimNotificationDeliveries")
+	if start < 0 {
+		t.Fatal("ClaimNotificationDeliveries source missing")
+	}
+	end := strings.Index(text[start:], "func notificationRetryDelayPG")
+	if end < 0 {
+		t.Fatal("ClaimNotificationDeliveries source boundary missing")
+	}
+	body := text[start : start+end]
+	if strings.Contains(body, "LIMIT $3") {
+		t.Fatal("notification delivery claim query must not leave an untyped $2 placeholder gap")
+	}
+	if !strings.Contains(body, "LIMIT $2 FOR UPDATE SKIP LOCKED") {
+		t.Fatal("notification delivery claim query must bind limit as contiguous parameter $2")
+	}
 }
 
 func TestClaimNotificationDeliveriesCommitRetryDoesNotLeakRolledBackResults(t *testing.T) {

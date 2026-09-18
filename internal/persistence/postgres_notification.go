@@ -670,7 +670,7 @@ func (s *PostgresStore) ClaimNotificationDeliveries(ctx context.Context, worker 
 	out := []controlplane.NotificationDelivery{}
 	err := s.serializable(ctx, func(tx *sql.Tx) error {
 		attemptOut := make([]controlplane.NotificationDelivery, 0, limit)
-		rows, e := tx.QueryContext(ctx, `SELECT `+notificationDeliveryColumns+` FROM notification_deliveries WHERE state IN ('PENDING','RETRY_WAIT','DELIVERING') AND next_attempt_at <= $1 AND (claimed_until IS NULL OR claimed_until <= $1) ORDER BY next_attempt_at,created_at,id LIMIT $3 FOR UPDATE SKIP LOCKED`, at, worker, limit)
+		rows, e := tx.QueryContext(ctx, `SELECT `+notificationDeliveryColumns+` FROM notification_deliveries WHERE state IN ('PENDING','RETRY_WAIT','DELIVERING') AND next_attempt_at <= $1 AND (claimed_until IS NULL OR claimed_until <= $1) ORDER BY next_attempt_at,created_at,id LIMIT $2 FOR UPDATE SKIP LOCKED`, at, limit)
 		if e != nil {
 			return e
 		}
