@@ -8,7 +8,7 @@ import (
 func validRequest() InstallRequest {
 	return InstallRequest{
 		ProfileID: "production-standard-ha", Connectivity: ConnectivityConnected,
-		Infrastructure: InfrastructureSpec{Provider: "existing-hosts", NodeAddresses: []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, CredentialRef: "secret://infra/admin"},
+		Infrastructure: InfrastructureSpec{Provider: "existing-hosts", NodeAddresses: []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, CredentialRef: "secret://infra/admin", StorageDataDevices: []string{"/dev/sdb"}, StorageDeviceMode: "format-empty"},
 		Network:        NetworkSpec{PublicEndpoint: "https://platform.example.test", DNSZone: "example.test", TLSMode: "managed-acme"},
 		Services: ServicesSpec{
 			Git: GitSpec{}, Registry: ServiceSpec{}, Database: ServiceSpec{},
@@ -494,6 +494,53 @@ func TestHAEastWestAddressNegativeControls(t *testing.T) {
 			joined := strings.Join(plan.Blockers, "; ")
 			if !strings.Contains(joined, tc.want) {
 				t.Fatalf("missing blocker %q in %s", tc.want, joined)
+			}
+		})
+	}
+}
+
+func TestProductionHARequiresExplicitDedicatedStorageDevices(t *testing.T) {
+	r := validRequest()
+	r.Infrastructure.StorageClass = "replicated-rwx"
+	r.Infrastructure.StorageDataDevices = nil
+	r.Infrastructure.StorageDeviceMode = ""
+	r.Infrastructure.CredentialRef = "secret://installer/ssh-private-key"
+	r.Network.TLSMode = "managed-private-ca"
+	r.Services.ObjectStorage.CredentialRef = "external-secret://platform-system/s3-credentials"
+	r.Services.ObjectStorage.Bucket = "platform-backups"
+	plan, err := CreateBootstrapPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertBlocker(t, plan, "production-standard-ha requires at least one explicit storageDataDevices entry; root-disk Longhorn scheduling is forbidden")
+	assertBlocker(t, plan, "production-standard-ha requires storageDeviceMode format-empty for dedicated Longhorn data devices")
+}
+
+func TestProductionHARejectsUnsafeStorageDevicePaths(t *testing.T) {
+	base := validRequest()
+	base.Infrastructure.StorageClass = "replicated-rwx"
+	base.Infrastructure.CredentialRef = "secret://installer/ssh-private-key"
+	base.Network.TLSMode = "managed-private-ca"
+	base.Services.ObjectStorage.CredentialRef = "external-secret://platform-system/s3-credentials"
+	base.Services.ObjectStorage.Bucket = "platform-backups"
+	for _, tc := range []struct {
+		name    string
+		devices []string
+	}{
+		{"relative", []string{"sdb"}},
+		{"traversal", []string{"/dev/disk/by-id/../sdb"}},
+		{"shell-metachar", []string{"/dev/sdb;reboot"}},
+		{"duplicate", []string{"/dev/sdb", "/dev/sdb"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := base
+			r.Infrastructure.StorageDataDevices = tc.devices
+			plan, err := CreateBootstrapPlan(r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.Executable {
+				t.Fatalf("unsafe storage device contract unexpectedly executable: %#v", tc.devices)
 			}
 		})
 	}
