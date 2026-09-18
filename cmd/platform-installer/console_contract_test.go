@@ -72,6 +72,11 @@ func TestInstallerConsoleJourneyContract(t *testing.T) {
 			t.Fatalf("installer HA east-west journey missing %q", networkContract)
 		}
 	}
+	for _, storageContract := range []string{`id="storage-devices"`, `id="storage-device-mode"`, "storageDataDevices:", "storageDeviceMode:", "root disks, partitions, mounted disks"} {
+		if !strings.Contains(html, storageContract) && !strings.Contains(js, storageContract) {
+			t.Fatalf("installer HA dedicated-storage journey missing %q", storageContract)
+		}
+	}
 	for _, interruptedResumeContract := range []string{
 		"const interrupted = run.state==='RUNNING' && status.bootstrapActive !== true",
 		"run.state==='FAILED' || interrupted",
