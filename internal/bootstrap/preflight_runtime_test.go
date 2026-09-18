@@ -316,7 +316,7 @@ func TestHAClusterNetworkRequiresDeclaredInterfaceRouteOwnership(t *testing.T) {
 	req.Infrastructure.ClusterInterface = "ens224"
 	system := &clusterRouteTestSystem{
 		SimulatedSystem: &SimulatedSystem{Root: t.TempDir()},
-		addressOutput:    "2: ens224    inet 10.77.0.11/24 brd 10.77.0.255 scope global ens224\n",
+		addressOutput:   "2: ens224    inet 10.77.0.11/24 brd 10.77.0.255 scope global ens224\n",
 		routes: map[string]string{
 			"10.77.0.12": "10.77.0.12 dev ens224 src 10.77.0.11 uid 0\n",
 			"10.77.0.13": "10.77.0.13 dev ens224 src 10.77.0.11 uid 0\n",
@@ -343,8 +343,8 @@ func TestHAClusterNetworkNeverAcceptsUnassignedAddress(t *testing.T) {
 	req.Infrastructure.ClusterInterface = "ens224"
 	system := &clusterRouteTestSystem{
 		SimulatedSystem: &SimulatedSystem{Root: t.TempDir()},
-		addressOutput:    "2: ens224    inet 10.77.0.99/24 brd 10.77.0.255 scope global ens224\n",
-		routes:           map[string]string{},
+		addressOutput:   "2: ens224    inet 10.77.0.99/24 brd 10.77.0.255 scope global ens224\n",
+		routes:          map[string]string{},
 	}
 	runner := &Runner{system: system}
 	if _, err := runner.verifyLocalClusterNetwork(context.Background(), req); err == nil || !strings.Contains(err.Error(), "will not assign or invent east-west IP addresses") {
