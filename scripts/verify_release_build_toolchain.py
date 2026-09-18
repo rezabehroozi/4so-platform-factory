@@ -14,7 +14,10 @@ HEX=re.compile(r'^[0-9a-f]{64}$')
 
 def current_go():
     go_binary=os.environ.get('GO','go').strip() or 'go'
-    p=subprocess.run([go_binary,'version'],text=True,capture_output=True)
+    try:
+        p=subprocess.run([go_binary,'version'],text=True,capture_output=True)
+    except OSError as exc:
+        return 127,f'go unavailable: {exc}'
     return p.returncode,(p.stdout or p.stderr).strip()
 
 def validate(lock, *, active=None, archive_path=None):
