@@ -104,6 +104,11 @@ const faLiteral = {
   "Never paste a password or token.": "هرگز رمز عبور یا توکن خام وارد نکنید.",
   "SSH user": "کاربر SSH",
   "Storage class": "StorageClass",
+  "Dedicated HA data devices": "دیسک‌های داده اختصاصی HA",
+  "The same whole-disk paths must exist on every HA node. Root disks, partitions, mounted disks and disks with foreign signatures are rejected.": "همان مسیرهای دیسک کامل باید روی همه نودهای HA وجود داشته باشند. دیسک سیستم، پارتیشن، دیسک mount شده و دیسک دارای امضای ناشناخته رد می‌شود.",
+  "Storage device action": "عملیات دیسک داده",
+  "Format empty devices and bind to Longhorn": "فرمت دیسک‌های خالی و اتصال به Longhorn",
+  "Only explicitly listed empty disks are formatted. 4SO-owned ext4 disks are resume-safe.": "فقط دیسک‌های خالی که صریحاً وارد شده‌اند فرمت می‌شوند. دیسک ext4 متعلق به 4SO در Resume قابل استفاده مجدد است.",
   "Region": "Region",
   "Store SSH private key securely": "ذخیره امن کلید خصوصی SSH",
   "Pin HA host keys": "تأیید کلید میزبان‌های HA",
@@ -482,11 +487,16 @@ function syncProfile() {
 }
 function syncInfrastructure() {
   const existingCluster = $('#provider').value === 'existing-kubernetes';
+  const haHosts = !existingCluster && selectedProfile()?.id === 'production-standard-ha';
   $('#nodes-field').hidden = existingCluster;
   $('#cluster-nodes-field').hidden = existingCluster;
   $('#cluster-interface-field').hidden = existingCluster;
+  $('#storage-devices-field').hidden = !haHosts;
+  $('#storage-device-mode-field').hidden = !haHosts;
   $('#ssh-user-field').hidden = existingCluster;
   $('#nodes').required = !existingCluster;
+  $('#storage-devices').required = haHosts;
+  $('#storage-device-mode').required = haHosts;
   if (existingCluster && $('#credential-ref').value === 'secret://installer/ssh-private-key') $('#credential-ref').value = '';
 }
 function syncTLS() { $('#certificate-field').hidden = $('#tls-mode').value !== 'external-certificate'; $('#certificate-ref').required = !$('#certificate-field').hidden; }
@@ -508,6 +518,8 @@ function buildInstallRequest() {
       credentialRef: $('#credential-ref').value.trim(),
       sshUser: existingCluster ? '' : $('#ssh-user').value.trim(),
       storageClass: $('#storage-class').value.trim(),
+      storageDataDevices: existingCluster ? [] : $('#storage-devices').value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean),
+      storageDeviceMode: existingCluster ? '' : $('#storage-device-mode').value,
       region: $('#region').value.trim()
     },
     network: {
@@ -584,6 +596,12 @@ $('#installation-form').onsubmit = async event => {
   }
   if (profile?.id === 'production-standard-ha' && request.infrastructure.clusterInterface && !request.infrastructure.clusterNodeAddresses.length) {
     toast('An HA interface requires explicit east-west addresses; the installer never assigns IPs.','error'); return;
+  }
+  if (profile?.id === 'production-standard-ha' && !request.infrastructure.storageDataDevices.length) {
+    toast('Production Standard HA requires at least one explicit dedicated data disk.','error'); return;
+  }
+  if (profile?.id === 'production-standard-ha' && request.infrastructure.storageDeviceMode !== 'format-empty') {
+    toast('Production Standard HA requires the explicit format-empty storage device action.','error'); return;
   }
   try {
     const result = await api('/api/v1/plan',{method:'POST',body:{installation:request}});
