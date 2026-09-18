@@ -99,12 +99,13 @@ type ServicesSpec struct {
 }
 
 type InstallRequest struct {
-	ProfileID      string             `json:"profileId"`
-	Connectivity   ConnectivityMode   `json:"connectivity"`
-	Infrastructure InfrastructureSpec `json:"infrastructure"`
-	Network        NetworkSpec        `json:"network"`
-	Services       ServicesSpec       `json:"services"`
-	AcceptRisk     bool               `json:"acceptRisk"`
+	ProfileID          string             `json:"profileId"`
+	Connectivity       ConnectivityMode   `json:"connectivity"`
+	Infrastructure     InfrastructureSpec `json:"infrastructure"`
+	Network            NetworkSpec        `json:"network"`
+	Services           ServicesSpec       `json:"services"`
+	ExecutionMilestone string             `json:"executionMilestone,omitempty"`
+	AcceptRisk         bool               `json:"acceptRisk"`
 }
 
 type ManagedDependency struct {
