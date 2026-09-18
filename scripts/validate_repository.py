@@ -1152,9 +1152,16 @@ def validate_release_build_toolchain(root: Path, version: str, errors: list[tupl
             errors.append(('RELEASE_BUILD_TOOLCHAIN_AUTHORITY_INVALID','language-or-status'))
         if rt_spec.get('admissionStatus') == 'blocked' and rt_spec.get('blocker') != 'RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING':
             errors.append(('RELEASE_BUILD_TOOLCHAIN_BLOCKER_INVALID', str(rt_spec.get('blocker'))))
-        for key in ('supportedToolchainRequired','exactCompilerArchiveDigestRequired','compilerVersionMustMatchBuildProvenance'):
+        for key in ('supportedToolchainRequired','exactCompilerArchiveDigestRequired','compilerVersionMustMatchBuildProvenance','exactCGOToolchainRequired'):
             if rt_policy.get(key) is not True:
                 errors.append(('RELEASE_BUILD_TOOLCHAIN_POLICY_INVALID', key))
+        exact_cgo = rt_spec.get('exactCGOToolchain') or {}
+        for key in ('ccVersion','ldVersion','libcVersion','libpqHeaderPath','libpqLibraryPath'):
+            if not isinstance(exact_cgo.get(key), str) or not exact_cgo.get(key).strip():
+                errors.append(('RELEASE_BUILD_TOOLCHAIN_CGO_INVALID', key))
+        for key in ('libpqHeaderSha256','libpqLibrarySha256'):
+            if not isinstance(exact_cgo.get(key), str) or not re.fullmatch(r'[0-9a-f]{64}', exact_cgo.get(key)):
+                errors.append(('RELEASE_BUILD_TOOLCHAIN_CGO_INVALID', key))
         if rt_policy.get('networkAutoDownloadDuringReleaseBuildAllowed') is not False or rt_policy.get('physicalPassFromSourceBuildAllowed') is not False:
             errors.append(('RELEASE_BUILD_TOOLCHAIN_POLICY_INVALID','unsafe-release-policy'))
 
@@ -1163,7 +1170,7 @@ def validate_release_build_toolchain(root: Path, version: str, errors: list[tupl
         errors.append(('RELEASE_BUILD_TOOLCHAIN_VERIFIER_MISSING','scripts/verify_release_build_toolchain.py'))
     else:
         verifier_text = toolchain_verifier.read_text()
-        for marker in ('--require-admitted','exactCompilerArchiveDigestRequired','RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING'):
+        for marker in ('--require-admitted','exactCompilerArchiveDigestRequired','exactCGOToolchainRequired','validate_active_cgo','RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING'):
             if marker not in verifier_text:
                 errors.append(('RELEASE_BUILD_TOOLCHAIN_VERIFIER_INVALID', marker))
 
