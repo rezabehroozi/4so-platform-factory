@@ -463,14 +463,21 @@ func TestHAEastWestAddressNegativeControls(t *testing.T) {
 	base.Services.ObjectStorage.Bucket = "platform-backups"
 
 	cases := []struct {
-		name string
+		name   string
 		mutate func(*InstallRequest)
-		want string
+		want   string
 	}{
 		{"count-mismatch", func(r *InstallRequest) { r.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12"} }, "one east-west address for each management node"},
-		{"duplicate", func(r *InstallRequest) { r.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.11", "10.77.0.13"} }, "clusterNodeAddresses must be unique"},
-		{"hostname-forbidden", func(r *InstallRequest) { r.Infrastructure.ClusterNodeAddresses = []string{"node-a", "10.77.0.12", "10.77.0.13"} }, "literal IP addresses"},
-		{"unsafe-interface", func(r *InstallRequest) { r.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12", "10.77.0.13"}; r.Infrastructure.ClusterInterface = "eno2;reboot" }, "valid Linux interface name"},
+		{"duplicate", func(r *InstallRequest) {
+			r.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.11", "10.77.0.13"}
+		}, "clusterNodeAddresses must be unique"},
+		{"hostname-forbidden", func(r *InstallRequest) {
+			r.Infrastructure.ClusterNodeAddresses = []string{"node-a", "10.77.0.12", "10.77.0.13"}
+		}, "literal IP addresses"},
+		{"unsafe-interface", func(r *InstallRequest) {
+			r.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12", "10.77.0.13"}
+			r.Infrastructure.ClusterInterface = "eno2;reboot"
+		}, "valid Linux interface name"},
 		{"interface-without-addresses", func(r *InstallRequest) { r.Infrastructure.ClusterInterface = "ens224" }, "installer never invents or assigns east-west IP addresses"},
 	}
 	for _, tc := range cases {
