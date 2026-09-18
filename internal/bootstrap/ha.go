@@ -423,7 +423,7 @@ spec:
   replicas: 3
   strategy:
     type: RollingUpdate
-    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+    rollingUpdate: {maxUnavailable: 1, maxSurge: 0}
   minReadySeconds: 10
   progressDeadlineSeconds: 600
   selector: {matchLabels: {app: platform-api}}
