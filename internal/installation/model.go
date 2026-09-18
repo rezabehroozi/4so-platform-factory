@@ -70,13 +70,15 @@ type IdentitySpec struct {
 }
 
 type InfrastructureSpec struct {
-	Provider        string   `json:"provider"`
-	ExistingCluster bool     `json:"existingCluster"`
-	NodeAddresses   []string `json:"nodeAddresses,omitempty"`
-	CredentialRef   string   `json:"credentialRef,omitempty"`
-	SSHUser         string   `json:"sshUser,omitempty"`
-	StorageClass    string   `json:"storageClass,omitempty"`
-	Region          string   `json:"region,omitempty"`
+	Provider             string   `json:"provider"`
+	ExistingCluster      bool     `json:"existingCluster"`
+	NodeAddresses        []string `json:"nodeAddresses,omitempty"`
+	ClusterNodeAddresses []string `json:"clusterNodeAddresses,omitempty"`
+	ClusterInterface     string   `json:"clusterInterface,omitempty"`
+	CredentialRef        string   `json:"credentialRef,omitempty"`
+	SSHUser              string   `json:"sshUser,omitempty"`
+	StorageClass         string   `json:"storageClass,omitempty"`
+	Region               string   `json:"region,omitempty"`
 }
 
 type NetworkSpec struct {

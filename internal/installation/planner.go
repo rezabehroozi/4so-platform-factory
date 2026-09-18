@@ -148,6 +148,10 @@ func NormalizeRequest(request InstallRequest) InstallRequest {
 	for index := range request.Infrastructure.NodeAddresses {
 		request.Infrastructure.NodeAddresses[index] = strings.TrimSpace(request.Infrastructure.NodeAddresses[index])
 	}
+	for index := range request.Infrastructure.ClusterNodeAddresses {
+		request.Infrastructure.ClusterNodeAddresses[index] = strings.TrimSpace(request.Infrastructure.ClusterNodeAddresses[index])
+	}
+	request.Infrastructure.ClusterInterface = strings.TrimSpace(request.Infrastructure.ClusterInterface)
 	request.Infrastructure.CredentialRef = strings.TrimSpace(request.Infrastructure.CredentialRef)
 	request.Infrastructure.SSHUser = strings.TrimSpace(request.Infrastructure.SSHUser)
 	if request.Infrastructure.SSHUser == "" {
@@ -212,6 +216,22 @@ func hasDuplicateNodeAddresses(values []string) bool {
 		seen[key] = struct{}{}
 	}
 	return false
+}
+
+func validClusterInterface(value string) bool {
+	if value == "" {
+		return true
+	}
+	if len(value) > 15 {
+		return false
+	}
+	for _, ch := range value {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func validDNSSubdomain(value string) bool {
@@ -352,6 +372,30 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 		if len(request.Infrastructure.NodeAddresses) != 3 {
 			blockers = append(blockers, "production-standard-ha requires exactly three management nodes")
 		}
+		clusterAddresses := request.Infrastructure.ClusterNodeAddresses
+		if len(clusterAddresses) > 0 {
+			if len(clusterAddresses) != len(request.Infrastructure.NodeAddresses) {
+				blockers = append(blockers, "clusterNodeAddresses must contain one east-west address for each management node")
+			}
+			if hasDuplicateNodeAddresses(clusterAddresses) {
+				blockers = append(blockers, "clusterNodeAddresses must be unique")
+			}
+			for _, address := range clusterAddresses {
+				if net.ParseIP(strings.Trim(address, "[]")) == nil {
+					blockers = append(blockers, "clusterNodeAddresses must be literal IP addresses")
+					break
+				}
+			}
+		}
+		if !validClusterInterface(request.Infrastructure.ClusterInterface) {
+			blockers = append(blockers, "clusterInterface must be a valid Linux interface name")
+		}
+		if request.Infrastructure.ClusterInterface != "" && len(clusterAddresses) == 0 {
+			blockers = append(blockers, "clusterInterface requires explicit clusterNodeAddresses; installer never invents or assigns east-west IP addresses")
+		}
+		if len(clusterAddresses) == 0 {
+			warnings = append(warnings, "HA east-west traffic will use nodeAddresses; set clusterNodeAddresses when SSH/public access and cluster traffic use different NICs")
+		}
 		if request.Infrastructure.StorageClass == "" {
 			blockers = append(blockers, "production-standard-ha requires a replicated storageClass")
 		}
@@ -434,7 +478,7 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 	}
 
 	steps := []PlanStep{
-		{Order: 10, Stage: "foundation", Key: "preflight", Title: "Validate installer request, sealed bundle, host access, topology, required ports and credentials", Executor: "bootstrap-controller", Risk: "low", Verification: []string{"local and HA peer host admission", "pinned SSH reachability", "required bootstrap ports available"}, Rollback: "no mutation"},
+		{Order: 10, Stage: "foundation", Key: "preflight", Title: "Validate installer request, sealed bundle, host access, east-west topology, required ports and credentials", Executor: "bootstrap-controller", Risk: "low", Verification: []string{"local and HA peer host admission", "pinned SSH reachability", "east-west cluster addresses are already assigned to the declared interface", "required bootstrap ports available"}, Rollback: "no mutation"},
 		{Order: 20, Stage: "authority", Key: "authority-runtime-gate", Title: "Verify PostgreSQL authority runtime certification", Executor: "authority-gate", Risk: "critical", DependsOn: []string{"preflight"}, Verification: []string{"migration integration", "transaction atomicity", "lease/fencing", "crash/restart", "backup/restore"}, Rollback: "no installation mutation until gate passes"},
 		{Order: 30, Stage: "foundation", Key: "management-kubernetes", Title: "Bootstrap or validate the management Kubernetes cluster", Executor: "rke2-or-existing-cluster-adapter", Risk: "critical", DependsOn: []string{"authority-runtime-gate"}, Verification: []string{"API availability", "quorum", "storage readiness"}, Rollback: "remove only resources created by the operation"},
 		{Order: 40, Stage: "foundation", Key: "database", Title: "Install or connect PostgreSQL authority", Executor: "database-adapter", Risk: "critical", DependsOn: []string{"management-kubernetes"}, Verification: []string{"TLS connection", "migration", "backup target", "restore rehearsal"}, Rollback: "restore previous database release and snapshot"},
