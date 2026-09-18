@@ -35,20 +35,20 @@ race:
 
 build:
 	mkdir -p bin
-	CGO_ENABLED=1 $(GO) build -trimpath -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-api ./cmd/platform-api
-	CGO_ENABLED=0 $(GO) build -trimpath -ldflags '$(BUILD_LDFLAGS)' -o bin/platformctl ./cmd/platformctl
-	CGO_ENABLED=0 $(GO) build -trimpath -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-installer ./cmd/platform-installer
-	CGO_ENABLED=0 $(GO) build -trimpath -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-agent ./cmd/platform-agent
-	CGO_ENABLED=0 $(GO) build -trimpath -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-probe ./cmd/platform-probe
+	CGO_ENABLED=1 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-api ./cmd/platform-api
+	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platformctl ./cmd/platformctl
+	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-installer ./cmd/platform-installer
+	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-agent ./cmd/platform-agent
+	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-probe ./cmd/platform-probe
 
 build-release:
 	$(PYTHON) scripts/verify_release_build_toolchain.py --require-admitted
 	mkdir -p bin/linux-amd64
-	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-api ./cmd/platform-api
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platformctl ./cmd/platformctl
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-installer ./cmd/platform-installer
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-agent ./cmd/platform-agent
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-probe ./cmd/platform-probe
+	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-api ./cmd/platform-api
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platformctl ./cmd/platformctl
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-installer ./cmd/platform-installer
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-agent ./cmd/platform-agent
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-probe ./cmd/platform-probe
 
 run: build
 	mkdir -p .state
