@@ -1851,7 +1851,7 @@ data:
       "storage": {"rootDirectory": "/var/lib/registry", "commit": true, "dedupe": true, "gc": true},
       "http": {"address": "0.0.0.0", "port": "5000", "compat": ["docker2s2"]},
       "log": {"level": "info"},
-      "extensions": {"ui": {"enable": true}}
+      "extensions": {"ui": {"enable": false}}
     }
 ---
 apiVersion: v1
