@@ -29,6 +29,65 @@ func storageDeviceClaimPath(index int) string {
 	return fmt.Sprintf("%s/disk-%02d.claim", storageClaimRoot, index)
 }
 
+func validateLocalStorageDeviceList(devices []string) error {
+	if len(devices) == 0 {
+		return fmt.Errorf("at least one storage device is required")
+	}
+	seen := make(map[string]struct{}, len(devices))
+	for _, raw := range devices {
+		device := strings.TrimSpace(raw)
+		if device == "" || !strings.HasPrefix(device, "/dev/") || strings.Contains(device, "..") {
+			return fmt.Errorf("storage device %q must be a canonical /dev path", raw)
+		}
+		for _, ch := range strings.TrimPrefix(device, "/dev/") {
+			if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == '.' || ch == '/' {
+				continue
+			}
+			return fmt.Errorf("storage device %q contains unsafe characters", raw)
+		}
+		if _, ok := seen[device]; ok {
+			return fmt.Errorf("storage device %q is duplicated", device)
+		}
+		seen[device] = struct{}{}
+	}
+	return nil
+}
+
+// VerifyLocalHAStorageDevices runs the same fail-closed block-device admission
+// used by production HA bootstrap, but only against the local node. It is
+// intended for staged Lab/recovery workflows where the Kubernetes quorum is
+// already healthy and SSH fan-out is neither necessary nor desirable.
+func VerifyLocalHAStorageDevices(ctx context.Context, devices []string) error {
+	if err := validateLocalStorageDeviceList(devices); err != nil {
+		return err
+	}
+	system := LocalSystem{}
+	if !system.IsRoot() {
+		return fmt.Errorf("local HA storage verification requires root")
+	}
+	if _, err := system.Output(ctx, "sh", []string{"-c", storageDeviceProbeCommand(devices)}, nil); err != nil {
+		return fmt.Errorf("verify local HA storage devices: %w", err)
+	}
+	return nil
+}
+
+// PrepareLocalHAStorageDevices performs the idempotent claim-before-format
+// lifecycle used by bootstrap. Blank whole disks are formatted only after the
+// durable 4SO claim is persisted; already-owned disks are verified/reused.
+func PrepareLocalHAStorageDevices(ctx context.Context, devices []string) error {
+	if err := validateLocalStorageDeviceList(devices); err != nil {
+		return err
+	}
+	system := LocalSystem{}
+	if !system.IsRoot() {
+		return fmt.Errorf("local HA storage preparation requires root")
+	}
+	if _, err := system.Output(ctx, "sh", []string{"-c", storageDevicePrepareCommand(devices)}, nil); err != nil {
+		return fmt.Errorf("prepare local HA storage devices: %w", err)
+	}
+	return nil
+}
+
 func storageDeviceProbeCommand(devices []string) string {
 	command := `set -eu; command -v lsblk >/dev/null 2>&1; command -v findmnt >/dev/null 2>&1; command -v readlink >/dev/null 2>&1; command -v blkid >/dev/null 2>&1; command -v wipefs >/dev/null 2>&1; command -v mkfs.ext4 >/dev/null 2>&1; command -v mountpoint >/dev/null 2>&1; root_source="$(findmnt -n -o SOURCE /)"; root_real="$(readlink -f "$root_source" 2>/dev/null || printf '%s' "$root_source")"; root_parent="$(lsblk -ndo PKNAME "$root_real" 2>/dev/null | head -n1 || true)"; if [ -n "$root_parent" ]; then root_disk="/dev/$root_parent"; else root_disk="$root_real"; fi`
 	for index, device := range devices {
