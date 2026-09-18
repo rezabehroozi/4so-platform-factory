@@ -179,7 +179,7 @@ func (r *Runner) Plan(request installation.InstallRequest) (installation.Install
 	if err != nil {
 		return installation.InstallationPlan{}, "", err
 	}
-	admission, bundleErr := InspectBundle(r.bundleDir, r.requireBundleLock)
+	admission, bundleErr := InspectBundleForMilestone(r.bundleDir, r.requireBundleLock, request.ExecutionMilestone)
 	bundleDigest := admission.BundleDigest
 	if bundleErr != nil {
 		plan.Blockers = append(plan.Blockers, bundleErr.Error())
@@ -231,7 +231,7 @@ func (r *Runner) Start(ctx context.Context, request installation.InstallRequest)
 		State: RunPending, Request: request, SpecDigest: plan.SpecDigest, BundleDigest: bundleDigest, PreflightDigest: preflight.Digest,
 		CreatedAt: now, UpdatedAt: now, Simulation: r.simulation,
 	}
-	bundle, _, err := LoadBundle(r.bundleDir)
+	bundle, _, err := LoadBundleForMilestone(r.bundleDir, request.ExecutionMilestone)
 	if err != nil {
 		return Run{}, err
 	}
@@ -491,14 +491,14 @@ func (r *Runner) executeUnlocked(ctx context.Context, run Run) (Run, error) {
 }
 
 func (r *Runner) executeStep(ctx context.Context, key string, run Run) error {
-	admission, err := InspectBundle(r.bundleDir, r.requireBundleLock)
+	admission, err := InspectBundleForMilestone(r.bundleDir, r.requireBundleLock, run.Request.ExecutionMilestone)
 	if err != nil {
 		return err
 	}
 	if admission.BundleDigest != run.BundleDigest {
 		return fmt.Errorf("appliance bundle changed after plan: planned %s observed %s", run.BundleDigest, admission.BundleDigest)
 	}
-	bundle, _, err := LoadBundle(r.bundleDir)
+	bundle, _, err := LoadBundleForMilestone(r.bundleDir, run.Request.ExecutionMilestone)
 	if err != nil {
 		return err
 	}
