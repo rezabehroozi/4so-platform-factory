@@ -115,8 +115,18 @@ func (r *Runner) verifyHAQuorum(ctx context.Context, run Run) error {
 		}
 		var result struct {
 			Items []struct {
+				Metadata struct {
+					Name string `json:"name"`
+				} `json:"metadata"`
 				Status struct {
-					Conditions []struct{ Type, Status string } `json:"conditions"`
+					Addresses []struct {
+						Type    string `json:"type"`
+						Address string `json:"address"`
+					} `json:"addresses"`
+					Conditions []struct {
+						Type   string `json:"type"`
+						Status string `json:"status"`
+					} `json:"conditions"`
 				} `json:"status"`
 			} `json:"items"`
 		}
@@ -126,17 +136,53 @@ func (r *Runner) verifyHAQuorum(ctx context.Context, run Run) error {
 		if len(result.Items) != 3 {
 			return fmt.Errorf("expected 3 management nodes, got %d", len(result.Items))
 		}
+		expectedIPs := map[string]bool{}
+		for _, address := range effectiveClusterNodeAddresses(run.Request) {
+			expectedIPs[strings.Trim(strings.TrimSpace(address), "[]")] = false
+		}
 		ready := 0
+		voters := 0
 		for _, item := range result.Items {
-			for _, condition := range item.Status.Conditions {
-				if condition.Type == "Ready" && condition.Status == "True" {
-					ready++
+			internalIP := ""
+			for _, address := range item.Status.Addresses {
+				if address.Type == "InternalIP" {
+					internalIP = strings.TrimSpace(address.Address)
 					break
 				}
+			}
+			if len(expectedIPs) == 3 {
+				if _, ok := expectedIPs[internalIP]; !ok {
+					return fmt.Errorf("management node %s has unexpected InternalIP %q", item.Metadata.Name, internalIP)
+				}
+				expectedIPs[internalIP] = true
+			}
+			nodeReady := false
+			nodeVoter := false
+			for _, condition := range item.Status.Conditions {
+				if condition.Type == "Ready" && condition.Status == "True" {
+					nodeReady = true
+				}
+				if condition.Type == "EtcdIsVoter" && condition.Status == "True" {
+					nodeVoter = true
+				}
+			}
+			if nodeReady {
+				ready++
+			}
+			if nodeVoter {
+				voters++
 			}
 		}
 		if ready != 3 {
 			return fmt.Errorf("expected 3 Ready management nodes, got %d", ready)
+		}
+		if voters != 3 {
+			return fmt.Errorf("expected 3 etcd voting members, got %d", voters)
+		}
+		for address, observed := range expectedIPs {
+			if !observed {
+				return fmt.Errorf("expected cluster InternalIP %s is absent from Ready quorum", address)
+			}
 		}
 		return nil
 	})
