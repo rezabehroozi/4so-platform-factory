@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -60,6 +61,8 @@ func usage() {
   platformctl agent-pki init --server-name HOST --out-cert FILE --out-key FILE --out-server-cert FILE --out-server-key FILE --confirmation INIT
   platformctl appliance-bundle build --spec build.json --staging DIR --out DIR --release-artifact RELEASE.zip
   platformctl appliance-bundle verify --dir DIR
+  platformctl lab-storage verify --devices /dev/sdb,/dev/sdc,/dev/sdd
+  platformctl lab-storage prepare --devices /dev/sdb,/dev/sdc,/dev/sdd --confirmation PREPARE-EMPTY-DISKS
   platformctl runtime-closure verify-report -f closure-report.json [--release-artifact RELEASE.zip]
   platformctl runtime-closure fetch-report --api-url https://platform.example --campaign-id ID --out report.json [--release-artifact RELEASE.zip] [--token-file FILE] [--ca-file FILE]
   platformctl field-evidence verify-report -f field-evidence.json --release-artifact RELEASE.zip
@@ -136,6 +139,8 @@ func main() {
 		fieldCampaignCommand(os.Args[2:])
 	case "installer-access":
 		installerAccessCommand(os.Args[2:])
+	case "lab-storage":
+		labStorageCommand(os.Args[2:])
 	case "installer-host":
 		installerHostCommand(os.Args[2:])
 	case "installer-remote":
@@ -149,6 +154,49 @@ func main() {
 	default:
 		usage()
 		os.Exit(2)
+	}
+}
+
+func labStorageCommand(args []string) {
+	if len(args) == 0 || (args[0] != "verify" && args[0] != "prepare") {
+		fatal(fmt.Errorf("lab-storage requires verify or prepare"))
+	}
+	action := args[0]
+	fs := flag.NewFlagSet("lab-storage "+action, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	devicesRaw := fs.String("devices", "", "comma-separated canonical whole-disk /dev paths")
+	confirmation := fs.String("confirmation", "", "must be PREPARE-EMPTY-DISKS for prepare")
+	if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
+		fatal(fmt.Errorf("invalid lab-storage arguments"))
+	}
+	var devices []string
+	for _, value := range strings.Split(*devicesRaw, ",") {
+		if value = strings.TrimSpace(value); value != "" {
+			devices = append(devices, value)
+		}
+	}
+	if len(devices) == 0 {
+		fatal(fmt.Errorf("lab-storage requires --devices"))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	switch action {
+	case "verify":
+		if err := bootstrap.VerifyLocalHAStorageDevices(ctx, devices); err != nil {
+			fatal(err)
+		}
+		fmt.Printf("LAB_STORAGE_VERIFY_PASS devices=%d\n", len(devices))
+	case "prepare":
+		if *confirmation != "PREPARE-EMPTY-DISKS" {
+			fatal(fmt.Errorf("lab-storage prepare requires --confirmation PREPARE-EMPTY-DISKS"))
+		}
+		if err := bootstrap.PrepareLocalHAStorageDevices(ctx, devices); err != nil {
+			fatal(err)
+		}
+		if err := bootstrap.VerifyLocalHAStorageDevices(ctx, devices); err != nil {
+			fatal(fmt.Errorf("post-prepare verification: %w", err))
+		}
+		fmt.Printf("LAB_STORAGE_PREPARE_PASS devices=%d\n", len(devices))
 	}
 }
 
