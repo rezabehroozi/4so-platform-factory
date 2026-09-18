@@ -381,7 +381,7 @@ spec:
       secret: {name: platform-postgresql-app}
   storage:
     storageClass: %s
-    size: 50Gi
+    size: %s
   affinity:
     enablePodAntiAffinity: true
     topologyKey: kubernetes.io/hostname
@@ -508,7 +508,7 @@ spec:
   ports:
     - {name: http, port: 8080, targetPort: 8080}
     - {name: agent-mtls, port: 8443, targetPort: 8443}
-`, enc("platform"), enc(password), enc("keycloak"), enc(keycloakDBPassword), enc("forgejo"), enc(forgejoDBPassword), enc(password), enc(dsn), enc(forgejoPassword), enc(identityPassword), enc(request.Services.Identity.AdminEmail), enc(sessionSecret), enc(bootstrapToken), enc(catalogSigningKey), base64.StdEncoding.EncodeToString(agentCAPEM), base64.StdEncoding.EncodeToString(agentCAKeyPEM), base64.StdEncoding.EncodeToString(tlsCertPEM), base64.StdEncoding.EncodeToString(tlsKeyPEM), bundle.Spec.Workloads.PostgreSQLImage, yamlScalar(storageClass), bundle.Spec.Workloads.PlatformAPIImage, yamlScalar(bundle.Metadata.SourceReleaseDigest), yamlScalar(issuer), yamlScalar(redirect), yamlScalar(bundle.Spec.Workloads.FleetAgentImage), yamlScalar(bundle.Spec.Workloads.RuntimeProbeImage), yamlScalar(strings.TrimRight(request.Network.PublicEndpoint, "/")), yamlScalar(agentPublicURL), yamlScalar(enc(string(caPEM))))
+`, enc("platform"), enc(password), enc("keycloak"), enc(keycloakDBPassword), enc("forgejo"), enc(forgejoDBPassword), enc(password), enc(dsn), enc(forgejoPassword), enc(identityPassword), enc(request.Services.Identity.AdminEmail), enc(sessionSecret), enc(bootstrapToken), enc(catalogSigningKey), base64.StdEncoding.EncodeToString(agentCAPEM), base64.StdEncoding.EncodeToString(agentCAKeyPEM), base64.StdEncoding.EncodeToString(tlsCertPEM), base64.StdEncoding.EncodeToString(tlsKeyPEM), bundle.Spec.Workloads.PostgreSQLImage, yamlScalar(storageClass), yamlScalar(request.Services.Database.VolumeSize), bundle.Spec.Workloads.PlatformAPIImage, yamlScalar(bundle.Metadata.SourceReleaseDigest), yamlScalar(issuer), yamlScalar(redirect), yamlScalar(bundle.Spec.Workloads.FleetAgentImage), yamlScalar(bundle.Spec.Workloads.RuntimeProbeImage), yamlScalar(strings.TrimRight(request.Network.PublicEndpoint, "/")), yamlScalar(agentPublicURL), yamlScalar(enc(string(caPEM))))
 }
 
 func (r *Runner) waitHADatabase(ctx context.Context, run Run, name string) error {
