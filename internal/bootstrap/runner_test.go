@@ -769,14 +769,14 @@ func TestStatusRemainsReadableWhileBootstrapExecutionIsRunning(t *testing.T) {
 
 func TestBootstrapStepsSkipOptionalOCMWhenNotBundled(t *testing.T) {
 	var bundle BundleManifest
-	steps := bootstrapStepsForBundle(bundle)
+	steps := bootstrapStepsForBundle(bundle, "")
 	for _, step := range steps {
 		if step.key == "deploy-fleet-hub" || step.key == "verify-fleet-hub" {
 			t.Fatalf("optional OCM step %q must not be scheduled without an OCM artifact", step.key)
 		}
 	}
 	bundle.Spec.Workloads.OCMManifest = Artifact{Path: "artifacts/ocm.yaml", SHA256: "sha256:" + strings.Repeat("a", 64)}
-	steps = bootstrapStepsForBundle(bundle)
+	steps = bootstrapStepsForBundle(bundle, "")
 	seen := map[string]bool{}
 	for _, step := range steps {
 		seen[step.key] = true
@@ -1546,5 +1546,25 @@ func TestHAStatusExposesAccessAndEastWestTopology(t *testing.T) {
 	cluster, ok := status["clusterNodes"].([]string)
 	if !ok || len(cluster) != 3 || cluster[0] != "10.77.0.11" {
 		t.Fatalf("HA cluster-node status invalid: %#v", status["clusterNodes"])
+	}
+}
+
+func TestBootstrapStepsForFunctionalLabMilestones(t *testing.T) {
+	bundle := testBundleManifest()
+	for _, tc := range []struct {
+		milestone string
+		last      string
+	}{
+		{"rke2-quorum", "verify-ha-quorum"},
+		{"ha-storage", "deploy-replicated-storage"},
+		{"full", "revoke-bootstrap-credential"},
+		{"", "revoke-bootstrap-credential"},
+	} {
+		t.Run(tc.milestone, func(t *testing.T) {
+			steps := bootstrapStepsForBundle(bundle, tc.milestone)
+			if len(steps) == 0 || steps[len(steps)-1].key != tc.last {
+				t.Fatalf("milestone %q ended at %#v, want %q", tc.milestone, steps, tc.last)
+			}
+		})
 	}
 }
