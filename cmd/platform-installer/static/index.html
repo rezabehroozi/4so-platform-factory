@@ -68,7 +68,9 @@
           <article class="panel">
             <div class="panel-heading"><div><h2>2. Infrastructure and access</h2><p>The selected profile controls the required node count and HA topology.</p></div></div>
             <div class="form-grid three">
-              <label id="nodes-field" class="span-2"><span>Management nodes</span><textarea id="nodes" class="technical compact" placeholder="One IP address or resolvable hostname per line" dir="ltr"></textarea><small>Use exactly three nodes for Production Standard HA.</small></label>
+              <label id="nodes-field" class="span-2"><span>Management access nodes</span><textarea id="nodes" class="technical compact" placeholder="SSH/public IP or hostname, one per line" dir="ltr"></textarea><small>Use exactly three access addresses for Production Standard HA.</small></label>
+              <label id="cluster-nodes-field" class="span-2"><span>HA east-west addresses</span><textarea id="cluster-nodes" class="technical compact" placeholder="Optional private IP per management node, same order as access nodes" dir="ltr"></textarea><small>Use this when SSH/public access and RKE2/etcd traffic use different NICs. The installer never assigns these IPs.</small></label>
+              <label id="cluster-interface-field"><span>HA interface</span><input id="cluster-interface" class="technical" placeholder="Optional, e.g. ens224" dir="ltr"><small>If set, every east-west IP must already exist on this interface.</small></label>
               <label><span>Credential reference</span><input id="credential-ref" class="technical" required placeholder="secret://installer/ssh-private-key" dir="ltr"><small>Never paste a password or token.</small></label>
               <label id="ssh-user-field"><span>SSH user</span><input id="ssh-user" class="technical" placeholder="root" dir="ltr"></label>
               <label><span>Storage class</span><input id="storage-class" class="technical" placeholder="Replicated class for HA" dir="ltr"></label>
