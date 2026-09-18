@@ -188,6 +188,7 @@ func NormalizeRequest(request InstallRequest) InstallRequest {
 	request.Services.Identity.AdminEmail = strings.TrimSpace(request.Services.Identity.AdminEmail)
 	request.Services.Identity.IssuerURL = strings.TrimSpace(request.Services.Identity.IssuerURL)
 	request.Services.Identity.ClientID = strings.TrimSpace(request.Services.Identity.ClientID)
+	request.ExecutionMilestone = strings.TrimSpace(request.ExecutionMilestone)
 	return request
 }
 
@@ -401,6 +402,12 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 	}
 	if capabilities.ApplianceBootstrapAvailable && (request.Network.TLSMode == "managed-acme" || request.Network.TLSMode == "external-certificate") {
 		blockers = append(blockers, request.Network.TLSMode+" TLS mode is not executable by the appliance bootstrap runtime; use managed-private-ca or bootstrap-self-signed as allowed by the selected profile")
+	}
+	if request.ExecutionMilestone != "" && request.ExecutionMilestone != "rke2-quorum" && request.ExecutionMilestone != "ha-storage" && request.ExecutionMilestone != "full" {
+		blockers = append(blockers, "executionMilestone must be one of rke2-quorum, ha-storage or full")
+	}
+	if request.ExecutionMilestone != "" && request.ExecutionMilestone != "full" && request.ProfileID != "production-standard-ha" {
+		blockers = append(blockers, "functional execution milestones are only supported for production-standard-ha")
 	}
 	if profile.ID == "production-standard-ha" {
 		if len(request.Infrastructure.NodeAddresses) != 3 {
