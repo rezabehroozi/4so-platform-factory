@@ -11,7 +11,7 @@ func validRequest() InstallRequest {
 		Infrastructure: InfrastructureSpec{Provider: "existing-hosts", NodeAddresses: []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, CredentialRef: "secret://infra/admin", StorageDataDevices: []string{"/dev/sdb"}, StorageDeviceMode: "format-empty"},
 		Network:        NetworkSpec{PublicEndpoint: "https://platform.example.test", DNSZone: "example.test", TLSMode: "managed-acme"},
 		Services: ServicesSpec{
-			Git: GitSpec{}, Registry: ServiceSpec{}, Database: ServiceSpec{},
+			Git: GitSpec{}, Registry: ServiceSpec{}, Database: DatabaseSpec{},
 			ObjectStorage: ServiceSpec{Mode: ServiceModeExternal, Provider: "s3-compatible", URL: "https://s3.example.test", CredentialRef: "secret://storage/backup"},
 			Identity:      IdentitySpec{AdminEmail: "admin@example.test"},
 		},
@@ -59,7 +59,7 @@ func TestBootstrapPlanFailsClosedForExternalServicesWithoutRuntimeAdapters(t *te
 	r.Services.ObjectStorage.Bucket = "backups"
 	r.Services.Git = GitSpec{ServiceSpec: ServiceSpec{Mode: ServiceModeExternal, Provider: "gitlab", URL: "https://git.example.test", CredentialRef: "secret://git/admin"}, Organization: "platform", Repository: "desired-state"}
 	r.Services.Registry = ServiceSpec{Mode: ServiceModeExternal, Provider: "harbor", URL: "https://registry.example.test", CredentialRef: "secret://registry/admin"}
-	r.Services.Database = ServiceSpec{Mode: ServiceModeExternal, Provider: "postgresql", URL: "https://database.example.test", CredentialRef: "secret://database/admin"}
+	r.Services.Database = DatabaseSpec{ServiceSpec: ServiceSpec{Mode: ServiceModeExternal, Provider: "postgresql", URL: "https://database.example.test", CredentialRef: "secret://database/admin"}}
 	r.Services.Identity = IdentitySpec{ServiceSpec: ServiceSpec{Mode: ServiceModeExternal, Provider: "oidc", URL: "https://identity.example.test", CredentialRef: "secret://identity/admin"}, IssuerURL: "https://identity.example.test", ClientID: "platform"}
 
 	plan, err := CreateBootstrapPlan(r)
@@ -543,5 +543,39 @@ func TestProductionHARejectsUnsafeStorageDevicePaths(t *testing.T) {
 				t.Fatalf("unsafe storage device contract unexpectedly executable: %#v", tc.devices)
 			}
 		})
+	}
+}
+
+func TestDatabaseVolumeSizeDefaultAndValidation(t *testing.T) {
+	r := validRequest()
+	r.Infrastructure.CredentialRef = "secret://installer/ssh-private-key"
+	r.Infrastructure.StorageClass = "replicated-rwx"
+	r.Network.TLSMode = "managed-private-ca"
+	r.Services.ObjectStorage.CredentialRef = "external-secret://platform-system/s3-credentials"
+	r.Services.ObjectStorage.Bucket = "platform-backups"
+	plan, err := CreateBootstrapPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.EffectiveRequest.Services.Database.VolumeSize != "50Gi" {
+		t.Fatalf("unexpected default database volume size: %q", plan.EffectiveRequest.Services.Database.VolumeSize)
+	}
+
+	r.Services.Database.VolumeSize = "2Gi"
+	plan, err = CreateBootstrapPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.EffectiveRequest.Services.Database.VolumeSize != "2Gi" {
+		t.Fatalf("configured database volume size was not preserved: %q", plan.EffectiveRequest.Services.Database.VolumeSize)
+	}
+
+	r.Services.Database.VolumeSize = "0Gi"
+	plan, err = CreateBootstrapPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Executable || !strings.Contains(strings.Join(plan.Blockers, "; "), "database volumeSize") {
+		t.Fatalf("invalid database volume size was not rejected: %+v", plan.Blockers)
 	}
 }

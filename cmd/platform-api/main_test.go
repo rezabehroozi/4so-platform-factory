@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"math/big"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -95,6 +96,62 @@ func TestOpenStoreRejectsMissingDurableAuthority(t *testing.T) {
 	}
 	if err == nil || store != nil {
 		t.Fatalf("expected missing durable authority to fail closed, store=%T err=%v", store, err)
+	}
+}
+
+func TestPostgresDSNFromEnvSupportsStandardPGSettings(t *testing.T) {
+	values := map[string]string{
+		"PGHOST":     "platform-postgresql-rw.platform-system.svc",
+		"PGPORT":     "5432",
+		"PGDATABASE": "platform_factory",
+		"PGUSER":     "platform",
+		"PGPASSWORD": "p@ss:/word",
+		"PGSSLMODE":  "require",
+	}
+	got, err := postgresDSNFromEnv(func(k string) string { return values[k] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Scheme != "postgresql" || u.Host != "platform-postgresql-rw.platform-system.svc:5432" || u.Path != "/platform_factory" {
+		t.Fatalf("unexpected DSN authority: %s", got)
+	}
+	password, ok := u.User.Password()
+	if !ok || u.User.Username() != "platform" || password != "p@ss:/word" {
+		t.Fatalf("credentials were not safely URL encoded/decoded: %s", got)
+	}
+	if u.Query().Get("sslmode") != "require" {
+		t.Fatalf("sslmode missing: %s", got)
+	}
+}
+
+func TestPostgresDSNFromEnvFailsClosedOnPartialOrConflictingSettings(t *testing.T) {
+	values := map[string]string{"PGHOST": "db", "PGUSER": "platform"}
+	if _, err := postgresDSNFromEnv(func(k string) string { return values[k] }); err == nil {
+		t.Fatal("partial PG settings must fail closed")
+	}
+	values = map[string]string{
+		"PLATFORM_FACTORY_POSTGRES_DSN": "postgresql://example/db",
+		"PGHOST":                        "db",
+		"PGDATABASE":                    "platform",
+		"PGUSER":                        "platform",
+		"PGPASSWORD":                    "secret",
+	}
+	if _, err := postgresDSNFromEnv(func(k string) string { return values[k] }); err == nil {
+		t.Fatal("explicit DSN plus PG settings must fail closed")
+	}
+	values = map[string]string{
+		"PGHOST":     "db",
+		"PGDATABASE": "platform",
+		"PGUSER":     "platform",
+		"PGPASSWORD": "secret",
+		"PGPORT":     "70000",
+	}
+	if _, err := postgresDSNFromEnv(func(k string) string { return values[k] }); err == nil {
+		t.Fatal("invalid PGPORT must fail closed")
 	}
 }
 

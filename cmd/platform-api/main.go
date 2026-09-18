@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -87,11 +88,80 @@ func postgresPoolConfigFromEnv(getenv func(string) string) (postgresPoolConfig, 
 	return postgresPoolConfig{MaxOpen: maxOpen, MaxIdle: maxIdle}, nil
 }
 
+func postgresDSNFromEnv(getenv func(string) string) (string, error) {
+	explicit := strings.TrimSpace(getenv("PLATFORM_FACTORY_POSTGRES_DSN"))
+	keys := []string{"PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "PGSSLMODE"}
+	anyPG := false
+	for _, key := range keys {
+		if strings.TrimSpace(getenv(key)) != "" {
+			anyPG = true
+			break
+		}
+	}
+	if explicit != "" && anyPG {
+		return "", fmt.Errorf("PLATFORM_FACTORY_POSTGRES_DSN and PG* connection settings are mutually exclusive")
+	}
+	if explicit != "" {
+		return explicit, nil
+	}
+	if !anyPG {
+		return "", nil
+	}
+	host := strings.TrimSpace(getenv("PGHOST"))
+	database := strings.TrimSpace(getenv("PGDATABASE"))
+	user := strings.TrimSpace(getenv("PGUSER"))
+	password := getenv("PGPASSWORD")
+	if host == "" || database == "" || user == "" || password == "" {
+		return "", fmt.Errorf("PGHOST, PGDATABASE, PGUSER and PGPASSWORD are all required when using PG* connection settings")
+	}
+	port := strings.TrimSpace(getenv("PGPORT"))
+	if port == "" {
+		port = "5432"
+	}
+	if parsed, err := strconv.Atoi(port); err != nil || parsed < 1 || parsed > 65535 {
+		return "", fmt.Errorf("PGPORT must be an integer between 1 and 65535")
+	}
+	sslmode := strings.TrimSpace(getenv("PGSSLMODE"))
+	if sslmode == "" {
+		sslmode = "require"
+	}
+	switch sslmode {
+	case "disable", "allow", "prefer", "require", "verify-ca", "verify-full":
+	default:
+		return "", fmt.Errorf("PGSSLMODE is invalid")
+	}
+	u := &url.URL{
+		Scheme: "postgresql",
+		User:   url.UserPassword(user, password),
+		Host:   net.JoinHostPort(host, port),
+		Path:   "/" + database,
+	}
+	q := u.Query()
+	q.Set("sslmode", sslmode)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
+func postgresAuthorityConfigured(getenv func(string) string) bool {
+	if strings.TrimSpace(getenv("PLATFORM_FACTORY_POSTGRES_DSN")) != "" {
+		return true
+	}
+	for _, key := range []string{"PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "PGSSLMODE"} {
+		if strings.TrimSpace(getenv(key)) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func openStore(ctx context.Context, logger *slog.Logger) (controlplane.Store, func(), error) {
 	statePath := os.Getenv("PLATFORM_FACTORY_STATE_FILE")
-	postgresDSN := os.Getenv("PLATFORM_FACTORY_POSTGRES_DSN")
+	postgresDSN, dsnErr := postgresDSNFromEnv(os.Getenv)
+	if dsnErr != nil {
+		return nil, func() {}, dsnErr
+	}
 	if statePath != "" && postgresDSN != "" {
-		return nil, func() {}, fmt.Errorf("PLATFORM_FACTORY_STATE_FILE and PLATFORM_FACTORY_POSTGRES_DSN are mutually exclusive")
+		return nil, func() {}, fmt.Errorf("PLATFORM_FACTORY_STATE_FILE and PostgreSQL runtime settings are mutually exclusive")
 	}
 	if postgresDSN != "" {
 		driverName := os.Getenv("PLATFORM_FACTORY_POSTGRES_DRIVER")
@@ -158,7 +228,7 @@ func openStore(ctx context.Context, logger *slog.Logger) (controlplane.Store, fu
 		logger.Info("development durable state enabled", "path", statePath)
 		return fileStore, func() {}, nil
 	}
-	return nil, func() {}, fmt.Errorf("durable control-plane authority is required: set PLATFORM_FACTORY_POSTGRES_DSN for runtime or PLATFORM_FACTORY_STATE_FILE for explicit development persistence")
+	return nil, func() {}, fmt.Errorf("durable control-plane authority is required: set PLATFORM_FACTORY_POSTGRES_DSN or PGHOST/PGDATABASE/PGUSER/PGPASSWORD for runtime, or PLATFORM_FACTORY_STATE_FILE for explicit development persistence")
 }
 
 func ensureInternalGitAuthority(ctx context.Context, store controlplane.Store) error {
@@ -466,7 +536,7 @@ func main() {
 		addr = "127.0.0.1:8080"
 	}
 	developmentRequested := strings.EqualFold(os.Getenv("PLATFORM_FACTORY_DEVELOPMENT_MODE"), "true")
-	localDevelopment := developmentRequested && strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_STATE_FILE")) != "" && strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_POSTGRES_DSN")) == "" && loopbackListenAddress(addr)
+	localDevelopment := developmentRequested && strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_STATE_FILE")) != "" && !postgresAuthorityConfigured(os.Getenv) && loopbackListenAddress(addr)
 	if developmentRequested && !localDevelopment {
 		logger.Error("development mode requires file-state persistence and a loopback listener")
 		os.Exit(1)

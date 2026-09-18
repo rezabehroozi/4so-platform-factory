@@ -107,7 +107,7 @@ func bootstrapRequest() installation.InstallRequest {
 		ProfileID: "evaluation-single-node", Connectivity: installation.ConnectivityConnected,
 		Infrastructure: installation.InfrastructureSpec{Provider: "existing-hosts", NodeAddresses: []string{"127.0.0.1"}, CredentialRef: "secret://local/root"},
 		Network:        installation.NetworkSpec{PublicEndpoint: "https://platform.example.test", DNSZone: "example.test", TLSMode: "bootstrap-self-signed"},
-		Services:       installation.ServicesSpec{Git: installation.GitSpec{}, Registry: installation.ServiceSpec{}, Database: installation.ServiceSpec{}, ObjectStorage: installation.ServiceSpec{}, Identity: installation.IdentitySpec{AdminEmail: "admin@example.test"}}, AcceptRisk: true,
+		Services:       installation.ServicesSpec{Git: installation.GitSpec{}, Registry: installation.ServiceSpec{}, Database: installation.DatabaseSpec{}, ObjectStorage: installation.ServiceSpec{}, Identity: installation.IdentitySpec{AdminEmail: "admin@example.test"}}, AcceptRisk: true,
 	}
 }
 
@@ -251,7 +251,7 @@ func haBootstrapRequest() installation.InstallRequest {
 		Services: installation.ServicesSpec{
 			Git:           installation.GitSpec{ServiceSpec: installation.ServiceSpec{Mode: installation.ServiceModeManaged}},
 			Registry:      installation.ServiceSpec{Mode: installation.ServiceModeManaged},
-			Database:      installation.ServiceSpec{Mode: installation.ServiceModeManaged},
+			Database:      installation.DatabaseSpec{ServiceSpec: installation.ServiceSpec{Mode: installation.ServiceModeManaged}},
 			ObjectStorage: installation.ServiceSpec{Mode: installation.ServiceModeExternal, Provider: "s3-compatible", URL: "https://s3.example.test", CredentialRef: "external-secret://platform-system/s3-credentials", Bucket: "platform-backups", Prefix: "factory"},
 			Identity:      installation.IdentitySpec{ServiceSpec: installation.ServiceSpec{Mode: installation.ServiceModeManaged}, AdminEmail: "admin@example.test"},
 		}, AcceptRisk: true,
