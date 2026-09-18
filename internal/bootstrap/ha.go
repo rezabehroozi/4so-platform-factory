@@ -595,6 +595,9 @@ func (r *Runner) HAStatus() (map[string]any, error) {
 	status["profileId"] = run.Request.ProfileID
 	status["selected"] = run.Request.ProfileID == "production-standard-ha"
 	status["nodes"] = run.Request.Infrastructure.NodeAddresses
+	status["clusterNodes"] = effectiveClusterNodeAddresses(run.Request)
+	status["clusterInterface"] = run.Request.Infrastructure.ClusterInterface
+	status["networkSplit"] = len(run.Request.Infrastructure.ClusterNodeAddresses) > 0
 	status["storageClass"] = run.Request.Infrastructure.StorageClass
 	steps := map[string]StepState{}
 	for _, step := range run.Steps {
