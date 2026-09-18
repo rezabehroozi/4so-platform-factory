@@ -642,6 +642,13 @@ func (r *Runner) HAStatus() (map[string]any, error) {
 	status["clusterInterface"] = run.Request.Infrastructure.ClusterInterface
 	status["networkSplit"] = len(run.Request.Infrastructure.ClusterNodeAddresses) > 0
 	status["storageClass"] = run.Request.Infrastructure.StorageClass
+	status["storageDataDevices"] = append([]string(nil), run.Request.Infrastructure.StorageDataDevices...)
+	status["storageDeviceMode"] = run.Request.Infrastructure.StorageDeviceMode
+	mounts := make([]string, 0, len(run.Request.Infrastructure.StorageDataDevices))
+	for index := range run.Request.Infrastructure.StorageDataDevices {
+		mounts = append(mounts, longhornDiskMount(index))
+	}
+	status["storageMounts"] = mounts
 	steps := map[string]StepState{}
 	for _, step := range run.Steps {
 		if step.Key == "verify-ha-quorum" || step.Key == "deploy-postgresql-operator" || step.Key == "verify-ha-services" {
