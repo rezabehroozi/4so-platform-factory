@@ -12,12 +12,12 @@ import contextlib
 import hashlib
 import http.client
 import json
+import os
 if os.name == "nt":
     import msvcrt
 else:
     import fcntl
 import ipaddress
-import os
 import posixpath
 import re
 import shlex
