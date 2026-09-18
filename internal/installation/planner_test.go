@@ -427,3 +427,67 @@ func TestBootstrapProfilesExposeProductOwnedSizingBaseline(t *testing.T) {
 		t.Fatalf("recommended sizing cannot be below minimum: %#v", production)
 	}
 }
+
+func TestHAEastWestAddressContract(t *testing.T) {
+	r := validRequest()
+	r.Infrastructure.CredentialRef = "secret://installer/ssh-private-key"
+	r.Infrastructure.StorageClass = "replicated-rwx"
+	r.Infrastructure.NodeAddresses = []string{"203.0.113.11", "203.0.113.12", "203.0.113.13"}
+	r.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12", "10.77.0.13"}
+	r.Infrastructure.ClusterInterface = "ens224"
+	r.Network.TLSMode = "managed-private-ca"
+	r.Services.ObjectStorage.CredentialRef = "external-secret://platform-system/s3-credentials"
+	r.Services.ObjectStorage.Bucket = "platform-backups"
+
+	plan, err := CreateBootstrapPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Executable {
+		t.Fatalf("explicit split access/east-west topology should be executable, blockers=%v", plan.Blockers)
+	}
+	if got := plan.EffectiveRequest.Infrastructure.ClusterNodeAddresses; len(got) != 3 || got[0] != "10.77.0.11" {
+		t.Fatalf("cluster addresses were not preserved: %#v", got)
+	}
+	if plan.EffectiveRequest.Infrastructure.ClusterInterface != "ens224" {
+		t.Fatalf("cluster interface was not preserved: %q", plan.EffectiveRequest.Infrastructure.ClusterInterface)
+	}
+}
+
+func TestHAEastWestAddressNegativeControls(t *testing.T) {
+	base := validRequest()
+	base.Infrastructure.CredentialRef = "secret://installer/ssh-private-key"
+	base.Infrastructure.StorageClass = "replicated-rwx"
+	base.Network.TLSMode = "managed-private-ca"
+	base.Services.ObjectStorage.CredentialRef = "external-secret://platform-system/s3-credentials"
+	base.Services.ObjectStorage.Bucket = "platform-backups"
+
+	cases := []struct {
+		name string
+		mutate func(*InstallRequest)
+		want string
+	}{
+		{"count-mismatch", func(r *InstallRequest) { r.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12"} }, "one east-west address for each management node"},
+		{"duplicate", func(r *InstallRequest) { r.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.11", "10.77.0.13"} }, "clusterNodeAddresses must be unique"},
+		{"hostname-forbidden", func(r *InstallRequest) { r.Infrastructure.ClusterNodeAddresses = []string{"node-a", "10.77.0.12", "10.77.0.13"} }, "literal IP addresses"},
+		{"unsafe-interface", func(r *InstallRequest) { r.Infrastructure.ClusterNodeAddresses = []string{"10.77.0.11", "10.77.0.12", "10.77.0.13"}; r.Infrastructure.ClusterInterface = "eno2;reboot" }, "valid Linux interface name"},
+		{"interface-without-addresses", func(r *InstallRequest) { r.Infrastructure.ClusterInterface = "ens224" }, "installer never invents or assigns east-west IP addresses"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := base
+			tc.mutate(&r)
+			plan, err := CreateBootstrapPlan(r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.Executable {
+				t.Fatalf("negative control unexpectedly executable: %+v", plan.EffectiveRequest.Infrastructure)
+			}
+			joined := strings.Join(plan.Blockers, "; ")
+			if !strings.Contains(joined, tc.want) {
+				t.Fatalf("missing blocker %q in %s", tc.want, joined)
+			}
+		})
+	}
+}
