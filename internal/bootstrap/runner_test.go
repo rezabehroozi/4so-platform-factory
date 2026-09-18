@@ -1035,7 +1035,7 @@ func TestFoundationManifestsMarkBootstrapOwnedObjects(t *testing.T) {
 			t.Fatalf("profile %s contains duplicate catalog signing secretKeyRef", request.ProfileID)
 		}
 		if request.ProfileID == "production-standard-ha" {
-			for _, want := range []string{"maxUnavailable: 0", "maxSurge: 1", "minReadySeconds: 10"} {
+			for _, want := range []string{"maxUnavailable: 1", "maxSurge: 0", "minReadySeconds: 10"} {
 				if !strings.Contains(manifest, want) {
 					t.Fatalf("HA profile is missing rolling availability setting %q", want)
 				}
