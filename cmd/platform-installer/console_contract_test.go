@@ -62,6 +62,16 @@ func TestInstallerConsoleJourneyContract(t *testing.T) {
 			t.Fatalf("identity service admin-email authority missing %q", identityEmailContract)
 		}
 	}
+	for _, networkContract := range []string{`id="cluster-nodes"`, `id="cluster-interface"`} {
+		if !strings.Contains(html, networkContract) {
+			t.Fatalf("installer HA east-west field missing %q", networkContract)
+		}
+	}
+	for _, networkContract := range []string{"clusterNodeAddresses:", "clusterInterface:", "installer never assigns IPs"} {
+		if !strings.Contains(js, networkContract) && !strings.Contains(html, networkContract) {
+			t.Fatalf("installer HA east-west journey missing %q", networkContract)
+		}
+	}
 	for _, interruptedResumeContract := range []string{
 		"const interrupted = run.state==='RUNNING' && status.bootstrapActive !== true",
 		"run.state==='FAILED' || interrupted",
