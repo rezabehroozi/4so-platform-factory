@@ -1625,3 +1625,16 @@ func TestKeycloakManifestUsesManagementHealthReadiness(t *testing.T) {
 		t.Fatalf("Keycloak readiness must not use hostname-sensitive public realm endpoint")
 	}
 }
+
+func TestZotManifestUsesRecreateForSingleWriterRegistry(t *testing.T) {
+	bundle := BundleManifest{}
+	bundle.Spec.Workloads.ZotImage = "registry.local/zot@sha256:" + strings.Repeat("a", 64)
+	request := installation.InstallRequest{}
+	request.Infrastructure.StorageClass = "replicated-rwx"
+	manifest := zotManifest(bundle, request)
+	for _, want := range []string{"name: platform-zot", "strategy:\n    type: Recreate", "claimName: platform-zot-data"} {
+		if !strings.Contains(manifest, want) {
+			t.Fatalf("managed Zot manifest missing single-writer rollout contract %q:\n%s", want, manifest)
+		}
+	}
+}
