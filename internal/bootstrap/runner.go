@@ -931,7 +931,7 @@ func (r *Runner) configureRKE2(run Run) error {
 	if err != nil {
 		return err
 	}
-	config := fmt.Sprintf("write-kubeconfig-mode: \"0600\"\nnode-ip: %s\ntoken: %s\ntls-san:\n  - %s\n  - %s\n", yamlScalar(nodeAddress), yamlScalar(tokenRaw), yamlScalar(endpoint.Hostname()), yamlScalar(nodeAddress))
+	config := fmt.Sprintf("write-kubeconfig-mode: \"0600\"\nnode-ip: %s\ntoken: %s\ntls-san:\n  - %s\n  - %s\n  - %s\n", yamlScalar(nodeAddress), yamlScalar(tokenRaw), yamlScalar(endpoint.Hostname()), yamlScalar(accessAddresses[0]), yamlScalar(nodeAddress))
 	if run.Request.ProfileID == "production-standard-ha" {
 		config += "etcd-expose-metrics: true\n"
 		for index, peer := range accessAddresses[1:] {
