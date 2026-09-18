@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +14,7 @@ SCRIPT = ROOT / 'scripts/console_localization_coverage.py'
 
 class ConsoleLocalizationCoverageTests(unittest.TestCase):
     def test_canonical_baseline_passes(self) -> None:
-        result = subprocess.run(['python3', str(SCRIPT), '--root', str(ROOT)], text=True, capture_output=True)
+        result = subprocess.run([sys.executable, str(SCRIPT), '--root', str(ROOT)], text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('CONSOLE_LOCALIZATION_COVERAGE_PASS', result.stdout)
 
@@ -27,7 +28,7 @@ class ConsoleLocalizationCoverageTests(unittest.TestCase):
             shutil.copy2(ROOT / 'webconsole/persian_glossary.json', target / 'webconsole/persian_glossary.json')
             html = target / 'webconsole/static/index.html'
             html.write_text(html.read_text(encoding='utf-8').replace('</body>', '<p>Brand new operator instruction</p></body>'), encoding='utf-8')
-            result = subprocess.run(['python3', str(SCRIPT), '--root', str(target)], text=True, capture_output=True)
+            result = subprocess.run([sys.executable, str(SCRIPT), '--root', str(target)], text=True, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('NEW_GAP Brand new operator instruction', result.stderr)
 
@@ -44,7 +45,7 @@ class ConsoleLocalizationCoverageTests(unittest.TestCase):
             text = app.read_text(encoding='utf-8')
             self.assertIn('"Assurance": "تضمین"', text)
             app.write_text(text.replace('"Assurance": "تضمین"', '"Assurance": "Assurance"', 1), encoding='utf-8')
-            result = subprocess.run(['python3', str(SCRIPT), '--root', str(target)], text=True, capture_output=True)
+            result = subprocess.run([sys.executable, str(SCRIPT), '--root', str(target)], text=True, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('NEW_GAP Assurance', result.stderr)
 
@@ -64,7 +65,7 @@ class ConsoleLocalizationCoverageTests(unittest.TestCase):
             # the browser dictionary while the coverage report still looks complete.
             text = text.replace('  "Assurance": "تضمین",\n', '  "Assurance": "تضمین",\n  "Assurance": "تضمین‌نشده",\n', 1)
             app.write_text(text, encoding='utf-8')
-            result = subprocess.run(['python3', str(SCRIPT), '--root', str(target)], text=True, capture_output=True)
+            result = subprocess.run([sys.executable, str(SCRIPT), '--root', str(target)], text=True, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('LOCALIZATION_DYNAMIC_DUPLICATE_KEY Assurance', result.stderr)
 
@@ -81,7 +82,7 @@ class ConsoleLocalizationCoverageTests(unittest.TestCase):
             before = baseline.read_bytes()
             html = target / 'webconsole/static/index.html'
             html.write_text(html.read_text(encoding='utf-8').replace('</body>', '<p>Unreviewed future operator text</p></body>'), encoding='utf-8')
-            result = subprocess.run(['python3', str(SCRIPT), '--root', str(target), '--write-baseline'], text=True, capture_output=True)
+            result = subprocess.run([sys.executable, str(SCRIPT), '--root', str(target), '--write-baseline'], text=True, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('refusing incomplete baseline', result.stderr)
             self.assertEqual(baseline.read_bytes(), before)
