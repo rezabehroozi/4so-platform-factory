@@ -27,14 +27,21 @@ def validate(lock, *, active=None, archive_path=None):
     exact=spec.get('exactCompiler') or {}
     if status=='admitted':
         version=exact.get('version',''); sha=exact.get('archiveSha256',''); archive=exact.get('archiveFile','')
+        goos=str(exact.get('goos','')); goarch=str(exact.get('goarch','')); size=int(exact.get('archiveSize') or 0)
         if not version.startswith('go1.'): errs.append('admitted lock missing exact Go version')
         if not HEX.fullmatch(sha): errs.append('admitted lock missing exact compiler archive sha256')
         if not archive: errs.append('admitted lock missing offline archiveFile')
-        if active is not None and version not in active: errs.append(f'active compiler mismatch: lock={version} active={active}')
+        if goos!='linux' or goarch!='amd64': errs.append('admitted compiler platform must be linux/amd64')
+        if size<=0: errs.append('admitted lock missing exact compiler archive size')
+        if active is not None:
+            match=re.fullmatch(r'go version (\\S+) (\\S+)/(\\S+)', active.strip())
+            if match is None or (match.group(1),match.group(2),match.group(3))!=(version,goos,goarch):
+                errs.append(f'active compiler mismatch: lock={version} {goos}/{goarch} active={active}')
         if archive_path:
             p=pathlib.Path(archive_path)
             if not p.is_file(): errs.append('compiler archive missing')
             else:
+                if p.stat().st_size!=size: errs.append('compiler archive size mismatch')
                 got=hashlib.sha256(p.read_bytes()).hexdigest()
                 if got!=sha: errs.append('compiler archive sha256 mismatch')
     elif status=='blocked':
@@ -55,7 +62,7 @@ def self_test():
     if not validate(bad,active='go version go1.99.1 linux/amd64'): return False
     bad2=json.loads(json.dumps(base)); bad2['spec']['policy']['networkAutoDownloadDuringReleaseBuildAllowed']=True
     if not validate(bad2): return False
-    good=json.loads(json.dumps(base)); good['spec']['admissionStatus']='admitted'; good['spec']['exactCompiler']={'version':'go1.99.1','archiveFile':'go1.99.1.linux-amd64.tar.gz','archiveSha256':'a'*64}; good['spec'].pop('blocker',None)
+    good=json.loads(json.dumps(base)); good['spec']['admissionStatus']='admitted'; good['spec']['exactCompiler']={'version':'go1.99.1','goos':'linux','goarch':'amd64','archiveFile':'go1.99.1.linux-amd64.tar.gz','localArchivePath':'vendor/toolchains/go1.99.1.linux-amd64.tar.gz','archiveSize':1,'archiveSha256':'a'*64}; good['spec'].pop('blocker',None)
     if validate(good,active='go version go1.99.1 linux/amd64'): return False
     return True
 
@@ -64,8 +71,17 @@ def main():
     if args.self_test:
         if not self_test(): print('RELEASE_BUILD_TOOLCHAIN_SELF_TEST_FAIL'); return 1
         print('RELEASE_BUILD_TOOLCHAIN_SELF_TEST_PASS'); return 0
-    lock=json.loads(LOCK.read_text()); rc,active=current_go(); errs=[] if rc==0 else ['go version unavailable']; errs += validate(lock,active=active if rc==0 else None,archive_path=args.archive)
+    lock=json.loads(LOCK.read_text()); rc,active=current_go(); errs=[] if rc==0 else ['go version unavailable']
     status=lock.get('spec',{}).get('admissionStatus')
+    archive_path=args.archive
+    if status=='admitted' and not archive_path:
+        rel=str(((lock.get('spec') or {}).get('exactCompiler') or {}).get('localArchivePath') or '')
+        rel_path=pathlib.PurePosixPath(rel)
+        if not rel or rel_path.is_absolute() or '..' in rel_path.parts or not rel.startswith('vendor/toolchains/'):
+            errs.append('admitted lock localArchivePath invalid')
+        else:
+            archive_path=str(ROOT.joinpath(*rel_path.parts))
+    errs += validate(lock,active=active if rc==0 else None,archive_path=archive_path)
     if args.require_admitted and status!='admitted': errs.append('release toolchain lock is not admitted')
     if errs:
         print('RELEASE_BUILD_TOOLCHAIN_BLOCKED ' + '; '.join(errs)); return 2 if status=='blocked' else 1
