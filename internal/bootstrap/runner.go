@@ -63,6 +63,7 @@ var bootstrapInterruptedPolicies = map[string]interruptedStepPolicy{
 	"configure-rke2":              interruptedReplaySafe,
 	"install-rke2":                interruptedVerifyRKE2,
 	"verify-ha-quorum":            interruptedReplaySafe,
+	"prepare-storage-devices":     interruptedReplaySafe,
 	"deploy-replicated-storage":   interruptedReplaySafe,
 	"deploy-postgresql-operator":  interruptedReplaySafe,
 	"deploy-foundation":           interruptedReplaySafe,
@@ -92,7 +93,8 @@ var bootstrapSteps = []struct{ key, title string }{
 	{"configure-rke2", "Write the single-node RKE2 configuration"},
 	{"install-rke2", "Install and start the RKE2 management node or three-node HA cluster"},
 	{"verify-ha-quorum", "Verify the three-node management quorum when HA is selected"},
-	{"deploy-replicated-storage", "Deploy and verify the digest-locked replicated storage provider when HA is selected"},
+	{"prepare-storage-devices", "Prepare explicitly admitted dedicated storage devices on every HA node"},
+	{"deploy-replicated-storage", "Deploy Longhorn, bind only 4SO-owned data disks, and verify the product-owned replicated StorageClass"},
 	{"deploy-postgresql-operator", "Deploy the bundled PostgreSQL HA operator when HA is selected"},
 	{"deploy-foundation", "Deploy PostgreSQL and the 4SO control plane"},
 	{"deploy-internal-git", "Deploy managed Forgejo"},
@@ -500,6 +502,8 @@ func (r *Runner) executeStep(ctx context.Context, key string, run Run) error {
 		return r.installRKE2(ctx, run)
 	case "verify-ha-quorum":
 		return r.verifyHAQuorum(ctx, run)
+	case "prepare-storage-devices":
+		return r.prepareHAStorageDevices(ctx, run)
 	case "deploy-replicated-storage":
 		return r.deployReplicatedStorage(ctx, run, bundle)
 	case "deploy-postgresql-operator":
