@@ -867,12 +867,16 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 	} else {
 		add("installation-plan", "Validate installation request", CheckPassed, "request is supported and the generated plan is executable")
 	}
-	admission, bundleErr := InspectBundle(r.bundleDir, r.requireBundleLock)
+	admission, bundleErr := InspectBundleForMilestone(r.bundleDir, r.requireBundleLock, request.ExecutionMilestone)
 	if bundleErr != nil {
-		add("bundle-admission", "Verify sealed appliance bundle", CheckBlocked, bundleErr.Error())
+		add("bundle-admission", "Verify appliance bundle for requested execution scope", CheckBlocked, bundleErr.Error())
 	} else {
 		report.BundleDigest = admission.BundleDigest
-		add("bundle-admission", "Verify sealed appliance bundle", CheckPassed, "bundle manifest, lock, exact index, files and digests are valid")
+		if functionalMilestone(request.ExecutionMilestone) {
+			add("bundle-admission", "Verify appliance bundle for requested execution scope", CheckPassed, "functional Lab bundle contains the exact local artifacts required by the requested milestone; final certification lock is intentionally deferred")
+		} else {
+			add("bundle-admission", "Verify appliance bundle for requested execution scope", CheckPassed, "bundle manifest, lock, exact index, files and digests are valid")
+		}
 	}
 	if request.ProfileID != "evaluation-single-node" && request.ProfileID != "production-standard-ha" {
 		add("profile", "Validate executable deployment profile", CheckBlocked, fmt.Sprintf("version %s executes evaluation-single-node and production-standard-ha", r.version))
@@ -962,7 +966,7 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 		if bundleErr != nil || !admission.Verified {
 			add("disconnected", "Validate disconnected installation assets", CheckBlocked, "disconnected installation requires a complete admitted bundle")
 		} else {
-			bundle, _, err := LoadBundle(r.bundleDir)
+			bundle, _, err := LoadBundleForMilestone(r.bundleDir, request.ExecutionMilestone)
 			if err != nil || !bundle.Spec.Airgap.Complete {
 				add("disconnected", "Validate disconnected installation assets", CheckBlocked, "bundle does not declare a complete air-gap set")
 			} else {
