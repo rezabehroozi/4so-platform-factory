@@ -1,6 +1,6 @@
 # Current Program Status ? PROGRAM_PHASE_MODEL_V68
 
-`docs/PROGRAM_STATUS.md` is the single current human-readable status summary. Release **0.0.362** is the current repository release identity. Versioned `PHASE_STATUS_V*.md` files are historical release records; executable truth remains `internal/targetmodel/program.go`.
+`docs/PROGRAM_STATUS.md` is the single current human-readable status summary. Release **0.0.363** is the current repository release identity. Versioned `PHASE_STATUS_V*.md` files are historical release records; executable truth remains `internal/targetmodel/program.go`.
 
 ## Progress authority
 
@@ -101,3 +101,13 @@ Every progress report for 4SO Platform Factory MUST include these fields, even w
 - The previous FULL ZIP at commit `0c2f475` is historical and MUST NOT be treated as current-main Exact Release. A new FULL ZIP and Full Verifier remain required for the final current-main SHA after this status commit.
 - Physical Lab state from the last verified sweep remains 7/7 reachable with chrony/KVM healthy and raw `/dev/sdb`, `/dev/sdc`, `/dev/sdd` untouched. No newer Physical PASS is claimed by this software wave.
 - Immediate Lab continuation: determine the already-configured second-NIC IPs/interfaces from Windows-to-Lab read-only evidence; populate `clusterNodeAddresses`/`clusterInterface` only from that evidence; finish management OCI/manifest resolution and sealed ApplianceBundle; build the Exact Release on the admitted Linux builder; then run production-standard-ha preflight/bootstrap and capture Exact-SHA physical evidence.
+
+## Current handoff checkpoint — 2026-09-18 Lab HA / Exact Release wave
+
+- Release identity: `0.0.363` / `lab-ha-network-storage-exact-release-v68`; roadmap authority remains `PROGRAM_PHASE_MODEL_V68`.
+- Lab management topology is evidence-backed: vm-lab06/07/08 use access addresses `213.176.28.136/137/138`, east-west `ens35` addresses `10.77.35.136/137/138/24`, and all nine east-west peer pings PASS.
+- Each management node exposes root on `/dev/sda3` plus blank whole-disk `/dev/sdb`, `/dev/sdc`, `/dev/sdd` at 10 GiB each; storage preparation remains gated by explicit ownership claims and installer preflight.
+- Exact Linux release builder admission is proven on vm-lab07 with offline Go 1.27.1, GCC 15.2.0, GNU ld 2.46, glibc 2.43, exact libpq header and canonical `libpq.so.5.18` digest.
+- Source/runtime-contract gates PASS for HA split-network, storage ownership/reset, Lab schema parity, Installer Console parity, Persian localization and repository validation.
+- Remaining closure is supply-chain/runtime evidence: management workload OCI archive, exact manifest-image resolution, sealed ApplianceBundle, exact installer execution, RKE2 three-node bootstrap and Exact-SHA physical certification.
+- Autopilot non-PASS/checkpoint state is durable and includes Git SHA/workspace fingerprint/next stage/invocation so a chat/UI timeout can resume rather than replaying green work.

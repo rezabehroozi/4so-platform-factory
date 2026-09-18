@@ -135,23 +135,23 @@
       "evidence": [
         {
           "path": "VERSION",
-          "sha256": "sha256:0d310cf837e0c61104ad3aad054b6690d942d8b76c9d63c19addfcf073ec3001",
+          "sha256": "sha256:5f464a3c83b7be6104fc87a48bb84105c68b376af207f2aa7194b1ca62068c7a",
           "size": 8
         }
       ],
       "id": "release.version",
-      "value": "0.0.362"
+      "value": "0.0.363"
     },
     {
       "evidence": [
         {
           "path": "RELEASE-NAME",
-          "sha256": "sha256:2af1f28a42c987621858f5baaa401c61bece29bcde3340969d525d95078ad688",
-          "size": 50
+          "sha256": "sha256:1b254edf2b6793106238e0dc5d241a0b2db6817601cefbb92eea9ff3c5967c63",
+          "size": 41
         }
       ],
       "id": "release.name",
-      "value": "autopilot-resume-installer-linux-ci-hardening-v67"
+      "value": "lab-ha-network-storage-exact-release-v68"
     },
     {
       "evidence": [
@@ -1126,12 +1126,12 @@
     }
   ],
   "derived": true,
-  "digest": "sha256:a9d27ace8961b4719e331e98b36a907551be96bf000a499f5e355e2cbfdbc286",
+  "digest": "sha256:e3edb5203d3e580fd278c383ec3491313cfc775336b4450aa080b5123dd9b9ea",
   "discardableAndRebuildable": true,
   "notSourceOfTruth": true,
   "release": {
-    "releaseName": "autopilot-resume-installer-linux-ci-hardening-v67",
-    "version": "0.0.362"
+    "releaseName": "lab-ha-network-storage-exact-release-v68",
+    "version": "0.0.363"
   },
   "schemaVersion": 1,
   "sourceAuthorities": {

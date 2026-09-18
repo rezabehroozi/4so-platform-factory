@@ -27,7 +27,7 @@
       "supportedToolchainRequired": true,
       "exactCGOToolchainRequired": true
     },
-    "releaseVersion": "0.0.362",
+    "releaseVersion": "0.0.363",
     "requiredClosure": [
       "acquire candidateExactCompiler archive out-of-band or from a trusted connected acquisition runner",
       "verify exact archive byte size and sha256 before atomic install into vendor/toolchains",

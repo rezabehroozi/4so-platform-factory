@@ -3500,5 +3500,5 @@
     }
   ],
   "source": "internal/api/server.go",
-  "version": "0.0.362"
+  "version": "0.0.363"
 }

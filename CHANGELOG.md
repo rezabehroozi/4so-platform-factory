@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.363 — Lab HA network, dedicated-storage safety and Exact Release authority
+
+- Bind Production Standard HA to explicit split access/east-west networking: SSH/public `nodeAddresses` remain separate from `clusterNodeAddresses`/`clusterInterface`, and preflight verifies assigned addresses plus peer-route ownership without mutating host networking.
+- Make dedicated Longhorn storage explicit and fail-closed: Production HA requires `storageDataDevices` with `storageDeviceMode=format-empty`; root disks, partitions, mounted/foreign-signature disks and implicit root-backed Longhorn scheduling are rejected.
+- Add durable pre-format storage claims plus on-disk ownership markers so interrupted preparation resumes safely while label spoofing cannot authorize reuse or destructive reset; clean reset now requires exact claim+marker+mount identity before wipe.
+- Align the LabExecution JSON schema with the runtime Production HA contract and add negative controls for missing/duplicate cluster addresses and storage devices.
+- Harden Autopilot timeout/restart handoff with Git SHA, workspace fingerprint, next-stage, invocation and durable resume metadata so UI/message interruption does not erase the exact stage cursor.
+- Repair Exact Release builder admission by pinning the canonical non-symlink `libpq.so.5.18` file; vm-lab07 now matches the admitted Go 1.27.1 / GCC 15.2 / ld 2.46 / glibc 2.43 / libpq authority.
+- Lab evidence confirms vm-lab06/07/08 east-west `ens35` at `10.77.35.136/137/138` with full peer reachability and three blank 10 GiB data disks (`/dev/sdb`, `/dev/sdc`, `/dev/sdd`) per node. No Physical PASS is claimed until the exact sealed bundle is installed and certified.
+
 ## 0.0.362 ? Autopilot resumability and Installer Linux-CI hardening
 
 - Keep executable roadmap authority at `PROGRAM_PHASE_MODEL_V67` and keep pre-physical Core+Expansion source/software closure truthful at **30/35 (85%)**; this reliability hardening closes no additional roadmap phase and claims no Physical/Exact-SHA PASS.
