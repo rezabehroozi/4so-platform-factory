@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"platform.4so.io/factory/internal/installation"
 )
@@ -79,6 +80,61 @@ func (r *Runner) prepareHAStorageDevices(ctx context.Context, run Run) error {
 	for _, peer := range run.Request.Infrastructure.NodeAddresses[1:] {
 		if _, err := r.system.Output(ctx, "ssh", r.sshArgs(run, peer, command), nil); err != nil {
 			return fmt.Errorf("prepare HA storage devices on %s: %w", peer, err)
+		}
+	}
+	return nil
+}
+
+
+func storageDeviceResetCommand(devices []string) string {
+	command := `set -eu; command -v readlink >/dev/null 2>&1; command -v blkid >/dev/null 2>&1; command -v wipefs >/dev/null 2>&1; command -v lsblk >/dev/null 2>&1; command -v mountpoint >/dev/null 2>&1`
+	for index, device := range devices {
+		label := longhornDiskLabel(index)
+		mount := longhornDiskMount(index)
+		command += "; dev=" + haShellQuote(device) +
+			`; canonical="$(readlink -f "$dev" 2>/dev/null || true)"; [ -n "$canonical" ] && [ -b "$canonical" ] || { echo "reset storage device is missing: $dev" >&2; exit 41; }; fstype="$(blkid -s TYPE -o value "$canonical" 2>/dev/null || true)"; fslabel="$(blkid -s LABEL -o value "$canonical" 2>/dev/null || true)"; signatures="$(wipefs -n "$canonical" 2>/dev/null | tail -n +2 | sed '/^[[:space:]]*$/d')"; if [ -z "$fstype" ] && [ -z "$signatures" ]; then :; else [ "$fstype" = ext4 ] && [ "$fslabel" = ` + haShellQuote(label) + ` ] || { echo "refusing to reset non-4SO storage device: $dev type=$fstype label=$fslabel" >&2; exit 41; }; mounts="$(lsblk -nrpo MOUNTPOINTS "$canonical" | sed '/^[[:space:]]*$/d')"; if [ -n "$mounts" ] && [ "$mounts" != ` + haShellQuote(mount) + ` ]; then echo "refusing to reset storage device mounted outside 4SO path: $dev mounts=$mounts" >&2; exit 41; fi; mountpoint -q ` + haShellQuote(mount) + ` && umount ` + haShellQuote(mount) + ` || true; tmp="$(mktemp /etc/4so-fstab-reset.XXXXXX)"; awk '$2 != "` + mount + `" {print}' /etc/fstab > "$tmp"; chmod 0644 "$tmp"; mv -f "$tmp" /etc/fstab; wipefs -a "$canonical" >/dev/null; sync; rmdir ` + haShellQuote(mount) + ` 2>/dev/null || true; fi`
+	}
+	return command
+}
+
+func storageDeviceBlankVerificationCommand(devices []string) string {
+	command := `set -eu; command -v readlink >/dev/null 2>&1; command -v wipefs >/dev/null 2>&1; command -v blkid >/dev/null 2>&1`
+	for _, device := range devices {
+		command += "; dev=" + haShellQuote(device) +
+			`; canonical="$(readlink -f "$dev" 2>/dev/null || true)"; [ -n "$canonical" ] && [ -b "$canonical" ] || { echo "reset storage device is missing: $dev" >&2; exit 42; }; [ -z "$(blkid -s TYPE -o value "$canonical" 2>/dev/null || true)" ] || { echo "filesystem remains after storage reset: $dev" >&2; exit 42; }; [ -z "$(wipefs -n "$canonical" 2>/dev/null | tail -n +2 | sed '/^[[:space:]]*$/d')" ] || { echo "signature remains after storage reset: $dev" >&2; exit 42; }`
+	}
+	return command
+}
+
+func (r *Runner) resetHAStorageDevices(ctx context.Context, request installation.InstallRequest) error {
+	if request.ProfileID != "production-standard-ha" || r.simulation || len(request.Infrastructure.StorageDataDevices) == 0 {
+		return nil
+	}
+	command := storageDeviceResetCommand(request.Infrastructure.StorageDataDevices)
+	run := Run{Request: request}
+	for _, peer := range request.Infrastructure.NodeAddresses[1:] {
+		if _, err := r.system.Output(ctx, "ssh", r.sshArgs(run, peer, command), nil); err != nil {
+			return fmt.Errorf("reset HA storage devices on %s: %w", peer, err)
+		}
+	}
+	if _, err := r.system.Output(ctx, "sh", []string{"-c", command}, nil); err != nil {
+		return fmt.Errorf("reset local HA storage devices: %w", err)
+	}
+	return nil
+}
+
+func (r *Runner) verifyHAStorageReset(ctx context.Context, request installation.InstallRequest) error {
+	if request.ProfileID != "production-standard-ha" || r.simulation || len(request.Infrastructure.StorageDataDevices) == 0 {
+		return nil
+	}
+	command := storageDeviceBlankVerificationCommand(request.Infrastructure.StorageDataDevices)
+	run := Run{Request: request}
+	if _, err := r.system.Output(ctx, "sh", []string{"-c", command}, nil); err != nil {
+		return fmt.Errorf("verify local HA storage reset: %w", err)
+	}
+	for _, peer := range request.Infrastructure.NodeAddresses[1:] {
+		if _, err := r.system.Output(ctx, "ssh", r.sshArgs(run, peer, command), nil); err != nil {
+			return fmt.Errorf("verify HA storage reset on %s: %w", peer, err)
 		}
 	}
 	return nil
@@ -159,7 +215,7 @@ func (r *Runner) configureLonghornNodeStorage(ctx context.Context, run Run) erro
 	kubectl := "/var/lib/rancher/rke2/bin/kubectl"
 	kc := "/etc/rancher/rke2/rke2.yaml"
 	var nodes longhornNodeList
-	err := waitUntil(ctx, 3e9, 10*60*1e9, func() error {
+	err := waitUntil(ctx, 3*time.Second, 10*time.Minute, func() error {
 		raw, err := r.system.Output(ctx, kubectl, []string{"--kubeconfig", kc, "-n", longhornNamespace, "get", "nodes.longhorn.io", "-o", "json"}, nil)
 		if err != nil {
 			return err
@@ -182,7 +238,7 @@ func (r *Runner) configureLonghornNodeStorage(ctx context.Context, run Run) erro
 			return fmt.Errorf("bind Longhorn storage on %s: %w", node.Metadata.Name, err)
 		}
 	}
-	return waitUntil(ctx, 3e9, 5*60*1e9, func() error {
+	return waitUntil(ctx, 3*time.Second, 5*time.Minute, func() error {
 		raw, err := r.system.Output(ctx, kubectl, []string{"--kubeconfig", kc, "-n", longhornNamespace, "get", "nodes.longhorn.io", "-o", "json"}, nil)
 		if err != nil {
 			return err
