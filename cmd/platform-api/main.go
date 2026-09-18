@@ -596,6 +596,7 @@ func main() {
 		ZotURL:                     os.Getenv("PLATFORM_FACTORY_INTERNAL_REGISTRY_URL"),
 		KeycloakURL:                os.Getenv("PLATFORM_FACTORY_INTERNAL_IDENTITY_URL"),
 		ArgoCDURL:                  os.Getenv("PLATFORM_FACTORY_INTERNAL_GITOPS_URL"),
+		ArgoCDToken:                os.Getenv("PLATFORM_FACTORY_INTERNAL_GITOPS_TOKEN"),
 		RepositoryBootstrapEnabled: strings.EqualFold(os.Getenv("PLATFORM_FACTORY_INTERNAL_GIT_BOOTSTRAP"), "true"),
 	}))
 	publicCA, err := loadPublicCAPEM()
