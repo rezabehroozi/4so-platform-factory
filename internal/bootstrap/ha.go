@@ -154,19 +154,62 @@ func (r *Runner) deployReplicatedStorage(ctx context.Context, run Run, bundle Bu
 	if err = r.system.CopyFile(source, destination, 0o600); err != nil {
 		return err
 	}
+	storageClass := strings.TrimSpace(run.Request.Infrastructure.StorageClass)
+	storageClassManifest := fmt.Sprintf(`apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: %s
+  annotations:
+    platform.4so.io/replicated: "true"
+    platform.4so.io/owner: "4so-platform-installer"
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "3"
+  staleReplicaTimeout: "2880"
+  fsType: "ext4"
+`, storageClass)
+	if err = r.system.WriteFile("/var/lib/rancher/rke2/server/manifests/4so-platform-storageclass.yaml", []byte(storageClassManifest), 0o600); err != nil {
+		return err
+	}
 	if r.simulation {
 		return nil
 	}
 	kubectl := "/var/lib/rancher/rke2/bin/kubectl"
 	kc := "/etc/rancher/rke2/rke2.yaml"
-	storageClass := strings.TrimSpace(run.Request.Infrastructure.StorageClass)
+	if err = waitUntil(ctx, 3*time.Second, 10*time.Minute, func() error {
+		return r.system.Run(ctx, kubectl, []string{"--kubeconfig", kc, "get", "crd", "nodes.longhorn.io"}, nil)
+	}); err != nil {
+		return fmt.Errorf("wait for Longhorn CRD: %w", err)
+	}
+	if err = r.configureLonghornNodeStorage(ctx, run); err != nil {
+		return err
+	}
 	return waitUntil(ctx, 3*time.Second, 10*time.Minute, func() error {
-		raw, err := r.system.Output(ctx, kubectl, []string{"--kubeconfig", kc, "get", "storageclass", storageClass, "-o", `jsonpath={.metadata.annotations.platform\.4so\.io/replicated}`}, nil)
+		raw, err := r.system.Output(ctx, kubectl, []string{"--kubeconfig", kc, "get", "storageclass", storageClass, "-o", "json"}, nil)
 		if err != nil {
 			return err
 		}
-		if strings.TrimSpace(string(raw)) != "true" {
-			return fmt.Errorf("storageClass %s is not certified as replicated", storageClass)
+		var observed struct {
+			Metadata struct {
+				Annotations map[string]string `json:"annotations"`
+			} `json:"metadata"`
+			Provisioner          string            `json:"provisioner"`
+			AllowVolumeExpansion *bool             `json:"allowVolumeExpansion"`
+			ReclaimPolicy        string            `json:"reclaimPolicy"`
+			Parameters           map[string]string `json:"parameters"`
+		}
+		if err = json.Unmarshal(raw, &observed); err != nil {
+			return err
+		}
+		if observed.Metadata.Annotations["platform.4so.io/replicated"] != "true" || observed.Metadata.Annotations["platform.4so.io/owner"] != "4so-platform-installer" {
+			return fmt.Errorf("storageClass %s is not owned and certified by 4SO", storageClass)
+		}
+		if observed.Provisioner != "driver.longhorn.io" || observed.AllowVolumeExpansion == nil || !*observed.AllowVolumeExpansion || observed.ReclaimPolicy != "Retain" || observed.Parameters["numberOfReplicas"] != "3" {
+			return fmt.Errorf("storageClass %s does not enforce Longhorn replica=3 retention contract", storageClass)
 		}
 		return nil
 	})
