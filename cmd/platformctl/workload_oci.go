@@ -27,7 +27,7 @@ func (s *sourceImageFlags) Set(value string) error {
 
 func workloadOCIUsage() {
 	fmt.Fprintln(os.Stderr, "usage: platformctl workload-oci assemble --source REGISTRY/REPO@sha256:DIGEST=OCI_LAYOUT_DIR [--source ...] --out workloads.oci.tar")
-	fmt.Fprintln(os.Stderr, "       platformctl workload-oci certify-product --release EXACT_RELEASE.zip --role platform-api|platform-agent|platform-probe --source REGISTRY/REPO@sha256:DIGEST=OCI_LAYOUT_DIR")
+	fmt.Fprintln(os.Stderr, "       platformctl workload-oci certify-product --release EXACT_RELEASE.zip --role platform-api|platform-agent|platform-probe|maintenance --source REGISTRY/REPO@sha256:DIGEST=OCI_LAYOUT_DIR")
 	fmt.Fprintln(os.Stderr, "       platformctl workload-oci inspect-manifest --manifest SOURCE.yaml")
 	fmt.Fprintln(os.Stderr, "       platformctl workload-oci resolve-manifest --manifest SOURCE.yaml --resolution SOURCE_REF=REGISTRY/REPO@sha256:DIGEST [--resolution ...] --out-manifest FILE --out-lock FILE")
 	fmt.Fprintln(os.Stderr, "       platformctl workload-oci acquire-external --release EXACT_RELEASE.zip --plan management-workload-image-build-plan.json --role postgresql|forgejo|zot|keycloak --out-layout DIR --out-lock FILE")
@@ -274,12 +274,18 @@ func productImageSpec(role string, release releaseartifact.Inspection) (ociarchi
 	case "platform-probe":
 		expectedLinkage = "static"
 		repository, binaryPath, releaseMember, entrypoint = "platform.4so.local/management/platform-probe", "/platform-probe", releaseartifact.PlatformProbeBinaryPath, []string{"/platform-probe"}
+	case "maintenance":
+		repository, entrypoint = "platform.4so.local/management/maintenance", []string{"/bin/sh"}
 	default:
 		return ociarchive.ProductImageSpec{}, fmt.Errorf("unsupported product image role %q", role)
 	}
-	binaryDigest, err := release.FileDigest(releaseMember)
-	if err != nil {
-		return ociarchive.ProductImageSpec{}, err
+	binaryDigest := ""
+	if releaseMember != "" {
+		var err error
+		binaryDigest, err = release.FileDigest(releaseMember)
+		if err != nil {
+			return ociarchive.ProductImageSpec{}, err
+		}
 	}
 	return ociarchive.ProductImageSpec{
 		Role: role, Repository: repository, BinaryPath: binaryPath, ExpectedBinaryDigest: binaryDigest,
@@ -291,7 +297,7 @@ func workloadOCICertifyProduct(args []string) {
 	fs := flag.NewFlagSet("workload-oci certify-product", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	releasePath := fs.String("release", "", "exact release ZIP containing the product binary authority")
-	role := fs.String("role", "", "product image role: platform-api, platform-agent or platform-probe")
+	role := fs.String("role", "", "product image role: platform-api, platform-agent, platform-probe or maintenance")
 	rawSource := fs.String("source", "", "exact image reference followed by = and its local OCI layout directory")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || strings.TrimSpace(*releasePath) == "" || strings.TrimSpace(*role) == "" || strings.TrimSpace(*rawSource) == "" {
 		fatal(fmt.Errorf("workload-oci certify-product requires --release EXACT_RELEASE.zip --role ROLE --source REGISTRY/REPO@sha256:DIGEST=OCI_LAYOUT_DIR"))
