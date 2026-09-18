@@ -735,6 +735,68 @@ func uniqueNodeAddresses(values []string) bool {
 	return true
 }
 
+func effectiveClusterNodeAddresses(request installation.InstallRequest) []string {
+	if len(request.Infrastructure.ClusterNodeAddresses) == len(request.Infrastructure.NodeAddresses) && len(request.Infrastructure.ClusterNodeAddresses) > 0 {
+		return request.Infrastructure.ClusterNodeAddresses
+	}
+	return request.Infrastructure.NodeAddresses
+}
+
+func (r *Runner) verifyLocalClusterNetwork(ctx context.Context, request installation.InstallRequest) (string, error) {
+	addresses := effectiveClusterNodeAddresses(request)
+	if len(addresses) == 0 {
+		return "", errors.New("no management cluster address is configured")
+	}
+	expected := strings.Trim(strings.TrimSpace(addresses[0]), "[]")
+	if net.ParseIP(expected) == nil {
+		return "", fmt.Errorf("local cluster address %q is not a literal IP address", expected)
+	}
+	args := []string{"-4", "-o", "addr", "show"}
+	iface := strings.TrimSpace(request.Infrastructure.ClusterInterface)
+	if iface != "" {
+		args = append(args, "dev", iface)
+	}
+	raw, err := r.system.Output(ctx, "ip", args, nil)
+	if err != nil {
+		return "", fmt.Errorf("inspect cluster network: %w", err)
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 4 {
+			continue
+		}
+		if iface != "" && fields[1] != iface {
+			continue
+		}
+		for _, field := range fields {
+			address := strings.SplitN(field, "/", 2)[0]
+			if address != expected {
+				continue
+			}
+			if iface == "" {
+				return "cluster address " + expected + " is already assigned; installer will not mutate host networking", nil
+			}
+			return "cluster address " + expected + " is already assigned to interface " + iface + "; installer will not mutate host networking", nil
+		}
+	}
+	if iface != "" {
+		return "", fmt.Errorf("cluster address %s is not assigned to interface %s; installer will not assign or invent east-west IP addresses", expected, iface)
+	}
+	return "", fmt.Errorf("cluster address %s is not assigned to this host; installer will not assign or invent east-west IP addresses", expected)
+}
+
+func clusterPeerProbeCommand(clusterAddress, clusterInterface string) string {
+	clusterAddress = strings.Trim(strings.TrimSpace(clusterAddress), "[]")
+	clusterInterface = strings.TrimSpace(clusterInterface)
+	if clusterAddress == "" {
+		return ""
+	}
+	if clusterInterface != "" {
+		return "; ip link show dev " + haShellQuote(clusterInterface) + " >/dev/null 2>&1 || { echo " + haShellQuote("cluster interface is missing: "+clusterInterface) + " >&2; exit 16; }; ip -4 -o addr show dev " + haShellQuote(clusterInterface) + " | awk '{print $4}' | cut -d/ -f1 | grep -Fxq " + haShellQuote(clusterAddress) + " || { echo " + haShellQuote("cluster address "+clusterAddress+" is not assigned to interface "+clusterInterface) + " >&2; exit 16; }"
+	}
+	return "; ip -4 -o addr show | awk '{print $4}' | cut -d/ -f1 | grep -Fxq " + haShellQuote(clusterAddress) + " || { echo " + haShellQuote("cluster address "+clusterAddress+" is not assigned") + " >&2; exit 16; }"
+}
+
 func (r *Runner) preflightUnlocked(ctx context.Context, request installation.InstallRequest) (PreflightReport, error) {
 	plan, planErr := installation.CreateBootstrapPlan(request)
 	if planErr == nil {
@@ -820,6 +882,7 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 		if len(request.Infrastructure.NodeAddresses) > 1 {
 			peers = request.Infrastructure.NodeAddresses[1:]
 		}
+		clusterAddresses := effectiveClusterNodeAddresses(request)
 		if err := r.validateSSHHostTrust(peers); err != nil {
 			add("ssh-host-trust", "Validate pinned HA SSH host keys", CheckBlocked, err.Error())
 		} else {
@@ -836,7 +899,12 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 			add("ssh-client", "Verify OpenSSH client availability", CheckPassed, "OpenSSH client is available; SCP is not required")
 			probeRun := Run{Request: request}
 			for index, peer := range peers {
-				if _, err := r.system.Output(ctx, "ssh", r.sshArgs(probeRun, peer, haPeerPreflightCommand(sizing)), nil); err != nil {
+				clusterAddress := ""
+				if index+1 < len(clusterAddresses) {
+					clusterAddress = clusterAddresses[index+1]
+				}
+				command := haPeerPreflightCommand(sizing) + clusterPeerProbeCommand(clusterAddress, request.Infrastructure.ClusterInterface)
+				if _, err := r.system.Output(ctx, "ssh", r.sshArgs(probeRun, peer, command), nil); err != nil {
 					add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckBlocked, fmt.Sprintf("%s: %v", peer, err))
 				} else {
 					add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckPassed, peer+": pinned SSH connectivity, Linux/root/systemd/NTP readiness, clean Kubernetes runtime state and required free ports verified")
@@ -876,6 +944,9 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 		add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckSkipped, "simulation mode does not inspect physical host capacity")
 		add("filesystem", "Verify local runtime filesystem", CheckSkipped, "simulation mode does not inspect the host filesystem type")
 		add("default-route", "Verify management network route and MTU evidence", CheckSkipped, "simulation mode does not inspect the host network route")
+		if request.ProfileID == "production-standard-ha" {
+			add("cluster-network", "Verify HA east-west cluster address", CheckSkipped, "simulation mode does not inspect host interface/address assignment")
+		}
 		add("proxy-bypass", "Verify proxy bypass for management-local endpoints", CheckSkipped, "simulation mode does not inherit host proxy admission")
 		if request.Services.ObjectStorage.Mode == installation.ServiceModeExternal {
 			add("object-storage-reachability", "Verify external object storage endpoint reachability", CheckSkipped, "simulation mode does not execute DNS/TCP endpoint probes")
@@ -911,6 +982,13 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 			add("time-sync", "Verify host time synchronization", CheckBlocked, err.Error())
 		} else {
 			add("time-sync", "Verify host time synchronization", CheckPassed, "host clock is synchronized before certificates, leases and distributed control-plane state are created")
+		}
+		if request.ProfileID == "production-standard-ha" {
+			if detail, err := r.verifyLocalClusterNetwork(ctx, request); err != nil {
+				add("cluster-network", "Verify HA east-west cluster address", CheckBlocked, err.Error())
+			} else {
+				add("cluster-network", "Verify HA east-west cluster address", CheckPassed, detail)
+			}
 		}
 		if capacity, err := r.probeHostCapacity(ctx); err != nil {
 			add("host-sizing", "Verify appliance CPU, memory and disk sizing", CheckBlocked, err.Error())
