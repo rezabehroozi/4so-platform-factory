@@ -1550,7 +1550,12 @@ func TestHAStatusExposesAccessAndEastWestTopology(t *testing.T) {
 }
 
 func TestBootstrapStepsForFunctionalLabMilestones(t *testing.T) {
-	bundle := testBundleManifest()
+	root := t.TempDir()
+	makeBundle(t, root)
+	bundle, _, err := LoadBundle(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		milestone string
 		last      string
