@@ -769,7 +769,7 @@ func TestStatusRemainsReadableWhileBootstrapExecutionIsRunning(t *testing.T) {
 
 func TestBootstrapStepsSkipOptionalOCMWhenNotBundled(t *testing.T) {
 	var bundle BundleManifest
-	steps := bootstrapStepsForBundle(bundle, "")
+	steps := bootstrapStepsForBundle(bundle, "", "")
 	for _, step := range steps {
 		if step.key == "deploy-fleet-hub" || step.key == "verify-fleet-hub" {
 			t.Fatalf("optional OCM step %q must not be scheduled without an OCM artifact", step.key)
@@ -1566,10 +1566,31 @@ func TestBootstrapStepsForFunctionalLabMilestones(t *testing.T) {
 		{"", "revoke-bootstrap-credential"},
 	} {
 		t.Run(tc.milestone, func(t *testing.T) {
-			steps := bootstrapStepsForBundle(bundle, tc.milestone)
+			steps := bootstrapStepsForBundle(bundle, tc.milestone, "")
 			if len(steps) == 0 || steps[len(steps)-1].key != tc.last {
 				t.Fatalf("milestone %q ended at %#v, want %q", tc.milestone, steps, tc.last)
 			}
 		})
+	}
+}
+
+func TestBootstrapStepsForStorageContinuationNeverReplayRKE2(t *testing.T) {
+	root := t.TempDir()
+	makeBundle(t, root)
+	bundle, _, err := LoadBundle(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := bootstrapStepsForBundle(bundle, "ha-storage", "prepare-storage-devices")
+	if len(steps) != 2 {
+		t.Fatalf("storage continuation should contain exactly prepare+deploy storage, got %#v", steps)
+	}
+	if steps[0].key != "prepare-storage-devices" || steps[1].key != "deploy-replicated-storage" {
+		t.Fatalf("unexpected storage continuation steps: %#v", steps)
+	}
+	for _, step := range steps {
+		if step.key == "install-rke2" || step.key == "configure-rke2" || step.key == "stage-bundle" {
+			t.Fatalf("storage continuation must never replay RKE2: %#v", steps)
+		}
 	}
 }
