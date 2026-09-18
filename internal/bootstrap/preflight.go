@@ -990,6 +990,7 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 		add("default-route", "Verify management network route and MTU evidence", CheckSkipped, "simulation mode does not inspect the host network route")
 		if request.ProfileID == "production-standard-ha" {
 			add("cluster-network", "Verify HA east-west cluster address", CheckSkipped, "simulation mode does not inspect host interface/address assignment")
+			add("storage-devices", "Verify dedicated HA storage devices", CheckSkipped, "simulation mode does not inspect local or remote block devices")
 		}
 		add("proxy-bypass", "Verify proxy bypass for management-local endpoints", CheckSkipped, "simulation mode does not inherit host proxy admission")
 		if request.Services.ObjectStorage.Mode == installation.ServiceModeExternal {
@@ -1032,6 +1033,11 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 				add("cluster-network", "Verify HA east-west cluster address", CheckBlocked, err.Error())
 			} else {
 				add("cluster-network", "Verify HA east-west cluster address", CheckPassed, detail)
+			}
+			if detail, err := r.verifyHAStorageDevices(ctx, request); err != nil {
+				add("storage-devices", "Verify dedicated HA storage devices", CheckBlocked, err.Error())
+			} else {
+				add("storage-devices", "Verify dedicated HA storage devices", CheckPassed, detail)
 			}
 		}
 		if capacity, err := r.probeHostCapacity(ctx); err != nil {
