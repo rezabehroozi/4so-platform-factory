@@ -224,3 +224,24 @@ data:
 		t.Fatalf("ambiguous desired-state authority was not rejected: %v", err)
 	}
 }
+
+func TestUpsertGitOpsObserverTokenSupportsMultilineFoundationMetadata(t *testing.T) {
+	raw := []byte(`apiVersion: v1
+kind: Secret
+metadata:
+  name: platform-internal-services
+  namespace: platform-system
+  annotations:
+    platform.4so.io/bootstrap-owner: 4so-platform-installer
+type: Opaque
+data:
+  session-secret: c2Vzc2lvbg==
+`)
+	updated, err := upsertGitOpsObserverTokenInFoundationManifest(raw, "observer-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), "argocd-observer-token: "+base64.StdEncoding.EncodeToString([]byte("observer-token"))) {
+		t.Fatalf("multiline foundation metadata was not recognized:\n%s", updated)
+	}
+}

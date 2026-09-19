@@ -271,8 +271,11 @@ func upsertGitOpsObserverTokenInFoundationManifest(raw []byte, token string) ([]
 	documents := strings.Split(string(raw), "\n---\n")
 	matched := 0
 	for index, document := range documents {
-		if !strings.Contains(document, "kind: Secret") ||
-			!strings.Contains(document, "metadata: {name: platform-internal-services, namespace: platform-system") {
+		isInternalServicesSecret := strings.Contains(document, "kind: Secret") && (
+			strings.Contains(document, "metadata: {name: platform-internal-services, namespace: platform-system") ||
+			(strings.Contains(document, "\n  name: platform-internal-services\n") &&
+				strings.Contains(document, "\n  namespace: platform-system\n")))
+		if !isInternalServicesSecret {
 			continue
 		}
 		matched++
