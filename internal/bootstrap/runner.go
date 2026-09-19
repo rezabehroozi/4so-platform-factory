@@ -1091,6 +1091,13 @@ func (r *Runner) deployFoundation(ctx context.Context, run Run, bundle BundleMan
 	return nil
 }
 
+func forgejoAdminBootstrapCommand() string {
+	return `set -eu
+command -v su-exec >/dev/null 2>&1 || { echo "Forgejo image is missing su-exec; refusing root admin CLI execution" >&2; exit 1; }
+su-exec git forgejo admin user list | grep -Eq '(^|[[:space:]])platform-admin([[:space:]]|$)' ||
+  su-exec git forgejo admin user create --admin --username platform-admin --password "$(cat /run/secrets/platform/admin-password)" --email "$(cat /run/secrets/platform/admin-email)" --must-change-password=false`
+}
+
 func (r *Runner) deployInternalGit(ctx context.Context, run Run, bundle BundleManifest) error {
 	if err := r.waitHADatabase(ctx, run, "platform-forgejo-database"); err != nil {
 		return err
@@ -1110,7 +1117,7 @@ func (r *Runner) deployInternalGit(ctx context.Context, run Run, bundle BundleMa
 	if err := r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-system", "rollout", "status", "statefulset/platform-forgejo", "--timeout=10m"}, nil); err != nil {
 		return err
 	}
-	adminCommand := `forgejo admin user list | grep -Eq '(^|[[:space:]])platform-admin([[:space:]]|$)' || forgejo admin user create --admin --username platform-admin --password "$(cat /run/secrets/platform/admin-password)" --email "$(cat /run/secrets/platform/admin-email)" --must-change-password=false`
+	adminCommand := forgejoAdminBootstrapCommand()
 	if err := r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-system", "exec", "statefulset/platform-forgejo", "--", "/bin/sh", "-ec", adminCommand}, nil); err != nil {
 		return fmt.Errorf("initialize Forgejo administrator: %w", err)
 	}
