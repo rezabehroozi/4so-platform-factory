@@ -116,3 +116,126 @@ func TestVerifyGitOpsHandoverPersistsObservedCommit(t *testing.T) {
 		t.Fatalf("status=%+v", status)
 	}
 }
+
+
+type legacyGitOpsMigrationSystem struct {
+	*SimulatedSystem
+	namespaceJSON []byte
+	applicationJSON []byte
+	deletedApplication bool
+	deletedNamespace bool
+}
+
+func (s *legacyGitOpsMigrationSystem) Output(_ context.Context, name string, args []string, _ map[string]string) ([]byte, error) {
+	joined := strings.Join(args, " ")
+	s.Commands = append(s.Commands, name+" "+joined)
+	switch {
+	case strings.Contains(joined, "get namespace/argocd"):
+		return s.namespaceJSON, nil
+	case strings.Contains(joined, "get application/platform-appliance"):
+		return s.applicationJSON, nil
+	default:
+		return nil, fmt.Errorf("unexpected output command %s %v", name, args)
+	}
+}
+
+func (s *legacyGitOpsMigrationSystem) Run(_ context.Context, name string, args []string, _ map[string]string) error {
+	joined := strings.Join(args, " ")
+	s.Commands = append(s.Commands, name+" "+joined)
+	if strings.Contains(joined, "-n argocd delete application/platform-appliance") {
+		s.deletedApplication = true
+	}
+	if strings.Contains(joined, "delete namespace/argocd") {
+		s.deletedNamespace = true
+	}
+	return nil
+}
+
+func legacyNamespaceJSON(uid string, owned bool) []byte {
+	annotation := ""
+	if owned {
+		annotation = `,"annotations":{"platform.4so.io/bootstrap-owner":"4so-platform-installer"}`
+	}
+	return []byte(fmt.Sprintf(`{"metadata":{"uid":"%s"%s}}`, uid, annotation))
+}
+
+func legacyApplicationJSON(uid, project, repo string) []byte {
+	return []byte(fmt.Sprintf(`{"metadata":{"uid":"%s"},"spec":{"project":"%s","source":{"repoURL":"%s"}}}`, uid, project, repo))
+}
+
+func TestCanonicalGitOpsNamespaceCarriesOwnershipAuthority(t *testing.T) {
+	manifest := string(gitOpsNamespaceManifest())
+	for _, required := range []string{
+		"name: platform-gitops",
+		"platform.4so.io/bootstrap-owner: \"4so-platform-installer\"",
+		"platform.4so.io/gitops-namespace-role: \"canonical\"",
+	} {
+		if !strings.Contains(manifest, required) {
+			t.Fatalf("canonical GitOps namespace is missing %q:\n%s", required, manifest)
+		}
+	}
+}
+
+func TestLegacyGitOpsForeignApplicationIsUntouched(t *testing.T) {
+	root := t.TempDir()
+	system := &legacyGitOpsMigrationSystem{
+		SimulatedSystem: &SimulatedSystem{Root: root},
+		namespaceJSON: legacyNamespaceJSON("legacy-ns-1", false),
+		applicationJSON: legacyApplicationJSON("foreign-app-1", "default", "https://example.invalid/foreign.git"),
+	}
+	runner := &Runner{system: system, now: func() time.Time { return time.Unix(100, 0).UTC() }}
+	if err := runner.deactivateLegacyGitOpsApplication(context.Background()); err != nil { t.Fatal(err) }
+	if system.deletedApplication || system.deletedNamespace {
+		t.Fatalf("foreign legacy Argo authority was mutated: commands=%v", system.Commands)
+	}
+	status, err := runner.GitOpsLegacyMigrationStatus()
+	if err != nil || status == nil || status.State != "FOREIGN_OR_UNUSED_UNTOUCHED" {
+		t.Fatalf("foreign namespace status=%#v err=%v", status, err)
+	}
+}
+
+func TestLegacyGitOpsProductApplicationDeactivatesWithoutDeletingUnownedNamespace(t *testing.T) {
+	root := t.TempDir()
+	repo := "http://platform-forgejo.platform-system.svc.cluster.local:3000/platform/desired-state.git"
+	system := &legacyGitOpsMigrationSystem{
+		SimulatedSystem: &SimulatedSystem{Root: root},
+		namespaceJSON: legacyNamespaceJSON("legacy-ns-2", false),
+		applicationJSON: legacyApplicationJSON("legacy-app-2", "platform", repo),
+	}
+	runner := &Runner{system: system, now: func() time.Time { return time.Unix(101, 0).UTC() }}
+	if err := runner.deactivateLegacyGitOpsApplication(context.Background()); err != nil { t.Fatal(err) }
+	if !system.deletedApplication || system.deletedNamespace {
+		t.Fatalf("product Application deactivation boundary is wrong: commands=%v", system.Commands)
+	}
+	if err := runner.cleanupOwnedLegacyGitOpsNamespace(context.Background()); err != nil { t.Fatal(err) }
+	if system.deletedNamespace {
+		t.Fatal("unowned legacy namespace was deleted")
+	}
+	status, err := runner.GitOpsLegacyMigrationStatus()
+	if err != nil || status == nil || status.State != "PRODUCT_APPLICATION_DEACTIVATED_REVIEW_REQUIRED" {
+		t.Fatalf("review-required status=%#v err=%v", status, err)
+	}
+}
+
+func TestLegacyGitOpsOwnedNamespaceDeletesOnlyAfterProductApplicationDeactivation(t *testing.T) {
+	root := t.TempDir()
+	repo := "http://platform-forgejo.platform-system.svc.cluster.local:3000/platform/desired-state.git"
+	system := &legacyGitOpsMigrationSystem{
+		SimulatedSystem: &SimulatedSystem{Root: root},
+		namespaceJSON: legacyNamespaceJSON("legacy-ns-3", true),
+		applicationJSON: legacyApplicationJSON("legacy-app-3", "platform", repo),
+	}
+	runner := &Runner{system: system, now: func() time.Time { return time.Unix(102, 0).UTC() }}
+	if err := runner.deactivateLegacyGitOpsApplication(context.Background()); err != nil { t.Fatal(err) }
+	if !system.deletedApplication || system.deletedNamespace {
+		t.Fatalf("legacy product Application was not isolated before namespace cleanup: %v", system.Commands)
+	}
+	if err := runner.cleanupOwnedLegacyGitOpsNamespace(context.Background()); err != nil { t.Fatal(err) }
+	if !system.deletedNamespace {
+		t.Fatalf("explicitly product-owned legacy namespace was not deleted: %v", system.Commands)
+	}
+	status, err := runner.GitOpsLegacyMigrationStatus()
+	if err != nil || status == nil || status.State != "OWNED_LEGACY_NAMESPACE_REMOVED" {
+		t.Fatalf("cleanup status=%#v err=%v", status, err)
+	}
+}

@@ -102,6 +102,10 @@ func normalizeGitOpsManifestNamespace(raw []byte) ([]byte, error) {
 	return []byte(strings.Join(lines, "\n")), nil
 }
 
+func gitOpsNamespaceManifest() []byte {
+	return []byte("apiVersion: v1\nkind: Namespace\nmetadata:\n  name: platform-gitops\n  annotations:\n    platform.4so.io/bootstrap-owner: \"4so-platform-installer\"\n    platform.4so.io/gitops-namespace-role: \"canonical\"\n")
+}
+
 func gitOpsManifestForRun(run Run, bundle BundleManifest) (Artifact, error) {
 	if run.Request.ProfileID == "production-standard-ha" {
 		if strings.TrimSpace(bundle.Spec.Workloads.GitOpsHAManifest.Path) == "" {
@@ -138,7 +142,7 @@ func (r *Runner) deployGitOpsController(ctx context.Context, run Run, bundle Bun
 	if err = r.system.WriteFile(gitOpsRuntimeManifestPath, runtimeManifest, 0o600); err != nil {
 		return err
 	}
-	namespaceManifest := []byte("apiVersion: v1\nkind: Namespace\nmetadata:\n  name: platform-gitops\n")
+	namespaceManifest := gitOpsNamespaceManifest()
 	if err = r.system.WriteFile(gitOpsNamespaceManifestPath, namespaceManifest, 0o600); err != nil {
 		return err
 	}
@@ -180,6 +184,9 @@ func (r *Runner) deployGitOpsController(ctx context.Context, run Run, bundle Bun
 		if err = r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "delete", "deployment/argocd-redis", "service/argocd-redis", "--ignore-not-found=true"}, nil); err != nil {
 			return fmt.Errorf("remove legacy single-instance Argo CD Redis after HA readiness: %w", err)
 		}
+	}
+	if err = r.deactivateLegacyGitOpsApplication(ctx); err != nil {
+		return err
 	}
 	if err = r.ensureGitOpsObserverToken(ctx); err != nil {
 		return fmt.Errorf("bootstrap Argo CD observer authority: %w", err)
@@ -391,6 +398,9 @@ func (r *Runner) verifyGitOpsHandover(ctx context.Context) error {
 	status.ObservedDigest = observed
 	status.ObservedCommitSHA = observedCommit
 	status.UpdatedAt = r.now().UTC()
+	if err = r.cleanupOwnedLegacyGitOpsNamespace(ctx); err != nil {
+		return fmt.Errorf("cleanup product-owned legacy GitOps namespace after canonical handover: %w", err)
+	}
 	return r.writeGitOpsStatus(status)
 }
 
