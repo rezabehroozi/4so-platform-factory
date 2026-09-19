@@ -690,6 +690,14 @@ func (r *Runner) HAStatus() (map[string]any, error) {
 	status["storageClass"] = run.Request.Infrastructure.StorageClass
 	status["storageDataDevices"] = append([]string(nil), run.Request.Infrastructure.StorageDataDevices...)
 	status["storageDeviceMode"] = run.Request.Infrastructure.StorageDeviceMode
+	status["availabilityContract"] = map[string]any{
+		"authority": "MANAGEMENT_HA_AVAILABILITY_V1",
+		"platformApi": map[string]any{"mode": "CONTINUOUS_REPLICATED", "replicas": 3, "maintenanceDisruption": "none"},
+		"postgresql": map[string]any{"mode": "QUORUM_REPLICATED", "replicas": 3, "maintenanceDisruption": "none"},
+		"keycloak": map[string]any{"mode": "CONTINUOUS_REPLICATED", "replicas": 2, "maintenanceDisruption": "none"},
+		"forgejo": map[string]any{"mode": "RESTART_FAILOVER", "replicas": 1, "maintenanceDisruption": "brief"},
+		"zot": map[string]any{"mode": "RESTART_FAILOVER", "replicas": 1, "maintenanceDisruption": "brief"},
+	}
 	mounts := make([]string, 0, len(run.Request.Infrastructure.StorageDataDevices))
 	for index := range run.Request.Infrastructure.StorageDataDevices {
 		mounts = append(mounts, longhornDiskMount(index))
