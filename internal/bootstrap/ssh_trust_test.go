@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"os"
 	"platform.4so.io/factory/internal/installation"
 	"strings"
 	"testing"
@@ -284,5 +285,37 @@ func TestSSHHostKeyRotationFailsClosedOnAmbiguousCrashDigest(t *testing.T) {
 	if err = writePrivateFile(runner.sshKnownHostsPath(), []byte(testKnownHostLine("node-a.internal", 6)+"\n")); err != nil { t.Fatal(err) }
 	if _, err = runner.SSHTrustStatus(); err == nil || !strings.Contains(err.Error(), "outcome is ambiguous") {
 		t.Fatalf("ambiguous crash outcome was not fenced: %v", err)
+	}
+}
+
+
+func TestStoreSSHKnownHostsCannotOverwriteAmbiguousRotationOutcome(t *testing.T) {
+	state := t.TempDir()
+	runner, err := NewRunner(RunnerOptions{Version: "test", BundleDir: t.TempDir(), StateDir: state, System: LocalSystem{}})
+	if err != nil { t.Fatal(err) }
+	oldRaw := []byte(testKnownHostLine("node-a.internal", 2) + "\n")
+	newRaw := []byte(testKnownHostLine("node-a.internal", 8) + "\n")
+	oldEntries, oldNormalized, _ := parseSSHKnownHosts(oldRaw)
+	newEntries, newNormalized, _ := parseSSHKnownHosts(newRaw)
+	if _, err = runner.StoreSSHKnownHosts(oldRaw); err != nil { t.Fatal(err) }
+	evidence := SSHHostTrustRotationEvidence{
+		Authority: sshHostTrustRotationAuthority, ID: "ssh-host-key-rotation-store-fence", Host: "node-a.internal",
+		PreviousFingerprints: canonicalFingerprintSet(oldEntries, "node-a.internal"), NewFingerprints: canonicalFingerprintSet(newEntries, "node-a.internal"),
+		PreviousTrustDigest: trustDigest(oldNormalized), NewTrustDigest: trustDigest(newNormalized), RotatedAt: time.Now().UTC(),
+	}
+	writePreparedSSHRotationJournal(t, runner, evidence)
+	ambiguousRaw := []byte(testKnownHostLine("node-a.internal", 6) + "\n")
+	if err = writePrivateFile(runner.sshKnownHostsPath(), ambiguousRaw); err != nil { t.Fatal(err) }
+	replacement := []byte(testKnownHostLine("node-a.internal", 7) + "\n")
+	if _, err = runner.StoreSSHKnownHosts(replacement); err == nil || !strings.Contains(err.Error(), "outcome is ambiguous") {
+		t.Fatalf("wholesale trust overwrite bypassed ambiguous rotation fence: %v", err)
+	}
+	observed, err := os.ReadFile(runner.sshKnownHostsPath())
+	if err != nil { t.Fatal(err) }
+	_, observedNormalized, err := parseSSHKnownHosts(observed)
+	if err != nil { t.Fatal(err) }
+	_, ambiguousNormalized, _ := parseSSHKnownHosts(ambiguousRaw)
+	if string(observedNormalized) != string(ambiguousNormalized) {
+		t.Fatalf("ambiguous trust was mutated despite fail-closed fence: %q", observedNormalized)
 	}
 }
