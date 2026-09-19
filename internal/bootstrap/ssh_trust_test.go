@@ -7,6 +7,7 @@ import (
 	"platform.4so.io/factory/internal/installation"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testKnownHostLine(host string, fill byte) string {
@@ -152,5 +153,55 @@ func TestHAPeerTimePreparationSeparatesConnectedRepairFromDisconnectedVerify(t *
 	}
 	if !strings.Contains(disconnected, "requires reachable local NTP") || !strings.Contains(disconnected, "NTPSynchronized") {
 		t.Fatalf("disconnected HA time preparation must fail closed on local NTP: %s", disconnected)
+	}
+}
+
+
+func TestSSHHostKeyRotationRequiresExactCurrentFingerprintFence(t *testing.T) {
+	state := t.TempDir()
+	runner, err := NewRunner(RunnerOptions{Version: "test", BundleDir: t.TempDir(), StateDir: state, System: LocalSystem{}, Now: func() time.Time { return time.Date(2026, 9, 19, 20, 0, 0, 0, time.UTC) }})
+	if err != nil { t.Fatal(err) }
+	oldLine := testKnownHostLine("10.0.0.12", 1)
+	peerLine := testKnownHostLine("10.0.0.13", 2)
+	status, err := runner.StoreSSHKnownHosts([]byte(oldLine + "\n" + peerLine + "\n"))
+	if err != nil { t.Fatal(err) }
+	oldFingerprint := canonicalFingerprintSet(status.Entries, "10.0.0.12")[0]
+	newLine := testKnownHostLine("10.0.0.12", 9)
+	replacement := newLine + "\n" + peerLine + "\n"
+	if _, _, err = runner.RotateSSHKnownHost(SSHHostTrustRotationRequest{Host: "10.0.0.12", ExpectedCurrentFingerprints: []string{"SHA256:stale"}, ReplacementKnownHosts: replacement}); err == nil || !strings.Contains(err.Error(), "trust changed since operator review") {
+		t.Fatalf("stale fingerprint fence was not rejected: %v", err)
+	}
+	rotated, evidence, err := runner.RotateSSHKnownHost(SSHHostTrustRotationRequest{Host: "10.0.0.12", ExpectedCurrentFingerprints: []string{oldFingerprint}, ReplacementKnownHosts: replacement})
+	if err != nil { t.Fatal(err) }
+	if evidence.Authority != sshHostTrustRotationAuthority || evidence.Host != "10.0.0.12" || evidence.PreviousFingerprints[0] != oldFingerprint || len(evidence.NewFingerprints) != 1 || evidence.NewFingerprints[0] == oldFingerprint {
+		t.Fatalf("unexpected rotation evidence: %#v", evidence)
+	}
+	if rotated.LastRotation == nil || rotated.LastRotation.ID != evidence.ID {
+		t.Fatalf("rotation status omitted durable evidence: %#v", rotated)
+	}
+	loaded, err := runner.LastSSHHostTrustRotation()
+	if err != nil || loaded == nil || loaded.ID != evidence.ID {
+		t.Fatalf("durable rotation evidence not readable: loaded=%#v err=%v", loaded, err)
+	}
+}
+
+func TestSSHHostKeyRotationCannotMutateOtherPeersOrRunDuringBootstrap(t *testing.T) {
+	state := t.TempDir()
+	runner, err := NewRunner(RunnerOptions{Version: "test", BundleDir: t.TempDir(), StateDir: state, System: LocalSystem{}})
+	if err != nil { t.Fatal(err) }
+	oldLine := testKnownHostLine("node-a.internal", 3)
+	peerLine := testKnownHostLine("node-b.internal", 4)
+	status, err := runner.StoreSSHKnownHosts([]byte(oldLine + "\n" + peerLine + "\n"))
+	if err != nil { t.Fatal(err) }
+	oldFingerprint := canonicalFingerprintSet(status.Entries, "node-a.internal")[0]
+	badPeer := testKnownHostLine("node-b.internal", 8)
+	_, _, err = runner.RotateSSHKnownHost(SSHHostTrustRotationRequest{Host: "node-a.internal", ExpectedCurrentFingerprints: []string{oldFingerprint}, ReplacementKnownHosts: testKnownHostLine("node-a.internal", 7) + "\n" + badPeer + "\n"})
+	if err == nil || !strings.Contains(err.Error(), "non-target peers") {
+		t.Fatalf("cross-peer trust mutation was not rejected: %v", err)
+	}
+	runner.active = true
+	_, _, err = runner.RotateSSHKnownHost(SSHHostTrustRotationRequest{Host: "node-a.internal", ExpectedCurrentFingerprints: []string{oldFingerprint}, ReplacementKnownHosts: testKnownHostLine("node-a.internal", 7) + "\n" + peerLine + "\n"})
+	if err == nil || !errors.Is(err, ErrBootstrapExecutionActive) {
+		t.Fatalf("active bootstrap host-key rotation was not rejected: %v", err)
 	}
 }

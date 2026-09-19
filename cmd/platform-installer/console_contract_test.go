@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -35,7 +37,7 @@ func TestInstallerConsoleJourneyContract(t *testing.T) {
 		}
 	}
 	for _, route := range []string{
-		"/api/v1/status", "/api/v1/access/status", "/api/v1/ssh/trust/status", "/api/v1/secrets/ssh-known-hosts", "/api/v1/profiles", "/api/v1/integrations", "/api/v1/plan", "/api/v1/preflight", "/api/v1/start", "/api/v1/resume",
+		"/api/v1/status", "/api/v1/access/status", "/api/v1/ssh/trust/status", "/api/v1/secrets/ssh-known-hosts", "/api/v1/ssh/trust/rotate", "/api/v1/profiles", "/api/v1/integrations", "/api/v1/plan", "/api/v1/preflight", "/api/v1/start", "/api/v1/resume",
 		"/api/v1/bundle/status", "/api/v1/field-evidence/report", "/api/v1/field-evidence/verify", "/api/v1/diagnostics/report", "/api/v1/diagnostics/verify", "/api/v1/gitops/status", "/api/v1/ha/status", "/api/v1/airgap/status", "/api/v1/disaster-recovery/backup",
 		"/api/v1/disaster-recovery/restore", "/api/v1/lifecycle/backup", "/api/v1/lifecycle/restore", "/api/v1/lifecycle/upgrade", "/api/v1/lifecycle/upgrade-recovery",
 	} {
@@ -292,5 +294,31 @@ func TestInstallerPersianLocalFontContract(t *testing.T) {
 		if strings.Contains(css, remote) {
 			t.Fatalf("Persian font must not depend on remote runtime font source %q", remote)
 		}
+	}
+}
+
+
+func TestInstallerSSHHostKeyRotationRouteUsesFingerprintFence(t *testing.T) {
+	authValue := "test-bootstrap-token-abcdefghijklmnopqrstuvwxyz"
+	access, _, err := installeraccess.LoadOrCreate(t.TempDir(), authValue, time.Now())
+	if err != nil { t.Fatal(err) }
+	runner, err := bootstrap.NewRunner(bootstrap.RunnerOptions{Version: "test", BundleDir: t.TempDir(), StateDir: t.TempDir(), Simulation: true})
+	if err != nil { t.Fatal(err) }
+	keyA := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32))
+	keyB := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{2}, 32))
+	stored, err := runner.StoreSSHKnownHosts([]byte("10.0.0.12 ssh-ed25519 " + keyA + "\n"))
+	if err != nil { t.Fatal(err) }
+	fingerprint := stored.Entries[0].Fingerprint
+	server := &installerServer{access: access, runner: runner, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	mux := http.NewServeMux()
+	server.routes(mux)
+	payload := []byte(`{"host":"10.0.0.12","expectedCurrentFingerprints":["` + fingerprint + `"],"replacementKnownHosts":"10.0.0.12 ssh-ed25519 ` + keyB + `\\n"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/ssh/trust/rotate", bytes.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer "+authValue)
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	mux.ServeHTTP(res, req)
+	if res.Code != http.StatusOK || strings.Contains(res.Body.String(), keyA) || strings.Contains(res.Body.String(), keyB) || !strings.Contains(res.Body.String(), `"rotated":true`) || !strings.Contains(res.Body.String(), "SHA256:") {
+		t.Fatalf("rotation response invalid: status=%d body=%s", res.Code, res.Body.String())
 	}
 }

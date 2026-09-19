@@ -29,10 +29,11 @@ type SSHHostTrustEntry struct {
 }
 
 type SSHTrustStatus struct {
-	PrivateKeyStored bool                `json:"privateKeyStored"`
-	KnownHostsStored bool                `json:"knownHostsStored"`
-	KnownHostsRef    string              `json:"knownHostsRef,omitempty"`
-	Entries          []SSHHostTrustEntry `json:"entries,omitempty"`
+	PrivateKeyStored bool                             `json:"privateKeyStored"`
+	KnownHostsStored bool                             `json:"knownHostsStored"`
+	KnownHostsRef    string                           `json:"knownHostsRef,omitempty"`
+	Entries          []SSHHostTrustEntry              `json:"entries,omitempty"`
+	LastRotation     *SSHHostTrustRotationEvidence    `json:"lastRotation,omitempty"`
 }
 
 func (r *Runner) sshKeyPath() string { return filepath.Join(r.stateDir, "secrets", "ssh-private-key") }
@@ -110,6 +111,11 @@ func (r *Runner) SSHTrustStatus() (SSHTrustStatus, error) {
 	}
 	status.KnownHostsStored = true
 	status.Entries = entries
+	rotation, err := r.LastSSHHostTrustRotation()
+	if err != nil {
+		return status, err
+	}
+	status.LastRotation = rotation
 	return status, nil
 }
 

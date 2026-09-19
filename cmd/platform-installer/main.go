@@ -195,6 +195,7 @@ func (s *installerServer) routes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/ssh/trust/status", s.auth(http.HandlerFunc(s.sshTrustStatus)))
 	mux.Handle("POST /api/v1/secrets/ssh-private-key", s.auth(http.HandlerFunc(s.storeSSHPrivateKey)))
 	mux.Handle("POST /api/v1/secrets/ssh-known-hosts", s.auth(http.HandlerFunc(s.storeSSHKnownHosts)))
+	mux.Handle("POST /api/v1/ssh/trust/rotate", s.auth(http.HandlerFunc(s.rotateSSHKnownHost)))
 	mux.Handle("GET /api/v1/disaster-recovery/runs", s.auth(http.HandlerFunc(s.disasterRecoveryRuns)))
 	mux.Handle("POST /api/v1/disaster-recovery/backup", s.auth(http.HandlerFunc(s.disasterRecoveryBackup)))
 	mux.Handle("POST /api/v1/disaster-recovery/restore", s.auth(http.HandlerFunc(s.disasterRecoveryRestore)))
@@ -375,6 +376,25 @@ func (s *installerServer) verifyDiagnostics(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *installerServer) rotateSSHKnownHost(w http.ResponseWriter, r *http.Request) {
+	var request bootstrap.SSHHostTrustRotationRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	status, evidence, err := s.runner.RotateSSHKnownHost(request)
+	if err != nil {
+		if errors.Is(err, bootstrap.ErrBootstrapExecutionActive) {
+			writeError(w, http.StatusConflict, "SSH_TRUST_ROTATION_CONFLICT", err.Error())
+		} else {
+			writeError(w, http.StatusUnprocessableEntity, "SSH_TRUST_ROTATION_REJECTED", err.Error())
+		}
+		return
+	}
+	s.logger.Info("HA SSH host key rotated", "host", evidence.Host, "rotation_id", evidence.ID, "new_fingerprints", evidence.NewFingerprints)
+	writeJSON(w, http.StatusOK, map[string]any{"rotated": true, "evidence": evidence, "trust": status})
 }
 
 func (s *installerServer) airgapStatus(w http.ResponseWriter, _ *http.Request) {
