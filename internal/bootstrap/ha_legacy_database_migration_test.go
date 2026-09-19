@@ -12,9 +12,11 @@ type legacyHADatabaseMigrationSystem struct {
 	databaseOwner   string
 	legacyObjects   int
 	targetRole      bool
-	workloadExists  bool
-	workloadReplicas int
-	scaled           bool
+	workloadExists             bool
+	workloadReplicas            int
+	platformOwnedDatabases      []string
+	platformOwnedTablespaces    []string
+	scaled                      bool
 }
 
 func (s *legacyHADatabaseMigrationSystem) record(name string, args []string) string {
@@ -33,6 +35,10 @@ func (s *legacyHADatabaseMigrationSystem) Output(_ context.Context, name string,
 			return []byte("1\n"), nil
 		}
 		return []byte("0\n"), nil
+	case strings.Contains(line, "FROM pg_database WHERE datdba="):
+		return []byte(strings.Join(s.platformOwnedDatabases, "\n")), nil
+	case strings.Contains(line, "FROM pg_tablespace WHERE spcowner="):
+		return []byte(strings.Join(s.platformOwnedTablespaces, "\n")), nil
 	case strings.Contains(line, "pg_get_userbyid(datdba)"):
 		return []byte(s.databaseOwner + "\n"), nil
 	case strings.Contains(line, "pg_shdepend"):
@@ -95,6 +101,7 @@ func TestLegacyHAServiceDatabaseOwnershipMigrationQuiescesBeforeReassign(t *test
 		SimulatedSystem: &SimulatedSystem{Root: t.TempDir()},
 		databaseOwner: "platform", legacyObjects: 4, targetRole: true,
 		workloadExists: true, workloadReplicas: 1,
+		platformOwnedDatabases: []string{"forgejo", "keycloak", "platform_factory"},
 	}
 	runner := &Runner{system: system}
 	if err := runner.reconcileLegacyHAServiceDatabaseOwnership(context.Background(), haMigrationRun("production-standard-ha"), "forgejo", "forgejo", "platform-forgejo"); err != nil {
@@ -130,6 +137,7 @@ func TestLegacyHAServiceDatabaseOwnershipMigrationRepairsPartialOwnership(t *tes
 		SimulatedSystem: &SimulatedSystem{Root: t.TempDir()},
 		databaseOwner: "keycloak", legacyObjects: 2, targetRole: true,
 		workloadExists: true, workloadReplicas: 2,
+		platformOwnedDatabases: []string{"forgejo", "platform_factory"},
 	}
 	runner := &Runner{system: system}
 	if err := runner.reconcileLegacyHAServiceDatabaseOwnership(context.Background(), haMigrationRun("production-standard-ha"), "keycloak", "keycloak", "platform-keycloak"); err != nil {
@@ -195,5 +203,69 @@ func TestLegacyHAServiceDatabaseOwnershipMigrationRejectsUnregisteredTarget(t *t
 	}
 	if len(system.Commands) != 0 {
 		t.Fatalf("unregistered target reached runtime authority: %v", system.Commands)
+	}
+}
+
+func TestLegacyHAServiceDatabaseOwnershipMigrationPreservesOtherSharedDatabaseOwners(t *testing.T) {
+	system := &legacyHADatabaseMigrationSystem{
+		SimulatedSystem: &SimulatedSystem{Root: t.TempDir()},
+		databaseOwner: "platform", legacyObjects: 3, targetRole: true,
+		workloadExists: true, workloadReplicas: 1,
+		platformOwnedDatabases: []string{"forgejo", "keycloak", "platform_factory"},
+	}
+	runner := &Runner{system: system}
+	if err := runner.reconcileLegacyHAServiceDatabaseOwnership(context.Background(), haMigrationRun("production-standard-ha"), "forgejo", "forgejo", "platform-forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	reassign := commandIndex(system.Commands, "REASSIGN OWNED BY platform TO forgejo")
+	if reassign < 0 {
+		t.Fatalf("ownership migration command missing: %v", system.Commands)
+	}
+	command := system.Commands[reassign]
+	for _, expected := range []string{
+		"BEGIN; REASSIGN OWNED BY platform TO forgejo",
+		"ALTER DATABASE forgejo OWNER TO forgejo",
+		"ALTER DATABASE keycloak OWNER TO platform",
+		"ALTER DATABASE platform_factory OWNER TO platform",
+		"COMMIT;",
+	} {
+		if !strings.Contains(command, expected) {
+			t.Fatalf("shared database ownership was not preserved; missing %q in %s", expected, command)
+		}
+	}
+}
+
+func TestLegacyHAServiceDatabaseOwnershipMigrationRejectsUnexpectedPlatformOwnedDatabase(t *testing.T) {
+	system := &legacyHADatabaseMigrationSystem{
+		SimulatedSystem: &SimulatedSystem{Root: t.TempDir()},
+		databaseOwner: "platform", legacyObjects: 1, targetRole: true,
+		workloadExists: true, workloadReplicas: 1,
+		platformOwnedDatabases: []string{"forgejo", "platform_factory", "foreign_database"},
+	}
+	runner := &Runner{system: system}
+	err := runner.reconcileLegacyHAServiceDatabaseOwnership(context.Background(), haMigrationRun("production-standard-ha"), "forgejo", "forgejo", "platform-forgejo")
+	if err == nil || !strings.Contains(err.Error(), "unexpected product database") {
+		t.Fatalf("unexpected platform-owned database was not rejected: %v", err)
+	}
+	if system.scaled || commandIndex(system.Commands, "REASSIGN OWNED") >= 0 {
+		t.Fatalf("mutation occurred before shared-database admission: commands=%v", system.Commands)
+	}
+}
+
+func TestLegacyHAServiceDatabaseOwnershipMigrationRejectsPlatformOwnedTablespace(t *testing.T) {
+	system := &legacyHADatabaseMigrationSystem{
+		SimulatedSystem: &SimulatedSystem{Root: t.TempDir()},
+		databaseOwner: "platform", legacyObjects: 1, targetRole: true,
+		workloadExists: true, workloadReplicas: 1,
+		platformOwnedDatabases: []string{"forgejo", "platform_factory"},
+		platformOwnedTablespaces: []string{"unexpected_tablespace"},
+	}
+	runner := &Runner{system: system}
+	err := runner.reconcileLegacyHAServiceDatabaseOwnership(context.Background(), haMigrationRun("production-standard-ha"), "forgejo", "forgejo", "platform-forgejo")
+	if err == nil || !strings.Contains(err.Error(), "shared tablespace") {
+		t.Fatalf("platform-owned shared tablespace was not rejected: %v", err)
+	}
+	if system.scaled || commandIndex(system.Commands, "REASSIGN OWNED") >= 0 {
+		t.Fatalf("mutation occurred before tablespace admission: commands=%v", system.Commands)
 	}
 }

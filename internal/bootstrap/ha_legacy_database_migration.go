@@ -63,6 +63,18 @@ func parseHAServiceDatabaseCount(label, raw string) (int, error) {
 	return value, nil
 }
 
+func parseHAServiceDatabaseNames(label, raw string) ([]string, error) {
+	values := strings.Fields(raw)
+	for _, value := range values {
+		switch value {
+		case "platform_factory", "forgejo", "keycloak":
+		default:
+			return nil, fmt.Errorf("%s returned unexpected product database %q", label, value)
+		}
+	}
+	return values, nil
+}
+
 func (r *Runner) quiesceLegacyHAServiceWorkload(ctx context.Context, workload string) error {
 	kubectl := "/var/lib/rancher/rke2/bin/kubectl"
 	kubeconfig := "/etc/rancher/rke2/rke2.yaml"
@@ -168,18 +180,46 @@ func (r *Runner) reconcileLegacyHAServiceDatabaseOwnership(ctx context.Context, 
 	if databaseOwner == owner && legacyObjects == 0 {
 		return nil
 	}
+	sharedDatabasesRaw, err := r.haServiceDatabaseQuery(ctx, primary, "postgres",
+		"SELECT datname FROM pg_database WHERE datdba=(SELECT oid FROM pg_roles WHERE rolname='platform') ORDER BY datname")
+	if err != nil {
+		return fmt.Errorf("inspect platform-owned shared databases before HA service migration for %s: %w", database, err)
+	}
+	sharedDatabases, err := parseHAServiceDatabaseNames("platform-owned shared database inventory", sharedDatabasesRaw)
+	if err != nil {
+		return err
+	}
+	sharedDatabaseSet := make(map[string]struct{}, len(sharedDatabases))
+	for _, sharedDatabase := range sharedDatabases {
+		sharedDatabaseSet[sharedDatabase] = struct{}{}
+	}
+	if databaseOwner == "platform" {
+		if _, ok := sharedDatabaseSet[database]; !ok {
+			return fmt.Errorf("HA service database %s reports owner platform but is absent from the shared database ownership inventory", database)
+		}
+	}
+	platformTablespacesRaw, err := r.haServiceDatabaseQuery(ctx, primary, "postgres",
+		"SELECT spcname FROM pg_tablespace WHERE spcowner=(SELECT oid FROM pg_roles WHERE rolname='platform') ORDER BY spcname")
+	if err != nil {
+		return fmt.Errorf("inspect platform-owned shared tablespaces before HA service migration for %s: %w", database, err)
+	}
+	if tablespaces := strings.Fields(platformTablespacesRaw); len(tablespaces) != 0 {
+		return fmt.Errorf("platform role owns shared tablespace(s) %q; refusing HA service database migration that could transfer shared ownership", strings.Join(tablespaces, ","))
+	}
 	if err = r.quiesceLegacyHAServiceWorkload(ctx, workload); err != nil {
 		return err
 	}
-	if err = r.haServiceDatabaseRun(ctx, primary, database,
-		fmt.Sprintf("REASSIGN OWNED BY platform TO %s;", owner)); err != nil {
-		return fmt.Errorf("reassign legacy HA service database %s objects to %s: %w", database, owner, err)
-	}
-	if databaseOwner != owner {
-		if err = r.haServiceDatabaseRun(ctx, primary, "postgres",
-			fmt.Sprintf("ALTER DATABASE %s OWNER TO %s;", database, owner)); err != nil {
-			return fmt.Errorf("transfer HA service database %s owner to %s: %w", database, owner, err)
+	statements := []string{"BEGIN", fmt.Sprintf("REASSIGN OWNED BY platform TO %s", owner)}
+	for _, sharedDatabase := range sharedDatabases {
+		desiredOwner := "platform"
+		if sharedDatabase == database {
+			desiredOwner = owner
 		}
+		statements = append(statements, fmt.Sprintf("ALTER DATABASE %s OWNER TO %s", sharedDatabase, desiredOwner))
+	}
+	statements = append(statements, "COMMIT")
+	if err = r.haServiceDatabaseRun(ctx, primary, database, strings.Join(statements, "; ")+";"); err != nil {
+		return fmt.Errorf("reassign legacy HA service database %s objects to %s while preserving shared database ownership: %w", database, owner, err)
 	}
 	verifiedOwner, err := r.haServiceDatabaseQuery(ctx, primary, "postgres",
 		fmt.Sprintf("SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname='%s'", database))
