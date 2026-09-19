@@ -170,7 +170,12 @@ def main() -> int:
         ssh_log = root / "ssh.log"
         fake_ssh = fake_bin / "ssh"
         fake_ssh.write_text(
-            "#!/usr/bin/env bash\nset -euo pipefail\nprintf '%q ' \"$@\" >> \"$FAKE_SSH_LOG\"\nprintf '\\n' >> \"$FAKE_SSH_LOG\"\ncmd=\"${!#}\"\nexec bash -c \"$cmd\"\n",
+            "#!/usr/bin/env bash\nset -euo pipefail\nprintf '%q ' \"$@\" >> \"$FAKE_SSH_LOG\"\nprintf '\\n' >> \"$FAKE_SSH_LOG\"\ncmd=\"${!#}\"\n"
+            "if [[ \"$cmd\" == *'$(id -u)'* && \"$cmd\" == *'$(uname -s)'* && \"$cmd\" == *'$(uname -m)'* ]]; then\n"
+            "  printf 'Linux %s 0\\n' \"$(uname -m)\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "exec bash -c \"$cmd\"\n",
             encoding="utf-8",
         )
         fake_ssh.chmod(0o755)
