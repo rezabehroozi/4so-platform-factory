@@ -207,3 +207,15 @@ Every progress report for 4SO Platform Factory MUST include these fields, even w
 - Fast Lab TLS remains temporary/self-signed and is not final certificate-authority evidence. Whole-appliance off-node DR still requires the persisted S3-compatible backup authority and authenticated installer mutation path.
 - Final sealed current-main release and Exact-SHA Physical Runtime Certification remain NOT RUN.
 - Resume rule after connection loss: read `C:\ProgramData\4so-platform-factory\parallel-waves\LATEST.txt`, inspect that wave's `state.json`, and do not start duplicate work. If the detached runner is still active, observe only. If it is no longer active, rerun the exact same spec and state directory; SUCCEEDED tasks are skipped and unfinished/interrupted tasks consume only their remaining attempt budget.
+
+## Current handoff checkpoint - 2026-09-19 detached five-lane resilience wave
+
+- Large-jump execution is now the default operational model for long development/Lab work: independent work is split into bounded parallel tasks under `scripts/parallel_wave.py`, started detached, checkpointed atomically, retried per task, and resumed from the same exact spec/state directory after controller or Remote Commander disconnects.
+- Operational latest-wave pointer: `C:\ProgramData\4so-platform-factory\parallel-waves\LATEST.txt`. Before starting new work after reconnect, read this file and inspect the referenced `state.json`. Never start a duplicate wave while its detached runner is active.
+- Real detached resilience wave `wave-resilience-20260919-1601` ran with five workers in parallel: repository validator, core Go regression, Lab core health, public HA probes, and Git-main integrity. Every task completed `SUCCEEDED` on attempt 1.
+- The wave heartbeat/checkpoint survived independently of the Remote Commander client. Exact wave spec digest: `sha256:b8d47fd44c86d2e1f849faef01ffb5aae52c26b43662e09ec2d6a1cbd605ab82`. Successful tasks are skipped on exact-spec resume; interrupted tasks are marked `INTERRUPTED` and only unfinished work consumes remaining attempt budget.
+- Repository validator advanced to `REPOSITORY_VALIDATION_PASS 1007`; test-suite authority gate reports 288. Core Go regression covering bootstrap, disaster recovery, lifecycle, and installer passed.
+- Lab health in the detached wave: vm-lab06/07/08 all RKE2 Ready; Platform API 3/3; Forgejo 1/1; Keycloak 2/2; CNPG 3/3 healthy with primary `platform-postgresql-1`; Zot 1/1; Argo Application `platform-appliance` remains `Synced/Healthy` at revision `9f01acf9a4c2fafb795d173930fefb45cd389743`.
+- Public HA probes returned HTTP 200 for Platform API, Forgejo, Keycloak and Zot through each management-node public IP `.136`, `.137`, `.138`.
+- Connection-timeout operating rule: detached waves continue without the chat/controller connection. On reconnect, inspect `LATEST.txt` + `state.json`; if the runner is still alive, observe only. If it is gone, rerun the same spec/state directory so completed work is not repeated.
+
