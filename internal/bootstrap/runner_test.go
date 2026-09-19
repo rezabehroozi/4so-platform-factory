@@ -1675,10 +1675,23 @@ func TestProductionHAKeycloakManifestIncludesPDB(t *testing.T) {
 func TestSucceededInstallRequiresResetBeforeAnotherStart(t *testing.T) {
 	bundleDir := t.TempDir()
 	makeBundle(t, bundleDir)
+	stateDir := t.TempDir()
 	system := &SimulatedSystem{Root: t.TempDir()}
-	runner, err := NewRunner(RunnerOptions{Version: "0.0.109", BundleDir: bundleDir, StateDir: t.TempDir(), Simulation: true, System: system})
+	runner, err := NewRunner(RunnerOptions{Version: "0.0.109", BundleDir: bundleDir, StateDir: stateDir, Simulation: true, System: system})
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, path := range []string{
+		filepath.Join(stateDir, "bootstrap-token"),
+		filepath.Join(stateDir, "secrets", "ssh-private-key"),
+		filepath.Join(stateDir, "secrets", "ssh-known-hosts"),
+	} {
+		if err = os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(path, []byte("operator-input\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	first, err := runner.Start(context.Background(), bootstrapRequest())
 	if err != nil || first.State != RunSucceeded {
