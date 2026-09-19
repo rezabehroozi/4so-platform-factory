@@ -115,7 +115,7 @@ def main() -> int:
             for _ in range(140):
                 status,body=request(base+'/api/v1/status',token); assert status==200
                 reset_runs=body.get('resetRuns') or []
-                profile_reset=reset_runs[-1] if reset_runs else None
+                profile_reset=next((item for item in reversed(reset_runs) if item.get('sourceRunId')==final['id']),None)
                 if profile_reset and profile_reset['state'] in ('SUCCEEDED','FAILED'): break
                 time.sleep(.05)
             assert profile_reset and profile_reset['state']=='SUCCEEDED',profile_reset
@@ -167,7 +167,7 @@ def main() -> int:
             for _ in range(140):
                 status,body=request(base+'/api/v1/status',token); assert status==200
                 reset_runs=body.get('resetRuns') or []
-                reset_final=reset_runs[-1] if reset_runs else None
+                reset_final=next((item for item in reversed(reset_runs) if item.get('sourceRunId')==ha_final['id']),None)
                 if reset_final and reset_final['state'] in ('SUCCEEDED','FAILED'): break
                 time.sleep(.05)
             assert reset_final and reset_final['state']=='SUCCEEDED',reset_final
