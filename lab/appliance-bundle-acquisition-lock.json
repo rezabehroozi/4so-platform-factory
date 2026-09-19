@@ -95,11 +95,11 @@
       "artifacts": [
         {
           "name": "install.yaml",
-          "sha256": "a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe",
-          "sizeBytes": 1917766,
+          "sha256": "65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6",
+          "sizeBytes": 1969264,
           "stagingPath": "manifests/argocd-install.yaml",
           "urls": [
-            "https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/install.yaml"
+            "https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/ha/install.yaml"
           ]
         }
       ],

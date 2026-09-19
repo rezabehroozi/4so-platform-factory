@@ -986,7 +986,7 @@ class LabRunnerContractTests(unittest.TestCase):
                 {"role":"maintenance-toolchain-base","state":"pending","blocker":"EXACT_DIGEST_REQUIRED_TOOLSET_AND_ROOT_OVERRIDE_COMPATIBILITY_PENDING"}
             ],
             "derivedManifestImageSets": [
-                {"sourceAuthority":"argocd-install-manifest","manifestPath":"manifests/argocd-install.yaml","sourceManifestSha256":"sha256:a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe","sourceManifestBytes":1917766,"resolvedManifestPath":"runtime-manifests/argocd-install.yaml","resolutionLockPath":"runtime-manifests/argocd-install.image-lock.json","state":"pending","blocker":"EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING"},
+                {"sourceAuthority":"argocd-install-manifest","manifestPath":"manifests/argocd-install.yaml","sourceManifestSha256":"sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6","sourceManifestBytes":1969264,"resolvedManifestPath":"runtime-manifests/argocd-install.yaml","resolutionLockPath":"runtime-manifests/argocd-install.image-lock.json","state":"pending","blocker":"EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING"},
                 {"sourceAuthority":"cloudnative-pg-install-manifest","manifestPath":"manifests/cloudnative-pg-install.yaml","sourceManifestSha256":"sha256:f8bede43fe4ee0d478c2355b204a36876b2ae4faac60f2a9452280b293da3b88","sourceManifestBytes":1262410,"resolvedManifestPath":"runtime-manifests/cloudnative-pg-install.yaml","resolutionLockPath":"runtime-manifests/cloudnative-pg-install.image-lock.json","state":"pending","blocker":"EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING"},
                 {"sourceAuthority":"replicated-storage-install-manifest","manifestPath":"manifests/replicated-storage-install.yaml","sourceManifestSha256":"sha256:41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd","sourceManifestBytes":207054,"resolvedManifestPath":"runtime-manifests/replicated-storage-install.yaml","resolutionLockPath":"runtime-manifests/replicated-storage-install.image-lock.json","state":"pending","blocker":"EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING"}
             ],
@@ -1210,9 +1210,9 @@ class LabRunnerContractTests(unittest.TestCase):
         self.assertEqual("https://raw.githubusercontent.com/rancher/rke2/d419f09226d50a4777d348e5c53ea1bce3849b77/install.sh", rke2_install["urls"][0])
         argocd = by_id["argocd-install-manifest"]
         argocd_install = argocd["artifacts"][0]
-        self.assertEqual("a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe", argocd_install["sha256"])
-        self.assertEqual(1917766, argocd_install["sizeBytes"])
-        self.assertEqual("https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/install.yaml", argocd_install["urls"][0])
+        self.assertEqual("65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6", argocd_install["sha256"])
+        self.assertEqual(1969264, argocd_install["sizeBytes"])
+        self.assertEqual("https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/ha/install.yaml", argocd_install["urls"][0])
 
     def test_shipped_management_workload_image_build_plan_is_explicit_and_incomplete(self):
         version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
