@@ -579,3 +579,26 @@ func TestDatabaseVolumeSizeDefaultAndValidation(t *testing.T) {
 		t.Fatalf("invalid database volume size was not rejected: %+v", plan.Blockers)
 	}
 }
+
+func TestProductionHAPlanDisclosesRestartFailoverServices(t *testing.T) {
+	r := validRequest()
+	r.Infrastructure.CredentialRef = "secret://installer/ssh-private-key"
+	r.Infrastructure.StorageClass = "replicated-rwx"
+	r.Network.TLSMode = "managed-private-ca"
+	r.Services.ObjectStorage.Bucket = "platform-backups"
+	r.Services.ObjectStorage.CredentialRef = "external-secret://platform-system/s3-credentials"
+	plan, err := CreateBootstrapPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, warning := range plan.Warnings {
+		if strings.Contains(warning, "Forgejo and Zot") && strings.Contains(warning, "restart-failover") && strings.Contains(warning, "brief maintenance interruption") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("production HA plan did not disclose singleton restart-failover services: %#v", plan.Warnings)
+	}
+}
