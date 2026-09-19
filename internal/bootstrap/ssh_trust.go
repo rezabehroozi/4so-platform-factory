@@ -63,6 +63,9 @@ func (r *Runner) StoreSSHKnownHosts(raw []byte) (SSHTrustStatus, error) {
 	if r.active {
 		return SSHTrustStatus{}, fmt.Errorf("%w: HA SSH host trust cannot change while bootstrap execution is active", ErrBootstrapExecutionActive)
 	}
+	if err := r.reconcileSSHHostTrustRotation(); err != nil {
+		return SSHTrustStatus{}, err
+	}
 	entries, normalized, err := parseSSHKnownHosts(raw)
 	if err != nil {
 		return SSHTrustStatus{}, err
