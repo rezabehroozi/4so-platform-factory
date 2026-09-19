@@ -30,15 +30,15 @@ func (s *legacyHADatabaseMigrationSystem) Output(_ context.Context, name string,
 	switch {
 	case strings.Contains(line, "get cluster/platform-postgresql") && strings.Contains(line, "currentPrimary"):
 		return []byte("platform-postgresql-1\n"), nil
+	case strings.Contains(line, "FROM pg_database WHERE datdba="):
+		return []byte(strings.Join(s.platformOwnedDatabases, "\n")), nil
+	case strings.Contains(line, "FROM pg_tablespace WHERE spcowner="):
+		return []byte(strings.Join(s.platformOwnedTablespaces, "\n")), nil
 	case strings.Contains(line, "FROM pg_roles"):
 		if s.targetRole {
 			return []byte("1\n"), nil
 		}
 		return []byte("0\n"), nil
-	case strings.Contains(line, "FROM pg_database WHERE datdba="):
-		return []byte(strings.Join(s.platformOwnedDatabases, "\n")), nil
-	case strings.Contains(line, "FROM pg_tablespace WHERE spcowner="):
-		return []byte(strings.Join(s.platformOwnedTablespaces, "\n")), nil
 	case strings.Contains(line, "pg_get_userbyid(datdba)"):
 		return []byte(s.databaseOwner + "\n"), nil
 	case strings.Contains(line, "pg_shdepend"):
