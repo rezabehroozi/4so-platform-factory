@@ -220,7 +220,11 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
         )
         self.assertEqual(3, proc.returncode)
         self.assertNotIn("UPSTREAM_ADMISSION_NOT_READY", proc.stderr)
-        self.assertIn("ACQUISITION_TOOLCHAIN_TOOL_MISSING", proc.stderr)
+        self.assertRegex(
+            proc.stderr,
+            r"ACQUISITION_TOOLCHAIN_(?:TOOL_MISSING|VERSION_MISMATCH)",
+            "the source-admission check must pass before the exact acquisition toolchain fails closed",
+        )
 
     def test_acquisition_rejects_direct_version_source_bypass_before_tool_or_network_use(self):
         proc = subprocess.run(
