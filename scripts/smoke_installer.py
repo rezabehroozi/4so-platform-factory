@@ -106,6 +106,22 @@ def main() -> int:
             assert host_key not in json.dumps(trust_result),trust_result
             status,trust_status=request(base+'/api/v1/ssh/trust/status',token); assert status==200 and trust_status['knownHostsStored'] is True and all(item['fingerprint'].startswith('SHA256:') for item in trust_status['entries']),trust_status
             assert host_key not in json.dumps(trust_status),trust_status
+
+            # A completed installation revokes its bootstrap credential durably.
+            # Changing profiles therefore requires the same explicit journaled Reset
+            # authority as a real reinstall; a second Start must never resurrect it.
+            status,_=request(base+'/api/v1/reset/start',token,'POST',{}, {'X-Confirm-Reset':'reset:'+final['id']}); assert status==202
+            profile_reset=None
+            for _ in range(140):
+                status,body=request(base+'/api/v1/status',token); assert status==200
+                reset_runs=body.get('resetRuns') or []
+                profile_reset=reset_runs[-1] if reset_runs else None
+                if profile_reset and profile_reset['state'] in ('SUCCEEDED','FAILED'): break
+                time.sleep(.05)
+            assert profile_reset and profile_reset['state']=='SUCCEEDED',profile_reset
+            assert all(step['state']=='SUCCEEDED' for step in profile_reset['steps']),profile_reset
+            status,after_profile_reset=request(base+'/api/v1/status',token); assert status==200 and after_profile_reset.get('run') is None,after_profile_reset
+
             ha_installation={'profileId':'production-standard-ha','connectivity':'disconnected','infrastructure':{'provider':'existing-hosts','existingCluster':False,'nodeAddresses':['10.0.0.11','10.0.0.12','10.0.0.13'],'clusterNodeAddresses':['10.77.35.11','10.77.35.12','10.77.35.13'],'clusterInterface':'ens35','credentialRef':'secret://installer/ssh-private-key','sshUser':'root','storageClass':'replicated-rwx','storageDataDevices':['/dev/sdb','/dev/sdc','/dev/sdd'],'storageDeviceMode':'format-empty'},'network':{'publicEndpoint':'https://platform.example.test','dnsZone':'example.test','tlsMode':'managed-private-ca'},'services':{'git':{'mode':'managed-internal'},'registry':{'mode':'managed-internal'},'database':{'mode':'managed-internal'},'objectStorage':{'mode':'external','provider':'s3-compatible','url':'https://s3.example.test','credentialRef':'external-secret://platform-system/s3-credentials','bucket':'platform-backups','prefix':'factory'},'identity':{'mode':'managed-internal','adminEmail':'admin@example.test'}},'acceptRisk':True}
             status,ha_plan=request(base+'/api/v1/plan',token,'POST',{'installation':ha_installation}); assert status==200 and ha_plan['plan']['executable'] is True and ha_plan['plan']['authorityGate']=='bootstrap-ha-local-journal',ha_plan
             status,ha_preflight=request(base+'/api/v1/preflight',token,'POST',{'installation':ha_installation}); assert status==200 and ha_preflight['state']=='PASSED',ha_preflight
@@ -168,7 +184,7 @@ def main() -> int:
                 time.sleep(.05)
             assert reinstall and reinstall['state']=='SUCCEEDED',reinstall
             assert all(step['state']=='SUCCEEDED' for step in reinstall['steps']),reinstall
-            print('INSTALLER_HTTP_SIMULATION_SMOKE_PASS',final['id'],ha_final['id'],lifecycle['id'],dr['id'],reset_final['id'],reinstall['id'],field_verify['evidenceDigest'],diagnostic_verify['digest'])
+            print('INSTALLER_HTTP_SIMULATION_SMOKE_PASS',final['id'],profile_reset['id'],ha_final['id'],lifecycle['id'],dr['id'],reset_final['id'],reinstall['id'],field_verify['evidenceDigest'],diagnostic_verify['digest'])
             return 0
         finally:
             process.terminate()
