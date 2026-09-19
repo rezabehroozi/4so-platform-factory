@@ -15,10 +15,12 @@ import (
 )
 
 const (
-	gitOpsPrivateKeyPath  = "/var/lib/4so-platform-installer/secrets/gitops-signing-key"
-	gitOpsStatusPath      = "/var/lib/4so-platform-installer/gitops-handover.json"
-	gitOpsManifestPath    = "/var/lib/4so-platform-installer/bundle/gitops/argocd-install.yaml"
-	catalogSigningKeyPath = "/var/lib/4so-platform-installer/secrets/catalog-signing-key"
+	gitOpsPrivateKeyPath        = "/var/lib/4so-platform-installer/secrets/gitops-signing-key"
+	gitOpsStatusPath            = "/var/lib/4so-platform-installer/gitops-handover.json"
+	gitOpsManifestPath          = "/var/lib/4so-platform-installer/bundle/gitops/argocd-install.yaml"
+	gitOpsRuntimeManifestPath   = "/var/lib/4so-platform-installer/bundle/gitops/argocd-install.platform-gitops.yaml"
+	gitOpsNamespaceManifestPath = "/var/lib/4so-platform-installer/bundle/gitops/platform-gitops-namespace.yaml"
+	catalogSigningKeyPath       = "/var/lib/4so-platform-installer/secrets/catalog-signing-key"
 )
 
 type GitOpsHandoverStatus struct {
@@ -85,6 +87,21 @@ func (r *Runner) loadGitOpsSigningKey() (ed25519.PrivateKey, error) {
 	return ed25519.PrivateKey(decoded), nil
 }
 
+func normalizeGitOpsManifestNamespace(raw []byte) ([]byte, error) {
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return nil, fmt.Errorf("Argo CD install manifest is empty")
+	}
+	lines := strings.Split(string(raw), "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "namespace: argocd" {
+			indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+			lines[i] = indent + "namespace: platform-gitops"
+		}
+	}
+	return []byte(strings.Join(lines, "\n")), nil
+}
+
 func (r *Runner) deployGitOpsController(ctx context.Context, bundle BundleManifest) error {
 	source, err := safeBundlePath(r.bundleDir, bundle.Spec.Workloads.GitOpsManifest.Path)
 	if err != nil {
@@ -97,7 +114,15 @@ func (r *Runner) deployGitOpsController(ctx context.Context, bundle BundleManife
 	if err != nil {
 		return err
 	}
-	if err = r.system.WriteFile("/var/lib/rancher/rke2/server/manifests/4so-platform-argocd.yaml", raw, 0o600); err != nil {
+	runtimeManifest, err := normalizeGitOpsManifestNamespace(raw)
+	if err != nil {
+		return err
+	}
+	if err = r.system.WriteFile(gitOpsRuntimeManifestPath, runtimeManifest, 0o600); err != nil {
+		return err
+	}
+	namespaceManifest := []byte("apiVersion: v1\nkind: Namespace\nmetadata:\n  name: platform-gitops\n")
+	if err = r.system.WriteFile(gitOpsNamespaceManifestPath, namespaceManifest, 0o600); err != nil {
 		return err
 	}
 	if r.simulation {
@@ -105,6 +130,12 @@ func (r *Runner) deployGitOpsController(ctx context.Context, bundle BundleManife
 	}
 	kubectl := "/var/lib/rancher/rke2/bin/kubectl"
 	kubeconfig := "/etc/rancher/rke2/rke2.yaml"
+	if err = r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "apply", "--server-side", "--force-conflicts", "-f", gitOpsNamespaceManifestPath}, nil); err != nil {
+		return fmt.Errorf("create platform-gitops namespace: %w", err)
+	}
+	if err = r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "apply", "--server-side", "--force-conflicts", "-f", gitOpsRuntimeManifestPath}, nil); err != nil {
+		return fmt.Errorf("apply Argo CD controller manifest: %w", err)
+	}
 	if err = waitUntil(ctx, 2*time.Second, 5*time.Minute, func() error {
 		return r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "get", "configmap", "argocd-cmd-params-cm"}, nil)
 	}); err != nil {
@@ -116,11 +147,7 @@ func (r *Runner) deployGitOpsController(ctx context.Context, bundle BundleManife
 	if err = r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "restart", "deployment/argocd-server"}, nil); err != nil {
 		return fmt.Errorf("restart Argo CD server after internal HTTP configuration: %w", err)
 	}
-	checks := [][]string{
-		{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "deployment/argocd-server", "--timeout=10m"},
-		{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "deployment/argocd-repo-server", "--timeout=10m"},
-		{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "statefulset/argocd-application-controller", "--timeout=10m"},
-	}
+	checks := [][]string{{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "deployment/argocd-server", "--timeout=10m"}, {"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "deployment/argocd-repo-server", "--timeout=10m"}, {"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "statefulset/argocd-application-controller", "--timeout=10m"}}
 	for _, args := range checks {
 		if err = r.system.Run(ctx, kubectl, args, nil); err != nil {
 			return err
@@ -128,7 +155,6 @@ func (r *Runner) deployGitOpsController(ctx context.Context, bundle BundleManife
 	}
 	return nil
 }
-
 func (r *Runner) initialSignedRevision(run Run) (gitops.Revision, string, string, error) {
 	privateKey, err := r.loadGitOpsSigningKey()
 	if err != nil {

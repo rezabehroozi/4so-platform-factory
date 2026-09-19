@@ -201,8 +201,13 @@ func TestSimulatedBootstrapCompletesAndResumes(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(systemRoot, "var/lib/rancher/rke2/server/manifests/4so-platform-foundation.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"4so-platform-forgejo.yaml", "4so-platform-zot.yaml", "4so-platform-keycloak.yaml", "4so-platform-exposure.yaml", "4so-platform-argocd.yaml", "4so-platform-gitops-application.yaml", "4so-platform-ocm.yaml"} {
+	for _, name := range []string{"4so-platform-forgejo.yaml", "4so-platform-zot.yaml", "4so-platform-keycloak.yaml", "4so-platform-exposure.yaml", "4so-platform-gitops-application.yaml", "4so-platform-ocm.yaml"} {
 		if _, err = os.Stat(filepath.Join(systemRoot, "var/lib/rancher/rke2/server/manifests", name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, relative := range []string{"var/lib/4so-platform-installer/bundle/gitops/argocd-install.yaml", "var/lib/4so-platform-installer/bundle/gitops/argocd-install.platform-gitops.yaml", "var/lib/4so-platform-installer/bundle/gitops/platform-gitops-namespace.yaml"} {
+		if _, err = os.Stat(filepath.Join(systemRoot, relative)); err != nil {
 			t.Fatal(err)
 		}
 	}

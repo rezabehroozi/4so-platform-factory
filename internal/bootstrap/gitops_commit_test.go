@@ -37,6 +37,24 @@ func (s *gitOpsVerifySystem) RunInput(ctx context.Context, name string, args []s
 	return s.SimulatedSystem.RunInput(ctx, name, args, env, input)
 }
 
+func TestNormalizeGitOpsManifestNamespace(t *testing.T) {
+	raw := []byte("metadata:\n  labels:\n    app.kubernetes.io/part-of: argocd\nsubjects:\n- kind: ServiceAccount\n  name: argocd-server\n  namespace: argocd\n")
+	got, err := normalizeGitOpsManifestNamespace(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(got)
+	if strings.Contains(text, "namespace: argocd") || !strings.Contains(text, "namespace: platform-gitops") {
+		t.Fatalf("namespace was not normalized:\n%s", text)
+	}
+	if !strings.Contains(text, "app.kubernetes.io/part-of: argocd") || !strings.Contains(text, "name: argocd-server") {
+		t.Fatalf("non-namespace Argo identity was rewritten:\n%s", text)
+	}
+	if _, err = normalizeGitOpsManifestNamespace([]byte("  \n")); err == nil {
+		t.Fatal("empty Argo CD manifest was accepted")
+	}
+}
+
 func TestVerifyGitOpsHandoverRequiresExactPublishedCommit(t *testing.T) {
 	desiredCommit := strings.Repeat("a", 40)
 	if err := validateObservedGitOpsCommit(desiredCommit, strings.Repeat("c", 40)); err == nil || !strings.Contains(err.Error(), "observed commit") {
