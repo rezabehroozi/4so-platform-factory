@@ -16,7 +16,7 @@ import sys
 AUTHORITY = "UI_BROWSER_AUTHORITY_V1"
 ENV_AUTHORITY = "PLATFORM_FACTORY_UI_BROWSER_AUTHORITY"
 ENV_EXECUTABLE = "PLATFORM_FACTORY_UI_BROWSER_EXECUTABLE"
-SHA_RE = re.compile(r"(?:sha256:)?([0-9a-f]{64})\\Z")
+SHA_RE = re.compile(r"(?:sha256:)?([0-9a-f]{64})")
 
 
 def file_sha256(path: Path) -> str:
