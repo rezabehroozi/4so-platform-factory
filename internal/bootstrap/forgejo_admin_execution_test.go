@@ -21,7 +21,10 @@ func TestForgejoAdminBootstrapNeverRunsForgejoCLIAsRoot(t *testing.T) {
 			t.Fatalf("Forgejo admin CLI can run outside the git user boundary: %q", line)
 		}
 	}
-	if adminLines != 2 {
-		t.Fatalf("expected list/create Forgejo admin operations, got %d in %q", adminLines, command)
+	if adminLines != 3 {
+		t.Fatalf("expected list/change-password/create Forgejo admin operations, got %d in %q", adminLines, command)
+	}
+	if !strings.Contains(command, "forgejo admin user change-password --username platform-admin") {
+		t.Fatal("existing Forgejo administrator is not converged to the persisted product credential")
 	}
 }

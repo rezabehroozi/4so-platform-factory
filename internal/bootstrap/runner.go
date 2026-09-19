@@ -1094,8 +1094,11 @@ func (r *Runner) deployFoundation(ctx context.Context, run Run, bundle BundleMan
 func forgejoAdminBootstrapCommand() string {
 	return `set -eu
 command -v su-exec >/dev/null 2>&1 || { echo "Forgejo image is missing su-exec; refusing root admin CLI execution" >&2; exit 1; }
-su-exec git forgejo admin user list | grep -Eq '(^|[[:space:]])platform-admin([[:space:]]|$)' ||
-  su-exec git forgejo admin user create --admin --username platform-admin --password "$(cat /run/secrets/platform/admin-password)" --email "$(cat /run/secrets/platform/admin-email)" --must-change-password=false`
+if su-exec git forgejo admin user list | grep -Eq '(^|[[:space:]])platform-admin([[:space:]]|$)'; then
+  su-exec git forgejo admin user change-password --username platform-admin --password "$(cat /run/secrets/platform/admin-password)"
+else
+  su-exec git forgejo admin user create --admin --username platform-admin --password "$(cat /run/secrets/platform/admin-password)" --email "$(cat /run/secrets/platform/admin-email)" --must-change-password=false
+fi`
 }
 
 func (r *Runner) deployInternalGit(ctx context.Context, run Run, bundle BundleManifest) error {
