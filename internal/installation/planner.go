@@ -481,6 +481,9 @@ func CreatePlanWithCapabilities(request InstallRequest, capabilities RuntimeCapa
 				blockers = append(blockers, "production-standard-ha storageClass must be a valid lowercase DNS subdomain")
 			}
 		}
+		if fullExecution {
+			warnings = append(warnings, "production-standard-ha keeps Platform API, PostgreSQL and Keycloak continuously replicated, while managed Forgejo and Zot use single-replica restart-failover and can have brief maintenance interruption")
+		}
 		if fullExecution && (request.Services.ObjectStorage.Mode != ServiceModeExternal || request.Services.ObjectStorage.Bucket == "") {
 			blockers = append(blockers, "production-standard-ha requires external S3-compatible object storage with bucket")
 		}
