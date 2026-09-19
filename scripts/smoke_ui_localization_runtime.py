@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import argparse
+import os
 import sys
 import shutil
 
@@ -21,7 +22,7 @@ def main() -> int:
     args = parser.parse_args()
     root = Path(args.root).resolve()
     with sync_playwright() as pw:
-        chromium = shutil.which("chromium") or shutil.which("google-chrome") or pw.chromium.executable_path
+        chromium = os.environ.get("PLATFORM_FACTORY_UI_BROWSER_EXECUTABLE", "").strip() or shutil.which("chromium") or shutil.which("google-chrome") or pw.chromium.executable_path
         browser = pw.chromium.launch(headless=True, executable_path=chromium, args=["--no-sandbox"])
         context = browser.new_context(viewport={"width": 1280, "height": 900})
         page = context.new_page()

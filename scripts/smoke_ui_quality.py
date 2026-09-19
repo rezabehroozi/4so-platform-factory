@@ -442,7 +442,7 @@ def main(argv: list[str] | None = None) -> int:
     if run_matrix and args.scope in {"all", "installer"} and not installer_routes:
         failures.append(f"installer:empty-shard:{shard_index}/{shard_count}")
 
-    system_chromium = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+    system_chromium = os.environ.get("PLATFORM_FACTORY_UI_BROWSER_EXECUTABLE", "").strip() or shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
     coverage: dict[str, dict[str, int]] = {}
     with sync_playwright() as playwright:
         chromium = system_chromium or playwright.chromium.executable_path

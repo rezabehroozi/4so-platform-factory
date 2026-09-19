@@ -160,7 +160,7 @@ def install_real_api_bridge(page, api_base: str) -> None:
 def main() -> int:
     parser=argparse.ArgumentParser(); parser.add_argument("binary"); parser.add_argument("root",nargs="?",default="."); args=parser.parse_args()
     binary=Path(args.binary).resolve(); root=Path(args.root).resolve()
-    system_chromium=shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+    system_chromium=os.environ.get("PLATFORM_FACTORY_UI_BROWSER_EXECUTABLE","").strip() or shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
     with tempfile.TemporaryDirectory() as temp:
         process,base,api_base=start(binary,root,Path(temp)/"state.json")
         status,identity_mapping=api_req(api_base,"/api/v1/identity/group-mappings","POST",{"group":"ui-live-platform-admins","productRole":"platform-admin"}); assert status==201,(status,identity_mapping)

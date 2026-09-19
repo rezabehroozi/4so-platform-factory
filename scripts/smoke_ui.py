@@ -849,7 +849,7 @@ def assert_compatibility_ui_contract(root: Path) -> None:
 
 def run_single_viewport(root: Path, kind: str, width: int) -> dict[str, object]:
     from playwright.sync_api import sync_playwright
-    system_chromium = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+    system_chromium = os.environ.get("PLATFORM_FACTORY_UI_BROWSER_EXECUTABLE", "").strip() or shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
     playwright = sync_playwright().start()
     browser = None
     try:

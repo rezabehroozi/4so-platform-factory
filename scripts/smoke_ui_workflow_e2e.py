@@ -549,7 +549,7 @@ def main() -> int:
     args = parser.parse_args()
     api_binary = Path(args.platform_api).resolve()
     installer_binary = Path(args.platform_installer).resolve()
-    chromium = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+    chromium = os.environ.get("PLATFORM_FACTORY_UI_BROWSER_EXECUTABLE", "").strip() or shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
     if not chromium:
         raise SystemExit("C4_E2E_BROWSER_MISSING")
     evidence_dir = Path(args.evidence_dir).resolve() if args.evidence_dir else Path(tempfile.mkdtemp(prefix="4so-c4-e2e-"))

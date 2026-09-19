@@ -18,6 +18,8 @@ import sys
 import tempfile
 import zipfile
 
+from ui_browser_authority import prepare_full_verifier_browser
+
 RELEASE_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*\Z")
 MANIFEST_KEYS = {"schemaVersion", "product", "version", "releaseName", "fileCount", "files"}
 MANIFEST_FILE_KEYS = {"path", "sha256", "size", "mode"}
@@ -434,6 +436,17 @@ def main() -> int:
             )
             verify_environment = os.environ.copy()
             verify_environment["PLATFORM_FACTORY_DEVELOPMENT_MODE"] = "true"
+            try:
+                browser_executable, browser_authority = prepare_full_verifier_browser(verify_environment)
+            except ValueError as exc:
+                raise SystemExit(str(exc)) from exc
+            print(
+                "UI_BROWSER_AUTHORITY_GATE_PASS",
+                browser_authority["version"],
+                browser_authority["sha256"],
+                browser_executable,
+                flush=True,
+            )
 
             # Checkpoint-safe package execution: all packages are still covered,
             # but each package has its own Go timeout and each shard is an
