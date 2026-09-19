@@ -144,6 +144,7 @@ var generatedInstallerStateRelativePaths = []string{
 	"preflight-report.json",
 	"install-request.json",
 	"gitops-handover.json",
+	"bootstrap-credential.revoked",
 	"bootstrap-object-identities",
 	"ha-nodes",
 	"lifecycle-runs.json",

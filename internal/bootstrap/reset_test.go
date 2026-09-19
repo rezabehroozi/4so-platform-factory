@@ -40,6 +40,9 @@ func TestJournaledResetPreservesOperatorInputsAndAllowsCleanReinstall(t *testing
 	if err != nil || first.State != RunSucceeded {
 		t.Fatalf("first install state=%s err=%v", first.State, err)
 	}
+	if !system.Exists(bootstrapCredentialRevokedPath) {
+		t.Fatal("successful install must leave durable bootstrap revocation evidence")
+	}
 	// A foreign Kubernetes marker must never be deleted by the product reset.
 	if err = system.WriteFile("/etc/rancher/k3s/foreign-marker", []byte("foreign\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -51,6 +54,9 @@ func TestJournaledResetPreservesOperatorInputsAndAllowsCleanReinstall(t *testing
 	}
 	if source, err := runner.Status(); err != nil || source != nil {
 		t.Fatalf("bootstrap authority must be removed after reset: source=%+v err=%v", source, err)
+	}
+	if system.Exists(bootstrapCredentialRevokedPath) {
+		t.Fatal("reset did not clear bootstrap revocation tombstone")
 	}
 	for _, path := range operatorInputs {
 		if _, err := os.Stat(path); err != nil {

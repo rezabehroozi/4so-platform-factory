@@ -205,6 +205,9 @@ func (r *Runner) Start(ctx context.Context, request installation.InstallRequest)
 	if err != nil {
 		return Run{}, err
 	}
+	if r.system.Exists(bootstrapCredentialRevokedPath) {
+		return Run{}, errors.New("bootstrap credential is durably revoked; perform an explicit reset before starting another installation")
+	}
 	if current != nil && current.State != RunSucceeded {
 		return Run{}, fmt.Errorf("bootstrap run %s is %s and must be resumed before a new start", current.ID, current.State)
 	}
@@ -701,7 +704,18 @@ func (r *Runner) bindBootstrapObject(ctx context.Context, runID, kind, name stri
 	return snapshot, nil
 }
 
-const foundationManifestPath = "/var/lib/rancher/rke2/server/manifests/4so-platform-foundation.yaml"
+const (
+	foundationManifestPath = "/var/lib/rancher/rke2/server/manifests/4so-platform-foundation.yaml"
+	bootstrapCredentialRevokedPath = "/var/lib/4so-platform-installer/bootstrap-credential.revoked"
+	bootstrapCredentialRevokedAuthority = "INSTALLER_BOOTSTRAP_CREDENTIAL_REVOKED_V1"
+)
+
+func (r *Runner) persistBootstrapCredentialRevocationTombstone() error {
+	if err := r.system.WriteFile(bootstrapCredentialRevokedPath, []byte(bootstrapCredentialRevokedAuthority+"\n"), 0o600); err != nil {
+		return fmt.Errorf("persist bootstrap credential revocation tombstone: %w", err)
+	}
+	return nil
+}
 
 func sanitizeBootstrapCredentialManifest(raw []byte) ([]byte, error) {
 	text := string(raw)
@@ -753,7 +767,7 @@ func (r *Runner) persistBootstrapCredentialRevocation() error {
 
 func (r *Runner) revokeBootstrapCredential(ctx context.Context, runID string) error {
 	if r.simulation {
-		return nil
+		return r.persistBootstrapCredentialRevocationTombstone()
 	}
 	// Remove the credential from the durable RKE2 desired-state source before
 	// mutating live objects. Otherwise a reboot/reconciliation can resurrect a
@@ -834,6 +848,9 @@ func (r *Runner) revokeBootstrapCredential(ctx context.Context, runID string) er
 					return fmt.Errorf("bootstrap token remains configured on platform-api")
 				}
 			}
+			if err = r.persistBootstrapCredentialRevocationTombstone(); err != nil {
+				return err
+			}
 			remover, ok := r.system.(interface{ Remove(string) error })
 			if !ok {
 				return errors.New("bootstrap system does not support removal of revoked credentials")
@@ -862,6 +879,9 @@ func (r *Runner) preflight(ctx context.Context, run Run, _ BundleManifest) error
 }
 
 func (r *Runner) prepareHost(run Run) error {
+	if r.system.Exists(bootstrapCredentialRevokedPath) {
+		return errors.New("bootstrap credential is durably revoked; reset is required before preparing a new installation")
+	}
 	for path, mode := range map[string]os.FileMode{
 		"/etc/rancher/rke2":                             0o700,
 		"/var/lib/rancher/rke2/agent/images":            0o700,
