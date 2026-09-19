@@ -187,6 +187,10 @@ def _file_digest(path: Path) -> str:
     return "sha256:" + digest.hexdigest()
 
 
+def _runner_digest() -> str:
+    return _file_digest(Path(__file__).resolve())
+
+
 def _task_input_binding(task: dict[str, Any]) -> list[dict[str, str]]:
     return [{"path": str(path), "digest": _file_digest(path)} for path in _task_input_paths(task)]
 
@@ -243,10 +247,11 @@ def _exclusive_state(state_dir: Path):
         os.close(fd)
 
 
-def _initial_state(spec_digest: str, tasks: list[dict[str, Any]], input_bindings: dict[str, list[dict[str, str]]]) -> dict[str, Any]:
+def _initial_state(spec_digest: str, tasks: list[dict[str, Any]], input_bindings: dict[str, list[dict[str, str]]], runner_digest: str) -> dict[str, Any]:
     return {
         "schemaVersion": SCHEMA_VERSION,
         "specDigest": spec_digest,
+        "runnerDigest": runner_digest,
         "inputBindings": input_bindings,
         "createdAt": _now(),
         "updatedAt": _now(),
@@ -261,12 +266,14 @@ def _initial_state(spec_digest: str, tasks: list[dict[str, Any]], input_bindings
     }
 
 
-def _load_or_init_state(path: Path, spec_digest: str, tasks: list[dict[str, Any]], input_bindings: dict[str, list[dict[str, str]]]) -> dict[str, Any]:
+def _load_or_init_state(path: Path, spec_digest: str, tasks: list[dict[str, Any]], input_bindings: dict[str, list[dict[str, str]]], runner_digest: str) -> dict[str, Any]:
     if not path.exists():
-        return _initial_state(spec_digest, tasks, input_bindings)
+        return _initial_state(spec_digest, tasks, input_bindings, runner_digest)
     state = _load_json(path)
     if state.get("schemaVersion") != SCHEMA_VERSION or state.get("specDigest") != spec_digest:
         raise SystemExit("parallel wave state is bound to a different spec; use a new state directory")
+    if state.get("runnerDigest") != runner_digest:
+        raise SystemExit("parallel wave runner changed after acceptance; resume with the state-bound runner snapshot")
     if state.get("inputBindings") != input_bindings:
         raise SystemExit("parallel wave task inputs changed after acceptance; use a new state directory")
     known = {t["id"] for t in tasks}
@@ -320,10 +327,11 @@ def run_wave(spec: dict[str, Any], state_dir: Path, max_workers: int) -> int:
     logs_dir = state_dir / "logs"
     by_id = {t["id"]: t for t in tasks}
     input_bindings = _input_bindings(tasks)
+    runner_digest = _runner_digest()
     stop_heartbeat = threading.Event()
 
     with _exclusive_state(state_dir):
-        state = _load_or_init_state(state_path, digest, tasks, input_bindings)
+        state = _load_or_init_state(state_path, digest, tasks, input_bindings, runner_digest)
         _atomic_json(state_path, state)
 
         def heartbeat() -> None:
@@ -430,10 +438,48 @@ def run_wave(spec: dict[str, Any], state_dir: Path, max_workers: int) -> int:
             hb.join(timeout=3)
 
 
+def _ensure_runner_snapshot(state_dir: Path, source: Path | None = None) -> Path:
+    state_dir.mkdir(parents=True, exist_ok=True)
+    source = (source or Path(__file__)).resolve()
+    snapshot = state_dir / "parallel_wave.runner.py"
+    state_path = state_dir / "state.json"
+
+    if snapshot.exists() and state_path.exists():
+        state = _load_json(state_path)
+        expected = state.get("runnerDigest")
+        if not isinstance(expected, str) or not expected.startswith("sha256:"):
+            raise SystemExit("parallel wave state has no valid runner digest; use a new state directory")
+        if _file_digest(snapshot) != expected:
+            raise SystemExit("parallel wave runner snapshot changed after acceptance")
+        return snapshot
+
+    raw = source.read_bytes()
+    fd, name = tempfile.mkstemp(prefix=snapshot.name + ".tmp.", dir=state_dir)
+    tmp = Path(name)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp, snapshot)
+        if os.name != "nt":
+            snapshot.chmod(0o500)
+            dfd = os.open(state_dir, os.O_RDONLY)
+            try:
+                os.fsync(dfd)
+            finally:
+                os.close(dfd)
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            tmp.unlink()
+    return snapshot
+
+
 def _detach(argv: list[str], state_dir: Path) -> int:
     state_dir.mkdir(parents=True, exist_ok=True)
     log_path = state_dir / "runner.log"
-    child = [sys.executable, str(Path(__file__).resolve())] + argv
+    runner = _ensure_runner_snapshot(state_dir)
+    child = [sys.executable, str(runner)] + argv
     with log_path.open("ab", buffering=0) as log:
         kwargs: dict[str, Any] = {
             "stdin": subprocess.DEVNULL, "stdout": log, "stderr": subprocess.STDOUT,

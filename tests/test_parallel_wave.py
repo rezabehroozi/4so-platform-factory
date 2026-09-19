@@ -135,6 +135,34 @@ class ParallelWaveTests(unittest.TestCase):
             self.assertEqual(1, row["attempts"])
             self.assertIn("input binding changed", row["lastError"])
 
+    def test_runner_snapshot_is_immutable_after_state_binding(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            state_dir = root / "state"
+            source = root / "runner-source.py"
+            source.write_text("print('v1')\n", encoding="utf-8")
+            snapshot = mod._ensure_runner_snapshot(state_dir, source)
+            self.assertEqual("print('v1')\n", snapshot.read_text(encoding="utf-8"))
+            mod._atomic_json(state_dir / "state.json", {"runnerDigest": mod._file_digest(snapshot)})
+            source.write_text("print('v2')\n", encoding="utf-8")
+            again = mod._ensure_runner_snapshot(state_dir, source)
+            self.assertEqual(snapshot, again)
+            self.assertEqual("print('v1')\n", again.read_text(encoding="utf-8"))
+
+    def test_runner_snapshot_tampering_fails_closed(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            state_dir = root / "state"
+            source = root / "runner-source.py"
+            source.write_text("print('v1')\n", encoding="utf-8")
+            snapshot = mod._ensure_runner_snapshot(state_dir, source)
+            mod._atomic_json(state_dir / "state.json", {"runnerDigest": mod._file_digest(snapshot)})
+            if sys.platform != "win32":
+                snapshot.chmod(0o700)
+            snapshot.write_text("print('tampered')\n", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                mod._ensure_runner_snapshot(state_dir, source)
+
     def test_state_is_bound_to_exact_spec(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
