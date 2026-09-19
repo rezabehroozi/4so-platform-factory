@@ -543,7 +543,7 @@ func (r *Runner) executeStep(ctx context.Context, key string, run Run) error {
 	case "bootstrap-repository":
 		return r.bootstrapRepository(ctx, run, bundle)
 	case "deploy-gitops-controller":
-		return r.deployGitOpsController(ctx, bundle)
+		return r.deployGitOpsController(ctx, run, bundle)
 	case "publish-signed-revision":
 		return r.publishSignedRevision(ctx, run, bundle)
 	case "verify-gitops-handover":

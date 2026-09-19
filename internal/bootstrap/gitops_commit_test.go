@@ -55,6 +55,37 @@ func TestNormalizeGitOpsManifestNamespace(t *testing.T) {
 	}
 }
 
+func TestGitOpsManifestSelectionIsProfileAware(t *testing.T) {
+	var bundle BundleManifest
+	bundle.Spec.Workloads.GitOpsManifest = Artifact{Path: "artifacts/argocd-standard.yaml", SHA256: "sha256:" + strings.Repeat("a", 64)}
+	bundle.Spec.Workloads.GitOpsHAManifest = Artifact{Path: "artifacts/argocd-ha.yaml", SHA256: "sha256:" + strings.Repeat("b", 64)}
+
+	single := Run{}
+	single.Request.ProfileID = "evaluation-single-node"
+	got, err := gitOpsManifestForRun(single, bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Path != bundle.Spec.Workloads.GitOpsManifest.Path {
+		t.Fatalf("single-node selected %q, want standard manifest", got.Path)
+	}
+
+	ha := Run{}
+	ha.Request.ProfileID = "production-standard-ha"
+	got, err = gitOpsManifestForRun(ha, bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Path != bundle.Spec.Workloads.GitOpsHAManifest.Path {
+		t.Fatalf("HA selected %q, want HA manifest", got.Path)
+	}
+
+	bundle.Spec.Workloads.GitOpsHAManifest = Artifact{}
+	if _, err = gitOpsManifestForRun(ha, bundle); err == nil || !strings.Contains(err.Error(), "requires a digest-locked GitOps HA") {
+		t.Fatalf("production HA accepted a bundle without HA GitOps authority: %v", err)
+	}
+}
+
 func TestVerifyGitOpsHandoverRequiresExactPublishedCommit(t *testing.T) {
 	desiredCommit := strings.Repeat("a", 40)
 	if err := validateObservedGitOpsCommit(desiredCommit, strings.Repeat("c", 40)); err == nil || !strings.Contains(err.Error(), "observed commit") {

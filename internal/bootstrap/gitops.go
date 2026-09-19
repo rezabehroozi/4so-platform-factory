@@ -102,8 +102,25 @@ func normalizeGitOpsManifestNamespace(raw []byte) ([]byte, error) {
 	return []byte(strings.Join(lines, "\n")), nil
 }
 
-func (r *Runner) deployGitOpsController(ctx context.Context, bundle BundleManifest) error {
-	source, err := safeBundlePath(r.bundleDir, bundle.Spec.Workloads.GitOpsManifest.Path)
+func gitOpsManifestForRun(run Run, bundle BundleManifest) (Artifact, error) {
+	if run.Request.ProfileID == "production-standard-ha" {
+		if strings.TrimSpace(bundle.Spec.Workloads.GitOpsHAManifest.Path) == "" {
+			return Artifact{}, fmt.Errorf("production-standard-ha requires a digest-locked GitOps HA install manifest")
+		}
+		return bundle.Spec.Workloads.GitOpsHAManifest, nil
+	}
+	if strings.TrimSpace(bundle.Spec.Workloads.GitOpsManifest.Path) == "" {
+		return Artifact{}, fmt.Errorf("GitOps install manifest is required")
+	}
+	return bundle.Spec.Workloads.GitOpsManifest, nil
+}
+
+func (r *Runner) deployGitOpsController(ctx context.Context, run Run, bundle BundleManifest) error {
+	artifact, err := gitOpsManifestForRun(run, bundle)
+	if err != nil {
+		return err
+	}
+	source, err := safeBundlePath(r.bundleDir, artifact.Path)
 	if err != nil {
 		return err
 	}
@@ -148,9 +165,20 @@ func (r *Runner) deployGitOpsController(ctx context.Context, bundle BundleManife
 		return fmt.Errorf("restart Argo CD server after internal HTTP configuration: %w", err)
 	}
 	checks := [][]string{{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "deployment/argocd-server", "--timeout=10m"}, {"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "deployment/argocd-repo-server", "--timeout=10m"}, {"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "statefulset/argocd-application-controller", "--timeout=10m"}}
+	if run.Request.ProfileID == "production-standard-ha" {
+		checks = append(checks,
+			[]string{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "statefulset/argocd-redis-ha-server", "--timeout=10m"},
+			[]string{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "rollout", "status", "deployment/argocd-redis-ha-haproxy", "--timeout=10m"},
+		)
+	}
 	for _, args := range checks {
 		if err = r.system.Run(ctx, kubectl, args, nil); err != nil {
 			return err
+		}
+	}
+	if run.Request.ProfileID == "production-standard-ha" {
+		if err = r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-gitops", "delete", "deployment/argocd-redis", "service/argocd-redis", "--ignore-not-found=true"}, nil); err != nil {
+			return fmt.Errorf("remove legacy single-instance Argo CD Redis after HA readiness: %w", err)
 		}
 	}
 	if err = r.ensureGitOpsObserverToken(ctx); err != nil {

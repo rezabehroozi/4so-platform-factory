@@ -55,6 +55,7 @@ type BuildSpec struct {
 			KeycloakImage         string   `json:"keycloakImage"`
 			MaintenanceImage      string   `json:"maintenanceImage"`
 			GitOpsManifest        string   `json:"gitOpsManifest"`
+			GitOpsHAManifest      string   `json:"gitOpsHAManifest,omitempty"`
 			CloudNativePGManifest string   `json:"cloudNativePGManifest"`
 			StorageManifest       string   `json:"storageManifest"`
 			OCMManifest           string   `json:"ocmManifest"`
@@ -181,6 +182,13 @@ func Build(specPath, stagingDir, outputDir string) (BuildResult, error) {
 	if err != nil {
 		return BuildResult{}, err
 	}
+	var gitopsHA bootstrap.Artifact
+	if strings.TrimSpace(spec.Spec.Workloads.GitOpsHAManifest) != "" {
+		gitopsHA, err = copyOne(spec.Spec.Workloads.GitOpsHAManifest)
+		if err != nil {
+			return BuildResult{}, err
+		}
+	}
 	cnpg, err := copyOne(spec.Spec.Workloads.CloudNativePGManifest)
 	if err != nil {
 		return BuildResult{}, err
@@ -212,6 +220,7 @@ func Build(specPath, stagingDir, outputDir string) (BuildResult, error) {
 	manifest.Spec.Workloads.KeycloakImage = spec.Spec.Workloads.KeycloakImage
 	manifest.Spec.Workloads.MaintenanceImage = spec.Spec.Workloads.MaintenanceImage
 	manifest.Spec.Workloads.GitOpsManifest = gitops
+	manifest.Spec.Workloads.GitOpsHAManifest = gitopsHA
 	manifest.Spec.Workloads.CloudNativePGManifest = cnpg
 	manifest.Spec.Workloads.OCMManifest = ocm
 	manifest.Spec.Workloads.StorageManifest = storage
@@ -222,6 +231,9 @@ func Build(specPath, stagingDir, outputDir string) (BuildResult, error) {
 		name string
 		path string
 	}{{"GitOps", gitops.Path}, {"CloudNativePG", cnpg.Path}, {"replicated storage", storage.Path}}
+	if strings.TrimSpace(gitopsHA.Path) != "" {
+		manifestInputs = append(manifestInputs, struct{ name, path string }{"GitOps HA", gitopsHA.Path})
+	}
 	if strings.TrimSpace(ocm.Path) != "" {
 		manifestInputs = append(manifestInputs, struct{ name, path string }{"OCM", ocm.Path})
 	}
@@ -310,6 +322,9 @@ func validateSpec(spec BuildSpec) error {
 		return errors.New("metadata.sourceReleaseDigest must be a lowercase sha256 digest")
 	}
 	paths := []string{spec.Spec.RKE2.Installer, spec.Spec.Workloads.GitOpsManifest, spec.Spec.Workloads.CloudNativePGManifest, spec.Spec.Workloads.StorageManifest}
+	if strings.TrimSpace(spec.Spec.Workloads.GitOpsHAManifest) != "" {
+		paths = append(paths, spec.Spec.Workloads.GitOpsHAManifest)
+	}
 	if strings.TrimSpace(spec.Spec.Workloads.OCMManifest) != "" {
 		paths = append(paths, spec.Spec.Workloads.OCMManifest)
 	}

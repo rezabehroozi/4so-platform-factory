@@ -714,6 +714,7 @@ _BUNDLE_REQUIRED_SOURCE_AUTHORITIES = frozenset({
     "rke2-installer-and-offline-artifacts",
     "management-workload-oci-archive",
     "argocd-install-manifest",
+    "argocd-ha-install-manifest",
     "cloudnative-pg-install-manifest",
     "replicated-storage-install-manifest",
 })
@@ -1319,11 +1320,12 @@ def _parse_management_workload_image_plan(raw: bytes, version: str) -> tuple[dic
         blockers.append({"role": row["role"], "blocker": row["blocker"]})
     expected_sets = {
         "argocd-install-manifest": ("manifests/argocd-install.yaml", "runtime-manifests/argocd-install.yaml", "runtime-manifests/argocd-install.image-lock.json"),
+        "argocd-ha-install-manifest": ("manifests/argocd-ha-install.yaml", "runtime-manifests/argocd-ha-install.yaml", "runtime-manifests/argocd-ha-install.image-lock.json"),
         "cloudnative-pg-install-manifest": ("manifests/cloudnative-pg-install.yaml", "runtime-manifests/cloudnative-pg-install.yaml", "runtime-manifests/cloudnative-pg-install.image-lock.json"),
         "replicated-storage-install-manifest": ("manifests/replicated-storage-install.yaml", "runtime-manifests/replicated-storage-install.yaml", "runtime-manifests/replicated-storage-install.image-lock.json"),
     }
     derived = plan.get("derivedManifestImageSets")
-    if not isinstance(derived, list) or len(derived) != 3:
+    if not isinstance(derived, list) or len(derived) != 4:
         raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: derived manifest image-set authority is invalid")
     seen_derived: set[str] = set()
     required_fields = {"sourceAuthority","manifestPath","sourceManifestSha256","sourceManifestBytes","resolvedManifestPath","resolutionLockPath","state","blocker"}
@@ -1654,7 +1656,7 @@ def _normalize_acquired_build_spec(pack_root: Path, pack: dict[str, Any], *, ver
             if not isinstance(workloads, dict):
                 raise RuntimeError("bundle input pack build spec workloads are missing")
             by_authority = {row["sourceAuthority"]: row for row in derived_rows}
-            mapping = {"argocd-install-manifest":"gitOpsManifest", "cloudnative-pg-install-manifest":"cloudNativePGManifest", "replicated-storage-install-manifest":"storageManifest"}
+            mapping = {"argocd-install-manifest":"gitOpsManifest", "argocd-ha-install-manifest":"gitOpsHAManifest", "cloudnative-pg-install-manifest":"cloudNativePGManifest", "replicated-storage-install-manifest":"storageManifest"}
             if set(by_authority) != set(mapping):
                 raise RuntimeError("derived manifest resolution authority is incomplete")
             for authority_id, field in mapping.items():
@@ -2104,6 +2106,7 @@ def _verify_build_spec_source_roles(spec: dict[str, Any], bound_paths: dict[str,
         "rke2-installer-and-offline-artifacts": [str(rke2.get("installer", "")).strip(), *[str(v).strip() for v in (rke2.get("installArtifacts") or [])], *[str(v).strip() for v in (rke2.get("imageArchives") or [])]],
         "management-workload-oci-archive": [str(v).strip() for v in (workloads.get("imageArchives") or [])],
         "argocd-install-manifest": [str(workloads.get("gitOpsManifest", "")).strip()],
+        "argocd-ha-install-manifest": [str(workloads.get("gitOpsHAManifest", "")).strip()],
         "cloudnative-pg-install-manifest": [str(workloads.get("cloudNativePGManifest", "")).strip()],
         "replicated-storage-install-manifest": [str(workloads.get("storageManifest", "")).strip()],
     }

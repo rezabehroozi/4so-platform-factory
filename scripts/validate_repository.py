@@ -763,11 +763,12 @@ def validate_management_workload_image_plan(root: Path, version: str, errors: li
             errors.append(('MANAGEMENT_WORKLOAD_IMAGE_PLAN_BASE_ROLE_INVALID', str(image_plan_path.relative_to(root))))
         derived = image_plan.get('derivedManifestImageSets')
         expected_derived = {
-            'argocd-install-manifest': ('manifests/argocd-install.yaml','sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6',1969264,'runtime-manifests/argocd-install.yaml','runtime-manifests/argocd-install.image-lock.json'),
+            'argocd-install-manifest': ('manifests/argocd-install.yaml','sha256:a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe',1917766,'runtime-manifests/argocd-install.yaml','runtime-manifests/argocd-install.image-lock.json'),
+            'argocd-ha-install-manifest': ('manifests/argocd-ha-install.yaml','sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6',1969264,'runtime-manifests/argocd-ha-install.yaml','runtime-manifests/argocd-ha-install.image-lock.json'),
             'cloudnative-pg-install-manifest': ('manifests/cloudnative-pg-install.yaml','sha256:f8bede43fe4ee0d478c2355b204a36876b2ae4faac60f2a9452280b293da3b88',1262410,'runtime-manifests/cloudnative-pg-install.yaml','runtime-manifests/cloudnative-pg-install.image-lock.json'),
             'replicated-storage-install-manifest': ('manifests/replicated-storage-install.yaml','sha256:41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd',207054,'runtime-manifests/replicated-storage-install.yaml','runtime-manifests/replicated-storage-install.image-lock.json'),
         }
-        if not isinstance(derived, list) or len(derived) != 3:
+        if not isinstance(derived, list) or len(derived) != 4:
             errors.append(('MANAGEMENT_WORKLOAD_IMAGE_PLAN_DERIVED_SET_INVALID', str(image_plan_path.relative_to(root))))
         else:
             seen=set()
@@ -1312,6 +1313,7 @@ def validate_lab_bundle_acquisition_lock(root: Path, errors: list[tuple[str,str]
         'rke2-installer-and-offline-artifacts',
         'management-workload-oci-archive',
         'argocd-install-manifest',
+        'argocd-ha-install-manifest',
         'cloudnative-pg-install-manifest',
         'replicated-storage-install-manifest',
     }
@@ -1445,8 +1447,13 @@ def validate_lab_bundle_acquisition_lock(root: Path, errors: list[tuple[str,str]
             argocd_partial=[item for item in partial if isinstance(item,dict) and item.get('id')=='argocd-install-manifest']
             if argocd_partial:
                 pending=argocd_partial[0].get('pendingArtifacts') or []
-                if len(pending)!=1 or pending[0].get('stagingPath')!='manifests/argocd-install.yaml' or pending[0].get('sourceRef')!='https://github.com/argoproj/argo-cd/blob/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/ha/install.yaml' or pending[0].get('contentAddress')!='git-sha1:8e0ff973a33bf12ec6e9c1554029cb36931945e8':
+                if len(pending)!=1 or pending[0].get('stagingPath')!='manifests/argocd-install.yaml' or pending[0].get('sourceRef')!='https://github.com/argoproj/argo-cd/blob/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/install.yaml' or pending[0].get('contentAddress')!='git-sha1:e0ff6c401aa18c2c67ba9dcb5f68f2f15853281f':
                     errors.append(('ARGOCD_INSTALL_MANIFEST_SOURCE_PROVENANCE_INVALID',str(argocd_partial[0])))
+            argocd_ha_partial=[item for item in partial if isinstance(item,dict) and item.get('id')=='argocd-ha-install-manifest']
+            if argocd_ha_partial:
+                pending=argocd_ha_partial[0].get('pendingArtifacts') or []
+                if len(pending)!=1 or pending[0].get('stagingPath')!='manifests/argocd-ha-install.yaml' or pending[0].get('sourceRef')!='https://github.com/argoproj/argo-cd/blob/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/ha/install.yaml' or pending[0].get('contentAddress')!='git-sha1:8e0ff973a33bf12ec6e9c1554029cb36931945e8':
+                    errors.append(('ARGOCD_HA_INSTALL_MANIFEST_SOURCE_PROVENANCE_INVALID',str(argocd_ha_partial[0])))
 
             if status == 'incomplete':
                 if (not partial_ids and not missing) or pack is not None:
@@ -1493,7 +1500,7 @@ def validate_supply_chain_handoff(root: Path, version: str, components: dict[str
                 errors.append(('SUPPLY_CHAIN_HANDOFF_TRUTH_MODEL_INVALID',key))
         if len((hs.get('componentAcquisition') or {}).get('ready') or []) != 17 or len((hs.get('componentAcquisition') or {}).get('reviewBlocked') or []) != 0 or len((hs.get('componentAcquisition') or {}).get('runtimeHolds') or []) != 3:
             errors.append(('SUPPLY_CHAIN_HANDOFF_COMPONENT_QUEUE_INVALID','ready/review/runtime'))
-        if len((hs.get('managementWorkloads') or {}).get('externalImages') or []) != 4 or len((hs.get('managementWorkloads') or {}).get('manifestImageResolution') or []) != 3:
+        if len((hs.get('managementWorkloads') or {}).get('externalImages') or []) != 4 or len((hs.get('managementWorkloads') or {}).get('manifestImageResolution') or []) != 4:
             errors.append(('SUPPLY_CHAIN_HANDOFF_MANAGEMENT_COVERAGE_INVALID','external/manifest'))
         if len(hs.get('componentUpgradePairRequirements') or []) != len(components):
             errors.append(('SUPPLY_CHAIN_HANDOFF_UPGRADE_COVERAGE_INVALID',str(len(hs.get('componentUpgradePairRequirements') or []))))

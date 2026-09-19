@@ -39,6 +39,7 @@ type BundleManifest struct {
 			KeycloakImage         string     `json:"keycloakImage"`
 			MaintenanceImage      string     `json:"maintenanceImage"`
 			GitOpsManifest        Artifact   `json:"gitOpsManifest"`
+			GitOpsHAManifest      Artifact   `json:"gitOpsHAManifest,omitempty"`
 			CloudNativePGManifest Artifact   `json:"cloudNativePGManifest"`
 			StorageManifest       Artifact   `json:"storageManifest"`
 			OCMManifest           Artifact   `json:"ocmManifest"`

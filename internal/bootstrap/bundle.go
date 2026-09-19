@@ -324,6 +324,9 @@ func validateBundle(dir string, bundle BundleManifest) error {
 	}
 	requiredImages := []string{bundle.Spec.Workloads.PostgreSQLImage, bundle.Spec.Workloads.PlatformAPIImage, bundle.Spec.Workloads.ForgejoImage, bundle.Spec.Workloads.ZotImage, bundle.Spec.Workloads.KeycloakImage, bundle.Spec.Workloads.MaintenanceImage, bundle.Spec.Workloads.FleetAgentImage, bundle.Spec.Workloads.RuntimeProbeImage}
 	operatorManifests := map[string]Artifact{"GitOps install manifest": bundle.Spec.Workloads.GitOpsManifest, "CloudNativePG install manifest": bundle.Spec.Workloads.CloudNativePGManifest, "replicated-storage install manifest": bundle.Spec.Workloads.StorageManifest}
+	if strings.TrimSpace(bundle.Spec.Workloads.GitOpsHAManifest.Path) != "" {
+		operatorManifests["GitOps HA install manifest"] = bundle.Spec.Workloads.GitOpsHAManifest
+	}
 	if strings.TrimSpace(bundle.Spec.Workloads.OCMManifest.Path) != "" {
 		operatorManifests["OCM install manifest"] = bundle.Spec.Workloads.OCMManifest
 	}
@@ -414,6 +417,9 @@ func allBundleArtifacts(bundle BundleManifest) []Artifact {
 	artifacts = append(artifacts, bundle.Spec.RKE2.ImageArchives...)
 	artifacts = append(artifacts, bundle.Spec.Workloads.ImageArchives...)
 	artifacts = append(artifacts, bundle.Spec.Workloads.GitOpsManifest, bundle.Spec.Workloads.CloudNativePGManifest, bundle.Spec.Workloads.StorageManifest)
+	if strings.TrimSpace(bundle.Spec.Workloads.GitOpsHAManifest.Path) != "" {
+		artifacts = append(artifacts, bundle.Spec.Workloads.GitOpsHAManifest)
+	}
 	if strings.TrimSpace(bundle.Spec.Workloads.OCMManifest.Path) != "" {
 		artifacts = append(artifacts, bundle.Spec.Workloads.OCMManifest)
 	}

@@ -366,7 +366,7 @@ class LabRunnerContractTests(unittest.TestCase):
         # Planning runs against the shipped incomplete acquisition state. It must emit
         # the exact image-plan projection bound to the same lock instead of crashing,
         # and it must never claim the bundle itself is acquired.
-        manifests = ["argocd-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"]
+        manifests = ["argocd-install-manifest", "argocd-ha-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"]
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             spec = self._plan_spec_with_locked_bundle_authority(
@@ -395,7 +395,7 @@ class LabRunnerContractTests(unittest.TestCase):
             spec = self._plan_spec_with_locked_bundle_authority(
                 root,
                 resolved_ids=["cloudnative-pg-install-manifest", "replicated-storage-install-manifest"],
-                missing_ids=["management-workload-oci-archive", "argocd-install-manifest", "rke2-installer-and-offline-artifacts"],
+                missing_ids=["management-workload-oci-archive", "argocd-install-manifest", "argocd-ha-install-manifest", "rke2-installer-and-offline-artifacts"],
             )
             plan = lab.plan_document(spec)
             acquisition = plan["bundleAcquisition"]
@@ -407,7 +407,7 @@ class LabRunnerContractTests(unittest.TestCase):
             self.assertEqual("", projection["sourceBindingDigest"])
 
     def test_plan_fails_closed_on_image_plan_lock_drift(self):
-        manifests = ["argocd-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"]
+        manifests = ["argocd-install-manifest", "argocd-ha-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"]
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             spec = self._plan_spec_with_locked_bundle_authority(
@@ -428,7 +428,7 @@ class LabRunnerContractTests(unittest.TestCase):
         # stay byte-identical; a shared owner is the only authority.
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            manifests = ["argocd-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"]
+            manifests = ["argocd-install-manifest", "argocd-ha-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"]
             spec = self._plan_spec_with_locked_bundle_authority(
                 root, resolved_ids=manifests, missing_ids=["management-workload-oci-archive", "rke2-installer-and-offline-artifacts"]
             )
@@ -986,7 +986,8 @@ class LabRunnerContractTests(unittest.TestCase):
                 {"role":"maintenance-toolchain-base","state":"pending","blocker":"EXACT_DIGEST_REQUIRED_TOOLSET_AND_ROOT_OVERRIDE_COMPATIBILITY_PENDING"}
             ],
             "derivedManifestImageSets": [
-                {"sourceAuthority":"argocd-install-manifest","manifestPath":"manifests/argocd-install.yaml","sourceManifestSha256":"sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6","sourceManifestBytes":1969264,"resolvedManifestPath":"runtime-manifests/argocd-install.yaml","resolutionLockPath":"runtime-manifests/argocd-install.image-lock.json","state":"pending","blocker":"EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING"},
+                {"sourceAuthority":"argocd-install-manifest","manifestPath":"manifests/argocd-install.yaml","sourceManifestSha256":"sha256:a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe","sourceManifestBytes":1917766,"resolvedManifestPath":"runtime-manifests/argocd-install.yaml","resolutionLockPath":"runtime-manifests/argocd-install.image-lock.json","state":"pending","blocker":"EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING"},
+                {"sourceAuthority":"argocd-ha-install-manifest","manifestPath":"manifests/argocd-ha-install.yaml","sourceManifestSha256":"sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6","sourceManifestBytes":1969264,"resolvedManifestPath":"runtime-manifests/argocd-ha-install.yaml","resolutionLockPath":"runtime-manifests/argocd-ha-install.image-lock.json","state":"pending","blocker":"EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING"},
                 {"sourceAuthority":"cloudnative-pg-install-manifest","manifestPath":"manifests/cloudnative-pg-install.yaml","sourceManifestSha256":"sha256:f8bede43fe4ee0d478c2355b204a36876b2ae4faac60f2a9452280b293da3b88","sourceManifestBytes":1262410,"resolvedManifestPath":"runtime-manifests/cloudnative-pg-install.yaml","resolutionLockPath":"runtime-manifests/cloudnative-pg-install.image-lock.json","state":"pending","blocker":"EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING"},
                 {"sourceAuthority":"replicated-storage-install-manifest","manifestPath":"manifests/replicated-storage-install.yaml","sourceManifestSha256":"sha256:41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd","sourceManifestBytes":207054,"resolvedManifestPath":"runtime-manifests/replicated-storage-install.yaml","resolutionLockPath":"runtime-manifests/replicated-storage-install.image-lock.json","state":"pending","blocker":"EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING"}
             ],
@@ -1035,6 +1036,7 @@ class LabRunnerContractTests(unittest.TestCase):
             "rke2/sha256sum-amd64.txt": b"fixture-checksum-file",
             "workloads/platform-workloads.oci.tar": archive,
             "manifests/argocd-install.yaml": b"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: fixture-argocd\n",
+            "manifests/argocd-ha-install.yaml": b"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: fixture-argocd-ha\n",
             "manifests/cloudnative-pg-install.yaml": b"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: fixture-cnpg\n",
             "manifests/replicated-storage-install.yaml": b"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: fixture-storage\n",
         }
@@ -1045,10 +1047,11 @@ class LabRunnerContractTests(unittest.TestCase):
             {"id":"rke2-installer-and-offline-artifacts","kind":"release-artifact-set","provider":"rke2","version":"v1.0.0","scope":"fixture","artifacts":[artifact("rke2/install.sh"), artifact("rke2/rke2.linux-amd64.tar.gz"), artifact("rke2/sha256sum-amd64.txt"), artifact("rke2/rke2-images.linux-amd64.tar.zst")]},
             {"id":"management-workload-oci-archive","kind":"oci-archive","provider":"4so","version":"v1.0.0","scope":"fixture","artifacts":[artifact("workloads/platform-workloads.oci.tar")]},
             {"id":"argocd-install-manifest","kind":"kubernetes-manifest","provider":"argocd","version":"v1.0.0","scope":"fixture","artifacts":[artifact("manifests/argocd-install.yaml")]},
+            {"id":"argocd-ha-install-manifest","kind":"kubernetes-manifest","provider":"argocd","version":"v1.0.0","scope":"fixture","artifacts":[artifact("manifests/argocd-ha-install.yaml")]},
             {"id":"cloudnative-pg-install-manifest","kind":"kubernetes-manifest","provider":"cnpg","version":"v1.0.0","scope":"fixture","artifacts":[artifact("manifests/cloudnative-pg-install.yaml")]},
             {"id":"replicated-storage-install-manifest","kind":"kubernetes-manifest","provider":"longhorn","version":"v1.0.0","scope":"fixture","artifacts":[artifact("manifests/replicated-storage-install.yaml")]},
         ]
-        workloads = {"imageArchives": ["workloads/platform-workloads.oci.tar"], **image_refs, "gitOpsManifest": "manifests/argocd-install.yaml", "cloudNativePGManifest": "manifests/cloudnative-pg-install.yaml", "storageManifest": "manifests/replicated-storage-install.yaml"}
+        workloads = {"imageArchives": ["workloads/platform-workloads.oci.tar"], **image_refs, "gitOpsManifest": "manifests/argocd-install.yaml", "gitOpsHAManifest": "manifests/argocd-ha-install.yaml", "cloudNativePGManifest": "manifests/cloudnative-pg-install.yaml", "storageManifest": "manifests/replicated-storage-install.yaml"}
         build_spec = {"apiVersion":"platform.4so.io/v1alpha1","kind":"ApplianceBundleBuild","metadata":{"version":"9.9.9","sourceReleaseDigest":"sha256:"+"0"*64},"spec":{"rke2":{"version":"v1.0.0","installer":"rke2/install.sh","installArtifacts":["rke2/rke2.linux-amd64.tar.gz","rke2/sha256sum-amd64.txt"],"imageArchives":["rke2/rke2-images.linux-amd64.tar.zst"]},"workloads":workloads}}
         return resolved, files, build_spec
 
@@ -1191,7 +1194,7 @@ class LabRunnerContractTests(unittest.TestCase):
         release_root = ROOT
         lock, _ = lab._load_bundle_acquisition_lock(release_root, (release_root / "VERSION").read_text(encoding="utf-8").strip())
         self.assertEqual("incomplete", lock["status"])
-        self.assertEqual(4, len(lock["resolvedAuthorities"]))
+        self.assertEqual(5, len(lock["resolvedAuthorities"]))
         self.assertEqual(0, len(lock["partialAuthorities"]))
         self.assertEqual(1, len(lock["missingAuthorities"]))
         self.assertEqual(["digest-pinned-core-workload-images"], lock["derivedAuthorities"])
@@ -1210,9 +1213,14 @@ class LabRunnerContractTests(unittest.TestCase):
         self.assertEqual("https://raw.githubusercontent.com/rancher/rke2/d419f09226d50a4777d348e5c53ea1bce3849b77/install.sh", rke2_install["urls"][0])
         argocd = by_id["argocd-install-manifest"]
         argocd_install = argocd["artifacts"][0]
-        self.assertEqual("65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6", argocd_install["sha256"])
-        self.assertEqual(1969264, argocd_install["sizeBytes"])
-        self.assertEqual("https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/ha/install.yaml", argocd_install["urls"][0])
+        self.assertEqual("a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe", argocd_install["sha256"])
+        self.assertEqual(1917766, argocd_install["sizeBytes"])
+        self.assertEqual("https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/install.yaml", argocd_install["urls"][0])
+        argocd_ha = by_id["argocd-ha-install-manifest"]
+        argocd_ha_install = argocd_ha["artifacts"][0]
+        self.assertEqual("65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6", argocd_ha_install["sha256"])
+        self.assertEqual(1969264, argocd_ha_install["sizeBytes"])
+        self.assertEqual("https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/ha/install.yaml", argocd_ha_install["urls"][0])
 
     def test_shipped_management_workload_image_build_plan_is_explicit_and_incomplete(self):
         version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
@@ -1221,8 +1229,8 @@ class LabRunnerContractTests(unittest.TestCase):
         self.assertEqual(lab.MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_AUTHORITY, plan["manifestImageResolutionAuthority"])
         self.assertEqual(lab.MANAGEMENT_WORKLOAD_OCI_ASSEMBLY_AUTHORITY, plan["assemblyAuthority"])
         self.assertTrue(digest.startswith("sha256:"))
-        self.assertEqual(14, len(plan["pendingResolution"]))
-        self.assertEqual({"postgresql","forgejo","zot","keycloak","platform-api","maintenance","platform-agent","platform-probe","api-runtime-base","static-runtime-base","maintenance-toolchain-base","manifest:argocd-install-manifest","manifest:cloudnative-pg-install-manifest","manifest:replicated-storage-install-manifest"}, {row["role"] for row in plan["pendingResolution"]})
+        self.assertEqual(15, len(plan["pendingResolution"]))
+        self.assertEqual({"postgresql","forgejo","zot","keycloak","platform-api","maintenance","platform-agent","platform-probe","api-runtime-base","static-runtime-base","maintenance-toolchain-base","manifest:argocd-install-manifest","manifest:argocd-ha-install-manifest","manifest:cloudnative-pg-install-manifest","manifest:replicated-storage-install-manifest"}, {row["role"] for row in plan["pendingResolution"]})
         postgresql = next(row for row in plan["pendingResolution"] if row["role"] == "postgresql")
         self.assertEqual("17.11", postgresql["version"])
         self.assertEqual("17.11-bookworm", postgresql["tag"])
@@ -1440,7 +1448,7 @@ class LabRunnerContractTests(unittest.TestCase):
                 bundle, evidence = lab._auto_acquire_bundle(body, Path(body["releaseArtifact"]), release_root, root / "state")
             self.assertIsNotNone(bundle)
             self.assertEqual("PASS", evidence["status"])
-            self.assertEqual(8, evidence["sourceBindingArtifactCount"])
+            self.assertEqual(9, evidence["sourceBindingArtifactCount"])
             self.assertEqual(2, evidence["sourceBindingDerivedAuthorityCount"])
             self.assertEqual(lab.MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_AUTHORITY, evidence["manifestImageResolutionAuthority"])
             self.assertRegex(evidence["manifestImageResolutionDigest"], r"^sha256:[0-9a-f]{64}$")
@@ -1451,7 +1459,7 @@ class LabRunnerContractTests(unittest.TestCase):
             generated = json.loads((root / "state" / "bundle-build.json").read_text())
             self.assertEqual("sha256:" + lab._sha256(Path(body["releaseArtifact"])), generated["metadata"]["sourceReleaseDigest"])
             bindings = generated["spec"]["sourceArtifacts"]
-            self.assertEqual(8, len(bindings))
+            self.assertEqual(9, len(bindings))
             self.assertEqual(sorted(row["path"] for row in bindings), [row["path"] for row in bindings])
             self.assertTrue(all(row["sha256"].startswith("sha256:") and row["sizeBytes"] > 0 for row in bindings))
             workloads = generated["spec"]["workloads"]
@@ -1757,7 +1765,7 @@ class LabRunnerContractTests(unittest.TestCase):
             self._materialize_ready_source_fixture(pack_root, files, build_spec)
             generated, _ = lab._normalize_acquired_build_spec(pack_root, {"buildSpecPath":"build-spec.json","stagingDirectory":"staging"}, version="9.9.9", artifact_sha="a"*64, out_path=root/"generated.json")
             result = lab._verify_input_pack_source_bindings(pack_root, {"buildSpecPath":"build-spec.json","stagingDirectory":"staging"}, {"resolvedAuthorities": resolved}, generated)
-            self.assertEqual(8, result["artifactCount"])
+            self.assertEqual(9, result["artifactCount"])
             self.assertEqual(1, result["derivedAuthorityCount"])
             self.assertRegex(result["bindingDigest"], r"^sha256:[0-9a-f]{64}$")
 

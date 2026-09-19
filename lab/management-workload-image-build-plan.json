@@ -119,8 +119,8 @@
       "resolutionLockPath": "runtime-manifests/argocd-install.image-lock.json",
       "resolvedManifestPath": "runtime-manifests/argocd-install.yaml",
       "sourceAuthority": "argocd-install-manifest",
-      "sourceManifestBytes": 1969264,
-      "sourceManifestSha256": "sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6",
+      "sourceManifestBytes": 1917766,
+      "sourceManifestSha256": "sha256:a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe",
       "state": "pending"
     },
     {
@@ -141,6 +141,16 @@
       "sourceAuthority": "replicated-storage-install-manifest",
       "sourceManifestBytes": 207054,
       "sourceManifestSha256": "sha256:41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd",
+      "state": "pending"
+    },
+    {
+      "blocker": "EXACT_MANIFEST_IMAGE_DIGEST_RESOLUTION_PENDING",
+      "manifestPath": "manifests/argocd-ha-install.yaml",
+      "resolutionLockPath": "runtime-manifests/argocd-ha-install.image-lock.json",
+      "resolvedManifestPath": "runtime-manifests/argocd-ha-install.yaml",
+      "sourceAuthority": "argocd-ha-install-manifest",
+      "sourceManifestBytes": 1969264,
+      "sourceManifestSha256": "sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6",
       "state": "pending"
     }
   ],

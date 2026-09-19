@@ -31,13 +31,14 @@ func makeBundle(t *testing.T, root string) {
 	}
 	byRepo := testsupport.RefsByRepository(refs)
 	files := map[string][]byte{
-		"artifacts/install.sh":           []byte("#!/bin/sh\nexit 0\n"),
-		"artifacts/rke2.tar.gz":          []byte("rke2"),
-		"artifacts/rke2-images.tar.zst":  []byte("rke2-images"),
-		"artifacts/argocd-install.yaml":  []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: argocd\n          image: " + byRepo["registry.local/argocd"] + "\n"),
-		"artifacts/ocm-install.yaml":     []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: ocm\n          image: " + byRepo["registry.local/ocm"] + "\n"),
-		"artifacts/cnpg-install.yaml":    []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: cnpg\n          image: " + byRepo["registry.local/cnpg"] + "\n"),
-		"artifacts/storage-install.yaml": []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: storage\n          image: " + byRepo["registry.local/storage"] + "\n---\napiVersion: storage.k8s.io/v1\nkind: StorageClass\nmetadata:\n  name: replicated-rwx\n  annotations:\n    platform.4so.io/replicated: \"true\"\nprovisioner: example.storage.csi\n"),
+		"artifacts/install.sh":             []byte("#!/bin/sh\nexit 0\n"),
+		"artifacts/rke2.tar.gz":            []byte("rke2"),
+		"artifacts/rke2-images.tar.zst":    []byte("rke2-images"),
+		"artifacts/argocd-install.yaml":    []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: argocd\n          image: " + byRepo["registry.local/argocd"] + "\n"),
+		"artifacts/argocd-ha-install.yaml": []byte("apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: argocd-server\nspec:\n  replicas: 2\n  template:\n    spec:\n      containers:\n        - name: argocd\n          image: " + byRepo["registry.local/argocd"] + "\n"),
+		"artifacts/ocm-install.yaml":       []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: ocm\n          image: " + byRepo["registry.local/ocm"] + "\n"),
+		"artifacts/cnpg-install.yaml":      []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: cnpg\n          image: " + byRepo["registry.local/cnpg"] + "\n"),
+		"artifacts/storage-install.yaml":   []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - name: storage\n          image: " + byRepo["registry.local/storage"] + "\n---\napiVersion: storage.k8s.io/v1\nkind: StorageClass\nmetadata:\n  name: replicated-rwx\n  annotations:\n    platform.4so.io/replicated: \"true\"\nprovisioner: example.storage.csi\n"),
 	}
 	for name, data := range files {
 		path := filepath.Join(root, name)
@@ -71,13 +72,14 @@ func makeBundle(t *testing.T, root string) {
 	manifest.Spec.Workloads.KeycloakImage = byRepo["registry.local/keycloak"]
 	manifest.Spec.Workloads.MaintenanceImage = byRepo["registry.local/maintenance"]
 	manifest.Spec.Workloads.GitOpsManifest = Artifact{Path: "artifacts/argocd-install.yaml", SHA256: digest("artifacts/argocd-install.yaml")}
+	manifest.Spec.Workloads.GitOpsHAManifest = Artifact{Path: "artifacts/argocd-ha-install.yaml", SHA256: digest("artifacts/argocd-ha-install.yaml")}
 	manifest.Spec.Workloads.CloudNativePGManifest = Artifact{Path: "artifacts/cnpg-install.yaml", SHA256: digest("artifacts/cnpg-install.yaml")}
 	manifest.Spec.Workloads.OCMManifest = Artifact{Path: "artifacts/ocm-install.yaml", SHA256: digest("artifacts/ocm-install.yaml")}
 	manifest.Spec.Workloads.StorageManifest = Artifact{Path: "artifacts/storage-install.yaml", SHA256: digest("artifacts/storage-install.yaml")}
 	manifest.Spec.Workloads.FleetAgentImage = byRepo["registry.local/platform-agent"]
 	manifest.Spec.Workloads.RuntimeProbeImage = byRepo["registry.local/platform-probe"]
 	images := append([]string(nil), refs...)
-	indexRaw, _ := json.Marshal(map[string]any{"version": "0.0.16", "images": images, "artifacts": []string{"artifacts/install.sh", "artifacts/rke2.tar.gz", "artifacts/rke2-images.tar.zst", "artifacts/workloads.oci.tar", "artifacts/argocd-install.yaml", "artifacts/cnpg-install.yaml", "artifacts/ocm-install.yaml", "artifacts/storage-install.yaml"}})
+	indexRaw, _ := json.Marshal(map[string]any{"version": "0.0.16", "images": images, "artifacts": []string{"artifacts/install.sh", "artifacts/rke2.tar.gz", "artifacts/rke2-images.tar.zst", "artifacts/workloads.oci.tar", "artifacts/argocd-install.yaml", "artifacts/argocd-ha-install.yaml", "artifacts/cnpg-install.yaml", "artifacts/ocm-install.yaml", "artifacts/storage-install.yaml"}})
 	if err := os.WriteFile(filepath.Join(root, "artifacts/airgap-index.json"), indexRaw, 0o600); err != nil {
 		t.Fatal(err)
 	}
