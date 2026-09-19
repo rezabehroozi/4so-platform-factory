@@ -312,7 +312,7 @@ func TestInstallerSSHHostKeyRotationRouteUsesFingerprintFence(t *testing.T) {
 	server := &installerServer{access: access, runner: runner, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	mux := http.NewServeMux()
 	server.routes(mux)
-	payload := []byte(`{"host":"10.0.0.12","expectedCurrentFingerprints":["` + fingerprint + `"],"replacementKnownHosts":"10.0.0.12 ssh-ed25519 ` + keyB + `\\n"}`)
+	payload := []byte(`{"host":"10.0.0.12","expectedCurrentFingerprints":["` + fingerprint + `"],"replacementKnownHosts":"10.0.0.12 ssh-ed25519 ` + keyB + `\n"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ssh/trust/rotate", bytes.NewReader(payload))
 	req.Header.Set("Authorization", "Bearer "+authValue)
 	req.Header.Set("Content-Type", "application/json")
