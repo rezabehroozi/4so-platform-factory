@@ -15,7 +15,13 @@ import (
 	"platform.4so.io/factory/internal/durablefile"
 )
 
-const sshHostTrustRotationAuthority = "SSH_HOST_KEY_ROTATION_AUTHORITY_V1"
+const (
+	sshHostTrustRotationAuthority = "SSH_HOST_KEY_ROTATION_AUTHORITY_V1"
+	sshHostTrustRotationJournalAuthority = "SSH_HOST_KEY_ROTATION_JOURNAL_V1"
+	sshHostTrustRotationPrepared = "PREPARED"
+	sshHostTrustRotationSucceeded = "SUCCEEDED"
+	sshHostTrustRotationAborted = "ABORTED"
+)
 
 type SSHHostTrustRotationRequest struct {
 	Host                        string   `json:"host"`
@@ -34,8 +40,88 @@ type SSHHostTrustRotationEvidence struct {
 	RotatedAt            time.Time `json:"rotatedAt"`
 }
 
+type sshHostTrustRotationJournal struct {
+	Authority string                       `json:"authority"`
+	State     string                       `json:"state"`
+	Evidence  SSHHostTrustRotationEvidence `json:"evidence"`
+	UpdatedAt time.Time                    `json:"updatedAt"`
+}
+
 func (r *Runner) sshHostTrustRotationPath() string {
 	return filepath.Join(r.stateDir, "evidence", "ssh-host-key-rotation.json")
+}
+
+func (r *Runner) sshHostTrustRotationJournalPath() string {
+	return filepath.Join(r.stateDir, "evidence", "ssh-host-key-rotation-journal.json")
+}
+
+func (r *Runner) writeSSHHostTrustRotationEvidence(evidence SSHHostTrustRotationEvidence) error {
+	raw, err := json.MarshalIndent(evidence, "", "  ")
+	if err != nil {
+		return err
+	}
+	return durablefile.Replace(r.sshHostTrustRotationPath(), append(raw, '\n'), 0o700, 0o600)
+}
+
+func (r *Runner) writeSSHHostTrustRotationJournal(journal sshHostTrustRotationJournal) error {
+	raw, err := json.MarshalIndent(journal, "", "  ")
+	if err != nil {
+		return err
+	}
+	return durablefile.Replace(r.sshHostTrustRotationJournalPath(), append(raw, '\n'), 0o700, 0o600)
+}
+
+func (r *Runner) loadSSHHostTrustRotationJournal() (*sshHostTrustRotationJournal, error) {
+	raw, err := os.ReadFile(r.sshHostTrustRotationJournalPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var journal sshHostTrustRotationJournal
+	if err = json.Unmarshal(raw, &journal); err != nil {
+		return nil, fmt.Errorf("decode SSH host-key rotation journal: %w", err)
+	}
+	if journal.Authority != sshHostTrustRotationJournalAuthority || journal.Evidence.Authority != sshHostTrustRotationAuthority || strings.TrimSpace(journal.Evidence.ID) == "" {
+		return nil, errors.New("SSH host-key rotation journal is invalid")
+	}
+	switch journal.State {
+	case sshHostTrustRotationPrepared, sshHostTrustRotationSucceeded, sshHostTrustRotationAborted:
+	default:
+		return nil, fmt.Errorf("SSH host-key rotation journal has invalid state %q", journal.State)
+	}
+	return &journal, nil
+}
+
+func (r *Runner) reconcileSSHHostTrustRotation() error {
+	journal, err := r.loadSSHHostTrustRotationJournal()
+	if err != nil || journal == nil || journal.State != sshHostTrustRotationPrepared {
+		return err
+	}
+	raw, err := os.ReadFile(r.sshKnownHostsPath())
+	if err != nil {
+		return fmt.Errorf("read HA SSH trust while reconciling host-key rotation: %w", err)
+	}
+	_, normalized, err := parseSSHKnownHosts(raw)
+	if err != nil {
+		return err
+	}
+	observed := trustDigest(normalized)
+	journal.UpdatedAt = r.now().UTC()
+	switch observed {
+	case journal.Evidence.NewTrustDigest:
+		if err = r.writeSSHHostTrustRotationEvidence(journal.Evidence); err != nil {
+			return fmt.Errorf("finalize applied SSH host-key rotation evidence: %w", err)
+		}
+		journal.State = sshHostTrustRotationSucceeded
+		return r.writeSSHHostTrustRotationJournal(*journal)
+	case journal.Evidence.PreviousTrustDigest:
+		journal.State = sshHostTrustRotationAborted
+		return r.writeSSHHostTrustRotationJournal(*journal)
+	default:
+		return fmt.Errorf("SSH host-key rotation outcome is ambiguous: trust digest %s matches neither accepted previous nor replacement authority", observed)
+	}
 }
 
 func trustDigest(raw []byte) string {
@@ -111,6 +197,9 @@ func equalTrustSlices(left, right []string) bool {
 }
 
 func (r *Runner) LastSSHHostTrustRotation() (*SSHHostTrustRotationEvidence, error) {
+	if err := r.reconcileSSHHostTrustRotation(); err != nil {
+		return nil, err
+	}
 	raw, err := os.ReadFile(r.sshHostTrustRotationPath())
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -133,6 +222,9 @@ func (r *Runner) RotateSSHKnownHost(request SSHHostTrustRotationRequest) (SSHTru
 	defer r.mu.Unlock()
 	if r.active {
 		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, fmt.Errorf("%w: HA SSH host trust cannot rotate while bootstrap execution is active", ErrBootstrapExecutionActive)
+	}
+	if err := r.reconcileSSHHostTrustRotation(); err != nil {
+		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, err
 	}
 	host, err := normalizeKnownHostToken(request.Host)
 	if err != nil {
@@ -187,20 +279,20 @@ func (r *Runner) RotateSSHKnownHost(request SSHHostTrustRotationRequest) (SSHTru
 		NewTrustDigest: trustDigest(replacementNormalized),
 		RotatedAt: now,
 	}
-	evidenceRaw, err := json.MarshalIndent(evidence, "", "  ")
-	if err != nil {
-		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, err
+	journal := sshHostTrustRotationJournal{
+		Authority: sshHostTrustRotationJournalAuthority,
+		State: sshHostTrustRotationPrepared,
+		Evidence: evidence,
+		UpdatedAt: now,
 	}
-	if err = os.MkdirAll(filepath.Dir(r.sshHostTrustRotationPath()), 0o700); err != nil {
-		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, err
+	if err = r.writeSSHHostTrustRotationJournal(journal); err != nil {
+		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, fmt.Errorf("persist SSH host-key rotation intent: %w", err)
 	}
 	if err = writePrivateFile(r.sshKnownHostsPath(), replacementNormalized); err != nil {
 		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, err
 	}
-	if err = durablefile.Replace(r.sshHostTrustRotationPath(), append(evidenceRaw, '\n'), 0o700, 0o600); err != nil {
-		// The trust store already changed. Fail closed and make the missing evidence
-		// visible rather than pretending the rotation is fully authoritative.
-		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, fmt.Errorf("persist SSH host-key rotation evidence after trust update: %w", err)
+	if err = r.reconcileSSHHostTrustRotation(); err != nil {
+		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, err
 	}
 	status := SSHTrustStatus{KnownHostsRef: sshKnownHostsRef, KnownHostsStored: true, Entries: replacementEntries, LastRotation: &evidence}
 	if info, statErr := os.Stat(r.sshKeyPath()); statErr == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o077 == 0 {

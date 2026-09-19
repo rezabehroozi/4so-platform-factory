@@ -205,3 +205,84 @@ func TestSSHHostKeyRotationCannotMutateOtherPeersOrRunDuringBootstrap(t *testing
 		t.Fatalf("active bootstrap host-key rotation was not rejected: %v", err)
 	}
 }
+
+
+func writePreparedSSHRotationJournal(t *testing.T, runner *Runner, evidence SSHHostTrustRotationEvidence) {
+	t.Helper()
+	journal := sshHostTrustRotationJournal{Authority: sshHostTrustRotationJournalAuthority, State: sshHostTrustRotationPrepared, Evidence: evidence, UpdatedAt: time.Date(2026, 9, 19, 20, 30, 0, 0, time.UTC)}
+	if err := runner.writeSSHHostTrustRotationJournal(journal); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSSHHostKeyRotationReconcilesCrashAfterTrustMutation(t *testing.T) {
+	state := t.TempDir()
+	runner, err := NewRunner(RunnerOptions{Version: "test", BundleDir: t.TempDir(), StateDir: state, System: LocalSystem{}, Now: func() time.Time { return time.Date(2026, 9, 19, 20, 31, 0, 0, time.UTC) }})
+	if err != nil { t.Fatal(err) }
+	oldRaw := []byte(testKnownHostLine("10.0.0.12", 1) + "\n")
+	newRaw := []byte(testKnownHostLine("10.0.0.12", 9) + "\n")
+	oldEntries, oldNormalized, err := parseSSHKnownHosts(oldRaw)
+	if err != nil { t.Fatal(err) }
+	newEntries, newNormalized, err := parseSSHKnownHosts(newRaw)
+	if err != nil { t.Fatal(err) }
+	if _, err = runner.StoreSSHKnownHosts(oldRaw); err != nil { t.Fatal(err) }
+	evidence := SSHHostTrustRotationEvidence{
+		Authority: sshHostTrustRotationAuthority, ID: "ssh-host-key-rotation-crash", Host: "10.0.0.12",
+		PreviousFingerprints: canonicalFingerprintSet(oldEntries, "10.0.0.12"), NewFingerprints: canonicalFingerprintSet(newEntries, "10.0.0.12"),
+		PreviousTrustDigest: trustDigest(oldNormalized), NewTrustDigest: trustDigest(newNormalized), RotatedAt: time.Date(2026, 9, 19, 20, 30, 0, 0, time.UTC),
+	}
+	writePreparedSSHRotationJournal(t, runner, evidence)
+	if err = writePrivateFile(runner.sshKnownHostsPath(), newNormalized); err != nil { t.Fatal(err) }
+	status, err := runner.SSHTrustStatus()
+	if err != nil { t.Fatal(err) }
+	if status.LastRotation == nil || status.LastRotation.ID != evidence.ID {
+		t.Fatalf("applied rotation was not recovered from digest evidence: %#v", status.LastRotation)
+	}
+	journal, err := runner.loadSSHHostTrustRotationJournal()
+	if err != nil || journal == nil || journal.State != sshHostTrustRotationSucceeded {
+		t.Fatalf("rotation journal did not converge to SUCCEEDED: %#v err=%v", journal, err)
+	}
+}
+
+func TestSSHHostKeyRotationReconcilesCrashBeforeTrustMutationAsAborted(t *testing.T) {
+	state := t.TempDir()
+	runner, err := NewRunner(RunnerOptions{Version: "test", BundleDir: t.TempDir(), StateDir: state, System: LocalSystem{}, Now: func() time.Time { return time.Date(2026, 9, 19, 20, 31, 0, 0, time.UTC) }})
+	if err != nil { t.Fatal(err) }
+	oldRaw := []byte(testKnownHostLine("node-a.internal", 2) + "\n")
+	newRaw := []byte(testKnownHostLine("node-a.internal", 8) + "\n")
+	oldEntries, oldNormalized, _ := parseSSHKnownHosts(oldRaw)
+	newEntries, newNormalized, _ := parseSSHKnownHosts(newRaw)
+	if _, err = runner.StoreSSHKnownHosts(oldRaw); err != nil { t.Fatal(err) }
+	evidence := SSHHostTrustRotationEvidence{
+		Authority: sshHostTrustRotationAuthority, ID: "ssh-host-key-rotation-aborted", Host: "node-a.internal",
+		PreviousFingerprints: canonicalFingerprintSet(oldEntries, "node-a.internal"), NewFingerprints: canonicalFingerprintSet(newEntries, "node-a.internal"),
+		PreviousTrustDigest: trustDigest(oldNormalized), NewTrustDigest: trustDigest(newNormalized), RotatedAt: time.Date(2026, 9, 19, 20, 30, 0, 0, time.UTC),
+	}
+	writePreparedSSHRotationJournal(t, runner, evidence)
+	if _, err = runner.SSHTrustStatus(); err != nil { t.Fatal(err) }
+	journal, err := runner.loadSSHHostTrustRotationJournal()
+	if err != nil || journal == nil || journal.State != sshHostTrustRotationAborted {
+		t.Fatalf("pre-mutation crash did not converge to ABORTED: %#v err=%v", journal, err)
+	}
+}
+
+func TestSSHHostKeyRotationFailsClosedOnAmbiguousCrashDigest(t *testing.T) {
+	state := t.TempDir()
+	runner, err := NewRunner(RunnerOptions{Version: "test", BundleDir: t.TempDir(), StateDir: state, System: LocalSystem{}})
+	if err != nil { t.Fatal(err) }
+	oldRaw := []byte(testKnownHostLine("node-a.internal", 2) + "\n")
+	newRaw := []byte(testKnownHostLine("node-a.internal", 8) + "\n")
+	oldEntries, oldNormalized, _ := parseSSHKnownHosts(oldRaw)
+	newEntries, newNormalized, _ := parseSSHKnownHosts(newRaw)
+	if _, err = runner.StoreSSHKnownHosts(oldRaw); err != nil { t.Fatal(err) }
+	evidence := SSHHostTrustRotationEvidence{
+		Authority: sshHostTrustRotationAuthority, ID: "ssh-host-key-rotation-ambiguous", Host: "node-a.internal",
+		PreviousFingerprints: canonicalFingerprintSet(oldEntries, "node-a.internal"), NewFingerprints: canonicalFingerprintSet(newEntries, "node-a.internal"),
+		PreviousTrustDigest: trustDigest(oldNormalized), NewTrustDigest: trustDigest(newNormalized), RotatedAt: time.Now().UTC(),
+	}
+	writePreparedSSHRotationJournal(t, runner, evidence)
+	if err = writePrivateFile(runner.sshKnownHostsPath(), []byte(testKnownHostLine("node-a.internal", 6)+"\n")); err != nil { t.Fatal(err) }
+	if _, err = runner.SSHTrustStatus(); err == nil || !strings.Contains(err.Error(), "outcome is ambiguous") {
+		t.Fatalf("ambiguous crash outcome was not fenced: %v", err)
+	}
+}
