@@ -64,6 +64,7 @@ func TestHAInternalServiceSecretsRemainIndependentFromDatabaseCredentials(t *tes
 		"name: PLATFORM_FACTORY_INTERNAL_GIT_PASSWORD\n              valueFrom: {secretKeyRef: {name: platform-internal-services, key: forgejo-admin-password}}",
 		"name: PLATFORM_FACTORY_SESSION_SECRET\n              valueFrom: {secretKeyRef: {name: platform-internal-services, key: session-secret}}",
 		"name: PLATFORM_FACTORY_BOOTSTRAP_TOKEN\n              valueFrom: {secretKeyRef: {name: platform-internal-services, key: bootstrap-token}}",
+		"name: PLATFORM_FACTORY_INTERNAL_GITOPS_TOKEN\n              valueFrom:\n                secretKeyRef:\n                  name: platform-internal-services\n                  key: argocd-observer-token\n                  optional: true",
 		"name: PLATFORM_FACTORY_CATALOG_SIGNING_PRIVATE_KEY_B64\n              valueFrom: {secretKeyRef: {name: platform-internal-services, key: catalog-signing-key}}",
 	} {
 		if !strings.Contains(manifest, expected) {
