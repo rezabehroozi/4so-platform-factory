@@ -100,11 +100,15 @@ def _validate_spec(spec: dict[str, Any]) -> list[dict[str, Any]]:
         cwd = raw.get("cwd")
         if cwd is not None and (not isinstance(cwd, str) or not cwd):
             raise SystemExit(f"task {task_id} cwd must be a non-empty string")
+        input_files = raw.get("inputFiles", [])
+        if not isinstance(input_files, list) or not all(isinstance(x, str) and x for x in input_files):
+            raise SystemExit(f"task {task_id} inputFiles must be a string array")
         normalized.append({
             "id": task_id,
             "argv": argv,
             "cwd": cwd,
             "dependsOn": deps,
+            "inputFiles": input_files,
             "timeoutSeconds": timeout,
             "maxAttempts": attempts,
             "retryDelaySeconds": delay,
@@ -132,6 +136,73 @@ def _validate_spec(spec: dict[str, Any]) -> list[dict[str, Any]]:
     for task_id in by_id:
         visit(task_id)
     return normalized
+
+
+def _task_input_paths(task: dict[str, Any]) -> list[Path]:
+    candidates: list[str] = list(task.get("inputFiles") or [])
+    argv = task["argv"]
+    executable = Path(argv[0]).name.lower()
+
+    if len(argv) >= 3:
+        for index, arg in enumerate(argv[:-1]):
+            if arg.lower() in {"-file", "--file"}:
+                candidates.append(argv[index + 1])
+
+    if len(argv) >= 2:
+        script = argv[1]
+        suffix = Path(script).suffix.lower()
+        if executable.startswith("python") and suffix == ".py":
+            candidates.append(script)
+        elif executable in {"bash", "bash.exe", "sh", "sh.exe"} and suffix in {".sh", ".bash"}:
+            candidates.append(script)
+
+    first_suffix = Path(argv[0]).suffix.lower()
+    if first_suffix in {".py", ".ps1", ".sh", ".bash"}:
+        candidates.append(argv[0])
+
+    base = Path(task["cwd"]).expanduser() if task["cwd"] else Path.cwd()
+    resolved: dict[str, Path] = {}
+    explicit = set(task.get("inputFiles") or [])
+    for raw in candidates:
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            path = base / path
+        path = path.absolute()
+        if not path.is_file():
+            if raw in explicit or raw == argv[0] or raw in argv[1:2] or any(
+                flag.lower() in {"-file", "--file"} and i + 1 < len(argv) and argv[i + 1] == raw
+                for i, flag in enumerate(argv)
+            ):
+                raise SystemExit(f"task {task['id']} bound input file is missing: {path}")
+            continue
+        resolved[str(path)] = path
+    return [resolved[key] for key in sorted(resolved)]
+
+
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return "sha256:" + digest.hexdigest()
+
+
+def _task_input_binding(task: dict[str, Any]) -> list[dict[str, str]]:
+    return [{"path": str(path), "digest": _file_digest(path)} for path in _task_input_paths(task)]
+
+
+def _input_bindings(tasks: list[dict[str, Any]]) -> dict[str, list[dict[str, str]]]:
+    return {task["id"]: _task_input_binding(task) for task in tasks}
+
+
+def _task_input_binding_error(task: dict[str, Any], expected: list[dict[str, str]]) -> str:
+    try:
+        observed = _task_input_binding(task)
+    except (OSError, SystemExit) as exc:
+        return f"task input binding unavailable: {exc}"
+    if observed != expected:
+        return "task input binding changed after wave acceptance; use a new state directory"
+    return ""
 
 
 def _lock_fd(fd: int) -> None:
@@ -172,10 +243,11 @@ def _exclusive_state(state_dir: Path):
         os.close(fd)
 
 
-def _initial_state(spec_digest: str, tasks: list[dict[str, Any]]) -> dict[str, Any]:
+def _initial_state(spec_digest: str, tasks: list[dict[str, Any]], input_bindings: dict[str, list[dict[str, str]]]) -> dict[str, Any]:
     return {
         "schemaVersion": SCHEMA_VERSION,
         "specDigest": spec_digest,
+        "inputBindings": input_bindings,
         "createdAt": _now(),
         "updatedAt": _now(),
         "heartbeatAt": _now(),
@@ -189,12 +261,14 @@ def _initial_state(spec_digest: str, tasks: list[dict[str, Any]]) -> dict[str, A
     }
 
 
-def _load_or_init_state(path: Path, spec_digest: str, tasks: list[dict[str, Any]]) -> dict[str, Any]:
+def _load_or_init_state(path: Path, spec_digest: str, tasks: list[dict[str, Any]], input_bindings: dict[str, list[dict[str, str]]]) -> dict[str, Any]:
     if not path.exists():
-        return _initial_state(spec_digest, tasks)
+        return _initial_state(spec_digest, tasks, input_bindings)
     state = _load_json(path)
     if state.get("schemaVersion") != SCHEMA_VERSION or state.get("specDigest") != spec_digest:
         raise SystemExit("parallel wave state is bound to a different spec; use a new state directory")
+    if state.get("inputBindings") != input_bindings:
+        raise SystemExit("parallel wave task inputs changed after acceptance; use a new state directory")
     known = {t["id"] for t in tasks}
     if set((state.get("tasks") or {}).keys()) != known:
         raise SystemExit("parallel wave state task set differs from the bound spec")
@@ -245,10 +319,11 @@ def run_wave(spec: dict[str, Any], state_dir: Path, max_workers: int) -> int:
     state_path = state_dir / "state.json"
     logs_dir = state_dir / "logs"
     by_id = {t["id"]: t for t in tasks}
+    input_bindings = _input_bindings(tasks)
     stop_heartbeat = threading.Event()
 
     with _exclusive_state(state_dir):
-        state = _load_or_init_state(state_path, digest, tasks)
+        state = _load_or_init_state(state_path, digest, tasks, input_bindings)
         _atomic_json(state_path, state)
 
         def heartbeat() -> None:
@@ -291,6 +366,12 @@ def run_wave(spec: dict[str, Any], state_dir: Path, max_workers: int) -> int:
                             row["lastError"] = row["lastError"] or "attempt budget exhausted"
                             row["finishedAt"] = _now()
                             continue
+                        binding_error = _task_input_binding_error(task, state["inputBindings"][task_id])
+                        if binding_error:
+                            row["state"] = "FAILED"
+                            row["lastError"] = binding_error
+                            row["finishedAt"] = _now()
+                            continue
                         if row["state"] in {"INTERRUPTED", "PENDING"} and row["attempts"] > 0:
                             time.sleep(task["retryDelaySeconds"])
                         row["attempts"] += 1
@@ -322,10 +403,13 @@ def run_wave(spec: dict[str, Any], state_dir: Path, max_workers: int) -> int:
                     task = by_id[task_id]
                     row = state["tasks"][task_id]
                     rc, error = fut.result()
+                    binding_error = _task_input_binding_error(task, state["inputBindings"][task_id])
                     row["lastExitCode"] = rc
-                    row["lastError"] = error
+                    row["lastError"] = binding_error or error
                     row["finishedAt"] = _now()
-                    if rc == 0:
+                    if binding_error:
+                        row["state"] = "FAILED"
+                    elif rc == 0:
                         row["state"] = "SUCCEEDED"
                     elif row["attempts"] < task["maxAttempts"]:
                         row["state"] = "PENDING"

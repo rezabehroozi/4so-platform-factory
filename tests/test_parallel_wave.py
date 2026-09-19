@@ -82,6 +82,59 @@ class ParallelWaveTests(unittest.TestCase):
             path.write_bytes(b"\xef\xbb\xbf" + json.dumps({"schemaVersion": 1, "tasks": []}).encode("utf-8"))
             self.assertEqual(1, mod._load_json(path)["schemaVersion"])
 
+    def test_python_script_content_is_bound_to_wave_state(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            script = root / "task.py"
+            script.write_text("raise SystemExit(0)\n", encoding="utf-8")
+            obj = {"schemaVersion": 1, "tasks": [{"id": "script", "argv": [sys.executable, str(script)], "maxAttempts": 1}]}
+            state_dir = root / "state"
+            self.assertEqual(0, mod.run_wave(obj, state_dir, 1))
+            state = json.loads((state_dir / "state.json").read_text())
+            bindings = state.get("inputBindings", {}).get("script", [])
+            self.assertEqual(1, len(bindings))
+            self.assertTrue(bindings[0]["digest"].startswith("sha256:"))
+            script.write_text("raise SystemExit(7)\n", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                mod.run_wave(obj, state_dir, 1)
+
+    def test_explicit_input_file_is_bound_even_for_inline_task(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config = root / "input.json"
+            config.write_text('{"version":1}\n', encoding="utf-8")
+            obj = {"schemaVersion": 1, "tasks": [{
+                "id": "inline",
+                "argv": [sys.executable, "-c", "raise SystemExit(0)"],
+                "inputFiles": [str(config)],
+                "maxAttempts": 1,
+            }]}
+            state_dir = root / "state"
+            self.assertEqual(0, mod.run_wave(obj, state_dir, 1))
+            config.write_text('{"version":2}\n', encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                mod.run_wave(obj, state_dir, 1)
+
+    def test_script_self_mutation_fails_closed_before_retry(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            script = root / "self_mutate.py"
+            script.write_text(
+                "from pathlib import Path\n"
+                "p=Path(__file__)\n"
+                "p.write_text('raise SystemExit(0)\\n', encoding='utf-8')\n"
+                "raise SystemExit(7)\n",
+                encoding="utf-8",
+            )
+            obj = {"schemaVersion": 1, "tasks": [{"id": "mutate", "argv": [sys.executable, str(script)], "maxAttempts": 2, "retryDelaySeconds": 0}]}
+            state_dir = root / "state"
+            self.assertEqual(1, mod.run_wave(obj, state_dir, 1))
+            state = json.loads((state_dir / "state.json").read_text())
+            row = state["tasks"]["mutate"]
+            self.assertEqual("FAILED", row["state"])
+            self.assertEqual(1, row["attempts"])
+            self.assertIn("input binding changed", row["lastError"])
+
     def test_state_is_bound_to_exact_spec(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
