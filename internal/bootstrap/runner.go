@@ -1095,6 +1095,9 @@ func (r *Runner) deployInternalGit(ctx context.Context, run Run, bundle BundleMa
 	if err := r.waitHADatabase(ctx, run, "platform-forgejo-database"); err != nil {
 		return err
 	}
+	if err := r.reconcileLegacyHAServiceDatabaseOwnership(ctx, run, "forgejo", "forgejo", "platform-forgejo"); err != nil {
+		return err
+	}
 	manifest := forgejoManifest(bundle, run.Request)
 	if err := r.system.WriteFile("/var/lib/rancher/rke2/server/manifests/4so-platform-forgejo.yaml", []byte(manifest), 0o600); err != nil {
 		return err
