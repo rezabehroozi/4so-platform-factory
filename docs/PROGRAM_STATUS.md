@@ -236,3 +236,52 @@ Every progress report for 4SO Platform Factory MUST include these fields, even w
 - Fast Lab runtime credential separation is still not claimed complete. Manual secret/password mutation through the controller was blocked by the safety boundary and was not bypassed. The production source now has the formal DB-owner migration and independent authority contracts, but the current manual Fast Lab instance still requires observed runtime convergence after Remote access returns.
 - Fast Lab TLS remains temporary/non-certifying, whole-appliance off-node DR still requires the real persisted S3-compatible backup authority and authenticated installer route, and final sealed current-main Exact-SHA Physical Runtime Certification remains NOT RUN.
 
+## Lab-derived defect, hardening and development queue — 2026-09-19
+
+Remote Commander/Lab execution is **paused by explicit user instruction** until the user explicitly re-enables it. This is not a development blocker. While paused, work continues on source, CI, regression/negative-control coverage, upgrade safety, supply-chain logic, API/MCP/Console convergence and other pre-physical software closure. Do not reconnect to or mutate the Lab during this mode.
+
+The queue below is derived from failures and behavior actually observed in Fast Lab plus follow-up source audit. It is the canonical Lab-derived solve/bug-fix/development list; do not create a second competing backlog.
+
+| ID | Priority | Lane | State | Lab-derived problem / next closure |
+| --- | --- | --- | --- | --- |
+| LAB-BUG-001 | P0 | Bug fix | SOURCE FIXED, CI pending | Legacy HA DB migration used `REASSIGN OWNED BY platform`, which can also transfer shared database/tablespace ownership. Fix on `fd310439` inventories platform-owned shared databases, rejects unknown databases/tablespaces and restores non-target database owners inside the migration transaction. |
+| LAB-BUG-002 | P0 | Bug fix | FIXED | HA Platform API omitted `PLATFORM_FACTORY_INTERNAL_GITOPS_TOKEN`; HA now consumes canonical `platform-internal-services/argocd-observer-token` with regression coverage. |
+| LAB-BUG-003 | P0 | Upgrade | FIXED, runtime evidence pending | Historical Fast Lab used shared PostgreSQL role `platform` for Forgejo/Keycloak. Source now has replay-safe HA role/owner migration, workload quiesce, unexpected-owner rejection and admin convergence; runtime convergence waits for Lab access. |
+| LAB-BUG-004 | P1 | Upgrade/replay | INVESTIGATE + HARDEN | Verify that replay/re-materialization of `platform-internal-services` cannot delete runtime-added durable keys such as `argocd-observer-token` or transient DR recovery authority. Add a negative control before changing behavior. |
+| LAB-BUG-005 | P1 | GitOps install | FIXED | ApplicationSet CRD exceeded client-side apply annotation limits in Lab. Canonical Argo deployment now uses server-side apply with force-conflicts; keep regression coverage. |
+| LAB-BUG-006 | P1 | SSH identity | OPEN SOFTWARE | Product-owned SSH HostKey moved to `/etc/ssh/4so-hostkeys/ssh_host_ed25519_key`; control-host pinning correctly detected a change. Add explicit host-key fingerprint/rotation evidence and safe pin-update semantics so legitimate product rotation is distinguishable from MITM without bypassing verification. |
+| LAB-BUG-007 | P1 | Execution transport | OPEN SOFTWARE | Windows-to-Bash CRLF produced exit 127 after the Lab drain itself had already emitted PASS. Durable runner correctly retried, but remote-shell payload transport needs canonical LF normalization and a regression so transport bytes cannot turn a successful mutation into a false failure. |
+| LAB-BUG-008 | P1 | Runtime authority | OPEN / LAB EVIDENCE | Manual Fast Lab still uses temporary secret authorities for some service/admin credentials. Production source has independent authorities; when Lab returns, converge runtime only through product-owned migration and verify no DB/admin/session credential reuse. |
+| LAB-BUG-009 | P1 | GitOps upgrade | INVESTIGATE | Runtime cleanup removed stale duplicate Argo/Application proxy authority manually after namespace migration. Audit and, if missing, implement an owner-layer upgrade migration that prevents old `argocd` namespace/reconciler residues from coexisting with canonical `platform-gitops`. |
+| LAB-BUG-010 | P1 | Verification | OPEN SOFTWARE | Full Verifier UI lane depended on missing Playwright/browser bytes. Make verifier browser/toolchain acquisition explicit, pinned, preflighted and self-contained/offline-capable rather than relying on workstation state. |
+| LAB-BUG-011 | P1 | Recovery | OPEN SOFTWARE REVIEW | Legacy DB migration intentionally leaves a quiesced workload down after an uncertain post-quiesce failure. Add phase/evidence semantics distinguishing safe pre-mutation rollback from post-mutation fail-closed recovery so operators get deterministic resume guidance without unsafe auto-restart. |
+| LAB-BUG-012 | P2 | Storage cleanup | INVESTIGATE | A retained Longhorn smoke volume survived namespace deletion until ownership was manually proven. Audit garbage-collection/retained-volume ownership evidence so only explicitly test-owned or product-abandoned volumes can be cleaned automatically. |
+| LAB-FIXED-001 | Closed | Runtime | FIXED | Platform API HA rolling update deadlocked under required anti-affinity; rollout strategy was corrected. |
+| LAB-FIXED-002 | Closed | Runtime | FIXED | Zot UI enabled while search extension was disabled, causing CrashLoopBackOff; UI remains disabled by product config. |
+| LAB-FIXED-003 | Closed | Runtime | FIXED | Zot RollingUpdate caused single-writer BoltDB/RWO contention; deployment uses Recreate. |
+| LAB-FIXED-004 | Closed | Runtime | FIXED | Keycloak readiness used a hostname-sensitive public endpoint and returned 403; readiness uses management `/health/ready` on port 9000. |
+| LAB-FIXED-005 | Closed | Cross-platform | FIXED | Windows acquisition failed on POSIX directory fsync assumptions; atomic JSON durability is platform-correct. |
+| LAB-FIXED-006 | Closed | CI | FIXED | Acquisition-admission test assumed only missing tools and failed on wrong-version tools; both exact-tool fail-closed outcomes are accepted. |
+| LAB-FIXED-007 | Closed | CI | FIXED | Remote installer smoke accidentally used GitHub runner UID 1001 as target identity; fixture simulates only the remote identity probe as Linux/root without weakening production root enforcement. |
+| LAB-FIXED-008 | Closed | GitOps | FIXED | Argo duplicate Fast Lab Application/proxy authority was removed and canonical `platform-appliance` remains the single observed reconciler. |
+| LAB-FIXED-009 | Closed | Resilience | FIXED | Detached parallel waves now bind exact spec, script inputs and runner snapshot; reconnect skips green work and interrupted work resumes within bounded attempt budgets. |
+| LAB-EVIDENCE-001 | P1 | DR | PENDING PHYSICAL | Execute whole-appliance off-node S3 backup, integrity read-back, destructive restore, secret restoration, GitOps recovery and post-restore service verification through the persisted installer authority. Source tests do not count as Physical PASS. |
+| LAB-EVIDENCE-002 | P1 | Database HA | PENDING PHYSICAL | Existing replica-loss recovery passed; still force an actual CNPG primary loss/promotion under continuous API/OIDC/Git probes and verify no split authority. |
+| LAB-EVIDENCE-003 | P1 | Storage HA | PENDING PHYSICAL | Exercise Longhorn node/disk loss and replica rebuild while PostgreSQL/Forgejo/Zot perform real writes; verify data integrity and recovery time. |
+| LAB-EVIDENCE-004 | P1 | TLS | PENDING PHYSICAL | Replace temporary Fast Lab self-signed TLS with the product-owned trusted certificate path and exercise renewal/rotation plus trust propagation. |
+| LAB-EVIDENCE-005 | P1 | OIDC | PENDING PHYSICAL | Authorization redirect/PKCE path is proven; complete a real login/callback/token/session flow through public HTTPS and verify logout/expiry/revocation. |
+| LAB-EVIDENCE-006 | P1 | Node HA | PENDING OBSERVATION | vm-lab08 drain physically emitted `NODE_DRAIN_RECOVERY_PASS`; final clean detached v2 wave state is unobserved because Remote access stopped. Read the existing checkpoint before any future Lab action. |
+| LAB-EVIDENCE-007 | P2 | Service HA | PENDING / PRODUCT DECISION | Forgejo and Zot are documented restart-failover services and showed brief disruption during failover. Keep the truthful HA class unless a future architecture deliberately adds continuous multi-writer/shared-storage semantics. |
+| LAB-CLEANUP-001 | P2 | Lab hygiene | DEFERRED | vm-lab07 host PostgreSQL staging service and historical host Zot staging process must be ownership-checked and removed only when Lab access returns; they are not source authority. |
+| LAB-SUPPLY-001 | P1 | Supply chain | OPEN | Finish current-main exact management workload OCI archive and immutable bundle authority; never infer READY from source-only progress. |
+| LAB-SUPPLY-002 | P1 | Upgrade cert | OPEN | Complete exact historical component/runtime upgrade matrix and negative controls for the supported upgrade edges. |
+| DEV-001 | P1 | AI/MCP | OPEN | Complete named external MCP-client interoperability matrix with user delegation, approval, progress, evidence and revocation. |
+| DEV-002 | P1 | Providers | OPEN | J1: real Terraform provider + Crossplane provider against Product API authority. |
+| DEV-003 | P1 | Providers | OPEN | H3: common provider execution framework plus AWS/Azure/GCP adapters without duplicating product authority. |
+| DEV-004 | P1 | Developer platform | OPEN | J3: Virtual Cluster / Developer Mode lifecycle, workspace integration and policy boundaries. |
+| DEV-005 | P2 | Edge | OPEN | I2: bounded edge/sovereign authority, boot attestation and disconnected local-AI profile. |
+| DEV-006 | P1 | OKD | OPEN EVIDENCE/INTEGRATION | Continue connected Managed OKD, disconnected oc-mirror v2 and upgrade/runtime-certification lanes without moving Factory management plane onto OKD. |
+| RELEASE-001 | Final | Certification | PENDING | Build one sealed immutable current-main FULL release, run Full Verifier, then Exact-SHA Physical Runtime certification. Fast Lab evidence must remain distinct. |
+
+Execution order while Remote Commander is paused: **LAB-BUG-001 CI closure → LAB-BUG-004/006/007/009/010/011 software hardening in parallel → LAB-SUPPLY-001/002 → DEV-001/002/003/004/006 parallel development → final evidence queue only after Lab access is explicitly restored.**
+
