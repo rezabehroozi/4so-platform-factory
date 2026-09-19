@@ -165,3 +165,18 @@ Every progress report for 4SO Platform Factory MUST include these fields, even w
 - Temporary Fast Lab completed probe pods/jobs were cleaned up; canonical Argo Application, managed desired-state and Fast Lab ingress were retained for continued testing.
 - Source regression after availability changes PASSes `go test ./internal/bootstrap ./internal/installation ./cmd/platform-installer` and `REPOSITORY_VALIDATION_PASS 1002`.
 - Final Physical PASS remains NOT RUN. Trusted production TLS, separate production Forgejo/Keycloak DB-role credentials in the deployed Lab instance, Full Verifier UI/browser environment, sealed current-main bundle and final Exact-SHA Physical Runtime remain final-certification work and must not block continued functional Lab development.
+
+## Current handoff checkpoint - 2026-09-19 dual-lane execution model
+
+- Development now runs as two coordinated lanes in parallel:
+  - **Remote Commander / Lab lane** owns physical runtime work on the canonical Windows-controlled Lab: installation, HA/runtime validation, failure injection, storage/network checks, service exposure, GitOps reconciliation and physical evidence.
+  - **Sandbox / Code lane** owns isolated analysis, CI-failure reproduction, negative controls, regression design and candidate patches. Sandbox is never a second source of truth and never carries an independent release history.
+- The only source authority remains Git `main`. Sandbox findings are promoted only after isolated validation, then re-validated from the canonical Windows workspace/Linux environment before push. Lab mutations are never treated as source truth unless the matching source fix also lands on `main`.
+- This dual-lane model immediately closed two independent clean-clone CI defects:
+  1. acquisition-admission smoke was environment-brittle and expected only `ACQUISITION_TOOLCHAIN_TOOL_MISSING`; it now accepts either exact-tool missing or exact-tool version mismatch while still proving that source admission succeeded first.
+  2. remote-installer smoke accidentally used the GitHub runner's non-root UID as the simulated remote target UID. The fixture now simulates only the remote identity probe as Linux/root while production code continues to require root SSH.
+- Canonical commit after these CI fixes: `bb4f878ef8bd4c3037a4f71cb73a398fc6a2ff10`. GitHub Actions run `35421417015` completed **SUCCESS**: repository validator, full Go build/tests, all Python tests, Autopilot self-test, installer smoke shard including remote installer, explicit clean-clone verification, and PostgreSQL behavioral integration all passed.
+- Fast Lab public exposure is now functionally reachable through RKE2 ingress-nginx on all three management nodes. HTTP and HTTPS endpoints for Platform API, Forgejo, Keycloak and Zot pass from the canonical Windows host. Fast Lab TLS currently uses a temporary seven-day self-signed certificate for `*.fastlab.4so.test`; this is functional evidence only and is not final certificate authority evidence.
+- External OIDC flow is functional through HTTPS ingress: Platform API `/auth/login` returns a 302 to `https://auth.fastlab.4so.test/realms/platform` with state, nonce and PKCE S256; redirect URI is `https://platform.fastlab.4so.test/auth/callback`; the state cookie is Secure + HttpOnly; Keycloak accepts the authorization request and returns the login page.
+- HA exposure check PASS: Platform API health and Keycloak discovery returned HTTP 200 when the same public hostnames were individually resolved to each of `213.176.28.136`, `213.176.28.137`, and `213.176.28.138`.
+- Final certification remains separate: Fast Lab self-signed TLS, functional-lane credentials, and non-final release identity cannot be promoted to Exact-SHA Physical PASS.
