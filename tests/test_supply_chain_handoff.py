@@ -26,7 +26,7 @@ class SupplyChainHandoffTests(unittest.TestCase):
         self.assertEqual("RUNTIME_DEPENDENCY_TRANSITION_V1", spec["runtimeDependencyTransition"]["authority"])
         self.assertEqual(3, len(spec["componentAcquisition"]["alreadySourceLocked"]))
         self.assertEqual(4, len(spec["managementWorkloads"]["externalImages"]))
-        self.assertEqual(3, len(spec["managementWorkloads"]["manifestImageResolution"]))
+        self.assertEqual(4, len(spec["managementWorkloads"]["manifestImageResolution"]))
         self.assertEqual(20, len(spec["componentUpgradePairRequirements"]))
         self.assertEqual(0, sum(1 for row in spec["componentUpgradePairRequirements"] if row["pairState"] == "pair-present"))
         self.assertEqual("admitted", spec["releaseToolchain"]["admissionStatus"])

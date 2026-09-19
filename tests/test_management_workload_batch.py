@@ -28,7 +28,7 @@ class ManagementWorkloadBatchTests(unittest.TestCase):
         self.assertEqual(["forgejo", "keycloak", "postgresql", "zot"], result["pending"]["externalImages"])
         self.assertEqual(["api-runtime-base", "maintenance-toolchain-base", "static-runtime-base"], result["pending"]["baseImages"])
         self.assertEqual(["maintenance", "platform-agent", "platform-api", "platform-probe"], result["pending"]["productImages"])
-        self.assertEqual(3, len(result["pending"]["manifestResolutions"]))
+        self.assertEqual(4, len(result["pending"]["manifestResolutions"]))
         self.assertGreaterEqual(len(result["blockers"]), 14)
         self.assertEqual("seal-and-verify-management-workload-oci-archive", result["nextAction"])
         self.assertNotIn("sha256:", json.dumps(result).lower())
