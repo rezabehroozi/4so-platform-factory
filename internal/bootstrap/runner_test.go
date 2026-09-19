@@ -1547,6 +1547,18 @@ func TestHAStatusExposesAccessAndEastWestTopology(t *testing.T) {
 	if !ok || len(cluster) != 3 || cluster[0] != "10.77.0.11" {
 		t.Fatalf("HA cluster-node status invalid: %#v", status["clusterNodes"])
 	}
+	availability, ok := status["availabilityContract"].(map[string]any)
+	if !ok || availability["authority"] != "MANAGEMENT_HA_AVAILABILITY_V1" {
+		t.Fatalf("HA availability contract missing: %#v", status["availabilityContract"])
+	}
+	forgejo, ok := availability["forgejo"].(map[string]any)
+	if !ok || forgejo["mode"] != "RESTART_FAILOVER" || forgejo["maintenanceDisruption"] != "brief" {
+		t.Fatalf("Forgejo availability contract must expose restart failover semantics: %#v", forgejo)
+	}
+	api, ok := availability["platformApi"].(map[string]any)
+	if !ok || api["mode"] != "CONTINUOUS_REPLICATED" || api["maintenanceDisruption"] != "none" {
+		t.Fatalf("Platform API availability contract must expose continuous replication: %#v", api)
+	}
 }
 
 func TestBootstrapStepsForFunctionalLabMilestones(t *testing.T) {
