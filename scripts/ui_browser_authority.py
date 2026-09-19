@@ -64,14 +64,26 @@ def validate_ui_browser_authority(manifest_path: Path) -> tuple[Path, dict]:
     match = SHA_RE.fullmatch(str(document["sha256"]).strip())
     if match is None or not isinstance(document["size"], int) or isinstance(document["size"], bool) or document["size"] <= 0:
         raise ValueError("UI_BROWSER_AUTHORITY_DIGEST_INVALID")
-    candidate = manifest_path.parent / executable_rel
+    authority_root = manifest_path.parent.resolve()
+    candidate = manifest_path.parent
+    relative = Path(executable_rel)
     try:
-        info = candidate.lstat()
+        for component in relative.parts:
+            candidate = candidate / component
+            info = candidate.lstat()
+            if candidate.is_symlink():
+                raise ValueError("UI_BROWSER_EXECUTABLE_IDENTITY_INVALID")
+    except ValueError:
+        raise
     except OSError as exc:
         raise ValueError("UI_BROWSER_EXECUTABLE_MISSING") from exc
-    if candidate.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_size != document["size"]:
+    if not stat.S_ISREG(info.st_mode) or info.st_size != document["size"]:
         raise ValueError("UI_BROWSER_EXECUTABLE_IDENTITY_INVALID")
     executable = candidate.resolve()
+    try:
+        executable.relative_to(authority_root)
+    except ValueError as exc:
+        raise ValueError("UI_BROWSER_EXECUTABLE_OUTSIDE_AUTHORITY") from exc
     if os.name != "nt" and info.st_mode & 0o111 == 0:
         raise ValueError("UI_BROWSER_EXECUTABLE_NOT_EXECUTABLE")
     if file_sha256(executable) != match.group(1):
