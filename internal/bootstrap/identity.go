@@ -267,7 +267,7 @@ func keycloakManifest(bundle BundleManifest, request installation.InstallRequest
             - labelSelector: {matchLabels: {app: platform-keycloak}}
               topologyKey: kubernetes.io/hostname`
 	}
-	return fmt.Sprintf(`apiVersion: v1
+	manifest := fmt.Sprintf(`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: platform-keycloak-realm
@@ -357,6 +357,22 @@ spec:
               - key: identity-admin-password
                 path: admin-password
 `, yamlScalar(string(realmJSON)), replicas, affinity, fmt.Sprintf(dbInit, bundle.Spec.Workloads.PostgreSQLImage), bundle.Spec.Workloads.KeycloakImage, yamlScalar(dbUser), yamlScalar(dbSecret), yamlScalar("https://auth."+request.Network.DNSZone))
+
+	if request.ProfileID == "production-standard-ha" {
+		manifest += `---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: platform-keycloak
+  namespace: platform-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: platform-keycloak
+`
+	}
+	return manifest
 }
 
 func exposureManifest(request installation.InstallRequest, cert, key, ca []byte) (string, error) {

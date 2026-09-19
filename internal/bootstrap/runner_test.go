@@ -1650,3 +1650,17 @@ func TestZotManifestUsesRecreateForSingleWriterRegistry(t *testing.T) {
 		}
 	}
 }
+
+func TestProductionHAKeycloakManifestIncludesPDB(t *testing.T) {
+	bundle := BundleManifest{}
+	bundle.Spec.Workloads.KeycloakImage = "quay.io/keycloak/keycloak@sha256:" + strings.Repeat("a", 64)
+	request := installation.InstallRequest{ProfileID: "production-standard-ha"}
+	request.Network.PublicEndpoint = "https://platform.example.test"
+	request.Network.DNSZone = "example.test"
+	manifest := keycloakManifest(bundle, request)
+	for _, want := range []string{"kind: PodDisruptionBudget", "name: platform-keycloak", "minAvailable: 1"} {
+		if !strings.Contains(manifest, want) {
+			t.Fatalf("production HA Keycloak manifest missing disruption protection %q:\n%s", want, manifest)
+		}
+	}
+}
