@@ -799,7 +799,7 @@ func restoreSecretObjects(enc func(string) string) map[string]map[string]any {
 	return map[string]map[string]any{
 		"platform-system/platform-internal-services": secretFixture("secret-uid-1", "17", "Opaque", nil, map[string]string{
 			"forgejo-admin-password": enc("forgejo-old"), "identity-admin-password": enc("identity-old"), "identity-admin-email": enc("admin@example.test"),
-			"session-secret": enc("session-old"), "catalog-signing-key": enc("catalog-old"), "gitops-signing-key": enc("gitops-old"),
+			"session-secret": enc("session-old"), "catalog-signing-key": enc("catalog-old"), "argocd-observer-token": enc("observer-old"), "gitops-signing-key": enc("gitops-old"),
 		}),
 		"platform-system/platform-ingress-tls": secretFixture("ingress-uid-1", "21", "kubernetes.io/tls", nil, map[string]string{
 			"ca.crt": enc("ca-old"), "tls.crt": enc("cert-old"), "tls.key": enc("key-old"),
@@ -877,6 +877,7 @@ func TestDisasterRecoveryWholeApplianceBackupIncludesRuntimeAuthority(t *testing
 		"identity-admin-email",
 		"session-secret",
 		"catalog-signing-key",
+		"argocd-observer-token",
 		"gitops-signing-key",
 		"/var/lib/4so-platform-installer/secrets/gitops-signing-key",
 		`nodeName: "manager-node"`,
@@ -902,6 +903,8 @@ func TestDisasterRecoveryWholeApplianceBackupIncludesRuntimeAuthority(t *testing
 		"/metadata/uid",
 		"/metadata/resourceVersion",
 		"gitops-signing-key",
+		"argocd-observer-token",
+		"ARGO_OBSERVER_B64=",
 		"CA_CRT_B64=",
 		"FORGEJO_PASSWORD_B64=",
 		`test "$INTERNAL_UID" = "secret-uid-1"`,

@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -33,7 +34,8 @@ func argoHTTPClient() *http.Client {
 			Proxy:       nil,
 			DialContext: (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 		},
-		Timeout: 8 * time.Second,
+		Timeout:       8 * time.Second,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 	}
 }
 
@@ -239,7 +241,7 @@ func (r *Runner) gitOpsInternalURL(ctx context.Context) (string, error) {
 	if net.ParseIP(ip) == nil || len(service.Spec.Ports) == 0 || service.Spec.Ports[0].Port <= 0 {
 		return "", errors.New("Argo CD service has no usable ClusterIP/port")
 	}
-	return fmt.Sprintf("http://%s:%d", ip, service.Spec.Ports[0].Port), nil
+	return "http://" + net.JoinHostPort(ip, strconv.Itoa(service.Spec.Ports[0].Port)), nil
 }
 
 func (r *Runner) gitOpsBootstrapSecrets(ctx context.Context) (existingToken, adminPassword string, err error) {

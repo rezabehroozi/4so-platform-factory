@@ -334,7 +334,7 @@ type restoreTargetRequirement struct {
 }
 
 var restoreTargetRequirements = []restoreTargetRequirement{
-	{Namespace: "platform-system", Name: "platform-internal-services", SecretType: "Opaque", RequiredKeys: []string{"forgejo-admin-password", "identity-admin-password", "identity-admin-email", "session-secret", "catalog-signing-key"}},
+	{Namespace: "platform-system", Name: "platform-internal-services", SecretType: "Opaque", RequiredKeys: []string{"forgejo-admin-password", "identity-admin-password", "identity-admin-email", "session-secret", "catalog-signing-key", "argocd-observer-token"}},
 	{Namespace: "platform-system", Name: "platform-ingress-tls", SecretType: "kubernetes.io/tls", RequiredKeys: []string{"tls.crt", "tls.key", "ca.crt"}},
 	{Namespace: "platform-gitops", Name: "platform-internal-git", RequiredKeys: []string{"type", "url", "username", "password"}, RequiredLabels: map[string]string{"argocd.argoproj.io/secret-type": "repository"}},
 	{Namespace: "platform-system", Name: "platform-agent-mtls", SecretType: "Opaque", RequiredKeys: []string{"client-ca.crt", "client-ca.key", "tls.crt", "tls.key"}},
