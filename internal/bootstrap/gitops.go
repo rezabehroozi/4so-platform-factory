@@ -153,6 +153,9 @@ func (r *Runner) deployGitOpsController(ctx context.Context, bundle BundleManife
 			return err
 		}
 	}
+	if err = r.ensureGitOpsObserverToken(ctx); err != nil {
+		return fmt.Errorf("bootstrap Argo CD observer authority: %w", err)
+	}
 	return nil
 }
 func (r *Runner) initialSignedRevision(run Run) (gitops.Revision, string, string, error) {
