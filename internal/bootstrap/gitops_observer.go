@@ -262,10 +262,78 @@ func (r *Runner) gitOpsBootstrapSecrets(ctx context.Context) (existingToken, adm
 	return existingToken, adminPassword, nil
 }
 
+func upsertGitOpsObserverTokenInFoundationManifest(raw []byte, token string) ([]byte, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, errors.New("Argo CD observer token is empty")
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(token))
+	documents := strings.Split(string(raw), "\n---\n")
+	matched := 0
+	for index, document := range documents {
+		if !strings.Contains(document, "kind: Secret") ||
+			!strings.Contains(document, "metadata: {name: platform-internal-services, namespace: platform-system") {
+			continue
+		}
+		matched++
+		lines := strings.Split(document, "\n")
+		dataIndex := -1
+		keyIndex := -1
+		for i, line := range lines {
+			if line == "data:" {
+				dataIndex = i
+			}
+			if strings.HasPrefix(line, "  "+gitOpsObserverSecretKey+":") {
+				keyIndex = i
+			}
+		}
+		if dataIndex < 0 {
+			return nil, errors.New("platform-internal-services desired state has no data section")
+		}
+		entry := "  " + gitOpsObserverSecretKey + ": " + encoded
+		if keyIndex >= 0 {
+			lines[keyIndex] = entry
+		} else {
+			insertAt := dataIndex + 1
+			for insertAt < len(lines) && (strings.HasPrefix(lines[insertAt], "  ") || strings.TrimSpace(lines[insertAt]) == "") {
+				insertAt++
+			}
+			lines = append(lines[:insertAt], append([]string{entry}, lines[insertAt:]...)...)
+		}
+		documents[index] = strings.Join(lines, "\n")
+	}
+	if matched != 1 {
+		return nil, fmt.Errorf("expected exactly one platform-internal-services Secret in foundation desired state, found %d", matched)
+	}
+	updated := []byte(strings.Join(documents, "\n---\n"))
+	if !bytes.Contains(updated, []byte("  "+gitOpsObserverSecretKey+": "+encoded)) {
+		return nil, errors.New("Argo CD observer token did not persist into foundation desired state")
+	}
+	return updated, nil
+}
+
+func (r *Runner) persistGitOpsObserverTokenDesiredState(token string) error {
+	raw, err := r.readFile(foundationManifestPath)
+	if err != nil {
+		return fmt.Errorf("read authoritative foundation manifest before persisting Argo CD observer token: %w", err)
+	}
+	updated, err := upsertGitOpsObserverTokenInFoundationManifest(raw, token)
+	if err != nil {
+		return err
+	}
+	if err = r.system.WriteFile(foundationManifestPath, updated, 0o600); err != nil {
+		return fmt.Errorf("persist Argo CD observer token in authoritative foundation manifest: %w", err)
+	}
+	return nil
+}
+
 func (r *Runner) persistGitOpsObserverToken(ctx context.Context, token string) error {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return errors.New("Argo CD observer token is empty")
+	}
+	if err := r.persistGitOpsObserverTokenDesiredState(token); err != nil {
+		return err
 	}
 	patchRaw, _ := json.Marshal(map[string]any{"data": map[string]string{gitOpsObserverSecretKey: base64.StdEncoding.EncodeToString([]byte(token))}})
 	path := "/var/lib/4so-platform-installer/secrets/argocd-observer-token.patch.json"
@@ -314,6 +382,10 @@ func (r *Runner) ensureGitOpsObserverToken(ctx context.Context) error {
 		if err = r.persistGitOpsObserverToken(ctx, token); err != nil {
 			return err
 		}
+	} else if err = r.persistGitOpsObserverTokenDesiredState(token); err != nil {
+		// A valid live token can predate the current desired-state authority.
+		// Reconcile it into the static foundation manifest without rotating it.
+		return err
 	}
 	kubectl := "/var/lib/rancher/rke2/bin/kubectl"
 	kubeconfig := "/etc/rancher/rke2/rke2.yaml"

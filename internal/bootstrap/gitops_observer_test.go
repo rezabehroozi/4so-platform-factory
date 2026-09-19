@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -137,5 +138,89 @@ func TestMergeObserverRBACIsIdempotentAndPreservesExistingPolicy(t *testing.T) {
 		if !strings.Contains(once, required) {
 			t.Fatalf("merged RBAC missing %q:\n%s", required, once)
 		}
+	}
+}
+
+func TestUpsertGitOpsObserverTokenInFoundationManifestPreservesExistingAuthority(t *testing.T) {
+	raw := []byte(`apiVersion: v1
+kind: Secret
+metadata: {name: unrelated, namespace: platform-system}
+type: Opaque
+data:
+  keep: dW5yZWxhdGVk
+---
+apiVersion: v1
+kind: Secret
+metadata: {name: platform-internal-services, namespace: platform-system, annotations: {platform.4so.io/bootstrap-owner: "4so-platform-installer"}}
+type: Opaque
+data:
+  forgejo-admin-password: Zm9yZ2Vqbw==
+  session-secret: c2Vzc2lvbg==
+  bootstrap-token: Ym9vdHN0cmFw
+---
+apiVersion: v1
+kind: Service
+metadata: {name: platform-api, namespace: platform-system}
+`)
+	updated, err := upsertGitOpsObserverTokenInFoundationManifest(raw, "observer-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(updated)
+	for _, required := range []string{
+		"forgejo-admin-password: Zm9yZ2Vqbw==",
+		"session-secret: c2Vzc2lvbg==",
+		"bootstrap-token: Ym9vdHN0cmFw",
+		"keep: dW5yZWxhdGVk",
+		"argocd-observer-token: " + base64.StdEncoding.EncodeToString([]byte("observer-token")),
+		"kind: Service",
+	} {
+		if !strings.Contains(text, required) {
+			t.Fatalf("desired-state observer persistence removed or missed %q:\n%s", required, text)
+		}
+	}
+	twice, err := upsertGitOpsObserverTokenInFoundationManifest(updated, "observer-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(twice) != string(updated) {
+		t.Fatalf("observer desired-state persistence is not idempotent:\n%s\n---\n%s", updated, twice)
+	}
+}
+
+func TestUpsertGitOpsObserverTokenInFoundationManifestRotatesOnlyObserverKey(t *testing.T) {
+	raw := []byte(`apiVersion: v1
+kind: Secret
+metadata: {name: platform-internal-services, namespace: platform-system}
+type: Opaque
+data:
+  session-secret: c2Vzc2lvbg==
+  argocd-observer-token: b2xk
+`)
+	updated, err := upsertGitOpsObserverTokenInFoundationManifest(raw, "new-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(updated)
+	if strings.Contains(text, "argocd-observer-token: b2xk") {
+		t.Fatalf("stale observer token remained in desired state:\n%s", text)
+	}
+	if !strings.Contains(text, "session-secret: c2Vzc2lvbg==") ||
+		!strings.Contains(text, "argocd-observer-token: "+base64.StdEncoding.EncodeToString([]byte("new-token"))) {
+		t.Fatalf("observer rotation damaged desired state:\n%s", text)
+	}
+}
+
+func TestUpsertGitOpsObserverTokenInFoundationManifestFailsClosedOnAmbiguousAuthority(t *testing.T) {
+	doc := `apiVersion: v1
+kind: Secret
+metadata: {name: platform-internal-services, namespace: platform-system}
+type: Opaque
+data:
+  session-secret: c2Vzc2lvbg==
+`
+	_, err := upsertGitOpsObserverTokenInFoundationManifest([]byte(doc+"\n---\n"+doc), "observer-token")
+	if err == nil || !strings.Contains(err.Error(), "exactly one") {
+		t.Fatalf("ambiguous desired-state authority was not rejected: %v", err)
 	}
 }
