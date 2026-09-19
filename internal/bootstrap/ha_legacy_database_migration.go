@@ -2,6 +2,10 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
 	"fmt"
 	"strconv"
 	"strings"
@@ -16,6 +20,77 @@ type haServiceDatabaseMigrationTarget struct {
 var haServiceDatabaseMigrationTargets = map[string]haServiceDatabaseMigrationTarget{
 	"forgejo":  {owner: "forgejo", workload: "platform-forgejo"},
 	"keycloak": {owner: "keycloak", workload: "platform-keycloak"},
+}
+
+const (
+	haServiceDatabaseMigrationAuthority = "HA_SERVICE_DATABASE_MIGRATION_V1"
+	haServiceDatabaseMigrationAdmitted = "ADMITTED"
+	haServiceDatabaseMigrationQuiesced = "QUIESCED"
+	haServiceDatabaseMigrationOwnershipApplied = "OWNERSHIP_APPLIED"
+	haServiceDatabaseMigrationReconciled = "RECONCILED"
+)
+
+type HAServiceDatabaseMigrationStatus struct {
+	Authority     string    `json:"authority"`
+	Database      string    `json:"database"`
+	Owner         string    `json:"owner"`
+	Workload      string    `json:"workload"`
+	Phase         string    `json:"phase"`
+	DatabaseOwner string    `json:"databaseOwner,omitempty"`
+	LegacyObjects int       `json:"legacyObjects"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+func (r *Runner) haServiceDatabaseMigrationPath(database string) string {
+	return filepath.Join("/var/lib/4so-platform-installer/evidence", "ha-service-database-migration-"+database+".json")
+}
+
+func validHAServiceDatabaseMigrationPhase(phase string) bool {
+	switch phase {
+	case haServiceDatabaseMigrationAdmitted, haServiceDatabaseMigrationQuiesced, haServiceDatabaseMigrationOwnershipApplied, haServiceDatabaseMigrationReconciled:
+		return true
+	default:
+		return false
+	}
+}
+
+func (r *Runner) loadHAServiceDatabaseMigrationStatus(database, owner, workload string) (*HAServiceDatabaseMigrationStatus, error) {
+	raw, err := r.readFile(r.haServiceDatabaseMigrationPath(database))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var status HAServiceDatabaseMigrationStatus
+	if err = json.Unmarshal(raw, &status); err != nil {
+		return nil, fmt.Errorf("decode HA service database migration status for %s: %w", database, err)
+	}
+	if status.Authority != haServiceDatabaseMigrationAuthority || status.Database != database || status.Owner != owner || status.Workload != workload || !validHAServiceDatabaseMigrationPhase(status.Phase) || status.UpdatedAt.IsZero() {
+		return nil, fmt.Errorf("HA service database migration authority mismatch for %s", database)
+	}
+	return &status, nil
+}
+
+func (r *Runner) writeHAServiceDatabaseMigrationStatus(database, owner, workload, phase, databaseOwner string, legacyObjects int) error {
+	if !validHAServiceDatabaseMigrationPhase(phase) {
+		return fmt.Errorf("invalid HA service database migration phase %q", phase)
+	}
+	status := HAServiceDatabaseMigrationStatus{
+		Authority: haServiceDatabaseMigrationAuthority,
+		Database: database,
+		Owner: owner,
+		Workload: workload,
+		Phase: phase,
+		DatabaseOwner: databaseOwner,
+		LegacyObjects: legacyObjects,
+		UpdatedAt: r.now().UTC(),
+	}
+	raw, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		return err
+	}
+	return r.system.WriteFile(r.haServiceDatabaseMigrationPath(database), append(raw, '\n'), 0o600)
 }
 
 func (r *Runner) haServiceDatabasePrimary(ctx context.Context) (string, error) {
@@ -177,8 +252,26 @@ func (r *Runner) reconcileLegacyHAServiceDatabaseOwnership(ctx context.Context, 
 	if err != nil {
 		return err
 	}
+	status, err := r.loadHAServiceDatabaseMigrationStatus(database, owner, workload)
+	if err != nil {
+		return err
+	}
 	if databaseOwner == owner && legacyObjects == 0 {
+		if status == nil {
+			// Fresh HA installs already materialize service-specific owners and do
+			// not create migration evidence for work that never occurred.
+			return nil
+		}
+		if status.Phase == haServiceDatabaseMigrationReconciled {
+			return nil
+		}
+		if err = r.writeHAServiceDatabaseMigrationStatus(database, owner, workload, haServiceDatabaseMigrationOwnershipApplied, databaseOwner, 0); err != nil {
+			return fmt.Errorf("recover HA service database migration ownership phase for %s: %w", database, err)
+		}
 		return nil
+	}
+	if status != nil && (status.Phase == haServiceDatabaseMigrationOwnershipApplied || status.Phase == haServiceDatabaseMigrationReconciled) {
+		return fmt.Errorf("HA service database migration for %s recorded phase %s but observed owner=%s legacyObjects=%d; refusing implicit rollback", database, status.Phase, databaseOwner, legacyObjects)
 	}
 	sharedDatabasesRaw, err := r.haServiceDatabaseQuery(ctx, primary, "postgres",
 		"SELECT datname FROM pg_database WHERE datdba=(SELECT oid FROM pg_roles WHERE rolname='platform') ORDER BY datname")
@@ -206,8 +299,16 @@ func (r *Runner) reconcileLegacyHAServiceDatabaseOwnership(ctx context.Context, 
 	if tablespaces := strings.Fields(platformTablespacesRaw); len(tablespaces) != 0 {
 		return fmt.Errorf("platform role owns shared tablespace(s) %q; refusing HA service database migration that could transfer shared ownership", strings.Join(tablespaces, ","))
 	}
+	if status == nil || status.Phase == haServiceDatabaseMigrationAdmitted {
+		if err = r.writeHAServiceDatabaseMigrationStatus(database, owner, workload, haServiceDatabaseMigrationAdmitted, databaseOwner, legacyObjects); err != nil {
+			return fmt.Errorf("persist HA service database migration admission for %s: %w", database, err)
+		}
+	}
 	if err = r.quiesceLegacyHAServiceWorkload(ctx, workload); err != nil {
 		return err
+	}
+	if err = r.writeHAServiceDatabaseMigrationStatus(database, owner, workload, haServiceDatabaseMigrationQuiesced, databaseOwner, legacyObjects); err != nil {
+		return fmt.Errorf("persist HA service database quiesce evidence for %s: %w", database, err)
 	}
 	statements := []string{"BEGIN", fmt.Sprintf("REASSIGN OWNED BY platform TO %s", owner)}
 	for _, sharedDatabase := range sharedDatabases {
@@ -241,5 +342,46 @@ func (r *Runner) reconcileLegacyHAServiceDatabaseOwnership(ctx context.Context, 
 	if remaining != 0 {
 		return fmt.Errorf("HA service database %s still has %d platform-owned object(s) after migration", database, remaining)
 	}
+	if err = r.writeHAServiceDatabaseMigrationStatus(database, owner, workload, haServiceDatabaseMigrationOwnershipApplied, verifiedOwner, remaining); err != nil {
+		return fmt.Errorf("persist HA service database ownership evidence for %s: %w", database, err)
+	}
 	return nil
+}
+
+func (r *Runner) finalizeLegacyHAServiceDatabaseMigration(ctx context.Context, run Run, database, owner, workload string) error {
+	if run.Request.ProfileID != "production-standard-ha" || r.simulation {
+		return nil
+	}
+	status, err := r.loadHAServiceDatabaseMigrationStatus(database, owner, workload)
+	if err != nil || status == nil {
+		return err
+	}
+	if status.Phase == haServiceDatabaseMigrationReconciled {
+		return nil
+	}
+	if status.Phase != haServiceDatabaseMigrationOwnershipApplied {
+		return fmt.Errorf("HA service database migration for %s cannot reconcile workload from phase %s", database, status.Phase)
+	}
+	primary, err := r.haServiceDatabasePrimary(ctx)
+	if err != nil {
+		return err
+	}
+	observedOwner, err := r.haServiceDatabaseQuery(ctx, primary, "postgres",
+		fmt.Sprintf("SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname='%s'", database))
+	if err != nil {
+		return fmt.Errorf("verify HA service database owner before workload reconciliation for %s: %w", database, err)
+	}
+	remainingRaw, err := r.haServiceDatabaseQuery(ctx, primary, database,
+		"SELECT count(*) FROM pg_shdepend d JOIN pg_roles r ON r.oid=d.refobjid WHERE d.dbid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND r.rolname='platform' AND d.deptype='o'")
+	if err != nil {
+		return fmt.Errorf("verify HA service database legacy ownership before workload reconciliation for %s: %w", database, err)
+	}
+	remaining, err := parseHAServiceDatabaseCount("remaining legacy HA service database ownership before reconciliation", remainingRaw)
+	if err != nil {
+		return err
+	}
+	if observedOwner != owner || remaining != 0 {
+		return fmt.Errorf("HA service database %s is not safe to mark reconciled: owner=%s legacyObjects=%d", database, observedOwner, remaining)
+	}
+	return r.writeHAServiceDatabaseMigrationStatus(database, owner, workload, haServiceDatabaseMigrationReconciled, observedOwner, remaining)
 }

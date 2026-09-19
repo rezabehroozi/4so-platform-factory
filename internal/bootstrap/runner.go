@@ -1144,6 +1144,9 @@ func (r *Runner) deployInternalGit(ctx context.Context, run Run, bundle BundleMa
 	if err := r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-system", "exec", "statefulset/platform-forgejo", "--", "/bin/sh", "-ec", adminCommand}, nil); err != nil {
 		return fmt.Errorf("initialize Forgejo administrator: %w", err)
 	}
+	if err := r.finalizeLegacyHAServiceDatabaseMigration(ctx, run, "forgejo", "forgejo", "platform-forgejo"); err != nil {
+		return fmt.Errorf("finalize Forgejo HA database migration: %w", err)
+	}
 	return nil
 }
 

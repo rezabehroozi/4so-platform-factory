@@ -2,9 +2,11 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 type legacyHADatabaseMigrationSystem struct {
@@ -267,5 +269,94 @@ func TestLegacyHAServiceDatabaseOwnershipMigrationRejectsPlatformOwnedTablespace
 	}
 	if system.scaled || commandIndex(system.Commands, "REASSIGN OWNED") >= 0 {
 		t.Fatalf("mutation occurred before tablespace admission: commands=%v", system.Commands)
+	}
+}
+
+
+func TestLegacyHAServiceDatabaseMigrationPersistsDurableOwnershipPhase(t *testing.T) {
+	root := t.TempDir()
+	system := &legacyHADatabaseMigrationSystem{
+		SimulatedSystem: &SimulatedSystem{Root: root},
+		databaseOwner: "platform", legacyObjects: 2, targetRole: true,
+		workloadExists: true, workloadReplicas: 1,
+		platformOwnedDatabases: []string{"forgejo", "platform_factory"},
+	}
+	runner := &Runner{system: system, now: func() time.Time { return time.Date(2026, 9, 19, 21, 0, 0, 0, time.UTC) }}
+	if err := runner.reconcileLegacyHAServiceDatabaseOwnership(context.Background(), haMigrationRun("production-standard-ha"), "forgejo", "forgejo", "platform-forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	status, err := runner.loadHAServiceDatabaseMigrationStatus("forgejo", "forgejo", "platform-forgejo")
+	if err != nil || status == nil {
+		t.Fatalf("migration status missing: %#v err=%v", status, err)
+	}
+	if status.Phase != haServiceDatabaseMigrationOwnershipApplied || status.DatabaseOwner != "forgejo" || status.LegacyObjects != 0 {
+		t.Fatalf("unexpected migration status after ownership transfer: %#v", status)
+	}
+}
+
+func TestLegacyHAServiceDatabaseMigrationRecoversOwnershipAppliedFromObservation(t *testing.T) {
+	root := t.TempDir()
+	system := &legacyHADatabaseMigrationSystem{
+		SimulatedSystem: &SimulatedSystem{Root: root},
+		databaseOwner: "keycloak", legacyObjects: 0, targetRole: true,
+		workloadExists: true, workloadReplicas: 0,
+	}
+	runner := &Runner{system: system, now: func() time.Time { return time.Date(2026, 9, 19, 21, 1, 0, 0, time.UTC) }}
+	if err := runner.writeHAServiceDatabaseMigrationStatus("keycloak", "keycloak", "platform-keycloak", haServiceDatabaseMigrationQuiesced, "platform", 3); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.reconcileLegacyHAServiceDatabaseOwnership(context.Background(), haMigrationRun("production-standard-ha"), "keycloak", "keycloak", "platform-keycloak"); err != nil {
+		t.Fatal(err)
+	}
+	status, err := runner.loadHAServiceDatabaseMigrationStatus("keycloak", "keycloak", "platform-keycloak")
+	if err != nil || status == nil || status.Phase != haServiceDatabaseMigrationOwnershipApplied {
+		t.Fatalf("crash recovery did not reconstruct ownership phase: %#v err=%v", status, err)
+	}
+	if commandIndex(system.Commands, "REASSIGN OWNED") >= 0 {
+		t.Fatalf("already-applied ownership was replayed instead of observed: %v", system.Commands)
+	}
+}
+
+func TestLegacyHAServiceDatabaseMigrationMarksReconciledOnlyAfterOwnershipIsProven(t *testing.T) {
+	root := t.TempDir()
+	system := &legacyHADatabaseMigrationSystem{
+		SimulatedSystem: &SimulatedSystem{Root: root},
+		databaseOwner: "forgejo", legacyObjects: 0, targetRole: true,
+		workloadExists: true, workloadReplicas: 1,
+	}
+	runner := &Runner{system: system, now: func() time.Time { return time.Date(2026, 9, 19, 21, 2, 0, 0, time.UTC) }}
+	if err := runner.writeHAServiceDatabaseMigrationStatus("forgejo", "forgejo", "platform-forgejo", haServiceDatabaseMigrationOwnershipApplied, "forgejo", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.finalizeLegacyHAServiceDatabaseMigration(context.Background(), haMigrationRun("production-standard-ha"), "forgejo", "forgejo", "platform-forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	status, err := runner.loadHAServiceDatabaseMigrationStatus("forgejo", "forgejo", "platform-forgejo")
+	if err != nil || status == nil || status.Phase != haServiceDatabaseMigrationReconciled {
+		t.Fatalf("migration did not reach RECONCILED: %#v err=%v", status, err)
+	}
+}
+
+func TestLegacyHAServiceDatabaseMigrationRejectsJournalIdentityMismatch(t *testing.T) {
+	root := t.TempDir()
+	system := &legacyHADatabaseMigrationSystem{
+		SimulatedSystem: &SimulatedSystem{Root: root},
+		databaseOwner: "platform", legacyObjects: 1, targetRole: true,
+		workloadExists: true, workloadReplicas: 1,
+		platformOwnedDatabases: []string{"forgejo", "platform_factory"},
+	}
+	runner := &Runner{system: system, now: time.Now}
+	foreign := HAServiceDatabaseMigrationStatus{
+		Authority: haServiceDatabaseMigrationAuthority, Database: "forgejo", Owner: "foreign", Workload: "platform-forgejo",
+		Phase: haServiceDatabaseMigrationAdmitted, DatabaseOwner: "platform", LegacyObjects: 1, UpdatedAt: time.Now().UTC(),
+	}
+	raw, _ := json.Marshal(foreign)
+	if err := system.WriteFile(runner.haServiceDatabaseMigrationPath("forgejo"), raw, 0o600); err != nil { t.Fatal(err) }
+	err := runner.reconcileLegacyHAServiceDatabaseOwnership(context.Background(), haMigrationRun("production-standard-ha"), "forgejo", "forgejo", "platform-forgejo")
+	if err == nil || !strings.Contains(err.Error(), "authority mismatch") {
+		t.Fatalf("journal identity mismatch was not rejected: %v", err)
+	}
+	if system.scaled || commandIndex(system.Commands, "REASSIGN OWNED") >= 0 {
+		t.Fatalf("mutation occurred after migration journal identity mismatch: %v", system.Commands)
 	}
 }

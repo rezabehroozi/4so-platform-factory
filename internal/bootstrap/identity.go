@@ -50,7 +50,13 @@ if [ -z "$GROUP_ID" ]; then
 fi
 $KCADM update users/$USER_ID/groups/$GROUP_ID -r platform -n || true
 `, shellQuote(adminEmail), shellQuote(adminEmail), shellQuote(adminEmail))
-	return r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-system", "exec", "statefulset/platform-keycloak", "--", "/bin/sh", "-ec", command}, nil)
+	if err := r.system.Run(ctx, kubectl, []string{"--kubeconfig", kubeconfig, "-n", "platform-system", "exec", "statefulset/platform-keycloak", "--", "/bin/sh", "-ec", command}, nil); err != nil {
+		return fmt.Errorf("converge Keycloak platform administrator: %w", err)
+	}
+	if err := r.finalizeLegacyHAServiceDatabaseMigration(ctx, run, "keycloak", "keycloak", "platform-keycloak"); err != nil {
+		return fmt.Errorf("finalize Keycloak HA database migration: %w", err)
+	}
+	return nil
 }
 
 func (r *Runner) configureSecureExposure(ctx context.Context, run Run) error {
