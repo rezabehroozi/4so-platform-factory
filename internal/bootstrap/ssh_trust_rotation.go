@@ -98,7 +98,7 @@ func nonTargetEntrySet(entries []SSHHostTrustEntry, host string) []string {
 	return out
 }
 
-func equalStrings(left, right []string) bool {
+func equalTrustSlices(left, right []string) bool {
 	if len(left) != len(right) {
 		return false
 	}
@@ -157,21 +157,21 @@ func (r *Runner) RotateSSHKnownHost(request SSHHostTrustRotationRequest) (SSHTru
 	if len(currentFingerprints) == 0 {
 		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, fmt.Errorf("HA SSH host %s has no current pinned host key to rotate", host)
 	}
-	if !equalStrings(currentFingerprints, expected) {
+	if !equalTrustSlices(currentFingerprints, expected) {
 		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, fmt.Errorf("HA SSH host %s trust changed since operator review; expected fingerprints %v observed %v", host, expected, currentFingerprints)
 	}
 	replacementEntries, replacementNormalized, err := parseSSHKnownHosts([]byte(request.ReplacementKnownHosts))
 	if err != nil {
 		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, err
 	}
-	if !equalStrings(nonTargetEntrySet(currentEntries, host), nonTargetEntrySet(replacementEntries, host)) {
+	if !equalTrustSlices(nonTargetEntrySet(currentEntries, host), nonTargetEntrySet(replacementEntries, host)) {
 		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, errors.New("SSH host-key rotation may not add, remove or change trust for non-target peers")
 	}
 	newFingerprints := canonicalFingerprintSet(replacementEntries, host)
 	if len(newFingerprints) == 0 {
 		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, fmt.Errorf("replacement trust has no pinned host key for %s", host)
 	}
-	if equalStrings(currentFingerprints, newFingerprints) {
+	if equalTrustSlices(currentFingerprints, newFingerprints) {
 		return SSHTrustStatus{}, SSHHostTrustRotationEvidence{}, errors.New("replacement host-key fingerprint set is unchanged")
 	}
 	now := r.now().UTC()
