@@ -16,6 +16,9 @@ import (
 func bindSourceArtifacts(t *testing.T, staging string, spec *BuildSpec) {
 	t.Helper()
 	paths := []string{spec.Spec.RKE2.Installer, spec.Spec.Workloads.GitOpsManifest, spec.Spec.Workloads.CloudNativePGManifest, spec.Spec.Workloads.StorageManifest}
+	if strings.TrimSpace(spec.Spec.Workloads.GitOpsHAManifest) != "" {
+		paths = append(paths, spec.Spec.Workloads.GitOpsHAManifest)
+	}
 	if strings.TrimSpace(spec.Spec.Workloads.OCMManifest) != "" {
 		paths = append(paths, spec.Spec.Workloads.OCMManifest)
 	}
@@ -45,13 +48,14 @@ func TestBuildCreatesSealedDeterministicBundle(t *testing.T) {
 	}
 	byRepo := testsupport.RefsByRepository(refs)
 	files := map[string]string{
-		"rke2/install.sh":        "#!/bin/sh\nexit 0\n",
-		"rke2/rke2.tar.gz":       "rke2",
-		"rke2/images.tar.zst":    "rke2-images",
-		"manifests/argocd.yaml":  manifestRef("argocd", byRepo["registry.local/argocd"]),
-		"manifests/cnpg.yaml":    manifestRef("cnpg", byRepo["registry.local/cnpg"]),
-		"manifests/ocm.yaml":     manifestRef("ocm", byRepo["registry.local/ocm"]),
-		"manifests/storage.yaml": manifestRef("storage", byRepo["registry.local/storage"]),
+		"rke2/install.sh":          "#!/bin/sh\nexit 0\n",
+		"rke2/rke2.tar.gz":         "rke2",
+		"rke2/images.tar.zst":      "rke2-images",
+		"manifests/argocd.yaml":    manifestRef("argocd", byRepo["registry.local/argocd"]),
+		"manifests/argocd-ha.yaml": manifestRef("argocd-ha", byRepo["registry.local/argocd"]),
+		"manifests/cnpg.yaml":      manifestRef("cnpg", byRepo["registry.local/cnpg"]),
+		"manifests/ocm.yaml":       manifestRef("ocm", byRepo["registry.local/ocm"]),
+		"manifests/storage.yaml":   manifestRef("storage", byRepo["registry.local/storage"]),
 	}
 	for name, content := range files {
 		path := filepath.Join(staging, name)
@@ -77,6 +81,7 @@ func TestBuildCreatesSealedDeterministicBundle(t *testing.T) {
 	spec.Spec.Workloads.KeycloakImage = byRepo["registry.local/keycloak"]
 	spec.Spec.Workloads.MaintenanceImage = byRepo["registry.local/maintenance"]
 	spec.Spec.Workloads.GitOpsManifest = "manifests/argocd.yaml"
+	spec.Spec.Workloads.GitOpsHAManifest = "manifests/argocd-ha.yaml"
 	spec.Spec.Workloads.CloudNativePGManifest = "manifests/cnpg.yaml"
 	spec.Spec.Workloads.OCMManifest = "manifests/ocm.yaml"
 	spec.Spec.Workloads.StorageManifest = "manifests/storage.yaml"

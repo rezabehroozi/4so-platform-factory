@@ -267,6 +267,9 @@ func Build(specPath, stagingDir, outputDir string) (BuildResult, error) {
 	indexArtifacts = append(indexArtifacts, rke2Archives...)
 	indexArtifacts = append(indexArtifacts, workloadArchives...)
 	indexArtifacts = append(indexArtifacts, gitops, cnpg, storage)
+	if strings.TrimSpace(gitopsHA.Path) != "" {
+		indexArtifacts = append(indexArtifacts, gitopsHA)
+	}
 	if strings.TrimSpace(ocm.Path) != "" {
 		indexArtifacts = append(indexArtifacts, ocm)
 	}

@@ -113,6 +113,7 @@ def main() -> int:
             "rke2/rke2.tar.gz": "rke2",
             "rke2/images.tar.zst": "rke2-images",
             "manifests/argocd.yaml": manifest("argocd", refs["registry.local/argocd"]),
+            "manifests/argocd-ha.yaml": manifest("argocd-ha", refs["registry.local/argocd"]),
             "manifests/cnpg.yaml": manifest("cnpg", refs["registry.local/cnpg"]),
             "manifests/storage.yaml": manifest("storage", refs["registry.local/storage"]),
         }
@@ -131,7 +132,7 @@ def main() -> int:
                     "imageArchives": ["workloads/images.oci.tar"],
                     "postgresqlImage": refs["registry.local/postgres"], "platformApiImage": refs["registry.local/platform-api"],
                     "forgejoImage": refs["registry.local/forgejo"], "zotImage": refs["registry.local/zot"], "keycloakImage": refs["registry.local/keycloak"],
-                    "maintenanceImage": refs["registry.local/maintenance"], "gitOpsManifest": "manifests/argocd.yaml", "cloudNativePGManifest": "manifests/cnpg.yaml",
+                    "maintenanceImage": refs["registry.local/maintenance"], "gitOpsManifest": "manifests/argocd.yaml", "gitOpsHAManifest": "manifests/argocd-ha.yaml", "cloudNativePGManifest": "manifests/cnpg.yaml",
                     "storageManifest": "manifests/storage.yaml", "fleetAgentImage": refs["registry.local/platform-agent"], "runtimeProbeImage": refs["registry.local/platform-probe"]
                 },
             },
