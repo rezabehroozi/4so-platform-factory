@@ -76,6 +76,10 @@ func (r *Runner) writeHAServiceDatabaseMigrationStatus(database, owner, workload
 	if !validHAServiceDatabaseMigrationPhase(phase) {
 		return fmt.Errorf("invalid HA service database migration phase %q", phase)
 	}
+	now := time.Now
+	if r.now != nil {
+		now = r.now
+	}
 	status := HAServiceDatabaseMigrationStatus{
 		Authority: haServiceDatabaseMigrationAuthority,
 		Database: database,
@@ -84,7 +88,7 @@ func (r *Runner) writeHAServiceDatabaseMigrationStatus(database, owner, workload
 		Phase: phase,
 		DatabaseOwner: databaseOwner,
 		LegacyObjects: legacyObjects,
-		UpdatedAt: r.now().UTC(),
+		UpdatedAt: now().UTC(),
 	}
 	raw, err := json.MarshalIndent(status, "", "  ")
 	if err != nil {
