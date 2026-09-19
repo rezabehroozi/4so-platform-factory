@@ -112,6 +112,14 @@ const faLiteral = {
   "Region": "Region",
   "Store SSH private key securely": "ذخیره امن کلید خصوصی SSH",
   "Pin HA host keys": "تأیید کلید میزبان‌های HA",
+  "Rotate pinned host key": "چرخش کلید تأییدشده میزبان",
+  "Rotate pinned HA host key": "چرخش کلید تأییدشده میزبان HA",
+  "Confirm the exact currently trusted SHA256 fingerprint set, then submit the complete replacement known_hosts trust store. Trust for every non-target peer must remain unchanged.": "مجموعه دقیق اثرانگشت‌های SHA256 فعلی را تأیید کنید، سپس کل مخزن جایگزین known_hosts را ارسال کنید. اعتماد هیچ میزبان دیگری نباید تغییر کند.",
+  "Target host": "میزبان هدف",
+  "Expected current SHA256 fingerprints": "اثرانگشت‌های SHA256 فعلی مورد انتظار",
+  "Copy the currently displayed fingerprint or fingerprints for this host. One per line.": "اثرانگشت یا اثرانگشت‌های فعلی همین میزبان را از وضعیت نمایش‌داده‌شده کپی کنید؛ هر کدام در یک خط.",
+  "Complete replacement known_hosts": "مخزن کامل جایگزین known_hosts",
+  "Include all currently trusted peers. Only the target host key may change.": "همه میزبان‌های مورداعتماد فعلی را وارد کنید؛ فقط کلید میزبان هدف مجاز به تغییر است.",
   "HA SSH trust has not been checked.": "کلیدهای SSH سرورهای HA هنوز تأیید نشده‌اند.",
   "Paste trusted OpenSSH known_hosts entries for the remote HA peers. The installer stores only public host keys and shows their SHA256 fingerprints.": "کلیدهای عمومی مورداعتماد سرورهای HA را در قالب OpenSSH known_hosts وارد کنید. نصب‌کننده فقط کلید عمومی را ذخیره می‌کند و اثرانگشت SHA256 آن را نشان می‌دهد.",
   "Trusted known_hosts entries": "ورودی‌های مورداعتماد known_hosts",
@@ -890,7 +898,9 @@ async function refreshSSHTrust() {
     summary.push(trust.privateKeyStored?(isFa?'کلید خصوصی SSH: ذخیره شده':'SSH private key: stored'):(isFa?'کلید خصوصی SSH: ثبت نشده':'SSH private key: missing'));
     summary.push(trust.knownHostsStored?(isFa?`کلیدهای میزبان پین‌شده: ${entries.length}`:`Pinned host keys: ${entries.length}`):(isFa?'کلید میزبان پین‌شده: ثبت نشده':'Pinned host keys: missing'));
     const fingerprints=entries.map(entry=>`${entry.host} · ${entry.keyType} · ${entry.fingerprint}`).join('<br>');
-    $('#ssh-trust-status').innerHTML=`<strong>${esc(summary.join(' · '))}</strong>${fingerprints?`<br><span class="technical" dir="ltr">${fingerprints.split('<br>').map(esc).join('<br>')}</span>`:''}`;
+    const rotation=trust.lastRotation;
+    const rotationLine=rotation?`<br><small>${esc(isFa?'آخرین چرخش کلید':'Last host-key rotation')}: <span class="technical" dir="ltr">${esc(rotation.host)} · ${esc(rotation.id)}</span></small>`:'';
+    $('#ssh-trust-status').innerHTML=`<strong>${esc(summary.join(' · '))}</strong>${fingerprints?`<br><span class="technical" dir="ltr">${fingerprints.split('<br>').map(esc).join('<br>')}</span>`:''}${rotationLine}`;
   }catch(error){$('#ssh-trust-status').innerHTML=`<span class="error-text">${esc(error.message)}</span>`;}
 }
 
@@ -910,6 +920,8 @@ $('#open-ssh-key').onclick=()=>{$('#ssh-private-key').value='';$('#ssh-dialog').
 $('#store-ssh-key').onclick=async()=>{const key=$('#ssh-private-key').value.trim();if(!key){toast('Paste a valid OpenSSH private key.','error');return;}try{await api('/api/v1/secrets/ssh-private-key',{method:'POST',body:{privateKey:key}});$('#ssh-private-key').value='';$('#ssh-dialog').close();$('#credential-ref').value='secret://installer/ssh-private-key';toast('SSH private key stored securely.');await refreshSSHTrust();}catch(error){toast(error.message,'error');}};
 $('#open-ssh-known-hosts').onclick=()=>{$('#ssh-known-hosts').value='';$('#ssh-known-hosts-dialog').showModal();};
 $('#store-ssh-known-hosts').onclick=async()=>{const knownHosts=$('#ssh-known-hosts').value.trim();if(!knownHosts){toast('Paste trusted known_hosts entries for the HA peers.','error');return;}try{const result=await api('/api/v1/secrets/ssh-known-hosts',{method:'POST',body:{knownHosts}});$('#ssh-known-hosts').value='';$('#ssh-known-hosts-dialog').close();state.sshTrust=result;await refreshSSHTrust();toast('Pinned HA host keys stored.');}catch(error){toast(error.message,'error');}};
+$('#open-ssh-host-rotation').onclick=()=>{const trust=state.sshTrust||{};const entries=trust.entries||[];$('#ssh-rotation-host').value='';$('#ssh-rotation-fingerprints').value='';$('#ssh-rotation-known-hosts').value='';if(entries.length===1){$('#ssh-rotation-host').value=entries[0].host;$('#ssh-rotation-fingerprints').value=entries[0].fingerprint;}$('#ssh-host-rotation-dialog').showModal();};
+$('#rotate-ssh-host-key').onclick=async()=>{const host=$('#ssh-rotation-host').value.trim();const expectedCurrentFingerprints=$('#ssh-rotation-fingerprints').value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean);const replacementKnownHosts=$('#ssh-rotation-known-hosts').value.trim();if(!host||!expectedCurrentFingerprints.length||!replacementKnownHosts){toast('Host, current fingerprints and complete replacement known_hosts are required.','error');return;}try{const result=await api('/api/v1/ssh/trust/rotate',{method:'POST',body:{host,expectedCurrentFingerprints,replacementKnownHosts}});state.sshTrust=result.trust;$('#ssh-host-rotation-dialog').close();await refreshSSHTrust();toast('Pinned HA host key rotated with durable evidence.');}catch(error){toast(error.message,'error');}};
 
 document.addEventListener('click',event=>{const go=event.target.closest('[data-go]');if(go)navigate(go.dataset.go);});
 applyLocale(); setConnection(false); renderServices(); syncTLS(); syncInfrastructure();
