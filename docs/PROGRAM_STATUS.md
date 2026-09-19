@@ -180,3 +180,15 @@ Every progress report for 4SO Platform Factory MUST include these fields, even w
 - External OIDC flow is functional through HTTPS ingress: Platform API `/auth/login` returns a 302 to `https://auth.fastlab.4so.test/realms/platform` with state, nonce and PKCE S256; redirect URI is `https://platform.fastlab.4so.test/auth/callback`; the state cookie is Secure + HttpOnly; Keycloak accepts the authorization request and returns the login page.
 - HA exposure check PASS: Platform API health and Keycloak discovery returned HTTP 200 when the same public hostnames were individually resolved to each of `213.176.28.136`, `213.176.28.137`, and `213.176.28.138`.
 - Final certification remains separate: Fast Lab self-signed TLS, functional-lane credentials, and non-final release identity cannot be promoted to Exact-SHA Physical PASS.
+
+## Current handoff checkpoint - 2026-09-19 CNPG recovery and canonical GitOps namespace
+
+- Dual-lane execution continues: Sandbox owns code/CI/negative controls; Remote Commander owns Lab/runtime/failure evidence. Git `main` remains the sole source authority.
+- Canonical source before this handoff update: `be119287de17dcbc001a46b04940054729bac924`; repository-integrity run `35422838577` completed SUCCESS. Targeted Linux DR/lifecycle/bootstrap suites PASS and repository validator now reports `REPOSITORY_VALIDATION_PASS 1004`.
+- Argo CD has moved to the canonical `platform-gitops` namespace. `platform-appliance` is the only observed canonical Application and is `Synced/Healthy` at desired-state revision `9f01acf9a4c2fafb795d173930fefb45cd389743`.
+- CNPG controlled replica-loss recovery PASS: `platform-postgresql-3` on vm-lab08 was deleted while primary `platform-postgresql-1` remained authoritative. Cluster degraded from 3/3 to 2/3 with status `Waiting for the instances to become active`, while external Platform API, Forgejo and Keycloak endpoints all remained HTTP 200 through HTTPS ingress. CNPG recreated the replica on vm-lab08 and returned to 3/3 `Cluster in healthy state` with the same primary.
+- Current CNPG distribution after recovery: primary `platform-postgresql-1` on vm-lab07; replica `platform-postgresql-2` on vm-lab06; recreated replica `platform-postgresql-3` on vm-lab08.
+- Public Fast Lab exposure remains functional on all three management nodes. HTTPS/OIDC evidence is functional only; the temporary seven-day Fast Lab self-signed certificate is not final certificate authority evidence.
+- Whole-appliance DR off-node backup still requires the persisted installer S3-compatible backup authority to be executable. Authenticated installer DR mutation was not bypassed when the tool safety boundary rejected bootstrap-token handling; no backup PASS is claimed from source tests alone.
+- Final Exact-SHA Physical Certification remains NOT RUN.
+
