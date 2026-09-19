@@ -65,7 +65,7 @@ def _atomic_json(path: Path, value: Any) -> None:
 
 
 def _load_json(path: Path) -> Any:
-    with path.open("r", encoding="utf-8") as stream:
+    with path.open("r", encoding="utf-8-sig") as stream:
         return json.load(stream)
 
 

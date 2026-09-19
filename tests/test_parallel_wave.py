@@ -76,6 +76,12 @@ class ParallelWaveTests(unittest.TestCase):
             self.assertEqual(1, state["tasks"]["stable"]["attempts"])
             self.assertEqual("SUCCEEDED", state["tasks"]["after"]["state"])
 
+    def test_load_json_accepts_windows_utf8_bom(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "spec.json"
+            path.write_bytes(b"\xef\xbb\xbf" + json.dumps({"schemaVersion": 1, "tasks": []}).encode("utf-8"))
+            self.assertEqual(1, mod._load_json(path)["schemaVersion"])
+
     def test_state_is_bound_to_exact_spec(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
