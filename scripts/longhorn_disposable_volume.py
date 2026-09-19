@@ -92,7 +92,7 @@ def validate_smoke_binding(pvc: dict, pv: dict, volume: dict, operation_id: str)
         raise ContractError("DISPOSABLE_LONGHORN_NAME_MISMATCH")
     volume_uid = _uid(volume, "LONGHORN_VOLUME")
 
-    identity = "\n".join((operation_id, pvc_uid, pv_uid, volume_uid, handle))
+    identity = "\n".join((operation_id, pvc_uid, pv_uid, volume_uid, handle, storage_class))
     return {
         "schemaVersion": 1,
         "authority": AUTHORITY,
@@ -122,6 +122,18 @@ def validate_evidence(evidence: dict) -> None:
         value = evidence.get(key)
         if not isinstance(value, dict) or not str(value.get("uid") or "").strip() or not str(value.get("name") or "").strip():
             raise ContractError("DISPOSABLE_EVIDENCE_BINDING_INCOMPLETE")
+    identity = "\n".join((
+        str(evidence["operationId"]),
+        str(evidence["pvc"]["uid"]),
+        str(evidence["pv"]["uid"]),
+        str(evidence["longhornVolume"]["uid"]),
+        str(evidence["longhornVolume"]["name"]),
+        str(evidence["storageClass"]),
+    ))
+    expected_digest = _sha256_text(identity)
+    expected_id = "longhorn-disposable-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:20]
+    if evidence["identityDigest"] != expected_digest or evidence["id"] != expected_id:
+        raise ContractError("DISPOSABLE_EVIDENCE_INTEGRITY_MISMATCH")
 
 
 def cleanup_plan(evidence: dict, pvc: dict | None, pv: dict | None, volume: dict | None) -> list[str]:

@@ -75,6 +75,13 @@ class LonghornDisposableVolumeTest(unittest.TestCase):
         with self.assertRaisesRegex(LV.ContractError, "EVIDENCE_AUTHORITY_INVALID"):
             LV.cleanup_plan(fake, None, pv, volume)
 
+    def test_evidence_binding_tamper_is_rejected(self):
+        pvc, pv, volume = objects()
+        evidence = LV.validate_smoke_binding(pvc, pv, volume, "storage-smoke-1")
+        evidence["longhornVolume"]["uid"] = "replacement-volume-uid"
+        with self.assertRaisesRegex(LV.ContractError, "EVIDENCE_INTEGRITY_MISMATCH"):
+            LV.cleanup_plan(evidence, None, pv, volume)
+
     def test_manifest_is_explicitly_disposable_and_operation_scoped(self):
         manifest = LV.smoke_manifest("storage-smoke", "smoke-pvc", "replicated-rwx", "storage-smoke-abc")
         for fragment in (
