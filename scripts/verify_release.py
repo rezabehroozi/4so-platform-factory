@@ -18,6 +18,9 @@ import sys
 import tempfile
 import zipfile
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 from ui_browser_authority import prepare_full_verifier_browser
 
 RELEASE_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*\Z")
