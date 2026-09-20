@@ -158,9 +158,7 @@ jobs:
           set -euo pipefail
           go version
           go mod tidy
-          echo '---BEGIN-CROSSPLANE-GO-SUM---'
-          cat go.sum
-          echo '---END-CROSSPLANE-GO-SUM---'
+          git diff --exit-code -- go.mod go.sum
           go test ./...
           go vet ./...
           go build ./cmd/...
