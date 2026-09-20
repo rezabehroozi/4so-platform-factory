@@ -5328,18 +5328,23 @@ func stableObjectDigest(value any) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-func providerTemplateRef(value any) (string, string) {
+func providerTemplateRef(value any) (group, kind, name string) {
 	m, _ := value.(map[string]any)
-	ref, _ := m["ref"].(map[string]any)
-	group, _ := ref["apiGroup"].(string)
-	kind, _ := ref["kind"].(string)
-	return strings.TrimSpace(group), strings.TrimSpace(kind)
+	ref, _ := m["templateRef"].(map[string]any)
+	apiVersion, _ := ref["apiVersion"].(string)
+	kind, _ = ref["kind"].(string)
+	name, _ = ref["name"].(string)
+	apiVersion = strings.TrimSpace(apiVersion)
+	if slash := strings.IndexByte(apiVersion, '/'); slash > 0 && slash < len(apiVersion)-1 {
+		group = apiVersion[:slash]
+	}
+	return strings.TrimSpace(group), strings.TrimSpace(kind), strings.TrimSpace(name)
 }
 
 func validateVMwareClusterClass(spec map[string]any, workerClass string) error {
-	group, kind := providerTemplateRef(spec["infrastructure"])
-	if group != "infrastructure.cluster.x-k8s.io" || kind != "VSphereClusterTemplate" {
-		return fmt.Errorf("VMware provider ClusterClass requires infrastructure.cluster.x-k8s.io VSphereClusterTemplate")
+	group, kind, name := providerTemplateRef(spec["infrastructure"])
+	if group != "infrastructure.cluster.x-k8s.io" || kind != "VSphereClusterTemplate" || name == "" {
+		return fmt.Errorf("VMware provider ClusterClass requires v1beta2 infrastructure.templateRef to infrastructure.cluster.x-k8s.io VSphereClusterTemplate")
 	}
 	workers, _ := spec["workers"].(map[string]any)
 	machineDeployments, _ := workers["machineDeployments"].([]any)
@@ -5348,10 +5353,9 @@ func validateVMwareClusterClass(spec map[string]any, workerClass string) error {
 		if entry["class"] != workerClass {
 			continue
 		}
-		template, _ := entry["template"].(map[string]any)
-		group, kind = providerTemplateRef(template["infrastructure"])
-		if group != "infrastructure.cluster.x-k8s.io" || kind != "VSphereMachineTemplate" {
-			return fmt.Errorf("VMware provider worker class requires infrastructure.cluster.x-k8s.io VSphereMachineTemplate")
+		group, kind, name = providerTemplateRef(entry["infrastructure"])
+		if group != "infrastructure.cluster.x-k8s.io" || kind != "VSphereMachineTemplate" || name == "" {
+			return fmt.Errorf("VMware provider worker class requires v1beta2 infrastructure.templateRef to infrastructure.cluster.x-k8s.io VSphereMachineTemplate")
 		}
 		return nil
 	}

@@ -3196,8 +3196,8 @@ func TestVMwareProviderProfileRequiresCAPVClusterAndMachineTemplates(t *testing.
 		"apiVersion": "cluster.x-k8s.io/v1beta2", "kind": "ClusterClass",
 		"metadata": map[string]any{"name": "vmware-prod", "namespace": "4so-provider-system"},
 		"spec": map[string]any{
-			"infrastructure": map[string]any{"ref": map[string]any{"apiGroup": "infrastructure.cluster.x-k8s.io", "kind": "VSphereClusterTemplate", "name": "vmware-cluster"}},
-			"workers":        map[string]any{"machineDeployments": []any{map[string]any{"class": "workers", "template": map[string]any{"infrastructure": map[string]any{"ref": map[string]any{"apiGroup": "infrastructure.cluster.x-k8s.io", "kind": "VSphereMachineTemplate", "name": "vmware-worker"}}}}}},
+			"infrastructure": map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": "VSphereClusterTemplate", "name": "vmware-cluster"}},
+			"workers":        map[string]any{"machineDeployments": []any{map[string]any{"class": "workers", "infrastructure": map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": "VSphereMachineTemplate", "name": "vmware-worker"}}}}},
 		},
 	}
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -3209,7 +3209,12 @@ func TestVMwareProviderProfileRequiresCAPVClusterAndMachineTemplates(t *testing.
 	if !result.Success {
 		t.Fatalf("CAPV profile should verify: %+v", result)
 	}
-	class["spec"].(map[string]any)["infrastructure"] = map[string]any{"ref": map[string]any{"apiGroup": "infrastructure.cluster.x-k8s.io", "kind": "OtherClusterTemplate", "name": "bad"}}
+	class["spec"].(map[string]any)["infrastructure"] = map[string]any{"ref": map[string]any{"apiGroup": "infrastructure.cluster.x-k8s.io", "kind": "VSphereClusterTemplate", "name": "legacy"}}
+	result = a.executeProviderProfileTask(context.Background(), task)
+	if result.Success || !strings.Contains(result.Error, "v1beta2 infrastructure.templateRef") {
+		t.Fatalf("legacy v1beta1 ClusterClass reference shape was accepted: %+v", result)
+	}
+	class["spec"].(map[string]any)["infrastructure"] = map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": "OtherClusterTemplate", "name": "bad"}}
 	result = a.executeProviderProfileTask(context.Background(), task)
 	if result.Success || !strings.Contains(result.Error, "VSphereClusterTemplate") {
 		t.Fatalf("unsafe CAPV profile result=%+v", result)
