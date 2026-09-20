@@ -18,7 +18,7 @@ V70 exposes independent `sourceStatus` and `closureStatus` for every phase. A ph
 
 Only two pre-physical software phases remain source-open:
 
-- `J3-virtual-cluster-profile` — foundation now has workspace-bound profile planning and recovery-safe lifecycle semantics; durable PostgreSQL runtime plus API/MCP/Console parity remain open.
+- `J3-virtual-cluster-profile` — workspace-bound planning, durable PostgreSQL desired-state persistence, REST/Product API, generated SDK route contract, typed MCP route parity and truthful Operator Console desired-state UI are implemented. The sole remaining source blocker is a real offline-capable runtime executor bound to immutable vCluster OSS chart/image bytes; REQUESTED must not be presented as Running/Ready before that executor converges.
 - `I2-edge-sovereign-extension` — bounded edge authority/UI, boot attestation and disconnected local AI profile.
 
 `J1-automation-external-integrations` is source-implemented with real Terraform and Crossplane providers over Product API authority. `H3-public-cloud-provider-adapters` is source-implemented with shared provider descriptors/execution semantics, CAPA/CAPZ/CAPG ClusterClass verification, external-secret-only credential references, and explicit `RECOVERY_REQUIRED` ambiguity handling. Connected cloud runtime/Physical evidence remains independently certification-gated.
@@ -311,3 +311,19 @@ Execution order while Remote Commander is paused: **Lab-derived source hardening
 - Full Verifier browser **source authority** is complete, but exact Chromium bytes plus their authority manifest remain a supply-chain input and must not be inferred from CI.
 - MCP C7W source implementation remains complete; `MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING` is external named-client execution evidence, not a reason to invent additional MCP business logic.
 - The next genuine source-open expansion priority is J1: a real Terraform provider using the official Terraform provider framework and then a Crossplane provider over the same Product API/SDK authority. Mock/schema-only provider substitutes do not close J1.
+
+
+## Current handoff checkpoint — 2026-09-20 J3 desired-state convergence
+
+- Canonical source checkpoint before this handoff update: `3750edb3d220437034638435b2461d31651bb9a8`; repository-integrity run `35534385805` proved repository validation, Go/Python suites, Autopilot self-test, installer smoke, Terraform provider, Crossplane provider and PostgreSQL behavioral integration on the J3 API/Console convergence tree.
+- J3 now has product-owned workspace-bound desired-state authority across Memory/File/PostgreSQL, migration `0078_virtual_cluster_authority.sql`, project-scoped REST create/list/get routes, generated Product API/SDK route contract, typed MCP parity and Operator Console creation/inspection.
+- The PostgreSQL service-container gate proves the virtual-cluster row derives project/workspace/binding/host-cluster/namespace authority from the active WorkspaceBinding and enforces idempotent replay plus request-digest conflict rejection.
+- The Console deliberately labels `REQUESTED` as desired state only. It does not expose Suspend/Resume/Delete or claim Running/Ready while the runtime executor is absent.
+- `VIRTUAL_CLUSTER_API_MCP_CONSOLE_PENDING` is closed. `VIRTUAL_CLUSTER_DURABLE_RUNTIME_PENDING` remains the only J3 source blocker.
+- Runtime direction is vCluster OSS, not vCluster Platform: acquire an exact stable chart and all referenced images through the existing 4SO Helm/Crane + zot supply-chain authority, then execute it through a lease/fence-bound target task with authoritative readback and `RECOVERY_REQUIRED` on ambiguous outcomes. No chart digest or runtime readiness is inferred before real acquisition.
+- I2 edge/sovereign remains independently source-open; it can continue in parallel without waiting for J3 physical/runtime certification.
+- Remote Commander remains paused. No SSH, Lab mutation or Lab probe was executed in this software wave. Historical Fast Lab state and percentages remain unchanged; Exact-SHA Physical Certification remains NOT RUN.
+
+### چت بعدی / handoff
+
+Refresh `origin/main` first and read this file. Confirm the repository-integrity result for the newest main SHA. Continue J3 at `VIRTUAL_CLUSTER_DURABLE_RUNTIME_PENDING`: add an exact, offline-verifiable vCluster OSS source-selection/acquisition contract without fabricating a digest; reuse the repository's pinned Helm/Crane acquisition and zot authority; then add a durable target-agent task/executor with lease/fence/idempotency, exact WorkspaceBinding revision/desired-digest binding, authoritative readback, and no automatic replay from UNKNOWN outcomes. Keep lifecycle actions hidden until the executor supports them. In parallel, advance I2 bounded edge-local authority/UI, boot-attestation semantics and disconnected local-AI profile. Remote/Lab must remain untouched until Reza explicitly re-enables it.

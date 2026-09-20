@@ -302,10 +302,10 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	}
 
 	j3 := byID["J3-virtual-cluster-profile"]
-	if j3.Status != ProgramStatusBlocked || j3.SourceStatus != ProgramSourceStatusOpen || len(j3.Blockers) != 2 || !containsString(j3.Blockers, "VIRTUAL_CLUSTER_DURABLE_RUNTIME_PENDING") || !containsString(j3.Blockers, "VIRTUAL_CLUSTER_API_MCP_CONSOLE_PENDING") {
+	if j3.Status != ProgramStatusBlocked || j3.SourceStatus != ProgramSourceStatusOpen || len(j3.Blockers) != 1 || !containsString(j3.Blockers, "VIRTUAL_CLUSTER_DURABLE_RUNTIME_PENDING") || containsString(j3.Blockers, "VIRTUAL_CLUSTER_API_MCP_CONSOLE_PENDING") {
 		t.Fatalf("J3 virtual-cluster foundation status drift: %#v", j3)
 	}
-	for _, evidence := range []string{"VIRTUAL_CLUSTER_PROFILE_AUTHORITY_V1", "VIRTUAL_CLUSTER_LIFECYCLE_AUTHORITY_V1", "internal/virtualcluster", "WORKSPACE_AUTHORITY_V1"} {
+	for _, evidence := range []string{"VIRTUAL_CLUSTER_PROFILE_AUTHORITY_V1", "VIRTUAL_CLUSTER_LIFECYCLE_AUTHORITY_V1", "VIRTUAL_CLUSTER_DURABLE_AUTHORITY_V1", "internal/virtualcluster", "migrations/0078_virtual_cluster_authority.sql", "POST /api/v1/workspaces/{id}/virtual-clusters", "MCP_ROUTE_PARITY_AUTHORITY_V1", "POSTGRES_BEHAVIORAL_INTEGRATION_V1", "operator-console:virtual-cluster-desired-state", "WORKSPACE_AUTHORITY_V1"} {
 		if !containsString(j3.Evidence, evidence) {
 			t.Fatalf("J3 virtual-cluster foundation evidence missing %s: %#v", evidence, j3)
 		}
