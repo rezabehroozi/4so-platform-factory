@@ -13,7 +13,7 @@
   "register": "formal-but-human",
   "scannedStringOccurrences": 1539,
   "schemaVersion": 1,
-  "uniquePersianStrings": 1373,
+  "uniquePersianStrings": 1372,
   "upstream": {
     "commit": "118c2167f30cafe18df13c0ba85f98f50dad1894",
     "name": "ali2000hos/persian-writing",
