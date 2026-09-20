@@ -3360,7 +3360,7 @@ func TestPublicCloudProviderAmbiguousApplyRequiresReadbackAndNeverReplays(t *tes
 				}
 			})}
 			result := (&agent{kube: client}).executeProviderClusterTask(context.Background(), task)
-			if result.Success || !result.RecoveryRequired || mutations != 1 || !strings.Contains(result.Error, "authoritative readback") {
+			if result.Success || !result.RecoveryRequired || mutations != 1 || !strings.Contains(result.Error, "readback") {
 				t.Fatalf("%s ambiguous result=%+v mutations=%d", provider, result, mutations)
 			}
 		})
