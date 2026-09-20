@@ -5341,10 +5341,39 @@ func providerTemplateRef(value any) (group, kind, name string) {
 	return strings.TrimSpace(group), strings.TrimSpace(kind), strings.TrimSpace(name)
 }
 
-func validateVMwareClusterClass(spec map[string]any, workerClass string) error {
+type providerTemplateKinds struct {
+	cluster string
+	machine string
+}
+
+func admittedProviderTemplateKinds(provider string) (providerTemplateKinds, bool) {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "vmware":
+		return providerTemplateKinds{cluster: "VSphereClusterTemplate", machine: "VSphereMachineTemplate"}, true
+	case "aws":
+		return providerTemplateKinds{cluster: "AWSClusterTemplate", machine: "AWSMachineTemplate"}, true
+	case "azure":
+		return providerTemplateKinds{cluster: "AzureClusterTemplate", machine: "AzureMachineTemplate"}, true
+	case "gcp":
+		return providerTemplateKinds{cluster: "GCPClusterTemplate", machine: "GCPMachineTemplate"}, true
+	default:
+		return providerTemplateKinds{}, false
+	}
+}
+
+func validateInfrastructureClusterClass(spec map[string]any, workerClass, provider string) error {
+	kinds, ok := admittedProviderTemplateKinds(provider)
+	if !ok {
+		return fmt.Errorf("unsupported managed infrastructure provider %s", provider)
+	}
 	group, kind, name := providerTemplateRef(spec["infrastructure"])
-	if group != "infrastructure.cluster.x-k8s.io" || kind != "VSphereClusterTemplate" || name == "" {
-		return fmt.Errorf("VMware provider ClusterClass requires v1beta2 infrastructure.templateRef to infrastructure.cluster.x-k8s.io VSphereClusterTemplate")
+	if group != "infrastructure.cluster.x-k8s.io" || kind != kinds.cluster || name == "" {
+		return fmt.Errorf("%s provider ClusterClass requires v1beta2 infrastructure.templateRef to infrastructure.cluster.x-k8s.io %s", strings.ToUpper(provider), kinds.cluster)
+	}
+	controlPlane, _ := spec["controlPlane"].(map[string]any)
+	group, kind, name = providerTemplateRef(controlPlane["machineInfrastructure"])
+	if group != "infrastructure.cluster.x-k8s.io" || kind != kinds.machine || name == "" {
+		return fmt.Errorf("%s provider control plane requires v1beta2 machineInfrastructure.templateRef to infrastructure.cluster.x-k8s.io %s", strings.ToUpper(provider), kinds.machine)
 	}
 	workers, _ := spec["workers"].(map[string]any)
 	machineDeployments, _ := workers["machineDeployments"].([]any)
@@ -5354,8 +5383,8 @@ func validateVMwareClusterClass(spec map[string]any, workerClass string) error {
 			continue
 		}
 		group, kind, name = providerTemplateRef(entry["infrastructure"])
-		if group != "infrastructure.cluster.x-k8s.io" || kind != "VSphereMachineTemplate" || name == "" {
-			return fmt.Errorf("VMware provider worker class requires v1beta2 infrastructure.templateRef to infrastructure.cluster.x-k8s.io VSphereMachineTemplate")
+		if group != "infrastructure.cluster.x-k8s.io" || kind != kinds.machine || name == "" {
+			return fmt.Errorf("%s provider worker class requires v1beta2 infrastructure.templateRef to infrastructure.cluster.x-k8s.io %s", strings.ToUpper(provider), kinds.machine)
 		}
 		return nil
 	}
@@ -5388,8 +5417,8 @@ func (a *agent) executeProviderProfileTask(ctx context.Context, task controlplan
 		return result
 	}
 	spec, _ := object["spec"].(map[string]any)
-	if task.InfrastructureProvider == "vmware" {
-		if err := validateVMwareClusterClass(spec, task.WorkerClassName); err != nil {
+	if _, managed := admittedProviderTemplateKinds(task.InfrastructureProvider); managed {
+		if err := validateInfrastructureClusterClass(spec, task.WorkerClassName, task.InfrastructureProvider); err != nil {
 			result.Error = err.Error()
 			return result
 		}

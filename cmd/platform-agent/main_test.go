@@ -3197,7 +3197,8 @@ func TestVMwareProviderProfileRequiresCAPVClusterAndMachineTemplates(t *testing.
 		"metadata": map[string]any{"name": "vmware-prod", "namespace": "4so-provider-system"},
 		"spec": map[string]any{
 			"infrastructure": map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": "VSphereClusterTemplate", "name": "vmware-cluster"}},
-			"workers":        map[string]any{"machineDeployments": []any{map[string]any{"class": "workers", "infrastructure": map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": "VSphereMachineTemplate", "name": "vmware-worker"}}}}},
+			"controlPlane": map[string]any{"machineInfrastructure": map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": "VSphereMachineTemplate", "name": "vmware-control-plane"}}},
+			"workers": map[string]any{"machineDeployments": []any{map[string]any{"class": "workers", "infrastructure": map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": "VSphereMachineTemplate", "name": "vmware-worker"}}}}},
 		},
 	}
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -3218,5 +3219,60 @@ func TestVMwareProviderProfileRequiresCAPVClusterAndMachineTemplates(t *testing.
 	result = a.executeProviderProfileTask(context.Background(), task)
 	if result.Success || !strings.Contains(result.Error, "VSphereClusterTemplate") {
 		t.Fatalf("unsafe CAPV profile result=%+v", result)
+	}
+}
+
+
+func TestPublicCloudProviderProfilesRequireProviderSpecificClusterClassTemplates(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
+	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	previous := serviceAccountTokenPath
+	serviceAccountTokenPath = tokenFile
+	defer func() { serviceAccountTokenPath = previous }()
+
+	cases := []struct {
+		provider    string
+		clusterKind string
+		machineKind string
+	}{
+		{provider: "aws", clusterKind: "AWSClusterTemplate", machineKind: "AWSMachineTemplate"},
+		{provider: "azure", clusterKind: "AzureClusterTemplate", machineKind: "AzureMachineTemplate"},
+		{provider: "gcp", clusterKind: "GCPClusterTemplate", machineKind: "GCPMachineTemplate"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.provider, func(t *testing.T) {
+			task := controlplane.ProviderProfileTask{
+				ProfileID: "prv_" + tc.provider, ProfileRevision: 1, TaskFenceToken: 1,
+				LeaseExpiresAt: time.Now().Add(time.Hour), Namespace: "4so-provider-system",
+				ClusterClassName: tc.provider + "-prod", WorkerClassName: "workers",
+				InfrastructureProvider: tc.provider,
+			}
+			class := map[string]any{
+				"apiVersion": "cluster.x-k8s.io/v1beta2", "kind": "ClusterClass",
+				"metadata": map[string]any{"name": tc.provider + "-prod", "namespace": "4so-provider-system"},
+				"spec": map[string]any{
+					"infrastructure": map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": tc.clusterKind, "name": tc.provider + "-cluster"}},
+					"controlPlane": map[string]any{"machineInfrastructure": map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": tc.machineKind, "name": tc.provider + "-control-plane"}}},
+					"workers": map[string]any{"machineDeployments": []any{map[string]any{"class": "workers", "infrastructure": map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": tc.machineKind, "name": tc.provider + "-worker"}}}}},
+				},
+			}
+			client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				raw, _ := json.Marshal(class)
+				return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(raw)), Header: make(http.Header)}, nil
+			})}
+			a := &agent{kube: client}
+			result := a.executeProviderProfileTask(context.Background(), task)
+			if !result.Success {
+				t.Fatalf("%s profile should verify: %+v", tc.provider, result)
+			}
+
+			class["spec"].(map[string]any)["infrastructure"] = map[string]any{"templateRef": map[string]any{"apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1", "kind": "VSphereClusterTemplate", "name": "cross-provider"}}
+			result = a.executeProviderProfileTask(context.Background(), task)
+			if result.Success || !strings.Contains(result.Error, tc.clusterKind) {
+				t.Fatalf("%s cross-provider ClusterClass was accepted: %+v", tc.provider, result)
+			}
+		})
 	}
 }
