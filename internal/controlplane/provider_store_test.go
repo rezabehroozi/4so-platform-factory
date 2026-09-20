@@ -356,3 +356,59 @@ func TestVMwareProviderProfilePropagatesInfrastructureIdentity(t *testing.T) {
 		t.Fatalf("VMware identity was not propagated: %#v", cluster.Desired)
 	}
 }
+
+
+func TestPublicCloudProviderProfileAdmissionIsFailClosed(t *testing.T) {
+	s, ctx, project, management, _ := providerFixture(t)
+	for _, provider := range []string{"aws", "azure", "gcp"} {
+		t.Run(provider, func(t *testing.T) {
+			base := ProviderProfile{
+				ProjectID: project.ID, ManagementClusterID: management.ID,
+				Name: provider + "-prod", DisplayName: strings.ToUpper(provider) + " Production",
+				Adapter: clusterAPIAdapter, Namespace: providerSystemNamespace,
+				ClusterClassName: provider + "-prod", WorkerClassName: "worker-standard",
+				DefaultKubernetesVersion: "v1.33.2", KubernetesSeries: []string{"v1.33"},
+				Architectures: []string{"amd64"}, DistributionProfiles: []string{"kubernetes"}, MaxWorkerReplicas: 20,
+				InfrastructureProvider: provider,
+				CredentialRef: "external-secret://4so-provider-system/" + provider + "-prod",
+				DesiredDigest: digestTenantTest(provider + "-profile-desired"),
+				RequestDigest: digestTenantTest(provider + "-profile-request"),
+				IdempotencyKey: provider + "-profile",
+			}
+			created, replay, err := s.CreateProviderProfile(ctx, base, "admin")
+			if err != nil || replay || created.InfrastructureProvider != provider || created.CredentialRef != base.CredentialRef {
+				t.Fatalf("%s profile=%#v replay=%v err=%v", provider, created, replay, err)
+			}
+
+			badEndpoint := base
+			badEndpoint.Name += "-endpoint"
+			badEndpoint.IdempotencyKey += "-endpoint"
+			badEndpoint.RequestDigest = digestTenantTest(provider + "-endpoint-request")
+			badEndpoint.DesiredDigest = digestTenantTest(provider + "-endpoint-desired")
+			badEndpoint.InfrastructureEndpoint = "https://custom.example.test"
+			if _, _, err = s.CreateProviderProfile(ctx, badEndpoint, "admin"); err == nil || !errors.Is(err, ErrValidation) {
+				t.Fatalf("%s custom endpoint was admitted: %v", provider, err)
+			}
+
+			badSecret := base
+			badSecret.Name += "-secret"
+			badSecret.IdempotencyKey += "-secret"
+			badSecret.RequestDigest = digestTenantTest(provider + "-secret-request")
+			badSecret.DesiredDigest = digestTenantTest(provider + "-secret-desired")
+			badSecret.CredentialRef = "inline-secret"
+			if _, _, err = s.CreateProviderProfile(ctx, badSecret, "admin"); err == nil || !errors.Is(err, ErrValidation) {
+				t.Fatalf("%s inline credential was admitted: %v", provider, err)
+			}
+
+			badArch := base
+			badArch.Name += "-arm"
+			badArch.IdempotencyKey += "-arm"
+			badArch.RequestDigest = digestTenantTest(provider + "-arm-request")
+			badArch.DesiredDigest = digestTenantTest(provider + "-arm-desired")
+			badArch.Architectures = []string{"arm64"}
+			if _, _, err = s.CreateProviderProfile(ctx, badArch, "admin"); err == nil || !errors.Is(err, ErrValidation) {
+				t.Fatalf("%s unsupported architecture was admitted: %v", provider, err)
+			}
+		})
+	}
+}

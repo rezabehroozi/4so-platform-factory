@@ -21,6 +21,9 @@ const (
 	InfrastructureUnspecified = "unspecified"
 	InfrastructureBareMetal   = "bare-metal"
 	InfrastructureVMware      = "vmware"
+	InfrastructureAWS         = "aws"
+	InfrastructureAzure       = "azure"
+	InfrastructureGCP         = "gcp"
 )
 
 type Target struct {
@@ -184,6 +187,9 @@ func ArchitectureModel() Model {
 			{ID: InfrastructureUnspecified, Status: "SUPPORTED_FOR_EXTERNAL_ADAPTER", Description: "Infrastructure identity is intentionally unknown because an external provisioning adapter owns that detail."},
 			{ID: InfrastructureBareMetal, Status: "SOURCE_MANAGED_INSTALL_RUNTIME_CERTIFICATION_PENDING", ManagedInstallSupport: true, Description: "Product-owned Redfish BootMedia and durable Managed OKD orchestration are source-implemented for Bare Metal. Exact connected target execution and Physical certification remain pending."},
 			{ID: InfrastructureVMware, Status: "SOURCE_IMPLEMENTED_RUNTIME_CERTIFICATION_PENDING", Description: "VMware vSphere infrastructure identity is source-admitted through Cluster API topology with HTTPS origin, external-secret references and CAPV template verification; connected vCenter execution and Physical certification remain pending."},
+			{ID: InfrastructureAWS, Status: "SOURCE_IMPLEMENTED_RUNTIME_CERTIFICATION_PENDING", Description: "AWS infrastructure identity is source-admitted through the common provider lifecycle with external-secret credentials and CAPA ClusterClass verification; connected AWS execution remains independently runtime-certified."},
+			{ID: InfrastructureAzure, Status: "SOURCE_IMPLEMENTED_RUNTIME_CERTIFICATION_PENDING", Description: "Azure infrastructure identity is source-admitted through the common provider lifecycle with external-secret credentials and CAPZ ClusterClass verification; connected Azure execution remains independently runtime-certified."},
+			{ID: InfrastructureGCP, Status: "SOURCE_IMPLEMENTED_RUNTIME_CERTIFICATION_PENDING", Description: "GCP infrastructure identity is source-admitted through the common provider lifecycle with external-secret credentials and CAPG ClusterClass verification; connected GCP execution remains independently runtime-certified."},
 		},
 		LegacyDistributionMap: map[string]string{
 			"generic-imported":    DistributionKubernetes,

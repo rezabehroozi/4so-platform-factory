@@ -92,6 +92,15 @@ func kubeSeries(v string) string {
 	return "v" + parts[0] + "." + parts[1]
 }
 
+func validateProviderCredentialRef(provider, ref string) error {
+	const prefix = "external-secret://4so-provider-system/"
+	name := strings.TrimPrefix(ref, prefix)
+	if !strings.HasPrefix(ref, prefix) || name == "" || len(name) > 253 || !externalSecretNamePattern.MatchString(name) || strings.Contains(name, "..") {
+		return fmt.Errorf("%w: %s credentialRef must be external-secret://4so-provider-system/<name>", ErrValidation, provider)
+	}
+	return nil
+}
+
 func validateProviderInfrastructure(v *ProviderProfile) error {
 	v.InfrastructureProvider = strings.ToLower(strings.TrimSpace(v.InfrastructureProvider))
 	v.InfrastructureEndpoint = strings.TrimSpace(v.InfrastructureEndpoint)
@@ -110,18 +119,23 @@ func validateProviderInfrastructure(v *ProviderProfile) error {
 		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
 			return fmt.Errorf("%w: VMware infrastructureEndpoint must be an HTTPS origin without credentials, path, query or fragment", ErrValidation)
 		}
-		const prefix = "external-secret://4so-provider-system/"
-		name := strings.TrimPrefix(v.CredentialRef, prefix)
-		if !strings.HasPrefix(v.CredentialRef, prefix) || name == "" || len(name) > 253 || !externalSecretNamePattern.MatchString(name) || strings.Contains(name, "..") {
-			return fmt.Errorf("%w: VMware credentialRef must be external-secret://4so-provider-system/<name>", ErrValidation)
+		if err := validateProviderCredentialRef("VMware", v.CredentialRef); err != nil {
+			return err
 		}
-		if len(v.Architectures) != 1 || strings.ToLower(strings.TrimSpace(v.Architectures[0])) != "amd64" {
-			return fmt.Errorf("%w: VMware provider profile currently admits amd64 only", ErrValidation)
+	case targetmodel.InfrastructureAWS, targetmodel.InfrastructureAzure, targetmodel.InfrastructureGCP:
+		if v.InfrastructureEndpoint != "" {
+			return fmt.Errorf("%w: %s custom infrastructureEndpoint is not admitted; use the provider default API authority", ErrValidation, strings.ToUpper(v.InfrastructureProvider))
 		}
-		return nil
+		if err := validateProviderCredentialRef(strings.ToUpper(v.InfrastructureProvider), v.CredentialRef); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("%w: unsupported infrastructure provider %s", ErrValidation, v.InfrastructureProvider)
 	}
+	if len(v.Architectures) != 1 || strings.ToLower(strings.TrimSpace(v.Architectures[0])) != "amd64" {
+		return fmt.Errorf("%w: %s provider profile currently admits amd64 only", ErrValidation, v.InfrastructureProvider)
+	}
+	return nil
 }
 
 func validateProviderProfile(v *ProviderProfile) error {
