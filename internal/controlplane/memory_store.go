@@ -37,6 +37,7 @@ type MemoryStore struct {
 	platformTemplates            map[string]PlatformTemplate
 	workspaces                   map[string]Workspace
 	workspaceBindings            map[string]WorkspaceBinding
+	virtualClusters               map[string]VirtualCluster
 	revisions                    map[string]BlueprintRevision
 	blueprintReleases            map[string]BlueprintRelease
 	catalogTrustKeys             map[string]CatalogTrustKey
@@ -117,7 +118,7 @@ func NewMemoryStoreWith(now func() time.Time, id func(string) string) *MemorySto
 	}
 	return &MemoryStore{
 		now: now, id: id,
-		organizations: map[string]Organization{}, organizationMemberships: map[string]OrganizationMembership{}, oidcGroupMappings: map[string]OIDCGroupMapping{}, securityAudit: []SecurityAuditEvent{}, serviceAccounts: map[string]ServiceAccount{}, apiTokens: map[string]APIToken{}, mcpTrustedClients: map[string]MCPTrustedClient{}, mcpDelegationGrants: map[string]MCPDelegationGrant{}, mcpControlJobs: map[string]MCPControlJob{}, mcpControlJobIdempotency: map[string]string{}, projects: map[string]Project{}, blueprintOverlays: map[string]BlueprintOverlay{}, variableSchemas: map[string]VariableSchema{}, platformPolicySets: map[string]PlatformPolicySet{}, platformTemplates: map[string]PlatformTemplate{}, workspaces: map[string]Workspace{}, workspaceBindings: map[string]WorkspaceBinding{},
+		organizations: map[string]Organization{}, organizationMemberships: map[string]OrganizationMembership{}, oidcGroupMappings: map[string]OIDCGroupMapping{}, securityAudit: []SecurityAuditEvent{}, serviceAccounts: map[string]ServiceAccount{}, apiTokens: map[string]APIToken{}, mcpTrustedClients: map[string]MCPTrustedClient{}, mcpDelegationGrants: map[string]MCPDelegationGrant{}, mcpControlJobs: map[string]MCPControlJob{}, mcpControlJobIdempotency: map[string]string{}, projects: map[string]Project{}, blueprintOverlays: map[string]BlueprintOverlay{}, variableSchemas: map[string]VariableSchema{}, platformPolicySets: map[string]PlatformPolicySet{}, platformTemplates: map[string]PlatformTemplate{}, workspaces: map[string]Workspace{}, workspaceBindings: map[string]WorkspaceBinding{}, virtualClusters: map[string]VirtualCluster{},
 		revisions: map[string]BlueprintRevision{}, blueprintReleases: map[string]BlueprintRelease{}, catalogTrustKeys: map[string]CatalogTrustKey{}, catalogRevisions: map[string]CatalogRevision{}, catalogReleases: map[string]CatalogRelease{}, assignments: map[string]Assignment{},
 		operations: map[string]Operation{}, steps: map[string]OperationStep{}, stepTraces: map[string]OperationStepTrace{}, compensationSteps: map[string]OperationCompensationStep{}, outbox: map[string]OutboxEvent{}, notificationDestinations: map[string]NotificationDestination{}, notificationRoutes: map[string]NotificationRoute{}, notificationEvents: map[string]NotificationEvent{}, notificationDeliveries: map[string]NotificationDelivery{}, notificationAttempts: map[string]NotificationDeliveryAttempt{},
 		evidence: map[string]EvidenceMetadata{}, evidencePayloads: map[string][]byte{}, idempotency: map[string]string{},
@@ -1668,6 +1669,9 @@ func (s *MemoryStore) Snapshot(_ context.Context) (Snapshot, error) {
 	for _, v := range s.workspaceBindings {
 		snap.WorkspaceBindings = append(snap.WorkspaceBindings, cloneWorkspaceBinding(v))
 	}
+	for _, v := range s.virtualClusters {
+		snap.VirtualClusters = append(snap.VirtualClusters, cloneVirtualCluster(v))
+	}
 	for _, v := range s.revisions {
 		v.Payload = append([]byte(nil), v.Payload...)
 		v.BasePayload = append([]byte(nil), v.BasePayload...)
@@ -1891,6 +1895,7 @@ func CanonicalizeSnapshot(s *Snapshot) {
 	sort.Slice(s.PlatformTemplates, func(i, j int) bool { return s.PlatformTemplates[i].ID < s.PlatformTemplates[j].ID })
 	sort.Slice(s.Workspaces, func(i, j int) bool { return s.Workspaces[i].ID < s.Workspaces[j].ID })
 	sort.Slice(s.WorkspaceBindings, func(i, j int) bool { return s.WorkspaceBindings[i].ID < s.WorkspaceBindings[j].ID })
+	sort.Slice(s.VirtualClusters, func(i, j int) bool { return s.VirtualClusters[i].ID < s.VirtualClusters[j].ID })
 	sort.Slice(s.Revisions, func(i, j int) bool { return s.Revisions[i].ID < s.Revisions[j].ID })
 	sort.Slice(s.BlueprintReleases, func(i, j int) bool { return s.BlueprintReleases[i].ID < s.BlueprintReleases[j].ID })
 	sort.Slice(s.CatalogTrustKeys, func(i, j int) bool { return s.CatalogTrustKeys[i].ID < s.CatalogTrustKeys[j].ID })
@@ -2280,6 +2285,24 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 			activeWorkspaceScopes[key] = normalized.ID
 		}
 	}
+	virtualClusterNames := map[string]string{}
+	for _, v := range snapshot.VirtualClusters {
+		if err := validateVirtualClusterRecord(v, workspacesByID, func() map[string]WorkspaceBinding {
+			out := make(map[string]WorkspaceBinding, len(snapshot.WorkspaceBindings))
+			for _, binding := range snapshot.WorkspaceBindings { out[binding.ID] = binding }
+			return out
+		}()); err != nil {
+			return err
+		}
+		if v.State != "DELETED" {
+			key := v.WorkspaceID + "\x00" + v.Name
+			if existing, ok := virtualClusterNames[key]; ok && existing != v.ID {
+				return fmt.Errorf("%w: duplicate live virtual cluster name in workspace", ErrValidation)
+			}
+			virtualClusterNames[key] = v.ID
+		}
+	}
+
 	if err := ValidateComplianceSnapshot(snapshot.ComplianceProfiles, snapshot.ComplianceScanRuns, snapshot.ComplianceFindings, snapshot.ComplianceWaivers, projectsByID, clustersByID); err != nil {
 		return err
 	}
@@ -2432,6 +2455,7 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	s.platformTemplates = map[string]PlatformTemplate{}
 	s.workspaces = map[string]Workspace{}
 	s.workspaceBindings = map[string]WorkspaceBinding{}
+	s.virtualClusters = map[string]VirtualCluster{}
 	s.revisions = map[string]BlueprintRevision{}
 	s.blueprintReleases = map[string]BlueprintRelease{}
 	s.catalogTrustKeys = map[string]CatalogTrustKey{}
@@ -2553,6 +2577,9 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 		normalized, _ := NormalizeWorkspaceBinding(v)
 		normalized.ResourceMeta = v.ResourceMeta
 		s.workspaceBindings[v.ID] = cloneWorkspaceBinding(normalized)
+	}
+	for _, v := range snapshot.VirtualClusters {
+		s.virtualClusters[v.ID] = cloneVirtualCluster(v)
 	}
 	for _, v := range snapshot.Revisions {
 		v = NormalizeBlueprintRevisionResolution(v)

@@ -71,6 +71,9 @@ type Store interface {
 	GetWorkspaceBinding(context.Context, string) (WorkspaceBinding, error)
 	ListWorkspaceBindings(context.Context, string) ([]WorkspaceBinding, error)
 	RevokeWorkspaceBinding(context.Context, string, int64, string) (WorkspaceBinding, error)
+	CreateVirtualCluster(context.Context, VirtualClusterCreateRequest, string) (VirtualCluster, bool, error)
+	GetVirtualCluster(context.Context, string) (VirtualCluster, error)
+	ListVirtualClusters(context.Context, string, string) ([]VirtualCluster, error)
 
 	CreateBlueprintRevision(context.Context, BlueprintRevision, string) (BlueprintRevision, error)
 	GetBlueprintRevision(context.Context, string) (BlueprintRevision, error)
@@ -412,6 +415,7 @@ type Snapshot struct {
 	PlatformTemplates          []PlatformTemplate                `json:"platformTemplates"`
 	Workspaces                 []Workspace                       `json:"workspaces"`
 	WorkspaceBindings          []WorkspaceBinding                `json:"workspaceBindings"`
+	VirtualClusters             []VirtualCluster                  `json:"virtualClusters,omitempty"`
 	Revisions                  []BlueprintRevision               `json:"blueprintRevisions"`
 	BlueprintReleases          []BlueprintRelease                `json:"blueprintReleases"`
 	CatalogTrustKeys           []CatalogTrustKey                 `json:"catalogTrustKeys"`

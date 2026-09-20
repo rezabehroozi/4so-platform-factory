@@ -237,6 +237,9 @@ func (f *FileStore) CreateWorkspaceBinding(ctx context.Context, v WorkspaceBindi
 func (f *FileStore) RevokeWorkspaceBinding(ctx context.Context, id string, rev int64, a string) (WorkspaceBinding, error) {
 	return mutate(f, ctx, func() (WorkspaceBinding, error) { return f.MemoryStore.RevokeWorkspaceBinding(ctx, id, rev, a) })
 }
+func (f *FileStore) CreateVirtualCluster(ctx context.Context, v VirtualClusterCreateRequest, a string) (VirtualCluster, bool, error) {
+	return mutate2(f, ctx, func() (VirtualCluster, bool, error) { return f.MemoryStore.CreateVirtualCluster(ctx, v, a) })
+}
 func (f *FileStore) CreateBlueprintOverlay(ctx context.Context, v BlueprintOverlay, a string) (BlueprintOverlay, error) {
 	return mutate(f, ctx, func() (BlueprintOverlay, error) { return f.MemoryStore.CreateBlueprintOverlay(ctx, v, a) })
 }

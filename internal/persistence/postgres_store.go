@@ -1407,6 +1407,12 @@ func (s *PostgresStore) Snapshot(ctx context.Context) (controlplane.Snapshot, er
 	}
 	snapshot.WorkspaceBindings = workspaceBindings
 
+	virtualClusters, err := s.ListVirtualClusters(ctx, "", "")
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.VirtualClusters = virtualClusters
+
 	revisionRows, err := s.db.QueryContext(ctx, `SELECT `+blueprintRevisionColumns+` FROM blueprint_revisions ORDER BY id`)
 	if err != nil {
 		return snapshot, err
