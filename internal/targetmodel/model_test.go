@@ -192,7 +192,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	r0 := byID["R0-release-authority-certification-rebaseline"]
-	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V68", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
+	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V70", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
 		if !containsString(r0.Evidence, evidence) {
 			t.Fatalf("R0 evidence %q missing: %#v", evidence, r0)
 		}
@@ -472,7 +472,7 @@ func TestProgramProgressUnknownBlockerReopensSourceClosure(t *testing.T) {
 
 func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.T) {
 	roadmap := ProgramRoadmapModel()
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V68" {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V70" {
 		t.Fatalf("authority=%s", roadmap.Authority)
 	}
 	byID := map[string]ProgramPhase{}
