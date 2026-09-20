@@ -250,10 +250,10 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if containsString(j1.DependsOn, "I1-disconnected-okd-core") || containsString(j1.DependsOn, "I2-edge-sovereign-extension") {
 		t.Fatalf("automation integrations were incorrectly serialized behind disconnected work: %#v", j1)
 	}
-	if j1.Status != ProgramStatusBlocked || len(j1.Blockers) != 2 || !containsString(j1.Blockers, "TERRAFORM_PROVIDER_PENDING") || !containsString(j1.Blockers, "CROSSPLANE_PROVIDER_PENDING") {
-		t.Fatalf("J1 should retain only the real Terraform provider blocker after adapter closure: %#v", j1)
+	if j1.Status != ProgramStatusBlocked || len(j1.Blockers) != 1 || !containsString(j1.Blockers, "CROSSPLANE_PROVIDER_PENDING") || containsString(j1.Blockers, "TERRAFORM_PROVIDER_PENDING") {
+		t.Fatalf("J1 should retain only the real Crossplane provider blocker after Terraform source closure: %#v", j1)
 	}
-	for _, evidence := range []string{"EXTERNAL_REGISTRY_ADMISSION_AUTHORITY_V1", "NOTIFICATION_PROVIDER_ADAPTER_CONTRACT_V1", "NOTIFICATION_PREFERENCE_DIGEST_POLICY_V1", "POST /api/v1/external-registry/admission", "GET /api/v1/notification-provider-contracts", "GET /api/v1/notification-routes/{id}/policy-digest"} {
+	for _, evidence := range []string{"providers/terraform", "providers/terraform/internal/provider/saml_broker_resource.go", ".github/workflows/repository-integrity.yml:terraform-provider", "EXTERNAL_REGISTRY_ADMISSION_AUTHORITY_V1", "NOTIFICATION_PROVIDER_ADAPTER_CONTRACT_V1", "NOTIFICATION_PREFERENCE_DIGEST_POLICY_V1", "POST /api/v1/external-registry/admission", "GET /api/v1/notification-provider-contracts", "GET /api/v1/notification-routes/{id}/policy-digest"} {
 		if !containsString(j1.Evidence, evidence) {
 			t.Fatalf("J1 evidence %q missing: %#v", evidence, j1)
 		}
