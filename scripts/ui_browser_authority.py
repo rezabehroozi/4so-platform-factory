@@ -101,14 +101,17 @@ def verify_ui_browser_acquisition_archive(lock_path: Path, archive_path: Path) -
     return document
 
 def _browser_archive_member(name: str) -> tuple[Path, bool]:
-    if not isinstance(name, str) or not name or "\\x00" in name or "\\\\" in name or name.startswith("/"):
+    if not isinstance(name, str) or not name or chr(0) in name or chr(92) in name or name.startswith("/"):
         raise ValueError("UI_BROWSER_ACQUISITION_ARCHIVE_PATH_INVALID")
     directory = name.endswith("/")
     raw = name[:-1] if directory else name
     parts = raw.split("/")
     if not raw or any(part in {"", ".", ".."} for part in parts):
         raise ValueError("UI_BROWSER_ACQUISITION_ARCHIVE_PATH_INVALID")
-    return Path(*parts), directory
+    relative = Path(*parts)
+    if relative.is_absolute() or relative.drive:
+        raise ValueError("UI_BROWSER_ACQUISITION_ARCHIVE_PATH_INVALID")
+    return relative, directory
 
 
 def materialize_ui_browser_authority(lock_path: Path, archive_path: Path, output_dir: Path) -> tuple[Path, dict]:

@@ -149,6 +149,12 @@ class UIBrowserAuthorityTest(unittest.TestCase):
         lock["source"]["sha256"] = "sha256:" + hashlib.sha256(archive.read_bytes()).hexdigest()
         lock_path.write_text(json.dumps(lock), encoding="utf-8")
 
+    def test_archive_member_rejects_backslash_nul_and_drive_paths(self):
+        for name in ("chrome\\\\chrome.exe", "chrome" + chr(0) + "evil", "C:/chrome/chrome.exe"):
+            with self.subTest(name=repr(name)):
+                with self.assertRaisesRegex(ValueError, "UI_BROWSER_ACQUISITION_ARCHIVE_PATH_INVALID"):
+                    AUTH._browser_archive_member(name)
+
     def test_offline_materialization_publishes_exact_browser_authority(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
