@@ -373,8 +373,25 @@
 <label><span>Namespace</span><input dir="ltr" id="workspace-binding-namespace" maxlength="63" pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?" placeholder="payments" required=""/></label>
 <button class="primary" type="submit">Bind namespace</button></form></article>
 </div>
+<details class="action-console"><summary><span class="summary-title">Create virtual cluster desired state</span><span class="summary-help">Bind a bounded developer or team profile to one active Workspace namespace reference. Runtime execution remains independently gated until a virtual-cluster executor is admitted.</span></summary><div class="action-console-body">
+<article class="panel"><div class="panel-heading"><div><h2>Virtual cluster request</h2><p>The request stores workspace-bound desired state only. REQUESTED is not Running or Ready.</p></div></div>
+<form class="form-grid" id="virtual-cluster-form" novalidate="">
+<label><span>Workspace</span><select id="virtual-cluster-workspace" required=""></select></label>
+<label><span>Active namespace binding</span><select id="virtual-cluster-binding" required=""></select></label>
+<label><span>Name</span><input dir="ltr" id="virtual-cluster-name" maxlength="40" pattern="[a-z][a-z0-9-]{0,39}" required="" placeholder="dev-sandbox"/></label>
+<label><span>Profile</span><select id="virtual-cluster-profile" required=""><option value="developer">Developer · auto-sleep</option><option value="team">Team · larger quota</option></select></label>
+<label><span>Kubernetes version</span><input class="technical" dir="ltr" id="virtual-cluster-version" required="" value="v1.34.2"/></label>
+<label><span>CPU · millicores</span><input id="virtual-cluster-cpu" min="250" max="16000" step="250" type="number" required="" value="2000"/></label>
+<label><span>Memory · MiB</span><input id="virtual-cluster-memory" min="512" max="32768" step="256" type="number" required="" value="4096"/></label>
+<label><span>Storage · GiB</span><input id="virtual-cluster-storage" min="1" max="500" step="1" type="number" required="" value="20"/></label>
+<label><span>Maximum namespaces</span><input id="virtual-cluster-namespaces" min="1" max="20" step="1" type="number" required="" value="3"/></label>
+<label><span>Auto-sleep after · minutes</span><input id="virtual-cluster-sleep" min="0" max="10080" step="1" type="number" required="" value="60"/><small>Developer profile requires 15–1440 minutes. Team profile may use 0 to disable auto-sleep.</small></label>
+<div class="warning-banner span-full">Source/API authority is available. Runtime executor and runtime certification are still pending; this action does not imply that a virtual cluster is running.</div>
+<div class="form-actions span-full"><button class="primary" type="submit">Create desired state</button></div>
+</form></article></div></details>
 <article class="panel"><div class="panel-heading"><div><h2>Workspace records</h2><p>Product ownership boundaries. No workload state is duplicated here.</p></div></div><div class="resource-grid record-list" id="workspace-authority-grid"></div></article>
 <article class="panel"><div class="panel-heading"><div><h2>Namespace bindings</h2><p>Active and revoked cluster/namespace references for the selected Workspace.</p></div></div><div class="resource-grid record-list" id="workspace-binding-grid"></div></article>
+<article class="panel"><div class="panel-heading"><div><h2>Virtual cluster desired state</h2><p>Workspace-bound requests and lifecycle truth. REQUESTED remains pending until the runtime executor is admitted.</p></div></div><div class="resource-grid record-list" id="virtual-cluster-grid"></div></article>
 </section>
 <section class="page" data-title="FinOps &amp; chargeback" id="finops">
 <div class="page-heading"><div><span class="eyebrow">Measured usage · versioned rates</span><h1>FinOps &amp; chargeback</h1><p>Review measured infrastructure usage and derive showback or chargeback from an immutable rate card. Missing telemetry is always shown as unavailable, never as zero cost.</p></div><span class="badge neutral">FINOPS_RATECARD_USAGE_AUTHORITY_V1</span></div>

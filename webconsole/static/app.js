@@ -9,7 +9,7 @@ const state = {
   catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
   baselines: [], baselineDeployments: [], verifications: [], closures: [], runtimeCertifications: [],
   fleetGroups: [], driftScans: [], upgradeCampaigns: [], recoveryCheckpoints: [], backupPolicies: [], dataProtectionRuns: [], fleetHealth: null, day2CampaignEngine: null, tenants: [], tenantPlans: [],
-  clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], targetNodeLifecycleAuthority: null, currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
+  clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], targetNodeLifecycleAuthority: null, currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], virtualClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
   operations: [], audit: [], queueCenter: null, productLogs: null, workloadLogExplorer: null, workloadLogQuery: null, aiPolicy: {}, aiGuide: {}, aiRuns: [], aiLatestDiagnosis: null, aiServiceAccounts: [], aiAPITokens: {}, autopilotStatus: null, supportProfiles: [], installationRecoveryAuthority: null, notificationDestinations: [], notificationRoutes: [], notificationEvents: [], notificationDeliveries: [], notificationEventTypes: [], notificationProviderContracts: [], notificationRoutingPreview: null, externalRegistryAdmission: null, summary: {}, services: [], version: {}, gitRevisionFiles: {}, accessContext: null, resourceScopeRegistry: null, organizationMemberships: [], serviceAccounts: [], apiTokens: {}, identityAuthority: null, oidcGroupMappings: [], securityAudit: [], currentEntitlement: null, currentOEMProfile: null,
   degradedRequests: [], pageLoading: false, pageLoadController: null, pageLoadGeneration: 0, autoRefreshTimer: null, autoRefreshGeneration: 0, interactionHoldUntil: 0, lastSubmittedForm: null, lastSubmittedAt: 0, sessionRedirectPending: false, sessionRefreshPromise: null, permissionContextReady: false, gitProviders: [], gitCredentials: [], tableSortPreferences: {},
   globalScope: {organizationId: localStorage.getItem('platformScopeOrganization') || '', projectId: localStorage.getItem('platformScopeProject') || ''},
@@ -52,6 +52,32 @@ function applyLocale() {
 }
 
 const faDynamic = {
+  "Create virtual cluster desired state": "ایجاد وضعیت مطلوب کلاستر مجازی",
+  "Bind a bounded developer or team profile to one active Workspace namespace reference. Runtime execution remains independently gated until a virtual-cluster executor is admitted.": "یک پروفایل محدود توسعه‌دهنده یا تیم را به یک مرجع Namespace فعال در Workspace متصل کنید. اجرای Runtime تا پذیرش مجری کلاستر مجازی به‌صورت مستقل مسدود می‌ماند.",
+  "Virtual cluster request": "درخواست کلاستر مجازی",
+  "The request stores workspace-bound desired state only. REQUESTED is not Running or Ready.": "این درخواست فقط وضعیت مطلوب متصل به Workspace را ذخیره می‌کند. REQUESTED به معنی Running یا Ready نیست.",
+  "Active namespace binding": "اتصال فعال Namespace",
+  "Developer · auto-sleep": "توسعه‌دهنده · خواب خودکار",
+  "Team · larger quota": "تیم · سهمیه بیشتر",
+  "CPU · millicores": "CPU · میلی‌هسته",
+  "Memory · MiB": "حافظه · MiB",
+  "Storage · GiB": "فضای ذخیره‌سازی · GiB",
+  "Maximum namespaces": "حداکثر Namespace",
+  "Auto-sleep after · minutes": "خواب خودکار پس از · دقیقه",
+  "Developer profile requires 15–1440 minutes. Team profile may use 0 to disable auto-sleep.": "پروفایل توسعه‌دهنده به ۱۵ تا ۱۴۴۰ دقیقه نیاز دارد. در پروفایل تیم می‌توان مقدار ۰ را برای غیرفعال‌کردن خواب خودکار انتخاب کرد.",
+  "Source/API authority is available. Runtime executor and runtime certification are still pending; this action does not imply that a virtual cluster is running.": "مرجع Source/API در دسترس است. مجری Runtime و گواهی Runtime هنوز در انتظارند؛ این عملیات به معنی در حال اجرا بودن کلاستر مجازی نیست.",
+  "Create desired state": "ایجاد وضعیت مطلوب",
+  "Virtual cluster desired state": "وضعیت مطلوب کلاستر مجازی",
+  "Workspace-bound requests and lifecycle truth. REQUESTED remains pending until the runtime executor is admitted.": "درخواست‌های متصل به Workspace و حقیقت چرخه‌عمر. وضعیت REQUESTED تا پذیرش مجری Runtime در انتظار می‌ماند.",
+  "No active namespace binding": "اتصال فعال Namespace وجود ندارد",
+  "Desired state is durable; runtime execution is not yet certified.": "وضعیت مطلوب ماندگار است؛ اجرای Runtime هنوز گواهی نشده است.",
+  "Lifecycle state is authoritative; runtime certification remains independent.": "وضعیت چرخه‌عمر مرجع است؛ گواهی Runtime مستقل باقی می‌ماند.",
+  "Inspect desired state": "بررسی وضعیت مطلوب",
+  "No virtual cluster requests": "درخواست کلاستر مجازی وجود ندارد",
+  "Create a bounded desired-state request from an active namespace binding.": "از یک اتصال فعال Namespace، درخواست وضعیت مطلوب محدود ایجاد کنید.",
+  "Virtual cluster request already exists with the same idempotency key.": "درخواست کلاستر مجازی با همین کلید idempotency از قبل وجود دارد.",
+  "Virtual cluster desired state recorded; runtime execution remains pending.": "وضعیت مطلوب کلاستر مجازی ثبت شد؛ اجرای Runtime همچنان در انتظار است.",
+  "This record is product desired-state authority. Runtime executor and runtime certification remain independent.": "این رکورد مرجع وضعیت مطلوب محصول است. مجری Runtime و گواهی Runtime مستقل باقی می‌مانند.",
   "External / unspecified": "خارجی / نامشخص",
   "VMware vSphere": "VMware vSphere (وی‌اسفیر)",
   "Microsoft Azure": "Microsoft Azure (آژور)",
@@ -2859,37 +2885,81 @@ async function loadWorkspaces(){
     const clusterById=new Map(clusters.map(item=>[item.id,item]));
     prerequisite($('#workspaces-prerequisite'),projects.length>0,'Create a project before creating a Workspace.','workspace','Open organizations & projects');
     setProjectOptions($('#workspace-authority-project'),projects);
-    const previousWorkspace=$('#workspace-binding-workspace').value;
+
+    const previousWorkspace=$('#workspace-binding-workspace').value||$('#virtual-cluster-workspace').value;
     setOptions($('#workspace-binding-workspace'),workspaces,item=>item.id,item=>`${item.displayName} · ${projectById.get(item.projectId)?.displayName||item.projectId}`,'Create a Workspace first');
-    if(previousWorkspace && workspaces.some(item=>item.id===previousWorkspace)) $('#workspace-binding-workspace').value=previousWorkspace;
+    setOptions($('#virtual-cluster-workspace'),workspaces,item=>item.id,item=>`${item.displayName} · ${projectById.get(item.projectId)?.displayName||item.projectId}`,'Create a Workspace first');
+    if(previousWorkspace && workspaces.some(item=>item.id===previousWorkspace)){
+      $('#workspace-binding-workspace').value=previousWorkspace;
+      $('#virtual-cluster-workspace').value=previousWorkspace;
+    }
     const selectedWorkspace=workspaces.find(item=>item.id===$('#workspace-binding-workspace').value) || workspaces[0] || null;
+    if(selectedWorkspace){
+      $('#workspace-binding-workspace').value=selectedWorkspace.id;
+      $('#virtual-cluster-workspace').value=selectedWorkspace.id;
+    }
+
     const eligibleClusters=selectedWorkspace?clusters.filter(item=>item.projectId===selectedWorkspace.projectId):[];
     setOptions($('#workspace-binding-cluster'),eligibleClusters,item=>item.id,item=>`${item.displayName||item.name||item.id} · ${item.kubernetesVersion||'version pending'}`,'No managed cluster in this project');
-    const bindings=selectedWorkspace?await softApi(`/api/v1/workspaces/${encodeURIComponent(selectedWorkspace.id)}/bindings`,[],'workspace bindings'):[];
+    const [bindings,virtualClusters]=selectedWorkspace?await Promise.all([
+      softApi(`/api/v1/workspaces/${encodeURIComponent(selectedWorkspace.id)}/bindings`,[],'workspace bindings'),
+      softApi(`/api/v1/workspaces/${encodeURIComponent(selectedWorkspace.id)}/virtual-clusters`,[],'virtual clusters')
+    ]):[[],[]];
     state.workspaceBindings=bindings;
+    state.virtualClusters=virtualClusters;
+    const activeBindings=bindings.filter(item=>item.state==='ACTIVE');
+    setOptions($('#virtual-cluster-binding'),activeBindings,item=>item.id,item=>`${clusterById.get(item.clusterId)?.displayName||clusterById.get(item.clusterId)?.name||item.clusterId} · ${item.namespace}`,'No active namespace binding');
+
     $('#workspace-authority-grid').innerHTML=workspaces.length?workspaces.map(item=>{
       const selected=selectedWorkspace?.id===item.id;
       return `<article class="resource-card${selected?' selected':''}"><div class="resource-header"><div><h3>${esc(item.displayName||item.name)}</h3><div class="resource-meta">${badge('REFERENCE_ONLY')}${selected?badge('SELECTED'):''}</div></div></div><p>${esc(item.description||'Project-scoped cross-cluster namespace boundary')}</p><div class="resource-details">${detailRow('Project',projectById.get(item.projectId)?.displayName||item.projectId)}${detailRow('Machine name',item.name,true)}${detailRow('Authority','WORKSPACE_AUTHORITY_V1',true)}${detailRow('Digest',shortDigest(item.digest))}${detailRow('Revision',item.revision)}</div><div class="resource-actions"><button class="secondary small-button" type="button" data-workspace-select="${esc(item.id)}">View namespace bindings</button></div></article>`;
     }).join(''):emptyState('No Workspaces','Create a reference-only project boundary before binding namespaces.');
+
     $('#workspace-binding-grid').innerHTML=bindings.length?bindings.map(item=>{
       const cluster=clusterById.get(item.clusterId);
       return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.namespace)}</h3><div class="resource-meta">${badge(item.state)}</div></div></div><p>${esc(cluster?.displayName||cluster?.name||item.clusterId)}</p><div class="resource-details">${detailRow('Cluster',item.clusterId,true)}${detailRow('Namespace',item.namespace,true)}${detailRow('Runtime state','Derived from referenced cluster')}${detailRow('Revision',item.revision)}</div><div class="resource-actions">${item.state==='ACTIVE'?`<button class="danger small-button" type="button" data-workspace-binding-action="revoke" data-id="${esc(item.id)}">Revoke binding</button>`:''}<button class="secondary small-button" type="button" data-workspace-binding-action="inspect" data-id="${esc(item.id)}">Inspect reference</button></div></article>`;
     }).join(''):emptyState(selectedWorkspace?'No namespace bindings':'No Workspace selected',selectedWorkspace?'Bind an existing managed-cluster namespace. Runtime data stays on the cluster.':'Create a Workspace first.');
 
+    $('#virtual-cluster-grid').innerHTML=virtualClusters.length?virtualClusters.map(item=>{
+      const runtimePending=['REQUESTED','PROVISIONING','SUSPENDING','RESUMING','DELETING'].includes(item.state);
+      return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)}</h3><div class="resource-meta">${badge(item.state)}${item.developerMode?badge('DEVELOPER'):badge('TEAM')}</div></div></div><p>${runtimePending?'Desired state is durable; runtime execution is not yet certified.':'Lifecycle state is authoritative; runtime certification remains independent.'}</p><div class="resource-details">${detailRow('Profile',item.profile)}${detailRow('Host cluster',item.hostClusterId,true)}${detailRow('Host namespace',item.hostNamespace,true)}${detailRow('Kubernetes',item.kubernetesVersion,true)}${detailRow('CPU',String(item.cpuMilli)+'m')}${detailRow('Memory',String(item.memoryMiB)+' MiB')}${detailRow('Storage',String(item.storageGiB)+' GiB')}${detailRow('Max namespaces',item.maxNamespaces)}${detailRow('Desired digest',shortDigest(item.desiredDigest))}${detailRow('Revision',item.revision)}</div><div class="resource-actions"><button class="secondary small-button" type="button" data-virtual-cluster-action="inspect" data-id="${esc(item.id)}">Inspect desired state</button></div></article>`;
+    }).join(''):emptyState(selectedWorkspace?'No virtual cluster requests':'No Workspace selected',selectedWorkspace?'Create a bounded desired-state request from an active namespace binding.':'Create a Workspace first.');
+
     $('#workspace-authority-project').onchange=()=>queueMicrotask(()=>applyAccessMode());
-    $('#workspace-binding-workspace').onchange=async()=>{await loadWorkspaces();};
+    $('#workspace-binding-workspace').onchange=async()=>{const id=$('#workspace-binding-workspace').value;$('#virtual-cluster-workspace').value=id;await loadWorkspaces();};
+    $('#virtual-cluster-workspace').onchange=async()=>{const id=$('#virtual-cluster-workspace').value;$('#workspace-binding-workspace').value=id;await loadWorkspaces();};
+    $('#virtual-cluster-profile').onchange=()=>{const developer=$('#virtual-cluster-profile').value==='developer';$('#virtual-cluster-cpu').max=developer?'4000':'16000';$('#virtual-cluster-memory').max=developer?'8192':'32768';$('#virtual-cluster-storage').max=developer?'100':'500';$('#virtual-cluster-namespaces').max=developer?'5':'20';if(developer && Number($('#virtual-cluster-sleep').value)<15)$('#virtual-cluster-sleep').value='60';};
+
     $('#workspace-authority-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;try{await api('/api/v1/workspaces',{method:'POST',body:{projectId:$('#workspace-authority-project').value,name:$('#workspace-authority-name').value.trim(),displayName:$('#workspace-authority-display').value.trim(),description:$('#workspace-authority-description').value.trim()}});toast('Workspace authority created.');event.currentTarget.reset();await loadWorkspaces();}catch(error){toast(error.message,'error');}};
     $('#workspace-binding-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const workspaceId=$('#workspace-binding-workspace').value;if(!workspaceId){toast('Create or select a Workspace first.','error');return;}try{await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/bindings`,{method:'POST',body:{clusterId:$('#workspace-binding-cluster').value,namespace:$('#workspace-binding-namespace').value.trim()}});toast('Namespace reference bound to Workspace.');$('#workspace-binding-namespace').value='';await loadWorkspaces();}catch(error){toast(error.message,'error');}};
-    $('#workspace-authority-grid').onclick=async event=>{const button=event.target.closest('[data-workspace-select]');if(!button)return;$('#workspace-binding-workspace').value=button.dataset.workspaceSelect;await loadWorkspaces();};
+    $('#virtual-cluster-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const workspaceId=$('#virtual-cluster-workspace').value;if(!workspaceId){toast('Create or select a Workspace first.','error');return;}try{
+      const response=await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/virtual-clusters`,{method:'POST',headers:{'Idempotency-Key':idempotency('virtual-cluster-create')},body:{
+        workspaceBindingId:$('#virtual-cluster-binding').value,
+        name:$('#virtual-cluster-name').value.trim(),
+        profile:$('#virtual-cluster-profile').value,
+        kubernetesVersion:$('#virtual-cluster-version').value.trim(),
+        cpuMilli:Number($('#virtual-cluster-cpu').value),
+        memoryMiB:Number($('#virtual-cluster-memory').value),
+        storageGiB:Number($('#virtual-cluster-storage').value),
+        maxNamespaces:Number($('#virtual-cluster-namespaces').value),
+        sleepAfterMinutes:Number($('#virtual-cluster-sleep').value)
+      }});
+      toast(response.idempotentReplay?'Virtual cluster request already exists with the same idempotency key.':'Virtual cluster desired state recorded; runtime execution remains pending.');
+      $('#virtual-cluster-name').value='';
+      await loadWorkspaces();
+    }catch(error){toast(error.message,'error');}};
+
+    $('#workspace-authority-grid').onclick=async event=>{const button=event.target.closest('[data-workspace-select]');if(!button)return;$('#workspace-binding-workspace').value=button.dataset.workspaceSelect;$('#virtual-cluster-workspace').value=button.dataset.workspaceSelect;await loadWorkspaces();};
     $('#workspace-binding-grid').onclick=async event=>{const button=event.target.closest('[data-workspace-binding-action]');if(!button)return;const binding=state.workspaceBindings.find(item=>item.id===button.dataset.id);if(!binding)return;const workspace=state.workspaces.find(item=>item.id===binding.workspaceId);if(button.dataset.workspaceBindingAction==='inspect'){showDetails('Workspace namespace reference',`<div class="inline-summary"><strong>Reference-only authority.</strong> Workload, quota, health, observability and cost state are not persisted in the Workspace record.</div><dl class="key-value"><dt>Workspace</dt><dd>${esc(workspace?.displayName||binding.workspaceId)}</dd><dt>Project</dt><dd class="technical">${esc(binding.projectId)}</dd><dt>Cluster</dt><dd class="technical">${esc(binding.clusterId)}</dd><dt>Namespace</dt><dd class="technical">${esc(binding.namespace)}</dd><dt>State</dt><dd>${badge(binding.state)}</dd><dt>Revision</dt><dd>${esc(binding.revision)}</dd></dl>`);return;}if(button.dataset.workspaceBindingAction==='revoke'){if(!await confirmAction('Revoke Workspace binding',`Remove ${binding.namespace} from ${workspace?.displayName||'this Workspace'}? This changes only the product reference; it does not delete the namespace or workloads.`,true))return;try{await api(`/api/v1/workspaces/${encodeURIComponent(binding.workspaceId)}/bindings/${encodeURIComponent(binding.id)}/revoke`,{method:'POST',headers:{'If-Match':`"${binding.revision}"`},body:{}});toast('Workspace binding revoked. The namespace and workloads were not deleted.');await loadWorkspaces();}catch(error){toast(error.message,'error');}}};
+    $('#virtual-cluster-grid').onclick=event=>{const button=event.target.closest('[data-virtual-cluster-action]');if(!button)return;const item=state.virtualClusters.find(row=>row.id===button.dataset.id);if(!item)return;showDetails('Virtual cluster desired state',`<div class="warning-banner">This record is product desired-state authority. Runtime executor and runtime certification remain independent.</div><dl class="key-value"><dt>ID</dt><dd class="technical">${esc(item.id)}</dd><dt>State</dt><dd>${badge(item.state)}</dd><dt>Profile</dt><dd>${esc(item.profile)}</dd><dt>Workspace</dt><dd class="technical">${esc(item.workspaceId)}</dd><dt>Binding</dt><dd class="technical">${esc(item.workspaceBindingId)}</dd><dt>Host cluster</dt><dd class="technical">${esc(item.hostClusterId)}</dd><dt>Host namespace</dt><dd class="technical">${esc(item.hostNamespace)}</dd><dt>Desired digest</dt><dd class="technical">${esc(item.desiredDigest)}</dd><dt>Last error</dt><dd>${esc(item.lastError||'—')}</dd></dl>`);};
     applyAccessMode($('#workspaces'));
   }catch(error){
     if(error?.name==='AbortError')throw error;
     $('#workspace-authority-grid').innerHTML=errorState('Workspace authority unavailable',error.message);
     $('#workspace-binding-grid').innerHTML='';
+    $('#virtual-cluster-grid').innerHTML='';
   }
 }
-
 
 const finOpsEndpoints={budgetPolicies:'/api/v1/finops/budget-policies',insights:'/api/v1/finops/insights',rateCards:'/api/v1/finops/rate-cards',usage:'/api/v1/finops/usage-measurements',capacity:'/api/v1/finops/capacity-observations',showback:'/api/v1/finops/showback',chargeback:'/api/v1/finops/chargeback-export'};
 function finOpsMoney(micros,currency){

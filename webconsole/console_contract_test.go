@@ -200,7 +200,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("Workspace information-architecture contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{"loadWorkspaces", "workspaceBindings", "/api/v1/workspaces", "Derived from referenced cluster", "does not delete the namespace or workloads"} {
+	for _, contract := range []string{"loadWorkspaces", "workspaceBindings", "virtualClusters", "/api/v1/workspaces", "/virtual-clusters", "virtual-cluster-form", "Idempotency-Key", "REQUESTED is not Running or Ready", "Runtime executor and runtime certification are still pending", "Derived from referenced cluster", "does not delete the namespace or workloads"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("Workspace truthful-console runtime contract missing %q", contract)
 		}
