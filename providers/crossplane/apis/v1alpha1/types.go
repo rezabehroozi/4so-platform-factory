@@ -17,7 +17,6 @@ type ProviderConfigSpec struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,provider,4so}
-// +kubebuilder:subresource:status
 type ProviderConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

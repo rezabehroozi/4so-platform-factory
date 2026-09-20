@@ -39,8 +39,12 @@ type SAMLBrokerObservation struct {
 }
 
 type SAMLBrokerSpec struct {
-	xpv2.ManagedResourceSpec `json:",inline"`
-	ForProvider              SAMLBrokerParameters `json:"forProvider"`
+	// +kubebuilder:default={"kind":"ProviderConfig","name":"default"}
+	ProviderConfigReference *xpv2.ProviderConfigReference `json:"providerConfigRef,omitempty"`
+	// +kubebuilder:default={"*"}
+	ManagementPolicies xpv2.ManagementPolicies `json:"managementPolicies,omitempty"`
+	WriteConnectionSecretToReference *xpv2.LocalSecretReference `json:"writeConnectionSecretToRef,omitempty"`
+	ForProvider SAMLBrokerParameters `json:"forProvider"`
 }
 
 type SAMLBrokerStatus struct {
@@ -101,7 +105,17 @@ func (l *SAMLBrokerList) GetItems() []resource.Managed {
 func (in *SAMLBroker) DeepCopyInto(out *SAMLBroker) {
 	*out = *in
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
-	in.Spec.ManagedResourceSpec.DeepCopyInto(&out.Spec.ManagedResourceSpec)
+	if in.Spec.ProviderConfigReference != nil {
+		out.Spec.ProviderConfigReference = new(xpv2.ProviderConfigReference)
+		*out.Spec.ProviderConfigReference = *in.Spec.ProviderConfigReference
+	}
+	if in.Spec.ManagementPolicies != nil {
+		out.Spec.ManagementPolicies = append(xpv2.ManagementPolicies(nil), in.Spec.ManagementPolicies...)
+	}
+	if in.Spec.WriteConnectionSecretToReference != nil {
+		out.Spec.WriteConnectionSecretToReference = new(xpv2.LocalSecretReference)
+		*out.Spec.WriteConnectionSecretToReference = *in.Spec.WriteConnectionSecretToReference
+	}
 	in.Status.ManagedResourceStatus.DeepCopyInto(&out.Status.ManagedResourceStatus)
 }
 func (in *SAMLBroker) DeepCopy() *SAMLBroker {
