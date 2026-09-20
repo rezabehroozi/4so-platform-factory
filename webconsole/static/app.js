@@ -2710,13 +2710,17 @@ async function loadProviders() {
 }
 function syncProviderInfrastructureFields(){
   const provider=$('#provider-infrastructure-provider').value;
+  const managed=['vmware','aws','azure','gcp'].includes(provider);
   const vmware=provider==='vmware';
-  $('#provider-vmware-fields').hidden=!vmware;
+  $('#provider-managed-fields').hidden=!managed;
   $('#provider-infrastructure-endpoint').required=vmware;
-  $('#provider-credential-ref').required=vmware;
-  $('#provider-architectures').readOnly=vmware;
-  if(vmware) $('#provider-architectures').value='amd64';
-  if(!vmware){$('#provider-infrastructure-endpoint').value='';$('#provider-credential-ref').value='';}
+  $('#provider-infrastructure-endpoint').disabled=managed&&!vmware;
+  $('#provider-credential-ref').required=managed;
+  $('#provider-architectures').readOnly=managed;
+  if(managed) $('#provider-architectures').value='amd64';
+  if(!vmware) $('#provider-infrastructure-endpoint').value='';
+  if(managed) $('#provider-credential-ref').placeholder=`external-secret://4so-provider-system/${provider}-prod`;
+  if(!managed){$('#provider-infrastructure-endpoint').value='';$('#provider-credential-ref').value='';$('#provider-credential-ref').placeholder='external-secret://4so-provider-system/provider-prod';}
 }
 $('#provider-infrastructure-provider').onchange=syncProviderInfrastructureFields;
 syncProviderInfrastructureFields();

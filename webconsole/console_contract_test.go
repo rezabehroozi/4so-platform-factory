@@ -381,7 +381,7 @@ func TestOperationsQueueCenterIsScopedBoundedAndReadOnly(t *testing.T) {
 	}
 }
 
-func TestVMwareProviderConsoleContract(t *testing.T) {
+func TestInfrastructureProviderConsoleContract(t *testing.T) {
 	htmlBytes, err := fs.ReadFile(content, "static/index.html")
 	if err != nil {
 		t.Fatal(err)
@@ -391,18 +391,26 @@ func TestVMwareProviderConsoleContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	html, js := string(htmlBytes), string(jsBytes)
-	for _, id := range []string{`id="provider-infrastructure-provider"`, `id="provider-infrastructure-endpoint"`, `id="provider-credential-ref"`, `id="provider-vmware-fields"`} {
+	for _, id := range []string{`id="provider-infrastructure-provider"`, `id="provider-infrastructure-endpoint"`, `id="provider-credential-ref"`, `id="provider-managed-fields"`} {
 		if !strings.Contains(html, id) {
-			t.Fatalf("VMware provider console DOM missing %s", id)
+			t.Fatalf("provider console DOM missing %s", id)
 		}
 	}
-	for _, contract := range []string{"infrastructureProvider:$('#provider-infrastructure-provider').value", "infrastructureEndpoint:$('#provider-infrastructure-endpoint').value.trim()", "credentialRef:$('#provider-credential-ref').value.trim()", "syncProviderInfrastructureFields"} {
+	for _, option := range []string{`value="vmware"`, `value="aws"`, `value="azure"`, `value="gcp"`} {
+		if !strings.Contains(html, option) {
+			t.Fatalf("provider option missing %s", option)
+		}
+	}
+	for _, contract := range []string{"infrastructureProvider:$('#provider-infrastructure-provider').value", "infrastructureEndpoint:$('#provider-infrastructure-endpoint').value.trim()", "credentialRef:$('#provider-credential-ref').value.trim()", "['vmware','aws','azure','gcp'].includes(provider)", "$('#provider-infrastructure-endpoint').disabled=managed&&!vmware", "$('#provider-credential-ref').required=managed"} {
 		if !strings.Contains(js, contract) {
-			t.Fatalf("VMware provider console behavior missing %q", contract)
+			t.Fatalf("provider console behavior missing %q", contract)
 		}
 	}
-	if strings.Contains(strings.ToLower(html+js), "vcenter password") || strings.Contains(strings.ToLower(html+js), "vcenter username") {
-		t.Fatal("console must not collect raw vCenter username/password")
+	lower := strings.ToLower(html + js)
+	for _, forbidden := range []string{"vcenter password", "vcenter username", "aws access key", "azure client secret", "gcp private key"} {
+		if strings.Contains(lower, forbidden) {
+			t.Fatalf("console must not collect raw provider credential field %q", forbidden)
+		}
 	}
 }
 
