@@ -121,7 +121,7 @@ func TestVirtualClusterHTTPAuthorityReplaysAndScopesToWorkspace(t *testing.T) {
 	req.Header.Set("X-Actor-Role", "platform-operator")
 	req.Header.Set("Idempotency-Key", "vcluster-api-create")
 	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
+	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("create=%d body=%s", w.Code, w.Body.String())
 	}
@@ -142,7 +142,7 @@ func TestVirtualClusterHTTPAuthorityReplaysAndScopesToWorkspace(t *testing.T) {
 	req.Header.Set("X-Actor-Role", "platform-operator")
 	req.Header.Set("Idempotency-Key", "vcluster-api-create")
 	w = httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
+	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusOK || w.Header().Get("Idempotent-Replay") != "true" {
 		t.Fatalf("replay=%d headers=%v body=%s", w.Code, w.Header(), w.Body.String())
 	}
@@ -167,7 +167,7 @@ func TestVirtualClusterHTTPAuthorityReplaysAndScopesToWorkspace(t *testing.T) {
 	req.Header.Set("X-Actor-Role", "platform-operator")
 	req.Header.Set("Idempotency-Key", "vcluster-cross-binding")
 	w = httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
+	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("cross-workspace binding=%d body=%s", w.Code, w.Body.String())
 	}
