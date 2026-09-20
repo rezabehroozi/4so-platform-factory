@@ -5314,8 +5314,8 @@ func validateProviderProfileTask(task controlplane.ProviderProfileTask) error {
 			return fmt.Errorf("provider profile class name is invalid")
 		}
 	}
-	switch strings.TrimSpace(task.InfrastructureProvider) {
-	case "", "unspecified", "vmware":
+	switch strings.ToLower(strings.TrimSpace(task.InfrastructureProvider)) {
+	case "", "unspecified", "vmware", "aws", "azure", "gcp":
 	default:
 		return fmt.Errorf("provider profile infrastructure provider is invalid")
 	}

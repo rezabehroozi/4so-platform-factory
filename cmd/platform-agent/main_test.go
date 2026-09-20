@@ -3223,6 +3223,26 @@ func TestVMwareProviderProfileRequiresCAPVClusterAndMachineTemplates(t *testing.
 }
 
 
+func TestProviderProfileTaskInfrastructureProviderAllowlist(t *testing.T) {
+	base := controlplane.ProviderProfileTask{
+		ProfileID: "prv_test", ProfileRevision: 1, TaskFenceToken: 1,
+		LeaseExpiresAt: time.Now().Add(time.Hour), Namespace: "4so-provider-system",
+		ClusterClassName: "cloud-prod", WorkerClassName: "workers",
+	}
+	for _, provider := range []string{"", "unspecified", "vmware", "aws", "azure", "gcp"} {
+		task := base
+		task.InfrastructureProvider = provider
+		if err := validateProviderProfileTask(task); err != nil {
+			t.Fatalf("admitted provider %q rejected: %v", provider, err)
+		}
+	}
+	task := base
+	task.InfrastructureProvider = "unknown-cloud"
+	if err := validateProviderProfileTask(task); err == nil {
+		t.Fatal("unknown infrastructure provider was admitted")
+	}
+}
+
 func TestPublicCloudProviderProfilesRequireProviderSpecificClusterClassTemplates(t *testing.T) {
 	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
 	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil {
