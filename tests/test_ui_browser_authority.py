@@ -89,6 +89,50 @@ class UIBrowserAuthorityTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "UI_BROWSER_EXECUTABLE_IDENTITY_INVALID"):
                 AUTH.validate_ui_browser_authority(path)
 
+
+    def make_acquisition_lock(self, root: Path, *, url: str = "https://example.test/chrome.zip", digest_override: str | None = None):
+        archive = root / "chrome.zip"
+        archive.write_bytes(b"exact-browser-archive")
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        lock = {
+            "schemaVersion": 1,
+            "authority": AUTH.ACQUISITION_AUTHORITY,
+            "browser": "chromium",
+            "platform": AUTH.normalized_platform(),
+            "architecture": AUTH.normalized_arch(),
+            "version": "152.0.7977.75",
+            "source": {
+                "url": url,
+                "sha256": digest_override or "sha256:" + digest,
+                "size": archive.stat().st_size,
+            },
+            "executable": "chrome/chrome",
+        }
+        path = root / "acquisition-lock.json"
+        path.write_text(json.dumps(lock), encoding="utf-8")
+        return path, archive, lock
+
+    def test_acquisition_lock_verifies_exact_offline_archive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path, archive, lock = self.make_acquisition_lock(Path(directory))
+            self.assertEqual(AUTH.verify_ui_browser_acquisition_archive(lock_path, archive), lock)
+
+    def test_acquisition_archive_digest_mismatch_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path, archive, _ = self.make_acquisition_lock(
+                Path(directory), digest_override="sha256:" + "0" * 64
+            )
+            with self.assertRaisesRegex(ValueError, "UI_BROWSER_ACQUISITION_ARCHIVE_DIGEST_MISMATCH"):
+                AUTH.verify_ui_browser_acquisition_archive(lock_path, archive)
+
+    def test_acquisition_lock_rejects_non_https_or_mutable_url_shape(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path, _, _ = self.make_acquisition_lock(
+                Path(directory), url="http://example.test/chrome.zip?latest=true"
+            )
+            with self.assertRaisesRegex(ValueError, "UI_BROWSER_ACQUISITION_LOCK_URL_INVALID"):
+                AUTH.validate_ui_browser_acquisition_lock(lock_path)
+
     def test_full_verifier_requires_explicit_authority(self):
         environment = {}
         with self.assertRaisesRegex(ValueError, "UI_BROWSER_AUTHORITY_MISSING"):

@@ -12,8 +12,10 @@ import re
 import stat
 import subprocess
 import sys
+from urllib.parse import urlsplit
 
 AUTHORITY = "UI_BROWSER_AUTHORITY_V1"
+ACQUISITION_AUTHORITY = "UI_BROWSER_ACQUISITION_LOCK_V1"
 ENV_AUTHORITY = "PLATFORM_FACTORY_UI_BROWSER_AUTHORITY"
 ENV_EXECUTABLE = "PLATFORM_FACTORY_UI_BROWSER_EXECUTABLE"
 SHA_RE = re.compile(r"(?:sha256:)?([0-9a-f]{64})")
@@ -41,6 +43,57 @@ def normalized_arch() -> str:
     value = platform.machine().lower()
     return {"x86_64": "amd64", "x64": "amd64", "aarch64": "arm64"}.get(value, value)
 
+
+
+def validate_ui_browser_acquisition_lock(lock_path: Path) -> dict:
+    lock_path = lock_path.expanduser().resolve()
+    if not lock_path.is_file() or lock_path.is_symlink():
+        raise ValueError("UI_BROWSER_ACQUISITION_LOCK_MISSING")
+    try:
+        document = json.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("UI_BROWSER_ACQUISITION_LOCK_JSON_INVALID") from exc
+    required = {"schemaVersion", "authority", "browser", "platform", "architecture", "version", "source", "executable"}
+    if not isinstance(document, dict) or set(document) != required:
+        raise ValueError("UI_BROWSER_ACQUISITION_LOCK_SCHEMA_INVALID")
+    if document["schemaVersion"] != 1 or document["authority"] != ACQUISITION_AUTHORITY or document["browser"] != "chromium":
+        raise ValueError("UI_BROWSER_ACQUISITION_LOCK_IDENTITY_INVALID")
+    if document["platform"] != normalized_platform() or document["architecture"] != normalized_arch():
+        raise ValueError("UI_BROWSER_ACQUISITION_LOCK_PLATFORM_MISMATCH")
+    if not str(document["version"]).strip():
+        raise ValueError("UI_BROWSER_ACQUISITION_LOCK_VERSION_INVALID")
+    executable = str(document["executable"]).strip()
+    if not executable or Path(executable).is_absolute() or ".." in Path(executable).parts:
+        raise ValueError("UI_BROWSER_ACQUISITION_LOCK_EXECUTABLE_INVALID")
+    source = document["source"]
+    if not isinstance(source, dict) or set(source) != {"url", "sha256", "size"}:
+        raise ValueError("UI_BROWSER_ACQUISITION_LOCK_SOURCE_INVALID")
+    parsed = urlsplit(str(source["url"]).strip())
+    if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password or parsed.fragment or parsed.query:
+        raise ValueError("UI_BROWSER_ACQUISITION_LOCK_URL_INVALID")
+    match = SHA_RE.fullmatch(str(source["sha256"]).strip())
+    size = source["size"]
+    if match is None or not isinstance(size, int) or isinstance(size, bool) or size <= 0:
+        raise ValueError("UI_BROWSER_ACQUISITION_LOCK_DIGEST_INVALID")
+    return document
+
+
+def verify_ui_browser_acquisition_archive(lock_path: Path, archive_path: Path) -> dict:
+    document = validate_ui_browser_acquisition_lock(lock_path)
+    archive_path = archive_path.expanduser().resolve()
+    try:
+        info = archive_path.lstat()
+    except OSError as exc:
+        raise ValueError("UI_BROWSER_ACQUISITION_ARCHIVE_MISSING") from exc
+    if archive_path.is_symlink() or not stat.S_ISREG(info.st_mode):
+        raise ValueError("UI_BROWSER_ACQUISITION_ARCHIVE_IDENTITY_INVALID")
+    source = document["source"]
+    if info.st_size != source["size"]:
+        raise ValueError("UI_BROWSER_ACQUISITION_ARCHIVE_SIZE_MISMATCH")
+    match = SHA_RE.fullmatch(str(source["sha256"]).strip())
+    if match is None or file_sha256(archive_path) != match.group(1):
+        raise ValueError("UI_BROWSER_ACQUISITION_ARCHIVE_DIGEST_MISMATCH")
+    return document
 
 def validate_ui_browser_authority(manifest_path: Path) -> tuple[Path, dict]:
     manifest_path = manifest_path.expanduser().resolve()
@@ -121,7 +174,21 @@ def explicit_ui_browser() -> str | None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--authority")
+    parser.add_argument("--acquisition-lock")
+    parser.add_argument("--archive")
     args = parser.parse_args()
+    if args.acquisition_lock or args.archive:
+        if not args.acquisition_lock or not args.archive:
+            raise SystemExit("UI_BROWSER_ACQUISITION_ARGUMENTS_INCOMPLETE")
+        try:
+            document = verify_ui_browser_acquisition_archive(Path(args.acquisition_lock), Path(args.archive))
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+        print(
+            f"UI_BROWSER_ACQUISITION_ARCHIVE_PASS authority={ACQUISITION_AUTHORITY} "
+            f"browser={document['browser']} version={document['version']} archive={Path(args.archive).expanduser().resolve()}"
+        )
+        return 0
     raw = args.authority or os.environ.get(ENV_AUTHORITY, "")
     if not raw.strip():
         raise SystemExit("UI_BROWSER_AUTHORITY_MISSING")
