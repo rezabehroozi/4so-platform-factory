@@ -156,7 +156,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 19 || progress.CorePhaseBlocked != 6 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 76 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
 		t.Fatalf("program progress truth drift: %#v", progress)
 	}
-	if progress.PrePhysicalSoftwarePhases != 35 || progress.PrePhysicalSoftwareClosedPhases != 31 || progress.PrePhysicalSoftwareOpenPhases != 4 || progress.PrePhysicalSoftwareClosurePercent != 88 {
+	if progress.PrePhysicalSoftwarePhases != 35 || progress.PrePhysicalSoftwareClosedPhases != 32 || progress.PrePhysicalSoftwareOpenPhases != 3 || progress.PrePhysicalSoftwareClosurePercent != 91 {
 		t.Fatalf("pre-physical software progress truth drift: %#v", progress)
 	}
 	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "S2-component-runtime-certification-authorities", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "C9-pre-certification-feature-freeze-exact-bundle"} {
@@ -250,10 +250,10 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if containsString(j1.DependsOn, "I1-disconnected-okd-core") || containsString(j1.DependsOn, "I2-edge-sovereign-extension") {
 		t.Fatalf("automation integrations were incorrectly serialized behind disconnected work: %#v", j1)
 	}
-	if j1.Status != ProgramStatusBlocked || len(j1.Blockers) != 1 || !containsString(j1.Blockers, "CROSSPLANE_PROVIDER_PENDING") || containsString(j1.Blockers, "TERRAFORM_PROVIDER_PENDING") {
-		t.Fatalf("J1 should retain only the real Crossplane provider blocker after Terraform source closure: %#v", j1)
+	if j1.Status != ProgramStatusSourceImplemented || len(j1.Blockers) != 0 {
+		t.Fatalf("J1 automation integrations must be source-implemented after Terraform and Crossplane closure: %#v", j1)
 	}
-	for _, evidence := range []string{"providers/terraform", "providers/terraform/internal/provider/saml_broker_resource.go", ".github/workflows/repository-integrity.yml:terraform-provider", "EXTERNAL_REGISTRY_ADMISSION_AUTHORITY_V1", "NOTIFICATION_PROVIDER_ADAPTER_CONTRACT_V1", "NOTIFICATION_PREFERENCE_DIGEST_POLICY_V1", "POST /api/v1/external-registry/admission", "GET /api/v1/notification-provider-contracts", "GET /api/v1/notification-routes/{id}/policy-digest"} {
+	for _, evidence := range []string{"providers/terraform", "providers/terraform/internal/provider/saml_broker_resource.go", ".github/workflows/repository-integrity.yml:terraform-provider", "providers/crossplane", "providers/crossplane/internal/controller/samlbroker/controller.go", "providers/crossplane/package/crossplane.yaml", "providers/crossplane/package/crds", ".github/workflows/repository-integrity.yml:crossplane-provider", "EXTERNAL_REGISTRY_ADMISSION_AUTHORITY_V1", "NOTIFICATION_PROVIDER_ADAPTER_CONTRACT_V1", "NOTIFICATION_PREFERENCE_DIGEST_POLICY_V1", "POST /api/v1/external-registry/admission", "GET /api/v1/notification-provider-contracts", "GET /api/v1/notification-routes/{id}/policy-digest"} {
 		if !containsString(j1.Evidence, evidence) {
 			t.Fatalf("J1 evidence %q missing: %#v", evidence, j1)
 		}
