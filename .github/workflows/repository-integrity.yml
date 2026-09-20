@@ -27,7 +27,7 @@ jobs:
           test -f AGENTS.md
           test -f Makefile
           test -f go.mod
-          for path in cmd internal webconsole migrations scripts tests deploy schemas catalog blueprints docs examples; do
+          for path in cmd internal webconsole migrations scripts tests deploy schemas catalog blueprints docs examples providers/terraform; do
             test -e "$path"
           done
           test "$(find . -name .git -print | wc -l)" -eq 1
@@ -109,3 +109,28 @@ jobs:
           PLATFORM_FACTORY_POSTGRES_TEST_DSN: postgres://postgres:postgres@127.0.0.1:5432/factory_test?sslmode=disable
         run: make test-postgres-integration
 
+
+  terraform-provider:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - name: Checkout canonical repository
+        uses: actions/checkout@v4
+
+      - name: Install exact Terraform provider Go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.8'
+          cache-dependency-path: providers/terraform/go.sum
+
+      - name: Build and test Terraform provider
+        working-directory: providers/terraform
+        shell: bash
+        run: |
+          set -euo pipefail
+          go version
+          go test ./...
+          go vet ./...
+          go build ./...
