@@ -52,6 +52,13 @@ function applyLocale() {
 }
 
 const faDynamic = {
+  "External / unspecified": "خارجی / نامشخص",
+  "VMware vSphere": "VMware vSphere",
+  "Microsoft Azure": "Microsoft Azure",
+  "Google Cloud": "Google Cloud",
+  "Managed providers are admitted only when the selected ClusterClass is backed by the matching CAPV/CAPA/CAPZ/CAPG templates.": "ارائه‌دهندهٔ مدیریت‌شده فقط زمانی پذیرفته می‌شود که ClusterClass انتخاب‌شده به Template متناظر CAPV، CAPA، CAPZ یا CAPG متصل باشد.",
+  "Required only for VMware. AWS, Azure and GCP use their canonical provider API authority; custom cloud endpoints are not admitted.": "این نشانی فقط برای VMware لازم است. AWS، Azure و GCP از مرجع رسمی API خود استفاده می‌کنند و Endpoint سفارشی برای Cloud پذیرفته نمی‌شود.",
+  "Reference an existing ExternalSecret in 4so-provider-system. Raw cloud or vCenter credentials are never entered here.": "یک ExternalSecret موجود در 4so-provider-system را ارجاع دهید. اطلاعات دسترسی خام Cloud یا vCenter هرگز در این فرم وارد نمی‌شود.",
   "FinOps & chargeback": "مدیریت هزینه و مصرف",
   "Measured usage · versioned rates": "مصرف اندازه‌گیری‌شده · نرخ‌های نسخه‌دار",
   "Review measured infrastructure usage and derive showback or chargeback from an immutable rate card. Missing telemetry is always shown as unavailable, never as zero cost.": "مصرف اندازه‌گیری‌شده زیرساخت را بررسی کنید و هزینه را فقط از نرخ‌های نسخه‌دار و تغییرناپذیر محاسبه کنید. دادهٔ اندازه‌گیری‌نشده همیشه ناموجود نشان داده می‌شود و هرگز صفر فرض نمی‌شود.",
