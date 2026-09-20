@@ -4,8 +4,8 @@ import "testing"
 
 func executionFixture(t *testing.T, action Action, state State) ExecutionEnvelope {
 	t.Helper()
-	workspace, binding := fixture()
-	plan, err := BuildPlan(workspace, binding, developerRequest())
+	authority := fixture()
+	plan, err := BuildPlan(authority, developerRequest())
 	if err != nil { t.Fatal(err) }
 	env, err := NewExecutionEnvelope(plan, "op-1", "idem-1", 7, action, state)
 	if err != nil { t.Fatal(err) }

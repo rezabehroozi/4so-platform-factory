@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 
-	"platform.4so.io/factory/internal/controlplane"
 )
 
 const Authority = "VIRTUAL_CLUSTER_PROFILE_AUTHORITY_V1"
@@ -45,6 +44,17 @@ var profiles = map[ProfileID]Profile{
 		ID: ProfileTeam, DeveloperMode: false,
 		Limits: Limits{MaxCPUMilli: 16000, MaxMemoryMiB: 32768, MaxStorageGiB: 500, MaxNamespaces: 20, MinSleepAfterMin: 0, MaxSleepAfterMin: 10080},
 	},
+}
+
+type WorkspaceAuthority struct {
+	WorkspaceID     string
+	ProjectID       string
+	WorkspaceDigest string
+	BindingID       string
+	BindingRevision int64
+	HostClusterID   string
+	HostNamespace   string
+	BindingActive   bool
 }
 
 type Request struct {
@@ -94,18 +104,21 @@ func ProfileFor(id ProfileID) (Profile, bool) {
 	return p, ok
 }
 
-func BuildPlan(workspace controlplane.Workspace, binding controlplane.WorkspaceBinding, request Request) (Plan, error) {
-	if strings.TrimSpace(workspace.ID) == "" || strings.TrimSpace(workspace.ProjectID) == "" || !strings.HasPrefix(workspace.Digest, "sha256:") {
+func BuildPlan(authority WorkspaceAuthority, request Request) (Plan, error) {
+	authority.WorkspaceID = strings.TrimSpace(authority.WorkspaceID)
+	authority.ProjectID = strings.TrimSpace(authority.ProjectID)
+	authority.WorkspaceDigest = strings.TrimSpace(authority.WorkspaceDigest)
+	authority.BindingID = strings.TrimSpace(authority.BindingID)
+	authority.HostClusterID = strings.TrimSpace(authority.HostClusterID)
+	authority.HostNamespace = strings.TrimSpace(authority.HostNamespace)
+	if authority.WorkspaceID == "" || authority.ProjectID == "" || !strings.HasPrefix(authority.WorkspaceDigest, "sha256:") {
 		return Plan{}, errors.New("workspace authority is incomplete")
 	}
-	if binding.WorkspaceID != workspace.ID || binding.ProjectID != workspace.ProjectID {
-		return Plan{}, errors.New("workspace binding does not belong to the requested workspace/project")
-	}
-	if binding.State != controlplane.WorkspaceBindingActive {
-		return Plan{}, errors.New("workspace binding must be ACTIVE")
-	}
-	if strings.TrimSpace(binding.ClusterID) == "" || strings.TrimSpace(binding.Namespace) == "" || binding.Revision <= 0 {
+	if authority.BindingID == "" || authority.BindingRevision <= 0 || authority.HostClusterID == "" || authority.HostNamespace == "" {
 		return Plan{}, errors.New("workspace binding host authority is incomplete")
+	}
+	if !authority.BindingActive {
+		return Plan{}, errors.New("workspace binding must be ACTIVE")
 	}
 
 	request.Name = strings.ToLower(strings.TrimSpace(request.Name))
@@ -142,8 +155,8 @@ func BuildPlan(workspace controlplane.Workspace, binding controlplane.WorkspaceB
 	}
 
 	plan := Plan{
-		Authority: Authority, ProjectID: workspace.ProjectID, WorkspaceID: workspace.ID, WorkspaceDigest: workspace.Digest,
-		BindingID: binding.ID, BindingRevision: binding.Revision, HostClusterID: binding.ClusterID, HostNamespace: binding.Namespace,
+		Authority: Authority, ProjectID: authority.ProjectID, WorkspaceID: authority.WorkspaceID, WorkspaceDigest: authority.WorkspaceDigest,
+		BindingID: authority.BindingID, BindingRevision: authority.BindingRevision, HostClusterID: authority.HostClusterID, HostNamespace: authority.HostNamespace,
 		Name: request.Name, Profile: request.Profile, DeveloperMode: profile.DeveloperMode, KubernetesVersion: request.KubernetesVersion,
 		CPUMilli: request.CPUMilli, MemoryMiB: request.MemoryMiB, StorageGiB: request.StorageGiB, MaxNamespaces: request.MaxNamespaces,
 		SleepAfterMinutes: request.SleepAfterMinutes, MutationEligible: true,
