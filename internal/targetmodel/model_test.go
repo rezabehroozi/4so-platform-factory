@@ -146,7 +146,7 @@ func TestManagementPlaneStorageAuthorityMatchesAcquisitionSourceLock(t *testing.
 
 func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.T) {
 	roadmap := ArchitectureModel().ProgramRoadmap
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V69" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V70" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
 		t.Fatalf("unexpected roadmap authority: %#v", roadmap)
 	}
 	if len(roadmap.Phases) != 39 {
@@ -298,6 +298,16 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	for _, evidence := range []string{"PUBLIC_CLOUD_PROVIDER_EXECUTION_AUTHORITY_V1", "internal/providerexec", "ProviderClusterRecoveryRequired", "migrations/0077_provider_cluster_recovery_required.sql", "AWSClusterTemplate", "AzureClusterTemplate", "GCPClusterTemplate", "cmd/platform-agent:clusterAPIProviderAdapter"} {
 		if !containsString(h3.Evidence, evidence) {
 			t.Fatalf("H3 public-cloud provider evidence missing %s: %#v", evidence, h3)
+		}
+	}
+
+	j3 := byID["J3-virtual-cluster-profile"]
+	if j3.Status != ProgramStatusBlocked || j3.SourceStatus != ProgramSourceStatusOpen || len(j3.Blockers) != 2 || !containsString(j3.Blockers, "VIRTUAL_CLUSTER_DURABLE_RUNTIME_PENDING") || !containsString(j3.Blockers, "VIRTUAL_CLUSTER_API_MCP_CONSOLE_PENDING") {
+		t.Fatalf("J3 virtual-cluster foundation status drift: %#v", j3)
+	}
+	for _, evidence := range []string{"VIRTUAL_CLUSTER_PROFILE_AUTHORITY_V1", "VIRTUAL_CLUSTER_LIFECYCLE_AUTHORITY_V1", "internal/virtualcluster", "WORKSPACE_AUTHORITY_V1"} {
+		if !containsString(j3.Evidence, evidence) {
+			t.Fatalf("J3 virtual-cluster foundation evidence missing %s: %#v", evidence, j3)
 		}
 	}
 
