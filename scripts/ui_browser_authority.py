@@ -108,6 +108,8 @@ def _browser_archive_member(name: str) -> tuple[Path, bool]:
     parts = raw.split("/")
     if not raw or any(part in {"", ".", ".."} for part in parts):
         raise ValueError("UI_BROWSER_ACQUISITION_ARCHIVE_PATH_INVALID")
+    if re.fullmatch(r"[A-Za-z]:.*", parts[0]):
+        raise ValueError("UI_BROWSER_ACQUISITION_ARCHIVE_PATH_INVALID")
     relative = Path(*parts)
     if relative.is_absolute() or relative.drive:
         raise ValueError("UI_BROWSER_ACQUISITION_ARCHIVE_PATH_INVALID")
