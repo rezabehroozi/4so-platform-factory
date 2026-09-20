@@ -1,0 +1,53 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: providerconfigs.platform.4so.io
+spec:
+  group: platform.4so.io
+  scope: Namespaced
+  names:
+    plural: providerconfigs
+    singular: providerconfig
+    kind: ProviderConfig
+    listKind: ProviderConfigList
+    categories:
+      - crossplane
+      - provider
+      - 4so
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - endpoint
+                - tokenSecretRef
+              properties:
+                endpoint:
+                  type: string
+                  minLength: 1
+                tokenSecretRef:
+                  type: object
+                  required:
+                    - name
+                    - key
+                  properties:
+                    name:
+                      type: string
+                      minLength: 1
+                    key:
+                      type: string
+                      minLength: 1

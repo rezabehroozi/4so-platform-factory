@@ -1,0 +1,12 @@
+apiVersion: meta.pkg.crossplane.io/v1alpha1
+kind: Provider
+metadata:
+  name: provider-4so-platform
+  annotations:
+    meta.crossplane.io/maintainer: 4SO Platform Factory
+    meta.crossplane.io/source: github.com/rezabehroozi/4so-platform-factory
+    meta.crossplane.io/license: Proprietary
+    meta.crossplane.io/description: |
+      Crossplane provider for 4SO Platform Factory Product API resources.
+      Product API remains the lifecycle, RBAC, approval and durable-operation authority.
+spec: {}

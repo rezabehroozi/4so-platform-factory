@@ -6,10 +6,12 @@ require (
 	github.com/crossplane/crossplane-runtime/v2 v2.3.3
 	github.com/crossplane/crossplane/apis/v2 v2.3.4
 	k8s.io/api v0.35.1
+	k8s.io/apiextensions-apiserver v0.35.0
 	k8s.io/apimachinery v0.35.1
 	k8s.io/client-go v0.35.1
 	platform.4so.io/factory v0.0.0
 	sigs.k8s.io/controller-runtime v0.23.1
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
@@ -80,7 +82,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.35.0 // indirect
 	k8s.io/code-generator v0.35.0 // indirect
 	k8s.io/component-base v0.35.0 // indirect
 	k8s.io/gengo/v2 v2.0.0-20251215205346-5ee0d033ba5b // indirect
@@ -91,7 +92,6 @@ require (
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482 // indirect
-	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
 replace platform.4so.io/factory => ../..
