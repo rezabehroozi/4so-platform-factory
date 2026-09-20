@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -108,90 +107,8 @@ func normalizeProviderVersion(v string) string {
 	return v
 }
 
-func providerSeriesFor(v string) string {
-	parts := strings.Split(strings.TrimPrefix(normalizeProviderVersion(v), "v"), ".")
-	if len(parts) < 2 {
-		return ""
-	}
-	return "v" + parts[0] + "." + parts[1]
-}
-
-func normalizeProviderInfrastructure(v *controlplane.ProviderProfile) error {
-	v.InfrastructureProvider = strings.ToLower(strings.TrimSpace(v.InfrastructureProvider))
-	v.InfrastructureEndpoint = strings.TrimSpace(v.InfrastructureEndpoint)
-	v.CredentialRef = strings.TrimSpace(v.CredentialRef)
-	if v.InfrastructureProvider == "" {
-		v.InfrastructureProvider = targetmodel.InfrastructureUnspecified
-	}
-	switch v.InfrastructureProvider {
-	case targetmodel.InfrastructureUnspecified:
-		if v.InfrastructureEndpoint != "" || v.CredentialRef != "" {
-			return controlplane.ErrValidation
-		}
-		return nil
-	case targetmodel.InfrastructureVMware:
-		u, err := url.Parse(v.InfrastructureEndpoint)
-		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-			return controlplane.ErrValidation
-		}
-		const prefix = "external-secret://4so-provider-system/"
-		name := strings.TrimPrefix(v.CredentialRef, prefix)
-		if !strings.HasPrefix(v.CredentialRef, prefix) || name == "" || strings.Contains(name, "..") || !providerDNSLabel.MatchString(strings.ReplaceAll(name, ".", "-")) {
-			return controlplane.ErrValidation
-		}
-		if len(v.Architectures) != 1 || strings.ToLower(strings.TrimSpace(v.Architectures[0])) != "amd64" {
-			return controlplane.ErrValidation
-		}
-		return nil
-	default:
-		return controlplane.ErrValidation
-	}
-}
-
 func normalizeProviderProfile(v *controlplane.ProviderProfile) error {
-	v.Name = normalizedName(v.Name)
-	v.DisplayName = strings.TrimSpace(v.DisplayName)
-	v.ClusterClassName = normalizedName(v.ClusterClassName)
-	v.WorkerClassName = normalizedName(v.WorkerClassName)
-	v.DefaultKubernetesVersion = normalizeProviderVersion(v.DefaultKubernetesVersion)
-	if v.Name == "" || len(v.Name) > 63 || !providerDNSLabel.MatchString(v.Name) || v.DisplayName == "" {
-		return controlplane.ErrValidation
-	}
-	if v.Adapter != "cluster-api-topology-v1beta2" || v.Namespace != "4so-provider-system" {
-		return controlplane.ErrValidation
-	}
-	if v.ClusterClassName == "" || !providerDNSLabel.MatchString(v.ClusterClassName) || v.WorkerClassName == "" || !providerDNSLabel.MatchString(v.WorkerClassName) {
-		return controlplane.ErrValidation
-	}
-	if !providerKubeVersion.MatchString(v.DefaultKubernetesVersion) || v.MaxWorkerReplicas < 1 || v.MaxWorkerReplicas > 500 {
-		return controlplane.ErrValidation
-	}
-	seen := map[string]bool{}
-	series := []string{}
-	for _, item := range append(v.KubernetesSeries, providerSeriesFor(v.DefaultKubernetesVersion)) {
-		item = normalizeProviderVersion(item)
-		if !providerKubeSeries.MatchString(item) {
-			return controlplane.ErrValidation
-		}
-		if !seen[item] {
-			seen[item] = true
-			series = append(series, item)
-		}
-	}
-	sort.Strings(series)
-	v.KubernetesSeries = series
-	dummy := controlplane.ProviderClusterSpec{}
-	controlplane.NormalizeProviderCompatibility(v, &dummy)
-	if err := normalizeProviderInfrastructure(v); err != nil {
-		return err
-	}
-	if len(v.Architectures) == 0 || len(v.DistributionProfiles) == 0 {
-		return controlplane.ErrValidation
-	}
-	if strings.TrimSpace(v.IdempotencyKey) == "" || !strings.HasPrefix(v.RequestDigest, "sha256:") || !strings.HasPrefix(v.DesiredDigest, "sha256:") {
-		return controlplane.ErrValidation
-	}
-	return nil
+	return controlplane.NormalizeAndValidateProviderProfile(v)
 }
 
 func providerSpecAdmitted(profile controlplane.ProviderProfile, spec *controlplane.ProviderClusterSpec) error {

@@ -204,6 +204,12 @@ func validateProviderProfile(v *ProviderProfile) error {
 	return nil
 }
 
+// NormalizeAndValidateProviderProfile is the canonical provider-profile
+// admission contract shared by all authoritative Store implementations.
+func NormalizeAndValidateProviderProfile(v *ProviderProfile) error {
+	return validateProviderProfile(v)
+}
+
 func providerSpecAllowed(profile ProviderProfile, spec *ProviderClusterSpec) error {
 	legacyIdentity := targetmodel.CanonicalDistribution(spec.Distribution)
 	explicitIdentity := targetmodel.CanonicalDistribution(spec.DistributionIdentity)
