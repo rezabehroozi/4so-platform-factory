@@ -478,8 +478,8 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 		}
 	}
 	j1 := byID["J1-automation-external-integrations"]
-	if len(j1.Blockers) != 1 || !containsString(j1.Blockers, "CROSSPLANE_PROVIDER_PENDING") || containsString(j1.Blockers, "TERRAFORM_PROVIDER_PENDING") {
-		t.Fatalf("automation blockers must retain only Crossplane after Terraform source closure: %+v", j1)
+	if j1.Status != ProgramStatusSourceImplemented || j1.SourceStatus != ProgramSourceStatusImplemented || len(j1.Blockers) != 0 {
+		t.Fatalf("automation integration source closure drift: %+v", j1)
 	}
 	i2 := byID["I2-edge-sovereign-extension"]
 	if containsString(i2.DependsOn, "I1-disconnected-okd-core") || i2.RequiredForFeatureFreeze {
