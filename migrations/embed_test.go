@@ -33,7 +33,7 @@ func TestPostgresAuthorityMigrationContract(t *testing.T) {
 		"CREATE TABLE runtime_verifications", "runtime_verifications_project_idempotency",
 		"CREATE TABLE fleet_groups", "CREATE TABLE drift_scans", "CREATE TABLE upgrade_campaigns",
 		"CREATE TABLE IF NOT EXISTS entitlements", "CREATE TABLE IF NOT EXISTS oem_profiles", "CREATE TABLE IF NOT EXISTS tenant_environments",
-		"CREATE TABLE IF NOT EXISTS provider_profiles", "CREATE TABLE IF NOT EXISTS provider_clusters", "cluster-api-topology-v1beta2",
+		"CREATE TABLE IF NOT EXISTS provider_profiles", "CREATE TABLE IF NOT EXISTS provider_clusters", "cluster-api-topology-v1beta2", "RECOVERY_REQUIRED",
 		"CREATE TABLE marketplace_recommendations", "marketplace_recommendations_project_idempotency", "pending_action", "source_type",
 		"CREATE TABLE runtime_closure_campaigns", "runtime_closure_project_idempotency", "validate_runtime_closure_campaign_update",
 		"CREATE TABLE organization_memberships", "organization_membership_subject_unique", "organization_memberships_subject_state_idx",

@@ -52,7 +52,7 @@ WITH selected_projects AS (
   SELECT 'provider-cluster',id,project_id,display_name,state::text,
          COALESCE(NULLIF(last_error,''),'Provider cluster workflow failed.'),
          'providers',updated_at
-    FROM provider_clusters WHERE project_id IN (SELECT id FROM selected_projects) AND state='FAILED'
+    FROM provider_clusters WHERE project_id IN (SELECT id FROM selected_projects) AND state IN ('FAILED','RECOVERY_REQUIRED')
   UNION ALL
   SELECT 'managed-cluster',id,project_id,display_name,'OFFLINE'::text,
          'Cluster heartbeat or inventory is stale.'::text,

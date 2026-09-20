@@ -245,16 +245,16 @@ func TestProviderTasksLeasePreventsConcurrentReissueAndFencesRecoveredAttempt(t 
 	}
 	now = apply1.TaskLeaseExpiresAt.Add(time.Second)
 	management = refreshClusterTaskInventoryAt(t, s, ctx, management.ID, digestTenantTest(agentToken), now)
-	apply2, _, err := s.NextProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken))
-	if err != nil || apply2.TaskAttempt != 2 || apply2.TaskFenceToken != 2 || apply2.Revision <= apply1.Revision {
-		t.Fatalf("recovered apply=%+v err=%v", apply2, err)
+	inspect, _, err := s.NextProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken))
+	if err != nil || inspect.State != ProviderClusterReconciling || inspect.TaskAttempt != 2 || inspect.TaskFenceToken != 2 || inspect.Revision <= apply1.Revision || inspect.Phase != "RecoveryInspectQueued" {
+		t.Fatalf("expired apply was not converted to readback-only recovery: %+v err=%v", inspect, err)
 	}
 	if _, err = s.ReportProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken), apply1.Revision, ProviderClusterTaskResult{ProviderClusterID: cluster.ID, TaskFenceToken: apply1.TaskFenceToken, Action: "APPLY", Success: true, ObservedDigest: cluster.DesiredDigest, Phase: "Provisioning"}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("stale apply report err=%v", err)
 	}
-	cluster, err = s.ReportProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken), apply2.Revision, ProviderClusterTaskResult{ProviderClusterID: cluster.ID, TaskFenceToken: apply2.TaskFenceToken, Action: "APPLY", Success: true, ObservedDigest: cluster.DesiredDigest, Phase: "Provisioning"})
-	if err != nil || cluster.State != ProviderClusterReconciling {
-		t.Fatalf("apply completion=%+v err=%v", cluster, err)
+	cluster, err = s.ReportProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken), inspect.Revision, ProviderClusterTaskResult{ProviderClusterID: cluster.ID, TaskFenceToken: inspect.TaskFenceToken, Action: "INSPECT", Success: true, Ready: true, ObservedDigest: cluster.DesiredDigest, Phase: "Provisioned"})
+	if err != nil || cluster.State != ProviderClusterActive {
+		t.Fatalf("readback recovery completion=%+v err=%v", cluster, err)
 	}
 }
 
@@ -411,5 +411,41 @@ func TestPublicCloudProviderProfileAdmissionIsFailClosed(t *testing.T) {
 				t.Fatalf("%s unsupported architecture was admitted: %v", provider, err)
 			}
 		})
+	}
+}
+
+
+func TestProviderClusterRecoveryRequiredRetryQueuesReadbackOnly(t *testing.T) {
+	s, ctx, project, management, agentToken := providerFixture(t)
+	profile := readyProviderProfile(t, s, ctx, project, management, agentToken)
+	v, _, err := s.CreateProviderCluster(ctx, ProviderCluster{
+		ProjectID: project.ID, ProviderProfileID: profile.ID, Name: "ambiguous-cluster", DisplayName: "Ambiguous Cluster",
+		Desired: ProviderClusterSpec{KubernetesVersion: "v1.33.2", ControlPlaneReplicas: 1, WorkerReplicas: 1},
+		DesiredDigest: digestTenantTest("ambiguous-desired"), RequestDigest: digestTenantTest("ambiguous-request"), IdempotencyKey: "ambiguous-cluster",
+	}, "operator")
+	if err != nil { t.Fatal(err) }
+	v, err = s.ApproveProviderCluster(ctx, v.ID, v.Revision, "approver")
+	if err != nil { t.Fatal(err) }
+	claimed, _, err := s.NextProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken))
+	if err != nil || claimed.State != ProviderClusterApplying { t.Fatalf("claim=%+v err=%v", claimed, err) }
+	v, err = s.ReportProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken), claimed.Revision, ProviderClusterTaskResult{
+		ProviderClusterID: v.ID, TaskFenceToken: claimed.TaskFenceToken, Action: "APPLY",
+		RecoveryRequired: true, Error: "mutation outcome unknown after transport failure",
+	})
+	if err != nil || v.State != ProviderClusterRecoveryRequired || v.Phase != "RecoveryRequired" {
+		t.Fatalf("recovery-required report=%+v err=%v", v, err)
+	}
+	v, err = s.RetryProviderCluster(ctx, v.ID, v.Revision, "operator")
+	if err != nil || v.State != ProviderClusterReconciling || v.Phase != "RecoveryInspectQueued" {
+		t.Fatalf("safe retry=%+v err=%v", v, err)
+	}
+	inspect, _, err := s.NextProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken))
+	if err != nil || inspect.State != ProviderClusterReconciling || inspect.TaskAttempt != 2 {
+		t.Fatalf("readback claim=%+v err=%v", inspect, err)
+	}
+	if _, err = s.ReportProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken), inspect.Revision, ProviderClusterTaskResult{
+		ProviderClusterID: v.ID, TaskFenceToken: inspect.TaskFenceToken, Action: "APPLY", Success: true, ObservedDigest: v.DesiredDigest,
+	}); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("recovery readback lane accepted a replayed APPLY: %v", err)
 	}
 }

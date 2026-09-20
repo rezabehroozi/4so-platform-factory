@@ -133,7 +133,7 @@ func agentTaskQueueStateClass(family, state string) (candidate bool, attention b
 		switch ProviderClusterState(state) {
 		case ProviderClusterQueued, ProviderClusterApplying, ProviderClusterReconciling, ProviderClusterDeleteQueued, ProviderClusterDeleting:
 			return true, false
-		case ProviderClusterFailed:
+		case ProviderClusterRecoveryRequired, ProviderClusterFailed:
 			return false, true
 		}
 	}

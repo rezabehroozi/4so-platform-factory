@@ -2239,6 +2239,7 @@ const (
 	ProviderClusterDeleteQueued     ProviderClusterState = "DELETE_QUEUED"
 	ProviderClusterDeleting         ProviderClusterState = "DELETING"
 	ProviderClusterDeleted          ProviderClusterState = "DELETED"
+	ProviderClusterRecoveryRequired ProviderClusterState = "RECOVERY_REQUIRED"
 	ProviderClusterFailed           ProviderClusterState = "FAILED"
 )
 
@@ -2343,6 +2344,7 @@ type ProviderClusterTaskResult struct {
 	ObservedDigest     string                     `json:"observedDigest,omitempty"`
 	Phase              string                     `json:"phase,omitempty"`
 	Error              string                     `json:"error,omitempty"`
+	RecoveryRequired   bool                       `json:"recoveryRequired,omitempty"`
 	TargetNodeMutation TargetNodeProviderMutation `json:"targetNodeMutation,omitempty"`
 }
 

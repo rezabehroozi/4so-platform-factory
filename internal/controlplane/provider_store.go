@@ -657,21 +657,35 @@ func (s *MemoryStore) RetryProviderCluster(_ context.Context, id string, expecte
 	if v.Revision != expected {
 		return ProviderCluster{}, ErrConflict
 	}
-	if v.State != ProviderClusterFailed {
+	auditAction := "provider_cluster.retry.queued"
+	switch v.State {
+	case ProviderClusterRecoveryRequired:
+		if v.PendingAction == "DELETE" {
+			v.State = ProviderClusterDeleting
+		} else if v.PendingAction == "PROVISION" || v.PendingAction == "SCALE" || v.PendingAction == "UPGRADE" || IsTargetNodeProviderPendingAction(v.PendingAction) {
+			v.State = ProviderClusterReconciling
+		} else {
+			return ProviderCluster{}, fmt.Errorf("%w: recovery-required provider cluster has no inspectable action", ErrValidation)
+		}
+		v.Phase = "RecoveryInspectQueued"
+		auditAction = "provider_cluster.recovery.inspect_queued"
+	case ProviderClusterFailed:
+		if v.PendingAction == "DELETE" {
+			return ProviderCluster{}, ownerDestructiveRetryRequiresFreshRequest(v.DestructiveOperationID)
+		} else if v.PendingAction == "PROVISION" || v.PendingAction == "SCALE" || v.PendingAction == "UPGRADE" || IsTargetNodeProviderPendingAction(v.PendingAction) {
+			v.State = ProviderClusterQueued
+		} else {
+			return ProviderCluster{}, fmt.Errorf("%w: failed provider cluster has no retryable action", ErrValidation)
+		}
+	default:
 		return ProviderCluster{}, ErrInvalidTransition
 	}
-	if v.PendingAction == "DELETE" {
-		return ProviderCluster{}, ownerDestructiveRetryRequiresFreshRequest(v.DestructiveOperationID)
-	} else if v.PendingAction == "PROVISION" || v.PendingAction == "SCALE" || v.PendingAction == "UPGRADE" || IsTargetNodeProviderPendingAction(v.PendingAction) {
-		v.State = ProviderClusterQueued
-	} else {
-		return ProviderCluster{}, fmt.Errorf("%w: failed provider cluster has no retryable action", ErrValidation)
-	}
 	v.LastError = ""
+	v.TaskLeaseExpiresAt = nil
 	v.Revision++
 	v.UpdatedAt = nowUTC(s.now)
 	s.providerClusters[id] = v
-	s.appendAuditLocked(actor, "provider_cluster.retry.queued", "providerCluster", id, v.Revision, map[string]any{"action": v.PendingAction})
+	s.appendAuditLocked(actor, auditAction, "providerCluster", id, v.Revision, map[string]any{"action": v.PendingAction})
 	s.appendOutboxLocked("providerCluster", id, "provider_cluster.execution.queued", v)
 	return v, nil
 }
@@ -704,6 +718,17 @@ func (s *MemoryStore) NextProviderClusterTask(_ context.Context, clusterID, toke
 		return resourceUpdatedBefore(s.providerClusters[ids[i]].ResourceMeta, s.providerClusters[ids[j]].ResourceMeta)
 	})
 	v := s.providerClusters[ids[0]]
+	if v.State == ProviderClusterApplying && v.TaskLeaseExpiresAt != nil && !AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {
+		v.State = ProviderClusterReconciling
+		v.TaskLeaseExpiresAt = nil
+		v.LastError = "provider apply lease expired; authoritative readback is required before any replay"
+		v.Phase = "RecoveryInspectQueued"
+		v.Revision++
+		v.UpdatedAt = now
+		s.providerClusters[v.ID] = v
+		s.appendAuditLocked("cluster-agent", "provider_cluster.apply.lease_expired_readback", "providerCluster", v.ID, v.Revision, map[string]any{"pendingAction": v.PendingAction, "taskFenceToken": v.TaskFenceToken})
+		s.appendOutboxLocked("providerCluster", v.ID, "provider_cluster.state.changed", v)
+	}
 	if IsTargetNodeProviderPendingAction(v.PendingAction) {
 		m := v.TargetNodeMutation
 		inv, ok := s.clusterInventories[m.TargetClusterID]
@@ -798,11 +823,22 @@ func (s *MemoryStore) ReportProviderClusterTask(_ context.Context, clusterID, to
 	if result.TaskFenceToken <= 0 || v.TaskFenceToken != result.TaskFenceToken || !AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {
 		return ProviderCluster{}, ErrConflict
 	}
+	if result.RecoveryRequired && result.Success {
+		return ProviderCluster{}, fmt.Errorf("%w: recoveryRequired cannot accompany success", ErrValidation)
+	}
 	if !result.Success {
-		v.State = ProviderClusterFailed
 		v.LastError = strings.TrimSpace(result.Error)
-		if v.LastError == "" {
-			v.LastError = "provider cluster task failed"
+		if result.RecoveryRequired {
+			v.State = ProviderClusterRecoveryRequired
+			if v.LastError == "" {
+				v.LastError = "provider mutation outcome is ambiguous; authoritative readback is required"
+			}
+			v.Phase = "RecoveryRequired"
+		} else {
+			v.State = ProviderClusterFailed
+			if v.LastError == "" {
+				v.LastError = "provider cluster task failed"
+			}
 		}
 	} else {
 		switch action {
@@ -848,7 +884,7 @@ func (s *MemoryStore) ReportProviderClusterTask(_ context.Context, clusterID, to
 			}
 		}
 	}
-	if wasDelete && (!result.Success || result.Deleted) {
+	if wasDelete && !result.RecoveryRequired && (!result.Success || result.Deleted) {
 		if _, err := s.finishOwnerDestructiveOperationLocked(v.DestructiveOperationID, result.Success, v.LastError, "cluster-agent"); err != nil {
 			return ProviderCluster{}, err
 		}
@@ -857,7 +893,7 @@ func (s *MemoryStore) ReportProviderClusterTask(_ context.Context, clusterID, to
 	v.Revision++
 	v.UpdatedAt = now
 	s.providerClusters[v.ID] = v
-	s.appendAuditLocked("cluster-agent", "provider_cluster.task.reported", "providerCluster", v.ID, v.Revision, map[string]any{"action": result.Action, "success": result.Success, "ready": result.Ready, "deleted": result.Deleted, "taskFenceToken": result.TaskFenceToken})
+	s.appendAuditLocked("cluster-agent", "provider_cluster.task.reported", "providerCluster", v.ID, v.Revision, map[string]any{"action": result.Action, "success": result.Success, "ready": result.Ready, "deleted": result.Deleted, "recoveryRequired": result.RecoveryRequired, "taskFenceToken": result.TaskFenceToken})
 	s.appendOutboxLocked("providerCluster", v.ID, "provider_cluster.state.changed", v)
 	return v, nil
 }

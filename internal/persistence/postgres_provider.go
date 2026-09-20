@@ -628,23 +628,36 @@ func (s *PostgresStore) RetryProviderCluster(ctx context.Context, id string, exp
 		if v.Revision != expected {
 			return controlplane.ErrConflict
 		}
-		if v.State != controlplane.ProviderClusterFailed {
+		auditAction := "provider_cluster.retry.queued"
+		switch v.State {
+		case controlplane.ProviderClusterRecoveryRequired:
+			if v.PendingAction == "DELETE" {
+				v.State = controlplane.ProviderClusterDeleting
+			} else if v.PendingAction == "PROVISION" || v.PendingAction == "SCALE" || v.PendingAction == "UPGRADE" || controlplane.IsTargetNodeProviderPendingAction(v.PendingAction) {
+				v.State = controlplane.ProviderClusterReconciling
+			} else {
+				return controlplane.ErrValidation
+			}
+			v.Phase = "RecoveryInspectQueued"
+			auditAction = "provider_cluster.recovery.inspect_queued"
+		case controlplane.ProviderClusterFailed:
+			if v.PendingAction == "DELETE" {
+				return fmt.Errorf("%w: destructive provider cluster delete retry requires a fresh recovery-bound request", controlplane.ErrPrerequisite)
+			} else if v.PendingAction == "PROVISION" || v.PendingAction == "SCALE" || v.PendingAction == "UPGRADE" || controlplane.IsTargetNodeProviderPendingAction(v.PendingAction) {
+				v.State = controlplane.ProviderClusterQueued
+			} else {
+				return controlplane.ErrValidation
+			}
+		default:
 			return controlplane.ErrInvalidTransition
 		}
-		if v.PendingAction == "DELETE" {
-			return fmt.Errorf("%w: destructive provider cluster delete retry requires a fresh recovery-bound request", controlplane.ErrPrerequisite)
-		} else if v.PendingAction == "PROVISION" || v.PendingAction == "SCALE" || v.PendingAction == "UPGRADE" || controlplane.IsTargetNodeProviderPendingAction(v.PendingAction) {
-			v.State = controlplane.ProviderClusterQueued
-		} else {
-			return controlplane.ErrValidation
-		}
 		now := utcNow(s.now)
-		v.LastError, v.Revision, v.UpdatedAt = "", v.Revision+1, now
-		_, e = tx.ExecContext(ctx, `UPDATE provider_clusters SET revision=$2,state=$3,last_error='',updated_at=$4 WHERE id=$1`, id, v.Revision, string(v.State), now)
+		v.LastError, v.TaskLeaseExpiresAt, v.Revision, v.UpdatedAt = "", nil, v.Revision+1, now
+		_, e = tx.ExecContext(ctx, `UPDATE provider_clusters SET revision=$2,state=$3,phase=$4,last_error='',task_lease_expires_at=NULL,updated_at=$5 WHERE id=$1`, id, v.Revision, string(v.State), v.Phase, now)
 		if e != nil {
 			return e
 		}
-		if e = s.appendAuditTx(ctx, tx, actor, "provider_cluster.retry.queued", "providerCluster", id, v.Revision, "", map[string]any{"action": v.PendingAction}); e != nil {
+		if e = s.appendAuditTx(ctx, tx, actor, auditAction, "providerCluster", id, v.Revision, "", map[string]any{"action": v.PendingAction}); e != nil {
 			return e
 		}
 		out = v
@@ -666,6 +679,23 @@ func (s *PostgresStore) NextProviderClusterTask(ctx context.Context, clusterID, 
 		v, e := scanProviderCluster(tx.QueryRowContext(ctx, `SELECT `+providerClusterColumns+` FROM provider_clusters WHERE management_cluster_id=$1 AND (state IN ('QUEUED','DELETE_QUEUED') OR (state IN ('APPLYING','RECONCILING','DELETING') AND (task_lease_expires_at IS NULL OR task_lease_expires_at<=$2))) ORDER BY updated_at,id LIMIT 1 FOR UPDATE SKIP LOCKED`, clusterID, now))
 		if e != nil {
 			return mapDBError(e)
+		}
+		if v.State == controlplane.ProviderClusterApplying && v.TaskLeaseExpiresAt != nil && !controlplane.AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {
+			v.State = controlplane.ProviderClusterReconciling
+			v.TaskLeaseExpiresAt = nil
+			v.LastError = "provider apply lease expired; authoritative readback is required before any replay"
+			v.Phase = "RecoveryInspectQueued"
+			v.Revision++
+			v.UpdatedAt = now
+			if _, e = tx.ExecContext(ctx, `UPDATE provider_clusters SET revision=$2,state=$3,phase=$4,last_error=$5,task_lease_expires_at=NULL,updated_at=$6 WHERE id=$1`, v.ID, v.Revision, string(v.State), v.Phase, v.LastError, now); e != nil {
+				return e
+			}
+			if e = s.appendAuditTx(ctx, tx, "cluster-agent", "provider_cluster.apply.lease_expired_readback", "providerCluster", v.ID, v.Revision, "", map[string]any{"pendingAction": v.PendingAction, "taskFenceToken": v.TaskFenceToken}); e != nil {
+				return e
+			}
+			if e = s.appendOutboxTx(ctx, tx, "providerCluster", v.ID, "provider_cluster.state.changed", v); e != nil {
+				return e
+			}
 		}
 		if controlplane.IsTargetNodeProviderPendingAction(v.PendingAction) {
 			m := v.TargetNodeMutation
@@ -792,10 +822,22 @@ func (s *PostgresStore) ReportProviderClusterTask(ctx context.Context, clusterID
 		if result.TaskFenceToken <= 0 || v.TaskFenceToken != result.TaskFenceToken || !controlplane.AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {
 			return controlplane.ErrConflict
 		}
+		if result.RecoveryRequired && result.Success {
+			return controlplane.ErrValidation
+		}
 		if !result.Success {
-			v.State, v.LastError = controlplane.ProviderClusterFailed, strings.TrimSpace(result.Error)
-			if v.LastError == "" {
-				v.LastError = "provider cluster task failed"
+			v.LastError = strings.TrimSpace(result.Error)
+			if result.RecoveryRequired {
+				v.State = controlplane.ProviderClusterRecoveryRequired
+				if v.LastError == "" {
+					v.LastError = "provider mutation outcome is ambiguous; authoritative readback is required"
+				}
+				v.Phase = "RecoveryRequired"
+			} else {
+				v.State = controlplane.ProviderClusterFailed
+				if v.LastError == "" {
+					v.LastError = "provider cluster task failed"
+				}
 			}
 		} else {
 			switch action {
@@ -831,7 +873,7 @@ func (s *PostgresStore) ReportProviderClusterTask(ctx context.Context, clusterID
 				return controlplane.ErrValidation
 			}
 		}
-		if wasDelete && (!result.Success || result.Deleted) {
+		if wasDelete && !result.RecoveryRequired && (!result.Success || result.Deleted) {
 			if _, e = s.finishOwnerDestructiveOperationTx(ctx, tx, v.DestructiveOperationID, result.Success, v.LastError, "cluster-agent"); e != nil {
 				return e
 			}
@@ -844,7 +886,7 @@ func (s *PostgresStore) ReportProviderClusterTask(ctx context.Context, clusterID
 		if e != nil {
 			return e
 		}
-		if e = s.appendAuditTx(ctx, tx, "cluster-agent", "provider_cluster.task.reported", "providerCluster", v.ID, v.Revision, "", map[string]any{"action": result.Action, "success": result.Success, "ready": result.Ready, "deleted": result.Deleted, "taskFenceToken": result.TaskFenceToken}); e != nil {
+		if e = s.appendAuditTx(ctx, tx, "cluster-agent", "provider_cluster.task.reported", "providerCluster", v.ID, v.Revision, "", map[string]any{"action": result.Action, "success": result.Success, "ready": result.Ready, "deleted": result.Deleted, "recoveryRequired": result.RecoveryRequired, "taskFenceToken": result.TaskFenceToken}); e != nil {
 			return e
 		}
 		out = v

@@ -1205,7 +1205,7 @@ func (s *Server) controlPlaneAttention(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for _, v := range snap.ProviderClusters {
-		if v.State == controlplane.ProviderClusterFailed {
+		if v.State == controlplane.ProviderClusterFailed || v.State == controlplane.ProviderClusterRecoveryRequired {
 			add("provider-cluster", v.ID, v.ProjectID, v.DisplayName, string(v.State), v.LastError, "providers", v.UpdatedAt)
 		}
 	}
