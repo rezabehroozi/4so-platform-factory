@@ -104,5 +104,5 @@ func (p *fourSOProvider) DataSources(context.Context) []func() datasource.DataSo
 }
 
 func (p *fourSOProvider) Resources(context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{NewSAMLBrokerResource}
 }
