@@ -730,17 +730,15 @@ func (s *PostgresStore) NextProviderClusterTask(ctx context.Context, clusterID, 
 			}
 		}
 		if v.State == controlplane.ProviderClusterDeleting && v.TaskLeaseExpiresAt != nil {
-			message := "provider cluster destructive task lease expired; explicit recovery-bound retry is required"
-			if _, e = s.finishOwnerDestructiveOperationTx(ctx, tx, v.DestructiveOperationID, false, message, "cluster-agent"); e != nil {
-				return e
-			}
-			v.State, v.LastError, v.TaskLeaseExpiresAt = controlplane.ProviderClusterFailed, message, nil
+			message := "provider cluster delete lease expired; authoritative readback is required before any replay"
+			v.State, v.LastError, v.TaskLeaseExpiresAt = controlplane.ProviderClusterRecoveryRequired, message, nil
+			v.Phase = "RecoveryRequired"
 			v.Revision++
 			v.UpdatedAt = now
-			if _, e = tx.ExecContext(ctx, `UPDATE provider_clusters SET revision=$2,state=$3,last_error=$4,task_lease_expires_at=NULL,updated_at=$5 WHERE id=$1`, v.ID, v.Revision, string(v.State), message, now); e != nil {
+			if _, e = tx.ExecContext(ctx, `UPDATE provider_clusters SET revision=$2,state=$3,phase=$4,last_error=$5,task_lease_expires_at=NULL,updated_at=$6 WHERE id=$1`, v.ID, v.Revision, string(v.State), v.Phase, message, now); e != nil {
 				return e
 			}
-			if e = s.appendAuditTx(ctx, tx, "cluster-agent", "provider_cluster.task.lease_expired", "providerCluster", v.ID, v.Revision, "", map[string]any{"action": "DELETE", "taskFenceToken": v.TaskFenceToken}); e != nil {
+			if e = s.appendAuditTx(ctx, tx, "cluster-agent", "provider_cluster.delete.lease_expired_recovery_required", "providerCluster", v.ID, v.Revision, "", map[string]any{"action": "DELETE", "taskFenceToken": v.TaskFenceToken}); e != nil {
 				return e
 			}
 			if e = s.appendOutboxTx(ctx, tx, "providerCluster", v.ID, "provider_cluster.state.changed", v); e != nil {

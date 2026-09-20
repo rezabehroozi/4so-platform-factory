@@ -753,15 +753,13 @@ func (s *MemoryStore) NextProviderClusterTask(_ context.Context, clusterID, toke
 		}
 	}
 	if v.State == ProviderClusterDeleting && v.TaskLeaseExpiresAt != nil {
-		message := "provider cluster destructive task lease expired; explicit recovery-bound retry is required"
-		if _, err := s.finishOwnerDestructiveOperationLocked(v.DestructiveOperationID, false, message, "cluster-agent"); err != nil {
-			return ProviderCluster{}, ProviderProfile{}, err
-		}
-		v.State, v.LastError, v.TaskLeaseExpiresAt = ProviderClusterFailed, message, nil
+		message := "provider cluster delete lease expired; authoritative readback is required before any replay"
+		v.State, v.LastError, v.TaskLeaseExpiresAt = ProviderClusterRecoveryRequired, message, nil
+		v.Phase = "RecoveryRequired"
 		v.Revision++
 		v.UpdatedAt = now
 		s.providerClusters[v.ID] = v
-		s.appendAuditLocked("cluster-agent", "provider_cluster.task.lease_expired", "providerCluster", v.ID, v.Revision, map[string]any{"action": "DELETE", "taskFenceToken": v.TaskFenceToken})
+		s.appendAuditLocked("cluster-agent", "provider_cluster.delete.lease_expired_recovery_required", "providerCluster", v.ID, v.Revision, map[string]any{"action": "DELETE", "taskFenceToken": v.TaskFenceToken})
 		s.appendOutboxLocked("providerCluster", v.ID, "provider_cluster.state.changed", v)
 		return ProviderCluster{}, ProviderProfile{}, ErrNotFound
 	}

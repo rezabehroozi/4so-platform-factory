@@ -491,13 +491,17 @@ func (s *Server) nextProviderClusterTask(w http.ResponseWriter, r *http.Request)
 	case controlplane.ProviderClusterReconciling:
 		action = "INSPECT"
 	case controlplane.ProviderClusterDeleting:
-		action = "DELETE"
+		if v.Phase == "RecoveryInspectQueued" || v.TaskAttempt > 1 {
+			action = "INSPECT_DELETE"
+		} else {
+			action = "DELETE"
+		}
 	default:
 		writeError(w, http.StatusConflict, "PROVIDER_TASK_STATE_INVALID", fmt.Sprintf("provider cluster state %s has no task", v.State))
 		return
 	}
 	setRevisionETag(w, v.Revision)
-	writeJSON(w, http.StatusOK, controlplane.ProviderClusterTask{ProviderClusterID: v.ID, ClusterRevision: v.Revision, TaskFenceToken: v.TaskFenceToken, LeaseExpiresAt: *v.TaskLeaseExpiresAt, Action: action, Namespace: v.Namespace, ResourceName: v.ResourceName, DesiredDigest: v.DesiredDigest, Resource: resource, TargetNodeMutation: v.TargetNodeMutation})
+	writeJSON(w, http.StatusOK, controlplane.ProviderClusterTask{ProviderClusterID: v.ID, ClusterRevision: v.Revision, TaskFenceToken: v.TaskFenceToken, LeaseExpiresAt: *v.TaskLeaseExpiresAt, Action: action, PendingAction: v.PendingAction, Namespace: v.Namespace, ResourceName: v.ResourceName, DesiredDigest: v.DesiredDigest, InfrastructureProvider: profile.InfrastructureProvider, CredentialRef: profile.CredentialRef, Resource: resource, TargetNodeMutation: v.TargetNodeMutation})
 }
 
 func (s *Server) reportProviderClusterTask(w http.ResponseWriter, r *http.Request) {

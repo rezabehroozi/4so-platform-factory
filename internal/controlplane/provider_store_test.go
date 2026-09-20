@@ -449,3 +449,40 @@ func TestProviderClusterRecoveryRequiredRetryQueuesReadbackOnly(t *testing.T) {
 		t.Fatalf("recovery readback lane accepted a replayed APPLY: %v", err)
 	}
 }
+
+
+func TestProviderDeleteLeaseExpiryRequiresReadbackBeforeReplay(t *testing.T) {
+	s, ctx, project, management, agentToken := providerFixture(t)
+	profile := readyProviderProfile(t, s, ctx, project, management, agentToken)
+	now := management.LastSeenAt.UTC()
+	s.now = func() time.Time { return now }
+	expired := now.Add(-time.Second)
+	v := ProviderCluster{
+		ResourceMeta: ResourceMeta{ID: "pcl_delete_ambiguous", Revision: 9, CreatedAt: now.Add(-time.Hour), UpdatedAt: now.Add(-time.Minute)},
+		ProjectID: project.ID, ProviderProfileID: profile.ID, ManagementClusterID: management.ID,
+		Name: "delete-ambiguous", DisplayName: "Delete Ambiguous", ResourceName: "pf-delete-ambiguous",
+		Namespace: providerSystemNamespace, State: ProviderClusterDeleting,
+		Desired: ProviderClusterSpec{KubernetesVersion: "v1.33.2", ControlPlaneReplicas: 1, WorkerReplicas: 1},
+		DesiredDigest: digestTenantTest("delete-ambiguous-desired"), PendingAction: "DELETE",
+		TaskAttempt: 1, TaskFenceToken: 1, TaskLeaseExpiresAt: &expired, Phase: "Deleting",
+	}
+	s.mu.Lock()
+	s.providerClusters[v.ID] = v
+	s.mu.Unlock()
+
+	if _, _, err := s.NextProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken)); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expired DELETE should stop at recovery-required before another claim: %v", err)
+	}
+	v, err := s.GetProviderCluster(ctx, v.ID)
+	if err != nil || v.State != ProviderClusterRecoveryRequired || v.Phase != "RecoveryRequired" || v.TaskLeaseExpiresAt != nil {
+		t.Fatalf("expired DELETE recovery=%+v err=%v", v, err)
+	}
+	v, err = s.RetryProviderCluster(ctx, v.ID, v.Revision, "operator")
+	if err != nil || v.State != ProviderClusterDeleting || v.Phase != "RecoveryInspectQueued" {
+		t.Fatalf("DELETE recovery retry=%+v err=%v", v, err)
+	}
+	inspect, _, err := s.NextProviderClusterTask(ctx, management.ID, digestTenantTest(agentToken))
+	if err != nil || inspect.State != ProviderClusterDeleting || inspect.TaskAttempt != 2 || inspect.Phase != "RecoveryInspectQueued" {
+		t.Fatalf("DELETE recovery readback claim=%+v err=%v", inspect, err)
+	}
+}

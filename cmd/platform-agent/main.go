@@ -1997,7 +1997,7 @@ func (a *agent) kubeJSONOptional(ctx context.Context, path string, out any) (boo
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(serviceToken)))
 	res, err := a.kube.Do(req)
 	if err != nil {
-		return false, err
+		return false, &kubeMutationOutcomeUnknownError{operation: "delete " + path, err: err}
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusNotFound {
@@ -2985,6 +2985,34 @@ func (a *agent) getKubeObject(ctx context.Context, path string) (map[string]any,
 	}
 	return out, true, nil
 }
+type kubeMutationOutcomeUnknownError struct {
+	operation string
+	err       error
+}
+
+func (e *kubeMutationOutcomeUnknownError) Error() string {
+	if e == nil {
+		return "Kubernetes mutation outcome is unknown"
+	}
+	return e.operation + ": mutation outcome is unknown: " + e.err.Error()
+}
+
+func (e *kubeMutationOutcomeUnknownError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+func kubeMutationOutcomeUnknown(err error) bool {
+	var target *kubeMutationOutcomeUnknownError
+	return errors.As(err, &target)
+}
+
+func kubeMutationStatusOutcomeUnknown(status int) bool {
+	return status == http.StatusRequestTimeout || status == http.StatusTooManyRequests || status >= 500
+}
+
 func (a *agent) createKubeObject(ctx context.Context, collectionPath string, object map[string]any) (bool, bool, error) {
 	raw, err := json.Marshal(object)
 	if err != nil {
@@ -2996,7 +3024,7 @@ func (a *agent) createKubeObject(ctx context.Context, collectionPath string, obj
 	}
 	res, err := a.kube.Do(req)
 	if err != nil {
-		return false, false, err
+		return false, false, &kubeMutationOutcomeUnknownError{operation: "create " + collectionPath, err: err}
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusConflict {
@@ -3004,7 +3032,11 @@ func (a *agent) createKubeObject(ctx context.Context, collectionPath string, obj
 	}
 	if res.StatusCode/100 != 2 {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return false, false, fmt.Errorf("create %s: %s", res.Status, string(body))
+		statusErr := fmt.Errorf("create %s: %s", res.Status, string(body))
+		if kubeMutationStatusOutcomeUnknown(res.StatusCode) {
+			return false, false, &kubeMutationOutcomeUnknownError{operation: "create " + collectionPath, err: statusErr}
+		}
+		return false, false, statusErr
 	}
 	return true, false, nil
 }
@@ -3038,7 +3070,7 @@ func (a *agent) serverSideApplyConditional(ctx context.Context, path string, obj
 	}
 	res, err := a.kube.Do(req)
 	if err != nil {
-		return err
+		return &kubeMutationOutcomeUnknownError{operation: "server-side apply " + path, err: err}
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 8192))
@@ -3046,7 +3078,11 @@ func (a *agent) serverSideApplyConditional(ctx context.Context, path string, obj
 		return fmt.Errorf("conditional server-side apply resourceVersion conflict for %s: %s", path, string(body))
 	}
 	if res.StatusCode/100 != 2 {
-		return fmt.Errorf("conditional server-side apply %s: status=%d body=%s", path, res.StatusCode, string(body))
+		statusErr := fmt.Errorf("conditional server-side apply %s: status=%d body=%s", path, res.StatusCode, string(body))
+		if kubeMutationStatusOutcomeUnknown(res.StatusCode) {
+			return &kubeMutationOutcomeUnknownError{operation: "server-side apply " + path, err: statusErr}
+		}
+		return statusErr
 	}
 	return nil
 }
@@ -3100,7 +3136,11 @@ func (a *agent) requestKubeObjectDeletionWithPreconditions(ctx context.Context, 
 		return false, nil
 	}
 	rawBody, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-	return false, fmt.Errorf("delete %s: %s", res.Status, string(rawBody))
+	statusErr := fmt.Errorf("delete %s: %s", res.Status, string(rawBody))
+	if kubeMutationStatusOutcomeUnknown(res.StatusCode) {
+		return false, &kubeMutationOutcomeUnknownError{operation: "delete " + path, err: statusErr}
+	}
+	return false, statusErr
 }
 
 func (a *agent) deleteKubeObjectWithUIDAndResourceVersionAndWait(ctx context.Context, path, uid, resourceVersion string, timeout time.Duration) error {
@@ -5736,9 +5776,30 @@ func (a *agent) inspectTargetNodeProviderMutation(ctx context.Context, task cont
 	return true, nil
 }
 
+func publicCloudProvider(raw string) (providerexec.Provider, bool) {
+	switch providerexec.Provider(strings.ToLower(strings.TrimSpace(raw))) {
+	case providerexec.ProviderAWS:
+		return providerexec.ProviderAWS, true
+	case providerexec.ProviderAzure:
+		return providerexec.ProviderAzure, true
+	case providerexec.ProviderGCP:
+		return providerexec.ProviderGCP, true
+	default:
+		return "", false
+	}
+}
+
 func validateProviderClusterTask(task controlplane.ProviderClusterTask) error {
 	if task.ProviderClusterID == "" || task.ClusterRevision < 1 || task.TaskFenceToken <= 0 || task.LeaseExpiresAt.IsZero() || task.Namespace != "4so-provider-system" || !strings.HasPrefix(task.ResourceName, "pf-") || len(task.ResourceName) > 63 {
 		return fmt.Errorf("provider cluster task identity or target is invalid")
+	}
+	if _, managed := publicCloudProvider(task.InfrastructureProvider); managed {
+		if strings.TrimSpace(task.PendingAction) == "" {
+			return fmt.Errorf("public-cloud provider task pending action is required")
+		}
+		if err := providerexec.ValidateCredentialReference(task.CredentialRef); err != nil {
+			return fmt.Errorf("public-cloud provider credential reference: %w", err)
+		}
 	}
 	if task.TargetNodeMutation.Authority != "" {
 		m := task.TargetNodeMutation
@@ -5760,7 +5821,7 @@ func validateProviderClusterTask(task controlplane.ProviderClusterTask) error {
 		if metadata["name"] != task.ResourceName || metadata["namespace"] != task.Namespace || labels["platform.4so.io/provider-cluster-id"] != task.ProviderClusterID || labels["platform.4so.io/managed"] != "true" || annotations["platform.4so.io/desired-digest"] != task.DesiredDigest {
 			return fmt.Errorf("provider Cluster metadata, ownership or digest is invalid")
 		}
-	case "INSPECT", "DELETE":
+	case "INSPECT", "DELETE", "INSPECT_DELETE":
 		if len(task.Resource) != 0 {
 			return fmt.Errorf("provider inspect/delete task must not include a resource")
 		}
@@ -5837,11 +5898,205 @@ func providerClusterReady(object map[string]any) (bool, string) {
 	return false, phase
 }
 
+type clusterAPIProviderAdapter struct {
+	agent *agent
+	task  controlplane.ProviderClusterTask
+}
+
+func (a clusterAPIProviderAdapter) Provider() providerexec.Provider {
+	provider, _ := publicCloudProvider(a.task.InfrastructureProvider)
+	return provider
+}
+
+func (a clusterAPIProviderAdapter) Plan(ctx context.Context, request providerexec.Request) (providerexec.Plan, error) {
+	digest, err := providerexec.RequestDigest(request)
+	if err != nil {
+		return providerexec.Plan{}, err
+	}
+	observed, err := a.Readback(ctx, request)
+	if err != nil {
+		return providerexec.Plan{}, err
+	}
+	mutationRequired := observed.Exists
+	if request.Action == providerexec.ActionDelete {
+		mutationRequired = observed.Exists
+	} else {
+		mutationRequired = !observed.Exists || observed.ObservedDigest != request.DesiredDigest
+	}
+	return providerexec.Plan{RequestDigest: digest, MutationRequired: mutationRequired, ExternalID: observed.ExternalID}, nil
+}
+
+func (a clusterAPIProviderAdapter) Apply(ctx context.Context, input providerexec.MutationInput) (providerexec.MutationResult, error) {
+	var err error
+	switch input.Request.Action {
+	case providerexec.ActionCreate, providerexec.ActionUpdate:
+		err = a.agent.applyProviderClusterResource(ctx, a.task)
+	case providerexec.ActionDelete:
+		err = a.agent.deleteProviderClusterResourceOnce(ctx, a.task)
+	default:
+		err = fmt.Errorf("unsupported CAPI provider mutation action %s", input.Request.Action)
+	}
+	if err == nil {
+		return providerexec.MutationResult{Outcome: providerexec.OutcomeApplied, ExternalID: a.task.ResourceName}, nil
+	}
+	if kubeMutationOutcomeUnknown(err) {
+		return providerexec.MutationResult{Outcome: providerexec.OutcomeUnknown, ExternalID: a.task.ResourceName, Message: err.Error()}, err
+	}
+	return providerexec.MutationResult{Outcome: providerexec.OutcomeFailed, ExternalID: a.task.ResourceName, Message: err.Error()}, err
+}
+
+func (a clusterAPIProviderAdapter) Readback(ctx context.Context, _ providerexec.Request) (providerexec.Observation, error) {
+	object, found, err := a.agent.getKubeObject(ctx, providerClusterPath(a.task))
+	if err != nil {
+		return providerexec.Observation{}, err
+	}
+	if !found {
+		return providerexec.Observation{Exists: false}, nil
+	}
+	digest, err := providerClusterOwnership(object, a.task)
+	if err != nil {
+		return providerexec.Observation{}, err
+	}
+	uid, _ := kubeObjectUID(object)
+	ready, phase := providerClusterReady(object)
+	return providerexec.Observation{Exists: true, Ready: ready, ObservedDigest: digest, ExternalID: uid, Phase: phase}, nil
+}
+
+func (a *agent) deleteProviderClusterResourceOnce(ctx context.Context, task controlplane.ProviderClusterTask) error {
+	path := providerClusterPath(task)
+	object, found, err := a.getKubeObject(ctx, path)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return nil
+	}
+	if _, err = providerClusterOwnership(object, task); err != nil {
+		return err
+	}
+	uid, err := kubeObjectUID(object)
+	if err != nil {
+		return fmt.Errorf("provider Cluster UID: %w", err)
+	}
+	resourceVersion, err := kubeObjectResourceVersion(object)
+	if err != nil {
+		return fmt.Errorf("provider Cluster resourceVersion: %w", err)
+	}
+	_, err = a.requestKubeObjectDeletionWithPreconditions(ctx, path, uid, resourceVersion)
+	return err
+}
+
+func providerExecutionRequest(task controlplane.ProviderClusterTask) (providerexec.Request, error) {
+	provider, ok := publicCloudProvider(task.InfrastructureProvider)
+	if !ok {
+		return providerexec.Request{}, fmt.Errorf("unsupported public-cloud provider %q", task.InfrastructureProvider)
+	}
+	pending := strings.ToUpper(strings.TrimSpace(task.PendingAction))
+	action := providerexec.ActionUpdate
+	switch pending {
+	case "PROVISION":
+		action = providerexec.ActionCreate
+	case "SCALE", "UPGRADE":
+		action = providerexec.ActionUpdate
+	case "DELETE":
+		action = providerexec.ActionDelete
+	default:
+		return providerexec.Request{}, fmt.Errorf("public-cloud pending action %q is not executable", task.PendingAction)
+	}
+	request := providerexec.Request{
+		Provider: provider, OperationID: task.ProviderClusterID + ":" + pending,
+		FenceToken: task.TaskFenceToken, Action: action, ResourceID: task.ResourceName,
+		DesiredDigest: task.DesiredDigest, CredentialRef: task.CredentialRef, Desired: task.Resource,
+	}
+	if action == providerexec.ActionDelete {
+		request.DesiredDigest = ""
+		request.Desired = nil
+	}
+	return request, nil
+}
+
+func (a *agent) executePublicCloudProviderMutation(ctx context.Context, task controlplane.ProviderClusterTask) controlplane.ProviderClusterTaskResult {
+	result := controlplane.ProviderClusterTaskResult{TaskFenceToken: task.TaskFenceToken, Action: task.Action}
+	request, err := providerExecutionRequest(task)
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	executed := (providerexec.Engine{}).Execute(ctx, clusterAPIProviderAdapter{agent: a, task: task}, request)
+	result.ObservedDigest = executed.Observation.ObservedDigest
+	result.Ready = executed.Observation.Ready
+	result.Phase = executed.Observation.Phase
+	switch executed.State {
+	case providerexec.StateSucceeded:
+		result.Success = true
+		if request.Action == providerexec.ActionDelete {
+			result.Deleted = !executed.Observation.Exists
+			if result.Deleted {
+				result.Phase = "Deleted"
+			} else if result.Phase == "" {
+				result.Phase = "Deleting"
+			}
+		}
+	case providerexec.StateReconciling:
+		if request.Action == providerexec.ActionDelete {
+			result.Success = true
+			result.Deleted = false
+			if result.Phase == "" {
+				result.Phase = "Deleting"
+			}
+		} else {
+			result.RecoveryRequired = true
+			result.Error = executed.Message
+			if result.Error == "" {
+				result.Error = "provider mutation requires authoritative readback before replay"
+			}
+		}
+	case providerexec.StateRecoveryRequired:
+		result.RecoveryRequired = true
+		result.Error = executed.Message
+		if result.Error == "" {
+			result.Error = "provider mutation outcome is ambiguous; authoritative readback is required"
+		}
+	case providerexec.StateFailed:
+		result.Error = executed.Message
+		if result.Error == "" {
+			result.Error = "provider mutation failed"
+		}
+	default:
+		result.Error = "provider execution returned an unsupported state"
+	}
+	return result
+}
+
+func (a *agent) inspectProviderClusterDelete(ctx context.Context, task controlplane.ProviderClusterTask) controlplane.ProviderClusterTaskResult {
+	result := controlplane.ProviderClusterTaskResult{TaskFenceToken: task.TaskFenceToken, Action: task.Action}
+	object, found, err := a.getKubeObject(ctx, providerClusterPath(task))
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	if !found {
+		result.Success, result.Deleted, result.Phase = true, true, "Deleted"
+		return result
+	}
+	if _, err = providerClusterOwnership(object, task); err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	result.Success, result.Deleted, result.Phase = true, false, "Deleting"
+	return result
+}
+
 func (a *agent) executeProviderClusterTask(ctx context.Context, task controlplane.ProviderClusterTask) controlplane.ProviderClusterTaskResult {
 	result := controlplane.ProviderClusterTaskResult{TaskFenceToken: task.TaskFenceToken, Action: task.Action}
 	if err := validateProviderClusterTask(task); err != nil {
 		result.Error = err.Error()
 		return result
+	}
+	if task.TargetNodeMutation.Authority == "" && (task.Action == "APPLY" || task.Action == "DELETE") {
+		if _, ok := publicCloudProvider(task.InfrastructureProvider); ok {
+			return a.executePublicCloudProviderMutation(ctx, task)
+		}
 	}
 	path := providerClusterPath(task)
 	switch task.Action {
@@ -5916,6 +6171,8 @@ func (a *agent) executeProviderClusterTask(ctx context.Context, task controlplan
 			}
 		}
 		return result
+	case "INSPECT_DELETE":
+		return a.inspectProviderClusterDelete(ctx, task)
 	case "DELETE":
 		object, found, err := a.getKubeObject(ctx, path)
 		if err != nil {

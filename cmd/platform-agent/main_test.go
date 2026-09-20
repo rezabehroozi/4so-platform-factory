@@ -3296,3 +3296,143 @@ func TestPublicCloudProviderProfilesRequireProviderSpecificClusterClassTemplates
 		})
 	}
 }
+
+
+func publicCloudProviderTaskForTest(provider, action, pending string) controlplane.ProviderClusterTask {
+	id := "pcl_" + provider
+	name := "pf-" + provider + "-123456"
+	digest := "sha256:" + strings.Repeat("d", 64)
+	resource := map[string]any(nil)
+	if action == "APPLY" {
+		resource = map[string]any{
+			"apiVersion": "cluster.x-k8s.io/v1beta2",
+			"kind": "Cluster",
+			"metadata": map[string]any{
+				"name": name, "namespace": "4so-provider-system",
+				"labels": map[string]any{"platform.4so.io/managed": "true", "platform.4so.io/provider-cluster-id": id},
+				"annotations": map[string]any{"platform.4so.io/desired-digest": digest},
+			},
+			"spec": map[string]any{"topology": map[string]any{"classRef": map[string]any{"name": provider + "-prod", "namespace": "4so-provider-system"}, "version": "v1.33.2"}},
+		}
+	}
+	return controlplane.ProviderClusterTask{
+		ProviderClusterID: id, ClusterRevision: 2, TaskFenceToken: 7,
+		LeaseExpiresAt: time.Now().Add(time.Hour), Action: action, PendingAction: pending,
+		Namespace: "4so-provider-system", ResourceName: name, DesiredDigest: digest,
+		InfrastructureProvider: provider,
+		CredentialRef: "external-secret://4so-provider-system/" + provider + "-prod",
+		Resource: resource,
+	}
+}
+
+func ownedPublicCloudClusterForTest(task controlplane.ProviderClusterTask) map[string]any {
+	object := map[string]any{}
+	raw, _ := json.Marshal(task.Resource)
+	_ = json.Unmarshal(raw, &object)
+	metadata, _ := object["metadata"].(map[string]any)
+	metadata["uid"] = "uid-" + task.ProviderClusterID
+	metadata["resourceVersion"] = "17"
+	object["status"] = map[string]any{"phase": "Provisioned", "conditions": []any{map[string]any{"type": "Ready", "status": "True"}}}
+	return object
+}
+
+func TestPublicCloudProviderAmbiguousApplyRequiresReadbackAndNeverReplays(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
+	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil { t.Fatal(err) }
+	previous := serviceAccountTokenPath
+	serviceAccountTokenPath = tokenFile
+	defer func() { serviceAccountTokenPath = previous }()
+
+	for _, provider := range []string{"aws", "azure", "gcp"} {
+		t.Run(provider, func(t *testing.T) {
+			task := publicCloudProviderTaskForTest(provider, "APPLY", "PROVISION")
+			mutations := 0
+			client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				switch request.Method {
+				case http.MethodGet:
+					return &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+				case http.MethodPost:
+					mutations++
+					return nil, fmt.Errorf("connection reset after request submission")
+				default:
+					t.Fatalf("unexpected %s %s", request.Method, request.URL.Path)
+					return nil, nil
+				}
+			})}
+			result := (&agent{kube: client}).executeProviderClusterTask(context.Background(), task)
+			if result.Success || !result.RecoveryRequired || mutations != 1 || !strings.Contains(result.Error, "authoritative readback") {
+				t.Fatalf("%s ambiguous result=%+v mutations=%d", provider, result, mutations)
+			}
+		})
+	}
+}
+
+func TestPublicCloudProviderAmbiguousApplyMayCloseOnlyFromAuthoritativeReadback(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
+	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil { t.Fatal(err) }
+	previous := serviceAccountTokenPath
+	serviceAccountTokenPath = tokenFile
+	defer func() { serviceAccountTokenPath = previous }()
+
+	task := publicCloudProviderTaskForTest("aws", "APPLY", "PROVISION")
+	gets, mutations := 0, 0
+	owned := ownedPublicCloudClusterForTest(task)
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.Method {
+		case http.MethodGet:
+			gets++
+			if gets < 3 {
+				return &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+			}
+			raw, _ := json.Marshal(owned)
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(raw)), Header: make(http.Header)}, nil
+		case http.MethodPost:
+			mutations++
+			return nil, fmt.Errorf("transport timeout after request submission")
+		default:
+			t.Fatalf("unexpected %s %s", request.Method, request.URL.Path)
+			return nil, nil
+		}
+	})}
+	result := (&agent{kube: client}).executeProviderClusterTask(context.Background(), task)
+	if !result.Success || result.RecoveryRequired || result.ObservedDigest != task.DesiredDigest || mutations != 1 || gets != 3 {
+		t.Fatalf("readback resolution result=%+v gets=%d mutations=%d", result, gets, mutations)
+	}
+}
+
+func TestPublicCloudProviderRejectsUnsafeCredentialBeforeMutation(t *testing.T) {
+	task := publicCloudProviderTaskForTest("azure", "APPLY", "PROVISION")
+	task.CredentialRef = "inline-client-secret"
+	calls := 0
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		calls++
+		return nil, fmt.Errorf("unexpected request")
+	})}
+	result := (&agent{kube: client}).executeProviderClusterTask(context.Background(), task)
+	if result.Success || result.RecoveryRequired || calls != 0 || !strings.Contains(result.Error, "credential reference") {
+		t.Fatalf("unsafe credential result=%+v calls=%d", result, calls)
+	}
+}
+
+func TestProviderInspectDeleteIsReadOnly(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "service-account-token")
+	if err := os.WriteFile(tokenFile, []byte("service-account"), 0o600); err != nil { t.Fatal(err) }
+	previous := serviceAccountTokenPath
+	serviceAccountTokenPath = tokenFile
+	defer func() { serviceAccountTokenPath = previous }()
+
+	task := publicCloudProviderTaskForTest("gcp", "INSPECT_DELETE", "DELETE")
+	task.Resource = nil
+	mutations := 0
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Method != http.MethodGet {
+			mutations++
+			return nil, fmt.Errorf("unexpected mutation %s", request.Method)
+		}
+		return &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found", Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+	})}
+	result := (&agent{kube: client}).executeProviderClusterTask(context.Background(), task)
+	if !result.Success || !result.Deleted || result.RecoveryRequired || mutations != 0 {
+		t.Fatalf("inspect-delete result=%+v mutations=%d", result, mutations)
+	}
+}

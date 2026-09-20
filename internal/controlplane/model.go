@@ -2322,16 +2322,19 @@ type ProviderProfileTaskResult struct {
 }
 
 type ProviderClusterTask struct {
-	ProviderClusterID  string                     `json:"providerClusterId"`
-	ClusterRevision    int64                      `json:"clusterRevision"`
-	TaskFenceToken     int64                      `json:"taskFenceToken"`
-	LeaseExpiresAt     time.Time                  `json:"leaseExpiresAt"`
-	Action             string                     `json:"action"`
-	Namespace          string                     `json:"namespace"`
-	ResourceName       string                     `json:"resourceName"`
-	DesiredDigest      string                     `json:"desiredDigest,omitempty"`
-	Resource           map[string]any             `json:"resource,omitempty"`
-	TargetNodeMutation TargetNodeProviderMutation `json:"targetNodeMutation,omitempty"`
+	ProviderClusterID      string                     `json:"providerClusterId"`
+	ClusterRevision        int64                      `json:"clusterRevision"`
+	TaskFenceToken         int64                      `json:"taskFenceToken"`
+	LeaseExpiresAt         time.Time                  `json:"leaseExpiresAt"`
+	Action                 string                     `json:"action"`
+	PendingAction          string                     `json:"pendingAction,omitempty"`
+	Namespace              string                     `json:"namespace"`
+	ResourceName           string                     `json:"resourceName"`
+	DesiredDigest          string                     `json:"desiredDigest,omitempty"`
+	InfrastructureProvider string                     `json:"infrastructureProvider,omitempty"`
+	CredentialRef          string                     `json:"credentialRef,omitempty"`
+	Resource               map[string]any             `json:"resource,omitempty"`
+	TargetNodeMutation     TargetNodeProviderMutation `json:"targetNodeMutation,omitempty"`
 }
 
 type ProviderClusterTaskResult struct {

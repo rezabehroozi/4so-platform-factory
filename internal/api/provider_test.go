@@ -93,8 +93,8 @@ func TestProviderLifecycleHTTPWorkflow(t *testing.T) {
 		t.Fatalf("apply task %d: %s", w.Code, w.Body.String())
 	}
 	applyTask := decodeBody[controlplane.ProviderClusterTask](t, w)
-	if applyTask.Action != "APPLY" || applyTask.Resource["apiVersion"] != "cluster.x-k8s.io/v1beta2" || applyTask.Resource["kind"] != "Cluster" {
-		t.Fatalf("apply task=%#v", applyTask)
+	if applyTask.Action != "APPLY" || applyTask.PendingAction != "PROVISION" || applyTask.InfrastructureProvider != "unspecified" || applyTask.CredentialRef != "" || applyTask.Resource["apiVersion"] != "cluster.x-k8s.io/v1beta2" || applyTask.Resource["kind"] != "Cluster" {
+		t.Fatalf("apply task envelope=%#v", applyTask)
 	}
 	metadata := applyTask.Resource["metadata"].(map[string]any)
 	if metadata["namespace"] != providerNamespace || metadata["name"] != approved.ResourceName {
