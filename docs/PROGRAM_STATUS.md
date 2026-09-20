@@ -1,4 +1,4 @@
-# Current Program Status ? PROGRAM_PHASE_MODEL_V68
+# Current Program Status — PROGRAM_PHASE_MODEL_V69
 
 `docs/PROGRAM_STATUS.md` is the single current human-readable status summary. Release **0.0.363** is the current repository release identity. Versioned `PHASE_STATUS_V*.md` files are historical release records; executable truth remains `internal/targetmodel/program.go`.
 
@@ -10,29 +10,29 @@
 | --- | ---: | --- |
 | Core source/software closure | **25/25 (100%)** | All mandatory Core phases have source/software contracts implemented. |
 | Core closure/release ready | **19/25 (76%)** | Six mandatory Core phases still require external/runtime/evidence closure. |
-| Pre-physical software closure | **31/35 (88%)** | Core + Expansion source/software closure; Physical certification is excluded. |
+| Pre-physical software closure | **33/35 (94%)** | Core + Expansion source/software closure; Physical certification is excluded. |
 
-V68 exposes independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
+V69 exposes independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
 
 ## Source-open software
 
-Only four pre-physical software phases remain source-open:
+Only two pre-physical software phases remain source-open:
 
-- `J1-automation-external-integrations` ? real Terraform provider and Crossplane provider.
-- `H3-public-cloud-provider-adapters` ? common provider execution framework plus AWS/Azure/GCP adapters.
-- `J3-virtual-cluster-profile` ? Virtual Cluster / Developer Mode lifecycle and workspace integration.
-- `I2-edge-sovereign-extension` ? bounded edge authority/UI, boot attestation and disconnected local AI profile.
+- `J3-virtual-cluster-profile` — Virtual Cluster / Developer Mode lifecycle and workspace integration.
+- `I2-edge-sovereign-extension` — bounded edge authority/UI, boot attestation and disconnected local AI profile.
+
+`J1-automation-external-integrations` is source-implemented with real Terraform and Crossplane providers over Product API authority. `H3-public-cloud-provider-adapters` is source-implemented with shared provider descriptors/execution semantics, CAPA/CAPZ/CAPG ClusterClass verification, external-secret-only credential references, and explicit `RECOVERY_REQUIRED` ambiguity handling. Connected cloud runtime/Physical evidence remains independently certification-gated.
 
 `J6-fleet-reliability-incident-intelligence` is source-implemented. `SERVICE_HEALTH_AUTHORITY_V1`, `INCIDENT_AUTHORITY_V1`, `SLO_ERROR_BUDGET_AUTHORITY_V1`, PostgreSQL persistence, migrations `0074`-`0076`, REST/Console/MCP surfaces and Incident?Operation/Evidence binding are present. Runtime/Physical evidence remains an independent certification concern.
 
 ## Execution waves
 
-1. **W0 ? Truth rebaseline:** keep executable roadmap, docs and canonical main synchronized; V68 closes stale J6 roadmap debt.
-2. **W1 ? Core closure blitz (current):** S1 exact acquisition and S2 component certification run as a streaming pipeline with up to six independent lanes.
-3. **W2 ? Core evidence parallel:** MCP external-client interoperability, Connected Managed OKD and Disconnected OKD evidence advance independently.
-4. **W3 ? Expansion mega-wave:** J1 + H3 + J3 + I2 develop in parallel without waiting for Physical certification.
-5. **W4 ? Cross-surface convergence:** converge API, SDK, MCP, Console, PostgreSQL, Durable Ops, Evidence and negative controls.
-6. **W5 ? Feature freeze:** C9 freezes mandatory scope and emits one exact immutable release before Phase D physical certification.
+1. **W0 — Truth rebaseline:** keep executable roadmap, docs and canonical main synchronized; V69 closes J1/H3 roadmap debt without changing physical/runtime claims.
+2. **W1 — Core closure blitz (current):** S1 exact acquisition and S2 component certification run as a streaming pipeline with up to six independent lanes.
+3. **W2 — Core evidence parallel:** MCP external-client interoperability, Connected Managed OKD and Disconnected OKD evidence advance independently.
+4. **W3 — Expansion mega-wave:** J3 + I2 remain source-open; J1 + H3 are source-implemented and move to integration/runtime evidence without waiting for Physical certification.
+5. **W4 — Cross-surface convergence:** converge API, SDK, MCP, Console, PostgreSQL, Durable Ops, Evidence and negative controls.
+6. **W5 — Feature freeze:** C9 freezes mandatory scope and emits one exact immutable release before Phase D physical certification.
 
 ## Current critical path
 

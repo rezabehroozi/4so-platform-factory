@@ -146,7 +146,7 @@ func TestManagementPlaneStorageAuthorityMatchesAcquisitionSourceLock(t *testing.
 
 func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.T) {
 	roadmap := ArchitectureModel().ProgramRoadmap
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V68" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V69" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
 		t.Fatalf("unexpected roadmap authority: %#v", roadmap)
 	}
 	if len(roadmap.Phases) != 39 {
@@ -156,7 +156,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 19 || progress.CorePhaseBlocked != 6 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 76 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
 		t.Fatalf("program progress truth drift: %#v", progress)
 	}
-	if progress.PrePhysicalSoftwarePhases != 35 || progress.PrePhysicalSoftwareClosedPhases != 32 || progress.PrePhysicalSoftwareOpenPhases != 3 || progress.PrePhysicalSoftwareClosurePercent != 91 {
+	if progress.PrePhysicalSoftwarePhases != 35 || progress.PrePhysicalSoftwareClosedPhases != 33 || progress.PrePhysicalSoftwareOpenPhases != 2 || progress.PrePhysicalSoftwareClosurePercent != 94 {
 		t.Fatalf("pre-physical software progress truth drift: %#v", progress)
 	}
 	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "S2-component-runtime-certification-authorities", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "C9-pre-certification-feature-freeze-exact-bundle"} {
@@ -291,6 +291,16 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 			t.Fatalf("core feature freeze must not depend on expansion phase %s: %#v", id, c9.DependsOn)
 		}
 	}
+	h3 := byID["H3-public-cloud-provider-adapters"]
+	if h3.Status != ProgramStatusSourceImplemented || h3.SourceStatus != ProgramSourceStatusImplemented || len(h3.Blockers) != 0 {
+		t.Fatalf("H3 public-cloud provider source closure drift: %#v", h3)
+	}
+	for _, evidence := range []string{"PUBLIC_CLOUD_PROVIDER_EXECUTION_AUTHORITY_V1", "internal/providerexec", "ProviderClusterRecoveryRequired", "migrations/0077_provider_cluster_recovery_required.sql", "AWSClusterTemplate", "AzureClusterTemplate", "GCPClusterTemplate", "cmd/platform-agent:clusterAPIProviderAdapter"} {
+		if !containsString(h3.Evidence, evidence) {
+			t.Fatalf("H3 public-cloud provider evidence missing %s: %#v", evidence, h3)
+		}
+	}
+
 	phaseD := byID["D-exact-artifact-lab-ai-certification"]
 	if phaseD.RequiredForFeatureFreeze || phaseD.Status != ProgramStatusDeferred || phaseD.DeliveryTier != ProgramTierCertification || len(phaseD.DependsOn) != 1 || phaseD.DependsOn[0] != c9.ID || len(phaseD.Blockers) != 0 || !containsString(phaseD.Evidence, "LAB_CERTIFICATION_MATRIX_V2") || !strings.Contains(phaseD.Objective, "M00-M10") {
 		t.Fatalf("physical functional phase authority drift: %#v", phaseD)
