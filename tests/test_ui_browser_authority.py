@@ -7,6 +7,7 @@ import stat
 import sys
 import tempfile
 import unittest
+import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import ui_browser_authority as AUTH
@@ -132,6 +133,62 @@ class UIBrowserAuthorityTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "UI_BROWSER_ACQUISITION_LOCK_URL_INVALID"):
                 AUTH.validate_ui_browser_acquisition_lock(lock_path)
+
+    def make_materializable_archive(self, lock_path: Path, archive: Path, lock: dict, *, malicious_name: str | None = None, symlink: bool = False):
+        executable_name = malicious_name or lock["executable"]
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+            info = zipfile.ZipInfo(executable_name)
+            info.create_system = 3
+            info.external_attr = ((stat.S_IFLNK | 0o777) if symlink else (stat.S_IFREG | 0o755)) << 16
+            bundle.writestr(info, "target" if symlink else "#!/bin/sh\necho 'Chromium 152.0.7977.75'\n")
+            support = zipfile.ZipInfo("chrome/icudtl.dat")
+            support.create_system = 3
+            support.external_attr = (stat.S_IFREG | 0o644) << 16
+            bundle.writestr(support, b"support")
+        lock["source"]["size"] = archive.stat().st_size
+        lock["source"]["sha256"] = "sha256:" + hashlib.sha256(archive.read_bytes()).hexdigest()
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+
+    def test_offline_materialization_publishes_exact_browser_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lock_path, archive, lock = self.make_acquisition_lock(root)
+            self.make_materializable_archive(lock_path, archive, lock)
+            output = root / "offline-browser"
+            executable, authority = AUTH.materialize_ui_browser_authority(lock_path, archive, output)
+            self.assertEqual(executable, (output / "chrome" / "chrome").resolve())
+            self.assertEqual(authority["version"], lock["version"])
+            self.assertEqual(authority["sha256"], "sha256:" + hashlib.sha256(executable.read_bytes()).hexdigest())
+            self.assertTrue((output / "chrome" / "icudtl.dat").is_file())
+
+    def test_offline_materialization_rejects_path_traversal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lock_path, archive, lock = self.make_acquisition_lock(root)
+            self.make_materializable_archive(lock_path, archive, lock, malicious_name="../escape")
+            with self.assertRaisesRegex(ValueError, "UI_BROWSER_ACQUISITION_ARCHIVE_PATH_INVALID"):
+                AUTH.materialize_ui_browser_authority(lock_path, archive, root / "offline-browser")
+            self.assertFalse((root / "escape").exists())
+
+    def test_offline_materialization_rejects_archive_symlink(self):
+        if os.name == "nt":
+            self.skipTest("ZIP Unix symlink metadata is platform specific")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lock_path, archive, lock = self.make_acquisition_lock(root)
+            self.make_materializable_archive(lock_path, archive, lock, symlink=True)
+            with self.assertRaisesRegex(ValueError, "UI_BROWSER_ACQUISITION_ARCHIVE_SYMLINK_FORBIDDEN"):
+                AUTH.materialize_ui_browser_authority(lock_path, archive, root / "offline-browser")
+
+    def test_offline_materialization_refuses_existing_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lock_path, archive, lock = self.make_acquisition_lock(root)
+            self.make_materializable_archive(lock_path, archive, lock)
+            target = root / "offline-browser"
+            target.mkdir()
+            with self.assertRaisesRegex(ValueError, "UI_BROWSER_MATERIALIZATION_TARGET_EXISTS"):
+                AUTH.materialize_ui_browser_authority(lock_path, archive, target)
 
     def test_full_verifier_requires_explicit_authority(self):
         environment = {}
