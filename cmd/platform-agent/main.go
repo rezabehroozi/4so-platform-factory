@@ -28,6 +28,7 @@ import (
 	"platform.4so.io/factory/internal/controlplane"
 	"platform.4so.io/factory/internal/daemoncli"
 	"platform.4so.io/factory/internal/durablefile"
+	"platform.4so.io/factory/internal/providerexec"
 	"platform.4so.io/factory/internal/targetmodel"
 	"reflect"
 	"sort"
@@ -5314,10 +5315,11 @@ func validateProviderProfileTask(task controlplane.ProviderProfileTask) error {
 			return fmt.Errorf("provider profile class name is invalid")
 		}
 	}
-	switch strings.ToLower(strings.TrimSpace(task.InfrastructureProvider)) {
-	case "", "unspecified", "vmware", "aws", "azure", "gcp":
-	default:
-		return fmt.Errorf("provider profile infrastructure provider is invalid")
+	provider := strings.ToLower(strings.TrimSpace(task.InfrastructureProvider))
+	if provider != "" && provider != "unspecified" {
+		if _, ok := providerexec.DescriptorFor(provider); !ok {
+			return fmt.Errorf("provider profile infrastructure provider is invalid")
+		}
 	}
 	return nil
 }
@@ -5341,39 +5343,19 @@ func providerTemplateRef(value any) (group, kind, name string) {
 	return strings.TrimSpace(group), strings.TrimSpace(kind), strings.TrimSpace(name)
 }
 
-type providerTemplateKinds struct {
-	cluster string
-	machine string
-}
-
-func admittedProviderTemplateKinds(provider string) (providerTemplateKinds, bool) {
-	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case "vmware":
-		return providerTemplateKinds{cluster: "VSphereClusterTemplate", machine: "VSphereMachineTemplate"}, true
-	case "aws":
-		return providerTemplateKinds{cluster: "AWSClusterTemplate", machine: "AWSMachineTemplate"}, true
-	case "azure":
-		return providerTemplateKinds{cluster: "AzureClusterTemplate", machine: "AzureMachineTemplate"}, true
-	case "gcp":
-		return providerTemplateKinds{cluster: "GCPClusterTemplate", machine: "GCPMachineTemplate"}, true
-	default:
-		return providerTemplateKinds{}, false
-	}
-}
-
 func validateInfrastructureClusterClass(spec map[string]any, workerClass, provider string) error {
-	kinds, ok := admittedProviderTemplateKinds(provider)
+	descriptor, ok := providerexec.DescriptorFor(provider)
 	if !ok {
 		return fmt.Errorf("unsupported managed infrastructure provider %s", provider)
 	}
 	group, kind, name := providerTemplateRef(spec["infrastructure"])
-	if group != "infrastructure.cluster.x-k8s.io" || kind != kinds.cluster || name == "" {
-		return fmt.Errorf("%s provider ClusterClass requires v1beta2 infrastructure.templateRef to infrastructure.cluster.x-k8s.io %s", strings.ToUpper(provider), kinds.cluster)
+	if group != "infrastructure.cluster.x-k8s.io" || kind != descriptor.ClusterTemplateKind || name == "" {
+		return fmt.Errorf("%s provider ClusterClass requires v1beta2 infrastructure.templateRef to infrastructure.cluster.x-k8s.io %s", strings.ToUpper(provider), descriptor.ClusterTemplateKind)
 	}
 	controlPlane, _ := spec["controlPlane"].(map[string]any)
 	group, kind, name = providerTemplateRef(controlPlane["machineInfrastructure"])
-	if group != "infrastructure.cluster.x-k8s.io" || kind != kinds.machine || name == "" {
-		return fmt.Errorf("%s provider control plane requires v1beta2 machineInfrastructure.templateRef to infrastructure.cluster.x-k8s.io %s", strings.ToUpper(provider), kinds.machine)
+	if group != "infrastructure.cluster.x-k8s.io" || kind != descriptor.MachineTemplateKind || name == "" {
+		return fmt.Errorf("%s provider control plane requires v1beta2 machineInfrastructure.templateRef to infrastructure.cluster.x-k8s.io %s", strings.ToUpper(provider), descriptor.MachineTemplateKind)
 	}
 	workers, _ := spec["workers"].(map[string]any)
 	machineDeployments, _ := workers["machineDeployments"].([]any)
@@ -5383,8 +5365,8 @@ func validateInfrastructureClusterClass(spec map[string]any, workerClass, provid
 			continue
 		}
 		group, kind, name = providerTemplateRef(entry["infrastructure"])
-		if group != "infrastructure.cluster.x-k8s.io" || kind != kinds.machine || name == "" {
-			return fmt.Errorf("%s provider worker class requires v1beta2 infrastructure.templateRef to infrastructure.cluster.x-k8s.io %s", strings.ToUpper(provider), kinds.machine)
+		if group != "infrastructure.cluster.x-k8s.io" || kind != descriptor.MachineTemplateKind || name == "" {
+			return fmt.Errorf("%s provider worker class requires v1beta2 infrastructure.templateRef to infrastructure.cluster.x-k8s.io %s", strings.ToUpper(provider), descriptor.MachineTemplateKind)
 		}
 		return nil
 	}
@@ -5417,7 +5399,7 @@ func (a *agent) executeProviderProfileTask(ctx context.Context, task controlplan
 		return result
 	}
 	spec, _ := object["spec"].(map[string]any)
-	if _, managed := admittedProviderTemplateKinds(task.InfrastructureProvider); managed {
+	if _, managed := providerexec.DescriptorFor(task.InfrastructureProvider); managed {
 		if err := validateInfrastructureClusterClass(spec, task.WorkerClassName, task.InfrastructureProvider); err != nil {
 			result.Error = err.Error()
 			return result

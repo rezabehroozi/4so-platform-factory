@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"platform.4so.io/factory/internal/providerexec"
 	"platform.4so.io/factory/internal/targetmodel"
 )
 
@@ -36,7 +37,6 @@ var (
 	dnsLabelPattern           = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 	kubeVersionPattern        = regexp.MustCompile(`^v1\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$`)
 	kubeSeriesPattern         = regexp.MustCompile(`^v1\.[0-9]+$`)
-	externalSecretNamePattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$`)
 )
 
 func cloneProviderProfile(v ProviderProfile) ProviderProfile {
@@ -92,15 +92,6 @@ func kubeSeries(v string) string {
 	return "v" + parts[0] + "." + parts[1]
 }
 
-func validateProviderCredentialRef(provider, ref string) error {
-	const prefix = "external-secret://4so-provider-system/"
-	name := strings.TrimPrefix(ref, prefix)
-	if !strings.HasPrefix(ref, prefix) || name == "" || len(name) > 253 || !externalSecretNamePattern.MatchString(name) || strings.Contains(name, "..") {
-		return fmt.Errorf("%w: %s credentialRef must be external-secret://4so-provider-system/<name>", ErrValidation, provider)
-	}
-	return nil
-}
-
 func validateProviderInfrastructure(v *ProviderProfile) error {
 	v.InfrastructureProvider = strings.ToLower(strings.TrimSpace(v.InfrastructureProvider))
 	v.InfrastructureEndpoint = strings.TrimSpace(v.InfrastructureEndpoint)
@@ -108,32 +99,34 @@ func validateProviderInfrastructure(v *ProviderProfile) error {
 	if v.InfrastructureProvider == "" {
 		v.InfrastructureProvider = targetmodel.InfrastructureUnspecified
 	}
-	switch v.InfrastructureProvider {
-	case targetmodel.InfrastructureUnspecified:
+	if v.InfrastructureProvider == targetmodel.InfrastructureUnspecified {
 		if v.InfrastructureEndpoint != "" || v.CredentialRef != "" {
 			return fmt.Errorf("%w: infrastructure endpoint/credential require an admitted infrastructure provider", ErrValidation)
 		}
 		return nil
-	case targetmodel.InfrastructureVMware:
-		u, err := url.Parse(v.InfrastructureEndpoint)
-		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-			return fmt.Errorf("%w: VMware infrastructureEndpoint must be an HTTPS origin without credentials, path, query or fragment", ErrValidation)
-		}
-		if err := validateProviderCredentialRef("VMware", v.CredentialRef); err != nil {
-			return err
-		}
-	case targetmodel.InfrastructureAWS, targetmodel.InfrastructureAzure, targetmodel.InfrastructureGCP:
-		if v.InfrastructureEndpoint != "" {
-			return fmt.Errorf("%w: %s custom infrastructureEndpoint is not admitted; use the provider default API authority", ErrValidation, strings.ToUpper(v.InfrastructureProvider))
-		}
-		if err := validateProviderCredentialRef(strings.ToUpper(v.InfrastructureProvider), v.CredentialRef); err != nil {
-			return err
-		}
-	default:
+	}
+	descriptor, ok := providerexec.DescriptorFor(v.InfrastructureProvider)
+	if !ok {
 		return fmt.Errorf("%w: unsupported infrastructure provider %s", ErrValidation, v.InfrastructureProvider)
 	}
-	if len(v.Architectures) != 1 || strings.ToLower(strings.TrimSpace(v.Architectures[0])) != "amd64" {
-		return fmt.Errorf("%w: %s provider profile currently admits amd64 only", ErrValidation, v.InfrastructureProvider)
+	if descriptor.AllowsCustomEndpoint {
+		u, err := url.Parse(v.InfrastructureEndpoint)
+		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+			return fmt.Errorf("%w: %s infrastructureEndpoint must be an HTTPS origin without credentials, path, query or fragment", ErrValidation, strings.ToUpper(v.InfrastructureProvider))
+		}
+	} else if v.InfrastructureEndpoint != "" {
+		return fmt.Errorf("%w: %s custom infrastructureEndpoint is not admitted; use the provider default API authority", ErrValidation, strings.ToUpper(v.InfrastructureProvider))
+	}
+	if err := providerexec.ValidateCredentialReference(v.CredentialRef); err != nil {
+		return fmt.Errorf("%w: %s", ErrValidation, err)
+	}
+	if len(v.Architectures) != len(descriptor.Architectures) {
+		return fmt.Errorf("%w: %s provider architecture set is not admitted", ErrValidation, v.InfrastructureProvider)
+	}
+	for i := range descriptor.Architectures {
+		if strings.ToLower(strings.TrimSpace(v.Architectures[i])) != descriptor.Architectures[i] {
+			return fmt.Errorf("%w: %s provider profile currently admits %s only", ErrValidation, v.InfrastructureProvider, strings.Join(descriptor.Architectures, ","))
+		}
 	}
 	return nil
 }

@@ -183,3 +183,41 @@ func TestPlanMustBindExactRequestDigest(t *testing.T) {
 		t.Fatalf("unfenced plan executed: %#v", got)
 	}
 }
+
+
+func TestProviderDescriptorsAreCanonicalAcrossManagedInfrastructure(t *testing.T) {
+	cases := []struct {
+		id      string
+		cluster string
+		machine string
+		custom  bool
+	}{
+		{id: "vmware", cluster: "VSphereClusterTemplate", machine: "VSphereMachineTemplate", custom: true},
+		{id: "aws", cluster: "AWSClusterTemplate", machine: "AWSMachineTemplate"},
+		{id: "azure", cluster: "AzureClusterTemplate", machine: "AzureMachineTemplate"},
+		{id: "gcp", cluster: "GCPClusterTemplate", machine: "GCPMachineTemplate"},
+	}
+	for _, tc := range cases {
+		got, ok := DescriptorFor(tc.id)
+		if !ok || string(got.Provider) != tc.id || got.ClusterTemplateKind != tc.cluster || got.MachineTemplateKind != tc.machine || got.AllowsCustomEndpoint != tc.custom {
+			t.Fatalf("descriptor %s drift: %#v ok=%v", tc.id, got, ok)
+		}
+		if len(got.Architectures) != 1 || got.Architectures[0] != "amd64" {
+			t.Fatalf("descriptor %s architecture drift: %#v", tc.id, got.Architectures)
+		}
+	}
+	if _, ok := DescriptorFor("unknown"); ok {
+		t.Fatal("unknown managed provider received a descriptor")
+	}
+}
+
+func TestCredentialReferenceValidationIsSharedAuthority(t *testing.T) {
+	if err := ValidateCredentialReference("external-secret://4so-provider-system/cloud-prod"); err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range []string{"inline-secret", "external-secret://other/cloud", "external-secret://4so-provider-system/../cloud"} {
+		if err := ValidateCredentialReference(ref); err == nil {
+			t.Fatalf("unsafe credential reference %q was admitted", ref)
+		}
+	}
+}

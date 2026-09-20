@@ -16,10 +16,34 @@ const Authority = "PUBLIC_CLOUD_PROVIDER_EXECUTION_AUTHORITY_V1"
 type Provider string
 
 const (
-	ProviderAWS   Provider = "aws"
-	ProviderAzure Provider = "azure"
-	ProviderGCP   Provider = "gcp"
+	ProviderVMware Provider = "vmware"
+	ProviderAWS    Provider = "aws"
+	ProviderAzure  Provider = "azure"
+	ProviderGCP    Provider = "gcp"
 )
+
+type Descriptor struct {
+	Provider            Provider
+	ClusterTemplateKind string
+	MachineTemplateKind string
+	AllowsCustomEndpoint bool
+	Architectures       []string
+}
+
+func DescriptorFor(raw string) (Descriptor, bool) {
+	switch Provider(strings.ToLower(strings.TrimSpace(raw))) {
+	case ProviderVMware:
+		return Descriptor{Provider: ProviderVMware, ClusterTemplateKind: "VSphereClusterTemplate", MachineTemplateKind: "VSphereMachineTemplate", AllowsCustomEndpoint: true, Architectures: []string{"amd64"}}, true
+	case ProviderAWS:
+		return Descriptor{Provider: ProviderAWS, ClusterTemplateKind: "AWSClusterTemplate", MachineTemplateKind: "AWSMachineTemplate", Architectures: []string{"amd64"}}, true
+	case ProviderAzure:
+		return Descriptor{Provider: ProviderAzure, ClusterTemplateKind: "AzureClusterTemplate", MachineTemplateKind: "AzureMachineTemplate", Architectures: []string{"amd64"}}, true
+	case ProviderGCP:
+		return Descriptor{Provider: ProviderGCP, ClusterTemplateKind: "GCPClusterTemplate", MachineTemplateKind: "GCPMachineTemplate", Architectures: []string{"amd64"}}, true
+	default:
+		return Descriptor{}, false
+	}
+}
 
 type Action string
 
@@ -121,7 +145,7 @@ func validProvider(p Provider) bool {
 	}
 }
 
-func validateCredentialRef(ref string) error {
+func ValidateCredentialReference(ref string) error {
 	const prefix = "external-secret://4so-provider-system/"
 	ref = strings.TrimSpace(ref)
 	if !strings.HasPrefix(ref, prefix) {
@@ -178,7 +202,7 @@ func ValidateRequest(v Request) error {
 	if v.Action != ActionDelete && !shaPattern.MatchString(strings.TrimSpace(v.DesiredDigest)) {
 		return errors.New("desiredDigest must be an exact sha256 digest")
 	}
-	if err := validateCredentialRef(v.CredentialRef); err != nil {
+	if err := ValidateCredentialReference(v.CredentialRef); err != nil {
 		return err
 	}
 	if containsRawCredential(v.Desired) {
