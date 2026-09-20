@@ -1117,9 +1117,9 @@
       },
       {
         "family": "workspaces",
-        "routeCount": 6,
-        "mutationCount": 3,
-        "callableRouteCount": 6,
+        "routeCount": 9,
+        "mutationCount": 4,
+        "callableRouteCount": 9,
         "securityExcludedRouteCount": 0,
         "disposition": "typed-tool-complete",
         "toolNames": [
@@ -1128,9 +1128,12 @@
           "api_get_workspaces_by_id",
           "api_post_workspaces_by_id_bindings",
           "api_get_workspaces_by_id_bindings",
-          "api_post_workspaces_by_id_bindings_by_bindingid_revoke"
+          "api_post_workspaces_by_id_bindings_by_bindingid_revoke",
+          "api_post_workspaces_by_id_virtual_clusters",
+          "api_get_workspaces_by_id_virtual_clusters",
+          "api_get_workspaces_by_id_virtual_clusters_by_virtualclusterid"
         ],
-        "rationale": "All 6 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
+        "rationale": "All 9 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
       }
     ]
   }

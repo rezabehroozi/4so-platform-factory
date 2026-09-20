@@ -3,10 +3,10 @@
   "counts": {
     "security-excluded": 40,
     "tool-admin": 73,
-    "tool-operate": 67,
-    "tool-read": 165
+    "tool-operate": 68,
+    "tool-read": 167
   },
-  "routeCount": 345,
+  "routeCount": 348,
   "routes": [
     {
       "action": "version",
@@ -1748,6 +1748,64 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "high",
       "toolName": "api_post_workspaces_by_id_bindings_by_bindingid_revoke"
+    },
+    {
+      "action": "virtual_clusters",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-operate",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "workspaces",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/workspaces/{id}/virtual-clusters",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "medium",
+      "toolName": "api_post_workspaces_by_id_virtual_clusters"
+    },
+    {
+      "action": "virtual_clusters",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "workspaces",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/workspaces/{id}/virtual-clusters",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_workspaces_by_id_virtual_clusters"
+    },
+    {
+      "action": "virtual_clusters",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "workspaces",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}",
+      "pathParams": [
+        "id",
+        "virtualClusterId"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_workspaces_by_id_virtual_clusters_by_virtualclusterid"
     },
     {
       "action": "plans",

@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 345,
-  "routeDigest": "sha256:d04523caff59bb03d7c271274bfda4a6cf51a2eecdfee2815d20e2d1937549f2",
+  "routeCount": 348,
+  "routeDigest": "sha256:6f8d54db7ed07bd26784aac0d57e0888859b759dc2338f2c76c0e66a862925d4",
   "routes": [
     {
       "family": "version",
@@ -964,6 +964,40 @@
       "pathParams": [
         "id",
         "bindingId"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "workspaces",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/workspaces/{id}/virtual-clusters",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "workspaces",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/workspaces/{id}/virtual-clusters",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "workspaces",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}",
+      "pathParams": [
+        "id",
+        "virtualClusterId"
       ],
       "resourceScope": "PROJECT_SCOPED",
       "resourceScopeStatus": "OWNER_CLASSIFIED"

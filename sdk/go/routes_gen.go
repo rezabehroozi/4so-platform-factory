@@ -2,8 +2,8 @@
 package factorysdk
 
 const ProductAPIContractAuthority = "PRODUCT_API_CONTRACT_AUTHORITY_V1"
-const ProductAPIContractDigest = "sha256:d04523caff59bb03d7c271274bfda4a6cf51a2eecdfee2815d20e2d1937549f2"
-const ProductAPIRouteCount = 345
+const ProductAPIContractDigest = "sha256:6f8d54db7ed07bd26784aac0d57e0888859b759dc2338f2c76c0e66a862925d4"
+const ProductAPIRouteCount = 348
 
 var Routes = []Route{
 	{Method: "GET", Path: "/api/v1/version", Family: "version", PathParams: nil, Mutation: false, ResourceScope: "PLATFORM_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
@@ -104,6 +104,9 @@ var Routes = []Route{
 	{Method: "POST", Path: "/api/v1/workspaces/{id}/bindings", Family: "workspaces", PathParams: []string{"id"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/workspaces/{id}/bindings", Family: "workspaces", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/workspaces/{id}/bindings/{bindingId}/revoke", Family: "workspaces", PathParams: []string{"id", "bindingId"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/workspaces/{id}/virtual-clusters", Family: "workspaces", PathParams: []string{"id"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "GET", Path: "/api/v1/workspaces/{id}/virtual-clusters", Family: "workspaces", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "GET", Path: "/api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}", Family: "workspaces", PathParams: []string{"id", "virtualClusterId"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/plans", Family: "plans", PathParams: nil, Mutation: true, ResourceScope: "PLATFORM_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/blueprint-releases", Family: "blueprint-releases", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/blueprint-releases", Family: "blueprint-releases", PathParams: nil, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
