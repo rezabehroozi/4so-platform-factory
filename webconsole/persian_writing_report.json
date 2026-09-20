@@ -11,9 +11,9 @@
   "issueDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "issues": [],
   "register": "formal-but-human",
-  "scannedStringOccurrences": 1539,
+  "scannedStringOccurrences": 1565,
   "schemaVersion": 1,
-  "uniquePersianStrings": 1372,
+  "uniquePersianStrings": 1398,
   "upstream": {
     "commit": "118c2167f30cafe18df13c0ba85f98f50dad1894",
     "name": "ali2000hos/persian-writing",
