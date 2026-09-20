@@ -2,9 +2,6 @@ package provider
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -177,15 +174,8 @@ func desiredFromModel(data samlBrokerResourceModel) samlBrokerDesired {
 	}
 }
 
-func samlMutationKey(action, id string, revision int64, desired any) string {
-	raw, _ := json.Marshal(struct {
-		Action   string `json:"action"`
-		ID       string `json:"id,omitempty"`
-		Revision int64  `json:"revision,omitempty"`
-		Desired  any    `json:"desired,omitempty"`
-	}{Action: action, ID: id, Revision: revision, Desired: desired})
-	sum := sha256.Sum256(raw)
-	return "terraform-saml-" + action + "-" + hex.EncodeToString(sum[:16])
+func samlMutationKey(action, id string, revision int64, desired any) (string, error) {
+	return factorysdk.DeterministicMutationKey("terraform-saml", action, id, revision, desired)
 }
 
 func applyBrokerState(data *samlBrokerResourceModel, broker samlBrokerAPI, job identityAdminJobAPI) {
@@ -234,9 +224,14 @@ func (r *samlBrokerResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 	desired := desiredFromModel(data)
+	key, err := samlMutationKey("create", "", 0, desired)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to derive SAML broker mutation identity", err.Error())
+		return
+	}
 	body := samlBrokerRequest{
 		samlBrokerDesired: desired,
-		IdempotencyKey: samlMutationKey("create", "", 0, desired),
+		IdempotencyKey: key,
 	}
 	route, err := productRoute("POST", "/api/v1/identity/saml-brokers")
 	if err != nil {
@@ -344,9 +339,14 @@ func (r *samlBrokerResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 	desired := desiredFromModel(plan)
 	revision := state.Revision.ValueInt64()
+	key, err := samlMutationKey("update", state.ID.ValueString(), revision, desired)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to derive SAML broker mutation identity", err.Error())
+		return
+	}
 	body := samlBrokerRequest{
 		samlBrokerDesired: desired,
-		IdempotencyKey: samlMutationKey("update", state.ID.ValueString(), revision, desired),
+		IdempotencyKey: key,
 	}
 	route, err := productRoute("PUT", "/api/v1/identity/saml-brokers/{id}")
 	if err != nil {
@@ -399,8 +399,13 @@ func (r *samlBrokerResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 	revision := current.Revision
+	key, err := samlMutationKey("delete", current.ID, revision, nil)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to derive SAML broker mutation identity", err.Error())
+		return
+	}
 	body := map[string]string{
-		"idempotencyKey": samlMutationKey("delete", current.ID, revision, nil),
+		"idempotencyKey": key,
 	}
 	headers := make(http.Header)
 	headers.Set("If-Match", strconv.FormatInt(revision, 10))

@@ -16,15 +16,29 @@ func TestSAMLMutationKeyIsStableAndRevisionFenced(t *testing.T) {
 		SigningCertificate: "ZmFrZS1jZXJ0",
 		Enabled: true,
 	}
-	first := samlMutationKey("update", "broker-1", 7, desired)
-	second := samlMutationKey("update", "broker-1", 7, desired)
+	first, err := samlMutationKey("update", "broker-1", 7, desired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := samlMutationKey("update", "broker-1", 7, desired)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if first != second {
 		t.Fatalf("idempotency key is not deterministic: %q != %q", first, second)
 	}
-	if first == samlMutationKey("update", "broker-1", 8, desired) {
+	changedRevision, err := samlMutationKey("update", "broker-1", 8, desired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == changedRevision {
 		t.Fatal("revision change did not change idempotency key")
 	}
-	if first == samlMutationKey("delete", "broker-1", 7, nil) {
+	deleteKey, err := samlMutationKey("delete", "broker-1", 7, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == deleteKey {
 		t.Fatal("different mutation produced same idempotency key")
 	}
 }
