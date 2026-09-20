@@ -27,7 +27,7 @@ spec:
           jsonPath: ".status.conditions[?(@.type=='Synced')].status"
         - name: EXTERNAL-NAME
           type: string
-          jsonPath: ".metadata.annotations.crossplane\.io/external-name"
+          jsonPath: '.metadata.annotations.crossplane\.io/external-name'
       subresources:
         status: {}
       schema:
