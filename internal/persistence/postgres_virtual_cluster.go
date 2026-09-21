@@ -10,16 +10,17 @@ import (
 	"platform.4so.io/factory/internal/virtualcluster"
 )
 
-const virtualClusterColumns = `id,project_id,workspace_id,workspace_binding_id,host_cluster_id,host_namespace,revision,name,profile,developer_mode,kubernetes_version,cpu_milli,memory_mib,storage_gib,max_namespaces,sleep_after_minutes,desired_digest,state,pending_action,requested_by,idempotency_key,request_digest,last_error,created_at,updated_at`
+const virtualClusterColumns = `id,project_id,workspace_id,workspace_binding_id,workspace_binding_revision,host_cluster_id,host_namespace,revision,name,profile,developer_mode,kubernetes_version,cpu_milli,memory_mib,storage_gib,max_namespaces,sleep_after_minutes,desired_digest,state,pending_action,requested_by,idempotency_key,request_digest,observed_digest,phase,runtime_source_digest,task_attempt,task_fence_token,task_action,task_lease_expires_at,last_error,created_at,updated_at`
 
 func scanVirtualCluster(row interface{ Scan(...any) error }) (controlplane.VirtualCluster, error) {
 	var v controlplane.VirtualCluster
 	var profile, state, action string
 	err := row.Scan(
-		&v.ID, &v.ProjectID, &v.WorkspaceID, &v.WorkspaceBindingID, &v.HostClusterID, &v.HostNamespace,
+		&v.ID, &v.ProjectID, &v.WorkspaceID, &v.WorkspaceBindingID, &v.WorkspaceBindingRevision, &v.HostClusterID, &v.HostNamespace,
 		&v.Revision, &v.Name, &profile, &v.DeveloperMode, &v.KubernetesVersion,
 		&v.CPUMilli, &v.MemoryMiB, &v.StorageGiB, &v.MaxNamespaces, &v.SleepAfterMinutes,
 		&v.DesiredDigest, &state, &action, &v.RequestedBy, &v.IdempotencyKey, &v.RequestDigest,
+		&v.ObservedDigest, &v.Phase, &v.RuntimeSourceDigest, &v.TaskAttempt, &v.TaskFenceToken, &v.TaskAction, &v.TaskLeaseExpiresAt,
 		&v.LastError, &v.CreatedAt, &v.UpdatedAt,
 	)
 	v.Profile = virtualcluster.ProfileID(profile)
@@ -68,10 +69,11 @@ func (s *PostgresStore) CreateVirtualCluster(ctx context.Context, request contro
 		now := utcNow(s.now)
 		out = controlplane.VirtualClusterFromPlanForPersistence(plan, request, actor, controlplane.ResourceMeta{ID: s.id("vcl"), Revision: 1, CreatedAt: now, UpdatedAt: now})
 		_, e = tx.ExecContext(ctx, `INSERT INTO virtual_clusters(
-			id,project_id,workspace_id,workspace_binding_id,host_cluster_id,host_namespace,revision,name,profile,developer_mode,kubernetes_version,
-			cpu_milli,memory_mib,storage_gib,max_namespaces,sleep_after_minutes,desired_digest,state,pending_action,requested_by,idempotency_key,request_digest,last_error,created_at,updated_at
-		) VALUES($1,$2,$3,$4,$5,$6,1,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'',$22,$22)`,
-			out.ID, out.ProjectID, out.WorkspaceID, out.WorkspaceBindingID, out.HostClusterID, out.HostNamespace,
+			id,project_id,workspace_id,workspace_binding_id,workspace_binding_revision,host_cluster_id,host_namespace,revision,name,profile,developer_mode,kubernetes_version,
+			cpu_milli,memory_mib,storage_gib,max_namespaces,sleep_after_minutes,desired_digest,state,pending_action,requested_by,idempotency_key,request_digest,
+			observed_digest,phase,runtime_source_digest,task_attempt,task_fence_token,task_action,task_lease_expires_at,last_error,created_at,updated_at
+		) VALUES($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,'','','',0,0,'',NULL,'',$23,$23)`,
+			out.ID, out.ProjectID, out.WorkspaceID, out.WorkspaceBindingID, out.WorkspaceBindingRevision, out.HostClusterID, out.HostNamespace,
 			out.Name, string(out.Profile), out.DeveloperMode, out.KubernetesVersion, out.CPUMilli, out.MemoryMiB, out.StorageGiB,
 			out.MaxNamespaces, out.SleepAfterMinutes, out.DesiredDigest, string(out.State), string(out.PendingAction), out.RequestedBy,
 			out.IdempotencyKey, out.RequestDigest, now)

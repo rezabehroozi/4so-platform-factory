@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"time"
 	"fmt"
 	"regexp"
 	"sort"
@@ -17,6 +18,7 @@ type VirtualCluster struct {
 	ProjectID          string               `json:"projectId"`
 	WorkspaceID        string               `json:"workspaceId"`
 	WorkspaceBindingID string               `json:"workspaceBindingId"`
+	WorkspaceBindingRevision int64           `json:"workspaceBindingRevision"`
 	HostClusterID      string               `json:"hostClusterId"`
 	HostNamespace      string               `json:"hostNamespace"`
 	Name               string               `json:"name"`
@@ -34,6 +36,13 @@ type VirtualCluster struct {
 	RequestedBy        string               `json:"requestedBy"`
 	IdempotencyKey     string               `json:"idempotencyKey"`
 	RequestDigest      string               `json:"requestDigest"`
+	ObservedDigest     string               `json:"observedDigest,omitempty"`
+	Phase              string               `json:"phase,omitempty"`
+	RuntimeSourceDigest string              `json:"runtimeSourceDigest,omitempty"`
+	TaskAttempt        int                  `json:"taskAttempt,omitempty"`
+	TaskFenceToken     int64                `json:"taskFenceToken,omitempty"`
+	TaskAction         string               `json:"taskAction,omitempty"`
+	TaskLeaseExpiresAt *time.Time            `json:"taskLeaseExpiresAt,omitempty"`
 	LastError          string               `json:"lastError,omitempty"`
 }
 
@@ -79,6 +88,7 @@ func virtualClusterFromPlan(plan virtualcluster.Plan, request VirtualClusterCrea
 	return VirtualCluster{
 		ResourceMeta: meta,
 		ProjectID: plan.ProjectID, WorkspaceID: plan.WorkspaceID, WorkspaceBindingID: plan.BindingID,
+		WorkspaceBindingRevision: plan.BindingRevision,
 		HostClusterID: plan.HostClusterID, HostNamespace: plan.HostNamespace, Name: plan.Name,
 		Profile: plan.Profile, DeveloperMode: plan.DeveloperMode, KubernetesVersion: plan.KubernetesVersion,
 		CPUMilli: plan.CPUMilli, MemoryMiB: plan.MemoryMiB, StorageGiB: plan.StorageGiB,
@@ -97,9 +107,18 @@ func validateVirtualClusterRecord(v VirtualCluster, workspaces map[string]Worksp
 	if !ok || binding.WorkspaceID != workspace.ID || binding.ProjectID != v.ProjectID {
 		return fmt.Errorf("%w: virtual cluster workspace binding authority is invalid", ErrValidation)
 	}
-	authority, err := virtualClusterWorkspaceAuthority(workspace, binding)
-	if err != nil {
-		return err
+	if v.WorkspaceBindingRevision <= 0 || binding.ClusterID != v.HostClusterID || binding.Namespace != v.HostNamespace {
+		return fmt.Errorf("%w: stored virtual cluster binding snapshot is incomplete", ErrValidation)
+	}
+	authority := virtualcluster.WorkspaceAuthority{
+		WorkspaceID: workspace.ID,
+		ProjectID: workspace.ProjectID,
+		WorkspaceDigest: workspace.Digest,
+		BindingID: binding.ID,
+		BindingRevision: v.WorkspaceBindingRevision,
+		HostClusterID: v.HostClusterID,
+		HostNamespace: v.HostNamespace,
+		BindingActive: true,
 	}
 	plan, err := virtualcluster.BuildPlan(authority, virtualcluster.Request{
 		Name: v.Name, Profile: v.Profile, KubernetesVersion: v.KubernetesVersion,

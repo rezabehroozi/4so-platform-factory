@@ -42,7 +42,7 @@ func TestVirtualClusterCreateDerivesWorkspaceBindingAuthorityAndReplays(t *testi
 	if err != nil || replay {
 		t.Fatalf("created=%#v replay=%v err=%v", created, replay, err)
 	}
-	if created.ProjectID != workspace.ProjectID || created.WorkspaceID != workspace.ID || created.WorkspaceBindingID != binding.ID || created.HostClusterID != binding.ClusterID || created.HostNamespace != binding.Namespace {
+	if created.ProjectID != workspace.ProjectID || created.WorkspaceID != workspace.ID || created.WorkspaceBindingID != binding.ID || created.WorkspaceBindingRevision != binding.Revision || created.HostClusterID != binding.ClusterID || created.HostNamespace != binding.Namespace {
 		t.Fatalf("derived authority drift: %#v", created)
 	}
 	if created.State != virtualcluster.StateRequested || created.PendingAction != virtualcluster.ActionProvision || created.DesiredDigest == "" {
@@ -109,5 +109,30 @@ func TestVirtualClusterRestoreRejectsBindingAuthorityDrift(t *testing.T) {
 	snap.VirtualClusters[0].HostNamespace = "tampered"
 	if err := NewMemoryStore().Restore(snap); !errors.Is(err, ErrValidation) {
 		t.Fatalf("authority-drift snapshot admitted: %v", err)
+	}
+}
+
+
+func TestVirtualClusterSnapshotSurvivesLaterBindingRevocation(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	workspace, binding := virtualClusterStoreFixture(t, store)
+	created, _, err := store.CreateVirtualCluster(ctx, virtualClusterCreateRequest(workspace, binding), "owner")
+	if err != nil { t.Fatal(err) }
+	if created.WorkspaceBindingRevision != binding.Revision {
+		t.Fatalf("binding revision snapshot=%d want=%d", created.WorkspaceBindingRevision, binding.Revision)
+	}
+	if _, err := store.RevokeWorkspaceBinding(ctx, binding.ID, binding.Revision, "owner"); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := store.Snapshot(ctx)
+	if err != nil { t.Fatal(err) }
+	restored := NewMemoryStore()
+	if err := restored.Restore(snap); err != nil {
+		t.Fatalf("historical virtual cluster must remain restorable after binding revocation: %v", err)
+	}
+	got, err := restored.GetVirtualCluster(ctx, created.ID)
+	if err != nil || got.WorkspaceBindingRevision != binding.Revision {
+		t.Fatalf("restored=%#v err=%v", got, err)
 	}
 }
