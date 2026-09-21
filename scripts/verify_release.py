@@ -352,6 +352,7 @@ def validate_archive_executable_modes(archive: Path) -> None:
         "platform-agent",
         "platform-probe",
         "platformctl",
+        "virtual-cluster-renderer",
     }
     seen = set()
     with zipfile.ZipFile(archive) as zip_file:

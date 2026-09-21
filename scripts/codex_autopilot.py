@@ -164,7 +164,7 @@ Stage("go-vet-1", ("python3", "scripts/run_go_package_shard.py", "--vet", "--sha
 
 
 def _version_check_program(version: str) -> str:
-    bins = ["platform-api", "platformctl", "platform-installer", "platform-agent", "platform-probe"]
+    bins = ["platform-api", "platformctl", "platform-installer", "platform-agent", "platform-probe", "virtual-cluster-renderer"]
     return textwrap.dedent(f"""
         import subprocess
         expected={version!r}

@@ -41,6 +41,7 @@ build:
 	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-installer ./cmd/platform-installer
 	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-agent ./cmd/platform-agent
 	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-probe ./cmd/platform-probe
+	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/virtual-cluster-renderer ./cmd/virtual-cluster-renderer
 
 build-release:
 	$(PYTHON) scripts/verify_release_build_toolchain.py --require-admitted
@@ -50,6 +51,7 @@ build-release:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-installer ./cmd/platform-installer
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-agent ./cmd/platform-agent
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-probe ./cmd/platform-probe
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/virtual-cluster-renderer ./cmd/virtual-cluster-renderer
 
 run: build
 	mkdir -p .state

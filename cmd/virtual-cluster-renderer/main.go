@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"platform.4so.io/factory/internal/buildinfo"
 )
 
 const (
@@ -116,6 +118,14 @@ func rewrite(in io.Reader, out io.Writer, mappings map[string]string) error {
 }
 
 func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "version" || os.Args[1] == "--version") {
+		fmt.Println(buildinfo.Version)
+		return
+	}
+	if len(os.Args) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: virtual-cluster-renderer [version|--version]")
+		os.Exit(2)
+	}
 	raw := strings.TrimSpace(os.Getenv("FOURSO_VIRTUAL_CLUSTER_IMAGE_MAP_JSON"))
 	mappings, err := loadMap(raw)
 	if err == nil {

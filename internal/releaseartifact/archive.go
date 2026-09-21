@@ -21,6 +21,7 @@ const (
 	PlatformAPIBinaryPath   = "bin/linux-amd64/platform-api"
 	PlatformAgentBinaryPath = "bin/linux-amd64/platform-agent"
 	PlatformProbeBinaryPath = "bin/linux-amd64/platform-probe"
+	VirtualClusterRendererBinaryPath = "bin/linux-amd64/virtual-cluster-renderer"
 )
 
 const maxArtifactManifestBytes = 8 << 20
