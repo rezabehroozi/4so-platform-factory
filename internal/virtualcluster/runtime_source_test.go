@@ -263,3 +263,43 @@ func TestRuntimeSourceDigestChangesWithMirrorAuthority(t *testing.T) {
 		t.Fatal("mirror authority drift did not change runtime source digest")
 	}
 }
+
+
+func TestRuntimeImageMirrorMapBindsRepositoryToExactDigestEquivalentMirror(t *testing.T) {
+	source := runtimeSourceFixture()
+	source.ImageReferences = []string{
+		"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("a"),
+		"registry.k8s.io/pause@" + runtimeDigest("b"),
+	}
+	source.ImageDigests = []string{runtimeDigest("a"), runtimeDigest("b")}
+	source.MirrorImageReferences = []string{
+		"zot.internal/vcluster/loft-sh-vcluster-oss@" + runtimeDigest("a"),
+		"zot.internal/vcluster/registry-k8s-pause@" + runtimeDigest("b"),
+	}
+	m, err := RuntimeImageMirrorMap(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["ghcr.io/loft-sh/vcluster-oss"] != "zot.internal/vcluster/loft-sh-vcluster-oss@"+runtimeDigest("a") {
+		t.Fatalf("vcluster mirror=%q", m["ghcr.io/loft-sh/vcluster-oss"])
+	}
+	if m["registry.k8s.io/pause"] != "zot.internal/vcluster/registry-k8s-pause@"+runtimeDigest("b") {
+		t.Fatalf("pause mirror=%q", m["registry.k8s.io/pause"])
+	}
+}
+
+func TestRuntimeImageMirrorMapRejectsRepositoryDigestAmbiguity(t *testing.T) {
+	source := runtimeSourceFixture()
+	source.ImageReferences = []string{
+		"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("a"),
+		"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("b"),
+	}
+	source.ImageDigests = []string{runtimeDigest("a"), runtimeDigest("b")}
+	source.MirrorImageReferences = []string{
+		"zot.internal/vcluster/a@" + runtimeDigest("a"),
+		"zot.internal/vcluster/b@" + runtimeDigest("b"),
+	}
+	if _, err := RuntimeImageMirrorMap(source); err == nil || !strings.Contains(err.Error(), "repository maps to multiple digests") {
+		t.Fatalf("ambiguous repository mirror mapping was admitted: %v", err)
+	}
+}

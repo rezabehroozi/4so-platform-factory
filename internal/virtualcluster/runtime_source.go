@@ -241,6 +241,64 @@ func ValidateRuntimeExecutionSource(source RuntimeSource) error {
 }
 
 
+func runtimeImageRepository(ref string) string {
+	ref = strings.TrimSpace(ref)
+	if at := strings.IndexByte(ref, '@'); at >= 0 {
+		ref = ref[:at]
+	}
+	lastSlash := strings.LastIndexByte(ref, '/')
+	if colon := strings.LastIndexByte(ref, ':'); colon > lastSlash {
+		ref = ref[:colon]
+	}
+	return ref
+}
+
+// RuntimeImageMirrorMap binds each upstream image repository to exactly one
+// digest-equivalent zot mirror reference. It intentionally keys by repository,
+// because the Helm post-renderer sees the chart's mutable/tagged image string
+// before rewriting it to the exact local digest authority.
+func RuntimeImageMirrorMap(source RuntimeSource) (map[string]string, error) {
+	if err := ValidateRuntimeExecutionSource(source); err != nil {
+		return nil, err
+	}
+	byDigest := map[string]string{}
+	for _, ref := range source.MirrorImageReferences {
+		at := strings.LastIndex(ref, "@sha256:")
+		if at <= 0 {
+			return nil, errors.New("virtual cluster mirror image reference is not digest pinned")
+		}
+		digest := ref[at+1:]
+		if existing, ok := byDigest[digest]; ok && existing != ref {
+			return nil, errors.New("virtual cluster mirror digest maps to multiple references")
+		}
+		byDigest[digest] = ref
+	}
+	out := map[string]string{}
+	for _, sourceRef := range source.ImageReferences {
+		at := strings.LastIndex(sourceRef, "@sha256:")
+		if at <= 0 {
+			return nil, errors.New("virtual cluster source image reference is not digest pinned")
+		}
+		repository := runtimeImageRepository(sourceRef)
+		digest := sourceRef[at+1:]
+		mirrorRef, ok := byDigest[digest]
+		if !ok {
+			return nil, errors.New("virtual cluster source image digest has no exact local mirror")
+		}
+		if repository == "" {
+			return nil, errors.New("virtual cluster source image repository is empty")
+		}
+		if existing, ok := out[repository]; ok && existing != mirrorRef {
+			return nil, errors.New("virtual cluster image repository maps to multiple digests")
+		}
+		out[repository] = mirrorRef
+	}
+	if len(out) == 0 {
+		return nil, errors.New("virtual cluster image mirror map is empty")
+	}
+	return out, nil
+}
+
 func RuntimeSourceDigest(source RuntimeSource) (string, error) {
 	if err := ValidateRuntimeExecutionSource(source); err != nil {
 		return "", err
