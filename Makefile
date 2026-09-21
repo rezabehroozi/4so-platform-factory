@@ -21,6 +21,7 @@ test:
 	$(PYTHON) scripts/upstream_acquisition_toolchain.py --self-test
 	$(PYTHON) scripts/acquire_upstream_helm.py --self-test
 	$(PYTHON) scripts/acquire_virtual_cluster_runtime.py --self-test
+	$(PYTHON) scripts/prepare_virtual_cluster_executor.py --self-test
 	$(PYTHON) scripts/acquire_upstream_tagged_source.py --self-test
 	$(PYTHON) scripts/acquire_historical_upgrade_batch.py --self-test
 
