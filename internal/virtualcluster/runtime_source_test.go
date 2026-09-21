@@ -1,6 +1,9 @@
 package virtualcluster
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -155,5 +158,76 @@ func TestRuntimeSourceMirrorDigestSetMustMatchAcquiredImages(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "digest set") {
 		t.Fatalf("mismatched mirror digest inventory was admitted: %v", err)
+	}
+}
+
+
+func resolvedRuntimeSourceForTest(t *testing.T) RuntimeSource {
+	t.Helper()
+	source, err := ResolveRuntimeSource(RuntimeSourceResolution{
+		Version: RuntimeSelectedVersion,
+		ChartRepository: RuntimeChartRepository,
+		ChartName: RuntimeChartName,
+		ChartSHA256: runtimeDigest("a"),
+		ValuesSHA256: runtimeDigest("d"),
+		RenderManifestSHA256: runtimeDigest("e"),
+		ImageReferences: []string{"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("b")},
+		ChartArtifactPath: "runtime/virtualcluster/chart/vcluster-0.37.1.tgz",
+		MirrorReady: true,
+		MirrorImageReferences: []string{"zot.internal/mirror/vcluster-oss@" + runtimeDigest("b")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return source
+}
+
+func TestRuntimeSourceDigestAndFileLoadingAreFailClosed(t *testing.T) {
+	source := resolvedRuntimeSourceForTest(t)
+	first, err := RuntimeSourceDigest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := RuntimeSourceDigest(source)
+	if err != nil || first != second || !strings.HasPrefix(first, "sha256:") {
+		t.Fatalf("digest first=%q second=%q err=%v", first, second, err)
+	}
+	root := t.TempDir()
+	path := filepath.Join(root, "runtime-source.json")
+	raw, _ := json.Marshal(source)
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, digest, err := LoadRuntimeExecutionSource(path)
+	if err != nil || digest != first || loaded.ChartSHA256 != source.ChartSHA256 {
+		t.Fatalf("loaded=%#v digest=%q err=%v", loaded, digest, err)
+	}
+	bad := filepath.Join(root, "bad.json")
+	if err := os.WriteFile(bad, append(raw, []byte("{}")...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := LoadRuntimeExecutionSource(bad); err == nil {
+		t.Fatal("trailing JSON was admitted")
+	}
+	if err := os.Symlink(path, filepath.Join(root, "link.json")); err == nil {
+		if _, _, err := LoadRuntimeExecutionSource(filepath.Join(root, "link.json")); err == nil {
+			t.Fatal("symlink runtime source was admitted")
+		}
+	}
+}
+
+func TestRuntimeSourceDigestChangesWithMirrorAuthority(t *testing.T) {
+	source := resolvedRuntimeSourceForTest(t)
+	first, err := RuntimeSourceDigest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source.MirrorImageReferences = []string{"zot.internal/other/vcluster-oss@" + runtimeDigest("b")}
+	second, err := RuntimeSourceDigest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatal("mirror authority drift did not change runtime source digest")
 	}
 }

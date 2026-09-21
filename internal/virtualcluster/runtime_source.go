@@ -1,8 +1,14 @@
 package virtualcluster
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -222,4 +228,63 @@ func ValidateRuntimeExecutionSource(source RuntimeSource) error {
 		return err
 	}
 	return nil
+}
+
+
+func RuntimeSourceDigest(source RuntimeSource) (string, error) {
+	if err := ValidateRuntimeExecutionSource(source); err != nil {
+		return "", err
+	}
+	raw, err := json.Marshal(source)
+	if err != nil {
+		return "", fmt.Errorf("encode virtual cluster runtime source: %w", err)
+	}
+	sum := sha256.Sum256(raw)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func LoadRuntimeExecutionSource(path string) (RuntimeSource, string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return RuntimeSource{}, "", errors.New("virtual cluster runtime source file path is required")
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return RuntimeSource{}, "", fmt.Errorf("stat virtual cluster runtime source: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return RuntimeSource{}, "", errors.New("virtual cluster runtime source must be a regular non-symlink file")
+	}
+	if info.Size() <= 0 || info.Size() > 1<<20 {
+		return RuntimeSource{}, "", errors.New("virtual cluster runtime source file must be between 1 byte and 1 MiB")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return RuntimeSource{}, "", fmt.Errorf("open virtual cluster runtime source: %w", err)
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(io.LimitReader(file, (1<<20)+1))
+	if err != nil {
+		return RuntimeSource{}, "", fmt.Errorf("read virtual cluster runtime source: %w", err)
+	}
+	if len(raw) > 1<<20 {
+		return RuntimeSource{}, "", errors.New("virtual cluster runtime source exceeds 1 MiB")
+	}
+	var source RuntimeSource
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&source); err != nil {
+		return RuntimeSource{}, "", fmt.Errorf("decode virtual cluster runtime source: %w", err)
+	}
+	if decoder.More() {
+		return RuntimeSource{}, "", errors.New("virtual cluster runtime source contains trailing JSON")
+	}
+	if err := ValidateRuntimeExecutionSource(source); err != nil {
+		return RuntimeSource{}, "", err
+	}
+	digest, err := RuntimeSourceDigest(source)
+	if err != nil {
+		return RuntimeSource{}, "", err
+	}
+	return source, digest, nil
 }
