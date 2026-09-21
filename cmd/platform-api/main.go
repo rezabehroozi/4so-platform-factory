@@ -40,6 +40,7 @@ import (
 	"platform.4so.io/factory/internal/persistence"
 	"platform.4so.io/factory/internal/pgdriver"
 	"platform.4so.io/factory/internal/releaseartifact"
+	"platform.4so.io/factory/internal/virtualcluster"
 	"platform.4so.io/factory/webconsole"
 )
 
@@ -556,6 +557,18 @@ func main() {
 	defer closeStore()
 
 	apiServer := api.New(version, components, logger, store)
+	if sourceFile := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_VIRTUAL_CLUSTER_RUNTIME_SOURCE_FILE")); sourceFile != "" {
+		source, sourceDigest, sourceErr := virtualcluster.LoadRuntimeExecutionSource(sourceFile)
+		if sourceErr != nil {
+			logger.Error("virtual cluster runtime source configuration failed", "error", sourceErr)
+			os.Exit(1)
+		}
+		if sourceErr = apiServer.ConfigureVirtualClusterRuntimeSource(source); sourceErr != nil {
+			logger.Error("virtual cluster runtime source admission failed", "error", sourceErr)
+			os.Exit(1)
+		}
+		logger.Info("virtual cluster runtime source configured", "authority", virtualcluster.RuntimeSourceAuthority, "digest", sourceDigest, "engine", source.Engine, "version", source.Version)
+	}
 	if releaseDigest := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_SOURCE_RELEASE_DIGEST")); releaseDigest != "" {
 		producerDigest, digestErr := releaseartifact.RunningExecutableDigest()
 		if digestErr != nil {

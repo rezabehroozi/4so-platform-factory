@@ -20,6 +20,7 @@ import (
 	"platform.4so.io/factory/internal/integrations"
 	"platform.4so.io/factory/internal/managedinstall"
 	"platform.4so.io/factory/internal/marketplace"
+	"platform.4so.io/factory/internal/virtualcluster"
 	"platform.4so.io/factory/internal/plan"
 	"sort"
 	"strconv"
@@ -50,6 +51,9 @@ type Server struct {
 	catalogSignerMode            string
 	oidcGroupPropagationTTL      time.Duration
 	managedOKDInstallExecutor    *managedinstall.Executor
+	virtualClusterRuntimeSource  virtualcluster.RuntimeSource
+	virtualClusterRuntimeDigest  string
+	virtualClusterRuntimeReady   bool
 }
 
 func New(version string, components map[string]catalog.Component, logger *slog.Logger, stores ...controlplane.Store) *Server {
@@ -151,6 +155,20 @@ func (s *Server) ConfigureIdentityAuthority(groupPropagationTTL time.Duration) {
 
 func (s *Server) ConfigureManagedOKDInstallExecutor(executor *managedinstall.Executor) {
 	s.managedOKDInstallExecutor = executor
+}
+
+func (s *Server) ConfigureVirtualClusterRuntimeSource(source virtualcluster.RuntimeSource) error {
+	if err := virtualcluster.ValidateRuntimeExecutionSource(source); err != nil {
+		return err
+	}
+	digest, err := virtualcluster.RuntimeSourceDigest(source)
+	if err != nil {
+		return err
+	}
+	s.virtualClusterRuntimeSource = source
+	s.virtualClusterRuntimeDigest = digest
+	s.virtualClusterRuntimeReady = true
+	return nil
 }
 
 func (s *Server) ConfigureFleetImport(agentImage, runtimeProbeImage, publicURL, publicCAPEM string) {
@@ -549,6 +567,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/provider-clusters/{id}/retry", s.retryProviderCluster)
 	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/provider-cluster-tasks/next", s.nextProviderClusterTask)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/provider-cluster-tasks/{providerClusterId}/result", s.reportProviderClusterTask)
+	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/virtual-cluster-tasks/next", s.nextVirtualClusterTask)
+	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/virtual-cluster-tasks/{virtualClusterId}/result", s.reportVirtualClusterTask)
 	s.mux.HandleFunc("GET /api/v1/marketplace/offers", s.listMarketplaceOffers)
 	s.mux.HandleFunc("POST /api/v1/marketplace/installations", s.createMarketplaceInstallation)
 	s.mux.HandleFunc("GET /api/v1/marketplace/installations", s.listMarketplaceInstallations)
