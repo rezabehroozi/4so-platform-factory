@@ -65,73 +65,7 @@ type RuntimeSourceResolution struct {
 }
 
 var runtimeSHA256Pattern = regexp.MustCompile("^sha256:[0-9a-f]{64}$")
-var runtimeExecutorImagePattern = regexp.MustCompile(`^[^\s@]+/virtual-cluster-runtime@sha256:[0-9a-f]{64}package virtualcluster
-
-import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"os"
-	"regexp"
-	"sort"
-	"strings"
-)
-
-const (
-	RuntimeSourceAuthority = "VIRTUAL_CLUSTER_RUNTIME_SOURCE_AUTHORITY_V1"
-	RuntimeEngineVClusterOSS = "vcluster-oss"
-	RuntimeSelectedVersion = "0.37.1"
-	RuntimeChartRepository = "https://charts.loft.sh"
-	RuntimeChartName = "vcluster"
-	RuntimeReleaseURL = "https://github.com/loft-sh/vcluster/releases/tag/v0.37.1"
-	RuntimeValuesPath = "runtime/virtualcluster/vcluster-oss-values.yaml"
-	RuntimeImageRegistry = "ghcr.io"
-	RuntimeImageRepository = "loft-sh/vcluster-oss"
-)
-
-type RuntimeSource struct {
-	Authority            string   `json:"authority"`
-	Engine               string   `json:"engine"`
-	Version              string   `json:"version"`
-	ChartRepository      string   `json:"chartRepository"`
-	ChartName            string   `json:"chartName"`
-	ReleaseURL           string   `json:"releaseUrl"`
-	ValuesPath           string   `json:"valuesPath"`
-	ImageRegistry        string   `json:"imageRegistry"`
-	ImageRepository      string   `json:"imageRepository"`
-	ChartSHA256          string   `json:"chartSha256,omitempty"`
-	ValuesSHA256         string   `json:"valuesSha256,omitempty"`
-	RenderManifestSHA256 string   `json:"renderManifestSha256,omitempty"`
-	ImageReferences      []string `json:"imageReferences,omitempty"`
-	ImageDigests         []string `json:"imageDigests,omitempty"`
-	ChartArtifactPath    string   `json:"chartArtifactPath,omitempty"`
-	ExecutorImageReference string   `json:"executorImageReference,omitempty"`
-	MirrorImageReferences []string `json:"mirrorImageReferences,omitempty"`
-	Resolved             bool     `json:"resolved"`
-	MirrorReady          bool     `json:"mirrorReady"`
-	OfflineAcquisitionRequired bool `json:"offlineAcquisitionRequired"`
-	PlatformDependency   bool     `json:"platformDependency"`
-}
-
-type RuntimeSourceResolution struct {
-	Version         string
-	ChartRepository string
-	ChartName       string
-	ChartSHA256          string
-	ValuesSHA256         string
-	RenderManifestSHA256 string
-	ImageReferences      []string
-	ChartArtifactPath    string
-	ExecutorImageReference string
-	MirrorImageReferences []string
-	MirrorReady          bool
-}
-
-)
+var runtimeExecutorImagePattern = regexp.MustCompile(`^[^\\s@]+/virtual-cluster-runtime@sha256:[0-9a-f]{64}$`)
 
 func SelectedRuntimeSource() RuntimeSource {
 	return RuntimeSource{
