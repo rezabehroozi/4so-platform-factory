@@ -474,6 +474,7 @@ def main() -> int:
                 (["python3", "scripts/lab_runner.py", "self-test"], 300),
                 (["python3", "scripts/catalog_upstream_admission.py"], 180),
                 (["python3", "scripts/acquire_upstream_helm.py", "--self-test"], 180),
+                (["python3", "scripts/acquire_virtual_cluster_runtime.py", "--self-test"], 180),
                 (["python3", "scripts/acquire_upstream_tagged_source.py", "--self-test"], 180),
                 (["python3", "scripts/acquire_historical_upgrade_batch.py", "--self-test"], 180),
                 (["python3", "scripts/generate_agent_knowledge.py", "--check"], 180),

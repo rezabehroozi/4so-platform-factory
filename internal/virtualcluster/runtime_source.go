@@ -31,8 +31,14 @@ type RuntimeSource struct {
 	ImageRegistry        string   `json:"imageRegistry"`
 	ImageRepository      string   `json:"imageRepository"`
 	ChartSHA256          string   `json:"chartSha256,omitempty"`
+	ValuesSHA256         string   `json:"valuesSha256,omitempty"`
+	RenderManifestSHA256 string   `json:"renderManifestSha256,omitempty"`
+	ImageReferences      []string `json:"imageReferences,omitempty"`
 	ImageDigests         []string `json:"imageDigests,omitempty"`
+	ChartArtifactPath    string   `json:"chartArtifactPath,omitempty"`
+	MirrorImageReferences []string `json:"mirrorImageReferences,omitempty"`
 	Resolved             bool     `json:"resolved"`
+	MirrorReady          bool     `json:"mirrorReady"`
 	OfflineAcquisitionRequired bool `json:"offlineAcquisitionRequired"`
 	PlatformDependency   bool     `json:"platformDependency"`
 }
@@ -41,8 +47,13 @@ type RuntimeSourceResolution struct {
 	Version         string
 	ChartRepository string
 	ChartName       string
-	ChartSHA256     string
-	ImageDigests   []string
+	ChartSHA256          string
+	ValuesSHA256         string
+	RenderManifestSHA256 string
+	ImageReferences      []string
+	ChartArtifactPath    string
+	MirrorImageReferences []string
+	MirrorReady          bool
 }
 
 var runtimeSHA256Pattern = regexp.MustCompile("^sha256:[0-9a-f]{64}$")
@@ -64,25 +75,50 @@ func SelectedRuntimeSource() RuntimeSource {
 	}
 }
 
-func normalizeRuntimeImageDigests(values []string) ([]string, error) {
-	seen := map[string]bool{}
-	out := make([]string, 0, len(values))
+func normalizeRuntimeImageReferences(values []string) ([]string, []string, error) {
+	seenRefs := map[string]bool{}
+	seenDigests := map[string]bool{}
+	refs := make([]string, 0, len(values))
+	digests := make([]string, 0, len(values))
 	for _, raw := range values {
 		value := strings.TrimSpace(raw)
-		if !runtimeSHA256Pattern.MatchString(value) {
-			return nil, fmt.Errorf("runtime image digest must be an exact lowercase sha256 digest: %q", raw)
+		at := strings.LastIndex(value, "@")
+		if at <= 0 || at == len(value)-1 {
+			return nil, nil, fmt.Errorf("runtime image reference must be digest pinned: %q", raw)
 		}
-		if seen[value] {
-			continue
+		digest := value[at+1:]
+		if !runtimeSHA256Pattern.MatchString(digest) {
+			return nil, nil, fmt.Errorf("runtime image reference digest must be exact lowercase sha256: %q", raw)
 		}
-		seen[value] = true
-		out = append(out, value)
+		if seenRefs[value] {
+			return nil, nil, fmt.Errorf("duplicate runtime image reference: %q", value)
+		}
+		seenRefs[value] = true
+		refs = append(refs, value)
+		if !seenDigests[digest] {
+			seenDigests[digest] = true
+			digests = append(digests, digest)
+		}
 	}
-	if len(out) == 0 {
-		return nil, errors.New("at least one exact runtime image digest is required")
+	if len(refs) == 0 {
+		return nil, nil, errors.New("at least one exact runtime image reference is required")
 	}
-	sort.Strings(out)
-	return out, nil
+	sort.Strings(refs)
+	sort.Strings(digests)
+	return refs, digests, nil
+}
+
+func safeRuntimeArtifactPath(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" || strings.HasPrefix(value, "/") || strings.Contains(value, "\\") {
+		return "", errors.New("runtime chart artifact path must be repository-relative")
+	}
+	for _, part := range strings.Split(value, "/") {
+		if part == "" || part == "." || part == ".." {
+			return "", errors.New("runtime chart artifact path is unsafe")
+		}
+	}
+	return value, nil
 }
 
 func ResolveRuntimeSource(input RuntimeSourceResolution) (RuntimeSource, error) {
@@ -101,13 +137,46 @@ func ResolveRuntimeSource(input RuntimeSourceResolution) (RuntimeSource, error) 
 	if !runtimeSHA256Pattern.MatchString(input.ChartSHA256) {
 		return RuntimeSource{}, errors.New("runtime chartSha256 must be an exact lowercase sha256 digest")
 	}
-	images, err := normalizeRuntimeImageDigests(input.ImageDigests)
+	if !runtimeSHA256Pattern.MatchString(strings.TrimSpace(input.ValuesSHA256)) {
+		return RuntimeSource{}, errors.New("runtime valuesSha256 must be an exact lowercase sha256 digest")
+	}
+	if !runtimeSHA256Pattern.MatchString(strings.TrimSpace(input.RenderManifestSHA256)) {
+		return RuntimeSource{}, errors.New("runtime renderManifestSha256 must be an exact lowercase sha256 digest")
+	}
+	refs, digests, err := normalizeRuntimeImageReferences(input.ImageReferences)
+	if err != nil {
+		return RuntimeSource{}, err
+	}
+	if !strings.Contains(strings.Join(refs, "\n"), RuntimeImageRepository+"@sha256:") {
+		return RuntimeSource{}, errors.New("runtime image inventory does not contain the required vCluster OSS image")
+	}
+	for _, ref := range refs {
+		if strings.Contains(ref, "vcluster-pro") || strings.Contains(ref, "vcluster-platform") {
+			return RuntimeSource{}, errors.New("vCluster Pro/Platform image is not admitted")
+		}
+	}
+	artifactPath, err := safeRuntimeArtifactPath(input.ChartArtifactPath)
 	if err != nil {
 		return RuntimeSource{}, err
 	}
 	selected.ChartSHA256 = input.ChartSHA256
-	selected.ImageDigests = images
+	selected.ValuesSHA256 = strings.TrimSpace(input.ValuesSHA256)
+	selected.RenderManifestSHA256 = strings.TrimSpace(input.RenderManifestSHA256)
+	selected.ImageReferences = refs
+	selected.ImageDigests = digests
+	selected.ChartArtifactPath = artifactPath
 	selected.Resolved = true
+	selected.MirrorReady = input.MirrorReady
+	if input.MirrorReady {
+		mirrorRefs, mirrorDigests, mirrorErr := normalizeRuntimeImageReferences(input.MirrorImageReferences)
+		if mirrorErr != nil {
+			return RuntimeSource{}, fmt.Errorf("runtime mirror inventory: %w", mirrorErr)
+		}
+		if strings.Join(mirrorDigests, "\n") != strings.Join(digests, "\n") {
+			return RuntimeSource{}, errors.New("runtime mirror inventory digest set does not match acquired source images")
+		}
+		selected.MirrorImageReferences = mirrorRefs
+	}
 	return selected, nil
 }
 
@@ -126,15 +195,31 @@ func ValidateRuntimeExecutionSource(source RuntimeSource) error {
 	if !source.Resolved {
 		return errors.New("virtual cluster runtime source is unresolved")
 	}
-	if !runtimeSHA256Pattern.MatchString(strings.TrimSpace(source.ChartSHA256)) {
-		return errors.New("virtual cluster runtime chart digest is not exact")
+	if !runtimeSHA256Pattern.MatchString(strings.TrimSpace(source.ChartSHA256)) ||
+		!runtimeSHA256Pattern.MatchString(strings.TrimSpace(source.ValuesSHA256)) ||
+		!runtimeSHA256Pattern.MatchString(strings.TrimSpace(source.RenderManifestSHA256)) {
+		return errors.New("virtual cluster runtime source digests are incomplete")
 	}
-	images, err := normalizeRuntimeImageDigests(source.ImageDigests)
+	refs, digests, err := normalizeRuntimeImageReferences(source.ImageReferences)
 	if err != nil {
 		return err
 	}
-	if len(images) != len(source.ImageDigests) {
-		return errors.New("virtual cluster runtime image digest inventory contains duplicates")
+	if strings.Join(refs, "\n") != strings.Join(source.ImageReferences, "\n") ||
+		strings.Join(digests, "\n") != strings.Join(source.ImageDigests, "\n") {
+		return errors.New("virtual cluster runtime image inventory is not canonical")
+	}
+	if !source.MirrorReady {
+		return errors.New("virtual cluster runtime images are not proven mirrored to local zot authority")
+	}
+	mirrorRefs, mirrorDigests, err := normalizeRuntimeImageReferences(source.MirrorImageReferences)
+	if err != nil {
+		return fmt.Errorf("runtime mirror inventory: %w", err)
+	}
+	if strings.Join(mirrorDigests, "\n") != strings.Join(digests, "\n") || len(mirrorRefs) != len(source.MirrorImageReferences) {
+		return errors.New("virtual cluster runtime mirror inventory does not match source digests")
+	}
+	if _, err := safeRuntimeArtifactPath(source.ChartArtifactPath); err != nil {
+		return err
 	}
 	return nil
 }
