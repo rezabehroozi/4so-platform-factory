@@ -296,6 +296,10 @@
     "workspaces": {
       "evidence": "internal/api/workspace.go; Workspace authority is project-scoped",
       "scope": "PROJECT_SCOPED"
+    },
+    "edge": {
+      "evidence": "internal/api/edge_sovereign.go and internal/edgeauthority/authority.go; edge admission requires explicit ProjectID access and uses caller-supplied assessment data",
+      "scope": "PROJECT_SCOPED"
     }
   },
   "policy": {
