@@ -4,9 +4,9 @@
     "security-excluded": 40,
     "tool-admin": 73,
     "tool-operate": 68,
-    "tool-read": 167
+    "tool-read": 169
   },
-  "routeCount": 348,
+  "routeCount": 350,
   "routes": [
     {
       "action": "version",
@@ -109,6 +109,40 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_reliability_incidents"
+    },
+    {
+      "action": "boot_attestations_assess",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "edge",
+      "idempotencyRequired": false,
+      "method": "POST",
+      "path": "/api/v1/edge/boot-attestations/assess",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_post_edge_boot_attestations_assess"
+    },
+    {
+      "action": "local_ai_profiles_validate",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "edge",
+      "idempotencyRequired": false,
+      "method": "POST",
+      "path": "/api/v1/edge/local-ai/profiles/validate",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_post_edge_local_ai_profiles_validate"
     },
     {
       "action": "incidents",
