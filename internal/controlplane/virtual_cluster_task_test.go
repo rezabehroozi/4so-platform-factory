@@ -145,7 +145,7 @@ func TestVirtualClusterBindingRevisionMustRemainCurrentBeforeFirstClaim(t *testi
 	imp.AgentTokenDigest = agent
 	store.clusterImports[cluster.ImportID] = imp
 	store.mu.Unlock()
-	cluster, _, err = upsertMutationReadyInventoryForTest(t, store, ctx, cluster.ID, agent, cluster.ExternalUID, ClusterInventory{
+	cluster, _, err := upsertMutationReadyInventoryForTest(t, store, ctx, cluster.ID, agent, cluster.ExternalUID, ClusterInventory{
 		ObservedAt: now, Distribution: "rke2", KubernetesVersion: "v1.34.2",
 		Digest: digestTenantTest("vcluster-binding-inventory"),
 		Capabilities: []string{TargetMutationRBACActiveCapability},
