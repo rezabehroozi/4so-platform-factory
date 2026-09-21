@@ -23,8 +23,8 @@ func claimedVirtualClusterFixture(t *testing.T) (*MemoryStore, ManagedCluster, s
 	imp := store.clusterImports[cluster.ImportID]
 	imp.AgentTokenDigest = agent
 	store.clusterImports[cluster.ImportID] = imp
-	cluster.LastSeenAt = now
-	cluster.InventoryUpdatedAt = now
+	cluster.LastSeenAt = &now
+	cluster.InventoryUpdatedAt = &now
 	cluster.InventoryObservedAt = &now
 	store.managedClusters[cluster.ID] = cluster
 	store.mu.Unlock()
@@ -142,8 +142,8 @@ func TestVirtualClusterBindingRevisionMustRemainCurrentBeforeFirstClaim(t *testi
 	imp := store.clusterImports[cluster.ImportID]
 	imp.AgentTokenDigest = agent
 	store.clusterImports[cluster.ImportID] = imp
-	cluster.LastSeenAt = now
-	cluster.InventoryUpdatedAt = now
+	cluster.LastSeenAt = &now
+	cluster.InventoryUpdatedAt = &now
 	cluster.InventoryObservedAt = &now
 	store.managedClusters[cluster.ID] = cluster
 	store.mu.Unlock()
