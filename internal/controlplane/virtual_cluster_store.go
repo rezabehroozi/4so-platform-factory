@@ -54,6 +54,66 @@ type VirtualClusterCreateRequest struct {
 	RequestDigest     string                 `json:"requestDigest"`
 }
 
+type VirtualClusterTask struct {
+	VirtualClusterID         string                   `json:"virtualClusterId"`
+	ClusterRevision          int64                    `json:"clusterRevision"`
+	TaskFenceToken           int64                    `json:"taskFenceToken"`
+	LeaseExpiresAt           time.Time                `json:"leaseExpiresAt"`
+	Action                   string                   `json:"action"`
+	ProjectID                string                   `json:"projectId"`
+	WorkspaceID              string                   `json:"workspaceId"`
+	WorkspaceBindingID       string                   `json:"workspaceBindingId"`
+	WorkspaceBindingRevision int64                    `json:"workspaceBindingRevision"`
+	HostClusterID            string                   `json:"hostClusterId"`
+	HostNamespace            string                   `json:"hostNamespace"`
+	Name                     string                   `json:"name"`
+	Profile                  virtualcluster.ProfileID `json:"profile"`
+	DeveloperMode            bool                     `json:"developerMode"`
+	KubernetesVersion        string                   `json:"kubernetesVersion"`
+	CPUMilli                 int                      `json:"cpuMilli"`
+	MemoryMiB                int                      `json:"memoryMiB"`
+	StorageGiB               int                      `json:"storageGiB"`
+	MaxNamespaces            int                      `json:"maxNamespaces"`
+	SleepAfterMinutes        int                      `json:"sleepAfterMinutes,omitempty"`
+	DesiredDigest            string                   `json:"desiredDigest"`
+	RuntimeSourceDigest      string                   `json:"runtimeSourceDigest"`
+}
+
+type VirtualClusterTaskResult struct {
+	VirtualClusterID string `json:"-"`
+	TaskFenceToken   int64  `json:"taskFenceToken"`
+	Action           string `json:"action"`
+	Success          bool   `json:"success"`
+	Ready            bool   `json:"ready,omitempty"`
+	ObservedDigest   string `json:"observedDigest,omitempty"`
+	Phase            string `json:"phase,omitempty"`
+	Error            string `json:"error,omitempty"`
+	RecoveryRequired bool   `json:"recoveryRequired,omitempty"`
+}
+
+func VirtualClusterTaskFromRecord(v VirtualCluster) VirtualClusterTask {
+	lease := time.Time{}
+	if v.TaskLeaseExpiresAt != nil {
+		lease = *v.TaskLeaseExpiresAt
+	}
+	return VirtualClusterTask{
+		VirtualClusterID: v.ID, ClusterRevision: v.Revision, TaskFenceToken: v.TaskFenceToken, LeaseExpiresAt: lease,
+		Action: v.TaskAction, ProjectID: v.ProjectID, WorkspaceID: v.WorkspaceID,
+		WorkspaceBindingID: v.WorkspaceBindingID, WorkspaceBindingRevision: v.WorkspaceBindingRevision,
+		HostClusterID: v.HostClusterID, HostNamespace: v.HostNamespace, Name: v.Name, Profile: v.Profile,
+		DeveloperMode: v.DeveloperMode, KubernetesVersion: v.KubernetesVersion, CPUMilli: v.CPUMilli,
+		MemoryMiB: v.MemoryMiB, StorageGiB: v.StorageGiB, MaxNamespaces: v.MaxNamespaces,
+		SleepAfterMinutes: v.SleepAfterMinutes, DesiredDigest: v.DesiredDigest, RuntimeSourceDigest: v.RuntimeSourceDigest,
+	}
+}
+
+func ValidateVirtualClusterRuntimeSourceDigest(value string) error {
+	if !virtualClusterDigestPattern.MatchString(strings.TrimSpace(value)) {
+		return fmt.Errorf("%w: runtimeSourceDigest must be an exact lowercase sha256 digest", ErrValidation)
+	}
+	return nil
+}
+
 var virtualClusterDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 func virtualClusterWorkspaceAuthority(workspace Workspace, binding WorkspaceBinding) (virtualcluster.WorkspaceAuthority, error) {
@@ -238,4 +298,198 @@ func VirtualClusterWorkspaceAuthorityForPersistence(workspace Workspace, binding
 
 func VirtualClusterFromPlanForPersistence(plan virtualcluster.Plan, request VirtualClusterCreateRequest, actor string, meta ResourceMeta) VirtualCluster {
 	return virtualClusterFromPlan(plan, request, actor, meta)
+}
+
+
+func (s *MemoryStore) virtualClusterBindingFenceCurrentLocked(v VirtualCluster) error {
+	binding, ok := s.workspaceBindings[v.WorkspaceBindingID]
+	if !ok || binding.WorkspaceID != v.WorkspaceID || binding.ProjectID != v.ProjectID ||
+		binding.ClusterID != v.HostClusterID || binding.Namespace != v.HostNamespace ||
+		binding.Revision != v.WorkspaceBindingRevision || binding.State != WorkspaceBindingActive {
+		return ErrPrerequisite
+	}
+	return nil
+}
+
+func markVirtualClusterRecovery(v VirtualCluster, now time.Time, message string) VirtualCluster {
+	v.State = virtualcluster.StateRecoveryRequired
+	v.Phase = "RecoveryRequired"
+	v.LastError = strings.TrimSpace(message)
+	if v.LastError == "" {
+		v.LastError = "virtual cluster runtime outcome requires authoritative recovery"
+	}
+	v.TaskLeaseExpiresAt = nil
+	v.Revision++
+	v.UpdatedAt = now
+	return v
+}
+
+func (s *MemoryStore) NextVirtualClusterTask(_ context.Context, clusterID, tokenDigest, runtimeSourceDigest string) (VirtualClusterTask, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := s.requireFreshClusterTaskAdmissionLocked(clusterID, tokenDigest); err != nil {
+		return VirtualClusterTask{}, err
+	}
+	clusterID = strings.TrimSpace(clusterID)
+	runtimeSourceDigest = strings.TrimSpace(runtimeSourceDigest)
+	if err := ValidateVirtualClusterRuntimeSourceDigest(runtimeSourceDigest); err != nil {
+		return VirtualClusterTask{}, err
+	}
+	now := nowUTC(s.now)
+	ids := make([]string, 0)
+	for id, current := range s.virtualClusters {
+		if current.HostClusterID != clusterID {
+			continue
+		}
+		if current.State == virtualcluster.StateRequested ||
+			(current.State == virtualcluster.StateProvisioning && !AgentTaskLeaseActive(current.TaskLeaseExpiresAt, now)) {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return VirtualClusterTask{}, ErrNotFound
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		return resourceUpdatedBefore(s.virtualClusters[ids[i]].ResourceMeta, s.virtualClusters[ids[j]].ResourceMeta)
+	})
+	v := s.virtualClusters[ids[0]]
+
+	if v.State == virtualcluster.StateProvisioning && v.TaskAction == "APPLY" && v.TaskLeaseExpiresAt != nil && !AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {
+		v = markVirtualClusterRecovery(v, now, "virtual cluster APPLY lease expired; mutation outcome is ambiguous and automatic replay is forbidden")
+		s.virtualClusters[v.ID] = v
+		s.appendAuditLocked("cluster-agent", "virtual_cluster.apply.lease_expired_recovery_required", "virtualCluster", v.ID, v.Revision, map[string]any{"taskFenceToken": v.TaskFenceToken, "runtimeSourceDigest": v.RuntimeSourceDigest})
+		s.appendOutboxLocked("virtualCluster", v.ID, "virtual_cluster.state.changed", v)
+		return VirtualClusterTask{}, ErrNotFound
+	}
+
+	if err := s.virtualClusterBindingFenceCurrentLocked(v); err != nil {
+		message := "workspace binding revision/state changed before virtual cluster runtime claim"
+		if v.State == virtualcluster.StateRequested {
+			v.State = virtualcluster.StateFailed
+			v.Phase = "BindingFenceRejected"
+			v.LastError = message
+			v.TaskLeaseExpiresAt = nil
+			v.Revision++
+			v.UpdatedAt = now
+		} else {
+			v = markVirtualClusterRecovery(v, now, message)
+		}
+		s.virtualClusters[v.ID] = v
+		s.appendAuditLocked("cluster-agent", "virtual_cluster.binding_fence.rejected", "virtualCluster", v.ID, v.Revision, map[string]any{"workspaceBindingId": v.WorkspaceBindingID, "workspaceBindingRevision": v.WorkspaceBindingRevision})
+		s.appendOutboxLocked("virtualCluster", v.ID, "virtual_cluster.state.changed", v)
+		return VirtualClusterTask{}, ErrNotFound
+	}
+
+	if v.RuntimeSourceDigest != "" && v.RuntimeSourceDigest != runtimeSourceDigest {
+		return VirtualClusterTask{}, ErrConflict
+	}
+	action := "APPLY"
+	if v.State == virtualcluster.StateProvisioning {
+		action = "INSPECT"
+	}
+	if v.RuntimeSourceDigest == "" {
+		v.RuntimeSourceDigest = runtimeSourceDigest
+	}
+	lease := now.Add(AgentTaskLeaseDuration)
+	v.State = virtualcluster.StateProvisioning
+	v.TaskAction = action
+	v.TaskAttempt++
+	v.TaskFenceToken++
+	v.TaskLeaseExpiresAt = &lease
+	v.Phase = action + "Claimed"
+	v.LastError = ""
+	v.Revision++
+	v.UpdatedAt = now
+	s.virtualClusters[v.ID] = v
+	s.appendAuditLocked("cluster-agent", "virtual_cluster.task.claimed", "virtualCluster", v.ID, v.Revision, map[string]any{"action": action, "taskFenceToken": v.TaskFenceToken, "runtimeSourceDigest": v.RuntimeSourceDigest})
+	s.appendOutboxLocked("virtualCluster", v.ID, "virtual_cluster.state.changed", v)
+	return VirtualClusterTaskFromRecord(v), nil
+}
+
+func (s *MemoryStore) ReportVirtualClusterTask(_ context.Context, clusterID, tokenDigest string, expected int64, result VirtualClusterTaskResult) (VirtualCluster, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := s.requireClusterTaskAdmissionLocked(clusterID, tokenDigest); err != nil {
+		return VirtualCluster{}, err
+	}
+	v, ok := s.virtualClusters[strings.TrimSpace(result.VirtualClusterID)]
+	if !ok || v.HostClusterID != strings.TrimSpace(clusterID) {
+		return VirtualCluster{}, ErrNotFound
+	}
+	now := nowUTC(s.now)
+	action := strings.ToUpper(strings.TrimSpace(result.Action))
+	if v.Revision != expected || result.TaskFenceToken <= 0 || v.TaskFenceToken != result.TaskFenceToken ||
+		!AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) || action != v.TaskAction {
+		return VirtualCluster{}, ErrConflict
+	}
+	if action != "APPLY" && action != "INSPECT" {
+		return VirtualCluster{}, ErrValidation
+	}
+	if result.RecoveryRequired && result.Success {
+		return VirtualCluster{}, ErrValidation
+	}
+	result.ObservedDigest = strings.TrimSpace(result.ObservedDigest)
+	result.Phase = strings.TrimSpace(result.Phase)
+	result.Error = strings.TrimSpace(result.Error)
+
+	if !result.Success {
+		if result.RecoveryRequired {
+			v = markVirtualClusterRecovery(v, now, result.Error)
+		} else if action == "APPLY" {
+			v.State = virtualcluster.StateFailed
+			v.Phase = "ApplyFailed"
+			v.LastError = result.Error
+			if v.LastError == "" {
+				v.LastError = "virtual cluster apply failed before mutation convergence"
+			}
+			v.TaskLeaseExpiresAt = nil
+			v.TaskAction = ""
+			v.Revision++
+			v.UpdatedAt = now
+		} else {
+			v.State = virtualcluster.StateProvisioning
+			v.Phase = "InspectRetry"
+			v.LastError = result.Error
+			if v.LastError == "" {
+				v.LastError = "virtual cluster authoritative readback failed"
+			}
+			v.TaskLeaseExpiresAt = nil
+			v.TaskAction = "INSPECT"
+			v.Revision++
+			v.UpdatedAt = now
+		}
+	} else {
+		if result.ObservedDigest != v.DesiredDigest {
+			v = markVirtualClusterRecovery(v, now, "virtual cluster authoritative readback digest does not match desired state")
+		} else if result.Ready {
+			v.State = virtualcluster.StateActive
+			v.ObservedDigest = result.ObservedDigest
+			v.Phase = result.Phase
+			if v.Phase == "" {
+				v.Phase = "Ready"
+			}
+			v.PendingAction = ""
+			v.TaskAction = ""
+			v.TaskLeaseExpiresAt = nil
+			v.LastError = ""
+			v.Revision++
+			v.UpdatedAt = now
+		} else {
+			v.State = virtualcluster.StateProvisioning
+			v.ObservedDigest = result.ObservedDigest
+			v.Phase = result.Phase
+			if v.Phase == "" {
+				v.Phase = "Reconciling"
+			}
+			v.TaskAction = "INSPECT"
+			v.TaskLeaseExpiresAt = nil
+			v.LastError = ""
+			v.Revision++
+			v.UpdatedAt = now
+		}
+	}
+	s.virtualClusters[v.ID] = v
+	s.appendAuditLocked("cluster-agent", "virtual_cluster.task.reported", "virtualCluster", v.ID, v.Revision, map[string]any{"action": action, "success": result.Success, "ready": result.Ready, "recoveryRequired": result.RecoveryRequired, "taskFenceToken": result.TaskFenceToken})
+	s.appendOutboxLocked("virtualCluster", v.ID, "virtual_cluster.state.changed", v)
+	return cloneVirtualCluster(v), nil
 }

@@ -74,6 +74,8 @@ type Store interface {
 	CreateVirtualCluster(context.Context, VirtualClusterCreateRequest, string) (VirtualCluster, bool, error)
 	GetVirtualCluster(context.Context, string) (VirtualCluster, error)
 	ListVirtualClusters(context.Context, string, string) ([]VirtualCluster, error)
+	NextVirtualClusterTask(context.Context, string, string, string) (VirtualClusterTask, error)
+	ReportVirtualClusterTask(context.Context, string, string, int64, VirtualClusterTaskResult) (VirtualCluster, error)
 
 	CreateBlueprintRevision(context.Context, BlueprintRevision, string) (BlueprintRevision, error)
 	GetBlueprintRevision(context.Context, string) (BlueprintRevision, error)
