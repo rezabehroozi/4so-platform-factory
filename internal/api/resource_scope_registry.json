@@ -142,6 +142,12 @@
       "status": "OWNER_CLASSIFIED"
     },
     {
+      "evidence": "internal/api/edge_sovereign.go and internal/edgeauthority/authority.go; edge admission requires explicit ProjectID access and uses caller-supplied assessment data",
+      "family": "edge",
+      "scope": "PROJECT_SCOPED",
+      "status": "OWNER_CLASSIFIED"
+    },
+    {
       "evidence": "internal/api/external_integrations.go; admission accepts OrganizationID plus optional ProjectID, validates project-to-organization ownership when present, otherwise enforces organization access",
       "family": "external-registry",
       "scope": "DYNAMIC_SCOPED",
@@ -448,7 +454,7 @@
       "status": "OWNER_CLASSIFIED"
     }
   ],
-  "familyCount": 74,
+  "familyCount": 75,
   "ownerReviewRequiredCount": 0,
   "policy": {
     "inferenceAllowed": false,
