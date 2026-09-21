@@ -379,6 +379,19 @@
         "rationale": "All 5 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
       },
       {
+        "family": "edge",
+        "routeCount": 2,
+        "mutationCount": 2,
+        "callableRouteCount": 2,
+        "securityExcludedRouteCount": 0,
+        "disposition": "typed-tool-complete",
+        "toolNames": [
+          "api_post_edge_boot_attestations_assess",
+          "api_post_edge_local_ai_profiles_validate"
+        ],
+        "rationale": "All 2 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
+      },
+      {
         "family": "external-registry",
         "routeCount": 1,
         "mutationCount": 1,
