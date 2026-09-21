@@ -276,7 +276,8 @@ func LoadRuntimeExecutionSource(path string) (RuntimeSource, string, error) {
 	if err := decoder.Decode(&source); err != nil {
 		return RuntimeSource{}, "", fmt.Errorf("decode virtual cluster runtime source: %w", err)
 	}
-	if decoder.More() {
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
 		return RuntimeSource{}, "", errors.New("virtual cluster runtime source contains trailing JSON")
 	}
 	if err := ValidateRuntimeExecutionSource(source); err != nil {
