@@ -202,6 +202,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/reliability/service-health", s.reliabilityServiceHealth)
 	s.mux.HandleFunc("GET /api/v1/reliability/incidents", s.listReliabilityIncidents)
 	s.mux.HandleFunc("POST /api/v1/reliability/incidents", s.createReliabilityIncident)
+	s.mux.HandleFunc("POST /api/v1/edge/boot-attestations/assess", s.assessEdgeBootAttestation)
+	s.mux.HandleFunc("POST /api/v1/edge/local-ai/profiles/validate", s.validateEdgeLocalAIProfile)
 	s.mux.HandleFunc("GET /api/v1/reliability/incidents/{id}", s.getReliabilityIncident)
 	s.mux.HandleFunc("POST /api/v1/reliability/incidents/{id}/acknowledge", s.acknowledgeReliabilityIncident)
 	s.mux.HandleFunc("POST /api/v1/reliability/incidents/{id}/resolve", s.resolveReliabilityIncident)
