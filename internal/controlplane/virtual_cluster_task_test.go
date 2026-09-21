@@ -23,11 +23,13 @@ func claimedVirtualClusterFixture(t *testing.T) (*MemoryStore, ManagedCluster, s
 	imp := store.clusterImports[cluster.ImportID]
 	imp.AgentTokenDigest = agent
 	store.clusterImports[cluster.ImportID] = imp
-	cluster.LastSeenAt = &now
-	cluster.InventoryUpdatedAt = &now
-	cluster.InventoryObservedAt = &now
-	store.managedClusters[cluster.ID] = cluster
 	store.mu.Unlock()
+	cluster, _, err = upsertMutationReadyInventoryForTest(t, store, ctx, cluster.ID, agent, cluster.ExternalUID, ClusterInventory{
+		ObservedAt: now, Distribution: "rke2", KubernetesVersion: "v1.34.2",
+		Digest: digestTenantTest("vcluster-runtime-inventory"),
+		Capabilities: []string{TargetMutationRBACActiveCapability},
+	})
+	if err != nil { t.Fatal(err) }
 	created, _, err := store.CreateVirtualCluster(ctx, virtualClusterCreateRequest(workspace, binding), "owner")
 	if err != nil { t.Fatal(err) }
 	sourceDigest := "sha256:" + stringsRepeat("d", 64)
@@ -142,11 +144,13 @@ func TestVirtualClusterBindingRevisionMustRemainCurrentBeforeFirstClaim(t *testi
 	imp := store.clusterImports[cluster.ImportID]
 	imp.AgentTokenDigest = agent
 	store.clusterImports[cluster.ImportID] = imp
-	cluster.LastSeenAt = &now
-	cluster.InventoryUpdatedAt = &now
-	cluster.InventoryObservedAt = &now
-	store.managedClusters[cluster.ID] = cluster
 	store.mu.Unlock()
+	cluster, _, err = upsertMutationReadyInventoryForTest(t, store, ctx, cluster.ID, agent, cluster.ExternalUID, ClusterInventory{
+		ObservedAt: now, Distribution: "rke2", KubernetesVersion: "v1.34.2",
+		Digest: digestTenantTest("vcluster-binding-inventory"),
+		Capabilities: []string{TargetMutationRBACActiveCapability},
+	})
+	if err != nil { t.Fatal(err) }
 	created, _, err := store.CreateVirtualCluster(ctx, virtualClusterCreateRequest(workspace, binding), "owner")
 	if err != nil { t.Fatal(err) }
 	if _, err = store.RevokeWorkspaceBinding(ctx, binding.ID, binding.Revision, "owner"); err != nil { t.Fatal(err) }
