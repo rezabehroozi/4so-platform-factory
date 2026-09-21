@@ -14,6 +14,10 @@ const (
 	RuntimeSelectedVersion = "0.37.1"
 	RuntimeChartRepository = "https://charts.loft.sh"
 	RuntimeChartName = "vcluster"
+	RuntimeReleaseURL = "https://github.com/loft-sh/vcluster/releases/tag/v0.37.1"
+	RuntimeValuesPath = "runtime/virtualcluster/vcluster-oss-values.yaml"
+	RuntimeImageRegistry = "ghcr.io"
+	RuntimeImageRepository = "loft-sh/vcluster-oss"
 )
 
 type RuntimeSource struct {
@@ -22,6 +26,10 @@ type RuntimeSource struct {
 	Version              string   `json:"version"`
 	ChartRepository      string   `json:"chartRepository"`
 	ChartName            string   `json:"chartName"`
+	ReleaseURL           string   `json:"releaseUrl"`
+	ValuesPath           string   `json:"valuesPath"`
+	ImageRegistry        string   `json:"imageRegistry"`
+	ImageRepository      string   `json:"imageRepository"`
 	ChartSHA256          string   `json:"chartSha256,omitempty"`
 	ImageDigests         []string `json:"imageDigests,omitempty"`
 	Resolved             bool     `json:"resolved"`
@@ -46,6 +54,10 @@ func SelectedRuntimeSource() RuntimeSource {
 		Version: RuntimeSelectedVersion,
 		ChartRepository: RuntimeChartRepository,
 		ChartName: RuntimeChartName,
+		ReleaseURL: RuntimeReleaseURL,
+		ValuesPath: RuntimeValuesPath,
+		ImageRegistry: RuntimeImageRegistry,
+		ImageRepository: RuntimeImageRepository,
 		Resolved: false,
 		OfflineAcquisitionRequired: true,
 		PlatformDependency: false,
@@ -106,7 +118,9 @@ func ValidateRuntimeExecutionSource(source RuntimeSource) error {
 	if source.PlatformDependency {
 		return errors.New("vCluster Platform is not an admitted runtime dependency")
 	}
-	if source.Version != RuntimeSelectedVersion || source.ChartRepository != RuntimeChartRepository || source.ChartName != RuntimeChartName {
+	if source.Version != RuntimeSelectedVersion || source.ChartRepository != RuntimeChartRepository || source.ChartName != RuntimeChartName ||
+		source.ReleaseURL != RuntimeReleaseURL || source.ValuesPath != RuntimeValuesPath ||
+		source.ImageRegistry != RuntimeImageRegistry || source.ImageRepository != RuntimeImageRepository {
 		return errors.New("virtual cluster runtime source selection drift")
 	}
 	if !source.Resolved {

@@ -1,0 +1,29 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "VirtualClusterRuntimeSourceSelection",
+  "metadata": {
+    "name": "vcluster-oss"
+  },
+  "spec": {
+    "authority": "VIRTUAL_CLUSTER_RUNTIME_SOURCE_AUTHORITY_V1",
+    "engine": "vcluster-oss",
+    "version": "0.37.1",
+    "releaseUrl": "https://github.com/loft-sh/vcluster/releases/tag/v0.37.1",
+    "chart": {
+      "repository": "https://charts.loft.sh",
+      "name": "vcluster"
+    },
+    "valuesFile": "runtime/virtualcluster/vcluster-oss-values.yaml",
+    "requiredControlPlaneImage": {
+      "registry": "ghcr.io",
+      "repository": "loft-sh/vcluster-oss",
+      "tag": "0.37.1"
+    },
+    "platformDependencyAllowed": false,
+    "resolution": {
+      "resolved": false,
+      "chartSha256": "",
+      "imageDigests": []
+    }
+  }
+}

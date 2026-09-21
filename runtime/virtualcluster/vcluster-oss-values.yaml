@@ -1,0 +1,9 @@
+# Product-owned vCluster OSS runtime values.
+# The upstream vcluster chart defaults to loft-sh/vcluster-pro. 4SO explicitly
+# selects the pure OSS image and never relies on vCluster Platform licensing.
+controlPlane:
+  statefulSet:
+    image:
+      registry: ghcr.io
+      repository: loft-sh/vcluster-oss
+      tag: "0.37.1"
