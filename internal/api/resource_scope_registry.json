@@ -1,7 +1,7 @@
 {
   "authority": "RESOURCE_SCOPE_REGISTRY_V1",
   "classificationAuthority": "RESOURCE_SCOPE_OWNER_CLASSIFICATIONS_V1",
-  "classifiedCount": 74,
+  "classifiedCount": 75,
   "families": [
     {
       "evidence": "internal/api/server.go; effective scope is derived from the authenticated principal and server-side organization/project authorization",

@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 348,
-  "routeDigest": "sha256:6f8d54db7ed07bd26784aac0d57e0888859b759dc2338f2c76c0e66a862925d4",
+  "routeCount": 350,
+  "routeDigest": "sha256:214629c36d668a788e0afe2e1ea4c93b711dacad7c4bdae4ccee0c2cddaa0fb6",
   "routes": [
     {
       "family": "version",
@@ -61,6 +61,24 @@
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/reliability/incidents",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "edge",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/edge/boot-attestations/assess",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "edge",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/edge/local-ai/profiles/validate",
       "pathParams": [],
       "resourceScope": "PROJECT_SCOPED",
       "resourceScopeStatus": "OWNER_CLASSIFIED"

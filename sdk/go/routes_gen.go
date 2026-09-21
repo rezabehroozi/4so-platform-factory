@@ -2,8 +2,8 @@
 package factorysdk
 
 const ProductAPIContractAuthority = "PRODUCT_API_CONTRACT_AUTHORITY_V1"
-const ProductAPIContractDigest = "sha256:6f8d54db7ed07bd26784aac0d57e0888859b759dc2338f2c76c0e66a862925d4"
-const ProductAPIRouteCount = 348
+const ProductAPIContractDigest = "sha256:214629c36d668a788e0afe2e1ea4c93b711dacad7c4bdae4ccee0c2cddaa0fb6"
+const ProductAPIRouteCount = 350
 
 var Routes = []Route{
 	{Method: "GET", Path: "/api/v1/version", Family: "version", PathParams: nil, Mutation: false, ResourceScope: "PLATFORM_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
@@ -12,6 +12,8 @@ var Routes = []Route{
 	{Method: "GET", Path: "/api/v1/reliability/service-health", Family: "reliability", PathParams: nil, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/reliability/incidents", Family: "reliability", PathParams: nil, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/reliability/incidents", Family: "reliability", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/edge/boot-attestations/assess", Family: "edge", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/edge/local-ai/profiles/validate", Family: "edge", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/reliability/incidents/{id}", Family: "reliability", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/reliability/incidents/{id}/acknowledge", Family: "reliability", PathParams: []string{"id"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/reliability/incidents/{id}/resolve", Family: "reliability", PathParams: []string{"id"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
