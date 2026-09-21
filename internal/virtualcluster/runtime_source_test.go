@@ -37,6 +37,7 @@ func TestResolveRuntimeSourceRequiresExactChartAndImageDigests(t *testing.T) {
 		RenderManifestSHA256: runtimeDigest("e"),
 		ImageReferences: []string{"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("c"), "registry.k8s.io/pause@" + runtimeDigest("b")},
 		ChartArtifactPath: "runtime/virtualcluster/chart/vcluster-0.37.1.tgz",
+		ExecutorImageReference: "zot.internal/platform/virtual-cluster-runtime@" + runtimeDigest("f"),
 		MirrorReady: true,
 		MirrorImageReferences: []string{"zot.internal/mirror/vcluster-oss@" + runtimeDigest("c"), "zot.internal/mirror/pause@" + runtimeDigest("b")},
 	})
@@ -62,6 +63,7 @@ func TestRuntimeSourceFailsClosedOnVersionIdentityAndDigestDrift(t *testing.T) {
 		RenderManifestSHA256: runtimeDigest("e"),
 		ImageReferences: []string{"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("b")},
 		ChartArtifactPath: "runtime/virtualcluster/chart/vcluster-0.37.1.tgz",
+		ExecutorImageReference: "zot.internal/platform/virtual-cluster-runtime@" + runtimeDigest("f"),
 		MirrorReady: true,
 		MirrorImageReferences: []string{"zot.internal/mirror/vcluster-oss@" + runtimeDigest("b")},
 	}
@@ -89,6 +91,7 @@ func TestRuntimeExecutionRejectsPlatformDependencyAndDuplicateInventory(t *testi
 		RenderManifestSHA256: runtimeDigest("e"),
 		ImageReferences: []string{"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("b")},
 		ChartArtifactPath: "runtime/virtualcluster/chart/vcluster-0.37.1.tgz",
+		ExecutorImageReference: "zot.internal/platform/virtual-cluster-runtime@" + runtimeDigest("f"),
 		MirrorReady: true,
 		MirrorImageReferences: []string{"zot.internal/mirror/vcluster-oss@" + runtimeDigest("b")},
 	})
@@ -124,6 +127,7 @@ func TestRuntimeSourceRejectsProImageOrUnownedValuesDrift(t *testing.T) {
 		RenderManifestSHA256: runtimeDigest("e"),
 		ImageReferences: []string{"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("b")},
 		ChartArtifactPath: "runtime/virtualcluster/chart/vcluster-0.37.1.tgz",
+		ExecutorImageReference: "zot.internal/platform/virtual-cluster-runtime@" + runtimeDigest("f"),
 		MirrorReady: true,
 		MirrorImageReferences: []string{"zot.internal/mirror/vcluster-oss@" + runtimeDigest("b")},
 	})
@@ -143,6 +147,32 @@ func TestRuntimeSourceRejectsProImageOrUnownedValuesDrift(t *testing.T) {
 }
 
 
+func TestRuntimeExecutionRequiresExactExecutorImage(t *testing.T) {
+	base := RuntimeSourceResolution{
+		Version: RuntimeSelectedVersion,
+		ChartRepository: RuntimeChartRepository,
+		ChartName: RuntimeChartName,
+		ChartSHA256: runtimeDigest("a"),
+		ValuesSHA256: runtimeDigest("d"),
+		RenderManifestSHA256: runtimeDigest("e"),
+		ImageReferences: []string{"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("b")},
+		ChartArtifactPath: "runtime/virtualcluster/chart/vcluster-0.37.1.tgz",
+		MirrorReady: true,
+		MirrorImageReferences: []string{"zot.internal/mirror/vcluster-oss@" + runtimeDigest("b")},
+	}
+	for _, ref := range []string{"", "zot.internal/platform/virtual-cluster-runtime:latest", "zot.internal/platform/other@" + runtimeDigest("f")} {
+		candidate := base
+		candidate.ExecutorImageReference = ref
+		if _, err := ResolveRuntimeSource(candidate); err == nil {
+			t.Fatalf("unsafe executor image %q was admitted", ref)
+		}
+	}
+	base.ExecutorImageReference = "zot.internal/platform/virtual-cluster-runtime@" + runtimeDigest("f")
+	if _, err := ResolveRuntimeSource(base); err != nil {
+		t.Fatalf("exact executor image rejected: %v", err)
+	}
+}
+
 func TestRuntimeSourceMirrorDigestSetMustMatchAcquiredImages(t *testing.T) {
 	_, err := ResolveRuntimeSource(RuntimeSourceResolution{
 		Version: RuntimeSelectedVersion,
@@ -153,6 +183,7 @@ func TestRuntimeSourceMirrorDigestSetMustMatchAcquiredImages(t *testing.T) {
 		RenderManifestSHA256: runtimeDigest("e"),
 		ImageReferences: []string{"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("b")},
 		ChartArtifactPath: "runtime/virtualcluster/chart/vcluster-0.37.1.tgz",
+		ExecutorImageReference: "zot.internal/platform/virtual-cluster-runtime@" + runtimeDigest("f"),
 		MirrorReady: true,
 		MirrorImageReferences: []string{"zot.internal/mirror/vcluster-oss@" + runtimeDigest("c")},
 	})
@@ -173,6 +204,7 @@ func resolvedRuntimeSourceForTest(t *testing.T) RuntimeSource {
 		RenderManifestSHA256: runtimeDigest("e"),
 		ImageReferences: []string{"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("b")},
 		ChartArtifactPath: "runtime/virtualcluster/chart/vcluster-0.37.1.tgz",
+		ExecutorImageReference: "zot.internal/platform/virtual-cluster-runtime@" + runtimeDigest("f"),
 		MirrorReady: true,
 		MirrorImageReferences: []string{"zot.internal/mirror/vcluster-oss@" + runtimeDigest("b")},
 	})
