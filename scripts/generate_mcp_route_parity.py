@@ -28,6 +28,7 @@ EXCLUDED_EXACT={
 }
 READLIKE_POST={
  '/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/validate','/api/v1/compatibility/evaluate','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/blueprint-releases/compare','/api/v1/installations/plans','/api/v1/notification-routing/preview','/api/v1/external-registry/admission','/api/v1/runtime-closure-reports/verify',
+ '/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate',
 }
 ADMIN_MARKERS=(
  '/finops/rate-cards','/finops/budget-policies', '/identity/saml-brokers','/identity/group-mappings','/identity/admin-jobs/','/compliance/profiles','/compliance/waivers','/catalog-trust-keys','/catalog-releases','/blueprint-releases','/git-providers','/organizations','/service-accounts','/notification-destinations','/notification-routes','/recovery-checkpoints','/backup-policies','/restore-runs/{id}/approve','/upgrade-campaigns/{id}/approve','/upgrade-campaigns/{id}/cancel','/clusters/{id}/revoke','/clusters/{id}/agent-certificates','/cluster-imports/{id}/approve','/cluster-imports/{id}/revoke','/baseline-deployments/{id}/approve','/baseline-deployments/{id}/rollback','/runtime-certifications/{id}/revoke','/tenants/{id}/approve','/tenants/{id}/delete','/provider-profiles','/provider-clusters/{id}/approve','/provider-clusters/{id}/delete','/marketplace/installations/{id}/approve','/marketplace/installations/{id}/uninstall',
