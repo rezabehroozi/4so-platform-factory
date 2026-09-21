@@ -74,7 +74,8 @@ func TestVirtualClusterTaskProcessorIsInSingleWriterLane(t *testing.T) {
 func TestVirtualClusterExecutorJobIsFencedAndExact(t *testing.T) {
 	source := virtualClusterRuntimeSourceFixture(t)
 	task := virtualClusterTaskFixture(t, source, "APPLY")
-	job := virtualClusterExecutorJob(task, source, "4so-platform-agent", "agent-sa")
+	job, err := virtualClusterExecutorJob(task, source, "4so-platform-agent", "agent-sa")
+	if err != nil { t.Fatal(err) }
 	if err := virtualClusterExecutorJobOwnership(job, task, source, "4so-platform-agent"); err != nil { t.Fatal(err) }
 	spec := job["spec"].(map[string]any)
 	template := spec["template"].(map[string]any)
@@ -85,12 +86,25 @@ func TestVirtualClusterExecutorJobIsFencedAndExact(t *testing.T) {
 	parts := make([]string, len(args))
 	for i := range args { parts[i] = args[i].(string) }
 	command := strings.Join(parts, " ")
-	for _, want := range []string{"upgrade --install", "/runtime/vcluster.tgz", "--namespace team-a", "--values /runtime/execution-values.yaml", "--atomic", "--wait"} {
+	for _, want := range []string{"upgrade --install", "/runtime/vcluster.tgz", "--namespace team-a", "--values /runtime/execution-values.yaml", "--post-renderer /usr/local/bin/4so-vcluster-post-renderer", "virtual-cluster-key=", "desired-digest=sha256:", "--atomic", "--wait"} {
 		if !strings.Contains(command, want) { t.Fatalf("executor command missing %q: %s", want, command) }
 	}
 	if strings.Contains(command, "charts.loft.sh") || strings.Contains(command, "http://") || strings.Contains(command, "https://") {
 		t.Fatalf("executor command depends on external network: %s", command)
 	}
+	env := container["env"].([]any)
+	foundMap := false
+	for _, raw := range env {
+		row := raw.(map[string]any)
+		if row["name"] == "FOURSO_VIRTUAL_CLUSTER_IMAGE_MAP_JSON" {
+			value := fmt.Sprint(row["value"])
+			if !strings.Contains(value, "zot.internal/mirror/vcluster-oss@sha256:") {
+				t.Fatalf("exact mirror map missing from executor env: %s", value)
+			}
+			foundMap = true
+		}
+	}
+	if !foundMap { t.Fatal("executor image mirror map env missing") }
 }
 
 func TestVirtualClusterApplyCreatesJobThenReportsReconciling(t *testing.T) {
@@ -105,7 +119,8 @@ func TestVirtualClusterApplyCreatesJobThenReportsReconciling(t *testing.T) {
 			if gets == 1 {
 				return &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found", Body: io.NopCloser(bytes.NewReader(nil)), Header: make(http.Header)}, nil
 			}
-			job := virtualClusterExecutorJob(task, source, "4so-platform-agent", "4so-platform-agent-test")
+			job, jobErr := virtualClusterExecutorJob(task, source, "4so-platform-agent", "4so-platform-agent-test")
+			if jobErr != nil { t.Fatal(jobErr) }
 			job["status"] = map[string]any{"active": float64(1)}
 			raw, _ := json.Marshal(job)
 			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(raw)), Header: make(http.Header)}, nil
@@ -129,10 +144,33 @@ func TestVirtualClusterApplyCreatesJobThenReportsReconciling(t *testing.T) {
 func TestVirtualClusterInspectOnlyPromotesCompletedOwnedJob(t *testing.T) {
 	source := virtualClusterRuntimeSourceFixture(t)
 	task := virtualClusterTaskFixture(t, source, "INSPECT")
-	job := virtualClusterExecutorJob(task, source, "4so-platform-agent", "4so-platform-agent-test")
+	job, jobErr := virtualClusterExecutorJob(task, source, "4so-platform-agent", "4so-platform-agent-test")
+	if jobErr != nil { t.Fatal(jobErr) }
 	job["status"] = map[string]any{"conditions": []any{map[string]any{"type": "Complete", "status": "True"}}}
 	raw, _ := json.Marshal(job)
 	a := virtualClusterAgentForKubeTest(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if strings.Contains(r.URL.Path, "/statefulsets") {
+			sts := map[string]any{
+				"items": []any{map[string]any{
+					"metadata": map[string]any{
+						"generation": float64(3),
+						"annotations": map[string]any{
+							"platform.4so.io/virtual-cluster-id": task.VirtualClusterID,
+							"platform.4so.io/desired-digest": task.DesiredDigest,
+						},
+					},
+					"spec": map[string]any{
+						"replicas": float64(1),
+						"template": map[string]any{"spec": map[string]any{"containers": []any{
+							map[string]any{"name": "vcluster", "image": source.MirrorImageReferences[0]},
+						}}},
+					},
+					"status": map[string]any{"readyReplicas": float64(1), "updatedReplicas": float64(1), "observedGeneration": float64(3)},
+				}},
+			}
+			stsRaw, _ := json.Marshal(sts)
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(stsRaw)), Header: make(http.Header)}, nil
+		}
 		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(raw)), Header: make(http.Header)}, nil
 	}))
 	result := a.executeVirtualClusterTask(context.Background(), virtualClusterTaskEnvelope{Task: task, RuntimeSource: source})
@@ -144,7 +182,8 @@ func TestVirtualClusterInspectOnlyPromotesCompletedOwnedJob(t *testing.T) {
 func TestVirtualClusterExecutorOwnershipMismatchFailsRecoveryClosed(t *testing.T) {
 	source := virtualClusterRuntimeSourceFixture(t)
 	task := virtualClusterTaskFixture(t, source, "INSPECT")
-	job := virtualClusterExecutorJob(task, source, "4so-platform-agent", "4so-platform-agent-test")
+	job, jobErr := virtualClusterExecutorJob(task, source, "4so-platform-agent", "4so-platform-agent-test")
+	if jobErr != nil { t.Fatal(jobErr) }
 	meta := job["metadata"].(map[string]any)
 	meta["annotations"].(map[string]any)["platform.4so.io/desired-digest"] = "sha256:" + strings.Repeat("0", 64)
 	raw, _ := json.Marshal(job)
@@ -168,4 +207,38 @@ func TestVirtualClusterSourceDigestMismatchDoesNotTouchKubernetes(t *testing.T) 
 	}))
 	result := a.executeVirtualClusterTask(context.Background(), virtualClusterTaskEnvelope{Task: task, RuntimeSource: source})
 	if result.Success || !result.RecoveryRequired || calls != 0 { t.Fatalf("result=%#v calls=%d", result, calls) }
+}
+
+
+func TestVirtualClusterCompletedExecutorRequiresExactWorkloadReadback(t *testing.T) {
+	source := virtualClusterRuntimeSourceFixture(t)
+	task := virtualClusterTaskFixture(t, source, "INSPECT")
+	job, err := virtualClusterExecutorJob(task, source, "4so-platform-agent", "4so-platform-agent-test")
+	if err != nil { t.Fatal(err) }
+	job["status"] = map[string]any{"conditions": []any{map[string]any{"type": "Complete", "status": "True"}}}
+	jobRaw, _ := json.Marshal(job)
+	a := virtualClusterAgentForKubeTest(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if strings.Contains(r.URL.Path, "/statefulsets") {
+			sts := map[string]any{"items": []any{map[string]any{
+				"metadata": map[string]any{
+					"generation": float64(1),
+					"annotations": map[string]any{
+						"platform.4so.io/virtual-cluster-id": task.VirtualClusterID,
+						"platform.4so.io/desired-digest": task.DesiredDigest,
+					},
+				},
+				"spec": map[string]any{"replicas": float64(1), "template": map[string]any{"spec": map[string]any{"containers": []any{
+					map[string]any{"name": "vcluster", "image": "ghcr.io/loft-sh/vcluster-oss:0.37.1"},
+				}}}},
+				"status": map[string]any{"readyReplicas": float64(1), "updatedReplicas": float64(1), "observedGeneration": float64(1)},
+			}}}
+			raw, _ := json.Marshal(sts)
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(raw)), Header: make(http.Header)}, nil
+		}
+		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(jobRaw)), Header: make(http.Header)}, nil
+	}))
+	result := a.executeVirtualClusterTask(context.Background(), virtualClusterTaskEnvelope{Task: task, RuntimeSource: source})
+	if result.Success || !result.RecoveryRequired || result.ObservedDigest != "" || !strings.Contains(result.Error, "outside exact mirror authority") {
+		t.Fatalf("mutable/unmirrored workload was promoted ready: %#v", result)
+	}
 }

@@ -79,7 +79,20 @@ func validateVirtualClusterTask(task controlplane.VirtualClusterTask, source vir
 	return nil
 }
 
-func virtualClusterExecutorJob(task controlplane.VirtualClusterTask, source virtualcluster.RuntimeSource, agentNamespace, serviceAccount string) map[string]any {
+func virtualClusterOwnershipKey(id string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(id)))
+	return hex.EncodeToString(sum[:8])
+}
+
+func virtualClusterExecutorJob(task controlplane.VirtualClusterTask, source virtualcluster.RuntimeSource, agentNamespace, serviceAccount string) (map[string]any, error) {
+	mirrorMap, err := virtualcluster.RuntimeImageMirrorMap(source)
+	if err != nil {
+		return nil, err
+	}
+	mirrorRaw, err := json.Marshal(mirrorMap)
+	if err != nil {
+		return nil, err
+	}
 	annotations := map[string]any{
 		"platform.4so.io/authority":                  virtualClusterExecutorAuthority,
 		"platform.4so.io/virtual-cluster-id":         task.VirtualClusterID,
@@ -91,6 +104,7 @@ func virtualClusterExecutorJob(task controlplane.VirtualClusterTask, source virt
 		"platform.4so.io/host-namespace":             task.HostNamespace,
 	}
 	labels := map[string]any{virtualClusterExecutorJobLabel: "true", "platform.4so.io/managed": "true"}
+	ownershipKey := virtualClusterOwnershipKey(task.VirtualClusterID)
 	return map[string]any{
 		"apiVersion": "batch/v1", "kind": "Job",
 		"metadata": map[string]any{
@@ -109,9 +123,14 @@ func virtualClusterExecutorJob(task controlplane.VirtualClusterTask, source virt
 						"args": []any{
 							"upgrade", "--install", virtualClusterReleaseName(task.VirtualClusterID), "/runtime/vcluster.tgz",
 							"--namespace", task.HostNamespace, "--values", "/runtime/execution-values.yaml",
+							"--post-renderer", "/usr/local/bin/4so-vcluster-post-renderer",
+							"--set-string", "controlPlane.statefulSet.labels.platform\\.4so\\.io/virtual-cluster-key=" + ownershipKey,
+							"--set-string", "controlPlane.statefulSet.annotations.platform\\.4so\\.io/virtual-cluster-id=" + task.VirtualClusterID,
+							"--set-string", "controlPlane.statefulSet.annotations.platform\\.4so\\.io/desired-digest=" + task.DesiredDigest,
 							"--atomic", "--wait", "--timeout", "10m",
 						},
 						"env": []any{
+							map[string]any{"name": "FOURSO_VIRTUAL_CLUSTER_IMAGE_MAP_JSON", "value": string(mirrorRaw)},
 							map[string]any{"name": "FOURSO_VIRTUAL_CLUSTER_ID", "value": task.VirtualClusterID},
 							map[string]any{"name": "FOURSO_VIRTUAL_CLUSTER_DESIRED_DIGEST", "value": task.DesiredDigest},
 							map[string]any{"name": "FOURSO_VIRTUAL_CLUSTER_RUNTIME_SOURCE_DIGEST", "value": task.RuntimeSourceDigest},
@@ -136,7 +155,7 @@ func virtualClusterExecutorJob(task controlplane.VirtualClusterTask, source virt
 				},
 			},
 		},
-	}
+	}, nil
 }
 
 func virtualClusterExecutorJobOwnership(job map[string]any, task controlplane.VirtualClusterTask, source virtualcluster.RuntimeSource, agentNamespace string) error {
@@ -176,6 +195,74 @@ func virtualClusterExecutorJobOwnership(job map[string]any, task controlplane.Vi
 		return fmt.Errorf("virtual cluster executor Job image does not match exact runtime source")
 	}
 	return nil
+}
+
+func virtualClusterRuntimeStatefulSetListPath(task controlplane.VirtualClusterTask) string {
+	selector := "platform.4so.io/virtual-cluster-key=" + virtualClusterOwnershipKey(task.VirtualClusterID)
+	return "/apis/apps/v1/namespaces/" + url.PathEscape(task.HostNamespace) + "/statefulsets?labelSelector=" + url.QueryEscape(selector)
+}
+
+func workloadImages(object map[string]any) []string {
+	spec, _ := object["spec"].(map[string]any)
+	template, _ := spec["template"].(map[string]any)
+	podSpec, _ := template["spec"].(map[string]any)
+	var out []string
+	for _, field := range []string{"initContainers", "containers"} {
+		rows, _ := podSpec[field].([]any)
+		for _, raw := range rows {
+			container, _ := raw.(map[string]any)
+			image := strings.TrimSpace(fmt.Sprint(container["image"]))
+			if image != "" {
+				out = append(out, image)
+			}
+		}
+	}
+	return out
+}
+
+func (a *agent) inspectVirtualClusterRuntimeWorkload(ctx context.Context, task controlplane.VirtualClusterTask, source virtualcluster.RuntimeSource) (bool, string, error) {
+	var list map[string]any
+	if err := a.kubeJSON(ctx, http.MethodGet, virtualClusterRuntimeStatefulSetListPath(task), nil, &list); err != nil {
+		return false, "", fmt.Errorf("read virtual cluster StatefulSet: %w", err)
+	}
+	items, _ := list["items"].([]any)
+	if len(items) != 1 {
+		return false, "", fmt.Errorf("virtual cluster authoritative StatefulSet count is %d, expected 1", len(items))
+	}
+	statefulSet, _ := items[0].(map[string]any)
+	metadata, _ := statefulSet["metadata"].(map[string]any)
+	annotations, _ := metadata["annotations"].(map[string]any)
+	if strings.TrimSpace(fmt.Sprint(annotations["platform.4so.io/virtual-cluster-id"])) != task.VirtualClusterID ||
+		strings.TrimSpace(fmt.Sprint(annotations["platform.4so.io/desired-digest"])) != task.DesiredDigest {
+		return false, "", fmt.Errorf("virtual cluster StatefulSet ownership/digest annotation mismatch")
+	}
+	allowed := map[string]bool{}
+	for _, ref := range source.MirrorImageReferences {
+		allowed[ref] = true
+	}
+	images := workloadImages(statefulSet)
+	if len(images) == 0 {
+		return false, "", fmt.Errorf("virtual cluster StatefulSet has no container image")
+	}
+	for _, image := range images {
+		if !allowed[image] {
+			return false, "", fmt.Errorf("virtual cluster StatefulSet image is outside exact mirror authority: %s", image)
+		}
+	}
+	spec, _ := statefulSet["spec"].(map[string]any)
+	status, _ := statefulSet["status"].(map[string]any)
+	replicas := int64(1)
+	if raw, ok := spec["replicas"].(float64); ok && raw >= 0 {
+		replicas = int64(raw)
+	}
+	readyReplicas, _ := status["readyReplicas"].(float64)
+	updatedReplicas, _ := status["updatedReplicas"].(float64)
+	generation, _ := metadata["generation"].(float64)
+	observedGeneration, _ := status["observedGeneration"].(float64)
+	if int64(readyReplicas) < replicas || int64(updatedReplicas) < replicas || observedGeneration < generation {
+		return false, "WorkloadReconciling", nil
+	}
+	return true, "Ready", nil
 }
 
 func virtualClusterExecutorJobState(job map[string]any) (ready bool, failed bool, phase string) {
@@ -270,7 +357,13 @@ func (a *agent) applyVirtualClusterExecutorJob(ctx context.Context, task control
 		return result
 	}
 	collection := "/apis/batch/v1/namespaces/" + url.PathEscape(a.cfg.Namespace) + "/jobs"
-	_, conflict, createErr := a.createKubeObject(ctx, collection, virtualClusterExecutorJob(task, source, a.cfg.Namespace, a.cfg.ServiceAccount))
+	jobObject, jobErr := virtualClusterExecutorJob(task, source, a.cfg.Namespace, a.cfg.ServiceAccount)
+	if jobErr != nil {
+		result.RecoveryRequired = true
+		result.Error = "virtual cluster executor Job construction failed: " + jobErr.Error()
+		return result
+	}
+	_, conflict, createErr := a.createKubeObject(ctx, collection, jobObject)
 	if createErr != nil {
 		current, found, readErr := a.getKubeObject(ctx, path)
 		if readErr != nil || !found {
