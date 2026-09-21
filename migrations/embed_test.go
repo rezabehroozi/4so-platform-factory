@@ -153,7 +153,7 @@ func TestMigrationMixedVersionCompatibilityIsExplicit(t *testing.T) {
 			t.Fatalf("migration %d has invalid compatibility class %q", migration.Version, migration.Compatibility)
 		}
 	}
-	for _, version := range []int64{21, 27, 47, 50, 60, 61, 64} {
+	for _, version := range []int64{21, 27, 47, 50, 60, 61, 64, 79} {
 		if !unsafe[version] {
 			t.Fatalf("migration %d mixed-version hazard was not classified as quiesced-required", version)
 		}
@@ -387,6 +387,31 @@ func TestFinOpsBudgetPolicyMigrationMakesOrganizationLevelIdentityUnique(t *test
 	} {
 		if !strings.Contains(m.SQL, term) {
 			t.Fatalf("migration 73 missing %q", term)
+		}
+	}
+}
+
+
+func TestVirtualClusterRuntimeTaskMigrationRequiresQuiescedWriters(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) < 79 {
+		t.Fatalf("expected migration 79, got %d migrations", len(all))
+	}
+	m := all[78]
+	if m.Version != 79 || m.Compatibility != CompatibilityQuiescedRequired {
+		t.Fatalf("migration 79 compatibility mismatch: %#v", m)
+	}
+	for _, term := range []string{
+		"workspace_binding_revision",
+		"virtual_clusters_binding_revision_positive",
+		"task_fence_token",
+		"task_lease_expires_at",
+	} {
+		if !strings.Contains(m.SQL, term) {
+			t.Fatalf("migration 79 missing runtime task fence %q", term)
 		}
 	}
 }

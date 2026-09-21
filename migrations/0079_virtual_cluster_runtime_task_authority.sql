@@ -1,3 +1,7 @@
+-- VIRTUAL_CLUSTER_RUNTIME_TASK_AUTHORITY_V1
+-- QUIESCED_REQUIRED: the exact WorkspaceBinding revision becomes a mandatory
+-- runtime mutation fence. Old writers cannot populate this authority and must
+-- be stopped while this semantic boundary is crossed.
 BEGIN;
 
 ALTER TABLE virtual_clusters
