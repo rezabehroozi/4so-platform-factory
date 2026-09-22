@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	authority = "VIRTUAL_CLUSTER_IMAGE_POST_RENDER_AUTHORITY_V1"
+	authority     = "VIRTUAL_CLUSTER_IMAGE_POST_RENDER_AUTHORITY_V1"
 	maxInputBytes = 32 * 1024 * 1024
 )
 
-var imageLine = regexp.MustCompile(`^(\s*image:\s*)(["']?)([^"'\s#]+)(["']?)(\s*(?:#.*)?)$`)
+var imageLine = regexp.MustCompile(`^(\\s*(?:-\\s*)?image:\\s*)(["']?)([^"'\\s#]+)(["']?)(\\s*(?:#.*)?)$`)
 
 func imageRepository(ref string) string {
 	ref = strings.TrimSpace(ref)
