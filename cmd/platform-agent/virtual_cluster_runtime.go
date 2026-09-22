@@ -202,7 +202,7 @@ func virtualClusterRuntimeStatefulSetListPath(task controlplane.VirtualClusterTa
 	return "/apis/apps/v1/namespaces/" + url.PathEscape(task.HostNamespace) + "/statefulsets?labelSelector=" + url.QueryEscape(selector)
 }
 
-func workloadImages(object map[string]any) []string {
+func virtualClusterWorkloadImages(object map[string]any) []string {
 	spec, _ := object["spec"].(map[string]any)
 	template, _ := spec["template"].(map[string]any)
 	podSpec, _ := template["spec"].(map[string]any)
@@ -240,7 +240,7 @@ func (a *agent) inspectVirtualClusterRuntimeWorkload(ctx context.Context, task c
 	for _, ref := range source.MirrorImageReferences {
 		allowed[ref] = true
 	}
-	images := workloadImages(statefulSet)
+	images := virtualClusterWorkloadImages(statefulSet)
 	if len(images) == 0 {
 		return false, "", fmt.Errorf("virtual cluster StatefulSet has no container image")
 	}
@@ -323,15 +323,28 @@ func (a *agent) inspectVirtualClusterExecutorJob(ctx context.Context, task contr
 		return result
 	}
 	ready, failed, phase := virtualClusterExecutorJobState(job)
-	result.ObservedDigest = task.DesiredDigest
 	result.Phase = phase
 	if failed {
 		result.RecoveryRequired = true
 		result.Error = "virtual cluster executor Job failed after mutation dispatch"
 		return result
 	}
+	if !ready {
+		result.Success = true
+		result.ObservedDigest = task.DesiredDigest
+		return result
+	}
+	workloadReady, workloadPhase, workloadErr := a.inspectVirtualClusterRuntimeWorkload(ctx, task, source)
+	if workloadErr != nil {
+		result.RecoveryRequired = true
+		result.Phase = "WorkloadReadbackFailed"
+		result.Error = "virtual cluster runtime authoritative readback failed: " + workloadErr.Error()
+		return result
+	}
 	result.Success = true
-	result.Ready = ready
+	result.Ready = workloadReady
+	result.ObservedDigest = task.DesiredDigest
+	result.Phase = workloadPhase
 	return result
 }
 

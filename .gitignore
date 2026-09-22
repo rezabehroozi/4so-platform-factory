@@ -22,3 +22,5 @@ __pycache__/
 /ARTIFACT-MANIFEST.json
 /BUILD-PROVENANCE.json
 /SBOM.spdx.json
+
+/.local-dev/

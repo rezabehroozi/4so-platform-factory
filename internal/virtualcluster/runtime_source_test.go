@@ -266,7 +266,7 @@ func TestRuntimeSourceDigestChangesWithMirrorAuthority(t *testing.T) {
 
 
 func TestRuntimeImageMirrorMapBindsRepositoryToExactDigestEquivalentMirror(t *testing.T) {
-	source := runtimeSourceFixture()
+	source := resolvedRuntimeSourceForTest(t)
 	source.ImageReferences = []string{
 		"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("a"),
 		"registry.k8s.io/pause@" + runtimeDigest("b"),
@@ -289,7 +289,7 @@ func TestRuntimeImageMirrorMapBindsRepositoryToExactDigestEquivalentMirror(t *te
 }
 
 func TestRuntimeImageMirrorMapRejectsRepositoryDigestAmbiguity(t *testing.T) {
-	source := runtimeSourceFixture()
+	source := resolvedRuntimeSourceForTest(t)
 	source.ImageReferences = []string{
 		"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("a"),
 		"ghcr.io/loft-sh/vcluster-oss@" + runtimeDigest("b"),
