@@ -51,7 +51,7 @@ func TestOpenChoreoReferencePhaseIsExpansionOnlyAndDoesNotBlockCoreFreeze(t *tes
 	if phase.ID == "" || phase.RequiredForFeatureFreeze || phase.DeliveryTier != ProgramTierExpansion || phase.Status != ProgramStatusBlocked || phase.SourceStatus != ProgramSourceStatusOpen {
 		t.Fatalf("J8 phase boundary invalid: %#v", phase)
 	}
-	for _, blocker := range []string{"WORKLOAD_TYPE_TRAIT_COMPOSITION_PENDING", "MANAGED_RESOURCE_TYPE_OUTPUT_REFERENCE_PENDING", "WORKSPACE_PROFILE_RELEASE_BINDING_PENDING", "FLEET_AGENT_GATEWAY_SESSION_HARDENING_PENDING", "DELIVERY_INSIGHTS_PROJECTION_PENDING", "OPTIONAL_OPENCHOREO_TARGET_ADAPTER_PENDING"} {
+	for _, blocker := range []string{"WORKLOAD_TYPE_TRAIT_PERSISTENCE_API_PENDING", "MANAGED_RESOURCE_TYPE_PERSISTENCE_API_PENDING", "WORKSPACE_PROFILE_RELEASE_BINDING_PERSISTENCE_API_PENDING", "FLEET_AGENT_GATEWAY_SESSION_HARDENING_PENDING", "DELIVERY_INSIGHTS_PROJECTION_PENDING", "OPTIONAL_OPENCHOREO_TARGET_ADAPTER_PENDING"} {
 		if !containsString(phase.Blockers, blocker) {
 			t.Fatalf("J8 blocker %s missing: %#v", blocker, phase)
 		}

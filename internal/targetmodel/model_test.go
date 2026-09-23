@@ -146,7 +146,7 @@ func TestManagementPlaneStorageAuthorityMatchesAcquisitionSourceLock(t *testing.
 
 func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.T) {
 	roadmap := ArchitectureModel().ProgramRoadmap
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V71" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V72" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
 		t.Fatalf("unexpected roadmap authority: %#v", roadmap)
 	}
 	if len(roadmap.Phases) != 40 {
@@ -192,7 +192,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	r0 := byID["R0-release-authority-certification-rebaseline"]
-	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V71", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
+	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V72", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
 		if !containsString(r0.Evidence, evidence) {
 			t.Fatalf("R0 evidence %q missing: %#v", evidence, r0)
 		}
@@ -472,7 +472,7 @@ func TestProgramProgressUnknownBlockerReopensSourceClosure(t *testing.T) {
 
 func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.T) {
 	roadmap := ProgramRoadmapModel()
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V71" {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V72" {
 		t.Fatalf("authority=%s", roadmap.Authority)
 	}
 	byID := map[string]ProgramPhase{}
@@ -523,7 +523,7 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusOpen || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) {
 		t.Fatalf("application-platform composition phase drift: %+v", j8)
 	}
-	for _, blocker := range []string{"WORKLOAD_TYPE_TRAIT_COMPOSITION_PENDING", "MANAGED_RESOURCE_TYPE_OUTPUT_REFERENCE_PENDING", "WORKSPACE_PROFILE_RELEASE_BINDING_PENDING", "FLEET_AGENT_GATEWAY_SESSION_HARDENING_PENDING", "DELIVERY_INSIGHTS_PROJECTION_PENDING", "OPTIONAL_OPENCHOREO_TARGET_ADAPTER_PENDING"} {
+	for _, blocker := range []string{"WORKLOAD_TYPE_TRAIT_PERSISTENCE_API_PENDING", "MANAGED_RESOURCE_TYPE_PERSISTENCE_API_PENDING", "WORKSPACE_PROFILE_RELEASE_BINDING_PERSISTENCE_API_PENDING", "FLEET_AGENT_GATEWAY_SESSION_HARDENING_PENDING", "DELIVERY_INSIGHTS_PROJECTION_PENDING", "OPTIONAL_OPENCHOREO_TARGET_ADAPTER_PENDING"} {
 		if !containsString(j8.Blockers, blocker) {
 			t.Fatalf("J8 blocker missing %s: %+v", blocker, j8)
 		}
