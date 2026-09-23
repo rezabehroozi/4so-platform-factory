@@ -299,3 +299,28 @@ func (s *MemoryStore) ListAuditPageByScopes(_ context.Context, organizationIDs, 
 	}
 	return out, nil
 }
+
+
+func (s *MemoryStore) ListAuditPageByResource(_ context.Context, resourceType, resourceID string, limit int) ([]AuditEvent, error) {
+	resourceType = strings.TrimSpace(resourceType)
+	resourceID = strings.TrimSpace(resourceID)
+	if resourceType == "" || resourceID == "" {
+		return []AuditEvent{}, ErrValidation
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]AuditEvent, 0, limit)
+	for _, event := range s.audit {
+		if event.ResourceType == resourceType && event.ResourceID == resourceID {
+			out = append(out, event)
+		}
+	}
+	auditNewestFirst(out)
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
