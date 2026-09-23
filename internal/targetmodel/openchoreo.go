@@ -278,3 +278,53 @@ func ValidateOpenChoreoAdoption(model OpenChoreoAdoptionDescriptor) []string {
 	sort.Strings(issues)
 	return issues
 }
+
+
+const OpenChoreoTargetAdapterAdmissionAuthority = "OPENCHOREO_TARGET_ADAPTER_ADMISSION_V1"
+
+type OpenChoreoTargetAdapterAdmissionInput struct {
+	DistributionIdentity        string   `json:"distributionIdentity"`
+	TargetAdmitted              bool     `json:"targetAdmitted"`
+	CapabilityDiscoveryComplete bool     `json:"capabilityDiscoveryComplete"`
+	ObservedCapabilities        []string `json:"observedCapabilities,omitempty"`
+	ExactSourceAdmitted         bool     `json:"exactSourceAdmitted"`
+	Disconnected                bool     `json:"disconnected"`
+	DisconnectedMirrorAdmitted  bool     `json:"disconnectedMirrorAdmitted"`
+	DurableLifecycleReady       bool     `json:"durableLifecycleReady"`
+	DuplicateStackResolved      bool     `json:"duplicateStackResolved"`
+}
+
+type OpenChoreoTargetAdapterAdmission struct {
+	Authority                     string   `json:"authority"`
+	Capability                    string   `json:"capability"`
+	Eligible                      bool     `json:"eligible"`
+	DistributionIdentity          string   `json:"distributionIdentity"`
+	Blockers                      []string `json:"blockers,omitempty"`
+	NativeCapabilitySuppressions  []string `json:"nativeCapabilitySuppressions,omitempty"`
+	PhysicalCertificationInferred bool     `json:"physicalCertificationInferred"`
+}
+
+func EvaluateOpenChoreoTargetAdapterAdmission(in OpenChoreoTargetAdapterAdmissionInput) OpenChoreoTargetAdapterAdmission {
+	distribution := strings.ToLower(strings.TrimSpace(in.DistributionIdentity))
+	out := OpenChoreoTargetAdapterAdmission{Authority: OpenChoreoTargetAdapterAdmissionAuthority, Capability: "application-platform.openchoreo", DistributionIdentity: distribution}
+	switch distribution { case "rke2", "okd": default: out.Blockers = append(out.Blockers, "UNSUPPORTED_TARGET_DISTRIBUTION") }
+	if !in.TargetAdmitted { out.Blockers = append(out.Blockers, "TARGET_NOT_ADMITTED") }
+	if !in.CapabilityDiscoveryComplete { out.Blockers = append(out.Blockers, "CAPABILITY_DISCOVERY_INCOMPLETE") }
+	if !in.DuplicateStackResolved { out.Blockers = append(out.Blockers, "DUPLICATE_STACK_RESOLUTION_INCOMPLETE") }
+	if !in.ExactSourceAdmitted { out.Blockers = append(out.Blockers, "OPENCHOREO_EXACT_SOURCE_AUTHORITY_PENDING") }
+	if in.Disconnected && !in.DisconnectedMirrorAdmitted { out.Blockers = append(out.Blockers, "OPENCHOREO_DISCONNECTED_MIRROR_PENDING") }
+	if !in.DurableLifecycleReady { out.Blockers = append(out.Blockers, "OPENCHOREO_DURABLE_LIFECYCLE_CONTRACT_PENDING") }
+	seen := map[string]bool{}
+	for _, raw := range in.ObservedCapabilities {
+		capability := strings.ToLower(strings.TrimSpace(raw)); suppression := ""
+		switch {
+		case strings.HasPrefix(capability, "networking.") || strings.Contains(capability, "ingress"): suppression = "networking-and-ingress-native"
+		case strings.HasPrefix(capability, "monitoring.") || strings.HasPrefix(capability, "observability."): suppression = "observability-native"
+		case strings.HasPrefix(capability, "operator-lifecycle.") || strings.Contains(capability, "olm"): suppression = "operator-lifecycle-native"
+		case strings.HasPrefix(capability, "tenancy.") || strings.Contains(capability, "project"): suppression = "tenancy-native"
+		}
+		if suppression != "" && !seen[suppression] { seen[suppression] = true; out.NativeCapabilitySuppressions = append(out.NativeCapabilitySuppressions, suppression) }
+	}
+	sort.Strings(out.NativeCapabilitySuppressions); sort.Strings(out.Blockers); out.Eligible = len(out.Blockers)==0
+	return out
+}
