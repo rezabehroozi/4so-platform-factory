@@ -22,6 +22,14 @@ func TestFleetGatewaySessionAdmissionUsesExactMTLSIdentityAndSingleLiveSession(t
 	dup,err:=AdmitFleetGatewaySession(cluster,cert,next,first.Session,now.Add(time.Minute));if err!=nil{t.Fatal(err)}
 	if dup.Decision!=FleetGatewayAdmissionReject{t.Fatalf("live duplicate session admitted: %#v",dup)}
 }
+func TestFleetGatewaySessionReplayCannotMoveAcrossGatewayOwners(t *testing.T){
+	cluster,cert,req,now:=fleetSessionFixture(t)
+	first,err:=AdmitFleetGatewaySession(cluster,cert,req,nil,now);if err!=nil{t.Fatal(err)}
+	crossOwner:=req;crossOwner.GatewayInstanceID="gateway-b"
+	admission,err:=AdmitFleetGatewaySession(cluster,cert,crossOwner,first.Session,now.Add(time.Minute));if err!=nil{t.Fatal(err)}
+	if admission.Decision!=FleetGatewayAdmissionReject{t.Fatalf("cross-gateway replay bypassed HA ownership: %#v",admission)}
+}
+
 func TestFleetGatewaySessionStaleReplacementRequiresNewEpoch(t *testing.T){
 	cluster,cert,req,now:=fleetSessionFixture(t);first,_:=AdmitFleetGatewaySession(cluster,cert,req,nil,now)
 	next:=req;next.SessionID="session-2";next.GatewayInstanceID="gateway-b"
