@@ -153,7 +153,7 @@ func TestMigrationMixedVersionCompatibilityIsExplicit(t *testing.T) {
 			t.Fatalf("migration %d has invalid compatibility class %q", migration.Version, migration.Compatibility)
 		}
 	}
-	for _, version := range []int64{21, 27, 47, 50, 60, 61, 64, 79} {
+	for _, version := range []int64{21, 27, 47, 50, 60, 61, 64, 79, 80} {
 		if !unsafe[version] {
 			t.Fatalf("migration %d mixed-version hazard was not classified as quiesced-required", version)
 		}
@@ -412,6 +412,26 @@ func TestVirtualClusterRuntimeTaskMigrationRequiresQuiescedWriters(t *testing.T)
 	} {
 		if !strings.Contains(m.SQL, term) {
 			t.Fatalf("migration 79 missing runtime task fence %q", term)
+		}
+	}
+}
+
+
+func TestVirtualClusterLifecycleJournalMigrationRequiresQuiescedWriters(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) < 80 {
+		t.Fatalf("expected migration 80, got %d migrations", len(all))
+	}
+	m := all[79]
+	if m.Version != 80 || m.Compatibility != CompatibilityQuiescedRequired {
+		t.Fatalf("migration 80 compatibility mismatch: %#v", m)
+	}
+	for _, term := range []string{"task_dispatched_at", "lifecycle_action", "lifecycle_idempotency_key", "lifecycle_request_digest", "LIFECYCLE_INSPECT"} {
+		if !strings.Contains(m.SQL, term) {
+			t.Fatalf("migration 80 missing lifecycle journal authority %q", term)
 		}
 	}
 }

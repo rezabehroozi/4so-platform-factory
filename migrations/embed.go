@@ -112,6 +112,8 @@ func compatibilityForVersion(version int64) (Compatibility, string, error) {
 		return CompatibilityRollingSafe, "v78 adds an independent workspace-bound virtual-cluster desired-state table; old binaries ignore the new table while new writers derive host authority from existing WorkspaceBinding records and remain isolated from existing workload lifecycles", nil
 	case version == 79:
 		return CompatibilityQuiescedRequired, "v79 makes the exact WorkspaceBinding revision part of virtual-cluster runtime mutation authority; old writers cannot populate that fence and must be stopped before runtime task claims are admitted", nil
+	case version == 80:
+		return CompatibilityQuiescedRequired, "v80 adds durable virtual-cluster lifecycle dispatch and idempotency journal semantics plus new task actions; old agents cannot honor the dispatch fence or lifecycle task contract and must be stopped before lifecycle mutation is admitted", nil
 	default:
 		return "", "", fmt.Errorf("migration %d is missing an explicit mixed-version compatibility classification", version)
 	}

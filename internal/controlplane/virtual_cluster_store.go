@@ -41,9 +41,13 @@ type VirtualCluster struct {
 	RuntimeSourceDigest string              `json:"runtimeSourceDigest,omitempty"`
 	TaskAttempt        int                  `json:"taskAttempt,omitempty"`
 	TaskFenceToken     int64                `json:"taskFenceToken,omitempty"`
-	TaskAction         string               `json:"taskAction,omitempty"`
-	TaskLeaseExpiresAt *time.Time            `json:"taskLeaseExpiresAt,omitempty"`
-	LastError          string               `json:"lastError,omitempty"`
+	TaskAction              string                `json:"taskAction,omitempty"`
+	TaskLeaseExpiresAt      *time.Time             `json:"taskLeaseExpiresAt,omitempty"`
+	TaskDispatchedAt        *time.Time             `json:"taskDispatchedAt,omitempty"`
+	LifecycleAction         virtualcluster.Action  `json:"lifecycleAction,omitempty"`
+	LifecycleIdempotencyKey string                 `json:"lifecycleIdempotencyKey,omitempty"`
+	LifecycleRequestDigest  string                 `json:"lifecycleRequestDigest,omitempty"`
+	LastError               string                 `json:"lastError,omitempty"`
 }
 
 type VirtualClusterCreateRequest struct {
@@ -60,6 +64,7 @@ type VirtualClusterTask struct {
 	TaskFenceToken           int64                    `json:"taskFenceToken"`
 	LeaseExpiresAt           time.Time                `json:"leaseExpiresAt"`
 	Action                   string                   `json:"action"`
+	LifecycleAction          virtualcluster.Action    `json:"lifecycleAction,omitempty"`
 	ProjectID                string                   `json:"projectId"`
 	WorkspaceID              string                   `json:"workspaceId"`
 	WorkspaceBindingID       string                   `json:"workspaceBindingId"`
@@ -82,8 +87,9 @@ type VirtualClusterTask struct {
 type VirtualClusterTaskResult struct {
 	VirtualClusterID string `json:"-"`
 	TaskFenceToken   int64  `json:"taskFenceToken"`
-	Action           string `json:"action"`
-	Success          bool   `json:"success"`
+	Action           string                `json:"action"`
+	LifecycleAction  virtualcluster.Action `json:"lifecycleAction,omitempty"`
+	Success          bool                  `json:"success"`
 	Ready            bool   `json:"ready,omitempty"`
 	ObservedDigest   string `json:"observedDigest,omitempty"`
 	Phase            string `json:"phase,omitempty"`
@@ -98,7 +104,7 @@ func VirtualClusterTaskFromRecord(v VirtualCluster) VirtualClusterTask {
 	}
 	return VirtualClusterTask{
 		VirtualClusterID: v.ID, ClusterRevision: v.Revision, TaskFenceToken: v.TaskFenceToken, LeaseExpiresAt: lease,
-		Action: v.TaskAction, ProjectID: v.ProjectID, WorkspaceID: v.WorkspaceID,
+		Action: v.TaskAction, LifecycleAction: v.PendingAction, ProjectID: v.ProjectID, WorkspaceID: v.WorkspaceID,
 		WorkspaceBindingID: v.WorkspaceBindingID, WorkspaceBindingRevision: v.WorkspaceBindingRevision,
 		HostClusterID: v.HostClusterID, HostNamespace: v.HostNamespace, Name: v.Name, Profile: v.Profile,
 		DeveloperMode: v.DeveloperMode, KubernetesVersion: v.KubernetesVersion, CPUMilli: v.CPUMilli,
@@ -203,6 +209,21 @@ func validateVirtualClusterRecord(v VirtualCluster, workspaces map[string]Worksp
 	}
 	if !virtualClusterDigestPattern.MatchString(v.RequestDigest) || v.IdempotencyKey == "" {
 		return fmt.Errorf("%w: virtual cluster idempotency authority is incomplete", ErrValidation)
+	}
+	if v.TaskAction != "" && !VirtualClusterKnownTaskAction(v.TaskAction) {
+		return fmt.Errorf("%w: virtual cluster task action is invalid", ErrValidation)
+	}
+	if v.TaskDispatchedAt != nil {
+		if !VirtualClusterMutationTaskAction(v.TaskAction) || v.TaskLeaseExpiresAt == nil {
+			return fmt.Errorf("%w: virtual cluster dispatch journal is inconsistent", ErrValidation)
+		}
+	}
+	hasLifecycle := v.LifecycleAction != "" || strings.TrimSpace(v.LifecycleIdempotencyKey) != "" || strings.TrimSpace(v.LifecycleRequestDigest) != ""
+	if hasLifecycle {
+		action, err := NormalizeVirtualClusterLifecycleAction(v.LifecycleAction)
+		if err != nil || action != v.LifecycleAction || strings.TrimSpace(v.LifecycleIdempotencyKey) == "" || !virtualClusterDigestPattern.MatchString(strings.TrimSpace(v.LifecycleRequestDigest)) {
+			return fmt.Errorf("%w: virtual cluster lifecycle journal is invalid", ErrValidation)
+		}
 	}
 	return nil
 }
