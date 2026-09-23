@@ -118,3 +118,78 @@ func (s *Server) getVirtualCluster(w http.ResponseWriter, r *http.Request) {
 	setRevisionETag(w, v.Revision)
 	writeJSON(w, http.StatusOK, v)
 }
+
+
+func (s *Server) requestVirtualClusterLifecycle(w http.ResponseWriter, r *http.Request, action virtualcluster.Action) {
+	actor, err := actorID(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "ACTOR_REQUIRED", err.Error())
+		return
+	}
+	key, ok := requireIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	expected, err := parseExpectedRevision(r)
+	if err != nil {
+		writeError(w, http.StatusPreconditionRequired, "EXPECTED_REVISION_REQUIRED", err.Error())
+		return
+	}
+	workspace, err := s.store.GetWorkspace(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if _, err = s.requireProjectAccess(r, workspace.ProjectID, organizationWrite); err != nil {
+		writeScopeError(w, err)
+		return
+	}
+	v, err := s.store.GetVirtualCluster(r.Context(), r.PathValue("virtualClusterId"))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if v.WorkspaceID != workspace.ID || v.ProjectID != workspace.ProjectID {
+		writeStoreError(w, controlplane.ErrNotFound)
+		return
+	}
+	if action == virtualcluster.ActionDelete && strings.TrimSpace(r.Header.Get("X-Confirm-Delete")) != "delete-virtual-cluster" {
+		writeError(w, http.StatusPreconditionRequired, "DELETE_CONFIRMATION_REQUIRED", "X-Confirm-Delete: delete-virtual-cluster is required")
+		return
+	}
+	requestDigest := digestValue(map[string]any{
+		"authority": virtualcluster.LifecycleAuthority,
+		"workspaceId": workspace.ID,
+		"virtualClusterId": v.ID,
+		"action": action,
+		"idempotencyKey": key,
+	})
+	updated, replay, err := s.store.RequestVirtualClusterLifecycle(r.Context(), v.ID, expected, string(action), key, requestDigest, actor)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	status := http.StatusAccepted
+	if replay {
+		status = http.StatusOK
+		w.Header().Set("Idempotent-Replay", "true")
+	}
+	setRevisionETag(w, updated.Revision)
+	writeJSON(w, status, map[string]any{
+		"virtualCluster": updated,
+		"idempotentReplay": replay,
+		"authority": virtualcluster.LifecycleAuthority,
+	})
+}
+
+func (s *Server) suspendVirtualCluster(w http.ResponseWriter, r *http.Request) {
+	s.requestVirtualClusterLifecycle(w, r, virtualcluster.ActionSuspend)
+}
+
+func (s *Server) resumeVirtualCluster(w http.ResponseWriter, r *http.Request) {
+	s.requestVirtualClusterLifecycle(w, r, virtualcluster.ActionResume)
+}
+
+func (s *Server) deleteVirtualCluster(w http.ResponseWriter, r *http.Request) {
+	s.requestVirtualClusterLifecycle(w, r, virtualcluster.ActionDelete)
+}

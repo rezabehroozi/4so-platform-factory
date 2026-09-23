@@ -3,10 +3,10 @@
   "counts": {
     "security-excluded": 40,
     "tool-admin": 73,
-    "tool-operate": 68,
+    "tool-operate": 71,
     "tool-read": 169
   },
-  "routeCount": 350,
+  "routeCount": 353,
   "routes": [
     {
       "action": "version",
@@ -1840,6 +1840,66 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_workspaces_by_id_virtual_clusters_by_virtualclusterid"
+    },
+    {
+      "action": "virtual-clusters_suspend",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-operate",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "workspaces",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}/suspend",
+      "pathParams": [
+        "id",
+        "virtualClusterId"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "medium",
+      "toolName": "api_post_workspaces_by_id_virtual_clusters_by_virtualclusterid_suspend"
+    },
+    {
+      "action": "virtual-clusters_resume",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-operate",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "workspaces",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}/resume",
+      "pathParams": [
+        "id",
+        "virtualClusterId"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "medium",
+      "toolName": "api_post_workspaces_by_id_virtual_clusters_by_virtualclusterid_resume"
+    },
+    {
+      "action": "virtual-clusters_delete",
+      "confirmationHeader": "X-Confirm-Delete",
+      "confirmationValue": "delete-virtual-cluster",
+      "disposition": "tool-operate",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "workspaces",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}/delete",
+      "pathParams": [
+        "id",
+        "virtualClusterId"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "high",
+      "toolName": "api_post_workspaces_by_id_virtual_clusters_by_virtualclusterid_delete"
     },
     {
       "action": "plans",

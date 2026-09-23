@@ -42,6 +42,7 @@ CONFIRM={
  ('POST','/api/v1/notification-destinations/{id}/disable'):('X-Confirm-Disable','disable-notification-destination'),
  ('POST','/api/v1/tenants/{id}/delete'):('X-Confirm-Delete','delete-tenant-namespace'),
  ('POST','/api/v1/provider-clusters/{id}/delete'):('X-Confirm-Delete','delete-provider-cluster'),
+ ('POST','/api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}/delete'):('X-Confirm-Delete','delete-virtual-cluster'),
  ('POST','/api/v1/marketplace/installations/{id}/uninstall'):('X-Confirm-Uninstall','remove-marketplace-installation'),
 }
 

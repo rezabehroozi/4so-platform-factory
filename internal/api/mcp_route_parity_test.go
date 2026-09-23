@@ -96,10 +96,10 @@ func TestMCPGeneratedAdministrationToolsAreHiddenFromAPITokens(t *testing.T) {
 
 func TestMCPRouteParityRegistryHasNoUnclassifiedStableRoute(t *testing.T) {
 	registry := loadMCPRouteParityRegistry()
-	if registry.RouteCount != 350 {
+	if registry.RouteCount != 353 {
 		t.Fatalf("unexpected stable route count: %d", registry.RouteCount)
 	}
-	if registry.Counts["tool-read"] != 169 || registry.Counts["tool-operate"] != 68 || registry.Counts["tool-admin"] != 73 || registry.Counts["security-excluded"] != 40 {
+	if registry.Counts["tool-read"] != 169 || registry.Counts["tool-operate"] != 71 || registry.Counts["tool-admin"] != 73 || registry.Counts["security-excluded"] != 40 {
 		t.Fatalf("route parity summary drift: %+v", registry.Counts)
 	}
 	for _, route := range registry.Routes {
@@ -250,5 +250,32 @@ func TestAIControlJobRecoveryResolutionIsHumanAdminOnlyAndNeverMCPCallable(t *te
 	}
 	if !found {
 		t.Fatal("recovery resolution route missing from route-parity registry")
+	}
+}
+
+
+func TestMCPVirtualClusterLifecycleRoutesAreTypedAndDeleteIsExplicitlyConfirmed(t *testing.T) {
+	registry := loadMCPRouteParityRegistry()
+	want := map[string]string{
+		"/api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}/suspend": "",
+		"/api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}/resume": "",
+		"/api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}/delete": "delete-virtual-cluster",
+	}
+	seen := map[string]bool{}
+	for _, route := range registry.Routes {
+		confirmation, ok := want[route.Path]
+		if !ok { continue }
+		seen[route.Path] = true
+		if route.Disposition != "tool-operate" || !route.DurableJob || !route.IdempotencyRequired || route.ResourceScope != "PROJECT_SCOPED" {
+			t.Fatalf("virtual cluster lifecycle route lost MCP authority: %+v", route)
+		}
+		if confirmation != "" {
+			if route.ConfirmationHeader != "X-Confirm-Delete" || route.ConfirmationValue != confirmation || route.Risk != "high" {
+				t.Fatalf("virtual cluster delete confirmation/risk mismatch: %+v", route)
+			}
+		}
+	}
+	for path := range want {
+		if !seen[path] { t.Fatalf("virtual cluster lifecycle route missing from MCP parity: %s", path) }
 	}
 }
