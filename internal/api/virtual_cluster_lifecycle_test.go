@@ -40,7 +40,7 @@ func lifecycleHTTPRequest(t *testing.T, srv *Server, method, path, actor, role, 
 	req.Header.Set("X-Actor-ID", actor)
 	req.Header.Set("X-Actor-Role", role)
 	req.Header.Set("Idempotency-Key", key)
-	req.Header.Set("If-Match", fmt.Sprintf("%q", revision))
+	req.Header.Set("If-Match", fmt.Sprintf("\"%d\"", revision))
 	if confirm != "" { req.Header.Set("X-Confirm-Delete", confirm) }
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
