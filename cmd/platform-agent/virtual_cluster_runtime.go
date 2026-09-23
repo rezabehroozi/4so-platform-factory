@@ -650,35 +650,56 @@ func (a *agent) resumeVirtualCluster(ctx context.Context, task controlplane.Virt
 
 func (a *agent) inspectVirtualClusterDeleted(ctx context.Context, task controlplane.VirtualClusterTask, source virtualcluster.RuntimeSource) controlplane.VirtualClusterTaskResult {
 	result := virtualClusterLifecycleResult(task)
+	_, workloadFound, readErr := a.readVirtualClusterRuntimeWorkload(ctx, task, source)
+	if readErr != nil {
+		result.RecoveryRequired = true
+		result.Error = "delete authoritative readback failed: " + readErr.Error()
+		return result
+	}
+	if !workloadFound {
+		result.Success, result.Ready, result.ObservedDigest, result.Phase = true, true, "", "Deleted"
+		return result
+	}
 	jobPath := virtualClusterExecutorJobPath(a.cfg.Namespace, virtualClusterExecutorJobName(task))
 	job, jobFound, err := a.getKubeObject(ctx, jobPath)
 	if err != nil || !jobFound {
 		result.RecoveryRequired = true
-		if err != nil { result.Error = "read delete executor Job: " + err.Error() } else { result.Error = "virtual cluster delete executor Job is absent after dispatch" }
+		if err != nil { result.Error = "read delete executor Job: " + err.Error() } else { result.Error = "virtual cluster delete executor Job is absent while owned workload still exists" }
 		return result
 	}
 	if err = virtualClusterExecutorJobOwnership(job, task, source, a.cfg.Namespace); err != nil {
-		result.RecoveryRequired = true; result.Error = err.Error(); return result
+		result.RecoveryRequired = true
+		result.Error = err.Error()
+		return result
 	}
 	complete, failed, phase := virtualClusterExecutorJobState(job)
 	if failed {
-		result.RecoveryRequired = true; result.Phase = "DeleteExecutorFailed"; result.Error = "virtual cluster delete executor Job failed"; return result
-	}
-	_, workloadFound, readErr := a.readVirtualClusterRuntimeWorkload(ctx, task, source)
-	if readErr != nil {
-		result.RecoveryRequired = true; result.Error = "delete authoritative readback failed: " + readErr.Error(); return result
-	}
-	if !workloadFound && complete {
-		result.Success, result.Ready, result.ObservedDigest, result.Phase = true, true, "", "Deleted"
+		result.RecoveryRequired = true
+		result.Phase = "DeleteExecutorFailed"
+		result.Error = "virtual cluster delete executor Job failed"
 		return result
 	}
 	result.Success = true
-	if !complete { result.Phase = phase } else { result.Phase = "DeleteReconciling" }
+	if !complete {
+		result.Phase = phase
+	} else {
+		result.Phase = "DeleteReconciling"
+	}
 	return result
 }
 
 func (a *agent) deleteVirtualCluster(ctx context.Context, task controlplane.VirtualClusterTask, source virtualcluster.RuntimeSource) controlplane.VirtualClusterTaskResult {
 	result := virtualClusterLifecycleResult(task)
+	_, workloadFound, readErr := a.readVirtualClusterRuntimeWorkload(ctx, task, source)
+	if readErr != nil {
+		result.RecoveryRequired = true
+		result.Error = "virtual cluster delete pre-mutation readback failed: " + readErr.Error()
+		return result
+	}
+	if !workloadFound {
+		result.Success, result.Ready, result.ObservedDigest, result.Phase = true, true, "", "Deleted"
+		return result
+	}
 	path := virtualClusterExecutorJobPath(a.cfg.Namespace, virtualClusterExecutorJobName(task))
 	current, found, err := a.getKubeObject(ctx, path)
 	if err != nil {

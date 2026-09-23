@@ -373,7 +373,7 @@
 <label><span>Namespace</span><input dir="ltr" id="workspace-binding-namespace" maxlength="63" pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?" placeholder="payments" required=""/></label>
 <button class="primary" type="submit">Bind namespace</button></form></article>
 </div>
-<details class="action-console"><summary><span class="summary-title">Create virtual cluster desired state</span><span class="summary-help">Bind a bounded developer or team profile to one active Workspace namespace reference. Runtime execution remains independently gated until a virtual-cluster executor is admitted.</span></summary><div class="action-console-body">
+<details class="action-console"><summary><span class="summary-title">Create virtual cluster desired state</span><span class="summary-help">Bind a bounded developer or team profile to one active Workspace namespace reference. Runtime lifecycle is executed only by the admitted exact-source virtual-cluster executor and remains independent from Physical certification.</span></summary><div class="action-console-body">
 <article class="panel"><div class="panel-heading"><div><h2>Virtual cluster request</h2><p>The request stores workspace-bound desired state only. REQUESTED is not Running or Ready.</p></div></div>
 <form class="form-grid" id="virtual-cluster-form" novalidate="">
 <label><span>Workspace</span><select id="virtual-cluster-workspace" required=""></select></label>

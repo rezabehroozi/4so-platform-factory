@@ -274,3 +274,23 @@ func TestVirtualClusterLifecycleMutationValidationRequiresActionFence(t *testing
 		t.Fatalf("valid suspend task rejected: %v", err)
 	}
 }
+
+
+func TestVirtualClusterDeleteAlreadyAbsentConvergesWithoutCreatingJob(t *testing.T) {
+	source := virtualClusterRuntimeSourceFixture(t)
+	task := virtualClusterTaskFixture(t, source, "DELETE")
+	task.LifecycleAction = virtualcluster.ActionDelete
+	calls := 0
+	a := virtualClusterAgentForKubeTest(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/statefulsets") {
+			t.Fatalf("delete-absent touched mutation endpoint: %s %s", r.Method, r.URL.Path)
+		}
+		raw, _ := json.Marshal(map[string]any{"items": []any{}})
+		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(raw)), Header: make(http.Header)}, nil
+	}))
+	result := a.deleteVirtualCluster(context.Background(), task, source)
+	if !result.Success || !result.Ready || result.Phase != "Deleted" || result.ObservedDigest != "" || calls != 1 {
+		t.Fatalf("delete absent result=%#v calls=%d", result, calls)
+	}
+}
