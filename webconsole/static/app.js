@@ -554,6 +554,7 @@ const faDynamic = {
   "Base URL": "نشانی پایه (URL)",
   "Basics": "مبانی",
   "Bind an existing managed cluster namespace. Cross-project cluster references fail closed.": "یک Namespace از کلاستر مدیریت‌شدهٔ موجود را متصل کنید. ارجاع بین‌پروژه‌ای ناسازگار به کلاستر رد می‌شود.",
+  "Bind a bounded developer or team profile to one active Workspace namespace reference. Runtime lifecycle is executed only by the admitted exact-source virtual-cluster executor and remains independent from Physical certification.": "یک پروفایل محدود Developer یا Team را به مرجع Namespace فعال همین Workspace متصل کنید. چرخهٔ Runtime فقط توسط executor تأییدشده با source دقیق اجرا می‌شود و مستقل از Physical certification باقی می‌ماند.",
   "Bind namespace": "Bind کردن Namespace",
   "Bind reusable maintenance, backup and pod-security policy without making the template an execution engine.": "سیاست‌های نگه‌داری، نسخهٔ پشتیبان و امنیت Pod را به قالب اضافه کنید، بدون اینکه خود قالب به موتور اجرا تبدیل شود.",
   "Bind to a published signed catalog when controlled supply-chain governance is required.": "وقتی کنترل زنجیرهٔ تأمین لازم است، آن را به یک کاتالوگ منتشرشده و امضاشده متصل کنید.",
