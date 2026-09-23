@@ -2369,6 +2369,10 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 			}
 		}
 	}
+	virtualClustersByID := make(map[string]VirtualCluster, len(snapshot.VirtualClusters))
+	for _, v := range snapshot.VirtualClusters {
+		virtualClustersByID[v.ID] = v
+	}
 	finOpsUsageKeys := map[string]string{}
 	for _, original := range snapshot.FinOpsUsageMeasurements {
 		normalized, err := NormalizeFinOpsUsageMeasurement(original)
@@ -2389,6 +2393,12 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 			workspace, ok := workspacesByID[normalized.WorkspaceID]
 			if !ok || workspace.ProjectID != normalized.ProjectID {
 				return fmt.Errorf("%w: FinOps usage workspace scope is invalid", ErrValidation)
+			}
+		}
+		if normalized.VirtualClusterID != "" {
+			v, ok := virtualClustersByID[normalized.VirtualClusterID]
+			if !ok || v.ProjectID != normalized.ProjectID || v.WorkspaceID != normalized.WorkspaceID || v.HostClusterID != normalized.ClusterID || v.HostNamespace != normalized.Namespace {
+				return fmt.Errorf("%w: FinOps usage virtual-cluster attribution is invalid", ErrValidation)
 			}
 		}
 		if original.Digest != "" && original.Digest != normalized.Digest {
