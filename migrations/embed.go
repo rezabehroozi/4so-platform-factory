@@ -114,6 +114,8 @@ func compatibilityForVersion(version int64) (Compatibility, string, error) {
 		return CompatibilityQuiescedRequired, "v79 makes the exact WorkspaceBinding revision part of virtual-cluster runtime mutation authority; old writers cannot populate that fence and must be stopped before runtime task claims are admitted", nil
 	case version == 80:
 		return CompatibilityQuiescedRequired, "v80 adds durable virtual-cluster lifecycle dispatch and idempotency journal semantics plus new task actions; old agents cannot honor the dispatch fence or lifecycle task contract and must be stopped before lifecycle mutation is admitted", nil
+	case version == 81:
+		return CompatibilityRollingSafe, "v81 adds nullable immutable FinOps virtual-cluster attribution plus an insert-time exact runtime-scope guard; old writers continue inserting NULL while new writers may bind measured usage to an existing virtual-cluster authority", nil
 	default:
 		return "", "", fmt.Errorf("migration %d is missing an explicit mixed-version compatibility classification", version)
 	}
