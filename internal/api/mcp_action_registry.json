@@ -48,9 +48,9 @@
       },
       {
         "family": "application-platform",
-        "routeCount": 20,
-        "mutationCount": 8,
-        "callableRouteCount": 20,
+        "routeCount": 21,
+        "mutationCount": 9,
+        "callableRouteCount": 21,
         "securityExcludedRouteCount": 0,
         "disposition": "typed-tool-complete",
         "toolNames": [
@@ -73,9 +73,10 @@
           "api_post_application_platform_environment_bindings",
           "api_get_application_platform_environment_bindings",
           "api_get_application_platform_environment_bindings_by_id",
-          "api_post_application_platform_environment_bindings_by_id_promote"
+          "api_post_application_platform_environment_bindings_by_id_promote",
+          "api_post_application_platform_openchoreo_assessment"
         ],
-        "rationale": "All 20 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
+        "rationale": "All 21 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
       },
       {
         "family": "audit-events",
@@ -293,9 +294,9 @@
       },
       {
         "family": "clusters",
-        "routeCount": 24,
-        "mutationCount": 12,
-        "callableRouteCount": 20,
+        "routeCount": 26,
+        "mutationCount": 13,
+        "callableRouteCount": 22,
         "securityExcludedRouteCount": 4,
         "disposition": "typed-tool-complete",
         "toolNames": [
@@ -318,9 +319,11 @@
           "api_get_clusters_by_id_agent_certificates",
           "api_post_clusters_by_id_agent_certificates_by_certid_revoke",
           "api_get_clusters_by_id_timeline",
-          "api_get_clusters_by_id_workloads"
+          "api_get_clusters_by_id_workloads",
+          "api_get_clusters_by_id_gateway_session",
+          "api_post_clusters_by_id_gateway_session_drain"
         ],
-        "rationale": "All 20 AI-callable stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler. 4 route(s) remain explicitly security-excluded."
+        "rationale": "All 22 AI-callable stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler. 4 route(s) remain explicitly security-excluded."
       },
       {
         "family": "compatibility",
@@ -864,9 +867,9 @@
       },
       {
         "family": "reliability",
-        "routeCount": 9,
+        "routeCount": 10,
         "mutationCount": 4,
-        "callableRouteCount": 9,
+        "callableRouteCount": 10,
         "securityExcludedRouteCount": 0,
         "disposition": "typed-tool-complete",
         "toolNames": [
@@ -878,9 +881,10 @@
           "api_post_reliability_incidents_by_id_resolve",
           "api_get_reliability_slo_policies",
           "api_post_reliability_slo_policies",
-          "api_get_reliability_error_budgets"
+          "api_get_reliability_error_budgets",
+          "api_get_reliability_delivery_insights"
         ],
-        "rationale": "All 9 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
+        "rationale": "All 10 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
       },
       {
         "family": "restore-drills",
