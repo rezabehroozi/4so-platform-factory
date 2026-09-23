@@ -68,6 +68,7 @@ type MemoryStore struct {
 	idempotency                  map[string]string
 	clusterImports               map[string]ClusterImport
 	managedClusters              map[string]ManagedCluster
+	fleetGatewaySessions         map[string]FleetGatewaySession
 	clusterMaintenanceProfiles   map[string]ClusterMaintenanceProfile
 	clusterMaintenanceWindows    map[string]ClusterMaintenanceWindow
 	clusterMaintenanceRuns       map[string]ClusterMaintenanceRun
@@ -128,7 +129,7 @@ func NewMemoryStoreWith(now func() time.Time, id func(string) string) *MemorySto
 		revisions: map[string]BlueprintRevision{}, blueprintReleases: map[string]BlueprintRelease{}, catalogTrustKeys: map[string]CatalogTrustKey{}, catalogRevisions: map[string]CatalogRevision{}, catalogReleases: map[string]CatalogRelease{}, assignments: map[string]Assignment{},
 		operations: map[string]Operation{}, steps: map[string]OperationStep{}, stepTraces: map[string]OperationStepTrace{}, compensationSteps: map[string]OperationCompensationStep{}, outbox: map[string]OutboxEvent{}, notificationDestinations: map[string]NotificationDestination{}, notificationRoutes: map[string]NotificationRoute{}, notificationEvents: map[string]NotificationEvent{}, notificationDeliveries: map[string]NotificationDelivery{}, notificationAttempts: map[string]NotificationDeliveryAttempt{},
 		evidence: map[string]EvidenceMetadata{}, evidencePayloads: map[string][]byte{}, idempotency: map[string]string{},
-		clusterImports: map[string]ClusterImport{}, managedClusters: map[string]ManagedCluster{}, clusterMaintenanceProfiles: map[string]ClusterMaintenanceProfile{}, clusterMaintenanceWindows: map[string]ClusterMaintenanceWindow{}, clusterMaintenanceRuns: map[string]ClusterMaintenanceRun{}, agentCertificates: map[string]AgentCertificate{}, clusterInventories: map[string]ClusterInventory{}, baselineDeployments: map[string]BaselineDeployment{}, runtimeVerifications: map[string]RuntimeVerification{}, runtimeCertifications: map[string]RuntimeCertificationRun{}, backupPolicies: map[string]BackupPolicy{}, dataProtectionRuns: map[string]DataProtectionRun{}, recoveryCheckpoints: map[string]RecoveryCheckpoint{}, fleetGroups: map[string]FleetGroup{}, gitCredentials: map[string]GitCredential{}, gitProviders: map[string]GitProvider{}, gitPullRequests: map[string]GitPullRequest{}, managedGitRevisions: map[string]ManagedGitRevision{}, driftScans: map[string]DriftScan{}, upgradeCampaigns: map[string]UpgradeCampaign{},
+		clusterImports: map[string]ClusterImport{}, managedClusters: map[string]ManagedCluster{}, fleetGatewaySessions: map[string]FleetGatewaySession{}, clusterMaintenanceProfiles: map[string]ClusterMaintenanceProfile{}, clusterMaintenanceWindows: map[string]ClusterMaintenanceWindow{}, clusterMaintenanceRuns: map[string]ClusterMaintenanceRun{}, agentCertificates: map[string]AgentCertificate{}, clusterInventories: map[string]ClusterInventory{}, baselineDeployments: map[string]BaselineDeployment{}, runtimeVerifications: map[string]RuntimeVerification{}, runtimeCertifications: map[string]RuntimeCertificationRun{}, backupPolicies: map[string]BackupPolicy{}, dataProtectionRuns: map[string]DataProtectionRun{}, recoveryCheckpoints: map[string]RecoveryCheckpoint{}, fleetGroups: map[string]FleetGroup{}, gitCredentials: map[string]GitCredential{}, gitProviders: map[string]GitProvider{}, gitPullRequests: map[string]GitPullRequest{}, managedGitRevisions: map[string]ManagedGitRevision{}, driftScans: map[string]DriftScan{}, upgradeCampaigns: map[string]UpgradeCampaign{},
 		entitlements: map[string]Entitlement{}, oemProfiles: map[string]OEMProfile{}, tenants: map[string]TenantEnvironment{}, providerProfiles: map[string]ProviderProfile{}, providerClusters: map[string]ProviderCluster{}, aiExecutionClaims: map[string]AIExecutionClaim{}, aiRuns: map[string]AIRun{}, marketplaceRecommendations: map[string]MarketplaceRecommendation{}, runtimeClosureCampaigns: map[string]RuntimeClosureCampaign{}, complianceProfiles: map[string]ComplianceProfile{}, complianceScanRuns: map[string]ComplianceScanRun{}, complianceFindings: map[string]ComplianceFindingRecord{}, complianceWaivers: map[string]ComplianceWaiver{}, samlBrokers: map[string]SAMLBroker{}, identityAdminJobs: map[string]IdentityAdminJob{}, operationRequestPayloads: map[string]OperationRequestPayload{}, finOpsBudgetPolicies: map[string]FinOpsBudgetPolicy{}, finOpsRateCards: map[string]FinOpsRateCard{}, finOpsUsageMeasurements: map[string]FinOpsUsageMeasurement{}, finOpsCapacityObservations: map[string]FinOpsCapacityObservation{}, healthObservations: map[string]reliability.HealthObservation{}, incidents: map[string]reliability.Incident{}, sloPolicies: map[string]reliability.SLOPolicy{},
 	}
 }
@@ -1766,6 +1767,9 @@ func (s *MemoryStore) Snapshot(_ context.Context) (Snapshot, error) {
 	for _, v := range s.managedClusters {
 		snap.ManagedClusters = append(snap.ManagedClusters, cloneManagedCluster(v))
 	}
+	for _, v := range s.fleetGatewaySessions {
+		snap.FleetGatewaySessions = append(snap.FleetGatewaySessions, v)
+	}
 	for _, v := range s.clusterMaintenanceProfiles {
 		snap.ClusterMaintenanceProfiles = append(snap.ClusterMaintenanceProfiles, v)
 	}
@@ -1951,6 +1955,7 @@ func CanonicalizeSnapshot(s *Snapshot) {
 		return s.ClusterImportCredentials[i].ImportID < s.ClusterImportCredentials[j].ImportID
 	})
 	sort.Slice(s.ManagedClusters, func(i, j int) bool { return s.ManagedClusters[i].ID < s.ManagedClusters[j].ID })
+	sort.Slice(s.FleetGatewaySessions, func(i, j int) bool { if s.FleetGatewaySessions[i].ClusterID != s.FleetGatewaySessions[j].ClusterID { return s.FleetGatewaySessions[i].ClusterID < s.FleetGatewaySessions[j].ClusterID }; if s.FleetGatewaySessions[i].Epoch != s.FleetGatewaySessions[j].Epoch { return s.FleetGatewaySessions[i].Epoch < s.FleetGatewaySessions[j].Epoch }; return s.FleetGatewaySessions[i].SessionID < s.FleetGatewaySessions[j].SessionID })
 	sort.Slice(s.ClusterMaintenanceProfiles, func(i, j int) bool {
 		return s.ClusterMaintenanceProfiles[i].ClusterID < s.ClusterMaintenanceProfiles[j].ClusterID
 	})
@@ -2520,6 +2525,7 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	s.idempotency = map[string]string{}
 	s.clusterImports = map[string]ClusterImport{}
 	s.managedClusters = map[string]ManagedCluster{}
+	s.fleetGatewaySessions = map[string]FleetGatewaySession{}
 	s.agentCertificates = map[string]AgentCertificate{}
 	s.clusterInventories = map[string]ClusterInventory{}
 	s.baselineDeployments = map[string]BaselineDeployment{}
@@ -2747,6 +2753,9 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	}
 	for _, v := range normalizedManagedClusters {
 		s.managedClusters[v.ID] = cloneManagedCluster(v)
+	}
+	for _, v := range snapshot.FleetGatewaySessions {
+		s.fleetGatewaySessions[v.SessionID] = v
 	}
 	for _, v := range snapshot.ClusterMaintenanceProfiles {
 		s.clusterMaintenanceProfiles[v.ClusterID] = v

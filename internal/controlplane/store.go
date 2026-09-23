@@ -448,6 +448,7 @@ type Snapshot struct {
 	ClusterImports             []ClusterImport                   `json:"clusterImports"`
 	ClusterImportCredentials   []ClusterImportCredentialSnapshot `json:"-"`
 	ManagedClusters            []ManagedCluster                  `json:"managedClusters"`
+	FleetGatewaySessions        []FleetGatewaySession             `json:"fleetGatewaySessions,omitempty"`
 	ClusterMaintenanceProfiles []ClusterMaintenanceProfile       `json:"clusterMaintenanceProfiles"`
 	ClusterMaintenanceWindows  []ClusterMaintenanceWindow        `json:"clusterMaintenanceWindows"`
 	ClusterMaintenanceRuns     []ClusterMaintenanceRun           `json:"clusterMaintenanceRuns"`

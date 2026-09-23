@@ -118,6 +118,8 @@ func compatibilityForVersion(version int64) (Compatibility, string, error) {
 		return CompatibilityRollingSafe, "v81 adds nullable immutable FinOps virtual-cluster attribution plus an insert-time exact runtime-scope guard; old writers continue inserting NULL while new writers may bind measured usage to an existing virtual-cluster authority", nil
 	case version == 82:
 		return CompatibilityRollingSafe, "v82 adds independent application-platform immutable authorities plus revision-fenced environment bindings; old writers ignore the new tables while new writers bind promotion to exact WorkspaceBinding authority", nil
+	case version == 83:
+		return CompatibilityRollingSafe, "v83 adds an independent durable fleet gateway session journal; old agents ignore the new endpoint while new gateways fence one active target-initiated mTLS session per cluster by certificate and monotonically increasing epoch", nil
 	default:
 		return "", "", fmt.Errorf("migration %d is missing an explicit mixed-version compatibility classification", version)
 	}

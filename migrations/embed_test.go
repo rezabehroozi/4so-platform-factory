@@ -86,6 +86,7 @@ func TestPostgresAuthorityMigrationContract(t *testing.T) {
 		"CREATE TABLE operation_request_payloads", "operation_request_payloads_no_update", "operation request payloads are immutable",
 		"CREATE TABLE IF NOT EXISTS application_platform_authorities", "application_platform_authority_identity_unique", "application_platform_authorities_immutable",
 		"CREATE TABLE IF NOT EXISTS application_environment_bindings", "application_environment_binding_scope_unique", "validate_application_environment_binding",
+		"CREATE TABLE IF NOT EXISTS fleet_gateway_sessions", "fleet_gateway_sessions_cluster_epoch_unique", "fleet_gateway_sessions_one_live_per_cluster", "validate_fleet_gateway_session_authority",
 	}
 	for _, term := range required {
 		if !strings.Contains(combined, term) {
