@@ -1,4 +1,4 @@
-# Current Program Status — PROGRAM_PHASE_MODEL_V70
+# Current Program Status — PROGRAM_PHASE_MODEL_V71
 
 `docs/PROGRAM_STATUS.md` is the single current human-readable status summary. Release **0.0.363** is the current repository release identity. Versioned `PHASE_STATUS_V*.md` files are historical release records; executable truth remains `internal/targetmodel/program.go`.
 
@@ -10,16 +10,18 @@
 | --- | ---: | --- |
 | Core source/software closure | **25/25 (100%)** | All mandatory Core phases have source/software contracts implemented. |
 | Core closure/release ready | **19/25 (76%)** | Six mandatory Core phases still require external/runtime/evidence closure. |
-| Pre-physical software closure | **33/35 (94%)** | Core + Expansion source/software closure; Physical certification is excluded. |
+| Pre-physical software closure | **34/36 (94%)** | Core + Expansion source/software closure; Physical certification is excluded. |
 
-V70 exposes independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
+V71 exposes independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
 
 ## Source-open software
 
 Only two pre-physical software phases remain source-open:
 
-- `J3-virtual-cluster-profile` — workspace-bound planning, durable PostgreSQL desired-state persistence, REST/Product API, generated SDK route contract, typed MCP route parity and truthful Operator Console desired-state UI are implemented. The sole remaining source blocker is a real offline-capable runtime executor bound to immutable vCluster OSS chart/image bytes; REQUESTED must not be presented as Running/Ready before that executor converges.
 - `I2-edge-sovereign-extension` — bounded edge authority/UI, boot attestation and disconnected local AI profile.
+- `J8-application-platform-abstraction-composition` — product-owned WorkloadType/CapabilityTrait, ManagedResourceType, WorkspaceProfile and immutable release-binding composition; Fleet outbound-mTLS session hardening; evidence-backed delivery/DORA projection; and a disabled-by-default OpenChoreo target adapter.
+
+`J3-virtual-cluster-profile` is source-implemented. Exact-source/offline runtime execution, durable dispatch and lifecycle fencing, suspend/resume/delete authoritative readback, bounded diagnostics, Product API/SDK/MCP/Console parity and immutable FinOps virtual-cluster attribution are present. Exact-SHA Physical Runtime remains independently certification-gated.
 
 `J1-automation-external-integrations` is source-implemented with real Terraform and Crossplane providers over Product API authority. `H3-public-cloud-provider-adapters` is source-implemented with shared provider descriptors/execution semantics, CAPA/CAPZ/CAPG ClusterClass verification, external-secret-only credential references, and explicit `RECOVERY_REQUIRED` ambiguity handling. Connected cloud runtime/Physical evidence remains independently certification-gated.
 
@@ -27,7 +29,7 @@ Only two pre-physical software phases remain source-open:
 
 ## Execution waves
 
-1. **W0 — Truth rebaseline:** keep executable roadmap, docs and canonical main synchronized; V70 records J3 foundation truth without changing physical/runtime claims.
+1. **W0 — Truth rebaseline:** keep executable roadmap, docs and canonical main synchronized; V71 closes J3 source truth and records the OpenChoreo adoption boundary without changing physical/runtime claims.
 2. **W1 — Core closure blitz (current):** S1 exact acquisition and S2 component certification run as a streaming pipeline with up to six independent lanes.
 3. **W2 — Core evidence parallel:** MCP external-client interoperability, Connected Managed OKD and Disconnected OKD evidence advance independently.
 4. **W3 — Expansion mega-wave:** J3 + I2 remain source-open; J1 + H3 are source-implemented and move to integration/runtime evidence without waiting for Physical certification.
@@ -341,3 +343,14 @@ Refresh `origin/main` first and read this file. Confirm the repository-integrity
 - One monolithic `go test ./...` attempt exceeded the single-command execution window and is **not** counted as a full-suite PASS. The development model therefore uses bounded owner/package shards during active waves and reserves full-suite/release verification for a checkpoint where the command can complete with fresh evidence.
 - Remote Commander/Lab remains paused. No new Lab probe, mutation, Fast-Lab percentage, or Physical PASS was produced. Exact-SHA Physical Runtime certification remains NOT RUN.
 - Next owner-layer jump: integrate the already-developed J3 lifecycle journal/runtime-controller contracts into the real Store/PostgreSQL/API/Agent surfaces of this full tree, then regenerate Product API/SDK/MCP/resource-scope/Console parity. Keep `VIRTUAL_CLUSTER_DURABLE_RUNTIME_PENDING` open until Suspend/Resume/Delete have real runtime mutation plus authoritative readback and restart-safe durable recovery in the production owner paths.
+
+
+## OpenChoreo v1.3 reference adoption checkpoint — 2026-09-23
+
+OpenChoreo is now an explicit **reference implementation and optional target application-platform adapter**, not a 4SO control-plane dependency. `OPENCHOREO_REFERENCE_ADOPTION_V1` records the reviewed v1.3.x baseline and upstream commit `1aeed89856d088dc5160c0f3eaa39796d4a93611` in executable target architecture.
+
+Adopted patterns are bounded to product-owned equivalents: ComponentType/Traits -> WorkloadType/CapabilityTrait; ResourceType -> ManagedResourceType; ProjectType -> WorkspaceProfile; immutable releases/bindings -> explicit 4SO environment promotion; cluster-agent/gateway -> Fleet transport hardening; MCP/AI/Cost/DORA/Audit -> extensions over existing 4SO authorization, FinOps, Incident and Audit evidence. The optional OpenChoreo runtime capability remains disabled by default and target-only.
+
+Explicit non-adoptions remain architecture invariants: PostgreSQL stays product SoT; the management appliance remains RKE2; Operator Horizon remains the operator console; Keycloak remains identity; BuildKit -> zot remains the canonical build/registry path; OpenChoreo Workflow/Observability planes do not become Factory defaults; and OKD-native networking/monitoring/tenancy ownership suppresses duplicate stacks.
+
+J8 owns implementation closure for the remaining adaptation work. It is Expansion scope and does **not** gate Core C9 Feature Freeze.
