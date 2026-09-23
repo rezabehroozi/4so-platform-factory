@@ -215,6 +215,16 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("PlatformTemplate console runtime contract missing %q", contract)
 		}
 	}
+	for _, contract := range []string{`id="application-composition-panel"`, `id="application-resolution-form"`, `id="application-promotion-form"`, "Authority boundary:", "immutable release"} {
+		if !strings.Contains(html, contract) {
+			t.Fatalf("J8 application composition console contract missing %q", contract)
+		}
+	}
+	for _, contract := range []string{"applicationWorkloadTypes", "applicationCapabilityTraits", "applicationResourceTypes", "applicationWorkspaceProfiles", "applicationReleases", "applicationEnvironmentBindings", "/api/v1/application-platform/resolve", "/application-platform/environment-bindings/", "If-Match", "Preview only. No target", "Runtime convergence and Physical certification remain separate"} {
+		if !strings.Contains(js, contract) {
+			t.Fatalf("J8 application composition runtime contract missing %q", contract)
+		}
+	}
 	for _, contract := range []string{`class="skip-link"`, `name="theme-color"`} {
 		if !strings.Contains(html, contract) {
 			t.Fatalf("operator accessibility/design contract missing %q", contract)
