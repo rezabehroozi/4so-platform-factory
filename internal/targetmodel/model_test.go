@@ -523,10 +523,11 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusOpen || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) {
 		t.Fatalf("application-platform composition phase drift: %+v", j8)
 	}
-	for _, blocker := range []string{"FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING", "OPENCHOREO_EXACT_SOURCE_LIFECYCLE_ADAPTER_PENDING"} {
-		if !containsString(j8.Blockers, blocker) {
-			t.Fatalf("J8 blocker missing %s: %+v", blocker, j8)
-		}
+	if len(j8.Blockers) != 1 || !containsString(j8.Blockers, "OPENCHOREO_EXACT_SOURCE_LIFECYCLE_ADAPTER_PENDING") {
+		t.Fatalf("J8 must retain only the OpenChoreo lifecycle blocker: %+v", j8)
+	}
+	if containsString(j8.Blockers, "FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING") {
+		t.Fatalf("Fleet gateway source blocker remained after reconnect/runtime closure: %+v", j8)
 	}
 
 	if containsString(j8.Blockers, "DELIVERY_DEPLOYMENT_EVIDENCE_INGESTION_PENDING") {
