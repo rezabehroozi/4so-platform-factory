@@ -462,12 +462,12 @@ func TestFleetReliabilityConsoleContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	html, js := string(htmlBytes), string(jsBytes)
-	for _, id := range []string{"reliability-summary", "reliability-cluster-grid", "reliability-incident-grid", "reliability-slo-grid", "reliability-incident-form", "reliability-slo-form"} {
+	for _, id := range []string{"reliability-summary", "reliability-delivery-summary", "reliability-delivery-evidence", "reliability-cluster-grid", "reliability-incident-grid", "reliability-slo-grid", "reliability-incident-form", "reliability-slo-form"} {
 		if !strings.Contains(html, `id="`+id+`"`) {
 			t.Fatalf("fleet reliability DOM contract missing %q", id)
 		}
 	}
-	for _, route := range []string{"/api/v1/reliability/service-health", "/api/v1/reliability/incidents", "/api/v1/reliability/slo-policies", "/api/v1/reliability/error-budgets"} {
+	for _, route := range []string{"/api/v1/reliability/service-health", "/api/v1/reliability/incidents", "/api/v1/reliability/slo-policies", "/api/v1/reliability/error-budgets", "/api/v1/reliability/delivery-insights"} {
 		if !strings.Contains(js, route) {
 			t.Fatalf("fleet reliability API journey missing %q", route)
 		}

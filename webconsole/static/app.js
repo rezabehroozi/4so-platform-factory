@@ -3147,13 +3147,32 @@ async function loadFinOps(){
 
 async function loadReliability(projectId, projectClusters){
   const emptyHealth={authority:'SERVICE_HEALTH_AUTHORITY_V1',coverageStatus:'UNKNOWN',summary:{UNKNOWN:0},clusters:[]};
-  const [serviceHealth,incidents,sloPolicies,reliabilityErrorBudgets]=projectId?await Promise.all([
+  const emptyDelivery={authority:'DELIVERY_INSIGHTS_AUTHORITY_V1',deploymentFrequency:{status:'UNKNOWN',unit:'deployments-per-day-micros',sampleSize:0},leadTimeForChanges:{status:'UNKNOWN',unit:'seconds',sampleSize:0},changeFailureRate:{status:'UNKNOWN',unit:'basis-points',sampleSize:0},failedDeploymentRecovery:{status:'UNKNOWN',unit:'seconds',sampleSize:0},missingEvidence:['deployment-events','source-commit-timestamps','matched-incident-open-resolve-pairs'],physicalCertificationInferred:false};
+  const deliveryTo=new Date(),deliveryFrom=new Date(deliveryTo.getTime()-30*24*60*60*1000);
+  const deliveryQuery=projectId?`projectId=${encodeURIComponent(projectId)}&from=${encodeURIComponent(deliveryFrom.toISOString())}&to=${encodeURIComponent(deliveryTo.toISOString())}`:'';
+  const [serviceHealth,incidents,sloPolicies,reliabilityErrorBudgets,deliveryInsights]=projectId?await Promise.all([
     softApi(`/api/v1/reliability/service-health?projectId=${encodeURIComponent(projectId)}`,emptyHealth,'reliability service health'),
     softApi(`/api/v1/reliability/incidents?projectId=${encodeURIComponent(projectId)}&limit=100`,[],'reliability incidents'),
     softApi(`/api/v1/reliability/slo-policies?projectId=${encodeURIComponent(projectId)}&limit=100`,[],'reliability SLO policies'),
-    softApi(`/api/v1/reliability/error-budgets?projectId=${encodeURIComponent(projectId)}`,[],'reliability error budgets')
-  ]):[emptyHealth,[],[],[]];
-  Object.assign(state,{reliabilityServiceHealth:serviceHealth,reliabilityIncidents:incidents,reliabilitySLOPolicies:sloPolicies,reliabilityErrorBudgets});
+    softApi(`/api/v1/reliability/error-budgets?projectId=${encodeURIComponent(projectId)}`,[],'reliability error budgets'),
+    softApi(`/api/v1/reliability/delivery-insights?${deliveryQuery}`,emptyDelivery,'delivery insights')
+  ]):[emptyHealth,[],[],[],emptyDelivery];
+  Object.assign(state,{reliabilityServiceHealth:serviceHealth,reliabilityIncidents:incidents,reliabilitySLOPolicies:sloPolicies,reliabilityErrorBudgets,reliabilityDeliveryInsights:deliveryInsights});
+  const deliveryValue=(metric,kind)=>{
+    if(!metric||metric.status!=='OBSERVED')return 'UNKNOWN';
+    const value=Number(metric.value||0);
+    if(kind==='frequency')return `${(value/1000000).toFixed(2)}/day`;
+    if(kind==='rate')return `${(value/100).toFixed(2)}%`;
+    return `${value}s`;
+  };
+  $('#reliability-delivery-summary').innerHTML=[
+    ['Deployment frequency',deliveryValue(deliveryInsights?.deploymentFrequency,'frequency'),deliveryInsights?.deploymentFrequency],
+    ['Lead time for changes',deliveryValue(deliveryInsights?.leadTimeForChanges,'seconds'),deliveryInsights?.leadTimeForChanges],
+    ['Change failure rate',deliveryValue(deliveryInsights?.changeFailureRate,'rate'),deliveryInsights?.changeFailureRate],
+    ['Incident recovery',deliveryValue(deliveryInsights?.failedDeploymentRecovery,'seconds'),deliveryInsights?.failedDeploymentRecovery]
+  ].map(([label,value,metric])=>`<article class="metric-card"><strong>${esc(value)}</strong><span>${esc(label)}</span><small>${esc(metric?.status==='OBSERVED'?`${metric.sampleSize||0} evidence sample(s)`:'Insufficient source evidence')}</small></article>`).join('');
+  const missing=deliveryInsights?.missingEvidence||[];
+  $('#reliability-delivery-evidence').innerHTML=`<strong>Window</strong> ${esc(deliveryFrom.toLocaleDateString())} → ${esc(deliveryTo.toLocaleDateString())} · <strong>Evidence</strong> ${esc(deliveryInsights?.evidenceCount||0)} · <strong>Missing</strong> ${esc(missing.length?missing.join(', '):'none')} · Physical certification is never inferred from these analytics.`;
   const reliabilityCoverageStatus=String(serviceHealth?.coverageStatus||'UNKNOWN').toUpperCase();
   const openIncidents=(incidents||[]).filter(item=>item.state!=='RESOLVED').length;
   const completeBudgets=(reliabilityErrorBudgets||[]).filter(item=>item.projection?.coverageStatus==='COMPLETE').length;
