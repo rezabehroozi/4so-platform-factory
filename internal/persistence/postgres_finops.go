@@ -12,7 +12,7 @@ import (
 )
 
 const finOpsRateCardColumns = `id,organization_id,revision,authority,name,version,currency,effective_from,effective_until,rates,digest,created_at,updated_at`
-const finOpsUsageColumns = `id,organization_id,project_id,cluster_id,workspace_id,namespace,revision,authority,source,source_event_id,window_start,window_end,metrics,digest,created_at,updated_at`
+const finOpsUsageColumns = `id,organization_id,project_id,cluster_id,workspace_id,namespace,COALESCE(virtual_cluster_id,''),revision,authority,source,source_event_id,window_start,window_end,metrics,digest,created_at,updated_at`
 const finOpsCapacityColumns = `id,organization_id,project_id,cluster_id,revision,authority,source,source_event_id,observed_at,metrics,digest,created_at,updated_at`
 
 func scanFinOpsRateCard(row interface{ Scan(...any) error }) (controlplane.FinOpsRateCard, error) {
@@ -34,7 +34,7 @@ func scanFinOpsRateCard(row interface{ Scan(...any) error }) (controlplane.FinOp
 func scanFinOpsUsage(row interface{ Scan(...any) error }) (controlplane.FinOpsUsageMeasurement, error) {
 	var v controlplane.FinOpsUsageMeasurement
 	var raw []byte
-	if err := row.Scan(&v.ID, &v.OrganizationID, &v.ProjectID, &v.ClusterID, &v.WorkspaceID, &v.Namespace, &v.Revision, &v.Authority, &v.Source, &v.SourceEventID, &v.WindowStart, &v.WindowEnd, &raw, &v.Digest, &v.CreatedAt, &v.UpdatedAt); err != nil {
+	if err := row.Scan(&v.ID, &v.OrganizationID, &v.ProjectID, &v.ClusterID, &v.WorkspaceID, &v.Namespace, &v.VirtualClusterID, &v.Revision, &v.Authority, &v.Source, &v.SourceEventID, &v.WindowStart, &v.WindowEnd, &raw, &v.Digest, &v.CreatedAt, &v.UpdatedAt); err != nil {
 		return v, err
 	}
 	if err := decodeJSONColumn(raw, &v.Metrics, "finops_usage_measurements.metrics"); err != nil {
@@ -109,7 +109,7 @@ func (s *PostgresStore) ListFinOpsRateCards(ctx context.Context, orgID string) (
 	return out, rows.Err()
 }
 
-func validateFinOpsSQLScope(ctx context.Context, tx *sql.Tx, orgID, projectID, clusterID, workspaceID string) error {
+func validateFinOpsSQLScope(ctx context.Context, tx *sql.Tx, orgID, projectID, clusterID, workspaceID, virtualClusterID, namespace string) error {
 	var actualOrg string
 	if err := tx.QueryRowContext(ctx, `SELECT organization_id FROM projects WHERE id=$1`, projectID).Scan(&actualOrg); err != nil {
 		return mapDBError(err)
@@ -135,6 +135,15 @@ func validateFinOpsSQLScope(ctx context.Context, tx *sql.Tx, orgID, projectID, c
 			return fmt.Errorf("%w: FinOps workspace is outside project authority", controlplane.ErrValidation)
 		}
 	}
+	if virtualClusterID != "" {
+		var vp, vw, vc, vn string
+		if err := tx.QueryRowContext(ctx, `SELECT project_id,workspace_id,host_cluster_id,host_namespace FROM virtual_clusters WHERE id=$1`, virtualClusterID).Scan(&vp, &vw, &vc, &vn); err != nil {
+			return mapDBError(err)
+		}
+		if vp != projectID || vw != workspaceID || vc != clusterID || vn != namespace {
+			return fmt.Errorf("%w: FinOps virtual-cluster attribution does not match project/workspace/cluster/namespace authority", controlplane.ErrValidation)
+		}
+	}
 	return nil
 }
 
@@ -155,7 +164,7 @@ func (s *PostgresStore) CreateFinOpsUsageMeasurement(ctx context.Context, in con
 		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, key); err != nil {
 			return err
 		}
-		if err := validateFinOpsSQLScope(ctx, tx, v.OrganizationID, v.ProjectID, v.ClusterID, v.WorkspaceID); err != nil {
+		if err := validateFinOpsSQLScope(ctx, tx, v.OrganizationID, v.ProjectID, v.ClusterID, v.WorkspaceID, v.VirtualClusterID, v.Namespace); err != nil {
 			return err
 		}
 		existing, e := scanFinOpsUsage(tx.QueryRowContext(ctx, `SELECT `+finOpsUsageColumns+` FROM finops_usage_measurements WHERE project_id=$1 AND source=$2 AND source_event_id=$3`, v.ProjectID, v.Source, v.SourceEventID))
@@ -170,11 +179,11 @@ func (s *PostgresStore) CreateFinOpsUsageMeasurement(ctx context.Context, in con
 		if e != sql.ErrNoRows {
 			return e
 		}
-		_, e = tx.ExecContext(ctx, `INSERT INTO finops_usage_measurements(id,organization_id,project_id,cluster_id,workspace_id,namespace,revision,authority,source,source_event_id,window_start,window_end,metrics,digest,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,1,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$14)`, v.ID, v.OrganizationID, v.ProjectID, v.ClusterID, v.WorkspaceID, v.Namespace, v.Authority, v.Source, v.SourceEventID, v.WindowStart, v.WindowEnd, raw, v.Digest, now)
+		_, e = tx.ExecContext(ctx, `INSERT INTO finops_usage_measurements(id,organization_id,project_id,cluster_id,workspace_id,namespace,virtual_cluster_id,revision,authority,source,source_event_id,window_start,window_end,metrics,digest,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,NULLIF($7,''),1,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$15)`, v.ID, v.OrganizationID, v.ProjectID, v.ClusterID, v.WorkspaceID, v.Namespace, v.VirtualClusterID, v.Authority, v.Source, v.SourceEventID, v.WindowStart, v.WindowEnd, raw, v.Digest, now)
 		if e != nil {
 			return mapDBError(e)
 		}
-		return s.appendAuditTx(ctx, tx, actor, "finops.usage_measurement.created", "finOpsUsageMeasurement", v.ID, 1, "", map[string]any{"organizationId": v.OrganizationID, "projectId": v.ProjectID, "source": v.Source, "digest": v.Digest})
+		return s.appendAuditTx(ctx, tx, actor, "finops.usage_measurement.created", "finOpsUsageMeasurement", v.ID, 1, "", map[string]any{"organizationId": v.OrganizationID, "projectId": v.ProjectID, "virtualClusterId": v.VirtualClusterID, "source": v.Source, "digest": v.Digest})
 	})
 	return v, replay, err
 }
@@ -222,7 +231,7 @@ func (s *PostgresStore) CreateFinOpsCapacityObservation(ctx context.Context, in 
 		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, key); err != nil {
 			return err
 		}
-		if err := validateFinOpsSQLScope(ctx, tx, v.OrganizationID, v.ProjectID, v.ClusterID, ""); err != nil {
+		if err := validateFinOpsSQLScope(ctx, tx, v.OrganizationID, v.ProjectID, v.ClusterID, "", "", ""); err != nil {
 			return err
 		}
 		existing, e := scanFinOpsCapacity(tx.QueryRowContext(ctx, `SELECT `+finOpsCapacityColumns+` FROM finops_capacity_observations WHERE project_id=$1 AND source=$2 AND source_event_id=$3`, v.ProjectID, v.Source, v.SourceEventID))
