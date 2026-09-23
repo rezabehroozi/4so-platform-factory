@@ -69,8 +69,9 @@ type FinOpsUsageMeasurement struct {
 	ProjectID      string                                   `json:"projectId"`
 	ClusterID      string                                   `json:"clusterId,omitempty"`
 	WorkspaceID    string                                   `json:"workspaceId,omitempty"`
-	Namespace      string                                   `json:"namespace,omitempty"`
-	Source         string                                   `json:"source"`
+	Namespace        string                                   `json:"namespace,omitempty"`
+	VirtualClusterID string                                   `json:"virtualClusterId,omitempty"`
+	Source           string                                   `json:"source"`
 	SourceEventID  string                                   `json:"sourceEventId"`
 	WindowStart    time.Time                                `json:"windowStart"`
 	WindowEnd      time.Time                                `json:"windowEnd"`
@@ -263,6 +264,7 @@ func NormalizeFinOpsUsageMeasurement(in FinOpsUsageMeasurement) (FinOpsUsageMeas
 	in.ClusterID = strings.TrimSpace(in.ClusterID)
 	in.WorkspaceID = strings.TrimSpace(in.WorkspaceID)
 	in.Namespace = strings.TrimSpace(in.Namespace)
+	in.VirtualClusterID = strings.TrimSpace(in.VirtualClusterID)
 	if in.OrganizationID == "" || in.ProjectID == "" {
 		return FinOpsUsageMeasurement{}, fmt.Errorf("%w: organizationId and projectId are required", ErrValidation)
 	}
@@ -304,10 +306,10 @@ func NormalizeFinOpsUsageMeasurement(in FinOpsUsageMeasurement) (FinOpsUsageMeas
 	}
 	in.Metrics = metrics
 	in.Digest = finOpsSHA(struct {
-		Authority, OrganizationID, ProjectID, ClusterID, WorkspaceID, Namespace, Source, SourceEventID string
-		WindowStart, WindowEnd                                                                         time.Time
-		Metrics                                                                                        []metricKV
-	}{in.Authority, in.OrganizationID, in.ProjectID, in.ClusterID, in.WorkspaceID, in.Namespace, in.Source, in.SourceEventID, in.WindowStart, in.WindowEnd, ordered})
+		Authority, OrganizationID, ProjectID, ClusterID, WorkspaceID, Namespace, VirtualClusterID, Source, SourceEventID string
+		WindowStart, WindowEnd                                                                                           time.Time
+		Metrics                                                                                                          []metricKV
+	}{in.Authority, in.OrganizationID, in.ProjectID, in.ClusterID, in.WorkspaceID, in.Namespace, in.VirtualClusterID, in.Source, in.SourceEventID, in.WindowStart, in.WindowEnd, ordered})
 	return in, nil
 }
 
