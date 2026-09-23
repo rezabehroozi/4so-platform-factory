@@ -46,7 +46,7 @@ func finOpsCapacityIdempotencyKey(v FinOpsCapacityObservation) string {
 	return v.ProjectID + "\x00" + v.Source + "\x00" + v.SourceEventID
 }
 
-func (s *MemoryStore) validateFinOpsProjectScopeLocked(orgID, projectID, clusterID, workspaceID string) error {
+func (s *MemoryStore) validateFinOpsProjectScopeLocked(orgID, projectID, clusterID, workspaceID, virtualClusterID, namespace string) error {
 	project, ok := s.projects[projectID]
 	if !ok || project.OrganizationID != orgID {
 		return fmt.Errorf("%w: FinOps project is outside organization authority", ErrValidation)
@@ -61,6 +61,15 @@ func (s *MemoryStore) validateFinOpsProjectScopeLocked(orgID, projectID, cluster
 		workspace, ok := s.workspaces[workspaceID]
 		if !ok || workspace.ProjectID != projectID {
 			return fmt.Errorf("%w: FinOps workspace is outside project authority", ErrValidation)
+		}
+	}
+	if virtualClusterID != "" {
+		v, ok := s.virtualClusters[virtualClusterID]
+		if !ok {
+			return fmt.Errorf("%w: FinOps virtual cluster does not exist", ErrValidation)
+		}
+		if v.ProjectID != projectID || v.WorkspaceID != workspaceID || v.HostClusterID != clusterID || v.HostNamespace != namespace {
+			return fmt.Errorf("%w: FinOps virtual-cluster attribution does not match project/workspace/cluster/namespace authority", ErrValidation)
 		}
 	}
 	return nil
@@ -138,7 +147,7 @@ func (s *MemoryStore) CreateFinOpsUsageMeasurement(_ context.Context, in FinOpsU
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.validateFinOpsProjectScopeLocked(normalized.OrganizationID, normalized.ProjectID, normalized.ClusterID, normalized.WorkspaceID); err != nil {
+	if err := s.validateFinOpsProjectScopeLocked(normalized.OrganizationID, normalized.ProjectID, normalized.ClusterID, normalized.WorkspaceID, normalized.VirtualClusterID, normalized.Namespace); err != nil {
 		return FinOpsUsageMeasurement{}, false, err
 	}
 	key := finOpsUsageIdempotencyKey(normalized)
@@ -155,7 +164,7 @@ func (s *MemoryStore) CreateFinOpsUsageMeasurement(_ context.Context, in FinOpsU
 	normalized.ResourceMeta = ResourceMeta{ID: s.id("fus"), Revision: 1, CreatedAt: now, UpdatedAt: now}
 	normalized = cloneFinOpsUsageMeasurement(normalized)
 	s.finOpsUsageMeasurements[normalized.ID] = normalized
-	s.appendAuditLocked(actor, "finops.usage_measurement.created", "finOpsUsageMeasurement", normalized.ID, normalized.Revision, map[string]any{"organizationId": normalized.OrganizationID, "projectId": normalized.ProjectID, "source": normalized.Source, "digest": normalized.Digest})
+	s.appendAuditLocked(actor, "finops.usage_measurement.created", "finOpsUsageMeasurement", normalized.ID, normalized.Revision, map[string]any{"organizationId": normalized.OrganizationID, "projectId": normalized.ProjectID, "virtualClusterId": normalized.VirtualClusterID, "source": normalized.Source, "digest": normalized.Digest})
 	return cloneFinOpsUsageMeasurement(normalized), false, nil
 }
 func (s *MemoryStore) GetFinOpsUsageMeasurement(_ context.Context, id string) (FinOpsUsageMeasurement, error) {
@@ -212,7 +221,7 @@ func (s *MemoryStore) CreateFinOpsCapacityObservation(_ context.Context, in FinO
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.validateFinOpsProjectScopeLocked(normalized.OrganizationID, normalized.ProjectID, normalized.ClusterID, ""); err != nil {
+	if err := s.validateFinOpsProjectScopeLocked(normalized.OrganizationID, normalized.ProjectID, normalized.ClusterID, "", "", ""); err != nil {
 		return FinOpsCapacityObservation{}, false, err
 	}
 	key := finOpsCapacityIdempotencyKey(normalized)
