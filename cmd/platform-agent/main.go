@@ -297,7 +297,7 @@ func (a *agent) taskProcessors() []agentTaskProcessor {
 		{name: "tenant", run: a.processTenantTask},
 		{name: "provider profile", run: a.processProviderProfileTask},
 		{name: "provider cluster", run: a.processProviderClusterTask},
-		{name: "virtual cluster", run: a.processVirtualClusterTask},
+		{name: "virtual cluster", run: a.processVirtualClusterTask},\n\t\t{name: "OpenChoreo lifecycle", run: a.processOpenChoreoLifecycleTask},
 		{name: "cluster maintenance", run: a.processClusterMaintenanceTask},
 		{name: "workload logs", run: a.processWorkloadLogTask},
 		{name: "runtime certification", run: a.processRuntimeCertificationTask},
