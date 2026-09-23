@@ -130,3 +130,40 @@ func (s *PostgresStore) ListAuditPageByScopes(ctx context.Context, organizationI
 	}
 	return out, rows.Err()
 }
+
+
+func (s *PostgresStore) ListAuditPageByResource(ctx context.Context, resourceType, resourceID string, limit int) ([]controlplane.AuditEvent, error) {
+	resourceType = strings.TrimSpace(resourceType)
+	resourceID = strings.TrimSpace(resourceID)
+	if resourceType == "" || resourceID == "" {
+		return []controlplane.AuditEvent{}, controlplane.ErrValidation
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id,occurred_at,actor_id,action,resource_type,resource_id,resource_revision,COALESCE(request_id,''),metadata
+		 FROM audit_events
+		 WHERE resource_type=$1 AND resource_id=$2
+		 ORDER BY occurred_at DESC,id DESC LIMIT $3`,
+		resourceType, resourceID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []controlplane.AuditEvent{}
+	for rows.Next() {
+		var value controlplane.AuditEvent
+		var metadata []byte
+		if err := rows.Scan(&value.ID, &value.OccurredAt, &value.ActorID, &value.Action, &value.ResourceType, &value.ResourceID, &value.Revision, &value.RequestID, &metadata); err != nil {
+			return nil, err
+		}
+		if len(metadata) > 0 {
+			if err := json.Unmarshal(metadata, &value.Metadata); err != nil {
+				return nil, err
+			}
+		}
+		out = append(out, value)
+	}
+	return out, rows.Err()
+}
