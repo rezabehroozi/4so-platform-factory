@@ -2,8 +2,8 @@
 package factorysdk
 
 const ProductAPIContractAuthority = "PRODUCT_API_CONTRACT_AUTHORITY_V1"
-const ProductAPIContractDigest = "sha256:964a7c9a5e29b6e5aa8df453f32599dddd9978a2e8f4f6b1350fd3a699b1e47a"
-const ProductAPIRouteCount = 373
+const ProductAPIContractDigest = "sha256:54efe89ca1af4bf17c0c76c8a76338731ca2d48d5e50a8f7e66ed34ec6a1c74f"
+const ProductAPIRouteCount = 375
 
 var Routes = []Route{
 	{Method: "GET", Path: "/api/v1/version", Family: "version", PathParams: nil, Mutation: false, ResourceScope: "PLATFORM_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
@@ -274,6 +274,8 @@ var Routes = []Route{
 	{Method: "POST", Path: "/api/v1/clusters/{id}/maintenance-runs/{runId}/approve", Family: "clusters", PathParams: []string{"id", "runId"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/clusters/{id}/revoke", Family: "clusters", PathParams: []string{"id"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/clusters/{id}/agent-certificates", Family: "clusters", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "GET", Path: "/api/v1/clusters/{id}/gateway-session", Family: "clusters", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/clusters/{id}/gateway-session/drain", Family: "clusters", PathParams: []string{"id"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/clusters/{id}/agent-certificates/{certId}/revoke", Family: "clusters", PathParams: []string{"id", "certId"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/clusters/{id}/timeline", Family: "clusters", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/clusters/{id}/workloads", Family: "clusters", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},

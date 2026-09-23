@@ -3,10 +3,10 @@
   "counts": {
     "security-excluded": 40,
     "tool-admin": 73,
-    "tool-operate": 78,
-    "tool-read": 182
+    "tool-operate": 79,
+    "tool-read": 183
   },
-  "routeCount": 373,
+  "routeCount": 375,
   "routes": [
     {
       "action": "version",
@@ -6760,6 +6760,44 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_marketplace_recommendations_by_id"
+    },
+    {
+      "action": "gateway-session",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "clusters",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/clusters/{id}/gateway-session",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_clusters_by_id_gateway_session"
+    },
+    {
+      "action": "gateway-session_drain",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-operate",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "clusters",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/clusters/{id}/gateway-session/drain",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "medium",
+      "toolName": "api_post_clusters_by_id_gateway_session_drain"
     }
   ],
   "source": "internal/api/server.go"

@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 373,
-  "routeDigest": "sha256:964a7c9a5e29b6e5aa8df453f32599dddd9978a2e8f4f6b1350fd3a699b1e47a",
+  "routeCount": 375,
+  "routeDigest": "sha256:54efe89ca1af4bf17c0c76c8a76338731ca2d48d5e50a8f7e66ed34ec6a1c74f",
   "routes": [
     {
       "family": "version",
@@ -2701,6 +2701,28 @@
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/clusters/{id}/agent-certificates",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "clusters",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/clusters/{id}/gateway-session",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "clusters",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/clusters/{id}/gateway-session/drain",
       "pathParams": [
         "id"
       ],
