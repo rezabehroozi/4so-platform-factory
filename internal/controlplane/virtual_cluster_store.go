@@ -359,11 +359,7 @@ func (s *MemoryStore) NextVirtualClusterTask(_ context.Context, clusterID, token
 	now := nowUTC(s.now)
 	ids := make([]string, 0)
 	for id, current := range s.virtualClusters {
-		if current.HostClusterID != clusterID {
-			continue
-		}
-		if current.State == virtualcluster.StateRequested ||
-			(current.State == virtualcluster.StateProvisioning && !AgentTaskLeaseActive(current.TaskLeaseExpiresAt, now)) {
+		if current.HostClusterID == clusterID && VirtualClusterTaskClaimable(current, now) {
 			ids = append(ids, id)
 		}
 	}
@@ -374,15 +370,23 @@ func (s *MemoryStore) NextVirtualClusterTask(_ context.Context, clusterID, token
 		return resourceUpdatedBefore(s.virtualClusters[ids[i]].ResourceMeta, s.virtualClusters[ids[j]].ResourceMeta)
 	})
 	v := s.virtualClusters[ids[0]]
-
 	if v.State == virtualcluster.StateProvisioning && v.TaskAction == "APPLY" && v.TaskLeaseExpiresAt != nil && !AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {
 		v = markVirtualClusterRecovery(v, now, "virtual cluster APPLY lease expired; mutation outcome is ambiguous and automatic replay is forbidden")
+		v.TaskAction = ""
 		s.virtualClusters[v.ID] = v
 		s.appendAuditLocked("cluster-agent", "virtual_cluster.apply.lease_expired_recovery_required", "virtualCluster", v.ID, v.Revision, map[string]any{"taskFenceToken": v.TaskFenceToken, "runtimeSourceDigest": v.RuntimeSourceDigest})
 		s.appendOutboxLocked("virtualCluster", v.ID, "virtual_cluster.state.changed", v)
 		return VirtualClusterTask{}, ErrNotFound
 	}
-
+	if VirtualClusterExpiredDispatchedMutation(v, now) {
+		v = markVirtualClusterRecovery(v, now, "virtual cluster lifecycle mutation lease expired after durable dispatch acknowledgement; automatic replay is forbidden")
+		v.TaskAction = ""
+		v.TaskDispatchedAt = nil
+		s.virtualClusters[v.ID] = v
+		s.appendAuditLocked("cluster-agent", "virtual_cluster.lifecycle.lease_expired_recovery_required", "virtualCluster", v.ID, v.Revision, map[string]any{"taskFenceToken": v.TaskFenceToken, "lifecycleAction": v.PendingAction})
+		s.appendOutboxLocked("virtualCluster", v.ID, "virtual_cluster.state.changed", v)
+		return VirtualClusterTask{}, ErrNotFound
+	}
 	if err := s.virtualClusterBindingFenceCurrentLocked(v); err != nil {
 		message := "workspace binding revision/state changed before virtual cluster runtime claim"
 		if v.State == virtualcluster.StateRequested {
@@ -394,37 +398,22 @@ func (s *MemoryStore) NextVirtualClusterTask(_ context.Context, clusterID, token
 			v.UpdatedAt = now
 		} else {
 			v = markVirtualClusterRecovery(v, now, message)
+			v.TaskAction = ""
+			v.TaskDispatchedAt = nil
 		}
 		s.virtualClusters[v.ID] = v
 		s.appendAuditLocked("cluster-agent", "virtual_cluster.binding_fence.rejected", "virtualCluster", v.ID, v.Revision, map[string]any{"workspaceBindingId": v.WorkspaceBindingID, "workspaceBindingRevision": v.WorkspaceBindingRevision})
 		s.appendOutboxLocked("virtualCluster", v.ID, "virtual_cluster.state.changed", v)
 		return VirtualClusterTask{}, ErrNotFound
 	}
-
-	if v.RuntimeSourceDigest != "" && v.RuntimeSourceDigest != runtimeSourceDigest {
-		return VirtualClusterTask{}, ErrConflict
+	claimed, task, err := PrepareVirtualClusterTaskClaim(v, runtimeSourceDigest, now)
+	if err != nil {
+		return VirtualClusterTask{}, err
 	}
-	action := "APPLY"
-	if v.State == virtualcluster.StateProvisioning {
-		action = "INSPECT"
-	}
-	if v.RuntimeSourceDigest == "" {
-		v.RuntimeSourceDigest = runtimeSourceDigest
-	}
-	lease := now.Add(AgentTaskLeaseDuration)
-	v.State = virtualcluster.StateProvisioning
-	v.TaskAction = action
-	v.TaskAttempt++
-	v.TaskFenceToken++
-	v.TaskLeaseExpiresAt = &lease
-	v.Phase = action + "Claimed"
-	v.LastError = ""
-	v.Revision++
-	v.UpdatedAt = now
-	s.virtualClusters[v.ID] = v
-	s.appendAuditLocked("cluster-agent", "virtual_cluster.task.claimed", "virtualCluster", v.ID, v.Revision, map[string]any{"action": action, "taskFenceToken": v.TaskFenceToken, "runtimeSourceDigest": v.RuntimeSourceDigest})
-	s.appendOutboxLocked("virtualCluster", v.ID, "virtual_cluster.state.changed", v)
-	return VirtualClusterTaskFromRecord(v), nil
+	s.virtualClusters[claimed.ID] = claimed
+	s.appendAuditLocked("cluster-agent", "virtual_cluster.task.claimed", "virtualCluster", claimed.ID, claimed.Revision, map[string]any{"action": task.Action, "lifecycleAction": task.LifecycleAction, "taskFenceToken": claimed.TaskFenceToken, "runtimeSourceDigest": claimed.RuntimeSourceDigest})
+	s.appendOutboxLocked("virtualCluster", claimed.ID, "virtual_cluster.state.changed", claimed)
+	return task, nil
 }
 
 func (s *MemoryStore) ReportVirtualClusterTask(_ context.Context, clusterID, tokenDigest string, expected int64, result VirtualClusterTaskResult) (VirtualCluster, error) {
@@ -439,78 +428,15 @@ func (s *MemoryStore) ReportVirtualClusterTask(_ context.Context, clusterID, tok
 	}
 	now := nowUTC(s.now)
 	action := strings.ToUpper(strings.TrimSpace(result.Action))
-	if v.Revision != expected || result.TaskFenceToken <= 0 || v.TaskFenceToken != result.TaskFenceToken ||
-		!AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) || action != v.TaskAction {
+	if v.Revision != expected || result.TaskFenceToken <= 0 || v.TaskFenceToken != result.TaskFenceToken || !AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) || action != v.TaskAction {
 		return VirtualCluster{}, ErrConflict
 	}
-	if action != "APPLY" && action != "INSPECT" {
-		return VirtualCluster{}, ErrValidation
+	updated, err := ApplyVirtualClusterTaskResult(v, result, now)
+	if err != nil {
+		return VirtualCluster{}, err
 	}
-	if result.RecoveryRequired && result.Success {
-		return VirtualCluster{}, ErrValidation
-	}
-	result.ObservedDigest = strings.TrimSpace(result.ObservedDigest)
-	result.Phase = strings.TrimSpace(result.Phase)
-	result.Error = strings.TrimSpace(result.Error)
-
-	if !result.Success {
-		if result.RecoveryRequired {
-			v = markVirtualClusterRecovery(v, now, result.Error)
-		} else if action == "APPLY" {
-			v.State = virtualcluster.StateFailed
-			v.Phase = "ApplyFailed"
-			v.LastError = result.Error
-			if v.LastError == "" {
-				v.LastError = "virtual cluster apply failed before mutation convergence"
-			}
-			v.TaskLeaseExpiresAt = nil
-			v.TaskAction = ""
-			v.Revision++
-			v.UpdatedAt = now
-		} else {
-			v.State = virtualcluster.StateProvisioning
-			v.Phase = "InspectRetry"
-			v.LastError = result.Error
-			if v.LastError == "" {
-				v.LastError = "virtual cluster authoritative readback failed"
-			}
-			v.TaskLeaseExpiresAt = nil
-			v.TaskAction = "INSPECT"
-			v.Revision++
-			v.UpdatedAt = now
-		}
-	} else {
-		if result.ObservedDigest != v.DesiredDigest {
-			v = markVirtualClusterRecovery(v, now, "virtual cluster authoritative readback digest does not match desired state")
-		} else if result.Ready {
-			v.State = virtualcluster.StateActive
-			v.ObservedDigest = result.ObservedDigest
-			v.Phase = result.Phase
-			if v.Phase == "" {
-				v.Phase = "Ready"
-			}
-			v.PendingAction = ""
-			v.TaskAction = ""
-			v.TaskLeaseExpiresAt = nil
-			v.LastError = ""
-			v.Revision++
-			v.UpdatedAt = now
-		} else {
-			v.State = virtualcluster.StateProvisioning
-			v.ObservedDigest = result.ObservedDigest
-			v.Phase = result.Phase
-			if v.Phase == "" {
-				v.Phase = "Reconciling"
-			}
-			v.TaskAction = "INSPECT"
-			v.TaskLeaseExpiresAt = nil
-			v.LastError = ""
-			v.Revision++
-			v.UpdatedAt = now
-		}
-	}
-	s.virtualClusters[v.ID] = v
-	s.appendAuditLocked("cluster-agent", "virtual_cluster.task.reported", "virtualCluster", v.ID, v.Revision, map[string]any{"action": action, "success": result.Success, "ready": result.Ready, "recoveryRequired": result.RecoveryRequired, "taskFenceToken": result.TaskFenceToken})
-	s.appendOutboxLocked("virtualCluster", v.ID, "virtual_cluster.state.changed", v)
-	return cloneVirtualCluster(v), nil
+	s.virtualClusters[updated.ID] = updated
+	s.appendAuditLocked("cluster-agent", "virtual_cluster.task.reported", "virtualCluster", updated.ID, updated.Revision, map[string]any{"action": action, "lifecycleAction": result.LifecycleAction, "success": result.Success, "ready": result.Ready, "recoveryRequired": result.RecoveryRequired, "taskFenceToken": result.TaskFenceToken})
+	s.appendOutboxLocked("virtualCluster", updated.ID, "virtual_cluster.state.changed", updated)
+	return cloneVirtualCluster(updated), nil
 }

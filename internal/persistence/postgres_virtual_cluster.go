@@ -116,42 +116,49 @@ func (s *PostgresStore) NextVirtualClusterTask(ctx context.Context, clusterID, t
 		return task, err
 	}
 	err := s.serializable(ctx, func(tx *sql.Tx) error {
-		noTask = false
-		if e := s.validateFreshClusterAgentTx(ctx, tx, clusterID, tokenDigest); e != nil {
-			return e
+		if err := s.validateFreshClusterAgentTx(ctx, tx, clusterID, tokenDigest); err != nil {
+			return err
 		}
 		now := utcNow(s.now)
-		v, e := scanVirtualCluster(tx.QueryRowContext(ctx, `SELECT `+virtualClusterColumns+` FROM virtual_clusters
-			WHERE host_cluster_id=$1 AND (state='REQUESTED' OR (state='PROVISIONING' AND (task_lease_expires_at IS NULL OR task_lease_expires_at<=$2)))
-			ORDER BY updated_at,id LIMIT 1 FOR UPDATE SKIP LOCKED`, clusterID, now))
-		if e != nil {
-			return mapDBError(e)
+		v, err := scanVirtualCluster(tx.QueryRowContext(ctx, `SELECT `+virtualClusterColumns+` FROM virtual_clusters
+			WHERE host_cluster_id=$1 AND (
+				state='REQUESTED'
+				OR (state IN ('PROVISIONING','SUSPENDING','RESUMING','DELETING') AND (task_lease_expires_at IS NULL OR task_lease_expires_at<=$2))
+			)
+			ORDER BY updated_at,id LIMIT 1 FOR UPDATE SKIP LOCKED`, strings.TrimSpace(clusterID), now))
+		if err != nil {
+			return mapDBError(err)
 		}
 		if v.State == virtualcluster.StateProvisioning && v.TaskAction == "APPLY" && v.TaskLeaseExpiresAt != nil && !controlplane.AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {
 			v.State, v.Phase = virtualcluster.StateRecoveryRequired, "RecoveryRequired"
 			v.LastError = "virtual cluster APPLY lease expired; mutation outcome is ambiguous and automatic replay is forbidden"
+			v.TaskAction = ""
 			v.TaskLeaseExpiresAt = nil
 			v.Revision++
 			v.UpdatedAt = now
-			if _, e = tx.ExecContext(ctx, `UPDATE virtual_clusters SET revision=$2,state=$3,phase=$4,last_error=$5,task_lease_expires_at=NULL,updated_at=$6 WHERE id=$1`, v.ID, v.Revision, string(v.State), v.Phase, v.LastError, now); e != nil {
-				return e
-			}
-			if e = s.appendAuditTx(ctx, tx, "cluster-agent", "virtual_cluster.apply.lease_expired_recovery_required", "virtualCluster", v.ID, v.Revision, "", map[string]any{"taskFenceToken": v.TaskFenceToken, "runtimeSourceDigest": v.RuntimeSourceDigest}); e != nil {
-				return e
-			}
-			if e = s.appendOutboxTx(ctx, tx, "virtualCluster", v.ID, "virtual_cluster.state.changed", v); e != nil {
-				return e
-			}
+			if _, err = tx.ExecContext(ctx, `UPDATE virtual_clusters SET revision=$2,state=$3,phase=$4,last_error=$5,task_action='',task_lease_expires_at=NULL,updated_at=$6 WHERE id=$1`, v.ID, v.Revision, string(v.State), v.Phase, v.LastError, now); err != nil { return err }
+			if err = s.appendAuditTx(ctx, tx, "cluster-agent", "virtual_cluster.apply.lease_expired_recovery_required", "virtualCluster", v.ID, v.Revision, "", map[string]any{"taskFenceToken": v.TaskFenceToken}); err != nil { return err }
+			if err = s.appendOutboxTx(ctx, tx, "virtualCluster", v.ID, "virtual_cluster.state.changed", v); err != nil { return err }
 			noTask = true
 			return nil
 		}
-		binding, e := scanWorkspaceBinding(tx.QueryRowContext(ctx, `SELECT `+workspaceBindingColumns+` FROM workspace_bindings WHERE id=$1 FOR SHARE`, v.WorkspaceBindingID))
-		if e != nil {
-			return mapDBError(e)
+		if controlplane.VirtualClusterExpiredDispatchedMutation(v, now) {
+			v.State, v.Phase = virtualcluster.StateRecoveryRequired, "RecoveryRequired"
+			v.LastError = "virtual cluster lifecycle mutation lease expired after durable dispatch acknowledgement; automatic replay is forbidden"
+			v.TaskAction = ""
+			v.TaskLeaseExpiresAt = nil
+			v.TaskDispatchedAt = nil
+			v.Revision++
+			v.UpdatedAt = now
+			if _, err = tx.ExecContext(ctx, `UPDATE virtual_clusters SET revision=$2,state=$3,phase=$4,last_error=$5,task_action='',task_lease_expires_at=NULL,task_dispatched_at=NULL,updated_at=$6 WHERE id=$1`, v.ID, v.Revision, string(v.State), v.Phase, v.LastError, now); err != nil { return err }
+			if err = s.appendAuditTx(ctx, tx, "cluster-agent", "virtual_cluster.lifecycle.lease_expired_recovery_required", "virtualCluster", v.ID, v.Revision, "", map[string]any{"taskFenceToken": v.TaskFenceToken, "lifecycleAction": v.PendingAction}); err != nil { return err }
+			if err = s.appendOutboxTx(ctx, tx, "virtualCluster", v.ID, "virtual_cluster.state.changed", v); err != nil { return err }
+			noTask = true
+			return nil
 		}
-		bindingCurrent := binding.WorkspaceID == v.WorkspaceID && binding.ProjectID == v.ProjectID &&
-			binding.ClusterID == v.HostClusterID && binding.Namespace == v.HostNamespace &&
-			binding.Revision == v.WorkspaceBindingRevision && binding.State == controlplane.WorkspaceBindingActive
+		binding, err := scanWorkspaceBinding(tx.QueryRowContext(ctx, `SELECT `+workspaceBindingColumns+` FROM workspace_bindings WHERE id=$1 FOR SHARE`, v.WorkspaceBindingID))
+		if err != nil { return mapDBError(err) }
+		bindingCurrent := binding.WorkspaceID == v.WorkspaceID && binding.ProjectID == v.ProjectID && binding.ClusterID == v.HostClusterID && binding.Namespace == v.HostNamespace && binding.Revision == v.WorkspaceBindingRevision && binding.State == controlplane.WorkspaceBindingActive
 		if !bindingCurrent {
 			if v.State == virtualcluster.StateRequested {
 				v.State, v.Phase = virtualcluster.StateFailed, "BindingFenceRejected"
@@ -159,52 +166,24 @@ func (s *PostgresStore) NextVirtualClusterTask(ctx context.Context, clusterID, t
 				v.State, v.Phase = virtualcluster.StateRecoveryRequired, "RecoveryRequired"
 			}
 			v.LastError = "workspace binding revision/state changed before virtual cluster runtime claim"
+			v.TaskAction = ""
 			v.TaskLeaseExpiresAt = nil
+			v.TaskDispatchedAt = nil
 			v.Revision++
 			v.UpdatedAt = now
-			if _, e = tx.ExecContext(ctx, `UPDATE virtual_clusters SET revision=$2,state=$3,phase=$4,last_error=$5,task_lease_expires_at=NULL,updated_at=$6 WHERE id=$1`, v.ID, v.Revision, string(v.State), v.Phase, v.LastError, now); e != nil {
-				return e
-			}
-			if e = s.appendAuditTx(ctx, tx, "cluster-agent", "virtual_cluster.binding_fence.rejected", "virtualCluster", v.ID, v.Revision, "", map[string]any{"workspaceBindingId": v.WorkspaceBindingID, "workspaceBindingRevision": v.WorkspaceBindingRevision}); e != nil {
-				return e
-			}
-			if e = s.appendOutboxTx(ctx, tx, "virtualCluster", v.ID, "virtual_cluster.state.changed", v); e != nil {
-				return e
-			}
+			if _, err = tx.ExecContext(ctx, `UPDATE virtual_clusters SET revision=$2,state=$3,phase=$4,last_error=$5,task_action='',task_lease_expires_at=NULL,task_dispatched_at=NULL,updated_at=$6 WHERE id=$1`, v.ID, v.Revision, string(v.State), v.Phase, v.LastError, now); err != nil { return err }
+			if err = s.appendAuditTx(ctx, tx, "cluster-agent", "virtual_cluster.binding_fence.rejected", "virtualCluster", v.ID, v.Revision, "", map[string]any{"workspaceBindingId": v.WorkspaceBindingID, "workspaceBindingRevision": v.WorkspaceBindingRevision}); err != nil { return err }
+			if err = s.appendOutboxTx(ctx, tx, "virtualCluster", v.ID, "virtual_cluster.state.changed", v); err != nil { return err }
 			noTask = true
 			return nil
 		}
-		if v.RuntimeSourceDigest != "" && v.RuntimeSourceDigest != runtimeSourceDigest {
-			return controlplane.ErrConflict
-		}
-		action := "APPLY"
-		if v.State == virtualcluster.StateProvisioning {
-			action = "INSPECT"
-		}
-		if v.RuntimeSourceDigest == "" {
-			v.RuntimeSourceDigest = runtimeSourceDigest
-		}
-		lease := now.Add(controlplane.AgentTaskLeaseDuration)
-		v.State = virtualcluster.StateProvisioning
-		v.TaskAction = action
-		v.TaskAttempt++
-		v.TaskFenceToken++
-		v.TaskLeaseExpiresAt = &lease
-		v.Phase = action + "Claimed"
-		v.LastError = ""
-		v.Revision++
-		v.UpdatedAt = now
-		if _, e = tx.ExecContext(ctx, `UPDATE virtual_clusters SET revision=$2,state=$3,runtime_source_digest=$4,task_attempt=$5,task_fence_token=$6,task_action=$7,task_lease_expires_at=$8,phase=$9,last_error='',updated_at=$10 WHERE id=$1`,
-			v.ID, v.Revision, string(v.State), v.RuntimeSourceDigest, v.TaskAttempt, v.TaskFenceToken, v.TaskAction, lease, v.Phase, now); e != nil {
-			return e
-		}
-		if e = s.appendAuditTx(ctx, tx, "cluster-agent", "virtual_cluster.task.claimed", "virtualCluster", v.ID, v.Revision, "", map[string]any{"action": action, "taskFenceToken": v.TaskFenceToken, "runtimeSourceDigest": v.RuntimeSourceDigest}); e != nil {
-			return e
-		}
-		if e = s.appendOutboxTx(ctx, tx, "virtualCluster", v.ID, "virtual_cluster.state.changed", v); e != nil {
-			return e
-		}
-		task = controlplane.VirtualClusterTaskFromRecord(v)
+		claimed, claimedTask, err := controlplane.PrepareVirtualClusterTaskClaim(v, runtimeSourceDigest, now)
+		if err != nil { return err }
+		if _, err = tx.ExecContext(ctx, `UPDATE virtual_clusters SET revision=$2,state=$3,runtime_source_digest=$4,task_attempt=$5,task_fence_token=$6,task_action=$7,task_lease_expires_at=$8,task_dispatched_at=NULL,phase=$9,last_error='',updated_at=$10 WHERE id=$1`,
+			claimed.ID, claimed.Revision, string(claimed.State), claimed.RuntimeSourceDigest, claimed.TaskAttempt, claimed.TaskFenceToken, claimed.TaskAction, claimed.TaskLeaseExpiresAt, claimed.Phase, claimed.UpdatedAt); err != nil { return err }
+		if err = s.appendAuditTx(ctx, tx, "cluster-agent", "virtual_cluster.task.claimed", "virtualCluster", claimed.ID, claimed.Revision, "", map[string]any{"action": claimedTask.Action, "lifecycleAction": claimedTask.LifecycleAction, "taskFenceToken": claimed.TaskFenceToken}); err != nil { return err }
+		if err = s.appendOutboxTx(ctx, tx, "virtualCluster", claimed.ID, "virtual_cluster.state.changed", claimed); err != nil { return err }
+		task = claimedTask
 		return nil
 	})
 	if err == nil && noTask {
@@ -216,86 +195,22 @@ func (s *PostgresStore) NextVirtualClusterTask(ctx context.Context, clusterID, t
 func (s *PostgresStore) ReportVirtualClusterTask(ctx context.Context, clusterID, tokenDigest string, expected int64, result controlplane.VirtualClusterTaskResult) (controlplane.VirtualCluster, error) {
 	var out controlplane.VirtualCluster
 	err := s.serializable(ctx, func(tx *sql.Tx) error {
-		if e := s.validateClusterAgentTx(ctx, tx, clusterID, tokenDigest); e != nil {
-			return e
-		}
-		v, e := scanVirtualCluster(tx.QueryRowContext(ctx, `SELECT `+virtualClusterColumns+` FROM virtual_clusters WHERE id=$1 FOR UPDATE`, result.VirtualClusterID))
-		if e != nil {
-			return mapDBError(e)
-		}
-		if v.HostClusterID != strings.TrimSpace(clusterID) {
-			return controlplane.ErrNotFound
-		}
+		if err := s.validateClusterAgentTx(ctx, tx, clusterID, tokenDigest); err != nil { return err }
+		v, err := scanVirtualCluster(tx.QueryRowContext(ctx, `SELECT `+virtualClusterColumns+` FROM virtual_clusters WHERE id=$1 FOR UPDATE`, strings.TrimSpace(result.VirtualClusterID)))
+		if err != nil { return mapDBError(err) }
+		if v.HostClusterID != strings.TrimSpace(clusterID) { return controlplane.ErrNotFound }
 		now := utcNow(s.now)
 		action := strings.ToUpper(strings.TrimSpace(result.Action))
-		if v.Revision != expected || result.TaskFenceToken <= 0 || v.TaskFenceToken != result.TaskFenceToken ||
-			!controlplane.AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) || action != v.TaskAction {
+		if v.Revision != expected || result.TaskFenceToken <= 0 || v.TaskFenceToken != result.TaskFenceToken || !controlplane.AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) || action != v.TaskAction {
 			return controlplane.ErrConflict
 		}
-		if action != "APPLY" && action != "INSPECT" {
-			return controlplane.ErrValidation
-		}
-		if result.RecoveryRequired && result.Success {
-			return controlplane.ErrValidation
-		}
-		result.ObservedDigest = strings.TrimSpace(result.ObservedDigest)
-		result.Phase = strings.TrimSpace(result.Phase)
-		result.Error = strings.TrimSpace(result.Error)
-
-		if !result.Success {
-			if result.RecoveryRequired {
-				v.State, v.Phase = virtualcluster.StateRecoveryRequired, "RecoveryRequired"
-				v.LastError = result.Error
-				if v.LastError == "" {
-					v.LastError = "virtual cluster runtime outcome requires authoritative recovery"
-				}
-				v.TaskAction = ""
-			} else if action == "APPLY" {
-				v.State, v.Phase = virtualcluster.StateFailed, "ApplyFailed"
-				v.LastError = result.Error
-				if v.LastError == "" {
-					v.LastError = "virtual cluster apply failed before mutation convergence"
-				}
-				v.TaskAction = ""
-			} else {
-				v.State, v.Phase, v.TaskAction = virtualcluster.StateProvisioning, "InspectRetry", "INSPECT"
-				v.LastError = result.Error
-				if v.LastError == "" {
-					v.LastError = "virtual cluster authoritative readback failed"
-				}
-			}
-		} else if result.ObservedDigest != v.DesiredDigest {
-			v.State, v.Phase, v.TaskAction = virtualcluster.StateRecoveryRequired, "RecoveryRequired", ""
-			v.LastError = "virtual cluster authoritative readback digest does not match desired state"
-		} else if result.Ready {
-			v.State, v.ObservedDigest = virtualcluster.StateActive, result.ObservedDigest
-			v.Phase = result.Phase
-			if v.Phase == "" {
-				v.Phase = "Ready"
-			}
-			v.PendingAction, v.TaskAction, v.LastError = "", "", ""
-		} else {
-			v.State, v.ObservedDigest, v.TaskAction = virtualcluster.StateProvisioning, result.ObservedDigest, "INSPECT"
-			v.Phase = result.Phase
-			if v.Phase == "" {
-				v.Phase = "Reconciling"
-			}
-			v.LastError = ""
-		}
-		v.TaskLeaseExpiresAt = nil
-		v.Revision++
-		v.UpdatedAt = now
-		if _, e = tx.ExecContext(ctx, `UPDATE virtual_clusters SET revision=$2,state=$3,observed_digest=$4,pending_action=$5,phase=$6,last_error=$7,task_action=$8,task_lease_expires_at=NULL,updated_at=$9 WHERE id=$1`,
-			v.ID, v.Revision, string(v.State), v.ObservedDigest, string(v.PendingAction), v.Phase, v.LastError, v.TaskAction, now); e != nil {
-			return e
-		}
-		if e = s.appendAuditTx(ctx, tx, "cluster-agent", "virtual_cluster.task.reported", "virtualCluster", v.ID, v.Revision, "", map[string]any{"action": action, "success": result.Success, "ready": result.Ready, "recoveryRequired": result.RecoveryRequired, "taskFenceToken": result.TaskFenceToken}); e != nil {
-			return e
-		}
-		if e = s.appendOutboxTx(ctx, tx, "virtualCluster", v.ID, "virtual_cluster.state.changed", v); e != nil {
-			return e
-		}
-		out = v
+		updated, err := controlplane.ApplyVirtualClusterTaskResult(v, result, now)
+		if err != nil { return err }
+		if _, err = tx.ExecContext(ctx, `UPDATE virtual_clusters SET revision=$2,state=$3,observed_digest=$4,pending_action=$5,phase=$6,last_error=$7,task_action=$8,task_lease_expires_at=NULL,task_dispatched_at=NULL,updated_at=$9 WHERE id=$1`,
+			updated.ID, updated.Revision, string(updated.State), updated.ObservedDigest, string(updated.PendingAction), updated.Phase, updated.LastError, updated.TaskAction, updated.UpdatedAt); err != nil { return err }
+		if err = s.appendAuditTx(ctx, tx, "cluster-agent", "virtual_cluster.task.reported", "virtualCluster", updated.ID, updated.Revision, "", map[string]any{"action": action, "lifecycleAction": result.LifecycleAction, "success": result.Success, "ready": result.Ready, "recoveryRequired": result.RecoveryRequired, "taskFenceToken": result.TaskFenceToken}); err != nil { return err }
+		if err = s.appendOutboxTx(ctx, tx, "virtualCluster", updated.ID, "virtual_cluster.state.changed", updated); err != nil { return err }
+		out = updated
 		return nil
 	})
 	return out, err

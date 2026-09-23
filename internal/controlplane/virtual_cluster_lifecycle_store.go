@@ -151,3 +151,238 @@ func (s *MemoryStore) DispatchVirtualClusterTask(_ context.Context, clusterID, t
 	}
 	return VirtualClusterTaskFromRecord(updated), replay, nil
 }
+
+
+func VirtualClusterTaskClaimable(v VirtualCluster, now time.Time) bool {
+	if v.State == virtualcluster.StateRequested {
+		return true
+	}
+	switch v.State {
+	case virtualcluster.StateProvisioning, virtualcluster.StateSuspending, virtualcluster.StateResuming, virtualcluster.StateDeleting:
+		return !AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now)
+	default:
+		return false
+	}
+}
+
+func VirtualClusterExpiredDispatchedMutation(v VirtualCluster, now time.Time) bool {
+	return v.TaskLeaseExpiresAt != nil && !AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) && v.TaskDispatchedAt != nil && VirtualClusterMutationTaskAction(v.TaskAction)
+}
+
+func VirtualClusterTaskClaimAction(v VirtualCluster) (string, error) {
+	switch v.State {
+	case virtualcluster.StateRequested:
+		return "APPLY", nil
+	case virtualcluster.StateProvisioning:
+		switch v.TaskAction {
+		case "", "APPLY":
+			return "APPLY", nil
+		case "INSPECT":
+			return "INSPECT", nil
+		}
+	case virtualcluster.StateSuspending, virtualcluster.StateResuming, virtualcluster.StateDeleting:
+		pending, err := NormalizeVirtualClusterLifecycleAction(v.PendingAction)
+		if err != nil {
+			return "", err
+		}
+		if v.TaskAction == "LIFECYCLE_INSPECT" {
+			return "LIFECYCLE_INSPECT", nil
+		}
+		if v.TaskAction == "" || (strings.EqualFold(v.TaskAction, string(pending)) && v.TaskDispatchedAt == nil) {
+			return string(pending), nil
+		}
+	}
+	return "", fmt.Errorf("%w: virtual cluster task journal cannot be safely claimed", ErrConflict)
+}
+
+func PrepareVirtualClusterTaskClaim(v VirtualCluster, runtimeSourceDigest string, now time.Time) (VirtualCluster, VirtualClusterTask, error) {
+	runtimeSourceDigest = strings.TrimSpace(runtimeSourceDigest)
+	if err := ValidateVirtualClusterRuntimeSourceDigest(runtimeSourceDigest); err != nil {
+		return VirtualCluster{}, VirtualClusterTask{}, err
+	}
+	if v.RuntimeSourceDigest != "" && v.RuntimeSourceDigest != runtimeSourceDigest {
+		return VirtualCluster{}, VirtualClusterTask{}, ErrConflict
+	}
+	action, err := VirtualClusterTaskClaimAction(v)
+	if err != nil {
+		return VirtualCluster{}, VirtualClusterTask{}, err
+	}
+	if v.RuntimeSourceDigest == "" {
+		v.RuntimeSourceDigest = runtimeSourceDigest
+	}
+	if v.State == virtualcluster.StateRequested {
+		v.State = virtualcluster.StateProvisioning
+	}
+	lease := now.UTC().Add(AgentTaskLeaseDuration)
+	v.TaskAction = action
+	v.TaskAttempt++
+	v.TaskFenceToken++
+	v.TaskLeaseExpiresAt = &lease
+	v.TaskDispatchedAt = nil
+	v.Phase = action + "Claimed"
+	v.LastError = ""
+	v.Revision++
+	v.UpdatedAt = now.UTC()
+	return v, VirtualClusterTaskFromRecord(v), nil
+}
+
+func virtualClusterLifecycleTargetState(action virtualcluster.Action) (virtualcluster.State, error) {
+	switch action {
+	case virtualcluster.ActionSuspend:
+		return virtualcluster.StateSuspended, nil
+	case virtualcluster.ActionResume:
+		return virtualcluster.StateActive, nil
+	case virtualcluster.ActionDelete:
+		return virtualcluster.StateDeleted, nil
+	default:
+		return "", ErrValidation
+	}
+}
+
+func ApplyVirtualClusterTaskResult(v VirtualCluster, result VirtualClusterTaskResult, now time.Time) (VirtualCluster, error) {
+	action := strings.ToUpper(strings.TrimSpace(result.Action))
+	if !VirtualClusterKnownTaskAction(action) || action != v.TaskAction {
+		return VirtualCluster{}, ErrValidation
+	}
+	if result.RecoveryRequired && result.Success {
+		return VirtualCluster{}, ErrValidation
+	}
+	if VirtualClusterMutationTaskAction(action) && v.TaskDispatchedAt == nil {
+		return VirtualCluster{}, fmt.Errorf("%w: lifecycle mutation result has no durable dispatch acknowledgement", ErrConflict)
+	}
+	if action == "LIFECYCLE_INSPECT" && v.TaskDispatchedAt != nil {
+		return VirtualCluster{}, fmt.Errorf("%w: lifecycle inspect unexpectedly carries dispatch state", ErrValidation)
+	}
+	result.ObservedDigest = strings.TrimSpace(result.ObservedDigest)
+	result.Phase = strings.TrimSpace(result.Phase)
+	result.Error = strings.TrimSpace(result.Error)
+
+	finish := func() VirtualCluster {
+		v.TaskLeaseExpiresAt = nil
+		v.TaskDispatchedAt = nil
+		v.Revision++
+		v.UpdatedAt = now.UTC()
+		return v
+	}
+
+	if action == "APPLY" || action == "INSPECT" {
+		if !result.Success {
+			if result.RecoveryRequired {
+				v = markVirtualClusterRecovery(v, now, result.Error)
+				v.TaskAction = ""
+				v.TaskDispatchedAt = nil
+				return v, nil
+			}
+			if action == "APPLY" {
+				v.State = virtualcluster.StateFailed
+				v.Phase = "ApplyFailed"
+				v.LastError = result.Error
+				if v.LastError == "" {
+					v.LastError = "virtual cluster apply failed before mutation convergence"
+				}
+				v.TaskAction = ""
+				return finish(), nil
+			}
+			v.State = virtualcluster.StateProvisioning
+			v.Phase = "InspectRetry"
+			v.LastError = result.Error
+			if v.LastError == "" {
+				v.LastError = "virtual cluster authoritative readback failed"
+			}
+			v.TaskAction = "INSPECT"
+			return finish(), nil
+		}
+		if result.ObservedDigest != v.DesiredDigest {
+			v = markVirtualClusterRecovery(v, now, "virtual cluster authoritative readback digest does not match desired state")
+			v.TaskAction = ""
+			v.TaskDispatchedAt = nil
+			return v, nil
+		}
+		if result.Ready {
+			v.State = virtualcluster.StateActive
+			v.ObservedDigest = result.ObservedDigest
+			v.Phase = result.Phase
+			if v.Phase == "" {
+				v.Phase = "Ready"
+			}
+			v.PendingAction = ""
+			v.TaskAction = ""
+			v.LastError = ""
+			return finish(), nil
+		}
+		v.State = virtualcluster.StateProvisioning
+		v.ObservedDigest = result.ObservedDigest
+		v.Phase = result.Phase
+		if v.Phase == "" {
+			v.Phase = "Reconciling"
+		}
+		v.TaskAction = "INSPECT"
+		v.LastError = ""
+		return finish(), nil
+	}
+
+	lifecycleAction := result.LifecycleAction
+	if action != "LIFECYCLE_INSPECT" {
+		lifecycleAction = virtualcluster.Action(action)
+	}
+	normalized, err := NormalizeVirtualClusterLifecycleAction(lifecycleAction)
+	if err != nil || normalized != v.PendingAction || normalized != v.LifecycleAction {
+		return VirtualCluster{}, fmt.Errorf("%w: lifecycle result does not match pending journal", ErrConflict)
+	}
+	if !result.Success {
+		if result.RecoveryRequired || VirtualClusterMutationTaskAction(action) {
+			v = markVirtualClusterRecovery(v, now, result.Error)
+			v.TaskAction = ""
+			v.TaskDispatchedAt = nil
+			return v, nil
+		}
+		v.Phase = "LifecycleInspectRetry"
+		v.LastError = result.Error
+		if v.LastError == "" {
+			v.LastError = "virtual cluster lifecycle authoritative readback failed"
+		}
+		v.TaskAction = "LIFECYCLE_INSPECT"
+		return finish(), nil
+	}
+	if normalized == virtualcluster.ActionDelete {
+		if result.Ready && result.ObservedDigest != "" {
+			v = markVirtualClusterRecovery(v, now, "deleted virtual cluster returned a non-empty observed digest")
+			v.TaskAction = ""
+			v.TaskDispatchedAt = nil
+			return v, nil
+		}
+	} else if result.ObservedDigest != v.DesiredDigest {
+		v = markVirtualClusterRecovery(v, now, "virtual cluster lifecycle readback digest does not match desired state")
+		v.TaskAction = ""
+		v.TaskDispatchedAt = nil
+		return v, nil
+	}
+	if result.Ready {
+		target, err := virtualClusterLifecycleTargetState(normalized)
+		if err != nil {
+			return VirtualCluster{}, err
+		}
+		v.State = target
+		if target == virtualcluster.StateDeleted {
+			v.ObservedDigest = ""
+		} else {
+			v.ObservedDigest = result.ObservedDigest
+		}
+		v.Phase = result.Phase
+		if v.Phase == "" {
+			v.Phase = string(target)
+		}
+		v.PendingAction = ""
+		v.TaskAction = ""
+		v.LastError = ""
+		return finish(), nil
+	}
+	v.State = virtualcluster.BeginState(normalized)
+	v.Phase = result.Phase
+	if v.Phase == "" {
+		v.Phase = string(normalized) + "Reconciling"
+	}
+	v.TaskAction = "LIFECYCLE_INSPECT"
+	v.LastError = ""
+	return finish(), nil
+}
