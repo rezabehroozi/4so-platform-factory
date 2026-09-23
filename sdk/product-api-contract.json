@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 375,
-  "routeDigest": "sha256:54efe89ca1af4bf17c0c76c8a76338731ca2d48d5e50a8f7e66ed34ec6a1c74f",
+  "routeCount": 377,
+  "routeDigest": "sha256:4906b236b6e2027fa94c1fe46596f471115a2b234516c49a5d77c07c93fd52e9",
   "routes": [
     {
       "family": "version",
@@ -139,6 +139,15 @@
       "method": "GET",
       "mutation": false,
       "path": "/api/v1/reliability/error-budgets",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "reliability",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/reliability/delivery-insights",
       "pathParams": [],
       "resourceScope": "PROJECT_SCOPED",
       "resourceScopeStatus": "OWNER_CLASSIFIED"
@@ -986,6 +995,15 @@
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/application-platform/resolve",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/application-platform/openchoreo/assessment",
       "pathParams": [],
       "resourceScope": "PROJECT_SCOPED",
       "resourceScopeStatus": "OWNER_CLASSIFIED"

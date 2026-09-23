@@ -4,9 +4,9 @@
     "security-excluded": 40,
     "tool-admin": 73,
     "tool-operate": 79,
-    "tool-read": 183
+    "tool-read": 185
   },
-  "routeCount": 375,
+  "routeCount": 377,
   "routes": [
     {
       "action": "version",
@@ -6798,6 +6798,40 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_clusters_by_id_gateway_session_drain"
+    },
+    {
+      "action": "delivery-insights",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "reliability",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/reliability/delivery-insights",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_reliability_delivery_insights"
+    },
+    {
+      "action": "openchoreo_assessment",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": false,
+      "method": "POST",
+      "path": "/api/v1/application-platform/openchoreo/assessment",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_post_application_platform_openchoreo_assessment"
     }
   ],
   "source": "internal/api/server.go"
