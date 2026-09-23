@@ -48,6 +48,7 @@ type DeliveryInsights struct {
 	ChangeFailureRate       DeliveryMetric `json:"changeFailureRate"`
 	FailedDeploymentRecovery DeliveryMetric `json:"failedDeploymentRecovery"`
 	MissingEvidence         []string       `json:"missingEvidence,omitempty"`
+	PhysicalCertificationInferred bool      `json:"physicalCertificationInferred"`
 }
 
 func observedMetric(value int64,unit string,n int)DeliveryMetric{return DeliveryMetric{Status:DeliveryMetricObserved,Value:value,Unit:unit,SampleSize:n}}

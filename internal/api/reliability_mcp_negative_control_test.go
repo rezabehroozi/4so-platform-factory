@@ -59,7 +59,7 @@ func TestReliabilityMCPReadOperateBoundaryAndProjectFence(t *testing.T) {
 			t.Fatalf("raw evidence surfaced through reliability MCP tool: %+v", route)
 		}
 	}
-	if seen != 9 {
-		t.Fatalf("reliability MCP route count=%d want=9", seen)
+	if seen != 10 {
+		t.Fatalf("reliability MCP route count=%d want=10", seen)
 	}
 }
