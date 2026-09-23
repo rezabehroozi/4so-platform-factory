@@ -255,6 +255,20 @@ func (s *Server) nextOpenChoreoLifecycleTask(w http.ResponseWriter, r *http.Requ
 			}
 			continue
 		}
+		observed, observedErr := s.latestOpenChoreoObserved(r.Context(), req.ProjectID, req.ClusterID)
+		if observedErr != nil {
+			writeStoreError(w, observedErr)
+			return
+		}
+		if fenceErr := openchoreo.ValidateLifecycleDispatchFence(req.Action, observed, req.RuntimeSourceDigest, req.ExpectedObservedSourceDigest); fenceErr != nil {
+			if op.State == controlplane.OperationQueued {
+				op, _ = s.store.StartOperationAttempt(r.Context(), op.ID, op.Revision, "agent:"+clusterID, claim.FenceToken, "agent:"+clusterID)
+			}
+			if op.State == controlplane.OperationRunning {
+				_, _ = s.store.ReportOperationFailure(r.Context(), op.ID, op.Revision, "agent:"+clusterID, claim.FenceToken, controlplane.OperationFailureReport{Class:controlplane.OperationFailurePermanent,Code:"OPENCHOREO_DISPATCH_FENCE_CHANGED",Message:fenceErr.Error()}, "agent:"+clusterID)
+			}
+			continue
+		}
 		op, err = s.store.StartOperationAttempt(r.Context(), op.ID, op.Revision, "agent:"+clusterID, claim.FenceToken, "agent:"+clusterID)
 		if err != nil { writeStoreError(w, err); return }
 		setRevisionETag(w, op.Revision)
