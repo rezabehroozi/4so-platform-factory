@@ -435,3 +435,23 @@ func TestVirtualClusterLifecycleJournalMigrationRequiresQuiescedWriters(t *testi
 		}
 	}
 }
+
+
+func TestFinOpsVirtualClusterAttributionMigrationIsRollingSafeAndScoped(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) < 81 {
+		t.Fatalf("expected migration 81, got %d migrations", len(all))
+	}
+	m := all[80]
+	if m.Version != 81 || m.Compatibility != CompatibilityRollingSafe {
+		t.Fatalf("migration 81 compatibility mismatch: %#v", m)
+	}
+	for _, term := range []string{"virtual_cluster_id", "validate_finops_virtual_cluster_scope", "host_cluster_id", "host_namespace"} {
+		if !strings.Contains(m.SQL, term) {
+			t.Fatalf("migration 81 missing virtual-cluster attribution guard %q", term)
+		}
+	}
+}
