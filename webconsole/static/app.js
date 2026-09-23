@@ -64,6 +64,7 @@ const faDynamic = {
   "Read-only: determine which traits apply and which are suppressed because the target already owns that capability.": "فقط خواندنی: مشخص کنید کدام قابلیت‌های ترکیبی اعمال می‌شوند و کدام مورد به‌دلیل وجود همان قابلیت در مقصد کنار گذاشته می‌شود.",
   "Workload shape": "الگوی اجرای برنامه",
   "Capabilities already provided by target": "قابلیت‌های موجود در مقصد",
+  "networking.ingress, monitoring.metrics": "networking.ingress، monitoring.metrics",
   "Comma-separated canonical capability IDs from target discovery. This preview does not mutate target runtime.": "شناسه‌های استاندارد قابلیت را که از شناسایی مقصد به‌دست آمده‌اند با ویرگول جدا کنید. این پیش‌نمایش Runtime مقصد را تغییر نمی‌دهد.",
   "Preview resolution": "پیش‌نمایش تطبیق",
   "Promote an environment binding": "ارتقای نسخه در یک محیط",
