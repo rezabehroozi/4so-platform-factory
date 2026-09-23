@@ -149,14 +149,14 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V71" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
 		t.Fatalf("unexpected roadmap authority: %#v", roadmap)
 	}
-	if len(roadmap.Phases) != 39 {
+	if len(roadmap.Phases) != 40 {
 		t.Fatalf("phase count=%d", len(roadmap.Phases))
 	}
 	progress := roadmap.Progress
 	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 19 || progress.CorePhaseBlocked != 6 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 76 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
 		t.Fatalf("program progress truth drift: %#v", progress)
 	}
-	if progress.PrePhysicalSoftwarePhases != 35 || progress.PrePhysicalSoftwareClosedPhases != 33 || progress.PrePhysicalSoftwareOpenPhases != 2 || progress.PrePhysicalSoftwareClosurePercent != 94 {
+	if progress.PrePhysicalSoftwarePhases != 36 || progress.PrePhysicalSoftwareClosedPhases != 34 || progress.PrePhysicalSoftwareOpenPhases != 2 || progress.PrePhysicalSoftwareClosurePercent != 94 {
 		t.Fatalf("pre-physical software progress truth drift: %#v", progress)
 	}
 	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "S2-component-runtime-certification-authorities", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "C9-pre-certification-feature-freeze-exact-bundle"} {
@@ -167,7 +167,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if progress.RemainingBlockerClasses["source-software-closure"] != 0 || progress.RemainingBlockerClasses["external-byte-acquisition"] < 1 || progress.RemainingBlockerClasses["physical-runtime-evidence"] < 1 || progress.RemainingBlockerClasses["external-client-evidence"] < 1 || progress.RemainingBlockerClasses["runtime-certification-evidence"] < 1 {
 		t.Fatalf("remaining blocker classification drift: %#v", progress.RemainingBlockerClasses)
 	}
-	if len(roadmap.Tracks) != 16 || len(roadmap.GlobalGuardrails) < 8 || len(roadmap.CertificationRegistry) < 10 {
+	if len(roadmap.Tracks) != 17 || len(roadmap.GlobalGuardrails) < 8 || len(roadmap.CertificationRegistry) < 10 {
 		t.Fatalf("program cross-cutting authority incomplete: tracks=%d guardrails=%d certification=%d", len(roadmap.Tracks), len(roadmap.GlobalGuardrails), len(roadmap.CertificationRegistry))
 	}
 	for i, phase := range roadmap.Phases {
