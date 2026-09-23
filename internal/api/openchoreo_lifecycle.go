@@ -76,9 +76,9 @@ func parseOpenChoreoLifecycleTarget(target string) (string, openchoreo.Lifecycle
 
 func (s *Server) openChoreoAdmissionForCluster(ctx context.Context, cluster controlplane.ManagedCluster, inventory controlplane.ClusterInventory, disconnected bool) targetmodel.OpenChoreoTargetAdapterAdmission {
 	return targetmodel.EvaluateOpenChoreoTargetAdapterAdmission(targetmodel.OpenChoreoTargetAdapterAdmissionInput{
-		DistributionIdentity: cluster.Distribution,
-		TargetAdmitted: cluster.State == controlplane.ManagedClusterActive,
-		CapabilityDiscoveryComplete: inventory.APIDiscoveryComplete && inventory.CRDDiscoveryComplete,
+		DistributionIdentity: inventory.Distribution,
+		TargetAdmitted: cluster.ConnectionState != "REVOKED",
+		CapabilityDiscoveryComplete: inventory.APIDiscoveryComplete && inventory.CRDDiscoveryComplete && inventory.SchemaDiscoveryComplete,
 		ObservedCapabilities: inventory.Capabilities,
 		ExactSourceAdmitted: s.openChoreoRuntimeReady,
 		Disconnected: disconnected,
