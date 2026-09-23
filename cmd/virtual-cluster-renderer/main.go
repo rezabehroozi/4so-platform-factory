@@ -19,7 +19,7 @@ const (
 	maxInputBytes = 32 * 1024 * 1024
 )
 
-var imageLine = regexp.MustCompile(`^(\\s*(?:-\\s*)?image:\\s*)(["']?)([^"'\\s#]+)(["']?)(\\s*(?:#.*)?)$`)
+var imageLine = regexp.MustCompile(`^(\s*(?:-\s*)?image:\s*)(["']?)([^"'\s#]+)(["']?)(\s*(?:#.*)?)$`)
 
 func imageRepository(ref string) string {
 	ref = strings.TrimSpace(ref)

@@ -832,7 +832,7 @@ func TestCheckMigrationCompatibilityBlocksUnsafeRollingUpgradeBeforeMutation(t *
 			scriptStep{kind: "query", contains: "SELECT to_regclass", columns: []string{"to_regclass"}, rows: [][]driver.Value{{"schema_migrations"}}},
 			scriptStep{kind: "query", contains: "SELECT COALESCE(MAX(version),0), COUNT(*)", columns: []string{"max", "count"}, rows: [][]driver.Value{{int64(20), int64(20)}}},
 		)
-		if err := CheckMigrationCompatibility(context.Background(), db, MigrationModeQuiesced, map[int64]struct{}{21: {}, 27: {}, 47: {}, 50: {}, 60: {}, 61: {}, 64: {}, 79: {}}); err != nil {
+		if err := CheckMigrationCompatibility(context.Background(), db, MigrationModeQuiesced, map[int64]struct{}{21: {}, 27: {}, 47: {}, 50: {}, 60: {}, 61: {}, 64: {}, 79: {}, 80: {}}); err != nil {
 			t.Fatal(err)
 		}
 		script.done(t)
