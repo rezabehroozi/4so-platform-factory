@@ -2,8 +2,8 @@
 package factorysdk
 
 const ProductAPIContractAuthority = "PRODUCT_API_CONTRACT_AUTHORITY_V1"
-const ProductAPIContractDigest = "sha256:4906b236b6e2027fa94c1fe46596f471115a2b234516c49a5d77c07c93fd52e9"
-const ProductAPIRouteCount = 377
+const ProductAPIContractDigest = "sha256:7533095f731f1858e77851a6c9de2875c1badf8cf717ee1ae20369f534777856"
+const ProductAPIRouteCount = 380
 
 var Routes = []Route{
 	{Method: "GET", Path: "/api/v1/version", Family: "version", PathParams: nil, Mutation: false, ResourceScope: "PLATFORM_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
@@ -109,6 +109,9 @@ var Routes = []Route{
 	{Method: "GET", Path: "/api/v1/application-platform/capability-traits/{id}", Family: "application-platform", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/resolve", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/openchoreo/assessment", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/application-platform/openchoreo/lifecycle", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "GET", Path: "/api/v1/application-platform/openchoreo/lifecycle/{id}", Family: "application-platform", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/application-platform/openchoreo/lifecycle/{id}/approve", Family: "application-platform", PathParams: []string{"id"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/resource-types", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/application-platform/resource-types", Family: "application-platform", PathParams: nil, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/application-platform/resource-types/{id}", Family: "application-platform", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},

@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 377,
-  "routeDigest": "sha256:4906b236b6e2027fa94c1fe46596f471115a2b234516c49a5d77c07c93fd52e9",
+  "routeCount": 380,
+  "routeDigest": "sha256:7533095f731f1858e77851a6c9de2875c1badf8cf717ee1ae20369f534777856",
   "routes": [
     {
       "family": "version",
@@ -1005,6 +1005,37 @@
       "mutation": true,
       "path": "/api/v1/application-platform/openchoreo/assessment",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/application-platform/openchoreo/lifecycle",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/application-platform/openchoreo/lifecycle/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/application-platform/openchoreo/lifecycle/{id}/approve",
+      "pathParams": [
+        "id"
+      ],
       "resourceScope": "PROJECT_SCOPED",
       "resourceScopeStatus": "OWNER_CLASSIFIED"
     },

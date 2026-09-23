@@ -2,11 +2,11 @@
   "authority": "MCP_ROUTE_PARITY_AUTHORITY_V1",
   "counts": {
     "security-excluded": 40,
-    "tool-admin": 73,
-    "tool-operate": 79,
-    "tool-read": 185
+    "tool-admin": 74,
+    "tool-operate": 80,
+    "tool-read": 186
   },
-  "routeCount": 377,
+  "routeCount": 380,
   "routes": [
     {
       "action": "version",
@@ -6832,6 +6832,61 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_application_platform_openchoreo_assessment"
+    },
+    {
+      "action": "openchoreo_lifecycle",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-operate",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/application-platform/openchoreo/lifecycle",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "medium",
+      "toolName": "api_post_application_platform_openchoreo_lifecycle"
+    },
+    {
+      "action": "openchoreo_lifecycle",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/application-platform/openchoreo/lifecycle/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_application_platform_openchoreo_lifecycle_by_id"
+    },
+    {
+      "action": "openchoreo_lifecycle_approve",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-admin",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/application-platform/openchoreo/lifecycle/{id}/approve",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "high",
+      "toolName": "api_post_application_platform_openchoreo_lifecycle_by_id_approve"
     }
   ],
   "source": "internal/api/server.go"
