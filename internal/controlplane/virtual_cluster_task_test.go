@@ -58,8 +58,8 @@ func TestVirtualClusterTaskClaimAndReadbackNeverReplayApply(t *testing.T) {
 		t.Fatalf("apply report=%#v err=%v", updated, err)
 	}
 	inspect, err := store.NextVirtualClusterTask(ctx, cluster.ID, agent, task.RuntimeSourceDigest)
-	if err != nil || inspect.Action != "INSPECT" || inspect.TaskFenceToken <= task.TaskFenceToken {
-		t.Fatalf("inspect=%#v err=%v", inspect, err)
+	if err != nil || inspect.Action != "INSPECT" || inspect.TaskFenceToken != task.TaskFenceToken {
+		t.Fatalf("read-only inspect must preserve the APPLY mutation fence: inspect=%#v apply=%#v err=%v", inspect, task, err)
 	}
 	active, err := store.ReportVirtualClusterTask(ctx, cluster.ID, agent, inspect.ClusterRevision, VirtualClusterTaskResult{
 		VirtualClusterID: created.ID, TaskFenceToken: inspect.TaskFenceToken, Action: "INSPECT",

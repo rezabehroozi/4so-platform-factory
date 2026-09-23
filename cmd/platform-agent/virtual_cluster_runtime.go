@@ -276,7 +276,7 @@ func (a *agent) readVirtualClusterRuntimeWorkload(ctx context.Context, task cont
 	if name == "" {
 		return nil, false, fmt.Errorf("virtual cluster StatefulSet name is empty")
 	}
-	if namespace := strings.TrimSpace(fmt.Sprint(metadata["namespace"])); namespace != "" && namespace != task.HostNamespace {
+	if namespace, _ := metadata["namespace"].(string); strings.TrimSpace(namespace) != "" && strings.TrimSpace(namespace) != task.HostNamespace {
 		return nil, false, fmt.Errorf("virtual cluster StatefulSet namespace is outside task authority")
 	}
 	annotations, _ := metadata["annotations"].(map[string]any)
