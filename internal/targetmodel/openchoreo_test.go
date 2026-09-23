@@ -51,10 +51,13 @@ func TestOpenChoreoReferencePhaseIsExpansionOnlyAndDoesNotBlockCoreFreeze(t *tes
 	if phase.ID == "" || phase.RequiredForFeatureFreeze || phase.DeliveryTier != ProgramTierExpansion || phase.Status != ProgramStatusBlocked || phase.SourceStatus != ProgramSourceStatusOpen {
 		t.Fatalf("J8 phase boundary invalid: %#v", phase)
 	}
-	for _, blocker := range []string{"FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING", "DELIVERY_DEPLOYMENT_EVIDENCE_INGESTION_PENDING", "OPENCHOREO_EXACT_SOURCE_LIFECYCLE_ADAPTER_PENDING"} {
+	for _, blocker := range []string{"FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING", "OPENCHOREO_EXACT_SOURCE_LIFECYCLE_ADAPTER_PENDING"} {
 		if !containsString(phase.Blockers, blocker) {
 			t.Fatalf("J8 blocker %s missing: %#v", blocker, phase)
 		}
+	}
+	if containsString(phase.Blockers, "DELIVERY_DEPLOYMENT_EVIDENCE_INGESTION_PENDING") {
+		t.Fatalf("delivery deployment evidence ingestion blocker remained after durable projection closure: %#v", phase.Blockers)
 	}
 	c9 := byID["C9-pre-certification-feature-freeze-exact-bundle"]
 	if containsString(c9.DependsOn, phase.ID) {

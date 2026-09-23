@@ -19,7 +19,7 @@ V73 exposes independent `sourceStatus` and `closureStatus` for every phase. A ph
 Only two pre-physical software phases remain source-open:
 
 - `I2-edge-sovereign-extension` — bounded edge authority/UI, boot attestation and disconnected local AI profile.
-- `J8-application-platform-abstraction-composition` — PostgreSQL/Product API/SDK/MCP persistence is implemented for WorkloadType/CapabilityTrait, ManagedResourceType, WorkspaceProfile, immutable ApplicationRelease and revision-fenced EnvironmentBinding promotion through migration `0082`. Fleet gateway session identity/heartbeat/drain persistence is implemented through migration `0083`; Delivery Insights and OpenChoreo admission assessment are exposed. Remaining source work is the real long-lived gateway transport runtime, release/deployment evidence ingestion for DORA, and exact-source durable OpenChoreo install/upgrade/remove execution.
+- `J8-application-platform-abstraction-composition` — PostgreSQL/Product API/SDK/MCP persistence is implemented for WorkloadType/CapabilityTrait, ManagedResourceType, WorkspaceProfile, immutable ApplicationRelease and revision-fenced EnvironmentBinding promotion through migration `0082`. Fleet gateway session identity/heartbeat/drain persistence is implemented through migration `0083`; Delivery Insights and OpenChoreo admission assessment are exposed. Remaining source work is the real long-lived gateway transport runtime and exact-source durable OpenChoreo install/upgrade/remove execution. Release/deployment evidence ingestion for DORA is now source-implemented from immutable ApplicationRelease provenance plus terminal `application.deploy` Durable Operations and EnvironmentBinding scope.
 
 `J3-virtual-cluster-profile` is source-implemented. Exact-source/offline runtime execution, durable dispatch and lifecycle fencing, suspend/resume/delete authoritative readback, bounded diagnostics, Product API/SDK/MCP/Console parity and immutable FinOps virtual-cluster attribution are present. Exact-SHA Physical Runtime remains independently certification-gated.
 
@@ -35,6 +35,15 @@ Only two pre-physical software phases remain source-open:
 4. **W3 — Expansion mega-wave:** J3 + I2 remain source-open; J1 + H3 are source-implemented and move to integration/runtime evidence without waiting for Physical certification.
 5. **W4 — Cross-surface convergence:** converge API, SDK, MCP, Console, PostgreSQL, Durable Ops, Evidence and negative controls.
 6. **W5 — Feature freeze:** C9 freezes mandatory scope and emits one exact immutable release before Phase D physical certification.
+
+## J8 delivery-evidence closure checkpoint — 2026-09-23
+
+- `DELIVERY_DEPLOYMENT_EVIDENCE_INGESTION_PENDING` is removed from J8 source blockers.
+- Delivery evidence is projected from immutable ApplicationRelease digest/provenance, same-project EnvironmentBinding, and terminal `application.deploy` Durable Operation results.
+- Successful and failed deployments retain operation ID, release digest, environment, project and exact terminal timestamp. Source commit time is carried only when authoritative provenance exists.
+- Missing source-commit evidence keeps lead time `UNKNOWN`; duplicate terminal operation evidence and unknown release digests fail closed.
+- No hand-entered DORA counter or second analytics SoT was introduced. Runtime/Physical certification remains independent.
+- J8 still has exactly two source blockers: `FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING` and `OPENCHOREO_EXACT_SOURCE_LIFECYCLE_ADAPTER_PENDING`.
 
 ## Current critical path
 
