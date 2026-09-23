@@ -12,6 +12,7 @@ type FleetGatewaySessionStore interface {
 	AdmitFleetGatewaySession(context.Context, FleetGatewaySessionRequest, time.Time, string) (FleetGatewaySessionAdmission, error)
 	GetFleetGatewaySession(context.Context, string) (FleetGatewaySession, error)
 	GetCurrentFleetGatewaySession(context.Context, string) (FleetGatewaySession, error)
+	GetLatestFleetGatewaySession(context.Context, string) (FleetGatewaySession, error)
 	HeartbeatFleetGatewaySession(context.Context, string, string, int64, string, time.Time) (FleetGatewaySession, error)
 	DrainFleetGatewaySession(context.Context, string, int64, string, time.Time) (FleetGatewaySession, error)
 	CloseFleetGatewaySession(context.Context, string, string, int64, string, time.Time) (FleetGatewaySession, error)
@@ -32,6 +33,22 @@ func fleetGatewaySessionCurrent(values map[string]FleetGatewaySession, clusterID
 	return current, nil
 }
 
+func fleetGatewaySessionLatest(values map[string]FleetGatewaySession, clusterID string) (*FleetGatewaySession, error) {
+	var latest *FleetGatewaySession
+	for _, v := range values {
+		if v.ClusterID != clusterID { continue }
+		if latest == nil || v.Epoch > latest.Epoch {
+			copy := v
+			latest = &copy
+			continue
+		}
+		if v.Epoch == latest.Epoch && v.SessionID != latest.SessionID {
+			return nil, fmt.Errorf("%w: duplicate fleet gateway epoch exists for cluster", ErrConflict)
+		}
+	}
+	return latest, nil
+}
+
 func (s *MemoryStore) AdmitFleetGatewaySession(_ context.Context, req FleetGatewaySessionRequest, at time.Time, actor string) (FleetGatewaySessionAdmission, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -47,7 +64,13 @@ func (s *MemoryStore) AdmitFleetGatewaySession(_ context.Context, req FleetGatew
 	if err != nil {
 		return FleetGatewaySessionAdmission{}, err
 	}
-	admission, err := AdmitFleetGatewaySession(cluster, cert, req, current, at)
+	latest, err := fleetGatewaySessionLatest(s.fleetGatewaySessions, cluster.ID)
+	if err != nil {
+		return FleetGatewaySessionAdmission{}, err
+	}
+	latestEpoch := int64(0)
+	if latest != nil { latestEpoch = latest.Epoch }
+	admission, err := AdmitFleetGatewaySessionWithLatestEpoch(cluster, cert, req, current, latestEpoch, at)
 	if err != nil {
 		return FleetGatewaySessionAdmission{}, err
 	}
@@ -95,6 +118,19 @@ func (s *MemoryStore) GetCurrentFleetGatewaySession(_ context.Context, clusterID
 		return FleetGatewaySession{}, ErrNotFound
 	}
 	return *current, nil
+}
+
+func (s *MemoryStore) GetLatestFleetGatewaySession(_ context.Context, clusterID string) (FleetGatewaySession, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	latest, err := fleetGatewaySessionLatest(s.fleetGatewaySessions, strings.TrimSpace(clusterID))
+	if err != nil {
+		return FleetGatewaySession{}, err
+	}
+	if latest == nil {
+		return FleetGatewaySession{}, ErrNotFound
+	}
+	return *latest, nil
 }
 
 func (s *MemoryStore) HeartbeatFleetGatewaySession(_ context.Context, clusterID, sessionID string, epoch int64, certificateID string, at time.Time) (FleetGatewaySession, error) {

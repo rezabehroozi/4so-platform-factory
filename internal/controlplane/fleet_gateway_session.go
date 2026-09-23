@@ -105,8 +105,17 @@ func normalizeFleetGatewaySessionRequest(in FleetGatewaySessionRequest) (FleetGa
 }
 
 func AdmitFleetGatewaySession(cluster ManagedCluster, cert AgentCertificate, req FleetGatewaySessionRequest, current *FleetGatewaySession, now time.Time) (FleetGatewaySessionAdmission,error) {
+	latestEpoch:=int64(0)
+	if current!=nil { latestEpoch=current.Epoch }
+	return AdmitFleetGatewaySessionWithLatestEpoch(cluster,cert,req,current,latestEpoch,now)
+}
+
+// AdmitFleetGatewaySessionWithLatestEpoch evaluates admission against both the
+// live session and the highest durable epoch ever observed for the cluster.
+func AdmitFleetGatewaySessionWithLatestEpoch(cluster ManagedCluster, cert AgentCertificate, req FleetGatewaySessionRequest, current *FleetGatewaySession, latestEpoch int64, now time.Time) (FleetGatewaySessionAdmission,error) {
 	req,err:=normalizeFleetGatewaySessionRequest(req);if err!=nil{return FleetGatewaySessionAdmission{},err}
 	now=now.UTC();if now.IsZero(){return FleetGatewaySessionAdmission{},fmt.Errorf("%w: session admission time is required",ErrValidation)}
+	if latestEpoch<0{return FleetGatewaySessionAdmission{},fmt.Errorf("%w: latest fleet gateway epoch cannot be negative",ErrValidation)}
 	if cluster.ID!=req.ClusterID||strings.TrimSpace(cluster.ExternalUID)!=req.ExternalUID||cluster.ConnectionState=="REVOKED" {
 		return FleetGatewaySessionAdmission{},fmt.Errorf("%w: cluster identity/revocation fence rejected gateway session",ErrValidation)
 	}
@@ -115,29 +124,33 @@ func AdmitFleetGatewaySession(cluster ManagedCluster, cert AgentCertificate, req
 	}
 	policy:=FleetGatewayTransportPolicyModel()
 	if current!=nil {
-		if current.ClusterID!=cluster.ID {return FleetGatewaySessionAdmission{},fmt.Errorf("%w: active session belongs to another cluster",ErrValidation)}
-		if current.State==FleetGatewaySessionActive {
+		if current.ClusterID!=cluster.ID{return FleetGatewaySessionAdmission{},fmt.Errorf("%w: active session belongs to another cluster",ErrValidation)}
+		if latestEpoch<current.Epoch{return FleetGatewaySessionAdmission{},fmt.Errorf("%w: durable gateway session history is behind the live session",ErrConflict)}
+		switch current.State {
+		case FleetGatewaySessionActive:
 			if current.SessionID==req.SessionID&&current.Epoch==req.Epoch&&current.CertificateID==req.CertificateID&&current.GatewayInstanceID==req.GatewayInstanceID&&secureEqual(current.CertificateFingerprint,req.CertificateFingerprint) {
+				if latestEpoch!=current.Epoch{return FleetGatewaySessionAdmission{},fmt.Errorf("%w: gateway history advanced beyond the replayed live session",ErrConflict)}
 				copy:=*current
 				return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:FleetGatewayAdmissionReplay,Reason:"exact active session identity replay",Session:&copy},nil
 			}
 			stale:=now.Sub(current.LastHeartbeatAt.UTC())>time.Duration(policy.SessionStaleSeconds)*time.Second
-			if !stale {
-				return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:FleetGatewayAdmissionReject,Reason:"another non-stale session is active for the cluster"},nil
-			}
-			if req.Epoch<=current.Epoch {
-				return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:FleetGatewayAdmissionReject,Reason:"stale-session replacement requires a strictly newer session epoch"},nil
-			}
-		} else if current.State==FleetGatewaySessionDraining {
+			if !stale{return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:FleetGatewayAdmissionReject,Reason:"another non-stale session is active for the cluster"},nil}
+			if latestEpoch!=current.Epoch{return FleetGatewaySessionAdmission{},fmt.Errorf("%w: durable gateway history does not match the stale live session",ErrConflict)}
+			if req.Epoch<=latestEpoch{return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:FleetGatewayAdmissionReject,Reason:"stale-session replacement requires an epoch newer than durable session history"},nil}
+		case FleetGatewaySessionDraining:
 			return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:FleetGatewayAdmissionReject,Reason:"gateway session drain must close before replacement"},nil
-		} else if req.Epoch<=current.Epoch {
-			return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:FleetGatewayAdmissionReject,Reason:"new session epoch must advance beyond the last closed session"},nil
+		case FleetGatewaySessionClosed:
+		default:
+			return FleetGatewaySessionAdmission{},fmt.Errorf("%w: fleet gateway session has unknown state",ErrValidation)
 		}
 	}
-	session:=FleetGatewaySession{Authority:FleetAgentGatewaySessionAuthority,SessionID:req.SessionID,ClusterID:req.ClusterID,ExternalUID:req.ExternalUID,CertificateID:req.CertificateID,CertificateFingerprint:req.CertificateFingerprint,Epoch:req.Epoch,State:FleetGatewaySessionActive,GatewayInstanceID:req.GatewayInstanceID,ConnectedAt:now,LastHeartbeatAt:now}
+	if (current==nil||current.State==FleetGatewaySessionClosed)&&latestEpoch>0&&req.Epoch<=latestEpoch {
+		return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:FleetGatewayAdmissionReject,Reason:"new session epoch must advance beyond durable session history"},nil
+	}
+	next:=FleetGatewaySession{Authority:FleetAgentGatewaySessionAuthority,SessionID:req.SessionID,ClusterID:req.ClusterID,ExternalUID:req.ExternalUID,CertificateID:req.CertificateID,CertificateFingerprint:req.CertificateFingerprint,Epoch:req.Epoch,State:FleetGatewaySessionActive,GatewayInstanceID:req.GatewayInstanceID,ConnectedAt:now,LastHeartbeatAt:now}
 	decision:=FleetGatewayAdmissionNew;reason:="target-initiated mTLS session admitted"
-	if current!=nil {decision=FleetGatewayAdmissionReplaceStale;reason="stale session replaced by a strictly newer epoch after certificate and cluster identity revalidation"}
-	return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:decision,Reason:reason,Session:&session},nil
+	if current!=nil&&current.State==FleetGatewaySessionActive{decision=FleetGatewayAdmissionReplaceStale;reason="stale session replaced by an epoch newer than durable session history after certificate and cluster identity revalidation"}
+	return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:decision,Reason:reason,Session:&next},nil
 }
 
 func HeartbeatFleetGatewaySession(in FleetGatewaySession,sessionID string,epoch int64,at time.Time)(FleetGatewaySession,error){

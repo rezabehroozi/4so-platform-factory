@@ -46,7 +46,7 @@ func TestFleetGatewayDrainBlocksTaskDispatchAndReplacement(t *testing.T){
 	admission,err:=AdmitFleetGatewaySession(cluster,cert,next,&draining,now.Add(2*time.Minute));if err!=nil{t.Fatal(err)}
 	if admission.Decision!=FleetGatewayAdmissionReject{t.Fatalf("replacement bypassed gateway drain: %#v",admission)}
 	closed,err:=CloseFleetGatewaySession(draining,now.Add(3*time.Minute));if err!=nil||closed.State!=FleetGatewaySessionClosed{t.Fatalf("close=%#v err=%v",closed,err)}
-	admission,err=AdmitFleetGatewaySession(cluster,cert,next,&closed,now.Add(4*time.Minute));if err!=nil||admission.Decision!=FleetGatewayAdmissionReplaceStale{t.Fatalf("post-close replacement=%#v err=%v",admission,err)}
+	admission,err=AdmitFleetGatewaySessionWithLatestEpoch(cluster,cert,next,nil,closed.Epoch,now.Add(4*time.Minute));if err!=nil||admission.Decision!=FleetGatewayAdmissionNew{t.Fatalf("post-close replacement=%#v err=%v",admission,err)}
 }
 func TestFleetGatewaySessionRejectsRevokedCertificateOrCluster(t *testing.T){
 	cluster,cert,req,now:=fleetSessionFixture(t);cert.State=AgentCertificateRevoked

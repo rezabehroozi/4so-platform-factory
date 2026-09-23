@@ -31,6 +31,11 @@ func (s *PostgresStore) GetCurrentFleetGatewaySession(ctx context.Context, clust
 	return v, mapDBError(err)
 }
 
+func (s *PostgresStore) GetLatestFleetGatewaySession(ctx context.Context, clusterID string) (controlplane.FleetGatewaySession, error) {
+	v, err := scanFleetGatewaySession(s.db.QueryRowContext(ctx, `SELECT `+fleetGatewaySessionColumns+` FROM fleet_gateway_sessions WHERE cluster_id=$1 ORDER BY epoch DESC LIMIT 1`, strings.TrimSpace(clusterID)))
+	return v, mapDBError(err)
+}
+
 func (s *PostgresStore) AdmitFleetGatewaySession(ctx context.Context, req controlplane.FleetGatewaySessionRequest, at time.Time, actor string) (controlplane.FleetGatewaySessionAdmission, error) {
 	cluster, err := s.GetManagedCluster(ctx, req.ClusterID)
 	if err != nil { return controlplane.FleetGatewaySessionAdmission{}, err }
@@ -47,7 +52,15 @@ func (s *PostgresStore) AdmitFleetGatewaySession(ctx context.Context, req contro
 		} else if !errors.Is(scanErr, sql.ErrNoRows) {
 			return mapDBError(scanErr)
 		}
-		admission, evalErr := controlplane.AdmitFleetGatewaySession(cluster, cert, req, current, at)
+		latestEpoch := int64(0)
+		latestRow := tx.QueryRowContext(ctx, `SELECT `+fleetGatewaySessionColumns+` FROM fleet_gateway_sessions WHERE cluster_id=$1 ORDER BY epoch DESC LIMIT 1 FOR UPDATE`, cluster.ID)
+		latest, latestErr := scanFleetGatewaySession(latestRow)
+		if latestErr == nil {
+			latestEpoch = latest.Epoch
+		} else if !errors.Is(latestErr, sql.ErrNoRows) {
+			return mapDBError(latestErr)
+		}
+		admission, evalErr := controlplane.AdmitFleetGatewaySessionWithLatestEpoch(cluster, cert, req, current, latestEpoch, at)
 		if evalErr != nil { return evalErr }
 		out = admission
 		if admission.Decision == controlplane.FleetGatewayAdmissionReject || admission.Decision == controlplane.FleetGatewayAdmissionReplay {

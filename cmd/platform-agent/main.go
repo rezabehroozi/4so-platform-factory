@@ -192,6 +192,18 @@ func (a *agent) run(ctx context.Context) error {
 	if err := a.loadOrClaim(ctx); err != nil {
 		return err
 	}
+
+	// FLEET_GATEWAY_RUNTIME_TRANSPORT_V1 owns only the persistent transport
+	// channel. All mutations continue through the existing task lease/fence
+	// authority; losing this stream never authorizes direct execution.
+	var gatewayWG sync.WaitGroup
+	gatewayWG.Add(1)
+	go func() {
+		defer gatewayWG.Done()
+		a.runFleetGateway(ctx)
+	}()
+	defer gatewayWG.Wait()
+
 	if delay := agentPollDelay(a.clusterID, a.cfg.Interval, 0); delay > 0 {
 		timer := time.NewTimer(delay)
 		select {

@@ -61,3 +61,14 @@ func TestFleetGatewayFrameRejectsUnmaskedAndOversizedClientFrames(t *testing.T) 
 		t.Fatalf("oversized frame err=%v", err)
 	}
 }
+
+func TestFleetGatewayInstanceIdentityIsServerOwned(t *testing.T) {
+	t.Setenv("PLATFORM_GATEWAY_INSTANCE_ID", "gateway-replica-a")
+	got, err := fleetGatewayInstanceIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "gateway-replica-a" {
+		t.Fatalf("gateway identity=%q", got)
+	}
+}

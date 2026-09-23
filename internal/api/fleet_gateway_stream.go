@@ -143,10 +143,14 @@ func (s *Server) fleetGatewayStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sessionID := strings.TrimSpace(r.URL.Query().Get("sessionId"))
-	gatewayInstanceID := strings.TrimSpace(r.URL.Query().Get("gatewayInstanceId"))
 	epoch, err := strconv.ParseInt(strings.TrimSpace(r.URL.Query().Get("epoch")), 10, 64)
-	if err != nil || epoch <= 0 || sessionID == "" || gatewayInstanceID == "" {
-		writeError(w, http.StatusBadRequest, "FLEET_GATEWAY_SESSION_IDENTITY_REQUIRED", "sessionId, positive epoch, and gatewayInstanceId are required")
+	if err != nil || epoch <= 0 || sessionID == "" {
+		writeError(w, http.StatusBadRequest, "FLEET_GATEWAY_SESSION_IDENTITY_REQUIRED", "sessionId and positive epoch are required")
+		return
+	}
+	gatewayInstanceID, err := fleetGatewayInstanceIdentity()
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "FLEET_GATEWAY_INSTANCE_ID_UNAVAILABLE", err.Error())
 		return
 	}
 	store, ok := s.fleetGatewaySessionStore()

@@ -456,6 +456,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/inventory", s.reportClusterInventory)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/heartbeat", s.heartbeatCluster)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/gateway-sessions/admit", s.admitFleetGatewaySession)
+	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/gateway-session-head", s.getAgentFleetGatewaySessionHead)
 	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/gateway-stream", s.fleetGatewayStream)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/gateway-sessions/{sessionId}/heartbeat", s.heartbeatFleetGatewaySession)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/gateway-sessions/{sessionId}/close", s.closeFleetGatewaySession)
