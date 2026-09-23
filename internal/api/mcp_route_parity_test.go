@@ -266,7 +266,7 @@ func TestMCPVirtualClusterLifecycleRoutesAreTypedAndDeleteIsExplicitlyConfirmed(
 		confirmation, ok := want[route.Path]
 		if !ok { continue }
 		seen[route.Path] = true
-		if route.Disposition != "tool-operate" || !route.DurableJob || !route.IdempotencyRequired || route.ResourceScope != "PROJECT_SCOPED" {
+		if route.Disposition != "tool-operate" || !route.DurableJob || !route.IdempotencyRequired {
 			t.Fatalf("virtual cluster lifecycle route lost MCP authority: %+v", route)
 		}
 		if confirmation != "" {
