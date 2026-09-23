@@ -570,6 +570,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/provider-cluster-tasks/next", s.nextProviderClusterTask)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/provider-cluster-tasks/{providerClusterId}/result", s.reportProviderClusterTask)
 	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/virtual-cluster-tasks/next", s.nextVirtualClusterTask)
+	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/virtual-cluster-tasks/{virtualClusterId}/dispatch", s.dispatchVirtualClusterTask)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/virtual-cluster-tasks/{virtualClusterId}/result", s.reportVirtualClusterTask)
 	s.mux.HandleFunc("GET /api/v1/marketplace/offers", s.listMarketplaceOffers)
 	s.mux.HandleFunc("POST /api/v1/marketplace/installations", s.createMarketplaceInstallation)

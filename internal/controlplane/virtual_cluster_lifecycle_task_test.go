@@ -39,3 +39,16 @@ func TestLifecycleTaskResultMovesToInspectThenStable(t *testing.T) {
 		t.Fatalf("inspect convergence=%#v err=%v", stable, err)
 	}
 }
+
+
+func TestReadOnlyVirtualClusterInspectPreservesMutationFence(t *testing.T) {
+	now := time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)
+	v := VirtualCluster{ResourceMeta: ResourceMeta{ID: "vcl-inspect", Revision: 9}, State: virtualcluster.StateProvisioning, TaskAction: "INSPECT", TaskFenceToken: 5}
+	claimed, task, err := PrepareVirtualClusterTaskClaim(v, "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed.TaskFenceToken != 5 || task.TaskFenceToken != 5 || claimed.Revision != 10 {
+		t.Fatalf("read-only inspect changed mutation fence: claimed=%#v task=%#v", claimed, task)
+	}
+}

@@ -242,3 +242,35 @@ func TestVirtualClusterCompletedExecutorRequiresExactWorkloadReadback(t *testing
 		t.Fatalf("mutable/unmirrored workload was promoted ready: %#v", result)
 	}
 }
+
+
+func TestVirtualClusterDeleteExecutorUsesPinnedHelmUninstall(t *testing.T) {
+	source := virtualClusterRuntimeSourceFixture(t)
+	task := virtualClusterTaskFixture(t, source, "DELETE")
+	task.LifecycleAction = virtualcluster.ActionDelete
+	job, err := virtualClusterExecutorJob(task, source, "4so-platform-agent", "agent-sa")
+	if err != nil { t.Fatal(err) }
+	container := job["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]any)[0].(map[string]any)
+	args := container["args"].([]any)
+	parts := make([]string, len(args))
+	for i := range args { parts[i] = fmt.Sprint(args[i]) }
+	command := strings.Join(parts, " ")
+	if !strings.Contains(command, "uninstall "+virtualClusterReleaseName(task.VirtualClusterID)+" --namespace "+task.HostNamespace+" --wait --timeout 10m") {
+		t.Fatalf("delete executor command=%s", command)
+	}
+	if strings.Contains(command, "upgrade") || strings.Contains(command, "--install") {
+		t.Fatalf("delete executor reused install mutation: %s", command)
+	}
+}
+
+func TestVirtualClusterLifecycleMutationValidationRequiresActionFence(t *testing.T) {
+	source := virtualClusterRuntimeSourceFixture(t)
+	task := virtualClusterTaskFixture(t, source, "SUSPEND")
+	if err := validateVirtualClusterTask(task, source, "clu_1"); err == nil {
+		t.Fatal("lifecycle task without lifecycleAction fence was accepted")
+	}
+	task.LifecycleAction = virtualcluster.ActionSuspend
+	if err := validateVirtualClusterTask(task, source, "clu_1"); err != nil {
+		t.Fatalf("valid suspend task rejected: %v", err)
+	}
+}

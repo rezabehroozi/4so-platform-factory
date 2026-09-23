@@ -216,7 +216,13 @@ func PrepareVirtualClusterTaskClaim(v VirtualCluster, runtimeSourceDigest string
 	lease := now.UTC().Add(AgentTaskLeaseDuration)
 	v.TaskAction = action
 	v.TaskAttempt++
-	v.TaskFenceToken++
+	if action == "INSPECT" || action == "LIFECYCLE_INSPECT" {
+		if v.TaskFenceToken <= 0 {
+			return VirtualCluster{}, VirtualClusterTask{}, fmt.Errorf("%w: inspect task has no prior mutation fence", ErrConflict)
+		}
+	} else {
+		v.TaskFenceToken++
+	}
 	v.TaskLeaseExpiresAt = &lease
 	v.TaskDispatchedAt = nil
 	v.Phase = action + "Claimed"
