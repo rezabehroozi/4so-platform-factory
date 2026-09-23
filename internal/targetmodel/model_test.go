@@ -523,10 +523,14 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusOpen || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) {
 		t.Fatalf("application-platform composition phase drift: %+v", j8)
 	}
-	for _, blocker := range []string{"FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING", "DELIVERY_DEPLOYMENT_EVIDENCE_INGESTION_PENDING", "OPENCHOREO_EXACT_SOURCE_LIFECYCLE_ADAPTER_PENDING"} {
+	for _, blocker := range []string{"FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING", "OPENCHOREO_EXACT_SOURCE_LIFECYCLE_ADAPTER_PENDING"} {
 		if !containsString(j8.Blockers, blocker) {
 			t.Fatalf("J8 blocker missing %s: %+v", blocker, j8)
 		}
+	}
+
+	if containsString(j8.Blockers, "DELIVERY_DEPLOYMENT_EVIDENCE_INGESTION_PENDING") {
+		t.Fatalf("delivery evidence blocker remained after durable deployment projection closure: %+v", j8)
 	}
 
 	for _, id := range []string{"H3-public-cloud-provider-adapters", "J3-virtual-cluster-profile", "J6-fleet-reliability-incident-intelligence", "J7-finops-v2-budget-forecast-rightsizing", "J8-application-platform-abstraction-composition"} {
