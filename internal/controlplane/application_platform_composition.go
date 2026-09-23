@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -111,8 +112,9 @@ type ApplicationRelease struct {
 	TraitDigests           []string `json:"traitDigests"`
 	ManagedResourceDigests []string `json:"managedResourceDigests"`
 	WorkspaceProfileDigest string   `json:"workspaceProfileDigest"`
-	SourceDigest           string   `json:"sourceDigest"`
-	Digest                 string   `json:"digest"`
+	SourceDigest           string     `json:"sourceDigest"`
+	SourceCommittedAt      *time.Time `json:"sourceCommittedAt,omitempty"`
+	Digest                 string     `json:"digest"`
 }
 
 type EnvironmentBinding struct {
@@ -431,6 +433,13 @@ func NormalizeApplicationRelease(in ApplicationRelease) (ApplicationRelease, err
 	out.WorkloadTypeDigest = strings.TrimSpace(out.WorkloadTypeDigest)
 	out.WorkspaceProfileDigest = strings.TrimSpace(out.WorkspaceProfileDigest)
 	out.SourceDigest = strings.TrimSpace(out.SourceDigest)
+	if out.SourceCommittedAt != nil {
+		if out.SourceCommittedAt.IsZero() {
+			return ApplicationRelease{}, fmt.Errorf("%w: sourceCommittedAt must be a real timestamp when supplied", ErrValidation)
+		}
+		committed := out.SourceCommittedAt.UTC()
+		out.SourceCommittedAt = &committed
+	}
 	if out.ProjectID == "" || !variableNamePattern.MatchString(out.Name) || !schemaVersionPattern.MatchString(out.Version) {
 		return ApplicationRelease{}, fmt.Errorf("%w: application release identity is invalid", ErrValidation)
 	}
@@ -458,9 +467,10 @@ func NormalizeApplicationRelease(in ApplicationRelease) (ApplicationRelease, err
 		WorkloadTypeDigest     string   `json:"workloadTypeDigest"`
 		TraitDigests           []string `json:"traitDigests"`
 		ManagedResourceDigests []string `json:"managedResourceDigests"`
-		WorkspaceProfileDigest string   `json:"workspaceProfileDigest"`
-		SourceDigest           string   `json:"sourceDigest"`
-	}{out.Name, out.Version, out.WorkloadTypeDigest, out.TraitDigests, out.ManagedResourceDigests, out.WorkspaceProfileDigest, out.SourceDigest})
+		WorkspaceProfileDigest string     `json:"workspaceProfileDigest"`
+		SourceDigest           string     `json:"sourceDigest"`
+		SourceCommittedAt      *time.Time `json:"sourceCommittedAt,omitempty"`
+	}{out.Name, out.Version, out.WorkloadTypeDigest, out.TraitDigests, out.ManagedResourceDigests, out.WorkspaceProfileDigest, out.SourceDigest, out.SourceCommittedAt})
 	return out, nil
 }
 

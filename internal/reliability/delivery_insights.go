@@ -26,6 +26,7 @@ type DeliveryEvidence struct {
 	OccurredAt        time.Time  `json:"occurredAt"`
 	OperationID       string     `json:"operationId,omitempty"`
 	ReleaseDigest     string     `json:"releaseDigest,omitempty"`
+	Environment       string     `json:"environment,omitempty"`
 	SourceCommittedAt *time.Time `json:"sourceCommittedAt,omitempty"`
 	IncidentID        string     `json:"incidentId,omitempty"`
 }

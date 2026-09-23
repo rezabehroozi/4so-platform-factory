@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -22,8 +23,9 @@ type ApplicationReleaseCreateRequest struct {
 	WorkloadTypeID         string   `json:"workloadTypeId"`
 	TraitIDs               []string `json:"traitIds,omitempty"`
 	ManagedResourceTypeIDs []string `json:"managedResourceTypeIds,omitempty"`
-	WorkspaceProfileID     string   `json:"workspaceProfileId"`
-	SourceDigest           string   `json:"sourceDigest"`
+	WorkspaceProfileID     string     `json:"workspaceProfileId"`
+	SourceDigest           string     `json:"sourceDigest"`
+	SourceCommittedAt      *time.Time `json:"sourceCommittedAt,omitempty"`
 }
 
 type EnvironmentBindingCreateRequest struct {
@@ -125,7 +127,7 @@ func(s *MemoryStore)CreateApplicationRelease(_ context.Context,req ApplicationRe
 	profile,ok:=s.workspaceProfiles[strings.TrimSpace(req.WorkspaceProfileID)];if !ok||profile.ProjectID!=req.ProjectID{return ApplicationRelease{},ErrNotFound}
 	traits:=make([]string,0,len(req.TraitIDs));for _,id:=range req.TraitIDs{v,ok:=s.capabilityTraits[strings.TrimSpace(id)];if !ok||v.ProjectID!=req.ProjectID{return ApplicationRelease{},ErrNotFound};traits=append(traits,v.Digest)}
 	resources:=make([]string,0,len(req.ManagedResourceTypeIDs));for _,id:=range req.ManagedResourceTypeIDs{v,ok:=s.managedResourceTypes[strings.TrimSpace(id)];if !ok||v.ProjectID!=req.ProjectID{return ApplicationRelease{},ErrNotFound};resources=append(resources,v.Digest)}
-	v,err:=NormalizeApplicationRelease(ApplicationRelease{ProjectID:req.ProjectID,Name:req.Name,Version:req.Version,WorkloadTypeDigest:wt.Digest,TraitDigests:traits,ManagedResourceDigests:resources,WorkspaceProfileDigest:profile.Digest,SourceDigest:req.SourceDigest});if err!=nil{return ApplicationRelease{},err}
+	v,err:=NormalizeApplicationRelease(ApplicationRelease{ProjectID:req.ProjectID,Name:req.Name,Version:req.Version,WorkloadTypeDigest:wt.Digest,TraitDigests:traits,ManagedResourceDigests:resources,WorkspaceProfileDigest:profile.Digest,SourceDigest:req.SourceDigest,SourceCommittedAt:req.SourceCommittedAt});if err!=nil{return ApplicationRelease{},err}
 	for _,x:=range s.applicationReleases{if x.ProjectID==v.ProjectID&&x.Name==v.Name&&x.Version==v.Version{return ApplicationRelease{},ErrDuplicateName}}
 	now:=nowUTC(s.now);v.ResourceMeta=ResourceMeta{ID:s.id("arl"),Revision:1,CreatedAt:now,UpdatedAt:now};s.applicationReleases[v.ID]=cloneApplicationRelease(v)
 	s.appendAuditLocked(actor,"application_release.created","applicationRelease",v.ID,v.Revision,map[string]any{"projectId":v.ProjectID,"digest":v.Digest});s.appendOutboxLocked("applicationRelease",v.ID,"application_release.created",v);return cloneApplicationRelease(v),nil
