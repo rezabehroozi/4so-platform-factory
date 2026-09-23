@@ -96,10 +96,10 @@ func TestMCPGeneratedAdministrationToolsAreHiddenFromAPITokens(t *testing.T) {
 
 func TestMCPRouteParityRegistryHasNoUnclassifiedStableRoute(t *testing.T) {
 	registry := loadMCPRouteParityRegistry()
-	if registry.RouteCount != 353 {
+	if registry.RouteCount != 373 {
 		t.Fatalf("unexpected stable route count: %d", registry.RouteCount)
 	}
-	if registry.Counts["tool-read"] != 169 || registry.Counts["tool-operate"] != 71 || registry.Counts["tool-admin"] != 73 || registry.Counts["security-excluded"] != 40 {
+	if registry.Counts["tool-read"] != 182 || registry.Counts["tool-operate"] != 78 || registry.Counts["tool-admin"] != 73 || registry.Counts["security-excluded"] != 40 {
 		t.Fatalf("route parity summary drift: %+v", registry.Counts)
 	}
 	for _, route := range registry.Routes {
@@ -117,6 +117,7 @@ func TestMCPRouteParityClassifiesExternalIntegrationPreviewsAsReadOnly(t *testin
 		"/api/v1/external-registry/admission":            "tool-read",
 		"/api/v1/notification-provider-contracts":        "tool-read",
 		"/api/v1/notification-routes/{id}/policy-digest": "tool-read",
+		"/api/v1/application-platform/resolve":              "tool-read",
 	}
 	seen := map[string]bool{}
 	for _, route := range registry.Routes {
