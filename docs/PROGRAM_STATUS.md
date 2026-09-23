@@ -1,4 +1,4 @@
-# Current Program Status — PROGRAM_PHASE_MODEL_V72
+# Current Program Status — PROGRAM_PHASE_MODEL_V73
 
 `docs/PROGRAM_STATUS.md` is the single current human-readable status summary. Release **0.0.363** is the current repository release identity. Versioned `PHASE_STATUS_V*.md` files are historical release records; executable truth remains `internal/targetmodel/program.go`.
 
@@ -12,14 +12,14 @@
 | Core closure/release ready | **19/25 (76%)** | Six mandatory Core phases still require external/runtime/evidence closure. |
 | Pre-physical software closure | **34/36 (94%)** | Core + Expansion source/software closure; Physical certification is excluded. |
 
-V72 exposes independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
+V73 exposes independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
 
 ## Source-open software
 
 Only two pre-physical software phases remain source-open:
 
 - `I2-edge-sovereign-extension` — bounded edge authority/UI, boot attestation and disconnected local AI profile.
-- `J8-application-platform-abstraction-composition` — source authority contracts now exist for WorkloadType/CapabilityTrait composition, ManagedResourceType typed/secret-reference outputs, WorkspaceProfile references, immutable ApplicationRelease and EnvironmentBinding digests. Remaining source work is persistence/Product API for those authorities, Fleet outbound-mTLS session hardening, evidence-backed delivery/DORA projection, and a disabled-by-default OpenChoreo target adapter.
+- `J8-application-platform-abstraction-composition` — PostgreSQL/Product API/SDK/MCP persistence is implemented for WorkloadType/CapabilityTrait, ManagedResourceType, WorkspaceProfile, immutable ApplicationRelease and revision-fenced EnvironmentBinding promotion through migration `0082`. Fleet gateway session identity/heartbeat/drain persistence is implemented through migration `0083`; Delivery Insights and OpenChoreo admission assessment are exposed. Remaining source work is the real long-lived gateway transport runtime, release/deployment evidence ingestion for DORA, and exact-source durable OpenChoreo install/upgrade/remove execution.
 
 `J3-virtual-cluster-profile` is source-implemented. Exact-source/offline runtime execution, durable dispatch and lifecycle fencing, suspend/resume/delete authoritative readback, bounded diagnostics, Product API/SDK/MCP/Console parity and immutable FinOps virtual-cluster attribution are present. Exact-SHA Physical Runtime remains independently certification-gated.
 
@@ -29,7 +29,7 @@ Only two pre-physical software phases remain source-open:
 
 ## Execution waves
 
-1. **W0 — Truth rebaseline:** keep executable roadmap, docs and canonical main synchronized; V72 closes J3 source truth and records the OpenChoreo adoption boundary without changing physical/runtime claims.
+1. **W0 — Truth rebaseline:** keep executable roadmap, docs and canonical main synchronized; V73 closes J3 source truth and records the OpenChoreo adoption boundary without changing physical/runtime claims.
 2. **W1 — Core closure blitz (current):** S1 exact acquisition and S2 component certification run as a streaming pipeline with up to six independent lanes.
 3. **W2 — Core evidence parallel:** MCP external-client interoperability, Connected Managed OKD and Disconnected OKD evidence advance independently.
 4. **W3 — Expansion mega-wave:** J3 + I2 remain source-open; J1 + H3 are source-implemented and move to integration/runtime evidence without waiting for Physical certification.
@@ -353,4 +353,4 @@ Adopted patterns are bounded to product-owned equivalents: ComponentType/Traits 
 
 Explicit non-adoptions remain architecture invariants: PostgreSQL stays product SoT; the management appliance remains RKE2; Operator Horizon remains the operator console; Keycloak remains identity; BuildKit -> zot remains the canonical build/registry path; OpenChoreo Workflow/Observability planes do not become Factory defaults; and OKD-native networking/monitoring/tenancy ownership suppresses duplicate stacks.
 
-J8 owns implementation closure for the remaining adaptation work. Its first source foundation is implemented in `internal/controlplane/application_platform_composition.go`: duplicate trait capability ownership fails closed, observed native capabilities can suppress explicitly suppressible traits, sensitive managed-resource outputs must be secret references, WorkspaceProfile authority references are digest-bound, and ApplicationRelease/EnvironmentBinding desired state is immutable by digest. Persistence/Product API/SDK/MCP/Console convergence remains open. J8 is Expansion scope and does **not** gate Core C9 Feature Freeze.
+J8 owns implementation closure for the remaining adaptation work. Application-platform persistence and Product API/SDK/MCP convergence are present through migration `0082`; Fleet session authority is durable through migration `0083`; Delivery Insights preserves UNKNOWN when deployment evidence is missing; and OpenChoreo assessment remains fail-closed until exact source and durable lifecycle prerequisites exist. The remaining owner work is transport-runtime execution, deployment/release evidence ingestion, and the exact-source OpenChoreo lifecycle adapter. J8 is Expansion scope and does **not** gate Core C9 Feature Freeze.
