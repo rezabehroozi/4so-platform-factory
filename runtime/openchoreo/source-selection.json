@@ -1,0 +1,43 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "OpenChoreoRuntimeSourceSelection",
+  "spec": {
+    "authority": "OPENCHOREO_RUNTIME_SOURCE_AUTHORITY_V1",
+    "version": "1.3.0",
+    "upstreamRepository": "https://github.com/openchoreo/openchoreo",
+    "upstreamCommit": "1aeed89856d088dc5160c0f3eaa39796d4a93611",
+    "sourceArchiveSha256": "",
+    "planes": [
+      {
+        "name": "control-plane",
+        "chartRepository": "oci://ghcr.io/openchoreo/helm-charts",
+        "chartName": "openchoreo-control-plane",
+        "chartVersion": "1.3.0",
+        "chartSha256": "",
+        "valuesSha256": "",
+        "renderManifestSha256": ""
+      },
+      {
+        "name": "data-plane",
+        "chartRepository": "oci://ghcr.io/openchoreo/helm-charts",
+        "chartName": "openchoreo-data-plane",
+        "chartVersion": "1.3.0",
+        "chartSha256": "",
+        "valuesSha256": "",
+        "renderManifestSha256": ""
+      }
+    ],
+    "images": [],
+    "executorImageReference": "",
+    "executorImageDigest": "",
+    "resolved": false,
+    "mirrorReady": false,
+    "backstageEnabled": false,
+    "workflowPlaneEnabled": false,
+    "observabilityPlaneEnabled": false,
+    "openChoreoMcpEnabled": false,
+    "externalOidcRequired": true,
+    "buildAuthority": "buildkit",
+    "registryAuthority": "zot"
+  }
+}

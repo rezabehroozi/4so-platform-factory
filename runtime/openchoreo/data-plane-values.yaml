@@ -1,0 +1,8 @@
+# 4SO optional target profile: do not install a duplicate monitoring stack.
+# The target capability resolver decides native networking/ingress ownership.
+kube-prometheus-stack:
+  enabled: false
+clusterAgent:
+  metrics:
+    serviceMonitor:
+      enabled: false

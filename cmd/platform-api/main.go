@@ -37,6 +37,7 @@ import (
 	"platform.4so.io/factory/internal/managedinstall"
 	"platform.4so.io/factory/internal/marketplace"
 	"platform.4so.io/factory/internal/notification"
+	"platform.4so.io/factory/internal/openchoreo"
 	"platform.4so.io/factory/internal/persistence"
 	"platform.4so.io/factory/internal/pgdriver"
 	"platform.4so.io/factory/internal/releaseartifact"
@@ -568,6 +569,18 @@ func main() {
 			os.Exit(1)
 		}
 		logger.Info("virtual cluster runtime source configured", "authority", virtualcluster.RuntimeSourceAuthority, "digest", sourceDigest, "engine", source.Engine, "version", source.Version)
+	}
+	if sourceFile := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_OPENCHOREO_RUNTIME_SOURCE_FILE")); sourceFile != "" {
+		source, sourceDigest, sourceErr := openchoreo.LoadRuntimeExecutionSource(sourceFile)
+		if sourceErr != nil {
+			logger.Error("OpenChoreo runtime source configuration failed", "error", sourceErr)
+			os.Exit(1)
+		}
+		if sourceErr = apiServer.ConfigureOpenChoreoRuntimeSource(source); sourceErr != nil {
+			logger.Error("OpenChoreo runtime source admission failed", "error", sourceErr)
+			os.Exit(1)
+		}
+		logger.Info("OpenChoreo runtime source configured", "authority", openchoreo.RuntimeSourceAuthority, "digest", sourceDigest, "version", source.Version, "upstreamCommit", source.UpstreamCommit)
 	}
 	if releaseDigest := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_SOURCE_RELEASE_DIGEST")); releaseDigest != "" {
 		producerDigest, digestErr := releaseartifact.RunningExecutableDigest()

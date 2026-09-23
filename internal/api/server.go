@@ -20,6 +20,7 @@ import (
 	"platform.4so.io/factory/internal/integrations"
 	"platform.4so.io/factory/internal/managedinstall"
 	"platform.4so.io/factory/internal/marketplace"
+	"platform.4so.io/factory/internal/openchoreo"
 	"platform.4so.io/factory/internal/virtualcluster"
 	"platform.4so.io/factory/internal/plan"
 	"sort"
@@ -54,6 +55,9 @@ type Server struct {
 	virtualClusterRuntimeSource  virtualcluster.RuntimeSource
 	virtualClusterRuntimeDigest  string
 	virtualClusterRuntimeReady   bool
+	openChoreoRuntimeSource      openchoreo.RuntimeSource
+	openChoreoRuntimeDigest      string
+	openChoreoRuntimeReady       bool
 }
 
 func New(version string, components map[string]catalog.Component, logger *slog.Logger, stores ...controlplane.Store) *Server {
@@ -168,6 +172,20 @@ func (s *Server) ConfigureVirtualClusterRuntimeSource(source virtualcluster.Runt
 	s.virtualClusterRuntimeSource = source
 	s.virtualClusterRuntimeDigest = digest
 	s.virtualClusterRuntimeReady = true
+	return nil
+}
+
+func (s *Server) ConfigureOpenChoreoRuntimeSource(source openchoreo.RuntimeSource) error {
+	if err := openchoreo.ValidateRuntimeExecutionSource(source); err != nil {
+		return err
+	}
+	digest, err := openchoreo.RuntimeSourceDigest(source)
+	if err != nil {
+		return err
+	}
+	s.openChoreoRuntimeSource = source
+	s.openChoreoRuntimeDigest = digest
+	s.openChoreoRuntimeReady = true
 	return nil
 }
 

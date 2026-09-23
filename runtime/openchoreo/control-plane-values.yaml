@@ -1,0 +1,15 @@
+# 4SO optional target profile: OpenChoreo API/controllers only.
+# Operator Horizon, 4SO MCP and Keycloak remain product authorities.
+backstage:
+  enabled: false
+openchoreoApi:
+  config:
+    mcp:
+      enabled: false
+  metrics:
+    serviceMonitor:
+      enabled: false
+controllerManager:
+  metrics:
+    serviceMonitor:
+      enabled: false
