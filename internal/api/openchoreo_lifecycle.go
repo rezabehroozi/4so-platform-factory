@@ -83,7 +83,9 @@ func (s *Server) openChoreoAdmissionForCluster(ctx context.Context, cluster cont
 		ExactSourceAdmitted: s.openChoreoRuntimeReady,
 		Disconnected: disconnected,
 		DisconnectedMirrorAdmitted: s.openChoreoRuntimeReady,
-		DurableLifecycleReady: s.openChoreoRuntimeReady,
+		// The lifecycle contract/runtime path is compiled product-owned authority.
+		// Exact external source/mirror availability is represented separately above.
+		DurableLifecycleReady: true,
 		DuplicateStackResolved: inventory.APIDiscoveryComplete && inventory.CRDDiscoveryComplete && inventory.SchemaDiscoveryComplete,
 	})
 }
