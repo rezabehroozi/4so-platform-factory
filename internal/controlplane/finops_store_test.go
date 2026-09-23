@@ -132,3 +132,35 @@ func TestFinOpsFileStoreRoundTripPreservesAuthority(t *testing.T) {
 		t.Fatalf("capacity len=%d err=%v", len(caps), err)
 	}
 }
+
+
+func TestFinOpsVirtualClusterAttributionRequiresExactRuntimeScope(t *testing.T) {
+	store := NewMemoryStore()
+	org, project := seedFinOpsProject(t, store)
+	store.mu.Lock()
+	store.managedClusters["clu-vc"] = ManagedCluster{ResourceMeta: ResourceMeta{ID: "clu-vc", Revision: 1}, ProjectID: project.ID}
+	store.workspaces["wsp-vc"] = Workspace{ResourceMeta: ResourceMeta{ID: "wsp-vc", Revision: 1}, ProjectID: project.ID}
+	store.virtualClusters["vcl-vc"] = VirtualCluster{
+		ResourceMeta: ResourceMeta{ID: "vcl-vc", Revision: 1},
+		ProjectID: project.ID, WorkspaceID: "wsp-vc", HostClusterID: "clu-vc", HostNamespace: "dev",
+	}
+	store.mu.Unlock()
+
+	start := time.Date(2026, 9, 23, 13, 0, 0, 0, time.UTC)
+	usage := fullUsage(org.ID, project.ID, "vc-usage", start)
+	usage.ClusterID = "clu-vc"
+	usage.WorkspaceID = "wsp-vc"
+	usage.Namespace = "dev"
+	usage.VirtualClusterID = "vcl-vc"
+	stored, replay, err := store.CreateFinOpsUsageMeasurement(context.Background(), usage, "meter-agent")
+	if err != nil || replay || stored.VirtualClusterID != "vcl-vc" {
+		t.Fatalf("valid virtual-cluster attribution stored=%+v replay=%v err=%v", stored, replay, err)
+	}
+
+	bad := usage
+	bad.SourceEventID = "vc-usage-bad"
+	bad.Namespace = "other"
+	if _, _, err = store.CreateFinOpsUsageMeasurement(context.Background(), bad, "meter-agent"); !errors.Is(err, ErrValidation) {
+		t.Fatalf("cross-runtime virtual-cluster attribution err=%v", err)
+	}
+}
