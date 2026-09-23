@@ -168,3 +168,18 @@ func ValidateLifecycleTransition(action LifecycleAction, observed *ObservedState
 	}
 	return nil
 }
+
+
+func ValidateLifecycleDispatchFence(action LifecycleAction, observed *ObservedState, currentSourceDigest, expectedObservedSourceDigest string) error {
+	if err := ValidateLifecycleTransition(action, observed, currentSourceDigest); err != nil {
+		return err
+	}
+	expectedObservedSourceDigest = strings.ToLower(strings.TrimSpace(expectedObservedSourceDigest))
+	if expectedObservedSourceDigest == "" {
+		return nil
+	}
+	if observed == nil || !strings.EqualFold(strings.TrimSpace(observed.RuntimeSourceDigest), expectedObservedSourceDigest) {
+		return fmt.Errorf("OPENCHOREO_OBSERVED_FENCE_CHANGED")
+	}
+	return nil
+}
