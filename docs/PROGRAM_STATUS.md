@@ -36,6 +36,15 @@ Only two pre-physical software phases remain source-open:
 5. **W4 — Cross-surface convergence:** converge API, SDK, MCP, Console, PostgreSQL, Durable Ops, Evidence and negative controls.
 6. **W5 — Feature freeze:** C9 freezes mandatory scope and emits one exact immutable release before Phase D physical certification.
 
+## J8 fleet-gateway transport checkpoint — 2026-09-23
+
+- A real long-lived target-initiated WebSocket transport endpoint now exists at `GET /agent/v1/clusters/{id}/gateway-stream`.
+- Stream admission reuses the durable Fleet Gateway Session authority and exact mTLS certificate/cluster identity before protocol upgrade.
+- Heartbeat frames re-enter the same certificate/session fence on every heartbeat; draining, certificate revocation/expiry, stale epoch or session mismatch closes/fences the stream rather than creating a transport-side mutation authority.
+- RFC6455 client masking, bounded frames, ping/pong, close handling and idle read deadlines are implemented with focused framing tests.
+- HA replay now includes `GatewayInstanceID`; a live session cannot silently move to a different gateway replica under the same session/epoch.
+- The `FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING` blocker remains open because the target Agent reconnect loop, bounded exponential backoff, graceful reconnect and restart-recovery execution still need source/runtime closure. No Runtime Integration or Physical PASS is inferred.
+
 ## J8 delivery-evidence closure checkpoint — 2026-09-23
 
 - `DELIVERY_DEPLOYMENT_EVIDENCE_INGESTION_PENDING` is removed from J8 source blockers.
