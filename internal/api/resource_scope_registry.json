@@ -1,7 +1,7 @@
 {
   "authority": "RESOURCE_SCOPE_REGISTRY_V1",
   "classificationAuthority": "RESOURCE_SCOPE_OWNER_CLASSIFICATIONS_V1",
-  "classifiedCount": 75,
+  "classifiedCount": 76,
   "families": [
     {
       "evidence": "internal/api/server.go; effective scope is derived from the authenticated principal and server-side organization/project authorization",
@@ -13,6 +13,12 @@
       "evidence": "internal/api/mcp_route_parity.go; AI runs and durable MCP jobs carry explicit organization/project scope where applicable",
       "family": "ai",
       "scope": "DYNAMIC_SCOPED",
+      "status": "OWNER_CLASSIFIED"
+    },
+    {
+      "evidence": "internal/api/application_platform.go and internal/controlplane/application_platform_store.go; all persisted application-platform authorities carry ProjectID and handlers require project access before read/write/promotion",
+      "family": "application-platform",
+      "scope": "PROJECT_SCOPED",
       "status": "OWNER_CLASSIFIED"
     },
     {
@@ -454,7 +460,7 @@
       "status": "OWNER_CLASSIFIED"
     }
   ],
-  "familyCount": 75,
+  "familyCount": 76,
   "ownerReviewRequiredCount": 0,
   "policy": {
     "inferenceAllowed": false,

@@ -47,6 +47,37 @@
         "rationale": "All 8 AI-callable stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler. 1 route(s) remain explicitly security-excluded."
       },
       {
+        "family": "application-platform",
+        "routeCount": 20,
+        "mutationCount": 8,
+        "callableRouteCount": 20,
+        "securityExcludedRouteCount": 0,
+        "disposition": "typed-tool-complete",
+        "toolNames": [
+          "api_post_application_platform_workload_types",
+          "api_get_application_platform_workload_types",
+          "api_get_application_platform_workload_types_by_id",
+          "api_post_application_platform_capability_traits",
+          "api_get_application_platform_capability_traits",
+          "api_get_application_platform_capability_traits_by_id",
+          "api_post_application_platform_resolve",
+          "api_post_application_platform_resource_types",
+          "api_get_application_platform_resource_types",
+          "api_get_application_platform_resource_types_by_id",
+          "api_post_application_platform_workspace_profiles",
+          "api_get_application_platform_workspace_profiles",
+          "api_get_application_platform_workspace_profiles_by_id",
+          "api_post_application_platform_releases",
+          "api_get_application_platform_releases",
+          "api_get_application_platform_releases_by_id",
+          "api_post_application_platform_environment_bindings",
+          "api_get_application_platform_environment_bindings",
+          "api_get_application_platform_environment_bindings_by_id",
+          "api_post_application_platform_environment_bindings_by_id_promote"
+        ],
+        "rationale": "All 20 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
+      },
+      {
         "family": "audit-events",
         "routeCount": 1,
         "mutationCount": 0,
