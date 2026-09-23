@@ -87,3 +87,45 @@ func TestVirtualClusterLifecycleHTTPExactReplayAndProtectedDelete(t *testing.T) 
 		t.Fatalf("confirmed delete=%d %s", confirmed.Code, confirmed.Body.String())
 	}
 }
+
+
+func TestVirtualClusterDiagnosticsProjectionIsBoundedAndReadOnly(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	ctx := context.Background()
+	org, _ := store.CreateOrganization(ctx, controlplane.Organization{Name: "vcl-diag", DisplayName: "VCL Diagnostics"}, "owner")
+	project, _ := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "platform-diag", DisplayName: "Platform Diagnostics"}, "owner")
+	cluster := workspaceAPICluster(t, store, project.ID, "host-diag", "uid-vcl-diag")
+	workspace, _ := store.CreateWorkspace(ctx, controlplane.Workspace{ProjectID: project.ID, Name: "diag", DisplayName: "Diagnostics"}, "owner")
+	binding, _ := store.CreateWorkspaceBinding(ctx, controlplane.WorkspaceBinding{WorkspaceID: workspace.ID, ClusterID: cluster.ID, Namespace: "diag"}, "owner")
+	created, _, err := store.CreateVirtualCluster(ctx, controlplane.VirtualClusterCreateRequest{
+		WorkspaceID: workspace.ID, WorkspaceBindingID: binding.ID,
+		Spec: virtualcluster.Request{Name: "diag", Profile: virtualcluster.ProfileDeveloper, KubernetesVersion: "v1.34.2", CPUMilli: 2000, MemoryMiB: 4096, StorageGiB: 20, MaxNamespaces: 3, SleepAfterMinutes: 60},
+		IdempotencyKey: "diag-create", RequestDigest: "sha256:"+strings.Repeat("d",64),
+	}, "owner")
+	if err != nil { t.Fatal(err) }
+
+	srv := scopedServer(t, store)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.ID+"/virtual-clusters/"+created.ID+"?includeDiagnostics=true", nil)
+	req.Header.Set("X-Actor-ID", "owner")
+	req.Header.Set("X-Actor-Role", "platform-operator")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("diagnostics=%d %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	for _, want := range []string{
+		VirtualClusterDiagnosticsAuthority,
+		`"readOnly":true`,
+		`"physicalCertificationInferred":false`,
+		`"virtualClusterId":"` + created.ID + `"`,
+		`"workspaceId":"` + workspace.ID + `"`,
+		`"clusterId":"` + cluster.ID + `"`,
+		`"namespace":"diag"`,
+		`"virtual_cluster.created"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("diagnostics missing %q: %s", want, body)
+		}
+	}
+}
