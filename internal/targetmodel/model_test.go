@@ -146,7 +146,7 @@ func TestManagementPlaneStorageAuthorityMatchesAcquisitionSourceLock(t *testing.
 
 func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.T) {
 	roadmap := ArchitectureModel().ProgramRoadmap
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V70" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V71" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
 		t.Fatalf("unexpected roadmap authority: %#v", roadmap)
 	}
 	if len(roadmap.Phases) != 39 {
@@ -192,7 +192,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	r0 := byID["R0-release-authority-certification-rebaseline"]
-	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V70", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
+	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V71", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
 		if !containsString(r0.Evidence, evidence) {
 			t.Fatalf("R0 evidence %q missing: %#v", evidence, r0)
 		}
@@ -282,7 +282,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 
-	for _, id := range []string{"H2-vmware-provider", "I2-edge-sovereign-extension", "J1-automation-external-integrations", "J2-finops-usage", "J3-virtual-cluster-profile", "J4-product-api-contract-recovery-foundation", "J5-resource-scope-owner-closure", "H3-public-cloud-provider-adapters", "J6-fleet-reliability-incident-intelligence", "J7-finops-v2-budget-forecast-rightsizing"} {
+	for _, id := range []string{"H2-vmware-provider", "I2-edge-sovereign-extension", "J1-automation-external-integrations", "J2-finops-usage", "J3-virtual-cluster-profile", "J4-product-api-contract-recovery-foundation", "J5-resource-scope-owner-closure", "H3-public-cloud-provider-adapters", "J6-fleet-reliability-incident-intelligence", "J7-finops-v2-budget-forecast-rightsizing", "J8-application-platform-abstraction-composition"} {
 		phase := byID[id]
 		if phase.RequiredForFeatureFreeze || phase.DeliveryTier != ProgramTierExpansion {
 			t.Fatalf("expansion phase must not block core freeze %s: %#v", id, phase)
@@ -302,12 +302,12 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	}
 
 	j3 := byID["J3-virtual-cluster-profile"]
-	if j3.Status != ProgramStatusBlocked || j3.SourceStatus != ProgramSourceStatusOpen || len(j3.Blockers) != 1 || !containsString(j3.Blockers, "VIRTUAL_CLUSTER_DURABLE_RUNTIME_PENDING") || containsString(j3.Blockers, "VIRTUAL_CLUSTER_API_MCP_CONSOLE_PENDING") {
-		t.Fatalf("J3 virtual-cluster foundation status drift: %#v", j3)
+	if j3.Status != ProgramStatusSourceImplemented || j3.SourceStatus != ProgramSourceStatusImplemented || len(j3.Blockers) != 0 {
+		t.Fatalf("J3 virtual-cluster source closure drift: %#v", j3)
 	}
-	for _, evidence := range []string{"VIRTUAL_CLUSTER_PROFILE_AUTHORITY_V1", "VIRTUAL_CLUSTER_LIFECYCLE_AUTHORITY_V1", "VIRTUAL_CLUSTER_DURABLE_AUTHORITY_V1", "internal/virtualcluster", "migrations/0078_virtual_cluster_authority.sql", "POST /api/v1/workspaces/{id}/virtual-clusters", "MCP_ROUTE_PARITY_AUTHORITY_V1", "POSTGRES_BEHAVIORAL_INTEGRATION_V1", "operator-console:virtual-cluster-desired-state", "WORKSPACE_AUTHORITY_V1"} {
+	for _, evidence := range []string{"VIRTUAL_CLUSTER_PROFILE_AUTHORITY_V1", "VIRTUAL_CLUSTER_LIFECYCLE_AUTHORITY_V1", "VIRTUAL_CLUSTER_DURABLE_AUTHORITY_V1", "VIRTUAL_CLUSTER_DIAGNOSTICS_AUTHORITY_V1", "internal/virtualcluster", "cmd/platform-agent/virtual_cluster_runtime.go", "migrations/0078_virtual_cluster_authority.sql", "migrations/0080_virtual_cluster_lifecycle_journal.sql", "migrations/0081_finops_virtual_cluster_attribution.sql", "POST /api/v1/workspaces/{id}/virtual-clusters", "POST /api/v1/workspaces/{id}/virtual-clusters/{virtualClusterId}/suspend", "MCP_ROUTE_PARITY_AUTHORITY_V1", "POSTGRES_BEHAVIORAL_INTEGRATION_V1", "operator-console:virtual-cluster-lifecycle", "WORKSPACE_AUTHORITY_V1"} {
 		if !containsString(j3.Evidence, evidence) {
-			t.Fatalf("J3 virtual-cluster foundation evidence missing %s: %#v", evidence, j3)
+			t.Fatalf("J3 virtual-cluster source evidence missing %s: %#v", evidence, j3)
 		}
 	}
 
@@ -472,7 +472,7 @@ func TestProgramProgressUnknownBlockerReopensSourceClosure(t *testing.T) {
 
 func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.T) {
 	roadmap := ProgramRoadmapModel()
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V70" {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V71" {
 		t.Fatalf("authority=%s", roadmap.Authority)
 	}
 	byID := map[string]ProgramPhase{}
@@ -519,7 +519,17 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 		}
 	}
 
-	for _, id := range []string{"H3-public-cloud-provider-adapters", "J3-virtual-cluster-profile", "J6-fleet-reliability-incident-intelligence", "J7-finops-v2-budget-forecast-rightsizing"} {
+	j8 := byID["J8-application-platform-abstraction-composition"]
+	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusOpen || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) {
+		t.Fatalf("application-platform composition phase drift: %+v", j8)
+	}
+	for _, blocker := range []string{"WORKLOAD_TYPE_TRAIT_COMPOSITION_PENDING", "MANAGED_RESOURCE_TYPE_OUTPUT_REFERENCE_PENDING", "WORKSPACE_PROFILE_RELEASE_BINDING_PENDING", "FLEET_AGENT_GATEWAY_SESSION_HARDENING_PENDING", "DELIVERY_INSIGHTS_PROJECTION_PENDING", "OPTIONAL_OPENCHOREO_TARGET_ADAPTER_PENDING"} {
+		if !containsString(j8.Blockers, blocker) {
+			t.Fatalf("J8 blocker missing %s: %+v", blocker, j8)
+		}
+	}
+
+	for _, id := range []string{"H3-public-cloud-provider-adapters", "J3-virtual-cluster-profile", "J6-fleet-reliability-incident-intelligence", "J7-finops-v2-budget-forecast-rightsizing", "J8-application-platform-abstraction-composition"} {
 		phase := byID[id]
 		if phase.ID == "" || phase.RequiredForFeatureFreeze || phase.DeliveryTier != ProgramTierExpansion {
 			t.Fatalf("pre-physical expansion phase %s=%+v", id, phase)

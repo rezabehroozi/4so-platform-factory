@@ -166,6 +166,7 @@ type Model struct {
 	ProgramRoadmap          ProgramRoadmap                   `json:"programRoadmap"`
 	SearchProjection        SearchProjectionDescriptor       `json:"searchProjection"`
 	MCPRemoteOAuth          MCPRemoteOAuthDescriptor         `json:"mcpRemoteOAuth"`
+	OpenChoreoReference     OpenChoreoAdoptionDescriptor     `json:"openChoreoReference"`
 }
 
 func ArchitectureModel() Model {
@@ -225,6 +226,7 @@ func ArchitectureModel() Model {
 		CapabilityResolver: CapabilityResolverModel(),
 		ProgramRoadmap:     ProgramRoadmapModel(),
 		MCPRemoteOAuth:     MCPRemoteOAuthModel(),
+		OpenChoreoReference: OpenChoreoAdoptionModel(),
 		SearchProjection: SearchProjectionDescriptor{
 			Authority:             "SEARCH_PROJECTION_AUTHORITY_V2",
 			Role:                  "derived-search-projection-not-source-of-truth",
