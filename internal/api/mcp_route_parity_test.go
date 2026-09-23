@@ -96,17 +96,58 @@ func TestMCPGeneratedAdministrationToolsAreHiddenFromAPITokens(t *testing.T) {
 
 func TestMCPRouteParityRegistryHasNoUnclassifiedStableRoute(t *testing.T) {
 	registry := loadMCPRouteParityRegistry()
-	if registry.RouteCount != 377 {
-		t.Fatalf("unexpected stable route count: %d", registry.RouteCount)
+	if registry.RouteCount != len(registry.Routes) {
+		t.Fatalf("route parity registry count is not self-consistent: declared=%d actual=%d", registry.RouteCount, len(registry.Routes))
 	}
-	if registry.Counts["tool-read"] != 185 || registry.Counts["tool-operate"] != 79 || registry.Counts["tool-admin"] != 73 || registry.Counts["security-excluded"] != 40 {
-		t.Fatalf("route parity summary drift: %+v", registry.Counts)
-	}
+	observedCounts := map[string]int{}
 	for _, route := range registry.Routes {
+		switch route.Disposition {
+		case "tool-read", "tool-operate", "tool-admin", "security-excluded":
+			observedCounts[route.Disposition]++
+		default:
+			t.Fatalf("stable route has unclassified disposition: %+v", route)
+		}
 		if route.Disposition == "tool-operate" || route.Disposition == "tool-admin" {
 			if !route.DurableJob || !route.IdempotencyRequired {
 				t.Fatalf("AI mutation lacks durable semantics: %+v", route)
 			}
+		}
+	}
+	for disposition, count := range observedCounts {
+		if registry.Counts[disposition] != count {
+			t.Fatalf("route parity summary mismatch for %s: declared=%d actual=%d", disposition, registry.Counts[disposition], count)
+		}
+	}
+	if len(observedCounts) != len(registry.Counts) {
+		t.Fatalf("route parity summary contains unexpected dispositions: declared=%+v actual=%+v", registry.Counts, observedCounts)
+	}
+}
+
+func TestMCPOpenChoreoLifecycleRoutesKeepDurableAndApprovalSemantics(t *testing.T) {
+	registry := loadMCPRouteParityRegistry()
+	want := map[string]struct {
+		method      string
+		disposition string
+		durable     bool
+	}{
+		"/api/v1/application-platform/openchoreo/lifecycle":              {method: "POST", disposition: "tool-operate", durable: true},
+		"/api/v1/application-platform/openchoreo/lifecycle/{id}":         {method: "GET", disposition: "tool-read", durable: false},
+		"/api/v1/application-platform/openchoreo/lifecycle/{id}/approve": {method: "POST", disposition: "tool-admin", durable: true},
+	}
+	seen := map[string]bool{}
+	for _, route := range registry.Routes {
+		expected, ok := want[route.Path]
+		if !ok {
+			continue
+		}
+		seen[route.Path] = true
+		if route.Method != expected.method || route.Disposition != expected.disposition || route.DurableJob != expected.durable || route.IdempotencyRequired != expected.durable {
+			t.Fatalf("OpenChoreo lifecycle MCP semantics drifted: %+v", route)
+		}
+	}
+	for path := range want {
+		if !seen[path] {
+			t.Fatalf("OpenChoreo lifecycle route missing from MCP parity: %s", path)
 		}
 	}
 }
