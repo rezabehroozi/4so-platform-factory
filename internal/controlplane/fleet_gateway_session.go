@@ -117,7 +117,7 @@ func AdmitFleetGatewaySession(cluster ManagedCluster, cert AgentCertificate, req
 	if current!=nil {
 		if current.ClusterID!=cluster.ID {return FleetGatewaySessionAdmission{},fmt.Errorf("%w: active session belongs to another cluster",ErrValidation)}
 		if current.State==FleetGatewaySessionActive {
-			if current.SessionID==req.SessionID&&current.Epoch==req.Epoch&&current.CertificateID==req.CertificateID&&secureEqual(current.CertificateFingerprint,req.CertificateFingerprint) {
+			if current.SessionID==req.SessionID&&current.Epoch==req.Epoch&&current.CertificateID==req.CertificateID&&current.GatewayInstanceID==req.GatewayInstanceID&&secureEqual(current.CertificateFingerprint,req.CertificateFingerprint) {
 				copy:=*current
 				return FleetGatewaySessionAdmission{Authority:FleetAgentGatewaySessionAuthority,Decision:FleetGatewayAdmissionReplay,Reason:"exact active session identity replay",Session:&copy},nil
 			}
