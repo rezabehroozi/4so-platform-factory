@@ -57,7 +57,7 @@ func TestVirtualClusterLifecycleHTTPExactReplayAndProtectedDelete(t *testing.T) 
 	binding, _ := store.CreateWorkspaceBinding(ctx, controlplane.WorkspaceBinding{WorkspaceID: workspace.ID, ClusterID: cluster.ID, Namespace: "developers"}, "owner")
 	created, _, err := store.CreateVirtualCluster(ctx, controlplane.VirtualClusterCreateRequest{
 		WorkspaceID: workspace.ID, WorkspaceBindingID: binding.ID,
-		Spec: virtualcluster.Request{Name: "life", Profile: virtualcluster.ProfileDeveloper, KubernetesVersion: "v1.34.2", CPUMilli: 2000, MemoryMiB: 4096, StorageGiB: 20, MaxNamespaces: 3},
+		Spec: virtualcluster.Request{Name: "life", Profile: virtualcluster.ProfileDeveloper, KubernetesVersion: "v1.34.2", CPUMilli: 2000, MemoryMiB: 4096, StorageGiB: 20, MaxNamespaces: 3, SleepAfterMinutes: 60},
 		IdempotencyKey: "create-life", RequestDigest: "sha256:"+strings.Repeat("a",64),
 	}, "owner")
 	if err != nil { t.Fatal(err) }
