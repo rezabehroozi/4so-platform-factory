@@ -9,6 +9,10 @@
       "evidence": "internal/api/mcp_route_parity.go; AI runs and durable MCP jobs carry explicit organization/project scope where applicable",
       "scope": "DYNAMIC_SCOPED"
     },
+    "application-platform": {
+      "scope": "PROJECT_SCOPED",
+      "evidence": "internal/api/application_platform.go and internal/controlplane/application_platform_store.go; all persisted application-platform authorities carry ProjectID and handlers require project access before read/write/promotion"
+    },
     "audit-events": {
       "evidence": "internal/api/operations_observability.go; audit visibility is intersected with authorized organization/project resource ownership",
       "scope": "DYNAMIC_SCOPED"
@@ -91,6 +95,10 @@
     },
     "drift-scans": {
       "evidence": "internal/api/fleet_upgrade.go; DriftScan carries ProjectID and create/list/action paths enforce project access",
+      "scope": "PROJECT_SCOPED"
+    },
+    "edge": {
+      "evidence": "internal/api/edge_sovereign.go and internal/edgeauthority/authority.go; edge admission requires explicit ProjectID access and uses caller-supplied assessment data",
       "scope": "PROJECT_SCOPED"
     },
     "external-registry": {
@@ -295,10 +303,6 @@
     },
     "workspaces": {
       "evidence": "internal/api/workspace.go; Workspace authority is project-scoped",
-      "scope": "PROJECT_SCOPED"
-    },
-    "edge": {
-      "evidence": "internal/api/edge_sovereign.go and internal/edgeauthority/authority.go; edge admission requires explicit ProjectID access and uses caller-supplied assessment data",
       "scope": "PROJECT_SCOPED"
     }
   },

@@ -214,3 +214,28 @@ func TestPostgresVirtualClusterWorkspaceAuthorityIsDurableAndIdempotent(t *testi
 		t.Fatalf("virtual cluster scoped list=%#v err=%v", list, err)
 	}
 }
+
+
+func TestPostgresIntegrationApplicationPlatformReleaseBindingPromotionFence(t *testing.T) {
+	store,_:=openPostgresIntegrationStore(t);ctx:=context.Background()
+	org,err:=store.CreateOrganization(ctx,controlplane.Organization{Name:"app-platform-integration",DisplayName:"Application Platform Integration"},"integration-admin");if err!=nil{t.Fatal(err)}
+	project,err:=store.CreateProject(ctx,controlplane.Project{OrganizationID:org.ID,Name:"payments",DisplayName:"Payments"},"integration-admin");if err!=nil{t.Fatal(err)}
+	policy,err:=store.CreatePlatformPolicySet(ctx,controlplane.PlatformPolicySet{ProjectID:project.ID,Name:"production",Version:"1.0.0",Maintenance:controlplane.PlatformMaintenancePolicy{RiskClass:"PRODUCTION",RequireApproval:true,MaxUnavailable:1,RequireRecoveryCheckpoint:true},Backup:controlplane.PlatformBackupPolicy{Required:true,Provider:"s3",Schedule:"0 2 * * *",Retention:"30d"},Security:controlplane.PlatformSecurityPolicy{PodSecurityLevel:"restricted",DefaultDenyIngress:true,DefaultDenyEgress:true,AllowDNS:true}},"integration-admin");if err!=nil{t.Fatal(err)}
+	d:=func(ch string)string{return "sha256:"+strings.Repeat(ch,64)}
+	wt,err:=store.CreateWorkloadType(ctx,controlplane.WorkloadType{ProjectID:project.ID,Name:"service",Version:"1.0.0",InputSchemaDigest:d("a"),AllowedTraitKinds:[]string{"ingress"}},"integration-admin");if err!=nil{t.Fatal(err)}
+	trait,err:=store.CreateCapabilityTrait(ctx,controlplane.CapabilityTrait{ProjectID:project.ID,Name:"ingress",Version:"1.0.0",Kind:"ingress",Capability:"networking.ingress",InputSchemaDigest:d("b"),NativeSuppression:true},"integration-admin");if err!=nil{t.Fatal(err)}
+	resource,err:=store.CreateManagedResourceType(ctx,controlplane.ManagedResourceType{ProjectID:project.ID,Name:"postgres",Version:"1.0.0",Category:"database",Provisioner:"product-api",InputSchemaDigest:d("c"),Outputs:[]controlplane.ManagedResourceOutput{{Name:"endpoint",Type:"endpoint"},{Name:"credentials",Type:"secret-reference",Sensitive:true,SecretReference:true}},DeletePolicy:"retain",RetentionPolicy:"customer-data",ReadinessConditions:[]string{"endpoint-ready","credentials-ready"}},"integration-admin");if err!=nil{t.Fatal(err)}
+	profile,err:=store.CreateWorkspaceProfile(ctx,controlplane.WorkspaceProfile{ProjectID:project.ID,Name:"production",Version:"1.0.0",AuthorityRefs:[]controlplane.ApplicationAuthorityRef{{Kind:"policy-set",ID:policy.ID,Digest:policy.Digest}}},"integration-admin");if err!=nil{t.Fatal(err)}
+	r1,err:=store.CreateApplicationRelease(ctx,controlplane.ApplicationReleaseCreateRequest{ProjectID:project.ID,Name:"payments",Version:"1.0.0",WorkloadTypeID:wt.ID,TraitIDs:[]string{trait.ID},ManagedResourceTypeIDs:[]string{resource.ID},WorkspaceProfileID:profile.ID,SourceDigest:d("d")},"integration-admin");if err!=nil{t.Fatal(err)}
+	r2,err:=store.CreateApplicationRelease(ctx,controlplane.ApplicationReleaseCreateRequest{ProjectID:project.ID,Name:"payments",Version:"1.1.0",WorkloadTypeID:wt.ID,TraitIDs:[]string{trait.ID},ManagedResourceTypeIDs:[]string{resource.ID},WorkspaceProfileID:profile.ID,SourceDigest:d("e")},"integration-admin");if err!=nil{t.Fatal(err)}
+	enrollment:=d("f");agent:=d("9")
+	imp,err:=store.CreateClusterImport(ctx,controlplane.ClusterImport{ProjectID:project.ID,Name:"host",DisplayName:"Host",TokenDigest:enrollment,ExpiresAt:time.Now().Add(time.Hour)},"integration-admin");if err!=nil{t.Fatal(err)}
+	imp,err=store.ApproveClusterImport(ctx,imp.ID,imp.Revision,"integration-admin");if err!=nil{t.Fatal(err)}
+	_,cluster,err:=store.ClaimClusterImport(ctx,imp.ID,enrollment,agent,"uid-app-platform-integration","0.0.integration");if err!=nil{t.Fatal(err)}
+	workspace,err:=store.CreateWorkspace(ctx,controlplane.Workspace{ProjectID:project.ID,Name:"payments",DisplayName:"Payments"},"integration-admin");if err!=nil{t.Fatal(err)}
+	wsb,err:=store.CreateWorkspaceBinding(ctx,controlplane.WorkspaceBinding{WorkspaceID:workspace.ID,ClusterID:cluster.ID,Namespace:"payments"},"integration-admin");if err!=nil{t.Fatal(err)}
+	binding,err:=store.CreateEnvironmentBinding(ctx,controlplane.EnvironmentBindingCreateRequest{ReleaseID:r1.ID,WorkspaceBindingID:wsb.ID,Environment:"production",ObservedNativeCapabilities:[]string{"networking.ingress"}},"integration-admin");if err!=nil{t.Fatal(err)}
+	promoted,err:=store.PromoteEnvironmentBinding(ctx,binding.ID,binding.Revision,controlplane.EnvironmentBindingPromotionRequest{ReleaseID:r2.ID,ObservedNativeCapabilities:[]string{"networking.ingress"}},"integration-admin");if err!=nil{t.Fatal(err)};if promoted.Revision!=2||promoted.ReleaseID!=r2.ID{t.Fatalf("promotion=%#v",promoted)}
+	if _,err=store.RevokeWorkspaceBinding(ctx,wsb.ID,wsb.Revision,"integration-admin");err!=nil{t.Fatal(err)}
+	if _,err=store.PromoteEnvironmentBinding(ctx,binding.ID,promoted.Revision,controlplane.EnvironmentBindingPromotionRequest{ReleaseID:r1.ID},"integration-admin");err==nil{t.Fatal("promotion after WorkspaceBinding revocation succeeded")}
+}

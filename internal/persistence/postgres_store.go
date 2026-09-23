@@ -1396,6 +1396,25 @@ func (s *PostgresStore) Snapshot(ctx context.Context) (controlplane.Snapshot, er
 	}
 	snapshot.PlatformTemplates = platformTemplates
 
+	workloadTypes, err := s.ListWorkloadTypes(ctx, "")
+	if err != nil { return snapshot, err }
+	snapshot.WorkloadTypes = workloadTypes
+	capabilityTraits, err := s.ListCapabilityTraits(ctx, "")
+	if err != nil { return snapshot, err }
+	snapshot.CapabilityTraits = capabilityTraits
+	managedResourceTypes, err := s.ListManagedResourceTypes(ctx, "")
+	if err != nil { return snapshot, err }
+	snapshot.ManagedResourceTypes = managedResourceTypes
+	workspaceProfiles, err := s.ListWorkspaceProfiles(ctx, "")
+	if err != nil { return snapshot, err }
+	snapshot.WorkspaceProfiles = workspaceProfiles
+	applicationReleases, err := s.ListApplicationReleases(ctx, "")
+	if err != nil { return snapshot, err }
+	snapshot.ApplicationReleases = applicationReleases
+	environmentBindings, err := s.ListEnvironmentBindings(ctx, "")
+	if err != nil { return snapshot, err }
+	snapshot.EnvironmentBindings = environmentBindings
+
 	workspaces, err := s.ListWorkspaces(ctx, "")
 	if err != nil {
 		return snapshot, err
