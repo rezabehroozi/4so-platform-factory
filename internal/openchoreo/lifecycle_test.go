@@ -42,3 +42,24 @@ func TestLifecycleRequestRejectsUnknownSuppressionAndDigestDrift(t *testing.T) {
 	if _, err = ParseLifecycleRequest(raw, "sha256:"+strings.Repeat("f",64)); err == nil { t.Fatal("request digest drift admitted") }
 	if _, err = ParseLifecycleRequest(raw, digest); err != nil { t.Fatal(err) }
 }
+
+
+func TestLifecycleDispatchFenceRejectsPostApprovalObservedDrift(t *testing.T) {
+	source := "sha256:" + strings.Repeat("a", 64)
+	previous := "sha256:" + strings.Repeat("b", 64)
+	changed := "sha256:" + strings.Repeat("c", 64)
+
+	approvedObserved := &ObservedState{Installed: true, RuntimeSourceDigest: previous}
+	if err := ValidateLifecycleDispatchFence(ActionUpgrade, approvedObserved, source, previous); err != nil {
+		t.Fatalf("stable approved fence rejected: %v", err)
+	}
+
+	driftedObserved := &ObservedState{Installed: true, RuntimeSourceDigest: changed}
+	if err := ValidateLifecycleDispatchFence(ActionUpgrade, driftedObserved, source, previous); err == nil || !strings.Contains(err.Error(), "OPENCHOREO_OBSERVED_FENCE_CHANGED") {
+		t.Fatalf("post-approval observed drift was not fenced: %v", err)
+	}
+
+	if err := ValidateLifecycleDispatchFence(ActionInstall, driftedObserved, source, ""); err == nil {
+		t.Fatal("post-approval install race admitted an already installed runtime")
+	}
+}
