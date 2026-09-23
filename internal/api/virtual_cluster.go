@@ -1,12 +1,19 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
 	"platform.4so.io/factory/internal/controlplane"
 	"platform.4so.io/factory/internal/virtualcluster"
 )
+
+const VirtualClusterDiagnosticsAuthority = "VIRTUAL_CLUSTER_DIAGNOSTICS_AUTHORITY_V1"
+
+type virtualClusterResourceAuditPager interface {
+	ListAuditPageByResource(context.Context, string, string, int) ([]controlplane.AuditEvent, error)
+}
 
 type virtualClusterCreateInput struct {
 	WorkspaceBindingID string                   `json:"workspaceBindingId"`
@@ -116,6 +123,46 @@ func (s *Server) getVirtualCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setRevisionETag(w, v.Revision)
+	if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("includeDiagnostics")), "true") {
+		pager, ok := s.store.(virtualClusterResourceAuditPager)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "VIRTUAL_CLUSTER_DIAGNOSTICS_UNAVAILABLE", "bounded virtual-cluster audit projection is unavailable")
+			return
+		}
+		events, err := pager.ListAuditPageByResource(r.Context(), "virtualCluster", v.ID, 50)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		project, err := s.store.GetProject(r.Context(), v.ProjectID)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"authority": VirtualClusterDiagnosticsAuthority,
+			"virtualCluster": v,
+			"lifecycle": map[string]any{
+				"state": v.State, "phase": v.Phase, "pendingAction": v.PendingAction,
+				"taskAttempt": v.TaskAttempt, "taskFenceToken": v.TaskFenceToken, "taskAction": v.TaskAction,
+				"taskLeaseExpiresAt": v.TaskLeaseExpiresAt, "taskDispatchedAt": v.TaskDispatchedAt,
+				"lifecycleAction": v.LifecycleAction, "lastError": v.LastError,
+				"desiredDigest": v.DesiredDigest, "observedDigest": v.ObservedDigest, "runtimeSourceDigest": v.RuntimeSourceDigest,
+			},
+			"evidence": events,
+			"finOpsAttribution": map[string]any{
+				"organizationId": project.OrganizationID, "projectId": v.ProjectID,
+				"clusterId": v.HostClusterID, "workspaceId": v.WorkspaceID,
+				"namespace": v.HostNamespace, "virtualClusterId": v.ID,
+			},
+			"policy": map[string]any{
+				"readOnly": true,
+				"measuredUsageMustRemainEvidenceBacked": true,
+				"physicalCertificationInferred": false,
+			},
+		})
+		return
+	}
 	writeJSON(w, http.StatusOK, v)
 }
 
