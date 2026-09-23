@@ -35,6 +35,12 @@ type MemoryStore struct {
 	variableSchemas              map[string]VariableSchema
 	platformPolicySets           map[string]PlatformPolicySet
 	platformTemplates            map[string]PlatformTemplate
+	workloadTypes                map[string]WorkloadType
+	capabilityTraits             map[string]CapabilityTrait
+	managedResourceTypes         map[string]ManagedResourceType
+	workspaceProfiles            map[string]WorkspaceProfile
+	applicationReleases          map[string]ApplicationRelease
+	environmentBindings          map[string]EnvironmentBinding
 	workspaces                   map[string]Workspace
 	workspaceBindings            map[string]WorkspaceBinding
 	virtualClusters               map[string]VirtualCluster
@@ -118,7 +124,7 @@ func NewMemoryStoreWith(now func() time.Time, id func(string) string) *MemorySto
 	}
 	return &MemoryStore{
 		now: now, id: id,
-		organizations: map[string]Organization{}, organizationMemberships: map[string]OrganizationMembership{}, oidcGroupMappings: map[string]OIDCGroupMapping{}, securityAudit: []SecurityAuditEvent{}, serviceAccounts: map[string]ServiceAccount{}, apiTokens: map[string]APIToken{}, mcpTrustedClients: map[string]MCPTrustedClient{}, mcpDelegationGrants: map[string]MCPDelegationGrant{}, mcpControlJobs: map[string]MCPControlJob{}, mcpControlJobIdempotency: map[string]string{}, projects: map[string]Project{}, blueprintOverlays: map[string]BlueprintOverlay{}, variableSchemas: map[string]VariableSchema{}, platformPolicySets: map[string]PlatformPolicySet{}, platformTemplates: map[string]PlatformTemplate{}, workspaces: map[string]Workspace{}, workspaceBindings: map[string]WorkspaceBinding{}, virtualClusters: map[string]VirtualCluster{},
+		organizations: map[string]Organization{}, organizationMemberships: map[string]OrganizationMembership{}, oidcGroupMappings: map[string]OIDCGroupMapping{}, securityAudit: []SecurityAuditEvent{}, serviceAccounts: map[string]ServiceAccount{}, apiTokens: map[string]APIToken{}, mcpTrustedClients: map[string]MCPTrustedClient{}, mcpDelegationGrants: map[string]MCPDelegationGrant{}, mcpControlJobs: map[string]MCPControlJob{}, mcpControlJobIdempotency: map[string]string{}, projects: map[string]Project{}, blueprintOverlays: map[string]BlueprintOverlay{}, variableSchemas: map[string]VariableSchema{}, platformPolicySets: map[string]PlatformPolicySet{}, platformTemplates: map[string]PlatformTemplate{}, workloadTypes: map[string]WorkloadType{}, capabilityTraits: map[string]CapabilityTrait{}, managedResourceTypes: map[string]ManagedResourceType{}, workspaceProfiles: map[string]WorkspaceProfile{}, applicationReleases: map[string]ApplicationRelease{}, environmentBindings: map[string]EnvironmentBinding{}, workspaces: map[string]Workspace{}, workspaceBindings: map[string]WorkspaceBinding{}, virtualClusters: map[string]VirtualCluster{},
 		revisions: map[string]BlueprintRevision{}, blueprintReleases: map[string]BlueprintRelease{}, catalogTrustKeys: map[string]CatalogTrustKey{}, catalogRevisions: map[string]CatalogRevision{}, catalogReleases: map[string]CatalogRelease{}, assignments: map[string]Assignment{},
 		operations: map[string]Operation{}, steps: map[string]OperationStep{}, stepTraces: map[string]OperationStepTrace{}, compensationSteps: map[string]OperationCompensationStep{}, outbox: map[string]OutboxEvent{}, notificationDestinations: map[string]NotificationDestination{}, notificationRoutes: map[string]NotificationRoute{}, notificationEvents: map[string]NotificationEvent{}, notificationDeliveries: map[string]NotificationDelivery{}, notificationAttempts: map[string]NotificationDeliveryAttempt{},
 		evidence: map[string]EvidenceMetadata{}, evidencePayloads: map[string][]byte{}, idempotency: map[string]string{},
@@ -1663,6 +1669,24 @@ func (s *MemoryStore) Snapshot(_ context.Context) (Snapshot, error) {
 	for _, v := range s.platformTemplates {
 		snap.PlatformTemplates = append(snap.PlatformTemplates, clonePlatformTemplate(v))
 	}
+	for _, v := range s.workloadTypes {
+		snap.WorkloadTypes = append(snap.WorkloadTypes, cloneWorkloadType(v))
+	}
+	for _, v := range s.capabilityTraits {
+		snap.CapabilityTraits = append(snap.CapabilityTraits, v)
+	}
+	for _, v := range s.managedResourceTypes {
+		snap.ManagedResourceTypes = append(snap.ManagedResourceTypes, cloneManagedResourceType(v))
+	}
+	for _, v := range s.workspaceProfiles {
+		snap.WorkspaceProfiles = append(snap.WorkspaceProfiles, cloneWorkspaceProfile(v))
+	}
+	for _, v := range s.applicationReleases {
+		snap.ApplicationReleases = append(snap.ApplicationReleases, cloneApplicationRelease(v))
+	}
+	for _, v := range s.environmentBindings {
+		snap.EnvironmentBindings = append(snap.EnvironmentBindings, v)
+	}
 	for _, v := range s.workspaces {
 		snap.Workspaces = append(snap.Workspaces, cloneWorkspace(v))
 	}
@@ -2285,6 +2309,9 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 			activeWorkspaceScopes[key] = normalized.ID
 		}
 	}
+	if err := validateApplicationPlatformSnapshot(snapshot, projectsByID, workspacesByID, clustersByID); err != nil {
+		return err
+	}
 	virtualClusterNames := map[string]string{}
 	for _, v := range snapshot.VirtualClusters {
 		if err := validateVirtualClusterRecord(v, workspacesByID, func() map[string]WorkspaceBinding {
@@ -2463,6 +2490,12 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 	s.variableSchemas = map[string]VariableSchema{}
 	s.platformPolicySets = map[string]PlatformPolicySet{}
 	s.platformTemplates = map[string]PlatformTemplate{}
+	s.workloadTypes = map[string]WorkloadType{}
+	s.capabilityTraits = map[string]CapabilityTrait{}
+	s.managedResourceTypes = map[string]ManagedResourceType{}
+	s.workspaceProfiles = map[string]WorkspaceProfile{}
+	s.applicationReleases = map[string]ApplicationRelease{}
+	s.environmentBindings = map[string]EnvironmentBinding{}
 	s.workspaces = map[string]Workspace{}
 	s.workspaceBindings = map[string]WorkspaceBinding{}
 	s.virtualClusters = map[string]VirtualCluster{}
@@ -2576,6 +2609,36 @@ func (s *MemoryStore) Restore(snapshot Snapshot) error {
 		normalized.ResourceMeta = v.ResourceMeta
 		normalized.CreatedBy = v.CreatedBy
 		s.platformTemplates[v.ID] = clonePlatformTemplate(normalized)
+	}
+	for _, v := range snapshot.WorkloadTypes {
+		normalized, _ := NormalizeWorkloadType(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.workloadTypes[v.ID] = cloneWorkloadType(normalized)
+	}
+	for _, v := range snapshot.CapabilityTraits {
+		normalized, _ := NormalizeCapabilityTrait(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.capabilityTraits[v.ID] = normalized
+	}
+	for _, v := range snapshot.ManagedResourceTypes {
+		normalized, _ := NormalizeManagedResourceType(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.managedResourceTypes[v.ID] = cloneManagedResourceType(normalized)
+	}
+	for _, v := range snapshot.WorkspaceProfiles {
+		normalized, _ := NormalizeWorkspaceProfile(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.workspaceProfiles[v.ID] = cloneWorkspaceProfile(normalized)
+	}
+	for _, v := range snapshot.ApplicationReleases {
+		normalized, _ := NormalizeApplicationRelease(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.applicationReleases[v.ID] = cloneApplicationRelease(normalized)
+	}
+	for _, v := range snapshot.EnvironmentBindings {
+		normalized, _ := NormalizeEnvironmentBinding(v)
+		normalized.ResourceMeta = v.ResourceMeta
+		s.environmentBindings[v.ID] = normalized
 	}
 	for _, v := range snapshot.Workspaces {
 		normalized, _ := NormalizeWorkspace(v)

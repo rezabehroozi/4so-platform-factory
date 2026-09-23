@@ -417,6 +417,12 @@ type Snapshot struct {
 	VariableSchemas            []VariableSchema                  `json:"variableSchemas"`
 	PlatformPolicySets         []PlatformPolicySet               `json:"platformPolicySets"`
 	PlatformTemplates          []PlatformTemplate                `json:"platformTemplates"`
+	WorkloadTypes              []WorkloadType                     `json:"workloadTypes,omitempty"`
+	CapabilityTraits           []CapabilityTrait                 `json:"capabilityTraits,omitempty"`
+	ManagedResourceTypes       []ManagedResourceType              `json:"managedResourceTypes,omitempty"`
+	WorkspaceProfiles          []WorkspaceProfile                 `json:"workspaceProfiles,omitempty"`
+	ApplicationReleases        []ApplicationRelease               `json:"applicationReleases,omitempty"`
+	EnvironmentBindings        []EnvironmentBinding               `json:"environmentBindings,omitempty"`
 	Workspaces                 []Workspace                       `json:"workspaces"`
 	WorkspaceBindings          []WorkspaceBinding                `json:"workspaceBindings"`
 	VirtualClusters             []VirtualCluster                  `json:"virtualClusters,omitempty"`

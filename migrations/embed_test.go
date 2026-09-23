@@ -84,6 +84,8 @@ func TestPostgresAuthorityMigrationContract(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS workspace_bindings", "workspace_bindings_active_scope_unique", "validate_workspace_binding_authority", "workspace_bindings_authority_guard",
 		"component_name text NOT NULL DEFAULT ''", "component_release text NOT NULL DEFAULT ''", "COMPONENT_RUNTIME_V1", "runtime_certification_component_identity_check",
 		"CREATE TABLE operation_request_payloads", "operation_request_payloads_no_update", "operation request payloads are immutable",
+		"CREATE TABLE IF NOT EXISTS application_platform_authorities", "application_platform_authority_identity_unique", "application_platform_authorities_immutable",
+		"CREATE TABLE IF NOT EXISTS application_environment_bindings", "application_environment_binding_scope_unique", "validate_application_environment_binding",
 	}
 	for _, term := range required {
 		if !strings.Contains(combined, term) {

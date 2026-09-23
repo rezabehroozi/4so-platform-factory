@@ -121,6 +121,8 @@ type EnvironmentBinding struct {
 	ReleaseID                  string `json:"releaseId"`
 	ReleaseDigest              string `json:"releaseDigest"`
 	WorkspaceID                string `json:"workspaceId"`
+	WorkspaceBindingID         string `json:"workspaceBindingId"`
+	WorkspaceBindingRevision   int64  `json:"workspaceBindingRevision"`
 	ClusterID                  string `json:"clusterId"`
 	Namespace                  string `json:"namespace"`
 	Environment                string `json:"environment"`
@@ -468,11 +470,12 @@ func NormalizeEnvironmentBinding(in EnvironmentBinding) (EnvironmentBinding, err
 	out.ReleaseID = strings.TrimSpace(out.ReleaseID)
 	out.ReleaseDigest = strings.TrimSpace(out.ReleaseDigest)
 	out.WorkspaceID = strings.TrimSpace(out.WorkspaceID)
+	out.WorkspaceBindingID = strings.TrimSpace(out.WorkspaceBindingID)
 	out.ClusterID = strings.TrimSpace(out.ClusterID)
 	out.Namespace = strings.ToLower(strings.TrimSpace(out.Namespace))
 	out.Environment = strings.ToLower(strings.TrimSpace(out.Environment))
 	out.CapabilityResolutionDigest = strings.TrimSpace(out.CapabilityResolutionDigest)
-	if out.ProjectID == "" || out.ReleaseID == "" || out.WorkspaceID == "" || out.ClusterID == "" || !workspaceNamespacePattern.MatchString(out.Namespace) {
+	if out.ProjectID == "" || out.ReleaseID == "" || out.WorkspaceID == "" || out.WorkspaceBindingID == "" || out.WorkspaceBindingRevision <= 0 || out.ClusterID == "" || !workspaceNamespacePattern.MatchString(out.Namespace) {
 		return EnvironmentBinding{}, fmt.Errorf("%w: environment binding scope is incomplete or invalid", ErrValidation)
 	}
 	if !map[string]bool{"development": true, "staging": true, "production": true}[out.Environment] {
@@ -488,10 +491,12 @@ func NormalizeEnvironmentBinding(in EnvironmentBinding) (EnvironmentBinding, err
 		ReleaseID                  string `json:"releaseId"`
 		ReleaseDigest              string `json:"releaseDigest"`
 		WorkspaceID                string `json:"workspaceId"`
+		WorkspaceBindingID         string `json:"workspaceBindingId"`
+		WorkspaceBindingRevision   int64  `json:"workspaceBindingRevision"`
 		ClusterID                  string `json:"clusterId"`
 		Namespace                  string `json:"namespace"`
 		Environment                string `json:"environment"`
 		CapabilityResolutionDigest string `json:"capabilityResolutionDigest"`
-	}{out.ReleaseID, out.ReleaseDigest, out.WorkspaceID, out.ClusterID, out.Namespace, out.Environment, out.CapabilityResolutionDigest})
+	}{out.ReleaseID, out.ReleaseDigest, out.WorkspaceID, out.WorkspaceBindingID, out.WorkspaceBindingRevision, out.ClusterID, out.Namespace, out.Environment, out.CapabilityResolutionDigest})
 	return out, nil
 }

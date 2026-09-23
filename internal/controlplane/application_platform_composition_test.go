@@ -100,7 +100,8 @@ func TestWorkspaceProfileReleaseAndEnvironmentBindingAreImmutableDigestAuthoriti
 	}
 	binding, err := NormalizeEnvironmentBinding(EnvironmentBinding{
 		ProjectID: "prj-1", ReleaseID: "rel-payments-2-1-0", ReleaseDigest: release.Digest,
-		WorkspaceID: "ws-prod", ClusterID: "cluster-1", Namespace: "payments", Environment: "production",
+		WorkspaceID: "ws-prod", WorkspaceBindingID: "wsb-prod", WorkspaceBindingRevision: 1,
+		ClusterID: "cluster-1", Namespace: "payments", Environment: "production",
 		CapabilityResolutionDigest: appDigest('9'),
 	})
 	if err != nil {
