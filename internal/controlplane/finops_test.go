@@ -225,3 +225,24 @@ func TestFinOpsChargebackCSVIsDeterministicAndOmitsIncompleteTotal(t *testing.T)
 		t.Fatalf("bad digest %q", digest1)
 	}
 }
+
+
+func TestNormalizeFinOpsUsageBindsVirtualClusterAttributionIntoDigest(t *testing.T) {
+	start := time.Date(2026, 9, 23, 13, 0, 0, 0, time.UTC)
+	base := FinOpsUsageMeasurement{
+		OrganizationID: "org_1", ProjectID: "prj_1", ClusterID: "clu_1", WorkspaceID: "wsp_1", Namespace: "dev",
+		Source: "meter", SourceEventID: "vc-window", WindowStart: start, WindowEnd: start.Add(time.Hour), Metrics: allUsageMetrics(0),
+	}
+	plain, err := NormalizeFinOpsUsageMeasurement(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base.VirtualClusterID = "vcl_1"
+	bound, err := NormalizeFinOpsUsageMeasurement(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bound.VirtualClusterID != "vcl_1" || bound.Digest == plain.Digest {
+		t.Fatalf("virtual-cluster attribution was not digest-bound: plain=%s bound=%s", plain.Digest, bound.Digest)
+	}
+}
