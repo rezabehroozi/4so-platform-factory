@@ -116,11 +116,15 @@ def main() -> int:
                 status,body=request(base+'/api/v1/status',token); assert status==200
                 reset_runs=body.get('resetRuns') or []
                 profile_reset=next((item for item in reversed(reset_runs) if item.get('sourceRunId')==final['id']),None)
-                if profile_reset and profile_reset['state'] in ('SUCCEEDED','FAILED'): break
+                # Reset journal terminal state is durable before the server goroutine
+                # releases its in-memory resetActive fence. Do not race the next
+                # preflight against that explicit activity bit.
+                if profile_reset and profile_reset['state'] in ('SUCCEEDED','FAILED') and body.get('resetActive') is False: break
                 time.sleep(.05)
             assert profile_reset and profile_reset['state']=='SUCCEEDED',profile_reset
+            assert body.get('resetActive') is False,body
             assert all(step['state']=='SUCCEEDED' for step in profile_reset['steps']),profile_reset
-            status,after_profile_reset=request(base+'/api/v1/status',token); assert status==200 and after_profile_reset.get('run') is None,after_profile_reset
+            status,after_profile_reset=request(base+'/api/v1/status',token); assert status==200 and after_profile_reset.get('run') is None and after_profile_reset.get('resetActive') is False,after_profile_reset
 
             ha_installation={'profileId':'production-standard-ha','connectivity':'disconnected','infrastructure':{'provider':'existing-hosts','existingCluster':False,'nodeAddresses':['10.0.0.11','10.0.0.12','10.0.0.13'],'clusterNodeAddresses':['10.77.35.11','10.77.35.12','10.77.35.13'],'clusterInterface':'ens35','credentialRef':'secret://installer/ssh-private-key','sshUser':'root','storageClass':'replicated-rwx','storageDataDevices':['/dev/sdb','/dev/sdc','/dev/sdd'],'storageDeviceMode':'format-empty'},'network':{'publicEndpoint':'https://platform.example.test','dnsZone':'example.test','tlsMode':'managed-private-ca'},'services':{'git':{'mode':'managed-internal'},'registry':{'mode':'managed-internal'},'database':{'mode':'managed-internal'},'objectStorage':{'mode':'external','provider':'s3-compatible','url':'https://s3.example.test','credentialRef':'external-secret://platform-system/s3-credentials','bucket':'platform-backups','prefix':'factory'},'identity':{'mode':'managed-internal','adminEmail':'admin@example.test'}},'acceptRisk':True}
             status,ha_plan=request(base+'/api/v1/plan',token,'POST',{'installation':ha_installation}); assert status==200 and ha_plan['plan']['executable'] is True and ha_plan['plan']['authorityGate']=='bootstrap-ha-local-journal',ha_plan
