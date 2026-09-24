@@ -810,7 +810,8 @@
         "lab/release-build-toolchain-lock.json",
         "catalog/component-upgrade-source-admission.json",
         "catalog/tagged-source-recipes/*",
-        "catalog/runtime-dependency-transition.json"
+        "catalog/runtime-dependency-transition.json",
+        "catalog/component-runtime-certification.json"
       ],
       "derivedEvidenceOnly": true,
       "physicalPassInferenceForbidden": true,
