@@ -203,31 +203,31 @@
         "component": "ceph-csi-operator",
         "release": "1.0.4",
         "sourceBinding": {
-          "status": "blocked-source-lock",
-          "resolved": false,
-          "sourceLockDigest": ""
+          "status": "source-ready",
+          "resolved": true,
+          "sourceLockDigest": "sha256:9a850123f3674e387f1c6f25e1f3516c5828941be1ba500f6d79916962f9c050"
         },
         "executor": {
-          "status": "source-gated-component-executor",
+          "status": "component-install-readiness-dependency-failure-remove-partial",
           "profile": "COMPONENT_RUNTIME_V1",
           "owner": "catalog-component"
         },
         "lifecycle": [
           {
             "name": "install",
-            "status": "source-gated-component-executor",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-install-evidence/v1",
             "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "readiness",
-            "status": "source-gated-component-executor",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-readiness-evidence/v1",
             "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "dependency",
-            "status": "source-gated-component-executor",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-dependency-evidence/v1",
             "authority": "COMPONENT_RUNTIME_V1"
           },
@@ -239,13 +239,13 @@
           },
           {
             "name": "remove",
-            "status": "source-gated-component-executor",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-remove-evidence/v1",
             "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "failure",
-            "status": "source-gated-component-executor",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-failure-evidence/v1",
             "authority": "COMPONENT_RUNTIME_V1"
           }

@@ -20,25 +20,6 @@
       },
       {
         "catalogConstraint": "1.0.x",
-        "chart": "ceph-csi-operator",
-        "component": "ceph-csi-operator",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "First-class operator authority required by the current upstream-supported Ceph CSI deployment model. Exact v1.0.4 is admitted for immutable acquisition; driver CRs and runtime storage behavior remain separately certified.",
-        "reviewEvidence": [
-          {
-            "kind": "release",
-            "url": "https://github.com/ceph/ceph-csi-operator/releases/tag/v1.0.4",
-            "summary": "Official upstream release v1.0.4 publishes the Ceph CSI Operator release line."
-          }
-        ],
-        "selectedVersion": "1.0.4",
-        "source": "https://ceph.github.io/ceph-csi-operator/",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "1.0.4"
-      },
-      {
-        "catalogConstraint": "1.0.x",
         "chart": "ceph-csi-drivers",
         "component": "ceph-csi-rbd",
         "licenseSPDX": "Apache-2.0",

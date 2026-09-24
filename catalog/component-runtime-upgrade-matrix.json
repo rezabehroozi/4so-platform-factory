@@ -31,7 +31,7 @@
       "component": "ceph-csi-operator",
       "status": "pending-source-pair",
       "targetRelease": "1.0.4",
-      "targetSourceLockDigest": "",
+      "targetSourceLockDigest": "c23a619878f1e0a601dfd7d26393c35c7edf9aa9fa2a83a94dc3750c7074bd43",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {

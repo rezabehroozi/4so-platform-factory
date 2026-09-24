@@ -1,0 +1,7 @@
+{
+  "images": [
+    {
+      "reference": "quay.io/cephcsi/ceph-csi-operator@sha256:c62933fd4083635f969f8a61932af45dba9902d48867e2b5d98a69d8e4344eb6"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/ceph-csi-operator/1.0.4/8ebb39329f5409c1",
+  "name": "ceph-csi-operator-1.0.4-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-ceph-csi-operator",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "ceph-csi-operator",
+      "versionInfo": "1.0.4"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "quay.io/cephcsi/ceph-csi-operator@sha256:c62933fd4083635f969f8a61932af45dba9902d48867e2b5d98a69d8e4344eb6",
+      "filesAnalyzed": false,
+      "name": "quay.io/cephcsi/ceph-csi-operator",
+      "versionInfo": "sha256:c62933fd4083635f969f8a61932af45dba9902d48867e2b5d98a69d8e4344eb6"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

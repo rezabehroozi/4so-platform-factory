@@ -8,7 +8,7 @@
     "displayName": "Ceph CSI Operator",
     "category": "storage",
     "release": "1.0.4",
-    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
+    "versionPolicy": "exact-offline-import",
     "supportTier": "research-candidate",
     "mandatory": true,
     "dependencies": [
@@ -51,27 +51,29 @@
     },
     "delivery": {
       "type": "helm",
-      "repositoryKey": "platform-charts",
+      "repositoryKey": "offline-catalog-bundle",
       "chart": "ceph-csi-operator"
     },
     "source": {
       "type": "helm-chart",
-      "resolved": false,
-      "artifactDigest": "",
-      "sourceLockDigest": "",
-      "imageInventoryDigest": "",
-      "licenseManifestDigest": "",
-      "signatureVerification": "required",
-      "sbom": "required",
-      "provenance": "required"
+      "resolved": true,
+      "bundleKey": "ceph-csi-operator/1.0.4",
+      "artifactDigest": "sha256:8ebb39329f5409c1b0232dfc0726f2f55579eed1fda471a7f51d3236af70aa1b",
+      "renderManifestDigest": "sha256:15caad4dfabac3ffe7619a18c796f01a01f4355a7c462a8a1bffbfe41b159dfe",
+      "sourceLockDigest": "sha256:9a850123f3674e387f1c6f25e1f3516c5828941be1ba500f6d79916962f9c050",
+      "imageInventoryDigest": "sha256:f2f535b8e0650cf2a1d24dd4a473658e0e2c385e5f108a2a2d7fab9b80e3f6e1",
+      "licenseManifestDigest": "sha256:23eee42a502fc12c6ce314c955a703c3dce39a3c3509e18f46425642c24115fa",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:d48df776dc635cb231020b9f44af9de204d0028f13492d8a11acef3f0bbfb5a5",
+      "provenance": "sha256:ecef7dcaa7702185cd4142792c870b807356a84531cfddf47dcfa1e7f37afa14"
     },
     "operations": {
-      "preflight": "required",
       "install": "required",
-      "verify": "required",
-      "upgrade": "required",
+      "preflight": "required",
       "rollback": "required",
-      "uninstall": "safe-when-supported"
+      "uninstall": "safe-when-supported",
+      "upgrade": "required",
+      "verify": "required"
     },
     "readiness": [
       "deployment/ceph-csi-operator-controller-manager"
@@ -88,7 +90,7 @@
     ],
     "certification": {
       "status": "candidate",
-      "profiles": [],
+      "profiles": null,
       "evidenceDigest": ""
     }
   }

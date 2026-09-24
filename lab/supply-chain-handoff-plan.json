@@ -21,6 +21,12 @@
           "sha256": "4e1eb4695e7a84b0b683d7ff9144c73c35c3c0a8fa06801135f054616e594f28"
         },
         {
+          "component": "ceph-csi-operator",
+          "path": "catalog/runtime/ceph-csi-operator/1.0.4/source-lock.json",
+          "release": "1.0.4",
+          "sha256": "9a850123f3674e387f1c6f25e1f3516c5828941be1ba500f6d79916962f9c050"
+        },
+        {
           "component": "gateway-api",
           "path": "catalog/runtime/gateway-api/1.5.1/source-lock.json",
           "release": "1.5.1",
@@ -47,14 +53,6 @@
           "source": "oci://ghcr.io/projectcapsule/charts/capsule",
           "status": "ready-for-acquisition",
           "upstreamVersion": "0.13.11"
-        },
-        {
-          "component": "ceph-csi-operator",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "1.0.4",
-          "source": "https://ceph.github.io/ceph-csi-operator/",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "1.0.4"
         },
         {
           "component": "ceph-csi-rbd",
@@ -220,11 +218,11 @@
       },
       {
         "component": "ceph-csi-operator",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.0.4",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "ceph-csi-rbd",
@@ -518,6 +516,12 @@
           "previousVersion": "10.2.2",
           "source": "https://argoproj.github.io/argo-helm",
           "targetRelease": "10.2.3"
+        },
+        {
+          "component": "ceph-csi-operator",
+          "previousVersion": "1.0.3",
+          "source": "https://ceph.github.io/ceph-csi-operator/",
+          "targetRelease": "1.0.4"
         }
       ],
       "installOnlyFirstProductRelease": [
@@ -551,12 +555,6 @@
           "previousVersion": "0.13.10",
           "source": "oci://ghcr.io/projectcapsule/charts/capsule",
           "targetRelease": "0.13.11"
-        },
-        {
-          "component": "ceph-csi-operator",
-          "previousVersion": "1.0.3",
-          "source": "https://ceph.github.io/ceph-csi-operator/",
-          "targetRelease": "1.0.4"
         },
         {
           "component": "ceph-csi-rbd",
