@@ -17,7 +17,7 @@ const (
 	RuntimeSourceAuthority = "OPENCHOREO_RUNTIME_SOURCE_AUTHORITY_V1"
 	RuntimeVersion         = "1.3.0"
 	UpstreamRepository     = "https://github.com/openchoreo/openchoreo"
-	ReviewedUpstreamCommit = "1aeed89856d088dc5160c0f3eaa39796d4a93611"
+	ReviewedUpstreamCommit = "178dfbde3e3343e5ac151b88a2f203f523f97480"
 	ChartRepository        = "oci://ghcr.io/openchoreo/helm-charts"
 )
 

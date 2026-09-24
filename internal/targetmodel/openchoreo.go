@@ -183,10 +183,10 @@ func OpenChoreoAdoptionModel() OpenChoreoAdoptionDescriptor {
 	sort.Slice(patterns, func(i, j int) bool { return patterns[i].ID < patterns[j].ID })
 	return OpenChoreoAdoptionDescriptor{
 		Authority:                   OpenChoreoReferenceAuthority,
-		ReviewedDate:                "2026-09-23",
+		ReviewedDate:                "2026-09-24",
 		DocsBaseline:                "v1.3.x",
 		UpstreamRepository:          "https://github.com/openchoreo/openchoreo",
-		ReviewedUpstreamCommit:      "1aeed89856d088dc5160c0f3eaa39796d4a93611",
+		ReviewedUpstreamCommit:      "178dfbde3e3343e5ac151b88a2f203f523f97480",
 		Role:                        "reference-implementation-and-optional-target-adapter-not-control-plane-authority",
 		PostgreSQLSoTPreserved:      true,
 		ManagementPlaneRemainsRKE2:  true,

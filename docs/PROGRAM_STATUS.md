@@ -365,7 +365,7 @@ Refresh `origin/main` first and read this file. Confirm the repository-integrity
 
 ## OpenChoreo v1.3 reference adoption checkpoint — 2026-09-23
 
-OpenChoreo is now an explicit **reference implementation and optional target application-platform adapter**, not a 4SO control-plane dependency. `OPENCHOREO_REFERENCE_ADOPTION_V1` records the reviewed v1.3.x baseline and upstream commit `1aeed89856d088dc5160c0f3eaa39796d4a93611` in executable target architecture.
+OpenChoreo is now an explicit **reference implementation and optional target application-platform adapter**, not a 4SO control-plane dependency. `OPENCHOREO_REFERENCE_ADOPTION_V1` records the official `v1.3.0` tag commit `178dfbde3e3343e5ac151b88a2f203f523f97480` in executable target architecture; the previously reviewed post-release main commit was rejected as a chart/source version mismatch.
 
 Adopted patterns are bounded to product-owned equivalents: ComponentType/Traits -> WorkloadType/CapabilityTrait; ResourceType -> ManagedResourceType; ProjectType -> WorkspaceProfile; immutable releases/bindings -> explicit 4SO environment promotion; cluster-agent/gateway -> Fleet transport hardening; MCP/AI/Cost/DORA/Audit -> extensions over existing 4SO authorization, FinOps, Incident and Audit evidence. The optional OpenChoreo runtime capability remains disabled by default and target-only.
 

@@ -5,7 +5,7 @@
     "authority": "OPENCHOREO_RUNTIME_SOURCE_AUTHORITY_V1",
     "version": "1.3.0",
     "upstreamRepository": "https://github.com/openchoreo/openchoreo",
-    "upstreamCommit": "1aeed89856d088dc5160c0f3eaa39796d4a93611",
+    "upstreamCommit": "178dfbde3e3343e5ac151b88a2f203f523f97480",
     "sourceArchiveSha256": "",
     "planes": [
       {

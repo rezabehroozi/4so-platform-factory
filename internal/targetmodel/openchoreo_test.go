@@ -7,7 +7,7 @@ func TestOpenChoreoReferenceAdoptionPreservesFactoryAuthorities(t *testing.T) {
 	if issues := ValidateOpenChoreoAdoption(model); len(issues) != 0 {
 		t.Fatalf("OpenChoreo adoption model invalid: %#v", issues)
 	}
-	if model.Authority != OpenChoreoReferenceAuthority || model.DocsBaseline != "v1.3.x" || model.ReviewedUpstreamCommit != "1aeed89856d088dc5160c0f3eaa39796d4a93611" {
+	if model.Authority != OpenChoreoReferenceAuthority || model.DocsBaseline != "v1.3.x" || model.ReviewedUpstreamCommit != "178dfbde3e3343e5ac151b88a2f203f523f97480" {
 		t.Fatalf("review identity drift: %#v", model)
 	}
 	if !model.PostgreSQLSoTPreserved || !model.ManagementPlaneRemainsRKE2 || !model.BuildKitZotCanonical || !model.KeycloakCanonical || !model.OperatorConsoleProductOwned {
