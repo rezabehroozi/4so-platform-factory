@@ -67,18 +67,6 @@
         "upstreamVersion": "1.20.1"
       },
       {
-        "catalogConstraint": "1.21.x",
-        "chart": "external-dns",
-        "component": "external-dns",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Exact chart release selected from the admitted 1.21 series; runtime policy remains separately certified.",
-        "selectedVersion": "1.21.1",
-        "source": "https://kubernetes-sigs.github.io/external-dns/",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "1.21.1"
-      },
-      {
         "catalogConstraint": "2.8.x",
         "chart": "external-secrets",
         "component": "external-secrets",

@@ -33,6 +33,12 @@
           "sha256": "88e458afe87408c85e472cf092965be6e365b518748172dbdb34fe90cad7bced"
         },
         {
+          "component": "external-dns",
+          "path": "catalog/runtime/external-dns/1.21.1/source-lock.json",
+          "release": "1.21.1",
+          "sha256": "67152b97e2b8c2cfbea2d6fc322911d22aa354f705aea059654b062d24131228"
+        },
+        {
           "component": "gateway-api",
           "path": "catalog/runtime/gateway-api/1.5.1/source-lock.json",
           "release": "1.5.1",
@@ -75,14 +81,6 @@
           "source": "https://helm.cilium.io",
           "status": "ready-for-acquisition",
           "upstreamVersion": "1.20.1"
-        },
-        {
-          "component": "external-dns",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "1.21.1",
-          "source": "https://kubernetes-sigs.github.io/external-dns/",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "1.21.1"
         },
         {
           "component": "external-secrets",
@@ -248,11 +246,11 @@
       },
       {
         "component": "external-dns",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.21.1",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "external-secrets",
@@ -526,6 +524,12 @@
           "previousVersion": "1.21.0",
           "source": "https://charts.jetstack.io",
           "targetRelease": "1.21.1"
+        },
+        {
+          "component": "external-dns",
+          "previousVersion": "1.21.0",
+          "source": "https://kubernetes-sigs.github.io/external-dns/",
+          "targetRelease": "1.21.1"
         }
       ],
       "installOnlyFirstProductRelease": [
@@ -571,12 +575,6 @@
           "previousVersion": "1.20.0",
           "source": "https://helm.cilium.io",
           "targetRelease": "1.20.1"
-        },
-        {
-          "component": "external-dns",
-          "previousVersion": "1.21.0",
-          "source": "https://kubernetes-sigs.github.io/external-dns/",
-          "targetRelease": "1.21.1"
         },
         {
           "component": "external-secrets",

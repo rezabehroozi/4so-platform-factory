@@ -5,16 +5,37 @@
     "name": "external-dns"
   },
   "spec": {
+    "displayName": "ExternalDNS",
+    "category": "traffic",
+    "release": "1.21.1",
+    "versionPolicy": "exact-offline-import",
+    "supportTier": "research-candidate",
+    "mandatory": true,
+    "dependencies": [
+      "kgateway"
+    ],
+    "provides": [
+      "dns-controller"
+    ],
+    "requiresCapabilities": [
+      "gateway-controller"
+    ],
+    "exclusiveCapabilities": [
+      "dns-controller"
+    ],
+    "conflictsWith": [],
+    "risk": "high",
     "capabilities": [
       "dns-automation"
     ],
-    "category": "traffic",
-    "certification": {
-      "evidenceDigest": "",
-      "profiles": [],
-      "status": "candidate"
-    },
+    "namespace": "external-dns",
+    "wave": 35,
+    "settingsSchemaRef": "schemas/settings/external-dns.schema.json",
     "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
       "architectures": [
         "amd64",
         "arm64"
@@ -23,37 +44,29 @@
         "kubernetes",
         "rke2"
       ],
-      "kubernetes": {
-        "maxVersion": "1.35",
-        "minVersion": "1.34"
-      },
       "providers": [
         "imported",
         "cluster-api-topology-v1beta2"
       ]
     },
-    "conflictsWith": [],
     "delivery": {
-      "chart": "external-dns",
-      "repositoryKey": "platform-charts",
-      "type": "helm"
+      "type": "helm",
+      "repositoryKey": "offline-catalog-bundle",
+      "chart": "external-dns"
     },
-    "dependencies": [
-      "kgateway"
-    ],
-    "displayName": "ExternalDNS",
-    "evidenceRequired": [
-      "resolved-source-lock",
-      "rendered-resource-inventory",
-      "policy-result",
-      "runtime-readiness",
-      "rollback-verification"
-    ],
-    "exclusiveCapabilities": [
-      "dns-controller"
-    ],
-    "mandatory": true,
-    "namespace": "external-dns",
+    "source": {
+      "type": "helm-chart",
+      "resolved": true,
+      "bundleKey": "external-dns/1.21.1",
+      "artifactDigest": "sha256:5dd033a4b872bf641860695705ee460031d0bc695f114bf8926fee6736814e19",
+      "renderManifestDigest": "sha256:7dc706d21532c513dc31182384e168b2c93a223e99282702f836bf6ae09c160b",
+      "sourceLockDigest": "sha256:67152b97e2b8c2cfbea2d6fc322911d22aa354f705aea059654b062d24131228",
+      "imageInventoryDigest": "sha256:b59ac7aca343b6a2afb38934906f51b406ed67a4ac16aa55eebd4baaaf1a8855",
+      "licenseManifestDigest": "sha256:eed9200a6b40961f61b378cd6c5a8fc41f75f828e8ebc3d0f459f6f73aa340ed",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:d22276c807a2bfda48bd913a63236df7bf955d683c036c94b95c6d3451c68082",
+      "provenance": "sha256:55f839078777f103c49678079c76654b4f8d7279ebd6588c79c7ad322539a5cb"
+    },
     "operations": {
       "install": "required",
       "preflight": "required",
@@ -62,34 +75,23 @@
       "upgrade": "required",
       "verify": "required"
     },
-    "provides": [
-      "dns-controller"
-    ],
     "readiness": [
       "deployment/external-dns"
     ],
-    "release": "1.21.1",
-    "requiresCapabilities": [
-      "gateway-controller"
-    ],
-    "risk": "high",
     "rollback": {
       "strategy": "restore-owner-id-and-previous-release"
     },
-    "settingsSchemaRef": "schemas/settings/external-dns.schema.json",
-    "source": {
-      "artifactDigest": "",
-      "imageInventoryDigest": "",
-      "licenseManifestDigest": "",
-      "provenance": "required",
-      "resolved": false,
-      "sbom": "required",
-      "signatureVerification": "required",
-      "sourceLockDigest": "",
-      "type": "helm-chart"
-    },
-    "supportTier": "research-candidate",
-    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
-    "wave": 35
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": null,
+      "evidenceDigest": ""
+    }
   }
 }
