@@ -1,6 +1,7 @@
 import importlib.util
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -10,6 +11,39 @@ SPEC.loader.exec_module(mod)
 
 
 class UpstreamBatchPathAdmissionTests(unittest.TestCase):
+    def test_stage_reuses_verified_orphan_bundle_without_network_reacquisition(self):
+        with tempfile.TemporaryDirectory() as td:
+            stage = Path(td) / "stage"
+            stage.mkdir()
+            bundle = stage / "demo-1.2.3.zip"
+            bundle.write_bytes(b"bundle")
+            row = {
+                "component": "demo",
+                "status": "ready-for-acquisition",
+                "selectedVersion": "1.2.3",
+                "source": "https://charts.example.test",
+                "upstreamVersion": "1.2.3",
+            }
+            verified = {
+                "valid": True,
+                "component": "demo",
+                "version": "1.2.3",
+                "upstreamUrl": row["source"],
+                "bundleDigest": mod.sha256_file(bundle),
+                "upstreamArtifactDigest": "sha256:" + "a" * 64,
+            }
+            with mock.patch.object(mod, "queue", return_value=(["demo"], [])), \
+                 mock.patch.object(mod, "admission_map", return_value={"demo": row}), \
+                 mock.patch.object(mod, "platformctl_prefix", return_value=["platformctl"]), \
+                 mock.patch.object(mod, "_run_json", return_value=verified), \
+                 mock.patch.object(mod, "validate_stage_manifest", side_effect=lambda _stage, manifest: manifest["spec"]["entries"]), \
+                 mock.patch.object(mod.subprocess, "run") as run:
+                rc = mod.stage(0, stage, None)
+            self.assertEqual(0, rc)
+            run.assert_not_called()
+            manifest = (stage / mod.STAGE_MANIFEST).read_text()
+            self.assertIn("demo-1.2.3.zip", manifest)
+
     def test_stage_and_platformctl_reject_direct_symlinks(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
