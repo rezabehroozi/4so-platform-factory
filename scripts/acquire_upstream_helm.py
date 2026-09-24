@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -44,6 +45,10 @@ MAX_CHART_ARCHIVE_BYTES = _INPUT_LIMITS["maxChartArchiveBytes"]
 MAX_CHART_MEMBERS = _INPUT_LIMITS["maxChartMembers"]
 MAX_CHART_UNPACKED_BYTES = _INPUT_LIMITS["maxChartUnpackedBytes"]
 MAX_CHART_METADATA_BYTES = _INPUT_LIMITS["maxChartMetadataBytes"]
+
+
+def _absolute_no_follow(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path.expanduser())))
 
 
 def run(cmd: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = None, timeout: int = 600) -> str:
@@ -75,7 +80,14 @@ def repo_value_inputs(values: list[Path]) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     seen: set[str] = set()
     for value in values:
-        resolved = value.resolve()
+        candidate = _absolute_no_follow(value)
+        try:
+            st = candidate.lstat()
+        except OSError as exc:
+            raise RuntimeError(f"VALUES_FILE_NOT_FOUND {candidate}") from exc
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+            raise RuntimeError(f"VALUES_FILE_NOT_REGULAR {candidate}")
+        resolved = candidate.resolve()
         try:
             relative = resolved.relative_to(ROOT).as_posix()
         except ValueError as exc:
@@ -83,7 +95,7 @@ def repo_value_inputs(values: list[Path]) -> list[dict[str, str]]:
         if relative in seen:
             raise RuntimeError(f"VALUES_FILE_DUPLICATE {relative}")
         seen.add(relative)
-        rows.append({"path": relative, "sha256": sha256_file(resolved)})
+        rows.append({"path": relative, "sha256": sha256_file(candidate)})
     return rows
 
 
@@ -368,12 +380,16 @@ def spdx(component: str, chart: str, version: str, chart_digest: str, images: li
 
 def platformctl_prefix(path: str | None) -> list[str]:
     if path:
-        p = Path(path).resolve()
-        if not p.is_file():
-            raise RuntimeError(f"PLATFORMCTL_NOT_FOUND {p}")
+        p = _absolute_no_follow(Path(path))
+        try:
+            st = p.lstat()
+        except OSError as exc:
+            raise RuntimeError(f"PLATFORMCTL_NOT_FOUND {p}") from exc
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode) or not os.access(p, os.X_OK):
+            raise RuntimeError(f"PLATFORMCTL_NOT_REGULAR_EXECUTABLE {p}")
         return [str(p)]
     built = ROOT / "bin" / "platformctl"
-    if built.is_file():
+    if built.is_file() and not built.is_symlink() and os.access(built, os.X_OK):
         return [str(built)]
     if shutil.which("go"):
         return ["go", "run", "./cmd/platformctl"]
@@ -463,10 +479,7 @@ def acquire(args: argparse.Namespace) -> int:
     if not chart:
         raise RuntimeError("COMPONENT_CHART_NAME_MISSING")
     upstream_version = args.upstream_version or args.version
-    values = [Path(v).resolve() for v in args.values]
-    for value in values:
-        if not value.is_file():
-            raise RuntimeError(f"VALUES_FILE_NOT_FOUND {value}")
+    values = [_absolute_no_follow(Path(v)) for v in args.values]
     value_inputs = repo_value_inputs(values)
     helm_version = tool_version([HELM_BIN, "version", "--short"], "HELM")
     crane_version = tool_version([CRANE_BIN, "version"], "CRANE")
@@ -526,7 +539,9 @@ def acquire(args: argparse.Namespace) -> int:
         sbom_path = tmp / "sbom.spdx.json"
         sbom_path.write_text(json.dumps(spdx(args.component, chart, version, expected_digest, images), indent=2, sort_keys=True) + "\n")
 
-        out = Path(args.out).resolve() if args.out else ROOT / "dist" / ("upstream-history" if args.historical else "upstream") / f"{args.component}-{version}.zip"
+        out = _absolute_no_follow(Path(args.out)) if args.out else ROOT / "dist" / ("upstream-history" if args.historical else "upstream") / f"{args.component}-{version}.zip"
+        if out.is_symlink():
+            raise RuntimeError(f"UPSTREAM_OUTPUT_SYMLINK_FORBIDDEN {out}")
         out.parent.mkdir(parents=True, exist_ok=True)
         ctl = platformctl_prefix(args.platformctl)
         assemble = ctl + [
