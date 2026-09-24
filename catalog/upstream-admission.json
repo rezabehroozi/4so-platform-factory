@@ -37,8 +37,8 @@
           },
           {
             "kind": "source-migration",
-            "reference": "https://github.com/ceph/ceph-csi-operator/blob/main/docs/helm-charts/drivers-chart.md",
-            "summary": "Official Ceph CSI Operator driver-chart documentation publishes ceph-csi-drivers from https://ceph.github.io/ceph-csi-operator/."
+            "summary": "Official Ceph CSI Operator driver-chart documentation publishes ceph-csi-drivers from https://ceph.github.io/ceph-csi-operator/.",
+            "url": "https://github.com/ceph/ceph-csi-operator/blob/main/docs/helm-charts/drivers-chart.md"
           }
         ],
         "selectedVersion": "1.0.4",
