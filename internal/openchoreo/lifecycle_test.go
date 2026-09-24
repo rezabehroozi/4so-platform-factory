@@ -11,6 +11,8 @@ func TestLifecycleRequestCanonicalDigestAndTransitionFences(t *testing.T) {
 	req := LifecycleRequest{
 		ProjectID: " p1 ", ClusterID: " c1 ", Action: "install",
 		RuntimeSourceDigest: source,
+		OIDCIssuer: "https://auth.example.test/realms/platform",
+		OIDCClientID: "platform-console",
 		NativeCapabilitySuppressions: []string{"tenancy-native", "networking-and-ingress-native", "tenancy-native"},
 	}
 	raw, digest, err := MarshalLifecycleRequest(req)

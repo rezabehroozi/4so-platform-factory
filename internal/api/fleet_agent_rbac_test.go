@@ -91,8 +91,8 @@ func TestFleetAgentEnrollmentPrincipalIsImportScoped(t *testing.T) {
 
 func TestClusterRevocationRBACManifestNeutersEveryAgentBinding(t *testing.T) {
 	manifest := renderClusterRevocationRBACManifest("clu_revoked", "uid-revoked", "sha256:"+strings.Repeat("d", 64), true)
-	if got := strings.Count(manifest, "subjects: []"); got != 7 {
-		t.Fatalf("revocation fence neutralized %d bindings, want 7\n%s", got, manifest)
+	if got := strings.Count(manifest, "subjects: []"); got != 10 {
+		t.Fatalf("revocation fence neutralized %d bindings, want 10\n%s", got, manifest)
 	}
 	for _, want := range []string{
 		"name: 4so-platform-agent-credential",
@@ -102,6 +102,9 @@ func TestClusterRevocationRBACManifestNeutersEveryAgentBinding(t *testing.T) {
 		"name: 4so-platform-agent-maintenance-manager",
 		"name: 4so-platform-agent-tenant-manager",
 		"name: 4so-platform-node-maintenance-job-manager",
+		"name: 4so-platform-runtime-job-launcher",
+		"name: 4so-platform-runtime-rbac-observer",
+		"name: 4so-openchoreo-runtime-manager",
 		`clusterId: "clu_revoked"`,
 		`externalUid: "uid-revoked"`,
 		`revoked: "true"`,
@@ -132,7 +135,7 @@ func TestClusterRevocationRBACManifestForReadOnlyTargetOmitsMutationNamespaces(t
 
 func TestMutationActivationIncludesBoundedOpenChoreoExecutorAuthority(t *testing.T) {
 	manifest := renderClusterMutationActivationManifest("clu_openchoreo", "4so-platform-agent-test", "uid-openchoreo", "sha256:"+strings.Repeat("a", 64))
-	for _, want := range []string{"4so-openchoreo-executor", "4so-platform-runtime-job-launcher", "4so-platform-runtime-rbac-observer", "4so-openchoreo-runtime-manager", `resources: ["subjectaccessreviews"]`, `resources: ["customresourcedefinitions"]`, `resources: ["certificates"]`} {
+	for _, want := range []string{"4so-openchoreo-executor", "4so-platform-runtime-job-launcher", "4so-platform-runtime-rbac-observer", "4so-openchoreo-runtime-manager", `resources: ["subjectaccessreviews"]`, `resources: ["customresourcedefinitions"]`, `apiGroups: ["cert-manager.io"]`, `resources: ["issuers", "certificates"]`} {
 		if !strings.Contains(manifest, want) { t.Fatalf("OpenChoreo executor RBAC missing %q", want) }
 	}
 	if strings.Contains(manifest, "cluster-admin") || strings.Contains(manifest, `resources: ["*"]`) {
