@@ -45,9 +45,10 @@ def context_digest(root: Path) -> str:
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 def load_context(root: Path) -> tuple[dict, str]:
-    root = root.expanduser().resolve()
-    if not root.is_dir() or root.is_symlink():
+    root = root.expanduser()
+    if root.is_symlink() or not root.is_dir():
         raise RuntimeError("OPENCHOREO_EXECUTOR_CONTEXT_INVALID")
+    root = root.resolve()
     lock_path = root / "executor-context.lock.json"
     dockerfile = root / "Dockerfile"
     if not lock_path.is_file() or lock_path.is_symlink() or not dockerfile.is_file() or dockerfile.is_symlink():
@@ -73,10 +74,11 @@ def run(command: list[str], timeout: int = 1800) -> str:
     return (proc.stdout or proc.stderr).strip()
 
 def build(context: Path, buildctl: Path, address: str, repository: str, out: Path) -> dict:
-    context = context.expanduser().resolve()
-    buildctl = buildctl.expanduser().resolve()
-    if not buildctl.is_file() or buildctl.is_symlink() or not os.access(buildctl, os.X_OK):
+    context = context.expanduser()
+    buildctl = buildctl.expanduser()
+    if buildctl.is_symlink() or not buildctl.is_file() or not os.access(buildctl, os.X_OK):
         raise RuntimeError("OPENCHOREO_BUILDKIT_CLIENT_INVALID")
+    buildctl = buildctl.resolve()
     repository = repository.strip().rstrip("/")
     if not REPO_RE.fullmatch(repository) or "://" in repository:
         raise RuntimeError("OPENCHOREO_EXECUTOR_ZOT_REPOSITORY_INVALID")
