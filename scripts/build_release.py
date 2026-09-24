@@ -17,7 +17,7 @@ EXCLUDE = {".git", "bin", "dist", "release", "__pycache__", ".pytest_cache", ".s
 FIXED_DATE = (2026, 1, 1, 0, 0, 0)
 FIXED_CREATED = "2026-01-01T00:00:00Z"
 TARGETS = ("linux-amd64",)
-BINARIES = ("platform-api", "platformctl", "platform-installer", "platform-agent", "platform-probe", "virtual-cluster-renderer")
+BINARIES = ("platform-api", "platformctl", "platform-installer", "platform-agent", "platform-probe", "virtual-cluster-renderer", "openchoreo-runtime")
 
 
 def checked_regular_file(path: Path, *, label: str) -> os.stat_result:

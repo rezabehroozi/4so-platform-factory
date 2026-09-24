@@ -22,6 +22,7 @@ const (
 	PlatformAgentBinaryPath = "bin/linux-amd64/platform-agent"
 	PlatformProbeBinaryPath = "bin/linux-amd64/platform-probe"
 	VirtualClusterRendererBinaryPath = "bin/linux-amd64/virtual-cluster-renderer"
+	OpenChoreoRuntimeBinaryPath = "bin/linux-amd64/openchoreo-runtime"
 )
 
 const maxArtifactManifestBytes = 8 << 20

@@ -353,6 +353,7 @@ def validate_archive_executable_modes(archive: Path) -> None:
         "platform-probe",
         "platformctl",
         "virtual-cluster-renderer",
+        "openchoreo-runtime",
     }
     seen = set()
     with zipfile.ZipFile(archive) as zip_file:

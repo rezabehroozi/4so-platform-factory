@@ -1,0 +1,21 @@
+FROM scratch
+
+ARG SOURCE_RELEASE_DIGEST
+ARG OPENCHOREO_ACQUISITION_DIGEST
+
+LABEL platform.4so.io/product-role="openchoreo-runtime" \
+      platform.4so.io/source-release-digest="${SOURCE_RELEASE_DIGEST}" \
+      platform.4so.io/openchoreo-acquisition-digest="${OPENCHOREO_ACQUISITION_DIGEST}"
+
+COPY --chmod=0555 helm /usr/local/bin/helm
+COPY --chmod=0555 openchoreo-runtime /usr/local/bin/openchoreo-runtime
+COPY --chmod=0444 openchoreo-control-plane.tgz /runtime/openchoreo-control-plane.tgz
+COPY --chmod=0444 openchoreo-data-plane.tgz /runtime/openchoreo-data-plane.tgz
+COPY --chmod=0444 control-plane-values.yaml /runtime/control-plane-values.yaml
+COPY --chmod=0444 data-plane-values.yaml /runtime/data-plane-values.yaml
+COPY --chmod=0444 control-plane-render.json /runtime/control-plane-render.json
+COPY --chmod=0444 data-plane-render.json /runtime/data-plane-render.json
+
+ENV HOME=/home/nonroot
+USER 65532:65532
+ENTRYPOINT ["/usr/local/bin/openchoreo-runtime"]

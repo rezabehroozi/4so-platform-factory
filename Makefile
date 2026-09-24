@@ -22,6 +22,11 @@ test:
 	$(PYTHON) scripts/acquire_upstream_helm.py --self-test
 	$(PYTHON) scripts/acquire_virtual_cluster_runtime.py --self-test
 	$(PYTHON) scripts/prepare_virtual_cluster_executor.py --self-test
+	$(PYTHON) scripts/acquire_openchoreo_runtime.py --self-test
+	$(PYTHON) scripts/prepare_openchoreo_executor.py --self-test
+	$(PYTHON) scripts/mirror_openchoreo_runtime.py --self-test
+	$(PYTHON) scripts/build_openchoreo_executor_image.py --self-test
+	$(PYTHON) scripts/seal_openchoreo_runtime.py --self-test
 	$(PYTHON) scripts/acquire_upstream_tagged_source.py --self-test
 	$(PYTHON) scripts/acquire_historical_upgrade_batch.py --self-test
 
@@ -43,6 +48,7 @@ build:
 	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-agent ./cmd/platform-agent
 	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-probe ./cmd/platform-probe
 	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/virtual-cluster-renderer ./cmd/virtual-cluster-renderer
+	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/openchoreo-runtime ./cmd/openchoreo-runtime
 
 build-release:
 	$(PYTHON) scripts/verify_release_build_toolchain.py --require-admitted
@@ -53,6 +59,7 @@ build-release:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-agent ./cmd/platform-agent
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-probe ./cmd/platform-probe
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/virtual-cluster-renderer ./cmd/virtual-cluster-renderer
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/openchoreo-runtime ./cmd/openchoreo-runtime
 
 run: build
 	mkdir -p .state
