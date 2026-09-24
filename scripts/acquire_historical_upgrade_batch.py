@@ -35,6 +35,16 @@ def _regular_dir(path:Path,label:str,create=False):
     if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode): raise RuntimeError(f'{label}_NOT_REAL_DIRECTORY {path}')
     return path
 
+def historical_lock_present(row:dict,root:Path=ROOT):
+    name=str(row.get('component') or ''); prev=str(row.get('previousVersion') or '')
+    lock=root/'catalog/runtime'/name/prev/'source-lock.json'
+    if not lock.exists() and not lock.is_symlink(): return False
+    _regular_file(lock,'HISTORICAL_SOURCE_LOCK')
+    doc=_json(lock)
+    if not isinstance(doc,dict) or str(doc.get('component') or '')!=name or str(doc.get('version') or '')!=prev or str(doc.get('upstreamUrl') or '')!=str(row.get('source') or ''):
+        raise RuntimeError(f'HISTORICAL_SOURCE_LOCK_IDENTITY_DRIFT {name}')
+    return True
+
 def authority(root:Path=ROOT):
     p=root/'catalog/component-upgrade-source-admission.json'; doc=_json(p); errs=validate_admission(doc,root)
     if errs: raise RuntimeError('HISTORICAL_UPGRADE_ADMISSION_INVALID '+'; '.join(errs))
@@ -47,9 +57,7 @@ def classify(root:Path=ROOT):
         if st=='install-only-first-product-release': install_only.append(row); continue
         if st!='admitted-for-acquisition': review.append(row); continue
         comp=_json(root/'catalog/components'/f'{name}.json'); spec=comp.get('spec') or {}; delivery=spec.get('delivery') or {}
-        lock=root/'catalog/runtime'/name/prev/'source-lock.json'
-        if lock.exists() or lock.is_symlink():
-            _regular_file(lock,'HISTORICAL_SOURCE_LOCK')
+        if historical_lock_present(row,root):
             already.append(row); continue
         if (spec.get('source') or {}).get('resolved') is not True:
             waiting_current.append(row); continue
@@ -177,8 +185,7 @@ def refresh_derived_handoff():
 def install_staged(stage:Path,ctl):
     stage=_regular_dir(_absolute_no_follow(stage),'HISTORICAL_STAGE_DIRECTORY'); mp=_regular_file(stage/MANIFEST,'HISTORICAL_STAGE_MANIFEST'); entries=validate_manifest(stage,_json(mp)); ctlprefix=platformctl(ctl); installed=[]; skipped=[]
     for e in entries:
-        lock=ROOT/'catalog/runtime'/e['component']/e['previousVersion']/'source-lock.json'
-        if lock.is_file(): skipped.append(e['component']); continue
+        if historical_lock_present(e,ROOT): skipped.append(e['component']); continue
         b=stage/e['bundleFile']; verified=run_json(ctlprefix+['catalog-bundle','verify','-f',str(b)])
         if verified.get('valid') is not True or verified.get('component')!=e['component'] or str(verified.get('version') or '')!=e['previousVersion'] or str(verified.get('upstreamUrl') or '')!=e['source'] or verified.get('bundleDigest')!=e['bundleDigest']: raise RuntimeError(f'HISTORICAL_STAGE_VERIFY_DRIFT {e["component"]}')
         p=subprocess.run(ctlprefix+['catalog-bundle','install-historical','-f',str(b),'--repo-root',str(ROOT),'--confirmation','IMPORT-HISTORICAL'],cwd=ROOT,text=True)
