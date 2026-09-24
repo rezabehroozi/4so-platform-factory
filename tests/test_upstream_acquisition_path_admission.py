@@ -1,6 +1,7 @@
 import importlib.util
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -10,6 +11,18 @@ SPEC.loader.exec_module(mod)
 
 
 class UpstreamAcquisitionPathAdmissionTests(unittest.TestCase):
+    def test_post_install_validation_refreshes_derived_handoff_first(self):
+        with mock.patch.object(mod, "run", side_effect=["handoff\n", "validation\n"]) as run:
+            out = mod.post_install_repository_validation()
+        self.assertEqual("handoff\nvalidation\n", out)
+        self.assertEqual(
+            [
+                [mod.sys.executable, "scripts/supply_chain_handoff.py", "--write", "--plan", "lab/supply-chain-handoff-plan.json"],
+                [mod.sys.executable, "scripts/validate_repository.py", "."],
+            ],
+            [call.args[0] for call in run.call_args_list],
+        )
+
     def test_platformctl_rejects_direct_symlink(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
