@@ -16,7 +16,32 @@ def upgrade_admission_map():
     p=ROOT/"catalog"/"component-upgrade-source-admission.json"
     if not p.exists(): return {}
     d=json.loads(p.read_text())
-    return {str(r.get("component") or ""): r for r in (d.get("components") or [])}
+    if d.get("apiVersion")!="platform.4so.io/v1alpha1" or d.get("kind")!="ComponentUpgradeSourceAdmission" or d.get("authority")!="COMPONENT_UPGRADE_SOURCE_ADMISSION_V1" or d.get("schemaVersion")!=1:
+        raise RuntimeError("COMPONENT_UPGRADE_SOURCE_ADMISSION_AUTHORITY_INVALID")
+    policy=d.get("policy") or {}
+    for key in ("exactPreviousVersionRequired","strictUpgradeDirectionRequired","admissionDoesNotEqualCertification","reviewEvidenceRequiredForAdmission","historicalVersionFabricationForbidden"):
+        if policy.get(key) is not True:
+            raise RuntimeError(f"COMPONENT_UPGRADE_SOURCE_ADMISSION_POLICY_INVALID {key}")
+    out={}
+    for row in d.get("components") or []:
+        name=str(row.get("component") or "").strip()
+        target=str(row.get("targetRelease") or "").strip()
+        status=str(row.get("status") or "").strip()
+        previous=str(row.get("previousVersion") or "").strip()
+        evidence=row.get("reviewEvidence") or []
+        if not name or name in out or not exact_release_key(target) or not isinstance(evidence,list) or not evidence:
+            raise RuntimeError(f"COMPONENT_UPGRADE_SOURCE_ADMISSION_ROW_INVALID {name or '<empty>'}")
+        if status==FIRST_RELEASE_STATUS:
+            if previous:
+                raise RuntimeError(f"COMPONENT_UPGRADE_SOURCE_ADMISSION_FIRST_RELEASE_INVALID {name}")
+        elif status=="admitted-for-acquisition":
+            pk=exact_release_key(previous); tk=exact_release_key(target)
+            if not pk or not tk or pk>=tk:
+                raise RuntimeError(f"COMPONENT_UPGRADE_SOURCE_ADMISSION_PREDECESSOR_INVALID {name}")
+        else:
+            raise RuntimeError(f"COMPONENT_UPGRADE_SOURCE_ADMISSION_STATUS_INVALID {name}")
+        out[name]=row
+    return out
 
 def digest_obj(obj):
     return hashlib.sha256(json.dumps(obj, sort_keys=True, separators=(",",":"), ensure_ascii=False).encode()).hexdigest()
@@ -44,29 +69,22 @@ def build():
     for p in sorted((ROOT/'catalog'/'components').glob('*.json')):
         d=json.loads(p.read_text()); name=d['metadata']['name']; release=str(d['spec']['release'])
         cur=source_lock(name,release)
-        # Previous versions must be explicitly installed as source-lock siblings;
-        # never infer them from chart repositories or mutable tags.
-        rt=ROOT/'catalog'/'runtime'/name
-        previous=[]
-        if rt.exists():
-            for q in sorted(rt.iterdir()):
-                if q.is_dir() and q.name != release and (q/'source-lock.json').exists():
-                    previous.append((q.name,source_lock(name,q.name)))
-        edges=[]
-        target_key=exact_release_key(release)
-        for prev, lock in previous:
-            prev_key=exact_release_key(prev)
-            # Upgrade admission is directional and exact-version only. Wildcards,
-            # aliases and a numerically newer sibling cannot be treated as an
-            # upgrade-from edge.
-            if not cur or not lock or not target_key or not prev_key or prev_key >= target_key or lock['digest']==cur['digest']:
-                continue
-            edges.append({'fromRelease':prev,'toRelease':release,'fromSourceLockDigest':lock['digest'],'toSourceLockDigest':cur['digest'],'status':'admitted-source-pair'})
         admission=admissions.get(name) or {}
-        first_release=admission.get('status')==FIRST_RELEASE_STATUS
+        target_key=exact_release_key(release)
+        admission_target=str(admission.get('targetRelease') or '').strip()
+        first_release=admission.get('status')==FIRST_RELEASE_STATUS and admission_target==release
+        edges=[]
+        if not first_release and admission.get('status')=='admitted-for-acquisition' and admission_target==release:
+            # The reviewed predecessor is an explicit authority. Merely placing
+            # another historical source-lock beside the target must never create
+            # a new upgrade edge.
+            prev=str(admission.get('previousVersion') or '').strip()
+            lock=source_lock(name,prev)
+            prev_key=exact_release_key(prev)
+            if cur and lock and target_key and prev_key and prev_key < target_key and lock['digest']!=cur['digest']:
+                edges.append({'fromRelease':prev,'toRelease':release,'fromSourceLockDigest':lock['digest'],'toSourceLockDigest':cur['digest'],'status':'admitted-source-pair'})
         if first_release:
             status=FIRST_RELEASE_STATUS
-            edges=[]
             executor='install-readiness-failure-remove-only'
         else:
             status='admitted-source-pair' if edges else 'pending-source-pair'
