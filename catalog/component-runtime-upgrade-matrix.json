@@ -83,9 +83,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "1.5.0",
+          "fromSourceLockDigest": "05f4073b478f254c09594befd24340ff07eb6a3918b6582495ed1d19e953b885",
+          "status": "admitted-source-pair",
+          "toRelease": "1.5.1",
+          "toSourceLockDigest": "81fff6af6f25701b1d52ce49023c97b92cc82b7ce8bb5a3b157fcd3d3340bb81"
+        }
+      ],
       "component": "gateway-api",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "1.5.1",
       "targetSourceLockDigest": "81fff6af6f25701b1d52ce49023c97b92cc82b7ce8bb5a3b157fcd3d3340bb81",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"

@@ -1,0 +1,10 @@
+{
+  "component": "gateway-api",
+  "version": "1.5.0",
+  "sourceUrl": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
+  "sourceRevision": "v1.5.0",
+  "artifactDigest": "sha256:71c20956caa0aef0d691ba2f9049273f044a9a083115900d22ec3bfa3298668a",
+  "bundleMode": "offline-immutable",
+  "networkFetchRequired": false,
+  "upstreamVerification": "sha256-pinned-offline"
+}

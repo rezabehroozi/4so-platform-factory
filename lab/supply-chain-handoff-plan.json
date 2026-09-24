@@ -260,8 +260,14 @@
       },
       {
         "component": "gateway-api",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/gateway-api/1.5.0/source-lock.json",
+            "release": "1.5.0",
+            "sha256": "36517d44ef5b7839df2b62e6b88bf1b1b4fbf23b1f49e10beb8644a0d737f368"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.5.1",
         "targetSourceLockPresent": true
@@ -504,6 +510,14 @@
           "sha256": "f8c94c78bfef73865eabc5dce7a41d01153c7fbdc6bd1881321a678ee957d6a6",
           "source": "https://charts.jetstack.io",
           "targetRelease": "1.21.1"
+        },
+        {
+          "component": "gateway-api",
+          "path": "catalog/runtime/gateway-api/1.5.0/source-lock.json",
+          "previousVersion": "1.5.0",
+          "sha256": "36517d44ef5b7839df2b62e6b88bf1b1b4fbf23b1f49e10beb8644a0d737f368",
+          "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
+          "targetRelease": "1.5.1"
         }
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
@@ -565,14 +579,6 @@
       ],
       "stageManifestPath": "historical/stage-manifest.json",
       "taggedSourceSetReady": [
-        {
-          "component": "gateway-api",
-          "previousVersion": "1.5.0",
-          "recipeCommitSHA": "3797b631d20f9ff4e2b4571f62d91d84a1fbdf5a",
-          "recipePath": "catalog/tagged-source-recipes/gateway-api/1.5.0.json",
-          "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
-          "targetRelease": "1.5.1"
-        },
         {
           "component": "snapshot-controller",
           "previousVersion": "8.4.0",
