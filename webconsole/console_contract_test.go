@@ -491,7 +491,7 @@ func TestEdgeSovereignConsoleContract(t *testing.T) {
 	for _, endpoint := range []string{"/api/v1/edge/local-authority/policies/compile", "/api/v1/edge/local-authority/mutations/admit", "/api/v1/edge/local-authority/reconnect/resolve", "/api/v1/edge/boot-attestations/assess", "/api/v1/edge/local-ai/profiles/validate"} {
 		if !strings.Contains(js, endpoint) { t.Fatalf("edge sovereign endpoint missing from console %q", endpoint) }
 	}
-	for _, truth := range []string{"mutationExecuted", "requiresDurableOperationForExecution", "physicalCertification"} {
+	for _, truth := range []string{"No runtime mutation was executed.", "Execution still requires a durable operation.", "runtime was not started."} {
 		if !strings.Contains(js, truth) { t.Fatalf("edge truth boundary missing %q", truth) }
 	}
 }
