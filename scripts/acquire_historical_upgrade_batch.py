@@ -19,6 +19,7 @@ SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
 SAFE=re.compile(r"^[a-z0-9][a-z0-9-]{0,62}-[0-9]+\.[0-9]+\.[0-9]+\.zip$")
 
 def _json(path:Path): return json.loads(path.read_text())
+def _absolute_no_follow(path:Path): return Path(os.path.abspath(os.fspath(path.expanduser())))
 def _sha(path:Path):
     h=hashlib.sha256()
     with path.open('rb') as f:
@@ -47,7 +48,9 @@ def classify(root:Path=ROOT):
         if st!='admitted-for-acquisition': review.append(row); continue
         comp=_json(root/'catalog/components'/f'{name}.json'); spec=comp.get('spec') or {}; delivery=spec.get('delivery') or {}
         lock=root/'catalog/runtime'/name/prev/'source-lock.json'
-        if lock.is_file(): already.append(row); continue
+        if lock.exists() or lock.is_symlink():
+            _regular_file(lock,'HISTORICAL_SOURCE_LOCK')
+            already.append(row); continue
         if (spec.get('source') or {}).get('resolved') is not True:
             waiting_current.append(row); continue
         if delivery.get('type')=='helm': helm.append(row)
@@ -57,7 +60,7 @@ def classify(root:Path=ROOT):
 
 def platformctl(path:str|None):
     if path:
-        p=Path(path).resolve(); _regular_file(p,'PLATFORMCTL')
+        p=_absolute_no_follow(Path(path)); _regular_file(p,'PLATFORMCTL')
         if not os.access(p,os.X_OK): raise RuntimeError(f'PLATFORMCTL_NOT_EXECUTABLE {p}')
         return [str(p)]
     p=ROOT/'bin/platformctl'
@@ -117,7 +120,10 @@ def atomic_json(path:Path,obj):
     try:
         with os.fdopen(fd,'wb') as f: f.write(raw); f.flush(); os.fsync(f.fileno())
         os.chmod(tmp,0o644); os.replace(tmp,path)
-        d=os.open(path.parent,os.O_RDONLY|getattr(os,'O_DIRECTORY',0)); os.fsync(d); os.close(d)
+        if os.name != 'nt':
+            d=os.open(path.parent,os.O_RDONLY|getattr(os,'O_DIRECTORY',0))
+            try: os.fsync(d)
+            finally: os.close(d)
     except Exception:
         try: os.unlink(tmp)
         except OSError: pass
@@ -141,7 +147,7 @@ def execute(limit,ctl):
     return 0
 
 def stage_out(limit,stage:Path,ctl):
-    stage=_regular_dir(stage.resolve(),'HISTORICAL_STAGE_DIRECTORY',create=True); mp=stage/MANIFEST
+    stage=_regular_dir(_absolute_no_follow(stage),'HISTORICAL_STAGE_DIRECTORY',create=True); mp=stage/MANIFEST
     entries=[]
     if mp.exists(): _regular_file(mp,'HISTORICAL_STAGE_MANIFEST'); entries=validate_manifest(stage,_json(mp))
     done={e['component'] for e in entries}; helm,tagged,install_only,review,already,waiting_current=classify(); work=[(r,'helm') for r in helm if r['component'] not in done]+[(r,'tagged') for r in tagged if r['component'] not in done]; work=work[:limit] if limit>0 else work
@@ -161,7 +167,7 @@ def stage_out(limit,stage:Path,ctl):
     return 0
 
 def install_staged(stage:Path,ctl):
-    stage=_regular_dir(stage.resolve(),'HISTORICAL_STAGE_DIRECTORY'); mp=_regular_file(stage/MANIFEST,'HISTORICAL_STAGE_MANIFEST'); entries=validate_manifest(stage,_json(mp)); ctlprefix=platformctl(ctl); installed=[]; skipped=[]
+    stage=_regular_dir(_absolute_no_follow(stage),'HISTORICAL_STAGE_DIRECTORY'); mp=_regular_file(stage/MANIFEST,'HISTORICAL_STAGE_MANIFEST'); entries=validate_manifest(stage,_json(mp)); ctlprefix=platformctl(ctl); installed=[]; skipped=[]
     for e in entries:
         lock=ROOT/'catalog/runtime'/e['component']/e['previousVersion']/'source-lock.json'
         if lock.is_file(): skipped.append(e['component']); continue
