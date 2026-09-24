@@ -93,6 +93,7 @@ type renderGeneration struct {
 	Namespace            string             `json:"namespace"`
 	IncludeCRDs          bool               `json:"includeCRDs"`
 	KubernetesVersions   []string           `json:"kubernetesVersions"`
+	KubernetesRenderDigests map[string]string `json:"kubernetesRenderDigests,omitempty"`
 	Values               []renderValueInput `json:"values"`
 	ImageResolver        string             `json:"imageResolver"`
 	ImageResolverVersion string             `json:"imageResolverVersion"`
@@ -530,6 +531,16 @@ func validRenderGeneration(g *renderGeneration, component catalog.Component) err
 	wantKube := []string{componentKubeRenderVersion(component.Spec.Compatibility.Kubernetes.MinVersion), componentKubeRenderVersion(component.Spec.Compatibility.Kubernetes.MaxVersion)}
 	if wantKube[0] == "" || wantKube[1] == "" || len(g.KubernetesVersions) != 2 || g.KubernetesVersions[0] != wantKube[0] || g.KubernetesVersions[1] != wantKube[1] {
 		return fmt.Errorf("helm render Kubernetes versions do not match component compatibility window")
+	}
+	if len(g.KubernetesRenderDigests) > 0 {
+		if len(g.KubernetesRenderDigests) != 2 {
+			return fmt.Errorf("helm render digest matrix must cover exactly the compatibility endpoints")
+		}
+		for _, version := range wantKube {
+			if !digestRE.MatchString(strings.TrimSpace(g.KubernetesRenderDigests[version])) {
+				return fmt.Errorf("helm render digest matrix is missing exact Kubernetes endpoint %s", version)
+			}
+		}
 	}
 	if strings.TrimSpace(g.ImageResolver) != "crane-digest" || strings.TrimSpace(g.ImageResolverVersion) == "" {
 		return fmt.Errorf("helm render generation must identify crane-digest image resolution tool and version")
