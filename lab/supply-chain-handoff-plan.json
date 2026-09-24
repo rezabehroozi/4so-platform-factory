@@ -39,6 +39,12 @@
           "sha256": "67152b97e2b8c2cfbea2d6fc322911d22aa354f705aea059654b062d24131228"
         },
         {
+          "component": "external-secrets",
+          "path": "catalog/runtime/external-secrets/2.8.0/source-lock.json",
+          "release": "2.8.0",
+          "sha256": "a80dab38a01692f9d5da255d3a741cfe1316bd2b645dcd0810ab7dab50da7d47"
+        },
+        {
           "component": "gateway-api",
           "path": "catalog/runtime/gateway-api/1.5.1/source-lock.json",
           "release": "1.5.1",
@@ -81,14 +87,6 @@
           "source": "https://helm.cilium.io",
           "status": "ready-for-acquisition",
           "upstreamVersion": "1.20.1"
-        },
-        {
-          "component": "external-secrets",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "2.8.0",
-          "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "2.8.0"
         },
         {
           "component": "grafana",
@@ -254,11 +252,11 @@
       },
       {
         "component": "external-secrets",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "2.8.0",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "gateway-api",
@@ -530,6 +528,12 @@
           "previousVersion": "1.21.0",
           "source": "https://kubernetes-sigs.github.io/external-dns/",
           "targetRelease": "1.21.1"
+        },
+        {
+          "component": "external-secrets",
+          "previousVersion": "2.7.0",
+          "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
+          "targetRelease": "2.8.0"
         }
       ],
       "installOnlyFirstProductRelease": [
@@ -575,12 +579,6 @@
           "previousVersion": "1.20.0",
           "source": "https://helm.cilium.io",
           "targetRelease": "1.20.1"
-        },
-        {
-          "component": "external-secrets",
-          "previousVersion": "2.7.0",
-          "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
-          "targetRelease": "2.8.0"
         },
         {
           "component": "grafana",

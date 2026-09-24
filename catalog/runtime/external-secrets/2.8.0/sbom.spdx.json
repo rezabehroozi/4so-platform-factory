@@ -1,0 +1,29 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/external-secrets/2.8.0/251e4615013c6d2f",
+  "name": "external-secrets-2.8.0-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-external-secrets",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "external-secrets",
+      "versionInfo": "2.8.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "ghcr.io/external-secrets/external-secrets@sha256:24c0dd3699e0988520afd2218612758cd97d1f702757b5b4fcf89adaa33ef679",
+      "filesAnalyzed": false,
+      "name": "ghcr.io/external-secrets/external-secrets",
+      "versionInfo": "sha256:24c0dd3699e0988520afd2218612758cd97d1f702757b5b4fcf89adaa33ef679"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

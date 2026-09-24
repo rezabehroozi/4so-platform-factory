@@ -1,0 +1,7 @@
+{
+  "images": [
+    {
+      "reference": "ghcr.io/external-secrets/external-secrets@sha256:24c0dd3699e0988520afd2218612758cd97d1f702757b5b4fcf89adaa33ef679"
+    }
+  ]
+}

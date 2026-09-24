@@ -67,18 +67,6 @@
         "upstreamVersion": "1.20.1"
       },
       {
-        "catalogConstraint": "2.8.x",
-        "chart": "external-secrets",
-        "component": "external-secrets",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Exact official OCI chart release selected; digest and immutable render remain acquisition gates.",
-        "selectedVersion": "2.8.0",
-        "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "2.8.0"
-      },
-      {
         "catalogConstraint": "12.10.x",
         "chart": "grafana",
         "component": "grafana",

@@ -71,7 +71,7 @@
       "component": "external-secrets",
       "status": "pending-source-pair",
       "targetRelease": "2.8.0",
-      "targetSourceLockDigest": "",
+      "targetSourceLockDigest": "2da6b80511a7885acedb15f986cde03b62f5e436a314b12f9ad92400e78395aa",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
