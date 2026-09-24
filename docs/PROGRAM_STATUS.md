@@ -1,4 +1,4 @@
-# Current Program Status — PROGRAM_PHASE_MODEL_V73
+# Current Program Status — PROGRAM_PHASE_MODEL_V74
 
 `docs/PROGRAM_STATUS.md` is the single current human-readable status summary. Release **0.0.363** is the current repository release identity. Versioned `PHASE_STATUS_V*.md` files are historical release records; executable truth remains `internal/targetmodel/program.go`.
 
@@ -10,16 +10,16 @@
 | --- | ---: | --- |
 | Core source/software closure | **25/25 (100%)** | All mandatory Core phases have source/software contracts implemented. |
 | Core closure/release ready | **19/25 (76%)** | Six mandatory Core phases still require external/runtime/evidence closure. |
-| Pre-physical software closure | **34/36 (94%)** | Core + Expansion source/software closure; Physical certification is excluded. |
+| Pre-physical software closure | **35/36 (97%)** | Core + Expansion source/software closure; Physical certification is excluded. |
 
 V73 exposes independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
 
 ## Source-open software
 
-Only two pre-physical software phases remain source-open:
+Only one pre-physical software phase remains source-open:
 
 - `I2-edge-sovereign-extension` — bounded edge authority/UI, boot attestation and disconnected local AI profile.
-- `J8-application-platform-abstraction-composition` — PostgreSQL/Product API/SDK/MCP persistence is implemented for WorkloadType/CapabilityTrait, ManagedResourceType, WorkspaceProfile, immutable ApplicationRelease and revision-fenced EnvironmentBinding promotion through migration `0082`. Fleet gateway session identity/heartbeat/drain persistence is implemented through migration `0083`; Delivery Insights and OpenChoreo admission assessment are exposed. Fleet gateway runtime transport is now source-implemented end-to-end from Agent reconnect/backoff through mTLS WSS admission, durable epoch recovery, server-owned gateway replica identity and drain fencing. Remaining J8 source work is only exact-source durable OpenChoreo install/upgrade/remove execution. Release/deployment evidence ingestion for DORA is source-implemented from immutable ApplicationRelease provenance plus terminal `application.deploy` Durable Operations and EnvironmentBinding scope.
+`J8-application-platform-abstraction-composition` is now source-implemented. Its exact-source OpenChoreo install/upgrade/remove runtime, target-agent dispatch, BuildKit executor image path, zot mirror/seal path, bounded RBAC, canonical Keycloak OIDC binding, ownership/readback receipts and ambiguity fences are present. J8 remains closure-blocked only on exact external OpenChoreo chart/source/image acquisition and mirror evidence; no runtime or Physical PASS is inferred.
 
 `J3-virtual-cluster-profile` is source-implemented. Exact-source/offline runtime execution, durable dispatch and lifecycle fencing, suspend/resume/delete authoritative readback, bounded diagnostics, Product API/SDK/MCP/Console parity and immutable FinOps virtual-cluster attribution are present. Exact-SHA Physical Runtime remains independently certification-gated.
 
@@ -32,7 +32,7 @@ Only two pre-physical software phases remain source-open:
 1. **W0 — Truth rebaseline:** keep executable roadmap, docs and canonical main synchronized; V73 closes J3 source truth and records the OpenChoreo adoption boundary without changing physical/runtime claims.
 2. **W1 — Core closure blitz (current):** S1 exact acquisition and S2 component certification run as a streaming pipeline with up to six independent lanes.
 3. **W2 — Core evidence parallel:** MCP external-client interoperability, Connected Managed OKD and Disconnected OKD evidence advance independently.
-4. **W3 — Expansion mega-wave:** J3 + I2 remain source-open; J1 + H3 are source-implemented and move to integration/runtime evidence without waiting for Physical certification.
+4. **W3 — Expansion mega-wave:** I2 remains source-open; J1 + H3 are source-implemented and move to integration/runtime evidence without waiting for Physical certification.
 5. **W4 — Cross-surface convergence:** converge API, SDK, MCP, Console, PostgreSQL, Durable Ops, Evidence and negative controls.
 6. **W5 — Feature freeze:** C9 freezes mandatory scope and emits one exact immutable release before Phase D physical certification.
 
@@ -52,7 +52,7 @@ Only two pre-physical software phases remain source-open:
 - Successful and failed deployments retain operation ID, release digest, environment, project and exact terminal timestamp. Source commit time is carried only when authoritative provenance exists.
 - Missing source-commit evidence keeps lead time `UNKNOWN`; duplicate terminal operation evidence and unknown release digests fail closed.
 - No hand-entered DORA counter or second analytics SoT was introduced. Runtime/Physical certification remains independent.
-- J8 now has exactly one source blocker: `OPENCHOREO_EXACT_SOURCE_LIFECYCLE_ADAPTER_PENDING`. `FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING` closed on exact source SHA `7713260b93cfbac2059cd66fa2b7ef26ca09a9b4`; repository-integrity run `35921914768` passed clean-clone verification, Go build/tests, Python tests, PostgreSQL behavioral integration, Terraform and Crossplane.
+- J8 source implementation is closed. Its remaining closure blocker is `OPENCHOREO_EXACT_RUNTIME_ACQUISITION_PENDING` (external byte/mirror evidence), not source/software debt. `FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING` closed on exact source SHA `7713260b93cfbac2059cd66fa2b7ef26ca09a9b4`; repository-integrity run `35921914768` passed clean-clone verification, Go build/tests, Python tests, PostgreSQL behavioral integration, Terraform and Crossplane.
 
 ## Current critical path
 
@@ -69,6 +69,7 @@ These are closure/evidence blockers, not a reason to reopen completed source wor
 - `MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING` ? C7W named external-client live interoperability.
 - `OKD_CONNECTED_MANAGED_INSTALL_PENDING` ? H1 connected Managed OKD runtime evidence.
 - `OKD_OC_MIRROR_V2_ACQUISITION_PENDING` ? I1 exact disconnected mirror acquisition.
+- `OPENCHOREO_EXACT_RUNTIME_ACQUISITION_PENDING` ? J8 exact OpenChoreo source/chart/image acquisition, zot mirror and sealed runtime-source evidence.
 
 ## Truth boundary
 

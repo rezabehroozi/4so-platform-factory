@@ -146,7 +146,7 @@ func TestManagementPlaneStorageAuthorityMatchesAcquisitionSourceLock(t *testing.
 
 func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.T) {
 	roadmap := ArchitectureModel().ProgramRoadmap
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V73" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V74" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
 		t.Fatalf("unexpected roadmap authority: %#v", roadmap)
 	}
 	if len(roadmap.Phases) != 40 {
@@ -156,10 +156,10 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 19 || progress.CorePhaseBlocked != 6 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 76 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
 		t.Fatalf("program progress truth drift: %#v", progress)
 	}
-	if progress.PrePhysicalSoftwarePhases != 36 || progress.PrePhysicalSoftwareClosedPhases != 34 || progress.PrePhysicalSoftwareOpenPhases != 2 || progress.PrePhysicalSoftwareClosurePercent != 94 {
+	if progress.PrePhysicalSoftwarePhases != 36 || progress.PrePhysicalSoftwareClosedPhases != 35 || progress.PrePhysicalSoftwareOpenPhases != 1 || progress.PrePhysicalSoftwareClosurePercent != 97 {
 		t.Fatalf("pre-physical software progress truth drift: %#v", progress)
 	}
-	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "S2-component-runtime-certification-authorities", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "C9-pre-certification-feature-freeze-exact-bundle"} {
+	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "S2-component-runtime-certification-authorities", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "J8-application-platform-abstraction-composition", "C9-pre-certification-feature-freeze-exact-bundle"} {
 		if !containsString(progress.ExternalClosureOnlyPhaseIDs, id) {
 			t.Fatalf("external-only closure phase missing %s: %#v", id, progress.ExternalClosureOnlyPhaseIDs)
 		}
@@ -192,7 +192,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	r0 := byID["R0-release-authority-certification-rebaseline"]
-	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V73", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
+	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V74", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
 		if !containsString(r0.Evidence, evidence) {
 			t.Fatalf("R0 evidence %q missing: %#v", evidence, r0)
 		}
@@ -472,7 +472,7 @@ func TestProgramProgressUnknownBlockerReopensSourceClosure(t *testing.T) {
 
 func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.T) {
 	roadmap := ProgramRoadmapModel()
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V73" {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V74" {
 		t.Fatalf("authority=%s", roadmap.Authority)
 	}
 	byID := map[string]ProgramPhase{}
@@ -520,11 +520,11 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 	}
 
 	j8 := byID["J8-application-platform-abstraction-composition"]
-	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusOpen || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) {
+	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusImplemented || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) {
 		t.Fatalf("application-platform composition phase drift: %+v", j8)
 	}
-	if len(j8.Blockers) != 1 || !containsString(j8.Blockers, "OPENCHOREO_EXACT_SOURCE_LIFECYCLE_ADAPTER_PENDING") {
-		t.Fatalf("J8 must retain only the OpenChoreo lifecycle blocker: %+v", j8)
+	if len(j8.Blockers) != 1 || !containsString(j8.Blockers, "OPENCHOREO_EXACT_RUNTIME_ACQUISITION_PENDING") {
+		t.Fatalf("J8 must retain only the external OpenChoreo exact-runtime acquisition blocker: %+v", j8)
 	}
 	if containsString(j8.Blockers, "FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING") {
 		t.Fatalf("Fleet gateway source blocker remained after reconnect/runtime closure: %+v", j8)
