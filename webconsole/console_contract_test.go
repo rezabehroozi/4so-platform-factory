@@ -478,3 +478,20 @@ func TestFleetReliabilityConsoleContract(t *testing.T) {
 		}
 	}
 }
+
+func TestEdgeSovereignConsoleContract(t *testing.T) {
+	htmlBytes, err := fs.ReadFile(content, "static/index.html")
+	if err != nil { t.Fatal(err) }
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	html, js := string(htmlBytes), string(jsBytes)
+	for _, fragment := range []string{`data-page="edge"`, `id="edge"`, `id="edge-policy-form"`, `id="edge-mutation-form"`, `id="edge-reconnect-form"`, `id="edge-boot-form"`, `id="edge-ai-form"`, "Central authority remains canonical.", "they do not execute runtime mutations"} {
+		if !strings.Contains(html, fragment) { t.Fatalf("edge sovereign console contract missing %q", fragment) }
+	}
+	for _, endpoint := range []string{"/api/v1/edge/local-authority/policies/compile", "/api/v1/edge/local-authority/mutations/admit", "/api/v1/edge/local-authority/reconnect/resolve", "/api/v1/edge/boot-attestations/assess", "/api/v1/edge/local-ai/profiles/validate"} {
+		if !strings.Contains(js, endpoint) { t.Fatalf("edge sovereign endpoint missing from console %q", endpoint) }
+	}
+	for _, truth := range []string{"mutationExecuted", "requiresDurableOperationForExecution", "physicalCertification"} {
+		if !strings.Contains(js, truth) { t.Fatalf("edge truth boundary missing %q", truth) }
+	}
+}

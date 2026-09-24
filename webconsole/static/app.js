@@ -1635,7 +1635,7 @@ async function api(path, options = {}) {
   const mutation = ['POST','PUT','PATCH','DELETE'].includes(method);
   const submittedForm = mutation && state.lastSubmittedForm && (Date.now()-state.lastSubmittedAt)<500 ? state.lastSubmittedForm : null;
   if (mutation) { state.lastSubmittedForm = null; state.lastSubmittedAt = 0; }
-  const viewerSafePost = ['/api/v1/blueprints/validate','/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/compatibility/evaluate','/api/v1/installations/plans','/api/v1/blueprint-releases/compare','/api/v1/runtime-closure-reports/verify','/api/v1/support-bundles','/api/v1/support-bundle-jobs','/api/v1/workload-log-queries'].includes(path);
+  const viewerSafePost = ['/api/v1/blueprints/validate','/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/compatibility/evaluate','/api/v1/installations/plans','/api/v1/blueprint-releases/compare','/api/v1/runtime-closure-reports/verify','/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate','/api/v1/edge/local-authority/policies/compile','/api/v1/edge/local-authority/mutations/admit','/api/v1/edge/local-authority/reconnect/resolve','/api/v1/support-bundles','/api/v1/support-bundle-jobs','/api/v1/workload-log-queries'].includes(path);
   if (state.session && ['POST','PUT','PATCH','DELETE'].includes(method) && !viewerSafePost && !canOperate()) {
     // A viewer may have been promoted after this tab loaded. Refresh session
     // authority before blocking a mutation purely from stale client state.
@@ -1943,6 +1943,7 @@ const pageGuidance = {
   marketplace:{en:['Outcome','Install a published offer on an eligible connected platform.','Done when','Plan, approval, execution and uninstall/recovery state remain traceable.'],fa:['خروجی این صفحه','یک بسته منتشرشده را روی پلتفرم واجد شرایط نصب کنید.','پایان کار','برنامه، تأیید، اجرا و وضعیت حذف یا بازیابی قابل پیگیری است.']},
   baselines:{en:['Outcome','Apply a certified baseline with a truthful impact preview.','Done when','Only admitted resources changed and completion evidence is sealed.'],fa:['خروجی این صفحه','نسخهٔ پایهٔ تأییدشده را با پیش‌نمایش واقعی اثر تغییر اعمال کنید.','پایان کار','فقط منابع مجاز تغییر کرده‌اند و شواهد پایان کار مهرشده است.']},
   verification:{en:['Outcome','Turn runtime observations into verifiable assurance evidence.','Done when','The verification/certification state is backed by the required evidence.'],fa:['خروجی این صفحه','مشاهدهٔ محیط اجرا را به شواهد قابل‌تأیید تبدیل کنید.','پایان کار','وضعیت بررسی و تأیید فنی با شواهد لازم پشتیبانی می‌شود.']},
+  edge:{en:['Outcome','Review bounded site-local authority and disconnected trust without creating a second control plane.','Done when','Policy, boot evidence, reconnect decision and local AI profile are explicit and any runtime mutation remains on the durable operation path.'],fa:['خروجی این صفحه','اختیار محدود محلی و اعتماد در حالت قطع ارتباط را بدون ساخت کنترل‌پلین دوم بررسی کنید.','پایان کار','سیاست، شواهد راه‌اندازی، تصمیم اتصال مجدد و پروفایل هوش مصنوعی محلی روشن است و هر تغییر محیط اجرا از مسیر عملیات پایدار عبور می‌کند.']},
   workspaces:{en:['Outcome','Bind application/team workspaces to the correct namespaces and scope.','Done when','Each workspace binding matches its intended project, cluster and namespace.'],fa:['خروجی این صفحه','فضای کاری تیم یا اپلیکیشن را به Namespace و محدودهٔ درست متصل کنید.','پایان کار','هر اتصال با پروژه، کلاستر و Namespace موردنظر منطبق است.']},
   finops:{en:['Outcome','Review measured usage and publish versioned rates without inventing missing cost.','Done when','Every total is derived from measured telemetry and an immutable rate card, or explicitly marked unavailable.'],fa:['خروجی این صفحه','مصرف اندازه‌گیری‌شده و نرخ‌های نسخه‌دار را بدون ساختن هزینه برای دادهٔ گمشده بررسی کنید.','پایان کار','هر مبلغ از دادهٔ اندازه‌گیری‌شده و نرخ تغییرناپذیر به‌دست آمده یا صریحاً ناموجود اعلام شده است.']},
   fleet:{en:['Outcome','Resolve drift or execute a controlled fleet campaign.','Done when','Each target has an explicit desired/observed state and recovery evidence.'],fa:['خروجی این صفحه','مغایرت را رفع کنید یا کارزار کنترل‌شدهٔ ناوگان را اجرا کنید.','پایان کار','هر مقصد وضعیت مطلوب و مشاهده‌شده و شواهد بازیابی مشخص دارد.']},
@@ -1968,7 +1969,7 @@ const pageTitles = {
   overview:{en:['Overview','Platform readiness'],fa:['نمای کلی','آمادگی پلتفرم']},
   installation:{en:['Platforms','Control-plane install'],fa:['پلتفرم‌ها','نصب کنترل‌پلین']},clusters:{en:['Platforms','Create & manage platforms'],fa:['پلتفرم‌ها','ایجاد و مدیریت پلتفرم']},providers:{en:['Platforms','Infrastructure profiles'],fa:['پلتفرم‌ها','پروفایل‌های زیرساخت']},
   marketplace:{en:['Blueprints','Marketplace'],fa:['Blueprintها','Marketplace']},blueprints:{en:['Blueprints','Platform blueprints'],fa:['Blueprintها','Blueprintهای پلتفرم']},templates:{en:['Blueprints','Platform templates'],fa:['Blueprintها','قالب‌های پلتفرم']},baselines:{en:['Blueprints','Certified baselines'],fa:['Blueprintها','Baselineهای تأییدشده']},catalog:{en:['Assurance','Supply-chain releases'],fa:['تضمین','انتشارهای زنجیره تأمین']},validator:{en:['Blueprints','Planning tools'],fa:['Blueprintها','ابزارهای برنامه‌ریزی']},
-  fleet:{en:['Fleet','Fleet overview'],fa:['Fleet','نمای کلی Fleet']},workspaces:{en:['Fleet','Application workspaces'],fa:['Fleet','فضاهای کاری اپلیکیشن']},finops:{en:['Fleet','FinOps & chargeback'],fa:['Fleet','هزینه و مصرف']},verification:{en:['Assurance','Runtime assurance'],fa:['تضمین','تضمین Runtime']},
+  fleet:{en:['Fleet','Fleet overview'],fa:['Fleet','نمای کلی Fleet']},workspaces:{en:['Fleet','Application workspaces'],fa:['Fleet','فضاهای کاری اپلیکیشن']},finops:{en:['Fleet','FinOps & chargeback'],fa:['Fleet','هزینه و مصرف']},verification:{en:['Assurance','Runtime assurance'],fa:['تضمین','تضمین Runtime']},edge:{en:['Assurance','Edge & sovereign'],fa:['تضمین','Edge و حاکمیت محلی']},
   operations:{en:['Operations','Activity & audit'],fa:['عملیات','فعالیت و ممیزی']},ai:{en:['Operations','AI Operator'],fa:['عملیات','اپراتور هوش مصنوعی']},lab:{en:['Assurance','Physical certification'],fa:['تضمین','گواهی فیزیکی']},notifications:{en:['Operations','Notifications'],fa:['عملیات','اعلان‌ها']},
   workspace:{en:['Admin','Organizations & projects'],fa:['مدیریت','سازمان‌ها و پروژه‌ها']},tenants:{en:['Admin','Tenant environments & branding'],fa:['مدیریت','محیط‌های Tenantها و برندینگ']},services:{en:['Admin','Integrations & services'],fa:['مدیریت','یکپارچه‌سازی و سرویس‌ها']}
 };
@@ -1978,7 +1979,7 @@ const sectionNavigation = {
   delivery:['blueprints','templates','marketplace','baselines','validator'],
   fleet:['fleet','workspaces','finops'],
   operations:['operations','ai','notifications'],
-  assurance:['verification','catalog','lab'],
+  assurance:['verification','edge','catalog','lab'],
   administration:['workspace','tenants','services']
 };
 const sectionLabels = {
@@ -4232,7 +4233,76 @@ function renderCompatibilityResult(result){
 $('#compatibility-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const input=$('#blueprint-input').value.trim();if(!input){toast('Paste a Blueprint JSON document first.','error');return;}let blueprint;try{blueprint=JSON.parse(input);}catch(error){toast(`Invalid JSON: ${error.message}`,'error');return;}const target={kubernetesVersion:$('#compatibility-kubernetes').value.trim(),architecture:$('#compatibility-architecture').value,distribution:$('#compatibility-distribution').value,provider:$('#compatibility-provider').value};try{const result=await api('/api/v1/compatibility/evaluate',{method:'POST',body:{blueprint,target}});renderCompatibilityResult(result);toast('Compatibility evaluation completed.');}catch(error){if(error.body?.decision){renderCompatibilityResult(error.body);toast('Compatibility evaluation found blockers.','warning');}else toast(error.message,'error');}};
 $('#validate').onclick=()=>runBlueprint('/api/v1/blueprints/validate');$('#plan').onclick=()=>runBlueprint('/api/v1/plans');$('#blueprint-clear').onclick=()=>{$('#blueprint-input').value='';delete $('#blueprint-input').dataset.dirty;$('#blueprint-result-panel').hidden=true;$('#compatibility-result').innerHTML='';};
 
-const loaders={overview:loadOverview,workspace:loadWorkspace,installation:loadInstallation,clusters:loadClusters,providers:loadProviders,blueprints:loadBlueprints,templates:loadPlatformTemplates,marketplace:loadMarketplace,baselines:loadBaselines,verification:loadVerification,fleet:loadFleet,workspaces:loadWorkspaces,finops:loadFinOps,tenants:loadTenants,operations:loadOperations,ai:loadAI,lab:loadLab,notifications:loadNotifications,services:loadServices,catalog:loadCatalog,validator:async()=>{}};
+
+let edgeCompiledPolicy=null;
+let edgeLastMutationRequest=null;
+function renderEdgeAssessment(target,data){
+  target.innerHTML='<pre class="technical">'+esc(JSON.stringify(data,null,2))+'</pre>';
+}
+function edgeProjectID(){
+  return String($('#edge-project')?.value||'').trim();
+}
+async function loadEdgeSovereign(){
+  const projects=await softApi('/api/v1/projects',[],'projects');
+  state.projects=projects;
+  setProjectOptions($('#edge-project'),projects);
+  prerequisite($('#edge-prerequisite'),projects.length>0,'Create or select a project before reviewing edge authority.','workspace','Open organizations & projects');
+  const now=new Date();
+  if(!$('#edge-policy-valid-until').value)$('#edge-policy-valid-until').value=localDateTimeValue(new Date(now.getTime()+24*60*60*1000));
+  if(!$('#edge-disconnected-since').value)$('#edge-disconnected-since').value=localDateTimeValue(new Date(now.getTime()-5*60*1000));
+}
+$('#edge-policy-form').onsubmit=async event=>{
+  event.preventDefault();if(!event.currentTarget.reportValidity())return;
+  const projectId=edgeProjectID();if(!projectId){toast('Select a project first.','error');return;}
+  const allowedActions=$('[data-edge-action]:checked',event.currentTarget).map(input=>input.value);
+  try{
+    const result=await api('/api/v1/edge/local-authority/policies/compile',{method:'POST',body:{
+      projectId,siteId:$('#edge-policy-site').value.trim(),revision:Number($('#edge-policy-revision').value),
+      desiredStateDigest:$('#edge-policy-desired-digest').value.trim(),allowedActions,
+      maxOfflineSeconds:Number($('#edge-policy-offline').value),maxQueuedEvidenceItems:Number($('#edge-policy-evidence').value),
+      validUntil:new Date($('#edge-policy-valid-until').value).toISOString()
+    }});
+    edgeCompiledPolicy=result.policy;edgeLastMutationRequest=null;
+    $('#edge-mutation-target').value='site:'+edgeCompiledPolicy.siteId;
+    $('#edge-reconnect-revision').value=String(edgeCompiledPolicy.revision);
+    $('#edge-reconnect-digest').value=edgeCompiledPolicy.desiredStateDigest;
+    renderEdgeAssessment($('#edge-policy-result'),result);toast('Edge policy compiled. No runtime mutation was executed.');
+  }catch(error){renderEdgeAssessment($('#edge-policy-result'),{admitted:false,error:error.message,code:error.code||''});toast(error.message,'error');}
+};
+$('#edge-mutation-form').onsubmit=async event=>{
+  event.preventDefault();if(!event.currentTarget.reportValidity())return;
+  if(!edgeCompiledPolicy){toast('Compile a site-local policy first.','warning');return;}
+  const projectId=edgeProjectID();
+  const request={siteId:edgeCompiledPolicy.siteId,projectId,action:$('#edge-mutation-action').value,targetRef:$('#edge-mutation-target').value.trim(),baseRevision:edgeCompiledPolicy.revision,baseDesiredDigest:edgeCompiledPolicy.desiredStateDigest,policyDigest:edgeCompiledPolicy.policyDigest,idempotencyKey:$('#edge-mutation-idempotency').value.trim(),requestDigest:$('#edge-mutation-request-digest').value.trim()};
+  try{
+    const result=await api('/api/v1/edge/local-authority/mutations/admit',{method:'POST',body:{projectId,policy:edgeCompiledPolicy,request,disconnectedSince:new Date($('#edge-disconnected-since').value).toISOString()}});
+    edgeLastMutationRequest=request;renderEdgeAssessment($('#edge-mutation-result'),result);toast('Offline request fits the policy. Execution still requires a durable operation.');
+  }catch(error){renderEdgeAssessment($('#edge-mutation-result'),{admitted:false,error:error.message,code:error.code||''});toast(error.message,'error');}
+};
+$('#edge-reconnect-form').onsubmit=async event=>{
+  event.preventDefault();if(!event.currentTarget.reportValidity())return;
+  if(!edgeLastMutationRequest){toast('Assess an offline request first.','warning');return;}
+  const projectId=edgeProjectID();
+  try{
+    const result=await api('/api/v1/edge/local-authority/reconnect/resolve',{method:'POST',body:{projectId,request:edgeLastMutationRequest,centralRevision:Number($('#edge-reconnect-revision').value),centralDesiredStateDigest:$('#edge-reconnect-digest').value.trim()}});
+    renderEdgeAssessment($('#edge-reconnect-result'),result);
+    toast(result?.decision?.automaticApply?'No central drift detected.':'Central drift requires review.',result?.decision?.automaticApply?'success':'warning');
+  }catch(error){renderEdgeAssessment($('#edge-reconnect-result'),{error:error.message,code:error.code||''});toast(error.message,'error');}
+};
+$('#edge-boot-form').onsubmit=async event=>{
+  event.preventDefault();if(!event.currentTarget.reportValidity())return;const projectId=edgeProjectID();if(!projectId){toast('Select a project first.','error');return;}
+  const claim={authority:'BOOT_SECURITY_ATTESTATION_AUTHORITY_V1',siteId:$('#edge-boot-site').value.trim(),nodeId:$('#edge-boot-node').value.trim(),observedAt:new Date().toISOString(),tpmPresent:$('#edge-boot-tpm').checked,secureBootEnabled:$('#edge-boot-secure').checked,measuredBootPresent:$('#edge-boot-measured').checked,diskEncryptionVerified:$('#edge-boot-encrypted').checked,quoteVerified:$('#edge-boot-quote-ok').checked,nonceBound:$('#edge-boot-nonce').checked,pcrPolicyMatched:$('#edge-boot-pcr').checked,quoteDigest:$('#edge-boot-quote').value.trim(),eventLogDigest:$('#edge-boot-event').value.trim(),evidenceDigest:$('#edge-boot-evidence').value.trim()};
+  try{const result=await api('/api/v1/edge/boot-attestations/assess',{method:'POST',body:{projectId,claim}});renderEdgeAssessment($('#edge-boot-result'),result);toast(result?.assessment?.state==='ATTESTED'?'Boot claim satisfies the source policy.':'Boot claim was rejected.',result?.assessment?.state==='ATTESTED'?'success':'warning');}
+  catch(error){renderEdgeAssessment($('#edge-boot-result'),{error:error.message,code:error.code||''});toast(error.message,'error');}
+};
+$('#edge-ai-form').onsubmit=async event=>{
+  event.preventDefault();if(!event.currentTarget.reportValidity())return;const projectId=edgeProjectID();if(!projectId){toast('Select a project first.','error');return;}
+  const profile={authority:'LOCAL_AI_DISCONNECTED_PROFILE_AUTHORITY_V1',mode:'disconnected',runtime:$('#edge-ai-runtime').value.trim(),modelDigest:$('#edge-ai-model').value.trim(),runtimeImageDigest:$('#edge-ai-image').value.trim(),networkEgress:false,rawCredentials:false,externalProvider:false,maxPromptBytes:Number($('#edge-ai-prompt').value),maxOutputBytes:Number($('#edge-ai-output').value)};
+  try{const result=await api('/api/v1/edge/local-ai/profiles/validate',{method:'POST',body:{projectId,profile}});renderEdgeAssessment($('#edge-ai-result'),result);toast('Disconnected local AI profile is source-admitted; runtime was not started.');}
+  catch(error){renderEdgeAssessment($('#edge-ai-result'),{admitted:false,error:error.message,code:error.code||''});toast(error.message,'error');}
+};
+
+const loaders={overview:loadOverview,workspace:loadWorkspace,installation:loadInstallation,clusters:loadClusters,providers:loadProviders,blueprints:loadBlueprints,templates:loadPlatformTemplates,marketplace:loadMarketplace,baselines:loadBaselines,verification:loadVerification,fleet:loadFleet,workspaces:loadWorkspaces,finops:loadFinOps,edge:loadEdgeSovereign,tenants:loadTenants,operations:loadOperations,ai:loadAI,lab:loadLab,notifications:loadNotifications,services:loadServices,catalog:loadCatalog,validator:async()=>{}};
 const livePages=new Set(['overview','clusters','providers','marketplace','baselines','verification','fleet','tenants','operations','ai','notifications','services']);
 function hasActiveWork(page = state.currentPage){
   const pageCollections={

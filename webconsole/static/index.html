@@ -70,7 +70,7 @@
 <button aria-label="Toggle color theme" class="icon-button theme-toggle" id="theme-toggle" type="button"><svg aria-hidden="true" class="control-icon"><use href="#icon-theme"></use></svg></button>
 <button aria-label="Refresh current page" class="secondary" data-i18n="action.refresh" id="refresh-current" type="button">Refresh</button>
 </div>
-</header><nav aria-label="Section navigation" hidden="" id="section-nav"><div class="section-nav-group" data-section-nav="infrastructure" hidden=""><button data-page="clusters" type="button">Create &amp; manage platforms</button><button data-page="providers" type="button">Infrastructure profiles</button><button data-page="installation" type="button">Control-plane install</button></div><div class="section-nav-group" data-section-nav="delivery" hidden=""><button data-page="blueprints" type="button">Platform blueprints</button><button data-page="templates" type="button">Platform templates</button><button data-page="marketplace" type="button">Marketplace</button><button data-page="baselines" type="button">Certified baselines</button><button data-page="validator" type="button">Planning tools</button></div><div class="section-nav-group" data-section-nav="fleet" hidden=""><button data-page="fleet" type="button">Fleet overview</button><button data-page="workspaces" type="button">Application workspaces</button><button data-page="finops" type="button">FinOps &amp; chargeback</button></div><div class="section-nav-group" data-section-nav="operations" hidden=""><button data-page="operations" type="button">Activity &amp; audit</button><button data-page="ai" type="button">AI Operator</button><button data-page="notifications" type="button">Notifications</button></div><div class="section-nav-group" data-section-nav="assurance" hidden=""><button data-page="verification" type="button">Runtime assurance</button><button data-page="catalog" type="button">Supply-chain releases</button><button data-page="lab" type="button">Physical certification</button></div><div class="section-nav-group" data-section-nav="administration" hidden=""><button data-page="workspace" type="button">Organizations &amp; projects</button><button data-page="tenants" type="button">Tenant environments &amp; branding</button><button data-page="services" type="button">Integrations &amp; services</button></div></nav>
+</header><nav aria-label="Section navigation" hidden="" id="section-nav"><div class="section-nav-group" data-section-nav="infrastructure" hidden=""><button data-page="clusters" type="button">Create &amp; manage platforms</button><button data-page="providers" type="button">Infrastructure profiles</button><button data-page="installation" type="button">Control-plane install</button></div><div class="section-nav-group" data-section-nav="delivery" hidden=""><button data-page="blueprints" type="button">Platform blueprints</button><button data-page="templates" type="button">Platform templates</button><button data-page="marketplace" type="button">Marketplace</button><button data-page="baselines" type="button">Certified baselines</button><button data-page="validator" type="button">Planning tools</button></div><div class="section-nav-group" data-section-nav="fleet" hidden=""><button data-page="fleet" type="button">Fleet overview</button><button data-page="workspaces" type="button">Application workspaces</button><button data-page="finops" type="button">FinOps &amp; chargeback</button></div><div class="section-nav-group" data-section-nav="operations" hidden=""><button data-page="operations" type="button">Activity &amp; audit</button><button data-page="ai" type="button">AI Operator</button><button data-page="notifications" type="button">Notifications</button></div><div class="section-nav-group" data-section-nav="assurance" hidden=""><button data-page="verification" type="button">Runtime assurance</button><button data-page="edge" type="button">Edge &amp; sovereign</button><button data-page="catalog" type="button">Supply-chain releases</button><button data-page="lab" type="button">Physical certification</button></div><div class="section-nav-group" data-section-nav="administration" hidden=""><button data-page="workspace" type="button">Organizations &amp; projects</button><button data-page="tenants" type="button">Tenant environments &amp; branding</button><button data-page="services" type="button">Integrations &amp; services</button></div></nav>
 <div class="warning-banner page-degraded-banner" hidden="" id="page-degraded-banner" role="status"></div>
 <div class="mutation-outcome" hidden="" id="mutation-outcome" role="status" aria-live="polite"></div>
 <main aria-busy="false" id="main-content" tabindex="-1"><div aria-atomic="true" aria-live="polite" class="visually-hidden" id="route-announcer" role="status"></div>
@@ -361,6 +361,79 @@
 <div class="form-actions span-full"><button class="primary" data-i18n="action.createLivePlan" type="submit">Create live plan</button></div>
 </form></article></div></details>
 <article class="panel"><div class="panel-heading"><div><h2 data-i18n="baselines.history">Deployment history</h2><p data-i18n="baselines.historyHelp">Every record exposes only actions valid for its current state.</p></div></div><div class="resource-grid record-list" id="baseline-deployment-grid"></div></article>
+</section>
+<section class="page" data-title="Edge &amp; sovereign" id="edge">
+<div class="page-heading"><div><span class="eyebrow">Bounded offline authority · evidence first</span><h1>Edge &amp; sovereign</h1><p>Prepare and review site-local authority without creating a second control plane. These tools compile policy, assess offline requests, verify boot evidence and validate disconnected AI profiles; they do not execute runtime mutations.</p></div><span class="badge neutral">EDGE_LOCAL_AUTHORITY_V1</span></div>
+<div class="inline-summary"><strong>Central authority remains canonical.</strong> A site may act only inside an exact revision/digest policy and bounded offline window. Reconnect drift requires explicit review; physical certification is never inferred here.</div>
+<div class="prerequisite" hidden="" id="edge-prerequisite"></div>
+<article class="panel"><div class="panel-heading"><div><h2>Scope</h2><p>All assessments are bound to one project. The global project scope, when selected, is enforced automatically.</p></div></div><div class="form-grid"><label><span>Project</span><select id="edge-project" required=""></select></label></div></article>
+
+<div class="two-column">
+<article class="panel"><div class="panel-heading"><div><h2>1. Compile site-local policy</h2><p>Create a deterministic policy digest over central revision, desired state, admitted actions, offline window and evidence queue bounds.</p></div></div>
+<form class="form-grid" data-viewer-safe="true" id="edge-policy-form" novalidate="">
+<label><span>Site ID</span><input class="technical" dir="ltr" id="edge-policy-site" required="" value="edge-site-01"/></label>
+<label><span>Central revision</span><input id="edge-policy-revision" min="1" required="" type="number" value="1"/></label>
+<label class="span-full"><span>Desired-state SHA-256</span><input class="technical" dir="ltr" id="edge-policy-desired-digest" pattern="sha256:[0-9a-f]{64}" required="" placeholder="sha256:…"/></label>
+<label><span>Maximum offline seconds</span><input id="edge-policy-offline" min="60" required="" type="number" value="86400"/></label>
+<label><span>Maximum queued evidence</span><input id="edge-policy-evidence" min="1" max="100000" required="" type="number" value="5000"/></label>
+<label><span>Policy valid until</span><input id="edge-policy-valid-until" required="" type="datetime-local"/></label>
+<fieldset class="span-full"><legend>Admitted local actions</legend><div class="form-grid two">
+<label class="check-row"><input checked="" data-edge-action="" type="checkbox" value="OBSERVE"/><span>Observe</span></label>
+<label class="check-row"><input checked="" data-edge-action="" type="checkbox" value="COLLECT_DIAGNOSTICS"/><span>Collect diagnostics</span></label>
+<label class="check-row"><input data-edge-action="" type="checkbox" value="RESTART_APPROVED_WORKLOAD"/><span>Restart approved workload</span></label>
+<label class="check-row"><input data-edge-action="" type="checkbox" value="CORDON_NODE"/><span>Cordon node</span></label>
+<label class="check-row"><input data-edge-action="" type="checkbox" value="UNCORDON_NODE"/><span>Uncordon node</span></label>
+<label class="check-row"><input data-edge-action="" type="checkbox" value="RECONCILE_APPROVED_DESIRED_STATE"/><span>Reconcile approved desired state</span></label>
+</div></fieldset>
+<div class="form-actions span-full"><button class="secondary" type="submit">Compile policy</button></div>
+</form><div aria-live="polite" id="edge-policy-result"></div></article>
+
+<article class="panel"><div class="panel-heading"><div><h2>2. Assess offline mutation</h2><p>Assessment only. A positive result means the request fits the sealed policy; execution still requires the normal durable operation and agent path.</p></div></div>
+<form class="form-grid" data-viewer-safe="true" id="edge-mutation-form" novalidate="">
+<label><span>Action</span><select id="edge-mutation-action"><option>OBSERVE</option><option>COLLECT_DIAGNOSTICS</option><option>RESTART_APPROVED_WORKLOAD</option><option>CORDON_NODE</option><option>UNCORDON_NODE</option><option>RECONCILE_APPROVED_DESIRED_STATE</option></select></label>
+<label><span>Target reference</span><input class="technical" dir="ltr" id="edge-mutation-target" required="" value="site:edge-site-01"/></label>
+<label><span>Idempotency key</span><input class="technical" dir="ltr" id="edge-mutation-idempotency" required="" value="edge-review-01"/></label>
+<label class="span-full"><span>Request SHA-256</span><input class="technical" dir="ltr" id="edge-mutation-request-digest" pattern="sha256:[0-9a-f]{64}" required="" placeholder="sha256:…"/></label>
+<label><span>Disconnected since</span><input id="edge-disconnected-since" required="" type="datetime-local"/></label>
+<div class="form-actions span-full"><button class="secondary" type="submit">Assess request</button></div>
+</form><div aria-live="polite" id="edge-mutation-result"></div></article>
+</div>
+
+<div class="two-column">
+<article class="panel"><div class="panel-heading"><div><h2>3. Review reconnect conflict</h2><p>Compare the last assessed offline request with authoritative central revision/digest. Central drift is never silently overwritten.</p></div></div>
+<form class="form-grid" data-viewer-safe="true" id="edge-reconnect-form" novalidate="">
+<label><span>Current central revision</span><input id="edge-reconnect-revision" min="1" required="" type="number" value="1"/></label>
+<label class="span-full"><span>Current desired-state SHA-256</span><input class="technical" dir="ltr" id="edge-reconnect-digest" pattern="sha256:[0-9a-f]{64}" required="" placeholder="sha256:…"/></label>
+<div class="form-actions span-full"><button class="secondary" type="submit">Review reconnect</button></div>
+</form><div aria-live="polite" id="edge-reconnect-result"></div></article>
+
+<article class="panel"><div class="panel-heading"><div><h2>4. Assess boot security</h2><p>Verify the submitted attestation claim requires TPM, Secure Boot, measured boot, disk encryption, quote verification, nonce binding and PCR policy match.</p></div></div>
+<form class="form-grid" data-viewer-safe="true" id="edge-boot-form" novalidate="">
+<label><span>Site ID</span><input class="technical" dir="ltr" id="edge-boot-site" required="" value="edge-site-01"/></label>
+<label><span>Node ID</span><input class="technical" dir="ltr" id="edge-boot-node" required="" value="node-01"/></label>
+<label class="span-full"><span>Quote SHA-256</span><input class="technical" dir="ltr" id="edge-boot-quote" pattern="sha256:[0-9a-f]{64}" required="" placeholder="sha256:…"/></label>
+<label class="span-full"><span>Event log SHA-256</span><input class="technical" dir="ltr" id="edge-boot-event" pattern="sha256:[0-9a-f]{64}" required="" placeholder="sha256:…"/></label>
+<label class="span-full"><span>Evidence SHA-256</span><input class="technical" dir="ltr" id="edge-boot-evidence" pattern="sha256:[0-9a-f]{64}" required="" placeholder="sha256:…"/></label>
+<div class="span-full form-grid two">
+<label class="check-row"><input checked="" id="edge-boot-tpm" type="checkbox"/><span>TPM present</span></label><label class="check-row"><input checked="" id="edge-boot-secure" type="checkbox"/><span>Secure Boot enabled</span></label>
+<label class="check-row"><input checked="" id="edge-boot-measured" type="checkbox"/><span>Measured boot present</span></label><label class="check-row"><input checked="" id="edge-boot-encrypted" type="checkbox"/><span>Disk encryption verified</span></label>
+<label class="check-row"><input checked="" id="edge-boot-quote-ok" type="checkbox"/><span>Quote verified</span></label><label class="check-row"><input checked="" id="edge-boot-nonce" type="checkbox"/><span>Nonce bound</span></label>
+<label class="check-row"><input checked="" id="edge-boot-pcr" type="checkbox"/><span>PCR policy matched</span></label>
+</div>
+<div class="form-actions span-full"><button class="secondary" type="submit">Assess boot evidence</button></div>
+</form><div aria-live="polite" id="edge-boot-result"></div></article>
+</div>
+
+<article class="panel"><div class="panel-heading"><div><h2>5. Validate disconnected local AI</h2><p>Validate an exact model/runtime profile for zero-egress local inference. This does not start a model server and never permits external provider credentials.</p></div></div>
+<form class="form-grid" data-viewer-safe="true" id="edge-ai-form" novalidate="">
+<label><span>Runtime</span><input class="technical" dir="ltr" id="edge-ai-runtime" required="" value="local-vllm"/></label>
+<label class="span-full"><span>Model SHA-256</span><input class="technical" dir="ltr" id="edge-ai-model" pattern="sha256:[0-9a-f]{64}" required="" placeholder="sha256:…"/></label>
+<label class="span-full"><span>Runtime image SHA-256</span><input class="technical" dir="ltr" id="edge-ai-image" pattern="sha256:[0-9a-f]{64}" required="" placeholder="sha256:…"/></label>
+<label><span>Maximum prompt bytes</span><input id="edge-ai-prompt" min="1024" max="4194304" required="" type="number" value="262144"/></label>
+<label><span>Maximum output bytes</span><input id="edge-ai-output" min="1024" max="4194304" required="" type="number" value="262144"/></label>
+<div class="inline-summary span-full">Network egress, raw credentials and external providers are fixed to <strong>disabled</strong> by this profile.</div>
+<div class="form-actions span-full"><button class="secondary" type="submit">Validate local AI profile</button></div>
+</form><div aria-live="polite" id="edge-ai-result"></div></article>
 </section>
 <section class="page" data-title="Runtime assurance" id="verification">
 <div class="section-intro"><div><h2 data-i18n="verification.heading">Runtime assurance</h2><p data-i18n="verification.description">Inspect certification evidence first, then start verification or closure workflows when required.</p></div></div>
