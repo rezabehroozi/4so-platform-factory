@@ -48,6 +48,7 @@ type externalRenderGenerationEvidence struct {
 	Namespace            string                        `json:"namespace"`
 	IncludeCRDs          bool                          `json:"includeCRDs"`
 	KubernetesVersions   []string                      `json:"kubernetesVersions"`
+	KubernetesRenderDigests map[string]string           `json:"kubernetesRenderDigests,omitempty"`
 	Values               []externalRenderValueEvidence `json:"values"`
 	ImageResolver        string                        `json:"imageResolver"`
 	ImageResolverVersion string                        `json:"imageResolverVersion"`
@@ -80,6 +81,16 @@ func verifyExternalHelmGeneration(c Component, g *externalRenderGenerationEviden
 	want := []string{componentRenderKubeVersion(c.Spec.Compatibility.Kubernetes.MinVersion), componentRenderKubeVersion(c.Spec.Compatibility.Kubernetes.MaxVersion)}
 	if want[0] == "" || want[1] == "" || len(g.KubernetesVersions) != 2 || g.KubernetesVersions[0] != want[0] || g.KubernetesVersions[1] != want[1] {
 		return fmt.Errorf("helm-chart source lock Kubernetes render window mismatch")
+	}
+	if len(g.KubernetesRenderDigests) > 0 {
+		if len(g.KubernetesRenderDigests) != 2 {
+			return fmt.Errorf("helm-chart source lock render digest matrix coverage mismatch")
+		}
+		for _, version := range want {
+			if !exactDigest(strings.TrimSpace(g.KubernetesRenderDigests[version])) {
+				return fmt.Errorf("helm-chart source lock render digest matrix missing %s", version)
+			}
+		}
 	}
 	seen := map[string]bool{}
 	for _, value := range g.Values {
