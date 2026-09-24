@@ -762,7 +762,13 @@
           "sourceReleaseMember": "bin/linux-amd64/platform-probe",
           "state": "pending"
         }
-      ]
+      ],
+      "archiveAuthority": {
+        "authority": "management-workload-oci-archive",
+        "status": "pending",
+        "acquisitionLockStatus": "incomplete",
+        "resolved": false
+      }
     },
     "openBlockers": [
       "COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING",
@@ -800,6 +806,7 @@
         "catalog/upstream-admission.json",
         "catalog/runtime/*/*/source-lock.json",
         "lab/management-workload-image-build-plan.json",
+        "lab/appliance-bundle-acquisition-lock.json",
         "lab/release-build-toolchain-lock.json",
         "catalog/component-upgrade-source-admission.json",
         "catalog/tagged-source-recipes/*",
