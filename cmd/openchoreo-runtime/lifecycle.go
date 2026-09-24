@@ -148,5 +148,5 @@ func removeRuntime(ctx context.Context, cfg lifecycleConfig) error {
 			return err
 		}
 	}
-	return deleteConfigMap(ctx, cfg.ReceiptNamespace, ownershipName)
+	return deleteOwnedConfigMap(ctx, cfg.ReceiptNamespace, ownershipName, ownershipAuthority)
 }

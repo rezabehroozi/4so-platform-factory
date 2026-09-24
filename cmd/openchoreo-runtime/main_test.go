@@ -82,3 +82,25 @@ func TestParseSuppressionsCanonicalizesAndRejectsUnknown(t *testing.T) {
 		t.Fatal("unknown native suppression admitted")
 	}
 }
+
+
+func TestManagedConfigMapObjectRejectsForeignOrUnversioned(t *testing.T) {
+	var current kubeObject
+	current.Metadata.ResourceVersion = "42"
+	current.Metadata.Annotations = map[string]string{
+		"platform.4so.io/authority": observedReceiptAuthority,
+		"platform.4so.io/managed":   "true",
+	}
+	if err := validateManagedConfigMapObject(current, observedReceiptAuthority); err != nil {
+		t.Fatalf("owned receipt rejected: %v", err)
+	}
+	current.Metadata.Annotations["platform.4so.io/authority"] = "FOREIGN_AUTHORITY"
+	if err := validateManagedConfigMapObject(current, observedReceiptAuthority); err == nil {
+		t.Fatal("foreign ConfigMap authority was admitted")
+	}
+	current.Metadata.Annotations["platform.4so.io/authority"] = observedReceiptAuthority
+	current.Metadata.ResourceVersion = ""
+	if err := validateManagedConfigMapObject(current, observedReceiptAuthority); err == nil {
+		t.Fatal("unversioned ConfigMap was admitted for overwrite/delete")
+	}
+}

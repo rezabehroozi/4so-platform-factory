@@ -94,6 +94,16 @@ func getConfigMap(ctx context.Context, namespace, name string) (kubeObject, bool
 	return out, true, nil
 }
 
+func validateManagedConfigMapObject(current kubeObject, authority string) error {
+	if strings.TrimSpace(current.Metadata.ResourceVersion) == "" {
+		return errors.New("Kubernetes ConfigMap resourceVersion is missing")
+	}
+	if current.Metadata.Annotations["platform.4so.io/authority"] != authority || current.Metadata.Annotations["platform.4so.io/managed"] != "true" {
+		return errors.New("Kubernetes ConfigMap ownership authority is foreign or ambiguous")
+	}
+	return nil
+}
+
 func upsertConfigMap(ctx context.Context, namespace, name, authority string, data map[string]string) error {
 	client, token, err := kubeClient()
 	if err != nil {
@@ -111,6 +121,9 @@ func upsertConfigMap(ctx context.Context, namespace, name, authority string, dat
 		method := http.MethodPost
 		path := "/api/v1/namespaces/" + url.PathEscape(namespace) + "/configmaps"
 		if found {
+			if ownErr := validateManagedConfigMapObject(current, authority); ownErr != nil {
+				return ownErr
+			}
 			metadata["resourceVersion"] = current.Metadata.ResourceVersion
 			method = http.MethodPut
 			path = configMapPath(namespace, name)
@@ -131,17 +144,36 @@ func upsertConfigMap(ctx context.Context, namespace, name, authority string, dat
 	return errors.New("Kubernetes ConfigMap write conflict did not converge")
 }
 
-func deleteConfigMap(ctx context.Context, namespace, name string) error {
+func deleteOwnedConfigMap(ctx context.Context, namespace, name, authority string) error {
+	current, found, err := getConfigMap(ctx, namespace, name)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New("owned Kubernetes ConfigMap disappeared before fenced delete")
+	}
+	if err = validateManagedConfigMapObject(current, authority); err != nil {
+		return err
+	}
 	client, token, err := kubeClient()
 	if err != nil {
 		return err
 	}
-	status, raw, err := kubeRequest(ctx, client, token, http.MethodDelete, configMapPath(namespace, name), []byte(`{"propagationPolicy":"Background"}`))
+	body, _ := json.Marshal(map[string]any{
+		"apiVersion": "v1",
+		"kind": "DeleteOptions",
+		"preconditions": map[string]string{"resourceVersion": current.Metadata.ResourceVersion},
+		"propagationPolicy": "Background",
+	})
+	status, raw, err := kubeRequest(ctx, client, token, http.MethodDelete, configMapPath(namespace, name), body)
 	if err != nil {
 		return err
 	}
-	if status == http.StatusOK || status == http.StatusAccepted || status == http.StatusNotFound {
+	if status == http.StatusOK || status == http.StatusAccepted {
 		return nil
+	}
+	if status == http.StatusConflict || status == http.StatusNotFound {
+		return errors.New("owned Kubernetes ConfigMap changed before fenced delete")
 	}
 	return fmt.Errorf("Kubernetes ConfigMap delete failed: status=%d body=%s", status, boundedOutput(raw))
 }
@@ -157,7 +189,10 @@ func validateOwnership(ctx context.Context, cfg lifecycleConfig, require bool) e
 		}
 		return nil
 	}
-	if current.Metadata.Annotations["platform.4so.io/authority"] != ownershipAuthority || current.Data["managed"] != "true" {
+	if err = validateManagedConfigMapObject(current, ownershipAuthority); err != nil {
+		return err
+	}
+	if current.Data["managed"] != "true" {
 		return errors.New("OpenChoreo runtime ownership is foreign or ambiguous")
 	}
 	if !require {
