@@ -58,7 +58,9 @@ def run_crane(crane: str, args: list[str]) -> str:
     return (proc.stdout or proc.stderr).strip()
 
 def mirror(acquisition: Path, prefix: str, out: Path) -> dict:
-    acquisition = acquisition.expanduser().resolve()
+    # Keep the original acquisition path until acquisition_payload() performs
+    # its lstat-based regular-file admission; resolve() here would follow symlinks.
+    acquisition = acquisition.expanduser()
     out = out.expanduser().resolve()
     lock, _ = acquisition_payload(acquisition)
     plan = mirror_plan(lock.get("images") or [], prefix)
