@@ -52,6 +52,8 @@ function applyLocale() {
 }
 
 const faDynamic = {
+  "Network egress, raw credentials and external providers are fixed to": "ارتباط خروجی شبکه، اطلاعات دسترسی خام و ارائه‌دهندهٔ خارجی در این پروفایل",
+  "by this profile.": "غیرفعال هستند.",
   "Edge & sovereign": "لبه و حاکمیت محلی",
   "Bounded offline authority · evidence first": "اختیار محدود در حالت قطع ارتباط · شواهد در اولویت",
   "Prepare and review site-local authority without creating a second control plane. These tools compile policy, assess offline requests, verify boot evidence and validate disconnected AI profiles; they do not execute runtime mutations.": "اختیار محلی سایت را بدون ایجاد کنترل‌پلین دوم آماده و بررسی کنید. این ابزارها سیاست را تدوین می‌کنند، درخواست‌های زمان قطع ارتباط را می‌سنجند، شواهد راه‌اندازی را بررسی می‌کنند و پروفایل هوش مصنوعی آفلاین را اعتبارسنجی می‌کنند؛ هیچ تغییری در محیط اجرا انجام نمی‌دهند.",
@@ -88,7 +90,7 @@ const faDynamic = {
   "Review reconnect": "بررسی اتصال مجدد",
   "4. Assess boot security": "۴. ارزیابی امنیت راه‌اندازی",
   "Verify the submitted attestation claim requires TPM, Secure Boot, measured boot, disk encryption, quote verification, nonce binding and PCR policy match.": "بررسی کنید ادعای گواهی‌شده شامل TPM، Secure Boot، راه‌اندازی اندازه‌گیری‌شده، رمزگذاری دیسک، تأیید Quote، اتصال Nonce و تطبیق سیاست PCR باشد.",
-  "Quote SHA-256": "SHA-256 Quote",
+  "Quote SHA-256": "هش SHA-256 دادهٔ Quote",
   "Event log SHA-256": "SHA-256 گزارش رویداد",
   "Evidence SHA-256": "SHA-256 شواهد",
   "TPM present": "TPM موجود است",
