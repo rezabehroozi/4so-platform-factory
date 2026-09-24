@@ -41,4 +41,21 @@ class HistoricalUpgradeBatchTests(unittest.TestCase):
         self.assertIn('--historical',cmd)
         helm=mod.acquisition_cmd('alloy','helm')
         self.assertIn('scripts/acquire_upstream_helm.py',helm)
+
+    def test_historical_stage_and_platformctl_reject_direct_symlinks(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            real_stage=root/'stage'; real_stage.mkdir()
+            stage_link=root/'stage-link'
+            real_ctl=root/'platformctl'; real_ctl.write_text('#!/bin/sh\\nexit 0\\n'); real_ctl.chmod(0o755)
+            ctl_link=root/'platformctl-link'
+            try:
+                stage_link.symlink_to(real_stage,target_is_directory=True)
+                ctl_link.symlink_to(real_ctl)
+            except OSError as exc:
+                self.skipTest(f'symlink unavailable: {exc}')
+            with self.assertRaisesRegex(RuntimeError,'PLATFORMCTL_NOT_REAL_FILE'):
+                mod.platformctl(str(ctl_link))
+            with self.assertRaisesRegex(RuntimeError,'HISTORICAL_STAGE_DIRECTORY_NOT_REAL_DIRECTORY'):
+                mod.stage_out(0,stage_link,None)
 if __name__=='__main__': unittest.main()
