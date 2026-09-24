@@ -143,7 +143,7 @@
       "component": "tetragon",
       "status": "pending-source-pair",
       "targetRelease": "1.7.0",
-      "targetSourceLockDigest": "",
+      "targetSourceLockDigest": "776015c110a0f8cc428e691ffb2333a2be71e709eda89906d97623004a0f48f8",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {

@@ -67,6 +67,12 @@
           "path": "catalog/runtime/snapshot-controller/8.5.0/source-lock.json",
           "release": "8.5.0",
           "sha256": "8d2920686614f056aff9eaab522aee634b2ab392efa1258d81661de584873067"
+        },
+        {
+          "component": "tetragon",
+          "path": "catalog/runtime/tetragon/1.7.0/source-lock.json",
+          "release": "1.7.0",
+          "sha256": "3fb6e6b100a43dcbcaf1cdaaee5f58ef923188ce8ed54e9a5329974e9a2c60d7"
         }
       ],
       "ready": [
@@ -125,14 +131,6 @@
           "source": "https://metallb.github.io/metallb",
           "status": "ready-for-acquisition",
           "upstreamVersion": "0.16.1"
-        },
-        {
-          "component": "tetragon",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "1.7.0",
-          "source": "https://helm.cilium.io",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "1.7.0"
         },
         {
           "component": "velero",
@@ -322,11 +320,11 @@
       },
       {
         "component": "tetragon",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.7.0",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "velero",
@@ -538,6 +536,12 @@
           "previousVersion": "2.4.0",
           "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
           "targetRelease": "2.4.1"
+        },
+        {
+          "component": "tetragon",
+          "previousVersion": "1.6.1",
+          "source": "https://helm.cilium.io",
+          "targetRelease": "1.7.0"
         }
       ],
       "installOnlyFirstProductRelease": [
@@ -607,12 +611,6 @@
           "previousVersion": "0.16.0",
           "source": "https://metallb.github.io/metallb",
           "targetRelease": "0.16.1"
-        },
-        {
-          "component": "tetragon",
-          "previousVersion": "1.6.1",
-          "source": "https://helm.cilium.io",
-          "targetRelease": "1.7.0"
         },
         {
           "component": "velero",

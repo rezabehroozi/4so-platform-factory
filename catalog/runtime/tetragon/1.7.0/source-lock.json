@@ -1,0 +1,26 @@
+{
+  "component": "tetragon",
+  "version": "1.7.0",
+  "sourceType": "helm-chart",
+  "upstreamUrl": "https://helm.cilium.io",
+  "upstreamRevision": "1.7.0",
+  "upstreamArtifact": "tetragon-1.7.0.tgz",
+  "upstreamArtifactDigest": "sha256:2d142ecff37a05bc2efab4c3f90cac2a545e8951d845fd15d023e1cbc31685f5",
+  "networkFetchRequired": false,
+  "renderer": "json-resource-list-v1",
+  "upstreamVerification": "sha256-pinned-offline",
+  "generation": {
+    "tool": "helm-template",
+    "toolVersion": "v4.2.4+g3900f43",
+    "releaseName": "platform-factory",
+    "namespace": "tetragon",
+    "includeCRDs": true,
+    "kubernetesVersions": [
+      "1.34.0",
+      "1.35.0"
+    ],
+    "values": [],
+    "imageResolver": "crane-digest",
+    "imageResolverVersion": "0.22.1"
+  }
+}

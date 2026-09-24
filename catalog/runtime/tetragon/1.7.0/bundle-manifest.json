@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "tetragon",
+  "version": "1.7.0",
+  "sourceType": "helm-chart",
+  "bundleKey": "tetragon/1.7.0",
+  "upstream": {
+    "url": "https://helm.cilium.io",
+    "revision": "1.7.0",
+    "artifact": "tetragon-1.7.0.tgz",
+    "artifactDigest": "sha256:2d142ecff37a05bc2efab4c3f90cac2a545e8951d845fd15d023e1cbc31685f5",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:2d142ecff37a05bc2efab4c3f90cac2a545e8951d845fd15d023e1cbc31685f5",
+    "component.json": "sha256:40bffe6ce296f066e88504b1ce4c6ffba45e087bb31d586c61bbc6025761b8e6",
+    "image-inventory.json": "sha256:3cd1b145e4113bfbd504177a6f1cd14892bf6ad0c85503517010ac314f4a242d",
+    "licenses.json": "sha256:43a4e372b4bcde815f517cedbe80f9d86a8dddc3f6563652990c5acf3b3a3018",
+    "provenance.json": "sha256:c5dcde611d1837d62201103a7509e8d5ab2f1aaa8941c2b22faa1fcc9b3c286f",
+    "render-manifest.json": "sha256:58d4adc7fe9404478c97a5b31663c81c449ede338710f66b11e17f1d6428c1e6",
+    "sbom.spdx.json": "sha256:ca76b776774c130fc4c1a811ad98ef4728bf50842afdccdbf2d2342dd57aaa01",
+    "source-lock.json": "sha256:3fb6e6b100a43dcbcaf1cdaaee5f58ef923188ce8ed54e9a5329974e9a2c60d7"
+  }
+}

@@ -163,18 +163,6 @@
         "upstreamVersion": "0.16.1"
       },
       {
-        "catalogConstraint": "1.7.x",
-        "chart": "tetragon",
-        "component": "tetragon",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Exact 1.7 chart selected; optional runtime-security capability remains subject to target capability resolution and runtime certification.",
-        "selectedVersion": "1.7.0",
-        "source": "https://helm.cilium.io",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "1.7.0"
-      },
-      {
         "catalogConstraint": "12.1.x",
         "chart": "velero",
         "component": "velero",
