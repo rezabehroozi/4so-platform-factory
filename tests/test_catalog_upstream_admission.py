@@ -24,108 +24,70 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
         _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
         unresolved = mod.unresolved_helm_components(ROOT)
         self.assertEqual({r["component"] for r in rows}, set(unresolved))
-        self.assertEqual(17, sum(r["status"] == "ready-for-acquisition" for r in rows))
-        self.assertEqual(3, sum(r["runtimeStatus"] != "eligible-after-source-resolution" for r in rows))
+        self.assertTrue(all(r["status"] == "ready-for-acquisition" for r in rows))
 
-
-    def test_runtime_review_rows_remain_acquisition_ready_with_structured_blocker_evidence(self):
+    def test_named_source_authorities_survive_progressive_acquisition(self):
         _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
         by_name = {r["component"]: r for r in rows}
-        for name in ("kyverno", "metallb"):
-            row = by_name[name]
-            self.assertEqual("ready-for-acquisition", row["status"])
-            self.assertEqual("review-required", row["runtimeStatus"])
-            self.assertRegex(row["selectedVersion"], r"^[0-9]+\.[0-9]+\.[0-9]+$")
-            self.assertEqual(row["selectedVersion"], row["upstreamVersion"])
-            self.assertTrue(any(e["kind"] == "blocker" for e in row["reviewEvidence"]))
+        components = {}
+        for path in (ROOT / "catalog/components").glob("*.json"):
+            doc=json.loads(path.read_text()); components[doc["metadata"]["name"]]=doc["spec"]
+        expected = {
+            "ceph-csi-rbd": ("1.0.4", "https://ceph.github.io/ceph-csi-operator/"),
+            "loki": ("18.12.1", "https://grafana-community.github.io/helm-charts"),
+            "cilium": ("1.20.1", "https://helm.cilium.io"),
+            "grafana": ("12.10.0", "https://grafana-community.github.io/helm-charts"),
+        }
+        for name,(version,source) in expected.items():
+            spec=components[name]
+            self.assertEqual(version,spec["release"])
+            if spec["source"]["resolved"]:
+                self.assertNotIn(name,by_name)
+                self.assertTrue((ROOT / "catalog/runtime" / name / version / "source-lock.json").is_file())
+            else:
+                self.assertEqual(source,by_name[name]["source"])
+                self.assertEqual(version,by_name[name]["selectedVersion"])
+                self.assertEqual("ready-for-acquisition",by_name[name]["status"])
 
-    def test_kgateway_gateway_api_compatibility_is_exactly_admitted(self):
+    def test_runtime_suitability_holds_persist_independent_of_source_acquisition(self):
+        registry=json.loads((ROOT/"catalog/component-runtime-certification.json").read_text())
+        holds={r["component"]:r for r in registry["spec"]["runtimeSuitabilityHolds"]}
+        self.assertEqual({"cilium","kyverno","metallb"},set(holds))
         _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
-        row = next(r for r in rows if r["component"] == "kgateway")
-        self.assertEqual("ready-for-acquisition", row["status"])
-        self.assertEqual("2.4.1", row["selectedVersion"])
-        component = mod.unresolved_helm_components(ROOT)["kgateway"]["spec"]
-        self.assertEqual("2.4.1", component["release"])
-        self.assertEqual("exact-upstream-admitted-pending-source-acquisition", component["versionPolicy"])
-        gateway = json.loads((ROOT / "catalog" / "components" / "gateway-api.json").read_text())["spec"]
-        self.assertEqual("1.5.1", gateway["release"])
+        by_name={r["component"]:r for r in rows}
+        for name,hold in holds.items():
+            spec=json.loads((ROOT/"catalog/components"/f"{name}.json").read_text())["spec"]
+            self.assertIn(hold["status"],{"dependency-transition-required","review-required"})
+            self.assertEqual("candidate",spec["certification"]["status"])
+            if spec["source"]["resolved"]:
+                self.assertNotIn(name,by_name)
+                self.assertTrue(spec["source"]["sourceLockDigest"].startswith("sha256:"))
+            else:
+                self.assertEqual("ready-for-acquisition",by_name[name]["status"])
+                self.assertEqual(hold["status"],by_name[name]["runtimeStatus"])
 
-    def test_loki_community_migration_is_exact_but_still_unresolved(self):
-        _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
-        row = next(r for r in rows if r["component"] == "loki")
-        self.assertEqual("ready-for-acquisition", row["status"])
-        self.assertEqual("18.12.1", row["selectedVersion"])
-        self.assertEqual("https://grafana-community.github.io/helm-charts", row["source"])
-        self.assertTrue(any(e["kind"] == "source-migration" for e in row["reviewEvidence"]))
-        spec = mod.unresolved_helm_components(ROOT)["loki"]["spec"]
-        self.assertEqual("18.12.1", spec["release"])
-        self.assertFalse(spec["source"]["resolved"])
-
-    def test_ceph_csi_operator_managed_architecture_is_exact_but_unresolved(self):
-        _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
-        by_name = {r["component"]: r for r in rows}
-        for name, chart, source in (
-            ("ceph-csi-operator", "ceph-csi-operator", "https://ceph.github.io/ceph-csi-operator/"),
-            ("ceph-csi-rbd", "ceph-csi-drivers", "https://ceph.github.io/ceph-csi-operator-charts"),
-        ):
-            row = by_name[name]
-            self.assertEqual("ready-for-acquisition", row["status"])
-            self.assertEqual("1.0.4", row["selectedVersion"])
-            self.assertEqual(chart, row["chart"])
-            self.assertEqual(source, row["source"])
-            spec = mod.unresolved_helm_components(ROOT)[name]["spec"]
-            self.assertEqual("1.0.4", spec["release"])
-            self.assertFalse(spec["source"]["resolved"])
-        driver = mod.unresolved_helm_components(ROOT)["ceph-csi-rbd"]["spec"]
-        self.assertIn("ceph-csi-operator", driver["dependencies"])
-        self.assertEqual("driver/rbd.csi.ceph.com", driver["readiness"][0])
-
-    def test_cilium_source_is_acquirable_while_runtime_stays_fail_closed_until_gateway_api_161(self):
-        _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
-        cilium = next(r for r in rows if r["component"] == "cilium")
-        self.assertEqual("ready-for-acquisition", cilium["status"])
-        self.assertEqual("dependency-transition-required", cilium["runtimeStatus"])
-        self.assertEqual("1.20.1", cilium["selectedVersion"])
-        gateway = json.loads((ROOT / "catalog" / "components" / "gateway-api.json").read_text())["spec"]
-        self.assertEqual("1.5.1", gateway["release"])
-        self.assertTrue(gateway["source"]["resolved"])
-
-    def test_grafana_migration_is_exact_but_still_unresolved(self):
-        _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
-        row = next(r for r in rows if r["component"] == "grafana")
-        self.assertEqual("ready-for-acquisition", row["status"])
-        self.assertEqual("12.10.0", row["selectedVersion"])
-        self.assertEqual("https://grafana-community.github.io/helm-charts", row["source"])
-        self.assertTrue(any(e["kind"] == "source-migration" for e in row["reviewEvidence"]))
-        spec = mod.unresolved_helm_components(ROOT)["grafana"]["spec"]
-        self.assertFalse(spec["source"]["resolved"])
-        self.assertEqual("exact-upstream-admitted-pending-source-acquisition", spec["versionPolicy"])
-
-    def test_ready_rows_are_exact_pins_but_not_resolved_sources(self):
+    def test_ready_rows_are_exact_pins_and_carry_license_authority(self):
         _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
         components = mod.unresolved_helm_components(ROOT)
         for row in rows:
-            if row["status"] != "ready-for-acquisition":
-                continue
+            self.assertEqual("ready-for-acquisition", row["status"])
             comp = components[row["component"]]["spec"]
             self.assertEqual(row["selectedVersion"], comp["release"])
             self.assertFalse(comp["source"]["resolved"])
             self.assertEqual("", comp["source"]["sourceLockDigest"])
-            self.assertEqual("candidate", comp["certification"]["status"])
-            self.assertEqual("", comp["certification"]["evidenceDigest"])
+            self.assertRegex(str(row.get("licenseSPDX") or ""), r"^[A-Za-z0-9][A-Za-z0-9.+-]*$")
+            for value in row.get("valuesFiles") or []:
+                self.assertTrue((ROOT/value).is_file(), value)
 
-    def test_runtime_holds_do_not_clear_source_or_certification_gates(self):
+    def test_live_admission_applies_canonical_license_and_values(self):
         _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
-        components = mod.unresolved_helm_components(ROOT)
-        held = [r for r in rows if r["runtimeStatus"] != "eligible-after-source-resolution"]
-        self.assertEqual(3, len(held))
-        for row in held:
-            spec = components[row["component"]]["spec"]
-            self.assertEqual("ready-for-acquisition", row["status"])
-            self.assertFalse(spec["source"]["resolved"])
-            self.assertEqual("", spec["source"]["sourceLockDigest"])
-            self.assertEqual("exact-upstream-admitted-pending-source-acquisition", spec["versionPolicy"])
-            self.assertEqual("candidate", spec["certification"]["status"])
+        self.assertTrue(rows)
+        row=rows[0]
+        from types import SimpleNamespace
+        args = SimpleNamespace(from_upgrade_admission=False, historical=False, from_admission=True, component=row["component"], authority=str(ROOT / "catalog" / "upstream-admission.json"), version=None, source=None, upstream_version=None, license_spdx=None, values=[])
+        acquire_mod.apply_admission(args)
+        self.assertEqual(row["licenseSPDX"], args.license_spdx)
+        self.assertEqual(row.get("valuesFiles") or [], [str(v) for v in args.values])
 
     def test_constraint_match_does_not_widen_minor_series(self):
         self.assertTrue(mod.constraint_matches("1.21.x", "1.21.1"))
