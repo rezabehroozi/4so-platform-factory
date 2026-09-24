@@ -105,7 +105,9 @@ func writeRuntimeCertificationRegistrySet(t *testing.T, root string, components 
 				"executorBinding":         "component-owned-no-generic-runtime-certification-claim",
 				"requiredLifecycleStages": stages,
 				"replacementPolicy":       "resolved-source-replacement-denied-without-explicit-versioned-migration",
+				"runtimeSuitabilityBinding": "persistent-independent-of-source-acquisition",
 			},
+			"runtimeSuitabilityHolds": []any{},
 			"components": rows,
 		},
 	}
