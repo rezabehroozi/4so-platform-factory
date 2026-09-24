@@ -19,6 +19,14 @@ import zipfile
 from pathlib import Path
 
 import acquire_upstream_helm as helm
+from openchoreo_runtime_contract import (
+    ACQUISITION_AUTHORITY as AUTHORITY,
+    OCI_BASE,
+    SOURCE_AUTHORITY,
+    UPSTREAM_COMMIT,
+    UPSTREAM_REPOSITORY,
+    VERSION,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SELECTION_PATH = ROOT / "runtime" / "openchoreo" / "source-selection.json"
@@ -26,11 +34,6 @@ VALUES = {
     "control-plane": ROOT / "runtime" / "openchoreo" / "control-plane-values.yaml",
     "data-plane": ROOT / "runtime" / "openchoreo" / "data-plane-values.yaml",
 }
-AUTHORITY = "OPENCHOREO_RUNTIME_ACQUISITION_AUTHORITY_V1"
-SOURCE_AUTHORITY = "OPENCHOREO_RUNTIME_SOURCE_AUTHORITY_V1"
-VERSION = "1.3.0"
-UPSTREAM_COMMIT = "178dfbde3e3343e5ac151b88a2f203f523f97480"
-OCI_BASE = "oci://ghcr.io/openchoreo/helm-charts"
 FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 
 def sha256_bytes(raw: bytes) -> str:
@@ -44,7 +47,7 @@ def load_selection() -> dict:
     spec = doc.get("spec") or {}
     if spec.get("authority") != SOURCE_AUTHORITY or spec.get("version") != VERSION:
         raise RuntimeError("OPENCHOREO_SOURCE_SELECTION_IDENTITY_DRIFT")
-    if spec.get("upstreamRepository") != "https://github.com/openchoreo/openchoreo" or spec.get("upstreamCommit") != UPSTREAM_COMMIT:
+    if spec.get("upstreamRepository") != UPSTREAM_REPOSITORY or spec.get("upstreamCommit") != UPSTREAM_COMMIT:
         raise RuntimeError("OPENCHOREO_UPSTREAM_COMMIT_DRIFT")
     planes = {v.get("name"): v for v in spec.get("planes") or []}
     expected = {"control-plane": "openchoreo-control-plane", "data-plane": "openchoreo-data-plane"}
@@ -79,7 +82,7 @@ def validate_values() -> None:
             raise RuntimeError(f"OPENCHOREO_FORBIDDEN_DEFAULT_DEPENDENCY {forbidden}")
 
 def source_archive(tmp: Path, timeout: int) -> Path:
-    url = f"https://github.com/openchoreo/openchoreo/archive/{UPSTREAM_COMMIT}.tar.gz"
+    url = f"{UPSTREAM_REPOSITORY}/archive/{UPSTREAM_COMMIT}.tar.gz"
     out = tmp / f"openchoreo-{UPSTREAM_COMMIT}.tar.gz"
     req = urllib.request.Request(url, headers={"User-Agent": "4so-platform-factory-openchoreo-acquirer/1"})
     with urllib.request.urlopen(req, timeout=timeout) as response, out.open("wb") as target:
@@ -165,7 +168,7 @@ def acquire(out: Path, timeout: int) -> dict:
         lock = {
             "apiVersion": "platform.4so.io/v1alpha1", "kind": "OpenChoreoRuntimeAcquisition",
             "authority": AUTHORITY, "sourceAuthority": SOURCE_AUTHORITY, "version": VERSION,
-            "upstreamRepository": "https://github.com/openchoreo/openchoreo", "upstreamCommit": UPSTREAM_COMMIT,
+            "upstreamRepository": UPSTREAM_REPOSITORY, "upstreamCommit": UPSTREAM_COMMIT,
             "sourceArchiveSha256": sha256_path(archive), "planes": planes, "images": images,
             "excludedPlanes": ["workflow-plane", "observability-plane"], "backstageEnabled": False,
             "openChoreoMcpEnabled": False, "externalOidcRequired": True,
