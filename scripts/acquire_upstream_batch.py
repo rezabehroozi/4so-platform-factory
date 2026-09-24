@@ -242,6 +242,28 @@ def validate_stage_manifest(stage_dir: Path, manifest: dict, *, root: Path = ROO
     return sorted(normalized_entries, key=lambda row: row["component"])
 
 
+def installed_current_source_matches(entry: dict, *, root: Path = ROOT) -> bool:
+    component = str(entry.get("component") or "")
+    version = normalized(str(entry.get("version") or ""))
+    lock_path = root / "catalog" / "runtime" / component / version / "source-lock.json"
+    if not lock_path.exists() and not lock_path.is_symlink():
+        return False
+    _regular_file(lock_path, "STAGED_BATCH_INSTALLED_SOURCE_LOCK")
+    lock = json.loads(lock_path.read_text())
+    if not isinstance(lock, dict):
+        raise RuntimeError(f"STAGED_BATCH_INSTALLED_SOURCE_LOCK_INVALID {component}")
+    expected = {
+        "component": component,
+        "version": version,
+        "upstreamUrl": str(entry.get("source") or ""),
+        "upstreamArtifactDigest": str(entry.get("upstreamArtifactDigest") or ""),
+    }
+    actual = {key: str(lock.get(key) or "") for key in expected}
+    if actual != expected:
+        raise RuntimeError(f"STAGED_BATCH_INSTALLED_SOURCE_DRIFT {component}")
+    return True
+
+
 def emit_plan(as_json: bool) -> int:
     ready, review = queue()
     payload = {
@@ -348,8 +370,12 @@ def install_staged(stage_dir: Path, platformctl: str | None) -> int:
     entries = validate_stage_manifest(stage_dir, json.loads(manifest_path.read_text()))
     ctl = platformctl_prefix(platformctl)
     completed: list[str] = []
+    skipped: list[str] = []
     for entry in entries:
         component = str(entry["component"])
+        if installed_current_source_matches(entry):
+            skipped.append(component)
+            continue
         bundle = stage_dir / str(entry["bundleFile"])
         verified = _run_json(ctl + ["catalog-bundle", "verify", "-f", str(bundle)])
         if verified.get("component") != component or normalized(str(verified.get("version") or "")) != entry["version"] or verified.get("bundleDigest") != entry["bundleDigest"] or verified.get("upstreamArtifactDigest") != entry["upstreamArtifactDigest"] or verified.get("upstreamUrl") != entry["source"]:
@@ -366,7 +392,7 @@ def install_staged(stage_dir: Path, platformctl: str | None) -> int:
             return proc.returncode
     remaining_ready, review = queue()
     status = "PASS" if not remaining_ready and not review else "CHECKPOINT_PASS"
-    print("UPSTREAM_BATCH_INSTALL_%s installed=%d completed=%s remainingReady=%d review=%d" % (status, len(completed), ",".join(completed), len(remaining_ready), len(review)))
+    print("UPSTREAM_BATCH_INSTALL_%s installed=%d skipped=%d completed=%s remainingReady=%d review=%d" % (status, len(completed), len(skipped), ",".join(completed), len(remaining_ready), len(review)))
     return 0
 
 
