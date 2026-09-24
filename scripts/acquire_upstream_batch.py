@@ -309,11 +309,15 @@ def stage(limit: int, stage_dir: Path, platformctl: str | None) -> int:
         row = admission[component]
         version = normalized(str(row["selectedVersion"]))
         out = stage_dir / f"{component}-{version}.zip"
-        proc = subprocess.run(acquisition_cmd(component, platformctl=platformctl, install=False, out=out), cwd=ROOT, text=True)
-        if proc.returncode != 0:
-            print("UPSTREAM_BATCH_STAGE_CHECKPOINT component=%s rc=%d completed=%s" % (component, proc.returncode, ",".join(sorted(completed))), file=sys.stderr)
-            return proc.returncode
-        verified = _run_json(ctl + ["catalog-bundle", "verify", "-f", str(out)])
+        if out.exists() or out.is_symlink():
+            _regular_file(out, "STAGED_BATCH_ORPHAN_BUNDLE")
+            verified = _run_json(ctl + ["catalog-bundle", "verify", "-f", str(out)])
+        else:
+            proc = subprocess.run(acquisition_cmd(component, platformctl=platformctl, install=False, out=out), cwd=ROOT, text=True)
+            if proc.returncode != 0:
+                print("UPSTREAM_BATCH_STAGE_CHECKPOINT component=%s rc=%d completed=%s" % (component, proc.returncode, ",".join(sorted(completed))), file=sys.stderr)
+                return proc.returncode
+            verified = _run_json(ctl + ["catalog-bundle", "verify", "-f", str(out)])
         completed[component] = _stage_entry(row, out, verified)
         _atomic_json(manifest_path, stage_manifest(list(completed.values())))
     if not completed:
