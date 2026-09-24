@@ -1307,6 +1307,9 @@ func (a *agent) report(ctx context.Context) error {
 	if networking.GatewayAPI {
 		capabilities = append(capabilities, "gateway-api")
 	}
+	if a.openChoreoExecutorRBACActive(ctx) {
+		capabilities = append(capabilities, controlplane.OpenChoreoExecutorRBACCapability)
+	}
 	if workloadExplorer.Complete {
 		capabilities = append(capabilities, "workload-explorer-read")
 	}
@@ -1562,6 +1565,56 @@ func (a *agent) enrollmentPrincipalIsolated() bool {
 		return false
 	}
 	return subtle.ConstantTimeCompare([]byte(strings.TrimSpace(a.cfg.ServiceAccount)), []byte(controlplane.FleetAgentServiceAccountName(a.cfg.ImportID))) == 1
+}
+
+func (a *agent) subjectAccessAllowed(ctx context.Context, user, namespace, verb, group, version, resource string) bool {
+	body := map[string]any{
+		"apiVersion": "authorization.k8s.io/v1",
+		"kind": "SubjectAccessReview",
+		"spec": map[string]any{
+			"user": user,
+			"resourceAttributes": map[string]any{
+				"namespace": namespace, "verb": verb, "group": group, "version": version, "resource": resource,
+			},
+		},
+	}
+	var response struct {
+		Status struct {
+			Allowed bool `json:"allowed"`
+			Denied bool `json:"denied"`
+		} `json:"status"`
+	}
+	if err := a.kubeJSON(ctx, http.MethodPost, "/apis/authorization.k8s.io/v1/subjectaccessreviews", body, &response); err != nil {
+		return false
+	}
+	return response.Status.Allowed && !response.Status.Denied
+}
+
+func (a *agent) openChoreoExecutorRBACActive(ctx context.Context) bool {
+	namespace := strings.TrimSpace(a.cfg.Namespace)
+	agentSA := strings.TrimSpace(a.cfg.ServiceAccount)
+	if namespace == "" || agentSA == "" {
+		return false
+	}
+	agentUser := "system:serviceaccount:" + namespace + ":" + agentSA
+	executorUser := "system:serviceaccount:" + namespace + ":4so-openchoreo-executor"
+	checks := []struct{ user, namespace, verb, group, version, resource string }{
+		{agentUser, namespace, "create", "batch", "v1", "jobs"},
+		{agentUser, namespace, "get", "", "v1", "configmaps"},
+		{executorUser, "", "create", "", "v1", "namespaces"},
+		{executorUser, namespace, "create", "", "v1", "configmaps"},
+		{executorUser, "", "create", "apiextensions.k8s.io", "v1", "customresourcedefinitions"},
+		{executorUser, "", "create", "rbac.authorization.k8s.io", "v1", "clusterroles"},
+		{executorUser, "", "create", "admissionregistration.k8s.io", "v1", "validatingwebhookconfigurations"},
+		{executorUser, "openchoreo-control-plane", "create", "cert-manager.io", "v1", "certificates"},
+		{executorUser, "openchoreo-control-plane", "create", "apps", "v1", "deployments"},
+	}
+	for _, check := range checks {
+		if !a.subjectAccessAllowed(ctx, check.user, check.namespace, check.verb, check.group, check.version, check.resource) {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *agent) mutationRBACActive(ctx context.Context, expectedBasisDigest string) bool {

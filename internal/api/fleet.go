@@ -578,7 +578,122 @@ subjects:
 - kind: ServiceAccount
   name: %s
   namespace: 4so-platform-agent
-`, clusterID, clusterID, clusterID, clusterID, clusterID, externalUID, inventoryDigest, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName)
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: 4so-openchoreo-executor
+  namespace: 4so-platform-agent
+  labels:
+    platform.4so.io/managed: "true"
+    platform.4so.io/runtime-role: openchoreo-executor
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: 4so-platform-runtime-job-launcher
+  namespace: 4so-platform-agent
+rules:
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create", "delete"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["4so-openchoreo-runtime", "4so-openchoreo-runtime-ownership"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  resourceNames: ["4so-openchoreo-executor"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: 4so-platform-runtime-job-launcher
+  namespace: 4so-platform-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: 4so-platform-runtime-job-launcher
+subjects:
+- kind: ServiceAccount
+  name: %s
+  namespace: 4so-platform-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: 4so-platform-runtime-rbac-observer
+rules:
+- apiGroups: ["authorization.k8s.io"]
+  resources: ["subjectaccessreviews"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: 4so-platform-runtime-rbac-observer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: 4so-platform-runtime-rbac-observer
+subjects:
+- kind: ServiceAccount
+  name: %s
+  namespace: 4so-platform-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: 4so-openchoreo-runtime-manager
+rules:
+- apiGroups: [""]
+  resources: ["namespaces", "configmaps", "secrets", "serviceaccounts", "services"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["cert-manager.io"]
+  resources: ["issuers", "certificates"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: 4so-openchoreo-runtime-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: 4so-openchoreo-runtime-manager
+subjects:
+- kind: ServiceAccount
+  name: 4so-openchoreo-executor
+  namespace: 4so-platform-agent
+`, clusterID, clusterID, clusterID, clusterID, clusterID, externalUID, inventoryDigest, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, serviceAccountName, serviceAccountName)
 }
 
 // renderClusterRevocationRBACManifest is an idempotent target-side authorization
@@ -704,6 +819,37 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: 4so-platform-agent-tenant-manager
+subjects: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: 4so-platform-runtime-job-launcher
+  namespace: 4so-platform-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: 4so-platform-runtime-job-launcher
+subjects: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: 4so-platform-runtime-rbac-observer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: 4so-platform-runtime-rbac-observer
+subjects: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: 4so-openchoreo-runtime-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: 4so-openchoreo-runtime-manager
 subjects: []
 `
 }

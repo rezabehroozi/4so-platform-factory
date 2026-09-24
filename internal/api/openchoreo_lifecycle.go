@@ -74,10 +74,32 @@ func parseOpenChoreoLifecycleTarget(target string) (string, openchoreo.Lifecycle
 	return strings.TrimSpace(rest[:index]), action, nil
 }
 
+func openChoreoInventoryCapability(inventory controlplane.ClusterInventory, capability string) bool {
+	for _, raw := range inventory.Capabilities {
+		if strings.EqualFold(strings.TrimSpace(raw), capability) { return true }
+	}
+	return false
+}
+
+func openChoreoCertManagerReady(inventory controlplane.ClusterInventory) bool {
+	certificate, issuer := false, false
+	for _, resource := range inventory.APIResources {
+		if resource.Group != "cert-manager.io" || resource.Version != "v1" { continue }
+		switch {
+		case resource.Kind == "Certificate" && resource.Resource == "certificates": certificate = true
+		case resource.Kind == "Issuer" && resource.Resource == "issuers": issuer = true
+		}
+	}
+	return inventory.APIDiscoveryComplete && certificate && issuer
+}
+
 func (s *Server) openChoreoAdmissionForCluster(ctx context.Context, cluster controlplane.ManagedCluster, inventory controlplane.ClusterInventory, disconnected bool) targetmodel.OpenChoreoTargetAdapterAdmission {
 	return targetmodel.EvaluateOpenChoreoTargetAdapterAdmission(targetmodel.OpenChoreoTargetAdapterAdmissionInput{
 		DistributionIdentity: inventory.Distribution,
 		TargetAdmitted: cluster.ConnectionState != "REVOKED",
+		TargetMutationReady: openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability),
+		ExecutorRBACReady: openChoreoInventoryCapability(inventory, controlplane.OpenChoreoExecutorRBACCapability),
+		CertificateManagerReady: openChoreoCertManagerReady(inventory),
 		CapabilityDiscoveryComplete: inventory.APIDiscoveryComplete && inventory.CRDDiscoveryComplete && inventory.SchemaDiscoveryComplete,
 		ObservedCapabilities: inventory.Capabilities,
 		ExactSourceAdmitted: s.openChoreoRuntimeReady,

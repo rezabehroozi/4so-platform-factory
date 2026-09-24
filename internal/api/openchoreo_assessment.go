@@ -15,6 +15,7 @@ func (s *Server) assessOpenChoreoTargetAdapter(w http.ResponseWriter,r *http.Req
 	inv,err:=s.store.GetLatestClusterInventory(r.Context(),cluster.ID);if err!=nil{
 		out:=targetmodel.EvaluateOpenChoreoTargetAdapterAdmission(targetmodel.OpenChoreoTargetAdapterAdmissionInput{DistributionIdentity:cluster.Distribution,TargetAdmitted:cluster.ConnectionState!="REVOKED",Disconnected:input.Disconnected,ExactSourceAdmitted:s.openChoreoRuntimeReady,DisconnectedMirrorAdmitted:s.openChoreoRuntimeReady,DurableLifecycleReady:true});writeJSON(w,http.StatusOK,out);return}
 	complete:=inv.APIDiscoveryComplete&&inv.CRDDiscoveryComplete&&inv.SchemaDiscoveryComplete
-	out:=targetmodel.EvaluateOpenChoreoTargetAdapterAdmission(targetmodel.OpenChoreoTargetAdapterAdmissionInput{DistributionIdentity:inv.Distribution,TargetAdmitted:cluster.ConnectionState!="REVOKED",CapabilityDiscoveryComplete:complete,ObservedCapabilities:inv.Capabilities,Disconnected:input.Disconnected,ExactSourceAdmitted:s.openChoreoRuntimeReady,DisconnectedMirrorAdmitted:s.openChoreoRuntimeReady,DurableLifecycleReady:true,DuplicateStackResolved:complete})
+	_ = complete
+	out:=s.openChoreoAdmissionForCluster(r.Context(),cluster,inv,input.Disconnected)
 	writeJSON(w,http.StatusOK,out)
 }

@@ -6,3 +6,7 @@ clusterAgent:
   metrics:
     serviceMonitor:
       enabled: false
+
+# Keep the OpenChoreo data plane internal; distribution/target ingress remains authoritative.
+gateway:
+  enabled: false

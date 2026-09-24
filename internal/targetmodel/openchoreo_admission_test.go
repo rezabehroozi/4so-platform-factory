@@ -7,7 +7,7 @@ func TestOpenChoreoTargetAdapterAdmissionFailsClosedUntilExactSourceAndLifecycle
 	for _,want:=range []string{"networking-and-ingress-native","observability-native","operator-lifecycle-native","tenancy-native"}{if !containsString(out.NativeCapabilitySuppressions,want){t.Fatalf("missing suppression %s: %#v",want,out)}}
 }
 func TestOpenChoreoTargetAdapterAdmissionCanOnlyAdmitSupportedTargetWithAllPrerequisites(t *testing.T){
-	out:=EvaluateOpenChoreoTargetAdapterAdmission(OpenChoreoTargetAdapterAdmissionInput{DistributionIdentity:"rke2",TargetAdmitted:true,CapabilityDiscoveryComplete:true,ExactSourceAdmitted:true,Disconnected:true,DisconnectedMirrorAdmitted:true,DurableLifecycleReady:true,DuplicateStackResolved:true})
+	out:=EvaluateOpenChoreoTargetAdapterAdmission(OpenChoreoTargetAdapterAdmissionInput{DistributionIdentity:"rke2",TargetAdmitted:true,TargetMutationReady:true,ExecutorRBACReady:true,CertificateManagerReady:true,CapabilityDiscoveryComplete:true,ExactSourceAdmitted:true,Disconnected:true,DisconnectedMirrorAdmitted:true,DurableLifecycleReady:true,DuplicateStackResolved:true})
 	if !out.Eligible||len(out.Blockers)!=0||out.PhysicalCertificationInferred{t.Fatalf("expected source admission: %#v",out)}
 }
 
@@ -23,4 +23,15 @@ func TestOpenChoreoAdmissionSeparatesLifecycleContractFromExactSourceAcquisition
 	if out.Eligible{t.Fatalf("adapter admitted without exact source: %#v",out)}
 	if !containsString(out.Blockers,"OPENCHOREO_EXACT_SOURCE_AUTHORITY_PENDING"){t.Fatalf("exact-source blocker missing: %#v",out.Blockers)}
 	if containsString(out.Blockers,"OPENCHOREO_DURABLE_LIFECYCLE_CONTRACT_PENDING"){t.Fatalf("implemented lifecycle contract was incorrectly tied to source acquisition: %#v",out.Blockers)}
+}
+
+func TestOpenChoreoAdmissionRequiresRuntimePrerequisites(t *testing.T){
+	base:=OpenChoreoTargetAdapterAdmissionInput{DistributionIdentity:"rke2",TargetAdmitted:true,CapabilityDiscoveryComplete:true,ExactSourceAdmitted:true,DurableLifecycleReady:true,DuplicateStackResolved:true}
+	out:=EvaluateOpenChoreoTargetAdapterAdmission(base)
+	for _,want:=range []string{"TARGET_MUTATION_RBAC_NOT_READY","OPENCHOREO_EXECUTOR_RBAC_NOT_READY","OPENCHOREO_CERT_MANAGER_CAPABILITY_PENDING"}{
+		if !containsString(out.Blockers,want){t.Fatalf("missing prerequisite blocker %s: %#v",want,out)}
+	}
+	base.TargetMutationReady=true;base.ExecutorRBACReady=true;base.CertificateManagerReady=true
+	out=EvaluateOpenChoreoTargetAdapterAdmission(base)
+	if !out.Eligible{t.Fatalf("runtime prerequisites did not admit adapter: %#v",out)}
 }

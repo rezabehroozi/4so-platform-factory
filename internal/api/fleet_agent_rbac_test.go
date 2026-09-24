@@ -129,3 +129,13 @@ func TestClusterRevocationRBACManifestForReadOnlyTargetOmitsMutationNamespaces(t
 		t.Fatalf("read-only revocation fence did not normalize missing inventory digest\n%s", manifest)
 	}
 }
+
+func TestMutationActivationIncludesBoundedOpenChoreoExecutorAuthority(t *testing.T) {
+	manifest := renderClusterMutationActivationManifest("clu_openchoreo", "4so-platform-agent-test", "uid-openchoreo", "sha256:"+strings.Repeat("a", 64))
+	for _, want := range []string{"4so-openchoreo-executor", "4so-platform-runtime-job-launcher", "4so-platform-runtime-rbac-observer", "4so-openchoreo-runtime-manager", `resources: ["subjectaccessreviews"]`, `resources: ["customresourcedefinitions"]`, `resources: ["certificates"]`} {
+		if !strings.Contains(manifest, want) { t.Fatalf("OpenChoreo executor RBAC missing %q", want) }
+	}
+	if strings.Contains(manifest, "cluster-admin") || strings.Contains(manifest, `resources: ["*"]`) {
+		t.Fatalf("OpenChoreo executor RBAC became wildcard/cluster-admin:\n%s", manifest)
+	}
+}

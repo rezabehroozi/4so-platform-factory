@@ -71,6 +71,8 @@ def validate_values() -> None:
             raise RuntimeError(f"OPENCHOREO_CONTROL_VALUES_MISSING {token}")
     if "kube-prometheus-stack:" not in dp or "enabled: false" not in dp:
         raise RuntimeError("OPENCHOREO_DATA_MONITORING_SUPPRESSION_MISSING")
+    if "gateway:\n  enabled: false" not in cp or "gateway:\n  enabled: false" not in dp:
+        raise RuntimeError("OPENCHOREO_GATEWAY_DUPLICATE_STACK_SUPPRESSION_MISSING")
     combined = cp + "\n" + dp
     for forbidden in ("openchoreo-workflow-plane", "openchoreo-observability-plane", "thunderid"):
         if forbidden in combined.lower():

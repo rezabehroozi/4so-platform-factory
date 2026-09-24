@@ -22,6 +22,7 @@ const (
 	openChoreoExecutorJobLabel = "platform.4so.io/openchoreo-runtime-executor"
 	openChoreoReceiptName = "4so-openchoreo-runtime"
 	openChoreoReceiptAuthority = "OPENCHOREO_TARGET_OBSERVED_RECEIPT_V1"
+	openChoreoExecutorServiceAccount = "4so-openchoreo-executor"
 )
 
 type openChoreoAgentTask struct {
@@ -149,6 +150,9 @@ func openChoreoExecutorJobOwnership(job map[string]any, task openChoreoAgentTask
 	for k,v:=range want { if strings.TrimSpace(fmt.Sprint(annotations[k]))!=v { return fmt.Errorf("OpenChoreo executor Job ownership mismatch for %s",k) } }
 	spec,_:=job["spec"].(map[string]any);tmpl,_:=spec["template"].(map[string]any);pod,_:=tmpl["spec"].(map[string]any);containers,_:=pod["containers"].([]any)
 	if len(containers)!=1 { return fmt.Errorf("OpenChoreo executor Job container identity is invalid") }
+	if strings.TrimSpace(fmt.Sprint(pod["serviceAccountName"])) != openChoreoExecutorServiceAccount {
+		return fmt.Errorf("OpenChoreo executor service account is not the dedicated runtime principal")
+	}
 	container,_:=containers[0].(map[string]any)
 	if strings.TrimSpace(fmt.Sprint(container["image"]))!=task.RuntimeSource.ExecutorImageReference { return fmt.Errorf("OpenChoreo executor image does not match exact runtime source") }
 	return nil
@@ -187,7 +191,7 @@ func (a *agent) dispatchOpenChoreoExecutor(ctx context.Context, task openChoreoA
 	if found {
 		if err=openChoreoExecutorJobOwnership(current,task,a.cfg.Namespace);err!=nil{result.RecoveryRequired=true;result.Error=err.Error();return result}
 	} else {
-		job,buildErr:=openChoreoExecutorJob(task,a.cfg.Namespace,a.cfg.ServiceAccount)
+		job,buildErr:=openChoreoExecutorJob(task,a.cfg.Namespace,openChoreoExecutorServiceAccount)
 		if buildErr!=nil{result.Error=buildErr.Error();return result}
 		collection:="/apis/batch/v1/namespaces/"+url.PathEscape(a.cfg.Namespace)+"/jobs"
 		_,conflict,createErr:=a.createKubeObject(ctx,collection,job)

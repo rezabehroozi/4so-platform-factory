@@ -285,6 +285,9 @@ const OpenChoreoTargetAdapterAdmissionAuthority = "OPENCHOREO_TARGET_ADAPTER_ADM
 type OpenChoreoTargetAdapterAdmissionInput struct {
 	DistributionIdentity        string   `json:"distributionIdentity"`
 	TargetAdmitted              bool     `json:"targetAdmitted"`
+	TargetMutationReady          bool     `json:"targetMutationReady"`
+	ExecutorRBACReady            bool     `json:"executorRbacReady"`
+	CertificateManagerReady      bool     `json:"certificateManagerReady"`
 	CapabilityDiscoveryComplete bool     `json:"capabilityDiscoveryComplete"`
 	ObservedCapabilities        []string `json:"observedCapabilities,omitempty"`
 	ExactSourceAdmitted         bool     `json:"exactSourceAdmitted"`
@@ -309,6 +312,9 @@ func EvaluateOpenChoreoTargetAdapterAdmission(in OpenChoreoTargetAdapterAdmissio
 	out := OpenChoreoTargetAdapterAdmission{Authority: OpenChoreoTargetAdapterAdmissionAuthority, Capability: "application-platform.openchoreo", DistributionIdentity: distribution}
 	switch distribution { case "rke2", "okd": default: out.Blockers = append(out.Blockers, "UNSUPPORTED_TARGET_DISTRIBUTION") }
 	if !in.TargetAdmitted { out.Blockers = append(out.Blockers, "TARGET_NOT_ADMITTED") }
+	if !in.TargetMutationReady { out.Blockers = append(out.Blockers, "TARGET_MUTATION_RBAC_NOT_READY") }
+	if !in.ExecutorRBACReady { out.Blockers = append(out.Blockers, "OPENCHOREO_EXECUTOR_RBAC_NOT_READY") }
+	if !in.CertificateManagerReady { out.Blockers = append(out.Blockers, "OPENCHOREO_CERT_MANAGER_CAPABILITY_PENDING") }
 	if !in.CapabilityDiscoveryComplete { out.Blockers = append(out.Blockers, "CAPABILITY_DISCOVERY_INCOMPLETE") }
 	if !in.DuplicateStackResolved { out.Blockers = append(out.Blockers, "DUPLICATE_STACK_RESOLUTION_INCOMPLETE") }
 	if !in.ExactSourceAdmitted { out.Blockers = append(out.Blockers, "OPENCHOREO_EXACT_SOURCE_AUTHORITY_PENDING") }

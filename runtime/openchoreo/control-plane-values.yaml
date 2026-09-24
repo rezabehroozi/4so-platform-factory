@@ -13,3 +13,7 @@ controllerManager:
   metrics:
     serviceMonitor:
       enabled: false
+
+# 4SO uses the target's existing ingress/service boundary; do not install kgateway/Gateway resources.
+gateway:
+  enabled: false

@@ -18,6 +18,7 @@ const (
 	DistributionEvidenceOpenShiftClusterV1       = "OPENSHIFT_CLUSTERVERSION_V1"
 	TargetReadOnlyAdmissionCapability            = "target-read-only-admission"
 	TargetMutationRBACActiveCapability           = "target-mutation-rbac-active"
+	OpenChoreoExecutorRBACCapability              = "openchoreo-executor-rbac-active"
 	TargetMutationRBACActivationIssuedCapability = "target-mutation-rbac-activation-issued"
 	TargetMutationRBACEverIssuedCapability       = "target-mutation-rbac-ever-issued"
 	TargetIdentityContinuityCapability           = "target-cluster-uid-attested"
@@ -35,6 +36,7 @@ var previewMutationCapabilities = map[string]struct{}{
 	ClusterMaintenanceFencedReportCapability:     {},
 	"strict-schema-dry-run":                      {},
 	TargetMutationRBACActiveCapability:           {},
+	OpenChoreoExecutorRBACCapability:              {},
 	TargetMutationRBACActivationIssuedCapability: {},
 	TargetMutationRBACEverIssuedCapability:       {},
 }
