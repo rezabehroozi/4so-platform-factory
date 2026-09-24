@@ -17,6 +17,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -45,6 +46,10 @@ SAFE_COMPONENT = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 48 * 1024 * 1024
 MAX_FILES = 128
+
+
+def _absolute_no_follow(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path.expanduser())))
 
 
 def _json(path: Path) -> dict:
@@ -274,8 +279,12 @@ def _sbom(component: str, version: str, release_url: str, source_rows: list[dict
 
 def _platformctl(path: str | None) -> list[str]:
     if path:
-        p = Path(path).resolve()
-        if p.is_symlink() or not p.is_file() or not os.access(p, os.X_OK):
+        p = _absolute_no_follow(Path(path))
+        try:
+            st = p.lstat()
+        except OSError as exc:
+            raise RuntimeError(f"PLATFORMCTL_NOT_EXECUTABLE {p}") from exc
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode) or not os.access(p, os.X_OK):
             raise RuntimeError(f"PLATFORMCTL_NOT_EXECUTABLE {p}")
         return [str(p)]
     built = ROOT / "bin/platformctl"
@@ -329,7 +338,9 @@ def acquire(component: str, version: str, *, historical: bool, out: Path | None,
         licenses=tmp/"licenses.json"; licenses.write_text(json.dumps({"licenses":[{"file":spec["licenseFile"],"spdxExpression":spec["licenseSPDX"],"sha256":license_row["sha256"]}]},indent=2,sort_keys=True)+"\n")
         sbom=tmp/"sbom.spdx.json"; sbom.write_text(json.dumps(_sbom(component,version,spec["releaseURL"],source_rows,spec["licenseSPDX"],images,artifact_digest),indent=2,sort_keys=True)+"\n")
         component_path=ROOT/"catalog/components"/f"{component}.json"; ctl=_platformctl(platformctl)
-        final=out.resolve() if out else ROOT/"dist/upstream-history"/f"{component}-{version}.zip"; final.parent.mkdir(parents=True,exist_ok=True)
+        final=_absolute_no_follow(out) if out else ROOT/"dist/upstream-history"/f"{component}-{version}.zip"
+        if final.is_symlink(): raise RuntimeError(f"TAGGED_SOURCE_OUTPUT_SYMLINK_FORBIDDEN {final}")
+        final.parent.mkdir(parents=True,exist_ok=True)
         cmd=ctl+["catalog-bundle","assemble","--historical","--component",str(component_path),"--artifact",str(artifact),"--render-manifest",str(render),"--image-inventory",str(inventory),"--licenses",str(licenses),"--sbom",str(sbom),"--version",version,"--source-type","external-tagged-source-set","--source-url",spec["releaseURL"],"--source-revision",spec["tag"],"--upstream-artifact-name",artifact.name,"--artifact-digest",artifact_digest,"--bundle-key",f"{component}/{version}","--out",str(final)]
         print(_run(cmd),end=""); print(_run(ctl+["catalog-bundle","verify","-f",str(final)]),end="")
         if install:
