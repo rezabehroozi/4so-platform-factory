@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 380,
-  "routeDigest": "sha256:7533095f731f1858e77851a6c9de2875c1badf8cf717ee1ae20369f534777856",
+  "routeCount": 383,
+  "routeDigest": "sha256:fcbf710bf79ebb567c2682a6ca41ce425af225c1574b692e87835ead5011254c",
   "routes": [
     {
       "family": "version",
@@ -79,6 +79,33 @@
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/edge/local-ai/profiles/validate",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "edge",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/edge/local-authority/policies/compile",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "edge",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/edge/local-authority/mutations/admit",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "edge",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/edge/local-authority/reconnect/resolve",
       "pathParams": [],
       "resourceScope": "PROJECT_SCOPED",
       "resourceScopeStatus": "OWNER_CLASSIFIED"

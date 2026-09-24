@@ -4,9 +4,9 @@
     "security-excluded": 40,
     "tool-admin": 74,
     "tool-operate": 80,
-    "tool-read": 186
+    "tool-read": 189
   },
-  "routeCount": 380,
+  "routeCount": 383,
   "routes": [
     {
       "action": "version",
@@ -145,6 +145,57 @@
       "toolName": "api_post_edge_local_ai_profiles_validate"
     },
     {
+      "action": "local-authority_policies_compile",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "edge",
+      "idempotencyRequired": false,
+      "method": "POST",
+      "path": "/api/v1/edge/local-authority/policies/compile",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_post_edge_local_authority_policies_compile"
+    },
+    {
+      "action": "local-authority_mutations_admit",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "edge",
+      "idempotencyRequired": false,
+      "method": "POST",
+      "path": "/api/v1/edge/local-authority/mutations/admit",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_post_edge_local_authority_mutations_admit"
+    },
+    {
+      "action": "local-authority_reconnect_resolve",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "edge",
+      "idempotencyRequired": false,
+      "method": "POST",
+      "path": "/api/v1/edge/local-authority/reconnect/resolve",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_post_edge_local_authority_reconnect_resolve"
+    },
+    {
       "action": "incidents",
       "confirmationHeader": "",
       "confirmationValue": "",
@@ -251,6 +302,23 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_reliability_error_budgets"
+    },
+    {
+      "action": "delivery-insights",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "reliability",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/reliability/delivery-insights",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_reliability_delivery_insights"
     },
     {
       "action": "authority",
@@ -1794,6 +1862,78 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_application_platform_resolve"
+    },
+    {
+      "action": "openchoreo_assessment",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": false,
+      "method": "POST",
+      "path": "/api/v1/application-platform/openchoreo/assessment",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_post_application_platform_openchoreo_assessment"
+    },
+    {
+      "action": "openchoreo_lifecycle",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-operate",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/application-platform/openchoreo/lifecycle",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "medium",
+      "toolName": "api_post_application_platform_openchoreo_lifecycle"
+    },
+    {
+      "action": "openchoreo_lifecycle",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/application-platform/openchoreo/lifecycle/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_application_platform_openchoreo_lifecycle_by_id"
+    },
+    {
+      "action": "openchoreo_lifecycle_approve",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-admin",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/application-platform/openchoreo/lifecycle/{id}/approve",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "high",
+      "toolName": "api_post_application_platform_openchoreo_lifecycle_by_id_approve"
     },
     {
       "action": "resource-types",
@@ -4849,6 +4989,44 @@
       "toolName": "api_get_clusters_by_id_agent_certificates"
     },
     {
+      "action": "gateway-session",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "clusters",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/clusters/{id}/gateway-session",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_clusters_by_id_gateway_session"
+    },
+    {
+      "action": "gateway-session_drain",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-operate",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "clusters",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/clusters/{id}/gateway-session/drain",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "medium",
+      "toolName": "api_post_clusters_by_id_gateway_session_drain"
+    },
+    {
       "action": "agent-certificates_revoke",
       "confirmationHeader": "X-Confirm-Revoke",
       "confirmationValue": "revoke-agent-certificate",
@@ -6760,133 +6938,6 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_get_marketplace_recommendations_by_id"
-    },
-    {
-      "action": "gateway-session",
-      "confirmationHeader": "",
-      "confirmationValue": "",
-      "disposition": "tool-read",
-      "durableJob": false,
-      "exclusionReason": "",
-      "family": "clusters",
-      "idempotencyRequired": false,
-      "method": "GET",
-      "path": "/api/v1/clusters/{id}/gateway-session",
-      "pathParams": [
-        "id"
-      ],
-      "resourceScope": "PROJECT_SCOPED",
-      "resourceScopeStatus": "OWNER_CLASSIFIED",
-      "risk": "low",
-      "toolName": "api_get_clusters_by_id_gateway_session"
-    },
-    {
-      "action": "gateway-session_drain",
-      "confirmationHeader": "",
-      "confirmationValue": "",
-      "disposition": "tool-operate",
-      "durableJob": true,
-      "exclusionReason": "",
-      "family": "clusters",
-      "idempotencyRequired": true,
-      "method": "POST",
-      "path": "/api/v1/clusters/{id}/gateway-session/drain",
-      "pathParams": [
-        "id"
-      ],
-      "resourceScope": "PROJECT_SCOPED",
-      "resourceScopeStatus": "OWNER_CLASSIFIED",
-      "risk": "medium",
-      "toolName": "api_post_clusters_by_id_gateway_session_drain"
-    },
-    {
-      "action": "delivery-insights",
-      "confirmationHeader": "",
-      "confirmationValue": "",
-      "disposition": "tool-read",
-      "durableJob": false,
-      "exclusionReason": "",
-      "family": "reliability",
-      "idempotencyRequired": false,
-      "method": "GET",
-      "path": "/api/v1/reliability/delivery-insights",
-      "pathParams": [],
-      "resourceScope": "PROJECT_SCOPED",
-      "resourceScopeStatus": "OWNER_CLASSIFIED",
-      "risk": "low",
-      "toolName": "api_get_reliability_delivery_insights"
-    },
-    {
-      "action": "openchoreo_assessment",
-      "confirmationHeader": "",
-      "confirmationValue": "",
-      "disposition": "tool-read",
-      "durableJob": false,
-      "exclusionReason": "",
-      "family": "application-platform",
-      "idempotencyRequired": false,
-      "method": "POST",
-      "path": "/api/v1/application-platform/openchoreo/assessment",
-      "pathParams": [],
-      "resourceScope": "PROJECT_SCOPED",
-      "resourceScopeStatus": "OWNER_CLASSIFIED",
-      "risk": "low",
-      "toolName": "api_post_application_platform_openchoreo_assessment"
-    },
-    {
-      "action": "openchoreo_lifecycle",
-      "confirmationHeader": "",
-      "confirmationValue": "",
-      "disposition": "tool-operate",
-      "durableJob": true,
-      "exclusionReason": "",
-      "family": "application-platform",
-      "idempotencyRequired": true,
-      "method": "POST",
-      "path": "/api/v1/application-platform/openchoreo/lifecycle",
-      "pathParams": [],
-      "resourceScope": "PROJECT_SCOPED",
-      "resourceScopeStatus": "OWNER_CLASSIFIED",
-      "risk": "medium",
-      "toolName": "api_post_application_platform_openchoreo_lifecycle"
-    },
-    {
-      "action": "openchoreo_lifecycle",
-      "confirmationHeader": "",
-      "confirmationValue": "",
-      "disposition": "tool-read",
-      "durableJob": false,
-      "exclusionReason": "",
-      "family": "application-platform",
-      "idempotencyRequired": false,
-      "method": "GET",
-      "path": "/api/v1/application-platform/openchoreo/lifecycle/{id}",
-      "pathParams": [
-        "id"
-      ],
-      "resourceScope": "PROJECT_SCOPED",
-      "resourceScopeStatus": "OWNER_CLASSIFIED",
-      "risk": "low",
-      "toolName": "api_get_application_platform_openchoreo_lifecycle_by_id"
-    },
-    {
-      "action": "openchoreo_lifecycle_approve",
-      "confirmationHeader": "",
-      "confirmationValue": "",
-      "disposition": "tool-admin",
-      "durableJob": true,
-      "exclusionReason": "",
-      "family": "application-platform",
-      "idempotencyRequired": true,
-      "method": "POST",
-      "path": "/api/v1/application-platform/openchoreo/lifecycle/{id}/approve",
-      "pathParams": [
-        "id"
-      ],
-      "resourceScope": "PROJECT_SCOPED",
-      "resourceScopeStatus": "OWNER_CLASSIFIED",
-      "risk": "high",
-      "toolName": "api_post_application_platform_openchoreo_lifecycle_by_id_approve"
     }
   ],
   "source": "internal/api/server.go"
