@@ -1,19 +1,47 @@
 # 4SO optional target profile: OpenChoreo API/controllers only.
 # Operator Horizon, 4SO MCP and Keycloak remain product authorities.
+# The *.render.4so.test names are deterministic source-render identities only.
+# cmd/openchoreo-runtime replaces OIDC/public endpoint values with the actual
+# product-owned Keycloak/public target configuration at runtime.
 backstage:
   enabled: false
+  baseUrl: "https://console.render.4so.test"
+  http:
+    hostnames:
+      - "console.render.4so.test"
+
 openchoreoApi:
   config:
     mcp:
       enabled: false
+    server:
+      publicUrl: "https://api.render.4so.test"
+  http:
+    hostnames:
+      - "api.render.4so.test"
   metrics:
     serviceMonitor:
       enabled: false
+
 controllerManager:
   metrics:
     serviceMonitor:
       enabled: false
 
+security:
+  enabled: true
+  authServerBaseUrl: "https://auth.render.4so.test"
+  jwt:
+    audience: "platform-console"
+  oidc:
+    issuer: "https://auth.render.4so.test/realms/platform"
+    wellKnownEndpoint: "https://auth.render.4so.test/realms/platform/.well-known/openid-configuration"
+    jwksUrl: "https://auth.render.4so.test/realms/platform/protocol/openid-connect/certs"
+    authorizationUrl: "https://auth.render.4so.test/realms/platform/protocol/openid-connect/auth"
+    tokenUrl: "https://auth.render.4so.test/realms/platform/protocol/openid-connect/token"
+
 # 4SO uses the target's existing ingress/service boundary; do not install kgateway/Gateway resources.
 gateway:
   enabled: false
+  tls:
+    hostname: "*.render.4so.test"
