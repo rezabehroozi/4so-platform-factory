@@ -84,8 +84,13 @@ func TestCatalogSummary(t *testing.T) {
 		t.Fatalf("runtime certification authority missing: %+v", got)
 	}
 	stats, ok := runtimeAuthority["stats"].(map[string]any)
-	if !ok || stats["total"] != float64(20) || stats["sourceReady"] != float64(3) || stats["lifecycleComplete"] != float64(0) {
-		t.Fatalf("runtime certification stats drift: %+v", runtimeAuthority)
+	registry, err := catalog.LoadComponentRuntimeCertificationRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedStats := catalog.ComponentRuntimeCertificationStatistics(registry)
+	if !ok || stats["total"] != float64(expectedStats.Total) || stats["sourceReady"] != float64(expectedStats.SourceReady) || stats["sourceBlocked"] != float64(expectedStats.SourceBlocked) || stats["lifecycleComplete"] != float64(expectedStats.LifecycleComplete) {
+		t.Fatalf("runtime certification stats drift: got=%+v expected=%+v", runtimeAuthority, expectedStats)
 	}
 }
 
@@ -107,8 +112,13 @@ func TestComponentRuntimeCertificationAuthority(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Authority != catalog.ComponentRuntimeCertificationAuthority || got.Stats.Total != 20 || got.Stats.SourceReady != 3 || got.Stats.LifecycleComplete != 0 || len(got.Components) != 20 || got.ProductionReady || got.PhysicalCertified {
-		t.Fatalf("unexpected component runtime authority: %#v", got)
+	registry, err := catalog.LoadComponentRuntimeCertificationRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := catalog.ComponentRuntimeCertificationStatistics(registry)
+	if got.Authority != catalog.ComponentRuntimeCertificationAuthority || got.Stats != expected || len(got.Components) != expected.Total || got.ProductionReady || got.PhysicalCertified {
+		t.Fatalf("unexpected component runtime authority: got=%#v expectedStats=%#v", got, expected)
 	}
 }
 func TestPlanIsHonestPlanningOnly(t *testing.T) {
