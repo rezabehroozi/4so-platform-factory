@@ -33,6 +33,10 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 EXACT_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 
 
+def _absolute_no_follow(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path.expanduser())))
+
+
 def _json(path: Path) -> dict:
     before = path.lstat()
     if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
@@ -439,6 +443,13 @@ def stage_audit(stage: Path, plan: dict, *, strict: bool = False) -> tuple[list[
         missing.append(comp_manifest.relative_to(stage).as_posix())
     elif comp_manifest.is_symlink() or not comp_manifest.is_file():
         invalid.append(comp_manifest.relative_to(stage).as_posix() + ":not-regular")
+    external_rows = spec["managementWorkloads"]["externalImages"]
+    if external_rows:
+        management_manifest = stage / "management/external/stage-manifest.json"
+        if not management_manifest.exists():
+            missing.append("management/external/stage-manifest.json")
+        elif management_manifest.is_symlink() or not management_manifest.is_file():
+            invalid.append("management/external/stage-manifest.json:not-regular")
     historical = spec.get("historicalComponentAcquisition") or {}
     if (historical.get("helmReady") or []) or (historical.get("taggedSourceSetReady") or []):
         hist_manifest = stage / str(historical.get("stageManifestPath") or "historical/stage-manifest.json")
@@ -547,7 +558,7 @@ def command_plan(plan: dict) -> dict:
     connected = [
         "python3 scripts/acquire_upstream_batch.py --stage-out STAGE/components",
         "python3 scripts/acquire_historical_upgrade_batch.py --stage-out STAGE/historical",
-        "# acquire each management external image with exact release-bound platformctl workload-oci acquire-external",
+        "python3 scripts/acquire_management_workload_batch.py --stage-out STAGE/management/external --release EXACT_RELEASE.zip --platformctl PLATFORMCTL",
         f"# stage exact compiler byte at STAGE/{spec['releaseToolchain']['stagePath']}",
         "# resolve every mutable image reference from the three source manifests to exact digest references",
     ]
@@ -559,7 +570,8 @@ def command_plan(plan: dict) -> dict:
         "python3 scripts/acquire_upstream_batch.py --install-staged STAGE/components",
         "python3 scripts/acquire_historical_upgrade_batch.py --install-staged STAGE/historical",
         f"python3 scripts/acquire_release_build_toolchain.py --install STAGE/{spec['releaseToolchain']['stagePath']}",
-        "# verify every management external image with exact release-bound platformctl workload-oci verify-external before OCI assembly",
+        "python3 scripts/acquire_management_workload_batch.py --verify-staged STAGE/management/external --release EXACT_RELEASE.zip --platformctl PLATFORMCTL",
+        "# final management workload OCI assembly remains blocked until external/base/product/manifest image authorities are all exact and independently verified",
         "python3 scripts/component_runtime_upgrade_matrix.py --write --check",
     ]
     return {"authority": AUTHORITY, "connected": connected, "offline": offline}
@@ -600,7 +612,7 @@ def main() -> int:
     if args.commands:
         print(json.dumps(command_plan(current), indent=2))
     if args.seal_stage:
-        stage = Path(args.seal_stage).resolve()
+        stage = _absolute_no_follow(Path(args.seal_stage))
         missing, invalid = stage_audit(stage, current, strict=True)
         if invalid or missing:
             print("SUPPLY_CHAIN_HANDOFF_SEAL_FAIL stage-not-complete invalid=" + ",".join(invalid) + (" missing=" + ",".join(missing) if missing else ""))
@@ -608,14 +620,14 @@ def main() -> int:
         _atomic_json(stage / SEAL_FILE, build_stage_seal(stage, current))
         print(f"SUPPLY_CHAIN_HANDOFF_SEAL_PASS file={stage / SEAL_FILE}")
     if args.verify_stage_seal:
-        stage = Path(args.verify_stage_seal).resolve()
+        stage = _absolute_no_follow(Path(args.verify_stage_seal))
         errors = verify_stage_seal(stage, current)
         if errors:
             print("SUPPLY_CHAIN_HANDOFF_SEAL_VERIFY_FAIL " + "; ".join(errors))
             return 1
         print("SUPPLY_CHAIN_HANDOFF_SEAL_VERIFY_PASS")
     if args.audit_stage:
-        missing, invalid = stage_audit(Path(args.audit_stage).resolve(), current, strict=args.strict)
+        missing, invalid = stage_audit(_absolute_no_follow(Path(args.audit_stage)), current, strict=args.strict)
         if invalid:
             print("SUPPLY_CHAIN_HANDOFF_STAGE_FAIL invalid=" + ",".join(invalid) + (" missing=" + ",".join(missing) if missing else ""))
             return 1
