@@ -34,10 +34,15 @@
             "kind": "release",
             "url": "https://github.com/ceph/ceph-csi-operator/releases/tag/v1.0.4",
             "summary": "Official Ceph-CSI Operator v1.0.4 release drives the published operator and driver Helm packages."
+          },
+          {
+            "kind": "source",
+            "reference": "https://github.com/ceph/ceph-csi-operator/blob/main/docs/helm-charts/drivers-chart.md",
+            "summary": "Official Ceph CSI Operator driver-chart documentation publishes ceph-csi-drivers from https://ceph.github.io/ceph-csi-operator/."
           }
         ],
         "selectedVersion": "1.0.4",
-        "source": "https://ceph.github.io/ceph-csi-operator-charts",
+        "source": "https://ceph.github.io/ceph-csi-operator/",
         "status": "ready-for-acquisition",
         "runtimeStatus": "eligible-after-source-resolution",
         "upstreamVersion": "1.0.4"
