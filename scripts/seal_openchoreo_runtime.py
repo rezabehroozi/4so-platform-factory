@@ -17,6 +17,7 @@ from openchoreo_runtime_contract import (
     UPSTREAM_COMMIT,
     UPSTREAM_REPOSITORY,
     VERSION,
+    admit_output_path,
 )
 from prepare_openchoreo_executor import acquisition_payload, digest_path, strict_json
 
@@ -114,7 +115,7 @@ def seal(acquisition: Path, mirror_path: Path, executor_path: Path, out: Path) -
         "buildAuthority": "buildkit",
         "registryAuthority": "zot",
     }
-    out = out.expanduser().resolve()
+    out = admit_output_path(out, "OPENCHOREO_RUNTIME_SEAL_OUTPUT")
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(out.suffix + ".tmp")
     tmp.write_text(json.dumps(runtime, indent=2, sort_keys=True) + "\n", encoding="utf-8")
