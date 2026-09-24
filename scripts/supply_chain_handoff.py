@@ -99,10 +99,35 @@ def _reviewed_previous_locks(root: Path, component: str, target: str, admission_
     return [{"release": previous, **lock}] if lock else []
 
 
+def _management_archive_state(lock: dict, release_version: str) -> dict:
+    if lock.get("authority") != "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8" or lock.get("schemaVersion") != 8:
+        raise RuntimeError("MANAGEMENT_ARCHIVE_ACQUISITION_LOCK_AUTHORITY_INVALID")
+    if str(lock.get("releaseVersion") or "") != release_version:
+        raise RuntimeError("MANAGEMENT_ARCHIVE_ACQUISITION_LOCK_RELEASE_DRIFT")
+    status = str(lock.get("status") or "")
+    if status not in {"ready", "incomplete"}:
+        raise RuntimeError("MANAGEMENT_ARCHIVE_ACQUISITION_LOCK_STATUS_INVALID")
+    missing = lock.get("missingAuthorities") or []
+    partial = lock.get("partialAuthorities") or []
+    resolved = [str(row.get("id") or "") for row in (lock.get("resolvedAuthorities") or []) if isinstance(row, dict)]
+    if not isinstance(missing, list) or not isinstance(partial, list):
+        raise RuntimeError("MANAGEMENT_ARCHIVE_ACQUISITION_LOCK_SHAPE_INVALID")
+    authority = "management-workload-oci-archive"
+    ready = status == "ready" and authority in resolved and authority not in missing and authority not in partial
+    return {
+        "authority": authority,
+        "status": "ready" if ready else "pending",
+        "acquisitionLockStatus": status,
+        "resolved": ready,
+    }
+
+
 def build(root: Path = ROOT) -> dict:
     version = (root / "VERSION").read_text().strip()
     admission = _json(root / "catalog" / "upstream-admission.json")
     image_plan = _json(root / "lab" / "management-workload-image-build-plan.json")
+    acquisition_lock = _json(root / "lab" / "appliance-bundle-acquisition-lock.json")
+    management_archive = _management_archive_state(acquisition_lock, version)
     toolchain = _json(root / "lab" / "release-build-toolchain-lock.json")
     upgrade_admission = _json(root / "catalog" / "component-upgrade-source-admission.json")
     runtime_transition = _json(root / "catalog" / "runtime-dependency-transition.json")
@@ -305,8 +330,10 @@ def build(root: Path = ROOT) -> dict:
         blockers += ["COMPONENT_SOURCE_ACQUISITION_PENDING", "SOURCE_LOCKS_PENDING"]
     if tc_spec.get("admissionStatus") != "admitted":
         blockers.append("RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING")
-    if external or manifest_sets or product_images:
-        blockers += ["MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING", "MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING"]
+    if management_archive["status"] != "ready":
+        blockers.append("MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING")
+    if any(str(row.get("state") or "") != "ready" for row in (image_plan.get("baseImages") or [])) or any(str(row.get("state") or "") != "ready" for row in (image_plan.get("coreImages") or [])) or any(str(row.get("state") or "") != "ready" for row in (image_plan.get("derivedManifestImageSets") or [])):
+        blockers.append("MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING")
     if any(row["pairState"] not in {"pair-present", "install-only-first-product-release"} for row in upgrade):
         blockers.append("COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING")
     if any(
@@ -336,6 +363,7 @@ def build(root: Path = ROOT) -> dict:
                     "catalog/upstream-admission.json",
                     "catalog/runtime/*/*/source-lock.json",
                     "lab/management-workload-image-build-plan.json",
+                    "lab/appliance-bundle-acquisition-lock.json",
                     "lab/release-build-toolchain-lock.json",
                     "catalog/component-upgrade-source-admission.json",
                     "catalog/tagged-source-recipes/*",
@@ -358,6 +386,7 @@ def build(root: Path = ROOT) -> dict:
                 "manifestImageResolution": sorted(manifest_sets, key=lambda r: r["sourceAuthority"]),
                 "productImages": sorted(product_images, key=lambda r: r["role"]),
                 "archiveStagingPath": image_plan.get("archiveStagingPath"),
+                "archiveAuthority": management_archive,
             },
             "releaseToolchain": toolchain_row,
             "runtimeDependencyTransition": {
