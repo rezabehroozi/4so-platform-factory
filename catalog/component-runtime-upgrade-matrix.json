@@ -43,9 +43,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "1.21.0",
+          "fromSourceLockDigest": "732690eeaab81f6ea2826609c8fde0ab5505cda2ddecbcd3468565c2c91fd9f8",
+          "status": "admitted-source-pair",
+          "toRelease": "1.21.1",
+          "toSourceLockDigest": "c182e7427d34eb6f5e06ef1336fa00ce36f0146a38f4255c12964e918d97e5d4"
+        }
+      ],
       "component": "cert-manager",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "1.21.1",
       "targetSourceLockDigest": "c182e7427d34eb6f5e06ef1336fa00ce36f0146a38f4255c12964e918d97e5d4",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"

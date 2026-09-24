@@ -222,8 +222,14 @@
       },
       {
         "component": "cert-manager",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/cert-manager/1.21.0/source-lock.json",
+            "release": "1.21.0",
+            "sha256": "f8c94c78bfef73865eabc5dce7a41d01153c7fbdc6bd1881321a678ee957d6a6"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.21.1",
         "targetSourceLockPresent": true
@@ -490,7 +496,16 @@
       "reviewRequired": []
     },
     "historicalComponentAcquisition": {
-      "alreadyHistoricalSourceLocked": [],
+      "alreadyHistoricalSourceLocked": [
+        {
+          "component": "cert-manager",
+          "path": "catalog/runtime/cert-manager/1.21.0/source-lock.json",
+          "previousVersion": "1.21.0",
+          "sha256": "f8c94c78bfef73865eabc5dce7a41d01153c7fbdc6bd1881321a678ee957d6a6",
+          "source": "https://charts.jetstack.io",
+          "targetRelease": "1.21.1"
+        }
+      ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
         {
@@ -510,12 +525,6 @@
           "previousVersion": "1.0.3",
           "source": "https://ceph.github.io/ceph-csi-operator/",
           "targetRelease": "1.0.4"
-        },
-        {
-          "component": "cert-manager",
-          "previousVersion": "1.21.0",
-          "source": "https://charts.jetstack.io",
-          "targetRelease": "1.21.1"
         },
         {
           "component": "external-dns",
