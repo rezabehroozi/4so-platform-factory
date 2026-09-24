@@ -192,16 +192,32 @@ func LoadRuntimeExecutionSource(path string) (RuntimeSource, string, error) {
 	if path == "" {
 		return RuntimeSource{}, "", fmt.Errorf("OPENCHOREO_RUNTIME_SOURCE_FILE_REQUIRED")
 	}
-	info, err := os.Stat(path)
+	clean := filepath.Clean(path)
+	info, err := os.Lstat(clean)
 	if err != nil {
 		return RuntimeSource{}, "", err
 	}
-	if info.IsDir() || info.Size() <= 0 || info.Size() > 4<<20 {
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > 4<<20 {
 		return RuntimeSource{}, "", fmt.Errorf("OPENCHOREO_RUNTIME_SOURCE_FILE_INVALID")
 	}
-	raw, err := os.ReadFile(filepath.Clean(path))
+	file, err := os.Open(clean)
 	if err != nil {
 		return RuntimeSource{}, "", err
+	}
+	defer file.Close()
+	openedInfo, err := file.Stat()
+	if err != nil {
+		return RuntimeSource{}, "", err
+	}
+	if !openedInfo.Mode().IsRegular() || openedInfo.Size() != info.Size() || !os.SameFile(info, openedInfo) {
+		return RuntimeSource{}, "", fmt.Errorf("OPENCHOREO_RUNTIME_SOURCE_FILE_CHANGED")
+	}
+	raw, err := io.ReadAll(io.LimitReader(file, (4<<20)+1))
+	if err != nil {
+		return RuntimeSource{}, "", err
+	}
+	if len(raw) == 0 || len(raw) > 4<<20 || int64(len(raw)) != openedInfo.Size() {
+		return RuntimeSource{}, "", fmt.Errorf("OPENCHOREO_RUNTIME_SOURCE_FILE_CHANGED")
 	}
 	var source RuntimeSource
 	decoder := json.NewDecoder(strings.NewReader(string(raw)))
