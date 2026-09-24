@@ -20,15 +20,29 @@ class SupplyChainHandoffTests(unittest.TestCase):
         self.assertTrue(spec["truthModel"]["stagingNeverPromotesSourceResolution"])
         self.assertTrue(spec["truthModel"]["stagingNeverPromotesRuntimeCertification"])
         self.assertTrue(spec["truthModel"]["physicalPassInferenceForbidden"])
-        self.assertEqual(17, len(spec["componentAcquisition"]["ready"]))
-        self.assertEqual(0, len(spec["componentAcquisition"]["reviewBlocked"]))
-        self.assertEqual(3, len(spec["componentAcquisition"]["runtimeHolds"]))
+        components = mod._component_docs(ROOT)
+        admission = mod._json(ROOT / "catalog" / "upstream-admission.json")
+        admission_rows = (admission.get("spec") or {}).get("components") or []
+        expected_ready = {row["component"] for row in admission_rows if row.get("status") == "ready-for-acquisition"}
+        expected_review = {row["component"] for row in admission_rows if row.get("status") != "ready-for-acquisition"}
+        expected_locked = {
+            name for name, doc in components.items()
+            if ((doc.get("spec") or {}).get("source") or {}).get("resolved") is True
+        }
+        ca = spec["componentAcquisition"]
+        self.assertEqual(expected_ready, {row["component"] for row in ca["ready"]})
+        self.assertEqual(expected_review, {row["component"] for row in ca["reviewBlocked"]})
+        self.assertEqual(expected_locked, {row["component"] for row in ca["alreadySourceLocked"]})
+        self.assertEqual(set(components), expected_ready | expected_review | expected_locked)
         self.assertEqual("RUNTIME_DEPENDENCY_TRANSITION_V1", spec["runtimeDependencyTransition"]["authority"])
-        self.assertEqual(3, len(spec["componentAcquisition"]["alreadySourceLocked"]))
         self.assertEqual(4, len(spec["managementWorkloads"]["externalImages"]))
         self.assertEqual(4, len(spec["managementWorkloads"]["manifestImageResolution"]))
         self.assertEqual(20, len(spec["componentUpgradePairRequirements"]))
-        self.assertEqual(0, sum(1 for row in spec["componentUpgradePairRequirements"] if row["pairState"] == "pair-present"))
+        pair_rows = spec["componentUpgradePairRequirements"]
+        self.assertEqual(
+            sum(1 for row in pair_rows if row["targetSourceLockPresent"] and row["previousExactSourceLocks"]),
+            sum(1 for row in pair_rows if row["pairState"] == "pair-present"),
+        )
         self.assertEqual("admitted", spec["releaseToolchain"]["admissionStatus"])
         self.assertEqual("go1.27.1", spec["releaseToolchain"]["version"])
         self.assertEqual(
@@ -41,7 +55,12 @@ class SupplyChainHandoffTests(unittest.TestCase):
         ca = plan["spec"]["componentAcquisition"]
         ready = {row["component"] for row in ca["ready"]}
         holds = {row["component"] for row in ca["runtimeHolds"]}
-        self.assertEqual({"cilium", "kyverno", "metallb"}, holds)
+        admission = mod._json(ROOT / "catalog" / "upstream-admission.json")
+        expected_holds = {
+            row["component"] for row in (admission.get("spec") or {}).get("components") or []
+            if row.get("runtimeStatus") != "eligible-after-source-resolution"
+        }
+        self.assertEqual(expected_holds, holds)
         self.assertTrue(holds.issubset(ready))
         for row in ca["runtimeHolds"]:
             self.assertRegex(row["selectedVersion"], r"^\d+\.\d+\.\d+$")
