@@ -1496,6 +1496,16 @@ def validate_lab_bundle_acquisition_lock(root: Path, errors: list[tuple[str,str]
                             errors.append(('LAB_BUNDLE_ACQUISITION_PATH_INVALID', f'{key}:{rel}'))
 
 
+def runtime_holds_partition_valid(hold_names, ready_names, locked_names):
+    """Runtime suitability is independent of source acquisition.
+
+    A held component is valid while waiting in the acquisition queue and after
+    its exact source lock is installed; only disappearance from both partitions
+    is invalid.
+    """
+    return set(hold_names).issubset(set(ready_names) | set(locked_names))
+
+
 def validate_supply_chain_handoff(root: Path, version: str, components: dict[str,dict], errors: list[tuple[str,str]]) -> None:
     """Unified supply-chain handoff stays derived evidence and never becomes a second source of truth."""
     # V53 unified supply-chain handoff remains derived evidence only. It must
@@ -1533,8 +1543,8 @@ def validate_supply_chain_handoff(root: Path, version: str, components: dict[str
                 resolved = bool(((components[name].get('spec') or {}).get('source') or {}).get('resolved'))
                 if resolved != (name in locked_names):
                     errors.append(('SUPPLY_CHAIN_HANDOFF_COMPONENT_QUEUE_INVALID',f'source binding:{name}'))
-        if not hold_names.issubset(ready_names):
-            errors.append(('SUPPLY_CHAIN_HANDOFF_COMPONENT_QUEUE_INVALID','runtime holds must remain source-acquirable'))
+        if not runtime_holds_partition_valid(hold_names, ready_names, locked_names):
+            errors.append(('SUPPLY_CHAIN_HANDOFF_COMPONENT_QUEUE_INVALID','runtime holds must remain bound to ready-or-locked source state'))
         if len((hs.get('managementWorkloads') or {}).get('externalImages') or []) != 4 or len((hs.get('managementWorkloads') or {}).get('manifestImageResolution') or []) != 4:
             errors.append(('SUPPLY_CHAIN_HANDOFF_MANAGEMENT_COVERAGE_INVALID','external/manifest'))
         if len(hs.get('componentUpgradePairRequirements') or []) != len(components):
