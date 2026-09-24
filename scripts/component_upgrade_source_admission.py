@@ -41,7 +41,7 @@ def seed(root=ROOT):
       },
       'components':[{
         'component':n,'targetRelease':str(d['spec']['release']),'status':'review-required',
-        'previousVersion':'','source':'',
+        'previousVersion':'','source':'','licenseSPDX':'',
         'rationale':'Explicit previous exact release and source require review before historical acquisition.',
         'reviewEvidence':[],
       } for n,d in sorted(comps.items())]
@@ -82,21 +82,22 @@ def validate(doc,root=ROOT):
         if n not in comps or n in seen: errs.append('component coverage invalid '+n); continue
         seen.add(n)
         if target!=str(comps[n]['spec']['release']): errs.append(f'{n}: target release drift')
-        st=r.get('status'); prev=str(r.get('previousVersion') or ''); src=str(r.get('source') or '')
+        st=r.get('status'); prev=str(r.get('previousVersion') or ''); src=str(r.get('source') or ''); license_spdx=str(r.get('licenseSPDX') or '')
         evidence=r.get('reviewEvidence')
         if st not in ALLOWED: errs.append(f'{n}: status invalid'); continue
         if st=='admitted-for-acquisition':
             if not key(prev) or not key(target) or key(prev)>=key(target): errs.append(f'{n}: previous version must be exact and lower')
             if not (src.startswith('https://') or src.startswith('oci://')): errs.append(f'{n}: source invalid')
+            if not SPDX.fullmatch(license_spdx): errs.append(f'{n}: licenseSPDX required')
             if not str(r.get('rationale') or '').strip(): errs.append(f'{n}: rationale required')
             if not _valid_review_evidence(evidence,upstream=True): errs.append(f'{n}: upstream review evidence required')
         elif st=='install-only-first-product-release':
-            if prev or src: errs.append(f'{n}: first product release must not fabricate previousVersion/source')
+            if prev or src or license_spdx: errs.append(f'{n}: first product release must not fabricate previousVersion/source/license')
             if not _first_product_release_eligible(n,comps[n],target,root): errs.append(f'{n}: install-only status is not eligible for this component')
             if not str(r.get('rationale') or '').strip(): errs.append(f'{n}: rationale required')
             if not _valid_review_evidence(evidence,upstream=False): errs.append(f'{n}: product release history evidence required')
         else:
-            if prev or src: errs.append(f'{n}: review-required row must not pre-authorize previousVersion/source')
+            if prev or src or license_spdx: errs.append(f'{n}: review-required row must not pre-authorize previousVersion/source/license')
             if evidence not in ([],None): errs.append(f'{n}: review-required row must not pre-authorize review evidence')
     if seen!=set(comps): errs.append('coverage mismatch')
     return errs
