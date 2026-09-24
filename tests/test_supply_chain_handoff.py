@@ -71,6 +71,46 @@ class SupplyChainHandoffTests(unittest.TestCase):
             self.assertRegex(row["selectedVersion"], r"^\d+\.\d+\.\d+$")
             self.assertNotEqual("eligible-after-source-resolution", row["runtimeStatus"])
 
+    def test_reviewed_predecessor_lock_is_the_only_pair_authority(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            base = root / "catalog" / "runtime" / "demo"
+            unreviewed = base / "1.8.0"
+            reviewed = base / "1.9.9"
+            unreviewed.mkdir(parents=True)
+            reviewed.mkdir(parents=True)
+            (unreviewed / "source-lock.json").write_text(json.dumps({
+                "component": "demo", "version": "1.8.0", "marker": "unreviewed",
+            }))
+            admission = {
+                "component": "demo",
+                "targetRelease": "2.0.0",
+                "status": "admitted-for-acquisition",
+                "previousVersion": "1.9.9",
+            }
+            self.assertEqual([], mod._reviewed_previous_locks(root, "demo", "2.0.0", admission))
+            (reviewed / "source-lock.json").write_text(json.dumps({
+                "component": "demo", "version": "1.9.9", "marker": "reviewed",
+            }))
+            rows = mod._reviewed_previous_locks(root, "demo", "2.0.0", admission)
+            self.assertEqual(["1.9.9"], [row["release"] for row in rows])
+
+    def test_reviewed_predecessor_binding_rejects_target_drift(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            p = root / "catalog" / "runtime" / "demo" / "1.9.9"
+            p.mkdir(parents=True)
+            (p / "source-lock.json").write_text(json.dumps({
+                "component": "demo", "version": "1.9.9",
+            }))
+            admission = {
+                "component": "demo",
+                "targetRelease": "2.1.0",
+                "status": "admitted-for-acquisition",
+                "previousVersion": "1.9.9",
+            }
+            self.assertEqual([], mod._reviewed_previous_locks(root, "demo", "2.0.0", admission))
+
     def test_plan_rejects_truth_model_tamper(self):
         plan = mod.build(ROOT)
         plan["spec"]["truthModel"]["physicalPassInferenceForbidden"] = False
