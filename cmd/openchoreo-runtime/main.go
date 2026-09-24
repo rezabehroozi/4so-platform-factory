@@ -145,6 +145,22 @@ func runLifecycle(args []string) error {
 	if err = verifyRuntimeArtifacts(cfg.Source); err != nil {
 		return err
 	}
+	kubeconfig, err := prepareHelmKubeconfig()
+	if err != nil {
+		return err
+	}
+	defer os.Remove(kubeconfig)
+	previousKubeconfig, hadKubeconfig := os.LookupEnv("KUBECONFIG")
+	if err = os.Setenv("KUBECONFIG", kubeconfig); err != nil {
+		return err
+	}
+	defer func() {
+		if hadKubeconfig {
+			_ = os.Setenv("KUBECONFIG", previousKubeconfig)
+		} else {
+			_ = os.Unsetenv("KUBECONFIG")
+		}
+	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
 	defer cancel()
 	switch cfg.Action {

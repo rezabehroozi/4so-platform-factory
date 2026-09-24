@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"platform.4so.io/factory/internal/openchoreo"
 )
 
 type kubeObject struct {
@@ -103,8 +105,7 @@ func upsertConfigMap(ctx context.Context, namespace, name, authority string, dat
 			return getErr
 		}
 		metadata := map[string]any{
-			"name":        name,
-			"namespace":   namespace,
+			"name": name, "namespace": namespace,
 			"annotations": map[string]string{"platform.4so.io/authority": authority, "platform.4so.io/managed": "true"},
 		}
 		method := http.MethodPost
@@ -164,7 +165,6 @@ func validateOwnership(ctx context.Context, cfg lifecycleConfig, require bool) e
 	}
 	expected := cfg.SourceDigest
 	if cfg.Action != openchoreo.ActionInstall {
-		// Upgrades/removals must match the target digest observed when the operation was created.
 		expected = strings.TrimSpace(os.Getenv("FOURSO_OPENCHOREO_EXPECTED_OBSERVED_SOURCE_DIGEST"))
 		if expected == "" {
 			return errors.New("OpenChoreo expected observed source fence is missing")
@@ -179,23 +179,26 @@ func validateOwnership(ctx context.Context, cfg lifecycleConfig, require bool) e
 func writeOwnership(ctx context.Context, cfg lifecycleConfig) error {
 	suppressions, _ := json.Marshal(cfg.Suppressions)
 	return upsertConfigMap(ctx, cfg.ReceiptNamespace, ownershipName, ownershipAuthority, map[string]string{
-		"manad": "true", "runtimeSourceDigest": cfg.SourceDigest, "version": cfg.Source.Version,
-		"upstreamCommit": cfg.Source.UpstreamCommit, "operationId": cfg.OperationID, "taskFenceToken": strconv.FormatInt(cfg.FenceToken, 10),
-		"nativeSuppressions": string(suppressions),
+		"managed": "true", "runtimeSourceDigest": cfg.SourceDigest, "version": cfg.Source.Version,
+		"upstreamCommit": cfg.Source.UpstreamCommit, "operationId": cfg.OperationID,
+		"taskFenceToken": strconv.FormatInt(cfg.FenceToken, 10), "nativeSuppressions": string(suppressions),
 	})
 }
 
 func writeReceipt(ctx context.Context, cfg lifecycleConfig, installed bool, phase string) error {
 	suppressions, _ := json.Marshal(cfg.Suppressions)
 	data := map[string]string{
-		"operationId":        cfg.OperationID,
-		"taskFenceToken":     strconv.FormatInt(cfg.FenceToken, 10),
-		"installed":          strconv.FormatBool(installed),
-		"phase":              phase,
-		"action":             string(cfg.Action),
+		"operationId": cfg.OperationID,
+		"taskFenceToken": strconv.FormatInt(cfg.FenceToken, 10),
+		"installed": strconv.FormatBool(installed),
+		"phase": phase,
+		"action": string(cfg.Action),
 		"nativeSuppressions": string(suppressions),
 	}
 	if installed {
 		data["runtimeSourceDigest"] = cfg.SourceDigest
 		data["version"] = cfg.Source.Version
-		data["upstreamComit"]ñ*iy÷Ú≥+-z
+		data["upstreamCommit"] = cfg.Source.UpstreamCommit
+	}
+	return upsertConfigMap(ctx, cfg.ReceiptNamespace, cfg.ReceiptName, cfg.ReceiptAuthority, data)
+}

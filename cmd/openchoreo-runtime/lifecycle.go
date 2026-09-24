@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,9 +18,48 @@ func boundedOutput(raw []byte) string {
 	return strings.TrimSpace(string(raw))
 }
 
+func prepareHelmKubeconfig() (string, error) {
+	tokenRaw, err := os.ReadFile(serviceAccountRoot + "/token")
+	if err != nil || strings.TrimSpace(string(tokenRaw)) == "" {
+		return "", errors.New("OpenChoreo Helm service-account token is unavailable")
+	}
+	caPath := serviceAccountRoot + "/ca.crt"
+	if info, statErr := os.Lstat(caPath); statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() <= 0 {
+		return "", errors.New("OpenChoreo Helm service-account CA is invalid")
+	}
+	file, err := os.CreateTemp("/tmp", "4so-openchoreo-kubeconfig-*")
+	if err != nil {
+		return "", err
+	}
+	name := file.Name()
+	cleanup := func(cause error) (string, error) {
+		_ = file.Close()
+		_ = os.Remove(name)
+		return "", cause
+	}
+	if err = file.Chmod(0o600); err != nil {
+		return cleanup(err)
+	}
+	content := fmt.Sprintf("apiVersion: v1\nkind: Config\nclusters:\n- name: in-cluster\n  cluster:\n    server: https://kubernetes.default.svc\n    certificate-authority: %s\nusers:\n- name: executor\n  user:\n    token: %s\ncontexts:\n- name: in-cluster\n  context:\n    cluster: in-cluster\n    user: executor\ncurrent-context: in-cluster\n", caPath, strings.TrimSpace(string(tokenRaw)))
+	if _, err = file.WriteString(content); err != nil {
+		return cleanup(err)
+	}
+	if err = file.Sync(); err != nil {
+		return cleanup(err)
+	}
+	if err = file.Close(); err != nil {
+		_ = os.Remove(name)
+		return "", err
+	}
+	return name, nil
+}
+
 func runHelm(ctx context.Context, args ...string) error {
 	cmd := exec.CommandContext(ctx, "/usr/local/bin/helm", args...)
 	cmd.Env = append(os.Environ(), "HOME=/home/nonroot")
+	if kubeconfig := strings.TrimSpace(os.Getenv("KUBECONFIG")); kubeconfig != "" {
+		cmd.Env = append(cmd.Env, "KUBECONFIG="+kubeconfig)
+	}
 	raw, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("helm %s failed: %s", strings.Join(args, " "), boundedOutput(raw))
@@ -32,6 +70,9 @@ func runHelm(ctx context.Context, args ...string) error {
 func helmReleaseExists(ctx context.Context, release, namespace string) (bool, error) {
 	cmd := exec.CommandContext(ctx, "/usr/local/bin/helm", "status", release, "--namespace", namespace, "--output", "json")
 	cmd.Env = append(os.Environ(), "HOME=/home/nonroot")
+	if kubeconfig := strings.TrimSpace(os.Getenv("KUBECONFIG")); kubeconfig != "" {
+		cmd.Env = append(cmd.Env, "KUBECONFIG="+kubeconfig)
+	}
 	raw, err := cmd.CombinedOutput()
 	if err == nil {
 		return true, nil
