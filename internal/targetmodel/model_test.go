@@ -146,7 +146,7 @@ func TestManagementPlaneStorageAuthorityMatchesAcquisitionSourceLock(t *testing.
 
 func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.T) {
 	roadmap := ArchitectureModel().ProgramRoadmap
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V74" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V75" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
 		t.Fatalf("unexpected roadmap authority: %#v", roadmap)
 	}
 	if len(roadmap.Phases) != 40 {
@@ -156,7 +156,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 19 || progress.CorePhaseBlocked != 6 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 76 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
 		t.Fatalf("program progress truth drift: %#v", progress)
 	}
-	if progress.PrePhysicalSoftwarePhases != 36 || progress.PrePhysicalSoftwareClosedPhases != 35 || progress.PrePhysicalSoftwareOpenPhases != 1 || progress.PrePhysicalSoftwareClosurePercent != 97 {
+	if progress.PrePhysicalSoftwarePhases != 36 || progress.PrePhysicalSoftwareClosedPhases != 36 || progress.PrePhysicalSoftwareOpenPhases != 0 || progress.PrePhysicalSoftwareClosurePercent != 100 || len(progress.SourceOpenPhaseIDs) != 0 {
 		t.Fatalf("pre-physical software progress truth drift: %#v", progress)
 	}
 	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "S2-component-runtime-certification-authorities", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "C9-pre-certification-feature-freeze-exact-bundle"} {
@@ -192,7 +192,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	r0 := byID["R0-release-authority-certification-rebaseline"]
-	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V74", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
+	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V75", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
 		if !containsString(r0.Evidence, evidence) {
 			t.Fatalf("R0 evidence %q missing: %#v", evidence, r0)
 		}
@@ -291,6 +291,19 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 			t.Fatalf("core feature freeze must not depend on expansion phase %s: %#v", id, c9.DependsOn)
 		}
 	}
+	i2 := byID["I2-edge-sovereign-extension"]
+	if i2.Status != ProgramStatusSourceImplemented || i2.SourceStatus != ProgramSourceStatusImplemented || len(i2.Blockers) != 0 {
+		t.Fatalf("I2 edge/sovereign source closure drift: %#v", i2)
+	}
+	for _, evidence := range []string{"EDGE_LOCAL_AUTHORITY_V1", "BOOT_SECURITY_ATTESTATION_AUTHORITY_V1", "LOCAL_AI_DISCONNECTED_PROFILE_AUTHORITY_V1", "POST /api/v1/edge/local-authority/policies/compile", "POST /api/v1/edge/local-authority/mutations/admit", "POST /api/v1/edge/local-authority/reconnect/resolve", "POST /api/v1/edge/boot-attestations/assess", "POST /api/v1/edge/local-ai/profiles/validate", "MCP_ROUTE_PARITY_AUTHORITY_V1", "MCP_PRODUCT_ACTION_REGISTRY_V1", "operator-console:edge-sovereign", "CONSOLE_LOCALIZATION_COVERAGE_V2"} {
+		if !containsString(i2.Evidence, evidence) {
+			t.Fatalf("I2 edge/sovereign evidence missing %s: %#v", evidence, i2)
+		}
+	}
+	if !strings.Contains(strings.Join(i2.ExitCriteria, "\n"), "never infers Physical") || !strings.Contains(strings.Join(i2.ExitCriteria, "\n"), "never starts a runtime") {
+		t.Fatalf("I2 source/physical truth boundary drift: %#v", i2.ExitCriteria)
+	}
+
 	h3 := byID["H3-public-cloud-provider-adapters"]
 	if h3.Status != ProgramStatusSourceImplemented || h3.SourceStatus != ProgramSourceStatusImplemented || len(h3.Blockers) != 0 {
 		t.Fatalf("H3 public-cloud provider source closure drift: %#v", h3)
@@ -472,7 +485,7 @@ func TestProgramProgressUnknownBlockerReopensSourceClosure(t *testing.T) {
 
 func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.T) {
 	roadmap := ProgramRoadmapModel()
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V74" {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V75" {
 		t.Fatalf("authority=%s", roadmap.Authority)
 	}
 	byID := map[string]ProgramPhase{}

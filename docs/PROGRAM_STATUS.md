@@ -1,4 +1,4 @@
-# Current Program Status — PROGRAM_PHASE_MODEL_V74
+# Current Program Status — PROGRAM_PHASE_MODEL_V75
 
 `docs/PROGRAM_STATUS.md` is the single current human-readable status summary. Release **0.0.363** is the current repository release identity. Versioned `PHASE_STATUS_V*.md` files are historical release records; executable truth remains `internal/targetmodel/program.go`.
 
@@ -10,15 +10,16 @@
 | --- | ---: | --- |
 | Core source/software closure | **25/25 (100%)** | All mandatory Core phases have source/software contracts implemented. |
 | Core closure/release ready | **19/25 (76%)** | Six mandatory Core phases still require external/runtime/evidence closure. |
-| Pre-physical software closure | **35/36 (97%)** | Core + Expansion source/software closure; Physical certification is excluded. |
+| Pre-physical software closure | **36/36 (100%)** | Core + Expansion source/software closure; Physical certification is excluded. |
 
-V73 exposes independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
+V75 preserves independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
 
-## Source-open software
+## Pre-physical software source closure
 
-Only one pre-physical software phase remains source-open:
+All **36/36 (100%)** Core + Expansion pre-physical software phases are now source-implemented. This is a source/software milestone only: external acquisition, integration/runtime evidence, disconnected execution and Exact-SHA Physical certification remain independently gated and may still be blocked.
 
-- `I2-edge-sovereign-extension` — bounded edge authority/UI, boot attestation and disconnected local AI profile.
+`I2-edge-sovereign-extension` is source-implemented. `EDGE_LOCAL_AUTHORITY_V1` now has project/site/revision/digest-fenced policy compilation, side-effect-free offline mutation admission and deterministic reconnect conflict review; central drift requires `REVIEW_REQUIRED` rather than silent last-write-wins. `BOOT_SECURITY_ATTESTATION_AUTHORITY_V1` validates source-level attestation claims without claiming collected physical evidence, and `LOCAL_AI_DISCONNECTED_PROFILE_AUTHORITY_V1` validates exact-digest/no-egress local-AI profiles without starting a runtime. Operator Horizon exposes all five assessment workflows under **Edge & sovereign** with zero-gap localization. Exact disconnected runtime and Physical evidence remain NOT inferred.
+
 `J8-application-platform-abstraction-composition` is now source-implemented. Its exact-source OpenChoreo install/upgrade/remove runtime, target-agent dispatch, BuildKit executor image path, zot mirror/seal path, bounded RBAC, canonical Keycloak OIDC binding, ownership/readback receipts and ambiguity fences are present. J8 remains closure-blocked only on exact external OpenChoreo chart/source/image acquisition and mirror evidence; no runtime or Physical PASS is inferred.
 
 `J3-virtual-cluster-profile` is source-implemented. Exact-source/offline runtime execution, durable dispatch and lifecycle fencing, suspend/resume/delete authoritative readback, bounded diagnostics, Product API/SDK/MCP/Console parity and immutable FinOps virtual-cluster attribution are present. Exact-SHA Physical Runtime remains independently certification-gated.
@@ -29,10 +30,10 @@ Only one pre-physical software phase remains source-open:
 
 ## Execution waves
 
-1. **W0 — Truth rebaseline:** keep executable roadmap, docs and canonical main synchronized; V73 closes J3 source truth and records the OpenChoreo adoption boundary without changing physical/runtime claims.
+1. **W0 — Truth rebaseline:** keep executable roadmap, docs and canonical main synchronized; V75 records 36/36 pre-physical source closure without changing runtime/Physical claims.
 2. **W1 — Core closure blitz (current):** S1 exact acquisition and S2 component certification run as a streaming pipeline with up to six independent lanes.
 3. **W2 — Core evidence parallel:** MCP external-client interoperability, Connected Managed OKD and Disconnected OKD evidence advance independently.
-4. **W3 — Expansion mega-wave:** I2 remains source-open; J1 + H3 are source-implemented and move to integration/runtime evidence without waiting for Physical certification.
+4. **W3 — Expansion mega-wave:** all Expansion software phases in the current roadmap are source-implemented; they move independently to external acquisition, integration/runtime evidence and later certification without waiting for unrelated Physical gates.
 5. **W4 — Cross-surface convergence:** converge API, SDK, MCP, Console, PostgreSQL, Durable Ops, Evidence and negative controls.
 6. **W5 — Feature freeze:** C9 freezes mandatory scope and emits one exact immutable release before Phase D physical certification.
 
@@ -43,7 +44,7 @@ Only one pre-physical software phase remains source-open:
 - Heartbeat frames re-enter the same certificate/session fence on every heartbeat; draining, certificate revocation/expiry, stale epoch or session mismatch closes/fences the stream rather than creating a transport-side mutation authority.
 - RFC6455 client masking, bounded frames, ping/pong, close handling and idle read deadlines are implemented with focused framing tests.
 - HA replay now includes `GatewayInstanceID`; a live session cannot silently move to a different gateway replica under the same session/epoch.
-- The `FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING` blocker remains open because the target Agent reconnect loop, bounded exponential backoff, graceful reconnect and restart-recovery execution still need source/runtime closure. No Runtime Integration or Physical PASS is inferred.
+- Fleet Gateway transport source closure is complete through target Agent reconnect/backoff, mTLS WSS admission, durable epoch recovery, server-owned gateway identity and drain fencing. This source closure does not infer Runtime Integration or Physical PASS.
 
 ## J8 delivery-evidence closure checkpoint — 2026-09-23
 

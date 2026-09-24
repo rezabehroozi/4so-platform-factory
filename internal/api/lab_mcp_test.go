@@ -82,7 +82,7 @@ func TestMCPModernDiscoverListAndCallAreReadOnly(t *testing.T) {
 		{"server/discover", "", `{"jsonrpc":"2.0","id":1,"method":"server/discover"}`, `"supportedVersions"`},
 		{"tools/list", "", `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`, `"lab_guide"`},
 		{"tools/call", "lab_guide", `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"lab_guide","arguments":{}}}`, `LAB_CERTIFICATION_MATRIX_V2`},
-		{"tools/call", "target_architecture_model", `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"target_architecture_model","arguments":{}}}`, `PROGRAM_PHASE_MODEL_V74`},
+		{"tools/call", "target_architecture_model", `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"target_architecture_model","arguments":{}}}`, `PROGRAM_PHASE_MODEL_V75`},
 		{"tools/call", "mcp_delegation_architecture", `{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"mcp_delegation_architecture","arguments":{}}}`, `MCP_REMOTE_OAUTH_DELEGATION_ARCHITECTURE_V1`},
 		{"tools/call", "mcp_action_registry", `{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"mcp_action_registry","arguments":{}}}`, `MCP_PRODUCT_ACTION_REGISTRY_V1`},
 		{"tools/call", "platform_version", `{"jsonrpc":"2.0","id":61,"method":"tools/call","params":{"name":"platform_version","arguments":{}}}`, `0.0.216`},
