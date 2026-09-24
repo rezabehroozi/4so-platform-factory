@@ -61,6 +61,15 @@ def run(cmd: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = None, 
     return p.stdout
 
 
+def post_install_repository_validation() -> str:
+    out = run(
+        [sys.executable, "scripts/supply_chain_handoff.py", "--write", "--plan", "lab/supply-chain-handoff-plan.json"],
+        timeout=180,
+    )
+    out += run([sys.executable, "scripts/validate_repository.py", "."], timeout=180)
+    return out
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -572,7 +581,7 @@ def acquire(args: argparse.Namespace) -> int:
             install_action = "install-historical" if args.historical else "install"
             confirmation = "IMPORT-HISTORICAL" if args.historical else "IMPORT"
             print(run(ctl + ["catalog-bundle", install_action, "-f", str(out), "--repo-root", str(ROOT), "--confirmation", confirmation], timeout=180), end="")
-            print(run(["python3", "scripts/validate_repository.py", "."], timeout=180), end="")
+            print(post_install_repository_validation(), end="")
         print(f"UPSTREAM_ACQUISITION_PASS component={args.component} version={version} chartDigest={expected_digest} images={len(images)} out={out}")
     return 0
 
