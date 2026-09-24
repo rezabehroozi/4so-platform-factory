@@ -26,6 +26,7 @@ from openchoreo_runtime_contract import (
     UPSTREAM_COMMIT,
     UPSTREAM_REPOSITORY,
     VERSION,
+    admit_output_path,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -120,6 +121,7 @@ def validate_pinned_images(refs: list[str]) -> list[dict]:
     return rows
 
 def write_zip(out: Path, files: list[tuple[str, Path]]) -> None:
+    out = admit_output_path(out, "OPENCHOREO_ACQUISITION_OUTPUT")
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(out.suffix + ".tmp")
     if tmp.exists():
@@ -212,7 +214,7 @@ def main() -> int:
         load_selection(); validate_values(); helm.require_toolchain()
         print("OPENCHOREO_RUNTIME_ACQUISITION_PREFLIGHT_PASS")
         return 0
-    print(json.dumps(acquire(Path(args.out).resolve(), args.network_timeout), sort_keys=True))
+    print(json.dumps(acquire(admit_output_path(Path(args.out), "OPENCHOREO_ACQUISITION_OUTPUT"), args.network_timeout), sort_keys=True))
     return 0
 
 if __name__ == "__main__":
