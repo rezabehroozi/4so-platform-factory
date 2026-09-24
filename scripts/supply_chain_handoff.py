@@ -415,6 +415,34 @@ def build(root: Path = ROOT) -> dict:
     }
 
 
+def _first_diff_path(actual, expected, path: str = "$") -> str:
+    if type(actual) is not type(expected):
+        return f"{path}:type {type(actual).__name__}!={type(expected).__name__}"
+    if isinstance(actual, dict):
+        actual_keys = set(actual)
+        expected_keys = set(expected)
+        if actual_keys != expected_keys:
+            missing = sorted(expected_keys - actual_keys)
+            extra = sorted(actual_keys - expected_keys)
+            return f"{path}:keys missing={missing} extra={extra}"
+        for key in sorted(actual):
+            diff = _first_diff_path(actual[key], expected[key], f"{path}.{key}")
+            if diff:
+                return diff
+        return ""
+    if isinstance(actual, list):
+        if len(actual) != len(expected):
+            return f"{path}:len {len(actual)}!={len(expected)}"
+        for idx, (left, right) in enumerate(zip(actual, expected)):
+            diff = _first_diff_path(left, right, f"{path}[{idx}]")
+            if diff:
+                return diff
+        return ""
+    if actual != expected:
+        return f"{path}:value {actual!r}!={expected!r}"
+    return ""
+
+
 def validate(plan: dict, root: Path = ROOT) -> list[str]:
     errors: list[str] = []
     if plan.get("apiVersion") != API_VERSION or plan.get("kind") != KIND:
@@ -481,7 +509,8 @@ def validate(plan: dict, root: Path = ROOT) -> list[str]:
             errors.append(f"upgrade previous release policy invalid: {row.get('component')}")
     expected = build(root)
     if json.dumps(plan, sort_keys=True, separators=(",", ":")) != json.dumps(expected, sort_keys=True, separators=(",", ":")):
-        errors.append("handoff plan drift: regenerate from canonical authorities")
+        diff = _first_diff_path(plan, expected)
+        errors.append("handoff plan drift: " + (diff or "regenerate from canonical authorities"))
     return errors
 
 
