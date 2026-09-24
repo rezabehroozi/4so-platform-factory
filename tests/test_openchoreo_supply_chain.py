@@ -74,6 +74,30 @@ class OpenChoreoSupplyChainSelfTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "OPENCHOREO_BUILDKIT_CLIENT_INVALID"):
                 executor_image.build(context, buildctl_link, "", "zot.internal/4so/openchoreo-runtime", root / "executor.json")
 
+    def test_openchoreo_generated_outputs_reject_direct_symlinks_before_follow(self):
+        with tempfile.TemporaryDirectory(prefix="4so-openchoreo-output-symlink-") as td:
+            root = Path(td)
+            target = root / "target.json"
+            target.write_text("sentinel")
+            link = root / "output-link.json"
+            try:
+                link.symlink_to(target)
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            with self.assertRaisesRegex(RuntimeError, "OPENCHOREO_ACQUISITION_OUTPUT_SYMLINK_FORBIDDEN"):
+                contract.admit_output_path(link, "OPENCHOREO_ACQUISITION_OUTPUT")
+            self.assertEqual("sentinel", target.read_text())
+
+        for name in (
+            "acquire_openchoreo_runtime.py",
+            "prepare_openchoreo_executor.py",
+            "mirror_openchoreo_runtime.py",
+            "build_openchoreo_executor_image.py",
+            "seal_openchoreo_runtime.py",
+        ):
+            source = (SCRIPTS / name).read_text()
+            self.assertIn("admit_output_path", source, msg=name)
+
     def test_openchoreo_exact_identity_is_shared_with_source_selection(self):
         selection = json.loads((ROOT / "runtime" / "openchoreo" / "source-selection.json").read_text())
         spec = selection["spec"]
