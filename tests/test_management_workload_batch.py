@@ -152,4 +152,17 @@ class ManagementWorkloadBatchTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "MANAGEMENT_STAGE_NOT_REAL_DIRECTORY"):
                 mod.acquire(stage_link, release, real_ctl)
 
+    def test_management_archive_output_rejects_direct_symlink(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            real = root / "archive.tar"
+            real.write_bytes(b"archive")
+            link = root / "archive-link.tar"
+            try:
+                link.symlink_to(real)
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            with self.assertRaisesRegex(RuntimeError, "MANAGEMENT_ARCHIVE_OUTPUT_INVALID"):
+                mod.output_archive_path(link)
+
 if __name__ == "__main__": unittest.main()
