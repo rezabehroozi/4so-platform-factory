@@ -23,7 +23,7 @@ class RuntimeDependencyTransitionTests(unittest.TestCase):
         td,dst=self.copy_repo()
         try:
             p=dst/'catalog/upstream-admission.json'; d=json.loads(p.read_text()); next(r for r in d['spec']['components'] if r['component']=='cilium')['runtimeStatus']='eligible-after-source-resolution'; p.write_text(json.dumps(d))
-            with self.assertRaisesRegex(RuntimeError,'CILIUM_RUNTIME_STATUS_INVALID'): mod.validate(dst)
+            with self.assertRaisesRegex(RuntimeError,'RUNTIME_DEPENDENCY_CILIUM_DRIFT'): mod.validate(dst)
         finally: td.cleanup()
     def test_kgateway_target_drift_fails_closed(self):
         td,dst=self.copy_repo()
