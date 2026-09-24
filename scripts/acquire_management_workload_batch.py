@@ -24,6 +24,10 @@ DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 ROLE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
 
+def absolute_no_follow(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path.expanduser())))
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:
@@ -154,7 +158,7 @@ def diagnose(root: Path = ROOT) -> dict:
 
 
 def platformctl(path: str) -> Path:
-    p = Path(path).resolve()
+    p = absolute_no_follow(Path(path))
     regular_file(p, "PLATFORMCTL")
     if not os.access(p, os.X_OK):
         raise RuntimeError(f"PLATFORMCTL_NOT_EXECUTABLE {p}")
@@ -385,17 +389,17 @@ def main() -> int:
             return 0
         if not args.release or not args.platformctl:
             raise RuntimeError("--release and --platformctl are required for staging, verification and assembly")
-        release = Path(args.release).resolve(); regular_file(release, "EXACT_RELEASE")
+        release = absolute_no_follow(Path(args.release)); regular_file(release, "EXACT_RELEASE")
         ctl = platformctl(args.platformctl)
         if args.stage_out:
-            stage = Path(args.stage_out).resolve(); acquire(stage, release, ctl)
+            stage = absolute_no_follow(Path(args.stage_out)); acquire(stage, release, ctl)
             print(f"MANAGEMENT_WORKLOAD_BATCH_STAGE_PASS roles=4 stage={stage}")
         elif args.verify_staged:
-            rows = verify(Path(args.verify_staged).resolve(), release, ctl)
+            rows = verify(absolute_no_follow(Path(args.verify_staged)), release, ctl)
             print(f"MANAGEMENT_WORKLOAD_BATCH_VERIFY_PASS roles={len(rows)}")
         else:
             if not args.out: raise RuntimeError("--assemble-staged requires --out")
-            assemble(Path(args.assemble_staged).resolve(), release, ctl, Path(args.out).resolve())
+            assemble(absolute_no_follow(Path(args.assemble_staged)), release, ctl, Path(args.out).expanduser().resolve())
         return 0
     except Exception as exc:
         print(f"MANAGEMENT_WORKLOAD_BATCH_FAIL {exc}")
