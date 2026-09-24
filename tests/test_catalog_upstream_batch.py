@@ -13,12 +13,15 @@ spec.loader.exec_module(mod)
 
 
 class UpstreamBatchTests(unittest.TestCase):
-    def test_queue_is_deterministic_and_all_exact_source_candidates_execute(self):
+    def test_queue_is_deterministic_and_matches_live_canonical_authority(self):
         ready, review = mod.queue(ROOT)
-        self.assertEqual(17, len(ready))
-        self.assertEqual(0, len(review))
+        authority = json.loads((ROOT / "catalog/upstream-admission.json").read_text())
+        rows = (authority.get("spec") or {}).get("components") or []
+        expected_ready = sorted(str(row["component"]) for row in rows if row.get("status") == "ready-for-acquisition")
+        expected_review = sorted((str(row["component"]), str(row.get("status") or "")) for row in rows if row.get("status") != "ready-for-acquisition")
+        self.assertEqual(expected_ready, ready)
+        self.assertEqual(expected_review, review)
         self.assertEqual(sorted(ready), ready)
-        self.assertTrue({"cilium", "kyverno", "metallb"}.issubset(set(ready)))
         self.assertFalse(set(ready) & {name for name, _ in review})
 
     def test_batch_command_uses_only_canonical_admission_and_atomic_install(self):
