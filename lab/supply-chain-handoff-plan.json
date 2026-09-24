@@ -51,6 +51,12 @@
           "sha256": "6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960"
         },
         {
+          "component": "kgateway",
+          "path": "catalog/runtime/kgateway/2.4.1/source-lock.json",
+          "release": "2.4.1",
+          "sha256": "af65659f58af5af9dbcfd5b85e97df4a71d8ec9e22d769ea162cd371e848e738"
+        },
+        {
           "component": "secure-namespace-foundation",
           "path": "catalog/runtime/secure-namespace-foundation/1.0.0/source-lock.json",
           "release": "1.0.0",
@@ -95,14 +101,6 @@
           "source": "https://grafana-community.github.io/helm-charts",
           "status": "ready-for-acquisition",
           "upstreamVersion": "12.10.0"
-        },
-        {
-          "component": "kgateway",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "2.4.1",
-          "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "v2.4.1"
         },
         {
           "component": "kyverno",
@@ -276,11 +274,11 @@
       },
       {
         "component": "kgateway",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "2.4.1",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "kyverno",
@@ -534,6 +532,12 @@
           "previousVersion": "2.7.0",
           "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
           "targetRelease": "2.8.0"
+        },
+        {
+          "component": "kgateway",
+          "previousVersion": "2.4.0",
+          "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+          "targetRelease": "2.4.1"
         }
       ],
       "installOnlyFirstProductRelease": [
@@ -585,12 +589,6 @@
           "previousVersion": "12.9.0",
           "source": "https://grafana-community.github.io/helm-charts",
           "targetRelease": "12.10.0"
-        },
-        {
-          "component": "kgateway",
-          "previousVersion": "2.4.0",
-          "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
-          "targetRelease": "2.4.1"
         },
         {
           "component": "kyverno",

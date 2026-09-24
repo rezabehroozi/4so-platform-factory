@@ -1,0 +1,592 @@
+[
+  {
+    "apiVersion": "v1",
+    "kind": "ServiceAccount",
+    "metadata": {
+      "labels": {
+        "app.kubernetes.io/component": "controller",
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/managed-by": "Helm",
+        "app.kubernetes.io/name": "kgateway",
+        "app.kubernetes.io/version": "v2.4.1",
+        "helm.sh/chart": "kgateway-v2.4.1",
+        "kgateway": "kgateway"
+      },
+      "name": "platform-factory-kgateway",
+      "namespace": "gateway-system"
+    }
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "ClusterRole",
+    "metadata": {
+      "name": "kgateway-gateway-system"
+    },
+    "rules": [
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "configmaps",
+          "services"
+        ],
+        "verbs": [
+          "create",
+          "delete",
+          "get",
+          "list",
+          "patch",
+          "update",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "endpoints",
+          "namespaces",
+          "nodes",
+          "pods"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "events"
+        ],
+        "verbs": [
+          "create",
+          "patch"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "secrets",
+          "serviceaccounts"
+        ],
+        "verbs": [
+          "create",
+          "delete",
+          "get",
+          "list",
+          "patch",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "apiextensions.k8s.io"
+        ],
+        "resources": [
+          "customresourcedefinitions"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "apps"
+        ],
+        "resources": [
+          "deployments"
+        ],
+        "verbs": [
+          "create",
+          "delete",
+          "get",
+          "list",
+          "patch",
+          "update",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "authentication.k8s.io"
+        ],
+        "resources": [
+          "tokenreviews"
+        ],
+        "verbs": [
+          "create"
+        ]
+      },
+      {
+        "apiGroups": [
+          "autoscaling"
+        ],
+        "resources": [
+          "horizontalpodautoscalers"
+        ],
+        "verbs": [
+          "create",
+          "delete",
+          "get",
+          "list",
+          "patch",
+          "update",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "autoscaling.k8s.io"
+        ],
+        "resources": [
+          "verticalpodautoscalers"
+        ],
+        "verbs": [
+          "create",
+          "delete",
+          "get",
+          "list",
+          "patch",
+          "update",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "coordination.k8s.io"
+        ],
+        "resources": [
+          "leases"
+        ],
+        "verbs": [
+          "create",
+          "get",
+          "update"
+        ]
+      },
+      {
+        "apiGroups": [
+          "discovery.k8s.io"
+        ],
+        "resources": [
+          "endpointslices"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "gateway.kgateway.dev"
+        ],
+        "resources": [
+          "backendconfigpolicies",
+          "backends",
+          "directresponses",
+          "gatewayextensions",
+          "gatewayparameters",
+          "httplistenerpolicies",
+          "listenerpolicies",
+          "trafficpolicies"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "gateway.kgateway.dev"
+        ],
+        "resources": [
+          "backendconfigpolicies/status",
+          "backends/status",
+          "directresponses/status",
+          "gatewayextensions/status",
+          "gatewayparameters/status",
+          "httplistenerpolicies/status",
+          "listenerpolicies/status",
+          "trafficpolicies/status"
+        ],
+        "verbs": [
+          "get",
+          "patch",
+          "update"
+        ]
+      },
+      {
+        "apiGroups": [
+          "gateway.networking.k8s.io"
+        ],
+        "resources": [
+          "backendtlspolicies",
+          "gateways",
+          "grpcroutes",
+          "httproutes",
+          "listenersets",
+          "referencegrants",
+          "tcproutes",
+          "tlsroutes"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "gateway.networking.k8s.io"
+        ],
+        "resources": [
+          "backendtlspolicies/status",
+          "gatewayclasses/status",
+          "gateways/status",
+          "grpcroutes/status",
+          "httproutes/status",
+          "listenersets/status",
+          "tcproutes/status",
+          "tlsroutes/status"
+        ],
+        "verbs": [
+          "patch",
+          "update"
+        ]
+      },
+      {
+        "apiGroups": [
+          "gateway.networking.k8s.io"
+        ],
+        "resources": [
+          "gatewayclasses"
+        ],
+        "verbs": [
+          "create",
+          "get",
+          "list",
+          "patch",
+          "update",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "gateway.networking.x-k8s.io"
+        ],
+        "resources": [
+          "xlistenersets"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "gateway.networking.x-k8s.io"
+        ],
+        "resources": [
+          "xlistenersets/status"
+        ],
+        "verbs": [
+          "patch",
+          "update"
+        ]
+      },
+      {
+        "apiGroups": [
+          "networking.istio.io"
+        ],
+        "resources": [
+          "destinationrules",
+          "serviceentries",
+          "workloadentries"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "policy"
+        ],
+        "resources": [
+          "poddisruptionbudgets"
+        ],
+        "verbs": [
+          "create",
+          "delete",
+          "get",
+          "list",
+          "patch",
+          "update",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "security.istio.io"
+        ],
+        "resources": [
+          "authorizationpolicies"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      }
+    ]
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "ClusterRoleBinding",
+    "metadata": {
+      "name": "kgateway-role-gateway-system"
+    },
+    "roleRef": {
+      "apiGroup": "rbac.authorization.k8s.io",
+      "kind": "ClusterRole",
+      "name": "kgateway-gateway-system"
+    },
+    "subjects": [
+      {
+        "kind": "ServiceAccount",
+        "name": "platform-factory-kgateway",
+        "namespace": "gateway-system"
+      }
+    ]
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Service",
+    "metadata": {
+      "labels": {
+        "app.kubernetes.io/component": "controller",
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/managed-by": "Helm",
+        "app.kubernetes.io/name": "kgateway",
+        "app.kubernetes.io/version": "v2.4.1",
+        "helm.sh/chart": "kgateway-v2.4.1",
+        "kgateway": "kgateway"
+      },
+      "name": "platform-factory-kgateway",
+      "namespace": "gateway-system"
+    },
+    "spec": {
+      "ports": [
+        {
+          "name": "grpc-xds",
+          "port": 9977,
+          "protocol": "TCP",
+          "targetPort": 9977
+        },
+        {
+          "name": "health",
+          "port": 9093,
+          "protocol": "TCP",
+          "targetPort": 9093
+        },
+        {
+          "name": "metrics",
+          "port": 9092,
+          "protocol": "TCP",
+          "targetPort": 9092
+        }
+      ],
+      "selector": {
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/name": "kgateway",
+        "kgateway": "kgateway"
+      },
+      "type": "ClusterIP"
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "labels": {
+        "app.kubernetes.io/component": "controller",
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/managed-by": "Helm",
+        "app.kubernetes.io/name": "kgateway",
+        "app.kubernetes.io/version": "v2.4.1",
+        "helm.sh/chart": "kgateway-v2.4.1",
+        "kgateway": "kgateway"
+      },
+      "name": "platform-factory-kgateway",
+      "namespace": "gateway-system"
+    },
+    "spec": {
+      "replicas": 1,
+      "selector": {
+        "matchLabels": {
+          "app.kubernetes.io/instance": "platform-factory",
+          "app.kubernetes.io/name": "kgateway",
+          "kgateway": "kgateway"
+        }
+      },
+      "template": {
+        "metadata": {
+          "annotations": {
+            "prometheus.io/path": "/metrics",
+            "prometheus.io/port": "9092",
+            "prometheus.io/scrape": "true"
+          },
+          "labels": {
+            "app.kubernetes.io/component": "controller",
+            "app.kubernetes.io/instance": "platform-factory",
+            "app.kubernetes.io/name": "kgateway",
+            "kgateway": "kgateway"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "GOMEMLIMIT",
+                  "valueFrom": {
+                    "resourceFieldRef": {
+                      "divisor": "1",
+                      "resource": "limits.memory"
+                    }
+                  }
+                },
+                {
+                  "name": "GOMAXPROCS",
+                  "valueFrom": {
+                    "resourceFieldRef": {
+                      "divisor": "1",
+                      "resource": "limits.cpu"
+                    }
+                  }
+                },
+                {
+                  "name": "KGW_LOG_LEVEL",
+                  "value": "info"
+                },
+                {
+                  "name": "KGW_ADMIN_BIND_ADDRESS",
+                  "value": "localhost"
+                },
+                {
+                  "name": "KGW_XDS_SERVICE_NAME",
+                  "value": "platform-factory-kgateway"
+                },
+                {
+                  "name": "KGW_XDS_SERVICE_PORT",
+                  "value": "9977"
+                },
+                {
+                  "name": "KGW_DEFAULT_IMAGE_REGISTRY",
+                  "value": "cr.kgateway.dev/kgateway-dev"
+                },
+                {
+                  "name": "KGW_DEFAULT_IMAGE_TAG",
+                  "value": "v2.4.1"
+                },
+                {
+                  "name": "KGW_DEFAULT_IMAGE_PULL_POLICY",
+                  "value": "IfNotPresent"
+                },
+                {
+                  "name": "KGW_DISCOVERY_NAMESPACE_SELECTORS",
+                  "value": "[]"
+                },
+                {
+                  "name": "KGW_SERVICE_ENTRIES_EXCLUSION_LABEL_SELECTORS",
+                  "value": "[]"
+                },
+                {
+                  "name": "KGW_POLICY_MERGE",
+                  "value": "{}"
+                },
+                {
+                  "name": "KGW_VALIDATION_MODE",
+                  "value": "standard"
+                },
+                {
+                  "name": "KGW_ENABLE_AWS_EC2_DISCOVERY",
+                  "value": "false"
+                },
+                {
+                  "name": "KGW_AWS_EC2_REFRESH_INTERVAL",
+                  "value": "30s"
+                },
+                {
+                  "name": "KGW_GATEWAY_CLASS_PARAMETERS_REFS",
+                  "value": "{}"
+                },
+                {
+                  "name": "POD_NAMESPACE",
+                  "valueFrom": {
+                    "fieldRef": {
+                      "fieldPath": "metadata.namespace"
+                    }
+                  }
+                }
+              ],
+              "image": "cr.kgateway.dev/kgateway-dev/kgateway@sha256:0addd1b1017097fecc36d4cc2f12c3ffec1f5dcbcb9405d4a935c9288ae5c28b",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "controller",
+              "ports": [
+                {
+                  "containerPort": 9977,
+                  "name": "grpc-xds",
+                  "protocol": "TCP"
+                },
+                {
+                  "containerPort": 9093,
+                  "name": "health",
+                  "protocol": "TCP"
+                },
+                {
+                  "containerPort": 9092,
+                  "name": "metrics",
+                  "protocol": "TCP"
+                }
+              ],
+              "readinessProbe": {
+                "httpGet": {
+                  "path": "/readyz",
+                  "port": 9093
+                },
+                "initialDelaySeconds": 1,
+                "periodSeconds": 10
+              },
+              "resources": {},
+              "startupProbe": {
+                "failureThreshold": 600,
+                "httpGet": {
+                  "path": "/readyz",
+                  "port": 9093
+                },
+                "initialDelaySeconds": 0,
+                "periodSeconds": 1
+              }
+            }
+          ],
+          "serviceAccountName": "platform-factory-kgateway"
+        }
+      }
+    }
+  }
+]

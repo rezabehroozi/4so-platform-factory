@@ -95,7 +95,7 @@
       "component": "kgateway",
       "status": "pending-source-pair",
       "targetRelease": "2.4.1",
-      "targetSourceLockDigest": "",
+      "targetSourceLockDigest": "6af496e4c0e1173018912683265e93d93e8b3e2e02f47da640e70421824f0285",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
