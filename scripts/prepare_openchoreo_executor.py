@@ -173,7 +173,12 @@ def acquisition_payload(acquisition: Path) -> tuple[dict, dict[str, bytes]]:
         bundle.close()
 
 def prepare(release: Path, acquisition: Path, toolchain_stage: Path, out: Path) -> dict:
-    release, acquisition, toolchain_stage, out = (p.expanduser().resolve() for p in (release, acquisition, toolchain_stage, out))
+    # Do not resolve immutable evidence inputs before their lstat checks.
+    # resolve() follows a symlink and would erase the very fact we need to reject.
+    release = Path(os.path.abspath(release.expanduser()))
+    acquisition = Path(os.path.abspath(acquisition.expanduser()))
+    toolchain_stage = Path(os.path.abspath(toolchain_stage.expanduser()))
+    out = out.expanduser().resolve()
     if out.exists() or out.is_symlink():
         raise RuntimeError("OPENCHOREO_EXECUTOR_CONTEXT_OUTPUT_EXISTS")
     if not DOCKERFILE.is_file() or DOCKERFILE.is_symlink():
