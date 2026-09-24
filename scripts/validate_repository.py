@@ -1498,8 +1498,25 @@ def validate_supply_chain_handoff(root: Path, version: str, components: dict[str
         for key in ('derivedEvidenceOnly','stagingNeverPromotesSourceResolution','stagingNeverPromotesRuntimeCertification','physicalPassInferenceForbidden'):
             if truth.get(key) is not True:
                 errors.append(('SUPPLY_CHAIN_HANDOFF_TRUTH_MODEL_INVALID',key))
-        if len((hs.get('componentAcquisition') or {}).get('ready') or []) != 17 or len((hs.get('componentAcquisition') or {}).get('reviewBlocked') or []) != 0 or len((hs.get('componentAcquisition') or {}).get('runtimeHolds') or []) != 3:
-            errors.append(('SUPPLY_CHAIN_HANDOFF_COMPONENT_QUEUE_INVALID','ready/review/runtime'))
+        acquisition = hs.get('componentAcquisition') or {}
+        ready_rows = acquisition.get('ready') or []
+        review_rows = acquisition.get('reviewBlocked') or []
+        locked_rows = acquisition.get('alreadySourceLocked') or []
+        hold_rows = acquisition.get('runtimeHolds') or []
+        ready_names = {str(row.get('component') or '') for row in ready_rows if isinstance(row, dict)}
+        review_names = {str(row.get('component') or '') for row in review_rows if isinstance(row, dict)}
+        locked_names = {str(row.get('component') or '') for row in locked_rows if isinstance(row, dict)}
+        hold_names = {str(row.get('component') or '') for row in hold_rows if isinstance(row, dict)}
+        component_names = set(components)
+        if (ready_names & review_names) or (ready_names & locked_names) or (review_names & locked_names) or ready_names | review_names | locked_names != component_names:
+            errors.append(('SUPPLY_CHAIN_HANDOFF_COMPONENT_QUEUE_INVALID','component partition drift'))
+        else:
+            for name in component_names:
+                resolved = bool(((components[name].get('spec') or {}).get('source') or {}).get('resolved'))
+                if resolved != (name in locked_names):
+                    errors.append(('SUPPLY_CHAIN_HANDOFF_COMPONENT_QUEUE_INVALID',f'source binding:{name}'))
+        if not hold_names.issubset(ready_names):
+            errors.append(('SUPPLY_CHAIN_HANDOFF_COMPONENT_QUEUE_INVALID','runtime holds must remain source-acquirable'))
         if len((hs.get('managementWorkloads') or {}).get('externalImages') or []) != 4 or len((hs.get('managementWorkloads') or {}).get('manifestImageResolution') or []) != 4:
             errors.append(('SUPPLY_CHAIN_HANDOFF_MANAGEMENT_COVERAGE_INVALID','external/manifest'))
         if len(hs.get('componentUpgradePairRequirements') or []) != len(components):
