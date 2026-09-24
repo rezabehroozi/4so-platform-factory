@@ -3,6 +3,7 @@ package openchoreo
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -49,5 +50,31 @@ func TestOpenChoreoRuntimeSourceRequiresFactoryAuthorityBoundaries(t *testing.T)
 	}{
 		broken:=s;broken.Planes=append([]PlaneSource(nil),s.Planes...);broken.Images=append([]ImageMirror(nil),s.Images...);mutate(&broken)
 		if err:=ValidateRuntimeExecutionSource(broken);err==nil{t.Fatalf("%s negative control admitted",name)}
+	}
+}
+
+
+func TestLoadOpenChoreoRuntimeExecutionSourceRejectsSymlink(t *testing.T) {
+	root := t.TempDir()
+	source := admittedFixture()
+	raw, err := json.Marshal(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	regular := filepath.Join(root, "runtime-source.json")
+	if err = os.WriteFile(regular, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, digest, err := LoadRuntimeExecutionSource(regular)
+	if err != nil || digest == "" || loaded.ExecutorImageReference != source.ExecutorImageReference {
+		t.Fatalf("regular exact runtime source rejected: digest=%q err=%v", digest, err)
+	}
+
+	link := filepath.Join(root, "runtime-source-link.json")
+	if err = os.Symlink(regular, link); err != nil {
+		t.Skipf("symlink unavailable on this platform: %v", err)
+	}
+	if _, _, err = LoadRuntimeExecutionSource(link); err == nil || !strings.Contains(err.Error(), "OPENCHOREO_RUNTIME_SOURCE_FILE_INVALID") {
+		t.Fatalf("symlink runtime source was not rejected: %v", err)
 	}
 }
