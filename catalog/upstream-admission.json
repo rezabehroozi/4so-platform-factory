@@ -7,18 +7,6 @@
   "spec": {
     "components": [
       {
-        "catalogConstraint": "1.11.x",
-        "chart": "alloy",
-        "component": "alloy",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Exact chart release selected from the product's admitted 1.11 series; acquisition must still verify upstream index digest, immutable render and image digests.",
-        "selectedVersion": "1.11.0",
-        "source": "https://grafana.github.io/helm-charts",
-        "status": "ready-for-acquisition",
-        "upstreamVersion": "1.11.0",
-        "runtimeStatus": "eligible-after-source-resolution"
-      },
-      {
         "catalogConstraint": "10.2.x",
         "chart": "argo-cd",
         "component": "argocd",
@@ -27,8 +15,8 @@
         "selectedVersion": "10.2.3",
         "source": "https://argoproj.github.io/argo-helm",
         "status": "ready-for-acquisition",
-        "upstreamVersion": "10.2.3",
-        "runtimeStatus": "eligible-after-source-resolution"
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "10.2.3"
       },
       {
         "catalogConstraint": "0.13.x",
@@ -39,8 +27,8 @@
         "selectedVersion": "0.13.11",
         "source": "oci://ghcr.io/projectcapsule/charts/capsule",
         "status": "ready-for-acquisition",
-        "upstreamVersion": "0.13.11",
-        "runtimeStatus": "eligible-after-source-resolution"
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "0.13.11"
       },
       {
         "catalogConstraint": "1.0.x",
@@ -48,10 +36,6 @@
         "component": "ceph-csi-operator",
         "licenseSPDX": "Apache-2.0",
         "rationale": "First-class operator authority required by the current upstream-supported Ceph CSI deployment model. Exact v1.0.4 is admitted for immutable acquisition; driver CRs and runtime storage behavior remain separately certified.",
-        "selectedVersion": "1.0.4",
-        "source": "https://ceph.github.io/ceph-csi-operator/",
-        "status": "ready-for-acquisition",
-        "upstreamVersion": "1.0.4",
         "reviewEvidence": [
           {
             "kind": "release",
@@ -59,7 +43,11 @@
             "summary": "Official upstream release v1.0.4 publishes the Ceph CSI Operator release line."
           }
         ],
-        "runtimeStatus": "eligible-after-source-resolution"
+        "selectedVersion": "1.0.4",
+        "source": "https://ceph.github.io/ceph-csi-operator/",
+        "status": "ready-for-acquisition",
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "1.0.4"
       },
       {
         "catalogConstraint": "1.0.x",
@@ -67,10 +55,6 @@
         "component": "ceph-csi-rbd",
         "licenseSPDX": "Apache-2.0",
         "rationale": "Upstream has moved new Ceph CSI deployments to the Ceph-CSI Operator. Preserve the product component id ceph-csi-rbd for consumers, but acquire the official operator-managed ceph-csi-drivers chart at exact 1.0.4; source locking and runtime certification remain separate gates.",
-        "selectedVersion": "1.0.4",
-        "source": "https://ceph.github.io/ceph-csi-operator-charts",
-        "status": "ready-for-acquisition",
-        "upstreamVersion": "1.0.4",
         "reviewEvidence": [
           {
             "kind": "source-migration",
@@ -83,7 +67,11 @@
             "summary": "Official Ceph-CSI Operator v1.0.4 release drives the published operator and driver Helm packages."
           }
         ],
-        "runtimeStatus": "eligible-after-source-resolution"
+        "selectedVersion": "1.0.4",
+        "source": "https://ceph.github.io/ceph-csi-operator-charts",
+        "status": "ready-for-acquisition",
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "1.0.4"
       },
       {
         "catalogConstraint": "1.21.x",
@@ -94,8 +82,8 @@
         "selectedVersion": "1.21.1",
         "source": "https://charts.jetstack.io",
         "status": "ready-for-acquisition",
-        "upstreamVersion": "v1.21.1",
-        "runtimeStatus": "eligible-after-source-resolution"
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "v1.21.1"
       },
       {
         "catalogConstraint": "1.20.x",
@@ -103,10 +91,6 @@
         "component": "cilium",
         "licenseSPDX": "Apache-2.0",
         "rationale": "Exact Cilium 1.20.1 source is eligible for immutable acquisition. Runtime certification remains fail-closed until the product upgrades the resolved Gateway API baseline from 1.5.1 to exact 1.6.1 through RUNTIME_DEPENDENCY_TRANSITION_V1; source acquisition is not runtime admission.",
-        "selectedVersion": "1.20.1",
-        "source": "https://helm.cilium.io",
-        "status": "ready-for-acquisition",
-        "upstreamVersion": "1.20.1",
         "reviewEvidence": [
           {
             "kind": "release",
@@ -119,7 +103,11 @@
             "summary": "Cilium 1.20 Gateway API support requires Gateway API 1.6.1; the product currently resolves 1.5.1."
           }
         ],
-        "runtimeStatus": "dependency-transition-required"
+        "selectedVersion": "1.20.1",
+        "source": "https://helm.cilium.io",
+        "status": "ready-for-acquisition",
+        "runtimeStatus": "dependency-transition-required",
+        "upstreamVersion": "1.20.1"
       },
       {
         "catalogConstraint": "1.21.x",
@@ -130,8 +118,8 @@
         "selectedVersion": "1.21.1",
         "source": "https://kubernetes-sigs.github.io/external-dns/",
         "status": "ready-for-acquisition",
-        "upstreamVersion": "1.21.1",
-        "runtimeStatus": "eligible-after-source-resolution"
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "1.21.1"
       },
       {
         "catalogConstraint": "2.8.x",
@@ -142,8 +130,8 @@
         "selectedVersion": "2.8.0",
         "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
         "status": "ready-for-acquisition",
-        "upstreamVersion": "2.8.0",
-        "runtimeStatus": "eligible-after-source-resolution"
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "2.8.0"
       },
       {
         "catalogConstraint": "12.10.x",
@@ -151,10 +139,6 @@
         "component": "grafana",
         "licenseSPDX": "Apache-2.0",
         "rationale": "Grafana chart ownership moved to the official grafana-community Helm repository; chart 12.10.0 is an exact published candidate and is admitted for immutable acquisition, but source.resolved remains false until artifact verification completes.",
-        "selectedVersion": "12.10.0",
-        "source": "https://grafana-community.github.io/helm-charts",
-        "status": "ready-for-acquisition",
-        "upstreamVersion": "12.10.0",
         "reviewEvidence": [
           {
             "kind": "source-migration",
@@ -167,7 +151,11 @@
             "summary": "Official community package registry publishes exact Grafana chart 12.10.0."
           }
         ],
-        "runtimeStatus": "eligible-after-source-resolution"
+        "selectedVersion": "12.10.0",
+        "source": "https://grafana-community.github.io/helm-charts",
+        "status": "ready-for-acquisition",
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "12.10.0"
       },
       {
         "catalogConstraint": "2.4.x",
@@ -175,10 +163,6 @@
         "component": "kgateway",
         "licenseSPDX": "Apache-2.0",
         "rationale": "Kgateway 2.4.1 is the current stable 2.4 patch candidate. The 2.4 line supports Gateway API 1.4 through 1.6 and Kubernetes 1.32 through 1.36, so it can bridge the shipped Gateway API 1.5.1 baseline and the planned exact 1.6.1 transition. Immutable source acquisition and runtime certification remain separate gates.",
-        "selectedVersion": "2.4.1",
-        "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
-        "status": "ready-for-acquisition",
-        "upstreamVersion": "v2.4.1",
         "reviewEvidence": [
           {
             "kind": "release",
@@ -191,7 +175,11 @@
             "summary": "Official stable v2.4.1 release publishes the kgateway OCI Helm chart and fixes a rolling-upgrade control-plane/data-plane incompatibility present in v2.4.0."
           }
         ],
-        "runtimeStatus": "eligible-after-source-resolution"
+        "selectedVersion": "2.4.1",
+        "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+        "status": "ready-for-acquisition",
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "v2.4.1"
       },
       {
         "catalogConstraint": "3.8.x",
@@ -199,10 +187,6 @@
         "component": "kyverno",
         "licenseSPDX": "Apache-2.0",
         "rationale": "Exact Kyverno chart 3.8.2 is published and may be immutably acquired for inspection/evidence. Runtime certification remains blocked by the documented chart CRD rendering defect until the blocker is resolved or explicitly dispositioned; acquiring bytes does not accept runtime risk.",
-        "selectedVersion": "3.8.2",
-        "source": "https://kyverno.github.io/kyverno/",
-        "status": "ready-for-acquisition",
-        "upstreamVersion": "3.8.2",
         "reviewEvidence": [
           {
             "kind": "release",
@@ -215,7 +199,11 @@
             "summary": "Open chart 3.8.2 issue reports CRDs rendering empty labels and annotations."
           }
         ],
-        "runtimeStatus": "review-required"
+        "selectedVersion": "3.8.2",
+        "source": "https://kyverno.github.io/kyverno/",
+        "status": "ready-for-acquisition",
+        "runtimeStatus": "review-required",
+        "upstreamVersion": "3.8.2"
       },
       {
         "catalogConstraint": "18.12.x",
@@ -223,10 +211,6 @@
         "component": "loki",
         "licenseSPDX": "Apache-2.0",
         "rationale": "OSS Loki Helm ownership moved to grafana-community/helm-charts and the maintained community chart uses a new major chart line. Exact chart 18.12.1 is admitted from the new official community repository; immutable source acquisition and runtime certification remain separate.",
-        "selectedVersion": "18.12.1",
-        "source": "https://grafana-community.github.io/helm-charts",
-        "status": "ready-for-acquisition",
-        "upstreamVersion": "18.12.1",
         "reviewEvidence": [
           {
             "kind": "source-migration",
@@ -239,7 +223,11 @@
             "summary": "The maintained community Loki Chart.yaml publishes exact chart 18.12.1."
           }
         ],
-        "runtimeStatus": "eligible-after-source-resolution"
+        "selectedVersion": "18.12.1",
+        "source": "https://grafana-community.github.io/helm-charts",
+        "status": "ready-for-acquisition",
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "18.12.1"
       },
       {
         "catalogConstraint": "0.16.x",
@@ -247,10 +235,6 @@
         "component": "metallb",
         "licenseSPDX": "Apache-2.0",
         "rationale": "Exact MetalLB 0.16.1 source may be immutably acquired for inspection/evidence. Runtime certification remains blocked by the documented grpc/CVE concern until a safe released candidate is selected or the risk is explicitly dispositioned; source acquisition does not certify the image set.",
-        "selectedVersion": "0.16.1",
-        "source": "https://metallb.github.io/metallb",
-        "status": "ready-for-acquisition",
-        "upstreamVersion": "0.16.1",
         "reviewEvidence": [
           {
             "kind": "release",
@@ -263,7 +247,11 @@
             "summary": "Open upstream request states v0.16.1 predates the grpc bump fixing CVE-2026-33186 and no released tag carries the fix yet."
           }
         ],
-        "runtimeStatus": "review-required"
+        "selectedVersion": "0.16.1",
+        "source": "https://metallb.github.io/metallb",
+        "status": "ready-for-acquisition",
+        "runtimeStatus": "review-required",
+        "upstreamVersion": "0.16.1"
       },
       {
         "catalogConstraint": "1.7.x",
@@ -274,8 +262,8 @@
         "selectedVersion": "1.7.0",
         "source": "https://helm.cilium.io",
         "status": "ready-for-acquisition",
-        "upstreamVersion": "1.7.0",
-        "runtimeStatus": "eligible-after-source-resolution"
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "1.7.0"
       },
       {
         "catalogConstraint": "12.1.x",
@@ -286,8 +274,8 @@
         "selectedVersion": "12.1.0",
         "source": "https://vmware-tanzu.github.io/helm-charts/",
         "status": "ready-for-acquisition",
-        "upstreamVersion": "12.1.0",
-        "runtimeStatus": "eligible-after-source-resolution"
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "12.1.0"
       },
       {
         "catalogConstraint": "0.90.x",
@@ -298,18 +286,18 @@
         "selectedVersion": "0.90.2",
         "source": "https://victoriametrics.github.io/helm-charts/",
         "status": "ready-for-acquisition",
-        "upstreamVersion": "0.90.2",
-        "runtimeStatus": "eligible-after-source-resolution"
+        "runtimeStatus": "eligible-after-source-resolution",
+        "upstreamVersion": "0.90.2"
       }
     ],
     "policy": {
       "allowLatestResolution": false,
       "autoWidenCatalogConstraint": false,
       "runtimeCertification": "separate-runtime-evidence-required",
+      "candidateAcquisition": "exact-source-may-be-acquired-before-runtime-clearance",
       "sourceAuthority": "official-upstream-only",
       "sourceResolution": "separate-immutable-acquisition-required",
-      "versionSelection": "exact-semver-no-prerelease",
-      "candidateAcquisition": "exact-source-may-be-acquired-before-runtime-clearance"
+      "versionSelection": "exact-semver-no-prerelease"
     }
   }
 }

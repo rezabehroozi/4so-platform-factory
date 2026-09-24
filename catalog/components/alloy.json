@@ -5,16 +5,35 @@
     "name": "alloy"
   },
   "spec": {
+    "displayName": "Grafana Alloy",
+    "category": "observability",
+    "release": "1.11.0",
+    "versionPolicy": "exact-offline-import",
+    "supportTier": "research-candidate",
+    "mandatory": true,
+    "dependencies": [
+      "loki"
+    ],
+    "provides": [
+      "telemetry-agent"
+    ],
+    "requiresCapabilities": [
+      "logs-backend"
+    ],
+    "exclusiveCapabilities": [],
+    "conflictsWith": [],
+    "risk": "medium",
     "capabilities": [
       "telemetry-collection"
     ],
-    "category": "observability",
-    "certification": {
-      "evidenceDigest": "",
-      "profiles": [],
-      "status": "candidate"
-    },
+    "namespace": "logging",
+    "wave": 69,
+    "settingsSchemaRef": "schemas/settings/alloy.schema.json",
     "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
       "architectures": [
         "amd64",
         "arm64"
@@ -23,35 +42,29 @@
         "kubernetes",
         "rke2"
       ],
-      "kubernetes": {
-        "maxVersion": "1.35",
-        "minVersion": "1.34"
-      },
       "providers": [
         "imported",
         "cluster-api-topology-v1beta2"
       ]
     },
-    "conflictsWith": [],
     "delivery": {
-      "chart": "alloy",
-      "repositoryKey": "platform-charts",
-      "type": "helm"
+      "type": "helm",
+      "repositoryKey": "offline-catalog-bundle",
+      "chart": "alloy"
     },
-    "dependencies": [
-      "loki"
-    ],
-    "displayName": "Grafana Alloy",
-    "evidenceRequired": [
-      "resolved-source-lock",
-      "rendered-resource-inventory",
-      "policy-result",
-      "runtime-readiness",
-      "rollback-verification"
-    ],
-    "exclusiveCapabilities": [],
-    "mandatory": true,
-    "namespace": "logging",
+    "source": {
+      "type": "helm-chart",
+      "resolved": true,
+      "bundleKey": "alloy/1.11.0",
+      "artifactDigest": "sha256:11d253b62e47beeacd89eb4283fc056962ecbf143984863c1998be13da0772dd",
+      "renderManifestDigest": "sha256:c4a8f2609b3889a00e06f93d5ad1546693a7aa51c2bb60cff7356e84936dced6",
+      "sourceLockDigest": "sha256:7244ce572d4376f6bfa313cb249891f46f536abf5c7c449e1be1b4a909ddb81a",
+      "imageInventoryDigest": "sha256:2a867b244556afdcd8c70162ac927d2101f194610a704dd2ddabf7e38f68728a",
+      "licenseManifestDigest": "sha256:2c3ec45fd90e2441dd567d3389a1dd243e80967c55e0e50193e4d8cb9229e1c1",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:afaa0465aba248436140729bf8c45a477260cfc25b2322c5989793c46486b99c",
+      "provenance": "sha256:1dc5a93687a1828d12b02d73b5b606afb933d9af9dc1eb4ce8861be1a0e96b23"
+    },
     "operations": {
       "install": "required",
       "preflight": "required",
@@ -60,34 +73,23 @@
       "upgrade": "required",
       "verify": "required"
     },
-    "provides": [
-      "telemetry-agent"
-    ],
     "readiness": [
       "daemonset/alloy"
     ],
-    "release": "1.11.0",
-    "requiresCapabilities": [
-      "logs-backend"
-    ],
-    "risk": "medium",
     "rollback": {
       "strategy": "restore-previous-collector-config"
     },
-    "settingsSchemaRef": "schemas/settings/alloy.schema.json",
-    "source": {
-      "artifactDigest": "",
-      "imageInventoryDigest": "",
-      "licenseManifestDigest": "",
-      "provenance": "required",
-      "resolved": false,
-      "sbom": "required",
-      "signatureVerification": "required",
-      "sourceLockDigest": "",
-      "type": "helm-chart"
-    },
-    "supportTier": "research-candidate",
-    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
-    "wave": 69
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": null,
+      "evidenceDigest": ""
+    }
   }
 }

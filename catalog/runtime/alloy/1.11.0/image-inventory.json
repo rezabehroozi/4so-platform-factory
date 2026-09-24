@@ -1,0 +1,10 @@
+{
+  "images": [
+    {
+      "reference": "docker.io/grafana/alloy@sha256:491b0578c04983fd54fe99b587b6fab4404dc46d0dc16677bd6b00cc1140b308"
+    },
+    {
+      "reference": "quay.io/prometheus-operator/prometheus-config-reloader:v0.91.0@sha256:7d9e4eea5f1139e602508871f422b0116c60e87c662f3dcd234d5ab60cd0d8c1"
+    }
+  ]
+}

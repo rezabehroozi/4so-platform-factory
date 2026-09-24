@@ -9,6 +9,12 @@
     "componentAcquisition": {
       "alreadySourceLocked": [
         {
+          "component": "alloy",
+          "path": "catalog/runtime/alloy/1.11.0/source-lock.json",
+          "release": "1.11.0",
+          "sha256": "7244ce572d4376f6bfa313cb249891f46f536abf5c7c449e1be1b4a909ddb81a"
+        },
+        {
           "component": "gateway-api",
           "path": "catalog/runtime/gateway-api/1.5.1/source-lock.json",
           "release": "1.5.1",
@@ -28,14 +34,6 @@
         }
       ],
       "ready": [
-        {
-          "component": "alloy",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "1.11.0",
-          "source": "https://grafana.github.io/helm-charts",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "1.11.0"
-        },
         {
           "component": "argocd",
           "runtimeStatus": "eligible-after-source-resolution",
@@ -169,30 +167,30 @@
       "runtimeHolds": [
         {
           "component": "cilium",
+          "evidenceURL": "https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/",
+          "reason": "Cilium 1.20.1 source may be acquired, but runtime execution remains blocked until the product-owned Gateway API baseline is upgraded and certified at exact 1.6.1.",
+          "runtimeAuthority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
           "runtimeStatus": "dependency-transition-required",
           "selectedVersion": "1.20.1",
-          "status": "ready-for-acquisition",
-          "runtimeAuthority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
-          "reason": "Cilium 1.20.1 source may be acquired, but runtime execution remains blocked until the product-owned Gateway API baseline is upgraded and certified at exact 1.6.1.",
-          "evidenceURL": "https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/"
+          "status": "ready-for-acquisition"
         },
         {
           "component": "kyverno",
+          "evidenceURL": "https://github.com/kyverno/kyverno/issues/16764",
+          "reason": "Kyverno chart 3.8.2 remains runtime-held while the reviewed upstream CRD rendering defect is unresolved or explicitly dispositioned.",
+          "runtimeAuthority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
           "runtimeStatus": "review-required",
           "selectedVersion": "3.8.2",
-          "status": "ready-for-acquisition",
-          "runtimeAuthority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
-          "reason": "Kyverno chart 3.8.2 remains runtime-held while the reviewed upstream CRD rendering defect is unresolved or explicitly dispositioned.",
-          "evidenceURL": "https://github.com/kyverno/kyverno/issues/16764"
+          "status": "ready-for-acquisition"
         },
         {
           "component": "metallb",
+          "evidenceURL": "https://github.com/metallb/metallb/issues/3113",
+          "reason": "MetalLB 0.16.1 remains runtime-held while the reviewed grpc/CVE release concern is unresolved or explicitly dispositioned.",
+          "runtimeAuthority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
           "runtimeStatus": "review-required",
           "selectedVersion": "0.16.1",
-          "status": "ready-for-acquisition",
-          "runtimeAuthority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
-          "reason": "MetalLB 0.16.1 remains runtime-held while the reviewed grpc/CVE release concern is unresolved or explicitly dispositioned.",
-          "evidenceURL": "https://github.com/metallb/metallb/issues/3113"
+          "status": "ready-for-acquisition"
         }
       ],
       "stageManifestPath": "components/stage-manifest.json"
@@ -200,11 +198,11 @@
     "componentUpgradePairRequirements": [
       {
         "component": "alloy",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.11.0",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "argocd",
@@ -510,7 +508,14 @@
     "historicalComponentAcquisition": {
       "alreadyHistoricalSourceLocked": [],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
-      "helmReady": [],
+      "helmReady": [
+        {
+          "component": "alloy",
+          "previousVersion": "1.10.1",
+          "source": "https://grafana.github.io/helm-charts",
+          "targetRelease": "1.11.0"
+        }
+      ],
       "installOnlyFirstProductRelease": [
         {
           "component": "secure-namespace-foundation",
@@ -537,12 +542,6 @@
         }
       ],
       "waitingCurrentSource": [
-        {
-          "component": "alloy",
-          "previousVersion": "1.10.1",
-          "source": "https://grafana.github.io/helm-charts",
-          "targetRelease": "1.11.0"
-        },
         {
           "component": "argocd",
           "previousVersion": "10.2.2",
@@ -642,6 +641,12 @@
       ]
     },
     "managementWorkloads": {
+      "archiveAuthority": {
+        "acquisitionLockStatus": "incomplete",
+        "authority": "management-workload-oci-archive",
+        "resolved": false,
+        "status": "pending"
+      },
       "archiveStagingPath": "workloads/platform-workloads.oci.tar",
       "externalImages": [
         {
@@ -756,13 +761,7 @@
           "sourceReleaseMember": "bin/linux-amd64/platform-probe",
           "state": "pending"
         }
-      ],
-      "archiveAuthority": {
-        "authority": "management-workload-oci-archive",
-        "status": "pending",
-        "acquisitionLockStatus": "incomplete",
-        "resolved": false
-      }
+      ]
     },
     "openBlockers": [
       "COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING",
