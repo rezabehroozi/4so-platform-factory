@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import stat
 import shlex
@@ -159,7 +159,7 @@ def validate(root: Path = ROOT, authority_path: Path = DEFAULT_AUTHORITY) -> tup
         if not (source.startswith("https://") or source.startswith("oci://")):
             raise RuntimeError(f"UPSTREAM_ADMISSION_SOURCE_INVALID {name}:{source}")
         values_files = entry.get("valuesFiles") or []
-        if not isinstance(values_files, list) or any(not isinstance(v, str) or not v or v.startswith("/") or "\\" in v or ".." in pathlib.PurePosixPath(v).parts for v in values_files):
+        if not isinstance(values_files, list) or any(not isinstance(v, str) or not v or v.startswith("/") or "\\" in v or ".." in PurePosixPath(v).parts for v in values_files):
             raise RuntimeError(f"UPSTREAM_ADMISSION_VALUES_FILES_INVALID {name}")
         if len(values_files) != len(set(values_files)):
             raise RuntimeError(f"UPSTREAM_ADMISSION_VALUES_FILES_DUPLICATE {name}")
