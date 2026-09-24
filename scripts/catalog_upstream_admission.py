@@ -158,6 +158,17 @@ def validate(root: Path = ROOT, authority_path: Path = DEFAULT_AUTHORITY) -> tup
         source = str(entry.get("source") or "")
         if not (source.startswith("https://") or source.startswith("oci://")):
             raise RuntimeError(f"UPSTREAM_ADMISSION_SOURCE_INVALID {name}:{source}")
+        values_files = entry.get("valuesFiles") or []
+        if not isinstance(values_files, list) or any(not isinstance(v, str) or not v or v.startswith("/") or "\\" in v or ".." in pathlib.PurePosixPath(v).parts for v in values_files):
+            raise RuntimeError(f"UPSTREAM_ADMISSION_VALUES_FILES_INVALID {name}")
+        if len(values_files) != len(set(values_files)):
+            raise RuntimeError(f"UPSTREAM_ADMISSION_VALUES_FILES_DUPLICATE {name}")
+        for value in values_files:
+            path = require_real_repo_file(root, root / value, f"upstream values file {name}")
+            try:
+                path.resolve().relative_to(root.resolve())
+            except ValueError as exc:
+                raise RuntimeError(f"UPSTREAM_ADMISSION_VALUES_FILE_OUTSIDE_REPOSITORY {name}:{value}") from exc
         license_spdx = str(entry.get("licenseSPDX") or "").strip()
         if status == "ready-for-acquisition" and not license_spdx:
             raise RuntimeError(f"UPSTREAM_ADMISSION_LICENSE_SPDX_MISSING {name}")
