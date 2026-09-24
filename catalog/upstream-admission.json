@@ -7,18 +7,6 @@
   "spec": {
     "components": [
       {
-        "catalogConstraint": "10.2.x",
-        "chart": "argo-cd",
-        "component": "argocd",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Latest reviewed patch in the admitted 10.2 series; source acquisition and runtime certification remain separate gates.",
-        "selectedVersion": "10.2.3",
-        "source": "https://argoproj.github.io/argo-helm",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "10.2.3"
-      },
-      {
         "catalogConstraint": "0.13.x",
         "chart": "capsule",
         "component": "capsule",

@@ -1,0 +1,24 @@
+{
+  "component": "argocd",
+  "version": "10.2.3",
+  "sourceUrl": "https://argoproj.github.io/argo-helm",
+  "sourceRevision": "10.2.3",
+  "artifactDigest": "sha256:6962847f66e4f76101d498c29b4e5bda5131e3aca1157036ef66d4e2a84171c6",
+  "bundleMode": "offline-immutable",
+  "networkFetchRequired": false,
+  "upstreamVerification": "sha256-pinned-offline",
+  "generation": {
+    "tool": "helm-template",
+    "toolVersion": "v4.2.4+g3900f43",
+    "releaseName": "platform-factory",
+    "namespace": "argocd",
+    "includeCRDs": true,
+    "kubernetesVersions": [
+      "1.34.0",
+      "1.35.0"
+    ],
+    "values": [],
+    "imageResolver": "crane-digest",
+    "imageResolverVersion": "0.22.1"
+  }
+}
