@@ -56,6 +56,12 @@ def _json(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
+def post_install_repository_validation() -> str:
+    out = _run([sys.executable, "scripts/supply_chain_handoff.py", "--write", "--plan", "lab/supply-chain-handoff-plan.json"])
+    out += _run([sys.executable, "scripts/validate_repository.py", "."])
+    return out
+
+
 def _sha_bytes(raw: bytes) -> str:
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
@@ -345,7 +351,7 @@ def acquire(component: str, version: str, *, historical: bool, out: Path | None,
         print(_run(cmd),end=""); print(_run(ctl+["catalog-bundle","verify","-f",str(final)]),end="")
         if install:
             print(_run(ctl+["catalog-bundle","install-historical","-f",str(final),"--repo-root",str(ROOT),"--confirmation","IMPORT-HISTORICAL"]),end="")
-            print(_run([sys.executable,"scripts/validate_repository.py","."]),end="")
+            print(post_install_repository_validation(),end="")
         print(f"TAGGED_SOURCE_ACQUISITION_PASS component={component} version={version} commit={spec['commitSHA']} files={len(blobs)} images={len(images)} artifactDigest={artifact_digest} out={final}")
     return 0
 
