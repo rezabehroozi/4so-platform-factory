@@ -108,10 +108,16 @@ def _management_archive_state(lock: dict, release_version: str) -> dict:
     if status not in {"ready", "incomplete"}:
         raise RuntimeError("MANAGEMENT_ARCHIVE_ACQUISITION_LOCK_STATUS_INVALID")
     missing = lock.get("missingAuthorities") or []
-    partial = lock.get("partialAuthorities") or []
-    resolved = [str(row.get("id") or "") for row in (lock.get("resolvedAuthorities") or []) if isinstance(row, dict)]
-    if not isinstance(missing, list) or not isinstance(partial, list):
+    partial_rows = lock.get("partialAuthorities") or []
+    resolved_rows = lock.get("resolvedAuthorities") or []
+    if not isinstance(missing, list) or not isinstance(partial_rows, list) or not isinstance(resolved_rows, list):
         raise RuntimeError("MANAGEMENT_ARCHIVE_ACQUISITION_LOCK_SHAPE_INVALID")
+    if any(not isinstance(item, str) or not item.strip() for item in missing):
+        raise RuntimeError("MANAGEMENT_ARCHIVE_ACQUISITION_LOCK_MISSING_INVALID")
+    partial = [str(row.get("id") or "") for row in partial_rows if isinstance(row, dict)]
+    resolved = [str(row.get("id") or "") for row in resolved_rows if isinstance(row, dict)]
+    if len(partial) != len(partial_rows) or len(resolved) != len(resolved_rows) or any(not item for item in partial + resolved):
+        raise RuntimeError("MANAGEMENT_ARCHIVE_ACQUISITION_LOCK_AUTHORITY_ROW_INVALID")
     authority = "management-workload-oci-archive"
     ready = status == "ready" and authority in resolved and authority not in missing and authority not in partial
     return {
