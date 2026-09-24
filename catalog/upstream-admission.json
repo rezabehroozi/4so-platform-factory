@@ -36,7 +36,7 @@
             "summary": "Official Ceph-CSI Operator v1.0.4 release drives the published operator and driver Helm packages."
           },
           {
-            "kind": "source",
+            "kind": "source-migration",
             "reference": "https://github.com/ceph/ceph-csi-operator/blob/main/docs/helm-charts/drivers-chart.md",
             "summary": "Official Ceph CSI Operator driver-chart documentation publishes ceph-csi-drivers from https://ceph.github.io/ceph-csi-operator/."
           }
