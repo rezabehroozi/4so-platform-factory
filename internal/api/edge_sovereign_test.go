@@ -77,3 +77,56 @@ func TestEdgeLocalAIProfileAdmissionRejectsExternalAuthority(t *testing.T) {
 		t.Fatalf("external profile=%d body=%s", w.Code, w.Body.String())
 	}
 }
+
+func TestEdgeLocalAuthorityCompileAdmitAndReconnectAreSideEffectFree(t *testing.T) {
+	s := testServer(t)
+	project := edgeAssessmentProject(t, s)
+	now := time.Now().UTC()
+	compile := edgePOST(t, s, "/api/v1/edge/local-authority/policies/compile", map[string]any{
+		"projectId": project.ID,
+		"siteId": "site-a",
+		"revision": 7,
+		"desiredStateDigest": edgeDigest("a"),
+		"allowedActions": []string{"OBSERVE", "COLLECT_DIAGNOSTICS"},
+		"maxOfflineSeconds": 7200,
+		"maxQueuedEvidenceItems": 100,
+		"validUntil": now.Add(time.Hour),
+	})
+	if compile.Code != http.StatusOK || !strings.Contains(compile.Body.String(), `"authority":"EDGE_LOCAL_AUTHORITY_V1"`) || !strings.Contains(compile.Body.String(), `"mutationExecuted":false`) {
+		t.Fatalf("compile=%d body=%s", compile.Code, compile.Body.String())
+	}
+	var compiled struct{ Policy edgeauthority.LocalPolicy `json:"policy"` }
+	if err := json.Unmarshal(compile.Body.Bytes(), &compiled); err != nil { t.Fatal(err) }
+
+	request := edgeauthority.MutationRequest{
+		SiteID: compiled.Policy.SiteID, ProjectID: project.ID, Action: edgeauthority.ActionObserve,
+		TargetRef: "site:site-a", BaseRevision: compiled.Policy.Revision,
+		BaseDesiredDigest: compiled.Policy.DesiredStateDigest, PolicyDigest: compiled.Policy.PolicyDigest,
+		IdempotencyKey: "edge-op-1", RequestDigest: edgeDigest("b"),
+	}
+	admit := edgePOST(t, s, "/api/v1/edge/local-authority/mutations/admit", map[string]any{
+		"projectId": project.ID, "policy": compiled.Policy, "request": request,
+		"disconnectedSince": now.Add(-time.Minute),
+	})
+	if admit.Code != http.StatusOK || !strings.Contains(admit.Body.String(), `"admitted":true`) || !strings.Contains(admit.Body.String(), `"requiresDurableOperationForExecution":true`) || !strings.Contains(admit.Body.String(), `"mutationExecuted":false`) {
+		t.Fatalf("admit=%d body=%s", admit.Code, admit.Body.String())
+	}
+
+	reconnect := edgePOST(t, s, "/api/v1/edge/local-authority/reconnect/resolve", map[string]any{
+		"projectId": project.ID, "request": request, "centralRevision": 8, "centralDesiredStateDigest": edgeDigest("c"),
+	})
+	if reconnect.Code != http.StatusOK || !strings.Contains(reconnect.Body.String(), `"state":"REVIEW_REQUIRED"`) || !strings.Contains(reconnect.Body.String(), `"automaticApply":false`) || !strings.Contains(reconnect.Body.String(), `"mutationExecuted":false`) {
+		t.Fatalf("reconnect=%d body=%s", reconnect.Code, reconnect.Body.String())
+	}
+}
+
+func TestEdgeLocalAuthorityRejectsCrossProjectAdmission(t *testing.T) {
+	s := testServer(t)
+	project := edgeAssessmentProject(t, s)
+	now := time.Now().UTC()
+	policy, err := edgeauthority.CanonicalPolicy("site-a", project.ID, edgeDigest("d"), 3, []edgeauthority.Action{edgeauthority.ActionObserve}, time.Hour, 10, now.Add(time.Hour))
+	if err != nil { t.Fatal(err) }
+	request := edgeauthority.MutationRequest{SiteID:"site-a", ProjectID:"prj_foreign", Action:edgeauthority.ActionObserve, TargetRef:"site:site-a", BaseRevision:3, BaseDesiredDigest:edgeDigest("d"), PolicyDigest:policy.PolicyDigest, IdempotencyKey:"edge-op-x", RequestDigest:edgeDigest("e")}
+	w := edgePOST(t, s, "/api/v1/edge/local-authority/mutations/admit", map[string]any{"projectId":project.ID,"policy":policy,"request":request,"disconnectedSince":now.Add(-time.Minute)})
+	if w.Code != http.StatusForbidden { t.Fatalf("cross-project admission=%d body=%s",w.Code,w.Body.String()) }
+}
