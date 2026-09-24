@@ -427,13 +427,18 @@ def apply_admission(args: argparse.Namespace) -> None:
             raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_NOT_ACQUIRABLE {args.component}:{entry.get('status')}")
         selected=str(entry.get("previousVersion") or "")
         source=str(entry.get("source") or "")
+        canonical_license=str(entry.get("licenseSPDX") or "").strip()
+        if not canonical_license:
+            raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_LICENSE_MISSING {args.component}")
         if args.version and normalized_version(args.version) != normalized_version(selected):
             raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_VERSION_OVERRIDE_DENIED {args.version}!={selected}")
         if args.source and args.source != source:
             raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_SOURCE_OVERRIDE_DENIED {args.source}!={source}")
         if args.upstream_version and normalized_version(args.upstream_version) != normalized_version(selected):
             raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_UPSTREAM_VERSION_OVERRIDE_DENIED {args.upstream_version}!={selected}")
-        args.version=selected; args.source=source; args.upstream_version=selected
+        if args.license_spdx and args.license_spdx.strip() != canonical_license:
+            raise RuntimeError(f"UPGRADE_SOURCE_ADMISSION_LICENSE_OVERRIDE_DENIED {args.component}")
+        args.version=selected; args.source=source; args.upstream_version=selected; args.license_spdx=canonical_license
         return
     if args.historical:
         raise RuntimeError("HISTORICAL_MODE_REQUIRES_UPGRADE_SOURCE_ADMISSION")
