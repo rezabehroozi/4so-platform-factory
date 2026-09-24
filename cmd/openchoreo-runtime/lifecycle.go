@@ -96,6 +96,20 @@ func planeArgs(source openchoreo.RuntimeSource, planeName string) (release, name
 	}
 }
 
+func controlPlaneOIDCArgs(cfg lifecycleConfig) []string {
+	issuer := cfg.OIDCIssuer
+	return []string{
+		"--set-string", "security.oidc.issuer="+issuer,
+		"--set-string", "security.oidc.jwksUrl="+issuer+"/protocol/openid-connect/certs",
+		"--set-string", "security.oidc.authorizationUrl="+issuer+"/protocol/openid-connect/auth",
+		"--set-string", "security.oidc.tokenUrl="+issuer+"/protocol/openid-connect/token",
+		"--set-string", "security.oidc.wellKnownEndpoint="+issuer+"/.well-known/openid-configuration",
+		"--set-string", "security.jwt.audience="+cfg.OIDCClientID,
+		"--set-string", "security.oidc.externalClients[0].name=4so-platform",
+		"--set-string", "security.oidc.externalClients[0].client_id="+cfg.OIDCClientID,
+	}
+}
+
 func installOrUpgrade(ctx context.Context, cfg lifecycleConfig) error {
 	if err := validateOwnership(ctx, cfg, cfg.Action == openchoreo.ActionUpgrade); err != nil {
 		return err
@@ -128,6 +142,7 @@ func installOrUpgrade(ctx context.Context, cfg lifecycleConfig) error {
 		}
 		args := []string{"upgrade", "--install", release, chart, "--namespace", namespace, "--create-namespace", "--values", values,
 			"--post-renderer", "/usr/local/bin/openchoreo-runtime", "--wait", "--timeout", "10m", "--history-max", "5"}
+		if name == "control-plane" { args = append(args, controlPlaneOIDCArgs(cfg)...) }
 		if err = runHelm(ctx, args...); err != nil {
 			return err
 		}

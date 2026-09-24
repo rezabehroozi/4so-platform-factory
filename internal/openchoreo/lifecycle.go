@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -31,6 +32,8 @@ type LifecycleRequest struct {
 	ExpectedObservedSourceDigest string          `json:"expectedObservedSourceDigest,omitempty"`
 	Disconnected                 bool            `json:"disconnected,omitempty"`
 	NativeCapabilitySuppressions []string        `json:"nativeCapabilitySuppressions,omitempty"`
+	OIDCIssuer                    string          `json:"oidcIssuer"`
+	OIDCClientID                  string          `json:"oidcClientId"`
 }
 
 type ObservedState struct {
@@ -59,6 +62,24 @@ func NormalizeLifecycleAction(v LifecycleAction) (LifecycleAction, error) {
 	}
 }
 
+func CanonicalExternalOIDCBinding(issuer, clientID string) (string, string, error) {
+	issuer = strings.TrimRight(strings.TrimSpace(issuer), "/")
+	clientID = strings.TrimSpace(clientID)
+	parsed, err := url.Parse(issuer)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", "", fmt.Errorf("OPENCHOREO_EXTERNAL_OIDC_ISSUER_INVALID")
+	}
+	if len(clientID) == 0 || len(clientID) > 128 {
+		return "", "", fmt.Errorf("OPENCHOREO_EXTERNAL_OIDC_CLIENT_INVALID")
+	}
+	for _, r := range clientID {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || strings.ContainsRune("._:-", r)) {
+			return "", "", fmt.Errorf("OPENCHOREO_EXTERNAL_OIDC_CLIENT_INVALID")
+		}
+	}
+	return issuer, clientID, nil
+}
+
 func CanonicalLifecycleRequest(v LifecycleRequest) (LifecycleRequest, error) {
 	v.ProjectID = strings.TrimSpace(v.ProjectID)
 	v.ClusterID = strings.TrimSpace(v.ClusterID)
@@ -69,6 +90,8 @@ func CanonicalLifecycleRequest(v LifecycleRequest) (LifecycleRequest, error) {
 		return LifecycleRequest{}, err
 	}
 	v.Action = action
+	v.OIDCIssuer, v.OIDCClientID, err = CanonicalExternalOIDCBinding(v.OIDCIssuer, v.OIDCClientID)
+	if err != nil { return LifecycleRequest{}, err }
 	if v.ProjectID == "" || v.ClusterID == "" {
 		return LifecycleRequest{}, fmt.Errorf("OPENCHOREO_LIFECYCLE_SCOPE_REQUIRED")
 	}

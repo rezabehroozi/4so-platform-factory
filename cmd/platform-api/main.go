@@ -580,6 +580,14 @@ func main() {
 			logger.Error("OpenChoreo runtime source admission failed", "error", sourceErr)
 			os.Exit(1)
 		}
+		if !strings.EqualFold(os.Getenv("PLATFORM_FACTORY_OIDC_ENABLED"), "true") {
+			logger.Error("OpenChoreo runtime requires the canonical 4SO OIDC authority")
+			os.Exit(1)
+		}
+		if sourceErr = apiServer.ConfigureOpenChoreoIdentity(os.Getenv("PLATFORM_FACTORY_OIDC_ISSUER"), os.Getenv("PLATFORM_FACTORY_OIDC_CLIENT_ID")); sourceErr != nil {
+			logger.Error("OpenChoreo OIDC binding failed", "error", sourceErr)
+			os.Exit(1)
+		}
 		logger.Info("OpenChoreo runtime source configured", "authority", openchoreo.RuntimeSourceAuthority, "digest", sourceDigest, "version", source.Version, "upstreamCommit", source.UpstreamCommit)
 	}
 	if releaseDigest := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_SOURCE_RELEASE_DIGEST")); releaseDigest != "" {

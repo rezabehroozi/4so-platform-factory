@@ -104,3 +104,12 @@ func TestManagedConfigMapObjectRejectsForeignOrUnversioned(t *testing.T) {
 		t.Fatal("unversioned ConfigMap was admitted for overwrite/delete")
 	}
 }
+
+func TestControlPlaneOIDCArgsReplaceUpstreamIdentity(t *testing.T) {
+	cfg:=lifecycleConfig{OIDCIssuer:"https://auth.example.test/realms/platform",OIDCClientID:"platform-console"}
+	joined:=strings.Join(controlPlaneOIDCArgs(cfg)," ")
+	for _,want:=range []string{"security.oidc.issuer=https://auth.example.test/realms/platform","security.oidc.jwksUrl=https://auth.example.test/realms/platform/protocol/openid-connect/certs","security.jwt.audience=platform-console","security.oidc.externalClients[0].client_id=platform-console"}{
+		if !strings.Contains(joined,want){t.Fatalf("OIDC Helm args missing %q: %s",want,joined)}
+	}
+	if strings.Contains(joined,"thunder"){t.Fatalf("upstream Thunder identity leaked into canonical OIDC args: %s",joined)}
+}

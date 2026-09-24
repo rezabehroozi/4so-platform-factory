@@ -100,6 +100,7 @@ func (s *Server) openChoreoAdmissionForCluster(ctx context.Context, cluster cont
 		TargetMutationReady: openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability),
 		ExecutorRBACReady: openChoreoInventoryCapability(inventory, controlplane.OpenChoreoExecutorRBACCapability),
 		CertificateManagerReady: openChoreoCertManagerReady(inventory),
+		ExternalOIDCReady: s.openChoreoIdentityReady,
 		CapabilityDiscoveryComplete: inventory.APIDiscoveryComplete && inventory.CRDDiscoveryComplete && inventory.SchemaDiscoveryComplete,
 		ObservedCapabilities: inventory.Capabilities,
 		ExactSourceAdmitted: s.openChoreoRuntimeReady,
@@ -193,6 +194,7 @@ func (s *Server) createOpenChoreoLifecycle(w http.ResponseWriter, r *http.Reques
 		ProjectID: input.ProjectID, ClusterID: input.ClusterID, Action: action,
 		RuntimeSourceDigest: sourceDigest, Disconnected: input.Disconnected,
 		NativeCapabilitySuppressions: admission.NativeCapabilitySuppressions,
+		OIDCIssuer: s.openChoreoOIDCIssuer, OIDCClientID: s.openChoreoOIDCClientID,
 	}
 	if observed != nil { req.ExpectedObservedSourceDigest = observed.RuntimeSourceDigest }
 	payload, requestDigest, err := openchoreo.MarshalLifecycleRequest(req)

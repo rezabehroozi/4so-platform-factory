@@ -36,6 +36,8 @@ type lifecycleConfig struct {
 	FenceToken       int64
 	ReceiptAuthority string
 	Suppressions     []string
+	OIDCIssuer        string
+	OIDCClientID      string
 }
 
 func parseSuppressions(raw string) ([]string, error) {
@@ -122,6 +124,8 @@ func loadLifecycleConfig(args []string) (lifecycleConfig, error) {
 	if err != nil {
 		return cfg, err
 	}
+	cfg.OIDCIssuer, cfg.OIDCClientID, err = openchoreo.CanonicalExternalOIDCBinding(os.Getenv("FOURSO_OPENCHOREO_OIDC_ISSUER"), os.Getenv("FOURSO_OPENCHOREO_OIDC_CLIENT_ID"))
+	if err != nil { return cfg, err }
 	fence, fenceErr := strconv.ParseInt(strings.TrimSpace(os.Getenv("FOURSO_OPENCHOREO_TASK_FENCE_TOKEN")), 10, 64)
 	if cfg.OperationID == "" || cfg.ReceiptAuthority == "" || fenceErr != nil || fence <= 0 {
 		return cfg, errors.New("OpenChoreo operation identity/fence environment is invalid")

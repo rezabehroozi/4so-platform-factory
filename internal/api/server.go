@@ -58,6 +58,9 @@ type Server struct {
 	openChoreoRuntimeSource      openchoreo.RuntimeSource
 	openChoreoRuntimeDigest      string
 	openChoreoRuntimeReady       bool
+	openChoreoOIDCIssuer         string
+	openChoreoOIDCClientID       string
+	openChoreoIdentityReady      bool
 }
 
 func New(version string, components map[string]catalog.Component, logger *slog.Logger, stores ...controlplane.Store) *Server {
@@ -186,6 +189,15 @@ func (s *Server) ConfigureOpenChoreoRuntimeSource(source openchoreo.RuntimeSourc
 	s.openChoreoRuntimeSource = source
 	s.openChoreoRuntimeDigest = digest
 	s.openChoreoRuntimeReady = true
+	return nil
+}
+
+func (s *Server) ConfigureOpenChoreoIdentity(issuer, clientID string) error {
+	issuer, clientID, err := openchoreo.CanonicalExternalOIDCBinding(issuer, clientID)
+	if err != nil { return err }
+	s.openChoreoOIDCIssuer = issuer
+	s.openChoreoOIDCClientID = clientID
+	s.openChoreoIdentityReady = true
 	return nil
 }
 

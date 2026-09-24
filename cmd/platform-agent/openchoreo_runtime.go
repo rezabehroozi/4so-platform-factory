@@ -113,6 +113,8 @@ func openChoreoExecutorJob(task openChoreoAgentTask, namespace, serviceAccount s
 							map[string]any{"name":"FOURSO_OPENCHOREO_TASK_FENCE_TOKEN","value":strconv.FormatInt(task.TaskFenceToken,10)},
 							map[string]any{"name":"FOURSO_OPENCHOREO_EXPECTED_OBSERVED_SOURCE_DIGEST","value":task.Request.ExpectedObservedSourceDigest},
 							map[string]any{"name":"FOURSO_OPENCHOREO_NATIVE_SUPPRESSIONS_JSON","value":string(suppressionsRaw)},
+							map[string]any{"name":"FOURSO_OPENCHOREO_OIDC_ISSUER","value":task.Request.OIDCIssuer},
+							map[string]any{"name":"FOURSO_OPENCHOREO_OIDC_CLIENT_ID","value":task.Request.OIDCClientID},
 							map[string]any{"name":"FOURSO_OPENCHOREO_RECEIPT_AUTHORITY","value":openChoreoReceiptAuthority},
 						},
 						"securityContext":map[string]any{"allowPrivilegeEscalation":false,"readOnlyRootFilesystem":true,"capabilities":map[string]any{"drop":[]any{"ALL"}}},

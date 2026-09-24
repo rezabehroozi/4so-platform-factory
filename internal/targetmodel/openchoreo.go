@@ -288,6 +288,7 @@ type OpenChoreoTargetAdapterAdmissionInput struct {
 	TargetMutationReady          bool     `json:"targetMutationReady"`
 	ExecutorRBACReady            bool     `json:"executorRbacReady"`
 	CertificateManagerReady      bool     `json:"certificateManagerReady"`
+	ExternalOIDCReady             bool     `json:"externalOidcReady"`
 	CapabilityDiscoveryComplete bool     `json:"capabilityDiscoveryComplete"`
 	ObservedCapabilities        []string `json:"observedCapabilities,omitempty"`
 	ExactSourceAdmitted         bool     `json:"exactSourceAdmitted"`
@@ -315,6 +316,7 @@ func EvaluateOpenChoreoTargetAdapterAdmission(in OpenChoreoTargetAdapterAdmissio
 	if !in.TargetMutationReady { out.Blockers = append(out.Blockers, "TARGET_MUTATION_RBAC_NOT_READY") }
 	if !in.ExecutorRBACReady { out.Blockers = append(out.Blockers, "OPENCHOREO_EXECUTOR_RBAC_NOT_READY") }
 	if !in.CertificateManagerReady { out.Blockers = append(out.Blockers, "OPENCHOREO_CERT_MANAGER_CAPABILITY_PENDING") }
+	if !in.ExternalOIDCReady { out.Blockers = append(out.Blockers, "OPENCHOREO_EXTERNAL_OIDC_BINDING_PENDING") }
 	if !in.CapabilityDiscoveryComplete { out.Blockers = append(out.Blockers, "CAPABILITY_DISCOVERY_INCOMPLETE") }
 	if !in.DuplicateStackResolved { out.Blockers = append(out.Blockers, "DUPLICATE_STACK_RESOLUTION_INCOMPLETE") }
 	if !in.ExactSourceAdmitted { out.Blockers = append(out.Blockers, "OPENCHOREO_EXACT_SOURCE_AUTHORITY_PENDING") }

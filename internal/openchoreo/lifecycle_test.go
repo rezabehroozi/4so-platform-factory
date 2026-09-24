@@ -34,7 +34,7 @@ func TestLifecycleRequestCanonicalDigestAndTransitionFences(t *testing.T) {
 
 func TestLifecycleRequestRejectsUnknownSuppressionAndDigestDrift(t *testing.T) {
 	source := "sha256:" + strings.Repeat("a", 64)
-	req := LifecycleRequest{ProjectID:"p", ClusterID:"c", Action:ActionInstall, RuntimeSourceDigest:source, NativeCapabilitySuppressions:[]string{"fake-native"}}
+	req := LifecycleRequest{ProjectID:"p", ClusterID:"c", Action:ActionInstall, RuntimeSourceDigest:source, OIDCIssuer:"https://auth.example.test/realms/platform", OIDCClientID:"platform-console", NativeCapabilitySuppressions:[]string{"fake-native"}}
 	if _, _, err := MarshalLifecycleRequest(req); err == nil { t.Fatal("unknown suppression admitted") }
 	req.NativeCapabilitySuppressions = nil
 	raw, digest, err := MarshalLifecycleRequest(req)
@@ -61,5 +61,13 @@ func TestLifecycleDispatchFenceRejectsPostApprovalObservedDrift(t *testing.T) {
 
 	if err := ValidateLifecycleDispatchFence(ActionInstall, driftedObserved, source, ""); err == nil {
 		t.Fatal("post-approval install race admitted an already installed runtime")
+	}
+}
+
+func TestCanonicalExternalOIDCBinding(t *testing.T){
+	issuer,client,err:=CanonicalExternalOIDCBinding(" https://auth.example.test/realms/platform/ ","platform-console")
+	if err!=nil||issuer!="https://auth.example.test/realms/platform"||client!="platform-console"{t.Fatalf("canonical OIDC binding failed: %q %q %v",issuer,client,err)}
+	for _,bad:=range [][2]string{{"http://auth.example.test/realms/platform","platform-console"},{"https://auth.example.test/realms/platform?x=1","platform-console"},{"https://auth.example.test/realms/platform","bad,client"}}{
+		if _,_,err:=CanonicalExternalOIDCBinding(bad[0],bad[1]);err==nil{t.Fatalf("invalid OIDC binding admitted: %#v",bad)}
 	}
 }
