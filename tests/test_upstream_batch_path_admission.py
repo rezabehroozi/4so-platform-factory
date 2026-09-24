@@ -44,6 +44,30 @@ class UpstreamBatchPathAdmissionTests(unittest.TestCase):
             manifest = (stage / mod.STAGE_MANIFEST).read_text()
             self.assertIn("demo-1.2.3.zip", manifest)
 
+    def test_install_staged_resume_skips_exact_already_resolved_component(self):
+        with tempfile.TemporaryDirectory() as td:
+            stage = Path(td)
+            (stage / mod.STAGE_MANIFEST).write_text("{}")
+            entry = {
+                "component": "gateway-api",
+                "version": "1.5.1",
+                "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.1",
+                "upstreamVersion": "v1.5.1",
+                "bundleFile": "gateway-api-1.5.1.zip",
+                "bundleDigest": "sha256:" + "a" * 64,
+                "upstreamArtifactDigest": "sha256:6007c679ec2b427b0c72f0fd724c502c95a341bfbad100ea56ec38c4d6f0d5bb",
+                "bundleKey": "gateway-api/1.5.1",
+            }
+            with mock.patch.object(mod, "validate_stage_manifest", return_value=[entry]), \
+                 mock.patch.object(mod, "platformctl_prefix", return_value=["platformctl"]), \
+                 mock.patch.object(mod, "_run_json") as run_json, \
+                 mock.patch.object(mod, "queue", return_value=([], [])), \
+                 mock.patch.object(mod.subprocess, "run") as run:
+                rc = mod.install_staged(stage, None)
+            self.assertEqual(0, rc)
+            run_json.assert_not_called()
+            run.assert_not_called()
+
     def test_stage_and_platformctl_reject_direct_symlinks(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
