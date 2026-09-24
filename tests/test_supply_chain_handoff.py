@@ -71,6 +71,27 @@ class SupplyChainHandoffTests(unittest.TestCase):
             self.assertIn(tc["stagePath"] + ":size", invalid)
             self.assertIn(plan["spec"]["componentAcquisition"]["stageManifestPath"], missing)
 
+    def test_stage_audit_requires_management_batch_manifest(self):
+        plan = mod.build(ROOT)
+        with tempfile.TemporaryDirectory() as td:
+            stage = Path(td)
+            missing, invalid = mod.stage_audit(stage, plan)
+            self.assertEqual([], invalid)
+            self.assertIn("management/external/stage-manifest.json", missing)
+
+    def test_stage_entrypoint_preserves_symlink_identity(self):
+        plan = mod.build(ROOT)
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            real = root / "real-stage"
+            real.mkdir()
+            link = root / "stage-link"
+            try:
+                link.symlink_to(real, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            self.assertEqual(["stage-directory"], mod.stage_audit(mod._absolute_no_follow(link), plan)[0])
+
     def test_stage_audit_rejects_symlinked_toolchain(self):
         plan = mod.build(ROOT)
         tc = plan["spec"]["releaseToolchain"]
@@ -108,11 +129,15 @@ class SupplyChainHandoffTests(unittest.TestCase):
 
     def test_command_plan_keeps_online_and_offline_authorities_separate(self):
         commands = mod.command_plan(mod.build(ROOT))
-        self.assertIn("--stage-out", "\n".join(commands["connected"]))
+        connected = "\n".join(commands["connected"])
+        self.assertIn("--stage-out", connected)
+        self.assertIn("acquire_management_workload_batch.py --stage-out STAGE/management/external", connected)
         offline = "\n".join(commands["offline"])
         self.assertIn("--install-staged", offline)
+        self.assertIn("acquire_management_workload_batch.py --verify-staged STAGE/management/external", offline)
         self.assertIn("acquire_release_build_toolchain.py --install", offline)
         self.assertIn("component_runtime_upgrade_matrix.py --write --check", offline)
+        self.assertNotIn("# acquire each management external image", connected)
 
     def test_generated_repository_paths_use_posix_separators(self):
         plan = mod.build(ROOT)
