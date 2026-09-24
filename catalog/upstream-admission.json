@@ -163,18 +163,6 @@
         "upstreamVersion": "0.16.1"
       },
       {
-        "catalogConstraint": "12.1.x",
-        "chart": "velero",
-        "component": "velero",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Exact 12.1 chart selected; acquisition and restore-path runtime certification remain separate gates.",
-        "selectedVersion": "12.1.0",
-        "source": "https://vmware-tanzu.github.io/helm-charts/",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "12.1.0"
-      },
-      {
         "catalogConstraint": "0.90.x",
         "chart": "victoria-metrics-k8s-stack",
         "component": "victoria-metrics",

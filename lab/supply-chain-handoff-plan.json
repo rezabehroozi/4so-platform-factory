@@ -73,6 +73,12 @@
           "path": "catalog/runtime/tetragon/1.7.0/source-lock.json",
           "release": "1.7.0",
           "sha256": "3fb6e6b100a43dcbcaf1cdaaee5f58ef923188ce8ed54e9a5329974e9a2c60d7"
+        },
+        {
+          "component": "velero",
+          "path": "catalog/runtime/velero/12.1.0/source-lock.json",
+          "release": "12.1.0",
+          "sha256": "edda697ddf869e2f480e79d53e178200b6e7a559f8377962471fdff9eaf4406f"
         }
       ],
       "ready": [
@@ -131,14 +137,6 @@
           "source": "https://metallb.github.io/metallb",
           "status": "ready-for-acquisition",
           "upstreamVersion": "0.16.1"
-        },
-        {
-          "component": "velero",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "12.1.0",
-          "source": "https://vmware-tanzu.github.io/helm-charts/",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "12.1.0"
         },
         {
           "component": "victoria-metrics",
@@ -328,11 +326,11 @@
       },
       {
         "component": "velero",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "12.1.0",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "victoria-metrics",
@@ -542,6 +540,12 @@
           "previousVersion": "1.6.1",
           "source": "https://helm.cilium.io",
           "targetRelease": "1.7.0"
+        },
+        {
+          "component": "velero",
+          "previousVersion": "12.0.3",
+          "source": "https://vmware-tanzu.github.io/helm-charts/",
+          "targetRelease": "12.1.0"
         }
       ],
       "installOnlyFirstProductRelease": [
@@ -611,12 +615,6 @@
           "previousVersion": "0.16.0",
           "source": "https://metallb.github.io/metallb",
           "targetRelease": "0.16.1"
-        },
-        {
-          "component": "velero",
-          "previousVersion": "12.0.3",
-          "source": "https://vmware-tanzu.github.io/helm-charts/",
-          "targetRelease": "12.1.0"
         },
         {
           "component": "victoria-metrics",
