@@ -322,8 +322,14 @@
       },
       {
         "component": "snapshot-controller",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/snapshot-controller/8.4.0/source-lock.json",
+            "release": "8.4.0",
+            "sha256": "b83db9553ac659671df0a6a63bc886242a5d9190b30f7d65d81251e1c82e8b79"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "8.5.0",
         "targetSourceLockPresent": true
@@ -518,6 +524,14 @@
           "sha256": "36517d44ef5b7839df2b62e6b88bf1b1b4fbf23b1f49e10beb8644a0d737f368",
           "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
           "targetRelease": "1.5.1"
+        },
+        {
+          "component": "snapshot-controller",
+          "path": "catalog/runtime/snapshot-controller/8.4.0/source-lock.json",
+          "previousVersion": "8.4.0",
+          "sha256": "b83db9553ac659671df0a6a63bc886242a5d9190b30f7d65d81251e1c82e8b79",
+          "source": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.4.0",
+          "targetRelease": "8.5.0"
         }
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
@@ -578,16 +592,7 @@
         }
       ],
       "stageManifestPath": "historical/stage-manifest.json",
-      "taggedSourceSetReady": [
-        {
-          "component": "snapshot-controller",
-          "previousVersion": "8.4.0",
-          "recipeCommitSHA": "f21cb02763e7cd6a7fc84846f106b83119b5371d",
-          "recipePath": "catalog/tagged-source-recipes/snapshot-controller/8.4.0.json",
-          "source": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.4.0",
-          "targetRelease": "8.5.0"
-        }
-      ],
+      "taggedSourceSetReady": [],
       "waitingCurrentSource": [
         {
           "component": "capsule",

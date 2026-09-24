@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "snapshot-controller",
+  "version": "8.4.0",
+  "sourceType": "external-tagged-source-set",
+  "bundleKey": "snapshot-controller/8.4.0",
+  "upstream": {
+    "url": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.4.0",
+    "revision": "v8.4.0",
+    "artifact": "snapshot-controller-v8.4.0-official-tag-source-set.zip",
+    "artifactDigest": "sha256:9f9d0075d893f5f70eda0b133a335d3bffc187f6b76458b72edc927082bca25f",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:9f9d0075d893f5f70eda0b133a335d3bffc187f6b76458b72edc927082bca25f",
+    "component.json": "sha256:cbb4136e25e4246482fa0c7dff9995b9150688f517eaa9d5361260facfbec439",
+    "image-inventory.json": "sha256:5ad717db165ffc0d34012be0f9e2d59380209932843a8224190b649b44e61dd4",
+    "licenses.json": "sha256:8396833bf9363f215891a72c499a7aee0b8bd4c827419f594fe5d8a009d39821",
+    "provenance.json": "sha256:1ab79abb734df7c4be3731a29249a2ab9e29e63dc1d26785300796d178ae0b2d",
+    "render-manifest.json": "sha256:bc2c6bd2d0c394ebf454d85159a692aa2de10b6108d8366f2b5c3263883d432d",
+    "sbom.spdx.json": "sha256:db9fd84337fbec2ec4f3f2b515b40bf1627fbf193b986378436e32b737621a62",
+    "source-lock.json": "sha256:b83db9553ac659671df0a6a63bc886242a5d9190b30f7d65d81251e1c82e8b79"
+  }
+}

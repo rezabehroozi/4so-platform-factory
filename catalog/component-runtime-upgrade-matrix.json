@@ -147,9 +147,17 @@
       "upgradeExecutor": "install-readiness-failure-remove-only"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "8.4.0",
+          "fromSourceLockDigest": "18fd70d6f4cfd486e40db97931f913f26a157c39f5eefac474c5529f509eba52",
+          "status": "admitted-source-pair",
+          "toRelease": "8.5.0",
+          "toSourceLockDigest": "722e9482497fa9155d534be75dc2550cb8a2ec9ca9d457f475b2039edcff52b5"
+        }
+      ],
       "component": "snapshot-controller",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "8.5.0",
       "targetSourceLockDigest": "722e9482497fa9155d534be75dc2550cb8a2ec9ca9d457f475b2039edcff52b5",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
