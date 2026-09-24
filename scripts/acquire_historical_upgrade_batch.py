@@ -166,6 +166,14 @@ def stage_out(limit,stage:Path,ctl):
     staged={e['component'] for e in entries}; print(f"HISTORICAL_UPGRADE_STAGE_PASS staged={len(entries)} remaining_helm={len([r for r in helm if r['component'] not in staged])} remaining_tagged={len([r for r in tagged if r['component'] not in staged])} install_only={len(install_only)} waiting_current={len(waiting_current)} path={stage}")
     return 0
 
+def refresh_derived_handoff():
+    p=subprocess.run(
+        [sys.executable,'scripts/supply_chain_handoff.py','--write','--plan','lab/supply-chain-handoff-plan.json'],
+        cwd=ROOT,text=True
+    )
+    if p.returncode:
+        raise RuntimeError(f'SUPPLY_CHAIN_HANDOFF_REFRESH_FAILED rc={p.returncode}')
+
 def install_staged(stage:Path,ctl):
     stage=_regular_dir(_absolute_no_follow(stage),'HISTORICAL_STAGE_DIRECTORY'); mp=_regular_file(stage/MANIFEST,'HISTORICAL_STAGE_MANIFEST'); entries=validate_manifest(stage,_json(mp)); ctlprefix=platformctl(ctl); installed=[]; skipped=[]
     for e in entries:
@@ -175,6 +183,7 @@ def install_staged(stage:Path,ctl):
         if verified.get('valid') is not True or verified.get('component')!=e['component'] or str(verified.get('version') or '')!=e['previousVersion'] or str(verified.get('upstreamUrl') or '')!=e['source'] or verified.get('bundleDigest')!=e['bundleDigest']: raise RuntimeError(f'HISTORICAL_STAGE_VERIFY_DRIFT {e["component"]}')
         p=subprocess.run(ctlprefix+['catalog-bundle','install-historical','-f',str(b),'--repo-root',str(ROOT),'--confirmation','IMPORT-HISTORICAL'],cwd=ROOT,text=True)
         if p.returncode: return p.returncode
+        refresh_derived_handoff()
         p=subprocess.run([sys.executable,'scripts/validate_repository.py','.'],cwd=ROOT,text=True)
         if p.returncode: return p.returncode
         installed.append(e['component'])
@@ -188,7 +197,12 @@ def self_test():
     for row in tagged:
         recipe=ROOT/'catalog/tagged-source-recipes'/row['component']/f"{row['previousVersion']}.json"
         assert recipe.is_file(), recipe
-    assert len(waiting_current)==17 and not helm
+    for row in waiting_current:
+        current=_json(ROOT/'catalog/components'/f"{row['component']}.json")
+        assert (current.get('spec',{}).get('source') or {}).get('resolved') is not True
+    for row in helm+tagged:
+        current=_json(ROOT/'catalog/components'/f"{row['component']}.json")
+        assert (current.get('spec',{}).get('source') or {}).get('resolved') is True
     assert install_only[0]['component']=='secure-namespace-foundation'
     print(f'HISTORICAL_UPGRADE_BATCH_SELF_TEST_PASS helm_ready={len(helm)} tagged_ready={len(tagged)} waiting_current={len(waiting_current)} install_only={len(install_only)} already={len(already)}')
     return 0
