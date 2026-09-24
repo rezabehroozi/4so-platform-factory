@@ -32,6 +32,29 @@ class ComponentRuntimeUpgradeMatrixTests(unittest.TestCase):
         doc = {'component': component or name, 'version': version or release, 'marker': marker}
         (p / 'source-lock.json').write_text(json.dumps(doc))
 
+    def admission(self, name='demo', target='2.0.0', previous='1.9.9', status='admitted-for-acquisition'):
+        policy = {
+            'exactPreviousVersionRequired': True,
+            'strictUpgradeDirectionRequired': True,
+            'admissionDoesNotEqualCertification': True,
+            'reviewEvidenceRequiredForAdmission': True,
+            'historicalVersionFabricationForbidden': True,
+        }
+        row = {
+            'component': name, 'targetRelease': target, 'status': status,
+            'previousVersion': previous,
+            'reviewEvidence': [{'kind': 'test-review', 'reference': 'test://review'}],
+        }
+        doc = {
+            'apiVersion': 'platform.4so.io/v1alpha1',
+            'kind': 'ComponentUpgradeSourceAdmission',
+            'authority': 'COMPONENT_UPGRADE_SOURCE_ADMISSION_V1',
+            'schemaVersion': 1,
+            'policy': policy,
+            'components': [row],
+        }
+        (self.root / 'catalog' / 'component-upgrade-source-admission.json').write_text(json.dumps(doc))
+
     def test_wrong_component_or_release_identity_never_admitted(self):
         self.component()
         self.lock('demo', '2.0.0', marker='current')
@@ -48,12 +71,31 @@ class ComponentRuntimeUpgradeMatrixTests(unittest.TestCase):
         self.assertEqual(row['status'], 'pending-source-pair')
         self.assertEqual(row['admittedEdges'], [])
 
-    def test_exact_older_release_is_admitted_directionally(self):
+    def test_exact_reviewed_predecessor_is_admitted_directionally(self):
         self.component(release='2.0.0')
+        self.admission(target='2.0.0', previous='1.9.9')
         self.lock('demo', '2.0.0', marker='current')
         self.lock('demo', '1.9.9', marker='previous')
         row = mod.build()['components'][0]
         self.assertEqual(row['status'], 'admitted-source-pair')
+        self.assertEqual([(e['fromRelease'], e['toRelease']) for e in row['admittedEdges']], [('1.9.9', '2.0.0')])
+
+    def test_unreviewed_older_sibling_never_creates_upgrade_edge(self):
+        self.component(release='2.0.0')
+        self.admission(target='2.0.0', previous='1.9.9')
+        self.lock('demo', '2.0.0', marker='current')
+        self.lock('demo', '1.8.0', marker='unreviewed')
+        row = mod.build()['components'][0]
+        self.assertEqual(row['status'], 'pending-source-pair')
+        self.assertEqual(row['admittedEdges'], [])
+
+    def test_only_reviewed_predecessor_is_used_when_multiple_history_locks_exist(self):
+        self.component(release='2.0.0')
+        self.admission(target='2.0.0', previous='1.9.9')
+        self.lock('demo', '2.0.0', marker='current')
+        self.lock('demo', '1.9.9', marker='reviewed')
+        self.lock('demo', '1.8.0', marker='unreviewed')
+        row = mod.build()['components'][0]
         self.assertEqual([(e['fromRelease'], e['toRelease']) for e in row['admittedEdges']], [('1.9.9', '2.0.0')])
 
     def test_wildcard_target_release_stays_fail_closed(self):
@@ -67,11 +109,12 @@ class ComponentRuntimeUpgradeMatrixTests(unittest.TestCase):
     def test_first_product_release_is_install_only_not_fake_upgrade_pending(self):
         self.component(name='secure-namespace-foundation', release='1.0.0')
         self.lock('secure-namespace-foundation', '1.0.0', marker='current')
-        adm_dir=self.root/'catalog'
-        adm={
-            'components':[{'component':'secure-namespace-foundation','status':'install-only-first-product-release'}]
-        }
-        (adm_dir/'component-upgrade-source-admission.json').write_text(json.dumps(adm))
+        self.admission(
+            name='secure-namespace-foundation',
+            target='1.0.0',
+            previous='',
+            status='install-only-first-product-release',
+        )
         row=mod.build()['components'][0]
         self.assertEqual('install-only-first-product-release',row['status'])
         self.assertEqual([],row['admittedEdges'])
