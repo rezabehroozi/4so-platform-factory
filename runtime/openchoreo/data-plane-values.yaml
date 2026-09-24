@@ -10,3 +10,5 @@ clusterAgent:
 # Keep the OpenChoreo data plane internal; distribution/target ingress remains authoritative.
 gateway:
   enabled: false
+  tls:
+    hostname: "*.apps.render.4so.test"
