@@ -199,18 +199,21 @@ def install_staged(stage:Path,ctl):
 
 def self_test():
     helm,tagged,install_only,review,already,waiting_current=classify()
-    assert len(helm)+len(tagged)+len(already)+len(waiting_current)==19 and len(install_only)==1 and not review
-    assert {r['component'] for r in tagged}=={'gateway-api','snapshot-controller'}
+    doc=authority()
+    admitted=[r for r in doc['components'] if r['status']=='admitted-for-acquisition']
+    assert len(admitted)==len(helm)+len(tagged)+len(already)+len(waiting_current)
+    assert len(install_only)==1 and install_only[0]['component']=='secure-namespace-foundation' and not review
+    names=[r['component'] for rows in (helm,tagged,already,waiting_current) for r in rows]
+    assert sorted(names)==sorted(r['component'] for r in admitted) and len(names)==len(set(names))
     for row in tagged:
         recipe=ROOT/'catalog/tagged-source-recipes'/row['component']/f"{row['previousVersion']}.json"
         assert recipe.is_file(), recipe
     for row in waiting_current:
         current=_json(ROOT/'catalog/components'/f"{row['component']}.json")
         assert (current.get('spec',{}).get('source') or {}).get('resolved') is not True
-    for row in helm+tagged:
+    for row in helm+tagged+already:
         current=_json(ROOT/'catalog/components'/f"{row['component']}.json")
         assert (current.get('spec',{}).get('source') or {}).get('resolved') is True
-    assert install_only[0]['component']=='secure-namespace-foundation'
     print(f'HISTORICAL_UPGRADE_BATCH_SELF_TEST_PASS helm_ready={len(helm)} tagged_ready={len(tagged)} waiting_current={len(waiting_current)} install_only={len(install_only)} already={len(already)}')
     return 0
 
