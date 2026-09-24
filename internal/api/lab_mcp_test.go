@@ -315,6 +315,15 @@ func TestMCPExternalClientTCPInteroperabilityAndProjectScope(t *testing.T) {
 
 	product := s.Handler()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/.well-known/oauth-protected-resource" {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"resource":                 "http://" + r.Host + "/mcp",
+				"authorization_servers":    []string{"https://identity.example.test/realms/4so"},
+				"bearer_methods_supported": []string{"header"},
+				"scopes_supported":         []string{"mcp.read", "mcp.operate"},
+			})
+			return
+		}
 		if r.Header.Get("Authorization") != "Bearer external-good" {
 			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
 			return
@@ -344,8 +353,11 @@ func TestMCPExternalClientTCPInteroperabilityAndProjectScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("external MCP client failed: %v\n%s", err, output)
 	}
-	if !strings.Contains(string(output), "MCP_EXTERNAL_CLIENT_CERTIFICATION_PASS") || !strings.Contains(string(output), "negativeScope=checked") {
-		t.Fatalf("external MCP client did not produce certification authority: %s", output)
+	if !strings.Contains(string(output), "MCP_EXTERNAL_CLIENT_CERTIFICATION_PASS") ||
+		!strings.Contains(string(output), "oauthDiscovery=checked") ||
+		!strings.Contains(string(output), "readOnlyMutation=checked") ||
+		!strings.Contains(string(output), "negativeScope=checked") {
+		t.Fatalf("external MCP client did not produce complete protocol/scope evidence: %s", output)
 	}
 }
 
