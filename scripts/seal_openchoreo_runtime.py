@@ -11,15 +11,17 @@ import json
 from pathlib import Path
 import re
 
+from openchoreo_runtime_contract import (
+    ACQUISITION_AUTHORITY,
+    SOURCE_AUTHORITY,
+    UPSTREAM_COMMIT,
+    UPSTREAM_REPOSITORY,
+    VERSION,
+)
 from prepare_openchoreo_executor import acquisition_payload, digest_path, strict_json
 
-SOURCE_AUTHORITY = "OPENCHOREO_RUNTIME_SOURCE_AUTHORITY_V1"
-ACQUISITION_AUTHORITY = "OPENCHOREO_RUNTIME_ACQUISITION_AUTHORITY_V1"
 MIRROR_AUTHORITY = "OPENCHOREO_ZOT_MIRROR_EVIDENCE_V1"
 EXECUTOR_AUTHORITY = "OPENCHOREO_EXECUTOR_IMAGE_EVIDENCE_V1"
-VERSION = "1.3.0"
-UPSTREAM_REPOSITORY = "https://github.com/openchoreo/openchoreo"
-UPSTREAM_COMMIT = "1aeed89856d088dc5160c0f3eaa39796d4a93611"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 def load_json(path: Path, label: str) -> dict:
