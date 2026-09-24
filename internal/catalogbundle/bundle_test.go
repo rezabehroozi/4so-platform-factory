@@ -1526,7 +1526,7 @@ func writeUpgradeSourceAdmission(t *testing.T, root, component, target, previous
 	doc := map[string]any{
 		"apiVersion": "platform.4so.io/v1alpha1", "kind": "ComponentUpgradeSourceAdmission", "authority": "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1", "schemaVersion": 1,
 		"policy":     map[string]any{"explicitHumanOrReleaseReviewRequired": true, "exactPreviousVersionRequired": true, "strictUpgradeDirectionRequired": true, "mutableTagForbidden": true, "admissionDoesNotEqualCertification": true, "reviewEvidenceRequiredForAdmission": true, "firstProductReleaseInstallOnlyAllowed": true, "historicalVersionFabricationForbidden": true},
-		"components": []any{map[string]any{"component": component, "targetRelease": target, "status": status, "previousVersion": previous, "source": source, "rationale": "reviewed test edge", "reviewEvidence": evidence}},
+		"components": []any{map[string]any{"component": component, "targetRelease": target, "status": status, "previousVersion": previous, "source": source, "licenseSPDX": func() string { if status == "admitted-for-acquisition" { return "Apache-2.0" }; return "" }(), "valuesFiles": []string{}, "rationale": "reviewed test edge", "reviewEvidence": evidence}},
 	}
 	raw, _ := json.MarshalIndent(doc, "", "  ")
 	if err := os.WriteFile(filepath.Join(root, "catalog", "component-upgrade-source-admission.json"), append(raw, '\n'), 0o644); err != nil {
