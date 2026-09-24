@@ -17,6 +17,7 @@ import stat
 import subprocess
 
 import acquire_upstream_helm as helm
+from openchoreo_runtime_contract import admit_output_path
 
 AUTHORITY = "OPENCHOREO_EXECUTOR_IMAGE_EVIDENCE_V1"
 CONTEXT_AUTHORITY = "OPENCHOREO_EXECUTOR_CONTEXT_AUTHORITY_V1"
@@ -126,7 +127,7 @@ def build(context: Path, buildctl: Path, address: str, repository: str, out: Pat
         "registryReadback": True,
         "mirrorReady": True,
     }
-    out = out.expanduser().resolve()
+    out = admit_output_path(out, "OPENCHOREO_EXECUTOR_EVIDENCE_OUTPUT")
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(out.suffix + ".tmp")
     tmp.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
