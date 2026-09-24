@@ -18,7 +18,7 @@ import tempfile
 import zipfile
 
 import upstream_acquisition_toolchain as toolchain
-from openchoreo_runtime_contract import ACQUISITION_AUTHORITY, UPSTREAM_COMMIT, VERSION
+from openchoreo_runtime_contract import ACQUISITION_AUTHORITY, UPSTREAM_COMMIT, VERSION, admit_output_path
 
 ROOT = Path(__file__).resolve().parents[1]
 AUTHORITY = "OPENCHOREO_EXECUTOR_CONTEXT_AUTHORITY_V1"
@@ -178,8 +178,8 @@ def prepare(release: Path, acquisition: Path, toolchain_stage: Path, out: Path) 
     release = Path(os.path.abspath(release.expanduser()))
     acquisition = Path(os.path.abspath(acquisition.expanduser()))
     toolchain_stage = Path(os.path.abspath(toolchain_stage.expanduser()))
-    out = out.expanduser().resolve()
-    if out.exists() or out.is_symlink():
+    out = admit_output_path(out, "OPENCHOREO_EXECUTOR_CONTEXT_OUTPUT")
+    if out.exists():
         raise RuntimeError("OPENCHOREO_EXECUTOR_CONTEXT_OUTPUT_EXISTS")
     if not DOCKERFILE.is_file() or DOCKERFILE.is_symlink():
         raise RuntimeError("OPENCHOREO_EXECUTOR_DOCKERFILE_INVALID")
