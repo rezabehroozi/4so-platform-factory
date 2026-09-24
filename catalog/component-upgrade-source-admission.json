@@ -28,7 +28,8 @@
           "summary": "Upstream release history establishes 1.10.1 as the reviewed predecessor for target 1.11.0."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "argocd",
@@ -44,7 +45,8 @@
           "summary": "Upstream release history establishes 10.2.2 as the reviewed predecessor for target 10.2.3."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "capsule",
@@ -60,7 +62,8 @@
           "summary": "Upstream release history establishes 0.13.10 as the reviewed predecessor for target 0.13.11."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "ceph-csi-operator",
@@ -76,7 +79,8 @@
           "summary": "Upstream release history establishes 1.0.3 as the reviewed predecessor for target 1.0.4."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "ceph-csi-rbd",
@@ -92,7 +96,8 @@
           "summary": "Official Ceph CSI Operator release/chart history binds the ceph-csi-drivers predecessor 1.0.3 to the same released chart repository used by target 1.0.4."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "cert-manager",
@@ -108,7 +113,8 @@
           "summary": "Upstream release history establishes 1.21.0 as the reviewed predecessor for target 1.21.1."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "cilium",
@@ -124,7 +130,8 @@
           "summary": "Upstream release history establishes 1.20.0 as the reviewed predecessor for target 1.20.1."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "external-dns",
@@ -140,7 +147,8 @@
           "summary": "The official ExternalDNS Helm chart changelog lists v1.20.0 immediately before v1.21.1; v1.21.0 was not published."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "external-secrets",
@@ -156,7 +164,8 @@
           "summary": "Upstream release history establishes 2.7.0 as the reviewed predecessor for target 2.8.0."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "gateway-api",
@@ -172,7 +181,8 @@
           "summary": "Upstream release history establishes 1.5.0 as the reviewed predecessor for target 1.5.1."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "grafana",
@@ -188,7 +198,8 @@
           "summary": "Upstream release history establishes 12.9.0 as the reviewed predecessor for target 12.10.0."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "kgateway",
@@ -204,7 +215,8 @@
           "summary": "Upstream release history establishes 2.4.0 as the reviewed predecessor for target 2.4.1."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "kyverno",
@@ -220,7 +232,8 @@
           "summary": "Upstream release history establishes 3.8.1 as the reviewed predecessor for target 3.8.2."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "loki",
@@ -236,7 +249,10 @@
           "summary": "Upstream release history establishes 18.12.0 as the reviewed predecessor for target 18.12.1."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": [
+        "runtime/catalog-values/loki-source-render.yaml"
+      ]
     },
     {
       "component": "metallb",
@@ -252,7 +268,8 @@
           "summary": "Upstream release history establishes 0.16.0 as the reviewed predecessor for target 0.16.1."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "secure-namespace-foundation",
@@ -283,7 +300,8 @@
           "summary": "Upstream release history establishes 8.4.0 as the reviewed predecessor for target 8.5.0."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "tetragon",
@@ -299,7 +317,8 @@
           "summary": "Upstream release history establishes 1.6.1 as the reviewed predecessor for target 1.7.0."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "velero",
@@ -315,7 +334,8 @@
           "summary": "Upstream release history establishes 12.0.3 as the reviewed predecessor for target 12.1.0."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     },
     {
       "component": "victoria-metrics",
@@ -331,7 +351,8 @@
           "summary": "Upstream release history establishes 0.90.1 as the reviewed predecessor for target 0.90.2."
         }
       ],
-      "licenseSPDX": "Apache-2.0"
+      "licenseSPDX": "Apache-2.0",
+      "valuesFiles": []
     }
   ]
 }
