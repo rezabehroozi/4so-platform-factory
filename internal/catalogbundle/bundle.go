@@ -1077,6 +1077,7 @@ type upstreamAdmissionEntry struct {
 	Chart             string                            `json:"chart"`
 	Component         string                            `json:"component"`
 	LicenseSPDX       string                            `json:"licenseSPDX,omitempty"`
+	ValuesFiles       []string                          `json:"valuesFiles,omitempty"`
 	Rationale         string                            `json:"rationale"`
 	ReviewEvidence    []upstreamAdmissionReviewEvidence `json:"reviewEvidence,omitempty"`
 	SelectedVersion   *string                           `json:"selectedVersion"`
@@ -1265,6 +1266,22 @@ func validateCanonicalUpstreamAdmissionCoverage(repoRoot string, doc upstreamAdm
 		if strings.TrimSpace(entry.Rationale) == "" {
 			return fmt.Errorf("upstream admission rationale is missing for %s", name)
 		}
+		matchedLicense, _ := regexp.MatchString("^[A-Za-z0-9][A-Za-z0-9.+-]{0,127}$", strings.TrimSpace(entry.LicenseSPDX))
+		if !matchedLicense {
+			return fmt.Errorf("upstream admission license authority invalid for %s", name)
+		}
+		seenValues := map[string]bool{}
+		for _, rel := range entry.ValuesFiles {
+			rel = strings.TrimSpace(rel)
+			clean := filepath.ToSlash(filepath.Clean(rel))
+			if rel == "" || strings.HasPrefix(rel, "/") || strings.Contains(rel, "\\") || clean != rel || clean == "." || strings.HasPrefix(clean, "../") || strings.Contains(clean, "/../") || seenValues[rel] {
+				return fmt.Errorf("upstream admission values file invalid for %s: %s", name, rel)
+			}
+			seenValues[rel] = true
+			if _, err := readRealRegularFile(filepath.Join(repoRoot, filepath.FromSlash(rel)), "upstream admission values file"); err != nil {
+				return fmt.Errorf("upstream admission values file unavailable for %s: %w", name, err)
+			}
+		}
 		for index, evidence := range entry.ReviewEvidence {
 			kind := strings.TrimSpace(evidence.Kind)
 			if (kind != "release" && kind != "blocker" && kind != "source-migration") || !strings.HasPrefix(strings.TrimSpace(evidence.URL), "https://") || strings.TrimSpace(evidence.Summary) == "" {
@@ -1359,7 +1376,54 @@ func verifyHelmAdmissionEntry(match *upstreamAdmissionEntry, manifest Manifest, 
 	return nil
 }
 
-func verifyCanonicalHelmAdmission(repoRoot string, manifest Manifest, component catalog.Component) error {
+
+func verifyHelmAdmissionEvidence(repoRoot string, match *upstreamAdmissionEntry, v Verified) error {
+	var licenses licensesDoc
+	if err := decodeStrict(v.Files["licenses.json"], &licenses); err != nil {
+		return fmt.Errorf("decode Helm license evidence for %s: %w", v.Manifest.Component, err)
+	}
+	licenseMatch := false
+	for _, item := range licenses.Licenses {
+		if strings.TrimSpace(item.SPDXExpression) == strings.TrimSpace(match.LicenseSPDX) {
+			licenseMatch = true
+			break
+		}
+	}
+	if !licenseMatch {
+		return fmt.Errorf("Helm bundle license does not match canonical admission for %s", v.Manifest.Component)
+	}
+	var lock sourceLock
+	if err := decodeStrict(v.Files["source-lock.json"], &lock); err != nil {
+		return fmt.Errorf("decode Helm source-lock generation for %s: %w", v.Manifest.Component, err)
+	}
+	generated := map[string]string{}
+	if lock.Generation != nil {
+		for _, value := range lock.Generation.Values {
+			path := strings.TrimSpace(value.Path)
+			if path == "" || generated[path] != "" {
+				return fmt.Errorf("Helm render generation values invalid for %s", v.Manifest.Component)
+			}
+			generated[path] = strings.TrimSpace(value.SHA256)
+		}
+	}
+	if len(generated) != len(match.ValuesFiles) {
+		return fmt.Errorf("Helm bundle render values coverage mismatch for %s", v.Manifest.Component)
+	}
+	for _, rel := range match.ValuesFiles {
+		rel = strings.TrimSpace(rel)
+		rawValue, err := readRealRegularFile(filepath.Join(repoRoot, filepath.FromSlash(rel)), "upstream admission values file")
+		if err != nil {
+			return err
+		}
+		if generated[rel] != sha(rawValue) {
+			return fmt.Errorf("Helm bundle render values digest mismatch for %s:%s", v.Manifest.Component, rel)
+		}
+	}
+	return nil
+}
+
+func verifyCanonicalHelmAdmission(repoRoot string, v Verified, component catalog.Component) error {
+	manifest := v.Manifest
 	if manifest.SourceType != "helm-chart" {
 		return nil
 	}
@@ -1374,14 +1438,18 @@ func verifyCanonicalHelmAdmission(repoRoot string, manifest Manifest, component 
 	if err != nil {
 		return err
 	}
-	return verifyHelmAdmissionEntry(match, manifest, component)
+	if err = verifyHelmAdmissionEntry(match, manifest, component); err != nil {
+		return err
+	}
+	return verifyHelmAdmissionEvidence(repoRoot, match, v)
 }
 
 // verifyResolvedHelmAdmissionRecoveryState accepts exactly one crash-recovery shape:
 // the target component is already the verified resolved contract, while its own
 // previously valid admission row is the sole extra row left behind. All remaining
 // unresolved Helm components must still have strict canonical admission coverage.
-func verifyResolvedHelmAdmissionRecoveryState(repoRoot string, manifest Manifest, component catalog.Component) error {
+func verifyResolvedHelmAdmissionRecoveryState(repoRoot string, v Verified, component catalog.Component) error {
+	manifest := v.Manifest
 	doc, err := loadCanonicalUpstreamAdmission(repoRoot)
 	if err != nil {
 		return err
@@ -1394,6 +1462,9 @@ func verifyResolvedHelmAdmissionRecoveryState(repoRoot string, manifest Manifest
 		return err
 	}
 	if err = verifyHelmAdmissionEntry(match, manifest, component); err != nil {
+		return fmt.Errorf("resolved component admission recovery rejected: %w", err)
+	}
+	if err = verifyHelmAdmissionEvidence(repoRoot, match, v); err != nil {
 		return fmt.Errorf("resolved component admission recovery rejected: %w", err)
 	}
 
@@ -2213,9 +2284,9 @@ func Install(v Verified, repoRoot string) error {
 	var oldAdmission []byte
 	if v.Manifest.SourceType == "helm-chart" {
 		if current.Spec.Source.Resolved {
-			err = verifyResolvedHelmAdmissionRecoveryState(repoRoot, v.Manifest, resolved)
+			err = verifyResolvedHelmAdmissionRecoveryState(repoRoot, v, resolved)
 		} else {
-			err = verifyCanonicalHelmAdmission(repoRoot, v.Manifest, resolved)
+			err = verifyCanonicalHelmAdmission(repoRoot, v, resolved)
 		}
 		if err != nil {
 			return err
