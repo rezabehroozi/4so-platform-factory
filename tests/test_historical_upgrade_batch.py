@@ -1,18 +1,25 @@
-import hashlib, importlib.util, tempfile, unittest
+import hashlib, importlib.util, json, tempfile, unittest
 from unittest import mock
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('hist',ROOT/'scripts/acquire_historical_upgrade_batch.py')
 mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
 class HistoricalUpgradeBatchTests(unittest.TestCase):
-    def test_committed_queue_has_no_selection_review_bottleneck(self):
+    def test_committed_queue_partitions_all_reviewed_edges_without_selection_review(self):
         helm,tagged,install_only,review,already,waiting_current=mod.classify(ROOT)
-        self.assertEqual(19,len(helm)+len(tagged)+len(already)+len(waiting_current))
-        self.assertEqual(17,len(waiting_current))
-        self.assertEqual([],helm)
-        self.assertEqual({'gateway-api','snapshot-controller'},{r['component'] for r in tagged})
+        authority=json.loads((ROOT/'catalog/component-upgrade-source-admission.json').read_text())
+        admitted=[r for r in authority['components'] if r['status']=='admitted-for-acquisition']
+        self.assertEqual(len(admitted),len(helm)+len(tagged)+len(already)+len(waiting_current))
         self.assertEqual(['secure-namespace-foundation'],[r['component'] for r in install_only])
         self.assertEqual([],review)
+        names=[]
+        for rows in (helm,tagged,already,waiting_current):
+            names.extend(r['component'] for r in rows)
+        self.assertEqual(sorted(r['component'] for r in admitted),sorted(names))
+        self.assertEqual(len(names),len(set(names)))
+        for row in tagged:
+            recipe=ROOT/'catalog/tagged-source-recipes'/row['component']/f"{row['previousVersion']}.json"
+            self.assertTrue(recipe.is_file(),recipe)
     def test_manifest_truth_never_implies_runtime_certification(self):
         doc=mod.manifest([])
         self.assertFalse(doc['spec']['runtimeCertificationImplied'])
