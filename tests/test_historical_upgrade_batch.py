@@ -1,4 +1,5 @@
 import hashlib, importlib.util, tempfile, unittest
+from unittest import mock
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('hist',ROOT/'scripts/acquire_historical_upgrade_batch.py')
@@ -33,6 +34,27 @@ class HistoricalUpgradeBatchTests(unittest.TestCase):
         source=Path(mod.__file__).read_text()
         self.assertIn("if out.exists():", source)
         self.assertIn("catalog-bundle','verify','-f',str(out)", source)
+
+    def test_install_staged_rejects_symlink_historical_source_lock(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/'repo'
+            lock_dir=root/'catalog/runtime/demo/1.0.0'
+            lock_dir.mkdir(parents=True)
+            real=root/'real-source-lock.json'
+            real.write_text('{"component":"demo","version":"1.0.0"}')
+            lock=lock_dir/'source-lock.json'
+            try:
+                lock.symlink_to(real)
+            except OSError as exc:
+                self.skipTest(f'symlink unavailable: {exc}')
+            stage=Path(td)/'stage'; stage.mkdir()
+            (stage/mod.MANIFEST).write_text('{}')
+            entry={'component':'demo','targetRelease':'1.1.0','previousVersion':'1.0.0','source':'https://example.test/demo','bundleFile':'demo-1.0.0.zip','bundleDigest':'sha256:'+'a'*64,'historical':True}
+            with mock.patch.object(mod,'ROOT',root), \
+                 mock.patch.object(mod,'validate_manifest',return_value=[entry]), \
+                 mock.patch.object(mod,'platformctl',return_value=['platformctl']):
+                with self.assertRaisesRegex(RuntimeError,'HISTORICAL_SOURCE_LOCK_NOT_REAL_FILE'):
+                    mod.install_staged(stage,None)
 
     def test_tagged_predecessors_use_commit_pinned_runner(self):
         cmd=mod.acquisition_cmd('gateway-api','tagged',out=ROOT/'x.zip')
