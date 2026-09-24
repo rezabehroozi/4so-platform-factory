@@ -28,6 +28,15 @@ def absolute_no_follow(path: Path) -> Path:
     return Path(os.path.abspath(os.fspath(path.expanduser())))
 
 
+def output_archive_path(path: Path) -> Path:
+    candidate = absolute_no_follow(path)
+    if candidate.exists() or candidate.is_symlink():
+        st = candidate.lstat()
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+            raise RuntimeError(f"MANAGEMENT_ARCHIVE_OUTPUT_INVALID {candidate}")
+    return candidate
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:
@@ -399,7 +408,7 @@ def main() -> int:
             print(f"MANAGEMENT_WORKLOAD_BATCH_VERIFY_PASS roles={len(rows)}")
         else:
             if not args.out: raise RuntimeError("--assemble-staged requires --out")
-            assemble(absolute_no_follow(Path(args.assemble_staged)), release, ctl, Path(args.out).expanduser().resolve())
+            assemble(absolute_no_follow(Path(args.assemble_staged)), release, ctl, output_archive_path(Path(args.out)))
         return 0
     except Exception as exc:
         print(f"MANAGEMENT_WORKLOAD_BATCH_FAIL {exc}")
