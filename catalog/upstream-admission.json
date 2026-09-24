@@ -43,18 +43,6 @@
         "upstreamVersion": "1.0.4"
       },
       {
-        "catalogConstraint": "1.21.x",
-        "chart": "cert-manager",
-        "component": "cert-manager",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Stable 1.21 patch selected; acquisition remains responsible for chart digest, render and image provenance.",
-        "selectedVersion": "1.21.1",
-        "source": "https://charts.jetstack.io",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "v1.21.1"
-      },
-      {
         "catalogConstraint": "1.20.x",
         "chart": "cilium",
         "component": "cilium",

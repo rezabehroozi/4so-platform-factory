@@ -1,0 +1,50 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/cert-manager/1.21.1/c27101f3f3e2349f",
+  "name": "cert-manager-1.21.1-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-cert-manager",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "cert-manager",
+      "versionInfo": "1.21.1"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "quay.io/jetstack/cert-manager-cainjector@sha256:ccf6b919ec0500745a47a910118f834f9636d0aac1ff221245cd2557ed8c7c98",
+      "filesAnalyzed": false,
+      "name": "quay.io/jetstack/cert-manager-cainjector",
+      "versionInfo": "sha256:ccf6b919ec0500745a47a910118f834f9636d0aac1ff221245cd2557ed8c7c98"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-2",
+      "downloadLocation": "quay.io/jetstack/cert-manager-controller@sha256:416a2d76870d996460e62bd7f521bf14fa017be9e3e904aab92163a331fcb61a",
+      "filesAnalyzed": false,
+      "name": "quay.io/jetstack/cert-manager-controller",
+      "versionInfo": "sha256:416a2d76870d996460e62bd7f521bf14fa017be9e3e904aab92163a331fcb61a"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-3",
+      "downloadLocation": "quay.io/jetstack/cert-manager-startupapicheck@sha256:d8ab6416e6e7303a86fa0a8daa82c94a8001f21c9d78eb2e7db20534e5d07ae8",
+      "filesAnalyzed": false,
+      "name": "quay.io/jetstack/cert-manager-startupapicheck",
+      "versionInfo": "sha256:d8ab6416e6e7303a86fa0a8daa82c94a8001f21c9d78eb2e7db20534e5d07ae8"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-4",
+      "downloadLocation": "quay.io/jetstack/cert-manager-webhook@sha256:d8b3961b51c8c7320633f8208dc46bf88aa13804d0f7cbe48a096b2c523cee42",
+      "filesAnalyzed": false,
+      "name": "quay.io/jetstack/cert-manager-webhook",
+      "versionInfo": "sha256:d8b3961b51c8c7320633f8208dc46bf88aa13804d0f7cbe48a096b2c523cee42"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

@@ -5,17 +5,38 @@
     "name": "cert-manager"
   },
   "spec": {
+    "displayName": "cert-manager",
+    "category": "security",
+    "release": "1.21.1",
+    "versionPolicy": "exact-offline-import",
+    "supportTier": "research-candidate",
+    "mandatory": true,
+    "dependencies": [
+      "gateway-api"
+    ],
+    "provides": [
+      "certificate-controller"
+    ],
+    "requiresCapabilities": [
+      "gateway-api-crds"
+    ],
+    "exclusiveCapabilities": [
+      "certificate-controller"
+    ],
+    "conflictsWith": [],
+    "risk": "high",
     "capabilities": [
       "certificates",
       "dns01"
     ],
-    "category": "security",
-    "certification": {
-      "evidenceDigest": "",
-      "profiles": [],
-      "status": "candidate"
-    },
+    "namespace": "cert-manager",
+    "wave": 30,
+    "settingsSchemaRef": "schemas/settings/cert-manager.schema.json",
     "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
       "architectures": [
         "amd64",
         "arm64"
@@ -24,37 +45,29 @@
         "kubernetes",
         "rke2"
       ],
-      "kubernetes": {
-        "maxVersion": "1.35",
-        "minVersion": "1.34"
-      },
       "providers": [
         "imported",
         "cluster-api-topology-v1beta2"
       ]
     },
-    "conflictsWith": [],
     "delivery": {
-      "chart": "cert-manager",
-      "repositoryKey": "platform-charts",
-      "type": "helm"
+      "type": "helm",
+      "repositoryKey": "offline-catalog-bundle",
+      "chart": "cert-manager"
     },
-    "dependencies": [
-      "gateway-api"
-    ],
-    "displayName": "cert-manager",
-    "evidenceRequired": [
-      "resolved-source-lock",
-      "rendered-resource-inventory",
-      "policy-result",
-      "runtime-readiness",
-      "rollback-verification"
-    ],
-    "exclusiveCapabilities": [
-      "certificate-controller"
-    ],
-    "mandatory": true,
-    "namespace": "cert-manager",
+    "source": {
+      "type": "helm-chart",
+      "resolved": true,
+      "bundleKey": "cert-manager/1.21.1",
+      "artifactDigest": "sha256:c27101f3f3e2349fb4a9e704316105bf7b52ad73b8c8257d3498ef7f2f6a4adc",
+      "renderManifestDigest": "sha256:4b81779e4cbb7669d1999ab7a49b882a558dc8ce9aa1e7416a119db916940fba",
+      "sourceLockDigest": "sha256:88e458afe87408c85e472cf092965be6e365b518748172dbdb34fe90cad7bced",
+      "imageInventoryDigest": "sha256:43e833f9c0b9caa9d641d6246346725d55278f689375eb130212849743c5b820",
+      "licenseManifestDigest": "sha256:04da43d7b252ee9cbdba5a52ec65d90d8b27fcfa73c88f411655b1e421ffe675",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:e9cf0987fc8954f42c056e5bd2363ae8cc79e9a47c1d8e7fb1efc73fad3519d0",
+      "provenance": "sha256:c46414479ad686475370073d96e28d788f6d9b7c71a71d4434cdece21db024df"
+    },
     "operations": {
       "install": "required",
       "preflight": "required",
@@ -63,35 +76,24 @@
       "upgrade": "required",
       "verify": "required"
     },
-    "provides": [
-      "certificate-controller"
-    ],
     "readiness": [
       "deployment/cert-manager",
       "deployment/cert-manager-webhook"
     ],
-    "release": "1.21.1",
-    "requiresCapabilities": [
-      "gateway-api-crds"
-    ],
-    "risk": "high",
     "rollback": {
       "strategy": "restore-previous-release-and-issuer"
     },
-    "settingsSchemaRef": "schemas/settings/cert-manager.schema.json",
-    "source": {
-      "artifactDigest": "",
-      "imageInventoryDigest": "",
-      "licenseManifestDigest": "",
-      "provenance": "required",
-      "resolved": false,
-      "sbom": "required",
-      "signatureVerification": "required",
-      "sourceLockDigest": "",
-      "type": "helm-chart"
-    },
-    "supportTier": "research-candidate",
-    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
-    "wave": 30
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": null,
+      "evidenceDigest": ""
+    }
   }
 }

@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "cert-manager",
+  "version": "1.21.1",
+  "sourceType": "helm-chart",
+  "bundleKey": "cert-manager/1.21.1",
+  "upstream": {
+    "url": "https://charts.jetstack.io",
+    "revision": "v1.21.1",
+    "artifact": "cert-manager-v1.21.1.tgz",
+    "artifactDigest": "sha256:c27101f3f3e2349fb4a9e704316105bf7b52ad73b8c8257d3498ef7f2f6a4adc",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:c27101f3f3e2349fb4a9e704316105bf7b52ad73b8c8257d3498ef7f2f6a4adc",
+    "component.json": "sha256:8f7ad10855af0c38a70a12494b7358e986ddda904b0e002155a49d620fb7dbf2",
+    "image-inventory.json": "sha256:43e833f9c0b9caa9d641d6246346725d55278f689375eb130212849743c5b820",
+    "licenses.json": "sha256:04da43d7b252ee9cbdba5a52ec65d90d8b27fcfa73c88f411655b1e421ffe675",
+    "provenance.json": "sha256:c46414479ad686475370073d96e28d788f6d9b7c71a71d4434cdece21db024df",
+    "render-manifest.json": "sha256:4b81779e4cbb7669d1999ab7a49b882a558dc8ce9aa1e7416a119db916940fba",
+    "sbom.spdx.json": "sha256:e9cf0987fc8954f42c056e5bd2363ae8cc79e9a47c1d8e7fb1efc73fad3519d0",
+    "source-lock.json": "sha256:88e458afe87408c85e472cf092965be6e365b518748172dbdb34fe90cad7bced"
+  }
+}

@@ -27,6 +27,12 @@
           "sha256": "9a850123f3674e387f1c6f25e1f3516c5828941be1ba500f6d79916962f9c050"
         },
         {
+          "component": "cert-manager",
+          "path": "catalog/runtime/cert-manager/1.21.1/source-lock.json",
+          "release": "1.21.1",
+          "sha256": "88e458afe87408c85e472cf092965be6e365b518748172dbdb34fe90cad7bced"
+        },
+        {
           "component": "gateway-api",
           "path": "catalog/runtime/gateway-api/1.5.1/source-lock.json",
           "release": "1.5.1",
@@ -61,14 +67,6 @@
           "source": "https://ceph.github.io/ceph-csi-operator-charts",
           "status": "ready-for-acquisition",
           "upstreamVersion": "1.0.4"
-        },
-        {
-          "component": "cert-manager",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "1.21.1",
-          "source": "https://charts.jetstack.io",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "v1.21.1"
         },
         {
           "component": "cilium",
@@ -234,11 +232,11 @@
       },
       {
         "component": "cert-manager",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.21.1",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "cilium",
@@ -522,6 +520,12 @@
           "previousVersion": "1.0.3",
           "source": "https://ceph.github.io/ceph-csi-operator/",
           "targetRelease": "1.0.4"
+        },
+        {
+          "component": "cert-manager",
+          "previousVersion": "1.21.0",
+          "source": "https://charts.jetstack.io",
+          "targetRelease": "1.21.1"
         }
       ],
       "installOnlyFirstProductRelease": [
@@ -561,12 +565,6 @@
           "previousVersion": "1.0.3",
           "source": "https://ceph.github.io/ceph-csi-operator-charts",
           "targetRelease": "1.0.4"
-        },
-        {
-          "component": "cert-manager",
-          "previousVersion": "1.21.0",
-          "source": "https://charts.jetstack.io",
-          "targetRelease": "1.21.1"
         },
         {
           "component": "cilium",

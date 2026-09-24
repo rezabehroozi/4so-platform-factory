@@ -47,7 +47,7 @@
       "component": "cert-manager",
       "status": "pending-source-pair",
       "targetRelease": "1.21.1",
-      "targetSourceLockDigest": "",
+      "targetSourceLockDigest": "c182e7427d34eb6f5e06ef1336fa00ce36f0146a38f4255c12964e918d97e5d4",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
