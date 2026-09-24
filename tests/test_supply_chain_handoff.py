@@ -129,6 +129,20 @@ class SupplyChainHandoffTests(unittest.TestCase):
         self.assertFalse(state["resolved"])
         self.assertEqual("pending", state["status"])
 
+    def test_management_archive_partial_authority_never_reports_ready(self):
+        lock = {
+            "authority": "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8",
+            "schemaVersion": 8,
+            "releaseVersion": "9.9.9",
+            "status": "ready",
+            "missingAuthorities": [],
+            "partialAuthorities": [{"id": "management-workload-oci-archive"}],
+            "resolvedAuthorities": [{"id": "management-workload-oci-archive"}],
+        }
+        state = mod._management_archive_state(lock, "9.9.9")
+        self.assertFalse(state["resolved"])
+        self.assertEqual("pending", state["status"])
+
     def test_management_archive_authority_rejects_release_drift(self):
         lock = {
             "authority": "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8",
