@@ -27,7 +27,8 @@
           "reference": "https://github.com/grafana/alloy/blob/main/operations/helm/charts/alloy/CHANGELOG.md",
           "summary": "Upstream release history establishes 1.10.1 as the reviewed predecessor for target 1.11.0."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "argocd",
@@ -42,7 +43,8 @@
           "reference": "https://github.com/argoproj/argo-helm/releases/tag/argo-cd-10.2.3",
           "summary": "Upstream release history establishes 10.2.2 as the reviewed predecessor for target 10.2.3."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "capsule",
@@ -57,7 +59,8 @@
           "reference": "https://github.com/projectcapsule/capsule/releases/tag/v0.13.11",
           "summary": "Upstream release history establishes 0.13.10 as the reviewed predecessor for target 0.13.11."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "ceph-csi-operator",
@@ -72,22 +75,24 @@
           "reference": "https://github.com/ceph/ceph-csi-operator/releases/tag/v1.0.4",
           "summary": "Upstream release history establishes 1.0.3 as the reviewed predecessor for target 1.0.4."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "ceph-csi-rbd",
       "targetRelease": "1.0.4",
       "status": "admitted-for-acquisition",
       "previousVersion": "1.0.3",
-      "source": "https://ceph.github.io/ceph-csi-operator-charts",
+      "source": "https://ceph.github.io/ceph-csi-operator/",
       "rationale": "Reviewed exact predecessor 1.0.3 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
       "reviewEvidence": [
         {
           "kind": "upstream-release-history",
-          "reference": "https://github.com/ceph/ceph-csi-operator-charts/releases/tag/v1.0.4",
-          "summary": "Upstream release history establishes 1.0.3 as the reviewed predecessor for target 1.0.4."
+          "reference": "https://github.com/ceph/ceph-csi-operator/releases/tag/v1.0.4",
+          "summary": "Official Ceph CSI Operator release/chart history binds the ceph-csi-drivers predecessor 1.0.3 to the same released chart repository used by target 1.0.4."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "cert-manager",
@@ -102,7 +107,8 @@
           "reference": "https://github.com/cert-manager/cert-manager/releases/tag/v1.21.1",
           "summary": "Upstream release history establishes 1.21.0 as the reviewed predecessor for target 1.21.1."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "cilium",
@@ -117,22 +123,24 @@
           "reference": "https://github.com/cilium/cilium/releases/tag/v1.20.1",
           "summary": "Upstream release history establishes 1.20.0 as the reviewed predecessor for target 1.20.1."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "external-dns",
       "targetRelease": "1.21.1",
       "status": "admitted-for-acquisition",
-      "previousVersion": "1.21.0",
+      "previousVersion": "1.20.0",
       "source": "https://kubernetes-sigs.github.io/external-dns/",
-      "rationale": "Reviewed exact predecessor 1.21.0 for deterministic S2 historical-source acquisition; admission is not runtime certification.",
+      "rationale": "Reviewed exact published predecessor 1.20.0 for deterministic S2 historical-source acquisition; the upstream chart changelog jumps from 1.20.0 to 1.21.1 and contains no 1.21.0 release.",
       "reviewEvidence": [
         {
           "kind": "upstream-release-history",
-          "reference": "https://artifacthub.io/packages/helm/external-dns/external-dns/1.21.1",
-          "summary": "Upstream release history establishes 1.21.0 as the reviewed predecessor for target 1.21.1."
+          "reference": "https://kubernetes-sigs.github.io/external-dns/latest/charts/external-dns/CHANGELOG/",
+          "summary": "The official ExternalDNS Helm chart changelog lists v1.20.0 immediately before v1.21.1; v1.21.0 was not published."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "external-secrets",
@@ -147,7 +155,8 @@
           "reference": "https://github.com/external-secrets/external-secrets/releases/tag/helm-chart-2.8.0",
           "summary": "Upstream release history establishes 2.7.0 as the reviewed predecessor for target 2.8.0."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "gateway-api",
@@ -162,7 +171,8 @@
           "reference": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.1",
           "summary": "Upstream release history establishes 1.5.0 as the reviewed predecessor for target 1.5.1."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "grafana",
@@ -177,7 +187,8 @@
           "reference": "https://artifacthub.io/packages/helm/grafana/grafana/12.10.0",
           "summary": "Upstream release history establishes 12.9.0 as the reviewed predecessor for target 12.10.0."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "kgateway",
@@ -192,7 +203,8 @@
           "reference": "https://github.com/kgateway-dev/kgateway/releases/tag/v2.4.1",
           "summary": "Upstream release history establishes 2.4.0 as the reviewed predecessor for target 2.4.1."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "kyverno",
@@ -207,7 +219,8 @@
           "reference": "https://artifacthub.io/packages/helm/kyverno/kyverno/3.8.2",
           "summary": "Upstream release history establishes 3.8.1 as the reviewed predecessor for target 3.8.2."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "loki",
@@ -222,7 +235,8 @@
           "reference": "https://artifacthub.io/packages/helm/grafana/loki/18.12.1",
           "summary": "Upstream release history establishes 18.12.0 as the reviewed predecessor for target 18.12.1."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "metallb",
@@ -237,7 +251,8 @@
           "reference": "https://github.com/metallb/metallb/releases/tag/v0.16.1",
           "summary": "Upstream release history establishes 0.16.0 as the reviewed predecessor for target 0.16.1."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "secure-namespace-foundation",
@@ -267,7 +282,8 @@
           "reference": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.5.0",
           "summary": "Upstream release history establishes 8.4.0 as the reviewed predecessor for target 8.5.0."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "tetragon",
@@ -282,7 +298,8 @@
           "reference": "https://github.com/cilium/tetragon/releases/tag/v1.7.0",
           "summary": "Upstream release history establishes 1.6.1 as the reviewed predecessor for target 1.7.0."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "velero",
@@ -297,7 +314,8 @@
           "reference": "https://artifacthub.io/packages/helm/vmware-tanzu/velero/12.1.0",
           "summary": "Upstream release history establishes 12.0.3 as the reviewed predecessor for target 12.1.0."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     },
     {
       "component": "victoria-metrics",
@@ -312,7 +330,8 @@
           "reference": "https://artifacthub.io/packages/helm/victoriametrics/victoria-metrics-k8s-stack/0.90.2",
           "summary": "Upstream release history establishes 0.90.1 as the reviewed predecessor for target 0.90.2."
         }
-      ]
+      ],
+      "licenseSPDX": "Apache-2.0"
     }
   ]
 }
