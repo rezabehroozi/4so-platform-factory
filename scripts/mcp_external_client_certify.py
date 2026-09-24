@@ -12,6 +12,7 @@ import base64
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -69,6 +70,49 @@ def encode_header_value(value: str) -> str:
 
 def fail(message: str) -> None:
     raise RuntimeError(message)
+
+
+def protected_resource_metadata_url(endpoint: str) -> str:
+    parsed = urllib.parse.urlsplit(endpoint)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        fail(f"endpoint must be an absolute http(s) URL: {endpoint!r}")
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, "/.well-known/oauth-protected-resource", "", ""))
+
+
+def fetch_json(url: str, timeout: float) -> dict[str, Any]:
+    req = urllib.request.Request(url, headers={"Accept": "application/json"}, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            status = response.status
+            raw = response.read()
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        raw = exc.read()
+    if status != 200:
+        fail(f"GET {url} HTTP status={status}, expected=200, body={raw[:1000]!r}")
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        fail(f"GET {url} returned invalid JSON: {exc}")
+    if not isinstance(value, dict):
+        fail(f"GET {url} did not return a JSON object")
+    return value
+
+
+def certify_protected_resource(endpoint: str, timeout: float) -> None:
+    metadata = fetch_json(protected_resource_metadata_url(endpoint), timeout)
+    resource = str(metadata.get("resource") or "").rstrip("/")
+    if resource != endpoint.rstrip("/"):
+        fail(f"OAuth protected resource mismatch resource={resource!r} endpoint={endpoint!r}")
+    servers = metadata.get("authorization_servers")
+    if not isinstance(servers, list) or not servers or any(not isinstance(v, str) or not urllib.parse.urlsplit(v).scheme or not urllib.parse.urlsplit(v).netloc for v in servers):
+        fail(f"OAuth protected resource authorization_servers invalid: {servers!r}")
+    bearer = metadata.get("bearer_methods_supported")
+    if not isinstance(bearer, list) or "header" not in bearer:
+        fail(f"OAuth protected resource bearer method missing: {bearer!r}")
+    scopes = metadata.get("scopes_supported")
+    if not isinstance(scopes, list) or not {"mcp.read", "mcp.operate"}.issubset(set(scopes)):
+        fail(f"OAuth protected resource scopes invalid: {scopes!r}")
 
 
 class MCPClient:
@@ -138,6 +182,7 @@ def assert_cacheable(result: dict[str, Any], context: str) -> None:
 
 
 def certify(args: argparse.Namespace) -> None:
+    certify_protected_resource(args.endpoint, args.timeout)
     client = MCPClient(args.endpoint, args.token, args.timeout)
 
     discover = assert_complete(client.call("server/discover"), "server/discover")
@@ -169,6 +214,22 @@ def certify(args: argparse.Namespace) -> None:
             fail(f"non-read MCP tool leaked into read-only surface: {tool.get('name')!r}")
         if tool.get("administrationOnly"):
             fail(f"administration MCP tool leaked into read-only surface: {tool.get('name')!r}")
+
+    denied_mutation = client.call(
+        "tools/call",
+        {
+            "name": "operation_cancel",
+            "arguments": {
+                "id": "interop-read-only-negative-control",
+                "expectedRevision": 1,
+                "reason": "read-only external interoperability negative control",
+            },
+        },
+        name="operation_cancel",
+        expect_http=403,
+    )
+    if not isinstance(denied_mutation.get("error"), dict):
+        fail(f"read-only mutation was not rejected with a JSON-RPC error: {denied_mutation!r}")
 
     lab = assert_complete(client.call("tools/call", {"name": "lab_guide", "arguments": {}}, name="lab_guide"), "tools/call lab_guide")
     structured = lab.get("structuredContent")
@@ -225,6 +286,7 @@ def certify(args: argparse.Namespace) -> None:
     print(
         "MCP_EXTERNAL_CLIENT_CERTIFICATION_PASS "
         f"protocol={PROTOCOL_VERSION} tools={len(EXPECTED_TOOLS)} "
+        f"oauthDiscovery=checked readOnlyMutation=checked "
         f"projectScope={'checked' if args.operation_id else 'not-requested'} "
         f"negativeScope={'checked' if args.forbidden_operation_id else 'not-requested'}"
     )
