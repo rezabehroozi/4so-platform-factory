@@ -11,6 +11,7 @@ from pathlib import Path
 
 import acquire_upstream_helm as helm
 from prepare_openchoreo_executor import acquisition_payload, digest_path
+from openchoreo_runtime_contract import admit_output_path
 
 AUTHORITY = "OPENCHOREO_ZOT_MIRROR_EVIDENCE_V1"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -61,7 +62,7 @@ def mirror(acquisition: Path, prefix: str, out: Path) -> dict:
     # Keep the original acquisition path until acquisition_payload() performs
     # its lstat-based regular-file admission; resolve() here would follow symlinks.
     acquisition = acquisition.expanduser()
-    out = out.expanduser().resolve()
+    out = admit_output_path(out, "OPENCHOREO_MIRROR_OUTPUT")
     lock, _ = acquisition_payload(acquisition)
     plan = mirror_plan(lock.get("images") or [], prefix)
 
