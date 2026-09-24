@@ -18,14 +18,12 @@ import tempfile
 import zipfile
 
 import upstream_acquisition_toolchain as toolchain
+from openchoreo_runtime_contract import ACQUISITION_AUTHORITY, UPSTREAM_COMMIT, VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 AUTHORITY = "OPENCHOREO_EXECUTOR_CONTEXT_AUTHORITY_V1"
-ACQUISITION_AUTHORITY = "OPENCHOREO_RUNTIME_ACQUISITION_AUTHORITY_V1"
 BINARY_MEMBER = "bin/linux-amd64/openchoreo-runtime"
 DOCKERFILE = ROOT / "deploy" / "images" / "Dockerfile.openchoreo-runtime-release"
-VERSION = "1.3.0"
-UPSTREAM_COMMIT = "178dfbde3e3343e5ac151b88a2f203f523f97480"
 MAX_RELEASE_BYTES = 1024 * 1024 * 1024
 MAX_ACQUISITION_BYTES = 1024 * 1024 * 1024
 MAX_MEMBER_BYTES = 512 * 1024 * 1024
