@@ -6,7 +6,7 @@ archive against candidateExactCompiler metadata, atomically installs it into
 vendor/toolchains, and only then promotes the lock to admitted.
 """
 from __future__ import annotations
-import argparse, hashlib, json, os, pathlib, shutil, sys, tempfile
+import argparse, hashlib, json, os, pathlib, shutil, stat, sys, tempfile
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 LOCK=ROOT/'lab'/'release-build-toolchain-lock.json'
 AUTH='RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1'
@@ -26,8 +26,10 @@ def load():
     return d,c
 
 def verify_archive(p:pathlib.Path,c:dict):
-    if not p.is_file(): raise ValueError('candidate archive does not exist')
-    if p.stat().st_size != int(c['archiveSize']): raise ValueError(f'archive size mismatch expected={c["archiveSize"]} got={p.stat().st_size}')
+    try: st=p.lstat()
+    except OSError as exc: raise ValueError('candidate archive does not exist') from exc
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode): raise ValueError('candidate archive must be a regular non-symlink file')
+    if st.st_size != int(c['archiveSize']): raise ValueError(f'archive size mismatch expected={c["archiveSize"]} got={st.st_size}')
     got=sha256_file(p)
     if got != c['archiveSha256']: raise ValueError(f'archive sha256 mismatch expected={c["archiveSha256"]} got={got}')
 
@@ -55,7 +57,7 @@ def main():
     try: d,c=load()
     except Exception as e: print('RELEASE_BUILD_TOOLCHAIN_ACQUISITION_FAIL',e); return 1
     if args.install:
-        try: dest=install(pathlib.Path(args.install).resolve(),d,c)
+        try: dest=install(pathlib.Path(os.path.abspath(os.fspath(pathlib.Path(args.install).expanduser()))),d,c)
         except Exception as e: print('RELEASE_BUILD_TOOLCHAIN_ACQUISITION_FAIL',e); return 1
         print(f'RELEASE_BUILD_TOOLCHAIN_ACQUISITION_PASS archive={dest.relative_to(ROOT)} sha256={c["archiveSha256"]}')
         return 0
