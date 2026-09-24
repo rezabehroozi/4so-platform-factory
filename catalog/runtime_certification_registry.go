@@ -18,6 +18,14 @@ type ComponentRuntimeSourceBinding struct {
 	SourceLockDigest string `json:"sourceLockDigest"`
 }
 
+type ComponentRuntimeSuitabilityHold struct {
+	Component   string `json:"component"`
+	Status      string `json:"status"`
+	Authority   string `json:"authority"`
+	Reason      string `json:"reason"`
+	EvidenceURL string `json:"evidenceURL"`
+}
+
 type ComponentRuntimeExecutor struct {
 	Status  string `json:"status"`
 	Profile string `json:"profile"`
@@ -51,8 +59,10 @@ type ComponentRuntimeCertificationRegistry struct {
 			ExecutorBinding         string   `json:"executorBinding"`
 			RequiredLifecycleStages []string `json:"requiredLifecycleStages"`
 			ReplacementPolicy       string   `json:"replacementPolicy"`
+			RuntimeSuitabilityBinding string `json:"runtimeSuitabilityBinding"`
 		} `json:"policy"`
-		Components []ComponentRuntimeCertificationContract `json:"components"`
+		RuntimeSuitabilityHolds []ComponentRuntimeSuitabilityHold         `json:"runtimeSuitabilityHolds"`
+		Components              []ComponentRuntimeCertificationContract   `json:"components"`
 	} `json:"spec"`
 }
 
@@ -87,7 +97,10 @@ func ValidateComponentRuntimeCertificationRegistry(registry ComponentRuntimeCert
 	if registry.APIVersion != "platform.4so.io/v1alpha1" || registry.Kind != "ComponentRuntimeCertificationRegistry" || registry.Metadata.Name != ComponentRuntimeCertificationAuthority {
 		return fmt.Errorf("component runtime certification registry identity invalid")
 	}
-	if registry.Spec.Policy.SourceBinding != "exact-component-release-and-source-lock" || registry.Spec.Policy.ExecutorBinding != "component-owned-no-generic-runtime-certification-claim" || registry.Spec.Policy.ReplacementPolicy != "resolved-source-replacement-denied-without-explicit-versioned-migration" {
+	if registry.Spec.Policy.SourceBinding != "exact-component-release-and-source-lock" ||
+		registry.Spec.Policy.ExecutorBinding != "component-owned-no-generic-runtime-certification-claim" ||
+		registry.Spec.Policy.ReplacementPolicy != "resolved-source-replacement-denied-without-explicit-versioned-migration" ||
+		registry.Spec.Policy.RuntimeSuitabilityBinding != "persistent-independent-of-source-acquisition" {
 		return fmt.Errorf("component runtime certification registry policy invalid")
 	}
 	if !equalStringSlice(registry.Spec.Policy.RequiredLifecycleStages, RequiredComponentLifecycleStages) {
@@ -96,6 +109,26 @@ func ValidateComponentRuntimeCertificationRegistry(registry ComponentRuntimeCert
 	if len(registry.Spec.Components) != len(components) {
 		return fmt.Errorf("component runtime certification coverage mismatch: registry=%d catalog=%d", len(registry.Spec.Components), len(components))
 	}
+
+	holds := make(map[string]ComponentRuntimeSuitabilityHold, len(registry.Spec.RuntimeSuitabilityHolds))
+	for _, hold := range registry.Spec.RuntimeSuitabilityHolds {
+		name := strings.TrimSpace(hold.Component)
+		if name == "" || holds[name].Component != "" {
+			return fmt.Errorf("component runtime suitability hold identity invalid: %q", name)
+		}
+		if _, ok := components[name]; !ok {
+			return fmt.Errorf("component runtime suitability hold references unknown component %s", name)
+		}
+		status := strings.TrimSpace(hold.Status)
+		if status != "dependency-transition-required" && status != "review-required" {
+			return fmt.Errorf("component runtime suitability hold status invalid for %s: %s", name, status)
+		}
+		if strings.TrimSpace(hold.Authority) == "" || strings.TrimSpace(hold.Reason) == "" || !strings.HasPrefix(strings.TrimSpace(hold.EvidenceURL), "https://") {
+			return fmt.Errorf("component runtime suitability hold evidence invalid for %s", name)
+		}
+		holds[name] = hold
+	}
+
 	seen := make(map[string]bool, len(registry.Spec.Components))
 	for _, contract := range registry.Spec.Components {
 		name := strings.TrimSpace(contract.Component)
@@ -125,14 +158,22 @@ func ValidateComponentRuntimeCertificationRegistry(registry ComponentRuntimeCert
 		if contract.Executor.Owner != "catalog-component" {
 			return fmt.Errorf("component runtime certification executor owner invalid for %s", name)
 		}
+		hold, held := holds[name]
 		if name == "secure-namespace-foundation" {
+			if held {
+				return fmt.Errorf("secure namespace foundation cannot carry external runtime suitability hold")
+			}
 			if contract.Executor.Status != "foundation-harness-partial" || contract.Executor.Profile != "TARGET_RUNTIME_V1" {
 				return fmt.Errorf("secure namespace foundation runtime executor authority drift")
 			}
 		} else {
 			expectedExecutor := "source-gated-component-executor"
 			if component.Spec.Source.Resolved {
-				expectedExecutor = "component-install-readiness-dependency-failure-remove-partial"
+				if held {
+					expectedExecutor = "runtime-suitability-held"
+				} else {
+					expectedExecutor = "component-install-readiness-dependency-failure-remove-partial"
+				}
 			}
 			if contract.Executor.Status != expectedExecutor || contract.Executor.Profile != "COMPONENT_RUNTIME_V1" {
 				return fmt.Errorf("component runtime executor authority invalid for %s", name)
@@ -162,6 +203,9 @@ func ValidateComponentRuntimeCertificationRegistry(registry ComponentRuntimeCert
 					expectedStatus = "not-applicable-first-product-release"
 					expectedAuthority = "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1"
 				}
+			} else if component.Spec.Source.Resolved && held {
+				expectedStatus = "pending-runtime-suitability"
+				expectedAuthority = hold.Authority
 			} else if stage.Name == "upgrade" {
 				expectedStatus = "pending-upgrade-matrix"
 				expectedAuthority = "COMPONENT_RUNTIME_UPGRADE_V1"
@@ -228,6 +272,10 @@ func RebindComponentRuntimeCertificationSource(registry *ComponentRuntimeCertifi
 	if registry == nil {
 		return fmt.Errorf("component runtime certification registry is nil")
 	}
+	holdByComponent := make(map[string]ComponentRuntimeSuitabilityHold, len(registry.Spec.RuntimeSuitabilityHolds))
+	for _, hold := range registry.Spec.RuntimeSuitabilityHolds {
+		holdByComponent[hold.Component] = hold
+	}
 	for i := range registry.Spec.Components {
 		contract := &registry.Spec.Components[i]
 		if contract.Component != component.Metadata.Name {
@@ -245,8 +293,17 @@ func RebindComponentRuntimeCertificationSource(registry *ComponentRuntimeCertifi
 		contract.Release = component.Spec.Release
 		contract.SourceBinding = ComponentRuntimeSourceBinding{Status: "source-ready", Resolved: true, SourceLockDigest: component.Spec.Source.SourceLockDigest}
 		if contract.Component != "secure-namespace-foundation" {
-			contract.Executor.Status = "component-install-readiness-dependency-failure-remove-partial"
 			contract.Executor.Profile = "COMPONENT_RUNTIME_V1"
+			if hold, held := holdByComponent[contract.Component]; held {
+				contract.Executor.Status = "runtime-suitability-held"
+				for j := range contract.Lifecycle {
+					stage := &contract.Lifecycle[j]
+					stage.Status = "pending-runtime-suitability"
+					stage.Authority = hold.Authority
+				}
+				return nil
+			}
+			contract.Executor.Status = "component-install-readiness-dependency-failure-remove-partial"
 			for j := range contract.Lifecycle {
 				stage := &contract.Lifecycle[j]
 				if stage.Name == "upgrade" {

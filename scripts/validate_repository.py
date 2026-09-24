@@ -885,11 +885,7 @@ def validate_component_catalog(root: Path, errors: list[tuple[str,str]]) -> dict
 
 
 def validate_component_runtime_certification(root: Path, components: dict[str,dict], errors: list[tuple[str,str]]) -> None:
-    """Component runtime certification is a distinct authority from source acquisition."""
-    # Component runtime certification is a distinct authority from source acquisition.
-    # Every catalog component must have one exact source/version binding and six
-    # owner-specific lifecycle stages. TARGET_RUNTIME_V1 is only a partial foundation
-    # harness and must never be interpreted as certification for arbitrary components.
+    """Component source resolution never bypasses independent runtime-suitability authority."""
     runtime_cert_path = root/'catalog/component-runtime-certification.json'
     runtime_cert = load_json(runtime_cert_path, errors) if runtime_cert_path.exists() else None
     runtime_stages = ['install','readiness','dependency','upgrade','remove','failure']
@@ -898,93 +894,115 @@ def validate_component_runtime_certification(root: Path, components: dict[str,di
         'executorBinding':'component-owned-no-generic-runtime-certification-claim',
         'requiredLifecycleStages':runtime_stages,
         'replacementPolicy':'resolved-source-replacement-denied-without-explicit-versioned-migration',
+        'runtimeSuitabilityBinding':'persistent-independent-of-source-acquisition',
     }
     if not isinstance(runtime_cert, dict) or runtime_cert.get('apiVersion') != 'platform.4so.io/v1alpha1' or runtime_cert.get('kind') != 'ComponentRuntimeCertificationRegistry' or ((runtime_cert.get('metadata') or {}).get('name') != 'COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1'):
         errors.append(('COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_INVALID','catalog/component-runtime-certification.json'))
-    else:
-        runtime_spec = runtime_cert.get('spec') or {}
-        if runtime_spec.get('policy') != expected_runtime_policy:
-            errors.append(('COMPONENT_RUNTIME_CERTIFICATION_POLICY_INVALID', str(runtime_spec.get('policy'))))
-        rows = runtime_spec.get('components')
-        runtime_rows = {}
-        if not isinstance(rows, list):
-            errors.append(('COMPONENT_RUNTIME_CERTIFICATION_COVERAGE_INVALID','components-not-list'))
-            rows = []
-        for row in rows:
-            name = str((row or {}).get('component') or '') if isinstance(row, dict) else ''
-            if not name or name in runtime_rows:
-                errors.append(('COMPONENT_RUNTIME_CERTIFICATION_IDENTITY_INVALID', name or '<empty>'))
+        return
+    runtime_spec = runtime_cert.get('spec') or {}
+    if runtime_spec.get('policy') != expected_runtime_policy:
+        errors.append(('COMPONENT_RUNTIME_CERTIFICATION_POLICY_INVALID', str(runtime_spec.get('policy'))))
+    holds = runtime_spec.get('runtimeSuitabilityHolds')
+    hold_by_name = {}
+    if not isinstance(holds, list):
+        errors.append(('COMPONENT_RUNTIME_SUITABILITY_HOLDS_INVALID','not-list'))
+        holds = []
+    for hold in holds:
+        name = str((hold or {}).get('component') or '') if isinstance(hold, dict) else ''
+        status = str((hold or {}).get('status') or '') if isinstance(hold, dict) else ''
+        authority = str((hold or {}).get('authority') or '') if isinstance(hold, dict) else ''
+        reason = str((hold or {}).get('reason') or '') if isinstance(hold, dict) else ''
+        evidence = str((hold or {}).get('evidenceURL') or '') if isinstance(hold, dict) else ''
+        if not name or name in hold_by_name or name not in components or status not in {'dependency-transition-required','review-required'} or not authority or not reason or not evidence.startswith('https://'):
+            errors.append(('COMPONENT_RUNTIME_SUITABILITY_HOLD_INVALID', name or '<empty>'))
+            continue
+        hold_by_name[name] = hold
+    rows = runtime_spec.get('components')
+    runtime_rows = {}
+    if not isinstance(rows, list):
+        errors.append(('COMPONENT_RUNTIME_CERTIFICATION_COVERAGE_INVALID','components-not-list'))
+        rows = []
+    for row in rows:
+        name = str((row or {}).get('component') or '') if isinstance(row, dict) else ''
+        if not name or name in runtime_rows:
+            errors.append(('COMPONENT_RUNTIME_CERTIFICATION_IDENTITY_INVALID', name or '<empty>'))
+            continue
+        runtime_rows[name] = row
+    if set(runtime_rows) != set(components):
+        errors.append(('COMPONENT_RUNTIME_CERTIFICATION_COVERAGE_INVALID', f'missing={sorted(set(components)-set(runtime_rows))};extra={sorted(set(runtime_rows)-set(components))}'))
+    for name, row in runtime_rows.items():
+        if name not in components or not isinstance(row, dict):
+            continue
+        component_spec = components[name].get('spec') or {}
+        if row.get('release') != component_spec.get('release'):
+            errors.append(('COMPONENT_RUNTIME_CERTIFICATION_RELEASE_DRIFT', f'{name}:{row.get("release")}!={component_spec.get("release")}'))
+        source = component_spec.get('source') or {}
+        resolved = bool(source.get('resolved'))
+        expected_digest = str(source.get('sourceLockDigest') or '').strip() if resolved else ''
+        if resolved and not re.fullmatch(r'sha256:[0-9a-f]{64}', expected_digest):
+            errors.append(('COMPONENT_RUNTIME_CERTIFICATION_SOURCE_DRIFT', f'{name}:resolved-component-has-invalid-source-lock'))
+        expected_source = {
+            'status':'source-ready' if resolved else 'blocked-source-lock',
+            'resolved':resolved,
+            'sourceLockDigest':expected_digest,
+        }
+        if row.get('sourceBinding') != expected_source:
+            errors.append(('COMPONENT_RUNTIME_CERTIFICATION_SOURCE_DRIFT', name))
+        held = name in hold_by_name
+        if name == 'secure-namespace-foundation' and held:
+            errors.append(('COMPONENT_RUNTIME_SUITABILITY_HOLD_INVALID', name))
+        expected_executor = {
+            'status':(
+                'foundation-harness-partial' if name == 'secure-namespace-foundation'
+                else 'runtime-suitability-held' if resolved and held
+                else 'component-install-readiness-dependency-failure-remove-partial' if resolved
+                else 'source-gated-component-executor'
+            ),
+            'profile':'TARGET_RUNTIME_V1' if name == 'secure-namespace-foundation' else 'COMPONENT_RUNTIME_V1',
+            'owner':'catalog-component',
+        }
+        if row.get('executor') != expected_executor:
+            errors.append(('COMPONENT_RUNTIME_CERTIFICATION_EXECUTOR_INVALID', name))
+        lifecycle = row.get('lifecycle')
+        if not isinstance(lifecycle, list) or len(lifecycle) != len(runtime_stages):
+            errors.append(('COMPONENT_RUNTIME_CERTIFICATION_LIFECYCLE_INVALID', f'{name}:coverage'))
+            continue
+        seen_stages=set()
+        for idx, stage_name in enumerate(runtime_stages):
+            stage = lifecycle[idx] if idx < len(lifecycle) else None
+            if not isinstance(stage, dict):
+                errors.append(('COMPONENT_RUNTIME_CERTIFICATION_LIFECYCLE_INVALID', f'{name}:{stage_name}:not-object'))
                 continue
-            runtime_rows[name] = row
-        if set(runtime_rows) != set(components):
-            errors.append(('COMPONENT_RUNTIME_CERTIFICATION_COVERAGE_INVALID', f'missing={sorted(set(components)-set(runtime_rows))};extra={sorted(set(runtime_rows)-set(components))}'))
-        for name, row in runtime_rows.items():
-            if name not in components or not isinstance(row, dict):
-                continue
-            component_spec = components[name].get('spec') or {}
-            if row.get('release') != component_spec.get('release'):
-                errors.append(('COMPONENT_RUNTIME_CERTIFICATION_RELEASE_DRIFT', f'{name}:{row.get("release")}!={component_spec.get("release")}'))
-            source = component_spec.get('source') or {}
-            resolved = bool(source.get('resolved'))
-            expected_digest = str(source.get('sourceLockDigest') or '').strip() if resolved else ''
-            if resolved and not re.fullmatch(r'sha256:[0-9a-f]{64}', expected_digest):
-                errors.append(('COMPONENT_RUNTIME_CERTIFICATION_SOURCE_DRIFT', f'{name}:resolved-component-has-invalid-source-lock'))
-            expected_source = {
-                'status':'source-ready' if resolved else 'blocked-source-lock',
-                'resolved':resolved,
-                'sourceLockDigest':expected_digest,
-            }
-            if row.get('sourceBinding') != expected_source:
-                errors.append(('COMPONENT_RUNTIME_CERTIFICATION_SOURCE_DRIFT', name))
-            expected_executor = {
-                'status':(
-                    'foundation-harness-partial' if name == 'secure-namespace-foundation'
-                    else 'component-install-readiness-dependency-failure-remove-partial' if resolved
-                    else 'source-gated-component-executor'
-                ),
-                'profile':'TARGET_RUNTIME_V1' if name == 'secure-namespace-foundation' else 'COMPONENT_RUNTIME_V1',
-                'owner':'catalog-component',
-            }
-            if row.get('executor') != expected_executor:
-                errors.append(('COMPONENT_RUNTIME_CERTIFICATION_EXECUTOR_INVALID', name))
-            lifecycle = row.get('lifecycle')
-            if not isinstance(lifecycle, list) or len(lifecycle) != len(runtime_stages):
-                errors.append(('COMPONENT_RUNTIME_CERTIFICATION_LIFECYCLE_INVALID', f'{name}:coverage'))
-                continue
-            seen_stages=set()
-            for idx, stage_name in enumerate(runtime_stages):
-                stage = lifecycle[idx] if idx < len(lifecycle) else None
-                if not isinstance(stage, dict):
-                    errors.append(('COMPONENT_RUNTIME_CERTIFICATION_LIFECYCLE_INVALID', f'{name}:{stage_name}:not-object'))
-                    continue
-                if stage.get('name') != stage_name or stage_name in seen_stages:
-                    errors.append(('COMPONENT_RUNTIME_CERTIFICATION_LIFECYCLE_INVALID', f'{name}:{stage_name}:identity'))
-                seen_stages.add(stage_name)
-                expected_foundation_partial = name == 'secure-namespace-foundation' and stage_name in {'install','readiness','dependency'}
-                if name == 'secure-namespace-foundation':
-                    if expected_foundation_partial:
-                        expected_status = 'foundation-harness-executable'; expected_authority = 'TARGET_RUNTIME_V1'
-                    elif stage_name == 'upgrade':
-                        expected_status = 'not-applicable-first-product-release'; expected_authority = 'COMPONENT_UPGRADE_SOURCE_ADMISSION_V1'
-                    else:
-                        expected_status = 'pending-component-executor'; expected_authority = 'COMPONENT_RUNTIME_EXECUTOR_V1'
+            if stage.get('name') != stage_name or stage_name in seen_stages:
+                errors.append(('COMPONENT_RUNTIME_CERTIFICATION_LIFECYCLE_INVALID', f'{name}:{stage_name}:identity'))
+            seen_stages.add(stage_name)
+            if name == 'secure-namespace-foundation':
+                if stage_name in {'install','readiness','dependency'}:
+                    expected_status = 'foundation-harness-executable'; expected_authority = 'TARGET_RUNTIME_V1'
                 elif stage_name == 'upgrade':
-                    expected_status = 'pending-upgrade-matrix'
-                    expected_authority = 'COMPONENT_RUNTIME_UPGRADE_V1'
-                elif resolved:
-                    expected_status = 'component-runtime-executable'
-                    expected_authority = 'COMPONENT_RUNTIME_V1'
+                    expected_status = 'not-applicable-first-product-release'; expected_authority = 'COMPONENT_UPGRADE_SOURCE_ADMISSION_V1'
                 else:
-                    expected_status = 'source-gated-component-executor'
-                    expected_authority = 'COMPONENT_RUNTIME_V1'
-                expected_stage = {
-                    'name':stage_name,
-                    'status':expected_status,
-                    'evidenceContract':f'component-{stage_name}-evidence/v1',
-                    'authority':expected_authority,
-                }
-                if stage != expected_stage:
-                    errors.append(('COMPONENT_RUNTIME_CERTIFICATION_LIFECYCLE_INVALID', f'{name}:{stage_name}:authority'))
+                    expected_status = 'pending-component-executor'; expected_authority = 'COMPONENT_RUNTIME_EXECUTOR_V1'
+            elif resolved and held:
+                expected_status = 'pending-runtime-suitability'
+                expected_authority = str(hold_by_name[name]['authority'])
+            elif stage_name == 'upgrade':
+                expected_status = 'pending-upgrade-matrix'
+                expected_authority = 'COMPONENT_RUNTIME_UPGRADE_V1'
+            elif resolved:
+                expected_status = 'component-runtime-executable'
+                expected_authority = 'COMPONENT_RUNTIME_V1'
+            else:
+                expected_status = 'source-gated-component-executor'
+                expected_authority = 'COMPONENT_RUNTIME_V1'
+            expected_stage = {
+                'name':stage_name,
+                'status':expected_status,
+                'evidenceContract':f'component-{stage_name}-evidence/v1',
+                'authority':expected_authority,
+            }
+            if stage != expected_stage:
+                errors.append(('COMPONENT_RUNTIME_CERTIFICATION_LIFECYCLE_INVALID', f'{name}:{stage_name}:authority'))
 
 
 def validate_component_runtime_upgrade_matrix(root: Path, components: dict[str,dict], errors: list[tuple[str,str]]) -> None:

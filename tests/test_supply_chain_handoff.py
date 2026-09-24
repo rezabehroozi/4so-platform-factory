@@ -55,13 +55,18 @@ class SupplyChainHandoffTests(unittest.TestCase):
         ca = plan["spec"]["componentAcquisition"]
         ready = {row["component"] for row in ca["ready"]}
         holds = {row["component"] for row in ca["runtimeHolds"]}
-        admission = mod._json(ROOT / "catalog" / "upstream-admission.json")
+        registry = mod._json(ROOT / "catalog" / "component-runtime-certification.json")
         expected_holds = {
-            row["component"] for row in (admission.get("spec") or {}).get("components") or []
-            if row.get("runtimeStatus") != "eligible-after-source-resolution"
+            row["component"] for row in (registry.get("spec") or {}).get("runtimeSuitabilityHolds") or []
         }
+        locked = {row["component"] for row in ca["alreadySourceLocked"]}
         self.assertEqual(expected_holds, holds)
-        self.assertTrue(holds.issubset(ready))
+        self.assertTrue(holds.issubset(ready | locked))
+        for row in ca["runtimeHolds"]:
+            self.assertIn(row["status"], {"ready-for-acquisition","source-acquired"})
+            self.assertIn(row["runtimeStatus"], {"dependency-transition-required","review-required"})
+            self.assertTrue(row["runtimeAuthority"])
+            self.assertTrue(row["evidenceURL"].startswith("https://"))
         for row in ca["runtimeHolds"]:
             self.assertRegex(row["selectedVersion"], r"^\d+\.\d+\.\d+$")
             self.assertNotEqual("eligible-after-source-resolution", row["runtimeStatus"])

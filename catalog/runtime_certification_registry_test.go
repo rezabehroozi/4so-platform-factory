@@ -76,3 +76,47 @@ func TestRebindComponentRuntimeCertificationSourceIsOneWay(t *testing.T) {
 		t.Fatal("resolved source replacement must be rejected")
 	}
 }
+
+func TestRebindComponentRuntimeCertificationSourcePreservesRuntimeSuitabilityHold(t *testing.T) {
+	registry := ComponentRuntimeCertificationRegistry{}
+	registry.Spec.RuntimeSuitabilityHolds = []ComponentRuntimeSuitabilityHold{{
+		Component: "fixture-component",
+		Status: "review-required",
+		Authority: "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
+		Reason: "runtime review remains open",
+		EvidenceURL: "https://example.test/runtime-hold",
+	}}
+	contract := ComponentRuntimeCertificationContract{
+		Component: "fixture-component",
+		Release: "1.2.3",
+		SourceBinding: ComponentRuntimeSourceBinding{Status: "blocked-source-lock"},
+		Executor: ComponentRuntimeExecutor{Status: "source-gated-component-executor", Profile: "COMPONENT_RUNTIME_V1", Owner: "catalog-component"},
+	}
+	for _, name := range RequiredComponentLifecycleStages {
+		status, authority := "source-gated-component-executor", "COMPONENT_RUNTIME_V1"
+		if name == "upgrade" {
+			status, authority = "pending-upgrade-matrix", "COMPONENT_RUNTIME_UPGRADE_V1"
+		}
+		contract.Lifecycle = append(contract.Lifecycle, ComponentRuntimeLifecycleStage{
+			Name: name, Status: status, EvidenceContract: "component-"+name+"-evidence/v1", Authority: authority,
+		})
+	}
+	registry.Spec.Components = []ComponentRuntimeCertificationContract{contract}
+	component := Component{}
+	component.Metadata.Name = "fixture-component"
+	component.Spec.Release = "1.2.3"
+	component.Spec.Source.Resolved = true
+	component.Spec.Source.SourceLockDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	if err := RebindComponentRuntimeCertificationSource(&registry, component); err != nil {
+		t.Fatal(err)
+	}
+	got := registry.Spec.Components[0]
+	if !got.SourceBinding.Resolved || got.Executor.Status != "runtime-suitability-held" {
+		t.Fatalf("source rebind bypassed runtime hold: %#v", got)
+	}
+	for _, stage := range got.Lifecycle {
+		if stage.Status != "pending-runtime-suitability" || stage.Authority != "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1" {
+			t.Fatalf("runtime hold leaked executable lifecycle stage: %#v", stage)
+		}
+	}
+}

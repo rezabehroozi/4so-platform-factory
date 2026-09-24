@@ -105,17 +105,20 @@ def build(root: Path = ROOT) -> dict:
     toolchain = _json(root / "lab" / "release-build-toolchain-lock.json")
     upgrade_admission = _json(root / "catalog" / "component-upgrade-source-admission.json")
     runtime_transition = _json(root / "catalog" / "runtime-dependency-transition.json")
+    runtime_certification = _json(root / "catalog" / "component-runtime-certification.json")
     components = _component_docs(root)
 
     rows = (admission.get("spec") or {}).get("components") or []
     if not isinstance(rows, list):
         raise RuntimeError("UPSTREAM_ADMISSION_ROWS_INVALID")
-    ready, review, runtime_holds = [], [], []
+    ready, review = [], []
+    admission_by_name = {}
     for row in rows:
         name = str(row.get("component") or "")
         selected = str(row.get("selectedVersion") or "").lstrip("v")
         if name not in components or not EXACT_RE.fullmatch(selected):
             raise RuntimeError(f"UPSTREAM_ADMISSION_ROW_INVALID {name}:{selected}")
+        admission_by_name[name] = row
         entry = {
             "component": name,
             "selectedVersion": selected,
@@ -125,8 +128,40 @@ def build(root: Path = ROOT) -> dict:
             "runtimeStatus": str(row.get("runtimeStatus") or ""),
         }
         (ready if row.get("status") == "ready-for-acquisition" else review).append(entry)
-        if row.get("runtimeStatus") != "eligible-after-source-resolution":
-            runtime_holds.append(entry)
+
+    runtime_holds = []
+    hold_rows = (runtime_certification.get("spec") or {}).get("runtimeSuitabilityHolds") or []
+    for hold in hold_rows:
+        name = str((hold or {}).get("component") or "")
+        status = str((hold or {}).get("status") or "")
+        authority = str((hold or {}).get("authority") or "")
+        reason = str((hold or {}).get("reason") or "")
+        evidence = str((hold or {}).get("evidenceURL") or "")
+        if name not in components or status not in {"dependency-transition-required","review-required"} or not authority or not reason or not evidence.startswith("https://"):
+            raise RuntimeError(f"RUNTIME_SUITABILITY_HOLD_INVALID {name}")
+        cdoc = components[name]
+        cspec = cdoc.get("spec") or {}
+        resolved = bool((cspec.get("source") or {}).get("resolved"))
+        admission_row = admission_by_name.get(name)
+        if admission_row:
+            if str(admission_row.get("runtimeStatus") or "") != status:
+                raise RuntimeError(f"RUNTIME_SUITABILITY_HOLD_ADMISSION_DRIFT {name}")
+            selected = str(admission_row.get("selectedVersion") or "").lstrip("v")
+            source_status = str(admission_row.get("status") or "")
+        else:
+            if not resolved:
+                raise RuntimeError(f"RUNTIME_SUITABILITY_HOLD_LOST_BEFORE_SOURCE_ACQUISITION {name}")
+            selected = str(cspec.get("release") or "").lstrip("v")
+            source_status = "source-acquired"
+        runtime_holds.append({
+            "component": name,
+            "selectedVersion": selected,
+            "status": source_status,
+            "runtimeStatus": status,
+            "runtimeAuthority": authority,
+            "reason": reason,
+            "evidenceURL": evidence,
+        })
 
     upgrade_admission_by_name = {str(r.get("component") or ""): r for r in (upgrade_admission.get("components") or [])}
     resolved = []
@@ -295,6 +330,7 @@ def build(root: Path = ROOT) -> dict:
                     "catalog/component-upgrade-source-admission.json",
                     "catalog/tagged-source-recipes/*",
                     "catalog/runtime-dependency-transition.json",
+                    "catalog/component-runtime-certification.json",
                 ],
                 "stagingNeverPromotesSourceResolution": True,
                 "stagingNeverPromotesRuntimeCertification": True,
@@ -361,8 +397,17 @@ def validate(plan: dict, root: Path = ROOT) -> list[str]:
     for row in ready + review:
         if not EXACT_RE.fullmatch(str(row.get("selectedVersion") or "")):
             errors.append(f"component candidate not exact: {row.get('component')}")
-    if any(r.get("status") != "ready-for-acquisition" for r in runtime_holds):
-        errors.append("runtime hold incorrectly blocks source acquisition")
+    known_components = set(r.get("component") for r in ready + review + (comp.get("alreadySourceLocked") or []))
+    for row in runtime_holds:
+        name = row.get("component")
+        if name not in known_components or row.get("runtimeStatus") not in {"dependency-transition-required","review-required"} or not row.get("runtimeAuthority") or not str(row.get("evidenceURL") or "").startswith("https://"):
+            errors.append(f"runtime hold authority invalid: {name}")
+        if row.get("status") == "ready-for-acquisition" and name not in {r.get("component") for r in ready}:
+            errors.append(f"runtime hold source state drift: {name}")
+        elif row.get("status") == "source-acquired" and name not in {r.get("component") for r in (comp.get("alreadySourceLocked") or [])}:
+            errors.append(f"runtime hold source state drift: {name}")
+        elif row.get("status") not in {"ready-for-acquisition","source-acquired"}:
+            errors.append(f"runtime hold source status invalid: {name}")
     transition = spec.get("runtimeDependencyTransition") or {}
     if transition.get("authority") != "RUNTIME_DEPENDENCY_TRANSITION_V1" or transition.get("status") != "acquisition-pending":
         errors.append("runtime dependency transition authority invalid")
