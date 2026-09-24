@@ -333,6 +333,15 @@ def stage(limit: int, stage_dir: Path, platformctl: str | None) -> int:
     return 0
 
 
+def refresh_derived_handoff() -> None:
+    proc = subprocess.run(
+        [sys.executable, "scripts/supply_chain_handoff.py", "--write", "--plan", "lab/supply-chain-handoff-plan.json"],
+        cwd=ROOT, text=True,
+    )
+    if proc.returncode:
+        raise RuntimeError(f"SUPPLY_CHAIN_HANDOFF_REFRESH_FAILED rc={proc.returncode}")
+
+
 def install_staged(stage_dir: Path, platformctl: str | None) -> int:
     stage_dir = _regular_directory(_absolute_no_follow(stage_dir), "STAGED_BATCH_DIRECTORY")
     manifest_path = _regular_file(stage_dir / STAGE_MANIFEST, "STAGED_BATCH_MANIFEST")
@@ -348,7 +357,9 @@ def install_staged(stage_dir: Path, platformctl: str | None) -> int:
         _run_json(ctl + ["catalog-bundle", "install", "-f", str(bundle), "--repo-root", str(ROOT), "--confirmation", "IMPORT"])
         completed.append(component)
         # Repository validation after each authoritative mutation makes resume
-        # semantics explicit and prevents advancing after cross-authority drift.
+        # semantics explicit. Refresh only the derived handoff first so successful
+        # source acquisition is not rejected by a stale transport snapshot.
+        refresh_derived_handoff()
         proc = subprocess.run([sys.executable, "scripts/validate_repository.py", "."], cwd=ROOT, text=True)
         if proc.returncode != 0:
             print("UPSTREAM_BATCH_INSTALL_CHECKPOINT component=%s validationRc=%d completed=%s" % (component, proc.returncode, ",".join(completed)), file=sys.stderr)
