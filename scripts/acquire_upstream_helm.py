@@ -305,6 +305,18 @@ def canonical_resources(resources: list[dict]) -> bytes:
     return (json.dumps(resources, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
+def kubernetes_render_evidence(renders: dict[str, list[dict]]) -> dict[str, str]:
+    if not renders:
+        raise RuntimeError("HELM_RENDER_EVIDENCE_EMPTY")
+    out: dict[str, str] = {}
+    for version, resources in sorted(renders.items()):
+        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", str(version)):
+            raise RuntimeError(f"HELM_RENDER_EVIDENCE_VERSION_INVALID {version}")
+        raw = canonical_resources(resources)
+        out[str(version)] = "sha256:" + hashlib.sha256(raw).hexdigest()
+    return out
+
+
 def image_repository(ref: str) -> str:
     ref = ref.strip()
     if "@" in ref:
@@ -526,8 +538,7 @@ def acquire(args: argparse.Namespace) -> int:
             raise RuntimeError("COMPONENT_KUBERNETES_RANGE_INVALID")
         rendered_min = render_chart(artifact, str(spec.get("namespace") or "default"), min_kube, values, env)
         rendered_max = render_chart(artifact, str(spec.get("namespace") or "default"), max_kube, values, env)
-        if canonical_resources(rendered_min) != canonical_resources(rendered_max):
-            raise RuntimeError(f"HELM_RENDER_KUBE_RANGE_DRIFT {min_kube}!={max_kube}: single immutable render cannot represent declared range")
+        render_digests = kubernetes_render_evidence({min_kube: rendered_min, max_kube: rendered_max})
 
         generation_path = tmp / "render-generation.json"
         generation_path.write_text(json.dumps({
@@ -537,13 +548,15 @@ def acquire(args: argparse.Namespace) -> int:
             "namespace": str(spec.get("namespace") or "default"),
             "includeCRDs": True,
             "kubernetesVersions": [min_kube, max_kube],
+            "kubernetesRenderDigests": render_digests,
             "values": value_inputs,
             "imageResolver": "crane-digest",
             "imageResolverVersion": crane_version,
         }, indent=2, sort_keys=True) + "\n")
 
         resources = copy.deepcopy(rendered_min)
-        images = sorted(pin_images(resources, crane_digest))
+        max_resources = copy.deepcopy(rendered_max)
+        images = sorted(pin_images(resources, crane_digest) | pin_images(max_resources, crane_digest))
         render_path = tmp / "render-manifest.json"
         render_path.write_text(json.dumps(resources, indent=2, sort_keys=True) + "\n")
         image_path = tmp / "image-inventory.json"
