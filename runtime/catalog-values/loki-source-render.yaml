@@ -7,6 +7,10 @@ loki:
     replication_factor: 1
   storage:
     type: filesystem
+    bucketNames:
+      chunks: chunks
+      ruler: ruler
+      admin: admin
   useTestSchema: true
 singleBinary:
   replicas: 1
