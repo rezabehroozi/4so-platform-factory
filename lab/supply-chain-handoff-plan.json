@@ -173,7 +173,10 @@
           "selectedVersion": "1.20.1",
           "source": "https://helm.cilium.io",
           "status": "ready-for-acquisition",
-          "upstreamVersion": "1.20.1"
+          "upstreamVersion": "1.20.1",
+          "runtimeAuthority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
+          "reason": "Cilium 1.20.1 source may be acquired, but runtime execution remains blocked until the product-owned Gateway API baseline is upgraded and certified at exact 1.6.1.",
+          "evidenceURL": "https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/"
         },
         {
           "component": "kyverno",
@@ -181,7 +184,10 @@
           "selectedVersion": "3.8.2",
           "source": "https://kyverno.github.io/kyverno/",
           "status": "ready-for-acquisition",
-          "upstreamVersion": "3.8.2"
+          "upstreamVersion": "3.8.2",
+          "runtimeAuthority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
+          "reason": "Kyverno chart 3.8.2 remains runtime-held while the reviewed upstream CRD rendering defect is unresolved or explicitly dispositioned.",
+          "evidenceURL": "https://github.com/kyverno/kyverno/issues/16764"
         },
         {
           "component": "metallb",
@@ -189,7 +195,10 @@
           "selectedVersion": "0.16.1",
           "source": "https://metallb.github.io/metallb",
           "status": "ready-for-acquisition",
-          "upstreamVersion": "0.16.1"
+          "upstreamVersion": "0.16.1",
+          "runtimeAuthority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
+          "reason": "MetalLB 0.16.1 remains runtime-held while the reviewed grpc/CVE release concern is unresolved or explicitly dispositioned.",
+          "evidenceURL": "https://github.com/metallb/metallb/issues/3113"
         }
       ],
       "stageManifestPath": "components/stage-manifest.json"
