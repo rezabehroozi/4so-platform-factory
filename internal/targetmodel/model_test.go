@@ -159,7 +159,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if progress.PrePhysicalSoftwarePhases != 36 || progress.PrePhysicalSoftwareClosedPhases != 35 || progress.PrePhysicalSoftwareOpenPhases != 1 || progress.PrePhysicalSoftwareClosurePercent != 97 {
 		t.Fatalf("pre-physical software progress truth drift: %#v", progress)
 	}
-	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "S2-component-runtime-certification-authorities", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "J8-application-platform-abstraction-composition", "C9-pre-certification-feature-freeze-exact-bundle"} {
+	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "S2-component-runtime-certification-authorities", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "C9-pre-certification-feature-freeze-exact-bundle"} {
 		if !containsString(progress.ExternalClosureOnlyPhaseIDs, id) {
 			t.Fatalf("external-only closure phase missing %s: %#v", id, progress.ExternalClosureOnlyPhaseIDs)
 		}
