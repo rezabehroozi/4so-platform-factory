@@ -141,7 +141,10 @@
         "source": "https://grafana-community.github.io/helm-charts",
         "status": "ready-for-acquisition",
         "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "18.12.1"
+        "upstreamVersion": "18.12.1",
+        "valuesFiles": [
+          "runtime/catalog-values/loki-source-render.yaml"
+        ]
       },
       {
         "catalogConstraint": "0.16.x",
