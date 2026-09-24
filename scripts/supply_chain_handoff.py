@@ -80,22 +80,23 @@ def _source_lock(root: Path, component: str, release: str) -> dict | None:
     return {"path": path.relative_to(root).as_posix(), "sha256": _sha256(path)}
 
 
-def _previous_locks(root: Path, component: str, target: str) -> list[dict]:
-    base = root / "catalog" / "runtime" / component
-    rows: list[dict] = []
-    if not base.exists():
-        return rows
-    target_key = tuple(map(int, target.split("."))) if EXACT_RE.fullmatch(target) else None
-    for child in sorted(base.iterdir(), key=lambda p: p.name):
-        if not child.is_dir() or child.name == target or not EXACT_RE.fullmatch(child.name):
-            continue
-        prev_key = tuple(map(int, child.name.split(".")))
-        if target_key is None or prev_key >= target_key:
-            continue
-        lock = _source_lock(root, component, child.name)
-        if lock:
-            rows.append({"release": child.name, **lock})
-    return rows
+def _reviewed_previous_locks(root: Path, component: str, target: str, admission_row: dict) -> list[dict]:
+    """Return only the exact predecessor explicitly reviewed for this target.
+
+    Historical source-lock siblings are evidence bytes, not upgrade-edge authority.
+    An unrelated older lock must never make the S2 handoff report pair-present.
+    """
+    if admission_row.get("status") != "admitted-for-acquisition":
+        return []
+    if str(admission_row.get("component") or "") != component or str(admission_row.get("targetRelease") or "").lstrip("v") != target:
+        return []
+    previous = str(admission_row.get("previousVersion") or "").lstrip("v")
+    if not EXACT_RE.fullmatch(previous) or not EXACT_RE.fullmatch(target):
+        return []
+    if tuple(map(int, previous.split("."))) >= tuple(map(int, target.split("."))):
+        return []
+    lock = _source_lock(root, component, previous)
+    return [{"release": previous, **lock}] if lock else []
 
 
 def build(root: Path = ROOT) -> dict:
@@ -172,8 +173,8 @@ def build(root: Path = ROOT) -> dict:
         lock = _source_lock(root, name, release)
         if lock:
             resolved.append({"component": name, "release": release, **lock})
-        previous = _previous_locks(root, name, release)
         admission_row = upgrade_admission_by_name.get(name) or {}
+        previous = _reviewed_previous_locks(root, name, release, admission_row)
         install_only = admission_row.get("status") == "install-only-first-product-release"
         upgrade.append({
             "component": name,
@@ -308,7 +309,16 @@ def build(root: Path = ROOT) -> dict:
         blockers += ["MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING", "MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING"]
     if any(row["pairState"] not in {"pair-present", "install-only-first-product-release"} for row in upgrade):
         blockers.append("COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING")
-    if any(row.get("status") == "admitted-for-acquisition" and not _previous_locks(root, row.get("component", ""), row.get("targetRelease", "")) for row in (upgrade_admission.get("components") or [])):
+    if any(
+        row.get("status") == "admitted-for-acquisition"
+        and not _reviewed_previous_locks(
+            root,
+            str(row.get("component") or ""),
+            str(row.get("targetRelease") or "").lstrip("v"),
+            row,
+        )
+        for row in (upgrade_admission.get("components") or [])
+    ):
         blockers.append("COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING")
 
     return {
