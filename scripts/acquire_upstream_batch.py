@@ -62,9 +62,13 @@ def acquisition_cmd(component: str, *, platformctl: str | None = None, install: 
     return cmd
 
 
+def _absolute_no_follow(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path.expanduser())))
+
+
 def platformctl_prefix(path: str | None) -> list[str]:
     if path:
-        resolved = Path(path).resolve()
+        resolved = _absolute_no_follow(Path(path))
         if resolved.is_symlink() or not resolved.is_file() or not os.access(resolved, os.X_OK):
             raise RuntimeError(f"PLATFORMCTL_NOT_EXECUTABLE {resolved}")
         return [str(resolved)]
@@ -108,11 +112,12 @@ def _atomic_json(path: Path, payload: dict) -> None:
             os.fsync(fh.fileno())
         os.chmod(temp_name, 0o644)
         os.replace(temp_name, path)
-        dir_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-        try:
-            os.fsync(dir_fd)
-        finally:
-            os.close(dir_fd)
+        if os.name != "nt":
+            dir_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
     except Exception:
         try:
             os.unlink(temp_name)
@@ -285,7 +290,7 @@ def execute(limit: int, platformctl: str | None) -> int:
 
 
 def stage(limit: int, stage_dir: Path, platformctl: str | None) -> int:
-    stage_dir = _regular_directory(stage_dir.resolve(), "STAGED_BATCH_DIRECTORY", create=True)
+    stage_dir = _regular_directory(_absolute_no_follow(stage_dir), "STAGED_BATCH_DIRECTORY", create=True)
     manifest_path = stage_dir / STAGE_MANIFEST
     if manifest_path.exists():
         _regular_file(manifest_path, "STAGED_BATCH_MANIFEST")
@@ -325,7 +330,7 @@ def stage(limit: int, stage_dir: Path, platformctl: str | None) -> int:
 
 
 def install_staged(stage_dir: Path, platformctl: str | None) -> int:
-    stage_dir = _regular_directory(stage_dir.resolve(), "STAGED_BATCH_DIRECTORY")
+    stage_dir = _regular_directory(_absolute_no_follow(stage_dir), "STAGED_BATCH_DIRECTORY")
     manifest_path = _regular_file(stage_dir / STAGE_MANIFEST, "STAGED_BATCH_MANIFEST")
     entries = validate_stage_manifest(stage_dir, json.loads(manifest_path.read_text()))
     ctl = platformctl_prefix(platformctl)
