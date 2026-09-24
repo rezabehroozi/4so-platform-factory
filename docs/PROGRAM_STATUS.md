@@ -55,6 +55,15 @@ All **36/36 (100%)** Core + Expansion pre-physical software phases are now sourc
 - No hand-entered DORA counter or second analytics SoT was introduced. Runtime/Physical certification remains independent.
 - J8 source implementation is closed. Its remaining closure blocker is `OPENCHOREO_EXACT_RUNTIME_ACQUISITION_PENDING` (external byte/mirror evidence), not source/software debt. `FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING` closed on exact source SHA `7713260b93cfbac2059cd66fa2b7ef26ca09a9b4`; repository-integrity run `35921914768` passed clean-clone verification, Go build/tests, Python tests, PostgreSQL behavioral integration, Terraform and Crossplane.
 
+## Closure/evidence authority hardening checkpoint — 2026-09-24
+
+- J8 exact-runtime closure tooling now uses one shared OpenChoreo identity contract for version, upstream repository, official `v1.3.0` tag commit, chart repository and source/acquisition authorities. The previous stale seal-only commit fence was removed, so a valid acquisition/mirror chain is no longer rejected by an obsolete source identity.
+- Regression coverage binds `runtime/openchoreo/source-selection.json` to the shared identity and rejects reintroduction of the obsolete OpenChoreo commit in acquisition, executor-preparation or seal tooling.
+- S2 upgrade-edge admission now treats `catalog/component-upgrade-source-admission.json` as the reviewed predecessor authority. An arbitrary older sibling `source-lock.json` can no longer create an upgrade edge; only the exact reviewed predecessor for the exact current target release may be admitted.
+- S2 admission input now fails closed on authority/schema/policy drift, duplicate/invalid component rows, missing review evidence, invalid first-release declarations and non-directional predecessor selections. Focused negative controls cover unreviewed historical locks and multiple-history-lock selection.
+- These fixes harden the evidence path only. They do **not** close `OPENCHOREO_EXACT_RUNTIME_ACQUISITION_PENDING`, `COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING`, or any other external/runtime/Physical blocker. No new Lab, runtime or Physical PASS is inferred.
+- Closure-path code checkpoints in this wave: `90ad9f1a177dcfa50cffa4025669a57e5cd1c6dc` (OpenChoreo seal identity), `dfa6f6928a73d43f2f29e5ec15c478825848b6f0` (identity regression fence), `e9022271c6115f2cab2e56c94e2d535c1752a5b9` (reviewed S2 predecessor authority), and `27941cebef1cce47b208d492520cb5bb6f93f051` (S2 negative controls).
+
 ## Current critical path
 
 The Core bottleneck remains **S1 ? S2**, but it is no longer treated as a whole-phase serial dependency. Exact-locked components should flow immediately from Acquire ? Verify ? Admit ? Runtime Certify ? Negative Controls while other S1 roles continue acquiring.
