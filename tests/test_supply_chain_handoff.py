@@ -111,6 +111,37 @@ class SupplyChainHandoffTests(unittest.TestCase):
             }
             self.assertEqual([], mod._reviewed_previous_locks(root, "demo", "2.0.0", admission))
 
+    def test_management_archive_blocker_can_reach_ready_from_authority(self):
+        lock = {
+            "authority": "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8",
+            "schemaVersion": 8,
+            "releaseVersion": "9.9.9",
+            "status": "ready",
+            "missingAuthorities": [],
+            "partialAuthorities": [],
+            "resolvedAuthorities": [{"id": "management-workload-oci-archive"}],
+        }
+        state = mod._management_archive_state(lock, "9.9.9")
+        self.assertTrue(state["resolved"])
+        self.assertEqual("ready", state["status"])
+        lock["status"] = "incomplete"
+        state = mod._management_archive_state(lock, "9.9.9")
+        self.assertFalse(state["resolved"])
+        self.assertEqual("pending", state["status"])
+
+    def test_management_archive_authority_rejects_release_drift(self):
+        lock = {
+            "authority": "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8",
+            "schemaVersion": 8,
+            "releaseVersion": "9.9.8",
+            "status": "incomplete",
+            "missingAuthorities": ["management-workload-oci-archive"],
+            "partialAuthorities": [],
+            "resolvedAuthorities": [],
+        }
+        with self.assertRaisesRegex(RuntimeError, "RELEASE_DRIFT"):
+            mod._management_archive_state(lock, "9.9.9")
+
     def test_plan_rejects_truth_model_tamper(self):
         plan = mod.build(ROOT)
         plan["spec"]["truthModel"]["physicalPassInferenceForbidden"] = False
