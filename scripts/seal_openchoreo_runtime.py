@@ -25,10 +25,11 @@ EXECUTOR_AUTHORITY = "OPENCHOREO_EXECUTOR_IMAGE_EVIDENCE_V1"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 def load_json(path: Path, label: str) -> dict:
-    path = path.expanduser().resolve()
+    path = path.expanduser()
     info = path.lstat()
     if path.is_symlink() or not path.is_file() or info.st_size <= 0 or info.st_size > 16 * 1024 * 1024:
         raise RuntimeError(f"{label}_FILE_INVALID")
+    path = path.resolve()
     return strict_json(path.read_bytes(), label)
 
 def validate_exact_ref(ref: str, digest: str, label: str) -> None:
@@ -36,7 +37,7 @@ def validate_exact_ref(ref: str, digest: str, label: str) -> None:
         raise RuntimeError(f"{label}_REFERENCE_INVALID")
 
 def seal(acquisition: Path, mirror_path: Path, executor_path: Path, out: Path) -> dict:
-    acquisition = acquisition.expanduser().resolve()
+    acquisition = acquisition.expanduser()
     acquisition_lock, _ = acquisition_payload(acquisition)
     acquisition_digest = digest_path(acquisition)
     mirror = load_json(mirror_path, "OPENCHOREO_MIRROR_EVIDENCE")
