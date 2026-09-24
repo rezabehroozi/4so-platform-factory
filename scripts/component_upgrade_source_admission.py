@@ -83,21 +83,29 @@ def validate(doc,root=ROOT):
         seen.add(n)
         if target!=str(comps[n]['spec']['release']): errs.append(f'{n}: target release drift')
         st=r.get('status'); prev=str(r.get('previousVersion') or ''); src=str(r.get('source') or ''); license_spdx=str(r.get('licenseSPDX') or '')
+        values_files=r.get('valuesFiles') or []
         evidence=r.get('reviewEvidence')
         if st not in ALLOWED: errs.append(f'{n}: status invalid'); continue
         if st=='admitted-for-acquisition':
             if not key(prev) or not key(target) or key(prev)>=key(target): errs.append(f'{n}: previous version must be exact and lower')
             if not (src.startswith('https://') or src.startswith('oci://')): errs.append(f'{n}: source invalid')
             if not SPDX.fullmatch(license_spdx): errs.append(f'{n}: licenseSPDX required')
+            if not isinstance(values_files,list) or len(values_files)!=len(set(values_files)): errs.append(f'{n}: valuesFiles invalid')
+            else:
+                for value in values_files:
+                    p=pathlib.PurePosixPath(str(value))
+                    candidate=root/str(value)
+                    if not value or str(p)!=str(value) or p.is_absolute() or '..' in p.parts or not candidate.is_file() or candidate.is_symlink():
+                        errs.append(f'{n}: valuesFiles invalid'); break
             if not str(r.get('rationale') or '').strip(): errs.append(f'{n}: rationale required')
             if not _valid_review_evidence(evidence,upstream=True): errs.append(f'{n}: upstream review evidence required')
         elif st=='install-only-first-product-release':
-            if prev or src or license_spdx: errs.append(f'{n}: first product release must not fabricate previousVersion/source/license')
+            if prev or src or license_spdx or values_files: errs.append(f'{n}: first product release must not fabricate previousVersion/source/license/values')
             if not _first_product_release_eligible(n,comps[n],target,root): errs.append(f'{n}: install-only status is not eligible for this component')
             if not str(r.get('rationale') or '').strip(): errs.append(f'{n}: rationale required')
             if not _valid_review_evidence(evidence,upstream=False): errs.append(f'{n}: product release history evidence required')
         else:
-            if prev or src or license_spdx: errs.append(f'{n}: review-required row must not pre-authorize previousVersion/source/license')
+            if prev or src or license_spdx or values_files: errs.append(f'{n}: review-required row must not pre-authorize previousVersion/source/license/values')
             if evidence not in ([],None): errs.append(f'{n}: review-required row must not pre-authorize review evidence')
     if seen!=set(comps): errs.append('coverage mismatch')
     return errs
