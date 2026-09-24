@@ -35,6 +35,7 @@ type UpstreamAdmissionComponent struct {
 	Chart             string                            `json:"chart"`
 	Component         string                            `json:"component"`
 	LicenseSPDX       string                            `json:"licenseSPDX,omitempty"`
+	ValuesFiles       []string                          `json:"valuesFiles,omitempty"`
 	Rationale         string                            `json:"rationale"`
 	ReviewEvidence    []UpstreamAdmissionReviewEvidence `json:"reviewEvidence,omitempty"`
 	SelectedVersion   *string                           `json:"selectedVersion"`
@@ -163,6 +164,17 @@ func ValidateUpstreamAdmission(admission UpstreamAdmission, components map[strin
 		source := strings.TrimSpace(row.Source)
 		if !strings.HasPrefix(source, "https://") && !strings.HasPrefix(source, "oci://") {
 			return fmt.Errorf("upstream admission component %q has invalid source %q", name, row.Source)
+		}
+		seenValues := map[string]struct{}{}
+		for _, value := range row.ValuesFiles {
+			value = strings.TrimSpace(value)
+			if value == "" || strings.HasPrefix(value, "/") || strings.Contains(value, "\\") || strings.Contains(value, "..") {
+				return fmt.Errorf("upstream admission component %q has invalid values file %q", name, value)
+			}
+			if _, exists := seenValues[value]; exists {
+				return fmt.Errorf("upstream admission component %q duplicates values file %q", name, value)
+			}
+			seenValues[value] = struct{}{}
 		}
 		if license := strings.TrimSpace(row.LicenseSPDX); license != "" && !upstreamAdmissionSPDXID.MatchString(license) {
 			return fmt.Errorf("upstream admission component %q has invalid SPDX license %q", name, row.LicenseSPDX)
