@@ -110,6 +110,7 @@ func openChoreoExecutorJob(task openChoreoAgentTask, namespace, serviceAccount s
 							map[string]any{"name":"FOURSO_OPENCHOREO_RUNTIME_SOURCE_DIGEST","value":task.Request.RuntimeSourceDigest},
 							map[string]any{"name":"FOURSO_OPENCHOREO_OPERATION_ID","value":task.OperationID},
 							map[string]any{"name":"FOURSO_OPENCHOREO_TASK_FENCE_TOKEN","value":strconv.FormatInt(task.TaskFenceToken,10)},
+							map[string]any{"name":"FOURSO_OPENCHOREO_EXPECTED_OBSERVED_SOURCE_DIGEST","value":task.Request.ExpectedObservedSourceDigest},
 							map[string]any{"name":"FOURSO_OPENCHOREO_NATIVE_SUPPRESSIONS_JSON","value":string(suppressionsRaw)},
 							map[string]any{"name":"FOURSO_OPENCHOREO_RECEIPT_AUTHORITY","value":openChoreoReceiptAuthority},
 						},
@@ -209,7 +210,13 @@ func (a *agent) dispatchOpenChoreoExecutor(ctx context.Context, task openChoreoA
 		if err=openChoreoExecutorJobOwnership(current,task,a.cfg.Namespace);err!=nil{result.RecoveryRequired=true;result.Error=err.Error();return result}
 		done,failed,phase:=openChoreoJobTerminal(current);result.Phase=phase
 		if done {
-			if failed {result.Error="OpenChoreo executor Job failed";return result}
+			if failed {
+				// The executor may have crossed the Helm mutation boundary before the Job failed.
+				// Never classify that outcome as safely replayable without authoritative readback.
+				result.RecoveryRequired=true
+				result.Error="OpenChoreo executor Job failed after mutation dispatch; authoritative recovery readback is required"
+				return result
+			}
 			return a.readOpenChoreoReceipt(ctx,task)
 		}
 		select {case <-ctx.Done():result.RecoveryRequired=true;result.Error="OpenChoreo executor interrupted after mutation dispatch";return result;case <-time.After(3*time.Second):}
