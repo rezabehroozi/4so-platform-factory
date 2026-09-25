@@ -191,18 +191,15 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
 
             self.assertEqual("fixture", acquire_mod.chart_metadata(chart)["name"])
 
-    def test_runtime_hold_does_not_block_exact_source_acquisition_admission(self):
-        proc = subprocess.run(
-            ["python3", "scripts/acquire_upstream_helm.py", "--from-admission", "--component", "cilium"],
-            cwd=ROOT, text=True, capture_output=True,
-        )
-        self.assertEqual(3, proc.returncode)
-        self.assertNotIn("UPSTREAM_ADMISSION_NOT_READY", proc.stderr)
-        self.assertRegex(
-            proc.stderr,
-            r"ACQUISITION_TOOLCHAIN_(?:TOOL_MISSING|VERSION_MISMATCH)",
-            "the source-admission check must pass before the exact acquisition toolchain fails closed",
-        )
+    def test_runtime_hold_persists_after_exact_source_acquisition(self):
+        component = json.loads((ROOT / "catalog/components/cilium.json").read_text())
+        registry = json.loads((ROOT / "catalog/component-runtime-certification.json").read_text())
+        admission = json.loads((ROOT / "catalog/upstream-admission.json").read_text())
+        self.assertTrue(component["spec"]["source"]["resolved"])
+        self.assertTrue(component["spec"]["source"]["sourceLockDigest"].startswith("sha256:"))
+        self.assertNotIn("cilium", {r["component"] for r in admission["spec"]["components"]})
+        hold = next(r for r in registry["spec"]["runtimeSuitabilityHolds"] if r["component"] == "cilium")
+        self.assertEqual("dependency-transition-required", hold["status"])
 
     def test_acquisition_rejects_direct_version_source_bypass_before_tool_or_network_use(self):
         proc = subprocess.run(
