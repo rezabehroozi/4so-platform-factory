@@ -37,6 +37,7 @@ class SupplyChainHandoffTests(unittest.TestCase):
         self.assertEqual("RUNTIME_DEPENDENCY_TRANSITION_V1", spec["runtimeDependencyTransition"]["authority"])
         self.assertEqual(4, len(spec["managementWorkloads"]["externalImages"]))
         self.assertIn("lab/management-workload-external-image-receipt.json", spec["truthModel"]["canonicalAuthorities"])
+        self.assertIn("lab/management-workload-manifest-image-receipt.json", spec["truthModel"]["canonicalAuthorities"])
         self.assertTrue(spec["managementWorkloads"]["externalReceipt"]["offlineVerified"])
         self.assertFalse(spec["managementWorkloads"]["externalReceipt"]["archiveReady"])
         self.assertEqual("36115673607", spec["managementWorkloads"]["externalReceipt"]["sourceRunId"])
