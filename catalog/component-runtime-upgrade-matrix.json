@@ -19,9 +19,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "10.2.2",
+          "fromSourceLockDigest": "606921479931210cf3a838f910ab1abd551db024ec2141a002fbc7a32b7b38e1",
+          "status": "admitted-source-pair",
+          "toRelease": "10.2.3",
+          "toSourceLockDigest": "8f53fb70ae67e16415f17a8cf73c38ad78a08cb46b2322135a76dfb640ece623"
+        }
+      ],
       "component": "argocd",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "10.2.3",
       "targetSourceLockDigest": "8f53fb70ae67e16415f17a8cf73c38ad78a08cb46b2322135a76dfb640ece623",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"

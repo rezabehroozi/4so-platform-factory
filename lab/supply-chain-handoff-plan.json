@@ -186,8 +186,14 @@
       },
       {
         "component": "argocd",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/argocd/10.2.2/source-lock.json",
+            "release": "10.2.2",
+            "sha256": "1e00da5a785d4ba634527152e68f48d1b8ac52b7ac51070e03109170dfc8b5b0"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "10.2.3",
         "targetSourceLockPresent": true
@@ -514,6 +520,14 @@
           "targetRelease": "1.11.0"
         },
         {
+          "component": "argocd",
+          "path": "catalog/runtime/argocd/10.2.2/source-lock.json",
+          "previousVersion": "10.2.2",
+          "sha256": "1e00da5a785d4ba634527152e68f48d1b8ac52b7ac51070e03109170dfc8b5b0",
+          "source": "https://argoproj.github.io/argo-helm",
+          "targetRelease": "10.2.3"
+        },
+        {
           "component": "cert-manager",
           "path": "catalog/runtime/cert-manager/1.21.0/source-lock.json",
           "previousVersion": "1.21.0",
@@ -540,12 +554,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "argocd",
-          "previousVersion": "10.2.2",
-          "source": "https://argoproj.github.io/argo-helm",
-          "targetRelease": "10.2.3"
-        },
         {
           "component": "ceph-csi-operator",
           "previousVersion": "1.0.3",

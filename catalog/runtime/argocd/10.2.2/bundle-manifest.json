@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "argocd",
+  "version": "10.2.2",
+  "sourceType": "helm-chart",
+  "bundleKey": "argocd/10.2.2",
+  "upstream": {
+    "url": "https://argoproj.github.io/argo-helm",
+    "revision": "10.2.2",
+    "artifact": "argo-cd-10.2.2.tgz",
+    "artifactDigest": "sha256:4ee0aa7e01697f230c6e946fd5757f61503287db9af2d2d6bb975874ff6393b4",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:4ee0aa7e01697f230c6e946fd5757f61503287db9af2d2d6bb975874ff6393b4",
+    "component.json": "sha256:65d6eae759a4e987c4dbe3dfa64c0d506440fa8c6214c8e304342a643550132b",
+    "image-inventory.json": "sha256:e795eab64d389b68e9a903c5cffcf960719d26185078f33fc51258c0c5223192",
+    "licenses.json": "sha256:c1d467a4987243df5cc9288fe483ea088bc33aacef0c04ad4b7d16d737b6359c",
+    "provenance.json": "sha256:0eb3c809642648b6f4108a0e1123af081819a73d5c5c556d875eef91347025c0",
+    "render-manifest.json": "sha256:b87370a76e5b3dbdc7eee81bbc515415c85a5b159f291d51a8f36b8fb34f2a09",
+    "sbom.spdx.json": "sha256:37bc8a317439f57be75e062d5ceaef26c1062f350fe3ae32ed4b45f0ee0b8a6c",
+    "source-lock.json": "sha256:1e00da5a785d4ba634527152e68f48d1b8ac52b7ac51070e03109170dfc8b5b0"
+  }
+}

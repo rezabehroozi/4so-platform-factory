@@ -1,0 +1,43 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/argocd/10.2.2/4ee0aa7e01697f23",
+  "name": "argocd-10.2.2-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-argo-cd",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "argo-cd",
+      "versionInfo": "10.2.2"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "ecr-public.aws.com/docker/library/redis@sha256:08ad0b1d280850169a790dba1393ff7a90aef951fc19632cf4d3ce4f78e679ba",
+      "filesAnalyzed": false,
+      "name": "ecr-public.aws.com/docker/library/redis",
+      "versionInfo": "sha256:08ad0b1d280850169a790dba1393ff7a90aef951fc19632cf4d3ce4f78e679ba"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-2",
+      "downloadLocation": "ghcr.io/dexidp/dex@sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20332cd697dc9937f808462",
+      "filesAnalyzed": false,
+      "name": "ghcr.io/dexidp/dex",
+      "versionInfo": "sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20332cd697dc9937f808462"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-3",
+      "downloadLocation": "quay.io/argoproj/argocd@sha256:6e9f4f1d646d9056c8e285495d0c8043b5f553c784181b3522ef324dcefdcc82",
+      "filesAnalyzed": false,
+      "name": "quay.io/argoproj/argocd",
+      "versionInfo": "sha256:6e9f4f1d646d9056c8e285495d0c8043b5f553c784181b3522ef324dcefdcc82"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}
