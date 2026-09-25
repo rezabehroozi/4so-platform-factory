@@ -19,30 +19,6 @@
         "upstreamVersion": "0.13.11"
       },
       {
-        "catalogConstraint": "3.8.x",
-        "chart": "kyverno",
-        "component": "kyverno",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Exact Kyverno chart 3.8.2 is published and may be immutably acquired for inspection/evidence. Runtime certification remains blocked by the documented chart CRD rendering defect until the blocker is resolved or explicitly dispositioned; acquiring bytes does not accept runtime risk.",
-        "reviewEvidence": [
-          {
-            "kind": "release",
-            "url": "https://github.com/kyverno/kyverno/pkgs/container/charts%2Fkyverno",
-            "summary": "Official Kyverno package registry publishes exact chart 3.8.2."
-          },
-          {
-            "kind": "blocker",
-            "url": "https://github.com/kyverno/kyverno/issues/16764",
-            "summary": "Open chart 3.8.2 issue reports CRDs rendering empty labels and annotations."
-          }
-        ],
-        "selectedVersion": "3.8.2",
-        "source": "https://kyverno.github.io/kyverno/",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "review-required",
-        "upstreamVersion": "3.8.2"
-      },
-      {
         "catalogConstraint": "18.12.x",
         "chart": "loki",
         "component": "loki",

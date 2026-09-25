@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "kyverno",
+  "version": "3.8.2",
+  "sourceType": "helm-chart",
+  "bundleKey": "kyverno/3.8.2",
+  "upstream": {
+    "url": "https://kyverno.github.io/kyverno/",
+    "revision": "3.8.2",
+    "artifact": "kyverno-3.8.2.tgz",
+    "artifactDigest": "sha256:f4fc787cf1d6781eefb9e9b45837edcddcfae984c872888289914e97207cc5de",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:f4fc787cf1d6781eefb9e9b45837edcddcfae984c872888289914e97207cc5de",
+    "component.json": "sha256:d77042e17b1a76a37d20b4746917706f98304f9808466817f8258d90971e6b91",
+    "image-inventory.json": "sha256:9e61f66237018de19bf0179e9e5b52585eaa9862884868631ee5f1bff546bedc",
+    "licenses.json": "sha256:2c8db0dd93fdc70cc0770a135bbc248f21b6454ed68fa78fa9c5aa748941cca3",
+    "provenance.json": "sha256:c5204fac25a472264e2e851f03869445158fcefa8432ca8c415530af52d54e7e",
+    "render-manifest.json": "sha256:2437f06ca8e701012d5457360cbd9fb09f39ce55391cdcde696ac438e38a4291",
+    "sbom.spdx.json": "sha256:a92cb24177121a257c30a67020d160d241be8affd5ccfaa0f7fe146a036d8a2a",
+    "source-lock.json": "sha256:5f34d75ed477100311d6c765656e3701abe562b50a0083fcae12d8711732919d"
+  }
+}

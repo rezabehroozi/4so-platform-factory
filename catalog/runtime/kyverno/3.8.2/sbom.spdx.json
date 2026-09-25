@@ -1,0 +1,78 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/kyverno/3.8.2/f4fc787cf1d6781e",
+  "name": "kyverno-3.8.2-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-kyverno",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "kyverno",
+      "versionInfo": "3.8.2"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "ghcr.io/kyverno/readiness-checker@sha256:09b94ae45063d1d38edc450341ea9972352c901cd2e4997ed51874d1b75cb85a",
+      "filesAnalyzed": false,
+      "name": "ghcr.io/kyverno/readiness-checker",
+      "versionInfo": "sha256:09b94ae45063d1d38edc450341ea9972352c901cd2e4997ed51874d1b75cb85a"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-2",
+      "downloadLocation": "ghcr.io/kyverno/readiness-checker@sha256:4fb1870b1a4adfed0fa7a32b7c3bcaf736fb889c7e1947ee8b20710bc2f5a5ce",
+      "filesAnalyzed": false,
+      "name": "ghcr.io/kyverno/readiness-checker",
+      "versionInfo": "sha256:4fb1870b1a4adfed0fa7a32b7c3bcaf736fb889c7e1947ee8b20710bc2f5a5ce"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-3",
+      "downloadLocation": "reg.kyverno.io/kyverno/background-controller@sha256:d62566ce41bd0d4a32bf2cf44b9ebfc02c36374f821f83070890287f62f68671",
+      "filesAnalyzed": false,
+      "name": "reg.kyverno.io/kyverno/background-controller",
+      "versionInfo": "sha256:d62566ce41bd0d4a32bf2cf44b9ebfc02c36374f821f83070890287f62f68671"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-4",
+      "downloadLocation": "reg.kyverno.io/kyverno/cleanup-controller@sha256:b0395d29ae332276e6910eb40418be9bc127c068d659f90aa1bcddd6be99ccb4",
+      "filesAnalyzed": false,
+      "name": "reg.kyverno.io/kyverno/cleanup-controller",
+      "versionInfo": "sha256:b0395d29ae332276e6910eb40418be9bc127c068d659f90aa1bcddd6be99ccb4"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-5",
+      "downloadLocation": "reg.kyverno.io/kyverno/kyverno-cli@sha256:7224ed05508c24419c3df98114c28ba682ad0a940dcdb7b9fdba0a4b6bf943cf",
+      "filesAnalyzed": false,
+      "name": "reg.kyverno.io/kyverno/kyverno-cli",
+      "versionInfo": "sha256:7224ed05508c24419c3df98114c28ba682ad0a940dcdb7b9fdba0a4b6bf943cf"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-6",
+      "downloadLocation": "reg.kyverno.io/kyverno/kyverno@sha256:0a540e2ddf74d0d2d3d45f9ef248d7dbc96576accdbcc6a2dd7eaff9fea56504",
+      "filesAnalyzed": false,
+      "name": "reg.kyverno.io/kyverno/kyverno",
+      "versionInfo": "sha256:0a540e2ddf74d0d2d3d45f9ef248d7dbc96576accdbcc6a2dd7eaff9fea56504"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-7",
+      "downloadLocation": "reg.kyverno.io/kyverno/kyvernopre@sha256:cd8cb4a31d25b3992734fb8f24a90ef691c90ce49338c89bea96792160eacb98",
+      "filesAnalyzed": false,
+      "name": "reg.kyverno.io/kyverno/kyvernopre",
+      "versionInfo": "sha256:cd8cb4a31d25b3992734fb8f24a90ef691c90ce49338c89bea96792160eacb98"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-8",
+      "downloadLocation": "reg.kyverno.io/kyverno/reports-controller@sha256:f09cf305170014e191b94e1c54f5be73163d8824eefad49349675c4efe43159a",
+      "filesAnalyzed": false,
+      "name": "reg.kyverno.io/kyverno/reports-controller",
+      "versionInfo": "sha256:f09cf305170014e191b94e1c54f5be73163d8824eefad49349675c4efe43159a"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

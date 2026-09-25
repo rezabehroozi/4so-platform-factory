@@ -5,17 +5,36 @@
     "name": "kyverno"
   },
   "spec": {
+    "displayName": "Kyverno",
+    "category": "governance",
+    "release": "3.8.2",
+    "versionPolicy": "exact-offline-import",
+    "supportTier": "research-candidate",
+    "mandatory": true,
+    "dependencies": [
+      "external-secrets"
+    ],
+    "provides": [
+      "policy-engine"
+    ],
+    "requiresCapabilities": [],
+    "exclusiveCapabilities": [
+      "policy-engine"
+    ],
+    "conflictsWith": [],
+    "risk": "critical",
     "capabilities": [
       "admission-policy",
       "policy-reports"
     ],
-    "category": "governance",
-    "certification": {
-      "evidenceDigest": "",
-      "profiles": [],
-      "status": "candidate"
-    },
+    "namespace": "kyverno",
+    "wave": 40,
+    "settingsSchemaRef": "schemas/settings/kyverno.schema.json",
     "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
       "architectures": [
         "amd64",
         "arm64"
@@ -24,37 +43,29 @@
         "kubernetes",
         "rke2"
       ],
-      "kubernetes": {
-        "maxVersion": "1.35",
-        "minVersion": "1.34"
-      },
       "providers": [
         "imported",
         "cluster-api-topology-v1beta2"
       ]
     },
-    "conflictsWith": [],
     "delivery": {
-      "chart": "kyverno",
-      "repositoryKey": "platform-charts",
-      "type": "helm"
+      "type": "helm",
+      "repositoryKey": "offline-catalog-bundle",
+      "chart": "kyverno"
     },
-    "dependencies": [
-      "external-secrets"
-    ],
-    "displayName": "Kyverno",
-    "evidenceRequired": [
-      "resolved-source-lock",
-      "rendered-resource-inventory",
-      "policy-result",
-      "runtime-readiness",
-      "rollback-verification"
-    ],
-    "exclusiveCapabilities": [
-      "policy-engine"
-    ],
-    "mandatory": true,
-    "namespace": "kyverno",
+    "source": {
+      "type": "helm-chart",
+      "resolved": true,
+      "bundleKey": "kyverno/3.8.2",
+      "artifactDigest": "sha256:f4fc787cf1d6781eefb9e9b45837edcddcfae984c872888289914e97207cc5de",
+      "renderManifestDigest": "sha256:2437f06ca8e701012d5457360cbd9fb09f39ce55391cdcde696ac438e38a4291",
+      "sourceLockDigest": "sha256:5f34d75ed477100311d6c765656e3701abe562b50a0083fcae12d8711732919d",
+      "imageInventoryDigest": "sha256:9e61f66237018de19bf0179e9e5b52585eaa9862884868631ee5f1bff546bedc",
+      "licenseManifestDigest": "sha256:2c8db0dd93fdc70cc0770a135bbc248f21b6454ed68fa78fa9c5aa748941cca3",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:a92cb24177121a257c30a67020d160d241be8affd5ccfaa0f7fe146a036d8a2a",
+      "provenance": "sha256:c5204fac25a472264e2e851f03869445158fcefa8432ca8c415530af52d54e7e"
+    },
     "operations": {
       "install": "required",
       "preflight": "required",
@@ -63,32 +74,23 @@
       "upgrade": "required",
       "verify": "required"
     },
-    "provides": [
-      "policy-engine"
-    ],
     "readiness": [
       "deployment/kyverno-admission-controller"
     ],
-    "release": "3.8.2",
-    "requiresCapabilities": [],
-    "risk": "critical",
     "rollback": {
       "strategy": "policy-exception-or-previous-release"
     },
-    "settingsSchemaRef": "schemas/settings/kyverno.schema.json",
-    "source": {
-      "artifactDigest": "",
-      "imageInventoryDigest": "",
-      "licenseManifestDigest": "",
-      "provenance": "required",
-      "resolved": false,
-      "sbom": "required",
-      "signatureVerification": "required",
-      "sourceLockDigest": "",
-      "type": "helm-chart"
-    },
-    "supportTier": "research-candidate",
-    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
-    "wave": 40
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": null,
+      "evidenceDigest": ""
+    }
   }
 }

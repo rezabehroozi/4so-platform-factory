@@ -119,7 +119,7 @@
       "component": "kyverno",
       "status": "pending-source-pair",
       "targetRelease": "3.8.2",
-      "targetSourceLockDigest": "",
+      "targetSourceLockDigest": "52214325ec76ca1aa305e616deb307b2be130b0bef8674d108be31238655226e",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
