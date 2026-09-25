@@ -35,6 +35,16 @@ FORBIDDEN = (
 FULL_VERIFIER_AUTHORITY = "CHECKPOINT_SAFE_FULL_VERIFIER_V2"
 SHARD_AUTHORITY = "AUTOPILOT_STAGE_SHARD_AUTHORITY_V2"
 
+RELEASE_BINARIES = (
+    "platform-api",
+    "platformctl",
+    "platform-installer",
+    "platform-agent",
+    "platform-probe",
+    "virtual-cluster-renderer",
+    "openchoreo-runtime",
+)
+
 
 def run_bounded_command(
     command: list[str],
@@ -282,7 +292,9 @@ def validate_generated_metadata(root: Path, version: str, release_name: str) -> 
     ):
         raise SystemExit("PROVENANCE_IDENTITY_INVALID")
     binaries = provenance.get("binaries", [])
-    if len(binaries) != 5:
+    binary_keys = [(str(row.get("target") or ""), str(row.get("name") or "")) for row in binaries if isinstance(row, dict)]
+    expected_binary_keys = [("linux-amd64", name) for name in RELEASE_BINARIES]
+    if sorted(binary_keys) != sorted(expected_binary_keys) or len(binary_keys) != len(set(binary_keys)):
         raise SystemExit("PROVENANCE_BINARY_MATRIX_INVALID")
     runtime_needed = set()
     for row in binaries:
@@ -346,15 +358,7 @@ def extract_archive_preserving_modes(archive: Path, dest: Path) -> None:
 
 
 def validate_archive_executable_modes(archive: Path) -> None:
-    required = {
-        "platform-api",
-        "platform-installer",
-        "platform-agent",
-        "platform-probe",
-        "platformctl",
-        "virtual-cluster-renderer",
-        "openchoreo-runtime",
-    }
+    required = set(RELEASE_BINARIES)
     seen = set()
     with zipfile.ZipFile(archive) as zip_file:
         for info in zip_file.infolist():
