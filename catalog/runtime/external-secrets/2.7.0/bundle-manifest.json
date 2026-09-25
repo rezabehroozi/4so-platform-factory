@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "external-secrets",
+  "version": "2.7.0",
+  "sourceType": "helm-chart",
+  "bundleKey": "external-secrets/2.7.0",
+  "upstream": {
+    "url": "oci://ghcr.io/external-secrets/charts/external-secrets",
+    "revision": "2.7.0",
+    "artifact": "external-secrets-2.7.0.tgz",
+    "artifactDigest": "sha256:a2ce165cc59b74c88451c9e21eb72c329b392506c53763df19061e62ec29ac60",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:a2ce165cc59b74c88451c9e21eb72c329b392506c53763df19061e62ec29ac60",
+    "component.json": "sha256:2ff7f2c259955555c1da408e7b594d5b9e4920ae1848e13c8c49dc0ad6631bd1",
+    "image-inventory.json": "sha256:b98e9281dea9541a72defe126179d5d299fa64a4a069d86212f0067e2181c9d0",
+    "licenses.json": "sha256:8202208a3f4e8d53b897395f3e91cc549b2236ba4501e4eb01b0f00ba584a9c2",
+    "provenance.json": "sha256:dca9e60cb35ec7c96349d1b7b55f3efe0dc8b52e97541e98c756af3e03521217",
+    "render-manifest.json": "sha256:39aa5505807bd3db9269bd50692331d3ba9ff646df3360b91db67243109cf55e",
+    "sbom.spdx.json": "sha256:237999a377038b6330c834b42050520740db9f3258909284526ddea10a5f3762",
+    "source-lock.json": "sha256:82bcaa42bc181d6ec06a3286ffbe99dbdda4a19e5f63944cf5441a56057d5880"
+  }
+}

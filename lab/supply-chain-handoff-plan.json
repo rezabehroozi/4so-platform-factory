@@ -278,8 +278,14 @@
       },
       {
         "component": "external-secrets",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/external-secrets/2.7.0/source-lock.json",
+            "release": "2.7.0",
+            "sha256": "82bcaa42bc181d6ec06a3286ffbe99dbdda4a19e5f63944cf5441a56057d5880"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "2.8.0",
         "targetSourceLockPresent": true
@@ -592,6 +598,14 @@
           "targetRelease": "1.21.1"
         },
         {
+          "component": "external-secrets",
+          "path": "catalog/runtime/external-secrets/2.7.0/source-lock.json",
+          "previousVersion": "2.7.0",
+          "sha256": "82bcaa42bc181d6ec06a3286ffbe99dbdda4a19e5f63944cf5441a56057d5880",
+          "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
+          "targetRelease": "2.8.0"
+        },
+        {
           "component": "gateway-api",
           "path": "catalog/runtime/gateway-api/1.5.0/source-lock.json",
           "previousVersion": "1.5.0",
@@ -610,12 +624,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "external-secrets",
-          "previousVersion": "2.7.0",
-          "source": "oci://ghcr.io/external-secrets/charts/external-secrets",
-          "targetRelease": "2.8.0"
-        },
         {
           "component": "grafana",
           "previousVersion": "12.9.0",

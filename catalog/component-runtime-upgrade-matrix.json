@@ -123,9 +123,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "2.7.0",
+          "fromSourceLockDigest": "ecffc17980d0a1fc7ee660382d685bcdb1e7fe73bfff694498847d455bb9679e",
+          "status": "admitted-source-pair",
+          "toRelease": "2.8.0",
+          "toSourceLockDigest": "2da6b80511a7885acedb15f986cde03b62f5e436a314b12f9ad92400e78395aa"
+        }
+      ],
       "component": "external-secrets",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "2.8.0",
       "targetSourceLockDigest": "2da6b80511a7885acedb15f986cde03b62f5e436a314b12f9ad92400e78395aa",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
