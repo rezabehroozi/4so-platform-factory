@@ -3,9 +3,17 @@
   "authority": "COMPONENT_RUNTIME_UPGRADE_MATRIX_V2",
   "components": [
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "1.10.1",
+          "fromSourceLockDigest": "71aadd32b284ce58263c8faf32363081db9cb8d762c50321f093d1032016b4c5",
+          "status": "admitted-source-pair",
+          "toRelease": "1.11.0",
+          "toSourceLockDigest": "a4db7e08fcdef8deb41b9a576693acad0ab09e3590ddb621306a0d9c916386fa"
+        }
+      ],
       "component": "alloy",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "1.11.0",
       "targetSourceLockDigest": "a4db7e08fcdef8deb41b9a576693acad0ab09e3590ddb621306a0d9c916386fa",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
