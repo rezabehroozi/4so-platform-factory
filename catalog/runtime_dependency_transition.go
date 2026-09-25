@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -142,8 +143,28 @@ func ValidateRuntimeDependencyTransition(t RuntimeDependencyTransition, componen
 	} else if !ciAdmitted || ciRow.SelectedVersion == nil || *ciRow.SelectedVersion != t.Spec.Cilium.TargetRelease || ciRow.Status != "ready-for-acquisition" || ciRow.RuntimeStatus != "dependency-transition-required" || t.Spec.Cilium.SourceStatus != "pending-byte-acquisition" {
 		return fmt.Errorf("runtime dependency cilium admission drift")
 	}
-	if t.Spec.Status != "acquisition-pending" || t.Spec.GatewayAPI.SourceStatus != "pending-byte-acquisition" {
-		return fmt.Errorf("runtime dependency transition status is inflated")
+	switch t.Spec.GatewayAPI.SourceStatus {
+	case "pending-byte-acquisition":
+		if t.Spec.Status != "acquisition-pending" {
+			return fmt.Errorf("runtime dependency transition status is inflated")
+		}
+	case "source-acquired":
+		if t.Spec.Status != "runtime-certification-pending" && t.Spec.Status != "complete" {
+			return fmt.Errorf("runtime dependency transition status is inflated")
+		}
+		for _, asset := range t.Spec.GatewayAPI.Assets {
+			embeddedPath := fmt.Sprintf("runtime-dependencies/gateway-api/%s/%s", t.Spec.GatewayAPI.TargetRelease, asset.Name)
+			raw, err := catalogFiles.ReadFile(embeddedPath)
+			if err != nil {
+				return fmt.Errorf("runtime dependency gateway-api embedded asset missing %s: %w", asset.Name, err)
+			}
+			sum := sha256.Sum256(raw)
+			if int64(len(raw)) != asset.Size || fmt.Sprintf("%x", sum[:]) != asset.SHA256 {
+				return fmt.Errorf("runtime dependency gateway-api embedded asset mismatch %s", asset.Name)
+			}
+		}
+	default:
+		return fmt.Errorf("runtime dependency gateway-api source status is invalid")
 	}
 	if len(t.Spec.Ordering) != 6 || len(t.Spec.Evidence) < 3 {
 		return fmt.Errorf("runtime dependency transition execution/evidence contract is incomplete")
