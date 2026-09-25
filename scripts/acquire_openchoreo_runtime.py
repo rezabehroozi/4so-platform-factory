@@ -73,7 +73,9 @@ def validate_values() -> None:
     for token in ("backstage:", "enabled: false", "mcp:"):
         if token not in cp:
             raise RuntimeError(f"OPENCHOREO_CONTROL_VALUES_MISSING {token}")
-    if "kube-prometheus-stack:" not in dp or "enabled: false" not in dp:
+    if "kube-prometheus-stack:" in dp:
+        raise RuntimeError("OPENCHOREO_DATA_SCHEMA_INVALID_LEGACY_MONITORING_KEY")
+    if "clusterAgent:" not in dp or "serviceMonitor:" not in dp or "enabled: false" not in dp:
         raise RuntimeError("OPENCHOREO_DATA_MONITORING_SUPPRESSION_MISSING")
     if "gateway:\n  enabled: false" not in cp or "gateway:\n  enabled: false" not in dp:
         raise RuntimeError("OPENCHOREO_GATEWAY_DUPLICATE_STACK_SUPPRESSION_MISSING")
