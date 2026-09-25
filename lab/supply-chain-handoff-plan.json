@@ -264,8 +264,14 @@
       },
       {
         "component": "external-dns",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/external-dns/1.20.0/source-lock.json",
+            "release": "1.20.0",
+            "sha256": "e259fdfa80d5da815d4f815bb36d4930e000ab77777630911da26d874b1c4d5f"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.21.1",
         "targetSourceLockPresent": true
@@ -578,6 +584,14 @@
           "targetRelease": "1.20.1"
         },
         {
+          "component": "external-dns",
+          "path": "catalog/runtime/external-dns/1.20.0/source-lock.json",
+          "previousVersion": "1.20.0",
+          "sha256": "e259fdfa80d5da815d4f815bb36d4930e000ab77777630911da26d874b1c4d5f",
+          "source": "https://kubernetes-sigs.github.io/external-dns/",
+          "targetRelease": "1.21.1"
+        },
+        {
           "component": "gateway-api",
           "path": "catalog/runtime/gateway-api/1.5.0/source-lock.json",
           "previousVersion": "1.5.0",
@@ -596,12 +610,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "external-dns",
-          "previousVersion": "1.20.0",
-          "source": "https://kubernetes-sigs.github.io/external-dns/",
-          "targetRelease": "1.21.1"
-        },
         {
           "component": "external-secrets",
           "previousVersion": "2.7.0",

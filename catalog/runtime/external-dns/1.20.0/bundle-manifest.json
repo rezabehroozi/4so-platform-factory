@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "external-dns",
+  "version": "1.20.0",
+  "sourceType": "helm-chart",
+  "bundleKey": "external-dns/1.20.0",
+  "upstream": {
+    "url": "https://kubernetes-sigs.github.io/external-dns/",
+    "revision": "1.20.0",
+    "artifact": "external-dns-1.20.0.tgz",
+    "artifactDigest": "sha256:340713da75324b2f527c0829ec92347d567a96dd3342fdbbb174d8856ab56d75",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:340713da75324b2f527c0829ec92347d567a96dd3342fdbbb174d8856ab56d75",
+    "component.json": "sha256:c8d8a3eed8b49fe9ac37fb72e46e38058d1f3e54e6146a080f8817a10873a604",
+    "image-inventory.json": "sha256:126329beaea24b816c5beae86d4f1b65b8bba5362bd160f07db712b5ec5f0f59",
+    "licenses.json": "sha256:30b54e6cecfaabb5e92f7af7d5e437246f2829e3f7f10225bf248bb7a9c85d02",
+    "provenance.json": "sha256:daeed696f6f2599e4992802073bd1ec57e91bbe4e7c27aa48c5fcba465e57b2e",
+    "render-manifest.json": "sha256:62a2978d0f2064d2a67d2895855fc647a2bf9ab12afe50325eff4ed4379e1a96",
+    "sbom.spdx.json": "sha256:4ca89bc3621c0657e3c40d44eaa13ec5084234a79494a4ba57bdf38b8c13b8a9",
+    "source-lock.json": "sha256:e259fdfa80d5da815d4f815bb36d4930e000ab77777630911da26d874b1c4d5f"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "component": "external-dns",
+  "version": "1.20.0",
+  "sourceType": "helm-chart",
+  "upstreamUrl": "https://kubernetes-sigs.github.io/external-dns/",
+  "upstreamRevision": "1.20.0",
+  "upstreamArtifact": "external-dns-1.20.0.tgz",
+  "upstreamArtifactDigest": "sha256:340713da75324b2f527c0829ec92347d567a96dd3342fdbbb174d8856ab56d75",
+  "networkFetchRequired": false,
+  "renderer": "json-resource-list-v1",
+  "upstreamVerification": "sha256-pinned-offline",
+  "generation": {
+    "tool": "helm-template",
+    "toolVersion": "v4.2.4+g3900f43",
+    "releaseName": "platform-factory",
+    "namespace": "external-dns",
+    "includeCRDs": true,
+    "kubernetesVersions": [
+      "1.34.0",
+      "1.35.0"
+    ],
+    "kubernetesRenderDigests": {
+      "1.34.0": "sha256:25526b54f2e504f4a5e3730b18adabc7b8d4202fddd953c1f591481dc12e8807",
+      "1.35.0": "sha256:25526b54f2e504f4a5e3730b18adabc7b8d4202fddd953c1f591481dc12e8807"
+    },
+    "values": [],
+    "imageResolver": "crane-digest",
+    "imageResolverVersion": "0.22.1"
+  }
+}
