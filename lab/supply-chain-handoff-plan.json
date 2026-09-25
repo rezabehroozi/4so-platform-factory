@@ -392,7 +392,7 @@
         {
           "component": "ceph-csi-rbd",
           "previousVersion": "1.0.3",
-          "source": "https://ceph.github.io/ceph-csi-operator-charts",
+          "source": "https://ceph.github.io/ceph-csi-operator/",
           "status": "admitted-for-acquisition",
           "targetRelease": "1.0.4"
         },
