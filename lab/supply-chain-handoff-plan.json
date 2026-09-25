@@ -81,6 +81,12 @@
           "sha256": "5f34d75ed477100311d6c765656e3701abe562b50a0083fcae12d8711732919d"
         },
         {
+          "component": "metallb",
+          "path": "catalog/runtime/metallb/0.16.1/source-lock.json",
+          "release": "0.16.1",
+          "sha256": "a9a47ed079a43dc9b34970395b702d8475ef406165c2e0dc7567474d10489416"
+        },
+        {
           "component": "secure-namespace-foundation",
           "path": "catalog/runtime/secure-namespace-foundation/1.0.0/source-lock.json",
           "release": "1.0.0",
@@ -123,14 +129,6 @@
           "upstreamVersion": "18.12.1"
         },
         {
-          "component": "metallb",
-          "runtimeStatus": "review-required",
-          "selectedVersion": "0.16.1",
-          "source": "https://metallb.github.io/metallb",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "0.16.1"
-        },
-        {
           "component": "victoria-metrics",
           "runtimeStatus": "eligible-after-source-resolution",
           "selectedVersion": "0.90.2",
@@ -166,7 +164,7 @@
           "runtimeAuthority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
           "runtimeStatus": "review-required",
           "selectedVersion": "0.16.1",
-          "status": "ready-for-acquisition"
+          "status": "source-acquired"
         }
       ],
       "stageManifestPath": "components/stage-manifest.json"
@@ -298,11 +296,11 @@
       },
       {
         "component": "metallb",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "0.16.1",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "secure-namespace-foundation",
@@ -589,6 +587,12 @@
           "targetRelease": "3.8.2"
         },
         {
+          "component": "metallb",
+          "previousVersion": "0.16.0",
+          "source": "https://metallb.github.io/metallb",
+          "targetRelease": "0.16.1"
+        },
+        {
           "component": "tetragon",
           "previousVersion": "1.6.1",
           "source": "https://helm.cilium.io",
@@ -621,12 +625,6 @@
           "previousVersion": "18.12.0",
           "source": "https://grafana-community.github.io/helm-charts",
           "targetRelease": "18.12.1"
-        },
-        {
-          "component": "metallb",
-          "previousVersion": "0.16.0",
-          "source": "https://metallb.github.io/metallb",
-          "targetRelease": "0.16.1"
         },
         {
           "component": "victoria-metrics",

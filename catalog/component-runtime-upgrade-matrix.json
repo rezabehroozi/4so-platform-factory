@@ -135,7 +135,7 @@
       "component": "metallb",
       "status": "pending-source-pair",
       "targetRelease": "0.16.1",
-      "targetSourceLockDigest": "",
+      "targetSourceLockDigest": "24df4f710de223b7eaa0a2abe1996429f9c124e119a63f5432dc52762dc786e0",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {

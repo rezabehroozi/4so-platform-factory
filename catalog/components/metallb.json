@@ -5,16 +5,35 @@
     "name": "metallb"
   },
   "spec": {
+    "displayName": "MetalLB",
+    "category": "networking",
+    "release": "0.16.1",
+    "versionPolicy": "exact-offline-import",
+    "supportTier": "research-candidate",
+    "mandatory": false,
+    "dependencies": [
+      "cilium"
+    ],
+    "provides": [
+      "load-balancer-provider"
+    ],
+    "requiresCapabilities": [],
+    "exclusiveCapabilities": [
+      "load-balancer-provider"
+    ],
+    "conflictsWith": [],
+    "risk": "high",
     "capabilities": [
       "baremetal-loadbalancer"
     ],
-    "category": "networking",
-    "certification": {
-      "evidenceDigest": "",
-      "profiles": [],
-      "status": "candidate"
-    },
+    "namespace": "metallb-system",
+    "wave": 24,
+    "settingsSchemaRef": "schemas/settings/metallb.schema.json",
     "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
       "architectures": [
         "amd64",
         "arm64"
@@ -23,37 +42,29 @@
         "kubernetes",
         "rke2"
       ],
-      "kubernetes": {
-        "maxVersion": "1.35",
-        "minVersion": "1.34"
-      },
       "providers": [
         "imported",
         "cluster-api-topology-v1beta2"
       ]
     },
-    "conflictsWith": [],
     "delivery": {
-      "chart": "metallb",
-      "repositoryKey": "platform-charts",
-      "type": "helm"
+      "type": "helm",
+      "repositoryKey": "offline-catalog-bundle",
+      "chart": "metallb"
     },
-    "dependencies": [
-      "cilium"
-    ],
-    "displayName": "MetalLB",
-    "evidenceRequired": [
-      "resolved-source-lock",
-      "rendered-resource-inventory",
-      "policy-result",
-      "runtime-readiness",
-      "rollback-verification"
-    ],
-    "exclusiveCapabilities": [
-      "load-balancer-provider"
-    ],
-    "mandatory": false,
-    "namespace": "metallb-system",
+    "source": {
+      "type": "helm-chart",
+      "resolved": true,
+      "bundleKey": "metallb/0.16.1",
+      "artifactDigest": "sha256:fb06bb584fcb7856f15733b2a6a2aff5b61b5c350687e341c163ae24a5938adc",
+      "renderManifestDigest": "sha256:5b1624147cda8dbfcafae1aa88b9e8dd651ee8f29c02cb5cbf6f746cba702fd1",
+      "sourceLockDigest": "sha256:a9a47ed079a43dc9b34970395b702d8475ef406165c2e0dc7567474d10489416",
+      "imageInventoryDigest": "sha256:8a2b2916519f1f059624b1d5fb573149b43ab3271a19290ad3690ee5233915ad",
+      "licenseManifestDigest": "sha256:da850277ca45ebc4cad65860dfbceec366a72f11f49e40798853a55316ea212a",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:b46c7176d5b844cf851d5bd49e36816f26fdda132d1e948b7997c9cab4217a32",
+      "provenance": "sha256:b4aae2190227da72b8955d2c5656e042cdbf838506e64242deb8c393dedcc131"
+    },
     "operations": {
       "install": "required",
       "preflight": "required",
@@ -62,33 +73,24 @@
       "upgrade": "required",
       "verify": "required"
     },
-    "provides": [
-      "load-balancer-provider"
-    ],
     "readiness": [
       "deployment/controller",
       "daemonset/speaker"
     ],
-    "release": "0.16.1",
-    "requiresCapabilities": [],
-    "risk": "high",
     "rollback": {
       "strategy": "restore-address-pool-and-previous-release"
     },
-    "settingsSchemaRef": "schemas/settings/metallb.schema.json",
-    "source": {
-      "artifactDigest": "",
-      "imageInventoryDigest": "",
-      "licenseManifestDigest": "",
-      "provenance": "required",
-      "resolved": false,
-      "sbom": "required",
-      "signatureVerification": "required",
-      "sourceLockDigest": "",
-      "type": "helm-chart"
-    },
-    "supportTier": "research-candidate",
-    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
-    "wave": 24
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": null,
+      "evidenceDigest": ""
+    }
   }
 }

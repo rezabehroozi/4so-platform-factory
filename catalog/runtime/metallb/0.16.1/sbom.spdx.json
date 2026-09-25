@@ -1,0 +1,50 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/metallb/0.16.1/fb06bb584fcb7856",
+  "name": "metallb-0.16.1-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-metallb",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "metallb",
+      "versionInfo": "0.16.1"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "quay.io/frrouting/frr@sha256:8745af1f9bbbc26ab11d99ccdf35e07aa3427a199749bef0cd6bb5132bb130df",
+      "filesAnalyzed": false,
+      "name": "quay.io/frrouting/frr",
+      "versionInfo": "sha256:8745af1f9bbbc26ab11d99ccdf35e07aa3427a199749bef0cd6bb5132bb130df"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-2",
+      "downloadLocation": "quay.io/metallb/controller@sha256:f51ab515de9ccd20dc3dccb093e48df8adddac019326c456f449e55ba91b6420",
+      "filesAnalyzed": false,
+      "name": "quay.io/metallb/controller",
+      "versionInfo": "sha256:f51ab515de9ccd20dc3dccb093e48df8adddac019326c456f449e55ba91b6420"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-3",
+      "downloadLocation": "quay.io/metallb/frr-k8s@sha256:1cb06fb2d5538c9f9b20d3adf00da8d1e6cb0166bc15df8add0d9efe578641a4",
+      "filesAnalyzed": false,
+      "name": "quay.io/metallb/frr-k8s",
+      "versionInfo": "sha256:1cb06fb2d5538c9f9b20d3adf00da8d1e6cb0166bc15df8add0d9efe578641a4"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-4",
+      "downloadLocation": "quay.io/metallb/speaker@sha256:16561e96531e1852d5c229ad7fae6e994dcfa983ff7f4de6b6208b34a4e2ddbc",
+      "filesAnalyzed": false,
+      "name": "quay.io/metallb/speaker",
+      "versionInfo": "sha256:16561e96531e1852d5c229ad7fae6e994dcfa983ff7f4de6b6208b34a4e2ddbc"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

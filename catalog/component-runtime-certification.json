@@ -775,51 +775,51 @@
         "component": "metallb",
         "release": "0.16.1",
         "sourceBinding": {
-          "status": "blocked-source-lock",
-          "resolved": false,
-          "sourceLockDigest": ""
+          "status": "source-ready",
+          "resolved": true,
+          "sourceLockDigest": "sha256:a9a47ed079a43dc9b34970395b702d8475ef406165c2e0dc7567474d10489416"
         },
         "executor": {
-          "status": "source-gated-component-executor",
+          "status": "runtime-suitability-held",
           "profile": "COMPONENT_RUNTIME_V1",
           "owner": "catalog-component"
         },
         "lifecycle": [
           {
             "name": "install",
-            "status": "source-gated-component-executor",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-install-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_V1"
+            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
           },
           {
             "name": "readiness",
-            "status": "source-gated-component-executor",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-readiness-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_V1"
+            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
           },
           {
             "name": "dependency",
-            "status": "source-gated-component-executor",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-dependency-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_V1"
+            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
           },
           {
             "name": "upgrade",
-            "status": "pending-upgrade-matrix",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-upgrade-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_UPGRADE_V1"
+            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
           },
           {
             "name": "remove",
-            "status": "source-gated-component-executor",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-remove-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_V1"
+            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
           },
           {
             "name": "failure",
-            "status": "source-gated-component-executor",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-failure-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_V1"
+            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
           }
         ]
       },

@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "metallb",
+  "version": "0.16.1",
+  "sourceType": "helm-chart",
+  "bundleKey": "metallb/0.16.1",
+  "upstream": {
+    "url": "https://metallb.github.io/metallb",
+    "revision": "0.16.1",
+    "artifact": "metallb-0.16.1.tgz",
+    "artifactDigest": "sha256:fb06bb584fcb7856f15733b2a6a2aff5b61b5c350687e341c163ae24a5938adc",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:fb06bb584fcb7856f15733b2a6a2aff5b61b5c350687e341c163ae24a5938adc",
+    "component.json": "sha256:ffdb17838715e92fb30af76f43b1d4716dad649e625e3cdbb2062d4b846171f6",
+    "image-inventory.json": "sha256:8a2b2916519f1f059624b1d5fb573149b43ab3271a19290ad3690ee5233915ad",
+    "licenses.json": "sha256:da850277ca45ebc4cad65860dfbceec366a72f11f49e40798853a55316ea212a",
+    "provenance.json": "sha256:b4aae2190227da72b8955d2c5656e042cdbf838506e64242deb8c393dedcc131",
+    "render-manifest.json": "sha256:5b1624147cda8dbfcafae1aa88b9e8dd651ee8f29c02cb5cbf6f746cba702fd1",
+    "sbom.spdx.json": "sha256:b46c7176d5b844cf851d5bd49e36816f26fdda132d1e948b7997c9cab4217a32",
+    "source-lock.json": "sha256:a9a47ed079a43dc9b34970395b702d8475ef406165c2e0dc7567474d10489416"
+  }
+}

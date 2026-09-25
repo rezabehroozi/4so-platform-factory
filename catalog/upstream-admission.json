@@ -46,30 +46,6 @@
         "upstreamVersion": "18.12.1"
       },
       {
-        "catalogConstraint": "0.16.x",
-        "chart": "metallb",
-        "component": "metallb",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Exact MetalLB 0.16.1 source may be immutably acquired for inspection/evidence. Runtime certification remains blocked by the documented grpc/CVE concern until a safe released candidate is selected or the risk is explicitly dispositioned; source acquisition does not certify the image set.",
-        "reviewEvidence": [
-          {
-            "kind": "release",
-            "url": "https://github.com/metallb/metallb/actions/workflows/publish.yaml",
-            "summary": "Official publish workflow shows the v0.16.1 release line."
-          },
-          {
-            "kind": "blocker",
-            "url": "https://github.com/metallb/metallb/issues/3113",
-            "summary": "Open upstream request states v0.16.1 predates the grpc bump fixing CVE-2026-33186 and no released tag carries the fix yet."
-          }
-        ],
-        "selectedVersion": "0.16.1",
-        "source": "https://metallb.github.io/metallb",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "review-required",
-        "upstreamVersion": "0.16.1"
-      },
-      {
         "catalogConstraint": "0.90.x",
         "chart": "victoria-metrics-k8s-stack",
         "component": "victoria-metrics",
