@@ -44,6 +44,7 @@ class AcquisitionWave2RegressionTests(unittest.TestCase):
             source=None,
             upstream_version=None,
             license_spdx=None,
+            values=[],
             authority=str(ROOT / "catalog/upstream-admission.json"),
         )
         acquire.apply_admission(args)
