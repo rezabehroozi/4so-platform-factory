@@ -299,9 +299,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "0.90.1",
+          "fromSourceLockDigest": "7ebab8386aa98791729b1f38865b28ad4b83588b721633a280d1b534997522f0",
+          "status": "admitted-source-pair",
+          "toRelease": "0.90.2",
+          "toSourceLockDigest": "7812f44e4c53cacd92373e1e51ca0210f762685d84e681f7c446787f48001c78"
+        }
+      ],
       "component": "victoria-metrics",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "0.90.2",
       "targetSourceLockDigest": "7812f44e4c53cacd92373e1e51ca0210f762685d84e681f7c446787f48001c78",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"

@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "victoria-metrics",
+  "version": "0.90.1",
+  "sourceType": "helm-chart",
+  "bundleKey": "victoria-metrics/0.90.1",
+  "upstream": {
+    "url": "https://victoriametrics.github.io/helm-charts/",
+    "revision": "0.90.1",
+    "artifact": "victoria-metrics-k8s-stack-0.90.1.tgz",
+    "artifactDigest": "sha256:02525a98270e0f3e33bed36f3545678fd60d43284da1418546daa4ae7c2c6abe",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:02525a98270e0f3e33bed36f3545678fd60d43284da1418546daa4ae7c2c6abe",
+    "component.json": "sha256:8807f18c15c944d5744d614546db6d348ca42799a9c197a39e2a1edfaf16a81f",
+    "image-inventory.json": "sha256:83ddc5fc9f410f250629a8cd09c07c7e81459733b0d1f9e520a61dfc9d02ff66",
+    "licenses.json": "sha256:8691793872d9b35129814fe984227fdef885b0b1d51944301df6c2fe224553a1",
+    "provenance.json": "sha256:28d185adbea09c53dd61ee5855930d5496425b8ed7e0100b5263ede9796a35ca",
+    "render-manifest.json": "sha256:9d569b36970ac25218ef36ae9e4803bcfc351ad3176ddbec7f4bc1ea39932fbe",
+    "sbom.spdx.json": "sha256:4f1c3cfe9e961d8f4f53bdd66486c08d074deffb2c568e5e46b2f3053e868050",
+    "source-lock.json": "sha256:d37c9ef6e01123114d5ecc3d8d58e67a5852f608fcfd71516e032a5841fafaed"
+  }
+}

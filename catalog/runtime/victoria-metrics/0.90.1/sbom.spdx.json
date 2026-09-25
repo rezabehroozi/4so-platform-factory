@@ -1,0 +1,71 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/victoria-metrics/0.90.1/02525a98270e0f3e",
+  "name": "victoria-metrics-0.90.1-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-victoria-metrics-k8s-stack",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "victoria-metrics-k8s-stack",
+      "versionInfo": "0.90.1"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "docker.io/grafana/grafana@sha256:7cb8c64c4d57a57e734073f3cc94620adb24a0acb929bd80ba9f14017e3a975b",
+      "filesAnalyzed": false,
+      "name": "docker.io/grafana/grafana",
+      "versionInfo": "sha256:7cb8c64c4d57a57e734073f3cc94620adb24a0acb929bd80ba9f14017e3a975b"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-2",
+      "downloadLocation": "ghcr.io/victoriametrics/sync-job@sha256:9ed3a5070576741518a7eafd4322c019d5c0df02503877a7c1b1492675f02293",
+      "filesAnalyzed": false,
+      "name": "ghcr.io/victoriametrics/sync-job",
+      "versionInfo": "sha256:9ed3a5070576741518a7eafd4322c019d5c0df02503877a7c1b1492675f02293"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-3",
+      "downloadLocation": "quay.io/kiwigrid/k8s-sidecar@sha256:abb55b2165c60e8f97e473862c7a3123df6f67d44f592949577c29b8fb2df9d6",
+      "filesAnalyzed": false,
+      "name": "quay.io/kiwigrid/k8s-sidecar",
+      "versionInfo": "sha256:abb55b2165c60e8f97e473862c7a3123df6f67d44f592949577c29b8fb2df9d6"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-4",
+      "downloadLocation": "quay.io/prometheus/node-exporter@sha256:0f422f62c15f154af8d8572b23d623aebfb10cec73a5c654d18f911f3f9df241",
+      "filesAnalyzed": false,
+      "name": "quay.io/prometheus/node-exporter",
+      "versionInfo": "sha256:0f422f62c15f154af8d8572b23d623aebfb10cec73a5c654d18f911f3f9df241"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-5",
+      "downloadLocation": "registry.k8s.io/kube-state-metrics/kube-state-metrics@sha256:85108987d044b18a098126732f98602df408888c0f7d456241f5abefb9744bc1",
+      "filesAnalyzed": false,
+      "name": "registry.k8s.io/kube-state-metrics/kube-state-metrics",
+      "versionInfo": "sha256:85108987d044b18a098126732f98602df408888c0f7d456241f5abefb9744bc1"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-6",
+      "downloadLocation": "registry.k8s.io/kubectl@sha256:497d298f891edb7608dfce9dae4bb08dffc4ddcd7f5d24a0512d4bbf33e04f26",
+      "filesAnalyzed": false,
+      "name": "registry.k8s.io/kubectl",
+      "versionInfo": "sha256:497d298f891edb7608dfce9dae4bb08dffc4ddcd7f5d24a0512d4bbf33e04f26"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-7",
+      "downloadLocation": "victoriametrics/operator@sha256:c4fde419a4f03c7c45d7ee554e7039c12c75af161f7f7e1baef1b343015e3df9",
+      "filesAnalyzed": false,
+      "name": "victoriametrics/operator",
+      "versionInfo": "sha256:c4fde419a4f03c7c45d7ee554e7039c12c75af161f7f7e1baef1b343015e3df9"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}
