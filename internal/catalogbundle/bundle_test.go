@@ -1500,8 +1500,8 @@ func TestCanonicalAdmissionAllowsExactReviewCandidateBesideReadyInstall(t *testi
 	doc.Spec.Policy.VersionSelection = "exact-semver-no-prerelease"
 	readyVersion, reviewVersion := "1.20.1", "3.8.2"
 	doc.Spec.Components = []upstreamAdmissionEntry{
-		{Component: "cilium", Chart: "cilium", CatalogConstraint: "1.20.x", SelectedVersion: &readyVersion, UpstreamVersion: &readyVersion, Source: "oci://quay.io/cilium/charts/cilium", Status: "ready-for-acquisition", RuntimeStatus: "eligible-after-source-resolution", Rationale: "ready fixture"},
-		{Component: "kyverno", Chart: "kyverno", CatalogConstraint: "3.8.x", SelectedVersion: &reviewVersion, UpstreamVersion: &reviewVersion, Source: "https://kyverno.github.io/kyverno/", Status: "ready-for-acquisition", RuntimeStatus: "review-required", Rationale: "review fixture", ReviewEvidence: []upstreamAdmissionReviewEvidence{{Kind: "blocker", URL: "https://example.test/issue", Summary: "review remains open"}}},
+		{Component: "cilium", Chart: "cilium", CatalogConstraint: "1.20.x", SelectedVersion: &readyVersion, UpstreamVersion: &readyVersion, Source: "oci://quay.io/cilium/charts/cilium", Status: "ready-for-acquisition", RuntimeStatus: "eligible-after-source-resolution", LicenseSPDX: "Apache-2.0", ValuesFiles: []string{}, Rationale: "ready fixture"},
+		{Component: "kyverno", Chart: "kyverno", CatalogConstraint: "3.8.x", SelectedVersion: &reviewVersion, UpstreamVersion: &reviewVersion, Source: "https://kyverno.github.io/kyverno/", Status: "ready-for-acquisition", RuntimeStatus: "review-required", LicenseSPDX: "Apache-2.0", ValuesFiles: []string{}, Rationale: "review fixture", ReviewEvidence: []upstreamAdmissionReviewEvidence{{Kind: "blocker", URL: "https://example.test/issue", Summary: "review remains open"}}},
 	}
 	if err := validateCanonicalUpstreamAdmissionCoverage(root, doc); err != nil {
 		t.Fatalf("exact review candidate incorrectly blocked unrelated ready install: %v", err)
