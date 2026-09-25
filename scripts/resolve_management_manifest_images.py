@@ -12,6 +12,8 @@ import stat
 import subprocess
 import sys
 import tempfile
+import urllib.parse
+import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
@@ -93,6 +95,94 @@ def atomic_json(path: Path, value: dict) -> None:
         raise
 
 
+
+def _exact_manifest_authorities(plan: dict) -> dict[str, dict]:
+    lock_path = regular_file(ROOT / "lab" / "appliance-bundle-acquisition-lock.json", "BUNDLE_ACQUISITION_LOCK")
+    lock = json.loads(lock_path.read_text())
+    if lock.get("authority") != "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8":
+        raise RuntimeError("BUNDLE_ACQUISITION_LOCK_AUTHORITY_INVALID")
+    by_id = {
+        str(row.get("id") or ""): row
+        for row in (lock.get("resolvedAuthorities") or [])
+        if isinstance(row, dict)
+    }
+    expected: dict[str, dict] = {}
+    for row in plan.get("derivedManifestImageSets") or []:
+        authority = str(row.get("sourceAuthority") or "")
+        source = by_id.get(authority)
+        if source is None:
+            raise RuntimeError(f"SOURCE_MANIFEST_AUTHORITY_MISSING {authority}")
+        artifacts = source.get("artifacts") or []
+        if not isinstance(artifacts, list) or len(artifacts) != 1 or not isinstance(artifacts[0], dict):
+            raise RuntimeError(f"SOURCE_MANIFEST_ARTIFACT_SET_INVALID {authority}")
+        artifact = artifacts[0]
+        urls = artifact.get("urls") or []
+        if (
+            artifact.get("stagingPath") != row.get("manifestPath")
+            or int(artifact.get("sizeBytes") or -1) != int(row.get("sourceManifestBytes") or -2)
+            or "sha256:" + str(artifact.get("sha256") or "") != str(row.get("sourceManifestSha256") or "")
+            or not isinstance(urls, list)
+            or len(urls) != 1
+            or not isinstance(urls[0], str)
+        ):
+            raise RuntimeError(f"SOURCE_MANIFEST_AUTHORITY_DRIFT {authority}")
+        parsed = urllib.parse.urlsplit(urls[0])
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
+            raise RuntimeError(f"SOURCE_MANIFEST_URL_INVALID {authority}")
+        expected[authority] = artifact
+    if len(expected) != 4:
+        raise RuntimeError("SOURCE_MANIFEST_AUTHORITY_COVERAGE_INVALID")
+    return expected
+
+
+def _materialize_exact_file(url: str, out: Path, expected_bytes: int, expected_sha: str, label: str) -> None:
+    if out.exists() or out.is_symlink():
+        regular_file(out, label)
+        if out.stat().st_size != expected_bytes or sha256_file(out) != expected_sha:
+            raise RuntimeError(f"{label}_EXISTING_IDENTITY_DRIFT")
+        return
+    out.parent.mkdir(parents=True, exist_ok=True)
+    req = urllib.request.Request(url, headers={"User-Agent": "4so-platform-factory-management-manifest/1"})
+    with urllib.request.urlopen(req, timeout=120) as response:
+        final = urllib.parse.urlsplit(response.geturl())
+        if final.scheme != "https" or not final.hostname or final.username or final.password:
+            raise RuntimeError(f"{label}_HTTPS_DOWNGRADE")
+        payload = response.read(expected_bytes + 1)
+        if len(payload) != expected_bytes or response.read(1):
+            raise RuntimeError(f"{label}_SIZE_MISMATCH")
+    actual_sha = "sha256:" + hashlib.sha256(payload).hexdigest()
+    if actual_sha != expected_sha:
+        raise RuntimeError(f"{label}_DIGEST_MISMATCH expected={expected_sha} actual={actual_sha}")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(out, flags, 0o644)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+    except Exception:
+        try:
+            out.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _materialize_source_manifests(plan: dict) -> None:
+    authorities = _exact_manifest_authorities(plan)
+    for row in plan.get("derivedManifestImageSets") or []:
+        authority = str(row.get("sourceAuthority") or "")
+        artifact = authorities[authority]
+        _materialize_exact_file(
+            str((artifact.get("urls") or [])[0]),
+            ROOT / str(row.get("manifestPath") or ""),
+            int(row.get("sourceManifestBytes") or 0),
+            str(row.get("sourceManifestSha256") or ""),
+            "SOURCE_MANIFEST_" + authority.upper().replace("-", "_"),
+        )
+
 def resolve_all(platformctl: Path, receipt_out: Path, run_id: str) -> dict:
     regular_file(platformctl, "PLATFORMCTL")
     if not os.access(platformctl, os.X_OK):
@@ -107,6 +197,7 @@ def resolve_all(platformctl: Path, receipt_out: Path, run_id: str) -> dict:
     if not str(run_id).isdigit():
         raise RuntimeError("RUN_ID_INVALID")
 
+    _materialize_source_manifests(plan)
     tools = require_toolchain()
     crane = Path(str(tools["crane"][0]))
     regular_file(crane, "PINNED_CRANE")
