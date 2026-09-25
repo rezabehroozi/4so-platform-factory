@@ -846,7 +846,7 @@ def validate_management_maintenance_toolset(root: Path, errors: list[tuple[str,s
         errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_RECIPE_MISSING', str(recipe_rel)))
         return
     text = recipe.read_text()
-    for token in ('ARG AWS_CLI_IMAGE','ARG POSTGRES_RUNTIME_IMAGE','FROM ${AWS_CLI_IMAGE} AS awscli','FROM ${POSTGRES_RUNTIME_IMAGE}','COPY --from=awscli /usr/local/aws-cli/ /usr/local/aws-cli/','COPY --from=awscli /usr/local/bin/aws /usr/local/bin/aws','USER 65532:65532','ENTRYPOINT ["/bin/sh"]'):
+    for token in ('ARG AWS_CLI_IMAGE','ARG POSTGRES_RUNTIME_IMAGE','FROM ${AWS_CLI_IMAGE} AS awscli','FROM ${POSTGRES_RUNTIME_IMAGE}','COPY --from=awscli /usr/local/aws-cli/ /usr/local/aws-cli/','ENV PATH="/usr/local/aws-cli/v2/current/bin:${PATH}"','USER 65532:65532','ENTRYPOINT ["/bin/sh"]'):
         if token not in text:
             errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_RECIPE_INVALID', token))
     lowered = text.lower()
