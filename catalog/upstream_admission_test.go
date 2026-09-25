@@ -25,17 +25,42 @@ func TestValidateUpstreamAdmissionRejectsReadyCatalogPinDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var target string
-	for _, row := range admission.Spec.Components {
-		if row.Status == "ready-for-acquisition" {
-			target = row.Component
-			break
-		}
+	// The canonical S1 queue may legitimately be empty after exact source closure.
+	// Recreate one unresolved Helm candidate in-memory so this remains a real
+	// negative control for ready-row/catalog pin drift.
+	target := "capsule"
+	component, ok := components[target]
+	if !ok {
+		t.Fatal("capsule fixture missing")
 	}
-	if target == "" {
-		t.Fatal("fixture has no ready upstream admission component")
+	version := component.Spec.Release
+	component.Spec.Source.Resolved = false
+	component.Spec.Source.BundleKey = ""
+	component.Spec.Source.ArtifactDigest = ""
+	component.Spec.Source.RenderManifestDigest = ""
+	component.Spec.Source.SourceLockDigest = ""
+	component.Spec.Source.ImageInventoryDigest = ""
+	component.Spec.Source.LicenseManifestDigest = ""
+	component.Spec.Source.SBOM = ""
+	component.Spec.Source.Provenance = ""
+	component.Spec.Source.SignatureVerification = ""
+	component.Spec.VersionPolicy = "exact-upstream-admitted-pending-source-acquisition"
+	components[target] = component
+	admission.Spec.Components = []UpstreamAdmissionComponent{{
+		CatalogConstraint: version,
+		Chart: component.Spec.Delivery.Chart,
+		Component: target,
+		LicenseSPDX: "Apache-2.0",
+		Rationale: "synthetic unresolved negative-control fixture",
+		SelectedVersion: &version,
+		Source: "https://example.test/charts",
+		Status: "ready-for-acquisition",
+		RuntimeStatus: "eligible-after-source-resolution",
+		UpstreamVersion: &version,
+	}}
+	if err := ValidateUpstreamAdmission(admission, components); err != nil {
+		t.Fatalf("synthetic ready admission fixture invalid before drift: %v", err)
 	}
-	component := components[target]
 	component.Spec.Release = "99.99.99"
 	components[target] = component
 	if err := ValidateUpstreamAdmission(admission, components); err == nil {
