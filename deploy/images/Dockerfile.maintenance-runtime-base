@@ -7,7 +7,7 @@ FROM ${POSTGRES_RUNTIME_IMAGE}
 # Compose the maintenance toolset from exact pre-acquired image authorities.
 # No package manager or network fetch is permitted in this build.
 COPY --from=awscli /usr/local/aws-cli/ /usr/local/aws-cli/
-COPY --from=awscli /usr/local/bin/aws /usr/local/bin/aws
+ENV PATH="/usr/local/aws-cli/v2/current/bin:${PATH}"
 
 USER 65532:65532
 ENTRYPOINT ["/bin/sh"]
