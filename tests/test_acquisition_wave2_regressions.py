@@ -91,6 +91,34 @@ class AcquisitionWave2RegressionTests(unittest.TestCase):
         self.assertIn("deploymentMode: SingleBinary", text)
         self.assertIn("type: filesystem", text)
 
+    def test_current_admission_applies_canonical_loki_values(self):
+        args = argparse.Namespace(
+            from_upgrade_admission=False,
+            historical=False,
+            from_admission=True,
+            component="loki",
+            version=None,
+            source=None,
+            upstream_version=None,
+            license_spdx=None,
+            values=[],
+            authority=str(ROOT / "catalog/upstream-admission.json"),
+        )
+        acquire.apply_admission(args)
+        self.assertEqual(["runtime/catalog-values/loki-source-render.yaml"], args.values)
+        self.assertEqual("Apache-2.0", args.license_spdx)
+
+    def test_canonical_bundle_image_inventory_is_not_union_of_uncarried_render(self):
+        source = (ROOT / "scripts/acquire_upstream_helm.py").read_text()
+        self.assertIn("images = sorted(pin_images(resources, crane_digest))", source)
+        self.assertNotIn("pin_images(max_resources, crane_digest)", source)
+
+    def test_openchoreo_data_plane_values_match_v13_supported_surface(self):
+        values = (ROOT / "runtime/openchoreo/data-plane-values.yaml").read_text()
+        self.assertNotIn("kube-prometheus-stack:", values)
+        self.assertIn("clusterAgent:", values)
+        self.assertIn("gateway:", values)
+
 
 if __name__ == "__main__":
     unittest.main()
