@@ -14,7 +14,7 @@ import sys
 import tarfile
 import urllib.parse
 
-from management_workload_evidence import external_receipt_evidence
+from management_workload_evidence import external_receipt_evidence, manifest_receipt_evidence
 
 SCAN_SUFFIXES = {'.go','.py','.md','.yaml','.yml','.json','.html','.css','.js','.sh','.txt','.service','.toml','.mod','.sql'}
 RISK = {'low','medium','high','critical'}
@@ -792,6 +792,12 @@ def validate_management_workload_image_plan(root: Path, version: str, errors: li
                     errors.append(('MANAGEMENT_WORKLOAD_IMAGE_PLAN_DERIVED_BINDING_INVALID', str(row)))
             if seen != set(expected_derived):
                 errors.append(('MANAGEMENT_WORKLOAD_IMAGE_PLAN_DERIVED_SET_INVALID', str(sorted(seen))))
+        try:
+            manifest_receipt = manifest_receipt_evidence(root, image_plan)
+            if set(manifest_receipt["byAuthority"]) != set(expected_derived):
+                errors.append(('MANAGEMENT_WORKLOAD_MANIFEST_RECEIPT_COVERAGE_INVALID', str(sorted(manifest_receipt["byAuthority"]))))
+        except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            errors.append(('MANAGEMENT_WORKLOAD_MANIFEST_RECEIPT_INVALID', str(exc)))
 
 
 def validate_deployment_surface(root: Path, errors: list[tuple[str,str]]) -> None:
