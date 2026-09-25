@@ -1,0 +1,41 @@
+name: gateway-api-runtime-dependency-acquire-once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gateway-api-runtime-dependency-acquire-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  acquire:
+    if: contains(github.event.head_commit.message, '[gateway-api-acquire]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact canonical main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Acquire exact Gateway API 1.6.1 dependency bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/acquire_gateway_api_runtime_dependency.py
+          python3 scripts/runtime_dependency_transition.py .
+          python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/validate_repository.py .
+
+      - name: Commit and push exact external-byte evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add catalog/runtime-dependency-transition.json catalog/runtime-dependencies lab/supply-chain-handoff-plan.json
+          test -n "$(git diff --cached --name-only)"
+          git commit -m "evidence: acquire exact Gateway API 1.6.1 dependency bytes"
+          git push origin HEAD:main
