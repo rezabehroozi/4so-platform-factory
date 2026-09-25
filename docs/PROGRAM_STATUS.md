@@ -96,6 +96,15 @@ All **36/36 (100%)** Core + Expansion pre-physical software phases are now sourc
 - OpenChoreo v1.3.0 exact source/chart/render acquisition has real external acquisition evidence, but J8 remains runtime-closure blocked until exact image bytes are mirrored into product-owned zot, the `openchoreo-runtime` executor is built by BuildKit and registry-digest readback plus the sealed runtime-source authority are produced.
 - The dominant remaining S1 supply-chain work is management workload image/base/product/manifest digest closure and the final management workload OCI archive. `MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING` and `MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING` therefore remain truthful blockers.
 
+## Management external image evidence checkpoint — 2026-09-25
+
+- Exact management external-image acquisition is now proven on canonical main by GitHub Actions run `36115673607` = **SUCCESS**; the same exact source commit `e9b20f8334e270e792d58367f93535d11861b196` also has Repository Integrity run `36115673546` = **SUCCESS**.
+- The exact release build authority activated admitted Go `1.27.1 linux/amd64`, built release `0.0.363`, and passed executable-mode, artifact-integrity, provenance/SBOM and brand-independence gates. The resulting exact release archive digest was `sha256:5afaaf777ffaafb2e4e1d372fc78e42b28f697ba531836728207df1d558ae850`.
+- Four external management images were acquired and offline-verified at immutable digests: Forgejo `sha256:b0d569cd2e55b092a9302797e495249e981e6ce86f7001a237e7bbdc3f0c3a3f`, PostgreSQL `sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3`, zot `sha256:95a837a0afacf5b7edc0c92493f04beee6891989b8d2fd50a00cf65a1e6d4fd5`, and Keycloak `sha256:e03b95891c214fba3ab72f12f40c983211549e817c5fce8d0f37761db04ae185`.
+- The verified external-only OCI archive contained 4 images / 52 blobs, was `578164736` bytes, and had digest `sha256:a8dd51e5131615b7f3bf78602a85bcbe317c68d0c5f2cfae4ff69be84e4ea09b`. Workflow artifacts were uploaded successfully for the exact release evidence and the external OCI bytes.
+- This evidence does **not** close `MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING`. `lab/appliance-bundle-acquisition-lock.json` remains `incomplete` because the canonical full management-workload OCI archive still requires product images and manifest-derived image resolution/assembly; `lab/management-workload-image-build-plan.json` therefore correctly retains pending base/core/product/manifest image work.
+- No Runtime, Production or Physical PASS is inferred from external image acquisition. Exact-SHA Physical Runtime remains NOT RUN.
+
 ## Current critical path
 
 The Core bottleneck remains **S1 ? S2**, but it is no longer treated as a whole-phase serial dependency. Exact-locked components should flow immediately from Acquire ? Verify ? Admit ? Runtime Certify ? Negative Controls while other S1 roles continue acquiring.
