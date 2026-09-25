@@ -556,7 +556,7 @@
         },
         {
           "component": "external-dns",
-          "previousVersion": "1.21.0",
+          "previousVersion": "1.20.0",
           "source": "https://kubernetes-sigs.github.io/external-dns/",
           "targetRelease": "1.21.1"
         },
