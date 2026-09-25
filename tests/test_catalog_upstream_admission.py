@@ -120,27 +120,46 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
                 r"^[A-Za-z0-9][A-Za-z0-9.+-]*$",
             )
 
-    def test_live_license_and_values_override_is_canonical_and_applied(self):
+    def test_license_and_values_authority_survives_admission_retirement(self):
         _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
-        self.assertTrue(rows)
-        row = rows[0]
-        from types import SimpleNamespace
+        if rows:
+            row = rows[0]
+            from types import SimpleNamespace
+            args = SimpleNamespace(
+                from_upgrade_admission=False,
+                historical=False,
+                from_admission=True,
+                component=row["component"],
+                authority=str(ROOT / "catalog" / "upstream-admission.json"),
+                version=None,
+                source=None,
+                upstream_version=None,
+                license_spdx=None,
+                values=[],
+            )
+            acquire_mod.apply_admission(args)
+            self.assertEqual(row["licenseSPDX"], args.license_spdx)
+            self.assertEqual(row.get("valuesFiles") or [], [str(v) for v in args.values])
+            return
 
-        args = SimpleNamespace(
-            from_upgrade_admission=False,
-            historical=False,
-            from_admission=True,
-            component=row["component"],
-            authority=str(ROOT / "catalog" / "upstream-admission.json"),
-            version=None,
-            source=None,
-            upstream_version=None,
-            license_spdx=None,
-            values=[],
-        )
-        acquire_mod.apply_admission(args)
-        self.assertEqual(row["licenseSPDX"], args.license_spdx)
-        self.assertEqual(row.get("valuesFiles") or [], [str(v) for v in args.values])
+        components = {}
+        for path in (ROOT / "catalog/components").glob("*.json"):
+            doc = json.loads(path.read_text())
+            components[doc["metadata"]["name"]] = doc["spec"]
+        self.assertTrue(components)
+        self.assertTrue(all(spec["source"]["resolved"] for spec in components.values()))
+        for name, spec in components.items():
+            lock_path = ROOT / "catalog/runtime" / name / spec["release"] / "source-lock.json"
+            license_path = ROOT / "catalog/runtime" / name / spec["release"] / "licenses.json"
+            self.assertTrue(lock_path.is_file(), lock_path)
+            self.assertTrue(license_path.is_file(), license_path)
+            licenses = json.loads(license_path.read_text())["licenses"]
+            self.assertTrue(licenses, name)
+            self.assertRegex(licenses[0]["spdxExpression"], r"^[A-Za-z0-9][A-Za-z0-9.+-]*$")
+        loki = components["loki"]
+        lock = json.loads((ROOT / "catalog/runtime/loki" / loki["release"] / "source-lock.json").read_text())
+        values = (lock.get("generation") or {}).get("values") or []
+        self.assertEqual(["runtime/catalog-values/loki-source-render.yaml"], [v["path"] for v in values])
 
     def test_symlinked_canonical_authority_is_rejected(self):
         authority = (ROOT / "catalog" / "upstream-admission.json").read_text()
