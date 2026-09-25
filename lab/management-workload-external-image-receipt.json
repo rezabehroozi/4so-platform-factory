@@ -1,0 +1,59 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "archiveReady": false,
+  "authority": "MANAGEMENT_WORKLOAD_EXTERNAL_IMAGE_RECEIPT_V1",
+  "images": [
+    {
+      "exactReference": "codeberg.org/forgejo/forgejo@sha256:b0d569cd2e55b092a9302797e495249e981e6ce86f7001a237e7bbdc3f0c3a3f",
+      "lockSha256": "sha256:9b5726c09800ac202c63f64efbc88766a410b86f90212cc2fee4719fa4c6d84c",
+      "manifestDigest": "sha256:b0d569cd2e55b092a9302797e495249e981e6ce86f7001a237e7bbdc3f0c3a3f",
+      "reachableBytes": 79588665,
+      "role": "forgejo",
+      "selectedVersion": "15.0.7",
+      "sourceRepository": "codeberg.org/forgejo/forgejo",
+      "sourceTag": "15.0.7",
+      "tagRootDigest": "sha256:1f9c1a9880425614267832ce437f8ae5f5b69e1f3219f38fc468fc37e48c1919"
+    },
+    {
+      "exactReference": "quay.io/keycloak/keycloak@sha256:e03b95891c214fba3ab72f12f40c983211549e817c5fce8d0f37761db04ae185",
+      "lockSha256": "sha256:951192f7b232f378203cccf81d9b4a63fa8dbd242bf4b0df81db429bb65c08af",
+      "manifestDigest": "sha256:e03b95891c214fba3ab72f12f40c983211549e817c5fce8d0f37761db04ae185",
+      "reachableBytes": 267950062,
+      "role": "keycloak",
+      "selectedVersion": "26.7.3",
+      "sourceRepository": "quay.io/keycloak/keycloak",
+      "sourceTag": "26.7.3",
+      "tagRootDigest": "sha256:29be7252db0a106f1cd2ac17b9a56ff2668073da645638a38b9fc67deeb2d6c4"
+    },
+    {
+      "exactReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3",
+      "lockSha256": "sha256:4eeabc2dce7eb5433a9acd4d32727fb8f2741dcc2ab982c2a55c44b2a75ef6d8",
+      "manifestDigest": "sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3",
+      "reachableBytes": 156196217,
+      "role": "postgresql",
+      "selectedVersion": "17.11",
+      "sourceRepository": "docker.io/library/postgres",
+      "sourceTag": "17.11-bookworm",
+      "tagRootDigest": "sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652"
+    },
+    {
+      "exactReference": "ghcr.io/project-zot/zot-linux-amd64@sha256:95a837a0afacf5b7edc0c92493f04beee6891989b8d2fd50a00cf65a1e6d4fd5",
+      "lockSha256": "sha256:5028238173b6cf2ec4ec2f0e19cc089b0cf59dc120605be3e71d73f9db68e41d",
+      "manifestDigest": "sha256:95a837a0afacf5b7edc0c92493f04beee6891989b8d2fd50a00cf65a1e6d4fd5",
+      "reachableBytes": 74394947,
+      "role": "zot",
+      "selectedVersion": "2.1.20",
+      "sourceRepository": "ghcr.io/project-zot/zot-linux-amd64",
+      "sourceTag": "v2.1.20",
+      "tagRootDigest": "sha256:95a837a0afacf5b7edc0c92493f04beee6891989b8d2fd50a00cf65a1e6d4fd5"
+    }
+  ],
+  "kind": "ManagementWorkloadExternalImageReceipt",
+  "offlineVerified": true,
+  "physicalCertified": false,
+  "planDigest": "sha256:11d59ba7d2d991c5211bfeaacc354fc1362306076ce1f49fbb19b2f61cd2794f",
+  "releaseArtifactDigest": "sha256:5afaaf777ffaafb2e4e1d372fc78e42b28f697ba531836728207df1d558ae850",
+  "runtimeCertified": false,
+  "schemaVersion": 1,
+  "sourceRunId": "36115673607"
+}
