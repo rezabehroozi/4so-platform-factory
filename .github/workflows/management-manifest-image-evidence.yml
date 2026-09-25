@@ -1,0 +1,77 @@
+name: management-manifest-image-evidence
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/management-manifest-image-evidence.yml
+      - scripts/resolve_management_manifest_images.py
+
+permissions:
+  contents: write
+
+jobs:
+  resolve-and-seal:
+    if: contains(github.event.head_commit.message, '[management-manifest-evidence]')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    env:
+      GOTOOLCHAIN: local
+      EXACT_GO: /tmp/4so-exact-go/go/bin/go
+    steps:
+      - name: Checkout exact canonical main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install exact CGO build prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpq-dev
+
+      - name: Activate admitted exact Go toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/acquire_release_build_toolchain.py --check
+          rm -rf /tmp/4so-exact-go
+          mkdir -p /tmp/4so-exact-go
+          tar -C /tmp/4so-exact-go -xzf vendor/toolchains/go1.27.1.linux-amd64.tar.gz
+          test "$("$EXACT_GO" version)" = "go version go1.27.1 linux/amd64"
+          echo "/tmp/4so-exact-go/go/bin" >> "$GITHUB_PATH"
+
+      - name: Build exact platformctl
+        shell: bash
+        run: |
+          set -euo pipefail
+          make build-release GO="$EXACT_GO"
+          test -x bin/linux-amd64/platformctl
+
+      - name: Resolve four management manifests to exact image digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/resolve_management_manifest_images.py             --platformctl bin/linux-amd64/platformctl             --receipt lab/management-workload-manifest-image-receipt.json             --run-id "$GITHUB_RUN_ID"
+
+      - name: Validate generated canonical evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/validate_repository.py .
+          test -s lab/management-workload-manifest-image-receipt.json
+          git diff --check
+
+      - name: Commit exact manifest-image evidence to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add runtime-manifests lab/management-workload-manifest-image-receipt.json
+          git diff --cached --quiet && { echo "no evidence delta"; exit 1; }
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing concurrent writer"; exit 2; }
+          git commit -m "evidence: seal exact management manifest image resolutions"
+          git push origin HEAD:main
