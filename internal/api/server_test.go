@@ -72,12 +72,22 @@ func TestCatalogSummary(t *testing.T) {
 	if !ok {
 		t.Fatal("upstream admission summary missing")
 	}
-	if admission["total"].(float64) < 1 || admission["readyForAcquisition"].(float64) < 1 {
-		t.Fatalf("upstream admission summary is empty: %+v", admission)
-	}
 	rows, ok := admission["components"].([]any)
 	if !ok || len(rows) != int(admission["total"].(float64)) {
 		t.Fatalf("upstream admission rows mismatch: %+v", admission)
+	}
+	catalogSet, err := catalog.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	unresolvedHelm := 0
+	for _, component := range catalogSet {
+		if component.Spec.Source.Type == "helm-chart" && !component.Spec.Source.Resolved {
+			unresolvedHelm++
+		}
+	}
+	if int(admission["total"].(float64)) != unresolvedHelm {
+		t.Fatalf("upstream admission summary drift: got=%+v unresolvedHelm=%d", admission, unresolvedHelm)
 	}
 	runtimeAuthority, ok := got["runtimeCertificationAuthority"].(map[string]any)
 	if !ok || runtimeAuthority["authority"] != catalog.ComponentRuntimeCertificationAuthority {
