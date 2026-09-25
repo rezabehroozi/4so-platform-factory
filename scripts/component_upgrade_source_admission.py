@@ -9,7 +9,9 @@ from __future__ import annotations
 import argparse, json, pathlib, re
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 AUTHORITY='COMPONENT_UPGRADE_SOURCE_ADMISSION_V1'
-EXACT=re.compile(r'^\d+\.\d+\.\d+ALLOWED={'review-required','admitted-for-acquisition','install-only-first-product-release'}
+EXACT=re.compile(r'^\\d+\\.\\d+\\.\\d+$')
+SPDX=re.compile(r'^[A-Za-z0-9][A-Za-z0-9.+-]*$')
+ALLOWED={'review-required','admitted-for-acquisition','install-only-first-product-release'}
 POLICIES=(
     'explicitHumanOrReleaseReviewRequired','exactPreviousVersionRequired',
     'strictUpgradeDirectionRequired','mutableTagForbidden','admissionDoesNotEqualCertification',
