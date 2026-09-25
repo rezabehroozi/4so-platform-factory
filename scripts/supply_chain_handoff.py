@@ -482,7 +482,7 @@ def validate(plan: dict, root: Path = ROOT) -> list[str]:
         elif row.get("status") not in {"ready-for-acquisition","source-acquired"}:
             errors.append(f"runtime hold source status invalid: {name}")
     transition = spec.get("runtimeDependencyTransition") or {}
-    if transition.get("authority") != "RUNTIME_DEPENDENCY_TRANSITION_V1" or transition.get("status") != "acquisition-pending":
+    if transition.get("authority") != "RUNTIME_DEPENDENCY_TRANSITION_V1" or transition.get("status") not in {"acquisition-pending","runtime-certification-pending","complete"}:
         errors.append("runtime dependency transition authority invalid")
     upgrade_adm = spec.get("componentUpgradeSourceAdmission") or {}
     if upgrade_adm.get("authority") != "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1":
