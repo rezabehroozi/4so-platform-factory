@@ -98,6 +98,26 @@ class OpenChoreoSupplyChainSelfTests(unittest.TestCase):
             source = (SCRIPTS / name).read_text()
             self.assertIn("admit_output_path", source, msg=name)
 
+    def test_persisted_openchoreo_acquisition_receipt_binds_exact_source_without_runtime_claim(self):
+        receipt = json.loads((ROOT / "lab" / "openchoreo-runtime-acquisition-receipt.json").read_text())
+        selection = json.loads((ROOT / "runtime" / "openchoreo" / "source-selection.json").read_text())["spec"]
+        self.assertEqual("OPENCHOREO_RUNTIME_ACQUISITION_AUTHORITY_V1", receipt["authority"])
+        self.assertEqual(contract.VERSION, receipt["version"])
+        self.assertEqual(contract.UPSTREAM_REPOSITORY, receipt["upstreamRepository"])
+        self.assertEqual(contract.UPSTREAM_COMMIT, receipt["upstreamCommit"])
+        self.assertEqual(selection["authority"], receipt["sourceAuthority"])
+        self.assertTrue(receipt["sourceResolved"])
+        self.assertFalse(receipt["executionReady"])
+        self.assertFalse(receipt["imageBytesIncluded"])
+        self.assertEqual("zot", receipt["registryAuthority"])
+        self.assertEqual("buildkit", receipt["buildAuthority"])
+        self.assertEqual(2, len(receipt["planes"]))
+        self.assertEqual(6, len(receipt["images"]))
+        self.assertRegex(receipt["bundleSha256"], r"^sha256:[0-9a-f]{64}$")
+        for image in receipt["images"]:
+            self.assertIn("@sha256:", image["sourceReference"])
+            self.assertRegex(image["digest"], r"^sha256:[0-9a-f]{64}$")
+
     def test_openchoreo_exact_identity_is_shared_with_source_selection(self):
         selection = json.loads((ROOT / "runtime" / "openchoreo" / "source-selection.json").read_text())
         spec = selection["spec"]
