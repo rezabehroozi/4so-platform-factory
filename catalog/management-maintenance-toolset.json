@@ -1,0 +1,57 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ManagementMaintenanceToolset",
+  "authority": "MANAGEMENT_MAINTENANCE_TOOLSET_AUTHORITY_V1",
+  "schemaVersion": 1,
+  "defaultRuntimeUser": "65532:65532",
+  "rootOverrideRequired": true,
+  "networkPackageInstallationAllowed": false,
+  "compositionRecipe": "deploy/images/Dockerfile.maintenance-runtime-base",
+  "postgresqlSourceRole": "postgresql",
+  "awsCli": {
+    "repository": "public.ecr.aws/aws-cli/aws-cli",
+    "version": "2.37.1",
+    "tag": "2.37.1",
+    "selectionEvidenceURL": "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-docker.html"
+  },
+  "requiredExecutables": [
+    "aws",
+    "cat",
+    "cmp",
+    "cp",
+    "createdb",
+    "cut",
+    "dropdb",
+    "find",
+    "gunzip",
+    "gzip",
+    "mkdir",
+    "pg_dump",
+    "pg_restore",
+    "psql",
+    "rm",
+    "sha256sum",
+    "tar",
+    "tr",
+    "wc"
+  ],
+  "requiredShellBuiltins": [
+    "printf",
+    "test"
+  ],
+  "ownerSurfaces": [
+    "internal/bootstrap/object_storage_probe.go",
+    "internal/disasterrecovery/manifests.go",
+    "internal/lifecycle/manifests.go",
+    "scripts/lab_runner.py"
+  ],
+  "compatibilityRequirements": {
+    "defaultNonRootCommandProbe": true,
+    "rootOverrideCommandProbe": true,
+    "postgresqlClientMajor": 17,
+    "s3EndpointOverrideRequired": true,
+    "offlineImageBuildRequired": true,
+    "runtimeCertified": false,
+    "physicalCertified": false
+  }
+}
