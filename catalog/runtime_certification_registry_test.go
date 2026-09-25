@@ -21,8 +21,15 @@ func TestComponentRuntimeCertificationRegistryMatchesCatalog(t *testing.T) {
 			resolved++
 		}
 	}
-	if stats.Total != len(components) || stats.SourceReady != resolved || stats.SourceBlocked != len(components)-resolved || stats.FoundationHarnessPartial != 1 || stats.ComponentInstallReadinessPartial != 0 || stats.ComponentInstallReadinessDependencyPartial != 0 || stats.ComponentFailureRemovePartial != resolved-1 || stats.SourceGatedExecutor != len(components)-resolved || stats.PendingExecutor != 0 || stats.LifecycleComplete != 0 {
-		t.Fatalf("unexpected component runtime registry stats: %#v resolved=%d total=%d", stats, resolved, len(components))
+	heldResolved := 0
+	for _, hold := range registry.Spec.RuntimeSuitabilityHolds {
+		if component, ok := components[hold.Component]; ok && component.Spec.Source.Resolved {
+			heldResolved++
+		}
+	}
+	expectedExecutablePartial := resolved - 1 - heldResolved // foundation and held sources are intentionally not executable.
+	if stats.Total != len(components) || stats.SourceReady != resolved || stats.SourceBlocked != len(components)-resolved || stats.FoundationHarnessPartial != 1 || stats.ComponentInstallReadinessPartial != 0 || stats.ComponentInstallReadinessDependencyPartial != 0 || stats.ComponentFailureRemovePartial != expectedExecutablePartial || stats.SourceGatedExecutor != len(components)-resolved || stats.PendingExecutor != 0 || stats.LifecycleComplete != 0 {
+		t.Fatalf("unexpected component runtime registry stats: %#v resolved=%d heldResolved=%d total=%d", stats, resolved, heldResolved, len(components))
 	}
 }
 
