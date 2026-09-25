@@ -603,7 +603,7 @@
         {
           "component": "ceph-csi-rbd",
           "previousVersion": "1.0.3",
-          "source": "https://ceph.github.io/ceph-csi-operator-charts",
+          "source": "https://ceph.github.io/ceph-csi-operator/",
           "targetRelease": "1.0.4"
         },
         {
