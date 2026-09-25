@@ -961,6 +961,7 @@
         "catalog/runtime/*/*/source-lock.json",
         "lab/management-workload-image-build-plan.json",
         "lab/management-workload-external-image-receipt.json",
+        "lab/management-workload-manifest-image-receipt.json",
         "lab/appliance-bundle-acquisition-lock.json",
         "lab/release-build-toolchain-lock.json",
         "catalog/component-upgrade-source-admission.json",
