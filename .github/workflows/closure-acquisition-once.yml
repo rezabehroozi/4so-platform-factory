@@ -1,4 +1,5 @@
 name: closure-acquisition-once
+# closure-wave: 2 — exact source/historical acquisition from green f7aabf6 base
 
 on:
   push:
