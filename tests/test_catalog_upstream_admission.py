@@ -104,15 +104,33 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
         self.assertNotIn(str(row["selectedVersion"]), cmd)
 
     def test_all_ready_rows_have_canonical_license_authority(self):
-        _, rows = mod.validate(ROOT, ROOT / 'catalog' / 'upstream-admission.json')
-        ready = [r for r in rows if r['status'] == 'ready-for-acquisition']
+        _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
+        ready = [r for r in rows if r["status"] == "ready-for-acquisition"]
         self.assertEqual(len(rows), len(ready))
         for row in ready:
-            self.assertRegex(str(row.get('licenseSPDX') or ''), r'^[A-Za-z0-9][A-Za-z0-9.+-]*        _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
+            self.assertRegex(
+                str(row.get("licenseSPDX") or ""),
+                r"^[A-Za-z0-9][A-Za-z0-9.+-]*$",
+            )
+
+    def test_live_license_and_values_override_is_canonical_and_applied(self):
+        _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
         self.assertTrue(rows)
         row = rows[0]
         from types import SimpleNamespace
-        args = SimpleNamespace(from_upgrade_admission=False, historical=False, from_admission=True, component=row["component"], authority=str(ROOT / "catalog" / "upstream-admission.json"), version=None, source=None, upstream_version=None, license_spdx=None, values=[])
+
+        args = SimpleNamespace(
+            from_upgrade_admission=False,
+            historical=False,
+            from_admission=True,
+            component=row["component"],
+            authority=str(ROOT / "catalog" / "upstream-admission.json"),
+            version=None,
+            source=None,
+            upstream_version=None,
+            license_spdx=None,
+            values=[],
+        )
         acquire_mod.apply_admission(args)
         self.assertEqual(row["licenseSPDX"], args.license_spdx)
         self.assertEqual(row.get("valuesFiles") or [], [str(v) for v in args.values])
