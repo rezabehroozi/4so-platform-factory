@@ -1,7 +1,7 @@
 ARG AWS_CLI_IMAGE
+ARG POSTGRES_RUNTIME_IMAGE
 FROM ${AWS_CLI_IMAGE} AS awscli
 
-ARG POSTGRES_RUNTIME_IMAGE
 FROM ${POSTGRES_RUNTIME_IMAGE}
 
 # Compose the maintenance toolset from exact pre-acquired image authorities.
