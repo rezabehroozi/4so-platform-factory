@@ -108,8 +108,8 @@ func TestCatalogGovernanceSignedPrivatePromotionAndImpact(t *testing.T) {
 	var renderReview controlplane.CatalogRelease
 	_ = json.Unmarshal(w.Body.Bytes(), &renderReview)
 	w = apiRequest(t, h, http.MethodPost, "/api/v1/catalog-releases/"+renderReview.ID+"/publish", `{}`, map[string]string{"X-Actor-ID": "approver", "If-Match": fmt.Sprintf("\"%d\"", renderReview.Revision)})
-	if w.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("expected unresolved render admission failure, got %d body=%s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("source-resolved catalog render publish=%d body=%s", w.Code, w.Body.String())
 	}
 
 	w = apiRequest(t, h, http.MethodGet, "/api/v1/catalog-trust-keys/"+key.ID+"/impact", "", map[string]string{"X-Actor-ID": "owner"})
