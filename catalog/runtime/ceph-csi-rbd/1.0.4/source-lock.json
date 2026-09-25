@@ -1,0 +1,30 @@
+{
+  "component": "ceph-csi-rbd",
+  "version": "1.0.4",
+  "sourceType": "helm-chart",
+  "upstreamUrl": "https://ceph.github.io/ceph-csi-operator/",
+  "upstreamRevision": "1.0.4",
+  "upstreamArtifact": "ceph-csi-drivers-1.0.4.tgz",
+  "upstreamArtifactDigest": "sha256:76a1787baa7d62232eb073ab8260a455a016c02b59aae584a47be6791f05994b",
+  "networkFetchRequired": false,
+  "renderer": "json-resource-list-v1",
+  "upstreamVerification": "sha256-pinned-offline",
+  "generation": {
+    "tool": "helm-template",
+    "toolVersion": "v4.2.4+g3900f43",
+    "releaseName": "platform-factory",
+    "namespace": "ceph-csi-operator-system",
+    "includeCRDs": true,
+    "kubernetesVersions": [
+      "1.34.0",
+      "1.35.0"
+    ],
+    "kubernetesRenderDigests": {
+      "1.34.0": "sha256:cf1145ce9996d1382966e312743ab57bda6c373f5a541568780d5e8fdb3c85a1",
+      "1.35.0": "sha256:cf1145ce9996d1382966e312743ab57bda6c373f5a541568780d5e8fdb3c85a1"
+    },
+    "values": [],
+    "imageResolver": "crane-digest",
+    "imageResolverVersion": "0.22.1"
+  }
+}

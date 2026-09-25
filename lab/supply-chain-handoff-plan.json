@@ -27,6 +27,12 @@
           "sha256": "9a850123f3674e387f1c6f25e1f3516c5828941be1ba500f6d79916962f9c050"
         },
         {
+          "component": "ceph-csi-rbd",
+          "path": "catalog/runtime/ceph-csi-rbd/1.0.4/source-lock.json",
+          "release": "1.0.4",
+          "sha256": "07631e2ec54a8986c9338a708391455d1cdb93928774cdd2d99ff6dadb281208"
+        },
+        {
           "component": "cert-manager",
           "path": "catalog/runtime/cert-manager/1.21.1/source-lock.json",
           "release": "1.21.1",
@@ -89,14 +95,6 @@
           "source": "oci://ghcr.io/projectcapsule/charts/capsule",
           "status": "ready-for-acquisition",
           "upstreamVersion": "0.13.11"
-        },
-        {
-          "component": "ceph-csi-rbd",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "1.0.4",
-          "source": "https://ceph.github.io/ceph-csi-operator/",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "1.0.4"
         },
         {
           "component": "cilium",
@@ -214,11 +212,11 @@
       },
       {
         "component": "ceph-csi-rbd",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.0.4",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "cert-manager",
@@ -555,6 +553,12 @@
           "targetRelease": "1.0.4"
         },
         {
+          "component": "ceph-csi-rbd",
+          "previousVersion": "1.0.3",
+          "source": "https://ceph.github.io/ceph-csi-operator/",
+          "targetRelease": "1.0.4"
+        },
+        {
           "component": "external-dns",
           "previousVersion": "1.20.0",
           "source": "https://kubernetes-sigs.github.io/external-dns/",
@@ -599,12 +603,6 @@
           "previousVersion": "0.13.10",
           "source": "oci://ghcr.io/projectcapsule/charts/capsule",
           "targetRelease": "0.13.11"
-        },
-        {
-          "component": "ceph-csi-rbd",
-          "previousVersion": "1.0.3",
-          "source": "https://ceph.github.io/ceph-csi-operator/",
-          "targetRelease": "1.0.4"
         },
         {
           "component": "cilium",

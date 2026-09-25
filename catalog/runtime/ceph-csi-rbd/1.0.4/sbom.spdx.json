@@ -1,0 +1,22 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/ceph-csi-rbd/1.0.4/76a1787baa7d6223",
+  "name": "ceph-csi-rbd-1.0.4-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-ceph-csi-drivers",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "ceph-csi-drivers",
+      "versionInfo": "1.0.4"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

@@ -19,35 +19,6 @@
         "upstreamVersion": "0.13.11"
       },
       {
-        "catalogConstraint": "1.0.x",
-        "chart": "ceph-csi-drivers",
-        "component": "ceph-csi-rbd",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Upstream has moved new Ceph CSI deployments to the Ceph-CSI Operator. Preserve the product component id ceph-csi-rbd for consumers, but acquire the official operator-managed ceph-csi-drivers chart at exact 1.0.4; source locking and runtime certification remain separate gates.",
-        "reviewEvidence": [
-          {
-            "kind": "source-migration",
-            "url": "https://github.com/ceph/ceph-csi/blob/devel/docs/deploy-rbd.md",
-            "summary": "Ceph CSI upstream recommends the Ceph-CSI Operator as the supported deployment mechanism for current releases."
-          },
-          {
-            "kind": "release",
-            "url": "https://github.com/ceph/ceph-csi-operator/releases/tag/v1.0.4",
-            "summary": "Official Ceph-CSI Operator v1.0.4 release drives the published operator and driver Helm packages."
-          },
-          {
-            "kind": "source-migration",
-            "summary": "Official Ceph CSI Operator driver-chart documentation publishes ceph-csi-drivers from https://ceph.github.io/ceph-csi-operator/.",
-            "url": "https://github.com/ceph/ceph-csi-operator/blob/main/docs/helm-charts/drivers-chart.md"
-          }
-        ],
-        "selectedVersion": "1.0.4",
-        "source": "https://ceph.github.io/ceph-csi-operator/",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "1.0.4"
-      },
-      {
         "catalogConstraint": "1.20.x",
         "chart": "cilium",
         "component": "cilium",
@@ -124,6 +95,9 @@
         "chart": "loki",
         "component": "loki",
         "licenseSPDX": "Apache-2.0",
+        "valuesFiles": [
+          "runtime/catalog-values/loki-source-render.yaml"
+        ],
         "rationale": "OSS Loki Helm ownership moved to grafana-community/helm-charts and the maintained community chart uses a new major chart line. Exact chart 18.12.1 is admitted from the new official community repository; immutable source acquisition and runtime certification remain separate.",
         "reviewEvidence": [
           {
@@ -141,10 +115,7 @@
         "source": "https://grafana-community.github.io/helm-charts",
         "status": "ready-for-acquisition",
         "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "18.12.1",
-        "valuesFiles": [
-          "runtime/catalog-values/loki-source-render.yaml"
-        ]
+        "upstreamVersion": "18.12.1"
       },
       {
         "catalogConstraint": "0.16.x",

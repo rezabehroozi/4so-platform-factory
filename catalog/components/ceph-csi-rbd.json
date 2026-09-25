@@ -5,17 +5,37 @@
     "name": "ceph-csi-rbd"
   },
   "spec": {
+    "displayName": "Ceph CSI RBD (Operator Managed)",
+    "category": "storage",
+    "release": "1.0.4",
+    "versionPolicy": "exact-offline-import",
+    "supportTier": "research-candidate",
+    "mandatory": true,
+    "dependencies": [
+      "snapshot-controller",
+      "ceph-csi-operator"
+    ],
+    "provides": [
+      "rbd-storage"
+    ],
+    "requiresCapabilities": [
+      "volume-snapshot-controller"
+    ],
+    "exclusiveCapabilities": [],
+    "conflictsWith": [],
+    "risk": "critical",
     "capabilities": [
       "persistent-volumes",
       "snapshots"
     ],
-    "category": "storage",
-    "certification": {
-      "evidenceDigest": "",
-      "profiles": [],
-      "status": "candidate"
-    },
+    "namespace": "ceph-csi-operator-system",
+    "wave": 55,
+    "settingsSchemaRef": "schemas/settings/ceph-csi-rbd.schema.json",
     "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
       "architectures": [
         "amd64",
         "arm64"
@@ -24,36 +44,29 @@
         "kubernetes",
         "rke2"
       ],
-      "kubernetes": {
-        "maxVersion": "1.35",
-        "minVersion": "1.34"
-      },
       "providers": [
         "imported",
         "cluster-api-topology-v1beta2"
       ]
     },
-    "conflictsWith": [],
     "delivery": {
-      "chart": "ceph-csi-drivers",
-      "repositoryKey": "platform-charts",
-      "type": "helm"
+      "type": "helm",
+      "repositoryKey": "offline-catalog-bundle",
+      "chart": "ceph-csi-drivers"
     },
-    "dependencies": [
-      "snapshot-controller",
-      "ceph-csi-operator"
-    ],
-    "displayName": "Ceph CSI RBD (Operator Managed)",
-    "evidenceRequired": [
-      "resolved-source-lock",
-      "rendered-resource-inventory",
-      "policy-result",
-      "runtime-readiness",
-      "rollback-verification"
-    ],
-    "exclusiveCapabilities": [],
-    "mandatory": true,
-    "namespace": "ceph-csi-operator-system",
+    "source": {
+      "type": "helm-chart",
+      "resolved": true,
+      "bundleKey": "ceph-csi-rbd/1.0.4",
+      "artifactDigest": "sha256:76a1787baa7d62232eb073ab8260a455a016c02b59aae584a47be6791f05994b",
+      "renderManifestDigest": "sha256:8ce46383938b27eaf20ecd1a563fb4a07ea5fe3d2999c2bca2f3a6eb790d6ec8",
+      "sourceLockDigest": "sha256:07631e2ec54a8986c9338a708391455d1cdb93928774cdd2d99ff6dadb281208",
+      "imageInventoryDigest": "sha256:f9cf52bb037434a9aa098e11a18fd12587bad51bf07928db10899b1da952a2ac",
+      "licenseManifestDigest": "sha256:e8252c99720df8757efafe449b482876ac962b4cf7c7a9cb0dacf01349e8dbfd",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:8b06b28ca3d7b641791f5227d7b9ba55f6c386e43d2a90baa90a01abd433584f",
+      "provenance": "sha256:1aee32df1b0df44473c7f4aca5d7a593ae61ff636f8858c63538e095e05b4878"
+    },
     "operations": {
       "install": "required",
       "preflight": "required",
@@ -62,34 +75,23 @@
       "upgrade": "required",
       "verify": "required"
     },
-    "provides": [
-      "rbd-storage"
-    ],
     "readiness": [
       "driver/rbd.csi.ceph.com"
     ],
-    "release": "1.0.4",
-    "requiresCapabilities": [
-      "volume-snapshot-controller"
-    ],
-    "risk": "critical",
     "rollback": {
       "strategy": "preserve-volumes-clientprofiles-and-restore-operator-managed-driver-release"
     },
-    "settingsSchemaRef": "schemas/settings/ceph-csi-rbd.schema.json",
-    "source": {
-      "artifactDigest": "",
-      "imageInventoryDigest": "",
-      "licenseManifestDigest": "",
-      "provenance": "required",
-      "resolved": false,
-      "sbom": "required",
-      "signatureVerification": "required",
-      "sourceLockDigest": "",
-      "type": "helm-chart"
-    },
-    "supportTier": "research-candidate",
-    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
-    "wave": 55
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": null,
+      "evidenceDigest": ""
+    }
   }
 }
