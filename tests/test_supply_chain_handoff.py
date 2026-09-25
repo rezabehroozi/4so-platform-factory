@@ -36,6 +36,16 @@ class SupplyChainHandoffTests(unittest.TestCase):
         self.assertEqual(set(components), expected_ready | expected_review | expected_locked)
         self.assertEqual("RUNTIME_DEPENDENCY_TRANSITION_V1", spec["runtimeDependencyTransition"]["authority"])
         self.assertEqual(4, len(spec["managementWorkloads"]["externalImages"]))
+        self.assertIn("lab/management-workload-external-image-receipt.json", spec["truthModel"]["canonicalAuthorities"])
+        self.assertTrue(spec["managementWorkloads"]["externalReceipt"]["offlineVerified"])
+        self.assertFalse(spec["managementWorkloads"]["externalReceipt"]["archiveReady"])
+        self.assertEqual("36115673607", spec["managementWorkloads"]["externalReceipt"]["sourceRunId"])
+        for row in spec["managementWorkloads"]["externalImages"]:
+            self.assertEqual("ready", row["effectiveState"])
+            self.assertTrue(row["evidence"]["offlineVerified"])
+            self.assertIn("@sha256:", row["evidence"]["exactReference"])
+        self.assertIn("MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING", spec["openBlockers"])
+        self.assertIn("MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING", spec["openBlockers"])
         self.assertEqual(4, len(spec["managementWorkloads"]["manifestImageResolution"]))
         self.assertEqual(20, len(spec["componentUpgradePairRequirements"]))
         pair_rows = spec["componentUpgradePairRequirements"]

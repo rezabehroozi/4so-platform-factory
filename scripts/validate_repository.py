@@ -14,6 +14,8 @@ import sys
 import tarfile
 import urllib.parse
 
+from management_workload_evidence import external_receipt_evidence
+
 SCAN_SUFFIXES = {'.go','.py','.md','.yaml','.yml','.json','.html','.css','.js','.sh','.txt','.service','.toml','.mod','.sql'}
 RISK = {'low','medium','high','critical'}
 CERT = {'candidate','render-certified','ephemeral-runtime-certified','target-runtime-certified','upgrade-certified','revoked','deprecated'}
@@ -757,6 +759,12 @@ def validate_management_workload_image_plan(root: Path, version: str, errors: li
                 required = {'role','ownership','repository','registryEndpoint','registryRepository','version','tag','selectionChannel','selectionEvidenceURL','state','blocker'}
                 if set(row) != required or row.get('ownership') != 'external' or actual != expected or row.get('tag') == 'latest':
                     errors.append(('MANAGEMENT_WORKLOAD_EXTERNAL_VERSION_SELECTION_INVALID', str(row)))
+        try:
+            external_receipt = external_receipt_evidence(root, image_plan)
+            if set(external_receipt["byRole"]) != set(expected_external):
+                errors.append(('MANAGEMENT_WORKLOAD_EXTERNAL_RECEIPT_COVERAGE_INVALID', str(sorted(external_receipt["byRole"]))))
+        except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            errors.append(('MANAGEMENT_WORKLOAD_EXTERNAL_RECEIPT_INVALID', str(exc)))
         bases = image_plan.get('baseImages')
         base_roles = {row.get('role') for row in bases if isinstance(row, dict)} if isinstance(bases, list) else set()
         if not isinstance(bases, list) or len(bases) != 3 or base_roles != {'api-runtime-base','static-runtime-base','maintenance-toolchain-base'} or any(row.get('state') != 'pending' for row in bases if isinstance(row, dict)):

@@ -15,6 +15,10 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from management_workload_evidence import external_receipt_evidence
+
 AUTHORITY = "MANAGEMENT_WORKLOAD_STAGED_BATCH_V1"
 DIAGNOSTIC_AUTHORITY = "MANAGEMENT_WORKLOAD_ACQUISITION_DIAGNOSTIC_V1"
 ACQUISITION_LOCK_AUTHORITY = "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8"
@@ -111,6 +115,8 @@ def load_plan(root: Path = ROOT) -> tuple[dict, list[dict]]:
 def diagnose(root: Path = ROOT) -> dict:
     """Return a read-only, fail-closed acquisition diagnosis without network or build mutation."""
     plan, external_rows = load_plan(root)
+    external_evidence = external_receipt_evidence(root, plan)
+    external_ready = set(external_evidence["byRole"])
     version = regular_file(root / "VERSION", "VERSION").read_text().strip()
     lock = json.loads(regular_file(root / "lab" / "appliance-bundle-acquisition-lock.json", "BUNDLE_ACQUISITION_LOCK").read_text())
     if lock.get("authority") != ACQUISITION_LOCK_AUTHORITY or lock.get("schemaVersion") != 8:
@@ -127,7 +133,7 @@ def diagnose(root: Path = ROOT) -> dict:
     resolved = sorted(str(row.get("id") or "") for row in (lock.get("resolvedAuthorities") or []) if isinstance(row, dict))
     partial = sorted(str(row.get("id") or "") for row in (lock.get("partialAuthorities") or []) if isinstance(row, dict))
 
-    pending_external = sorted(row["role"] for row in external_rows if any(not row[key] for key in ("repository", "tag", "version", "selectionChannel", "selectionEvidenceURL")) or next((src.get("state") for src in plan.get("coreImages", []) if src.get("role") == row["role"]), "pending") != "ready")
+    pending_external = sorted(row["role"] for row in external_rows if row["role"] not in external_ready and (any(not row[key] for key in ("repository", "tag", "version", "selectionChannel", "selectionEvidenceURL")) or next((src.get("state") for src in plan.get("coreImages", []) if src.get("role") == row["role"]), "pending") != "ready"))
     pending_base = sorted(str(row.get("role") or "") for row in (plan.get("baseImages") or []) if row.get("state") != "ready")
     pending_product = sorted(str(row.get("role") or "") for row in (plan.get("coreImages") or []) if row.get("ownership") == "product" and row.get("state") != "ready")
     pending_manifests = sorted(str(row.get("manifestPath") or "") for row in (plan.get("derivedManifestImageSets") or []) if row.get("state") != "ready")
@@ -138,6 +144,8 @@ def diagnose(root: Path = ROOT) -> dict:
             blockers.append({"stage": "base-image", "subject": str(row.get("role") or ""), "blocker": str(row.get("blocker") or "UNSPECIFIED")})
     for row in plan.get("coreImages") or []:
         if row.get("state") != "ready":
+            if row.get("ownership") == "external" and str(row.get("role") or "") in external_ready:
+                continue
             blockers.append({"stage": "external-image" if row.get("ownership") == "external" else "product-image", "subject": str(row.get("role") or ""), "blocker": str(row.get("blocker") or "UNSPECIFIED")})
     for row in plan.get("derivedManifestImageSets") or []:
         if row.get("state") != "ready":
@@ -155,6 +163,12 @@ def diagnose(root: Path = ROOT) -> dict:
         "resolvedAuthorities": resolved,
         "managementWorkloadArchiveResolved": MANAGEMENT_WORKLOAD_SOURCE_AUTHORITY in resolved,
         "canStartExternalAcquisition": bool(external_rows) and all(all(row[key] for key in ("repository", "tag", "version", "selectionChannel", "selectionEvidenceURL")) for row in external_rows),
+        "externalReceipt": {
+            "authority": external_evidence["authority"],
+            "sourceRunId": external_evidence["sourceRunId"],
+            "offlineVerified": external_evidence["offlineVerified"],
+            "readyRoles": sorted(external_ready),
+        },
         "pending": {
             "externalImages": pending_external,
             "baseImages": pending_base,
@@ -162,7 +176,7 @@ def diagnose(root: Path = ROOT) -> dict:
             "manifestResolutions": pending_manifests,
         },
         "blockers": blockers,
-        "nextAction": "seal-and-verify-management-workload-oci-archive" if not authoritative_ready else "bundle-source-authority-ready",
+        "nextAction": "resolve-base-product-and-manifest-images-then-assemble-management-workload-oci" if not authoritative_ready else "bundle-source-authority-ready",
     }
 
 
