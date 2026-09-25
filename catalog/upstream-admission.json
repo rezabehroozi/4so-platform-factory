@@ -7,18 +7,6 @@
   "spec": {
     "components": [
       {
-        "catalogConstraint": "0.13.x",
-        "chart": "capsule",
-        "component": "capsule",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Exact upstream-supported 0.13 chart selected; OCI content digest must be verified by acquisition tooling.",
-        "selectedVersion": "0.13.11",
-        "source": "oci://ghcr.io/projectcapsule/charts/capsule",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "0.13.11"
-      },
-      {
         "catalogConstraint": "18.12.x",
         "chart": "loki",
         "component": "loki",

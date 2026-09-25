@@ -21,6 +21,12 @@
           "sha256": "4e1eb4695e7a84b0b683d7ff9144c73c35c3c0a8fa06801135f054616e594f28"
         },
         {
+          "component": "capsule",
+          "path": "catalog/runtime/capsule/0.13.11/source-lock.json",
+          "release": "0.13.11",
+          "sha256": "af4eedc84e117a9ee468bad62b1bc5835117fb4048350866bc420a7d5646d63c"
+        },
+        {
           "component": "ceph-csi-operator",
           "path": "catalog/runtime/ceph-csi-operator/1.0.4/source-lock.json",
           "release": "1.0.4",
@@ -113,14 +119,6 @@
       ],
       "ready": [
         {
-          "component": "capsule",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "0.13.11",
-          "source": "oci://ghcr.io/projectcapsule/charts/capsule",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "0.13.11"
-        },
-        {
           "component": "loki",
           "runtimeStatus": "eligible-after-source-resolution",
           "selectedVersion": "18.12.1",
@@ -200,11 +198,11 @@
       },
       {
         "component": "capsule",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "0.13.11",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "ceph-csi-operator",
@@ -707,7 +705,14 @@
         }
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
-      "helmReady": [],
+      "helmReady": [
+        {
+          "component": "capsule",
+          "previousVersion": "0.13.10",
+          "source": "oci://ghcr.io/projectcapsule/charts/capsule",
+          "targetRelease": "0.13.11"
+        }
+      ],
       "installOnlyFirstProductRelease": [
         {
           "component": "secure-namespace-foundation",
@@ -717,12 +722,6 @@
       "stageManifestPath": "historical/stage-manifest.json",
       "taggedSourceSetReady": [],
       "waitingCurrentSource": [
-        {
-          "component": "capsule",
-          "previousVersion": "0.13.10",
-          "source": "oci://ghcr.io/projectcapsule/charts/capsule",
-          "targetRelease": "0.13.11"
-        },
         {
           "component": "loki",
           "previousVersion": "18.12.0",

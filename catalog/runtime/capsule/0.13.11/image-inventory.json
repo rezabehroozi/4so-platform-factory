@@ -1,0 +1,10 @@
+{
+  "images": [
+    {
+      "reference": "docker.io/clastix/kubectl@sha256:3290e99274959cf03544f19caba685c357162203354a060b83b79b1163d81569"
+    },
+    {
+      "reference": "ghcr.io/projectcapsule/capsule@sha256:d55bef9a0753259dddbe84a84a5a8d1ee0ebecf23de44ea2056072e08c41338c"
+    }
+  ]
+}

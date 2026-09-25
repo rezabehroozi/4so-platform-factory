@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "capsule",
+  "version": "0.13.11",
+  "sourceType": "helm-chart",
+  "bundleKey": "capsule/0.13.11",
+  "upstream": {
+    "url": "oci://ghcr.io/projectcapsule/charts/capsule",
+    "revision": "0.13.11",
+    "artifact": "capsule-0.13.11.tgz",
+    "artifactDigest": "sha256:3e7057c96430fb3f110188cf220fb227bf74b57be9e59bd0650ccbf5381b511e",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:3e7057c96430fb3f110188cf220fb227bf74b57be9e59bd0650ccbf5381b511e",
+    "component.json": "sha256:e82f661ce66bdfe1dcd81bf7c2f72d4b4719737929b15fd57f8a648218fcafe6",
+    "image-inventory.json": "sha256:1006f61c05c055e2f877b97c175a6d8a56c4016715e845079d7d54cccae4bd2a",
+    "licenses.json": "sha256:df4ce3e75f12aa38081326515dd643b27749cdfdcdc3476d5e49b680ee89f789",
+    "provenance.json": "sha256:6a131684cc69505896d4a29f2989b88a467b2808a6f47a86c9683cda43901cb2",
+    "render-manifest.json": "sha256:0109aa4dc270d8a8b546bc7becb9839d295b011f0bb9f4bc6b7de5bcae3c40de",
+    "sbom.spdx.json": "sha256:67799ff35de35da8565a0f086bf4b4f1e2c7f3a12987793f79dcbbd89e58179e",
+    "source-lock.json": "sha256:af4eedc84e117a9ee468bad62b1bc5835117fb4048350866bc420a7d5646d63c"
+  }
+}
