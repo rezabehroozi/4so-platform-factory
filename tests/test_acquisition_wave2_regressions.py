@@ -86,33 +86,26 @@ class AcquisitionWave2RegressionTests(unittest.TestCase):
         self.assertIn("oidc:", values)
         self.assertIn("auth.render.4so.test/realms/platform", values)
 
-    def test_loki_render_profile_is_canonical_authority_not_cli_only_input(self):
-        doc = json.loads((ROOT / "catalog/upstream-admission.json").read_text())
-        rows = (doc.get("spec") or {}).get("components") or []
-        row = next(r for r in rows if r["component"] == "loki")
-        self.assertEqual(["runtime/catalog-values/loki-source-render.yaml"], row.get("valuesFiles"))
-        path = ROOT / row["valuesFiles"][0]
+    def test_loki_render_profile_is_persisted_in_exact_source_lock(self):
+        component = json.loads((ROOT / "catalog/components/loki.json").read_text())
+        version = component["spec"]["release"]
+        lock = json.loads((ROOT / "catalog/runtime/loki" / version / "source-lock.json").read_text())
+        values = [row["path"] for row in lock["generation"]["values"]]
+        self.assertEqual(["runtime/catalog-values/loki-source-render.yaml"], values)
+        path = ROOT / values[0]
         self.assertTrue(path.is_file())
         text = path.read_text()
         self.assertIn("deploymentMode: SingleBinary", text)
         self.assertIn("type: filesystem", text)
 
-    def test_current_admission_applies_canonical_loki_values(self):
-        args = argparse.Namespace(
-            from_upgrade_admission=False,
-            historical=False,
-            from_admission=True,
-            component="loki",
-            version=None,
-            source=None,
-            upstream_version=None,
-            license_spdx=None,
-            values=[],
-            authority=str(ROOT / "catalog/upstream-admission.json"),
-        )
-        acquire.apply_admission(args)
-        self.assertEqual(["runtime/catalog-values/loki-source-render.yaml"], args.values)
-        self.assertEqual("Apache-2.0", args.license_spdx)
+    def test_current_loki_acquisition_persisted_canonical_values_and_license(self):
+        component = json.loads((ROOT / "catalog/components/loki.json").read_text())
+        version = component["spec"]["release"]
+        runtime = ROOT / "catalog/runtime/loki" / version
+        lock = json.loads((runtime / "source-lock.json").read_text())
+        licenses = json.loads((runtime / "licenses.json").read_text())
+        self.assertEqual(["runtime/catalog-values/loki-source-render.yaml"], [row["path"] for row in lock["generation"]["values"]])
+        self.assertEqual(["Apache-2.0"], [row["spdxExpression"] for row in licenses["licenses"]])
 
     def test_canonical_bundle_image_inventory_is_not_union_of_uncarried_render(self):
         source = (ROOT / "scripts/acquire_upstream_helm.py").read_text()
