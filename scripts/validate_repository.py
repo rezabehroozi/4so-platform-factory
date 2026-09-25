@@ -1559,11 +1559,27 @@ def validate_supply_chain_handoff(root: Path, version: str, components: dict[str
     else:
         transition = load_json(transition_path, errors)
         ts = (transition or {}).get('spec') or {} if isinstance(transition, dict) else {}
-        if (transition or {}).get('kind') != 'RuntimeDependencyTransition' or ts.get('authority') != 'RUNTIME_DEPENDENCY_TRANSITION_V1' or ts.get('status') != 'acquisition-pending':
+        status = str(ts.get('status') or '')
+        if (transition or {}).get('kind') != 'RuntimeDependencyTransition' or ts.get('authority') != 'RUNTIME_DEPENDENCY_TRANSITION_V1' or status not in {'acquisition-pending','runtime-certification-pending','complete'}:
             errors.append(('RUNTIME_DEPENDENCY_TRANSITION_INVALID','catalog/runtime-dependency-transition.json'))
         ga = ts.get('gatewayApi') or {}
         if ga.get('currentRelease') != '1.5.1' or ga.get('targetRelease') != '1.6.1' or len(ga.get('assets') or []) != 2:
             errors.append(('RUNTIME_DEPENDENCY_GATEWAY_TRANSITION_INVALID','1.5.1->1.6.1'))
+        gateway_source_status = str(ga.get('sourceStatus') or '')
+        if status == 'acquisition-pending' and gateway_source_status != 'pending-byte-acquisition':
+            errors.append(('RUNTIME_DEPENDENCY_GATEWAY_SOURCE_STATE_INVALID',f'{status}:{gateway_source_status}'))
+        elif status in {'runtime-certification-pending','complete'} and gateway_source_status != 'source-acquired':
+            errors.append(('RUNTIME_DEPENDENCY_GATEWAY_SOURCE_STATE_INVALID',f'{status}:{gateway_source_status}'))
+        if gateway_source_status == 'source-acquired':
+            for asset in ga.get('assets') or []:
+                asset_path = root/'catalog'/'runtime-dependencies'/'gateway-api'/'1.6.1'/str(asset.get('name') or '')
+                if asset_path.is_symlink() or not asset_path.is_file() or asset_path.stat().st_size != int(asset.get('size') or 0) or sha256(asset_path) != 'sha256:' + str(asset.get('sha256') or ''):
+                    errors.append(('RUNTIME_DEPENDENCY_GATEWAY_ASSET_BYTES_INVALID',str(asset.get('name') or '<empty>')))
+        elif gateway_source_status == 'pending-byte-acquisition':
+            for asset in ga.get('assets') or []:
+                asset_path = root/'catalog'/'runtime-dependencies'/'gateway-api'/'1.6.1'/str(asset.get('name') or '')
+                if asset_path.exists() or asset_path.is_symlink():
+                    errors.append(('RUNTIME_DEPENDENCY_GATEWAY_PENDING_WITH_BYTES',str(asset.get('name') or '<empty>')))
         if (ts.get('kgateway') or {}).get('targetRelease') != '2.4.1' or (ts.get('cilium') or {}).get('targetRelease') != '1.20.1':
             errors.append(('RUNTIME_DEPENDENCY_NETWORK_STACK_INVALID','kgateway/cilium'))
         for marker_text in ('RUNTIME_DEPENDENCY_TRANSITION_V1','EXPECTED_GATEWAY_ASSETS','dependency-transition-required','physicalPassInference'):
