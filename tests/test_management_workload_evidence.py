@@ -7,7 +7,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from management_workload_evidence import AUTHORITY, external_receipt_evidence
+from management_workload_evidence import AUTHORITY, MANIFEST_AUTHORITY, external_receipt_evidence, manifest_receipt_evidence
 
 
 class ManagementWorkloadEvidenceTests(unittest.TestCase):
@@ -21,6 +21,35 @@ class ManagementWorkloadEvidenceTests(unittest.TestCase):
         self.assertFalse(evidence["archiveReady"])
         self.assertFalse(evidence["runtimeCertified"])
         self.assertFalse(evidence["physicalCertified"])
+
+    def test_current_manifest_receipt_is_exact_plan_bound_resolution_evidence_only(self):
+        plan = json.loads((ROOT / "lab" / "management-workload-image-build-plan.json").read_text())
+        evidence = manifest_receipt_evidence(ROOT, plan)
+        self.assertEqual(MANIFEST_AUTHORITY, evidence["authority"])
+        self.assertEqual("36132417496", evidence["sourceRunId"])
+        self.assertEqual(
+            {"argocd-install-manifest", "argocd-ha-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"},
+            set(evidence["byAuthority"]),
+        )
+        self.assertTrue(evidence["resolved"])
+        self.assertFalse(evidence["runtimeCertified"])
+        self.assertFalse(evidence["physicalCertified"])
+
+    def test_manifest_receipt_file_digest_tamper_fails_closed(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "lab").mkdir()
+            (root / "runtime-manifests").mkdir()
+            shutil.copy2(ROOT / "lab" / "management-workload-image-build-plan.json", root / "lab" / "management-workload-image-build-plan.json")
+            shutil.copy2(ROOT / "lab" / "management-workload-manifest-image-receipt.json", root / "lab" / "management-workload-manifest-image-receipt.json")
+            plan = json.loads((root / "lab" / "management-workload-image-build-plan.json").read_text())
+            for row in plan["derivedManifestImageSets"]:
+                shutil.copy2(ROOT / row["resolvedManifestPath"], root / row["resolvedManifestPath"])
+                shutil.copy2(ROOT / row["resolutionLockPath"], root / row["resolutionLockPath"])
+            first = plan["derivedManifestImageSets"][0]
+            (root / first["resolvedManifestPath"]).write_text("tampered")
+            with self.assertRaisesRegex(RuntimeError, "FILE_DIGEST_DRIFT"):
+                manifest_receipt_evidence(root, plan)
 
     def test_receipt_plan_digest_tamper_fails_closed(self):
         with tempfile.TemporaryDirectory() as td:
