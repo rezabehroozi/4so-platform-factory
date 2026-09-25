@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/management-product-image-evidence.yml
+      - .dockerignore
       - scripts/management_product_image_evidence.py
       - catalog/management-maintenance-toolset.json
       - deploy/images/Dockerfile.maintenance-runtime-base
