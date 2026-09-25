@@ -79,15 +79,17 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
             for value in row.get("valuesFiles") or []:
                 self.assertTrue((ROOT/value).is_file(), value)
 
-    def test_live_admission_applies_canonical_license_and_values(self):
+    def test_closed_current_queue_preserves_canonical_license_and_values_in_source_lock(self):
         _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
-        self.assertTrue(rows)
-        row=rows[0]
-        from types import SimpleNamespace
-        args = SimpleNamespace(from_upgrade_admission=False, historical=False, from_admission=True, component=row["component"], authority=str(ROOT / "catalog" / "upstream-admission.json"), version=None, source=None, upstream_version=None, license_spdx=None, values=[])
-        acquire_mod.apply_admission(args)
-        self.assertEqual(row["licenseSPDX"], args.license_spdx)
-        self.assertEqual(row.get("valuesFiles") or [], [str(v) for v in args.values])
+        self.assertEqual([], rows)
+        component = json.loads((ROOT / "catalog/components/loki.json").read_text())
+        version = component["spec"]["release"]
+        self.assertTrue(component["spec"]["source"]["resolved"])
+        runtime = ROOT / "catalog/runtime/loki" / version
+        lock = json.loads((runtime / "source-lock.json").read_text())
+        licenses = json.loads((runtime / "licenses.json").read_text())
+        self.assertEqual(["runtime/catalog-values/loki-source-render.yaml"], [v["path"] for v in lock["generation"]["values"]])
+        self.assertEqual(["Apache-2.0"], [v["spdxExpression"] for v in licenses["licenses"]])
 
     def test_constraint_match_does_not_widen_minor_series(self):
         self.assertTrue(mod.constraint_matches("1.21.x", "1.21.1"))
@@ -95,11 +97,16 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
         self.assertFalse(mod.constraint_matches("1.21.x", "1.21.0-rc.1"))
 
     def test_command_uses_authority_not_repeated_version_or_source(self):
-        _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
-        row = next(r for r in rows if r["status"] == "ready-for-acquisition")
+        row = {
+            "component": "fixture",
+            "status": "ready-for-acquisition",
+            "source": "https://example.test/charts",
+            "selectedVersion": "1.2.3",
+        }
         cmd = mod.acquisition_command(row)
         self.assertIn("--from-admission", cmd)
         self.assertIn("--component", cmd)
+        self.assertIn("fixture", cmd)
         self.assertNotIn(str(row["source"]), cmd)
         self.assertNotIn(str(row["selectedVersion"]), cmd)
 
