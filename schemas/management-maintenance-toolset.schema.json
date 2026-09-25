@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.4so.io/schemas/management-maintenance-toolset.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion","kind","authority","schemaVersion","defaultRuntimeUser","rootOverrideRequired","networkPackageInstallationAllowed","compositionRecipe","postgresqlSourceRole","awsCli","requiredExecutables","requiredShellBuiltins","ownerSurfaces","compatibilityRequirements"],
+  "properties": {
+    "apiVersion": {"const": "platform.4so.io/v1alpha1"},
+    "kind": {"const": "ManagementMaintenanceToolset"},
+    "authority": {"const": "MANAGEMENT_MAINTENANCE_TOOLSET_AUTHORITY_V1"},
+    "schemaVersion": {"const": 1},
+    "defaultRuntimeUser": {"const": "65532:65532"},
+    "rootOverrideRequired": {"const": true},
+    "networkPackageInstallationAllowed": {"const": false},
+    "compositionRecipe": {"const": "deploy/images/Dockerfile.maintenance-runtime-base"},
+    "postgresqlSourceRole": {"const": "postgresql"},
+    "awsCli": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository","version","tag","selectionEvidenceURL"],
+      "properties": {
+        "repository": {"const": "public.ecr.aws/aws-cli/aws-cli"},
+        "version": {"type":"string","pattern":"^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "tag": {"type":"string","pattern":"^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "selectionEvidenceURL": {"type":"string","pattern":"^https://"}
+      }
+    },
+    "requiredExecutables": {"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","pattern":"^[a-z0-9_+-]+$"}},
+    "requiredShellBuiltins": {"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","pattern":"^[a-z0-9_+-]+$"}},
+    "ownerSurfaces": {"type":"array","minItems":4,"uniqueItems":true,"items":{"type":"string","minLength":1}},
+    "compatibilityRequirements": {
+      "type":"object",
+      "additionalProperties": false,
+      "required":["defaultNonRootCommandProbe","rootOverrideCommandProbe","postgresqlClientMajor","s3EndpointOverrideRequired","offlineImageBuildRequired","runtimeCertified","physicalCertified"],
+      "properties":{
+        "defaultNonRootCommandProbe":{"const":true},
+        "rootOverrideCommandProbe":{"const":true},
+        "postgresqlClientMajor":{"const":17},
+        "s3EndpointOverrideRequired":{"const":true},
+        "offlineImageBuildRequired":{"const":true},
+        "runtimeCertified":{"const":false},
+        "physicalCertified":{"const":false}
+      }
+    }
+  }
+}
