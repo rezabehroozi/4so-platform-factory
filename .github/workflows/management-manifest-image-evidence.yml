@@ -78,7 +78,7 @@ jobs:
           set -euo pipefail
           git config user.name "4so-evidence-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add runtime-manifests lab/management-workload-manifest-image-receipt.json
+          git add manifests runtime-manifests lab/management-workload-manifest-image-receipt.json
           git diff --cached --quiet && { echo "no evidence delta"; exit 1; }
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing concurrent writer"; exit 2; }
