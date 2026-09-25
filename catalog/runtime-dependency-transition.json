@@ -54,7 +54,7 @@
       "currentSourceResolved": true,
       "releaseCommitShort": "8bb74df",
       "releaseUrl": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.6.1",
-      "sourceStatus": "pending-byte-acquisition",
+      "sourceStatus": "source-acquired",
       "targetRelease": "1.6.1"
     },
     "kgateway": {
@@ -77,6 +77,6 @@
       "runtimeCertificationRequired": true,
       "sourceAcquisitionIndependentOfRuntimeSuitability": true
     },
-    "status": "acquisition-pending"
+    "status": "runtime-certification-pending"
   }
 }

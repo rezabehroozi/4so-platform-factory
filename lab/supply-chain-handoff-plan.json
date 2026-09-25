@@ -899,7 +899,7 @@
       "ciliumTargetRelease": "1.20.1",
       "gatewayTargetRelease": "1.6.1",
       "kgatewayTargetRelease": "2.4.1",
-      "status": "acquisition-pending"
+      "status": "runtime-certification-pending"
     },
     "schemaVersion": 1,
     "truthModel": {
