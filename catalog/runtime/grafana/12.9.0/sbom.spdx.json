@@ -1,0 +1,29 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/grafana/12.9.0/af0f225766ab7872",
+  "name": "grafana-12.9.0-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-grafana",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "grafana",
+      "versionInfo": "12.9.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "docker.io/grafana/grafana@sha256:7cb8c64c4d57a57e734073f3cc94620adb24a0acb929bd80ba9f14017e3a975b",
+      "filesAnalyzed": false,
+      "name": "docker.io/grafana/grafana",
+      "versionInfo": "sha256:7cb8c64c4d57a57e734073f3cc94620adb24a0acb929bd80ba9f14017e3a975b"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

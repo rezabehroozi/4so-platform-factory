@@ -1,0 +1,28 @@
+{
+  "component": "grafana",
+  "version": "12.9.0",
+  "sourceUrl": "https://grafana-community.github.io/helm-charts",
+  "sourceRevision": "12.9.0",
+  "artifactDigest": "sha256:af0f225766ab7872b717ebac6fc689414edfcd8f8b1c9650eb4853be3552560b",
+  "bundleMode": "offline-immutable",
+  "networkFetchRequired": false,
+  "upstreamVerification": "sha256-pinned-offline",
+  "generation": {
+    "tool": "helm-template",
+    "toolVersion": "v4.2.4+g3900f43",
+    "releaseName": "platform-factory",
+    "namespace": "monitoring",
+    "includeCRDs": true,
+    "kubernetesVersions": [
+      "1.34.0",
+      "1.35.0"
+    ],
+    "kubernetesRenderDigests": {
+      "1.34.0": "sha256:379d3f4880a93fb258b30b78bdbe225945b590fc133725e0a762e0aff3a034bd",
+      "1.35.0": "sha256:2032f7578966477d7a2adcdaaf46170104ee8444ce7d0aa4011e80cca17b988b"
+    },
+    "values": [],
+    "imageResolver": "crane-digest",
+    "imageResolverVersion": "0.22.1"
+  }
+}

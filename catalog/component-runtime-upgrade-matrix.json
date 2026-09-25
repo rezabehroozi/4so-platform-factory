@@ -155,9 +155,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "12.9.0",
+          "fromSourceLockDigest": "9134ea0f71991e0e7948185fdba0eb4ff886cc1f224db72ccdfd5bcaaab46ae6",
+          "status": "admitted-source-pair",
+          "toRelease": "12.10.0",
+          "toSourceLockDigest": "a24a5d566d99a63787d58fccd2466d8239870d4a1c4dd3e84264155d4af83ed7"
+        }
+      ],
       "component": "grafana",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "12.10.0",
       "targetSourceLockDigest": "a24a5d566d99a63787d58fccd2466d8239870d4a1c4dd3e84264155d4af83ed7",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"

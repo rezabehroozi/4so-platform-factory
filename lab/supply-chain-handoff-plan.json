@@ -306,8 +306,14 @@
       },
       {
         "component": "grafana",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/grafana/12.9.0/source-lock.json",
+            "release": "12.9.0",
+            "sha256": "a51e8a575f69a6d29f55eba64488234d8fa3b543210b4a770bea6ff362749d24"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "12.10.0",
         "targetSourceLockPresent": true
@@ -614,6 +620,14 @@
           "targetRelease": "1.5.1"
         },
         {
+          "component": "grafana",
+          "path": "catalog/runtime/grafana/12.9.0/source-lock.json",
+          "previousVersion": "12.9.0",
+          "sha256": "a51e8a575f69a6d29f55eba64488234d8fa3b543210b4a770bea6ff362749d24",
+          "source": "https://grafana-community.github.io/helm-charts",
+          "targetRelease": "12.10.0"
+        },
+        {
           "component": "snapshot-controller",
           "path": "catalog/runtime/snapshot-controller/8.4.0/source-lock.json",
           "previousVersion": "8.4.0",
@@ -624,12 +638,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "grafana",
-          "previousVersion": "12.9.0",
-          "source": "https://grafana-community.github.io/helm-charts",
-          "targetRelease": "12.10.0"
-        },
         {
           "component": "kgateway",
           "previousVersion": "2.4.0",
