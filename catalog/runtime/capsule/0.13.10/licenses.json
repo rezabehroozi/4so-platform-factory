@@ -1,0 +1,9 @@
+{
+  "licenses": [
+    {
+      "file": "artifact.bin",
+      "sha256": "sha256:9e1acbcd85d84643b474bf2c724670cc8e135afe8fff35507af63cda26026790",
+      "spdxExpression": "Apache-2.0"
+    }
+  ]
+}

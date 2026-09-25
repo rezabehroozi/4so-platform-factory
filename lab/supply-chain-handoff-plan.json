@@ -193,8 +193,14 @@
       },
       {
         "component": "capsule",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/capsule/0.13.10/source-lock.json",
+            "release": "0.13.10",
+            "sha256": "192fddfc357b93bf1681a55f48a87bd60953b986cd33bbe793577dfa5a74cfdb"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "0.13.11",
         "targetSourceLockPresent": true
@@ -587,6 +593,14 @@
           "targetRelease": "10.2.3"
         },
         {
+          "component": "capsule",
+          "path": "catalog/runtime/capsule/0.13.10/source-lock.json",
+          "previousVersion": "0.13.10",
+          "sha256": "192fddfc357b93bf1681a55f48a87bd60953b986cd33bbe793577dfa5a74cfdb",
+          "source": "oci://ghcr.io/projectcapsule/charts/capsule",
+          "targetRelease": "0.13.11"
+        },
+        {
           "component": "ceph-csi-operator",
           "path": "catalog/runtime/ceph-csi-operator/1.0.3/source-lock.json",
           "previousVersion": "1.0.3",
@@ -701,12 +715,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "capsule",
-          "previousVersion": "0.13.10",
-          "source": "oci://ghcr.io/projectcapsule/charts/capsule",
-          "targetRelease": "0.13.11"
-        },
         {
           "component": "loki",
           "previousVersion": "18.12.0",

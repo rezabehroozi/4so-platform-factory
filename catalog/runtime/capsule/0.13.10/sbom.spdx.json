@@ -1,0 +1,36 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/capsule/0.13.10/9e1acbcd85d84643",
+  "name": "capsule-0.13.10-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-capsule",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "capsule",
+      "versionInfo": "0.13.10"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "docker.io/clastix/kubectl@sha256:3290e99274959cf03544f19caba685c357162203354a060b83b79b1163d81569",
+      "filesAnalyzed": false,
+      "name": "docker.io/clastix/kubectl",
+      "versionInfo": "sha256:3290e99274959cf03544f19caba685c357162203354a060b83b79b1163d81569"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-2",
+      "downloadLocation": "ghcr.io/projectcapsule/capsule@sha256:8c79ed48a87688ac726ffb7f0b9bc242e57375ca2c813c5e3543a8898391e6d7",
+      "filesAnalyzed": false,
+      "name": "ghcr.io/projectcapsule/capsule",
+      "versionInfo": "sha256:8c79ed48a87688ac726ffb7f0b9bc242e57375ca2c813c5e3543a8898391e6d7"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}
