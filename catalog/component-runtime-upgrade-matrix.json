@@ -267,9 +267,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "12.0.3",
+          "fromSourceLockDigest": "c2b866db1241e75b0d4b2b1d7076a5c8332f22425c21373c3d16cc06725b1d62",
+          "status": "admitted-source-pair",
+          "toRelease": "12.1.0",
+          "toSourceLockDigest": "d864e029810aec0c04168f0c93a81c94c53f548f35b99dcf09d8147612007c02"
+        }
+      ],
       "component": "velero",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "12.1.0",
       "targetSourceLockDigest": "d864e029810aec0c04168f0c93a81c94c53f548f35b99dcf09d8147612007c02",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"

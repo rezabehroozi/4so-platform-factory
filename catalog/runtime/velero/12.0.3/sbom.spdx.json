@@ -1,0 +1,29 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/velero/12.0.3/f71e688fa4ca2277",
+  "name": "velero-12.0.3-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-velero",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "velero",
+      "versionInfo": "12.0.3"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "docker.io/velero/velero@sha256:11459094b1b21ec7c817b08f8067d9e89380835547915cac9c4132ff05b55b90",
+      "filesAnalyzed": false,
+      "name": "docker.io/velero/velero",
+      "versionInfo": "sha256:11459094b1b21ec7c817b08f8067d9e89380835547915cac9c4132ff05b55b90"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

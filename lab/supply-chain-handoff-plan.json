@@ -406,8 +406,14 @@
       },
       {
         "component": "velero",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/velero/12.0.3/source-lock.json",
+            "release": "12.0.3",
+            "sha256": "db0587e9af52a69f81f9480aa70fc7e72f25cbe54debf65fb98ad525b01b88ba"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "12.1.0",
         "targetSourceLockPresent": true
@@ -690,17 +696,18 @@
           "sha256": "ee9f72039c964c85ff193525feb75f4a5557d5979681859394fe316a3e59d93c",
           "source": "https://helm.cilium.io",
           "targetRelease": "1.7.0"
-        }
-      ],
-      "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
-      "helmReady": [
+        },
         {
           "component": "velero",
+          "path": "catalog/runtime/velero/12.0.3/source-lock.json",
           "previousVersion": "12.0.3",
+          "sha256": "db0587e9af52a69f81f9480aa70fc7e72f25cbe54debf65fb98ad525b01b88ba",
           "source": "https://vmware-tanzu.github.io/helm-charts/",
           "targetRelease": "12.1.0"
         }
       ],
+      "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
+      "helmReady": [],
       "installOnlyFirstProductRelease": [
         {
           "component": "secure-namespace-foundation",

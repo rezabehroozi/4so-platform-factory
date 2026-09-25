@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "velero",
+  "version": "12.0.3",
+  "sourceType": "helm-chart",
+  "bundleKey": "velero/12.0.3",
+  "upstream": {
+    "url": "https://vmware-tanzu.github.io/helm-charts/",
+    "revision": "12.0.3",
+    "artifact": "velero-12.0.3.tgz",
+    "artifactDigest": "sha256:f71e688fa4ca22770e739f0a6f837a126d8dbb476cd925f060568f8b7664e9f1",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:f71e688fa4ca22770e739f0a6f837a126d8dbb476cd925f060568f8b7664e9f1",
+    "component.json": "sha256:f1b5ac3cb7e50b8b71f699105a8517a93bf1efa5ed4026c764fd4414c05b696c",
+    "image-inventory.json": "sha256:2090768e97aead35efba17dbfc47ce59b1fd50c9bdbe4143229957d5a8ea537c",
+    "licenses.json": "sha256:6fec927f0eb08b62a08a97c54c8c9e3516878fdeb25e365cd4206e82d8b399f7",
+    "provenance.json": "sha256:19c576d2653b92809c9c09b59e31aa04f8087ede9f869d1d540fe0e9b9fdc4f9",
+    "render-manifest.json": "sha256:2483ee1ecaa1f9c8b0b0b559f81dcc968db8ce8a9d13745c467c307264f10a84",
+    "sbom.spdx.json": "sha256:9685175578dbbd0cb7012a0cb7e12583ff9560bffb16206b0852df447320e458",
+    "source-lock.json": "sha256:db0587e9af52a69f81f9480aa70fc7e72f25cbe54debf65fb98ad525b01b88ba"
+  }
+}

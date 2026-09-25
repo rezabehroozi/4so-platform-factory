@@ -1,0 +1,7 @@
+{
+  "images": [
+    {
+      "reference": "docker.io/velero/velero@sha256:11459094b1b21ec7c817b08f8067d9e89380835547915cac9c4132ff05b55b90"
+    }
+  ]
+}
