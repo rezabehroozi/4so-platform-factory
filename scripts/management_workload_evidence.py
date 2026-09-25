@@ -9,6 +9,8 @@ import re
 import stat
 
 AUTHORITY = "MANAGEMENT_WORKLOAD_EXTERNAL_IMAGE_RECEIPT_V1"
+MANIFEST_AUTHORITY = "MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RECEIPT_V1"
+MANIFEST_RESOLUTION_AUTHORITY = "MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_V1"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
@@ -104,3 +106,96 @@ def external_receipt_evidence(root: Path, plan: dict) -> dict:
         "planDigest": str(receipt["planDigest"]),
         "byRole": by_role,
     }
+
+def manifest_receipt_evidence(root: Path, plan: dict) -> dict:
+    """Return exact manifest-resolution evidence without promoting archive/runtime/physical state."""
+    plan_path = _regular(root / "lab" / "management-workload-image-build-plan.json", "MANAGEMENT_IMAGE_PLAN")
+    receipt_path = _regular(root / "lab" / "management-workload-manifest-image-receipt.json", "MANAGEMENT_MANIFEST_RECEIPT")
+    try:
+        receipt = json.loads(receipt_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("MANAGEMENT_MANIFEST_RECEIPT_JSON_INVALID") from exc
+    if not isinstance(receipt, dict) or receipt.get("authority") != MANIFEST_AUTHORITY or receipt.get("schemaVersion") != 1:
+        raise RuntimeError("MANAGEMENT_MANIFEST_RECEIPT_AUTHORITY_INVALID")
+    if receipt.get("resolved") is not True:
+        raise RuntimeError("MANAGEMENT_MANIFEST_RECEIPT_RESOLUTION_REQUIRED")
+    if receipt.get("runtimeCertified") is not False or receipt.get("physicalCertified") is not False:
+        raise RuntimeError("MANAGEMENT_MANIFEST_RECEIPT_SCOPE_INFLATION")
+    if receipt.get("releaseVersion") != plan.get("releaseVersion"):
+        raise RuntimeError("MANAGEMENT_MANIFEST_RECEIPT_RELEASE_DRIFT")
+    if receipt.get("planDigest") != _sha256(plan_path):
+        raise RuntimeError("MANAGEMENT_MANIFEST_RECEIPT_PLAN_DIGEST_DRIFT")
+    run_id = str(receipt.get("sourceRunId") or "")
+    if not run_id.isdigit():
+        raise RuntimeError("MANAGEMENT_MANIFEST_RECEIPT_RUN_ID_INVALID")
+
+    expected = {
+        str(row.get("sourceAuthority") or ""): row
+        for row in (plan.get("derivedManifestImageSets") or [])
+        if isinstance(row, dict)
+    }
+    sets = receipt.get("sets") or []
+    if not expected or not isinstance(sets, list) or len(sets) != len(expected):
+        raise RuntimeError("MANAGEMENT_MANIFEST_RECEIPT_COVERAGE_INVALID")
+
+    by_authority: dict[str, dict] = {}
+    for row in sets:
+        if not isinstance(row, dict):
+            raise RuntimeError("MANAGEMENT_MANIFEST_RECEIPT_SET_INVALID")
+        authority = str(row.get("sourceAuthority") or "")
+        plan_row = expected.get(authority)
+        if plan_row is None or authority in by_authority:
+            raise RuntimeError(f"MANAGEMENT_MANIFEST_RECEIPT_SET_AUTHORITY_INVALID {authority}")
+        for receipt_key, plan_key in (
+            ("sourceManifestPath", "manifestPath"),
+            ("sourceManifestSha256", "sourceManifestSha256"),
+            ("resolvedManifestPath", "resolvedManifestPath"),
+            ("resolutionLockPath", "resolutionLockPath"),
+        ):
+            if str(row.get(receipt_key) or "") != str(plan_row.get(plan_key) or ""):
+                raise RuntimeError(f"MANAGEMENT_MANIFEST_RECEIPT_PLAN_DRIFT {authority}:{receipt_key}")
+        for key in ("resolvedManifestSha256", "resolutionLockSha256"):
+            if not DIGEST_RE.fullmatch(str(row.get(key) or "")):
+                raise RuntimeError(f"MANAGEMENT_MANIFEST_RECEIPT_DIGEST_INVALID {authority}:{key}")
+
+        resolved_path = _regular(root / str(row["resolvedManifestPath"]), "MANAGEMENT_RESOLVED_MANIFEST")
+        lock_path = _regular(root / str(row["resolutionLockPath"]), "MANAGEMENT_MANIFEST_RESOLUTION_LOCK")
+        if _sha256(resolved_path) != row["resolvedManifestSha256"] or _sha256(lock_path) != row["resolutionLockSha256"]:
+            raise RuntimeError(f"MANAGEMENT_MANIFEST_RECEIPT_FILE_DIGEST_DRIFT {authority}")
+        try:
+            lock = json.loads(lock_path.read_text())
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"MANAGEMENT_MANIFEST_RESOLUTION_LOCK_JSON_INVALID {authority}") from exc
+        if lock.get("authority") != MANIFEST_RESOLUTION_AUTHORITY or lock.get("sourceManifestSha256") != plan_row.get("sourceManifestSha256"):
+            raise RuntimeError(f"MANAGEMENT_MANIFEST_RESOLUTION_LOCK_INVALID {authority}")
+
+        exact_images = row.get("exactImages") or []
+        image_count = row.get("imageCount")
+        if not isinstance(exact_images, list) or not exact_images or image_count != len(exact_images):
+            raise RuntimeError(f"MANAGEMENT_MANIFEST_RECEIPT_IMAGE_COVERAGE_INVALID {authority}")
+        for ref in exact_images:
+            if not isinstance(ref, str) or ref.count("@sha256:") != 1:
+                raise RuntimeError(f"MANAGEMENT_MANIFEST_RECEIPT_IMAGE_REFERENCE_INVALID {authority}")
+            digest = "sha256:" + ref.rsplit("@sha256:", 1)[1]
+            if not DIGEST_RE.fullmatch(digest):
+                raise RuntimeError(f"MANAGEMENT_MANIFEST_RECEIPT_IMAGE_REFERENCE_INVALID {authority}")
+
+        by_authority[authority] = {
+            "resolvedManifestSha256": str(row["resolvedManifestSha256"]),
+            "resolutionLockSha256": str(row["resolutionLockSha256"]),
+            "imageCount": int(image_count),
+            "exactImages": list(exact_images),
+        }
+
+    if set(by_authority) != set(expected):
+        raise RuntimeError("MANAGEMENT_MANIFEST_RECEIPT_COVERAGE_INVALID")
+    return {
+        "authority": MANIFEST_AUTHORITY,
+        "sourceRunId": run_id,
+        "resolved": True,
+        "runtimeCertified": False,
+        "physicalCertified": False,
+        "planDigest": str(receipt["planDigest"]),
+        "byAuthority": by_authority,
+    }
+
