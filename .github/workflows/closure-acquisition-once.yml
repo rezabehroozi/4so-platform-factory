@@ -1,5 +1,5 @@
 name: closure-acquisition-once
-# closure-wave: 2 — exact source/historical acquisition from green f7aabf6 base
+# closure-wave: 3 — close final S1/S2 queue and J8 exact acquisition from green e0edbede base
 
 on:
   push:
