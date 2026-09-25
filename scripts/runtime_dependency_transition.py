@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import json, re, sys
+import hashlib, json, re, sys
 from pathlib import Path
 
 AUTHORITY = "RUNTIME_DEPENDENCY_TRANSITION_V1"
@@ -25,6 +25,18 @@ def load_json(path: Path):
 
 def comp(root: Path, name: str):
     return load_json(root / "catalog" / "components" / f"{name}.json")["spec"]
+
+def gateway_asset_path(root: Path, release: str, name: str) -> Path:
+    return root / "catalog" / "runtime-dependencies" / "gateway-api" / release / name
+
+def verify_gateway_asset_bytes(root: Path, release: str, assets: list[dict]) -> None:
+    for asset in assets:
+        path = gateway_asset_path(root, release, str(asset.get("name") or ""))
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f"RUNTIME_DEPENDENCY_GATEWAY_ASSET_BYTES_MISSING {path}")
+        raw = path.read_bytes()
+        if len(raw) != int(asset.get("size") or 0) or hashlib.sha256(raw).hexdigest() != str(asset.get("sha256") or ""):
+            raise RuntimeError(f"RUNTIME_DEPENDENCY_GATEWAY_ASSET_BYTES_INVALID {path.name}")
 
 def validate_source_progress(name: str, component: dict, transition: dict, admission_rows: dict, *, expected_runtime_status: str):
     resolved = bool((component.get("source") or {}).get("resolved"))
@@ -84,8 +96,19 @@ def validate(root: Path):
     validate_source_progress("cilium", cilium, ci, rows, expected_runtime_status="dependency-transition-required")
     if spec.get("ordering") != EXPECTED_ORDER:
         raise RuntimeError("RUNTIME_DEPENDENCY_ORDER_INVALID")
-    if spec.get("status") != "acquisition-pending":
-        raise RuntimeError("RUNTIME_DEPENDENCY_STATUS_INFLATED")
+    gateway_source_status = str(ga.get("sourceStatus") or "")
+    if gateway_source_status == "pending-byte-acquisition":
+        if spec.get("status") != "acquisition-pending":
+            raise RuntimeError("RUNTIME_DEPENDENCY_STATUS_INFLATED")
+        for asset in assets:
+            if gateway_asset_path(root, ga["targetRelease"], asset["name"]).exists():
+                raise RuntimeError("RUNTIME_DEPENDENCY_GATEWAY_PENDING_WITH_CANONICAL_BYTES")
+    elif gateway_source_status == "source-acquired":
+        verify_gateway_asset_bytes(root, ga["targetRelease"], assets)
+        if spec.get("status") != "runtime-certification-pending":
+            raise RuntimeError("RUNTIME_DEPENDENCY_STATUS_INFLATED")
+    else:
+        raise RuntimeError("RUNTIME_DEPENDENCY_GATEWAY_SOURCE_STATUS_INVALID")
     return {"authority": AUTHORITY, "status": spec["status"], "gatewayTarget":ga["targetRelease"], "kgatewayTarget":kg["targetRelease"], "ciliumTarget":ci["targetRelease"]}
 
 def main():
