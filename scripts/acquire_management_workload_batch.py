@@ -17,7 +17,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
-from management_workload_evidence import external_receipt_evidence
+from management_workload_evidence import external_receipt_evidence, manifest_receipt_evidence
 
 AUTHORITY = "MANAGEMENT_WORKLOAD_STAGED_BATCH_V1"
 DIAGNOSTIC_AUTHORITY = "MANAGEMENT_WORKLOAD_ACQUISITION_DIAGNOSTIC_V1"
@@ -117,6 +117,8 @@ def diagnose(root: Path = ROOT) -> dict:
     plan, external_rows = load_plan(root)
     external_evidence = external_receipt_evidence(root, plan)
     external_ready = set(external_evidence["byRole"])
+    manifest_evidence = manifest_receipt_evidence(root, plan)
+    manifest_ready = set(manifest_evidence["byAuthority"])
     version = regular_file(root / "VERSION", "VERSION").read_text().strip()
     lock = json.loads(regular_file(root / "lab" / "appliance-bundle-acquisition-lock.json", "BUNDLE_ACQUISITION_LOCK").read_text())
     if lock.get("authority") != ACQUISITION_LOCK_AUTHORITY or lock.get("schemaVersion") != 8:
@@ -136,7 +138,7 @@ def diagnose(root: Path = ROOT) -> dict:
     pending_external = sorted(row["role"] for row in external_rows if row["role"] not in external_ready and (any(not row[key] for key in ("repository", "tag", "version", "selectionChannel", "selectionEvidenceURL")) or next((src.get("state") for src in plan.get("coreImages", []) if src.get("role") == row["role"]), "pending") != "ready"))
     pending_base = sorted(str(row.get("role") or "") for row in (plan.get("baseImages") or []) if row.get("state") != "ready")
     pending_product = sorted(str(row.get("role") or "") for row in (plan.get("coreImages") or []) if row.get("ownership") == "product" and row.get("state") != "ready")
-    pending_manifests = sorted(str(row.get("manifestPath") or "") for row in (plan.get("derivedManifestImageSets") or []) if row.get("state") != "ready")
+    pending_manifests = sorted(str(row.get("manifestPath") or "") for row in (plan.get("derivedManifestImageSets") or []) if str(row.get("sourceAuthority") or "") not in manifest_ready)
 
     blockers = []
     for row in plan.get("baseImages") or []:
@@ -148,7 +150,7 @@ def diagnose(root: Path = ROOT) -> dict:
                 continue
             blockers.append({"stage": "external-image" if row.get("ownership") == "external" else "product-image", "subject": str(row.get("role") or ""), "blocker": str(row.get("blocker") or "UNSPECIFIED")})
     for row in plan.get("derivedManifestImageSets") or []:
-        if row.get("state") != "ready":
+        if str(row.get("sourceAuthority") or "") not in manifest_ready:
             blockers.append({"stage": "manifest-resolution", "subject": str(row.get("manifestPath") or ""), "blocker": str(row.get("blocker") or "UNSPECIFIED")})
     blockers.sort(key=lambda row: (row["stage"], row["subject"], row["blocker"]))
 
@@ -169,6 +171,12 @@ def diagnose(root: Path = ROOT) -> dict:
             "offlineVerified": external_evidence["offlineVerified"],
             "readyRoles": sorted(external_ready),
         },
+        "manifestReceipt": {
+            "authority": manifest_evidence["authority"],
+            "sourceRunId": manifest_evidence["sourceRunId"],
+            "resolved": manifest_evidence["resolved"],
+            "readyAuthorities": sorted(manifest_ready),
+        },
         "pending": {
             "externalImages": pending_external,
             "baseImages": pending_base,
@@ -176,7 +184,7 @@ def diagnose(root: Path = ROOT) -> dict:
             "manifestResolutions": pending_manifests,
         },
         "blockers": blockers,
-        "nextAction": "resolve-base-product-and-manifest-images-then-assemble-management-workload-oci" if not authoritative_ready else "bundle-source-authority-ready",
+        "nextAction": ("bundle-source-authority-ready" if authoritative_ready else ("resolve-base-and-product-images-then-assemble-management-workload-oci" if pending_base or pending_product else ("resolve-manifest-images-then-assemble-management-workload-oci" if pending_manifests else "assemble-management-workload-oci"))),
     }
 
 
