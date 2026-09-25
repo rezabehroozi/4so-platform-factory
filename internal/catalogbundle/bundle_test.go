@@ -138,6 +138,8 @@ func writeHelmAdmission(t *testing.T, root, component, chart, version, source, u
 				"component": component, "chart": chart, "catalogConstraint": version,
 				"selectedVersion": version, "upstreamVersion": upstreamVersion,
 				"source": source, "status": status, "runtimeStatus": "eligible-after-source-resolution", "rationale": "test fixture",
+				"licenseSPDX": func() string { if status == "ready-for-acquisition" { return "Apache-2.0" }; return "" }(),
+				"valuesFiles": []string{},
 			}},
 			"policy": map[string]any{
 				"allowLatestResolution": false, "autoWidenCatalogConstraint": false,
@@ -410,6 +412,7 @@ func writeHelmAdmissionSet(t *testing.T, root string, components []string) {
 			"component": component, "chart": "cilium", "catalogConstraint": "1.20.1",
 			"selectedVersion": "1.20.1", "upstreamVersion": "1.20.1",
 			"source": "oci://quay.io/cilium/charts/cilium", "status": "ready-for-acquisition", "runtimeStatus": "eligible-after-source-resolution", "rationale": "concurrency regression fixture",
+			"licenseSPDX": "Apache-2.0", "valuesFiles": []string{},
 		})
 	}
 	doc := map[string]any{
