@@ -70,8 +70,8 @@
     },
     "derivedManifestImageSets": {
       "type": "array",
-      "minItems": 3,
-      "maxItems": 3,
+      "minItems": 4,
+      "maxItems": 4,
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/derivedSet"
@@ -284,6 +284,7 @@
         "sourceAuthority": {
           "enum": [
             "argocd-install-manifest",
+            "argocd-ha-install-manifest",
             "cloudnative-pg-install-manifest",
             "replicated-storage-install-manifest"
           ]
@@ -291,6 +292,7 @@
         "manifestPath": {
           "enum": [
             "manifests/argocd-install.yaml",
+            "manifests/argocd-ha-install.yaml",
             "manifests/cloudnative-pg-install.yaml",
             "manifests/replicated-storage-install.yaml"
           ]
