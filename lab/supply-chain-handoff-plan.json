@@ -39,6 +39,12 @@
           "sha256": "88e458afe87408c85e472cf092965be6e365b518748172dbdb34fe90cad7bced"
         },
         {
+          "component": "cilium",
+          "path": "catalog/runtime/cilium/1.20.1/source-lock.json",
+          "release": "1.20.1",
+          "sha256": "f422377a963a11f71e9158d91238d85415243f84841b153eee78f704bfedf40a"
+        },
+        {
           "component": "external-dns",
           "path": "catalog/runtime/external-dns/1.21.1/source-lock.json",
           "release": "1.21.1",
@@ -97,14 +103,6 @@
           "upstreamVersion": "0.13.11"
         },
         {
-          "component": "cilium",
-          "runtimeStatus": "dependency-transition-required",
-          "selectedVersion": "1.20.1",
-          "source": "https://helm.cilium.io",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "1.20.1"
-        },
-        {
           "component": "grafana",
           "runtimeStatus": "eligible-after-source-resolution",
           "selectedVersion": "12.10.0",
@@ -154,7 +152,7 @@
           "runtimeAuthority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
           "runtimeStatus": "dependency-transition-required",
           "selectedVersion": "1.20.1",
-          "status": "ready-for-acquisition"
+          "status": "source-acquired"
         },
         {
           "component": "kyverno",
@@ -234,11 +232,11 @@
       },
       {
         "component": "cilium",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.20.1",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "external-dns",
@@ -559,6 +557,12 @@
           "targetRelease": "1.0.4"
         },
         {
+          "component": "cilium",
+          "previousVersion": "1.20.0",
+          "source": "https://helm.cilium.io",
+          "targetRelease": "1.20.1"
+        },
+        {
           "component": "external-dns",
           "previousVersion": "1.20.0",
           "source": "https://kubernetes-sigs.github.io/external-dns/",
@@ -603,12 +607,6 @@
           "previousVersion": "0.13.10",
           "source": "oci://ghcr.io/projectcapsule/charts/capsule",
           "targetRelease": "0.13.11"
-        },
-        {
-          "component": "cilium",
-          "previousVersion": "1.20.0",
-          "source": "https://helm.cilium.io",
-          "targetRelease": "1.20.1"
         },
         {
           "component": "grafana",

@@ -19,30 +19,6 @@
         "upstreamVersion": "0.13.11"
       },
       {
-        "catalogConstraint": "1.20.x",
-        "chart": "cilium",
-        "component": "cilium",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Exact Cilium 1.20.1 source is eligible for immutable acquisition. Runtime certification remains fail-closed until the product upgrades the resolved Gateway API baseline from 1.5.1 to exact 1.6.1 through RUNTIME_DEPENDENCY_TRANSITION_V1; source acquisition is not runtime admission.",
-        "reviewEvidence": [
-          {
-            "kind": "release",
-            "url": "https://github.com/cilium/cilium/releases/tag/v1.20.1",
-            "summary": "Exact Cilium v1.20.1 is the reviewed 1.20-series candidate."
-          },
-          {
-            "kind": "blocker",
-            "url": "https://docs.cilium.io/en/stable/operations/upgrade/",
-            "summary": "Cilium 1.20 Gateway API support requires Gateway API 1.6.1; the product currently resolves 1.5.1."
-          }
-        ],
-        "selectedVersion": "1.20.1",
-        "source": "https://helm.cilium.io",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "dependency-transition-required",
-        "upstreamVersion": "1.20.1"
-      },
-      {
         "catalogConstraint": "12.10.x",
         "chart": "grafana",
         "component": "grafana",

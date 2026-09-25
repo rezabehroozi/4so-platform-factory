@@ -359,51 +359,51 @@
         "component": "cilium",
         "release": "1.20.1",
         "sourceBinding": {
-          "status": "blocked-source-lock",
-          "resolved": false,
-          "sourceLockDigest": ""
+          "status": "source-ready",
+          "resolved": true,
+          "sourceLockDigest": "sha256:f422377a963a11f71e9158d91238d85415243f84841b153eee78f704bfedf40a"
         },
         "executor": {
-          "status": "source-gated-component-executor",
+          "status": "runtime-suitability-held",
           "profile": "COMPONENT_RUNTIME_V1",
           "owner": "catalog-component"
         },
         "lifecycle": [
           {
             "name": "install",
-            "status": "source-gated-component-executor",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-install-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_V1"
+            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
           },
           {
             "name": "readiness",
-            "status": "source-gated-component-executor",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-readiness-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_V1"
+            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
           },
           {
             "name": "dependency",
-            "status": "source-gated-component-executor",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-dependency-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_V1"
+            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
           },
           {
             "name": "upgrade",
-            "status": "pending-upgrade-matrix",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-upgrade-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_UPGRADE_V1"
+            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
           },
           {
             "name": "remove",
-            "status": "source-gated-component-executor",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-remove-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_V1"
+            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
           },
           {
             "name": "failure",
-            "status": "source-gated-component-executor",
+            "status": "pending-runtime-suitability",
             "evidenceContract": "component-failure-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_V1"
+            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
           }
         ]
       },

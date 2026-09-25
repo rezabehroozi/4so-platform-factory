@@ -10,7 +10,7 @@
       "requiredGatewayApiRelease": "1.6.1",
       "runtimeStatus": "dependency-transition-required",
       "source": "https://helm.cilium.io",
-      "sourceStatus": "pending-byte-acquisition",
+      "sourceStatus": "source-acquired",
       "targetRelease": "1.20.1"
     },
     "evidence": [
