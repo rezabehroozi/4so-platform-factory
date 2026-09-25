@@ -153,9 +153,17 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
             license_path = ROOT / "catalog/runtime" / name / spec["release"] / "licenses.json"
             self.assertTrue(lock_path.is_file(), lock_path)
             self.assertTrue(license_path.is_file(), license_path)
-            licenses = json.loads(license_path.read_text())["licenses"]
-            self.assertTrue(licenses, name)
-            self.assertRegex(licenses[0]["spdxExpression"], r"^[A-Za-z0-9][A-Za-z0-9.+-]*$")
+            license_doc = json.loads(license_path.read_text())
+            if "licenses" in license_doc:
+                licenses = license_doc["licenses"]
+                self.assertTrue(licenses, name)
+                self.assertRegex(licenses[0]["spdxExpression"], r"^[A-Za-z0-9][A-Za-z0-9.+-]*$")
+            else:
+                # Product-native components carry their own material-license
+                # contract rather than an upstream SPDX expression.
+                materials = license_doc.get("materials") or []
+                self.assertTrue(materials, name)
+                self.assertTrue(str(materials[0].get("license") or "").strip(), name)
         loki = components["loki"]
         lock = json.loads((ROOT / "catalog/runtime/loki" / loki["release"] / "source-lock.json").read_text())
         values = (lock.get("generation") or {}).get("values") or []
