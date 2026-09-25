@@ -51,10 +51,16 @@ class AcquisitionWave2RegressionTests(unittest.TestCase):
         self.assertEqual("Apache-2.0", args.license_spdx)
 
     def test_ceph_csi_driver_uses_official_operator_chart_repository(self):
-        doc = json.loads((ROOT / "catalog/upstream-admission.json").read_text())
-        rows = (doc.get("spec") or {}).get("components") or []
-        row = next(r for r in rows if r["component"] == "ceph-csi-rbd")
-        self.assertEqual("https://ceph.github.io/ceph-csi-operator/", row["source"])
+        component = json.loads((ROOT / "catalog/components/ceph-csi-rbd.json").read_text())
+        spec = component["spec"]
+        if spec["source"]["resolved"]:
+            lock = json.loads((ROOT / "catalog/runtime/ceph-csi-rbd" / spec["release"] / "source-lock.json").read_text())
+            self.assertEqual("https://ceph.github.io/ceph-csi-operator/", lock["upstreamUrl"])
+        else:
+            doc = json.loads((ROOT / "catalog/upstream-admission.json").read_text())
+            rows = (doc.get("spec") or {}).get("components") or []
+            row = next(r for r in rows if r["component"] == "ceph-csi-rbd")
+            self.assertEqual("https://ceph.github.io/ceph-csi-operator/", row["source"])
 
     def test_external_dns_reviewed_predecessor_exists_in_upstream_history(self):
         doc = json.loads((ROOT / "catalog/component-upgrade-source-admission.json").read_text())
