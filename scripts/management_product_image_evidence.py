@@ -217,23 +217,77 @@ def verify(root: Path, receipt_path: Path) -> dict:
         raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_TOOLSET_DIGEST_DRIFT")
     if receipt.get("runtimeRealismVerified") is not True or receipt.get("archiveReady") is not False or receipt.get("runtimeCertified") is not False or receipt.get("physicalCertified") is not False:
         raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_SCOPE_INFLATION")
-    if not DIGEST_RE.fullmatch(str(receipt.get("releaseArtifactDigest") or "")) or not str(receipt.get("sourceRunId") or "").isdigit():
+    release_digest = str(receipt.get("releaseArtifactDigest") or "")
+    if not DIGEST_RE.fullmatch(release_digest) or not str(receipt.get("sourceRunId") or "").isdigit():
         raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_IDENTITY_INVALID")
-    # Re-run the same semantic validation through an in-memory compatibility input.
-    compatibility_input = {
-        "releaseArtifactDigest": receipt["releaseArtifactDigest"],
-        "baseImages": receipt.get("baseImages"),
-        "productImages": receipt.get("productImages"),
-    }
-    # Validate without rewriting by serializing to a temporary logical object.
-    # Keep explicit checks here to avoid trusting receipt shape merely because digests match.
-    bases = receipt.get("baseImages") or []
-    products = receipt.get("productImages") or []
-    if {row.get("role") for row in bases if isinstance(row, dict)} != BASE_ROLES:
+
+    ext_by_role = {str(row.get("role")): row for row in external.get("images") or [] if isinstance(row, dict)}
+    postgres_ref = exact_ref((ext_by_role.get("postgresql") or {}).get("exactReference"), "MANAGEMENT_POSTGRESQL_BASE")
+
+    bases = receipt.get("baseImages")
+    if not isinstance(bases, list) or len(bases) != 3:
         raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_BASE_COVERAGE_INVALID")
-    if {row.get("role") for row in products if isinstance(row, dict)} != set(PRODUCT_REPOS):
+    base_by_role = {}
+    for row in bases:
+        if not isinstance(row, dict):
+            raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_BASE_ROW_INVALID")
+        role = str(row.get("role") or "")
+        if role not in BASE_ROLES or role in base_by_role:
+            raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_BASE_ROLE_INVALID")
+        ref = exact_ref(row.get("exactReference"), f"MANAGEMENT_PRODUCT_RECEIPT_BASE_{role}")
+        if role == "api-runtime-base":
+            if ref != postgres_ref:
+                raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_API_BASE_DRIFT")
+            validate_probe(row.get("compatibilityProbe"), {"nonRoot", "dynamicDependencyClosure", "caTrust"}, "MANAGEMENT_PRODUCT_RECEIPT_API_BASE")
+        elif role == "static-runtime-base":
+            if not ref.startswith("gcr.io/distroless/static-debian12@sha256:"):
+                raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_STATIC_BASE_INVALID")
+            validate_probe(row.get("compatibilityProbe"), {"nonRoot", "agentExecution", "probeExecution", "caTrust"}, "MANAGEMENT_PRODUCT_RECEIPT_STATIC_BASE")
+        else:
+            if not ref.startswith("platform.4so.local/management/maintenance-runtime-base@sha256:"):
+                raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_MAINTENANCE_BASE_INVALID")
+            composition = row.get("composition")
+            if not isinstance(composition, dict) or composition.get("postgresqlSourceReference") != postgres_ref:
+                raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_MAINTENANCE_COMPOSITION_INVALID")
+            aws_ref = exact_ref(composition.get("awsCliSourceReference"), "MANAGEMENT_PRODUCT_RECEIPT_AWS_CLI")
+            expected_aws_prefix = str((toolset.get("awsCli") or {}).get("repository") or "") + "@sha256:"
+            if not aws_ref.startswith(expected_aws_prefix) or composition.get("awsCliVersion") != (toolset.get("awsCli") or {}).get("version"):
+                raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_AWS_CLI_DRIFT")
+            validate_probe(row.get("compatibilityProbe"), {"defaultNonRootToolset", "rootOverrideToolset", "postgresqlClientMajor", "awsCliVersion"}, "MANAGEMENT_PRODUCT_RECEIPT_MAINTENANCE_BASE")
+        base_by_role[role] = row
+    if set(base_by_role) != BASE_ROLES:
+        raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_BASE_COVERAGE_INVALID")
+
+    products = receipt.get("productImages")
+    if not isinstance(products, list) or len(products) != len(PRODUCT_REPOS):
         raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_IMAGE_COVERAGE_INVALID")
-    _ = external, toolset, compatibility_input
+    seen = set()
+    for row in products:
+        if not isinstance(row, dict):
+            raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_IMAGE_ROW_INVALID")
+        role = str(row.get("role") or "")
+        if role not in PRODUCT_REPOS or role in seen:
+            raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_IMAGE_ROLE_INVALID")
+        ref = exact_ref(row.get("exactReference"), f"MANAGEMENT_PRODUCT_RECEIPT_{role}")
+        if not ref.startswith(PRODUCT_REPOS[role] + "@sha256:"):
+            raise RuntimeError(f"MANAGEMENT_PRODUCT_RECEIPT_REPOSITORY_INVALID {role}")
+        cert = row.get("certification")
+        result = cert.get("result") if isinstance(cert, dict) else None
+        if not isinstance(cert, dict) or cert.get("certified") is not True or cert.get("releaseArtifactDigest") != release_digest:
+            raise RuntimeError(f"MANAGEMENT_PRODUCT_RECEIPT_CERTIFICATION_INVALID {role}")
+        if not isinstance(result, dict) or result.get("authority") != CERT_AUTHORITY or result.get("role") != role or result.get("reference") != ref:
+            raise RuntimeError(f"MANAGEMENT_PRODUCT_RECEIPT_CERTIFICATION_RESULT_INVALID {role}")
+        if result.get("releaseDigest") != release_digest or result.get("exactPayloadBound") is not True or result.get("runtimeClosurePass") is not False or result.get("user") != "65532:65532":
+            raise RuntimeError(f"MANAGEMENT_PRODUCT_RECEIPT_CERTIFICATION_SCOPE_INVALID {role}")
+        probe_required = {"execution"}
+        if role == "platform-api":
+            probe_required.add("dynamicDependencyClosure")
+        elif role == "maintenance":
+            probe_required |= {"defaultNonRootToolset", "rootOverrideToolset"}
+        validate_probe(row.get("runtimeRealismProbe"), probe_required, f"MANAGEMENT_PRODUCT_RECEIPT_{role}")
+        seen.add(role)
+    if seen != set(PRODUCT_REPOS):
+        raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_IMAGE_COVERAGE_INVALID")
     return receipt
 
 
