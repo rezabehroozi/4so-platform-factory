@@ -86,8 +86,8 @@ jobs:
           set -euo pipefail
           docker build --pull --platform linux/amd64             --build-arg "POSTGRES_RUNTIME_IMAGE=$POSTGRES_REF"             --build-arg "AWS_CLI_IMAGE=$AWS_CLI_REF"             -f deploy/images/Dockerfile.maintenance-runtime-base             -t 4so-maintenance-runtime-base:evidence .
           required="$(jq -r '.requiredExecutables | join(" ")' catalog/management-maintenance-toolset.json)"
-          docker run --rm --entrypoint /bin/sh --user 65532:65532 4so-maintenance-runtime-base:evidence -ec             "test \"$(id -u)\" = 65532; for tool in $required; do command -v \"$tool\" >/dev/null; done; psql --version | grep -E ' 17\\.'; aws --version 2>&1 | grep -F 'aws-cli/$AWS_CLI_VERSION'"
-          docker run --rm --entrypoint /bin/sh --user 0:0 4so-maintenance-runtime-base:evidence -ec             "test \"$(id -u)\" = 0; for tool in $required; do command -v \"$tool\" >/dev/null; done"
+          docker run --rm --entrypoint /bin/sh --user 65532:65532 -e REQUIRED="$required" -e AWS_CLI_VERSION="$AWS_CLI_VERSION" 4so-maintenance-runtime-base:evidence -ec 'test "$(id -u)" = 65532; for tool in $REQUIRED; do command -v "$tool" >/dev/null; done; psql --version | grep -E " 17\\."; aws --version 2>&1 | grep -F "aws-cli/$AWS_CLI_VERSION"'
+          docker run --rm --entrypoint /bin/sh --user 0:0 -e REQUIRED="$required" 4so-maintenance-runtime-base:evidence -ec 'test "$(id -u)" = 0; for tool in $REQUIRED; do command -v "$tool" >/dev/null; done'
           rm -rf /tmp/oci-maintenance-base
           skopeo copy --format oci docker-daemon:4so-maintenance-runtime-base:evidence oci:/tmp/oci-maintenance-base:evidence
           test "$(jq '.manifests | length' /tmp/oci-maintenance-base/index.json)" = "1"
@@ -111,8 +111,8 @@ jobs:
           test "$(docker run --rm 4so-platform-agent:evidence --version)" = "$(cat VERSION)"
           test "$(docker run --rm 4so-platform-probe:evidence --version)" = "$(cat VERSION)"
           required="$(jq -r '.requiredExecutables | join(" ")' catalog/management-maintenance-toolset.json)"
-          docker run --rm --entrypoint /bin/sh --user 65532:65532 4so-maintenance:evidence -ec             "for tool in $required; do command -v \"$tool\" >/dev/null; done; psql --version | grep -E ' 17\\.'; aws --version 2>&1 | grep -F 'aws-cli/$AWS_CLI_VERSION'"
-          docker run --rm --entrypoint /bin/sh --user 0:0 4so-maintenance:evidence -ec             "for tool in $required; do command -v \"$tool\" >/dev/null; done"
+          docker run --rm --entrypoint /bin/sh --user 65532:65532 -e REQUIRED="$required" -e AWS_CLI_VERSION="$AWS_CLI_VERSION" 4so-maintenance:evidence -ec 'for tool in $REQUIRED; do command -v "$tool" >/dev/null; done; psql --version | grep -E " 17\\."; aws --version 2>&1 | grep -F "aws-cli/$AWS_CLI_VERSION"'
+          docker run --rm --entrypoint /bin/sh --user 0:0 -e REQUIRED="$required" 4so-maintenance:evidence -ec 'for tool in $REQUIRED; do command -v "$tool" >/dev/null; done'
 
       - name: Convert product images to OCI and certify exact payloads
         shell: bash
