@@ -5,16 +5,35 @@
     "name": "loki"
   },
   "spec": {
+    "displayName": "Loki",
+    "category": "observability",
+    "release": "18.12.1",
+    "versionPolicy": "exact-offline-import",
+    "supportTier": "research-candidate",
+    "mandatory": true,
+    "dependencies": [
+      "external-secrets"
+    ],
+    "provides": [
+      "logs-backend"
+    ],
+    "requiresCapabilities": [],
+    "exclusiveCapabilities": [
+      "logs-backend"
+    ],
+    "conflictsWith": [],
+    "risk": "high",
     "capabilities": [
       "logs"
     ],
-    "category": "observability",
-    "certification": {
-      "evidenceDigest": "",
-      "profiles": [],
-      "status": "candidate"
-    },
+    "namespace": "logging",
+    "wave": 68,
+    "settingsSchemaRef": "schemas/settings/loki.schema.json",
     "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
       "architectures": [
         "amd64",
         "arm64"
@@ -23,37 +42,29 @@
         "kubernetes",
         "rke2"
       ],
-      "kubernetes": {
-        "maxVersion": "1.35",
-        "minVersion": "1.34"
-      },
       "providers": [
         "imported",
         "cluster-api-topology-v1beta2"
       ]
     },
-    "conflictsWith": [],
     "delivery": {
-      "chart": "loki",
-      "repositoryKey": "platform-charts",
-      "type": "helm"
+      "type": "helm",
+      "repositoryKey": "offline-catalog-bundle",
+      "chart": "loki"
     },
-    "dependencies": [
-      "external-secrets"
-    ],
-    "displayName": "Loki",
-    "evidenceRequired": [
-      "resolved-source-lock",
-      "rendered-resource-inventory",
-      "policy-result",
-      "runtime-readiness",
-      "rollback-verification"
-    ],
-    "exclusiveCapabilities": [
-      "logs-backend"
-    ],
-    "mandatory": true,
-    "namespace": "logging",
+    "source": {
+      "type": "helm-chart",
+      "resolved": true,
+      "bundleKey": "loki/18.12.1",
+      "artifactDigest": "sha256:94c28b81733dd5610a42b86bfc114eba8fdd269184175a26e3b4eb467ac1ca06",
+      "renderManifestDigest": "sha256:351a1fa056254149762e9c580da050c6222fa068752faf5ef6b172f0bd288d1a",
+      "sourceLockDigest": "sha256:a772fed9a43bd218a882523fc0de2560c744b1608a8fd380acb3f1e5cf0da3ee",
+      "imageInventoryDigest": "sha256:e0dba3ddf5abe95e85c99975b6d1a1d6489fc23ff8bfbfd71162d4717e0f578b",
+      "licenseManifestDigest": "sha256:aac41172692240801c1ddde12b0c927277d3d66a20a201318291f4cec1275797",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:5f902f8fe4c27fbbe482e4a10bbf868b6e4df69e7b03af3f954a012c700871cb",
+      "provenance": "sha256:97af79630012bf61676fc4f274b1920010a2f514b5652cef71e7b31e684f3a6d"
+    },
     "operations": {
       "install": "required",
       "preflight": "required",
@@ -62,32 +73,23 @@
       "upgrade": "required",
       "verify": "required"
     },
-    "provides": [
-      "logs-backend"
-    ],
     "readiness": [
       "statefulset/loki-backend"
     ],
-    "release": "18.12.1",
-    "requiresCapabilities": [],
-    "risk": "high",
     "rollback": {
       "strategy": "restore-previous-release-and-preserve-object-store"
     },
-    "settingsSchemaRef": "schemas/settings/loki.schema.json",
-    "source": {
-      "artifactDigest": "",
-      "imageInventoryDigest": "",
-      "licenseManifestDigest": "",
-      "provenance": "required",
-      "resolved": false,
-      "sbom": "required",
-      "signatureVerification": "required",
-      "sourceLockDigest": "",
-      "type": "helm-chart"
-    },
-    "supportTier": "research-candidate",
-    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
-    "wave": 68
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": null,
+      "evidenceDigest": ""
+    }
   }
 }

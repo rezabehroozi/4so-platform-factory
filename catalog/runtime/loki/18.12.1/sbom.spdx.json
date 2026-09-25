@@ -1,0 +1,71 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/loki/18.12.1/94c28b81733dd561",
+  "name": "loki-18.12.1-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-loki",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "loki",
+      "versionInfo": "18.12.1"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "docker.io/grafana/loki-canary@sha256:85a0b8b84ea0266f524686223b257ff983fd7849a54230dea7621611de4cbc35",
+      "filesAnalyzed": false,
+      "name": "docker.io/grafana/loki-canary",
+      "versionInfo": "sha256:85a0b8b84ea0266f524686223b257ff983fd7849a54230dea7621611de4cbc35"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-2",
+      "downloadLocation": "docker.io/grafana/loki@sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500",
+      "filesAnalyzed": false,
+      "name": "docker.io/grafana/loki",
+      "versionInfo": "sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-3",
+      "downloadLocation": "docker.io/kiwigrid/k8s-sidecar@sha256:2912be006f62f9ea080194cf6d3afcd90daead8d101d0ba686a137a849f6a4f6",
+      "filesAnalyzed": false,
+      "name": "docker.io/kiwigrid/k8s-sidecar",
+      "versionInfo": "sha256:2912be006f62f9ea080194cf6d3afcd90daead8d101d0ba686a137a849f6a4f6"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-4",
+      "downloadLocation": "docker.io/library/memcached@sha256:9e4de012dc607573052061c0bcb38abc775e1dd59b24e7ac38d1892842094aaf",
+      "filesAnalyzed": false,
+      "name": "docker.io/library/memcached",
+      "versionInfo": "sha256:9e4de012dc607573052061c0bcb38abc775e1dd59b24e7ac38d1892842094aaf"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-5",
+      "downloadLocation": "docker.io/nginxinc/nginx-unprivileged@sha256:6a23acdfca2b9cfbcec61419e3f1426bcbedb91362f2f19306a8567423bb4612",
+      "filesAnalyzed": false,
+      "name": "docker.io/nginxinc/nginx-unprivileged",
+      "versionInfo": "sha256:6a23acdfca2b9cfbcec61419e3f1426bcbedb91362f2f19306a8567423bb4612"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-6",
+      "downloadLocation": "docker.io/prom/memcached-exporter@sha256:995c80e3ffbe6bc1a8e6a917c3a9f2075ad04dd16b86fac63c7eeb04e7c38f9b",
+      "filesAnalyzed": false,
+      "name": "docker.io/prom/memcached-exporter",
+      "versionInfo": "sha256:995c80e3ffbe6bc1a8e6a917c3a9f2075ad04dd16b86fac63c7eeb04e7c38f9b"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-7",
+      "downloadLocation": "ghcr.io/jkroepke/access-log-exporter@sha256:ea2868b55441741309aa48ae34f3eec08d02c360ba69bc88bf50409f0049958b",
+      "filesAnalyzed": false,
+      "name": "ghcr.io/jkroepke/access-log-exporter",
+      "versionInfo": "sha256:ea2868b55441741309aa48ae34f3eec08d02c360ba69bc88bf50409f0049958b"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

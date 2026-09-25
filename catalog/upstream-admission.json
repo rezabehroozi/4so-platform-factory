@@ -7,33 +7,6 @@
   "spec": {
     "components": [
       {
-        "catalogConstraint": "18.12.x",
-        "chart": "loki",
-        "component": "loki",
-        "licenseSPDX": "Apache-2.0",
-        "valuesFiles": [
-          "runtime/catalog-values/loki-source-render.yaml"
-        ],
-        "rationale": "OSS Loki Helm ownership moved to grafana-community/helm-charts and the maintained community chart uses a new major chart line. Exact chart 18.12.1 is admitted from the new official community repository; immutable source acquisition and runtime certification remain separate.",
-        "reviewEvidence": [
-          {
-            "kind": "source-migration",
-            "url": "https://github.com/grafana/helm-charts/issues/4087",
-            "summary": "Grafana moved the OSS Loki chart to grafana-community/helm-charts in 2026."
-          },
-          {
-            "kind": "release",
-            "url": "https://github.com/grafana-community/helm-charts/blob/main/charts/loki/Chart.yaml",
-            "summary": "The maintained community Loki Chart.yaml publishes exact chart 18.12.1."
-          }
-        ],
-        "selectedVersion": "18.12.1",
-        "source": "https://grafana-community.github.io/helm-charts",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "18.12.1"
-      },
-      {
         "catalogConstraint": "0.90.x",
         "chart": "victoria-metrics-k8s-stack",
         "component": "victoria-metrics",

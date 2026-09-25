@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "loki",
+  "version": "18.12.1",
+  "sourceType": "helm-chart",
+  "bundleKey": "loki/18.12.1",
+  "upstream": {
+    "url": "https://grafana-community.github.io/helm-charts",
+    "revision": "18.12.1",
+    "artifact": "loki-18.12.1.tgz",
+    "artifactDigest": "sha256:94c28b81733dd5610a42b86bfc114eba8fdd269184175a26e3b4eb467ac1ca06",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:94c28b81733dd5610a42b86bfc114eba8fdd269184175a26e3b4eb467ac1ca06",
+    "component.json": "sha256:f9a6e7f1ca3ec508a93b72ebb4d8f6cf2ff30d7fc9ac81227ed327a0e6f93cfd",
+    "image-inventory.json": "sha256:e0dba3ddf5abe95e85c99975b6d1a1d6489fc23ff8bfbfd71162d4717e0f578b",
+    "licenses.json": "sha256:aac41172692240801c1ddde12b0c927277d3d66a20a201318291f4cec1275797",
+    "provenance.json": "sha256:97af79630012bf61676fc4f274b1920010a2f514b5652cef71e7b31e684f3a6d",
+    "render-manifest.json": "sha256:351a1fa056254149762e9c580da050c6222fa068752faf5ef6b172f0bd288d1a",
+    "sbom.spdx.json": "sha256:5f902f8fe4c27fbbe482e4a10bbf868b6e4df69e7b03af3f954a012c700871cb",
+    "source-lock.json": "sha256:a772fed9a43bd218a882523fc0de2560c744b1608a8fd380acb3f1e5cf0da3ee"
+  }
+}
