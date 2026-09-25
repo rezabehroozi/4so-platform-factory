@@ -81,25 +81,14 @@ func TestValidateUpstreamAdmissionRejectsRuntimeBlockerWithoutBlockerEvidence(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := false
-	for i := range admission.Spec.Components {
-		row := &admission.Spec.Components[i]
-		if row.RuntimeStatus == "eligible-after-source-resolution" {
-			continue
-		}
-		found = true
-		filtered := row.ReviewEvidence[:0]
-		for _, evidence := range row.ReviewEvidence {
-			if evidence.Kind != "blocker" {
-				filtered = append(filtered, evidence)
-			}
-		}
-		row.ReviewEvidence = filtered
-		break
+	if len(admission.Spec.Components) == 0 {
+		t.Skip("all upstream admission rows are retired after source acquisition")
 	}
-	if !found {
-		t.Fatal("fixture has no runtime-blocked acquisition candidate")
-	}
+	row := &admission.Spec.Components[0]
+	row.RuntimeStatus = "review-required"
+	row.ReviewEvidence = []UpstreamAdmissionReviewEvidence{{
+		Kind: "release", URL: "https://example.test/release", Summary: "non-blocker evidence only",
+	}}
 	if err := ValidateUpstreamAdmission(admission, components); err == nil {
 		t.Fatal("runtime-blocked candidate without blocker evidence was accepted")
 	}
