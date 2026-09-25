@@ -1,0 +1,207 @@
+name: management-product-image-evidence
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/management-product-image-evidence.yml
+      - scripts/management_product_image_evidence.py
+      - catalog/management-maintenance-toolset.json
+      - deploy/images/Dockerfile.maintenance-runtime-base
+      - deploy/images/Dockerfile.api-release
+      - deploy/images/Dockerfile.agent-release
+      - deploy/images/Dockerfile.probe-release
+      - deploy/images/Dockerfile.maintenance
+
+permissions:
+  contents: write
+
+jobs:
+  build-certify-seal:
+    if: contains(github.event.head_commit.message, '[management-product-evidence]')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    env:
+      GOTOOLCHAIN: local
+      EXACT_GO: /tmp/4so-exact-go/go/bin/go
+    steps:
+      - name: Checkout exact canonical main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install exact build and OCI inspection prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpq-dev skopeo jq
+
+      - name: Activate admitted exact Go toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/acquire_release_build_toolchain.py --check
+          rm -rf /tmp/4so-exact-go
+          mkdir -p /tmp/4so-exact-go
+          tar -C /tmp/4so-exact-go -xzf vendor/toolchains/go1.27.1.linux-amd64.tar.gz
+          test "$("$EXACT_GO" version)" = "go version go1.27.1 linux/amd64"
+          echo "/tmp/4so-exact-go/go/bin" >> "$GITHUB_PATH"
+
+      - name: Build and verify exact release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_release_build_toolchain.py --require-admitted
+          make build-release GO="$EXACT_GO"
+          python3 scripts/build_release.py .
+          release="$(find release -maxdepth 1 -type f -name '4so-platform-factory-*.zip' | sort | tail -1)"
+          test -s "$release"
+          python3 scripts/verify_release.py "$release"
+          echo "EXACT_RELEASE=$release" >> "$GITHUB_ENV"
+          echo "RELEASE_DIGEST=sha256:$(sha256sum "$release" | awk '{print $1}')" >> "$GITHUB_ENV"
+
+      - name: Resolve exact base-image authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          postgres_ref="$(jq -r '.images[] | select(.role=="postgresql") | .exactReference' lab/management-workload-external-image-receipt.json)"
+          test -n "$postgres_ref" && test "$postgres_ref" != "null"
+          aws_repo="$(jq -r '.awsCli.repository' catalog/management-maintenance-toolset.json)"
+          aws_version="$(jq -r '.awsCli.version' catalog/management-maintenance-toolset.json)"
+          test "$aws_version" = "$(jq -r '.awsCli.tag' catalog/management-maintenance-toolset.json)"
+          aws_digest="$(skopeo inspect --override-os linux --override-arch amd64 --format '{{.Digest}}' "docker://$aws_repo:$aws_version")"
+          static_repo="gcr.io/distroless/static-debian12"
+          static_digest="$(skopeo inspect --override-os linux --override-arch amd64 --format '{{.Digest}}' "docker://$static_repo:nonroot")"
+          case "$aws_digest" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 41;; esac
+          case "$static_digest" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 42;; esac
+          echo "POSTGRES_REF=$postgres_ref" >> "$GITHUB_ENV"
+          echo "AWS_CLI_VERSION=$aws_version" >> "$GITHUB_ENV"
+          echo "AWS_CLI_REF=$aws_repo@$aws_digest" >> "$GITHUB_ENV"
+          echo "STATIC_BASE_REF=$static_repo@$static_digest" >> "$GITHUB_ENV"
+
+      - name: Build and probe offline maintenance runtime base
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --pull --platform linux/amd64             --build-arg "POSTGRES_RUNTIME_IMAGE=$POSTGRES_REF"             --build-arg "AWS_CLI_IMAGE=$AWS_CLI_REF"             -f deploy/images/Dockerfile.maintenance-runtime-base             -t 4so-maintenance-runtime-base:evidence .
+          required="$(jq -r '.requiredExecutables | join(" ")' catalog/management-maintenance-toolset.json)"
+          docker run --rm --entrypoint /bin/sh --user 65532:65532 4so-maintenance-runtime-base:evidence -ec             "test \"$(id -u)\" = 65532; for tool in $required; do command -v \"$tool\" >/dev/null; done; psql --version | grep -E ' 17\\.'; aws --version 2>&1 | grep -F 'aws-cli/$AWS_CLI_VERSION'"
+          docker run --rm --entrypoint /bin/sh --user 0:0 4so-maintenance-runtime-base:evidence -ec             "test \"$(id -u)\" = 0; for tool in $required; do command -v \"$tool\" >/dev/null; done"
+          rm -rf /tmp/oci-maintenance-base
+          skopeo copy --format oci docker-daemon:4so-maintenance-runtime-base:evidence oci:/tmp/oci-maintenance-base:evidence
+          test "$(jq '.manifests | length' /tmp/oci-maintenance-base/index.json)" = "1"
+          maintenance_base_digest="$(jq -r '.manifests[0].digest' /tmp/oci-maintenance-base/index.json)"
+          echo "MAINTENANCE_BASE_REF=platform.4so.local/management/maintenance-runtime-base@$maintenance_base_digest" >> "$GITHUB_ENV"
+
+      - name: Build four exact product images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --pull --platform linux/amd64             --build-arg "RUNTIME_IMAGE=$POSTGRES_REF"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.api-release -t 4so-platform-api:evidence .
+          docker build --pull --platform linux/amd64             --build-arg "RUNTIME_IMAGE=$STATIC_BASE_REF"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.agent-release -t 4so-platform-agent:evidence .
+          docker build --pull --platform linux/amd64             --build-arg "RUNTIME_IMAGE=$STATIC_BASE_REF"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.probe-release -t 4so-platform-probe:evidence .
+          docker build --platform linux/amd64             --build-arg "MAINTENANCE_RUNTIME_IMAGE=4so-maintenance-runtime-base:evidence"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.maintenance -t 4so-maintenance:evidence .
+
+      - name: Execute runtime-realism probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint /bin/sh --user 65532:65532 4so-platform-api:evidence -ec             'test "$(id -u)" = 65532; test -s /etc/ssl/certs/ca-certificates.crt; ldd /platform-api > /tmp/ldd; ! grep -q "not found" /tmp/ldd; grep -q "libpq.so.5" /tmp/ldd; /platform-api --version >/dev/null'
+          test "$(docker run --rm 4so-platform-agent:evidence --version)" = "$(cat VERSION)"
+          test "$(docker run --rm 4so-platform-probe:evidence --version)" = "$(cat VERSION)"
+          required="$(jq -r '.requiredExecutables | join(" ")' catalog/management-maintenance-toolset.json)"
+          docker run --rm --entrypoint /bin/sh --user 65532:65532 4so-maintenance:evidence -ec             "for tool in $required; do command -v \"$tool\" >/dev/null; done; psql --version | grep -E ' 17\\.'; aws --version 2>&1 | grep -F 'aws-cli/$AWS_CLI_VERSION'"
+          docker run --rm --entrypoint /bin/sh --user 0:0 4so-maintenance:evidence -ec             "for tool in $required; do command -v \"$tool\" >/dev/null; done"
+
+      - name: Convert product images to OCI and certify exact payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          convert_and_certify() {
+            role="$1"; image="$2"; repo="$3"
+            layout="/tmp/oci-$role"
+            rm -rf "$layout"
+            skopeo copy --format oci "docker-daemon:$image" "oci:$layout:evidence"
+            test "$(jq '.manifests | length' "$layout/index.json")" = "1"
+            digest="$(jq -r '.manifests[0].digest' "$layout/index.json")"
+            ref="$repo@$digest"
+            bin/linux-amd64/platformctl workload-oci certify-product               --release "$EXACT_RELEASE" --role "$role" --source "$ref=$layout" > "/tmp/cert-$role.json"
+            jq -e '.certified == true and .result.runtimeClosurePass == false and .result.exactPayloadBound == true' "/tmp/cert-$role.json" >/dev/null
+            printf '%s\n' "$ref" > "/tmp/ref-$role"
+          }
+          convert_and_certify platform-api 4so-platform-api:evidence platform.4so.local/management/platform-api
+          convert_and_certify platform-agent 4so-platform-agent:evidence platform.4so.local/management/platform-agent
+          convert_and_certify platform-probe 4so-platform-probe:evidence platform.4so.local/management/platform-probe
+          convert_and_certify maintenance 4so-maintenance:evidence platform.4so.local/management/maintenance
+
+      - name: Seal plan-bound product image receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          export POSTGRES_REF AWS_CLI_REF AWS_CLI_VERSION STATIC_BASE_REF MAINTENANCE_BASE_REF RELEASE_DIGEST
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          products=[]
+          probes={
+            "platform-api":{"execution":True,"dynamicDependencyClosure":True},
+            "platform-agent":{"execution":True},
+            "platform-probe":{"execution":True},
+            "maintenance":{"execution":True,"defaultNonRootToolset":True,"rootOverrideToolset":True},
+          }
+          for role in ("platform-api","platform-agent","platform-probe","maintenance"):
+              products.append({
+                  "role": role,
+                  "exactReference": Path(f"/tmp/ref-{role}").read_text().strip(),
+                  "certification": json.loads(Path(f"/tmp/cert-{role}.json").read_text()),
+                  "runtimeRealismProbe": probes[role],
+              })
+          payload={
+            "releaseArtifactDigest": os.environ["RELEASE_DIGEST"],
+            "baseImages":[
+              {"role":"api-runtime-base","exactReference":os.environ["POSTGRES_REF"],"compatibilityProbe":{"nonRoot":True,"dynamicDependencyClosure":True,"caTrust":True}},
+              {"role":"static-runtime-base","exactReference":os.environ["STATIC_BASE_REF"],"compatibilityProbe":{"nonRoot":True,"agentExecution":True,"probeExecution":True,"caTrust":True}},
+              {"role":"maintenance-toolchain-base","exactReference":os.environ["MAINTENANCE_BASE_REF"],"composition":{"postgresqlSourceReference":os.environ["POSTGRES_REF"],"awsCliSourceReference":os.environ["AWS_CLI_REF"],"awsCliVersion":os.environ["AWS_CLI_VERSION"]},"compatibilityProbe":{"defaultNonRootToolset":True,"rootOverrideToolset":True,"postgresqlClientMajor":True,"awsCliVersion":True}},
+            ],
+            "productImages": products,
+          }
+          Path("/tmp/management-product-input.json").write_text(json.dumps(payload,indent=2,sort_keys=True)+"\n")
+          PY
+          python3 scripts/management_product_image_evidence.py             --seal-input /tmp/management-product-input.json             --out lab/management-workload-product-image-receipt.json             --run-id "$GITHUB_RUN_ID"
+          python3 scripts/management_product_image_evidence.py             --verify lab/management-workload-product-image-receipt.json >/dev/null
+          python3 scripts/validate_repository.py .
+          git diff --check
+
+      - name: Package product OCI evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C /tmp -cf /tmp/management-product-images-oci-layouts.tar             oci-platform-api oci-platform-agent oci-platform-probe oci-maintenance oci-maintenance-base
+          sha256sum /tmp/management-product-images-oci-layouts.tar > /tmp/management-product-images-oci-layouts.tar.sha256
+
+      - name: Upload exact product image bytes and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: management-product-image-evidence
+          path: |
+            ${{ env.EXACT_RELEASE }}
+            lab/management-workload-product-image-receipt.json
+            /tmp/management-product-images-oci-layouts.tar
+            /tmp/management-product-images-oci-layouts.tar.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit exact product image receipt to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lab/management-workload-product-image-receipt.json
+          git diff --cached --quiet && { echo "no evidence delta"; exit 1; }
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing concurrent writer"; exit 2; }
+          git commit -m "evidence: seal exact management product image receipt"
+          git push origin HEAD:main
