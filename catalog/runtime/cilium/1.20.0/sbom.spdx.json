@@ -1,0 +1,43 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/cilium/1.20.0/c5f013912360d1a3",
+  "name": "cilium-1.20.0-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-cilium",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "cilium",
+      "versionInfo": "1.20.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "quay.io/cilium/cilium-envoy:v1.37.5-1782911245-7cffc778c923f68a77954a53b1a98d6b5353f004@sha256:583057dd4f7d54cd41efff3c413aa0b148ac201f522e2c3336851fa89c78b039",
+      "filesAnalyzed": false,
+      "name": "quay.io/cilium/cilium-envoy:v1.37.5-1782911245-7cffc778c923f68a77954a53b1a98d6b5353f004",
+      "versionInfo": "sha256:583057dd4f7d54cd41efff3c413aa0b148ac201f522e2c3336851fa89c78b039"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-2",
+      "downloadLocation": "quay.io/cilium/cilium:v1.20.0@sha256:383968cd5e8873f7976fa76aa6196045643558f4cc9518a207b9335cb24a0e93",
+      "filesAnalyzed": false,
+      "name": "quay.io/cilium/cilium:v1.20.0",
+      "versionInfo": "sha256:383968cd5e8873f7976fa76aa6196045643558f4cc9518a207b9335cb24a0e93"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-3",
+      "downloadLocation": "quay.io/cilium/operator-generic:v1.20.0@sha256:80744a8cc7c91c2f9e6347629406844eb35d79b30a732c6d41c15b17232a74f3",
+      "filesAnalyzed": false,
+      "name": "quay.io/cilium/operator-generic:v1.20.0",
+      "versionInfo": "sha256:80744a8cc7c91c2f9e6347629406844eb35d79b30a732c6d41c15b17232a74f3"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

@@ -250,8 +250,14 @@
       },
       {
         "component": "cilium",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/cilium/1.20.0/source-lock.json",
+            "release": "1.20.0",
+            "sha256": "f6938076cf2810db54717ff40a935a2bee0fdb74606f8e7e1349fcb0d194a290"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.20.1",
         "targetSourceLockPresent": true
@@ -564,6 +570,14 @@
           "targetRelease": "1.21.1"
         },
         {
+          "component": "cilium",
+          "path": "catalog/runtime/cilium/1.20.0/source-lock.json",
+          "previousVersion": "1.20.0",
+          "sha256": "f6938076cf2810db54717ff40a935a2bee0fdb74606f8e7e1349fcb0d194a290",
+          "source": "https://helm.cilium.io",
+          "targetRelease": "1.20.1"
+        },
+        {
           "component": "gateway-api",
           "path": "catalog/runtime/gateway-api/1.5.0/source-lock.json",
           "previousVersion": "1.5.0",
@@ -582,12 +596,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "cilium",
-          "previousVersion": "1.20.0",
-          "source": "https://helm.cilium.io",
-          "targetRelease": "1.20.1"
-        },
         {
           "component": "external-dns",
           "previousVersion": "1.20.0",

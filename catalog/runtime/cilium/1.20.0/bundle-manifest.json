@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "cilium",
+  "version": "1.20.0",
+  "sourceType": "helm-chart",
+  "bundleKey": "cilium/1.20.0",
+  "upstream": {
+    "url": "https://helm.cilium.io",
+    "revision": "1.20.0",
+    "artifact": "cilium-1.20.0.tgz",
+    "artifactDigest": "sha256:c5f013912360d1a334f44ef25f36da59ba3414cdb48f466ee12d0c4fdff27883",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:c5f013912360d1a334f44ef25f36da59ba3414cdb48f466ee12d0c4fdff27883",
+    "component.json": "sha256:b39453706301ef2e8d8e5c4db073de5f4d20f582aa5203c435acaf30766e18ed",
+    "image-inventory.json": "sha256:c680bdd228efcddc8b6a164cabbb5098cc33fa46ef5526bdcb75bfa561d91798",
+    "licenses.json": "sha256:d958dd042f16dfe9f99d4e1f7fc0229627a903eff844ffa217c4e234e9c3854e",
+    "provenance.json": "sha256:6020899d473112000dd957f322f0603892d48af4235a788dbddaed7a49831b6b",
+    "render-manifest.json": "sha256:a8a15251dab825bf8d97f07dd23ba708939e644fcde7a26a17866a48850d895e",
+    "sbom.spdx.json": "sha256:ca614a81e6cf3c5fe1e18f020f618e1d7cf7ab0979b3bd4ec1eb3905974dbd15",
+    "source-lock.json": "sha256:f6938076cf2810db54717ff40a935a2bee0fdb74606f8e7e1349fcb0d194a290"
+  }
+}
