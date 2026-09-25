@@ -1,0 +1,28 @@
+{
+  "component": "ceph-csi-operator",
+  "version": "1.0.3",
+  "sourceUrl": "https://ceph.github.io/ceph-csi-operator/",
+  "sourceRevision": "1.0.3",
+  "artifactDigest": "sha256:1ff8d2d1f16bcdd94fb2144111651c89dd5b81bec9cf15b1b07f3ec4ec9485d5",
+  "bundleMode": "offline-immutable",
+  "networkFetchRequired": false,
+  "upstreamVerification": "sha256-pinned-offline",
+  "generation": {
+    "tool": "helm-template",
+    "toolVersion": "v4.2.4+g3900f43",
+    "releaseName": "platform-factory",
+    "namespace": "ceph-csi-operator-system",
+    "includeCRDs": true,
+    "kubernetesVersions": [
+      "1.34.0",
+      "1.35.0"
+    ],
+    "kubernetesRenderDigests": {
+      "1.34.0": "sha256:ff3e80f7fbbfb6837c65c86e6613229b7bde8df1050d230f9733363990159452",
+      "1.35.0": "sha256:ff3e80f7fbbfb6837c65c86e6613229b7bde8df1050d230f9733363990159452"
+    },
+    "values": [],
+    "imageResolver": "crane-digest",
+    "imageResolverVersion": "0.22.1"
+  }
+}
