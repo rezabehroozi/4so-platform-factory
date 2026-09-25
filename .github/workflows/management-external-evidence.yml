@@ -1,5 +1,5 @@
 name: management-external-evidence
-# retry: exact-cgo-builder-family
+# retry: provenance-binary-matrix-v2
 
 on:
   push:
