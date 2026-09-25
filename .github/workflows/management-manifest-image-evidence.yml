@@ -49,6 +49,15 @@ jobs:
           make build-release GO="$EXACT_GO"
           test -x bin/linux-amd64/platformctl
 
+      - name: Bootstrap exact acquisition toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/4so-acquisition-tools
+          python3 scripts/upstream_acquisition_toolchain.py --bootstrap /tmp/4so-acquisition-tools
+          PLATFORM_FACTORY_ACQUISITION_TOOL_DIR=/tmp/4so-acquisition-tools python3 scripts/upstream_acquisition_toolchain.py --check
+          echo "PLATFORM_FACTORY_ACQUISITION_TOOL_DIR=/tmp/4so-acquisition-tools" >> "$GITHUB_ENV"
+
       - name: Resolve four management manifests to exact image digests
         shell: bash
         run: |
