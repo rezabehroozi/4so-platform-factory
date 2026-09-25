@@ -31,10 +31,12 @@ class ManagementWorkloadBatchTests(unittest.TestCase):
         self.assertEqual("36115673607", result["externalReceipt"]["sourceRunId"])
         self.assertEqual(["api-runtime-base", "maintenance-toolchain-base", "static-runtime-base"], result["pending"]["baseImages"])
         self.assertEqual(["maintenance", "platform-agent", "platform-api", "platform-probe"], result["pending"]["productImages"])
-        self.assertEqual(4, len(result["pending"]["manifestResolutions"]))
-        self.assertGreaterEqual(len(result["blockers"]), 10)
-        self.assertFalse(any(row["stage"] == "external-image" for row in result["blockers"]))
-        self.assertEqual("resolve-base-product-and-manifest-images-then-assemble-management-workload-oci", result["nextAction"])
+        self.assertEqual([], result["pending"]["manifestResolutions"])
+        self.assertEqual(4, len(result["manifestReceipt"]["readyAuthorities"]))
+        self.assertTrue(result["manifestReceipt"]["resolved"])
+        self.assertGreaterEqual(len(result["blockers"]), 7)
+        self.assertFalse(any(row["stage"] in {"external-image", "manifest-resolution"} for row in result["blockers"]))
+        self.assertEqual("resolve-base-and-product-images-then-assemble-management-workload-oci", result["nextAction"])
         self.assertNotIn("sha256:", json.dumps(result).lower())
 
     def test_tree_digest_is_deterministic_and_rejects_symlinks(self):
