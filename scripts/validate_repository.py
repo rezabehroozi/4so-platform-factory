@@ -705,6 +705,12 @@ def validate_release_recipes(root: Path, errors: list[tuple[str,str]]) -> None:
             if token not in text:
                 errors.append(('MANAGEMENT_WORKLOAD_RELEASE_RECIPE_INVALID', f'{rel}:{token}'))
 
+    dockerignore = root/'.dockerignore'
+    ignore_text = dockerignore.read_text() if dockerignore.is_file() else ''
+    for token in ('!bin/linux-amd64/platform-api','!bin/linux-amd64/platform-agent','!bin/linux-amd64/platform-probe'):
+        if token not in ignore_text:
+            errors.append(('MANAGEMENT_WORKLOAD_RELEASE_BINARY_CONTEXT_INVALID', token))
+
 
 def validate_management_workload_image_plan(root: Path, version: str, errors: list[tuple[str,str]]) -> None:
     """The image build plan is the only authority for pending management workload image sources."""
