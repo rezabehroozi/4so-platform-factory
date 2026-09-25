@@ -1,7 +1,6 @@
-# 4SO optional target profile: do not install a duplicate monitoring stack.
-# The target capability resolver decides native networking/ingress ownership.
-kube-prometheus-stack:
-  enabled: false
+# 4SO optional target profile. OpenChoreo v1.3.0 data-plane schema does
+# not expose kube-prometheus-stack as a top-level value; monitoring ownership
+# remains with the target capability resolver and only supported knobs live here.
 clusterAgent:
   metrics:
     serviceMonitor:
