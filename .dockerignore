@@ -1,5 +1,10 @@
 .git
-bin
+bin/*
+!bin/linux-amd64/
+bin/linux-amd64/*
+!bin/linux-amd64/platform-api
+!bin/linux-amd64/platform-agent
+!bin/linux-amd64/platform-probe
 release
 dist
 .state
