@@ -59,9 +59,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "1.0.3",
+          "fromSourceLockDigest": "a3595fc08cc677374f83697d1a8057ad48e46f9ae024390a4a45d8e8811a38ba",
+          "status": "admitted-source-pair",
+          "toRelease": "1.0.4",
+          "toSourceLockDigest": "8f5d9371dc579018237661896aa32f81ec048ec68877f7b294dff566f75e4ae3"
+        }
+      ],
       "component": "ceph-csi-rbd",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "1.0.4",
       "targetSourceLockDigest": "8f5d9371dc579018237661896aa32f81ec048ec68877f7b294dff566f75e4ae3",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"

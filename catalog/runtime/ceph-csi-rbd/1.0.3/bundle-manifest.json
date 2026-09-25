@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "ceph-csi-rbd",
+  "version": "1.0.3",
+  "sourceType": "helm-chart",
+  "bundleKey": "ceph-csi-rbd/1.0.3",
+  "upstream": {
+    "url": "https://ceph.github.io/ceph-csi-operator/",
+    "revision": "1.0.3",
+    "artifact": "ceph-csi-drivers-1.0.3.tgz",
+    "artifactDigest": "sha256:75a2b165ee36a90bc12e901365bc65f05247ecaad5733ae96feca7f93adf5f51",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:75a2b165ee36a90bc12e901365bc65f05247ecaad5733ae96feca7f93adf5f51",
+    "component.json": "sha256:74420394d3c357cdbe5ea80f34765eda63a0e8581ea9d2232fc1e0b0ce73849c",
+    "image-inventory.json": "sha256:f9cf52bb037434a9aa098e11a18fd12587bad51bf07928db10899b1da952a2ac",
+    "licenses.json": "sha256:78567f90174fddb77afcf7b5b5de3e4931ae7698453f1976075b7c4ac4841136",
+    "provenance.json": "sha256:7254191f40570ebe7f215f0c5b559be29011c019c0ec38de4aee71770c3e3d15",
+    "render-manifest.json": "sha256:8ce46383938b27eaf20ecd1a563fb4a07ea5fe3d2999c2bca2f3a6eb790d6ec8",
+    "sbom.spdx.json": "sha256:60423ff25829dae0db966edcc20d94d1621bffa02e4282be7d9233412a6df243",
+    "source-lock.json": "sha256:b60424701db36f8d263a23d7ac306da1b8ab7d9331ebec2d9b11f76967dabb81"
+  }
+}

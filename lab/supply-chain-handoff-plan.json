@@ -222,8 +222,14 @@
       },
       {
         "component": "ceph-csi-rbd",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/ceph-csi-rbd/1.0.3/source-lock.json",
+            "release": "1.0.3",
+            "sha256": "b60424701db36f8d263a23d7ac306da1b8ab7d9331ebec2d9b11f76967dabb81"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.0.4",
         "targetSourceLockPresent": true
@@ -542,6 +548,14 @@
           "targetRelease": "1.0.4"
         },
         {
+          "component": "ceph-csi-rbd",
+          "path": "catalog/runtime/ceph-csi-rbd/1.0.3/source-lock.json",
+          "previousVersion": "1.0.3",
+          "sha256": "b60424701db36f8d263a23d7ac306da1b8ab7d9331ebec2d9b11f76967dabb81",
+          "source": "https://ceph.github.io/ceph-csi-operator/",
+          "targetRelease": "1.0.4"
+        },
+        {
           "component": "cert-manager",
           "path": "catalog/runtime/cert-manager/1.21.0/source-lock.json",
           "previousVersion": "1.21.0",
@@ -568,12 +582,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "ceph-csi-rbd",
-          "previousVersion": "1.0.3",
-          "source": "https://ceph.github.io/ceph-csi-operator/",
-          "targetRelease": "1.0.4"
-        },
         {
           "component": "cilium",
           "previousVersion": "1.20.0",
