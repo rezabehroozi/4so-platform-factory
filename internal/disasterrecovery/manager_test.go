@@ -450,11 +450,24 @@ func TestRejectsCrossNamespaceCredential(t *testing.T) {
 func TestRunStatePersists(t *testing.T) {
 	state := t.TempDir()
 	m, _ := New(Options{StateDir: state, BundleDir: t.TempDir(), Simulation: true, System: &bootstrap.SimulatedSystem{Root: t.TempDir()}})
-	_, _ = m.StartBackup(context.Background(), request())
-	time.Sleep(30 * time.Millisecond)
-	if _, err := os.Stat(filepath.Join(state, "disaster-recovery-runs.json")); err != nil {
+	run, err := m.StartBackup(context.Background(), request())
+	if err != nil {
 		t.Fatal(err)
 	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(filepath.Join(state, "disaster-recovery-runs.json")); err != nil {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		for _, current := range m.List() {
+			if current.ID == run.ID && current.State == StateSucceeded {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("persisted disaster-recovery run did not reach terminal state before TempDir cleanup")
 }
 
 func TestBackupJobsUseDurableRWOPlacementAfterWorkloadQuiesce(t *testing.T) {
