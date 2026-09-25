@@ -1,0 +1,75 @@
+{
+  "authority": "MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RECEIPT_V1",
+  "physicalCertified": false,
+  "planDigest": "sha256:11d59ba7d2d991c5211bfeaacc354fc1362306076ce1f49fbb19b2f61cd2794f",
+  "releaseVersion": "0.0.363",
+  "resolved": true,
+  "runtimeCertified": false,
+  "schemaVersion": 1,
+  "sets": [
+    {
+      "exactImages": [
+        "ghcr.io/dexidp/dex@sha256:b8469881d3cb3a73001506f0d3aaefecb9c45d2311c1e0f405d8ac538316c59d",
+        "public.ecr.aws/docker/library/haproxy@sha256:e11f034e651603f10a365e5ad5a0321825e18eded9620e40c4f4d6ae58419bfe",
+        "public.ecr.aws/docker/library/redis@sha256:08ad0b1d280850169a790dba1393ff7a90aef951fc19632cf4d3ce4f78e679ba",
+        "quay.io/argoproj/argocd@sha256:c298cedbaeb31532ba8d4e9904eba9e4987e067293fbd86400c5194e78f743d5"
+      ],
+      "imageCount": 4,
+      "resolutionLockPath": "runtime-manifests/argocd-ha-install.image-lock.json",
+      "resolutionLockSha256": "sha256:6c323945d7402e9418c495b87020b8beffa40f61a1c13841e0e5939baa9a3919",
+      "resolvedManifestPath": "runtime-manifests/argocd-ha-install.yaml",
+      "resolvedManifestSha256": "sha256:06f54ea39afc8dfca1e4bf1332ca8494fd8a1c15820d690f716bcef182618af9",
+      "sourceAuthority": "argocd-ha-install-manifest",
+      "sourceManifestPath": "manifests/argocd-ha-install.yaml",
+      "sourceManifestSha256": "sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6"
+    },
+    {
+      "exactImages": [
+        "ghcr.io/dexidp/dex@sha256:b8469881d3cb3a73001506f0d3aaefecb9c45d2311c1e0f405d8ac538316c59d",
+        "public.ecr.aws/docker/library/redis@sha256:08ad0b1d280850169a790dba1393ff7a90aef951fc19632cf4d3ce4f78e679ba",
+        "quay.io/argoproj/argocd@sha256:c298cedbaeb31532ba8d4e9904eba9e4987e067293fbd86400c5194e78f743d5"
+      ],
+      "imageCount": 3,
+      "resolutionLockPath": "runtime-manifests/argocd-install.image-lock.json",
+      "resolutionLockSha256": "sha256:b581634f10172bcfb92bb28ca515394cebcbe23b231a2ca771a015ecc1351e47",
+      "resolvedManifestPath": "runtime-manifests/argocd-install.yaml",
+      "resolvedManifestSha256": "sha256:81a846d1e9f15871585084a4637bb4648f807afbff6aed9093c1ee213e60626c",
+      "sourceAuthority": "argocd-install-manifest",
+      "sourceManifestPath": "manifests/argocd-install.yaml",
+      "sourceManifestSha256": "sha256:a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe"
+    },
+    {
+      "exactImages": [
+        "ghcr.io/cloudnative-pg/cloudnative-pg@sha256:a2701eb97cdd2a34b1fdb2cb51987f544b706e40bec72ae7146cd8580efefebb"
+      ],
+      "imageCount": 1,
+      "resolutionLockPath": "runtime-manifests/cloudnative-pg-install.image-lock.json",
+      "resolutionLockSha256": "sha256:4e49a3d6ed78ba2a1784fe36b70b8a75d847e4ab219f79d514e86e297ba47ffd",
+      "resolvedManifestPath": "runtime-manifests/cloudnative-pg-install.yaml",
+      "resolvedManifestSha256": "sha256:222430f2eca24d5b2373d15151b55520d8fd3733c9717c9cb3ea4fd65d875ae2",
+      "sourceAuthority": "cloudnative-pg-install-manifest",
+      "sourceManifestPath": "manifests/cloudnative-pg-install.yaml",
+      "sourceManifestSha256": "sha256:f8bede43fe4ee0d478c2355b204a36876b2ae4faac60f2a9452280b293da3b88"
+    },
+    {
+      "exactImages": [
+        "docker.io/longhornio/backing-image-manager@sha256:dfb9452e4190fb80e39c7976a0036ac0ca314c05328b67952f8c165cbb4dabf3",
+        "docker.io/longhornio/longhorn-engine@sha256:9b1b720b56df6612c9589cbc156acbca6419fa61de818d05db7226b0722f2868",
+        "docker.io/longhornio/longhorn-instance-manager@sha256:b255f3279dd9d830ea153e9369928646dee519fd853036388926dddb5c66094b",
+        "docker.io/longhornio/longhorn-manager@sha256:83b79f57043fe1405e68bc0d4c7987accbc6bb512def3e0db12b31966c070801",
+        "docker.io/longhornio/longhorn-share-manager@sha256:efaf47aeb4e8615e312f0880df860bf2e5b9fa53006fe075f057c6dd4089f47d",
+        "docker.io/longhornio/longhorn-ui@sha256:03a3ce6673df6e948c261fe978a695adaa8fb190d68bfe5c358af8ee3d3fbef5",
+        "docker.io/longhornio/support-bundle-kit@sha256:02baa824d9a4174747ab9db2635ae000b1198d2d5ed3a4c69caf28724224e783"
+      ],
+      "imageCount": 7,
+      "resolutionLockPath": "runtime-manifests/replicated-storage-install.image-lock.json",
+      "resolutionLockSha256": "sha256:228ddbf5f3df155adc9266ee57d7b4b9286c4f627e8f9ef33bd86cc09aaa8e67",
+      "resolvedManifestPath": "runtime-manifests/replicated-storage-install.yaml",
+      "resolvedManifestSha256": "sha256:24db9c43c46693fcacd5a71b2b23cdba26160c886af87dac760582612189230e",
+      "sourceAuthority": "replicated-storage-install-manifest",
+      "sourceManifestPath": "manifests/replicated-storage-install.yaml",
+      "sourceManifestSha256": "sha256:41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd"
+    }
+  ],
+  "sourceRunId": "36132417496"
+}
