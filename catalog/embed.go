@@ -14,7 +14,7 @@ import (
 
 // Machine-readable catalog contracts are embedded into both API and CLI.
 //
-//go:embed components/*.json tenancy/plans.json upstream-admission.json component-runtime-certification.json runtime-dependency-transition.json runtime/**
+//go:embed components/*.json tenancy/plans.json upstream-admission.json component-runtime-certification.json runtime-dependency-transition.json runtime/** runtime-dependencies/**
 var catalogFiles embed.FS
 
 type VersionRange struct {
