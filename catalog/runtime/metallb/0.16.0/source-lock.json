@@ -1,0 +1,30 @@
+{
+  "component": "metallb",
+  "version": "0.16.0",
+  "sourceType": "helm-chart",
+  "upstreamUrl": "https://metallb.github.io/metallb",
+  "upstreamRevision": "0.16.0",
+  "upstreamArtifact": "metallb-0.16.0.tgz",
+  "upstreamArtifactDigest": "sha256:108ad635a9ab8c2d07207a5610358d3671f8f0d5cf744b62fecf0acb5436b052",
+  "networkFetchRequired": false,
+  "renderer": "json-resource-list-v1",
+  "upstreamVerification": "sha256-pinned-offline",
+  "generation": {
+    "tool": "helm-template",
+    "toolVersion": "v4.2.4+g3900f43",
+    "releaseName": "platform-factory",
+    "namespace": "metallb-system",
+    "includeCRDs": true,
+    "kubernetesVersions": [
+      "1.34.0",
+      "1.35.0"
+    ],
+    "kubernetesRenderDigests": {
+      "1.34.0": "sha256:070046b07da056954dcfd7849e283538ff467725948e974b904cf37f9a2f6aed",
+      "1.35.0": "sha256:070046b07da056954dcfd7849e283538ff467725948e974b904cf37f9a2f6aed"
+    },
+    "values": [],
+    "imageResolver": "crane-digest",
+    "imageResolverVersion": "0.22.1"
+  }
+}

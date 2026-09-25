@@ -356,8 +356,14 @@
       },
       {
         "component": "metallb",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/metallb/0.16.0/source-lock.json",
+            "release": "0.16.0",
+            "sha256": "bd2db46233bc9d22620c4f0c80d315538c48f64abc185500e234ecf6b72c0346"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "0.16.1",
         "targetSourceLockPresent": true
@@ -656,6 +662,14 @@
           "targetRelease": "3.8.2"
         },
         {
+          "component": "metallb",
+          "path": "catalog/runtime/metallb/0.16.0/source-lock.json",
+          "previousVersion": "0.16.0",
+          "sha256": "bd2db46233bc9d22620c4f0c80d315538c48f64abc185500e234ecf6b72c0346",
+          "source": "https://metallb.github.io/metallb",
+          "targetRelease": "0.16.1"
+        },
+        {
           "component": "snapshot-controller",
           "path": "catalog/runtime/snapshot-controller/8.4.0/source-lock.json",
           "previousVersion": "8.4.0",
@@ -666,12 +680,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "metallb",
-          "previousVersion": "0.16.0",
-          "source": "https://metallb.github.io/metallb",
-          "targetRelease": "0.16.1"
-        },
         {
           "component": "tetragon",
           "previousVersion": "1.6.1",
