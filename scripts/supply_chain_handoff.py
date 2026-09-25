@@ -24,7 +24,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
-from management_workload_evidence import external_receipt_evidence
+from management_workload_evidence import external_receipt_evidence, manifest_receipt_evidence
 
 AUTHORITY = "SUPPLY_CHAIN_HANDOFF_V1"
 SEAL_AUTHORITY = "SUPPLY_CHAIN_HANDOFF_SEAL_V1"
@@ -138,6 +138,8 @@ def build(root: Path = ROOT) -> dict:
     image_plan = _json(root / "lab" / "management-workload-image-build-plan.json")
     external_evidence = external_receipt_evidence(root, image_plan)
     external_by_role = external_evidence["byRole"]
+    manifest_evidence = manifest_receipt_evidence(root, image_plan)
+    manifest_ready = set(manifest_evidence["byAuthority"])
     acquisition_lock = _json(root / "lab" / "appliance-bundle-acquisition-lock.json")
     management_archive = _management_archive_state(acquisition_lock, version)
     toolchain = _json(root / "lab" / "release-build-toolchain-lock.json")
@@ -351,7 +353,7 @@ def build(root: Path = ROOT) -> dict:
         blockers.append("RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING")
     if management_archive["status"] != "ready":
         blockers.append("MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING")
-    if any(str(row.get("state") or "") != "ready" for row in (image_plan.get("baseImages") or [])) or any(str(row.get("state") or "") != "ready" for row in (image_plan.get("coreImages") or []) if row.get("ownership") != "external") or any(str(row.get("state") or "") != "ready" for row in (image_plan.get("derivedManifestImageSets") or [])):
+    if any(str(row.get("state") or "") != "ready" for row in (image_plan.get("baseImages") or [])) or any(str(row.get("state") or "") != "ready" for row in (image_plan.get("coreImages") or []) if row.get("ownership") != "external") or any(str(row.get("sourceAuthority") or "") not in manifest_ready for row in (image_plan.get("derivedManifestImageSets") or [])):
         blockers.append("MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING")
     if any(row["pairState"] not in {"pair-present", "install-only-first-product-release"} for row in upgrade):
         blockers.append("COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING")
@@ -383,6 +385,7 @@ def build(root: Path = ROOT) -> dict:
                     "catalog/runtime/*/*/source-lock.json",
                     "lab/management-workload-image-build-plan.json",
                     "lab/management-workload-external-image-receipt.json",
+                    "lab/management-workload-manifest-image-receipt.json",
                     "lab/appliance-bundle-acquisition-lock.json",
                     "lab/release-build-toolchain-lock.json",
                     "catalog/component-upgrade-source-admission.json",
