@@ -1,0 +1,28 @@
+{
+  "component": "kgateway",
+  "version": "2.4.0",
+  "sourceUrl": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+  "sourceRevision": "2.4.0",
+  "artifactDigest": "sha256:ab6cf0f1a12513ddee96d24043bc5996ff325b3c8a6e150de56184ac549784e4",
+  "bundleMode": "offline-immutable",
+  "networkFetchRequired": false,
+  "upstreamVerification": "sha256-pinned-offline",
+  "generation": {
+    "tool": "helm-template",
+    "toolVersion": "v4.2.4+g3900f43",
+    "releaseName": "platform-factory",
+    "namespace": "gateway-system",
+    "includeCRDs": true,
+    "kubernetesVersions": [
+      "1.34.0",
+      "1.35.0"
+    ],
+    "kubernetesRenderDigests": {
+      "1.34.0": "sha256:a99b55722c5491beb014991a6b3aeb2eb925e955ebaaf592ff3c8a032c1eface",
+      "1.35.0": "sha256:a99b55722c5491beb014991a6b3aeb2eb925e955ebaaf592ff3c8a032c1eface"
+    },
+    "values": [],
+    "imageResolver": "crane-digest",
+    "imageResolverVersion": "0.22.1"
+  }
+}

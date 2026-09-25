@@ -1,0 +1,29 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/kgateway/2.4.0/ab6cf0f1a12513dd",
+  "name": "kgateway-2.4.0-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-kgateway",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "kgateway",
+      "versionInfo": "2.4.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "cr.kgateway.dev/kgateway-dev/kgateway@sha256:91be5cd3d3d1fa8a5f25702fe3d87ebebfdeaf75472aa5260955ec654e87d62b",
+      "filesAnalyzed": false,
+      "name": "cr.kgateway.dev/kgateway-dev/kgateway",
+      "versionInfo": "sha256:91be5cd3d3d1fa8a5f25702fe3d87ebebfdeaf75472aa5260955ec654e87d62b"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

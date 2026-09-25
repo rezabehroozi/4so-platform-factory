@@ -320,8 +320,14 @@
       },
       {
         "component": "kgateway",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/kgateway/2.4.0/source-lock.json",
+            "release": "2.4.0",
+            "sha256": "35665b9bd8f8bd576dd645b4217c52a33258346cb55a909e947411e3a88d5d55"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "2.4.1",
         "targetSourceLockPresent": true
@@ -628,6 +634,14 @@
           "targetRelease": "12.10.0"
         },
         {
+          "component": "kgateway",
+          "path": "catalog/runtime/kgateway/2.4.0/source-lock.json",
+          "previousVersion": "2.4.0",
+          "sha256": "35665b9bd8f8bd576dd645b4217c52a33258346cb55a909e947411e3a88d5d55",
+          "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+          "targetRelease": "2.4.1"
+        },
+        {
           "component": "snapshot-controller",
           "path": "catalog/runtime/snapshot-controller/8.4.0/source-lock.json",
           "previousVersion": "8.4.0",
@@ -638,12 +652,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "kgateway",
-          "previousVersion": "2.4.0",
-          "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
-          "targetRelease": "2.4.1"
-        },
         {
           "component": "kyverno",
           "previousVersion": "3.8.1",

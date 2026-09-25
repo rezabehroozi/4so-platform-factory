@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "kgateway",
+  "version": "2.4.0",
+  "sourceType": "helm-chart",
+  "bundleKey": "kgateway/2.4.0",
+  "upstream": {
+    "url": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
+    "revision": "2.4.0",
+    "artifact": "kgateway-2.4.0.tgz",
+    "artifactDigest": "sha256:ab6cf0f1a12513ddee96d24043bc5996ff325b3c8a6e150de56184ac549784e4",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:ab6cf0f1a12513ddee96d24043bc5996ff325b3c8a6e150de56184ac549784e4",
+    "component.json": "sha256:28daee32b5e37129539313086b6791d4ae2613ac8eec3030e1090688d90f11ae",
+    "image-inventory.json": "sha256:503c4d58c9418f8d2c3e560e720a3a44910e10fd482110b555d0df15805fe638",
+    "licenses.json": "sha256:b3ef159435bb194c081e4c6deeddda07fdbbc39cc2f58b4955035b8acc79145d",
+    "provenance.json": "sha256:8e604aa59079703ff49a07feb4efe08cb6210a26401320520f81e03ac2594028",
+    "render-manifest.json": "sha256:4b68ec4b02918de26bdb855c6c40def214b5bc6bbf99c42821cd3721d93a9f38",
+    "sbom.spdx.json": "sha256:a6b6556790fd63c7518ff6c57a4633a11a1aca3babb325cf0fc046836aa116a4",
+    "source-lock.json": "sha256:35665b9bd8f8bd576dd645b4217c52a33258346cb55a909e947411e3a88d5d55"
+  }
+}

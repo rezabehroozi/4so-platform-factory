@@ -171,9 +171,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "2.4.0",
+          "fromSourceLockDigest": "4b296f33442001cf7371b257910db5b5a682ed2876a3812644d85ec39a46686b",
+          "status": "admitted-source-pair",
+          "toRelease": "2.4.1",
+          "toSourceLockDigest": "6af496e4c0e1173018912683265e93d93e8b3e2e02f47da640e70421824f0285"
+        }
+      ],
       "component": "kgateway",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "2.4.1",
       "targetSourceLockDigest": "6af496e4c0e1173018912683265e93d93e8b3e2e02f47da640e70421824f0285",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
