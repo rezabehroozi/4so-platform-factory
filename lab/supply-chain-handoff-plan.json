@@ -94,7 +94,7 @@
           "component": "ceph-csi-rbd",
           "runtimeStatus": "eligible-after-source-resolution",
           "selectedVersion": "1.0.4",
-          "source": "https://ceph.github.io/ceph-csi-operator-charts",
+          "source": "https://ceph.github.io/ceph-csi-operator/",
           "status": "ready-for-acquisition",
           "upstreamVersion": "1.0.4"
         },
