@@ -105,6 +105,14 @@ All **36/36 (100%)** Core + Expansion pre-physical software phases are now sourc
 - This evidence does **not** close `MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING`. `lab/appliance-bundle-acquisition-lock.json` remains `incomplete` because the canonical full management-workload OCI archive still requires product images and manifest-derived image resolution/assembly; `lab/management-workload-image-build-plan.json` therefore correctly retains pending base/core/product/manifest image work.
 - No Runtime, Production or Physical PASS is inferred from external image acquisition. Exact-SHA Physical Runtime remains NOT RUN.
 
+## Exact main seal — 2026-09-25
+
+- Canonical main checkpoint before this documentation seal: `d7ad0d63f1fda7838c5de10997ac123cd7876180` (`test: wait for disaster recovery persistence completion`).
+- Repository Integrity run `36126640674` for that exact SHA completed **SUCCESS**.
+- The commit fixes only disaster-recovery persistence test synchronization: it waits for the persisted run to reach a terminal state instead of relying on a fixed sleep. It does not change roadmap closure, runtime/physical claims, or supply-chain blocker semantics.
+- Current source/evidence truth remains: S1 current source `20/20` locked; S2 reviewed predecessor pairs `19/19` present plus one install-only first product release; Gateway API `1.6.1` dependency bytes acquired and transition state `runtime-certification-pending`; management external-image receipt persisted and verified; final product-owned management workload OCI archive remains incomplete.
+- Exact-SHA Physical Runtime remains **NOT RUN** for this checkpoint. No Physical or Production PASS is inferred.
+
 ## Current critical path
 
 The Core bottleneck remains **S1 ? S2**, but it is no longer treated as a whole-phase serial dependency. Exact-locked components should flow immediately from Acquire ? Verify ? Admit ? Runtime Certify ? Negative Controls while other S1 roles continue acquiring.
