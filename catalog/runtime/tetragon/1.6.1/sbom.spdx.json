@@ -1,0 +1,43 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory upstream acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/tetragon/1.6.1/dbce8a050d50bdc5",
+  "name": "tetragon-1.6.1-offline-inputs",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-tetragon",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "name": "tetragon",
+      "versionInfo": "1.6.1"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-1",
+      "downloadLocation": "quay.io/cilium/hubble-export-stdout@sha256:e1549e5852e32223e6db4e44ef883ed86c7659c260986b35c9a015e33d874437",
+      "filesAnalyzed": false,
+      "name": "quay.io/cilium/hubble-export-stdout",
+      "versionInfo": "sha256:e1549e5852e32223e6db4e44ef883ed86c7659c260986b35c9a015e33d874437"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-2",
+      "downloadLocation": "quay.io/cilium/tetragon-operator@sha256:4587699925f412801e9e9efb0455f98089b53005603a3908cd3c25f3434a8693",
+      "filesAnalyzed": false,
+      "name": "quay.io/cilium/tetragon-operator",
+      "versionInfo": "sha256:4587699925f412801e9e9efb0455f98089b53005603a3908cd3c25f3434a8693"
+    },
+    {
+      "SPDXID": "SPDXRef-Image-3",
+      "downloadLocation": "quay.io/cilium/tetragon@sha256:ff96ace3e6a0166ba04ff3eecfaeee19b7e6deee2b7cdbe3245feda57df5015f",
+      "filesAnalyzed": false,
+      "name": "quay.io/cilium/tetragon",
+      "versionInfo": "sha256:ff96ace3e6a0166ba04ff3eecfaeee19b7e6deee2b7cdbe3245feda57df5015f"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

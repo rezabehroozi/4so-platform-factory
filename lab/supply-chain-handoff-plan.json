@@ -392,8 +392,14 @@
       },
       {
         "component": "tetragon",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/tetragon/1.6.1/source-lock.json",
+            "release": "1.6.1",
+            "sha256": "ee9f72039c964c85ff193525feb75f4a5557d5979681859394fe316a3e59d93c"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "1.7.0",
         "targetSourceLockPresent": true
@@ -676,16 +682,18 @@
           "sha256": "b83db9553ac659671df0a6a63bc886242a5d9190b30f7d65d81251e1c82e8b79",
           "source": "https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.4.0",
           "targetRelease": "8.5.0"
+        },
+        {
+          "component": "tetragon",
+          "path": "catalog/runtime/tetragon/1.6.1/source-lock.json",
+          "previousVersion": "1.6.1",
+          "sha256": "ee9f72039c964c85ff193525feb75f4a5557d5979681859394fe316a3e59d93c",
+          "source": "https://helm.cilium.io",
+          "targetRelease": "1.7.0"
         }
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "tetragon",
-          "previousVersion": "1.6.1",
-          "source": "https://helm.cilium.io",
-          "targetRelease": "1.7.0"
-        },
         {
           "component": "velero",
           "previousVersion": "12.0.3",

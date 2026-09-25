@@ -1,0 +1,13 @@
+{
+  "images": [
+    {
+      "reference": "quay.io/cilium/hubble-export-stdout@sha256:e1549e5852e32223e6db4e44ef883ed86c7659c260986b35c9a015e33d874437"
+    },
+    {
+      "reference": "quay.io/cilium/tetragon-operator@sha256:4587699925f412801e9e9efb0455f98089b53005603a3908cd3c25f3434a8693"
+    },
+    {
+      "reference": "quay.io/cilium/tetragon@sha256:ff96ace3e6a0166ba04ff3eecfaeee19b7e6deee2b7cdbe3245feda57df5015f"
+    }
+  ]
+}

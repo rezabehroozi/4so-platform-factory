@@ -251,9 +251,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "1.6.1",
+          "fromSourceLockDigest": "01d01b8766d0cddbcd2ee4db083eb54499cab5dd39743b59c4a532c1bd22cace",
+          "status": "admitted-source-pair",
+          "toRelease": "1.7.0",
+          "toSourceLockDigest": "776015c110a0f8cc428e691ffb2333a2be71e709eda89906d97623004a0f48f8"
+        }
+      ],
       "component": "tetragon",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "1.7.0",
       "targetSourceLockDigest": "776015c110a0f8cc428e691ffb2333a2be71e709eda89906d97623004a0f48f8",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
