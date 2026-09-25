@@ -347,8 +347,14 @@
       },
       {
         "component": "loki",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/loki/18.12.0/source-lock.json",
+            "release": "18.12.0",
+            "sha256": "61366c65513e795511039b266eeb20f681cde994987d4bb413f873987f162f78"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "18.12.1",
         "targetSourceLockPresent": true
@@ -681,6 +687,14 @@
           "targetRelease": "3.8.2"
         },
         {
+          "component": "loki",
+          "path": "catalog/runtime/loki/18.12.0/source-lock.json",
+          "previousVersion": "18.12.0",
+          "sha256": "61366c65513e795511039b266eeb20f681cde994987d4bb413f873987f162f78",
+          "source": "https://grafana-community.github.io/helm-charts",
+          "targetRelease": "18.12.1"
+        },
+        {
           "component": "metallb",
           "path": "catalog/runtime/metallb/0.16.0/source-lock.json",
           "previousVersion": "0.16.0",
@@ -715,12 +729,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "loki",
-          "previousVersion": "18.12.0",
-          "source": "https://grafana-community.github.io/helm-charts",
-          "targetRelease": "18.12.1"
-        },
         {
           "component": "victoria-metrics",
           "previousVersion": "0.90.1",

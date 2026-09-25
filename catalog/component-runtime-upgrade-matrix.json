@@ -211,9 +211,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "18.12.0",
+          "fromSourceLockDigest": "5758914ea7e5e61d9143098e5c14e6b221f69789c2c0e96f26850bb92a566388",
+          "status": "admitted-source-pair",
+          "toRelease": "18.12.1",
+          "toSourceLockDigest": "54d420f474ce990d906ac25451861fcdae5926d72a2b810e7c640233f5a29432"
+        }
+      ],
       "component": "loki",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "18.12.1",
       "targetSourceLockDigest": "54d420f474ce990d906ac25451861fcdae5926d72a2b810e7c640233f5a29432",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
