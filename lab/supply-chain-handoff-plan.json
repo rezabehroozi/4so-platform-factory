@@ -121,18 +121,15 @@
           "path": "catalog/runtime/velero/12.1.0/source-lock.json",
           "release": "12.1.0",
           "sha256": "edda697ddf869e2f480e79d53e178200b6e7a559f8377962471fdff9eaf4406f"
-        }
-      ],
-      "ready": [
+        },
         {
           "component": "victoria-metrics",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "0.90.2",
-          "source": "https://victoriametrics.github.io/helm-charts/",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "0.90.2"
+          "path": "catalog/runtime/victoria-metrics/0.90.2/source-lock.json",
+          "release": "0.90.2",
+          "sha256": "a9d8c0dee635a7ac460440923127ab7b5ffd71180f4d69b6e12619fc622de1b8"
         }
       ],
+      "ready": [],
       "reviewBlocked": [],
       "runtimeHolds": [
         {
@@ -416,11 +413,11 @@
       },
       {
         "component": "victoria-metrics",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "0.90.2",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       }
     ],
     "componentUpgradeSourceAdmission": {
@@ -715,6 +712,12 @@
           "previousVersion": "18.12.0",
           "source": "https://grafana-community.github.io/helm-charts",
           "targetRelease": "18.12.1"
+        },
+        {
+          "component": "victoria-metrics",
+          "previousVersion": "0.90.1",
+          "source": "https://victoriametrics.github.io/helm-charts/",
+          "targetRelease": "0.90.2"
         }
       ],
       "installOnlyFirstProductRelease": [
@@ -725,14 +728,7 @@
       ],
       "stageManifestPath": "historical/stage-manifest.json",
       "taggedSourceSetReady": [],
-      "waitingCurrentSource": [
-        {
-          "component": "victoria-metrics",
-          "previousVersion": "0.90.1",
-          "source": "https://victoriametrics.github.io/helm-charts/",
-          "targetRelease": "0.90.2"
-        }
-      ]
+      "waitingCurrentSource": []
     },
     "managementWorkloads": {
       "archiveAuthority": {
@@ -860,10 +856,8 @@
     "openBlockers": [
       "COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING",
       "COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING",
-      "COMPONENT_SOURCE_ACQUISITION_PENDING",
       "MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING",
       "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING",
-      "SOURCE_LOCKS_PENDING",
       "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING"
     ],
     "releaseToolchain": {

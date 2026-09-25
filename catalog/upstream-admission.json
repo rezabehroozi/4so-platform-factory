@@ -5,20 +5,7 @@
     "name": "enterprise-private-cloud-upstream-admission"
   },
   "spec": {
-    "components": [
-      {
-        "catalogConstraint": "0.90.x",
-        "chart": "victoria-metrics-k8s-stack",
-        "component": "victoria-metrics",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Exact current official 0.90-series chart is inside the shipped catalog constraint; acquisition must still verify upstream digest, immutable render and image provenance.",
-        "selectedVersion": "0.90.2",
-        "source": "https://victoriametrics.github.io/helm-charts/",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "0.90.2"
-      }
-    ],
+    "components": [],
     "policy": {
       "allowLatestResolution": false,
       "autoWidenCatalogConstraint": false,

@@ -1035,31 +1035,31 @@
         "component": "victoria-metrics",
         "release": "0.90.2",
         "sourceBinding": {
-          "status": "blocked-source-lock",
-          "resolved": false,
-          "sourceLockDigest": ""
+          "status": "source-ready",
+          "resolved": true,
+          "sourceLockDigest": "sha256:a9d8c0dee635a7ac460440923127ab7b5ffd71180f4d69b6e12619fc622de1b8"
         },
         "executor": {
-          "status": "source-gated-component-executor",
+          "status": "component-install-readiness-dependency-failure-remove-partial",
           "profile": "COMPONENT_RUNTIME_V1",
           "owner": "catalog-component"
         },
         "lifecycle": [
           {
             "name": "install",
-            "status": "source-gated-component-executor",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-install-evidence/v1",
             "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "readiness",
-            "status": "source-gated-component-executor",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-readiness-evidence/v1",
             "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "dependency",
-            "status": "source-gated-component-executor",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-dependency-evidence/v1",
             "authority": "COMPONENT_RUNTIME_V1"
           },
@@ -1071,13 +1071,13 @@
           },
           {
             "name": "remove",
-            "status": "source-gated-component-executor",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-remove-evidence/v1",
             "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "failure",
-            "status": "source-gated-component-executor",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-failure-evidence/v1",
             "authority": "COMPONENT_RUNTIME_V1"
           }

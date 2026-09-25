@@ -1,0 +1,25 @@
+{
+  "images": [
+    {
+      "reference": "docker.io/grafana/grafana@sha256:7cb8c64c4d57a57e734073f3cc94620adb24a0acb929bd80ba9f14017e3a975b"
+    },
+    {
+      "reference": "ghcr.io/victoriametrics/sync-job@sha256:9e23b7db57492d30ac9c785d2fde8c93c81b3b82b7550f0786b162d38c86f5a4"
+    },
+    {
+      "reference": "quay.io/kiwigrid/k8s-sidecar@sha256:abb55b2165c60e8f97e473862c7a3123df6f67d44f592949577c29b8fb2df9d6"
+    },
+    {
+      "reference": "quay.io/prometheus/node-exporter@sha256:0f422f62c15f154af8d8572b23d623aebfb10cec73a5c654d18f911f3f9df241"
+    },
+    {
+      "reference": "registry.k8s.io/kube-state-metrics/kube-state-metrics@sha256:85108987d044b18a098126732f98602df408888c0f7d456241f5abefb9744bc1"
+    },
+    {
+      "reference": "registry.k8s.io/kubectl@sha256:497d298f891edb7608dfce9dae4bb08dffc4ddcd7f5d24a0512d4bbf33e04f26"
+    },
+    {
+      "reference": "victoriametrics/operator@sha256:c4fde419a4f03c7c45d7ee554e7039c12c75af161f7f7e1baef1b343015e3df9"
+    }
+  ]
+}

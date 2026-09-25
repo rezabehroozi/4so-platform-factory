@@ -5,17 +5,38 @@
     "name": "victoria-metrics"
   },
   "spec": {
+    "displayName": "VictoriaMetrics",
+    "category": "observability",
+    "release": "0.90.2",
+    "versionPolicy": "exact-offline-import",
+    "supportTier": "research-candidate",
+    "mandatory": true,
+    "dependencies": [
+      "ceph-csi-rbd"
+    ],
+    "provides": [
+      "metrics-backend"
+    ],
+    "requiresCapabilities": [
+      "rbd-storage"
+    ],
+    "exclusiveCapabilities": [
+      "metrics-backend"
+    ],
+    "conflictsWith": [],
+    "risk": "high",
     "capabilities": [
       "metrics",
       "alerts"
     ],
-    "category": "observability",
-    "certification": {
-      "evidenceDigest": "",
-      "profiles": [],
-      "status": "candidate"
-    },
+    "namespace": "monitoring",
+    "wave": 65,
+    "settingsSchemaRef": "schemas/settings/victoria-metrics.schema.json",
     "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
       "architectures": [
         "amd64",
         "arm64"
@@ -24,37 +45,29 @@
         "kubernetes",
         "rke2"
       ],
-      "kubernetes": {
-        "maxVersion": "1.35",
-        "minVersion": "1.34"
-      },
       "providers": [
         "imported",
         "cluster-api-topology-v1beta2"
       ]
     },
-    "conflictsWith": [],
     "delivery": {
-      "chart": "victoria-metrics-k8s-stack",
-      "repositoryKey": "platform-charts",
-      "type": "helm"
+      "type": "helm",
+      "repositoryKey": "offline-catalog-bundle",
+      "chart": "victoria-metrics-k8s-stack"
     },
-    "dependencies": [
-      "ceph-csi-rbd"
-    ],
-    "displayName": "VictoriaMetrics",
-    "evidenceRequired": [
-      "resolved-source-lock",
-      "rendered-resource-inventory",
-      "policy-result",
-      "runtime-readiness",
-      "rollback-verification"
-    ],
-    "exclusiveCapabilities": [
-      "metrics-backend"
-    ],
-    "mandatory": true,
-    "namespace": "monitoring",
+    "source": {
+      "type": "helm-chart",
+      "resolved": true,
+      "bundleKey": "victoria-metrics/0.90.2",
+      "artifactDigest": "sha256:ba5c9dbbf96edcd919d35563ffd263c5353cb9cbff9875baf41e6267c157bf60",
+      "renderManifestDigest": "sha256:9af322829d161a2acc68c097327e5d83ce991febeeafe223f9740cc4d97b2307",
+      "sourceLockDigest": "sha256:a9d8c0dee635a7ac460440923127ab7b5ffd71180f4d69b6e12619fc622de1b8",
+      "imageInventoryDigest": "sha256:92b888844724ebda82ced22059817fbbadbf35f415a398ec1f10ec63cc30e7a1",
+      "licenseManifestDigest": "sha256:89893e2366b14c4f41f1550443caebf6f1d0e2d8efad1eb75b3bf7a5bf9dfd44",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:fc880be1ad00d0657f83539ae8c7fbdbe6fecf0cdd897f07c2a8fcfe540d4abd",
+      "provenance": "sha256:129970769a3618fc4cc7d32a2f6926b71bf5bc8d499d5b345ffe6acd933d8fbf"
+    },
     "operations": {
       "install": "required",
       "preflight": "required",
@@ -63,36 +76,25 @@
       "upgrade": "required",
       "verify": "required"
     },
-    "provides": [
-      "metrics-backend"
-    ],
     "readiness": [
       "statefulset/vmstorage",
       "deployment/vmselect",
       "deployment/vminsert"
     ],
-    "release": "0.90.2",
-    "requiresCapabilities": [
-      "rbd-storage"
-    ],
-    "risk": "high",
     "rollback": {
       "strategy": "restore-previous-release-and-preserve-pvcs"
     },
-    "settingsSchemaRef": "schemas/settings/victoria-metrics.schema.json",
-    "source": {
-      "artifactDigest": "",
-      "imageInventoryDigest": "",
-      "licenseManifestDigest": "",
-      "provenance": "required",
-      "resolved": false,
-      "sbom": "required",
-      "signatureVerification": "required",
-      "sourceLockDigest": "",
-      "type": "helm-chart"
-    },
-    "supportTier": "research-candidate",
-    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
-    "wave": 65
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": null,
+      "evidenceDigest": ""
+    }
   }
 }
