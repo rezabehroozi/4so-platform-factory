@@ -57,8 +57,9 @@ def run_json(cmd: list[str], *, timeout: int = 900) -> dict:
 
 
 def canonical_repository(ref: str) -> str:
+    raw = ref
     ref = ref.strip()
-    if not ref or any(ch.isspace() for ch in ref):
+    if ref != raw or not ref or any(ch.isspace() for ch in ref):
         raise RuntimeError(f"IMAGE_REFERENCE_INVALID {ref!r}")
     if "@sha256:" in ref:
         ref = ref.split("@sha256:", 1)[0]
