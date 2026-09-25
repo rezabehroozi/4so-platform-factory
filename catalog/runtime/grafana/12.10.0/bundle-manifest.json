@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ExternalCatalogBundle",
+  "component": "grafana",
+  "version": "12.10.0",
+  "sourceType": "helm-chart",
+  "bundleKey": "grafana/12.10.0",
+  "upstream": {
+    "url": "https://grafana-community.github.io/helm-charts",
+    "revision": "12.10.0",
+    "artifact": "grafana-12.10.0.tgz",
+    "artifactDigest": "sha256:5fc0bdc1caccf928ea14366fd1a2ae8a28860f3ebbbc910b4cbbe769d101be8f",
+    "verificationMethod": "sha256-pinned-offline"
+  },
+  "files": {
+    "artifact.bin": "sha256:5fc0bdc1caccf928ea14366fd1a2ae8a28860f3ebbbc910b4cbbe769d101be8f",
+    "component.json": "sha256:f3f8cd98d7bf67d43aee6dcae2c6a5a894c993d73705efbd056e5c13437eed2f",
+    "image-inventory.json": "sha256:2aa299829cfce4747664aaac66bd2ac83e412b97c173943e6dd2f3283c3ea921",
+    "licenses.json": "sha256:6545f96826f71429829ca5ee86465ab7e3a284487074ca37d7837cf7c13acd5f",
+    "provenance.json": "sha256:fc6336d9cc255464ed6edb543c58f39809aa824aab3037576beabb3769177128",
+    "render-manifest.json": "sha256:b217488c25334a95f5155814879e96eb63366d239ff3523ccb90baac1d0d39d9",
+    "sbom.spdx.json": "sha256:b3e9116b2521686321e8a268181db61fa6faffb37897000de2d32bbb9870480d",
+    "source-lock.json": "sha256:cc001c44d62a3b06ea8f363e9dce80b675c2751dffe2642d189c3d8912f99f75"
+  }
+}

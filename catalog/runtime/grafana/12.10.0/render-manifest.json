@@ -1,0 +1,313 @@
+[
+  {
+    "apiVersion": "v1",
+    "automountServiceAccountToken": false,
+    "kind": "ServiceAccount",
+    "metadata": {
+      "labels": {
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/name": "grafana",
+        "app.kubernetes.io/version": "13.1.1",
+        "helm.sh/chart": "grafana-12.10.0"
+      },
+      "name": "platform-factory-grafana",
+      "namespace": "monitoring"
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "data": {
+      "admin-password": "TUh2UFNSdlFpU1JMWDNCZVBSU3dlN3l2RkZPWFJSeG05Sm9MOHRXaA==",
+      "admin-user": "YWRtaW4=",
+      "ldap-toml": ""
+    },
+    "kind": "Secret",
+    "metadata": {
+      "labels": {
+        "app.kubernetes.io/component": "admin-secret",
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/name": "grafana",
+        "app.kubernetes.io/version": "13.1.1",
+        "helm.sh/chart": "grafana-12.10.0"
+      },
+      "name": "platform-factory-grafana",
+      "namespace": "monitoring"
+    },
+    "type": "Opaque"
+  },
+  {
+    "apiVersion": "v1",
+    "data": {
+      "grafana.ini": "[analytics]\ncheck_for_updates = true\n[log]\nmode = console\n[paths]\ndata = /var/lib/grafana/\nlogs = /var/log/grafana\nplugins = /var/lib/grafana/plugins\nprovisioning = /etc/grafana/provisioning\n[server]\ndomain = ''\n[unified_storage]\nindex_path = /var/lib/grafana-search/bleve\n"
+    },
+    "kind": "ConfigMap",
+    "metadata": {
+      "labels": {
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/name": "grafana",
+        "app.kubernetes.io/version": "13.1.1",
+        "helm.sh/chart": "grafana-12.10.0"
+      },
+      "name": "platform-factory-grafana",
+      "namespace": "monitoring"
+    }
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "ClusterRole",
+    "metadata": {
+      "labels": {
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/name": "grafana",
+        "app.kubernetes.io/version": "13.1.1",
+        "helm.sh/chart": "grafana-12.10.0"
+      },
+      "name": "platform-factory-grafana-clusterrole"
+    },
+    "rules": []
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "ClusterRoleBinding",
+    "metadata": {
+      "labels": {
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/name": "grafana",
+        "app.kubernetes.io/version": "13.1.1",
+        "helm.sh/chart": "grafana-12.10.0"
+      },
+      "name": "platform-factory-grafana-clusterrolebinding"
+    },
+    "roleRef": {
+      "apiGroup": "rbac.authorization.k8s.io",
+      "kind": "ClusterRole",
+      "name": "platform-factory-grafana-clusterrole"
+    },
+    "subjects": [
+      {
+        "kind": "ServiceAccount",
+        "name": "platform-factory-grafana",
+        "namespace": "monitoring"
+      }
+    ]
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Service",
+    "metadata": {
+      "labels": {
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/name": "grafana",
+        "app.kubernetes.io/version": "13.1.1",
+        "helm.sh/chart": "grafana-12.10.0"
+      },
+      "name": "platform-factory-grafana",
+      "namespace": "monitoring"
+    },
+    "spec": {
+      "ports": [
+        {
+          "name": "service",
+          "port": 80,
+          "protocol": "TCP",
+          "targetPort": "grafana"
+        }
+      ],
+      "selector": {
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/name": "grafana"
+      },
+      "type": "ClusterIP"
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "labels": {
+        "app.kubernetes.io/instance": "platform-factory",
+        "app.kubernetes.io/name": "grafana",
+        "app.kubernetes.io/version": "13.1.1",
+        "helm.sh/chart": "grafana-12.10.0"
+      },
+      "name": "platform-factory-grafana",
+      "namespace": "monitoring"
+    },
+    "spec": {
+      "replicas": 1,
+      "revisionHistoryLimit": 10,
+      "selector": {
+        "matchLabels": {
+          "app.kubernetes.io/instance": "platform-factory",
+          "app.kubernetes.io/name": "grafana"
+        }
+      },
+      "strategy": {
+        "type": "RollingUpdate"
+      },
+      "template": {
+        "metadata": {
+          "annotations": {
+            "checksum/config": "5bceeca3808849664f09f642547ce17fdf495522238ef9ce952b20cfa36b7de5",
+            "checksum/sc-dashboard-provider-config": "e70bf6a851099d385178a76de9757bb0bef8299da6d8443602590e44f05fdf24",
+            "checksum/secret": "2766f319f1dc88182f3fe974a6e714e45d282f9f94335c2a7d4c08b3b0e18ecf",
+            "kubectl.kubernetes.io/default-container": "grafana"
+          },
+          "labels": {
+            "app.kubernetes.io/instance": "platform-factory",
+            "app.kubernetes.io/name": "grafana",
+            "app.kubernetes.io/version": "13.1.1",
+            "helm.sh/chart": "grafana-12.10.0"
+          }
+        },
+        "spec": {
+          "automountServiceAccountToken": true,
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "POD_IP",
+                  "valueFrom": {
+                    "fieldRef": {
+                      "fieldPath": "status.podIP"
+                    }
+                  }
+                },
+                {
+                  "name": "GF_SECURITY_ADMIN_USER",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "admin-user",
+                      "name": "platform-factory-grafana"
+                    }
+                  }
+                },
+                {
+                  "name": "GF_SECURITY_ADMIN_PASSWORD",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "admin-password",
+                      "name": "platform-factory-grafana"
+                    }
+                  }
+                },
+                {
+                  "name": "GF_PATHS_DATA",
+                  "value": "/var/lib/grafana/"
+                },
+                {
+                  "name": "GF_PATHS_LOGS",
+                  "value": "/var/log/grafana"
+                },
+                {
+                  "name": "GF_PATHS_PLUGINS",
+                  "value": "/var/lib/grafana/plugins"
+                },
+                {
+                  "name": "GF_PATHS_PROVISIONING",
+                  "value": "/etc/grafana/provisioning"
+                },
+                {
+                  "name": "GF_UNIFIED_STORAGE_INDEX_PATH",
+                  "value": "/var/lib/grafana-search/bleve"
+                }
+              ],
+              "image": "docker.io/grafana/grafana@sha256:7cb8c64c4d57a57e734073f3cc94620adb24a0acb929bd80ba9f14017e3a975b",
+              "imagePullPolicy": "IfNotPresent",
+              "livenessProbe": {
+                "failureThreshold": 10,
+                "httpGet": {
+                  "path": "/api/health",
+                  "port": "grafana"
+                },
+                "initialDelaySeconds": 60,
+                "timeoutSeconds": 30
+              },
+              "name": "grafana",
+              "ports": [
+                {
+                  "containerPort": 3000,
+                  "name": "grafana",
+                  "protocol": "TCP"
+                },
+                {
+                  "containerPort": 9094,
+                  "name": "gossip-tcp",
+                  "protocol": "TCP"
+                },
+                {
+                  "containerPort": 9094,
+                  "name": "gossip-udp",
+                  "protocol": "UDP"
+                },
+                {
+                  "containerPort": 6060,
+                  "name": "profiling",
+                  "protocol": "TCP"
+                }
+              ],
+              "readinessProbe": {
+                "httpGet": {
+                  "path": "/api/health",
+                  "port": "grafana"
+                }
+              },
+              "securityContext": {
+                "allowPrivilegeEscalation": false,
+                "capabilities": {
+                  "drop": [
+                    "ALL"
+                  ]
+                },
+                "privileged": false,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/etc/grafana/grafana.ini",
+                  "name": "config",
+                  "subPath": "grafana.ini"
+                },
+                {
+                  "mountPath": "/var/lib/grafana",
+                  "name": "storage"
+                },
+                {
+                  "mountPath": "/var/lib/grafana-search",
+                  "name": "search"
+                }
+              ]
+            }
+          ],
+          "enableServiceLinks": true,
+          "securityContext": {
+            "fsGroup": 472,
+            "runAsGroup": 472,
+            "runAsNonRoot": true,
+            "runAsUser": 472
+          },
+          "serviceAccountName": "platform-factory-grafana",
+          "shareProcessNamespace": false,
+          "volumes": [
+            {
+              "configMap": {
+                "name": "platform-factory-grafana"
+              },
+              "name": "config"
+            },
+            {
+              "emptyDir": {},
+              "name": "storage"
+            },
+            {
+              "emptyDir": {},
+              "name": "search"
+            }
+          ]
+        }
+      }
+    }
+  }
+]

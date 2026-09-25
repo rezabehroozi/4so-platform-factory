@@ -63,6 +63,12 @@
           "sha256": "6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960"
         },
         {
+          "component": "grafana",
+          "path": "catalog/runtime/grafana/12.10.0/source-lock.json",
+          "release": "12.10.0",
+          "sha256": "cc001c44d62a3b06ea8f363e9dce80b675c2751dffe2642d189c3d8912f99f75"
+        },
+        {
           "component": "kgateway",
           "path": "catalog/runtime/kgateway/2.4.1/source-lock.json",
           "release": "2.4.1",
@@ -101,14 +107,6 @@
           "source": "oci://ghcr.io/projectcapsule/charts/capsule",
           "status": "ready-for-acquisition",
           "upstreamVersion": "0.13.11"
-        },
-        {
-          "component": "grafana",
-          "runtimeStatus": "eligible-after-source-resolution",
-          "selectedVersion": "12.10.0",
-          "source": "https://grafana-community.github.io/helm-charts",
-          "status": "ready-for-acquisition",
-          "upstreamVersion": "12.10.0"
         },
         {
           "component": "kyverno",
@@ -270,11 +268,11 @@
       },
       {
         "component": "grafana",
-        "pairState": "target-source-pending",
+        "pairState": "target-only",
         "previousExactSourceLocks": [],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "12.10.0",
-        "targetSourceLockPresent": false
+        "targetSourceLockPresent": true
       },
       {
         "component": "kgateway",
@@ -575,6 +573,12 @@
           "targetRelease": "2.8.0"
         },
         {
+          "component": "grafana",
+          "previousVersion": "12.9.0",
+          "source": "https://grafana-community.github.io/helm-charts",
+          "targetRelease": "12.10.0"
+        },
+        {
           "component": "kgateway",
           "previousVersion": "2.4.0",
           "source": "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway",
@@ -607,12 +611,6 @@
           "previousVersion": "0.13.10",
           "source": "oci://ghcr.io/projectcapsule/charts/capsule",
           "targetRelease": "0.13.11"
-        },
-        {
-          "component": "grafana",
-          "previousVersion": "12.9.0",
-          "source": "https://grafana-community.github.io/helm-charts",
-          "targetRelease": "12.10.0"
         },
         {
           "component": "kyverno",

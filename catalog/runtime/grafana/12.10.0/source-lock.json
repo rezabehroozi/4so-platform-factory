@@ -1,0 +1,30 @@
+{
+  "component": "grafana",
+  "version": "12.10.0",
+  "sourceType": "helm-chart",
+  "upstreamUrl": "https://grafana-community.github.io/helm-charts",
+  "upstreamRevision": "12.10.0",
+  "upstreamArtifact": "grafana-12.10.0.tgz",
+  "upstreamArtifactDigest": "sha256:5fc0bdc1caccf928ea14366fd1a2ae8a28860f3ebbbc910b4cbbe769d101be8f",
+  "networkFetchRequired": false,
+  "renderer": "json-resource-list-v1",
+  "upstreamVerification": "sha256-pinned-offline",
+  "generation": {
+    "tool": "helm-template",
+    "toolVersion": "v4.2.4+g3900f43",
+    "releaseName": "platform-factory",
+    "namespace": "monitoring",
+    "includeCRDs": true,
+    "kubernetesVersions": [
+      "1.34.0",
+      "1.35.0"
+    ],
+    "kubernetesRenderDigests": {
+      "1.34.0": "sha256:497f20113db409efa11b790e2da42f4dd67a79e52cee53d7f05feef0679e9bc7",
+      "1.35.0": "sha256:85acac0ff951097e74b41feebc067e16270c45a4ac66c41e3afa7a34cdc5891e"
+    },
+    "values": [],
+    "imageResolver": "crane-digest",
+    "imageResolverVersion": "0.22.1"
+  }
+}

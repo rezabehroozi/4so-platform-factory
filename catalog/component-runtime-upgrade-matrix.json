@@ -103,7 +103,7 @@
       "component": "grafana",
       "status": "pending-source-pair",
       "targetRelease": "12.10.0",
-      "targetSourceLockDigest": "",
+      "targetSourceLockDigest": "a24a5d566d99a63787d58fccd2466d8239870d4a1c4dd3e84264155d4af83ed7",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {

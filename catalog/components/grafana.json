@@ -5,16 +5,37 @@
     "name": "grafana"
   },
   "spec": {
+    "displayName": "Grafana",
+    "category": "observability",
+    "release": "12.10.0",
+    "versionPolicy": "exact-offline-import",
+    "supportTier": "research-candidate",
+    "mandatory": true,
+    "dependencies": [
+      "victoria-metrics",
+      "loki"
+    ],
+    "provides": [
+      "dashboard-ui"
+    ],
+    "requiresCapabilities": [
+      "metrics-backend",
+      "logs-backend"
+    ],
+    "exclusiveCapabilities": [],
+    "conflictsWith": [],
+    "risk": "medium",
     "capabilities": [
       "dashboards"
     ],
-    "category": "observability",
-    "certification": {
-      "evidenceDigest": "",
-      "profiles": [],
-      "status": "candidate"
-    },
+    "namespace": "monitoring",
+    "wave": 70,
+    "settingsSchemaRef": "schemas/settings/grafana.schema.json",
     "compatibility": {
+      "kubernetes": {
+        "minVersion": "1.34",
+        "maxVersion": "1.35"
+      },
       "architectures": [
         "amd64",
         "arm64"
@@ -23,36 +44,29 @@
         "kubernetes",
         "rke2"
       ],
-      "kubernetes": {
-        "maxVersion": "1.35",
-        "minVersion": "1.34"
-      },
       "providers": [
         "imported",
         "cluster-api-topology-v1beta2"
       ]
     },
-    "conflictsWith": [],
     "delivery": {
-      "chart": "grafana",
-      "repositoryKey": "platform-charts",
-      "type": "helm"
+      "type": "helm",
+      "repositoryKey": "offline-catalog-bundle",
+      "chart": "grafana"
     },
-    "dependencies": [
-      "victoria-metrics",
-      "loki"
-    ],
-    "displayName": "Grafana",
-    "evidenceRequired": [
-      "resolved-source-lock",
-      "rendered-resource-inventory",
-      "policy-result",
-      "runtime-readiness",
-      "rollback-verification"
-    ],
-    "exclusiveCapabilities": [],
-    "mandatory": true,
-    "namespace": "monitoring",
+    "source": {
+      "type": "helm-chart",
+      "resolved": true,
+      "bundleKey": "grafana/12.10.0",
+      "artifactDigest": "sha256:5fc0bdc1caccf928ea14366fd1a2ae8a28860f3ebbbc910b4cbbe769d101be8f",
+      "renderManifestDigest": "sha256:b217488c25334a95f5155814879e96eb63366d239ff3523ccb90baac1d0d39d9",
+      "sourceLockDigest": "sha256:cc001c44d62a3b06ea8f363e9dce80b675c2751dffe2642d189c3d8912f99f75",
+      "imageInventoryDigest": "sha256:2aa299829cfce4747664aaac66bd2ac83e412b97c173943e6dd2f3283c3ea921",
+      "licenseManifestDigest": "sha256:6545f96826f71429829ca5ee86465ab7e3a284487074ca37d7837cf7c13acd5f",
+      "signatureVerification": "sha256-pinned-offline",
+      "sbom": "sha256:b3e9116b2521686321e8a268181db61fa6faffb37897000de2d32bbb9870480d",
+      "provenance": "sha256:fc6336d9cc255464ed6edb543c58f39809aa824aab3037576beabb3769177128"
+    },
     "operations": {
       "install": "required",
       "preflight": "required",
@@ -61,35 +75,23 @@
       "upgrade": "required",
       "verify": "required"
     },
-    "provides": [
-      "dashboard-ui"
-    ],
     "readiness": [
       "deployment/grafana"
     ],
-    "release": "12.10.0",
-    "requiresCapabilities": [
-      "metrics-backend",
-      "logs-backend"
-    ],
-    "risk": "medium",
     "rollback": {
       "strategy": "restore-previous-release-and-database-backup"
     },
-    "settingsSchemaRef": "schemas/settings/grafana.schema.json",
-    "source": {
-      "artifactDigest": "",
-      "imageInventoryDigest": "",
-      "licenseManifestDigest": "",
-      "provenance": "required",
-      "resolved": false,
-      "sbom": "required",
-      "signatureVerification": "required",
-      "sourceLockDigest": "",
-      "type": "helm-chart"
-    },
-    "supportTier": "research-candidate",
-    "versionPolicy": "exact-upstream-admitted-pending-source-acquisition",
-    "wave": 70
+    "evidenceRequired": [
+      "resolved-source-lock",
+      "rendered-resource-inventory",
+      "policy-result",
+      "runtime-readiness",
+      "rollback-verification"
+    ],
+    "certification": {
+      "status": "candidate",
+      "profiles": null,
+      "evidenceDigest": ""
+    }
   }
 }

@@ -19,30 +19,6 @@
         "upstreamVersion": "0.13.11"
       },
       {
-        "catalogConstraint": "12.10.x",
-        "chart": "grafana",
-        "component": "grafana",
-        "licenseSPDX": "Apache-2.0",
-        "rationale": "Grafana chart ownership moved to the official grafana-community Helm repository; chart 12.10.0 is an exact published candidate and is admitted for immutable acquisition, but source.resolved remains false until artifact verification completes.",
-        "reviewEvidence": [
-          {
-            "kind": "source-migration",
-            "url": "https://github.com/grafana/helm-charts/issues/4087",
-            "summary": "Official January 2026 migration moved the Grafana chart to grafana-community/helm-charts."
-          },
-          {
-            "kind": "release",
-            "url": "https://github.com/grafana-community/helm-charts/pkgs/container/helm-charts%2Fgrafana",
-            "summary": "Official community package registry publishes exact Grafana chart 12.10.0."
-          }
-        ],
-        "selectedVersion": "12.10.0",
-        "source": "https://grafana-community.github.io/helm-charts",
-        "status": "ready-for-acquisition",
-        "runtimeStatus": "eligible-after-source-resolution",
-        "upstreamVersion": "12.10.0"
-      },
-      {
         "catalogConstraint": "3.8.x",
         "chart": "kyverno",
         "component": "kyverno",
