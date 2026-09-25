@@ -800,6 +800,60 @@ def validate_management_workload_image_plan(root: Path, version: str, errors: li
             errors.append(('MANAGEMENT_WORKLOAD_MANIFEST_RECEIPT_INVALID', str(exc)))
 
 
+def validate_management_maintenance_toolset(root: Path, errors: list[tuple[str,str]]) -> None:
+    """Validate the product-owned maintenance command/base composition contract."""
+    authority_path = root/'catalog/management-maintenance-toolset.json'
+    doc = load_json(authority_path, errors) if authority_path.is_file() else None
+    if not isinstance(doc, dict):
+        errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_MISSING', str(authority_path.relative_to(root))))
+        return
+    if doc.get('authority') != 'MANAGEMENT_MAINTENANCE_TOOLSET_AUTHORITY_V1' or doc.get('schemaVersion') != 1 or doc.get('kind') != 'ManagementMaintenanceToolset':
+        errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_IDENTITY_INVALID', str(authority_path.relative_to(root))))
+    if doc.get('defaultRuntimeUser') != '65532:65532' or doc.get('rootOverrideRequired') is not True or doc.get('networkPackageInstallationAllowed') is not False:
+        errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_RUNTIME_POLICY_INVALID', str(authority_path.relative_to(root))))
+    required_exec = {'aws','cat','cmp','cp','createdb','cut','dropdb','find','gunzip','gzip','mkdir','pg_dump','pg_restore','psql','rm','sha256sum','tar','tr','wc'}
+    executables = doc.get('requiredExecutables')
+    if not isinstance(executables, list) or set(executables) != required_exec or len(executables) != len(required_exec):
+        errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_EXECUTABLES_INVALID', str(executables)))
+    if doc.get('requiredShellBuiltins') != ['printf','test']:
+        errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_BUILTINS_INVALID', str(doc.get('requiredShellBuiltins'))))
+    expected_owners = {
+        'internal/bootstrap/object_storage_probe.go',
+        'internal/disasterrecovery/manifests.go',
+        'internal/lifecycle/manifests.go',
+        'scripts/lab_runner.py',
+    }
+    owners = doc.get('ownerSurfaces')
+    if not isinstance(owners, list) or set(owners) != expected_owners or any(not (root/rel).is_file() for rel in expected_owners):
+        errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_OWNER_SURFACE_INVALID', str(owners)))
+    aws = doc.get('awsCli') or {}
+    if aws.get('repository') != 'public.ecr.aws/aws-cli/aws-cli' or aws.get('version') != aws.get('tag') or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', str(aws.get('version') or '')) or not str(aws.get('selectionEvidenceURL') or '').startswith('https://'):
+        errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_AWS_SELECTION_INVALID', str(aws)))
+    compat = doc.get('compatibilityRequirements') or {}
+    if compat != {
+        'defaultNonRootCommandProbe': True,
+        'rootOverrideCommandProbe': True,
+        'postgresqlClientMajor': 17,
+        's3EndpointOverrideRequired': True,
+        'offlineImageBuildRequired': True,
+        'runtimeCertified': False,
+        'physicalCertified': False,
+    }:
+        errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_COMPATIBILITY_INVALID', str(compat)))
+    recipe_rel = doc.get('compositionRecipe')
+    recipe = root/str(recipe_rel or '')
+    if recipe_rel != 'deploy/images/Dockerfile.maintenance-runtime-base' or not recipe.is_file():
+        errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_RECIPE_MISSING', str(recipe_rel)))
+        return
+    text = recipe.read_text()
+    for token in ('ARG AWS_CLI_IMAGE','ARG POSTGRES_RUNTIME_IMAGE','FROM ${AWS_CLI_IMAGE} AS awscli','FROM ${POSTGRES_RUNTIME_IMAGE}','COPY --from=awscli /usr/local/aws-cli/ /usr/local/aws-cli/','COPY --from=awscli /usr/local/bin/aws /usr/local/bin/aws','USER 65532:65532','ENTRYPOINT ["/bin/sh"]'):
+        if token not in text:
+            errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_RECIPE_INVALID', token))
+    lowered = text.lower()
+    if any(token in lowered for token in ('apt-get','apt install','apk add','dnf install','yum install','curl http','wget http')):
+        errors.append(('MANAGEMENT_MAINTENANCE_TOOLSET_NETWORK_INSTALL_FORBIDDEN', str(recipe_rel)))
+
+
 def validate_deployment_surface(root: Path, errors: list[tuple[str,str]]) -> None:
     """Compose and systemd surfaces must bind runtime images and durable configuration."""
     compose_path = root/'deploy/compose/docker-compose.yaml'
@@ -1918,6 +1972,7 @@ def main() -> int:
     # Deployment, image-build and machine-schema contracts.
     validate_release_recipes(root, errors)
     validate_management_workload_image_plan(root, version, errors)
+    validate_management_maintenance_toolset(root, errors)
     validate_deployment_surface(root, errors)
     schema_files = validate_schema_set(root, errors)
 
