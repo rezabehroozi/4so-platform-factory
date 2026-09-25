@@ -1,0 +1,71 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "OPENCHOREO_RUNTIME_ACQUISITION_AUTHORITY_V1",
+  "backstageEnabled": false,
+  "buildAuthority": "buildkit",
+  "bundle": "/tmp/4so-j8/openchoreo-1.3.0-source.zip",
+  "bundleSha256": "sha256:1a7972c3511abbe573944d59a2eb0d7dfff9da0e7a4442840fd8941390ca2a3e",
+  "excludedPlanes": [
+    "workflow-plane",
+    "observability-plane"
+  ],
+  "executionReady": false,
+  "externalOidcRequired": true,
+  "imageBytesIncluded": false,
+  "images": [
+    {
+      "digest": "sha256:a9993b27b0d4d3d89445401b9b1cb1acecf1e8dc25c486f145dd2b42a150daea",
+      "sourceReference": "ghcr.io/openchoreo/cluster-agent@sha256:a9993b27b0d4d3d89445401b9b1cb1acecf1e8dc25c486f145dd2b42a150daea"
+    },
+    {
+      "digest": "sha256:d5b5c6afe4b738692ad8f9d085cdb055ec8f56d5fc1f75da47cc57df630cadbe",
+      "sourceReference": "ghcr.io/openchoreo/cluster-gateway@sha256:d5b5c6afe4b738692ad8f9d085cdb055ec8f56d5fc1f75da47cc57df630cadbe"
+    },
+    {
+      "digest": "sha256:3d3ce136a88fbe14b1a3086bfcc9f6f3124ad58e0c1c411d5f354f268ca44ee7",
+      "sourceReference": "ghcr.io/openchoreo/controller@sha256:3d3ce136a88fbe14b1a3086bfcc9f6f3124ad58e0c1c411d5f354f268ca44ee7"
+    },
+    {
+      "digest": "sha256:3ac8902d084dfa78d498bc703ba57d463c2c4dcecbdc65abe02b05765f5f6f9a",
+      "sourceReference": "ghcr.io/openchoreo/event-forwarder@sha256:3ac8902d084dfa78d498bc703ba57d463c2c4dcecbdc65abe02b05765f5f6f9a"
+    },
+    {
+      "digest": "sha256:f664b78684c25e48dd1aa3117afafd482e77f9f1e9f0bbf6a89f6251a079986d",
+      "sourceReference": "ghcr.io/openchoreo/openchoreo-api@sha256:f664b78684c25e48dd1aa3117afafd482e77f9f1e9f0bbf6a89f6251a079986d"
+    },
+    {
+      "digest": "sha256:63e5e76b746bb8b891a94968d380736c035e768dab0d56ddad1f50c750a4be39",
+      "sourceReference": "registry.k8s.io/kubectl@sha256:63e5e76b746bb8b891a94968d380736c035e768dab0d56ddad1f50c750a4be39"
+    }
+  ],
+  "kind": "OpenChoreoRuntimeAcquisition",
+  "openChoreoMcpEnabled": false,
+  "planes": [
+    {
+      "chartName": "openchoreo-control-plane",
+      "chartRepository": "oci://ghcr.io/openchoreo/helm-charts",
+      "chartSha256": "sha256:e10b3d5191e29e41a075471ec555c917848b7a1bc8176e19f07e34e1be26c6cc",
+      "chartVersion": "1.3.0",
+      "name": "control-plane",
+      "renderManifestSha256": "sha256:0702981167889e18949a21689f6f713f1bdc33f56dcc83a38f407a8a14889d43",
+      "valuesSha256": "sha256:274a0e466f5bbdc34d9430a4c6cb04ccbf1c355d2d368e2145bc9c330108e861"
+    },
+    {
+      "chartName": "openchoreo-data-plane",
+      "chartRepository": "oci://ghcr.io/openchoreo/helm-charts",
+      "chartSha256": "sha256:aff988afe2b9579cf1a774726aa3fccbcff4afd6dee0603496b623ba3dc2b4a6",
+      "chartVersion": "1.3.0",
+      "name": "data-plane",
+      "renderManifestSha256": "sha256:278e71357e5cc43778f2767e31d40f1e8408c4cc95849a5329233abe9f1a2615",
+      "valuesSha256": "sha256:1b40611db04207a2834c7970621386a97b7343e22c0f2e512a9ba33606c6da38"
+    }
+  ],
+  "registryAuthority": "zot",
+  "sourceArchiveSha256": "sha256:46077843fab307220057b7888372281acc00138740f194d6fd6c1fa6bd68f517",
+  "sourceAuthority": "OPENCHOREO_RUNTIME_SOURCE_AUTHORITY_V1",
+  "sourceResolved": true,
+  "upstreamCommit": "178dfbde3e3343e5ac151b88a2f203f523f97480",
+  "upstreamRepository": "https://github.com/openchoreo/openchoreo",
+  "version": "1.3.0",
+  "zotMirrorRequired": true
+}
