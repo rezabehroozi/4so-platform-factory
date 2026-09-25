@@ -187,9 +187,17 @@
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
-      "admittedEdges": [],
+      "admittedEdges": [
+        {
+          "fromRelease": "3.8.1",
+          "fromSourceLockDigest": "f44e310235f1ad78b4d5ddf8d580d70895356941c267fa4bfdb491a46383c895",
+          "status": "admitted-source-pair",
+          "toRelease": "3.8.2",
+          "toSourceLockDigest": "52214325ec76ca1aa305e616deb307b2be130b0bef8674d108be31238655226e"
+        }
+      ],
       "component": "kyverno",
-      "status": "pending-source-pair",
+      "status": "admitted-source-pair",
       "targetRelease": "3.8.2",
       "targetSourceLockDigest": "52214325ec76ca1aa305e616deb307b2be130b0bef8674d108be31238655226e",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"

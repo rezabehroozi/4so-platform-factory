@@ -1,0 +1,30 @@
+{
+  "component": "kyverno",
+  "version": "3.8.1",
+  "sourceType": "helm-chart",
+  "upstreamUrl": "https://kyverno.github.io/kyverno/",
+  "upstreamRevision": "3.8.1",
+  "upstreamArtifact": "kyverno-3.8.1.tgz",
+  "upstreamArtifactDigest": "sha256:a33f35b83b6991daf6a1b1cf995becbe369747fcd84411d5089d55a40ee4ae0d",
+  "networkFetchRequired": false,
+  "renderer": "json-resource-list-v1",
+  "upstreamVerification": "sha256-pinned-offline",
+  "generation": {
+    "tool": "helm-template",
+    "toolVersion": "v4.2.4+g3900f43",
+    "releaseName": "platform-factory",
+    "namespace": "kyverno",
+    "includeCRDs": true,
+    "kubernetesVersions": [
+      "1.34.0",
+      "1.35.0"
+    ],
+    "kubernetesRenderDigests": {
+      "1.34.0": "sha256:04e7e2ca30ed0362a6d8ff22fe2f78f8b7b4554491088c2154ba50c4f81176dc",
+      "1.35.0": "sha256:04e7e2ca30ed0362a6d8ff22fe2f78f8b7b4554491088c2154ba50c4f81176dc"
+    },
+    "values": [],
+    "imageResolver": "crane-digest",
+    "imageResolverVersion": "0.22.1"
+  }
+}

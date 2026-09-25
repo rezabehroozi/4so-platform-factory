@@ -334,8 +334,14 @@
       },
       {
         "component": "kyverno",
-        "pairState": "target-only",
-        "previousExactSourceLocks": [],
+        "pairState": "pair-present",
+        "previousExactSourceLocks": [
+          {
+            "path": "catalog/runtime/kyverno/3.8.1/source-lock.json",
+            "release": "3.8.1",
+            "sha256": "86c79da065f482d832957a665ea00416979467f51c6dde09e060a6f1c0d5bd4f"
+          }
+        ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
         "targetRelease": "3.8.2",
         "targetSourceLockPresent": true
@@ -642,6 +648,14 @@
           "targetRelease": "2.4.1"
         },
         {
+          "component": "kyverno",
+          "path": "catalog/runtime/kyverno/3.8.1/source-lock.json",
+          "previousVersion": "3.8.1",
+          "sha256": "86c79da065f482d832957a665ea00416979467f51c6dde09e060a6f1c0d5bd4f",
+          "source": "https://kyverno.github.io/kyverno/",
+          "targetRelease": "3.8.2"
+        },
+        {
           "component": "snapshot-controller",
           "path": "catalog/runtime/snapshot-controller/8.4.0/source-lock.json",
           "previousVersion": "8.4.0",
@@ -652,12 +666,6 @@
       ],
       "authority": "HISTORICAL_UPGRADE_STAGED_BATCH_V1",
       "helmReady": [
-        {
-          "component": "kyverno",
-          "previousVersion": "3.8.1",
-          "source": "https://kyverno.github.io/kyverno/",
-          "targetRelease": "3.8.2"
-        },
         {
           "component": "metallb",
           "previousVersion": "0.16.0",
