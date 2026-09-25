@@ -38,14 +38,23 @@ func TestEmbeddedResolvedComponentBundleVerifiesAndRenders(t *testing.T) {
 	}
 }
 
-func TestFullShippedCatalogStillBlocksRenderWhileResearchSourcesAreUnresolved(t *testing.T) {
+func TestFullShippedCatalogRenderAdmissionMatchesCurrentSourceResolution(t *testing.T) {
 	components, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
+	unresolved := 0
+	for _, component := range components {
+		if !component.Spec.Source.Resolved {
+			unresolved++
+		}
+	}
 	blockers := AdmissionBlockers("RENDER", components)
-	if len(blockers) == 0 {
-		t.Fatal("full shipped research catalog must remain blocked above candidate")
+	if unresolved == 0 && len(blockers) != 0 {
+		t.Fatalf("fully source-resolved catalog still has render blockers: %v", blockers)
+	}
+	if unresolved > 0 && len(blockers) == 0 {
+		t.Fatalf("catalog with %d unresolved sources unexpectedly passed render admission", unresolved)
 	}
 }
 
