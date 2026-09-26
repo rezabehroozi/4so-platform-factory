@@ -217,6 +217,9 @@ def validate_source_bundle(root: Path, name: str, spec: dict, errors: list[tuple
     }
     if src.get('renderManifestDigest'):
         digest_files['renderManifestDigest'] = 'render-manifest.json'
+        render_file = bundle_dir / 'render-manifest.json'
+        if render_file.is_file() and render_file.stat().st_size == 0:
+            errors.append(('RESOLVED_SOURCE_RENDER_EMPTY', name))
     for field, filename in digest_files.items():
         expected = str(src.get(field) or '')
         file = bundle_dir / filename
