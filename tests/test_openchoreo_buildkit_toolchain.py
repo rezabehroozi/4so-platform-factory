@@ -27,9 +27,24 @@ class OpenChoreoBuildKitToolchainTests(unittest.TestCase):
         self.assertIn("OPENCHOREO_RUNTIME_REALISM_EVIDENCE_V1", source)
         self.assertIn("ephemeral-local-zot", source)
         self.assertIn("productionSourceSealed", source)
-        self.assertNotIn("git push", source)
-        self.assertNotIn("git commit", source)
-        self.assertNotIn("runtime/openchoreo/source-selection.json", source.split("Upload J8 runtime-realism evidence")[-1])
+        self.assertIn("git add lab/openchoreo-runtime-realism-receipt.json", source)
+        self.assertIn("git push origin HEAD:main", source)
+        self.assertNotIn("git add runtime/openchoreo/source-selection.json", source)
+        self.assertNotIn("git add runtime/openchoreo/", source)
+
+    def test_durable_runtime_realism_receipt_never_claims_production_or_physical_pass(self):
+        path = ROOT / "lab" / "openchoreo-runtime-realism-receipt.json"
+        if not path.exists():
+            self.skipTest("runtime-realism receipt is generated only after the external-byte workflow succeeds")
+        receipt = json.loads(path.read_text())
+        self.assertEqual("OPENCHOREO_RUNTIME_REALISM_EVIDENCE_V1", receipt["authority"])
+        self.assertEqual("ephemeral-local-zot", receipt["registryMode"])
+        self.assertTrue(receipt["runtimeRealismPass"])
+        self.assertFalse(receipt["productionSourceSealed"])
+        self.assertFalse(receipt["runtimeCertified"])
+        self.assertFalse(receipt["physicalCertified"])
+        self.assertRegex(receipt["sourceRunId"], r"^[0-9]+$")
+        self.assertRegex(receipt["sourceCommitSHA"], r"^[0-9a-f]{40}$")
 
 
 if __name__ == "__main__":
