@@ -244,6 +244,10 @@ jobs:
           git add lab/openchoreo-runtime-realism-receipt.json
           git diff --cached --quiet && { echo "no J8 runtime-realism receipt delta"; exit 1; }
           git fetch origin main
-          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing concurrent writer"; exit 2; }
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+            echo "main advanced; runtime evidence artifact is valid for $GITHUB_SHA but Git persistence is intentionally skipped"
+            git reset
+            exit 0
+          fi
           git commit -m "evidence: seal OpenChoreo runtime realism"
           git push origin HEAD:main
