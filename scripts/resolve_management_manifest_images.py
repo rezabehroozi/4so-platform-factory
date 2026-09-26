@@ -23,6 +23,7 @@ from upstream_acquisition_toolchain import require_toolchain
 AUTHORITY = "MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RECEIPT_V1"
 RESOLUTION_AUTHORITY = "MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_V1"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+TARGET_PLATFORM = "linux/amd64"
 
 
 def sha256_file(path: Path) -> str:
@@ -56,6 +57,14 @@ def run_json(cmd: list[str], *, timeout: int = 900) -> dict:
     if not isinstance(value, dict):
         raise RuntimeError("COMMAND_JSON_OBJECT_REQUIRED")
     return value
+
+
+def resolve_platform_digest(crane: Path, source_ref: str) -> str:
+    """Resolve the exact linux/amd64 image manifest, never a multi-arch index."""
+    digest = run([str(crane), "digest", "--platform", TARGET_PLATFORM, source_ref], timeout=600).splitlines()[-1].strip()
+    if not DIGEST_RE.fullmatch(digest):
+        raise RuntimeError(f"MANIFEST_IMAGE_DIGEST_INVALID {source_ref}:{digest}")
+    return digest
 
 
 def canonical_repository(ref: str) -> str:
@@ -215,9 +224,7 @@ def resolve_all(platformctl: Path, receipt_out: Path, run_id: str) -> dict:
             raise RuntimeError(f"MANIFEST_INSPECTION_SHAPE_INVALID {authority}")
         resolutions: list[str] = []
         for source_ref in sorted(str(x) for x in mutable):
-            digest = run([str(crane), "digest", source_ref], timeout=600).splitlines()[-1].strip()
-            if not DIGEST_RE.fullmatch(digest):
-                raise RuntimeError(f"MANIFEST_IMAGE_DIGEST_INVALID {source_ref}:{digest}")
+            digest = resolve_platform_digest(crane, source_ref)
             resolutions.extend(["--resolution", source_ref + "=" + canonical_repository(source_ref) + "@" + digest])
 
         out_manifest = ROOT / str(row.get("resolvedManifestPath") or "")
