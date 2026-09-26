@@ -207,6 +207,21 @@ func writePrivateJSON(path string, value any) error {
 	return os.WriteFile(path,raw,0o600)
 }
 
+func hardenGeneratedWorkspaceTree(root string) error {
+	return filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil { return walkErr }
+		info,err:=os.Lstat(path); if err!=nil{return err}
+		if info.Mode()&os.ModeSymlink!=0 { return fmt.Errorf("generated workspace symlink is forbidden: %s",path) }
+		if entry.IsDir() {
+			if err=os.Chmod(path,0o700);err!=nil{return err}
+			return nil
+		}
+		if !info.Mode().IsRegular(){return fmt.Errorf("generated workspace contains special file: %s",path)}
+		if err=os.Chmod(path,0o600);err!=nil{return err}
+		return nil
+	})
+}
+
 func hashAndCopyISO(srcPath, mediaRoot string) (string,int64,error) {
 	before,err:=os.Lstat(srcPath); if err!=nil{return "",0,err}
 	if before.Mode()&os.ModeSymlink!=0 || !before.Mode().IsRegular(){return "",0,errors.New("generated Agent ISO must be a regular non-symlink file")}
@@ -290,6 +305,7 @@ func (p *WorkspacePreparer) PrepareConnected(ctx context.Context, req Preparatio
 	// and is cross-checked against the separately sealed machineOS authority.
 	env=append(env,"OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE="+releaseImage)
 	if _,err=runBoundedEnv(commandCtx,tmp,binCopy,env,nil,"agent","create","image","--dir",tmp,"--log-level=info");err!=nil{return WorkspacePreparationResult{},fmt.Errorf("generate exact Agent ISO: %w",err)}
+	if err=hardenGeneratedWorkspaceTree(tmp);err!=nil{return WorkspacePreparationResult{},fmt.Errorf("harden generated workspace: %w",err)}
 	matches,err:=filepath.Glob(filepath.Join(tmp,"agent*.iso"));if err!=nil||len(matches)!=1{return WorkspacePreparationResult{},fmt.Errorf("generated Agent ISO coverage invalid: %d",len(matches))}
 	isoDigest,isoBytes,err:=hashAndCopyISO(matches[0],p.Config.MediaRoot);if err!=nil{return WorkspacePreparationResult{},fmt.Errorf("seal Agent ISO: %w",err)}
 	isoURL,err:=preparationArtifactURL(p.Config.AgentISOArtifactBaseURL,isoDigest);if err!=nil{return WorkspacePreparationResult{},err}
