@@ -16,6 +16,7 @@ from openchoreo_runtime_contract import admit_output_path
 AUTHORITY = "OPENCHOREO_ZOT_MIRROR_EVIDENCE_V1"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 PREFIX_RE = re.compile(r"^[a-z0-9.-]+(?::[0-9]+)?/[a-z0-9._/-]+$")
+REGISTRY_ID_RE = re.compile(r"^[a-z0-9.-]+(?::[0-9]+)?$")
 
 def source_repository(ref: str) -> str:
     ref = str(ref).strip()
@@ -91,6 +92,7 @@ def mirror(acquisition: Path, prefix: str, out: Path) -> dict:
         "version": lock["version"],
         "upstreamCommit": lock["upstreamCommit"],
         "registryAuthority": "zot",
+        "registryIdentity": prefix.strip().rstrip("/").split("/", 1)[0],
         "mirrorReady": True,
         "toolchain": {"craneVersion": crane_version},
         "images": evidence_rows,
