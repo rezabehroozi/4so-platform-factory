@@ -21,6 +21,9 @@ func TestKyverno382CanonicalRuntimeRenderNormalizesOnlyKnownEmptyCRDMetadata(t *
 	if err != nil {
 		t.Fatal(err)
 	}
+	if rendered.RuntimeNormalization == nil || rendered.RuntimeNormalization.Authority != KyvernoCRDNormalizationAuthority || rendered.RuntimeNormalization.RemovedEmptyLabels != 11 || rendered.RuntimeNormalization.RemovedEmptyAnnotations != 11 {
+		t.Fatalf("normalization evidence=%#v", rendered.RuntimeNormalization)
+	}
 	count := 0
 	for _, resource := range rendered.Resources {
 		if resource["kind"] != "CustomResourceDefinition" {

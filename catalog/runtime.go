@@ -331,11 +331,12 @@ func verifyManifestImageInventory(c Component, manifestFile string) error {
 }
 
 type RenderedComponent struct {
-	Name           string           `json:"name"`
-	Version        string           `json:"version"`
-	RenderedDigest string           `json:"renderedDigest"`
-	Resources      []map[string]any `json:"resources"`
-	SourceEvidence SourceEvidence   `json:"sourceEvidence"`
+	Name                 string                        `json:"name"`
+	Version              string                        `json:"version"`
+	RenderedDigest       string                        `json:"renderedDigest"`
+	Resources            []map[string]any              `json:"resources"`
+	SourceEvidence       SourceEvidence                `json:"sourceEvidence"`
+	RuntimeNormalization *RuntimeNormalizationEvidence `json:"runtimeNormalization,omitempty"`
 }
 
 func bundlePath(c Component, file string) (string, error) {
@@ -640,7 +641,11 @@ func RenderComponent(c Component, namespace, catalogReleaseID string) (RenderedC
 	if err != nil {
 		return RenderedComponent{}, err
 	}
-	_ = normalization
+	var normalizationEvidence *RuntimeNormalizationEvidence
+	if normalization.Applied {
+		normalizationCopy := normalization
+		normalizationEvidence = &normalizationCopy
+	}
 	// Preserve manifest order for application while hashing canonical JSON of that order.
 	canonical, err := json.Marshal(resources)
 	if err != nil {
@@ -650,7 +655,7 @@ func RenderComponent(c Component, namespace, catalogReleaseID string) (RenderedC
 	return RenderedComponent{
 		Name: c.Metadata.Name, Version: c.Spec.Release,
 		RenderedDigest: "sha256:" + hex.EncodeToString(sum[:]), Resources: resources,
-		SourceEvidence: sourceEvidence(c),
+		SourceEvidence: sourceEvidence(c), RuntimeNormalization: normalizationEvidence,
 	}, nil
 }
 
