@@ -207,6 +207,11 @@ func writePrivateJSON(path string, value any) error {
 }
 
 func hashAndCopyISO(srcPath, mediaRoot string) (string,int64,error) {
+	before,err:=os.Lstat(srcPath); if err!=nil{return "",0,err}
+	if before.Mode()&os.ModeSymlink!=0 || !before.Mode().IsRegular(){return "",0,errors.New("generated Agent ISO must be a regular non-symlink file")}
+	if before.Mode().Perm()&0o077!=0 {
+		if err=os.Chmod(srcPath,0o600);err!=nil{return "",0,fmt.Errorf("harden generated Agent ISO permissions: %w",err)}
+	}
 	src,info,err:=secureOpenRegular(srcPath,true); if err!=nil{return "",0,err}; defer src.Close()
 	if info.Size()<=0 || info.Size()>4<<30{return "",0,errors.New("generated Agent ISO byte size is invalid")}
 	h:=sha256.New()
