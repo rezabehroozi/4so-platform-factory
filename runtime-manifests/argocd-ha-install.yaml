@@ -33075,7 +33075,7 @@ spec:
               key: applicationsetcontroller.status.max.resources.count
               name: argocd-cmd-params-cm
               optional: true
-        image: quay.io/argoproj/argocd@sha256:c298cedbaeb31532ba8d4e9904eba9e4987e067293fbd86400c5194e78f743d5
+        image: quay.io/argoproj/argocd@sha256:521d6b62ecd0434c9cc6e9242a74f0e1137bb8fc0026b2c483ea88f3f17e725d
         imagePullPolicy: Always
         name: argocd-applicationset-controller
         ports:
@@ -33217,7 +33217,7 @@ spec:
               key: dexserver.connector.failure.continue
               name: argocd-cmd-params-cm
               optional: true
-        image: ghcr.io/dexidp/dex@sha256:b8469881d3cb3a73001506f0d3aaefecb9c45d2311c1e0f405d8ac538316c59d
+        image: ghcr.io/dexidp/dex@sha256:8a9281c3a115180415b0726ca160e38fc40f9284bc9a2d1032c839a3a934695c
         imagePullPolicy: Always
         name: dex
         ports:
@@ -33247,7 +33247,7 @@ spec:
         - -n
         - /usr/local/bin/argocd
         - /shared/argocd-dex
-        image: quay.io/argoproj/argocd@sha256:c298cedbaeb31532ba8d4e9904eba9e4987e067293fbd86400c5194e78f743d5
+        image: quay.io/argoproj/argocd@sha256:521d6b62ecd0434c9cc6e9242a74f0e1137bb8fc0026b2c483ea88f3f17e725d
         imagePullPolicy: Always
         name: copyutil
         securityContext:
@@ -33367,7 +33367,7 @@ spec:
               key: notificationscontroller.repo.server.client.cert.key.path
               name: argocd-cmd-params-cm
               optional: true
-        image: quay.io/argoproj/argocd@sha256:c298cedbaeb31532ba8d4e9904eba9e4987e067293fbd86400c5194e78f743d5
+        image: quay.io/argoproj/argocd@sha256:521d6b62ecd0434c9cc6e9242a74f0e1137bb8fc0026b2c483ea88f3f17e725d
         imagePullPolicy: Always
         livenessProbe:
           tcpSocket:
@@ -33463,7 +33463,7 @@ spec:
             secretKeyRef:
               key: auth
               name: argocd-redis
-        image: public.ecr.aws/docker/library/haproxy@sha256:e11f034e651603f10a365e5ad5a0321825e18eded9620e40c4f4d6ae58419bfe
+        image: public.ecr.aws/docker/library/haproxy@sha256:3ad414bdb5c94d712e0e9a7dc1517eca45cce652afc85a002fd7bb42b44d5dde
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         livenessProbe:
@@ -33504,7 +33504,7 @@ spec:
         - argocd
         - admin
         - redis-initial-password
-        image: quay.io/argoproj/argocd@sha256:c298cedbaeb31532ba8d4e9904eba9e4987e067293fbd86400c5194e78f743d5
+        image: quay.io/argoproj/argocd@sha256:521d6b62ecd0434c9cc6e9242a74f0e1137bb8fc0026b2c483ea88f3f17e725d
         imagePullPolicy: IfNotPresent
         name: secret-init
         securityContext:
@@ -33520,7 +33520,7 @@ spec:
         - /readonly/haproxy_init.sh
         command:
         - sh
-        image: public.ecr.aws/docker/library/haproxy@sha256:e11f034e651603f10a365e5ad5a0321825e18eded9620e40c4f4d6ae58419bfe
+        image: public.ecr.aws/docker/library/haproxy@sha256:3ad414bdb5c94d712e0e9a7dc1517eca45cce652afc85a002fd7bb42b44d5dde
         imagePullPolicy: IfNotPresent
         name: config-init
         securityContext:
@@ -33845,7 +33845,7 @@ spec:
           value: /helm-working-dir
         - name: HELM_DATA_HOME
           value: /helm-working-dir
-        image: quay.io/argoproj/argocd@sha256:c298cedbaeb31532ba8d4e9904eba9e4987e067293fbd86400c5194e78f743d5
+        image: quay.io/argoproj/argocd@sha256:521d6b62ecd0434c9cc6e9242a74f0e1137bb8fc0026b2c483ea88f3f17e725d
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 3
@@ -33902,7 +33902,7 @@ spec:
         command:
         - sh
         - -c
-        image: quay.io/argoproj/argocd@sha256:c298cedbaeb31532ba8d4e9904eba9e4987e067293fbd86400c5194e78f743d5
+        image: quay.io/argoproj/argocd@sha256:521d6b62ecd0434c9cc6e9242a74f0e1137bb8fc0026b2c483ea88f3f17e725d
         name: copyutil
         securityContext:
           allowPrivilegeEscalation: false
@@ -34368,7 +34368,7 @@ spec:
               key: server.sync.replace.allowed
               name: argocd-cmd-params-cm
               optional: true
-        image: quay.io/argoproj/argocd@sha256:c298cedbaeb31532ba8d4e9904eba9e4987e067293fbd86400c5194e78f743d5
+        image: quay.io/argoproj/argocd@sha256:521d6b62ecd0434c9cc6e9242a74f0e1137bb8fc0026b2c483ea88f3f17e725d
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -34837,7 +34837,7 @@ spec:
               optional: true
         - name: KUBECACHEDIR
           value: /tmp/kubecache
-        image: quay.io/argoproj/argocd@sha256:c298cedbaeb31532ba8d4e9904eba9e4987e067293fbd86400c5194e78f743d5
+        image: quay.io/argoproj/argocd@sha256:521d6b62ecd0434c9cc6e9242a74f0e1137bb8fc0026b2c483ea88f3f17e725d
         imagePullPolicy: Always
         name: argocd-application-controller
         ports:
@@ -34948,7 +34948,7 @@ spec:
             secretKeyRef:
               key: auth
               name: argocd-redis
-        image: public.ecr.aws/docker/library/redis@sha256:08ad0b1d280850169a790dba1393ff7a90aef951fc19632cf4d3ce4f78e679ba
+        image: public.ecr.aws/docker/library/redis@sha256:e499175dfb27569cd40010c2eee346113db95fdd0efc88ab9fd70a9e807f4542
         imagePullPolicy: IfNotPresent
         lifecycle:
           preStop:
@@ -35019,7 +35019,7 @@ spec:
             secretKeyRef:
               key: auth
               name: argocd-redis
-        image: public.ecr.aws/docker/library/redis@sha256:08ad0b1d280850169a790dba1393ff7a90aef951fc19632cf4d3ce4f78e679ba
+        image: public.ecr.aws/docker/library/redis@sha256:e499175dfb27569cd40010c2eee346113db95fdd0efc88ab9fd70a9e807f4542
         imagePullPolicy: IfNotPresent
         lifecycle:
           postStart:
@@ -35094,7 +35094,7 @@ spec:
             secretKeyRef:
               key: auth
               name: argocd-redis
-        image: public.ecr.aws/docker/library/redis@sha256:08ad0b1d280850169a790dba1393ff7a90aef951fc19632cf4d3ce4f78e679ba
+        image: public.ecr.aws/docker/library/redis@sha256:e499175dfb27569cd40010c2eee346113db95fdd0efc88ab9fd70a9e807f4542
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
@@ -35150,7 +35150,7 @@ spec:
             secretKeyRef:
               key: auth
               name: argocd-redis
-        image: public.ecr.aws/docker/library/redis@sha256:08ad0b1d280850169a790dba1393ff7a90aef951fc19632cf4d3ce4f78e679ba
+        image: public.ecr.aws/docker/library/redis@sha256:e499175dfb27569cd40010c2eee346113db95fdd0efc88ab9fd70a9e807f4542
         imagePullPolicy: IfNotPresent
         name: config-init
         securityContext:

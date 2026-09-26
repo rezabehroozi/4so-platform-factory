@@ -5541,7 +5541,7 @@ spec:
     spec:
       containers:
       - name: longhorn-manager
-        image: docker.io/longhornio/longhorn-manager@sha256:83b79f57043fe1405e68bc0d4c7987accbc6bb512def3e0db12b31966c070801
+        image: docker.io/longhornio/longhorn-manager@sha256:588749e808e27c2d984bec810dd6e9d93e8842ee488715cb43433dd840a94c00
         imagePullPolicy: IfNotPresent
         securityContext:
           privileged: true
@@ -5550,17 +5550,17 @@ spec:
         - -d
         - daemon
         - --engine-image
-        - "docker.io/longhornio/longhorn-engine@sha256:9b1b720b56df6612c9589cbc156acbca6419fa61de818d05db7226b0722f2868"
+        - "docker.io/longhornio/longhorn-engine@sha256:7f7513ab2c8e6da56f0b26b17d20caaf2ff9725fbf09373ee651348eb3076561"
         - --instance-manager-image
-        - "docker.io/longhornio/longhorn-instance-manager@sha256:b255f3279dd9d830ea153e9369928646dee519fd853036388926dddb5c66094b"
+        - "docker.io/longhornio/longhorn-instance-manager@sha256:fba5787b2928a686f733afe7131aa52cf5a0e1bd8664a1653ec69e12167a6592"
         - --share-manager-image
-        - "docker.io/longhornio/longhorn-share-manager@sha256:efaf47aeb4e8615e312f0880df860bf2e5b9fa53006fe075f057c6dd4089f47d"
+        - "docker.io/longhornio/longhorn-share-manager@sha256:0d17310563f501257554dcf294f2b53b855fb6432ec5ec921dd280662e9b448d"
         - --backing-image-manager-image
-        - "docker.io/longhornio/backing-image-manager@sha256:dfb9452e4190fb80e39c7976a0036ac0ca314c05328b67952f8c165cbb4dabf3"
+        - "docker.io/longhornio/backing-image-manager@sha256:a61eb7d0b58d477c4fc6a68ef718be477a070f9514aaf6e3cc78eb887492577f"
         - --support-bundle-manager-image
-        - "docker.io/longhornio/support-bundle-kit@sha256:02baa824d9a4174747ab9db2635ae000b1198d2d5ed3a4c69caf28724224e783"
+        - "docker.io/longhornio/support-bundle-kit@sha256:11ec18455e795d44bef63367e759e734b118b772b8bedea4f0c92b3ec64c1e2f"
         - --manager-image
-        - "docker.io/longhornio/longhorn-manager@sha256:83b79f57043fe1405e68bc0d4c7987accbc6bb512def3e0db12b31966c070801"
+        - "docker.io/longhornio/longhorn-manager@sha256:588749e808e27c2d984bec810dd6e9d93e8842ee488715cb43433dd840a94c00"
         - --service-account
         - longhorn-service-account
         - --upgrade-version-check
@@ -5615,7 +5615,7 @@ spec:
         
       - name: pre-pull-share-manager-image
         imagePullPolicy: IfNotPresent
-        image: docker.io/longhornio/longhorn-share-manager@sha256:efaf47aeb4e8615e312f0880df860bf2e5b9fa53006fe075f057c6dd4089f47d
+        image: docker.io/longhornio/longhorn-share-manager@sha256:0d17310563f501257554dcf294f2b53b855fb6432ec5ec921dd280662e9b448d
         command: ["sh", "-c", "echo share-manager image pulled && sleep infinity"]
       volumes:
       - name: boot
@@ -5668,18 +5668,18 @@ spec:
     spec:
       initContainers:
         - name: wait-longhorn-manager
-          image: docker.io/longhornio/longhorn-manager@sha256:83b79f57043fe1405e68bc0d4c7987accbc6bb512def3e0db12b31966c070801
+          image: docker.io/longhornio/longhorn-manager@sha256:588749e808e27c2d984bec810dd6e9d93e8842ee488715cb43433dd840a94c00
           command: ['sh', '-c', 'while [ $(curl -m 1 -s -o /dev/null -w "%{http_code}" http://longhorn-backend:9500/v1) != "200" ]; do echo waiting; sleep 2; done']
       containers:
         - name: longhorn-driver-deployer
-          image: docker.io/longhornio/longhorn-manager@sha256:83b79f57043fe1405e68bc0d4c7987accbc6bb512def3e0db12b31966c070801
+          image: docker.io/longhornio/longhorn-manager@sha256:588749e808e27c2d984bec810dd6e9d93e8842ee488715cb43433dd840a94c00
           imagePullPolicy: IfNotPresent
           command:
           - longhorn-manager
           - -d
           - deploy-driver
           - --manager-image
-          - "docker.io/longhornio/longhorn-manager@sha256:83b79f57043fe1405e68bc0d4c7987accbc6bb512def3e0db12b31966c070801"
+          - "docker.io/longhornio/longhorn-manager@sha256:588749e808e27c2d984bec810dd6e9d93e8842ee488715cb43433dd840a94c00"
           - --manager-url
           - http://longhorn-backend:9500/v1
           env:
@@ -5752,7 +5752,7 @@ spec:
             weight: 1
       containers:
       - name: longhorn-ui
-        image: docker.io/longhornio/longhorn-ui@sha256:03a3ce6673df6e948c261fe978a695adaa8fb190d68bfe5c358af8ee3d3fbef5
+        image: docker.io/longhornio/longhorn-ui@sha256:961d7096b17f532176454482ac8bec090e31d9eb69078f5bb091e568f48e4342
         imagePullPolicy: IfNotPresent
         volumeMounts:
         - name: nginx-cache
