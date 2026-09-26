@@ -48,6 +48,9 @@ def seal(acquisition: Path, mirror_path: Path, executor_path: Path, out: Path) -
         raise RuntimeError("OPENCHOREO_MIRROR_EVIDENCE_AUTHORITY_INVALID")
     if mirror.get("acquisitionBundleSha256") != acquisition_digest or mirror.get("version") != VERSION or mirror.get("upstreamCommit") != UPSTREAM_COMMIT:
         raise RuntimeError("OPENCHOREO_MIRROR_EVIDENCE_SOURCE_MISMATCH")
+    mirror_registry = str(mirror.get("registryIdentity") or "").strip().lower()
+    if not mirror_registry or "/" in mirror_registry or "://" in mirror_registry:
+        raise RuntimeError("OPENCHOREO_MIRROR_REGISTRY_IDENTITY_INVALID")
 
     acquired = {}
     for row in acquisition_lock.get("images") or []:
@@ -77,6 +80,9 @@ def seal(acquisition: Path, mirror_path: Path, executor_path: Path, out: Path) -
         raise RuntimeError("OPENCHOREO_EXECUTOR_EVIDENCE_AUTHORITY_INVALID")
     if executor.get("acquisitionBundleSha256") != acquisition_digest or executor.get("registryReadback") is not True or executor.get("mirrorReady") is not True:
         raise RuntimeError("OPENCHOREO_EXECUTOR_EVIDENCE_SOURCE_MISMATCH")
+    executor_registry = str(executor.get("registryIdentity") or "").strip().lower()
+    if executor_registry != mirror_registry:
+        raise RuntimeError("OPENCHOREO_RUNTIME_REGISTRY_IDENTITY_MISMATCH")
     executor_ref = str(executor.get("imageReference") or "")
     executor_digest = str(executor.get("imageDigest") or "").lower()
     validate_exact_ref(executor_ref, executor_digest, "OPENCHOREO_EXECUTOR_IMAGE")
@@ -114,6 +120,7 @@ def seal(acquisition: Path, mirror_path: Path, executor_path: Path, out: Path) -
         "externalOidcRequired": True,
         "buildAuthority": "buildkit",
         "registryAuthority": "zot",
+        "registryIdentity": mirror_registry,
     }
     out = admit_output_path(out, "OPENCHOREO_RUNTIME_SEAL_OUTPUT")
     out.parent.mkdir(parents=True, exist_ok=True)
