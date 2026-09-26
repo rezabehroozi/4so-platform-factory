@@ -11,7 +11,14 @@ class ManagedOKDUpstreamLockTests(unittest.TestCase):
         self.assertTrue(doc["connectedToolchainReady"])
         self.assertEqual("sha256:d6a4b74886326bd2196bd834f8351a4e142a9ffd278beef1b56f5da9cdb772e2",doc["releasePayload"]["digest"])
         self.assertEqual("9.0.20250827-0",doc["machineOS"]["version"])
-        self.assertEqual({"fcos","agent-iso-workspace","oc-mirror-v2"},{x["id"] for x in doc["pendingAuthorities"]})
+        pending={x["id"] for x in doc["pendingAuthorities"]}
+        if doc.get("machineOSArtifact") is None:
+            self.assertEqual({"fcos","agent-iso-workspace","oc-mirror-v2"},pending)
+        else:
+            self.assertEqual({"agent-iso-workspace","oc-mirror-v2"},pending)
+            self.assertTrue(doc["machineOSArtifact"]["byteVerified"])
+            self.assertEqual("9.0.20250827-0",doc["machineOSArtifact"]["payloadComponentVersion"])
+            self.assertRegex(doc["machineOSArtifact"]["streamRelease"],r"^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$")
         self.assertFalse(doc["managedInstallContentReady"])
         self.assertFalse(doc["disconnectedToolchainReady"])
         self.assertFalse(doc["runtimeCertified"])
