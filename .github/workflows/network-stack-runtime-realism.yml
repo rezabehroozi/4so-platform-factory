@@ -63,7 +63,11 @@ jobs:
           - role: control-plane
           - role: worker
           YAML
-          /tmp/kind create cluster --name 4so-net --image "$KIND_NODE_IMAGE" --config /tmp/kind.yaml --wait 5m
+          /tmp/kind create cluster --name 4so-net --image "$KIND_NODE_IMAGE" --config /tmp/kind.yaml
+          for i in $(seq 1 60); do
+            if kubectl cluster-info --context kind-4so-net >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
           kubectl cluster-info --context kind-4so-net
           test "$(kubectl get nodes -o json | jq '.items | length')" = "2"
           kubectl version -o json > /tmp/kubectl-version.json
