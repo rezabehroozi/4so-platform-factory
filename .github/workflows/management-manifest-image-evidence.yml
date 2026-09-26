@@ -6,13 +6,13 @@ on:
     paths:
       - .github/workflows/management-manifest-image-evidence.yml
       - scripts/resolve_management_manifest_images.py
+      - tests/test_resolve_management_manifest_images.py
 
 permissions:
   contents: write
 
 jobs:
   resolve-and-seal:
-    if: contains(github.event.head_commit.message, '[management-manifest-evidence]')
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     env:
