@@ -1,0 +1,56 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "RUNTIME_DEPENDENCY_TRANSITION_READINESS_V1",
+  "cilium": {
+    "artifactDigest": "sha256:06210eef7c23d15f7699c79e2fe3a1ec9c389024c5c5c006ea04022d322449a2",
+    "release": "1.20.1",
+    "sourceLockSha256": "sha256:f422377a963a11f71e9158d91238d85415243f84841b153eee78f704bfedf40a"
+  },
+  "ciliumReleased": false,
+  "currentGatewayApi": {
+    "artifactDigest": "sha256:6007c679ec2b427b0c72f0fd724c502c95a341bfbad100ea56ec38c4d6f0d5bb",
+    "release": "1.5.1",
+    "sourceLockSha256": "sha256:6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960"
+  },
+  "currentGatewayApiMutationPerformed": false,
+  "executionOrder": [
+    "acquire-and-verify-gateway-api-1.6.1",
+    "acquire-and-verify-kgateway-2.4.1",
+    "acquire-and-verify-cilium-1.20.1",
+    "certify-gateway-api-upgrade-1.5.1-to-1.6.1",
+    "certify-kgateway-2.4.1-on-gateway-api-1.6.1",
+    "certify-cilium-1.20.1-on-gateway-api-1.6.1"
+  ],
+  "kgateway": {
+    "artifactDigest": "sha256:95e193ec629e31efb8a9046ba399457fd2332c321bb9a6b0c6a3c35215e3f1f8",
+    "release": "2.4.1",
+    "sourceLockSha256": "sha256:af65659f58af5af9dbcfd5b85e97df4a71d8ec9e22d769ea162cd371e848e738"
+  },
+  "kind": "RuntimeDependencyTransitionReadiness",
+  "physicalCertified": false,
+  "remainingRuntimeSuitabilityHolds": [
+    "cilium",
+    "kyverno",
+    "metallb"
+  ],
+  "runtimeCertified": false,
+  "sourceClosureReady": true,
+  "targetGatewayApi": {
+    "assets": [
+      {
+        "name": "experimental-install.yaml",
+        "sha256": "sha256:d7fa77650e4ef28fca0411536fcb5e237deb4d50301cfded3be49d9a1b7bbd02",
+        "sizeBytes": 1402117
+      },
+      {
+        "name": "standard-install.yaml",
+        "sha256": "sha256:24d931f22abd8e40c973264319ead7cfa09d0fb7716b7ab1ee2ff174cb063a73",
+        "sizeBytes": 1170953
+      }
+    ],
+    "release": "1.6.1"
+  },
+  "transitionAuthority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
+  "transitionDigest": "sha256:8c14f0187895595754034ce6acc4978e938d6eab3f48d901f7e76189618df54a",
+  "transitionExecutionReady": true
+}
