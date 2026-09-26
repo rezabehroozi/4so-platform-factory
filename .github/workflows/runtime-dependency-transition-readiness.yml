@@ -1,0 +1,78 @@
+name: runtime-dependency-transition-readiness
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/runtime-dependency-transition-readiness.yml
+      - catalog/runtime-dependency-transition.json
+      - catalog/component-runtime-certification.json
+      - catalog/components/gateway-api.json
+      - catalog/components/kgateway.json
+      - catalog/components/cilium.json
+      - catalog/runtime/gateway-api/1.5.1/**
+      - catalog/runtime/kgateway/2.4.1/**
+      - catalog/runtime/cilium/1.20.1/**
+      - catalog/runtime-dependencies/gateway-api/1.6.1/**
+      - scripts/runtime_dependency_transition_readiness.py
+      - tests/test_runtime_dependency_transition_readiness.py
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-and-seal:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact canonical main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove transition readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/runtime_dependency_transition_readiness.py --self-test
+          python3 scripts/runtime_dependency_transition_readiness.py             --out lab/runtime-dependency-transition-readiness.json             >/tmp/runtime-dependency-transition-readiness.json
+          cmp -s /tmp/runtime-dependency-transition-readiness.json <(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.dumps(json.loads(Path("lab/runtime-dependency-transition-readiness.json").read_text()), sort_keys=True))
+          PY
+          )
+          jq -e '
+            .authority == "RUNTIME_DEPENDENCY_TRANSITION_READINESS_V1" and
+            .sourceClosureReady == true and
+            .transitionExecutionReady == true and
+            .currentGatewayApiMutationPerformed == false and
+            .ciliumReleased == false and
+            .runtimeCertified == false and
+            .physicalCertified == false and
+            .remainingRuntimeSuitabilityHolds == ["cilium","kyverno","metallb"]
+          ' lab/runtime-dependency-transition-readiness.json >/dev/null
+          python3 scripts/validate_repository.py .
+          python3 -m unittest tests.test_runtime_dependency_transition_readiness
+          git diff --check
+
+      - name: Upload transition readiness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-dependency-transition-readiness
+          path: lab/runtime-dependency-transition-readiness.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Commit Git-safe readiness receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lab/runtime-dependency-transition-readiness.json
+          git diff --cached --quiet && { echo "no transition readiness delta"; exit 0; }
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing concurrent writer"; exit 2; }
+          git commit -m "evidence: seal runtime dependency transition readiness"
+          git push origin HEAD:main
