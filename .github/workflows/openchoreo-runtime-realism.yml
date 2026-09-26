@@ -16,7 +16,7 @@ on:
       - tests/test_openchoreo_buildkit_toolchain.py
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 jobs:
@@ -215,8 +215,9 @@ jobs:
             "physicalCertified":False
           }
           Path("/tmp/4so-j8/runtime-realism-receipt.json").write_text(json.dumps(evidence,indent=2,sort_keys=True)+"\n")
+          Path("lab/openchoreo-runtime-realism-receipt.json").write_text(json.dumps(evidence,indent=2,sort_keys=True)+"\n")
           PY
-          jq -e '.runtimeRealismPass == true and .productionSourceSealed == false and .runtimeCertified == false and .physicalCertified == false and .registryMode == "ephemeral-local-zot"' /tmp/4so-j8/runtime-realism-receipt.json >/dev/null
+          jq -e '.runtimeRealismPass == true and .productionSourceSealed == false and .runtimeCertified == false and .physicalCertified == false and .registryMode == "ephemeral-local-zot"' lab/openchoreo-runtime-realism-receipt.json >/dev/null
 
       - name: Upload J8 runtime-realism evidence
         uses: actions/upload-artifact@v4
@@ -228,7 +229,21 @@ jobs:
             /tmp/4so-j8/executor-evidence.json
             /tmp/4so-j8/runtime-source.json
             /tmp/4so-j8/runtime-realism-receipt.json
+            lab/openchoreo-runtime-realism-receipt.json
             /tmp/4so-j8/buildkitd.log
           compression-level: 0
           if-no-files-found: error
           retention-days: 14
+
+      - name: Commit Git-safe J8 runtime-realism receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lab/openchoreo-runtime-realism-receipt.json
+          git diff --cached --quiet && { echo "no J8 runtime-realism receipt delta"; exit 1; }
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing concurrent writer"; exit 2; }
+          git commit -m "evidence: seal OpenChoreo runtime realism"
+          git push origin HEAD:main
