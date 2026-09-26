@@ -116,7 +116,7 @@ class ManagementProductImageEvidenceTests(unittest.TestCase):
             input_path = root / "input.json"
             input_path.write_text(json.dumps(payload))
             with self.assertRaisesRegex(RuntimeError, "MANAGEMENT_API_BASE_CA_SOURCE_INVALID"):
-                mod.seal(root, input_path, root / "receipt.json", "123")
+                mod.seal(root, input_path, root / "receipt.json", "123", "2" * 40)
 
 
 if __name__ == "__main__":
