@@ -86,6 +86,7 @@ def build(context: Path, buildctl: Path, address: str, repository: str, out: Pat
     lock, ctx_digest = load_context(context)
     tag = "ctx-" + ctx_digest.removeprefix("sha256:")[:24]
     tagged = repository + ":" + tag
+    registry_identity = repository.split("/", 1)[0]
     release_digest = str((lock.get("sourceRelease") or {}).get("sha256") or "")
     acquisition_digest = str((lock.get("runtimeAcquisition") or {}).get("sha256") or "")
     if not DIGEST_RE.fullmatch(release_digest) or not DIGEST_RE.fullmatch(acquisition_digest):
@@ -122,6 +123,7 @@ def build(context: Path, buildctl: Path, address: str, repository: str, out: Pat
         "buildAuthority": "buildkit",
         "buildctlVersion": version,
         "registryAuthority": "zot",
+        "registryIdentity": registry_identity,
         "imageReference": exact,
         "imageDigest": digest,
         "registryReadback": True,
