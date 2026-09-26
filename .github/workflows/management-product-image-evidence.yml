@@ -7,6 +7,8 @@ on:
       - .github/workflows/management-product-image-evidence.yml
       - .dockerignore
       - scripts/management_product_image_evidence.py
+      - scripts/validate_repository.py
+      - tests/test_management_product_image_evidence.py
       - catalog/management-maintenance-toolset.json
       - deploy/images/Dockerfile.api-runtime-base
       - deploy/images/Dockerfile.maintenance-runtime-base
