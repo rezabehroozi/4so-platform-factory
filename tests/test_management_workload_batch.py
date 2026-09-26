@@ -18,11 +18,12 @@ class ManagementWorkloadBatchTests(unittest.TestCase):
         self.assertEqual({"15.0.7", "26.7.3", "17.11", "2.1.20"}, {r["version"] for r in rows})
         self.assertTrue(all(r["tag"] != "latest" for r in rows))
 
-    def test_diagnose_reports_current_missing_authority_without_fake_readiness(self):
+    def test_diagnose_reports_current_partial_archive_without_fake_readiness(self):
         result = mod.diagnose(ROOT)
         self.assertEqual(mod.DIAGNOSTIC_AUTHORITY, result["authority"])
         self.assertEqual("BLOCKED", result["status"])
-        self.assertEqual(["management-workload-oci-archive"], result["missingAuthorities"])
+        self.assertEqual([], result["missingAuthorities"])
+        self.assertEqual(["management-workload-oci-archive"], result["partialAuthorities"])
         self.assertFalse(result["managementWorkloadArchiveResolved"])
         self.assertTrue(result["canStartExternalAcquisition"])
         self.assertEqual([], result["pending"]["externalImages"])
