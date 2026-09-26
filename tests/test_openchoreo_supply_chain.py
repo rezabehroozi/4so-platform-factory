@@ -133,5 +133,12 @@ class OpenChoreoSupplyChainSelfTests(unittest.TestCase):
         ):
             self.assertNotIn(legacy, (SCRIPTS / name).read_text(), msg=name)
 
+
+    def test_openchoreo_runtime_seal_rejects_cross_registry_evidence(self):
+        source = (SCRIPTS / "seal_openchoreo_runtime.py").read_text()
+        self.assertIn("OPENCHOREO_RUNTIME_REGISTRY_IDENTITY_MISMATCH", source)
+        self.assertIn("registryIdentity", (SCRIPTS / "mirror_openchoreo_runtime.py").read_text())
+        self.assertIn("registryIdentity", (SCRIPTS / "build_openchoreo_executor_image.py").read_text())
+
 if __name__ == "__main__":
     unittest.main()
