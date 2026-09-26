@@ -684,6 +684,17 @@ def validate_release_recipes(root: Path, errors: list[tuple[str,str]]) -> None:
         'deploy/images/Dockerfile.agent-release': ('ARG RUNTIME_IMAGE', 'ARG SOURCE_RELEASE_DIGEST', 'platform.4so.io/product-role=\"platform-agent\"', 'platform.4so.io/source-release-digest=\"${SOURCE_RELEASE_DIGEST}\"', 'COPY bin/linux-amd64/platform-agent /platform-agent', 'USER 65532:65532'),
         'deploy/images/Dockerfile.probe-release': ('ARG RUNTIME_IMAGE', 'ARG SOURCE_RELEASE_DIGEST', 'platform.4so.io/product-role=\"platform-probe\"', 'platform.4so.io/source-release-digest=\"${SOURCE_RELEASE_DIGEST}\"', 'COPY bin/linux-amd64/platform-probe /platform-probe', 'USER 65532:65532'),
     }
+    api_base_recipe = root/'deploy/images/Dockerfile.api-runtime-base'
+    if not api_base_recipe.is_file():
+        errors.append(('MANAGEMENT_WORKLOAD_API_BASE_RECIPE_MISSING', 'deploy/images/Dockerfile.api-runtime-base'))
+    else:
+        api_base_text = api_base_recipe.read_text()
+        for token in ('ARG CA_RUNTIME_IMAGE','ARG POSTGRES_RUNTIME_IMAGE','FROM ${CA_RUNTIME_IMAGE} AS ca','FROM ${POSTGRES_RUNTIME_IMAGE}','COPY --from=ca /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt','USER 65532:65532'):
+            if token not in api_base_text:
+                errors.append(('MANAGEMENT_WORKLOAD_API_BASE_RECIPE_INVALID', f'deploy/images/Dockerfile.api-runtime-base:{token}'))
+        if any(token in api_base_text.lower() for token in ('apk add','apt-get','apt install','dnf install','yum install','curl http','wget http')):
+            errors.append(('MANAGEMENT_WORKLOAD_API_BASE_NETWORK_BUILD_FORBIDDEN','deploy/images/Dockerfile.api-runtime-base'))
+
     maintenance_recipe = root/'deploy/images/Dockerfile.maintenance'
     if not maintenance_recipe.is_file():
         errors.append(('MANAGEMENT_WORKLOAD_RELEASE_RECIPE_MISSING', 'deploy/images/Dockerfile.maintenance'))
