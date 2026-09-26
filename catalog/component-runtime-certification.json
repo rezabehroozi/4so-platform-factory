@@ -31,7 +31,7 @@
         "component": "kyverno",
         "status": "review-required",
         "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
-        "reason": "Kyverno chart 3.8.2 remains runtime-held while the reviewed upstream CRD rendering defect is unresolved or explicitly dispositioned.",
+        "reason": "Kyverno chart 3.8.2 upstream emits non-convergent empty metadata maps on 11 policies.kyverno.io CRDs. Product-owned KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1 now removes only those exact empty maps before runtime application; the hold remains until exact runtime apply/reconcile evidence is sealed.",
         "evidenceURL": "https://github.com/kyverno/kyverno/issues/16764"
       },
       {

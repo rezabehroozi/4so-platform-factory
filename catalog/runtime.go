@@ -636,6 +636,11 @@ func RenderComponent(c Component, namespace, catalogReleaseID string) (RenderedC
 		seen[identity] = true
 		resources = append(resources, resource)
 	}
+	normalization, err := normalizeRuntimeResources(c, resources)
+	if err != nil {
+		return RenderedComponent{}, err
+	}
+	_ = normalization
 	// Preserve manifest order for application while hashing canonical JSON of that order.
 	canonical, err := json.Marshal(resources)
 	if err != nil {
