@@ -44,7 +44,7 @@ jobs:
           python3 scripts/upstream_acquisition_toolchain.py --bootstrap /tmp/j8-tools --timeout 180
           mkdir -p /tmp/j8-toolchain-stage
           python3 - <<'PY'
-          import hashlib, json, urllib.request
+          import hashlib, json, urllib.request, urllib.parse
           from pathlib import Path
           doc=json.loads(Path("catalog/upstream-acquisition-toolchain.json").read_text())
           target="linux-amd64"
