@@ -1,0 +1,17 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "OPENCHOREO_RUNTIME_REALISM_EVIDENCE_V1",
+  "buildAuthority": "buildkit",
+  "imageCount": 6,
+  "kind": "OpenChoreoRuntimeRealismEvidence",
+  "physicalCertified": false,
+  "productionSourceSealed": false,
+  "registryMode": "ephemeral-local-zot",
+  "runtimeCertified": false,
+  "runtimeRealismPass": true,
+  "runtimeSourceSha256": "sha256:bc0b24af40036c90154bdd96c90da4e72b530b8c1f80f581c5de7d5efc24cd20",
+  "sourceCommitSHA": "ef74c69fb79b99eafe61724bd54d0c7fa43a4c75",
+  "sourceRunId": "36223347334",
+  "upstreamCommit": "178dfbde3e3343e5ac151b88a2f203f523f97480",
+  "version": "1.3.0"
+}
