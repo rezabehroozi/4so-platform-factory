@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from management_workload_evidence import external_receipt_evidence, manifest_receipt_evidence, product_receipt_evidence
+from runtime_dependency_transition_readiness import verify as runtime_transition_readiness
 
 AUTHORITY = "SUPPLY_CHAIN_HANDOFF_V1"
 SEAL_AUTHORITY = "SUPPLY_CHAIN_HANDOFF_SEAL_V1"
@@ -149,6 +150,7 @@ def build(root: Path = ROOT) -> dict:
     upgrade_admission = _json(root / "catalog" / "component-upgrade-source-admission.json")
     runtime_transition = _json(root / "catalog" / "runtime-dependency-transition.json")
     runtime_certification = _json(root / "catalog" / "component-runtime-certification.json")
+    transition_readiness = runtime_transition_readiness(root)
     components = _component_docs(root)
 
     rows = (admission.get("spec") or {}).get("components") or []
@@ -401,6 +403,7 @@ def build(root: Path = ROOT) -> dict:
                     "catalog/component-upgrade-source-admission.json",
                     "catalog/tagged-source-recipes/*",
                     "catalog/runtime-dependency-transition.json",
+                    "lab/runtime-dependency-transition-readiness.json",
                     "catalog/component-runtime-certification.json",
                 ],
                 "stagingNeverPromotesSourceResolution": True,
@@ -449,6 +452,15 @@ def build(root: Path = ROOT) -> dict:
                 "gatewayTargetRelease": str(((runtime_transition.get("spec") or {}).get("gatewayApi") or {}).get("targetRelease") or ""),
                 "kgatewayTargetRelease": str(((runtime_transition.get("spec") or {}).get("kgateway") or {}).get("targetRelease") or ""),
                 "ciliumTargetRelease": str(((runtime_transition.get("spec") or {}).get("cilium") or {}).get("targetRelease") or ""),
+                "readinessAuthority": transition_readiness["authority"],
+                "transitionDigest": transition_readiness["transitionDigest"],
+                "sourceClosureReady": transition_readiness["sourceClosureReady"],
+                "transitionExecutionReady": transition_readiness["transitionExecutionReady"],
+                "currentGatewayApiMutationPerformed": transition_readiness["currentGatewayApiMutationPerformed"],
+                "ciliumReleased": transition_readiness["ciliumReleased"],
+                "runtimeCertified": transition_readiness["runtimeCertified"],
+                "physicalCertified": transition_readiness["physicalCertified"],
+                "remainingRuntimeSuitabilityHolds": transition_readiness["remainingRuntimeSuitabilityHolds"],
             },
             "historicalComponentAcquisition": historical,
             "componentUpgradeSourceAdmission": {
@@ -532,6 +544,16 @@ def validate(plan: dict, root: Path = ROOT) -> list[str]:
     transition = spec.get("runtimeDependencyTransition") or {}
     if transition.get("authority") != "RUNTIME_DEPENDENCY_TRANSITION_V1" or transition.get("status") not in {"acquisition-pending","runtime-certification-pending","complete"}:
         errors.append("runtime dependency transition authority invalid")
+    if transition.get("readinessAuthority") != "RUNTIME_DEPENDENCY_TRANSITION_READINESS_V1":
+        errors.append("runtime dependency transition readiness authority invalid")
+    if transition.get("sourceClosureReady") is not True or transition.get("transitionExecutionReady") is not True:
+        errors.append("runtime dependency transition readiness is not prepared")
+    if transition.get("currentGatewayApiMutationPerformed") is not False or transition.get("ciliumReleased") is not False:
+        errors.append("runtime dependency transition readiness illegally promotes runtime state")
+    if transition.get("runtimeCertified") is not False or transition.get("physicalCertified") is not False:
+        errors.append("runtime dependency transition readiness scope inflation")
+    if transition.get("remainingRuntimeSuitabilityHolds") != ["cilium","kyverno","metallb"]:
+        errors.append("runtime dependency transition hold set drift")
     upgrade_adm = spec.get("componentUpgradeSourceAdmission") or {}
     if upgrade_adm.get("authority") != "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1":
         errors.append("upgrade source admission authority invalid")
