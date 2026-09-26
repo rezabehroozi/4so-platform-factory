@@ -63,7 +63,9 @@ jobs:
             kubectl wait --for=condition=Established "crd/$crd" --timeout=4m
           done
           kubectl -n kyverno wait --for=condition=Available deployment --all --timeout=10m
-          kubectl -n kyverno wait --for=condition=Ready pod --all --timeout=10m
+          if kubectl -n kyverno get job -o name | grep -q .; then
+            kubectl -n kyverno wait --for=condition=Complete job --all --timeout=10m
+          fi
           set +e
           kubectl diff --server-side --field-manager=argocd-controller -f /tmp/kyverno-list.json >/tmp/kyverno-diff.txt
           diff_rc=$?
