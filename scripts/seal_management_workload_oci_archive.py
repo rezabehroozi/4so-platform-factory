@@ -170,8 +170,38 @@ def seal(root: Path, archive: Path, assembly_result: Path, out: Path, run_id: st
     return receipt
 
 
-def verify(root: Path, receipt_path: Path) -> dict:
+def verify_structure(receipt_path: Path) -> dict:
+    """Validate a historical archive receipt without claiming it matches current image inputs."""
     receipt = load(receipt_path, "MANAGEMENT_ARCHIVE_RECEIPT")
+    if receipt.get("authority") != AUTHORITY or receipt.get("schemaVersion") != 1 or receipt.get("kind") != "ManagementWorkloadOCIArchiveReceipt":
+        raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_AUTHORITY_INVALID")
+    if not COMMIT_RE.fullmatch(str(receipt.get("sourceCommitSHA") or "")) or not str(receipt.get("sourceRunId") or "").isdigit():
+        raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_SOURCE_IDENTITY_INVALID")
+    if not DIGEST_RE.fullmatch(str(receipt.get("archiveSha256") or "")):
+        raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_DIGEST_INVALID")
+    if receipt.get("assemblyAuthority") != ASSEMBLY_AUTHORITY or receipt.get("inventoryAuthority") != INVENTORY_AUTHORITY or receipt.get("importAddressabilityAuthority") != ADDRESSABILITY_AUTHORITY:
+        raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_AUTHORITY_CHAIN_INVALID")
+    if receipt.get("archiveBuilt") is not True or receipt.get("distributionReady") is not False or receipt.get("runtimeCertified") is not False or receipt.get("physicalCertified") is not False:
+        raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_SCOPE_INFLATION")
+    if not isinstance(receipt.get("archiveBytes"), int) or receipt["archiveBytes"] <= 0 or not isinstance(receipt.get("blobCount"), int) or receipt["blobCount"] <= 0:
+        raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_SIZE_INVALID")
+    images = receipt.get("images")
+    if not isinstance(images, list) or receipt.get("imageCount") != len(images) or not images or images != sorted(set(images)) or any(not REF_RE.fullmatch(str(ref)) for ref in images):
+        raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_IMAGE_SET_INVALID")
+    source = receipt.get("sourceEvidence")
+    required = {"externalReceiptSha256","manifestReceiptSha256","productReceiptSha256","productSourceRunId","productSourceCommitSHA","externalSourceRunId","manifestSourceRunId"}
+    if not isinstance(source, dict) or set(source) != required:
+        raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_SOURCE_EVIDENCE_INVALID")
+    for key in ("externalReceiptSha256","manifestReceiptSha256","productReceiptSha256"):
+        if not DIGEST_RE.fullmatch(str(source.get(key) or "")):
+            raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_SOURCE_EVIDENCE_INVALID")
+    if not COMMIT_RE.fullmatch(str(source.get("productSourceCommitSHA") or "")) or any(not str(source.get(key) or "").isdigit() for key in ("productSourceRunId","externalSourceRunId","manifestSourceRunId")):
+        raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_SOURCE_EVIDENCE_INVALID")
+    return receipt
+
+
+def verify(root: Path, receipt_path: Path) -> dict:
+    receipt = verify_structure(receipt_path)
     external, manifest, product, expected = expected_images(root)
     if receipt.get("authority") != AUTHORITY or receipt.get("schemaVersion") != 1 or receipt.get("kind") != "ManagementWorkloadOCIArchiveReceipt":
         raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_AUTHORITY_INVALID")

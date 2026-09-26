@@ -12,13 +12,89 @@ import (
 
 const RuntimeDependencyTransitionAuthority = "RUNTIME_DEPENDENCY_TRANSITION_V1"
 
-var runtimeDependencySHA = regexp.MustCompile(`^[0-9a-f]{64}$`)
+var runtimeDependencySHA = regexp.MustCompile(`^[0-9a-f]{64}package catalog
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"io"
+	"regexp"
+	"strings"
+)
+
+const RuntimeDependencyTransitionAuthority = "RUNTIME_DEPENDENCY_TRANSITION_V1"
+
+)
+var runtimeDependencyDigest = regexp.MustCompile(`^sha256:[0-9a-f]{64}package catalog
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"io"
+	"regexp"
+	"strings"
+)
+
+const RuntimeDependencyTransitionAuthority = "RUNTIME_DEPENDENCY_TRANSITION_V1"
+
+)
+var runtimeDependencyCommit = regexp.MustCompile(`^[0-9a-f]{40}package catalog
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"io"
+	"regexp"
+	"strings"
+)
+
+const RuntimeDependencyTransitionAuthority = "RUNTIME_DEPENDENCY_TRANSITION_V1"
+
+)
+var runtimeDependencyDecimal = regexp.MustCompile(`^[0-9]+package catalog
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"io"
+	"regexp"
+	"strings"
+)
+
+const RuntimeDependencyTransitionAuthority = "RUNTIME_DEPENDENCY_TRANSITION_V1"
+
+)
 
 type RuntimeDependencyTransitionAsset struct {
 	Name   string `json:"name"`
 	URL    string `json:"url"`
 	Size   int64  `json:"size"`
 	SHA256 string `json:"sha256"`
+}
+
+type RuntimeDependencyRuntimeEvidence struct {
+	Authority                  string `json:"authority"`
+	SourceCommitSHA            string `json:"sourceCommitSHA"`
+	SourceRunID                string `json:"sourceRunId"`
+	ArtifactID                 string `json:"artifactId"`
+	ArtifactDigest             string `json:"artifactDigest"`
+	RKE2Version                string `json:"rke2Version"`
+	Topology                   string `json:"topology"`
+	GatewayAPIRelease          string `json:"gatewayApiRelease"`
+	CiliumRelease              string `json:"ciliumRelease"`
+	KGatewayRelease            string `json:"kgatewayRelease"`
+	SingleNodeRKE2Certified    bool   `json:"singleNodeRKE2Certified"`
+	ProductTopologyHACertified bool   `json:"productTopologyHACertified"`
+	PhysicalCertified          bool   `json:"physicalCertified"`
+	HoldAutoReleased           bool   `json:"holdAutoReleased"`
 }
 
 type RuntimeDependencyTransition struct {
@@ -58,6 +134,7 @@ type RuntimeDependencyTransition struct {
 			SourceStatus              string `json:"sourceStatus"`
 			RuntimeStatus             string `json:"runtimeStatus"`
 		} `json:"cilium"`
+		RuntimeEvidence *RuntimeDependencyRuntimeEvidence `json:"runtimeEvidence,omitempty"`
 		Ordering []string `json:"ordering"`
 		Evidence []struct {
 			Kind    string `json:"kind"`
@@ -132,7 +209,14 @@ func ValidateRuntimeDependencyTransition(t RuntimeDependencyTransition, componen
 		return fmt.Errorf("runtime dependency kgateway admission drift")
 	}
 	ci, ok := components["cilium"]
-	if !ok || t.Spec.Cilium.TargetRelease != ci.Spec.Release || t.Spec.Cilium.RequiredGatewayAPIRelease != t.Spec.GatewayAPI.TargetRelease || t.Spec.Cilium.RuntimeStatus != "dependency-transition-required" {
+	if !ok || t.Spec.Cilium.TargetRelease != ci.Spec.Release || t.Spec.Cilium.RequiredGatewayAPIRelease != t.Spec.GatewayAPI.TargetRelease {
+		return fmt.Errorf("runtime dependency cilium target drift")
+	}
+	expectedCiliumStatus := "dependency-transition-required"
+	if t.Spec.Status == "runtime-certification-partial" {
+		expectedCiliumStatus = "single-node-rke2-certified-ha-pending"
+	}
+	if t.Spec.Cilium.RuntimeStatus != expectedCiliumStatus {
 		return fmt.Errorf("runtime dependency cilium target drift")
 	}
 	ciRow, ciAdmitted := rows["cilium"]
@@ -149,8 +233,31 @@ func ValidateRuntimeDependencyTransition(t RuntimeDependencyTransition, componen
 			return fmt.Errorf("runtime dependency transition status is inflated")
 		}
 	case "source-acquired":
-		if t.Spec.Status != "runtime-certification-pending" && t.Spec.Status != "complete" {
+		if t.Spec.Status != "runtime-certification-pending" && t.Spec.Status != "runtime-certification-partial" && t.Spec.Status != "complete" {
 			return fmt.Errorf("runtime dependency transition status is inflated")
+		}
+		if t.Spec.Status == "runtime-certification-pending" && t.Spec.RuntimeEvidence != nil {
+			return fmt.Errorf("runtime dependency pending transition carries runtime evidence")
+		}
+		if t.Spec.Status == "runtime-certification-partial" {
+			ev := t.Spec.RuntimeEvidence
+			if ev == nil ||
+				ev.Authority != "RKE2_NETWORK_RUNTIME_CERTIFICATION_V1" ||
+				ev.RKE2Version != "v1.34.10+rke2r1" ||
+				ev.Topology != "single-node" ||
+				ev.GatewayAPIRelease != "1.6.1" ||
+				ev.CiliumRelease != "1.20.1" ||
+				ev.KGatewayRelease != "2.4.1" ||
+				!ev.SingleNodeRKE2Certified ||
+				ev.ProductTopologyHACertified ||
+				ev.PhysicalCertified ||
+				ev.HoldAutoReleased ||
+				!runtimeDependencyCommit.MatchString(ev.SourceCommitSHA) ||
+				!runtimeDependencyDecimal.MatchString(ev.SourceRunID) ||
+				!runtimeDependencyDecimal.MatchString(ev.ArtifactID) ||
+				!runtimeDependencyDigest.MatchString(ev.ArtifactDigest) {
+				return fmt.Errorf("runtime dependency partial certification evidence is invalid")
+			}
 		}
 		for _, asset := range t.Spec.GatewayAPI.Assets {
 			embeddedPath := fmt.Sprintf("runtime-dependencies/gateway-api/%s/%s", t.Spec.GatewayAPI.TargetRelease, asset.Name)

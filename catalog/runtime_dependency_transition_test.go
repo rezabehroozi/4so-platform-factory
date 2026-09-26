@@ -20,6 +20,19 @@ func TestEmbeddedRuntimeDependencyTransitionMatchesCatalog(t *testing.T) {
 	}
 }
 
+func TestRuntimeDependencyTransitionRejectsPartialScopeInflation(t *testing.T) {
+	components, _ := Load()
+	admission, _ := LoadUpstreamAdmission()
+	transition, _ := LoadRuntimeDependencyTransition()
+	if transition.Spec.RuntimeEvidence == nil {
+		t.Fatal("canonical partial transition is missing runtime evidence")
+	}
+	transition.Spec.RuntimeEvidence.ProductTopologyHACertified = true
+	if err := ValidateRuntimeDependencyTransition(transition, components, admission); err == nil {
+		t.Fatal("partial RKE2 evidence was allowed to inflate HA certification")
+	}
+}
+
 func TestRuntimeDependencyTransitionCannotPromoteCiliumRuntimeEarly(t *testing.T) {
 	components, _ := Load()
 	admission, _ := LoadUpstreamAdmission()

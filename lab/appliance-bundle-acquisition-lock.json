@@ -17,7 +17,7 @@
         {
           "name": "platform-workloads.oci.tar",
           "stagingPath": "workloads/platform-workloads.oci.tar",
-          "reason": "Archive assembly, inventory, and import-addressability are sealed by MANAGEMENT_WORKLOAD_OCI_ARCHIVE_RECEIPT_V1 (2306048512 bytes; sha256:7b6df110a4c661c5f03ac05499dd1ec15cd2e1956dfa4c50e128d107b0fb7fbe), but no immutable public HTTPS distribution object is sealed; archiveBuilt must not imply distributionReady.",
+          "reason": "A historical archive assembly receipt is retained as evidence, but current exact product-image inputs may advance independently. Rebuild and re-seal the archive against the current product/external/manifest receipts before immutable public HTTPS distribution; archiveBuilt must not imply distributionReady.",
           "sourceRef": "https://github.com/rezabehroozi/4so-platform-factory/actions/runs/36222903265",
           "contentAddress": "git-sha1:221f91c4fe14ef16ea98657048319507bae8375a"
         }
