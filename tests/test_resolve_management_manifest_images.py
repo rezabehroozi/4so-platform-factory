@@ -14,6 +14,30 @@ class ResolveManagementManifestImagesTests(unittest.TestCase):
         self.assertEqual("registry.example:5000/team/image", mod.canonical_repository("registry.example:5000/team/image:latest"))
         self.assertEqual("ghcr.io/team/image", mod.canonical_repository("ghcr.io/team/image@sha256:" + "a" * 64))
 
+    def test_platform_digest_resolution_is_linux_amd64(self):
+        calls = []
+        original = mod.run
+        try:
+            mod.run = lambda cmd, timeout=900: calls.append((cmd, timeout)) or ("sha256:" + "b" * 64)
+            got = mod.resolve_platform_digest(Path("/tmp/crane"), "registry.example/team/image:v1")
+        finally:
+            mod.run = original
+        self.assertEqual("sha256:" + "b" * 64, got)
+        self.assertEqual(
+            ["/tmp/crane", "digest", "--platform", "linux/amd64", "registry.example/team/image:v1"],
+            calls[0][0],
+        )
+        self.assertEqual(600, calls[0][1])
+
+    def test_platform_digest_resolution_rejects_non_digest_output(self):
+        original = mod.run
+        try:
+            mod.run = lambda cmd, timeout=900: "latest"
+            with self.assertRaisesRegex(RuntimeError, "MANIFEST_IMAGE_DIGEST_INVALID"):
+                mod.resolve_platform_digest(Path("/tmp/crane"), "registry.example/team/image:v1")
+        finally:
+            mod.run = original
+
     def test_canonical_repository_rejects_unqualified_or_ambiguous(self):
         for value in ("busybox:latest", " no.example/team/image:tag", "example.com/"):
             with self.subTest(value=value):
