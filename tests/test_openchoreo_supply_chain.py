@@ -134,9 +134,19 @@ class OpenChoreoSupplyChainSelfTests(unittest.TestCase):
             self.assertNotIn(legacy, (SCRIPTS / name).read_text(), msg=name)
 
 
-    def test_openchoreo_runtime_seal_rejects_cross_registry_evidence(self):
+    def test_openchoreo_registry_identity_is_derived_from_concrete_reference(self):
+        digest = "sha256:" + "a" * 64
+        self.assertEqual("zot.internal:5000", contract.registry_identity_from_reference("zot.internal:5000/openchoreo/api@" + digest, "TEST"))
+        for invalid in ("https://zot.internal/openchoreo/api@" + digest, "zot.internal", "zot internal/openchoreo/api@" + digest):
+            with self.assertRaisesRegex(RuntimeError, "TEST_REFERENCE_REGISTRY_INVALID"):
+                contract.registry_identity_from_reference(invalid, "TEST")
+
+    def test_openchoreo_runtime_seal_binds_declared_identity_to_concrete_references(self):
         source = (SCRIPTS / "seal_openchoreo_runtime.py").read_text()
         self.assertIn("OPENCHOREO_RUNTIME_REGISTRY_IDENTITY_MISMATCH", source)
+        self.assertIn("OPENCHOREO_MIRROR_REGISTRY_IDENTITY_REFERENCE_MISMATCH", source)
+        self.assertIn("OPENCHOREO_EXECUTOR_REGISTRY_IDENTITY_REFERENCE_MISMATCH", source)
+        self.assertGreaterEqual(source.count("registry_identity_from_reference("), 2)
         self.assertIn("registryIdentity", (SCRIPTS / "mirror_openchoreo_runtime.py").read_text())
         self.assertIn("registryIdentity", (SCRIPTS / "build_openchoreo_executor_image.py").read_text())
 

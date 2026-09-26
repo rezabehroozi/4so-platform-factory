@@ -18,6 +18,7 @@ from openchoreo_runtime_contract import (
     UPSTREAM_REPOSITORY,
     VERSION,
     admit_output_path,
+    registry_identity_from_reference,
 )
 from prepare_openchoreo_executor import acquisition_payload, digest_path, strict_json
 
@@ -69,6 +70,8 @@ def seal(acquisition: Path, mirror_path: Path, executor_path: Path, out: Path) -
         mirror_ref = str(row.get("mirrorReference") or "")
         validate_exact_ref(source, digest, "OPENCHOREO_MIRROR_SOURCE")
         validate_exact_ref(mirror_ref, digest, "OPENCHOREO_MIRROR_TARGET")
+        if registry_identity_from_reference(mirror_ref, "OPENCHOREO_MIRROR_TARGET") != mirror_registry:
+            raise RuntimeError("OPENCHOREO_MIRROR_REGISTRY_IDENTITY_REFERENCE_MISMATCH")
         if source not in acquired or acquired[source] != digest or source in mirrored:
             raise RuntimeError("OPENCHOREO_MIRROR_INVENTORY_MISMATCH")
         mirrored[source] = digest
@@ -86,6 +89,8 @@ def seal(acquisition: Path, mirror_path: Path, executor_path: Path, out: Path) -
     executor_ref = str(executor.get("imageReference") or "")
     executor_digest = str(executor.get("imageDigest") or "").lower()
     validate_exact_ref(executor_ref, executor_digest, "OPENCHOREO_EXECUTOR_IMAGE")
+    if registry_identity_from_reference(executor_ref, "OPENCHOREO_EXECUTOR_IMAGE") != executor_registry:
+        raise RuntimeError("OPENCHOREO_EXECUTOR_REGISTRY_IDENTITY_REFERENCE_MISMATCH")
     if "/openchoreo-runtime@" not in executor_ref:
         raise RuntimeError("OPENCHOREO_EXECUTOR_IMAGE_REPOSITORY_INVALID")
 
