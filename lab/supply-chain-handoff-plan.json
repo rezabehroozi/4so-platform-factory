@@ -897,87 +897,80 @@
         {
           "baseImageRole": "maintenance-toolchain-base",
           "containerRecipe": "deploy/images/Dockerfile.maintenance",
-          "repository": "platform.4so.local/management/maintenance",
-          "role": "maintenance",
-          "sourceReleaseMember": "",
-          "state": "pending",
           "effectiveState": "ready",
           "evidence": {
-            "exactReference": "platform.4so.local/management/maintenance@sha256:3504e958aed09a7012e4ee25aefb28b5b35d39af40800e5198d7ca2a279426a0",
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "exactReference": "platform.4so.local/management/maintenance@sha256:3504e958aed09a7012e4ee25aefb28b5b35d39af40800e5198d7ca2a279426a0",
             "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
             "runtimeRealismProbe": {
               "defaultNonRootToolset": true,
               "execution": true,
               "rootOverrideToolset": true
             }
-          }
+          },
+          "repository": "platform.4so.local/management/maintenance",
+          "role": "maintenance",
+          "sourceReleaseMember": "",
+          "state": "pending"
         },
         {
           "baseImageRole": "static-runtime-base",
           "containerRecipe": "deploy/images/Dockerfile.agent-release",
-          "repository": "platform.4so.local/management/platform-agent",
-          "role": "platform-agent",
-          "sourceReleaseMember": "bin/linux-amd64/platform-agent",
-          "state": "pending",
           "effectiveState": "ready",
           "evidence": {
-            "exactReference": "platform.4so.local/management/platform-agent@sha256:ed40ce7ece544b2407169e06dd1a8476008f38d3ba1306ed4d4e26c35ab50586",
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "exactReference": "platform.4so.local/management/platform-agent@sha256:ed40ce7ece544b2407169e06dd1a8476008f38d3ba1306ed4d4e26c35ab50586",
             "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
             "runtimeRealismProbe": {
               "execution": true
             }
-          }
+          },
+          "repository": "platform.4so.local/management/platform-agent",
+          "role": "platform-agent",
+          "sourceReleaseMember": "bin/linux-amd64/platform-agent",
+          "state": "pending"
         },
         {
           "baseImageRole": "api-runtime-base",
           "containerRecipe": "deploy/images/Dockerfile.api-release",
-          "repository": "platform.4so.local/management/platform-api",
-          "role": "platform-api",
-          "sourceReleaseMember": "bin/linux-amd64/platform-api",
-          "state": "pending",
           "effectiveState": "ready",
           "evidence": {
-            "exactReference": "platform.4so.local/management/platform-api@sha256:af3ff4e8f58cc4e14967a5fdae227b85080703d5a0bd55e45690df53bc6ee3ae",
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "exactReference": "platform.4so.local/management/platform-api@sha256:af3ff4e8f58cc4e14967a5fdae227b85080703d5a0bd55e45690df53bc6ee3ae",
             "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
             "runtimeRealismProbe": {
               "dynamicDependencyClosure": true,
               "execution": true
             }
-          }
+          },
+          "repository": "platform.4so.local/management/platform-api",
+          "role": "platform-api",
+          "sourceReleaseMember": "bin/linux-amd64/platform-api",
+          "state": "pending"
         },
         {
           "baseImageRole": "static-runtime-base",
           "containerRecipe": "deploy/images/Dockerfile.probe-release",
-          "repository": "platform.4so.local/management/platform-probe",
-          "role": "platform-probe",
-          "sourceReleaseMember": "bin/linux-amd64/platform-probe",
-          "state": "pending",
           "effectiveState": "ready",
           "evidence": {
-            "exactReference": "platform.4so.local/management/platform-probe@sha256:c43c21ee069d2287eb99751d44725e7cd3b9d24eb48dbaddffc409e43c480412",
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "exactReference": "platform.4so.local/management/platform-probe@sha256:c43c21ee069d2287eb99751d44725e7cd3b9d24eb48dbaddffc409e43c480412",
             "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
             "runtimeRealismProbe": {
               "execution": true
             }
-          }
+          },
+          "repository": "platform.4so.local/management/platform-probe",
+          "role": "platform-probe",
+          "sourceReleaseMember": "bin/linux-amd64/platform-probe",
+          "state": "pending"
         }
       ],
       "productReceipt": {
-        "authority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_RECEIPT_V1",
-        "sourceRunId": "36220252667",
-        "sourceCommitSHA": "a75c28de4e4bf4c80abaab298985365025bd72e6",
-        "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
-        "planDigest": "sha256:11d59ba7d2d991c5211bfeaacc354fc1362306076ce1f49fbb19b2f61cd2794f",
-        "runtimeRealismVerified": true,
         "archiveReady": false,
+        "authority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_RECEIPT_V1",
         "baseImages": [
           {
-            "role": "api-runtime-base",
-            "exactReference": "platform.4so.local/management/api-runtime-base@sha256:e34a135c14859115601555206ac47b41009fc5f9ca63d185d0c9ea878cd49167",
             "compatibilityProbe": {
               "caTrust": true,
               "dynamicDependencyClosure": true,
@@ -986,11 +979,11 @@
             "composition": {
               "caSourceReference": "gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
               "postgresqlSourceReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3"
-            }
+            },
+            "exactReference": "platform.4so.local/management/api-runtime-base@sha256:e34a135c14859115601555206ac47b41009fc5f9ca63d185d0c9ea878cd49167",
+            "role": "api-runtime-base"
           },
           {
-            "role": "maintenance-toolchain-base",
-            "exactReference": "platform.4so.local/management/maintenance-runtime-base@sha256:7a39c873cf97f424f4b8e8c967a07ab6ef7de402c648d4b5e6191250e6d4ad7e",
             "compatibilityProbe": {
               "awsCliVersion": true,
               "defaultNonRootToolset": true,
@@ -1001,19 +994,26 @@
               "awsCliSourceReference": "public.ecr.aws/aws-cli/aws-cli@sha256:b0dd5a4d216a1786863541a201baa7b7b4c5032bec9c6e72c38d01cafd7e8db8",
               "awsCliVersion": "2.37.1",
               "postgresqlSourceReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3"
-            }
+            },
+            "exactReference": "platform.4so.local/management/maintenance-runtime-base@sha256:7a39c873cf97f424f4b8e8c967a07ab6ef7de402c648d4b5e6191250e6d4ad7e",
+            "role": "maintenance-toolchain-base"
           },
           {
-            "role": "static-runtime-base",
-            "exactReference": "gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
             "compatibilityProbe": {
               "agentExecution": true,
               "caTrust": true,
               "nonRoot": true,
               "probeExecution": true
-            }
+            },
+            "exactReference": "gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
+            "role": "static-runtime-base"
           }
-        ]
+        ],
+        "planDigest": "sha256:11d59ba7d2d991c5211bfeaacc354fc1362306076ce1f49fbb19b2f61cd2794f",
+        "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
+        "runtimeRealismVerified": true,
+        "sourceCommitSHA": "a75c28de4e4bf4c80abaab298985365025bd72e6",
+        "sourceRunId": "36220252667"
       }
     },
     "openBlockers": [
@@ -1035,10 +1035,23 @@
     "releaseVersion": "0.0.363",
     "runtimeDependencyTransition": {
       "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
+      "ciliumReleased": false,
       "ciliumTargetRelease": "1.20.1",
+      "currentGatewayApiMutationPerformed": false,
       "gatewayTargetRelease": "1.6.1",
       "kgatewayTargetRelease": "2.4.1",
-      "status": "runtime-certification-pending"
+      "physicalCertified": false,
+      "readinessAuthority": "RUNTIME_DEPENDENCY_TRANSITION_READINESS_V1",
+      "remainingRuntimeSuitabilityHolds": [
+        "cilium",
+        "kyverno",
+        "metallb"
+      ],
+      "runtimeCertified": false,
+      "sourceClosureReady": true,
+      "status": "runtime-certification-pending",
+      "transitionDigest": "sha256:8c14f0187895595754034ce6acc4978e938d6eab3f48d901f7e76189618df54a",
+      "transitionExecutionReady": true
     },
     "schemaVersion": 1,
     "truthModel": {
@@ -1055,6 +1068,7 @@
         "catalog/component-upgrade-source-admission.json",
         "catalog/tagged-source-recipes/*",
         "catalog/runtime-dependency-transition.json",
+        "lab/runtime-dependency-transition-readiness.json",
         "catalog/component-runtime-certification.json"
       ],
       "derivedEvidenceOnly": true,
