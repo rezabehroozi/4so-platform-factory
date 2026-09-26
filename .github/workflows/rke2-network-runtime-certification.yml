@@ -52,16 +52,16 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x /tmp/install.sh
-          mkdir -p /var/lib/rancher/rke2/agent/images
-          cp /tmp/rke2-images.tar.zst /var/lib/rancher/rke2/agent/images/
-          INSTALL_RKE2_ARTIFACT_PATH=/tmp INSTALL_RKE2_VERSION="$RKE2_VERSION" INSTALL_RKE2_SKIP_DOWNLOAD=true /tmp/install.sh
-          mkdir -p /etc/rancher/rke2
-          cat >/etc/rancher/rke2/config.yaml <<'YAML'
+          sudo mkdir -p /var/lib/rancher/rke2/agent/images
+          sudo cp /tmp/rke2-images.tar.zst /var/lib/rancher/rke2/agent/images/
+          sudo env INSTALL_RKE2_ARTIFACT_PATH=/tmp INSTALL_RKE2_VERSION="$RKE2_VERSION" INSTALL_RKE2_SKIP_DOWNLOAD=true /tmp/install.sh
+          sudo mkdir -p /etc/rancher/rke2
+          sudo tee /etc/rancher/rke2/config.yaml >/dev/null <<'YAML'
           disable:
             - rke2-ingress-nginx
           write-kubeconfig-mode: "0644"
           YAML
-          systemctl enable --now rke2-server
+          sudo systemctl enable --now rke2-server
           for i in $(seq 1 90); do test -s /etc/rancher/rke2/rke2.yaml && /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get node >/dev/null 2>&1 && break; sleep 5; done
           export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
           /var/lib/rancher/rke2/bin/kubectl wait --for=condition=Ready nodes --all --timeout=10m
@@ -121,7 +121,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          journalctl -u rke2-server --no-pager -n 250
+          sudo journalctl -u rke2-server --no-pager -n 250 || true
           export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
-          /var/lib/rancher/rke2/bin/kubectl get nodes -o wide
-          /var/lib/rancher/rke2/bin/kubectl get pods -A -o wide
+          test -x /var/lib/rancher/rke2/bin/kubectl && /var/lib/rancher/rke2/bin/kubectl get nodes -o wide || true
+          test -x /var/lib/rancher/rke2/bin/kubectl && /var/lib/rancher/rke2/bin/kubectl get pods -A -o wide || true
