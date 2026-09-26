@@ -13,7 +13,7 @@ on:
       - catalog/runtime/kgateway/2.4.1/**
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   exact-rke2-runtime:
@@ -109,13 +109,30 @@ jobs:
           receipt={"apiVersion":"platform.4so.io/v1alpha1","kind":"RKE2NetworkRuntimeCertificationEvidence","authority":"RKE2_NETWORK_RUNTIME_CERTIFICATION_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"rke2Version":os.environ["RKE2_VERSION"],"gatewayApiRelease":"1.6.1","ciliumRelease":"1.20.1","kgatewayRelease":"2.4.1","gatewayApiSha256":h("catalog/runtime-dependencies/gateway-api/1.6.1/standard-install.yaml"),"ciliumRenderSha256":h("catalog/runtime/cilium/1.20.1/render-manifest.json"),"kgatewayRenderSha256":h("catalog/runtime/kgateway/2.4.1/render-manifest.json"),"rke2RuntimePass":True,"singleNodeRuntimeEvidenceOnly":True,"productTopologyHACertified":False,"physicalCertified":False,"ciliumRuntimeHoldAutoReleased":False}
           Path("/tmp/rke2-network-runtime.json").write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
           PY
-          jq -e '.rke2RuntimePass and .singleNodeRuntimeEvidenceOnly and (.productTopologyHACertified|not) and (.physicalCertified|not) and (.ciliumRuntimeHoldAutoReleased|not)' /tmp/rke2-network-runtime.json
+          jq -e '.rke2RuntimePass and .singleNodeRuntimeEvidenceOnly and (.productTopologyHACertified|not) and (.physicalCertified|not) and (.ciliumRuntimeHoldAutoReleased|not)' lab/rke2-network-runtime-evidence.json
       - uses: actions/upload-artifact@v4
         with:
           name: rke2-network-runtime-certification
-          path: /tmp/rke2-network-runtime.json
+          path: lab/rke2-network-runtime-evidence.json
           if-no-files-found: error
           retention-days: 30
+      - name: Persist exact-SHA RKE2 runtime evidence when main is unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lab/rke2-network-runtime-evidence.json
+          git diff --cached --quiet && exit 0
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+            echo "main advanced; skip stale evidence persistence"
+            git reset -- lab/rke2-network-runtime-evidence.json
+            exit 0
+          fi
+          git commit -m "evidence: seal exact RKE2 network runtime"
+          git push origin HEAD:main
+
       - name: Diagnostics
         if: failure()
         shell: bash
