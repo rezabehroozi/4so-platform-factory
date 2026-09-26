@@ -110,8 +110,14 @@ def seal(root: Path, input_path: Path, out: Path, run_id: str) -> dict:
         ref = exact_ref(row.get("exactReference"), f"MANAGEMENT_PRODUCT_BASE_{role}")
         probe = row.get("compatibilityProbe")
         if role == "api-runtime-base":
-            if ref != postgres_ref:
-                raise RuntimeError("MANAGEMENT_API_BASE_MUST_BIND_EXTERNAL_POSTGRESQL")
+            if not ref.startswith("platform.4so.local/management/api-runtime-base@sha256:"):
+                raise RuntimeError("MANAGEMENT_API_BASE_REPOSITORY_INVALID")
+            composition = row.get("composition") or {}
+            if composition.get("postgresqlSourceReference") != postgres_ref:
+                raise RuntimeError("MANAGEMENT_API_BASE_POSTGRESQL_BINDING_INVALID")
+            ca_ref = exact_ref(composition.get("caSourceReference"), "MANAGEMENT_API_BASE_CA_SOURCE")
+            if not ca_ref.startswith("gcr.io/distroless/static-debian12@sha256:"):
+                raise RuntimeError("MANAGEMENT_API_BASE_CA_SOURCE_INVALID")
             probe = validate_probe(probe, {"nonRoot", "dynamicDependencyClosure", "caTrust"}, "MANAGEMENT_API_BASE")
         elif role == "static-runtime-base":
             if not ref.startswith("gcr.io/distroless/static-debian12@sha256:"):
@@ -134,7 +140,7 @@ def seal(root: Path, input_path: Path, out: Path, run_id: str) -> dict:
             "role": role,
             "exactReference": ref,
             "compatibilityProbe": probe,
-            **({"composition": row.get("composition")} if role == "maintenance-toolchain-base" else {}),
+            **({"composition": row.get("composition")} if role in {"api-runtime-base", "maintenance-toolchain-base"} else {}),
         }
     if set(base_by_role) != BASE_ROLES:
         raise RuntimeError("MANAGEMENT_PRODUCT_BASE_COVERAGE_INVALID")
@@ -236,8 +242,14 @@ def verify(root: Path, receipt_path: Path) -> dict:
             raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_BASE_ROLE_INVALID")
         ref = exact_ref(row.get("exactReference"), f"MANAGEMENT_PRODUCT_RECEIPT_BASE_{role}")
         if role == "api-runtime-base":
-            if ref != postgres_ref:
-                raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_API_BASE_DRIFT")
+            if not ref.startswith("platform.4so.local/management/api-runtime-base@sha256:"):
+                raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_API_BASE_INVALID")
+            composition = row.get("composition")
+            if not isinstance(composition, dict) or composition.get("postgresqlSourceReference") != postgres_ref:
+                raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_API_BASE_COMPOSITION_INVALID")
+            ca_ref = exact_ref(composition.get("caSourceReference"), "MANAGEMENT_PRODUCT_RECEIPT_API_CA_SOURCE")
+            if not ca_ref.startswith("gcr.io/distroless/static-debian12@sha256:"):
+                raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_API_CA_SOURCE_INVALID")
             validate_probe(row.get("compatibilityProbe"), {"nonRoot", "dynamicDependencyClosure", "caTrust"}, "MANAGEMENT_PRODUCT_RECEIPT_API_BASE")
         elif role == "static-runtime-base":
             if not ref.startswith("gcr.io/distroless/static-debian12@sha256:"):
