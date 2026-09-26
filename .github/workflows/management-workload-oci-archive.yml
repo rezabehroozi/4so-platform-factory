@@ -113,11 +113,17 @@ jobs:
             ref="$1"
             key="$(printf "%s" "$ref" | sha256sum | cut -c1-24)"
             layout="$RUNTIME_LAYOUT_ROOT/$key"
-            skopeo copy --override-os linux --override-arch amd64 --format oci "docker://$ref" "oci:$layout:evidence"
-            test "$(jq ".manifests | length" "$layout/index.json")" = "1"
+            printf "ACQUIRE_REF=%s\\n" "$ref"
+            skopeo copy --preserve-digests --override-os linux --override-arch amd64 --format oci "docker://$ref" "oci:$layout:evidence"
+            count="$(jq ".manifests | length" "$layout/index.json")"
+            test "$count" = "1" || { echo "OCI_LAYOUT_MANIFEST_COUNT_INVALID ref=$ref count=$count" >&2; exit 31; }
             root_digest="$(jq -r ".manifests[0].digest" "$layout/index.json")"
             expected_digest="${ref##*@}"
-            test "$root_digest" = "$expected_digest"
+            if test "$root_digest" != "$expected_digest"; then
+              echo "OCI_LAYOUT_DIGEST_DRIFT ref=$ref expected=$expected_digest actual=$root_digest" >&2
+              exit 32
+            fi
+            printf "ACQUIRE_PASS=%s\\n" "$ref"
           ' _ < /tmp/nonproduct-refs.txt
 
       - name: Assemble exact twenty-image management workload archive
