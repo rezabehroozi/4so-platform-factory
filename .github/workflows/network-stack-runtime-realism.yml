@@ -305,6 +305,10 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add lab/network-stack-runtime-matrix-evidence.json
           git fetch origin main
-          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing concurrent writer"; exit 2; }
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "main advanced; skipping stale network evidence persistence"
+            git reset --hard "$GITHUB_SHA"
+            exit 0
+          fi
           git commit -m "evidence: seal network stack runtime matrix"
           git push origin HEAD:main

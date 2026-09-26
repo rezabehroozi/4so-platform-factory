@@ -7,7 +7,7 @@ class RuntimeDependencyTransitionTests(unittest.TestCase):
         out=mod.validate(ROOT)
         doc=json.loads((ROOT/'catalog/runtime-dependency-transition.json').read_text())
         source_status=doc['spec']['gatewayApi']['sourceStatus']
-        expected='runtime-certification-pending' if source_status=='source-acquired' else 'acquisition-pending'
+        expected='runtime-certification-partial' if source_status=='source-acquired' else 'acquisition-pending'
         self.assertEqual(expected,out['status'])
         self.assertEqual('2.4.1',out['kgatewayTarget'])
         for asset in doc['spec']['gatewayApi']['assets']:
@@ -30,6 +30,15 @@ class RuntimeDependencyTransitionTests(unittest.TestCase):
         if deps.is_dir():
             shutil.copytree(deps,dst/'catalog/runtime-dependencies')
         return td,dst
+    def test_partial_runtime_evidence_scope_inflation_fails_closed(self):
+        td,dst=self.copy_repo()
+        try:
+            p=dst/'catalog/runtime-dependency-transition.json'
+            d=json.loads(p.read_text())
+            d['spec']['runtimeEvidence']['productTopologyHACertified']=True
+            p.write_text(json.dumps(d))
+            with self.assertRaisesRegex(RuntimeError,'PARTIAL_EVIDENCE_INVALID'): mod.validate(dst)
+        finally: td.cleanup()
     def test_source_acquired_gateway_without_exact_bytes_fails_closed(self):
         td,dst=self.copy_repo()
         try:

@@ -88,7 +88,11 @@ def validate(root: Path):
         raise RuntimeError("RUNTIME_DEPENDENCY_KGATEWAY_DRIFT")
     validate_source_progress("kgateway", kgateway, kg, rows, expected_runtime_status="eligible-after-source-resolution")
     ci = spec.get("cilium") or {}
-    if ci.get("targetRelease") != cilium.get("release") or ci.get("requiredGatewayApiRelease") != ga.get("targetRelease") or ci.get("runtimeStatus") != "dependency-transition-required":
+    if ci.get("targetRelease") != cilium.get("release") or ci.get("requiredGatewayApiRelease") != ga.get("targetRelease"):
+        raise RuntimeError("RUNTIME_DEPENDENCY_CILIUM_DRIFT")
+    transition_status = str(spec.get("status") or "")
+    expected_cilium_status = "single-node-rke2-certified-ha-pending" if transition_status == "runtime-certification-partial" else "dependency-transition-required"
+    if ci.get("runtimeStatus") != expected_cilium_status:
         raise RuntimeError("RUNTIME_DEPENDENCY_CILIUM_DRIFT")
     ch = holds.get("cilium") or {}
     if ch.get("status") != "dependency-transition-required" or ch.get("authority") != AUTHORITY:
@@ -105,8 +109,31 @@ def validate(root: Path):
                 raise RuntimeError("RUNTIME_DEPENDENCY_GATEWAY_PENDING_WITH_CANONICAL_BYTES")
     elif gateway_source_status == "source-acquired":
         verify_gateway_asset_bytes(root, ga["targetRelease"], assets)
-        if spec.get("status") != "runtime-certification-pending":
+        if transition_status not in {"runtime-certification-pending","runtime-certification-partial"}:
             raise RuntimeError("RUNTIME_DEPENDENCY_STATUS_INFLATED")
+        evidence = spec.get("runtimeEvidence")
+        if transition_status == "runtime-certification-pending":
+            if evidence is not None:
+                raise RuntimeError("RUNTIME_DEPENDENCY_PENDING_WITH_RUNTIME_EVIDENCE")
+        else:
+            if not isinstance(evidence, dict):
+                raise RuntimeError("RUNTIME_DEPENDENCY_PARTIAL_EVIDENCE_MISSING")
+            required = {
+                "authority":"RKE2_NETWORK_RUNTIME_CERTIFICATION_V1",
+                "rke2Version":"v1.34.10+rke2r1",
+                "topology":"single-node",
+                "gatewayApiRelease":"1.6.1",
+                "ciliumRelease":"1.20.1",
+                "kgatewayRelease":"2.4.1",
+                "singleNodeRKE2Certified":True,
+                "productTopologyHACertified":False,
+                "physicalCertified":False,
+                "holdAutoReleased":False,
+            }
+            if any(evidence.get(k) != value for k,value in required.items()):
+                raise RuntimeError("RUNTIME_DEPENDENCY_PARTIAL_EVIDENCE_INVALID")
+            if not re.fullmatch(r"[0-9a-f]{40}", str(evidence.get("sourceCommitSHA") or "")) or not str(evidence.get("sourceRunId") or "").isdigit() or not str(evidence.get("artifactId") or "").isdigit() or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(evidence.get("artifactDigest") or "")):
+                raise RuntimeError("RUNTIME_DEPENDENCY_PARTIAL_EVIDENCE_IDENTITY_INVALID")
     else:
         raise RuntimeError("RUNTIME_DEPENDENCY_GATEWAY_SOURCE_STATUS_INVALID")
     return {"authority": AUTHORITY, "status": spec["status"], "gatewayTarget":ga["targetRelease"], "kgatewayTarget":kg["targetRelease"], "ciliumTarget":ci["targetRelease"]}

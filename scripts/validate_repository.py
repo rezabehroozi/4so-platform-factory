@@ -1669,7 +1669,7 @@ def validate_supply_chain_handoff(root: Path, version: str, components: dict[str
         transition = load_json(transition_path, errors)
         ts = (transition or {}).get('spec') or {} if isinstance(transition, dict) else {}
         status = str(ts.get('status') or '')
-        if (transition or {}).get('kind') != 'RuntimeDependencyTransition' or ts.get('authority') != 'RUNTIME_DEPENDENCY_TRANSITION_V1' or status not in {'acquisition-pending','runtime-certification-pending','complete'}:
+        if (transition or {}).get('kind') != 'RuntimeDependencyTransition' or ts.get('authority') != 'RUNTIME_DEPENDENCY_TRANSITION_V1' or status not in {'acquisition-pending','runtime-certification-pending','runtime-certification-partial','complete'}:
             errors.append(('RUNTIME_DEPENDENCY_TRANSITION_INVALID','catalog/runtime-dependency-transition.json'))
         ga = ts.get('gatewayApi') or {}
         if ga.get('currentRelease') != '1.5.1' or ga.get('targetRelease') != '1.6.1' or len(ga.get('assets') or []) != 2:
@@ -1677,7 +1677,7 @@ def validate_supply_chain_handoff(root: Path, version: str, components: dict[str
         gateway_source_status = str(ga.get('sourceStatus') or '')
         if status == 'acquisition-pending' and gateway_source_status != 'pending-byte-acquisition':
             errors.append(('RUNTIME_DEPENDENCY_GATEWAY_SOURCE_STATE_INVALID',f'{status}:{gateway_source_status}'))
-        elif status in {'runtime-certification-pending','complete'} and gateway_source_status != 'source-acquired':
+        elif status in {'runtime-certification-pending','runtime-certification-partial','complete'} and gateway_source_status != 'source-acquired':
             errors.append(('RUNTIME_DEPENDENCY_GATEWAY_SOURCE_STATE_INVALID',f'{status}:{gateway_source_status}'))
         if gateway_source_status == 'source-acquired':
             for asset in ga.get('assets') or []:
@@ -1691,6 +1691,25 @@ def validate_supply_chain_handoff(root: Path, version: str, components: dict[str
                     errors.append(('RUNTIME_DEPENDENCY_GATEWAY_PENDING_WITH_BYTES',str(asset.get('name') or '<empty>')))
         if (ts.get('kgateway') or {}).get('targetRelease') != '2.4.1' or (ts.get('cilium') or {}).get('targetRelease') != '1.20.1':
             errors.append(('RUNTIME_DEPENDENCY_NETWORK_STACK_INVALID','kgateway/cilium'))
+        cilium_runtime_status = str((ts.get('cilium') or {}).get('runtimeStatus') or '')
+        if status == 'runtime-certification-partial':
+            evidence = ts.get('runtimeEvidence') or {}
+            required_partial = {
+                'authority':'RKE2_NETWORK_RUNTIME_CERTIFICATION_V1',
+                'rke2Version':'v1.34.10+rke2r1',
+                'topology':'single-node',
+                'gatewayApiRelease':'1.6.1',
+                'ciliumRelease':'1.20.1',
+                'kgatewayRelease':'2.4.1',
+                'singleNodeRKE2Certified':True,
+                'productTopologyHACertified':False,
+                'physicalCertified':False,
+                'holdAutoReleased':False,
+            }
+            if cilium_runtime_status != 'single-node-rke2-certified-ha-pending' or any(evidence.get(k) != value for k,value in required_partial.items()) or not re.fullmatch(r'[0-9a-f]{40}', str(evidence.get('sourceCommitSHA') or '')) or not str(evidence.get('sourceRunId') or '').isdigit() or not str(evidence.get('artifactId') or '').isdigit() or not re.fullmatch(r'sha256:[0-9a-f]{64}', str(evidence.get('artifactDigest') or '')):
+                errors.append(('RUNTIME_DEPENDENCY_PARTIAL_EVIDENCE_INVALID','catalog/runtime-dependency-transition.json'))
+        elif status == 'runtime-certification-pending' and cilium_runtime_status != 'dependency-transition-required':
+            errors.append(('RUNTIME_DEPENDENCY_CILIUM_STATUS_INVALID',cilium_runtime_status))
         for marker_text in ('RUNTIME_DEPENDENCY_TRANSITION_V1','EXPECTED_GATEWAY_ASSETS','dependency-transition-required','physicalPassInference'):
             if marker_text not in transition_script.read_text():
                 errors.append(('RUNTIME_DEPENDENCY_TRANSITION_SCRIPT_INVALID',marker_text))
