@@ -38,6 +38,7 @@ class SupplyChainHandoffTests(unittest.TestCase):
         self.assertEqual(4, len(spec["managementWorkloads"]["externalImages"]))
         self.assertIn("lab/management-workload-external-image-receipt.json", spec["truthModel"]["canonicalAuthorities"])
         self.assertIn("lab/management-workload-manifest-image-receipt.json", spec["truthModel"]["canonicalAuthorities"])
+        self.assertIn("lab/management-workload-product-image-receipt.json", spec["truthModel"]["canonicalAuthorities"])
         self.assertTrue(spec["managementWorkloads"]["externalReceipt"]["offlineVerified"])
         self.assertFalse(spec["managementWorkloads"]["externalReceipt"]["archiveReady"])
         self.assertEqual("36115673607", spec["managementWorkloads"]["externalReceipt"]["sourceRunId"])
@@ -45,8 +46,14 @@ class SupplyChainHandoffTests(unittest.TestCase):
             self.assertEqual("ready", row["effectiveState"])
             self.assertTrue(row["evidence"]["offlineVerified"])
             self.assertIn("@sha256:", row["evidence"]["exactReference"])
-        self.assertIn("MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING", spec["openBlockers"])
+        self.assertNotIn("MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING", spec["openBlockers"])
         self.assertIn("MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING", spec["openBlockers"])
+        self.assertTrue(spec["managementWorkloads"]["productReceipt"]["runtimeRealismVerified"])
+        self.assertFalse(spec["managementWorkloads"]["productReceipt"]["archiveReady"])
+        self.assertEqual(3, len(spec["managementWorkloads"]["productReceipt"]["baseImages"]))
+        for row in spec["managementWorkloads"]["productImages"]:
+            self.assertEqual("ready", row["effectiveState"])
+            self.assertIn("@sha256:", row["evidence"]["exactReference"])
         self.assertEqual(4, len(spec["managementWorkloads"]["manifestImageResolution"]))
         self.assertEqual(20, len(spec["componentUpgradePairRequirements"]))
         pair_rows = spec["componentUpgradePairRequirements"]
