@@ -48,7 +48,7 @@
   "pendingAuthorities": [
     {
       "id": "agent-iso-workspace",
-      "reason": "Agent ISO and install workspace must be generated from the exact release/content authority and request-specific network/pull-secret inputs."
+      "reason": "Product-owned MANAGED_OKD_AGENT_WORKSPACE_PREPARATION_V1 source generator exists; durable API/MCP preparation operation, exact installer execution evidence, and final workspace/media certification remain pending."
     },
     {
       "id": "oc-mirror-v2",
