@@ -1,0 +1,127 @@
+name: rke2-network-runtime-certification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/rke2-network-runtime-certification.yml
+      - lab/appliance-bundle-acquisition-lock.json
+      - catalog/runtime-dependency-transition.json
+      - catalog/runtime-dependencies/gateway-api/1.6.1/**
+      - catalog/runtime/cilium/1.20.1/**
+      - catalog/runtime/kgateway/2.4.1/**
+
+permissions:
+  contents: read
+
+jobs:
+  exact-rke2-runtime:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve exact RKE2 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          row="$(jq -c '.resolvedAuthorities[] | select(.id=="rke2-installer-and-offline-artifacts")' lab/appliance-bundle-acquisition-lock.json)"
+          test -n "$row"
+          version="$(jq -r '.version' <<<"$row")"
+          test "$version" = "v1.34.10+rke2r1"
+          install_url="$(jq -r '.artifacts[] | select(.name=="install.sh") | .urls[0]' <<<"$row")"
+          install_sha="$(jq -r '.artifacts[] | select(.name=="install.sh") | .sha256' <<<"$row")"
+          tar_url="$(jq -r '.artifacts[] | select(.name=="rke2.linux-amd64.tar.gz") | .urls[0]' <<<"$row")"
+          tar_sha="$(jq -r '.artifacts[] | select(.name=="rke2.linux-amd64.tar.gz") | .sha256' <<<"$row")"
+          images_url="$(jq -r '.artifacts[] | select(.name=="rke2-images.linux-amd64.tar.zst") | .urls[0]' <<<"$row")"
+          images_sha="$(jq -r '.artifacts[] | select(.name=="rke2-images.linux-amd64.tar.zst") | .sha256' <<<"$row")"
+          for v in install_url install_sha tar_url tar_sha images_url images_sha; do test -n "${!v}" && test "${!v}" != null; done
+          printf '%s\n' "RKE2_VERSION=$version" "INSTALL_URL=$install_url" "INSTALL_SHA=$install_sha" "TAR_URL=$tar_url" "TAR_SHA=$tar_sha" "IMAGES_URL=$images_url" "IMAGES_SHA=$images_sha" >> "$GITHUB_ENV"
+      - name: Download and verify exact RKE2 bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/install.sh "$INSTALL_URL"
+          curl -fL --retry 3 -o /tmp/rke2.tar.gz "$TAR_URL"
+          curl -fL --retry 3 -o /tmp/rke2-images.tar.zst "$IMAGES_URL"
+          test "$(sha256sum /tmp/install.sh | awk '{print $1}')" = "$INSTALL_SHA"
+          test "$(sha256sum /tmp/rke2.tar.gz | awk '{print $1}')" = "$TAR_SHA"
+          test "$(sha256sum /tmp/rke2-images.tar.zst | awk '{print $1}')" = "$IMAGES_SHA"
+      - name: Install exact RKE2 single-node certification runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x /tmp/install.sh
+          mkdir -p /var/lib/rancher/rke2/agent/images
+          cp /tmp/rke2-images.tar.zst /var/lib/rancher/rke2/agent/images/
+          INSTALL_RKE2_ARTIFACT_PATH=/tmp INSTALL_RKE2_VERSION="$RKE2_VERSION" INSTALL_RKE2_SKIP_DOWNLOAD=true /tmp/install.sh
+          mkdir -p /etc/rancher/rke2
+          cat >/etc/rancher/rke2/config.yaml <<'YAML'
+          disable:
+            - rke2-ingress-nginx
+          write-kubeconfig-mode: "0644"
+          YAML
+          systemctl enable --now rke2-server
+          for i in $(seq 1 90); do test -s /etc/rancher/rke2/rke2.yaml && /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get node >/dev/null 2>&1 && break; sleep 5; done
+          export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+          /var/lib/rancher/rke2/bin/kubectl wait --for=condition=Ready nodes --all --timeout=10m
+          /usr/local/bin/rke2 --version | tee /tmp/rke2-version.txt
+          grep -F "v1.34.10+rke2r1" /tmp/rke2-version.txt
+      - name: Certify exact Gateway API Cilium kgateway on RKE2
+        shell: bash
+        run: |
+          set -euo pipefail
+          export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+          K=/var/lib/rancher/rke2/bin/kubectl
+          $K apply -f catalog/runtime-dependencies/gateway-api/1.6.1/standard-install.yaml
+          $K wait --for=condition=Established crd/gateways.gateway.networking.k8s.io --timeout=3m
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          for name,path in [("cilium","catalog/runtime/cilium/1.20.1/render-manifest.json"),("kgateway","catalog/runtime/kgateway/2.4.1/render-manifest.json")]:
+              items=json.loads(Path(path).read_text())
+              refs=[]
+              def walk(v):
+                  if isinstance(v,dict):
+                      for k,x in v.items():
+                          if k=="image" and isinstance(x,str): refs.append(x)
+                          walk(x)
+                  elif isinstance(v,list):
+                      for x in v: walk(x)
+              walk(items)
+              if not items or not refs or any("@sha256:" not in x for x in refs): raise SystemExit(name.upper()+"_RUNTIME_RENDER_INVALID")
+              Path("/tmp/"+name+".json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":items}))
+          PY
+          $K apply -f /tmp/cilium.json
+          $K -n kube-system rollout status daemonset/cilium --timeout=12m
+          $K -n kube-system rollout status deployment/cilium-operator --timeout=12m
+          $K create namespace gateway-system
+          $K apply -f /tmp/kgateway.json
+          $K -n gateway-system rollout status deployment/platform-factory-kgateway --timeout=12m
+      - name: Seal RKE2-specific evidence artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          h=lambda p:"sha256:"+hashlib.sha256(Path(p).read_bytes()).hexdigest()
+          receipt={"apiVersion":"platform.4so.io/v1alpha1","kind":"RKE2NetworkRuntimeCertificationEvidence","authority":"RKE2_NETWORK_RUNTIME_CERTIFICATION_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"rke2Version":os.environ["RKE2_VERSION"],"gatewayApiRelease":"1.6.1","ciliumRelease":"1.20.1","kgatewayRelease":"2.4.1","gatewayApiSha256":h("catalog/runtime-dependencies/gateway-api/1.6.1/standard-install.yaml"),"ciliumRenderSha256":h("catalog/runtime/cilium/1.20.1/render-manifest.json"),"kgatewayRenderSha256":h("catalog/runtime/kgateway/2.4.1/render-manifest.json"),"rke2RuntimePass":True,"singleNodeRuntimeEvidenceOnly":True,"productTopologyHACertified":False,"physicalCertified":False,"ciliumRuntimeHoldAutoReleased":False}
+          Path("/tmp/rke2-network-runtime.json").write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
+          PY
+          jq -e '.rke2RuntimePass and .singleNodeRuntimeEvidenceOnly and (.productTopologyHACertified|not) and (.physicalCertified|not) and (.ciliumRuntimeHoldAutoReleased|not)' /tmp/rke2-network-runtime.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rke2-network-runtime-certification
+          path: /tmp/rke2-network-runtime.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          journalctl -u rke2-server --no-pager -n 250
+          export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+          /var/lib/rancher/rke2/bin/kubectl get nodes -o wide
+          /var/lib/rancher/rke2/bin/kubectl get pods -A -o wide
