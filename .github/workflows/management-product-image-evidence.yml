@@ -213,7 +213,7 @@ jobs:
           }
           Path("/tmp/management-product-input.json").write_text(json.dumps(payload,indent=2,sort_keys=True)+"\n")
           PY
-          python3 scripts/management_product_image_evidence.py             --seal-input /tmp/management-product-input.json             --out lab/management-workload-product-image-receipt.json             --run-id "$GITHUB_RUN_ID"
+          python3 scripts/management_product_image_evidence.py             --seal-input /tmp/management-product-input.json             --out lab/management-workload-product-image-receipt.json             --run-id "$GITHUB_RUN_ID"             --source-sha "$GITHUB_SHA"
           python3 scripts/management_product_image_evidence.py             --verify lab/management-workload-product-image-receipt.json >/dev/null
           python3 scripts/validate_repository.py .
           git diff --check
