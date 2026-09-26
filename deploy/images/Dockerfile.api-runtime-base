@@ -1,0 +1,12 @@
+ARG CA_RUNTIME_IMAGE
+ARG POSTGRES_RUNTIME_IMAGE
+FROM ${CA_RUNTIME_IMAGE} AS ca
+
+FROM ${POSTGRES_RUNTIME_IMAGE}
+
+# Compose the API runtime base from exact pre-acquired authorities.
+# PostgreSQL provides libpq/glibc runtime closure; distroless provides the
+# product-required CA trust bundle. No package manager or network install runs.
+COPY --from=ca /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+USER 65532:65532
