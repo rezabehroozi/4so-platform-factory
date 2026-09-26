@@ -8,9 +8,12 @@ from pathlib import Path
 import re
 import stat
 
+from management_product_image_evidence import verify as verify_product_image_receipt
+
 AUTHORITY = "MANAGEMENT_WORKLOAD_EXTERNAL_IMAGE_RECEIPT_V1"
 MANIFEST_AUTHORITY = "MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RECEIPT_V1"
 MANIFEST_RESOLUTION_AUTHORITY = "MANAGEMENT_WORKLOAD_MANIFEST_IMAGE_RESOLUTION_V1"
+PRODUCT_AUTHORITY = "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_RECEIPT_V1"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
@@ -199,3 +202,84 @@ def manifest_receipt_evidence(root: Path, plan: dict) -> dict:
         "byAuthority": by_authority,
     }
 
+
+
+def product_receipt_evidence(root: Path, plan: dict) -> dict:
+    """Return exact base/product image evidence without promoting final archive/physical state."""
+    receipt_path = _regular(root / "lab" / "management-workload-product-image-receipt.json", "MANAGEMENT_PRODUCT_RECEIPT")
+    receipt = verify_product_image_receipt(root, receipt_path)
+    if receipt.get("authority") != PRODUCT_AUTHORITY or receipt.get("schemaVersion") != 1:
+        raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_AUTHORITY_INVALID")
+    if receipt.get("releaseVersion") != plan.get("releaseVersion"):
+        raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_RELEASE_DRIFT")
+    if receipt.get("runtimeRealismVerified") is not True:
+        raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_RUNTIME_REALISM_REQUIRED")
+    if receipt.get("archiveReady") is not False or receipt.get("runtimeCertified") is not False or receipt.get("physicalCertified") is not False:
+        raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_SCOPE_INFLATION")
+
+    expected_products = {
+        str(row.get("role") or ""): row
+        for row in (plan.get("coreImages") or [])
+        if isinstance(row, dict) and row.get("ownership") == "product"
+    }
+    expected_bases = {
+        str(row.get("role") or ""): row
+        for row in (plan.get("baseImages") or [])
+        if isinstance(row, dict)
+    }
+    products = receipt.get("productImages") or []
+    bases = receipt.get("baseImages") or []
+    if not expected_products or {str(row.get("role") or "") for row in products if isinstance(row, dict)} != set(expected_products):
+        raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_PRODUCT_COVERAGE_INVALID")
+    if not expected_bases or {str(row.get("role") or "") for row in bases if isinstance(row, dict)} != set(expected_bases):
+        raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_BASE_COVERAGE_INVALID")
+
+    by_role: dict[str, dict] = {}
+    for row in products:
+        role = str(row["role"])
+        plan_row = expected_products[role]
+        exact = str(row.get("exactReference") or "")
+        if not exact.startswith(str(plan_row.get("repository") or "") + "@sha256:"):
+            raise RuntimeError(f"MANAGEMENT_PRODUCT_RECEIPT_PLAN_DRIFT {role}:repository")
+        cert = row.get("certification") or {}
+        result = cert.get("result") or {}
+        if cert.get("certified") is not True or result.get("exactPayloadBound") is not True:
+            raise RuntimeError(f"MANAGEMENT_PRODUCT_RECEIPT_CERTIFICATION_INVALID {role}")
+        probe = row.get("runtimeRealismProbe") or {}
+        if probe.get("execution") is not True:
+            raise RuntimeError(f"MANAGEMENT_PRODUCT_RECEIPT_EXECUTION_PROBE_MISSING {role}")
+        by_role[role] = {
+            "exactReference": exact,
+            "certificationAuthority": str(result.get("authority") or ""),
+            "releaseArtifactDigest": str(cert.get("releaseArtifactDigest") or ""),
+            "runtimeRealismProbe": dict(probe),
+        }
+
+    by_base_role: dict[str, dict] = {}
+    for row in bases:
+        role = str(row["role"])
+        exact = str(row.get("exactReference") or "")
+        if exact.count("@sha256:") != 1:
+            raise RuntimeError(f"MANAGEMENT_PRODUCT_RECEIPT_BASE_REFERENCE_INVALID {role}")
+        probe = row.get("compatibilityProbe") or {}
+        if not isinstance(probe, dict) or not probe or any(value is not True for value in probe.values()):
+            raise RuntimeError(f"MANAGEMENT_PRODUCT_RECEIPT_BASE_PROBE_INVALID {role}")
+        by_base_role[role] = {
+            "exactReference": exact,
+            "compatibilityProbe": dict(probe),
+            **({"composition": dict(row["composition"])} if isinstance(row.get("composition"), dict) else {}),
+        }
+
+    return {
+        "authority": PRODUCT_AUTHORITY,
+        "sourceRunId": str(receipt["sourceRunId"]),
+        "sourceCommitSHA": str(receipt["sourceCommitSHA"]),
+        "releaseArtifactDigest": str(receipt["releaseArtifactDigest"]),
+        "planDigest": str(receipt["planDigest"]),
+        "runtimeRealismVerified": True,
+        "archiveReady": False,
+        "runtimeCertified": False,
+        "physicalCertified": False,
+        "byRole": by_role,
+        "byBaseRole": by_base_role,
+    }
