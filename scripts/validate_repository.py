@@ -14,7 +14,8 @@ import sys
 import tarfile
 import urllib.parse
 
-from management_workload_evidence import external_receipt_evidence, manifest_receipt_evidence
+from management_workload_evidence import external_receipt_evidence, manifest_receipt_evidence, product_receipt_evidence
+from seal_management_workload_oci_archive import verify as verify_management_workload_archive_receipt
 
 SCAN_SUFFIXES = {'.go','.py','.md','.yaml','.yml','.json','.html','.css','.js','.sh','.txt','.service','.toml','.mod','.sql'}
 RISK = {'low','medium','high','critical'}
@@ -815,6 +816,21 @@ def validate_management_workload_image_plan(root: Path, version: str, errors: li
                 errors.append(('MANAGEMENT_WORKLOAD_MANIFEST_RECEIPT_COVERAGE_INVALID', str(sorted(manifest_receipt["byAuthority"]))))
         except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
             errors.append(('MANAGEMENT_WORKLOAD_MANIFEST_RECEIPT_INVALID', str(exc)))
+        try:
+            product_receipt = product_receipt_evidence(root, image_plan)
+            expected_product_roles = {row.get('role') for row in core if isinstance(row, dict) and row.get('ownership') == 'product'} if isinstance(core, list) else set()
+            expected_base_roles = {row.get('role') for row in bases if isinstance(row, dict)} if isinstance(bases, list) else set()
+            if set(product_receipt["byRole"]) != expected_product_roles or set(product_receipt["byBaseRole"]) != expected_base_roles:
+                errors.append(('MANAGEMENT_WORKLOAD_PRODUCT_RECEIPT_COVERAGE_INVALID', str(sorted(product_receipt["byRole"]))))
+        except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            errors.append(('MANAGEMENT_WORKLOAD_PRODUCT_RECEIPT_INVALID', str(exc)))
+
+        archive_receipt_path = root/'lab/management-workload-oci-archive-receipt.json'
+        if archive_receipt_path.exists() or archive_receipt_path.is_symlink():
+            try:
+                verify_management_workload_archive_receipt(root, archive_receipt_path)
+            except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+                errors.append(('MANAGEMENT_WORKLOAD_OCI_ARCHIVE_RECEIPT_INVALID', str(exc)))
 
 
 def validate_management_maintenance_toolset(root: Path, errors: list[tuple[str,str]]) -> None:
