@@ -4,10 +4,26 @@
     "digest-pinned-core-workload-images"
   ],
   "inputPack": null,
-  "missingAuthorities": [
-    "management-workload-oci-archive"
+  "missingAuthorities": [],
+  "partialAuthorities": [
+    {
+      "id": "management-workload-oci-archive",
+      "kind": "oci-archive",
+      "provider": "4so",
+      "version": "0.0.363",
+      "scope": "management-plane-workload-images-offline-distribution",
+      "artifacts": [],
+      "pendingArtifacts": [
+        {
+          "name": "platform-workloads.oci.tar",
+          "stagingPath": "workloads/platform-workloads.oci.tar",
+          "reason": "Archive assembly, inventory, and import-addressability are sealed by MANAGEMENT_WORKLOAD_OCI_ARCHIVE_RECEIPT_V1 (2306048512 bytes; sha256:7b6df110a4c661c5f03ac05499dd1ec15cd2e1956dfa4c50e128d107b0fb7fbe), but no immutable public HTTPS distribution object is sealed; archiveBuilt must not imply distributionReady.",
+          "sourceRef": "https://github.com/rezabehroozi/4so-platform-factory/actions/runs/36222903265",
+          "contentAddress": "git-sha1:221f91c4fe14ef16ea98657048319507bae8375a"
+        }
+      ]
+    }
   ],
-  "partialAuthorities": [],
   "releaseVersion": "0.0.363",
   "resolvedAuthorities": [
     {
