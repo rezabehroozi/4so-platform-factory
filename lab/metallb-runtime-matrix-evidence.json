@@ -1,0 +1,19 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "METALLB_RUNTIME_MATRIX_EVIDENCE_V1",
+  "cveDispositionResolved": false,
+  "genericKubernetesRuntimeEvidenceOnly": true,
+  "kind": "MetalLBRuntimeMatrixEvidence",
+  "kubernetesVersions": [
+    "1.34.11",
+    "1.35.8"
+  ],
+  "matrixPass": true,
+  "metallbRelease": "0.16.1",
+  "physicalCertified": false,
+  "renderSha256": "sha256:5b1624147cda8dbfcafae1aa88b9e8dd651ee8f29c02cb5cbf6f746cba702fd1",
+  "rke2Certified": false,
+  "runtimeHoldReleased": false,
+  "sourceCommitSHA": "2491e819fc5c4b98013869ba22ed783da599d883",
+  "sourceRunId": "36236869335"
+}
