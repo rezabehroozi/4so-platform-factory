@@ -201,10 +201,8 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if s1.Status != ProgramStatusBlocked || !s1.RequiredForFeatureFreeze || !containsString(s1.ParallelWith, "C7W-mcp-user-admin-write-parity") || !containsString(s1.ParallelWith, "G4-data-protection-productization") || !containsString(s1.ParallelWith, "G5-enterprise-identity-compliance") || containsString(s1.ParallelWith, "H2-vmware-provider") || containsString(s1.ParallelWith, "J1-automation-external-integrations") {
 		t.Fatalf("supply-chain phase is not an immediate parallel critical path: %#v", s1)
 	}
-	for _, blocker := range []string{"COMPONENT_SOURCE_ACQUISITION_PENDING", "SOURCE_LOCKS_PENDING", "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING", "MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING"} {
-		if !containsString(s1.Blockers, blocker) {
-			t.Fatalf("supply-chain blocker %q missing: %#v", blocker, s1)
-		}
+	if len(s1.Blockers) != 1 || !containsString(s1.Blockers, "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING") {
+		t.Fatalf("supply-chain blocker truth drift: %#v", s1)
 	}
 	c7r := byID["C7R-mcp-remote-oauth-human-delegation"]
 	if c7r.Status != ProgramStatusSourceImplemented || !c7r.RequiredForFeatureFreeze || len(c7r.Blockers) != 0 || !containsString(c7r.Evidence, "MCP_OAUTH_PROTECTED_RESOURCE_DISCOVERY_V1") || !containsString(c7r.Evidence, "MCP_DEDICATED_AUDIENCE_VALIDATION_V1") || !containsString(c7r.Evidence, "MCP_HUMAN_DELEGATION_AUTHORITY_V1") || !containsString(c7r.Evidence, "MCP_CLIENT_TRUST_REGISTRY_V1") || !containsString(c7r.Evidence, "MCP_TOKEN_REVOCATION_ENFORCEMENT_V1") {
@@ -215,7 +213,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("MCP write parity phase drift: %#v", c7w)
 	}
 	s2 := byID["S2-component-runtime-certification-authorities"]
-	if s2.Status != ProgramStatusBlocked || !containsString(s2.Blockers, "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING") || !containsString(s2.Blockers, "COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING") || !containsString(s2.Blockers, "COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING") || !containsString(s2.Evidence, "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1") || !containsString(s2.Evidence, "CATALOG_HISTORICAL_SOURCE_IMPORT_V1") {
+	if s2.Status != ProgramStatusBlocked || len(s2.Blockers) != 2 || !containsString(s2.Blockers, "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING") || containsString(s2.Blockers, "COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING") || !containsString(s2.Blockers, "COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING") || !containsString(s2.Evidence, "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1") || !containsString(s2.Evidence, "CATALOG_HISTORICAL_SOURCE_IMPORT_V1") {
 		t.Fatalf("component runtime S2 admission drift: %#v", s2)
 	}
 	g1 := byID["G1-operational-runtime-hardening"]

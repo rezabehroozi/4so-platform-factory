@@ -119,7 +119,7 @@ All **36/36 (100%)** Core + Expansion pre-physical software phases are now sourc
 - Canonical main checkpoint before this documentation seal: `d7ad0d63f1fda7838c5de10997ac123cd7876180` (`test: wait for disaster recovery persistence completion`).
 - Repository Integrity run `36126640674` for that exact SHA completed **SUCCESS**.
 - The commit fixes only disaster-recovery persistence test synchronization: it waits for the persisted run to reach a terminal state instead of relying on a fixed sleep. It does not change roadmap closure, runtime/physical claims, or supply-chain blocker semantics.
-- Current source/evidence truth remains: S1 current source `20/20` locked; S2 reviewed predecessor pairs `19/19` present plus one install-only first product release; Gateway API `1.6.1` dependency bytes acquired and transition state `runtime-certification-pending`; management external-image receipt persisted and verified; final product-owned management workload OCI archive remains incomplete.
+- Current source/evidence truth remains: S1 current source `20/20` locked; S2 reviewed predecessor pairs `19/19` present plus one install-only first product release; stale source-acquisition blockers are retired from executable roadmap truth; Gateway API `1.6.1` dependency bytes acquired and transition state `runtime-certification-pending`; management external-image receipt persisted and verified; final product-owned management workload OCI archive remains incomplete.
 - Exact-SHA Physical Runtime remains **NOT RUN** for this checkpoint. No Physical or Production PASS is inferred.
 
 ## Current critical path
