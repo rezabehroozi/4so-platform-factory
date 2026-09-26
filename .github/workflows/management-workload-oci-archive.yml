@@ -1,0 +1,197 @@
+name: management-workload-oci-archive
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/management-workload-oci-archive.yml
+      - scripts/seal_management_workload_oci_archive.py
+      - scripts/management_workload_evidence.py
+      - lab/management-workload-image-build-plan.json
+      - lab/management-workload-external-image-receipt.json
+      - lab/management-workload-manifest-image-receipt.json
+      - lab/management-workload-product-image-receipt.json
+      - runtime-manifests/**
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  assemble-seal:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout exact canonical main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install OCI tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo jq unzip
+
+      - name: Bind retained product artifact authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="$(jq -r '.sourceRunId' lab/management-workload-product-image-receipt.json)"
+          source_sha="$(jq -r '.sourceCommitSHA' lab/management-workload-product-image-receipt.json)"
+          test -n "$run_id" && test "$run_id" != "null"
+          test "$source_sha" != "null"
+          echo "PRODUCT_RUN_ID=$run_id" >> "$GITHUB_ENV"
+          echo "PRODUCT_SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
+
+      - name: Download immutable product OCI evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: management-product-image-evidence
+          path: /tmp/product-evidence
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PRODUCT_RUN_ID }}
+
+      - name: Verify retained product evidence and exact release
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_receipt="$(find /tmp/product-evidence -type f -name management-workload-product-image-receipt.json -print -quit)"
+          layouts_tar="$(find /tmp/product-evidence -type f -name management-product-images-oci-layouts.tar -print -quit)"
+          layouts_sha="$(find /tmp/product-evidence -type f -name management-product-images-oci-layouts.tar.sha256 -print -quit)"
+          release="$(find /tmp/product-evidence -type f -name '4so-platform-factory-*.zip' -print -quit)"
+          test -f "$artifact_receipt" && test -f "$layouts_tar" && test -f "$layouts_sha" && test -f "$release"
+          cmp "$artifact_receipt" lab/management-workload-product-image-receipt.json
+          expected_tar_sha="$(awk 'NR==1 {print $1}' "$layouts_sha")"
+          actual_tar_sha="$(sha256sum "$layouts_tar" | awk '{print $1}')"
+          test "$actual_tar_sha" = "$expected_tar_sha"
+          expected_release_digest="$(jq -r '.releaseArtifactDigest' lab/management-workload-product-image-receipt.json)"
+          test "sha256:$(sha256sum "$release" | awk '{print $1}')" = "$expected_release_digest"
+          python3 scripts/verify_release.py "$release"
+          rm -rf /tmp/product-layouts /tmp/exact-release
+          mkdir -p /tmp/product-layouts /tmp/exact-release
+          tar -C /tmp/product-layouts -xf "$layouts_tar"
+          unzip -q "$release" -d /tmp/exact-release
+          platformctl="$(find /tmp/exact-release -type f -path '*/bin/linux-amd64/platformctl' -print -quit)"
+          test -f "$platformctl"
+          chmod 0755 "$platformctl"
+          expected_ctl="$(jq -r '[.productImages[].certification.platformctlBinaryDigest] | unique | if length == 1 then .[0] else error("platformctl digest drift") end' lab/management-workload-product-image-receipt.json)"
+          test "sha256:$(sha256sum "$platformctl" | awk '{print $1}')" = "$expected_ctl"
+          echo "PRODUCT_LAYOUT_ROOT=/tmp/product-layouts" >> "$GITHUB_ENV"
+          echo "EXACT_RELEASE=$release" >> "$GITHUB_ENV"
+          echo "PLATFORMCTL=$platformctl" >> "$GITHUB_ENV"
+
+      - name: Resolve exact non-product runtime image set
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path("scripts").resolve()))
+          import seal_management_workload_oci_archive as seal
+          _, manifest, product, images = seal.expected_images(Path(".").resolve())
+          product_refs = {row["exactReference"] for row in product["byRole"].values()}
+          nonproduct = [ref for ref in images if ref not in product_refs]
+          if len(product_refs) != 4 or len(nonproduct) != 16 or len(images) != 20:
+              raise SystemExit(f"FINAL_OCI_COVERAGE_INVALID product={len(product_refs)} nonproduct={len(nonproduct)} all={len(images)}")
+          Path("/tmp/nonproduct-refs.txt").write_text("\n".join(nonproduct) + "\n")
+          Path("/tmp/all-expected-refs.txt").write_text("\n".join(images) + "\n")
+          PY
+
+      - name: Acquire sixteen exact external and manifest images
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/runtime-layouts
+          mkdir -p /tmp/runtime-layouts
+          export RUNTIME_LAYOUT_ROOT=/tmp/runtime-layouts
+          xargs -r -P4 -n1 bash -c '
+            set -euo pipefail
+            ref="$1"
+            key="$(printf "%s" "$ref" | sha256sum | cut -c1-24)"
+            layout="$RUNTIME_LAYOUT_ROOT/$key"
+            skopeo copy --override-os linux --override-arch amd64 --format oci "docker://$ref" "oci:$layout:evidence"
+            test "$(jq ".manifests | length" "$layout/index.json")" = "1"
+            root_digest="$(jq -r ".manifests[0].digest" "$layout/index.json")"
+            expected_digest="${ref##*@}"
+            test "$root_digest" = "$expected_digest"
+          ' _ < /tmp/nonproduct-refs.txt
+
+      - name: Assemble exact twenty-image management workload archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          while IFS=$'\t' read -r role ref; do
+            layout="$PRODUCT_LAYOUT_ROOT/oci-$role"
+            test -d "$layout"
+            test "$(jq -r '.manifests[0].digest' "$layout/index.json")" = "${ref##*@}"
+            args+=(--source "$ref=$layout")
+          done < <(jq -r '.productImages[] | [.role,.exactReference] | @tsv' lab/management-workload-product-image-receipt.json)
+          while IFS= read -r ref; do
+            test -n "$ref"
+            key="$(printf "%s" "$ref" | sha256sum | cut -c1-24)"
+            layout="/tmp/runtime-layouts/$key"
+            test -d "$layout"
+            args+=(--source "$ref=$layout")
+          done < /tmp/nonproduct-refs.txt
+          test "${#args[@]}" -eq 40
+          "$PLATFORMCTL" workload-oci assemble "${args[@]}" --out /tmp/platform-workloads.oci.tar > /tmp/management-workload-assembly.json
+          jq -e '.assembled == true and .imageCount == 20 and .authority == "MANAGEMENT_WORKLOAD_OCI_ASSEMBLY_AUTHORITY_V1"' /tmp/management-workload-assembly.json >/dev/null
+          test -s /tmp/platform-workloads.oci.tar
+
+      - name: Verify archive inventory and import addressability
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path("scripts").resolve()))
+          from lab_runner import _inspect_management_workload_oci_archive
+          expected = Path("/tmp/all-expected-refs.txt").read_text().splitlines()
+          actual = _inspect_management_workload_oci_archive(Path("/tmp/platform-workloads.oci.tar"))
+          if actual != expected:
+              raise SystemExit(f"FINAL_OCI_READBACK_DRIFT expected={expected} actual={actual}")
+          assembly = json.loads(Path("/tmp/management-workload-assembly.json").read_text())
+          if assembly.get("images") != expected:
+              raise SystemExit("FINAL_OCI_ASSEMBLY_INVENTORY_DRIFT")
+          print(f"MANAGEMENT_WORKLOAD_OCI_READBACK_PASS images={len(actual)}")
+          PY
+
+      - name: Seal Git-safe archive receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/seal_management_workload_oci_archive.py             --archive /tmp/platform-workloads.oci.tar             --assembly-result /tmp/management-workload-assembly.json             --out lab/management-workload-oci-archive-receipt.json             --run-id "$GITHUB_RUN_ID"             --source-sha "$GITHUB_SHA"
+          python3 scripts/seal_management_workload_oci_archive.py             --verify lab/management-workload-oci-archive-receipt.json >/dev/null
+          python3 scripts/validate_repository.py .
+          git diff --check
+
+      - name: Upload final OCI bytes and receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: management-workload-oci-archive
+          path: |
+            /tmp/platform-workloads.oci.tar
+            /tmp/management-workload-assembly.json
+            lab/management-workload-oci-archive-receipt.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit final OCI archive receipt to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lab/management-workload-oci-archive-receipt.json
+          git diff --cached --quiet && { echo "no final OCI receipt delta"; exit 1; }
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing concurrent writer"; exit 2; }
+          git commit -m "evidence: seal exact management workload OCI archive"
+          git push origin HEAD:main
