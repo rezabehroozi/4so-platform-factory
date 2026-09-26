@@ -108,13 +108,38 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm --entrypoint /bin/sh --user 65532:65532 4so-platform-api:evidence -ec             'test "$(id -u)" = 65532; test -s /etc/ssl/certs/ca-certificates.crt; ldd /platform-api > /tmp/ldd; ! grep -q "not found" /tmp/ldd; grep -q "libpq.so.5" /tmp/ldd; /platform-api --version >/dev/null'
-          test "$(docker run --rm 4so-platform-agent:evidence --version)" = "$(cat VERSION)"
-          test "$(docker run --rm 4so-platform-probe:evidence --version)" = "$(cat VERSION)"
+          docker run --rm --entrypoint /bin/sh --user 65532:65532 4so-platform-api:evidence -c '
+            uid="$(id -u)"; printf "API_UID=%s\n" "$uid"; test "$uid" = 65532 || exit 31
+            ls -l /etc/ssl/certs/ca-certificates.crt || true
+            test -s /etc/ssl/certs/ca-certificates.crt || exit 32
+            ldd /platform-api | tee /tmp/ldd
+            ! grep -q "not found" /tmp/ldd || exit 33
+            grep -q "libpq.so.5" /tmp/ldd || exit 34
+            out="$(/platform-api --version 2>&1)"; rc=$?
+            printf "API_VERSION_RC=%s OUT=%s\n" "$rc" "$out"
+            test "$rc" -eq 0 || exit 35
+          '
+          agent_out="$(docker run --rm 4so-platform-agent:evidence --version 2>&1)"
+          agent_rc=$?
+          printf 'AGENT_VERSION_RC=%s OUT=%s EXPECTED=%s\n' "$agent_rc" "$agent_out" "$(cat VERSION)"
+          test "$agent_rc" -eq 0
+          test "$agent_out" = "$(cat VERSION)"
+          probe_out="$(docker run --rm 4so-platform-probe:evidence --version 2>&1)"
+          probe_rc=$?
+          printf 'PROBE_VERSION_RC=%s OUT=%s EXPECTED=%s\n' "$probe_rc" "$probe_out" "$(cat VERSION)"
+          test "$probe_rc" -eq 0
+          test "$probe_out" = "$(cat VERSION)"
           required="$(jq -r '.requiredExecutables | join(" ")' catalog/management-maintenance-toolset.json)"
-          docker run --rm --entrypoint /bin/sh --user 65532:65532 -e REQUIRED="$required" -e AWS_CLI_VERSION="$AWS_CLI_VERSION" 4so-maintenance:evidence -ec 'for tool in $REQUIRED; do command -v "$tool" >/dev/null; done; psql --version | grep -E " 17\\."; set +e; out="$(HOME=/tmp aws --version 2>&1)"; rc=$?; set -e; printf "AWS_PROBE_RC=%s\\n%s\\n" "$rc" "$out"; test "$rc" -eq 0; printf "%s\\n" "$out" | grep -F "aws-cli/$AWS_CLI_VERSION"'
-          docker run --rm --entrypoint /bin/sh --user 0:0 -e REQUIRED="$required" 4so-maintenance:evidence -ec 'for tool in $REQUIRED; do command -v "$tool" >/dev/null; done'
-
+          docker run --rm --entrypoint /bin/sh --user 65532:65532 -e REQUIRED="$required" -e AWS_CLI_VERSION="$AWS_CLI_VERSION" 4so-maintenance:evidence -c '
+            for tool in $REQUIRED; do command -v "$tool" >/dev/null || { printf "MAINTENANCE_TOOL_MISSING=%s\n" "$tool"; exit 41; }; done
+            psql_out="$(psql --version 2>&1)"; printf "%s\n" "$psql_out"; printf "%s\n" "$psql_out" | grep -E " 17\." || exit 42
+            aws_out="$(HOME=/tmp aws --version 2>&1)"; rc=$?; printf "AWS_PROBE_RC=%s\n%s\n" "$rc" "$aws_out"; test "$rc" -eq 0 || exit 43
+            printf "%s\n" "$aws_out" | grep -F "aws-cli/$AWS_CLI_VERSION" || exit 44
+          '
+          docker run --rm --entrypoint /bin/sh --user 0:0 -e REQUIRED="$required" 4so-maintenance:evidence -c '
+            test "$(id -u)" = 0 || exit 45
+            for tool in $REQUIRED; do command -v "$tool" >/dev/null || { printf "ROOT_TOOL_MISSING=%s\n" "$tool"; exit 46; }; done
+          '
       - name: Convert product images to OCI and certify exact payloads
         shell: bash
         run: |
