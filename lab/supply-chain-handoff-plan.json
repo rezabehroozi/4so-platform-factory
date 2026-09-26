@@ -900,7 +900,18 @@
           "repository": "platform.4so.local/management/maintenance",
           "role": "maintenance",
           "sourceReleaseMember": "",
-          "state": "pending"
+          "state": "pending",
+          "effectiveState": "ready",
+          "evidence": {
+            "exactReference": "platform.4so.local/management/maintenance@sha256:3504e958aed09a7012e4ee25aefb28b5b35d39af40800e5198d7ca2a279426a0",
+            "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
+            "runtimeRealismProbe": {
+              "defaultNonRootToolset": true,
+              "execution": true,
+              "rootOverrideToolset": true
+            }
+          }
         },
         {
           "baseImageRole": "static-runtime-base",
@@ -908,7 +919,16 @@
           "repository": "platform.4so.local/management/platform-agent",
           "role": "platform-agent",
           "sourceReleaseMember": "bin/linux-amd64/platform-agent",
-          "state": "pending"
+          "state": "pending",
+          "effectiveState": "ready",
+          "evidence": {
+            "exactReference": "platform.4so.local/management/platform-agent@sha256:ed40ce7ece544b2407169e06dd1a8476008f38d3ba1306ed4d4e26c35ab50586",
+            "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
+            "runtimeRealismProbe": {
+              "execution": true
+            }
+          }
         },
         {
           "baseImageRole": "api-runtime-base",
@@ -916,7 +936,17 @@
           "repository": "platform.4so.local/management/platform-api",
           "role": "platform-api",
           "sourceReleaseMember": "bin/linux-amd64/platform-api",
-          "state": "pending"
+          "state": "pending",
+          "effectiveState": "ready",
+          "evidence": {
+            "exactReference": "platform.4so.local/management/platform-api@sha256:af3ff4e8f58cc4e14967a5fdae227b85080703d5a0bd55e45690df53bc6ee3ae",
+            "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
+            "runtimeRealismProbe": {
+              "dynamicDependencyClosure": true,
+              "execution": true
+            }
+          }
         },
         {
           "baseImageRole": "static-runtime-base",
@@ -924,12 +954,69 @@
           "repository": "platform.4so.local/management/platform-probe",
           "role": "platform-probe",
           "sourceReleaseMember": "bin/linux-amd64/platform-probe",
-          "state": "pending"
+          "state": "pending",
+          "effectiveState": "ready",
+          "evidence": {
+            "exactReference": "platform.4so.local/management/platform-probe@sha256:c43c21ee069d2287eb99751d44725e7cd3b9d24eb48dbaddffc409e43c480412",
+            "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
+            "runtimeRealismProbe": {
+              "execution": true
+            }
+          }
         }
-      ]
+      ],
+      "productReceipt": {
+        "authority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_RECEIPT_V1",
+        "sourceRunId": "36220252667",
+        "sourceCommitSHA": "a75c28de4e4bf4c80abaab298985365025bd72e6",
+        "releaseArtifactDigest": "sha256:8b7586738a16349a4d74e4ed57e32b5072de4049fe763f2599a046f9c69da399",
+        "planDigest": "sha256:11d59ba7d2d991c5211bfeaacc354fc1362306076ce1f49fbb19b2f61cd2794f",
+        "runtimeRealismVerified": true,
+        "archiveReady": false,
+        "baseImages": [
+          {
+            "role": "api-runtime-base",
+            "exactReference": "platform.4so.local/management/api-runtime-base@sha256:e34a135c14859115601555206ac47b41009fc5f9ca63d185d0c9ea878cd49167",
+            "compatibilityProbe": {
+              "caTrust": true,
+              "dynamicDependencyClosure": true,
+              "nonRoot": true
+            },
+            "composition": {
+              "caSourceReference": "gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
+              "postgresqlSourceReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3"
+            }
+          },
+          {
+            "role": "maintenance-toolchain-base",
+            "exactReference": "platform.4so.local/management/maintenance-runtime-base@sha256:7a39c873cf97f424f4b8e8c967a07ab6ef7de402c648d4b5e6191250e6d4ad7e",
+            "compatibilityProbe": {
+              "awsCliVersion": true,
+              "defaultNonRootToolset": true,
+              "postgresqlClientMajor": true,
+              "rootOverrideToolset": true
+            },
+            "composition": {
+              "awsCliSourceReference": "public.ecr.aws/aws-cli/aws-cli@sha256:b0dd5a4d216a1786863541a201baa7b7b4c5032bec9c6e72c38d01cafd7e8db8",
+              "awsCliVersion": "2.37.1",
+              "postgresqlSourceReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3"
+            }
+          },
+          {
+            "role": "static-runtime-base",
+            "exactReference": "gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
+            "compatibilityProbe": {
+              "agentExecution": true,
+              "caTrust": true,
+              "nonRoot": true,
+              "probeExecution": true
+            }
+          }
+        ]
+      }
     },
     "openBlockers": [
-      "MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING",
       "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING",
       "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING"
     ],
@@ -961,6 +1048,7 @@
         "catalog/runtime/*/*/source-lock.json",
         "lab/management-workload-image-build-plan.json",
         "lab/management-workload-external-image-receipt.json",
+        "lab/management-workload-product-image-receipt.json",
         "lab/management-workload-manifest-image-receipt.json",
         "lab/appliance-bundle-acquisition-lock.json",
         "lab/release-build-toolchain-lock.json",
