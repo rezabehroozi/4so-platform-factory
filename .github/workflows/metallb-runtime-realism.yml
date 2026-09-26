@@ -1,0 +1,123 @@
+name: metallb-runtime-realism
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/metallb-runtime-realism.yml
+      - runtime/network-stack-kind-toolchain.json
+      - catalog/runtime/metallb/0.16.1/**
+      - catalog/component-runtime-certification.json
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes: ["1.34.11", "1.35.8"]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install exact kind
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$(jq -r '.spec.kind.url' runtime/network-stack-kind-toolchain.json)"
+          expected="$(jq -r '.spec.kind.sha256' runtime/network-stack-kind-toolchain.json)"
+          size="$(jq -r '.spec.kind.sizeBytes' runtime/network-stack-kind-toolchain.json)"
+          curl -fL --retry 3 --connect-timeout 30 -o /tmp/kind "$url"
+          test "$(stat -c %s /tmp/kind)" = "$size"
+          test "$(sha256sum /tmp/kind | awk '{print $1}')" = "$expected"
+          chmod +x /tmp/kind
+      - name: Create exact Kubernetes matrix member
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="$(jq -r --arg v "${{ matrix.kubernetes }}" '.spec.kubernetes[] | select(.version==$v) | .nodeImage' runtime/network-stack-kind-toolchain.json)"
+          test -n "$image" && test "$image" != null
+          /tmp/kind create cluster --name 4so-metallb --image "$image" --wait 5m
+          test "$(kubectl version -o json | jq -r '.serverVersion.gitVersion')" = "v${{ matrix.kubernetes }}"
+      - name: Apply exact MetalLB 0.16.1 render
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("catalog/runtime/metallb/0.16.1/render-manifest.json")
+          items=json.loads(p.read_text())
+          if not items: raise SystemExit("METALLB_RENDER_EMPTY")
+          refs=[]
+          def walk(v):
+              if isinstance(v,dict):
+                  for k,x in v.items():
+                      if k=="image" and isinstance(x,str): refs.append(x)
+                      walk(x)
+              elif isinstance(v,list):
+                  for x in v: walk(x)
+          walk(items)
+          if not refs or any("@sha256:" not in ref for ref in refs):
+              raise SystemExit("METALLB_RENDER_MUTABLE_IMAGE")
+          Path("/tmp/metallb-list.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":items}))
+          PY
+          kubectl create namespace metallb-system
+          kubectl apply -f /tmp/metallb-list.json
+          for crd in ipaddresspools.metallb.io l2advertisements.metallb.io bgpadvertisements.metallb.io; do kubectl wait --for=condition=Established "crd/$crd" --timeout=3m; done
+          kubectl -n metallb-system rollout status deployment/platform-factory-metallb-controller --timeout=8m
+          kubectl -n metallb-system rollout status daemonset/platform-factory-metallb-speaker --timeout=8m
+      - name: Prove L2 configuration admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >/tmp/l2.yaml <<'YAML'
+          apiVersion: metallb.io/v1beta1
+          kind: IPAddressPool
+          metadata: {name: runtime-proof, namespace: metallb-system}
+          spec:
+            addresses: [172.18.255.240-172.18.255.250]
+          ---
+          apiVersion: metallb.io/v1beta1
+          kind: L2Advertisement
+          metadata: {name: runtime-proof, namespace: metallb-system}
+          spec:
+            ipAddressPools: [runtime-proof]
+          YAML
+          kubectl apply -f /tmp/l2.yaml
+          kubectl -n metallb-system get ipaddresspool/runtime-proof l2advertisement/runtime-proof
+      - name: Seal claim-scoped evidence
+        shell: bash
+        env:
+          MATRIX_KUBERNETES: ${{ matrix.kubernetes }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          p=Path("catalog/runtime/metallb/0.16.1/render-manifest.json")
+          receipt={"apiVersion":"platform.4so.io/v1alpha1","kind":"MetalLBRuntimeRealismEvidence","authority":"METALLB_RUNTIME_REALISM_EVIDENCE_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"kubernetesVersion":os.environ["MATRIX_KUBERNETES"],"metallbRelease":"0.16.1","renderSha256":"sha256:"+hashlib.sha256(p.read_bytes()).hexdigest(),"controllerReady":True,"speakerReady":True,"crdsEstablished":True,"l2ConfigurationAdmissionPass":True,"runtimeRealismPass":True,"genericKubernetesRuntimeEvidenceOnly":True,"cveDispositionResolved":False,"runtimeHoldReleased":False,"rke2Certified":False,"physicalCertified":False}
+          Path("/tmp/metallb-runtime.json").write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
+          PY
+          jq -e '.runtimeRealismPass and .genericKubernetesRuntimeEvidenceOnly and (.cveDispositionResolved|not) and (.runtimeHoldReleased|not) and (.rke2Certified|not) and (.physicalCertified|not)' /tmp/metallb-runtime.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: metallb-runtime-${{ matrix.kubernetes }}
+          path: /tmp/metallb-runtime.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          kubectl get nodes -o wide
+          kubectl get pods -A -o wide
+          kubectl -n metallb-system describe deployment/platform-factory-metallb-controller
+          kubectl -n metallb-system describe daemonset/platform-factory-metallb-speaker
+      - name: Delete cluster
+        if: always()
+        shell: bash
+        run: /tmp/kind delete cluster --name 4so-metallb || true
