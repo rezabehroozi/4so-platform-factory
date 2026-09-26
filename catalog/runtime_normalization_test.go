@@ -21,7 +21,7 @@ func TestKyverno382CanonicalRuntimeRenderNormalizesOnlyKnownEmptyCRDMetadata(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rendered.RuntimeNormalization == nil || rendered.RuntimeNormalization.Authority != KyvernoCRDNormalizationAuthority || rendered.RuntimeNormalization.RemovedEmptyLabels != 11 || rendered.RuntimeNormalization.RemovedEmptyAnnotations != 11 {
+	if rendered.RuntimeNormalization == nil || rendered.RuntimeNormalization.Authority != KyvernoCRDNormalizationAuthority || rendered.RuntimeNormalization.RemovedEmptyLabels != 11 || rendered.RuntimeNormalization.RemovedEmptyAnnotations != 11 || rendered.RuntimeNormalization.ServerSideApplyAnnotated < 13 {
 		t.Fatalf("normalization evidence=%#v", rendered.RuntimeNormalization)
 	}
 	count := 0
@@ -41,8 +41,9 @@ func TestKyverno382CanonicalRuntimeRenderNormalizesOnlyKnownEmptyCRDMetadata(t *
 		if _, ok := metadata["labels"]; ok {
 			t.Fatalf("%s retains empty labels after normalization", name)
 		}
-		if _, ok := metadata["annotations"]; ok {
-			t.Fatalf("%s retains empty annotations after normalization", name)
+		annotations, ok := metadata["annotations"].(map[string]any)
+		if !ok || annotations["argocd.argoproj.io/sync-options"] != "ServerSideApply=true" {
+			t.Fatalf("%s missing Argo CD server-side apply authority: %#v", name, metadata["annotations"])
 		}
 	}
 	if count != 11 {

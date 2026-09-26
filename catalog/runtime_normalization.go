@@ -30,6 +30,8 @@ type RuntimeNormalizationEvidence struct {
 	ResourceNames            []string `json:"resourceNames,omitempty"`
 	RemovedEmptyLabels       int      `json:"removedEmptyLabels,omitempty"`
 	RemovedEmptyAnnotations  int      `json:"removedEmptyAnnotations,omitempty"`
+	ServerSideApplyAnnotated int      `json:"serverSideApplyAnnotated,omitempty"`
+	ServerSideApplyResources []string `json:"serverSideApplyResources,omitempty"`
 }
 
 // normalizeRuntimeResources keeps upstream source evidence immutable while
@@ -58,37 +60,73 @@ func normalizeRuntimeResources(c Component, resources []map[string]any) (Runtime
 			return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization found CRD without metadata object")
 		}
 		name, _ := metadata["name"].(string)
-		if !strings.HasSuffix(name, ".policies.kyverno.io") {
-			continue
-		}
-		if _, ok := kyverno382PoliciesCRDs[name]; !ok {
-			return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization found unexpected policies CRD %q", name)
-		}
-		if seen[name] {
-			return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization found duplicate policies CRD %q", name)
-		}
-		seen[name] = true
-		labels, ok := metadata["labels"]
-		if !ok {
-			return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization expected empty labels on %q", name)
-		}
-		labelMap, ok := labels.(map[string]any)
-		if !ok || len(labelMap) != 0 {
-			return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization refuses non-empty labels on %q", name)
+		if strings.HasSuffix(name, ".policies.kyverno.io") {
+			if _, ok := kyverno382PoliciesCRDs[name]; !ok {
+				return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization found unexpected policies CRD %q", name)
+			}
+			if seen[name] {
+				return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization found duplicate policies CRD %q", name)
+			}
+			seen[name] = true
+			labels, ok := metadata["labels"]
+			if !ok {
+				return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization expected empty labels on %q", name)
+			}
+			labelMap, ok := labels.(map[string]any)
+			if !ok || len(labelMap) != 0 {
+				return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization refuses non-empty labels on %q", name)
+			}
+			annotations, ok := metadata["annotations"]
+			if !ok {
+				return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization expected empty annotations on %q", name)
+			}
+			annotationMap, ok := annotations.(map[string]any)
+			if !ok || len(annotationMap) != 0 {
+				return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization refuses non-empty annotations on %q", name)
+			}
+			delete(metadata, "labels")
+			delete(metadata, "annotations")
+			ev.RemovedEmptyLabels++
+			ev.RemovedEmptyAnnotations++
+			ev.ResourceNames = append(ev.ResourceNames, name)
 		}
 		annotations, ok := metadata["annotations"]
 		if !ok {
-			return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization expected empty annotations on %q", name)
+			annotations = map[string]any{}
+			metadata["annotations"] = annotations
 		}
 		annotationMap, ok := annotations.(map[string]any)
-		if !ok || len(annotationMap) != 0 {
-			return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization refuses non-empty annotations on %q", name)
+		if !ok {
+			return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization found non-object annotations on CRD %q", name)
 		}
-		delete(metadata, "labels")
-		delete(metadata, "annotations")
-		ev.RemovedEmptyLabels++
-		ev.RemovedEmptyAnnotations++
-		ev.ResourceNames = append(ev.ResourceNames, name)
+		const syncKey = "argocd.argoproj.io/sync-options"
+		const syncValue = "ServerSideApply=true"
+		current, exists := annotationMap[syncKey]
+		if exists {
+			currentText, ok := current.(string)
+			if !ok {
+				return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization found invalid Argo CD sync option on CRD %q", name)
+			}
+			options := strings.Split(currentText, ",")
+			found := false
+			for _, option := range options {
+				if strings.TrimSpace(option) == syncValue {
+					found = true
+					break
+				}
+			}
+			if !found {
+				if strings.TrimSpace(currentText) == "" {
+					annotationMap[syncKey] = syncValue
+				} else {
+					annotationMap[syncKey] = currentText + "," + syncValue
+				}
+			}
+		} else {
+			annotationMap[syncKey] = syncValue
+		}
+		ev.ServerSideApplyAnnotated++
+		ev.ServerSideApplyResources = append(ev.ServerSideApplyResources, name)
 	}
 	if len(seen) != len(kyverno382PoliciesCRDs) {
 		missing := make([]string, 0)
@@ -101,5 +139,9 @@ func normalizeRuntimeResources(c Component, resources []map[string]any) (Runtime
 		return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization CRD coverage mismatch missing=%v", missing)
 	}
 	sort.Strings(ev.ResourceNames)
+	sort.Strings(ev.ServerSideApplyResources)
+	if ev.ServerSideApplyAnnotated == 0 {
+		return RuntimeNormalizationEvidence{}, fmt.Errorf("kyverno runtime normalization found no CRDs for server-side apply")
+	}
 	return ev, nil
 }

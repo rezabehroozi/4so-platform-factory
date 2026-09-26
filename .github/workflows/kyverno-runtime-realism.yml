@@ -52,24 +52,28 @@ jobs:
         run: |
           set -euo pipefail
           /tmp/catalog-runtime-render --component kyverno --namespace kyverno --release-id "runtime-${GITHUB_SHA}" --out /tmp/kyverno-list.json --evidence /tmp/kyverno-render-evidence.json
-          jq -e '.name=="kyverno" and .version=="3.8.2" and .runtimeNormalization.authority=="KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1" and .runtimeNormalization.applied and .runtimeNormalization.removedEmptyLabels==11 and .runtimeNormalization.removedEmptyAnnotations==11 and (.runtimeNormalization.resourceNames|length)==11' /tmp/kyverno-render-evidence.json
+          jq -e '.name=="kyverno" and .version=="3.8.2" and .runtimeNormalization.authority=="KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1" and .runtimeNormalization.applied and .runtimeNormalization.removedEmptyLabels==11 and .runtimeNormalization.removedEmptyAnnotations==11 and (.runtimeNormalization.resourceNames|length)==11 and .runtimeNormalization.serverSideApplyAnnotated>=13' /tmp/kyverno-render-evidence.json
       - name: Apply and prove convergent reconciliation
         shell: bash
         run: |
           set -euo pipefail
           kubectl create namespace kyverno
-          kubectl apply -f /tmp/kyverno-list.json
+          kubectl apply --server-side --force-conflicts --field-manager=argocd-controller -f /tmp/kyverno-list.json
           for crd in $(jq -r '.items[] | select(.kind=="CustomResourceDefinition") | .metadata.name' /tmp/kyverno-list.json); do
             kubectl wait --for=condition=Established "crd/$crd" --timeout=4m
           done
           kubectl -n kyverno wait --for=condition=Available deployment --all --timeout=10m
           kubectl -n kyverno wait --for=condition=Ready pod --all --timeout=10m
-          kubectl apply -f /tmp/kyverno-list.json | tee /tmp/kyverno-second-apply.txt
-          if grep -Eq ' (configured|created)$' /tmp/kyverno-second-apply.txt; then
-            echo "KYVERNO_RUNTIME_RECONCILIATION_DRIFT"
-            cat /tmp/kyverno-second-apply.txt
+          set +e
+          kubectl diff --server-side --field-manager=argocd-controller -f /tmp/kyverno-list.json >/tmp/kyverno-diff.txt
+          diff_rc=$?
+          set -e
+          if test "$diff_rc" -ne 0; then
+            echo "KYVERNO_RUNTIME_RECONCILIATION_DRIFT rc=$diff_rc"
+            cat /tmp/kyverno-diff.txt
             exit 1
           fi
+          : >/tmp/kyverno-second-apply.txt
       - name: Seal claim-scoped evidence
         shell: bash
         env:
@@ -89,14 +93,15 @@ jobs:
             "renderedDigest":render["renderedDigest"],
             "normalizationAuthority":render["runtimeNormalization"]["authority"],
             "normalizedCRDCount":len(render["runtimeNormalization"]["resourceNames"]),
-            "secondApplyConverged":(" configured" not in second and " created" not in second),
+            "serverSideApplyCRDCount":render["runtimeNormalization"]["serverSideApplyAnnotated"],
+            "secondApplyConverged":True,
             "controllersReady":True,"crdsEstablished":True,"runtimeRealismPass":True,
             "genericKubernetesRuntimeEvidenceOnly":True,"runtimeHoldReleased":False,
             "rke2Certified":False,"physicalCertified":False
           }
           Path("/tmp/kyverno-runtime.json").write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
           PY
-          jq -e '.runtimeRealismPass and .secondApplyConverged and .normalizedCRDCount==11 and .genericKubernetesRuntimeEvidenceOnly and (.runtimeHoldReleased|not) and (.rke2Certified|not) and (.physicalCertified|not)' /tmp/kyverno-runtime.json
+          jq -e '.runtimeRealismPass and .secondApplyConverged and .normalizedCRDCount==11 and .serverSideApplyCRDCount>=13 and .genericKubernetesRuntimeEvidenceOnly and (.runtimeHoldReleased|not) and (.rke2Certified|not) and (.physicalCertified|not)' /tmp/kyverno-runtime.json
       - uses: actions/upload-artifact@v4
         with:
           name: kyverno-runtime-${{ matrix.kubernetes }}
