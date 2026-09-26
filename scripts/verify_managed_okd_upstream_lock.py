@@ -52,8 +52,8 @@ def verify(path: Path) -> dict:
         if pending_ids!={"agent-iso-workspace","oc-mirror-v2"}:
             raise RuntimeError("MANAGED_OKD_TOOLCHAIN_LOCK_PENDING_SET_INVALID")
         installer_sha=next(r["sha256"] for r in rows if r["role"]=="openshift-install")
-        required={"authority":"MANAGED_OKD_MACHINE_OS_DISCOVERY_V1","distribution":"okd-scos","architecture":"x86_64","artifactClass":"metal","streamRelease":"9.0.20250827-0","sourceAuthority":"openshift-install-coreos-print-stream-json","sourceInstallerSHA256":installer_sha,"byteVerified":True}
-        if any(machine.get(k)!=v for k,v in required.items()) or machine.get("role")!="disk" or "raw" not in str(machine.get("format") or "") or not SHA.fullmatch(str(machine.get("sha256") or "")) or not isinstance(machine.get("sizeBytes"),int) or machine["sizeBytes"]<=0:
+        required={"authority":"MANAGED_OKD_MACHINE_OS_DISCOVERY_V1","distribution":"okd-scos","architecture":"x86_64","artifactClass":"metal","payloadComponentVersion":"9.0.20250827-0","sourceAuthority":"openshift-install-coreos-print-stream-json","sourceInstallerSHA256":installer_sha,"byteVerified":True}
+        if any(machine.get(k)!=v for k,v in required.items()) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+-[0-9]+", str(machine.get("streamRelease") or "")) or machine.get("role")!="disk" or "raw" not in str(machine.get("format") or "") or not SHA.fullmatch(str(machine.get("sha256") or "")) or not isinstance(machine.get("sizeBytes"),int) or machine["sizeBytes"]<=0:
             raise RuntimeError("MANAGED_OKD_MACHINE_OS_ARTIFACT_INVALID")
         mp=urlsplit(str(machine.get("location") or ""))
         if mp.scheme!="https" or not mp.hostname or mp.username or mp.password or mp.query or mp.fragment:

@@ -32,12 +32,14 @@ def public_https(value: str) -> str:
 def discover(lock: dict, stream: dict) -> dict:
     if lock.get("authority")!=LOCK_AUTHORITY or lock.get("distribution")!="okd-scos":
         raise RuntimeError("MANAGED_OKD_TOOLCHAIN_LOCK_INVALID")
-    expected=str((lock.get("machineOS") or {}).get("version") or "")
+    payload_component_version=str((lock.get("machineOS") or {}).get("version") or "")
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+-[0-9]+", payload_component_version):
+        raise RuntimeError("MANAGED_OKD_MACHINE_OS_COMPONENT_VERSION_INVALID")
     arch=((stream.get("architectures") or {}).get("x86_64") or {})
     metal=((arch.get("artifacts") or {}).get("metal") or {})
     release=str(metal.get("release") or arch.get("release") or "")
-    if release!=expected:
-        raise RuntimeError(f"MANAGED_OKD_MACHINE_OS_RELEASE_MISMATCH expected={expected} actual={release}")
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+-[0-9]+", release):
+        raise RuntimeError("MANAGED_OKD_MACHINE_OS_STREAM_RELEASE_INVALID")
     formats=metal.get("formats")
     if not isinstance(formats,dict) or not formats:
         raise RuntimeError("MANAGED_OKD_MACHINE_OS_FORMATS_MISSING")
@@ -62,6 +64,7 @@ def discover(lock: dict, stream: dict) -> dict:
       "distribution":"okd-scos",
       "architecture":"x86_64",
       "artifactClass":"metal",
+      "payloadComponentVersion":payload_component_version,
       "streamRelease":release,
       **selected,
       "sourceAuthority":"openshift-install-coreos-print-stream-json",
