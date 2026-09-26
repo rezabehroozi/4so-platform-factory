@@ -1,0 +1,53 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ManagedOKDUpstreamToolchainLock",
+  "authority": "MANAGED_OKD_UPSTREAM_TOOLCHAIN_LOCK_V1",
+  "schemaVersion": 1,
+  "distribution": "okd-scos",
+  "productTargetVersion": "4.19.0",
+  "exactRelease": "4.19.0-okd-scos.19",
+  "releasePublishedAt": "2025-09-15T06:48:54Z",
+  "releasePage": "https://github.com/okd-project/okd/releases/tag/4.19.0-okd-scos.19",
+  "sourceRepository": "https://github.com/okd-project/okd",
+  "artifacts": [
+    {
+      "role": "openshift-install",
+      "name": "openshift-install-linux-4.19.0-okd-scos.19.tar.gz",
+      "url": "https://github.com/okd-project/okd/releases/download/4.19.0-okd-scos.19/openshift-install-linux-4.19.0-okd-scos.19.tar.gz",
+      "sha256": "4ed2d87777cfd5597e76f11c4d48d5db42aad6d42fb92cfe296ecc45bee0777e",
+      "sizeBytes": 390249882,
+      "githubAssetId": 293342687
+    },
+    {
+      "role": "oc-client",
+      "name": "openshift-client-linux-4.19.0-okd-scos.19.tar.gz",
+      "url": "https://github.com/okd-project/okd/releases/download/4.19.0-okd-scos.19/openshift-client-linux-4.19.0-okd-scos.19.tar.gz",
+      "sha256": "5b0f6630bc6a090520d8b48b17b992bb9854ec16e2f54fb7777051b7437216e6",
+      "sizeBytes": 74465376,
+      "githubAssetId": 293342650
+    }
+  ],
+  "pendingAuthorities": [
+    {
+      "id": "release-payload",
+      "reason": "Exact OKD release payload digest/mirror identity is not yet sealed in product authority."
+    },
+    {
+      "id": "fcos",
+      "reason": "Exact FCOS artifact URL, digest and size are not yet sealed for the selected OKD release."
+    },
+    {
+      "id": "agent-iso-workspace",
+      "reason": "Agent ISO and install workspace must be generated from the exact release/content authority and request-specific network/pull-secret inputs."
+    },
+    {
+      "id": "oc-mirror-v2",
+      "reason": "Disconnected oc-mirror v2 binary/source authority remains independently open for I1."
+    }
+  ],
+  "connectedToolchainReady": true,
+  "managedInstallContentReady": false,
+  "disconnectedToolchainReady": false,
+  "runtimeCertified": false,
+  "physicalCertified": false
+}
