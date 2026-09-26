@@ -35,25 +35,31 @@ jobs:
           tar_sha="$(jq -r '.artifacts[] | select(.name=="rke2.linux-amd64.tar.gz") | .sha256' <<<"$row")"
           images_url="$(jq -r '.artifacts[] | select(.name=="rke2-images.linux-amd64.tar.zst") | .urls[0]' <<<"$row")"
           images_sha="$(jq -r '.artifacts[] | select(.name=="rke2-images.linux-amd64.tar.zst") | .sha256' <<<"$row")"
-          for v in install_url install_sha tar_url tar_sha images_url images_sha; do test -n "${!v}" && test "${!v}" != null; done
-          printf '%s\n' "RKE2_VERSION=$version" "INSTALL_URL=$install_url" "INSTALL_SHA=$install_sha" "TAR_URL=$tar_url" "TAR_SHA=$tar_sha" "IMAGES_URL=$images_url" "IMAGES_SHA=$images_sha" >> "$GITHUB_ENV"
+          sums_url="$(jq -r '.artifacts[] | select(.name=="sha256sum-amd64.txt") | .urls[0]' <<<"$row")"
+          sums_sha="$(jq -r '.artifacts[] | select(.name=="sha256sum-amd64.txt") | .sha256' <<<"$row")"
+          for v in install_url install_sha tar_url tar_sha images_url images_sha sums_url sums_sha; do test -n "${!v}" && test "${!v}" != null; done
+          printf '%s\n' "RKE2_VERSION=$version" "INSTALL_URL=$install_url" "INSTALL_SHA=$install_sha" "TAR_URL=$tar_url" "TAR_SHA=$tar_sha" "IMAGES_URL=$images_url" "IMAGES_SHA=$images_sha" "SUMS_URL=$sums_url" "SUMS_SHA=$sums_sha" >> "$GITHUB_ENV"
       - name: Download and verify exact RKE2 bytes
         shell: bash
         run: |
           set -euo pipefail
           curl -fL --retry 3 -o /tmp/install.sh "$INSTALL_URL"
-          curl -fL --retry 3 -o /tmp/rke2.tar.gz "$TAR_URL"
-          curl -fL --retry 3 -o /tmp/rke2-images.tar.zst "$IMAGES_URL"
+          curl -fL --retry 3 -o /tmp/rke2.linux-amd64.tar.gz "$TAR_URL"
+          curl -fL --retry 3 -o /tmp/rke2-images.linux-amd64.tar.zst "$IMAGES_URL"
+          curl -fL --retry 3 -o /tmp/sha256sum-amd64.txt "$SUMS_URL"
           test "$(sha256sum /tmp/install.sh | awk '{print $1}')" = "$INSTALL_SHA"
-          test "$(sha256sum /tmp/rke2.tar.gz | awk '{print $1}')" = "$TAR_SHA"
-          test "$(sha256sum /tmp/rke2-images.tar.zst | awk '{print $1}')" = "$IMAGES_SHA"
+          test "$(sha256sum /tmp/rke2.linux-amd64.tar.gz | awk '{print $1}')" = "$TAR_SHA"
+          test "$(sha256sum /tmp/rke2-images.linux-amd64.tar.zst | awk '{print $1}')" = "$IMAGES_SHA"
+          test "$(sha256sum /tmp/sha256sum-amd64.txt | awk '{print $1}')" = "$SUMS_SHA"
+          grep -F "$TAR_SHA  rke2.linux-amd64.tar.gz" /tmp/sha256sum-amd64.txt
+          grep -F "$IMAGES_SHA  rke2-images.linux-amd64.tar.zst" /tmp/sha256sum-amd64.txt
       - name: Install exact RKE2 single-node certification runtime
         shell: bash
         run: |
           set -euo pipefail
           chmod +x /tmp/install.sh
           sudo mkdir -p /var/lib/rancher/rke2/agent/images
-          sudo cp /tmp/rke2-images.tar.zst /var/lib/rancher/rke2/agent/images/
+          sudo cp /tmp/rke2-images.linux-amd64.tar.zst /var/lib/rancher/rke2/agent/images/
           sudo env INSTALL_RKE2_ARTIFACT_PATH=/tmp INSTALL_RKE2_VERSION="$RKE2_VERSION" INSTALL_RKE2_SKIP_DOWNLOAD=true /tmp/install.sh
           sudo mkdir -p /etc/rancher/rke2
           sudo tee /etc/rancher/rke2/config.yaml >/dev/null <<'YAML'
