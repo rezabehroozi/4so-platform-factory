@@ -53,6 +53,7 @@ esac
 		WorkspaceRoot:workspaceRoot,MediaRoot:mediaRoot,AgentISOArtifactBaseURL:"https://platform.example.test/managed-install-media",
 		OpenShiftInstall:installPath,OpenShiftInstallSHA:installSHA,
 		ReleasePayload:Artifact{Name:"release-payload",Version:"4.19.0",URL:"https://quay.io/v2/okd/scos-release/manifests/sha256:"+strings.Repeat("a",64),SHA256:releaseDigest},
+		ReleaseImageReference:"quay.io/okd/scos-release@"+releaseDigest,
 		MachineOS:Artifact{Name:"fcos",Version:"9.0.20250510-0",URL:"https://mirror.example.test/scos.raw.gz",SHA256:osDigest},
 		CommandTimeout:time.Minute,PreparedBy:"platform-api",
 	},Secrets:preparationSecrets{

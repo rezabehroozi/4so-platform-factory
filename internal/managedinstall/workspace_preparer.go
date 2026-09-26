@@ -59,6 +59,7 @@ type WorkspacePreparerConfig struct {
 	OpenShiftInstall    string
 	OpenShiftInstallSHA string
 	ReleasePayload      Artifact
+	ReleaseImageReference string
 	MachineOS           Artifact
 	CommandTimeout      time.Duration
 	PreparedBy          string
@@ -249,7 +250,12 @@ func (p *WorkspacePreparer) PrepareConnected(ctx context.Context, req Preparatio
 	if release.Name!="release-payload" || release.Version!=c.TargetVersion || machineOS.Name!="fcos" {
 		return WorkspacePreparationResult{},errors.New("preparer exact release payload/machine OS authority is invalid")
 	}
-	if _,err=normalizeExpectedDigest(release.SHA256);err!=nil{return WorkspacePreparationResult{},err}
+	releaseDigest,err:=normalizeExpectedDigest(release.SHA256);if err!=nil{return WorkspacePreparationResult{},err}
+	releaseImage:=strings.TrimSpace(p.Config.ReleaseImageReference)
+	expectedSuffix:="@sha256:"+releaseDigest
+	if strings.Contains(releaseImage,"://") || !strings.HasSuffix(releaseImage,expectedSuffix) || strings.Count(releaseImage,"@sha256:")!=1 {
+		return WorkspacePreparationResult{},errors.New("preparer release image reference must be digest-pinned to the exact release payload")
+	}
 	if _,err=normalizeExpectedDigest(machineOS.SHA256);err!=nil{return WorkspacePreparationResult{},err}
 	prepDigest,err:=preparationDigest(c);if err!=nil{return WorkspacePreparationResult{},err}
 	pullSecret,err:=p.Secrets.ResolveManagedOKDPreparationSecret(ctx,c.OrganizationID,c.ProjectID,c.PullSecretRef);if err!=nil{return WorkspacePreparationResult{},fmt.Errorf("resolve pull secret: %w",err)}
@@ -282,7 +288,7 @@ func (p *WorkspacePreparer) PrepareConnected(ctx context.Context, req Preparatio
 	env:=sanitizedCommandEnv()
 	// Bind the exact release payload. Machine OS selection remains installer-owned
 	// and is cross-checked against the separately sealed machineOS authority.
-	env=append(env,"OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE="+strings.TrimSpace(release.URL))
+	env=append(env,"OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE="+releaseImage)
 	if _,err=runBoundedEnv(commandCtx,tmp,binCopy,env,nil,"agent","create","image","--dir",tmp,"--log-level=info");err!=nil{return WorkspacePreparationResult{},fmt.Errorf("generate exact Agent ISO: %w",err)}
 	matches,err:=filepath.Glob(filepath.Join(tmp,"agent*.iso"));if err!=nil||len(matches)!=1{return WorkspacePreparationResult{},fmt.Errorf("generated Agent ISO coverage invalid: %d",len(matches))}
 	isoDigest,isoBytes,err:=hashAndCopyISO(matches[0],p.Config.MediaRoot);if err!=nil{return WorkspacePreparationResult{},fmt.Errorf("seal Agent ISO: %w",err)}
