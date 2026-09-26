@@ -12,66 +12,10 @@ import (
 
 const RuntimeDependencyTransitionAuthority = "RUNTIME_DEPENDENCY_TRANSITION_V1"
 
-var runtimeDependencySHA = regexp.MustCompile(`^[0-9a-f]{64}package catalog
-
-import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/json"
-	"fmt"
-	"io"
-	"regexp"
-	"strings"
-)
-
-const RuntimeDependencyTransitionAuthority = "RUNTIME_DEPENDENCY_TRANSITION_V1"
-
-)
-var runtimeDependencyDigest = regexp.MustCompile(`^sha256:[0-9a-f]{64}package catalog
-
-import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/json"
-	"fmt"
-	"io"
-	"regexp"
-	"strings"
-)
-
-const RuntimeDependencyTransitionAuthority = "RUNTIME_DEPENDENCY_TRANSITION_V1"
-
-)
-var runtimeDependencyCommit = regexp.MustCompile(`^[0-9a-f]{40}package catalog
-
-import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/json"
-	"fmt"
-	"io"
-	"regexp"
-	"strings"
-)
-
-const RuntimeDependencyTransitionAuthority = "RUNTIME_DEPENDENCY_TRANSITION_V1"
-
-)
-var runtimeDependencyDecimal = regexp.MustCompile(`^[0-9]+package catalog
-
-import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/json"
-	"fmt"
-	"io"
-	"regexp"
-	"strings"
-)
-
-const RuntimeDependencyTransitionAuthority = "RUNTIME_DEPENDENCY_TRANSITION_V1"
-
-)
+var runtimeDependencySHA = regexp.MustCompile(`^[0-9a-f]{64}$`)
+var runtimeDependencyDigest = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+var runtimeDependencyCommit = regexp.MustCompile(`^[0-9a-f]{40}$`)
+var runtimeDependencyDecimal = regexp.MustCompile(`^[0-9]+$`)
 
 type RuntimeDependencyTransitionAsset struct {
 	Name   string `json:"name"`
