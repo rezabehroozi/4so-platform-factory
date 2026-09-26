@@ -16,6 +16,7 @@ AUTHORITY = "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_RECEIPT_V1"
 CERT_AUTHORITY = "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1"
 TOOLSET_AUTHORITY = "MANAGEMENT_MAINTENANCE_TOOLSET_AUTHORITY_V1"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 EXACT_REF_RE = re.compile(r"^[^\s@:]+(?:/[^\s@:]+)+@sha256:[0-9a-f]{64}$")
 PRODUCT_REPOS = {
     "platform-api": "platform.4so.local/management/platform-api",
@@ -85,7 +86,7 @@ def authorities(root: Path) -> tuple[dict, dict, dict]:
     return plan, external, toolset
 
 
-def seal(root: Path, input_path: Path, out: Path, run_id: str) -> dict:
+def seal(root: Path, input_path: Path, out: Path, run_id: str, source_sha: str) -> dict:
     plan, external, toolset = authorities(root)
     raw = load(input_path, "MANAGEMENT_PRODUCT_IMAGE_INPUT")
     release_digest = str(raw.get("releaseArtifactDigest") or "")
@@ -93,6 +94,9 @@ def seal(root: Path, input_path: Path, out: Path, run_id: str) -> dict:
         raise RuntimeError("MANAGEMENT_PRODUCT_RELEASE_DIGEST_INVALID")
     if not str(run_id).isdigit():
         raise RuntimeError("MANAGEMENT_PRODUCT_RUN_ID_INVALID")
+    source_sha = str(source_sha).strip().lower()
+    if not COMMIT_RE.fullmatch(source_sha):
+        raise RuntimeError("MANAGEMENT_PRODUCT_SOURCE_COMMIT_INVALID")
 
     ext_by_role = {str(row.get("role")): row for row in external.get("images") or [] if isinstance(row, dict)}
     postgres_ref = exact_ref((ext_by_role.get("postgresql") or {}).get("exactReference"), "MANAGEMENT_POSTGRESQL_BASE")
@@ -194,6 +198,7 @@ def seal(root: Path, input_path: Path, out: Path, run_id: str) -> dict:
         "externalReceiptDigest": digest(root / "lab" / "management-workload-external-image-receipt.json"),
         "maintenanceToolsetDigest": digest(root / "catalog" / "management-maintenance-toolset.json"),
         "sourceRunId": str(run_id),
+        "sourceCommitSHA": source_sha,
         "baseImages": [base_by_role[k] for k in sorted(base_by_role)],
         "productImages": [products[k] for k in sorted(products)],
         "runtimeRealismVerified": True,
@@ -224,7 +229,7 @@ def verify(root: Path, receipt_path: Path) -> dict:
     if receipt.get("runtimeRealismVerified") is not True or receipt.get("archiveReady") is not False or receipt.get("runtimeCertified") is not False or receipt.get("physicalCertified") is not False:
         raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_SCOPE_INFLATION")
     release_digest = str(receipt.get("releaseArtifactDigest") or "")
-    if not DIGEST_RE.fullmatch(release_digest) or not str(receipt.get("sourceRunId") or "").isdigit():
+    if not DIGEST_RE.fullmatch(release_digest) or not str(receipt.get("sourceRunId") or "").isdigit() or not COMMIT_RE.fullmatch(str(receipt.get("sourceCommitSHA") or "")):
         raise RuntimeError("MANAGEMENT_PRODUCT_RECEIPT_IDENTITY_INVALID")
 
     ext_by_role = {str(row.get("role")): row for row in external.get("images") or [] if isinstance(row, dict)}
@@ -331,6 +336,7 @@ def main() -> int:
     p.add_argument("--seal-input", type=Path)
     p.add_argument("--out", type=Path)
     p.add_argument("--run-id", default="")
+    p.add_argument("--source-sha", default="")
     p.add_argument("--verify", type=Path)
     args = p.parse_args()
     if args.self_test:
@@ -339,9 +345,9 @@ def main() -> int:
     if args.verify:
         print(json.dumps(verify(root, args.verify), sort_keys=True))
         return 0
-    if not args.seal_input or not args.out or not args.run_id:
-        p.error("--seal-input, --out and --run-id are required")
-    print(json.dumps(seal(root, args.seal_input, args.out, args.run_id), sort_keys=True))
+    if not args.seal_input or not args.out or not args.run_id or not args.source_sha:
+        p.error("--seal-input, --out, --run-id and --source-sha are required")
+    print(json.dumps(seal(root, args.seal_input, args.out, args.run_id, args.source_sha), sort_keys=True))
     return 0
 
 
