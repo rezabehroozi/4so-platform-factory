@@ -51,7 +51,7 @@ def verify(root: Path) -> dict:
     spec = transition.get("spec") or {}
     if transition.get("kind") != "RuntimeDependencyTransition" or spec.get("authority") != TRANSITION_AUTHORITY:
         raise RuntimeError("RUNTIME_DEPENDENCY_TRANSITION_AUTHORITY_INVALID")
-    if spec.get("status") != "runtime-certification-pending":
+    if spec.get("status") != "runtime-certification-partial":
         raise RuntimeError("RUNTIME_DEPENDENCY_TRANSITION_STATUS_INVALID")
     policy = spec.get("policy") or {}
     expected_policy = {
@@ -72,8 +72,27 @@ def verify(root: Path) -> dict:
         raise RuntimeError("KGATEWAY_TRANSITION_INVALID")
     if ci.get("targetRelease") != "1.20.1" or ci.get("requiredGatewayApiRelease") != "1.6.1" or ci.get("sourceStatus") != "source-acquired":
         raise RuntimeError("CILIUM_TRANSITION_INVALID")
-    if ci.get("runtimeStatus") != "dependency-transition-required":
-        raise RuntimeError("CILIUM_RUNTIME_HOLD_MUST_REMAIN")
+    if ci.get("runtimeStatus") != "single-node-rke2-certified-ha-pending":
+        raise RuntimeError("CILIUM_RUNTIME_PARTIAL_STATUS_INVALID")
+    runtime_evidence = spec.get("runtimeEvidence") or {}
+    expected_runtime = {
+        "authority": "RKE2_NETWORK_RUNTIME_CERTIFICATION_V1",
+        "sourceCommitSHA": "fa9ac617b07d5f673026ceb7aba816b8b27b0467",
+        "sourceRunId": "36246011111",
+        "artifactId": "10907800440",
+        "artifactDigest": "sha256:a169d9a20242bada85c76319fb7967d45eae6c70edd7c09218cea3ced505628c",
+        "rke2Version": "v1.34.10+rke2r1",
+        "topology": "single-node",
+        "gatewayApiRelease": "1.6.1",
+        "ciliumRelease": "1.20.1",
+        "kgatewayRelease": "2.4.1",
+        "singleNodeRKE2Certified": True,
+        "productTopologyHACertified": False,
+        "physicalCertified": False,
+        "holdAutoReleased": False,
+    }
+    if runtime_evidence != expected_runtime:
+        raise RuntimeError("RKE2_SINGLE_NODE_RUNTIME_EVIDENCE_INVALID")
 
     current_gateway, current_gateway_digest = source_lock(root, "gateway-api", "1.5.1")
     kgateway, kgateway_digest = source_lock(root, "kgateway", "2.4.1")
@@ -145,6 +164,9 @@ def verify(root: Path) -> dict:
         "executionOrder": expected_order,
         "sourceClosureReady": True,
         "transitionExecutionReady": True,
+        "singleNodeRKE2Certified": True,
+        "productTopologyHACertified": False,
+        "runtimeEvidence": runtime_evidence,
         "currentGatewayApiMutationPerformed": False,
         "ciliumReleased": False,
         "runtimeCertified": False,
@@ -163,6 +185,7 @@ def main() -> int:
     if args.self_test:
         receipt = verify(args.root.resolve())
         assert receipt["transitionExecutionReady"] is True
+        assert receipt["singleNodeRKE2Certified"] is True and receipt["productTopologyHACertified"] is False
         assert receipt["runtimeCertified"] is False and receipt["physicalCertified"] is False
         assert receipt["remainingRuntimeSuitabilityHolds"] == ["cilium", "kyverno", "metallb"]
         print("RUNTIME_DEPENDENCY_TRANSITION_READINESS_SELF_TEST_PASS")

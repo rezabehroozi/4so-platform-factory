@@ -8,7 +8,7 @@
     "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
     "cilium": {
       "requiredGatewayApiRelease": "1.6.1",
-      "runtimeStatus": "dependency-transition-required",
+      "runtimeStatus": "single-node-rke2-certified-ha-pending",
       "source": "https://helm.cilium.io",
       "sourceStatus": "source-acquired",
       "targetRelease": "1.20.1"
@@ -77,6 +77,22 @@
       "runtimeCertificationRequired": true,
       "sourceAcquisitionIndependentOfRuntimeSuitability": true
     },
-    "status": "runtime-certification-pending"
+    "status": "runtime-certification-partial",
+    "runtimeEvidence": {
+      "authority": "RKE2_NETWORK_RUNTIME_CERTIFICATION_V1",
+      "sourceCommitSHA": "fa9ac617b07d5f673026ceb7aba816b8b27b0467",
+      "sourceRunId": "36246011111",
+      "artifactId": "10907800440",
+      "artifactDigest": "sha256:a169d9a20242bada85c76319fb7967d45eae6c70edd7c09218cea3ced505628c",
+      "rke2Version": "v1.34.10+rke2r1",
+      "topology": "single-node",
+      "gatewayApiRelease": "1.6.1",
+      "ciliumRelease": "1.20.1",
+      "kgatewayRelease": "2.4.1",
+      "singleNodeRKE2Certified": true,
+      "productTopologyHACertified": false,
+      "physicalCertified": false,
+      "holdAutoReleased": false
+    }
   }
 }
