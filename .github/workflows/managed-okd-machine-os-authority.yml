@@ -1,0 +1,100 @@
+name: managed-okd-machine-os-authority
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/managed-okd-machine-os-authority.yml
+      - lab/managed-okd-upstream-toolchain-lock.json
+      - scripts/seal_managed_okd_machine_os.py
+      - scripts/verify_managed_okd_upstream_lock.py
+      - tests/test_managed_okd_machine_os.py
+      - tests/test_managed_okd_upstream_lock.py
+
+permissions:
+  contents: write
+
+jobs:
+  discover-verify-seal:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 75
+    steps:
+      - name: Checkout exact canonical main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine discovery state
+        id: state
+        shell: bash
+        run: |
+          set -euo pipefail
+          if jq -e '.machineOSArtifact.byteVerified == true and ([.pendingAuthorities[].id] | index("fcos") | not)' lab/managed-okd-upstream-toolchain-lock.json >/dev/null 2>&1; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            python3 scripts/verify_managed_okd_upstream_lock.py
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download exact openshift-install
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$(jq -r '.artifacts[] | select(.role=="openshift-install") | .url' lab/managed-okd-upstream-toolchain-lock.json)"
+          sha="$(jq -r '.artifacts[] | select(.role=="openshift-install") | .sha256' lab/managed-okd-upstream-toolchain-lock.json)"
+          size="$(jq -r '.artifacts[] | select(.role=="openshift-install") | .sizeBytes' lab/managed-okd-upstream-toolchain-lock.json)"
+          curl -fL --retry 3 --connect-timeout 30 -o /tmp/openshift-install.tgz "$url"
+          test "$(stat -c %s /tmp/openshift-install.tgz)" = "$size"
+          test "$(sha256sum /tmp/openshift-install.tgz | awk '{print $1}')" = "$sha"
+          mkdir -p /tmp/openshift-install-extract
+          tar -xzf /tmp/openshift-install.tgz -C /tmp/openshift-install-extract openshift-install
+          chmod +x /tmp/openshift-install-extract/openshift-install
+          exact="$(jq -r '.exactRelease' lab/managed-okd-upstream-toolchain-lock.json)"
+          /tmp/openshift-install-extract/openshift-install version | tee /tmp/openshift-install-version.txt
+          grep -F "$exact" /tmp/openshift-install-version.txt
+
+      - name: Discover and byte-verify exact SCOS machine OS
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/openshift-install-extract/openshift-install coreos print-stream-json > /tmp/machine-os-stream.json
+          python3 scripts/seal_managed_okd_machine_os.py --stream-json /tmp/machine-os-stream.json --discover-only > /tmp/machine-os-discovery.json
+          jq -e '.authority=="MANAGED_OKD_MACHINE_OS_DISCOVERY_V1" and .distribution=="okd-scos" and .architecture=="x86_64" and .artifactClass=="metal"' /tmp/machine-os-discovery.json >/dev/null
+          url="$(jq -r '.location' /tmp/machine-os-discovery.json)"
+          curl -fL --retry 3 --connect-timeout 30 -o /tmp/machine-os.bin "$url"
+          python3 scripts/seal_managed_okd_machine_os.py --stream-json /tmp/machine-os-stream.json --artifact-file /tmp/machine-os.bin --write
+          python3 scripts/verify_managed_okd_upstream_lock.py
+          python3 -m unittest tests.test_managed_okd_machine_os tests.test_managed_okd_upstream_lock
+          git diff --check
+
+      - name: Upload discovery evidence
+        if: steps.state.outputs.needed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-okd-machine-os-authority
+          path: |
+            /tmp/openshift-install-version.txt
+            /tmp/machine-os-stream.json
+            /tmp/machine-os-discovery.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Persist exact machine-OS authority safely
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lab/managed-okd-upstream-toolchain-lock.json
+          git diff --cached --quiet && { echo "no machine-OS authority delta"; exit 0; }
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "main advanced; skipping stale machine-OS authority persistence"
+            git reset --hard "$GITHUB_SHA"
+            exit 0
+          fi
+          git commit -m "evidence: seal exact OKD machine OS authority"
+          git push origin HEAD:main
