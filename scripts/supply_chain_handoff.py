@@ -24,7 +24,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
-from management_workload_evidence import external_receipt_evidence, manifest_receipt_evidence
+from management_workload_evidence import external_receipt_evidence, manifest_receipt_evidence, product_receipt_evidence
 
 AUTHORITY = "SUPPLY_CHAIN_HANDOFF_V1"
 SEAL_AUTHORITY = "SUPPLY_CHAIN_HANDOFF_SEAL_V1"
@@ -140,6 +140,9 @@ def build(root: Path = ROOT) -> dict:
     external_by_role = external_evidence["byRole"]
     manifest_evidence = manifest_receipt_evidence(root, image_plan)
     manifest_ready = set(manifest_evidence["byAuthority"])
+    product_evidence = product_receipt_evidence(root, image_plan)
+    product_by_role = product_evidence["byRole"]
+    product_base_by_role = product_evidence["byBaseRole"]
     acquisition_lock = _json(root / "lab" / "appliance-bundle-acquisition-lock.json")
     management_archive = _management_archive_state(acquisition_lock, version)
     toolchain = _json(root / "lab" / "release-build-toolchain-lock.json")
@@ -247,13 +250,17 @@ def build(root: Path = ROOT) -> dict:
                 },
             })
         elif ownership == "product":
+            role = str(row["role"])
+            evidence = product_by_role.get(role)
             product_images.append({
-                "role": row["role"],
+                "role": role,
                 "repository": row["repository"],
                 "containerRecipe": row["containerRecipe"],
                 "baseImageRole": row["baseImageRole"],
                 "sourceReleaseMember": row.get("sourceReleaseMember", ""),
                 "state": row.get("state"),
+                "effectiveState": "ready" if evidence else "pending",
+                **({"evidence": evidence} if evidence else {}),
             })
 
     manifest_sets = []
@@ -353,7 +360,9 @@ def build(root: Path = ROOT) -> dict:
         blockers.append("RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING")
     if management_archive["status"] != "ready":
         blockers.append("MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING")
-    if any(str(row.get("state") or "") != "ready" for row in (image_plan.get("baseImages") or [])) or any(str(row.get("state") or "") != "ready" for row in (image_plan.get("coreImages") or []) if row.get("ownership") != "external") or any(str(row.get("sourceAuthority") or "") not in manifest_ready for row in (image_plan.get("derivedManifestImageSets") or [])):
+    base_roles = {str(row.get("role") or "") for row in (image_plan.get("baseImages") or []) if isinstance(row, dict)}
+    product_roles = {str(row.get("role") or "") for row in (image_plan.get("coreImages") or []) if isinstance(row, dict) and row.get("ownership") == "product"}
+    if set(product_base_by_role) != base_roles or set(product_by_role) != product_roles or any(str(row.get("sourceAuthority") or "") not in manifest_ready for row in (image_plan.get("derivedManifestImageSets") or [])):
         blockers.append("MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING")
     if any(row["pairState"] not in {"pair-present", "install-only-first-product-release"} for row in upgrade):
         blockers.append("COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING")
@@ -385,6 +394,7 @@ def build(root: Path = ROOT) -> dict:
                     "catalog/runtime/*/*/source-lock.json",
                     "lab/management-workload-image-build-plan.json",
                     "lab/management-workload-external-image-receipt.json",
+                    "lab/management-workload-product-image-receipt.json",
                     "lab/management-workload-manifest-image-receipt.json",
                     "lab/appliance-bundle-acquisition-lock.json",
                     "lab/release-build-toolchain-lock.json",
@@ -414,6 +424,19 @@ def build(root: Path = ROOT) -> dict:
                     "archiveReady": external_evidence["archiveReady"],
                 },
                 "externalImages": sorted(external, key=lambda r: r["role"]),
+                "productReceipt": {
+                    "authority": product_evidence["authority"],
+                    "sourceRunId": product_evidence["sourceRunId"],
+                    "sourceCommitSHA": product_evidence["sourceCommitSHA"],
+                    "releaseArtifactDigest": product_evidence["releaseArtifactDigest"],
+                    "planDigest": product_evidence["planDigest"],
+                    "runtimeRealismVerified": product_evidence["runtimeRealismVerified"],
+                    "archiveReady": product_evidence["archiveReady"],
+                    "baseImages": [
+                        {"role": role, **product_base_by_role[role]}
+                        for role in sorted(product_base_by_role)
+                    ],
+                },
                 "manifestImageResolution": sorted(manifest_sets, key=lambda r: r["sourceAuthority"]),
                 "productImages": sorted(product_images, key=lambda r: r["role"]),
                 "archiveStagingPath": image_plan.get("archiveStagingPath"),
