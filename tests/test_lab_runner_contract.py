@@ -1195,8 +1195,13 @@ class LabRunnerContractTests(unittest.TestCase):
         lock, _ = lab._load_bundle_acquisition_lock(release_root, (release_root / "VERSION").read_text(encoding="utf-8").strip())
         self.assertEqual("incomplete", lock["status"])
         self.assertEqual(5, len(lock["resolvedAuthorities"]))
-        self.assertEqual(0, len(lock["partialAuthorities"]))
-        self.assertEqual(1, len(lock["missingAuthorities"]))
+        self.assertEqual(1, len(lock["partialAuthorities"]))
+        self.assertEqual(0, len(lock["missingAuthorities"]))
+        archive = lock["partialAuthorities"][0]
+        self.assertEqual("management-workload-oci-archive", archive["id"])
+        self.assertEqual([], archive["artifacts"])
+        self.assertEqual(1, len(archive["pendingArtifacts"]))
+        self.assertIn("archiveBuilt must not imply distributionReady", archive["pendingArtifacts"][0]["reason"])
         self.assertEqual(["digest-pinned-core-workload-images"], lock["derivedAuthorities"])
         by_id = {item["id"]: item for item in lock["resolvedAuthorities"]}
         storage = by_id["replicated-storage-install-manifest"]
