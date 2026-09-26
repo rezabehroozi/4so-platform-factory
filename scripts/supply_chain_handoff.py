@@ -456,6 +456,9 @@ def build(root: Path = ROOT) -> dict:
                 "transitionDigest": transition_readiness["transitionDigest"],
                 "sourceClosureReady": transition_readiness["sourceClosureReady"],
                 "transitionExecutionReady": transition_readiness["transitionExecutionReady"],
+                "singleNodeRKE2Certified": transition_readiness["singleNodeRKE2Certified"],
+                "productTopologyHACertified": transition_readiness["productTopologyHACertified"],
+                "runtimeEvidence": transition_readiness["runtimeEvidence"],
                 "currentGatewayApiMutationPerformed": transition_readiness["currentGatewayApiMutationPerformed"],
                 "ciliumReleased": transition_readiness["ciliumReleased"],
                 "runtimeCertified": transition_readiness["runtimeCertified"],
@@ -542,12 +545,18 @@ def validate(plan: dict, root: Path = ROOT) -> list[str]:
         elif row.get("status") not in {"ready-for-acquisition","source-acquired"}:
             errors.append(f"runtime hold source status invalid: {name}")
     transition = spec.get("runtimeDependencyTransition") or {}
-    if transition.get("authority") != "RUNTIME_DEPENDENCY_TRANSITION_V1" or transition.get("status") not in {"acquisition-pending","runtime-certification-pending","complete"}:
+    if transition.get("authority") != "RUNTIME_DEPENDENCY_TRANSITION_V1" or transition.get("status") not in {"acquisition-pending","runtime-certification-pending","runtime-certification-partial","complete"}:
         errors.append("runtime dependency transition authority invalid")
     if transition.get("readinessAuthority") != "RUNTIME_DEPENDENCY_TRANSITION_READINESS_V1":
         errors.append("runtime dependency transition readiness authority invalid")
     if transition.get("sourceClosureReady") is not True or transition.get("transitionExecutionReady") is not True:
         errors.append("runtime dependency transition readiness is not prepared")
+    if transition.get("status") == "runtime-certification-partial":
+        if transition.get("singleNodeRKE2Certified") is not True or transition.get("productTopologyHACertified") is not False:
+            errors.append("runtime dependency transition partial certification scope invalid")
+        evidence = transition.get("runtimeEvidence") or {}
+        if evidence.get("authority") != "RKE2_NETWORK_RUNTIME_CERTIFICATION_V1" or evidence.get("singleNodeRKE2Certified") is not True or evidence.get("productTopologyHACertified") is not False or evidence.get("physicalCertified") is not False:
+            errors.append("runtime dependency transition partial evidence invalid")
     if transition.get("currentGatewayApiMutationPerformed") is not False or transition.get("ciliumReleased") is not False:
         errors.append("runtime dependency transition readiness illegally promotes runtime state")
     if transition.get("runtimeCertified") is not False or transition.get("physicalCertified") is not False:
