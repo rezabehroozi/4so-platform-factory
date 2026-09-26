@@ -1,37 +1,51 @@
 {
   "apiVersion": "platform.4so.io/v1alpha1",
-  "kind": "ManagedOKDUpstreamToolchainLock",
-  "authority": "MANAGED_OKD_UPSTREAM_TOOLCHAIN_LOCK_V1",
-  "schemaVersion": 1,
-  "distribution": "okd-scos",
-  "productTargetVersion": "4.19.0",
-  "exactRelease": "4.19.0-okd-scos.19",
-  "releasePublishedAt": "2025-09-15T06:48:54Z",
-  "releasePage": "https://github.com/okd-project/okd/releases/tag/4.19.0-okd-scos.19",
-  "sourceRepository": "https://github.com/okd-project/okd",
   "artifacts": [
     {
-      "role": "openshift-install",
+      "githubAssetId": 293342687,
       "name": "openshift-install-linux-4.19.0-okd-scos.19.tar.gz",
-      "url": "https://github.com/okd-project/okd/releases/download/4.19.0-okd-scos.19/openshift-install-linux-4.19.0-okd-scos.19.tar.gz",
+      "role": "openshift-install",
       "sha256": "4ed2d87777cfd5597e76f11c4d48d5db42aad6d42fb92cfe296ecc45bee0777e",
       "sizeBytes": 390249882,
-      "githubAssetId": 293342687
+      "url": "https://github.com/okd-project/okd/releases/download/4.19.0-okd-scos.19/openshift-install-linux-4.19.0-okd-scos.19.tar.gz"
     },
     {
-      "role": "oc-client",
+      "githubAssetId": 293342650,
       "name": "openshift-client-linux-4.19.0-okd-scos.19.tar.gz",
-      "url": "https://github.com/okd-project/okd/releases/download/4.19.0-okd-scos.19/openshift-client-linux-4.19.0-okd-scos.19.tar.gz",
+      "role": "oc-client",
       "sha256": "5b0f6630bc6a090520d8b48b17b992bb9854ec16e2f54fb7777051b7437216e6",
       "sizeBytes": 74465376,
-      "githubAssetId": 293342650
+      "url": "https://github.com/okd-project/okd/releases/download/4.19.0-okd-scos.19/openshift-client-linux-4.19.0-okd-scos.19.tar.gz"
     }
   ],
+  "authority": "MANAGED_OKD_UPSTREAM_TOOLCHAIN_LOCK_V1",
+  "connectedToolchainReady": true,
+  "disconnectedToolchainReady": false,
+  "distribution": "okd-scos",
+  "exactRelease": "4.19.0-okd-scos.19",
+  "kind": "ManagedOKDUpstreamToolchainLock",
+  "machineOS": {
+    "name": "CentOS Stream CoreOS",
+    "version": "9.0.20250827-0"
+  },
+  "machineOSArtifact": {
+    "architecture": "x86_64",
+    "artifactClass": "metal",
+    "authority": "MANAGED_OKD_MACHINE_OS_DISCOVERY_V1",
+    "byteVerified": true,
+    "distribution": "okd-scos",
+    "format": "raw.gz",
+    "location": "https://rhcos.mirror.openshift.com/art/storage/prod/streams/c9s/builds/9.0.20250510-0/x86_64/scos-9.0.20250510-0-metal.x86_64.raw.gz",
+    "payloadComponentVersion": "9.0.20250827-0",
+    "role": "disk",
+    "sha256": "4035381cdca88c6dd20e11a529d6d850d54340d5425a831a9bab38fc6c3795e6",
+    "sizeBytes": 1219636924,
+    "sourceAuthority": "openshift-install-coreos-print-stream-json",
+    "sourceInstallerSHA256": "4ed2d87777cfd5597e76f11c4d48d5db42aad6d42fb92cfe296ecc45bee0777e",
+    "streamRelease": "9.0.20250510-0"
+  },
+  "managedInstallContentReady": false,
   "pendingAuthorities": [
-    {
-      "id": "fcos",
-      "reason": "Exact FCOS artifact URL, digest and size are not yet sealed for the selected OKD release."
-    },
     {
       "id": "agent-iso-workspace",
       "reason": "Agent ISO and install workspace must be generated from the exact release/content authority and request-specific network/pull-secret inputs."
@@ -41,19 +55,17 @@
       "reason": "Disconnected oc-mirror v2 binary/source authority remains independently open for I1."
     }
   ],
-  "connectedToolchainReady": true,
-  "managedInstallContentReady": false,
-  "disconnectedToolchainReady": false,
-  "runtimeCertified": false,
   "physicalCertified": false,
+  "productTargetVersion": "4.19.0",
+  "releasePage": "https://github.com/okd-project/okd/releases/tag/4.19.0-okd-scos.19",
   "releasePayload": {
-    "reference": "quay.io/okd/scos-release@sha256:d6a4b74886326bd2196bd834f8351a4e142a9ffd278beef1b56f5da9cdb772e2",
     "digest": "sha256:d6a4b74886326bd2196bd834f8351a4e142a9ffd278beef1b56f5da9cdb772e2",
-    "source": "github-release-body",
-    "releasePage": "https://github.com/okd-project/okd/releases/tag/4.19.0-okd-scos.19"
+    "reference": "quay.io/okd/scos-release@sha256:d6a4b74886326bd2196bd834f8351a4e142a9ffd278beef1b56f5da9cdb772e2",
+    "releasePage": "https://github.com/okd-project/okd/releases/tag/4.19.0-okd-scos.19",
+    "source": "github-release-body"
   },
-  "machineOS": {
-    "name": "CentOS Stream CoreOS",
-    "version": "9.0.20250827-0"
-  }
+  "releasePublishedAt": "2025-09-15T06:48:54Z",
+  "runtimeCertified": false,
+  "schemaVersion": 1,
+  "sourceRepository": "https://github.com/okd-project/okd"
 }
