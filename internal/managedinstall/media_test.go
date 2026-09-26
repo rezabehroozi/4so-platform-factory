@@ -81,3 +81,28 @@ func TestMediaStoreRejectsSwappedContentAfterURLIssuance(t *testing.T) {
 		t.Fatalf("status=%d body=%q", w.Code, string(body))
 	}
 }
+
+func TestMediaStorePreMutationValidationRequiresExactLocalISO(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Chmod(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	artifact := stagedISO(t, root, []byte("pre-mutation-agent-iso"))
+	store := &MediaStore{Root: root, PublicBase: "https://factory.example.test", SigningKey: []byte(strings.Repeat("v", 32))}
+	req := testRequest()
+	req.Artifacts[2] = artifact
+	evidence, err := store.ValidateAgentISOMedia(context.Background(), req, artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evidence["locallyStaged"] != true || evidence["contentAddressed"] != true || evidence["sha256"] != artifact.SHA256 {
+		t.Fatalf("unexpected media validation evidence %#v", evidence)
+	}
+	digest, _ := normalizeDigest(artifact.SHA256)
+	if err := os.WriteFile(mediaPath(root, digest), []byte("tampered"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ValidateAgentISOMedia(context.Background(), req, artifact); err == nil {
+		t.Fatal("pre-mutation validation accepted swapped Agent ISO bytes")
+	}
+}

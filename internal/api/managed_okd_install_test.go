@@ -21,13 +21,22 @@ func TestManagedOKDInstallRuntimeTruthReflectsExecutorConfiguration(t *testing.T
 	if before["configured"] != false || before["requestCreationAllowed"] != false || before["physicalCertificationImplied"] != false {
 		t.Fatalf("unexpected disabled runtime truth: %#v", before)
 	}
-	s.ConfigureManagedOKDInstallExecutor(&managedinstall.Executor{})
+	incomplete := &managedinstall.Executor{}
+	s.ConfigureManagedOKDInstallExecutor(incomplete)
 	w = apiRequest(t, s.Handler(), http.MethodGet, "/api/v1/managed-okd-installs/runtime", "", map[string]string{"X-Actor-ID": "operator"})
 	var after map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &after); err != nil {
 		t.Fatal(err)
 	}
-	if after["configured"] != true || after["requestCreationAllowed"] != true || after["requiresExactWorkspace"] != true {
-		t.Fatalf("unexpected configured runtime truth: %#v", after)
+	if after["configured"] != false || after["requestCreationAllowed"] != false || after["requiresExactWorkspace"] != true {
+		t.Fatalf("incomplete executor was advertised as ready: %#v", after)
+	}
+	s.ConfigureManagedOKDInstallExecutor(managedInstallReadyExecutor(&managedInstallFakeInstaller{}))
+	w = apiRequest(t, s.Handler(), http.MethodGet, "/api/v1/managed-okd-installs/runtime", "", map[string]string{"X-Actor-ID": "operator"})
+	if err := json.Unmarshal(w.Body.Bytes(), &after); err != nil {
+		t.Fatal(err)
+	}
+	if after["configured"] != true || after["requestCreationAllowed"] != true || after["connectedRequestAllowed"] != true || after["requiresExactWorkspace"] != true {
+		t.Fatalf("unexpected ready runtime truth: %#v", after)
 	}
 }

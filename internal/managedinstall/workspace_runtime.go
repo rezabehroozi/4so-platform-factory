@@ -243,6 +243,57 @@ func (r *WorkspaceRuntime) ValidateDisconnected() error {
 	return nil
 }
 
+func (r *WorkspaceRuntime) ValidateManagedInstallArtifacts(_ context.Context, req Request, operationToken string) (map[string]any, error) {
+	canonical, err := CanonicalRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	if IsDisconnected(canonical) {
+		if err = r.ValidateDisconnected(); err != nil {
+			return nil, err
+		}
+	} else if err = r.Validate(); err != nil {
+		return nil, err
+	}
+	workspace, _, installBin, ocBin, requestDigest, err := r.operationPaths(canonical, operationToken)
+	if err != nil {
+		return nil, err
+	}
+	installDigest, err := hashSecureRegularFile(installBin, false)
+	if err != nil {
+		return nil, fmt.Errorf("rehash staged openshift-install: %w", err)
+	}
+	ocDigest, err := hashSecureRegularFile(ocBin, false)
+	if err != nil {
+		return nil, fmt.Errorf("rehash staged oc: %w", err)
+	}
+	expectedInstall, err := normalizeExpectedDigest(r.Config.OpenShiftInstallSHA)
+	if err != nil {
+		return nil, err
+	}
+	expectedOC, err := normalizeExpectedDigest(r.Config.OCSHA)
+	if err != nil {
+		return nil, err
+	}
+	if installDigest != "sha256:"+expectedInstall || ocDigest != "sha256:"+expectedOC {
+		return nil, errors.New("staged managed OKD executable digest drift")
+	}
+	if err = validateWorkspaceTree(workspace); err != nil {
+		return nil, fmt.Errorf("pre-mutation workspace integrity: %w", err)
+	}
+	return map[string]any{
+		"authority": WorkspaceRuntimeAuthority,
+		"workspaceAuthority": WorkspaceDescriptorAuthority,
+		"requestDigest": requestDigest,
+		"workspaceDigestBound": true,
+		"exactBinariesVerified": true,
+		"openshiftInstallSha256": installDigest,
+		"ocSha256": ocDigest,
+		"ocMirrorVerified": IsDisconnected(canonical),
+		"connectivity": canonical.Connectivity,
+	}, nil
+}
+
 type disconnectedMirrorInventoryFile struct {
 	Path   string `json:"path"`
 	SHA256 string `json:"sha256"`

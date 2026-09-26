@@ -17,6 +17,14 @@ type ConnectedInstallRuntime interface {
 	InstallConnectedOKD(context.Context, Request, string) (map[string]any, error)
 }
 
+type ArtifactValidationRuntime interface {
+	ValidateManagedInstallArtifacts(context.Context, Request, string) (map[string]any, error)
+}
+
+type AgentISOMediaValidator interface {
+	ValidateAgentISOMedia(context.Context, Request, Artifact) (map[string]any, error)
+}
+
 type DisconnectedInstallRuntime interface {
 	PrepareDisconnectedMirror(context.Context, Request, string) (map[string]any, error)
 	InstallDisconnectedOKD(context.Context, Request, string) (map[string]any, error)
@@ -53,8 +61,18 @@ func (c CompositeInstaller) RegisterManagedCluster(ctx context.Context, req Requ
 type Executor struct {
 	BootProvider          bootmedia.Provider
 	MediaResolver         MediaURLResolver
+	ArtifactValidator     ArtifactValidationRuntime
+	MediaValidator        AgentISOMediaValidator
 	Installer             ConnectedInstaller
 	DisconnectedInstaller DisconnectedInstallRuntime
+}
+
+func (e *Executor) ConnectedReady() bool {
+	return e != nil && e.BootProvider != nil && e.MediaResolver != nil && e.ArtifactValidator != nil && e.MediaValidator != nil && e.Installer != nil
+}
+
+func (e *Executor) DisconnectedReady() bool {
+	return e.ConnectedReady() && e.DisconnectedInstaller != nil
 }
 
 type machineEvidence struct {
@@ -106,7 +124,33 @@ func (e *Executor) ExecuteStep(ctx context.Context, step Step, req Request, oper
 	result := stepEvidence{Authority: ExecutorAuthority, Step: step, RequestDigest: digest}
 	switch step {
 	case StepValidateArtifacts:
-		result.Result = map[string]any{"validated": true, "machineCount": len(canonical.Machines), "artifactCount": len(canonical.Artifacts), "connectivity": canonical.Connectivity}
+		if strings.TrimSpace(operationToken) == "" {
+			return nil, errors.New("artifact validation operation token is required")
+		}
+		if e == nil || (!IsDisconnected(canonical) && !e.ConnectedReady()) || (IsDisconnected(canonical) && !e.DisconnectedReady()) {
+			return nil, errors.New("managed OKD runtime is not fully configured for pre-mutation artifact validation")
+		}
+		workspaceEvidence, validationErr := e.ArtifactValidator.ValidateManagedInstallArtifacts(ctx, canonical, strings.TrimSpace(operationToken))
+		if validationErr != nil {
+			return nil, fmt.Errorf("validate exact managed OKD workspace artifacts: %w", validationErr)
+		}
+		iso, ok := ArtifactByName(canonical, "agent-iso")
+		if !ok {
+			return nil, errors.New("agent-iso artifact is required")
+		}
+		mediaEvidence, validationErr := e.MediaValidator.ValidateAgentISOMedia(ctx, canonical, iso)
+		if validationErr != nil {
+			return nil, fmt.Errorf("validate exact managed OKD agent ISO: %w", validationErr)
+		}
+		result.Result = map[string]any{
+			"validated": true,
+			"machineCount": len(canonical.Machines),
+			"artifactCount": len(canonical.Artifacts),
+			"connectivity": canonical.Connectivity,
+			"workspace": workspaceEvidence,
+			"agentISO": mediaEvidence,
+			"preMutationValidation": true,
+		}
 	case StepPrepareMirror:
 		if !IsDisconnected(canonical) {
 			return nil, errors.New("disconnected mirror step is forbidden for connected request")

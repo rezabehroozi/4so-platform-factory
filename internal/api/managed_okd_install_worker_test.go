@@ -20,6 +20,47 @@ func (managedInstallFakeBoot) Observe(bootmedia.Request) (bootmedia.Observation,
 	return bootmedia.Observation{Attached: true, OneTimeBootSet: true, Powered: true, BootState: "REDFISH_ON"}, nil
 }
 
+type managedInstallFakeArtifactValidator struct{}
+
+func (managedInstallFakeArtifactValidator) ValidateManagedInstallArtifacts(_ context.Context, req managedinstall.Request, token string) (map[string]any, error) {
+	if token == "" {
+		tpanic("missing artifact validation token")
+	}
+	digest, err := managedinstall.DigestRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"validated": true, "requestDigest": digest, "workspaceDigestBound": true}, nil
+}
+
+type managedInstallFakeMedia struct{}
+
+func (managedInstallFakeMedia) ResolveAgentISOMediaURL(_ context.Context, _ managedinstall.Request, artifact managedinstall.Artifact, token string) (string, error) {
+	if token == "" {
+		tpanic("missing media token")
+	}
+	return artifact.URL, nil
+}
+
+func (managedInstallFakeMedia) ValidateAgentISOMedia(_ context.Context, req managedinstall.Request, artifact managedinstall.Artifact) (map[string]any, error) {
+	digest, err := managedinstall.DigestRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"validated": true, "requestDigest": digest, "sha256": artifact.SHA256, "locallyStaged": true}, nil
+}
+
+func managedInstallReadyExecutor(installer *managedInstallFakeInstaller) *managedinstall.Executor {
+	media := managedInstallFakeMedia{}
+	return &managedinstall.Executor{
+		BootProvider: managedInstallFakeBoot{},
+		MediaResolver: media,
+		ArtifactValidator: managedInstallFakeArtifactValidator{},
+		MediaValidator: media,
+		Installer: installer,
+	}
+}
+
 type managedInstallFakeInstaller struct{ installs, registers int }
 
 func (f *managedInstallFakeInstaller) InstallConnectedOKD(_ context.Context, _ managedinstall.Request, token string) (map[string]any, error) {
@@ -93,7 +134,7 @@ func TestManagedOKDInstallWorkerDurableApprovalAndResume(t *testing.T) {
 
 	installer := &managedInstallFakeInstaller{}
 	s := New("test", nil, nil, store)
-	s.ConfigureManagedOKDInstallExecutor(&managedinstall.Executor{BootProvider: managedInstallFakeBoot{}, Installer: installer})
+	s.ConfigureManagedOKDInstallExecutor(managedInstallReadyExecutor(installer))
 	for i := 0; i < len(managedinstall.OrderedSteps())+2; i++ {
 		if err = s.ProcessManagedOKDInstallJobsOnce(ctx, now.Add(time.Duration(i)*time.Second)); err != nil {
 			t.Fatal(err)
@@ -273,7 +314,9 @@ func TestManagedOKDInstallWorkerDisconnectedSequenceIsDurableAndDistinct(t *test
 	connected := &managedInstallFakeInstaller{}
 	disconnected := &managedInstallFakeDisconnected{}
 	s := New("test", nil, nil, store)
-	s.ConfigureManagedOKDInstallExecutor(&managedinstall.Executor{BootProvider: managedInstallFakeBoot{}, Installer: connected, DisconnectedInstaller: disconnected})
+	executor := managedInstallReadyExecutor(connected)
+	executor.DisconnectedInstaller = disconnected
+	s.ConfigureManagedOKDInstallExecutor(executor)
 	for i := 0; i < len(managedinstall.OrderedStepsFor(req))+2; i++ {
 		if err = s.ProcessManagedOKDInstallJobsOnce(ctx, now.Add(time.Duration(i)*time.Second)); err != nil {
 			t.Fatal(err)

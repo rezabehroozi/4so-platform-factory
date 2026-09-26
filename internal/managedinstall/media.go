@@ -144,6 +144,45 @@ func mediaPath(root, digest string) string {
 	return filepath.Join(root, "sha256", digest, "agent.iso")
 }
 
+func (m *MediaStore) ValidateAgentISOMedia(_ context.Context, req Request, artifact Artifact) (map[string]any, error) {
+	root, _, err := m.validate()
+	if err != nil {
+		return nil, err
+	}
+	canonical, err := CanonicalRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	expected, ok := ArtifactByName(canonical, "agent-iso")
+	if !ok {
+		return nil, errors.New("agent-iso artifact is required")
+	}
+	if artifact.Name != expected.Name || strings.ToLower(strings.TrimSpace(artifact.SHA256)) != expected.SHA256 || strings.TrimSpace(artifact.Version) != expected.Version {
+		return nil, errors.New("agent-iso validation artifact does not match sealed managed install request")
+	}
+	digest, err := normalizeDigest(expected.SHA256)
+	if err != nil {
+		return nil, err
+	}
+	f, info, err := secureOpenMedia(mediaPath(root, digest), digest)
+	if err != nil {
+		return nil, fmt.Errorf("verify staged agent ISO: %w", err)
+	}
+	_ = f.Close()
+	requestDigest, err := DigestRequest(canonical)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"authority": MediaStoreAuthority,
+		"requestDigest": requestDigest,
+		"sha256": "sha256:" + digest,
+		"sizeBytes": info.Size(),
+		"locallyStaged": true,
+		"contentAddressed": true,
+	}, nil
+}
+
 func (m *MediaStore) ResolveAgentISOMediaURL(_ context.Context, req Request, artifact Artifact, operationToken string) (string, error) {
 	root, base, err := m.validate()
 	if err != nil {

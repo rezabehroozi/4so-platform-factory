@@ -240,3 +240,44 @@ esac
 		t.Fatalf("unsealed archive drift was accepted: %v", err)
 	}
 }
+
+func TestWorkspaceRuntimePreMutationValidationRejectsDescriptorDrift(t *testing.T) {
+	workspaceRoot := filepath.Join(t.TempDir(), "workspaces")
+	workRoot := filepath.Join(t.TempDir(), "runtime")
+	binRoot := filepath.Join(t.TempDir(), "bin")
+	for _, dir := range []string{workspaceRoot, workRoot, binRoot} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		_ = os.Chmod(dir, 0o700)
+	}
+	req := testRequest()
+	workspace := prepareWorkspaceFixture(t, workspaceRoot, req)
+	installPath, installSHA := writeExecutableFixture(t, binRoot, "openshift-install", "#!/bin/sh\nexit 0\n")
+	ocPath, ocSHA := writeExecutableFixture(t, binRoot, "oc", "#!/bin/sh\nexit 0\n")
+	runtime := &WorkspaceRuntime{Config: WorkspaceRuntimeConfig{
+		WorkspaceRoot: workspaceRoot, WorkRoot: workRoot,
+		OpenShiftInstall: installPath, OpenShiftInstallSHA: installSHA,
+		OC: ocPath, OCSHA: ocSHA,
+	}}
+	evidence, err := runtime.ValidateManagedInstallArtifacts(context.Background(), req, "validate-op")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evidence["workspaceDigestBound"] != true || evidence["exactBinariesVerified"] != true || evidence["requestDigest"] == "" {
+		t.Fatalf("unexpected pre-mutation evidence %#v", evidence)
+	}
+	var doc WorkspaceDescriptor
+	raw, _ := os.ReadFile(filepath.Join(workspace, "workspace.json"))
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc.ReleasePayloadSHA = "sha256:" + strings.Repeat("c", 64)
+	raw, _ = json.Marshal(doc)
+	if err := os.WriteFile(filepath.Join(workspace, "workspace.json"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.ValidateManagedInstallArtifacts(context.Background(), req, "validate-op-2"); err == nil {
+		t.Fatal("pre-mutation validation accepted workspace descriptor drift")
+	}
+}

@@ -445,7 +445,7 @@ func configureManagedOKDProductionRuntime(apiServer *api.Server) (*managedOKDPro
 	}
 	redfish := &bootmedia.RedfishProvider{Resolver: resolver}
 	composite := managedinstall.CompositeInstaller{InstallRuntime: workspace, Registrar: registrar}
-	executor := &managedinstall.Executor{BootProvider: redfish, MediaResolver: media, Installer: composite}
+	executor := &managedinstall.Executor{BootProvider: redfish, MediaResolver: media, ArtifactValidator: workspace, MediaValidator: media, Installer: composite}
 	if disconnectedValues == 3 {
 		if err := workspace.ValidateDisconnected(); err != nil {
 			return nil, fmt.Errorf("managed OKD disconnected runtime: %w", err)

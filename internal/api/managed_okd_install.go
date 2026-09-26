@@ -46,12 +46,13 @@ func (s *Server) managedOKDInstallRuntime(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusUnauthorized, "ACTOR_REQUIRED", err.Error())
 		return
 	}
-	configured := s.managedOKDInstallExecutor != nil
-	disconnectedConfigured := configured && s.managedOKDInstallExecutor.DisconnectedInstaller != nil
+	connectedConfigured := s.managedOKDInstallExecutor != nil && s.managedOKDInstallExecutor.ConnectedReady()
+	disconnectedConfigured := s.managedOKDInstallExecutor != nil && s.managedOKDInstallExecutor.DisconnectedReady()
+	configured := connectedConfigured
 	writeJSON(w, http.StatusOK, map[string]any{
 		"authority":                    managedinstall.ExecutorAuthority,
 		"configured":                   configured,
-		"connectedRequestAllowed":      configured,
+		"connectedRequestAllowed":      connectedConfigured,
 		"disconnectedRequestAllowed":   disconnectedConfigured,
 		"requestCreationAllowed":       configured,
 		"requiresExactWorkspace":       true,
@@ -99,8 +100,13 @@ func (s *Server) createManagedOKDInstall(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "INVALID_MANAGED_INSTALL", err.Error())
 		return
 	}
-	if managedinstall.IsDisconnected(canonical) && s.managedOKDInstallExecutor.DisconnectedInstaller == nil {
-		writeError(w, http.StatusServiceUnavailable, "DISCONNECTED_OKD_RUNTIME_UNAVAILABLE", "disconnected OKD runtime requires an exact oc-mirror v2 executor and managed mirror registry")
+	if managedinstall.IsDisconnected(canonical) {
+		if !s.managedOKDInstallExecutor.DisconnectedReady() {
+			writeError(w, http.StatusServiceUnavailable, "DISCONNECTED_OKD_RUNTIME_UNAVAILABLE", "disconnected OKD runtime requires exact workspace/media validation, Redfish execution, oc-mirror v2 and managed mirror registry")
+			return
+		}
+	} else if !s.managedOKDInstallExecutor.ConnectedReady() {
+		writeError(w, http.StatusServiceUnavailable, "MANAGED_OKD_RUNTIME_UNAVAILABLE", "connected OKD runtime requires exact workspace/media validation and Redfish execution")
 		return
 	}
 	project, err := s.requireProjectAccess(r, canonical.ProjectID, organizationWrite)
