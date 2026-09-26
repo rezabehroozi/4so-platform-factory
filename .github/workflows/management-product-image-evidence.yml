@@ -8,6 +8,7 @@ on:
       - .dockerignore
       - scripts/management_product_image_evidence.py
       - catalog/management-maintenance-toolset.json
+      - deploy/images/Dockerfile.api-runtime-base
       - deploy/images/Dockerfile.maintenance-runtime-base
       - deploy/images/Dockerfile.api-release
       - deploy/images/Dockerfile.agent-release
@@ -81,6 +82,22 @@ jobs:
           echo "AWS_CLI_REF=$aws_repo@$aws_digest" >> "$GITHUB_ENV"
           echo "STATIC_BASE_REF=$static_repo@$static_digest" >> "$GITHUB_ENV"
 
+      - name: Build and probe offline API runtime base
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --pull --platform linux/amd64             --build-arg "POSTGRES_RUNTIME_IMAGE=$POSTGRES_REF"             --build-arg "CA_RUNTIME_IMAGE=$STATIC_BASE_REF"             -f deploy/images/Dockerfile.api-runtime-base             -t 4so-api-runtime-base:evidence .
+          docker run --rm --entrypoint /bin/sh --user 65532:65532 4so-api-runtime-base:evidence -c '
+            uid="$(id -u)"; printf "API_BASE_UID=%s\n" "$uid"; test "$uid" = 65532 || exit 21
+            test -s /etc/ssl/certs/ca-certificates.crt || exit 22
+            test -e /usr/lib/x86_64-linux-gnu/libpq.so.5 || test -e /usr/lib/*/libpq.so.5 || exit 23
+          '
+          rm -rf /tmp/oci-api-base
+          skopeo copy --format oci docker-daemon:4so-api-runtime-base:evidence oci:/tmp/oci-api-base:evidence
+          test "$(jq '.manifests | length' /tmp/oci-api-base/index.json)" = "1"
+          api_base_digest="$(jq -r '.manifests[0].digest' /tmp/oci-api-base/index.json)"
+          echo "API_BASE_REF=platform.4so.local/management/api-runtime-base@$api_base_digest" >> "$GITHUB_ENV"
+
       - name: Build and probe offline maintenance runtime base
         shell: bash
         run: |
@@ -99,7 +116,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker build --pull --platform linux/amd64             --build-arg "RUNTIME_IMAGE=$POSTGRES_REF"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.api-release -t 4so-platform-api:evidence .
+          docker build --platform linux/amd64             --build-arg "RUNTIME_IMAGE=4so-api-runtime-base:evidence"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.api-release -t 4so-platform-api:evidence .
           docker build --pull --platform linux/amd64             --build-arg "RUNTIME_IMAGE=$STATIC_BASE_REF"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.agent-release -t 4so-platform-agent:evidence .
           docker build --pull --platform linux/amd64             --build-arg "RUNTIME_IMAGE=$STATIC_BASE_REF"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.probe-release -t 4so-platform-probe:evidence .
           docker build --platform linux/amd64             --build-arg "MAINTENANCE_RUNTIME_IMAGE=4so-maintenance-runtime-base:evidence"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.maintenance -t 4so-maintenance:evidence .
@@ -165,7 +182,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export POSTGRES_REF AWS_CLI_REF AWS_CLI_VERSION STATIC_BASE_REF MAINTENANCE_BASE_REF RELEASE_DIGEST
+          export POSTGRES_REF AWS_CLI_REF AWS_CLI_VERSION STATIC_BASE_REF API_BASE_REF MAINTENANCE_BASE_REF RELEASE_DIGEST
           python3 - <<'PY'
           import json, os
           from pathlib import Path
@@ -186,7 +203,7 @@ jobs:
           payload={
             "releaseArtifactDigest": os.environ["RELEASE_DIGEST"],
             "baseImages":[
-              {"role":"api-runtime-base","exactReference":os.environ["POSTGRES_REF"],"compatibilityProbe":{"nonRoot":True,"dynamicDependencyClosure":True,"caTrust":True}},
+              {"role":"api-runtime-base","exactReference":os.environ["API_BASE_REF"],"composition":{"postgresqlSourceReference":os.environ["POSTGRES_REF"],"caSourceReference":os.environ["STATIC_BASE_REF"]},"compatibilityProbe":{"nonRoot":True,"dynamicDependencyClosure":True,"caTrust":True}},
               {"role":"static-runtime-base","exactReference":os.environ["STATIC_BASE_REF"],"compatibilityProbe":{"nonRoot":True,"agentExecution":True,"probeExecution":True,"caTrust":True}},
               {"role":"maintenance-toolchain-base","exactReference":os.environ["MAINTENANCE_BASE_REF"],"composition":{"postgresqlSourceReference":os.environ["POSTGRES_REF"],"awsCliSourceReference":os.environ["AWS_CLI_REF"],"awsCliVersion":os.environ["AWS_CLI_VERSION"]},"compatibilityProbe":{"defaultNonRootToolset":True,"rootOverrideToolset":True,"postgresqlClientMajor":True,"awsCliVersion":True}},
             ],
@@ -203,7 +220,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar -C /tmp -cf /tmp/management-product-images-oci-layouts.tar             oci-platform-api oci-platform-agent oci-platform-probe oci-maintenance oci-maintenance-base
+          tar -C /tmp -cf /tmp/management-product-images-oci-layouts.tar             oci-platform-api oci-platform-agent oci-platform-probe oci-maintenance oci-api-base oci-maintenance-base
           sha256sum /tmp/management-product-images-oci-layouts.tar > /tmp/management-product-images-oci-layouts.tar.sha256
 
       - name: Upload exact product image bytes and evidence
