@@ -219,7 +219,12 @@ def validate_source_bundle(root: Path, name: str, spec: dict, errors: list[tuple
         digest_files['renderManifestDigest'] = 'render-manifest.json'
         render_file = bundle_dir / 'render-manifest.json'
         if render_file.is_file() and render_file.stat().st_size == 0:
-            errors.append(('RESOLVED_SOURCE_RENDER_EMPTY', name))
+            holds_path = root / 'catalog/component-runtime-certification.json'
+            holds_doc = load_json(holds_path, errors) if holds_path.is_file() else {}
+            holds = ((holds_doc or {}).get('spec') or {}).get('runtimeSuitabilityHolds') or []
+            explicit_hold = any(isinstance(h, dict) and h.get('component') == name and h.get('status') in {'review-required','dependency-transition-required'} for h in holds)
+            if not explicit_hold:
+                errors.append(('RESOLVED_SOURCE_RENDER_EMPTY_WITHOUT_RUNTIME_HOLD', name))
     for field, filename in digest_files.items():
         expected = str(src.get(field) or '')
         file = bundle_dir / filename
