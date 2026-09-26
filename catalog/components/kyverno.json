@@ -55,7 +55,7 @@
     },
     "source": {
       "type": "helm-chart",
-      "resolved": true,
+      "resolved": false,
       "bundleKey": "kyverno/3.8.2",
       "artifactDigest": "sha256:f4fc787cf1d6781eefb9e9b45837edcddcfae984c872888289914e97207cc5de",
       "renderManifestDigest": "sha256:2437f06ca8e701012d5457360cbd9fb09f39ce55391cdcde696ac438e38a4291",
@@ -64,7 +64,8 @@
       "licenseManifestDigest": "sha256:2c8db0dd93fdc70cc0770a135bbc248f21b6454ed68fa78fa9c5aa748941cca3",
       "signatureVerification": "sha256-pinned-offline",
       "sbom": "sha256:a92cb24177121a257c30a67020d160d241be8affd5ccfaa0f7fe146a036d8a2a",
-      "provenance": "sha256:c5204fac25a472264e2e851f03869445158fcefa8432ca8c415530af52d54e7e"
+      "provenance": "sha256:c5204fac25a472264e2e851f03869445158fcefa8432ca8c415530af52d54e7e",
+      "resolutionBlocker": "KYVERNO_3_8_2_RENDER_EMPTY_UPSTREAM_CRD_RENDERING_REVIEW_REQUIRED"
     },
     "operations": {
       "install": "required",
@@ -88,7 +89,7 @@
       "rollback-verification"
     ],
     "certification": {
-      "status": "candidate",
+      "status": "blocked-source-render",
       "profiles": null,
       "evidenceDigest": ""
     }
