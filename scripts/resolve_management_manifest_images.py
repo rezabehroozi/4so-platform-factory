@@ -179,6 +179,15 @@ def _materialize_exact_file(url: str, out: Path, expected_bytes: int, expected_s
         raise
 
 
+def replace_generated_file(staged: Path, target: Path, label: str) -> None:
+    regular_file(staged, label + "_STAGED")
+    if target.exists() or target.is_symlink():
+        regular_file(target, label + "_EXISTING")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(staged, 0o644)
+    os.replace(staged, target)
+
+
 def _materialize_source_manifests(plan: dict) -> None:
     authorities = _exact_manifest_authorities(plan)
     for row in plan.get("derivedManifestImageSets") or []:
@@ -229,31 +238,39 @@ def resolve_all(platformctl: Path, receipt_out: Path, run_id: str) -> dict:
 
         out_manifest = ROOT / str(row.get("resolvedManifestPath") or "")
         out_lock = ROOT / str(row.get("resolutionLockPath") or "")
-        if out_manifest.exists() or out_manifest.is_symlink() or out_lock.exists() or out_lock.is_symlink():
-            raise RuntimeError(f"MANIFEST_RESOLUTION_OUTPUT_ALREADY_EXISTS {authority}")
-        result = run_json([
-            str(platformctl), "workload-oci", "resolve-manifest",
-            "--manifest", str(source), *resolutions,
-            "--out-manifest", str(out_manifest), "--out-lock", str(out_lock),
-        ])
-        if result.get("authority") != RESOLUTION_AUTHORITY or result.get("resolved") is not True:
-            raise RuntimeError(f"MANIFEST_RESOLUTION_RESULT_INVALID {authority}")
-        verify = run_json([str(platformctl), "workload-oci", "inspect-manifest", "--manifest", str(out_manifest)])
-        if verify.get("resolutionRequiredCount") != 0:
-            raise RuntimeError(f"MANIFEST_RESOLUTION_MUTABLE_IMAGE_REMAINS {authority}")
-        lock = json.loads(regular_file(out_lock, "MANIFEST_RESOLUTION_LOCK").read_text())
-        if lock.get("authority") != RESOLUTION_AUTHORITY or lock.get("sourceManifestSha256") != row.get("sourceManifestSha256"):
-            raise RuntimeError(f"MANIFEST_RESOLUTION_LOCK_INVALID {authority}")
+        with tempfile.TemporaryDirectory(prefix=".management-manifest-", dir=ROOT) as td:
+            temp_root = Path(td)
+            staged_manifest = temp_root / "resolved.yaml"
+            staged_lock = temp_root / "resolution-lock.json"
+            result = run_json([
+                str(platformctl), "workload-oci", "resolve-manifest",
+                "--manifest", str(source), *resolutions,
+                "--out-manifest", str(staged_manifest), "--out-lock", str(staged_lock),
+            ])
+            if result.get("authority") != RESOLUTION_AUTHORITY or result.get("resolved") is not True:
+                raise RuntimeError(f"MANIFEST_RESOLUTION_RESULT_INVALID {authority}")
+            verify = run_json([str(platformctl), "workload-oci", "inspect-manifest", "--manifest", str(staged_manifest)])
+            if verify.get("resolutionRequiredCount") != 0:
+                raise RuntimeError(f"MANIFEST_RESOLUTION_MUTABLE_IMAGE_REMAINS {authority}")
+            lock = json.loads(regular_file(staged_lock, "MANIFEST_RESOLUTION_LOCK").read_text())
+            if lock.get("authority") != RESOLUTION_AUTHORITY or lock.get("sourceManifestSha256") != row.get("sourceManifestSha256"):
+                raise RuntimeError(f"MANIFEST_RESOLUTION_LOCK_INVALID {authority}")
+            resolved_sha = sha256_file(staged_manifest)
+            lock_sha = sha256_file(staged_lock)
+            exact_images = sorted(str(x) for x in (verify.get("images") or []))
+            image_count = int(verify.get("imageCount") or 0)
+            replace_generated_file(staged_manifest, out_manifest, "RESOLVED_MANIFEST")
+            replace_generated_file(staged_lock, out_lock, "MANIFEST_RESOLUTION_LOCK")
         sets.append({
             "sourceAuthority": authority,
             "sourceManifestPath": str(row["manifestPath"]),
             "sourceManifestSha256": str(row["sourceManifestSha256"]),
             "resolvedManifestPath": str(row["resolvedManifestPath"]),
-            "resolvedManifestSha256": sha256_file(out_manifest),
+            "resolvedManifestSha256": resolved_sha,
             "resolutionLockPath": str(row["resolutionLockPath"]),
-            "resolutionLockSha256": sha256_file(out_lock),
-            "imageCount": int(verify.get("imageCount") or 0),
-            "exactImages": sorted(str(x) for x in (verify.get("images") or [])),
+            "resolutionLockSha256": lock_sha,
+            "imageCount": image_count,
+            "exactImages": exact_images,
         })
 
     receipt = {
