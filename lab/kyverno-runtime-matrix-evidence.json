@@ -1,0 +1,20 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "KYVERNO_RUNTIME_MATRIX_EVIDENCE_V1",
+  "genericKubernetesRuntimeEvidenceOnly": true,
+  "kind": "KyvernoRuntimeMatrixEvidence",
+  "kubernetesVersions": [
+    "1.34.11",
+    "1.35.8"
+  ],
+  "kyvernoRelease": "3.8.2",
+  "matrixPass": true,
+  "normalizationAuthority": "KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1",
+  "normalizedCRDCount": 11,
+  "physicalCertified": false,
+  "renderedDigest": "sha256:fb3dbe79193b7450f2f0407eb05a2109a3c877da56c1b2b2bba12fdf1eb9addf",
+  "rke2Certified": false,
+  "runtimeHoldReleased": false,
+  "sourceCommitSHA": "0dae08f44983876e9e389acdec434a5e1a0a9a6c",
+  "sourceRunId": "36263909046"
+}
