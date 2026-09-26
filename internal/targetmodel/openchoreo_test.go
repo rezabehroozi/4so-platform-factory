@@ -51,8 +51,8 @@ func TestOpenChoreoReferencePhaseIsExpansionOnlyAndDoesNotBlockCoreFreeze(t *tes
 	if phase.ID == "" || phase.RequiredForFeatureFreeze || phase.DeliveryTier != ProgramTierExpansion || phase.Status != ProgramStatusBlocked || phase.SourceStatus != ProgramSourceStatusImplemented {
 		t.Fatalf("J8 phase boundary invalid: %#v", phase)
 	}
-	if len(phase.Blockers) != 1 || !containsString(phase.Blockers, "OPENCHOREO_EXACT_RUNTIME_ACQUISITION_PENDING") {
-		t.Fatalf("J8 must retain only the external exact-runtime acquisition blocker after source closure: %#v", phase.Blockers)
+	if len(phase.Blockers) != 1 || !containsString(phase.Blockers, "OPENCHOREO_PRODUCTION_ZOT_SEAL_PENDING") {
+		t.Fatalf("J8 must retain only the production zot seal blocker after source closure: %#v", phase.Blockers)
 	}
 	if containsString(phase.Blockers, "FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING") {
 		t.Fatalf("Fleet gateway runtime blocker remained after exact-SHA CI-green source closure: %#v", phase.Blockers)
