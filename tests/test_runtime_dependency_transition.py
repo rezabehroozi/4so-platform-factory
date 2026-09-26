@@ -47,6 +47,8 @@ class RuntimeDependencyTransitionTests(unittest.TestCase):
             d=json.loads(p.read_text())
             d['spec']['gatewayApi']['sourceStatus']='source-acquired'
             d['spec']['status']='runtime-certification-pending'
+            d['spec']['cilium']['runtimeStatus']='dependency-transition-required'
+            d['spec'].pop('runtimeEvidence',None)
             p.write_text(json.dumps(d))
             with self.assertRaisesRegex(RuntimeError,'ASSET_BYTES_MISSING'): mod.validate(dst)
         finally: td.cleanup()
@@ -57,6 +59,8 @@ class RuntimeDependencyTransitionTests(unittest.TestCase):
             d=json.loads(p.read_text())
             d['spec']['gatewayApi']['sourceStatus']='pending-byte-acquisition'
             d['spec']['status']='acquisition-pending'
+            d['spec']['cilium']['runtimeStatus']='dependency-transition-required'
+            d['spec'].pop('runtimeEvidence',None)
             p.write_text(json.dumps(d))
             asset=d['spec']['gatewayApi']['assets'][0]
             out=mod.gateway_asset_path(dst,'1.6.1',asset['name'])
