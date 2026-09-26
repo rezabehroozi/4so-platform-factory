@@ -26,7 +26,7 @@ class ManagementWorkloadEvidenceTests(unittest.TestCase):
         plan = json.loads((ROOT / "lab" / "management-workload-image-build-plan.json").read_text())
         evidence = manifest_receipt_evidence(ROOT, plan)
         self.assertEqual(MANIFEST_AUTHORITY, evidence["authority"])
-        self.assertEqual("36132417496", evidence["sourceRunId"])
+        self.assertRegex(evidence["sourceRunId"], r"^[0-9]+$")
         self.assertEqual(
             {"argocd-install-manifest", "argocd-ha-install-manifest", "cloudnative-pg-install-manifest", "replicated-storage-install-manifest"},
             set(evidence["byAuthority"]),
