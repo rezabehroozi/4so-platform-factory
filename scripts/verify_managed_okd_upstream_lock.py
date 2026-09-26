@@ -35,8 +35,15 @@ def verify(path: Path) -> dict:
             raise RuntimeError("MANAGED_OKD_TOOLCHAIN_LOCK_ARTIFACT_RELEASE_BINDING_INVALID")
         if not SHA.fullmatch(sha) or not isinstance(row["sizeBytes"],int) or row["sizeBytes"]<=0 or not isinstance(row["githubAssetId"],int) or row["githubAssetId"]<=0:
             raise RuntimeError("MANAGED_OKD_TOOLCHAIN_LOCK_ARTIFACT_DIGEST_INVALID")
+    payload=doc.get("releasePayload") or {}
+    payload_ref=str(payload.get("reference") or "")
+    payload_digest=str(payload.get("digest") or "")
+    if payload_ref!="quay.io/okd/scos-release@sha256:d6a4b74886326bd2196bd834f8351a4e142a9ffd278beef1b56f5da9cdb772e2" or payload_digest!="sha256:d6a4b74886326bd2196bd834f8351a4e142a9ffd278beef1b56f5da9cdb772e2" or payload.get("source")!="github-release-body":
+        raise RuntimeError("MANAGED_OKD_RELEASE_PAYLOAD_IDENTITY_INVALID")
+    if doc.get("machineOS")!={"name":"CentOS Stream CoreOS","version":"9.0.20250827-0"}:
+        raise RuntimeError("MANAGED_OKD_MACHINE_OS_IDENTITY_INVALID")
     pending=doc.get("pendingAuthorities")
-    if not isinstance(pending,list) or {r.get("id") for r in pending if isinstance(r,dict)}!={"release-payload","fcos","agent-iso-workspace","oc-mirror-v2"}:
+    if not isinstance(pending,list) or {r.get("id") for r in pending if isinstance(r,dict)}!={"fcos","agent-iso-workspace","oc-mirror-v2"}:
         raise RuntimeError("MANAGED_OKD_TOOLCHAIN_LOCK_PENDING_SET_INVALID")
     if doc.get("connectedToolchainReady") is not True:
         raise RuntimeError("MANAGED_OKD_CONNECTED_TOOLCHAIN_MUST_BE_READY")

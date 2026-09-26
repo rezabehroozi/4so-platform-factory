@@ -29,10 +29,6 @@
   ],
   "pendingAuthorities": [
     {
-      "id": "release-payload",
-      "reason": "Exact OKD release payload digest/mirror identity is not yet sealed in product authority."
-    },
-    {
       "id": "fcos",
       "reason": "Exact FCOS artifact URL, digest and size are not yet sealed for the selected OKD release."
     },
@@ -49,5 +45,15 @@
   "managedInstallContentReady": false,
   "disconnectedToolchainReady": false,
   "runtimeCertified": false,
-  "physicalCertified": false
+  "physicalCertified": false,
+  "releasePayload": {
+    "reference": "quay.io/okd/scos-release@sha256:d6a4b74886326bd2196bd834f8351a4e142a9ffd278beef1b56f5da9cdb772e2",
+    "digest": "sha256:d6a4b74886326bd2196bd834f8351a4e142a9ffd278beef1b56f5da9cdb772e2",
+    "source": "github-release-body",
+    "releasePage": "https://github.com/okd-project/okd/releases/tag/4.19.0-okd-scos.19"
+  },
+  "machineOS": {
+    "name": "CentOS Stream CoreOS",
+    "version": "9.0.20250827-0"
+  }
 }
