@@ -30,6 +30,17 @@ jobs:
           chmod +x /tmp/openshift-install
           binary_sha="$(sha256sum /tmp/openshift-install|awk '{print $1}')"
           test -n "$binary_sha"
+          oc_url="$(jq -r '.artifacts[]|select(.role=="oc-client")|.url' lab/managed-okd-upstream-toolchain-lock.json)"
+          oc_sha="$(jq -r '.artifacts[]|select(.role=="oc-client")|.sha256' lab/managed-okd-upstream-toolchain-lock.json)"
+          oc_size="$(jq -r '.artifacts[]|select(.role=="oc-client")|.sizeBytes' lab/managed-okd-upstream-toolchain-lock.json)"
+          curl -fL --retry 3 -o /tmp/openshift-client.tar.gz "$oc_url"
+          test "$(stat -c %s /tmp/openshift-client.tar.gz)" = "$oc_size"
+          test "$(sha256sum /tmp/openshift-client.tar.gz|awk '{print $1}')" = "$oc_sha"
+          mkdir -p /tmp/4so-okd-bin
+          tar -xzf /tmp/openshift-client.tar.gz -C /tmp/4so-okd-bin oc
+          test -s /tmp/4so-okd-bin/oc
+          chmod 0755 /tmp/4so-okd-bin/oc
+          echo "/tmp/4so-okd-bin" >> "$GITHUB_PATH"
           echo "INSTALLER_ARCHIVE_SHA=$sha" >> "$GITHUB_ENV"
           echo "INSTALLER_SHA=$binary_sha" >> "$GITHUB_ENV"
           echo "RELEASE_IMAGE=$(jq -r .releasePayload.reference lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"

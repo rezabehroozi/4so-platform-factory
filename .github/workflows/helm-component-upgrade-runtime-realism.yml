@@ -127,6 +127,32 @@ jobs:
           COMPONENT: ${{ matrix.component }}
         run: |
           set -euo pipefail
+          # Single-node kind is only an upgrade-realism execution target; allow
+          # ordinary workloads onto its control-plane node without mutating the
+          # product manifests or production scheduling policy.
+          kubectl taint nodes --all node-role.kubernetes.io/control-plane- >/dev/null 2>&1 || true
+          kubectl taint nodes --all node-role.kubernetes.io/master- >/dev/null 2>&1 || true
+          if test "$COMPONENT" = capsule; then
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          items=json.loads(Path("catalog/runtime/cert-manager/1.21.1/render-manifest.json").read_text())
+          if not isinstance(items,list) or not items:
+              raise SystemExit("CAPSULE_CERT_MANAGER_DEPENDENCY_RENDER_EMPTY")
+          crds=[x for x in items if x.get("kind")=="CustomResourceDefinition"]
+          resources=[x for x in items if x.get("kind")!="CustomResourceDefinition"]
+          if not crds or not resources:
+              raise SystemExit("CAPSULE_CERT_MANAGER_DEPENDENCY_INVALID")
+          Path("/tmp/cert-manager-crds.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":crds}))
+          Path("/tmp/cert-manager-resources.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":resources}))
+          PY
+            kubectl create namespace cert-manager
+            kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade-dependency -f /tmp/cert-manager-crds.json
+            for crd in $(jq -r '.items[].metadata.name' /tmp/cert-manager-crds.json); do kubectl wait --for=condition=Established "crd/$crd" --timeout=4m; done
+            kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade-dependency -f /tmp/cert-manager-resources.json
+            kubectl -n cert-manager wait --for=condition=Available deployment --all --timeout=12m
+            if kubectl -n cert-manager get job -o name | grep -q .; then kubectl -n cert-manager wait --for=condition=Complete job --all --timeout=12m; fi
+          fi
           kubectl create namespace "$NAMESPACE"
           if test "$(jq '.items|length' "/tmp/$COMPONENT-$FROM_RELEASE-crds.json")" -gt 0; then
             kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/$COMPONENT-$FROM_RELEASE-crds.json"
