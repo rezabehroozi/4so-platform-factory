@@ -7,7 +7,22 @@ from urllib.parse import urlsplit
 AUTHORITY="CERT_MANAGER_CRD_RUNTIME_DEPENDENCY_LOCK_V1"
 SHA=re.compile(r"^[0-9a-f]{64}$")
 CRD_KIND=re.compile(r"(?m)^kind:\s*CustomResourceDefinition\s*$")
-CRD_NAME=re.compile(r"(?m)^\\s*name:\\s*[\\\"']?([a-z0-9.-]+)[\\\"']?\\s*$")
+def crd_names(raw:str)->set[str]:
+    names=set()
+    for doc in raw.split("\n---"):
+        if not CRD_KIND.search(doc):
+            continue
+        lines=doc.splitlines()
+        for i,line in enumerate(lines):
+            if line.strip()!="metadata:":
+                continue
+            for nxt in lines[i+1:i+12]:
+                stripped=nxt.strip()
+                if stripped.startswith("name:"):
+                    names.add(stripped.split(":",1)[1].strip().strip("\\"'"))
+                    break
+            break
+    return names
 EXPECTED={
  "certificates.cert-manager.io","certificaterequests.cert-manager.io",
  "issuers.cert-manager.io","clusterissuers.cert-manager.io",
@@ -50,7 +65,7 @@ def verify(root:Path,require_bytes:bool=False)->dict:
             raw=target.read_text(encoding="utf-8")
             if len(CRD_KIND.findall(raw))!=6:
                 raise RuntimeError(f"CERT_MANAGER_CRD_RESOURCE_COUNT_INVALID {release}")
-            names={x for x in CRD_NAME.findall(raw) if x in EXPECTED}
+            names=crd_names(raw)
             if names!=EXPECTED:
                 raise RuntimeError(f"CERT_MANAGER_CRD_RESOURCE_IDENTITY_INVALID {release}")
     if d.get("bytesRequiredForRuntime") is not True or d.get("runtimeCertified") is not False or d.get("physicalCertified") is not False:
