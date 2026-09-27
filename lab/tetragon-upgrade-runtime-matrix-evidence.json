@@ -1,0 +1,70 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "TETRAGON_RUNTIME_UPGRADE_MATRIX_V1",
+  "fromRelease": "1.6.1",
+  "genericKubernetesRuntimeEvidenceOnly": true,
+  "kind": "TetragonUpgradeRuntimeMatrixEvidence",
+  "matrix": [
+    {
+      "apiVersion": "platform.4so.io/v1alpha1",
+      "authority": "TETRAGON_RUNTIME_UPGRADE_EVIDENCE_V1",
+      "fromRelease": "1.6.1",
+      "fromRenderSha256": "sha256:d6c02589ca08a380a85102d25638cb3c02aeb199eb580839f9273250c33bb47f",
+      "genericKubernetesRuntimeEvidenceOnly": true,
+      "historicalReady": true,
+      "kind": "TetragonUpgradeRuntimeEvidence",
+      "kubernetesVersion": "1.34.11",
+      "physicalCertified": false,
+      "productTopologyHACertified": false,
+      "reverseEdgeRejected": true,
+      "rke2Certified": false,
+      "sourceCommitSHA": "2db94b5e0221ec52c25449456b0a142b0f48500d",
+      "sourceRunId": "36325690928",
+      "targetImagesVerified": true,
+      "targetReady": true,
+      "targetReapplyConverged": true,
+      "toRelease": "1.7.0",
+      "toRenderSha256": "sha256:58d4adc7fe9404478c97a5b31663c81c449ede338710f66b11e17f1d6428c1e6",
+      "upgradeApplyPass": true,
+      "workloadIdentities": [
+        "DaemonSet/platform-factory",
+        "Deployment/platform-factory-operator"
+      ],
+      "workloadIdentityPreserved": true
+    },
+    {
+      "apiVersion": "platform.4so.io/v1alpha1",
+      "authority": "TETRAGON_RUNTIME_UPGRADE_EVIDENCE_V1",
+      "fromRelease": "1.6.1",
+      "fromRenderSha256": "sha256:d6c02589ca08a380a85102d25638cb3c02aeb199eb580839f9273250c33bb47f",
+      "genericKubernetesRuntimeEvidenceOnly": true,
+      "historicalReady": true,
+      "kind": "TetragonUpgradeRuntimeEvidence",
+      "kubernetesVersion": "1.35.8",
+      "physicalCertified": false,
+      "productTopologyHACertified": false,
+      "reverseEdgeRejected": true,
+      "rke2Certified": false,
+      "sourceCommitSHA": "2db94b5e0221ec52c25449456b0a142b0f48500d",
+      "sourceRunId": "36325690928",
+      "targetImagesVerified": true,
+      "targetReady": true,
+      "targetReapplyConverged": true,
+      "toRelease": "1.7.0",
+      "toRenderSha256": "sha256:58d4adc7fe9404478c97a5b31663c81c449ede338710f66b11e17f1d6428c1e6",
+      "upgradeApplyPass": true,
+      "workloadIdentities": [
+        "DaemonSet/platform-factory",
+        "Deployment/platform-factory-operator"
+      ],
+      "workloadIdentityPreserved": true
+    }
+  ],
+  "matrixPass": true,
+  "physicalCertified": false,
+  "productTopologyHACertified": false,
+  "rke2Certified": false,
+  "sourceCommitSHA": "2db94b5e0221ec52c25449456b0a142b0f48500d",
+  "sourceRunId": "36325690928",
+  "toRelease": "1.7.0"
+}
