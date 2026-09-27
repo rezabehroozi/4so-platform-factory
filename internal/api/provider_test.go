@@ -12,6 +12,28 @@ import (
 	"platform.4so.io/factory/internal/controlplane"
 )
 
+func TestProviderClusterChangeRequestIdentityIsStableAndActionScoped(t *testing.T) {
+	request := scaleProviderClusterInput{ControlPlaneReplicas: 3, WorkerReplicas: 5}
+	digest := providerClusterChangeRequestDigest("SCALE", request, "retry-key")
+	if digest == providerClusterChangeRequestDigest("SCALE", request, "other-key") {
+		t.Fatal("provider change digest ignored idempotency key")
+	}
+	if digest == providerClusterChangeRequestDigest("UPGRADE", request, "retry-key") {
+		t.Fatal("provider change digest ignored action")
+	}
+	current := controlplane.ProviderCluster{PendingAction: "SCALE", RequestDigest: digest, State: controlplane.ProviderClusterAwaitingApproval}
+	if !providerClusterChangeReplay(current, "scale", digest) || providerClusterChangeNext(current) != "approval" {
+		t.Fatalf("exact provider change was not recognized as durable replay: %#v", current)
+	}
+	current.State = controlplane.ProviderClusterActive
+	if providerClusterChangeNext(current) != "completed" {
+		t.Fatalf("completed provider replay next=%q", providerClusterChangeNext(current))
+	}
+	if providerClusterChangeReplay(current, "UPGRADE", digest) {
+		t.Fatal("different provider action was treated as replay")
+	}
+}
+
 func TestProviderLifecycleHTTPWorkflow(t *testing.T) {
 	ctx := context.Background()
 	store := controlplane.NewMemoryStore()

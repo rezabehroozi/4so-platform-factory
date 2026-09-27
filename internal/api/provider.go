@@ -293,10 +293,33 @@ func (s *Server) approveProviderCluster(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, v)
 }
 
+func providerClusterChangeRequestDigest(action string, request any, key string) string {
+	return digestValue(map[string]any{"authority": "PROVIDER_CLUSTER_CHANGE_REQUEST_V1", "action": strings.ToUpper(strings.TrimSpace(action)), "idempotencyKey": strings.TrimSpace(key), "request": request})
+}
+
+func providerClusterChangeReplay(v controlplane.ProviderCluster, action, requestDigest string) bool {
+	return strings.EqualFold(strings.TrimSpace(v.PendingAction), strings.TrimSpace(action)) && strings.TrimSpace(v.RequestDigest) == strings.TrimSpace(requestDigest)
+}
+
+func providerClusterChangeNext(v controlplane.ProviderCluster) string {
+	switch v.State {
+	case controlplane.ProviderClusterAwaitingApproval, controlplane.ProviderClusterDeleteApproval:
+		return "approval"
+	case controlplane.ProviderClusterActive:
+		return "completed"
+	default:
+		return "execution"
+	}
+}
+
 func (s *Server) queueProviderClusterChange(w http.ResponseWriter, r *http.Request, action string) {
 	actor, err := actorID(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "ACTOR_REQUIRED", err.Error())
+		return
+	}
+	key, ok := requireIdempotencyKey(w, r)
+	if !ok {
 		return
 	}
 	rev, err := parseExpectedRevision(r)
@@ -353,17 +376,23 @@ func (s *Server) queueProviderClusterChange(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "ACTION_NOT_SUPPORTED", "unsupported provider cluster action")
 		return
 	}
+	requestDigest := providerClusterChangeRequestDigest(action, request, key)
+	if providerClusterChangeReplay(current, action, requestDigest) {
+		setRevisionETag(w, current.Revision)
+		writeJSON(w, http.StatusOK, map[string]any{"providerCluster": current, "idempotentReplay": true, "next": providerClusterChangeNext(current)})
+		return
+	}
 	desiredDigest := current.DesiredDigest
 	if action != "DELETE" {
 		desiredDigest = controlplane.ProviderClusterDesiredDigest(current.ProviderProfileID, current.Name, desired)
 	}
-	v, err := s.store.QueueProviderClusterChange(r.Context(), current.ID, rev, action, desired, desiredDigest, actor, digestValue(request), recoveryCheckpointID)
+	v, err := s.store.QueueProviderClusterChange(r.Context(), current.ID, rev, action, desired, desiredDigest, actor, requestDigest, recoveryCheckpointID)
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
 	setRevisionETag(w, v.Revision)
-	writeJSON(w, http.StatusOK, map[string]any{"providerCluster": v, "next": "approval"})
+	writeJSON(w, http.StatusOK, map[string]any{"providerCluster": v, "idempotentReplay": false, "next": providerClusterChangeNext(v)})
 }
 
 func (s *Server) scaleProviderCluster(w http.ResponseWriter, r *http.Request) {
