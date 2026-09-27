@@ -846,6 +846,17 @@
         "releaseArtifactDigest": "sha256:5afaaf777ffaafb2e4e1d372fc78e42b28f697ba531836728207df1d558ae850",
         "sourceRunId": "36115673607"
       },
+      "inputPackReceipt": {
+        "authority": "LAB_APPLIANCE_INPUT_PACK_BUILD_V1",
+        "built": true,
+        "deterministicZip": true,
+        "distributionReady": false,
+        "physicalCertified": false,
+        "runtimeCertified": false,
+        "sha256": "sha256:8802cc60321e66aec8a69ce8da46c7e01db6e5bca9f43b19fb5e67fe2a70fd0d",
+        "sizeBytes": 3177949715,
+        "status": "distribution-pending"
+      },
       "manifestImageResolution": [
         {
           "manifestPath": "manifests/argocd-ha-install.yaml",
@@ -1005,17 +1016,6 @@
         "runtimeRealismVerified": true,
         "sourceCommitSHA": "a75c28de4e4bf4c80abaab298985365025bd72e6",
         "sourceRunId": "36220252667"
-      },
-      "inputPackReceipt": {
-        "authority": "LAB_APPLIANCE_INPUT_PACK_BUILD_V1",
-        "status": "distribution-pending",
-        "built": true,
-        "deterministicZip": true,
-        "sha256": "sha256:8802cc60321e66aec8a69ce8da46c7e01db6e5bca9f43b19fb5e67fe2a70fd0d",
-        "sizeBytes": 3177949715,
-        "distributionReady": false,
-        "runtimeCertified": false,
-        "physicalCertified": false
       }
     },
     "openBlockers": [
