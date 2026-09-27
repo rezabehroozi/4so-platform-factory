@@ -6,13 +6,13 @@
     "release": "1.20.1",
     "sourceLockSha256": "sha256:f422377a963a11f71e9158d91238d85415243f84841b153eee78f704bfedf40a"
   },
-  "ciliumReleased": false,
+  "ciliumReleased": true,
   "currentGatewayApi": {
-    "artifactDigest": "sha256:6007c679ec2b427b0c72f0fd724c502c95a341bfbad100ea56ec38c4d6f0d5bb",
-    "release": "1.5.1",
-    "sourceLockSha256": "sha256:6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960"
+    "artifactDigest": "sha256:73948c4ac0f3aa09d542334261e919ed08162302ba5ae5eb5c86fbc44fe51d9e",
+    "release": "1.6.1",
+    "sourceLockSha256": "sha256:96a24877bfb695bd1bb12f379c60d93209c36e641747f79c24f56e01c7120677"
   },
-  "currentGatewayApiMutationPerformed": false,
+  "currentGatewayApiMutationPerformed": true,
   "executionOrder": [
     "acquire-and-verify-gateway-api-1.6.1",
     "acquire-and-verify-kgateway-2.4.1",
@@ -30,7 +30,6 @@
   "physicalCertified": false,
   "productTopologyHACertified": false,
   "remainingRuntimeSuitabilityHolds": [
-    "cilium",
     "metallb"
   ],
   "runtimeCertified": false,
@@ -68,6 +67,6 @@
     "release": "1.6.1"
   },
   "transitionAuthority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
-  "transitionDigest": "sha256:5afe3ebdc7fb274368837a9371baefa1712fc856015b7203af22c99e17537225",
+  "transitionDigest": "sha256:fde79db19a4c1250556d1c21979a56d1e3898ec0b5c22e67e17a2c1a3572798b",
   "transitionExecutionReady": true
 }

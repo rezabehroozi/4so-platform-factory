@@ -1,0 +1,171 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: 4SO Platform Factory tagged-source acquisition"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://platform.4so.io/sbom/gateway-api/1.6.1/73948c4ac0f3aa09d542334261e919ed08162302ba5ae5eb5c86fbc44fe51d9e",
+  "files": [
+    {
+      "SPDXID": "SPDXRef-File-LICENSE",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "20b6dde626f521dbb384f75e6d96c3d16789df3bf878b58bc2810614fb4db07c"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "LICENSE",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-backendtlspolicies.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "0d48c9e4b53dd9510cf615b9b1192d9d7afb07a1cc0498c9515627cb1c075419"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_backendtlspolicies.yaml",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-gatewayclasses.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "53710048ba26f8620eed59d5e51b157ecf040daf5c6eef31a4b991e0808c4be5"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_gatewayclasses.yaml",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-gateways.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "25b885f5870b8fff1ae82efa2628b2761cef3745900c2aecf8fb76629a01255a"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_gateways.yaml",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-grpcroutes.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "53a8d029da8f07e55d3fa58a5cf6de5950dab19fbb8d6a8082fb5e51ca5ef6fc"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_grpcroutes.yaml",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-httproutes.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "a424a0d6c953b162e71d1d97bb7e75012d8f1ac264e7274f2763d1b96ab39852"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_httproutes.yaml",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-listenersets.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "bf4d4b02564999b2558b96e31465129895db9b3a8adfb90adb9c80eac52a3a70"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_listenersets.yaml",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-referencegrants.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "8c645e9333cfa67790cc2a53e0c00076f88b2bd4230d2b49688c78bc34f9b2c3"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_referencegrants.yaml",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-tcproutes.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "d5104d0cf30e924f5e3c9e2e76abd46876401c34ca33b9e79321523eee78c7f6"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_tcproutes.yaml",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-tlsroutes.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "bb8b67926e5d9652cbfd2e19063b7c1d9e78806c9dd671608f57baef2f2e3bbb"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_tlsroutes.yaml",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-udproutes.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "4b80684c2bf8ef4b0a2a3ab45164ac9f96258fc69912645ff50ced595b0aa6de"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_udproutes.yaml",
+      "licenseConcluded": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-File-gateway.networking.k8s.io-vap-safeupgrades.yaml",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "afb0ea1b3cc2e9344d93b0926fbe741aeb48ab4439f9f7b4b77b9ac94faf6c2e"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "gateway.networking.k8s.io_vap_safeupgrades.yaml",
+      "licenseConcluded": "Apache-2.0"
+    }
+  ],
+  "name": "gateway-api-1.6.1-official-tag-source-set",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-gateway-api",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.6.1",
+      "filesAnalyzed": true,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "name": "gateway-api",
+      "versionInfo": "1.6.1"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

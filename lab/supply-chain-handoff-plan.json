@@ -64,9 +64,9 @@
         },
         {
           "component": "gateway-api",
-          "path": "catalog/runtime/gateway-api/1.5.1/source-lock.json",
-          "release": "1.5.1",
-          "sha256": "6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960"
+          "path": "catalog/runtime/gateway-api/1.6.1/source-lock.json",
+          "release": "1.6.1",
+          "sha256": "96a24877bfb695bd1bb12f379c60d93209c36e641747f79c24f56e01c7120677"
         },
         {
           "component": "grafana",
@@ -132,15 +132,6 @@
       "ready": [],
       "reviewBlocked": [],
       "runtimeHolds": [
-        {
-          "component": "cilium",
-          "evidenceURL": "https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/",
-          "reason": "Cilium 1.20.1 source may be acquired, but runtime execution remains blocked until the product-owned Gateway API baseline is upgraded and certified at exact 1.6.1.",
-          "runtimeAuthority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
-          "runtimeStatus": "dependency-transition-required",
-          "selectedVersion": "1.20.1",
-          "status": "source-acquired"
-        },
         {
           "component": "metallb",
           "evidenceURL": "https://github.com/metallb/metallb/issues/3113",
@@ -285,13 +276,13 @@
         "pairState": "pair-present",
         "previousExactSourceLocks": [
           {
-            "path": "catalog/runtime/gateway-api/1.5.0/source-lock.json",
-            "release": "1.5.0",
-            "sha256": "36517d44ef5b7839df2b62e6b88bf1b1b4fbf23b1f49e10beb8644a0d737f368"
+            "path": "catalog/runtime/gateway-api/1.5.1/source-lock.json",
+            "release": "1.5.1",
+            "sha256": "6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960"
           }
         ],
         "previousReleaseSelectionPolicy": "explicit-reviewed-exact-version-required",
-        "targetRelease": "1.5.1",
+        "targetRelease": "1.6.1",
         "targetSourceLockPresent": true
       },
       {
@@ -496,10 +487,10 @@
         },
         {
           "component": "gateway-api",
-          "previousVersion": "1.5.0",
-          "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
+          "previousVersion": "1.5.1",
+          "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.1",
           "status": "admitted-for-acquisition",
-          "targetRelease": "1.5.1"
+          "targetRelease": "1.6.1"
         },
         {
           "component": "grafana",
@@ -653,11 +644,11 @@
         },
         {
           "component": "gateway-api",
-          "path": "catalog/runtime/gateway-api/1.5.0/source-lock.json",
-          "previousVersion": "1.5.0",
-          "sha256": "36517d44ef5b7839df2b62e6b88bf1b1b4fbf23b1f49e10beb8644a0d737f368",
-          "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0",
-          "targetRelease": "1.5.1"
+          "path": "catalog/runtime/gateway-api/1.5.1/source-lock.json",
+          "previousVersion": "1.5.1",
+          "sha256": "6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960",
+          "source": "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.1",
+          "targetRelease": "1.6.1"
         },
         {
           "component": "grafana",
@@ -897,89 +888,82 @@
       ],
       "productImages": [
         {
-          "role": "maintenance",
-          "repository": "platform.4so.local/management/maintenance",
-          "containerRecipe": "deploy/images/Dockerfile.maintenance",
           "baseImageRole": "maintenance-toolchain-base",
-          "sourceReleaseMember": "",
-          "state": "pending",
+          "containerRecipe": "deploy/images/Dockerfile.maintenance",
           "effectiveState": "ready",
           "evidence": {
-            "exactReference": "platform.4so.local/management/maintenance@sha256:1f4afae02bb6293ece89e06428e28b85c831b08e938437ba56ec6f9539035c5a",
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "exactReference": "platform.4so.local/management/maintenance@sha256:1f4afae02bb6293ece89e06428e28b85c831b08e938437ba56ec6f9539035c5a",
             "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
             "runtimeRealismProbe": {
               "defaultNonRootToolset": true,
               "execution": true,
               "rootOverrideToolset": true
             }
-          }
+          },
+          "repository": "platform.4so.local/management/maintenance",
+          "role": "maintenance",
+          "sourceReleaseMember": "",
+          "state": "pending"
         },
         {
-          "role": "platform-agent",
-          "repository": "platform.4so.local/management/platform-agent",
-          "containerRecipe": "deploy/images/Dockerfile.agent-release",
           "baseImageRole": "static-runtime-base",
-          "sourceReleaseMember": "bin/linux-amd64/platform-agent",
-          "state": "pending",
+          "containerRecipe": "deploy/images/Dockerfile.agent-release",
           "effectiveState": "ready",
           "evidence": {
-            "exactReference": "platform.4so.local/management/platform-agent@sha256:cd00d541048cae6c54443cb96b9b0711577159907ef39126c5539a27180b599c",
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "exactReference": "platform.4so.local/management/platform-agent@sha256:cd00d541048cae6c54443cb96b9b0711577159907ef39126c5539a27180b599c",
             "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
             "runtimeRealismProbe": {
               "execution": true
             }
-          }
+          },
+          "repository": "platform.4so.local/management/platform-agent",
+          "role": "platform-agent",
+          "sourceReleaseMember": "bin/linux-amd64/platform-agent",
+          "state": "pending"
         },
         {
-          "role": "platform-api",
-          "repository": "platform.4so.local/management/platform-api",
-          "containerRecipe": "deploy/images/Dockerfile.api-release",
           "baseImageRole": "api-runtime-base",
-          "sourceReleaseMember": "bin/linux-amd64/platform-api",
-          "state": "pending",
+          "containerRecipe": "deploy/images/Dockerfile.api-release",
           "effectiveState": "ready",
           "evidence": {
-            "exactReference": "platform.4so.local/management/platform-api@sha256:339cb270dce30a31efcdea1badb4eb4d2e48b0ab6847e6e735845492416e0a0c",
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "exactReference": "platform.4so.local/management/platform-api@sha256:339cb270dce30a31efcdea1badb4eb4d2e48b0ab6847e6e735845492416e0a0c",
             "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
             "runtimeRealismProbe": {
               "dynamicDependencyClosure": true,
               "execution": true
             }
-          }
+          },
+          "repository": "platform.4so.local/management/platform-api",
+          "role": "platform-api",
+          "sourceReleaseMember": "bin/linux-amd64/platform-api",
+          "state": "pending"
         },
         {
-          "role": "platform-probe",
-          "repository": "platform.4so.local/management/platform-probe",
-          "containerRecipe": "deploy/images/Dockerfile.probe-release",
           "baseImageRole": "static-runtime-base",
-          "sourceReleaseMember": "bin/linux-amd64/platform-probe",
-          "state": "pending",
+          "containerRecipe": "deploy/images/Dockerfile.probe-release",
           "effectiveState": "ready",
           "evidence": {
-            "exactReference": "platform.4so.local/management/platform-probe@sha256:8cfb04a19bceafd8c930a57081e4183104aff3e5fbf3fb8bac8beffbb54cf0cf",
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
+            "exactReference": "platform.4so.local/management/platform-probe@sha256:8cfb04a19bceafd8c930a57081e4183104aff3e5fbf3fb8bac8beffbb54cf0cf",
             "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
             "runtimeRealismProbe": {
               "execution": true
             }
-          }
+          },
+          "repository": "platform.4so.local/management/platform-probe",
+          "role": "platform-probe",
+          "sourceReleaseMember": "bin/linux-amd64/platform-probe",
+          "state": "pending"
         }
       ],
       "productReceipt": {
-        "authority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_RECEIPT_V1",
-        "sourceRunId": "36303963598",
-        "sourceCommitSHA": "7b244227a529647bfb17bae22ad705bdfa7643aa",
-        "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
-        "planDigest": "sha256:11d59ba7d2d991c5211bfeaacc354fc1362306076ce1f49fbb19b2f61cd2794f",
-        "runtimeRealismVerified": true,
         "archiveReady": false,
+        "authority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_RECEIPT_V1",
         "baseImages": [
           {
-            "role": "api-runtime-base",
-            "exactReference": "platform.4so.local/management/api-runtime-base@sha256:7d8a32f212843dbf2f569c70891c67ccd1bdb7d0ba23162323da1c041ccb1149",
             "compatibilityProbe": {
               "caTrust": true,
               "dynamicDependencyClosure": true,
@@ -988,11 +972,11 @@
             "composition": {
               "caSourceReference": "gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
               "postgresqlSourceReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3"
-            }
+            },
+            "exactReference": "platform.4so.local/management/api-runtime-base@sha256:7d8a32f212843dbf2f569c70891c67ccd1bdb7d0ba23162323da1c041ccb1149",
+            "role": "api-runtime-base"
           },
           {
-            "role": "maintenance-toolchain-base",
-            "exactReference": "platform.4so.local/management/maintenance-runtime-base@sha256:5d54a2d05b552ef28361f5df7d0fc3a1a5359526dc41f4178d3105375b3f7393",
             "compatibilityProbe": {
               "awsCliVersion": true,
               "defaultNonRootToolset": true,
@@ -1003,19 +987,26 @@
               "awsCliSourceReference": "public.ecr.aws/aws-cli/aws-cli@sha256:b0dd5a4d216a1786863541a201baa7b7b4c5032bec9c6e72c38d01cafd7e8db8",
               "awsCliVersion": "2.37.1",
               "postgresqlSourceReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3"
-            }
+            },
+            "exactReference": "platform.4so.local/management/maintenance-runtime-base@sha256:5d54a2d05b552ef28361f5df7d0fc3a1a5359526dc41f4178d3105375b3f7393",
+            "role": "maintenance-toolchain-base"
           },
           {
-            "role": "static-runtime-base",
-            "exactReference": "gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
             "compatibilityProbe": {
               "agentExecution": true,
               "caTrust": true,
               "nonRoot": true,
               "probeExecution": true
-            }
+            },
+            "exactReference": "gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
+            "role": "static-runtime-base"
           }
-        ]
+        ],
+        "planDigest": "sha256:11d59ba7d2d991c5211bfeaacc354fc1362306076ce1f49fbb19b2f61cd2794f",
+        "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
+        "runtimeRealismVerified": true,
+        "sourceCommitSHA": "7b244227a529647bfb17bae22ad705bdfa7643aa",
+        "sourceRunId": "36303963598"
       }
     },
     "openBlockers": [
@@ -1037,16 +1028,15 @@
     "releaseVersion": "0.0.363",
     "runtimeDependencyTransition": {
       "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
-      "ciliumReleased": false,
+      "ciliumReleased": true,
       "ciliumTargetRelease": "1.20.1",
-      "currentGatewayApiMutationPerformed": false,
+      "currentGatewayApiMutationPerformed": true,
       "gatewayTargetRelease": "1.6.1",
       "kgatewayTargetRelease": "2.4.1",
       "physicalCertified": false,
       "productTopologyHACertified": false,
       "readinessAuthority": "RUNTIME_DEPENDENCY_TRANSITION_READINESS_V1",
       "remainingRuntimeSuitabilityHolds": [
-        "cilium",
         "metallb"
       ],
       "runtimeCertified": false,
@@ -1069,7 +1059,7 @@
       "singleNodeRKE2Certified": true,
       "sourceClosureReady": true,
       "status": "runtime-certification-partial",
-      "transitionDigest": "sha256:5afe3ebdc7fb274368837a9371baefa1712fc856015b7203af22c99e17537225",
+      "transitionDigest": "sha256:fde79db19a4c1250556d1c21979a56d1e3898ec0b5c22e67e17a2c1a3572798b",
       "transitionExecutionReady": true
     },
     "schemaVersion": 1,

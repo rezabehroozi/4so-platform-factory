@@ -21,13 +21,6 @@
     },
     "runtimeSuitabilityHolds": [
       {
-        "component": "cilium",
-        "status": "dependency-transition-required",
-        "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
-        "reason": "Cilium 1.20.1 source may be acquired, but runtime execution remains blocked until the product-owned Gateway API baseline is upgraded and certified at exact 1.6.1.",
-        "evidenceURL": "https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/"
-      },
-      {
         "component": "metallb",
         "status": "review-required",
         "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
@@ -357,46 +350,46 @@
           "sourceLockDigest": "sha256:f422377a963a11f71e9158d91238d85415243f84841b153eee78f704bfedf40a"
         },
         "executor": {
-          "status": "runtime-suitability-held",
+          "status": "component-install-readiness-dependency-failure-remove-partial",
           "profile": "COMPONENT_RUNTIME_V1",
           "owner": "catalog-component"
         },
         "lifecycle": [
           {
             "name": "install",
-            "status": "pending-runtime-suitability",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-install-evidence/v1",
-            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
+            "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "readiness",
-            "status": "pending-runtime-suitability",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-readiness-evidence/v1",
-            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
+            "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "dependency",
-            "status": "pending-runtime-suitability",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-dependency-evidence/v1",
-            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
+            "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "upgrade",
-            "status": "pending-runtime-suitability",
+            "status": "pending-upgrade-matrix",
             "evidenceContract": "component-upgrade-evidence/v1",
-            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1"
           },
           {
             "name": "remove",
-            "status": "pending-runtime-suitability",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-remove-evidence/v1",
-            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
+            "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "failure",
-            "status": "pending-runtime-suitability",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-failure-evidence/v1",
-            "authority": "RUNTIME_DEPENDENCY_TRANSITION_V1"
+            "authority": "COMPONENT_RUNTIME_V1"
           }
         ]
       },
@@ -506,11 +499,11 @@
       },
       {
         "component": "gateway-api",
-        "release": "1.5.1",
+        "release": "1.6.1",
         "sourceBinding": {
           "status": "source-ready",
           "resolved": true,
-          "sourceLockDigest": "sha256:6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960"
+          "sourceLockDigest": "sha256:96a24877bfb695bd1bb12f379c60d93209c36e641747f79c24f56e01c7120677"
         },
         "executor": {
           "status": "component-install-readiness-dependency-failure-remove-partial",

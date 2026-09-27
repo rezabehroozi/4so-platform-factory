@@ -7,7 +7,7 @@
   "spec": {
     "displayName": "Gateway API",
     "category": "traffic",
-    "release": "1.5.1",
+    "release": "1.6.1",
     "versionPolicy": "exact-offline-import",
     "supportTier": "research-candidate",
     "mandatory": true,
@@ -53,15 +53,15 @@
     "source": {
       "type": "external-tagged-source-set",
       "resolved": true,
-      "bundleKey": "gateway-api/1.5.1",
-      "artifactDigest": "sha256:6007c679ec2b427b0c72f0fd724c502c95a341bfbad100ea56ec38c4d6f0d5bb",
-      "renderManifestDigest": "sha256:95f7c75e506c77cbb43fc659df92416a0219858e9913153268e73f728d5756f2",
-      "sourceLockDigest": "sha256:6dc016df2ed1119f17175996cb513d70c42786979faf59df87d4b4fbd8929960",
-      "imageInventoryDigest": "sha256:aa6646f495337e710a7f590ec16fef86ca96524b279dc2f75ed928150cdfd5bc",
-      "licenseManifestDigest": "sha256:c1fbd4f7fd253613f023c2e4cec373cc0f91d20a5313d9662920d5b6c920c9b1",
+      "bundleKey": "gateway-api/1.6.1",
+      "artifactDigest": "sha256:73948c4ac0f3aa09d542334261e919ed08162302ba5ae5eb5c86fbc44fe51d9e",
+      "renderManifestDigest": "sha256:7f72c399cdf40c6bc0bb5d12ca9c6f89fef22f0bd3334823e06f1c804166ad95",
+      "sourceLockDigest": "sha256:96a24877bfb695bd1bb12f379c60d93209c36e641747f79c24f56e01c7120677",
+      "imageInventoryDigest": "sha256:f9cf52bb037434a9aa098e11a18fd12587bad51bf07928db10899b1da952a2ac",
+      "licenseManifestDigest": "sha256:6bf112cdd891d4e70058b8f28b2fd4a26d9c5548c9f8f397691c9532ddf797dc",
       "signatureVerification": "sha256-pinned-offline",
-      "sbom": "sha256:c1119bce72093720870655bb2d315e3e0818e29fb92170faf6b7074f18f8bc39",
-      "provenance": "sha256:799a2b50589131dd7eabab13b8843ee619d7724ffc22568d8fd97ba69d069eeb"
+      "sbom": "sha256:aad25ad6db1068ffb3b45abcd345d95944baefcbd60c928efdbfbc6de979f433",
+      "provenance": "sha256:d755dbbc42d08baaf0af0740f9dbf147a6dea9475322ea2f4de1401e8e6afbb7"
     },
     "operations": {
       "install": "required",

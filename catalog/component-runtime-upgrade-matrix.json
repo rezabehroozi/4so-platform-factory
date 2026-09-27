@@ -154,12 +154,19 @@
           "status": "admitted-source-pair",
           "toRelease": "1.5.1",
           "toSourceLockDigest": "81fff6af6f25701b1d52ce49023c97b92cc82b7ce8bb5a3b157fcd3d3340bb81"
+        },
+        {
+          "fromRelease": "1.5.1",
+          "fromSourceLockDigest": "81fff6af6f25701b1d52ce49023c97b92cc82b7ce8bb5a3b157fcd3d3340bb81",
+          "status": "admitted-source-pair",
+          "toRelease": "1.6.1",
+          "toSourceLockDigest": "cfaed74e3a4feffa518ae1b7cddebf06d44b22b21b802f85a3128d5cd4f2831c"
         }
       ],
       "component": "gateway-api",
       "status": "admitted-source-pair",
-      "targetRelease": "1.5.1",
-      "targetSourceLockDigest": "81fff6af6f25701b1d52ce49023c97b92cc82b7ce8bb5a3b157fcd3d3340bb81",
+      "targetRelease": "1.6.1",
+      "targetSourceLockDigest": "cfaed74e3a4feffa518ae1b7cddebf06d44b22b21b802f85a3128d5cd4f2831c",
       "upgradeExecutor": "COMPONENT_RUNTIME_UPGRADE_V1"
     },
     {
