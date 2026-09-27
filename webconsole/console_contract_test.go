@@ -320,20 +320,24 @@ func TestOperatorConsolePersianNativeDesignContract(t *testing.T) {
 	for _, contract := range []string{
 		"Operator Horizon V4 — Persian-native technical shell",
 		"--ui-background:var(--bg)", "--ui-radius-control:8px", "--ui-motion:180ms",
-		`html[lang="fa"] body{font-size:15px;line-height:1.75;letter-spacing:0}`,
-		"padding-inline-start:8px;padding-inline-end:28px",
+		`html[lang="fa"] body{font-size:15px;line-height:var(--ui-line-height-fa);letter-spacing:0}`,
+		"--ui-space-2:8px", "--ui-control-hit:44px", "padding-inline-start:8px;padding-inline-end:28px",
 		`html[dir="rtl"] :where(.technical,code,pre,kbd,[data-ltr="true"],input[type="email"],input[type="url"],input[type="tel"])`,
 	} {
 		if !strings.Contains(css, contract) { t.Fatalf("Persian-native design contract missing %q", contract) }
 	}
-	for _, contract := range []string{"const displayNumber=value=>", "fa-IR-u-nu-arabext", "fa-IR-u-ca-persian-nu-arabext", "count.textContent=displayNumber(records.length)"} {
+	for _, contract := range []string{"localStorage.getItem('platformLocale') || 'fa'", "const displayNumber=value=>", "fa-IR-u-nu-arabext", "fa-IR-u-ca-persian-nu-arabext", "count.textContent=displayNumber(records.length)", "state.locale==='fa'?'←':'→'"} {
 		if !strings.Contains(js, contract) { t.Fatalf("Persian-native runtime contract missing %q", contract) }
 	}
-	if !strings.Contains(html, `id="language-toggle" type="button">فارسی</button>`) {
-		t.Fatal("language switcher must use its native visible label")
+	if !strings.Contains(html, `<html dir="rtl" lang="fa">`) || !strings.Contains(html, `id="language-toggle" type="button">EN</button>`) || !strings.Contains(html, `data-localized-number="1">۱</span>`) {
+		t.Fatal("Persian-first shell bootstrap contract missing")
 	}
 	if strings.Contains(strings.ReplaceAll(css, " ", ""), "flex-direction:row-reverse") {
 		t.Fatal("RTL layout must use logical properties instead of physical row reversal")
+	}
+	physicalDirection := regexp.MustCompile(`(^|[;{][[:space:]]*)(left|right|margin-left|margin-right|padding-left|padding-right|border-left|border-right)[[:space:]]*:`)
+	if match := physicalDirection.FindString(css); match != "" {
+		t.Fatalf("RTL layout must use logical CSS properties, found %q", match)
 	}
 }
 

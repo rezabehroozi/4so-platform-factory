@@ -3,7 +3,7 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const state = {
-  locale: localStorage.getItem('platformLocale') || 'en',
+  locale: localStorage.getItem('platformLocale') || 'fa',
   session: null,
   currentPage: 'overview',
   catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
@@ -18,6 +18,7 @@ const state = {
 };
 
 const fa = {
+  'nav.overviewTop':'نمای کلی','nav.platformsTop':'پلتفرم‌ها','nav.blueprintsTop':'طرح‌ها و نسخه‌ها','nav.fleetTop':'ناوگان','nav.operationsTop':'عملیات','nav.assuranceTop':'اطمینان و شواهد','nav.adminTop':'مدیریت','shell.skip':'رفتن به محتوای اصلی','shell.searchTitle':'جست‌وجوی مقصدهای کنسول','shell.search':'جست‌وجوی کنسول','shell.searchHelp':'فقط برای جابه‌جایی؛ تغییرات فقط در جریان کاری معتبر انجام می‌شوند.','shell.organization':'سازمان','shell.project':'پروژه','shell.loading':'در حال بارگذاری…','shell.loadingScope':'در حال دریافت محدوده…','shell.sessionChecking':'در حال بررسی نشست…','shell.nextAction':'اقدام بعدی','shell.reviewNextAction':'بررسی اقدام بعدی','shell.discardTitle':'رهاکردن تغییرات ذخیره‌نشده؟','shell.languageDiscard':'تغییر زبان، صفحه را دوباره بارگذاری می‌کند و تغییرات ذخیره‌نشده از بین می‌روند.','shell.refreshDiscard':'بازخوانی از API معتبر، تغییرات ذخیره‌نشده را از بین می‌برد.',
   'nav.platform':'پلتفرم','nav.operate':'عملیات','nav.system':'سیستم','nav.start':'شروع','nav.overview':'نمای کلی','nav.workspace':'سازمان‌ها و پروژه‌ها','nav.infrastructure':'زیرساخت','nav.installation':'برنامه‌ریزی نصب','nav.clusters':'کلاسترهای متصل','nav.providers':'چرخه عمر زیرساخت','nav.delivery':'تحویل پلتفرم','nav.blueprints':'نسخه‌های Blueprint','nav.marketplace':'مارکت‌پلیس','nav.baselines':'استقرار Baseline تأییدشده','nav.verification':'تأیید سلامت و بستن شواهد','nav.fleet':'مدیریت ناوگان و ارتقا','nav.commercial':'تجاری','nav.tenants':'Tenantها و برندینگ','nav.operations':'عملیات','nav.activity':'عملیات و ممیزی','nav.notifications':'اعلان‌ها و مسیریابی','nav.services':'سرویس‌های سیستم','nav.advanced':'پیشرفته','nav.catalog':'کاتالوگ','nav.validator':'ابزار برنامه‌ریزی Blueprint',
   'action.createServiceAccount':'ساخت حساب سرویس','action.grantAccess':'اعطا یا به‌روزرسانی دسترسی','action.revokeAccess':'لغو دسترسی','action.signout':'خروج','action.refresh':'بازخوانی','action.viewAll':'مشاهده همه','action.createOrg':'ایجاد سازمان','action.createProject':'ایجاد پروژه','action.createPlan':'ساخت برنامه','action.clear':'پاک‌کردن','action.createImport':'ساخت درخواست اتصال','action.copy':'کپی','action.verifyProfile':'تأیید پروفایل','action.createCluster':'ساخت درخواست کلاستر','action.getAdvisory':'دریافت پیشنهاد','action.createInstallPlan':'ساخت برنامه نصب','action.createLivePlan':'ساخت برنامه از وضعیت فعلی','action.runVerification':'اجرای بررسی سلامت','action.createClosure':'تکمیل شواهد تأیید','action.createFleet':'ایجاد Fleet','action.applyEntitlement':'اعمال مجوز تجاری','action.saveOEM':'ذخیره تنظیمات برند','action.createTenant':'ایجاد Tenant','action.validate':'اعتبارسنجی','action.cancel':'انصراف','action.confirm':'تأیید','action.saveDraft':'ایجاد پیش‌نویس','action.resetDraft':'پاک‌کردن فرم','action.compare':'مقایسه',
   'overview.authority':'مرکز کنترل پلتفرم خصوصی','flow.configure':'پیکربندی','flow.configureHelp':'Blueprintها، Baselineها و کاتالوگ','flow.build':'ایجاد یا واردکردن','flow.buildHelp':'پلتفرم‌ها و زیرساخت مقصد','flow.operate':'مدیریت Fleet','flow.operateHelp':'سلامت، مغایرت‌ها، نگه‌داری و ارتقا','flow.prove':'تأیید و بازیابی','flow.proveHelp':'عملیات، شواهد، ممیزی و گواهی‌های فنی','overview.heading':'وضعیت پلتفرم و کار بعدی','overview.description':'پیش از هر تغییر، وضعیت فعلی پلتفرم، موانع و عملیات در حال اجرا را بررسی کنید.','reliability.deliveryInsights':'بینش تحویل','reliability.deliveryInsightsHelp':'جریان استقرار مبتنی بر شواهد در ۳۰ روز گذشته. اگر شواهد استقرار یا زمان Commit منبع موجود نباشد، وضعیت ناشناخته باقی می‌ماند.','overview.readiness':'آمادگی مراحل راه‌اندازی','overview.readinessHelp':'وضعیت هر مرحله مستقیماً از دادهٔ واقعی API محاسبه می‌شود.','overview.attention':'نیازمند توجه','overview.attentionHelp':'خطاها و پیش‌نیازهایی که برای ادامه نیاز به رسیدگی دارند.','overview.recent':'فعالیت‌های اخیر','overview.recentHelp':'آخرین عملیات ثبت‌شده و رویدادهای ممیزی.',
@@ -41,7 +42,11 @@ function applyLocale() {
   document.documentElement.lang = state.locale;
   document.documentElement.dir = state.locale === 'fa' ? 'rtl' : 'ltr';
   $('#language-toggle').textContent = state.locale === 'fa' ? 'EN' : 'فارسی';
-  $$('[data-i18n]').forEach(el => {
+  document.title = state.locale === 'fa' ? '4SO Platform Factory · کنسول اپراتور' : '4SO Platform Factory';
+  const description=document.querySelector('meta[name="description"]');
+  if(description)description.setAttribute('content',state.locale==='fa'?'کنسول اپراتور 4SO Platform Factory برای مدیریت پلتفرم، عملیات و شواهد':'4SO Platform Factory operator console');
+  $('[data-localized-number]').forEach(el=>{const raw=Number(el.dataset.localizedNumber);el.textContent=state.locale==='fa'?new Intl.NumberFormat('fa-IR-u-nu-arabext').format(raw):String(raw);});
+  $('[data-i18n]').forEach(el => {
     const key = el.dataset.i18n;
     if (!el.dataset.en) el.dataset.en = el.textContent;
     el.textContent = state.locale === 'fa' ? (fa[key] || el.dataset.en) : el.dataset.en;
@@ -52,6 +57,7 @@ function applyLocale() {
 }
 
 const faDynamic = {
+  "Primary navigation":"ناوبری اصلی","Search pages and operator workflows":"صفحه یا جریان کاری را جست‌وجو کنید","Close search":"بستن جست‌وجو","Global organization and project scope":"محدوده سراسری سازمان و پروژه","Global organization scope":"محدوده سراسری سازمان","Global project scope":"محدوده سراسری پروژه","Toggle navigation":"نمایش یا پنهان‌کردن ناوبری","Search console":"جست‌وجوی کنسول","Toggle color theme":"تغییر پوسته رنگی","Refresh current page":"بازخوانی صفحه فعلی","Platform Factory workflow":"جریان کاری Platform Factory",
   "Network egress, raw credentials and external providers are fixed to": "ارتباط خروجی شبکه، اطلاعات دسترسی خام و ارائه‌دهندهٔ خارجی در این پروفایل",
   "by this profile.": "غیرفعال هستند.",
   "Edge & sovereign": "لبه و حاکمیت محلی",
@@ -2150,12 +2156,12 @@ $('#global-project-scope').addEventListener('change',async event=>{
   await changeGlobalScope(project?.organizationId||state.globalScope.organizationId,projectId);
 });
 $('#language-toggle').onclick = async () => {
-  if(hasUnsavedChanges()&&!await confirmAction('Discard unsaved changes?', 'Changing the console language refreshes this page and will discard unsaved form changes.', true))return;
+  if(hasUnsavedChanges()&&!await confirmAction(t('shell.discardTitle','Discard unsaved changes?'), t('shell.languageDiscard','Changing the console language refreshes this page and will discard unsaved form changes.'), true))return;
   clearDirtyForms();state.locale = state.locale === 'fa' ? 'en' : 'fa'; localStorage.setItem('platformLocale', state.locale); applyLocale(); renderGlobalScope(); await loadPage(state.currentPage);
 };
 $('#theme-toggle').onclick = toggleConsoleTheme;
 $('#refresh-current').onclick = async () => {
-  if(hasUnsavedChanges()&&!await confirmAction('Discard unsaved changes?', 'Refreshing from the authoritative API will discard unsaved form changes.', true))return;
+  if(hasUnsavedChanges()&&!await confirmAction(t('shell.discardTitle','Discard unsaved changes?'), t('shell.refreshDiscard','Refreshing from the authoritative API will discard unsaved form changes.'), true))return;
   clearDirtyForms();await syncSessionAuthority({redirectOnUnauthorized:true});if(state.sessionRedirectPending)return;await loadPage(state.currentPage, true);
 };
 $('#logout').onclick = async () => { await fetch('/auth/logout', {method:'POST'}); location.href = '/auth/login'; };
@@ -4470,7 +4476,7 @@ function setupConsoleCommandPalette(){
   const trigger=$('#command-trigger');if(!trigger)return;
   const dialog=$('#command-palette');if(!dialog)return;
   const input=$('#command-palette-input'),results=$('#command-palette-results');
-  const render=()=>{const q=input.value.trim().toLocaleLowerCase();const locale=state.locale==='fa'?'fa':'en';const items=Object.entries(pageTitles).map(([id,value])=>({id,group:value[locale][0],title:value[locale][1]})).filter(item=>!q||`${item.group} ${item.title} ${item.id}`.toLocaleLowerCase().includes(q)).slice(0,12);results.innerHTML=items.length?items.map((item,index)=>`<button type="button" data-command-page="${esc(item.id)}"${index===0?' class="current"':''}><span><strong>${esc(item.title)}</strong><small>${esc(item.group)}</small></span><span class="command-palette-arrow">→</span></button>`).join(''):emptyState('No matching destination','Try a cluster, fleet, AI, Lab, catalog or administration term.');};
+  const render=()=>{const q=input.value.trim().toLocaleLowerCase();const locale=state.locale==='fa'?'fa':'en';const items=Object.entries(pageTitles).map(([id,value])=>({id,group:value[locale][0],title:value[locale][1]})).filter(item=>!q||`${item.group} ${item.title} ${item.id}`.toLocaleLowerCase().includes(q)).slice(0,12);const arrow=state.locale==='fa'?'←':'→';results.innerHTML=items.length?items.map((item,index)=>`<button type="button" data-command-page="${esc(item.id)}"${index===0?' class="current"':''}><span><strong>${esc(item.title)}</strong><small>${esc(item.group)}</small></span><span aria-hidden="true" class="command-palette-arrow">${arrow}</span></button>`).join(''):emptyState(state.locale==='fa'?'مقصدی پیدا نشد':'No matching destination',state.locale==='fa'?'نام کلاستر، ناوگان، هوش مصنوعی، آزمایشگاه، کاتالوگ یا مدیریت را جست‌وجو کنید.':'Try a cluster, fleet, AI, Lab, catalog or administration term.');};
   const open=()=>{render();dialog.showModal();requestAnimationFrame(()=>{input.focus();input.select();});};
   trigger.onclick=open;input.addEventListener('input',render);
   results.addEventListener('click',async event=>{const button=event.target.closest('[data-command-page]');if(!button)return;dialog.close();await navigate(button.dataset.commandPage);});

@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 
-<html dir="ltr" lang="en">
+<html dir="rtl" lang="fa">
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <meta content="light dark" name="color-scheme"/>
 <meta content="#111827" name="theme-color"/>
-<meta content="4SO Platform Factory operator console" name="description"/>
-<title>4SO Platform Factory</title>
+<meta content="کنسول اپراتور 4SO Platform Factory برای مدیریت پلتفرم، عملیات و شواهد" name="description"/>
+<title>4SO Platform Factory · کنسول اپراتور</title>
 <link href="/styles.css" rel="stylesheet"/>
 </head>
 <body>
@@ -33,14 +33,14 @@
 <symbol id="icon-search" viewbox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></symbol>
 <symbol id="icon-theme" viewbox="0 0 24 24"><path d="M20 14.2A8 8 0 0 1 9.8 4a8.1 8.1 0 1 0 10.2 10.2Z"></path></symbol>
 </svg>
-<a class="skip-link" href="#main-content" data-dynamic-i18n>Skip to main content</a>
+<a class="skip-link" href="#main-content" data-dynamic-i18n data-i18n="shell.skip" data-en="Skip to main content">رفتن به محتوای اصلی</a>
 <div class="nav-scrim" hidden="" id="nav-scrim"></div>
 <dialog aria-labelledby="command-palette-title" class="command-palette" id="command-palette">
 <form class="command-palette-shell" method="dialog">
-<h2 class="sr-only" id="command-palette-title">Search console destinations</h2>
+<h2 class="sr-only" data-i18n="shell.searchTitle" data-en="Search console destinations" id="command-palette-title">جست‌وجوی مقصدهای کنسول</h2>
 <div class="command-palette-search"><svg aria-hidden="true" class="control-icon"><use href="#icon-search"></use></svg><input aria-label="Search pages and operator workflows" autocomplete="off" id="command-palette-input" placeholder="Search pages and operator workflows" type="search"/><button aria-label="Close search" class="icon-button" type="submit" value="cancel"><svg aria-hidden="true" class="control-icon"><use href="#icon-close"></use></svg></button></div>
 <div class="command-palette-results" id="command-palette-results"></div>
-<div class="command-palette-help"><span>Navigate only — mutations remain inside their authoritative workflow.</span><kbd>Esc</kbd></div>
+<div class="command-palette-help"><span data-i18n="shell.searchHelp" data-en="Navigate only — mutations remain inside their authoritative workflow.">فقط برای جابه‌جایی؛ تغییرات فقط در جریان کاری معتبر انجام می‌شوند.</span><kbd>Esc</kbd></div>
 </form>
 </dialog>
 <div class="app-shell">
@@ -49,38 +49,38 @@
 <div aria-hidden="true" class="brand-mark">4SO</div>
 <div><strong id="product-brand">4SO Platform Factory</strong><small id="release-version">unknown</small></div>
 </div>
-<nav id="primary-nav"><button aria-current="page" class="active" data-section="home" data-section-home="overview" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-overview"></use></svg><span>Overview</span></button><button data-section="infrastructure" data-section-home="clusters" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-clusters"></use></svg><span>Platforms</span></button><button data-section="delivery" data-section-home="blueprints" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-marketplace"></use></svg><span>Blueprints</span></button><button data-section="fleet" data-section-home="fleet" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-fleet"></use></svg><span>Fleet</span></button><button data-section="operations" data-section-home="operations" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-operations"></use></svg><span>Operations</span></button><button data-section="assurance" data-section-home="verification" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-verification"></use></svg><span>Assurance</span></button><button data-section="administration" data-section-home="workspace" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-workspace"></use></svg><span>Admin</span></button></nav>
+<nav id="primary-nav"><button aria-current="page" class="active" data-section="home" data-section-home="overview" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-overview"></use></svg><span data-i18n="nav.overviewTop" data-en="Overview">نمای کلی</span></button><button data-section="infrastructure" data-section-home="clusters" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-clusters"></use></svg><span data-i18n="nav.platformsTop" data-en="Platforms">پلتفرم‌ها</span></button><button data-section="delivery" data-section-home="blueprints" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-marketplace"></use></svg><span data-i18n="nav.blueprintsTop" data-en="Blueprints">طرح‌ها و نسخه‌ها</span></button><button data-section="fleet" data-section-home="fleet" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-fleet"></use></svg><span data-i18n="nav.fleetTop" data-en="Fleet">ناوگان</span></button><button data-section="operations" data-section-home="operations" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-operations"></use></svg><span data-i18n="nav.operationsTop" data-en="Operations">عملیات</span></button><button data-section="assurance" data-section-home="verification" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-verification"></use></svg><span data-i18n="nav.assuranceTop" data-en="Assurance">اطمینان و شواهد</span></button><button data-section="administration" data-section-home="workspace" type="button"><svg aria-hidden="true" class="nav-icon"><use href="#icon-workspace"></use></svg><span data-i18n="nav.adminTop" data-en="Admin">مدیریت</span></button></nav>
 <div class="sidebar-footer">
-<button class="quiet" id="language-toggle" type="button">فارسی</button>
+<button class="quiet" id="language-toggle" type="button">EN</button>
 <button class="quiet" data-i18n="action.signout" id="logout" type="button">Sign out</button>
 </div>
 </aside>
 <div class="main-column">
 <header class="topbar">
 <button aria-controls="primary-sidebar" aria-expanded="false" aria-label="Toggle navigation" class="icon-button" id="mobile-nav-toggle" type="button"><svg aria-hidden="true" class="control-icon"><use href="#icon-menu"></use></svg></button>
-<div class="page-context"><p class="eyebrow" id="breadcrumb">Start / Overview</p><h1 id="page-title">Overview</h1></div>
+<div class="page-context"><p class="eyebrow" id="breadcrumb">شروع / نمای کلی</p><h1 id="page-title">نمای کلی</h1></div>
 <div aria-label="Global organization and project scope" class="global-scope" data-ready="false" id="global-scope">
-<label class="scope-field"><span>Organization</span><select aria-label="Global organization scope" id="global-organization-scope"><option value="">Loading…</option></select></label>
-<label class="scope-field"><span>Project</span><select aria-label="Global project scope" id="global-project-scope"><option value="">Loading…</option></select></label>
-<span aria-live="polite" class="scope-status" id="global-scope-status">Loading scope…</span>
+<label class="scope-field"><span data-i18n="shell.organization" data-en="Organization">سازمان</span><select aria-label="Global organization scope" id="global-organization-scope"><option data-i18n="shell.loading" data-en="Loading…" value="">در حال بارگذاری…</option></select></label>
+<label class="scope-field"><span data-i18n="shell.project" data-en="Project">پروژه</span><select aria-label="Global project scope" id="global-project-scope"><option data-i18n="shell.loading" data-en="Loading…" value="">در حال بارگذاری…</option></select></label>
+<span aria-live="polite" class="scope-status" data-i18n="shell.loadingScope" data-en="Loading scope…" id="global-scope-status">در حال دریافت محدوده…</span>
 </div>
 <div class="topbar-actions">
-<button aria-label="Search console" class="command-trigger" id="command-trigger" type="button"><svg aria-hidden="true" class="control-icon"><use href="#icon-search"></use></svg><span>Search console</span><kbd>Ctrl K</kbd></button>
-<span class="session-state" id="session-state">Checking session…</span>
+<button aria-label="Search console" class="command-trigger" id="command-trigger" type="button"><svg aria-hidden="true" class="control-icon"><use href="#icon-search"></use></svg><span data-i18n="shell.search" data-en="Search console">جست‌وجوی کنسول</span><kbd>Ctrl K</kbd></button>
+<span class="session-state" data-i18n="shell.sessionChecking" data-en="Checking session…" id="session-state">در حال بررسی نشست…</span>
 <button aria-label="Toggle color theme" class="icon-button theme-toggle" id="theme-toggle" type="button"><svg aria-hidden="true" class="control-icon"><use href="#icon-theme"></use></svg></button>
-<button aria-label="Refresh current page" class="secondary" data-i18n="action.refresh" id="refresh-current" type="button">Refresh</button>
+<button aria-label="Refresh current page" class="secondary" data-en="Refresh" data-i18n="action.refresh" id="refresh-current" type="button">بازخوانی</button>
 </div>
 </header><nav aria-label="Section navigation" hidden="" id="section-nav"><div class="section-nav-group" data-section-nav="infrastructure" hidden=""><button data-page="clusters" type="button">Create &amp; manage platforms</button><button data-page="providers" type="button">Infrastructure profiles</button><button data-page="installation" type="button">Control-plane install</button></div><div class="section-nav-group" data-section-nav="delivery" hidden=""><button data-page="blueprints" type="button">Platform blueprints</button><button data-page="templates" type="button">Platform templates</button><button data-page="marketplace" type="button">Marketplace</button><button data-page="baselines" type="button">Certified baselines</button><button data-page="validator" type="button">Planning tools</button></div><div class="section-nav-group" data-section-nav="fleet" hidden=""><button data-page="fleet" type="button">Fleet overview</button><button data-page="workspaces" type="button">Application workspaces</button><button data-page="finops" type="button">FinOps &amp; chargeback</button></div><div class="section-nav-group" data-section-nav="operations" hidden=""><button data-page="operations" type="button">Activity &amp; audit</button><button data-page="ai" type="button">AI Operator</button><button data-page="notifications" type="button">Notifications</button></div><div class="section-nav-group" data-section-nav="assurance" hidden=""><button data-page="verification" type="button">Runtime assurance</button><button data-page="edge" type="button">Edge &amp; sovereign</button><button data-page="catalog" type="button">Supply-chain releases</button><button data-page="lab" type="button">Physical certification</button></div><div class="section-nav-group" data-section-nav="administration" hidden=""><button data-page="workspace" type="button">Organizations &amp; projects</button><button data-page="tenants" type="button">Tenant environments &amp; branding</button><button data-page="services" type="button">Integrations &amp; services</button></div></nav>
 <div class="warning-banner page-degraded-banner" hidden="" id="page-degraded-banner" role="status"></div>
 <div class="mutation-outcome" hidden="" id="mutation-outcome" role="status" aria-live="polite"></div>
 <main aria-busy="false" id="main-content" tabindex="-1"><div aria-atomic="true" aria-live="polite" class="visually-hidden" id="route-announcer" role="status"></div>
 <section class="page active" data-title="Overview" id="overview">
-<div class="operator-briefing"><div class="operator-briefing-main"><div class="operator-briefing-kicker"><span aria-hidden="true" class="status-dot"></span><span data-i18n="overview.authority">Authoritative private platform control plane</span></div><h2 data-i18n="overview.heading">Platform readiness and next operator action</h2><p data-i18n="overview.description">Read live readiness, blockers and durable work before changing the platform.</p></div><div class="operator-briefing-action"><span class="field-label">Next action</span><button class="primary" id="overview-next-action" type="button">Review next action</button></div></div>
+<div class="operator-briefing"><div class="operator-briefing-main"><div class="operator-briefing-kicker"><span aria-hidden="true" class="status-dot"></span><span data-en="Authoritative private platform control plane" data-i18n="overview.authority">مرکز کنترل پلتفرم خصوصی</span></div><h2 data-en="Platform readiness and next operator action" data-i18n="overview.heading">وضعیت پلتفرم و کار بعدی</h2><p data-en="Read live readiness, blockers and durable work before changing the platform." data-i18n="overview.description">پیش از هر تغییر، وضعیت فعلی پلتفرم، موانع و عملیات در حال اجرا را بررسی کنید.</p></div><div class="operator-briefing-action"><span class="field-label" data-en="Next action" data-i18n="shell.nextAction">اقدام بعدی</span><button class="primary" data-en="Review next action" data-i18n="shell.reviewNextAction" id="overview-next-action" type="button">بررسی اقدام بعدی</button></div></div>
 <div class="product-flow" aria-label="Platform Factory workflow">
-<button type="button" data-navigate="blueprints"><span>1</span><strong data-i18n="flow.configure">Configure</strong><small data-i18n="flow.configureHelp">Blueprints, baselines and catalog</small></button>
-<button type="button" data-navigate="clusters"><span>2</span><strong data-i18n="flow.build">Create or connect</strong><small data-i18n="flow.buildHelp">Platforms and infrastructure targets</small></button>
-<button type="button" data-navigate="fleet"><span>3</span><strong data-i18n="flow.operate">Operate fleet</strong><small data-i18n="flow.operateHelp">Health, drift, maintenance and upgrades</small></button>
-<button type="button" data-navigate="verification"><span>4</span><strong data-i18n="flow.prove">Prove &amp; recover</strong><small data-i18n="flow.proveHelp">Operations, evidence, audit and certification</small></button>
+<button type="button" data-navigate="blueprints"><span data-localized-number="1">۱</span><strong data-en="Configure" data-i18n="flow.configure">پیکربندی</strong><small data-en="Blueprints, baselines and catalog" data-i18n="flow.configureHelp">Blueprintها، Baselineها و کاتالوگ</small></button>
+<button type="button" data-navigate="clusters"><span data-localized-number="2">۲</span><strong data-en="Create or connect" data-i18n="flow.build">ایجاد یا واردکردن</strong><small data-en="Platforms and infrastructure targets" data-i18n="flow.buildHelp">پلتفرم‌ها و زیرساخت مقصد</small></button>
+<button type="button" data-navigate="fleet"><span data-localized-number="3">۳</span><strong data-en="Operate fleet" data-i18n="flow.operate">مدیریت ناوگان</strong><small data-en="Health, drift, maintenance and upgrades" data-i18n="flow.operateHelp">سلامت، مغایرت‌ها، نگه‌داری و ارتقا</small></button>
+<button type="button" data-navigate="verification"><span data-localized-number="4">۴</span><strong data-en="Prove &amp; recover" data-i18n="flow.prove">تأیید و بازیابی</strong><small data-en="Operations, evidence, audit and certification" data-i18n="flow.proveHelp">عملیات، شواهد، ممیزی و گواهی‌های فنی</small></button>
 </div>
 <div aria-live="polite" class="metric-grid" id="overview-metrics"></div>
 <div class="two-column">

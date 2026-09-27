@@ -1025,6 +1025,14 @@ html[data-theme="dark"] .operator-briefing::after,html[data-theme="dark"] .topba
   --ui-radius-control:8px;
   --ui-radius-surface:10px;
   --ui-space-unit:4px;
+  --ui-space-1:4px;
+  --ui-space-2:8px;
+  --ui-space-3:12px;
+  --ui-space-4:16px;
+  --ui-space-5:20px;
+  --ui-space-6:24px;
+  --ui-control-hit:44px;
+  --ui-line-height-fa:1.75;
   --ui-motion:180ms;
 }
 body{background:var(--ui-background);color:var(--ui-foreground)}
@@ -1034,7 +1042,7 @@ body{background:var(--ui-background);color:var(--ui-foreground)}
 .brand-block{padding:3px 8px 14px;margin-bottom:8px}
 #primary-nav{gap:2px}
 #primary-nav>button{
-  min-height:44px;padding:8px 10px;border-radius:var(--ui-radius-control);
+  min-height:var(--ui-control-hit);padding:var(--ui-space-2) 10px;border-radius:var(--ui-radius-control);
   transition:background-color var(--ui-motion) ease,color var(--ui-motion) ease;
 }
 #primary-nav>button:hover{background:#1b2532;color:#fff}
@@ -1106,13 +1114,13 @@ main{width:min(100%,1520px);padding-block-start:24px;padding-block-end:60px;padd
 .platform-path:hover{transform:none;background:var(--ui-muted)}
 
 .primary,.secondary,.danger,.link-button{
-  min-height:44px;border-radius:var(--ui-radius-control);
+  min-height:var(--ui-control-hit);border-radius:var(--ui-radius-control);
   transition:background-color var(--ui-motion) ease,border-color var(--ui-motion) ease,transform var(--ui-motion) ease;
 }
 .primary{box-shadow:none;background:var(--ui-primary)}
 .primary:hover{background:var(--ui-primary-strong)}
 input,select,textarea{
-  min-height:44px;border-radius:var(--ui-radius-control);background:var(--ui-card);border-color:var(--ui-border-strong);
+  min-height:var(--ui-control-hit);border-radius:var(--ui-radius-control);background:var(--ui-card);border-color:var(--ui-border-strong);
 }
 input:focus,select:focus,textarea:focus{border-color:var(--ui-ring);box-shadow:0 0 0 3px var(--focus-halo)}
 .collection-toolbar{margin-block:8px 6px;padding-block-end:8px;border-color:var(--ui-border)}
@@ -1127,7 +1135,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--ui-ring);box-shadow:0
 
 /* Persian is a first-class layout mode, not an English layout mirrored at the end. */
 html[lang="fa"]{font-family:var(--font-fa);letter-spacing:0}
-html[lang="fa"] body{font-size:15px;line-height:1.75;letter-spacing:0}
+html[lang="fa"] body{font-size:15px;line-height:var(--ui-line-height-fa);letter-spacing:0}
 html[lang="fa"] :where(h1,h2,h3,h4,.eyebrow,.nav-group>span,.page-outcome-label,.workflow-eyebrow,.product-flow strong){
   letter-spacing:0;text-transform:none;
 }
@@ -1153,3 +1161,8 @@ html[lang="fa"] .ownership-model-strip span+span::before{content:"←"}
 @media(prefers-reduced-motion:reduce){
   .product-flow button,.platform-path{transform:none!important}
 }
+
+/* VibeFarsi-derived owner rules: product-owned implementation, no external runtime. */
+html[lang="fa"] :where(button,input,select,textarea,summary,label,.command-palette,.sidebar,.topbar){letter-spacing:0}
+.command-palette-arrow{inline-size:1.25rem;text-align:center;font-family:var(--font-ui);font-variant-numeric:tabular-nums}
+html[dir="rtl"] .command-palette-arrow{font-family:var(--font-fa)}
