@@ -127,3 +127,54 @@ func TestRebindComponentRuntimeCertificationSourcePreservesRuntimeSuitabilityHol
 		}
 	}
 }
+
+
+func TestMigrateComponentRuntimeCertificationSourceRequiresExplicitAuthorityAndExactPreviousBinding(t *testing.T) {
+	contract := ComponentRuntimeCertificationContract{
+		Component: "gateway-api",
+		Release: "1.5.1",
+		SourceBinding: ComponentRuntimeSourceBinding{
+			Status: "source-ready", Resolved: true,
+			SourceLockDigest: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+		},
+		Executor: ComponentRuntimeExecutor{
+			Status: "component-install-readiness-dependency-failure-remove-partial",
+			Profile: "COMPONENT_RUNTIME_V1", Owner: "catalog-component",
+		},
+	}
+	for _, name := range RequiredComponentLifecycleStages {
+		status, authority := "component-runtime-executable", "COMPONENT_RUNTIME_V1"
+		if name == "upgrade" {
+			status, authority = "pending-upgrade-matrix", "COMPONENT_RUNTIME_UPGRADE_V1"
+		}
+		contract.Lifecycle = append(contract.Lifecycle, ComponentRuntimeLifecycleStage{
+			Name: name, Status: status, EvidenceContract: "component-"+name+"-evidence/v1", Authority: authority,
+		})
+	}
+	registry := ComponentRuntimeCertificationRegistry{}
+	registry.Spec.Components = []ComponentRuntimeCertificationContract{contract}
+
+	previous := Component{}
+	previous.Metadata.Name = "gateway-api"
+	previous.Spec.Release = "1.5.1"
+	previous.Spec.Source.Resolved = true
+	previous.Spec.Source.SourceLockDigest = contract.SourceBinding.SourceLockDigest
+
+	target := previous
+	target.Spec.Release = "1.6.1"
+	target.Spec.Source.SourceLockDigest = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+
+	if err := MigrateComponentRuntimeCertificationSource(&registry, previous, target, ""); err == nil {
+		t.Fatal("resolved migration without explicit authority was accepted")
+	}
+	if err := MigrateComponentRuntimeCertificationSource(&registry, previous, target, "RUNTIME_DEPENDENCY_TRANSITION_V1"); err != nil {
+		t.Fatalf("explicit resolved migration failed: %v", err)
+	}
+	got := registry.Spec.Components[0]
+	if got.Release != target.Spec.Release || !got.SourceBinding.Resolved || got.SourceBinding.SourceLockDigest != target.Spec.Source.SourceLockDigest {
+		t.Fatalf("registry did not move to exact target: %#v", got)
+	}
+	if err := MigrateComponentRuntimeCertificationSource(&registry, previous, target, "RUNTIME_DEPENDENCY_TRANSITION_V1"); err == nil {
+		t.Fatal("stale previous binding replay was accepted")
+	}
+}

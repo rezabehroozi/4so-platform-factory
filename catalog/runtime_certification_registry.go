@@ -320,6 +320,74 @@ func RebindComponentRuntimeCertificationSource(registry *ComponentRuntimeCertifi
 	return fmt.Errorf("component %s missing from runtime certification registry", component.Metadata.Name)
 }
 
+// MigrateComponentRuntimeCertificationSource is the explicit resolved-to-resolved
+// source migration primitive required by the registry replacement policy. The
+// caller must already have admitted the version edge through a versioned
+// migration authority; this function refuses stale/replayed previous bindings.
+func MigrateComponentRuntimeCertificationSource(registry *ComponentRuntimeCertificationRegistry, previous, target Component, authority string) error {
+	if registry == nil {
+		return fmt.Errorf("component runtime certification registry is nil")
+	}
+	if strings.TrimSpace(authority) != "RUNTIME_DEPENDENCY_TRANSITION_V1" {
+		return fmt.Errorf("resolved runtime certification migration authority denied")
+	}
+	if previous.Metadata.Name == "" || previous.Metadata.Name != target.Metadata.Name {
+		return fmt.Errorf("runtime certification migration component identity mismatch")
+	}
+	if !previous.Spec.Source.Resolved || !target.Spec.Source.Resolved ||
+		strings.TrimSpace(previous.Spec.Source.SourceLockDigest) == "" ||
+		strings.TrimSpace(target.Spec.Source.SourceLockDigest) == "" {
+		return fmt.Errorf("runtime certification migration requires two resolved exact sources")
+	}
+	if previous.Spec.Release == target.Spec.Release ||
+		previous.Spec.Source.SourceLockDigest == target.Spec.Source.SourceLockDigest {
+		return fmt.Errorf("runtime certification migration requires a distinct target source")
+	}
+	holdByComponent := make(map[string]ComponentRuntimeSuitabilityHold, len(registry.Spec.RuntimeSuitabilityHolds))
+	for _, hold := range registry.Spec.RuntimeSuitabilityHolds {
+		holdByComponent[hold.Component] = hold
+	}
+	for i := range registry.Spec.Components {
+		contract := &registry.Spec.Components[i]
+		if contract.Component != previous.Metadata.Name {
+			continue
+		}
+		if contract.Release != previous.Spec.Release || !contract.SourceBinding.Resolved ||
+			contract.SourceBinding.Status != "source-ready" ||
+			contract.SourceBinding.SourceLockDigest != previous.Spec.Source.SourceLockDigest {
+			return fmt.Errorf("runtime certification migration previous binding drift for %s", previous.Metadata.Name)
+		}
+		contract.Release = target.Spec.Release
+		contract.SourceBinding = ComponentRuntimeSourceBinding{
+			Status: "source-ready", Resolved: true, SourceLockDigest: target.Spec.Source.SourceLockDigest,
+		}
+		if contract.Component != "secure-namespace-foundation" {
+			contract.Executor.Profile = "COMPONENT_RUNTIME_V1"
+			if hold, held := holdByComponent[contract.Component]; held {
+				contract.Executor.Status = "runtime-suitability-held"
+				for j := range contract.Lifecycle {
+					contract.Lifecycle[j].Status = "pending-runtime-suitability"
+					contract.Lifecycle[j].Authority = hold.Authority
+				}
+				return nil
+			}
+			contract.Executor.Status = "component-install-readiness-dependency-failure-remove-partial"
+			for j := range contract.Lifecycle {
+				stage := &contract.Lifecycle[j]
+				if stage.Name == "upgrade" {
+					stage.Status = "pending-upgrade-matrix"
+					stage.Authority = "COMPONENT_RUNTIME_UPGRADE_V1"
+				} else {
+					stage.Status = "component-runtime-executable"
+					stage.Authority = "COMPONENT_RUNTIME_V1"
+				}
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("component %s missing from runtime certification registry", previous.Metadata.Name)
+}
+
 func equalStringSlice(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
