@@ -1,0 +1,214 @@
+name: loki-upgrade-runtime-realism
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/loki-upgrade-runtime-realism.yml
+      - catalog/runtime/loki/18.12.0/**
+      - catalog/runtime/loki/18.12.1/**
+      - catalog/component-runtime-upgrade-matrix.json
+      - internal/runtimeupgrade/**
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes: ["1.34.11", "1.35.8"]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bind exact Loki stateful upgrade profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .components[] | select(.component=="loki" and .targetRelease=="18.12.1" and .status=="admitted-source-pair")
+            | .admittedEdges[] | select(.fromRelease=="18.12.0" and .toRelease=="18.12.1")
+          ' catalog/component-runtime-upgrade-matrix.json >/tmp/edge.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          expected={
+            ("DaemonSet","platform-factory-loki-canary"),
+            ("Deployment","platform-factory-loki-gateway"),
+            ("StatefulSet","platform-factory-loki-chunks-cache"),
+            ("StatefulSet","platform-factory-loki"),
+            ("StatefulSet","platform-factory-loki-results-cache"),
+          }
+          for version in ("18.12.0","18.12.1"):
+              items=json.loads(Path(f"catalog/runtime/loki/{version}/render-manifest.json").read_text())
+              if not isinstance(items,list) or not items:
+                  raise SystemExit("LOKI_UPGRADE_RENDER_EMPTY")
+              workloads=[]
+              for obj in items:
+                  kind=obj.get("kind"); name=(obj.get("metadata") or {}).get("name")
+                  if kind in {"DaemonSet","Deployment","StatefulSet"}:
+                      pod=(((obj.get("spec") or {}).get("template") or {}).get("spec") or {})
+                      images=[c.get("image","") for c in [*(pod.get("initContainers") or []),*(pod.get("containers") or [])] if c.get("image")]
+                      if not images or any("@sha256:" not in x for x in images):
+                          raise SystemExit(f"LOKI_IMAGE_NOT_PINNED {version}:{kind}/{name}")
+                      workloads.append((kind,name))
+              if set(workloads)!=expected:
+                  raise SystemExit(f"LOKI_WORKLOAD_IDENTITY_DRIFT {version}:{workloads}")
+              main=next(x for x in items if x.get("kind")=="StatefulSet" and (x.get("metadata") or {}).get("name")=="platform-factory-loki")
+              claims=(main.get("spec") or {}).get("volumeClaimTemplates") or []
+              if len(claims)!=1 or (claims[0].get("metadata") or {}).get("name")!="storage" or ((claims[0].get("spec") or {}).get("resources") or {}).get("requests",{}).get("storage")!="10Gi" or (claims[0].get("spec") or {}).get("accessModes")!=["ReadWriteOnce"] or (claims[0].get("spec") or {}).get("storageClassName") not in (None,""):
+                  raise SystemExit(f"LOKI_PVC_CONTRACT_DRIFT {version}")
+              Path(f"/tmp/loki-{version}.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":items}))
+          PY
+
+      - name: Install exact kind runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$(jq -r '.spec.kind.url' runtime/network-stack-kind-toolchain.json)"
+          expected="$(jq -r '.spec.kind.sha256' runtime/network-stack-kind-toolchain.json)"
+          size="$(jq -r '.spec.kind.sizeBytes' runtime/network-stack-kind-toolchain.json)"
+          curl -fL --retry 3 --connect-timeout 30 -o /tmp/kind "$url"
+          test "$(stat -c %s /tmp/kind)" = "$size"
+          test "$(sha256sum /tmp/kind|awk '{print $1}')" = "$expected"
+          chmod +x /tmp/kind
+          image="$(jq -r --arg v "${{ matrix.kubernetes }}" '.spec.kubernetes[]|select(.version==$v)|.nodeImage' runtime/network-stack-kind-toolchain.json)"
+          case "$image" in kindest/node:v${{ matrix.kubernetes }}@sha256:*) ;; *) exit 21;; esac
+          /tmp/kind create cluster --name 4so-loki-upgrade --image "$image"
+          test "$(kubectl version -o json | jq -r .serverVersion.gitVersion)" = "v${{ matrix.kubernetes }}"
+
+      - name: Install historical Loki and preserve state authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl create namespace logging
+          cat >/tmp/loki-pv.yaml <<'YAML'
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: platform-factory-loki-upgrade-pv
+          spec:
+            capacity:
+              storage: 10Gi
+            accessModes:
+              - ReadWriteOnce
+            persistentVolumeReclaimPolicy: Retain
+            hostPath:
+              path: /tmp/4so-loki-upgrade-data
+              type: DirectoryOrCreate
+          YAML
+          kubectl apply -f /tmp/loki-pv.yaml
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/loki-18.12.0.json
+          kubectl -n logging wait --for=jsonpath='{.status.phase}'=Bound pvc/storage-platform-factory-loki-0 --timeout=5m
+          kubectl -n logging rollout status daemonset/platform-factory-loki-canary --timeout=12m
+          kubectl -n logging rollout status deployment/platform-factory-loki-gateway --timeout=12m
+          for s in platform-factory-loki-chunks-cache platform-factory-loki platform-factory-loki-results-cache; do
+            kubectl -n logging rollout status "statefulset/$s" --timeout=12m
+          done
+          kubectl -n logging get daemonset/platform-factory-loki-canary deployment/platform-factory-loki-gateway statefulset/platform-factory-loki-chunks-cache statefulset/platform-factory-loki statefulset/platform-factory-loki-results-cache -o json | jq -c '[.items[]|{kind:.kind,name:.metadata.name,uid:.metadata.uid}]|sort_by(.kind,.name)' >/tmp/loki-before-uids.json
+          kubectl -n logging get pvc/storage-platform-factory-loki-0 -o json | jq -c '{name:.metadata.name,uid:.metadata.uid,volumeName:.spec.volumeName}' >/tmp/loki-before-pvc.json
+          test "$(jq length /tmp/loki-before-uids.json)" = "5"
+          test "$(jq -r .volumeName /tmp/loki-before-pvc.json)" = "platform-factory-loki-upgrade-pv"
+
+      - name: Upgrade Loki and prove stateful convergence
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/loki-18.12.1.json
+          kubectl -n logging rollout status daemonset/platform-factory-loki-canary --timeout=12m
+          kubectl -n logging rollout status deployment/platform-factory-loki-gateway --timeout=12m
+          for s in platform-factory-loki-chunks-cache platform-factory-loki platform-factory-loki-results-cache; do
+            kubectl -n logging rollout status "statefulset/$s" --timeout=12m
+          done
+          kubectl -n logging get daemonset/platform-factory-loki-canary deployment/platform-factory-loki-gateway statefulset/platform-factory-loki-chunks-cache statefulset/platform-factory-loki statefulset/platform-factory-loki-results-cache -o json | jq -c '[.items[]|{kind:.kind,name:.metadata.name,uid:.metadata.uid}]|sort_by(.kind,.name)' >/tmp/loki-after-uids.json
+          cmp /tmp/loki-before-uids.json /tmp/loki-after-uids.json
+          kubectl -n logging get pvc/storage-platform-factory-loki-0 -o json | jq -c '{name:.metadata.name,uid:.metadata.uid,volumeName:.spec.volumeName}' >/tmp/loki-after-pvc.json
+          cmp /tmp/loki-before-pvc.json /tmp/loki-after-pvc.json
+          python3 - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          items=json.loads(Path("/tmp/loki-18.12.1.json").read_text())["items"]
+          for obj in items:
+              kind=obj.get("kind")
+              if kind not in {"DaemonSet","Deployment","StatefulSet"}: continue
+              name=obj["metadata"]["name"]; pod=obj["spec"]["template"]["spec"]
+              expected=[c["image"] for c in [*(pod.get("initContainers") or []),*(pod.get("containers") or [])] if c.get("image")]
+              live=json.loads(subprocess.check_output(["kubectl","-n","logging","get",kind.lower(),name,"-o","json"],text=True))
+              lp=live["spec"]["template"]["spec"]
+              actual=[c["image"] for c in [*(lp.get("initContainers") or []),*(lp.get("containers") or [])] if c.get("image")]
+              if actual!=expected:
+                  raise SystemExit(f"LOKI_LIVE_IMAGE_DRIFT {kind}/{name}:{actual}!={expected}")
+          PY
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/loki-18.12.1.json >/tmp/loki-reapply.txt
+          kubectl -n logging rollout status statefulset/platform-factory-loki --timeout=4m
+
+      - name: Prove reverse edge is rejected
+        run: go test ./internal/runtimeupgrade -run 'TestUpgradeRejectsReverseOrNonCanonicalVersionEdges|TestUpgradeRequiresExactDistinctSourcePair'
+
+      - name: Seal Loki upgrade evidence
+        shell: bash
+        env:
+          MATRIX_KUBERNETES: "${{ matrix.kubernetes }}"
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          def h(p): return "sha256:"+hashlib.sha256(Path(p).read_bytes()).hexdigest()
+          v=os.environ["MATRIX_KUBERNETES"]
+          out={"apiVersion":"platform.4so.io/v1alpha1","kind":"LokiUpgradeRuntimeEvidence","authority":"LOKI_RUNTIME_UPGRADE_EVIDENCE_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"kubernetesVersion":v,"fromRelease":"18.12.0","toRelease":"18.12.1","fromRenderSha256":h("catalog/runtime/loki/18.12.0/render-manifest.json"),"toRenderSha256":h("catalog/runtime/loki/18.12.1/render-manifest.json"),"historicalReady":True,"upgradeApplyPass":True,"targetReady":True,"workloadIdentityPreserved":True,"pvcIdentityPreserved":True,"persistentVolumeBindingPreserved":True,"targetImagesVerified":True,"targetReapplyConverged":True,"reverseEdgeRejected":True,"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"productTopologyHACertified":False,"physicalCertified":False}
+          Path(f"/tmp/loki-upgrade-{v}.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: loki-upgrade-${{ matrix.kubernetes }}
+          path: /tmp/loki-upgrade-${{ matrix.kubernetes }}.json
+          retention-days: 30
+
+      - if: always()
+        run: /tmp/kind delete cluster --name 4so-loki-upgrade || true
+
+  aggregate:
+    needs: upgrade-matrix
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: loki-upgrade-*
+          path: /tmp/loki-upgrade
+          merge-multiple: true
+      - name: Aggregate exact Loki upgrade matrix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          rows=[json.loads(p.read_text()) for p in sorted(Path("/tmp/loki-upgrade").glob("loki-upgrade-*.json"))]
+          if {r["kubernetesVersion"] for r in rows}!={"1.34.11","1.35.8"}: raise SystemExit("LOKI_UPGRADE_MATRIX_COVERAGE_INVALID")
+          req=("historicalReady","upgradeApplyPass","targetReady","workloadIdentityPreserved","pvcIdentityPreserved","persistentVolumeBindingPreserved","targetImagesVerified","targetReapplyConverged","reverseEdgeRejected")
+          if any((r["fromRelease"],r["toRelease"])!=("18.12.0","18.12.1") or not all(r.get(k) is True for k in req) for r in rows): raise SystemExit("LOKI_UPGRADE_MATRIX_INVALID")
+          out={"apiVersion":"platform.4so.io/v1alpha1","kind":"LokiUpgradeRuntimeMatrixEvidence","authority":"LOKI_RUNTIME_UPGRADE_MATRIX_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"fromRelease":"18.12.0","toRelease":"18.12.1","matrix":rows,"matrixPass":True,"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"productTopologyHACertified":False,"physicalCertified":False}
+          Path("lab/loki-upgrade-runtime-matrix-evidence.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: loki-upgrade-runtime-matrix
+          path: lab/loki-upgrade-runtime-matrix-evidence.json
+          retention-days: 30
+      - name: Persist evidence when main is unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"; git config user.email "actions@users.noreply.github.com"
+          git add lab/loki-upgrade-runtime-matrix-evidence.json
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then echo "main advanced; skip stale Loki upgrade evidence"; git reset -- lab/loki-upgrade-runtime-matrix-evidence.json; exit 0; fi
+          git commit -m "evidence: seal Loki runtime upgrade matrix"
+          git push origin HEAD:main
