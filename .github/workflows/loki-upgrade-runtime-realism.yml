@@ -90,6 +90,14 @@ jobs:
           # certification topology and bind it to the explicit static PV below.
           kubectl patch storageclass standard --type=merge -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"false","storageclass.beta.kubernetes.io/is-default-class":"false"}}}'
           kubectl create namespace logging
+          # The Loki image is intentionally non-root (uid/gid 10001). A hostPath
+          # DirectoryOrCreate is root-owned on the kind node, so prepare the exact
+          # certification backing directory with the workload identity instead of
+          # weakening the rendered pod securityContext.
+          node="$(/tmp/kind get nodes --name 4so-loki-upgrade | head -n1)"
+          test -n "$node"
+          docker exec "$node" sh -ec 'mkdir -p /tmp/4so-loki-upgrade-data && chown 10001:10001 /tmp/4so-loki-upgrade-data && chmod 0770 /tmp/4so-loki-upgrade-data'
+          test "$(docker exec "$node" stat -c '%u:%g:%a' /tmp/4so-loki-upgrade-data)" = "10001:10001:770"
           cat >/tmp/loki-pv.yaml <<'YAML'
           apiVersion: v1
           kind: PersistentVolume
@@ -177,6 +185,19 @@ jobs:
           name: loki-upgrade-${{ matrix.kubernetes }}
           path: /tmp/loki-upgrade-${{ matrix.kubernetes }}.json
           retention-days: 30
+
+      - name: Loki diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          kubectl -n logging get pods,pvc -o wide
+          kubectl -n logging describe pod platform-factory-loki-0
+          kubectl -n logging logs platform-factory-loki-0 -c loki --tail=200
+          kubectl -n logging logs platform-factory-loki-0 -c loki-sc-rules --tail=100
+          kubectl get pv platform-factory-loki-upgrade-pv -o yaml
+          node="$(/tmp/kind get nodes --name 4so-loki-upgrade 2>/dev/null | head -n1)"
+          test -n "$node" && docker exec "$node" stat -c '%u:%g:%a %n' /tmp/4so-loki-upgrade-data || true
 
       - if: always()
         run: /tmp/kind delete cluster --name 4so-loki-upgrade || true
