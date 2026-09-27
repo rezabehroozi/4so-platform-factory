@@ -44,7 +44,22 @@ jobs:
           python3 scripts/acquire_upstream_tagged_source.py --self-test
           go test ./catalog ./internal/catalogbundle
           go build -o /tmp/platformctl ./cmd/platformctl
+      - name: Detect already-applied transition
+        id: transition_state
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(jq -r '.spec.release' catalog/components/gateway-api.json)"
+          target="$(jq -r '.spec.gatewayApi.targetRelease' catalog/runtime-dependency-transition.json)"
+          if test "$current" = "$target"; then
+            echo "already_applied=true" >> "$GITHUB_OUTPUT"
+            echo "GATEWAY_TRANSITION_ALREADY_APPLIED current=$current"
+          else
+            echo "already_applied=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Acquire and atomically promote Gateway API 1.6.1
+        if: steps.transition_state.outputs.already_applied != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -61,6 +76,7 @@ jobs:
           python3 scripts/validate_repository.py .
           git diff --check
       - name: Persist exact transition authority
+        if: steps.transition_state.outputs.already_applied != 'true'
         shell: bash
         run: |
           set -euo pipefail

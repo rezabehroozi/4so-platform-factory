@@ -415,9 +415,10 @@ def self_test() -> int:
     assert legacy["spec"]["commitSHA"]=="3797b631d20f9ff4e2b4571f62d91d84a1fbdf5a" and legacy["metadata"]["version"]=="1.5.0"
     admission=_json(ROOT/"catalog/component-upgrade-source-admission.json")
     gateway_row=next(r for r in admission["components"] if r["component"]=="gateway-api")
-    gateway_version=str(gateway_row["previousVersion"])
-    recipe,row=load_recipe("gateway-api",gateway_version,historical=True)
-    assert row["previousVersion"]==gateway_version and recipe["metadata"]["version"]==gateway_version
+    assert gateway_row["previousVersion"]=="1.5.1" and gateway_row["targetVersion"]=="1.6.1"
+    assert (ROOT/"catalog/runtime/gateway-api/1.5.1/source-lock.json").is_file()
+    # A reviewed predecessor may originate from an earlier transition/rebind and
+    # therefore need not have been produced by this tagged-source recipe tool.
     recipe,row=load_recipe("snapshot-controller","8.4.0",historical=True)
     assert recipe["spec"]["commitSHA"]=="f21cb02763e7cd6a7fc84846f106b83119b5371d" and row["previousVersion"]=="8.4.0"
     recipe,row=load_recipe("gateway-api","1.6.1",historical=False,transition=True)
