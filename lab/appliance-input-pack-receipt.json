@@ -1,0 +1,15 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "LAB_APPLIANCE_INPUT_PACK_BUILD_V1",
+  "buildSpecPath": "build-spec.json",
+  "deterministicZip": true,
+  "distributionReady": false,
+  "format": "zip",
+  "inputPackBytes": 3177949715,
+  "inputPackSha256": "sha256:8802cc60321e66aec8a69ce8da46c7e01db6e5bca9f43b19fb5e67fe2a70fd0d",
+  "kind": "ApplianceInputPackReceipt",
+  "physicalCertified": false,
+  "releaseVersion": "0.0.363",
+  "runtimeCertified": false,
+  "stagingDirectory": "staging"
+}
