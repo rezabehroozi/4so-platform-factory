@@ -1005,10 +1005,21 @@
         "runtimeRealismVerified": true,
         "sourceCommitSHA": "a75c28de4e4bf4c80abaab298985365025bd72e6",
         "sourceRunId": "36220252667"
+      },
+      "inputPackReceipt": {
+        "authority": "LAB_APPLIANCE_INPUT_PACK_BUILD_V1",
+        "status": "distribution-pending",
+        "built": true,
+        "deterministicZip": true,
+        "sha256": "sha256:8802cc60321e66aec8a69ce8da46c7e01db6e5bca9f43b19fb5e67fe2a70fd0d",
+        "sizeBytes": 3177949715,
+        "distributionReady": false,
+        "runtimeCertified": false,
+        "physicalCertified": false
       }
     },
     "openBlockers": [
-      "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING",
+      "APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING",
       "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING"
     ],
     "releaseToolchain": {

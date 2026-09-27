@@ -17,7 +17,7 @@
         {
           "name": "platform-workloads.oci.tar",
           "stagingPath": "workloads/platform-workloads.oci.tar",
-          "reason": "Exact 20-image OCI archive and deterministic appliance input-pack are built and digest-bound; only immutable public HTTPS distribution authority remains before LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8 can become ready.",
+          "reason": "Exact 20-image OCI archive and deterministic appliance input-pack are built and digest-bound; archiveBuilt must not imply distributionReady; only immutable public HTTPS distribution authority remains before LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8 can become ready.",
           "sourceRef": "https://github.com/rezabehroozi/4so-platform-factory/actions/runs/36253833953",
           "contentAddress": "git-sha1:005b8e11013c28cb36e86259f40418c074476074"
         }
