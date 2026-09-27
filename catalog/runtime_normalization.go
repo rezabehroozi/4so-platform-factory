@@ -40,6 +40,13 @@ type RuntimeNormalizationEvidence struct {
 // policies.kyverno.io CRDs. Kubernetes drops those maps, so desired/live state
 // can never converge. The pinned source bytes are still verified unchanged;
 // only these exact 11 CRDs may be normalized before runtime application.
+func RuntimeNormalizeResources(component, release string, resources []map[string]any) (RuntimeNormalizationEvidence, error) {
+	c := Component{}
+	c.Metadata.Name = strings.TrimSpace(component)
+	c.Spec.Release = strings.TrimSpace(release)
+	return normalizeRuntimeResources(c, resources)
+}
+
 func normalizeRuntimeResources(c Component, resources []map[string]any) (RuntimeNormalizationEvidence, error) {
 	if c.Metadata.Name != "kyverno" || c.Spec.Release != "3.8.2" {
 		return RuntimeNormalizationEvidence{}, nil

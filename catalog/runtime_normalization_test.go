@@ -71,3 +71,23 @@ func TestKyverno382NormalizationRejectsNonEmptyMetadataDrift(t *testing.T) {
 		t.Fatalf("expected fail-closed metadata drift, got %v", err)
 	}
 }
+
+func TestRuntimeNormalizeResourcesExportPreservesExactScope(t *testing.T) {
+	resources := make([]map[string]any, 0, len(kyverno382PoliciesCRDs))
+	for name := range kyverno382PoliciesCRDs {
+		resources = append(resources, map[string]any{
+			"apiVersion": "apiextensions.k8s.io/v1",
+			"kind": "CustomResourceDefinition",
+			"metadata": map[string]any{"name": name, "labels": map[string]any{}, "annotations": map[string]any{}},
+		})
+	}
+	ev, err := RuntimeNormalizeResources("kyverno", "3.8.2", resources)
+	if err != nil || !ev.Applied || ev.RemovedEmptyLabels != 11 || ev.RemovedEmptyAnnotations != 11 {
+		t.Fatalf("exported normalization failed ev=%#v err=%v", ev, err)
+	}
+	other := []map[string]any{{"apiVersion":"v1","kind":"ConfigMap","metadata":map[string]any{"name":"x"}}}
+	ev, err = RuntimeNormalizeResources("kyverno", "3.8.1", other)
+	if err != nil || ev.Applied {
+		t.Fatalf("normalization leaked to 3.8.1 ev=%#v err=%v", ev, err)
+	}
+}
