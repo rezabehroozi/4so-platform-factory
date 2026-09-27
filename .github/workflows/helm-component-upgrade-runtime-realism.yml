@@ -2,11 +2,15 @@ name: helm-component-upgrade-runtime-realism
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["helm-render-admission-backfill"]
+    types: [completed]
   push:
     branches: [main]
     paths:
       - .github/workflows/helm-component-upgrade-runtime-realism.yml
       - scripts/render_exact_helm_runtime.py
+      - scripts/helm_runtime_render_admission.py
       - scripts/merge_helm_component_upgrade_evidence.py
       - scripts/runtime_evidence_registry.py
       - tests/test_runtime_evidence_registry.py
@@ -30,6 +34,7 @@ permissions:
 
 jobs:
   upgrade-matrix:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -69,10 +74,15 @@ jobs:
             | .admittedEdges[] | select(.fromRelease==$f and .toRelease==$t)
           ' catalog/component-runtime-upgrade-matrix.json >/tmp/edge.json
           for version in "$from" "$to"; do
-            jq -e --arg k "$render_kube" '
-              .sourceType=="helm-chart" and .networkFetchRequired==false and
-              (.generation.kubernetesRenderDigests[$k] | type=="string" and startswith("sha256:"))
-            ' "catalog/runtime/$COMPONENT/$version/source-lock.json" >/dev/null
+            lock="catalog/runtime/$COMPONENT/$version/source-lock.json"
+            jq -e '.sourceType=="helm-chart" and .networkFetchRequired==false' "$lock" >/dev/null
+            if jq -e --arg k "$render_kube" '(.generation.kubernetesRenderDigests[$k] // "") | type=="string" and startswith("sha256:")' "$lock" >/dev/null; then
+              continue
+            fi
+            admission="catalog/runtime/$COMPONENT/$version/render-admission.json"
+            test -s "$admission"
+            python3 scripts/helm_runtime_render_admission.py --component "$COMPONENT" --release "$version" --verify "$admission"
+            jq -e --arg k "$render_kube" '.authority=="HELM_RUNTIME_RENDER_ADMISSION_V1" and ((.kubernetesRenderDigests[$k] // "") | startswith("sha256:")) and (.runtimeCertified|not) and (.physicalCertified|not)' "$admission" >/dev/null
           done
 
       - name: Render exact historical and target runtime lists
