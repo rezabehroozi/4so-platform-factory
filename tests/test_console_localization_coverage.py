@@ -43,11 +43,11 @@ class ConsoleLocalizationCoverageTests(unittest.TestCase):
                 shutil.copy2(src, dst)
             app = target / 'webconsole/static/app.js'
             text = app.read_text(encoding='utf-8')
-            self.assertIn('"Assurance": "تضمین"', text)
-            app.write_text(text.replace('"Assurance": "تضمین"', '"Assurance": "Assurance"', 1), encoding='utf-8')
+            self.assertIn('"Primary navigation": "ناوبری اصلی"', text)
+            app.write_text(text.replace('"Primary navigation": "ناوبری اصلی"', '"Primary navigation": "Primary navigation"', 1), encoding='utf-8')
             result = subprocess.run([sys.executable, str(SCRIPT), '--root', str(target)], text=True, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn('NEW_GAP Assurance', result.stderr)
+            self.assertIn('NEW_GAP aria-label:Primary navigation', result.stderr)
 
     def test_duplicate_dynamic_dictionary_key_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -60,14 +60,14 @@ class ConsoleLocalizationCoverageTests(unittest.TestCase):
                 shutil.copy2(src, dst)
             app = target / 'webconsole/static/app.js'
             text = app.read_text(encoding='utf-8')
-            self.assertIn('  "Assurance": "تضمین",\n', text)
+            self.assertIn('  "Primary navigation": "ناوبری اصلی",\n', text)
             # Repeating a reviewed key makes the later entry replace the first one in
             # the browser dictionary while the coverage report still looks complete.
-            text = text.replace('  "Assurance": "تضمین",\n', '  "Assurance": "تضمین",\n  "Assurance": "تضمین‌نشده",\n', 1)
+            text = text.replace('  "Primary navigation": "ناوبری اصلی",\n', '  "Primary navigation": "ناوبری اصلی",\n  "Primary navigation": "ناوبری اصلی تکراری",\n', 1)
             app.write_text(text, encoding='utf-8')
             result = subprocess.run([sys.executable, str(SCRIPT), '--root', str(target)], text=True, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn('LOCALIZATION_DYNAMIC_DUPLICATE_KEY Assurance', result.stderr)
+            self.assertIn('LOCALIZATION_DYNAMIC_DUPLICATE_KEY Primary navigation', result.stderr)
 
     def test_write_baseline_refuses_nonzero_gap(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
