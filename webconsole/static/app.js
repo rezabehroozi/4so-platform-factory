@@ -58,6 +58,23 @@ function applyLocale() {
 }
 
 const faDynamic = {
+  "Ownership boundary for projects and entitlements": "مرز مالکیت پروژه‌ها و مجوزها",
+  "Resource and operation isolation boundary": "مرز جداسازی منابع و عملیات",
+  "Outbound agent enrollment and fresh inventory": "ثبت Agent و دریافت موجودی تازه",
+  "Explicit plan review and approval": "بررسی برنامه و تأیید صریح اجرا",
+  "Digest-pinned probe and report": "بررسی و گزارش مقید به هش دقیق",
+  "Bind inventory, baseline and verification digests": "اتصال هش موجودی، نسخهٔ پایه و نتیجهٔ بررسی",
+  "Authority unavailable; retry before acting.": "مرجع داده در دسترس نیست؛ پیش از اقدام دوباره تلاش کنید.",
+  "Retry unavailable readiness data": "تلاش دوباره برای دریافت وضعیت",
+  "Review current operations": "بررسی عملیات جاری",
+  "Operator attention is required.": "این مورد به بررسی اپراتور نیاز دارد.",
+  "Attention is partial.": "فهرست رسیدگی کامل نیست.",
+  "The bounded attention authority is temporarily unavailable.": "مرجع محدود این فهرست موقتاً در دسترس نیست.",
+  "Open": "بازکردن",
+  "Continue": "ادامه",
+  "Recent activity is partial.": "فعالیت‌های اخیر کامل نیست.",
+  "One activity authority is temporarily unavailable.": "یکی از مراجع فعالیت موقتاً در دسترس نیست.",
+  "Overview unavailable": "نمای کلی در دسترس نیست",
   "Primary navigation":"ناوبری اصلی","Search pages and operator workflows":"صفحه یا جریان کاری را جست‌وجو کنید","Close search":"بستن جست‌وجو","Global organization and project scope":"محدوده سراسری سازمان و پروژه","Global organization scope":"محدوده سراسری سازمان","Global project scope":"محدوده سراسری پروژه","Toggle navigation":"نمایش یا پنهان‌کردن ناوبری","Search console":"جست‌وجوی کنسول","Toggle color theme":"تغییر پوسته رنگی","Refresh current page":"بازخوانی صفحه فعلی","Platform Factory workflow":"جریان کاری Platform Factory",
   "Network egress, raw credentials and external providers are fixed to": "ارتباط خروجی شبکه، اطلاعات دسترسی خام و ارائه‌دهندهٔ خارجی در این پروفایل",
   "by this profile.": "غیرفعال هستند.",
@@ -2239,6 +2256,28 @@ async function loadCore() {
 
 function latest(items) { return [...items].sort((a,b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)); }
 function operationLabel(operation) { return operation.kind || 'operation'; }
+function renderOverviewContext(summary, unavailable) {
+  const faMode=state.locale==='fa';
+  const copy=(en,fa)=>faMode?fa:en;
+  const connected=Number(summary.connectedClusters||0), managed=Number(summary.managedClusters||0), failed=Number(summary.failedProductWorkflows||0);
+  const activeStates=new Set(['REQUESTED','PENDING','APPROVED','RUNNING','RECOVERY_REQUIRED']);
+  const activeOperations=(state.operations||[]).filter(item=>activeStates.has(String(item.state||'').toUpperCase())).length;
+  const organizations=[...(state.scopeOrganizations||[]),...(state.organizations||[])];
+  const projects=[...(state.scopeProjects||[]),...(state.projects||[])];
+  const organization=organizations.find(item=>item.id===state.globalScope.organizationId);
+  const project=projects.find(item=>item.id===state.globalScope.projectId);
+  const scopeValue=project?(project.displayName||project.name):organization?(organization.displayName||organization.name):copy('All allowed scope','همهٔ محدوده‌های مجاز');
+  const signal=(label,value,detail,tone)=>'<div class="context-signal" data-tone="'+esc(tone||'neutral')+'"><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong><small>'+esc(detail)+'</small></div>';
+  const platformTone=unavailable?'warning':managed>0&&connected===managed?'success':managed>connected?'warning':'neutral';
+  const attentionTone=unavailable?'warning':failed?'danger':'success';
+  $('#overview-context-strip').innerHTML=[
+    signal(copy('Active scope','محدودهٔ فعال'),scopeValue,project?copy('Project-scoped view','نمای محدود به پروژه'):organization?copy('Organization-scoped view','نمای محدود به سازمان'):copy('No narrower scope selected','محدودهٔ محدودتری انتخاب نشده است'),'neutral'),
+    signal(copy('Platforms','پلتفرم‌ها'),unavailable?'—':displayNumber(connected)+' / '+displayNumber(managed),unavailable?copy('Summary unavailable','خلاصه در دسترس نیست'):copy('connected / managed','متصل / مدیریت‌شده'),platformTone),
+    signal(copy('Active operations','عملیات فعال'),displayNumber(activeOperations),copy('Queued, running or recovery-required work','کارهای در صف، در حال اجرا یا نیازمند بازیابی'),activeOperations?'warning':'neutral'),
+    signal(copy('Attention','نیازمند رسیدگی'),unavailable?'—':displayNumber(failed),unavailable?copy('Summary unavailable','خلاصه در دسترس نیست'):failed?copy('Failed workflows require review','جریان‌های ناموفق نیاز به بررسی دارند'):copy('No failed workflow reported','جریان ناموفق بازی گزارش نشده است'),attentionTone)
+  ].join('');
+}
+
 
 async function loadOverview() {
   try {
@@ -2246,6 +2285,7 @@ async function loadOverview() {
     const failureSources=['operator attention'];
     const summaryUnavailable=sourceUnavailable('control-plane summary');
     const summary=state.summary||{};
+    renderOverviewContext(summary, summaryUnavailable);
     const connected=Number(summary.connectedClusters||0), managed=Number(summary.managedClusters||0), failed=Number(summary.failedProductWorkflows||0);
     $('#overview-metrics').innerHTML = [
       [state.locale==='fa'?'سازمان‌ها':'Organizations', summaryUnavailable?'—':Number(summary.organizations||0), summaryUnavailable?(state.locale==='fa'?'مرجع خلاصه در دسترس نیست':'Summary authority unavailable'):(state.locale==='fa'?`${displayNumber(summary.projects||0)} پروژه`:`${displayNumber(summary.projects||0)} projects`)],
@@ -2254,7 +2294,7 @@ async function loadOverview() {
       [state.locale==='fa'?'نیازمند رسیدگی':'Needs attention', summaryUnavailable?'—':failed, summaryUnavailable?(state.locale==='fa'?'مرجع خلاصه در دسترس نیست':'Summary authority unavailable'):(state.locale==='fa'?(failed?'Workflow ناموفق نیازمند رسیدگی است':'Workflow ناموفق بازی وجود ندارد'):(failed ? 'Open failed product workflows' : 'No failed product workflow'))]
     ].map(([label,value,detail]) => `<article class="metric-card"><strong>${value==='—'?'—':esc(displayNumber(value))}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></article>`).join('');
 
-    const readinessCheck=(done,title,detail,page)=>({unknown:summaryUnavailable,done:!summaryUnavailable&&done,title,detail,page});
+    const readinessCheck=(done,title,detail,page)=>({unknown:summaryUnavailable,done:!summaryUnavailable&&done,title:localizeDynamicText(title),detail:localizeDynamicText(detail),page});
     const checks = [
       readinessCheck(Number(summary.organizations||0)>0,'Create an organization','Ownership boundary for projects and entitlements','workspace'),
       readinessCheck(Number(summary.projects||0)>0,'Create a project','Resource and operation isolation boundary','workspace'),
@@ -2271,15 +2311,15 @@ async function loadOverview() {
       $('#overview-next-action').textContent = next.title;
       $('#overview-next-action').onclick = () => navigate(next.page);
     } else if(unknownReadiness){
-      $('#overview-next-action').textContent = 'Retry unavailable readiness data';
+      $('#overview-next-action').textContent = localizeDynamicText('Retry unavailable readiness data');
       $('#overview-next-action').onclick = () => $('#refresh-current')?.click();
     } else {
-      $('#overview-next-action').textContent = 'Review current operations';
+      $('#overview-next-action').textContent = localizeDynamicText('Review current operations');
       $('#overview-next-action').onclick = () => navigate('operations');
     }
 
     const attentionPartial=sourceUnavailable(failureSources);
-    const attention=(state.attention||[]).map(item=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">!</span><div><strong>${esc(item.displayName||item.id)}</strong><small>${esc(item.message||'Operator attention is required.')}</small></div></div><div class="activity-actions">${badge(item.state)}${item.page?`<button type="button" class="link-button small-button" data-navigate="${esc(item.page)}">Open</button>`:''}</div></div>`);
+    const attention=(state.attention||[]).map(item=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">!</span><div><strong>${esc(item.displayName||item.id)}</strong><small>${esc(item.message||localizeDynamicText('Operator attention is required.'))}</small></div></div><div class="activity-actions">${badge(item.state)}${item.page?`<button type="button" class="link-button small-button" data-navigate="${esc(item.page)}">Open</button>`:''}</div></div>`);
     $('#attention-list').innerHTML = attention.length ? `${attentionPartial?'<div class="warning-banner"><strong>Attention is partial.</strong> The bounded attention authority is temporarily unavailable.</div>':''}${attention.join('')}` : attentionPartial ? unavailableState('Attention data') : emptyState('No urgent action', 'No failed workflow or offline connected cluster is currently reported.');
 
     const recent = latest([...state.operations.map(item => ({...item,_type:'operation'})), ...state.audit.map(item => ({...item,_type:'audit'}))]).slice(0,10);
@@ -2293,7 +2333,8 @@ async function loadOverview() {
     $('#journey-checklist').innerHTML = failed;
     $('#attention-list').innerHTML = failed;
     $('#overview-activity').innerHTML = failed;
-    $('#overview-next-action').textContent = 'Overview unavailable';
+    $('#overview-next-action').textContent = localizeDynamicText('Overview unavailable');
+    $('#overview-context-strip').innerHTML = failed;
     $('#overview-next-action').onclick = null;
     setIntrinsicDisabled($('#overview-next-action'), true);
   }
