@@ -8,6 +8,8 @@ on:
       - .github/workflows/velero-upgrade-runtime-realism.yml
       - catalog/runtime/velero/12.0.3/**
       - catalog/runtime/velero/12.1.0/**
+      - catalog/runtime_normalization.go
+      - cmd/catalog-runtime-normalize/**
       - catalog/component-runtime-upgrade-matrix.json
       - internal/runtimeupgrade/**
 

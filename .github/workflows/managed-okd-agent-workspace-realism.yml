@@ -23,10 +23,14 @@ jobs:
           url="$(jq -r '.artifacts[]|select(.role=="openshift-install")|.url' lab/managed-okd-upstream-toolchain-lock.json)"
           sha="$(jq -r '.artifacts[]|select(.role=="openshift-install")|.sha256' lab/managed-okd-upstream-toolchain-lock.json)"
           curl -fL --retry 3 -o /tmp/openshift-install.tar.gz "$url"
+          test "$(sha256sum /tmp/openshift-install.tar.gz|awk '{print $1}')" = "$sha"
           tar -xzf /tmp/openshift-install.tar.gz -C /tmp openshift-install
-          test "$(sha256sum /tmp/openshift-install|awk '{print $1}')" = "$sha"
+          test -s /tmp/openshift-install
           chmod +x /tmp/openshift-install
-          echo "INSTALLER_SHA=$sha" >> "$GITHUB_ENV"
+          binary_sha="$(sha256sum /tmp/openshift-install|awk '{print $1}')"
+          test -n "$binary_sha"
+          echo "INSTALLER_ARCHIVE_SHA=$sha" >> "$GITHUB_ENV"
+          echo "INSTALLER_SHA=$binary_sha" >> "$GITHUB_ENV"
           echo "RELEASE_IMAGE=$(jq -r .releasePayload.reference lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
           echo "RELEASE_SHA=$(jq -r .releasePayload.digest lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
           echo "MACHINE_URL=$(jq -r .machineOSArtifact.location lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
@@ -49,7 +53,10 @@ jobs:
           ssh-keygen -q -t ed25519 -N '' -f /tmp/okd_test_key
           export OKD_TEST_SSH_KEY="$(cat /tmp/okd_test_key.pub)"
           go test ./internal/managedinstall -run '^TestExactOKDAgentWorkspaceExecution$' -count=1 -v
-          jq -e '.authority=="MANAGED_OKD_AGENT_WORKSPACE_EXECUTION_EVIDENCE_V1" and .exactUpstreamExecution and .requestSpecificMedia and (.redfishBootExecuted|not) and (.clusterInstallExecuted|not) and (.runtimeCertified|not) and (.physicalCertified|not) and .preparation.agentIsoBytes>0' lab/managed-okd-agent-workspace-execution-evidence.json
+          jq --arg archive "sha256:$INSTALLER_ARCHIVE_SHA" --arg binary "sha256:$INSTALLER_SHA" '. + {openShiftInstallArchiveSha256:$archive,openShiftInstallBinarySha256:$binary}' lab/managed-okd-agent-workspace-execution-evidence.json > /tmp/evidence.json
+          mv /tmp/evidence.json lab/managed-okd-agent-workspace-execution-evidence.json
+          jq -e '.authority=="MANAGED_OKD_AGENT_WORKSPACE_EXECUTION_EVIDENCE_V1" and .openShiftInstallArchiveSha256|startswith("sha256:")' lab/managed-okd-agent-workspace-execution-evidence.json >/dev/null
+          jq -e '.exactUpstreamExecution and .requestSpecificMedia and (.redfishBootExecuted|not) and (.clusterInstallExecuted|not) and (.runtimeCertified|not) and (.physicalCertified|not) and .preparation.agentIsoBytes>0' lab/managed-okd-agent-workspace-execution-evidence.json
           digest="$(jq -r .preparation.agentIsoSha256 lab/managed-okd-agent-workspace-execution-evidence.json)"
           iso="/tmp/4so-okd-media/sha256/${digest#sha256:}/agent.iso"
           test -s "$iso"
