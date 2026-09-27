@@ -8,13 +8,14 @@
     "0.90.2"
   ],
   "valuesPath": "catalog/runtime-profiles/victoria-metrics.values.yaml",
-  "valuesSha256": "sha256:8918b650132537591bd3eb90211dbb6935cd160dab00e2b339382c0f65b150d1",
+  "valuesSha256": "sha256:956c566693ead807c9172d5d00980a295a78e338fab317c8c3ce4b2ca46c0d69",
   "sourceDefaultRenderDeterministic": false,
   "replacesSourceGenerationValues": true,
   "deterministicRerenderRequired": true,
   "embeddedGrafanaEnabled": false,
   "operatorAdmissionWebhooksEnabled": false,
-  "rationale": "4SO owns Grafana as a separate catalog component; disabling the embedded Grafana and self-signed operator admission webhook removes duplicate authority and upstream Helm lookup/random render state while preserving exact chart bytes.",
+  "rationale": "4SO owns Grafana as a separate catalog component; the product runtime profile disables embedded Grafana and the self-signed operator admission webhook, and pins fullnameOverride=vmstack so every rendered Kubernetes resource stays within the 63-character DNS label limit while preserving exact chart bytes and deterministic rerenders.",
   "runtimeCertified": false,
-  "physicalCertified": false
+  "physicalCertified": false,
+  "fullnameOverride": "vmstack"
 }

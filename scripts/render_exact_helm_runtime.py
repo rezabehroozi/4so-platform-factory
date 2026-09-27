@@ -74,6 +74,12 @@ def runtime_profile(component:str,release:str,locked_values:list[Path])->tuple[d
     values=repo_file(str(doc.get("valuesPath") or ""),"HELM_RUNTIME_PROFILE_VALUES")
     if sha(values)!=doc.get("valuesSha256"):
         raise RuntimeError("HELM_RUNTIME_PROFILE_VALUES_DIGEST_DRIFT")
+    if component=="victoria-metrics":
+        if doc.get("fullnameOverride")!="vmstack":
+            raise RuntimeError("VICTORIA_METRICS_RUNTIME_PROFILE_NAME_OVERRIDE_INVALID")
+        text=values.read_text(encoding="utf-8")
+        if not re.search(r"(?m)^fullnameOverride:\s*vmstack\s*$",text):
+            raise RuntimeError("VICTORIA_METRICS_RUNTIME_PROFILE_NAME_OVERRIDE_MISSING")
     return doc,[values]
 
 def render(component:str,release:str,kube_version:str,out:Path,evidence:Path)->dict:

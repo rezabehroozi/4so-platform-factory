@@ -12,6 +12,8 @@ class ExactHelmRuntimeProfileTests(unittest.TestCase):
         self.assertEqual(["0.90.1","0.90.2"],d["releases"])
         values=ROOT/d["valuesPath"]
         self.assertEqual(d["valuesSha256"],mod.sha(values))
+        self.assertEqual("vmstack",d["fullnameOverride"])
+        self.assertIn("fullnameOverride: vmstack",(values).read_text())
         self.assertFalse(d["embeddedGrafanaEnabled"])
         self.assertFalse(d["operatorAdmissionWebhooksEnabled"])
         self.assertFalse(d["runtimeCertified"]); self.assertFalse(d["physicalCertified"])
