@@ -1,0 +1,24 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ManagedOKDOcMirrorSourceLock",
+  "authority": "MANAGED_OKD_OC_MIRROR_V2_SOURCE_LOCK_V1",
+  "schemaVersion": 1,
+  "targetOKDRelease": "4.19.0-okd-scos.19",
+  "upstreamRepository": "https://github.com/openshift/oc-mirror",
+  "upstreamBranch": "release-4.19",
+  "upstreamCommitSHA": "ecf0f222f223b5a1b1cacd3f54b2748959246ece",
+  "upstreamCommitURL": "https://github.com/openshift/oc-mirror/commit/ecf0f222f223b5a1b1cacd3f54b2748959246ece",
+  "module": "github.com/openshift/oc-mirror",
+  "v2Module": "github.com/openshift/oc-mirror/v2",
+  "v2GoVersion": "1.23.7",
+  "buildTarget": "v2/build/oc-mirror",
+  "invocation": [
+    "oc-mirror",
+    "--v2"
+  ],
+  "sourcePinned": true,
+  "binaryEvidenceReady": false,
+  "disconnectedToolchainReady": false,
+  "runtimeCertified": false,
+  "physicalCertified": false
+}
