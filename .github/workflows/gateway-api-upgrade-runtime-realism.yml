@@ -1,9 +1,13 @@
 name: gateway-api-upgrade-runtime-realism
 
 on:
+  workflow_run:
+    workflows: ["gateway-api-transition-acquisition"]
+    types: [completed]
   push:
     branches: [main]
     paths:
+      - .github/workflows/gateway-api-upgrade-runtime-realism.yml
       - catalog/components/gateway-api.json
       - catalog/runtime/gateway-api/1.6.1/**
       - catalog/component-runtime-upgrade-matrix.json
@@ -14,6 +18,7 @@ permissions:
 
 jobs:
   upgrade-matrix:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     strategy:
       fail-fast: false
       matrix:
