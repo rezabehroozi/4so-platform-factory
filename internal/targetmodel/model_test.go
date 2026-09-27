@@ -229,7 +229,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("connected managed OKD authority drift: %#v", h1)
 	}
 	i1 := byID["I1-disconnected-okd-core"]
-	if i1.Status != ProgramStatusBlocked || len(i1.Blockers) != 1 || !containsString(i1.Blockers, "OKD_OC_MIRROR_V2_ACQUISITION_PENDING") || containsString(i1.Blockers, "OKD_DISCONNECTED_INSTALL_WORKFLOW_PENDING") || !containsString(i1.Evidence, "DISCONNECTED_OKD_MIRROR_RUNTIME_V1") || !containsString(i1.Evidence, "DISCONNECTED_OKD_MIRROR_INVENTORY_V1") || !containsString(i1.Evidence, "mode-specific Operator Console readiness") {
+	if i1.Status != ProgramStatusBlocked || len(i1.Blockers) != 1 || !containsString(i1.Blockers, "OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING") || containsString(i1.Blockers, "OKD_DISCONNECTED_INSTALL_WORKFLOW_PENDING") || !containsString(i1.Evidence, "DISCONNECTED_OKD_MIRROR_RUNTIME_V1") || !containsString(i1.Evidence, "DISCONNECTED_OKD_MIRROR_INVENTORY_V1") || !containsString(i1.Evidence, "mode-specific Operator Console readiness") {
 		t.Fatalf("disconnected managed OKD source-workflow drift: %#v", i1)
 	}
 	h2 := byID["H2-vmware-provider"]

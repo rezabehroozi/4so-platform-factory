@@ -49,7 +49,7 @@ def verify(path: Path) -> dict:
         if pending_ids!={"fcos","agent-iso-workspace","oc-mirror-v2"}:
             raise RuntimeError("MANAGED_OKD_TOOLCHAIN_LOCK_PENDING_SET_INVALID")
     else:
-        if pending_ids!={"agent-iso-workspace","oc-mirror-v2"}:
+        if pending_ids!={"agent-iso-workspace"}:
             raise RuntimeError("MANAGED_OKD_TOOLCHAIN_LOCK_PENDING_SET_INVALID")
         installer_sha=next(r["sha256"] for r in rows if r["role"]=="openshift-install")
         required={"authority":"MANAGED_OKD_MACHINE_OS_DISCOVERY_V1","distribution":"okd-scos","architecture":"x86_64","artifactClass":"metal","payloadComponentVersion":"9.0.20250827-0","sourceAuthority":"openshift-install-coreos-print-stream-json","sourceInstallerSHA256":installer_sha,"byteVerified":True}
@@ -58,10 +58,12 @@ def verify(path: Path) -> dict:
         mp=urlsplit(str(machine.get("location") or ""))
         if mp.scheme!="https" or not mp.hostname or mp.username or mp.password or mp.query or mp.fragment:
             raise RuntimeError("MANAGED_OKD_MACHINE_OS_ARTIFACT_URL_INVALID")
-    if doc.get("connectedToolchainReady") is not True:
-        raise RuntimeError("MANAGED_OKD_CONNECTED_TOOLCHAIN_MUST_BE_READY")
-    if any(doc.get(k) is not False for k in ("managedInstallContentReady","disconnectedToolchainReady","runtimeCertified","physicalCertified")):
-        raise RuntimeError("MANAGED_OKD_TOOLCHAIN_CLAIM_SCOPE_INFLATED")
+    if doc.get("connectedToolchainReady") is not True: raise RuntimeError("MANAGED_OKD_CONNECTED_TOOLCHAIN_MUST_BE_READY")
+    mirror=doc.get("ocMirrorV2") or {}
+    expected_mirror={"authority":"MANAGED_OKD_OC_MIRROR_V2_BINARY_EVIDENCE_V1","sourceAuthority":"MANAGED_OKD_OC_MIRROR_V2_SOURCE_LOCK_V1","sourceCommitSHA":"ecf0f222f223b5a1b1cacd3f54b2748959246ece","sourceRunId":"36298325959","binarySha256":"sha256:3e33c1fdb9274ce4fa8b390565baf639c77e8ef49e255ba4343658d9a4956ba1","binarySizeBytes":96334918,"v2HelpVerified":True}
+    if mirror != expected_mirror: raise RuntimeError("MANAGED_OKD_OC_MIRROR_EVIDENCE_INVALID")
+    if doc.get("disconnectedToolchainReady") is not True: raise RuntimeError("MANAGED_OKD_DISCONNECTED_TOOLCHAIN_NOT_READY")
+    if any(doc.get(k) is not False for k in ("managedInstallContentReady","runtimeCertified","physicalCertified")): raise RuntimeError("MANAGED_OKD_TOOLCHAIN_CLAIM_SCOPE_INFLATED")
     return doc
 
 

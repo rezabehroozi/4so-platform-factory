@@ -15,12 +15,13 @@ class ManagedOKDUpstreamLockTests(unittest.TestCase):
         if doc.get("machineOSArtifact") is None:
             self.assertEqual({"fcos","agent-iso-workspace","oc-mirror-v2"},pending)
         else:
-            self.assertEqual({"agent-iso-workspace","oc-mirror-v2"},pending)
+            self.assertEqual({"agent-iso-workspace"},pending)
             self.assertTrue(doc["machineOSArtifact"]["byteVerified"])
             self.assertEqual("9.0.20250827-0",doc["machineOSArtifact"]["payloadComponentVersion"])
             self.assertRegex(doc["machineOSArtifact"]["streamRelease"],r"^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$")
         self.assertFalse(doc["managedInstallContentReady"])
-        self.assertFalse(doc["disconnectedToolchainReady"])
+        self.assertTrue(doc["disconnectedToolchainReady"])
+        self.assertEqual("36298325959",doc["ocMirrorV2"]["sourceRunId"])
         self.assertFalse(doc["runtimeCertified"])
         self.assertFalse(doc["physicalCertified"])
     def test_mutable_url_and_scope_inflation_are_rejected(self):

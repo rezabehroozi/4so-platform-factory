@@ -14,7 +14,11 @@ def verify(path:Path)->dict:
     if d.get("upstreamRepository")!="https://github.com/openshift/oc-mirror" or d.get("v2Module")!="github.com/openshift/oc-mirror/v2": raise RuntimeError("OC_MIRROR_SOURCE_LOCK_REPOSITORY_INVALID")
     if d.get("v2GoVersion")!="1.23.7" or d.get("buildTarget")!="v2/build/oc-mirror" or d.get("invocation")!=["oc-mirror","--v2"]: raise RuntimeError("OC_MIRROR_SOURCE_LOCK_BUILD_CONTRACT_INVALID")
     if d.get("sourcePinned") is not True: raise RuntimeError("OC_MIRROR_SOURCE_LOCK_NOT_PINNED")
-    if any(d.get(k) is not False for k in ("binaryEvidenceReady","disconnectedToolchainReady","runtimeCertified","physicalCertified")): raise RuntimeError("OC_MIRROR_SOURCE_LOCK_SCOPE_INFLATED")
+    if d.get("binaryEvidenceReady") is not True or d.get("disconnectedToolchainReady") is not True: raise RuntimeError("OC_MIRROR_BINARY_EVIDENCE_NOT_READY")
+    evidence=d.get("binaryEvidence") or {}
+    expected={"authority":"MANAGED_OKD_OC_MIRROR_V2_BINARY_EVIDENCE_V1","sourceRunId":"36298325959","sourceCommitSHA":sha,"binarySha256":"sha256:3e33c1fdb9274ce4fa8b390565baf639c77e8ef49e255ba4343658d9a4956ba1","binarySizeBytes":96334918,"artifactId":"10925175692","artifactDigest":"sha256:f98610ecc0d362ea6bf7424380ea038e512e2435186955147b3b678ad20e3ae2"}
+    if evidence != expected: raise RuntimeError("OC_MIRROR_BINARY_EVIDENCE_BINDING_INVALID")
+    if d.get("runtimeCertified") is not False or d.get("physicalCertified") is not False: raise RuntimeError("OC_MIRROR_SOURCE_LOCK_SCOPE_INFLATED")
     return d
 def main()->int:
     p=argparse.ArgumentParser(); p.add_argument("--lock",type=Path,default=Path("lab/managed-okd-oc-mirror-source-lock.json")); a=p.parse_args()

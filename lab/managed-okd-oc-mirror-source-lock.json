@@ -17,8 +17,17 @@
     "--v2"
   ],
   "sourcePinned": true,
-  "binaryEvidenceReady": false,
-  "disconnectedToolchainReady": false,
+  "binaryEvidenceReady": true,
+  "disconnectedToolchainReady": true,
   "runtimeCertified": false,
-  "physicalCertified": false
+  "physicalCertified": false,
+  "binaryEvidence": {
+    "authority": "MANAGED_OKD_OC_MIRROR_V2_BINARY_EVIDENCE_V1",
+    "sourceRunId": "36298325959",
+    "sourceCommitSHA": "ecf0f222f223b5a1b1cacd3f54b2748959246ece",
+    "binarySha256": "sha256:3e33c1fdb9274ce4fa8b390565baf639c77e8ef49e255ba4343658d9a4956ba1",
+    "binarySizeBytes": 96334918,
+    "artifactId": "10925175692",
+    "artifactDigest": "sha256:f98610ecc0d362ea6bf7424380ea038e512e2435186955147b3b678ad20e3ae2"
+  }
 }

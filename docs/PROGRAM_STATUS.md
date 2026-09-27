@@ -136,7 +136,7 @@ These are closure/evidence blockers, not a reason to reopen completed source wor
 - `COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING` ? S2 exact historical source/upgrade evidence.
 - `MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING` ? C7W named external-client live interoperability.
 - `OKD_CONNECTED_MANAGED_INSTALL_PENDING` ? H1 connected Managed OKD runtime evidence.
-- `OKD_OC_MIRROR_V2_ACQUISITION_PENDING` ? I1 exact disconnected mirror acquisition.
+- `OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING` ? I1 exact disconnected mirror/install runtime certification; oc-mirror v2 acquisition is already exact and evidence-bound.
 - `OPENCHOREO_EXACT_RUNTIME_ACQUISITION_PENDING` ? J8 exact OpenChoreo source/chart/image acquisition, zot mirror and sealed runtime-source evidence.
 
 ## Truth boundary

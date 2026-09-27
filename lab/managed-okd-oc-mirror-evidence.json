@@ -1,0 +1,16 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "architecture": "linux-amd64",
+  "authority": "MANAGED_OKD_OC_MIRROR_V2_BINARY_EVIDENCE_V1",
+  "binarySha256": "sha256:3e33c1fdb9274ce4fa8b390565baf639c77e8ef49e255ba4343658d9a4956ba1",
+  "binarySizeBytes": 96334918,
+  "disconnectedToolchainReady": true,
+  "kind": "ManagedOKDOcMirrorBinaryEvidence",
+  "physicalCertified": false,
+  "runtimeCertified": false,
+  "sourceCommitSHA": "ecf0f222f223b5a1b1cacd3f54b2748959246ece",
+  "sourcePinned": true,
+  "sourceRunId": "36298325959",
+  "targetOKDRelease": "4.19.0-okd-scos.19",
+  "v2HelpVerified": true
+}

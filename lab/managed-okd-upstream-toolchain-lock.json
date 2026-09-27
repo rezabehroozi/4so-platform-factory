@@ -20,7 +20,7 @@
   ],
   "authority": "MANAGED_OKD_UPSTREAM_TOOLCHAIN_LOCK_V1",
   "connectedToolchainReady": true,
-  "disconnectedToolchainReady": false,
+  "disconnectedToolchainReady": true,
   "distribution": "okd-scos",
   "exactRelease": "4.19.0-okd-scos.19",
   "kind": "ManagedOKDUpstreamToolchainLock",
@@ -49,10 +49,6 @@
     {
       "id": "agent-iso-workspace",
       "reason": "Product-owned MANAGED_OKD_AGENT_WORKSPACE_PREPARATION_V1 source generator exists; durable API/MCP preparation operation, exact installer execution evidence, and final workspace/media certification remain pending."
-    },
-    {
-      "id": "oc-mirror-v2",
-      "reason": "Disconnected oc-mirror v2 binary/source authority remains independently open for I1."
     }
   ],
   "physicalCertified": false,
@@ -67,5 +63,14 @@
   "releasePublishedAt": "2025-09-15T06:48:54Z",
   "runtimeCertified": false,
   "schemaVersion": 1,
-  "sourceRepository": "https://github.com/okd-project/okd"
+  "sourceRepository": "https://github.com/okd-project/okd",
+  "ocMirrorV2": {
+    "authority": "MANAGED_OKD_OC_MIRROR_V2_BINARY_EVIDENCE_V1",
+    "sourceAuthority": "MANAGED_OKD_OC_MIRROR_V2_SOURCE_LOCK_V1",
+    "sourceCommitSHA": "ecf0f222f223b5a1b1cacd3f54b2748959246ece",
+    "sourceRunId": "36298325959",
+    "binarySha256": "sha256:3e33c1fdb9274ce4fa8b390565baf639c77e8ef49e255ba4343658d9a4956ba1",
+    "binarySizeBytes": 96334918,
+    "v2HelpVerified": true
+  }
 }
