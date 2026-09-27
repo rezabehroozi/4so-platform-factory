@@ -1665,3 +1665,89 @@ func TestReservedEndpointPlaceholderRejectsEndpointExpansion(t *testing.T) {
 		if !renderResourceHasReservedEndpointPlaceholder(resource) { t.Fatalf("reserved endpoint placeholder accepted: %#v", resource) }
 	}
 }
+
+
+func TestTransitionContractIsNarrowAndGenericInstallRuleRemainsClosed(t *testing.T) {
+	in := taggedSourceSetInput(t)
+	_, currentVerified, err := Assemble(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := currentVerified.Component
+	target := current
+	target.Spec.Release = "1.6.1"
+	target.Spec.Source.BundleKey = "gateway-api/1.6.1"
+	target.Spec.Source.SourceLockDigest = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+	target.Spec.Source.ArtifactDigest = "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+	target.Spec.Source.RenderManifestDigest = "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+	target.Spec.Source.ImageInventoryDigest = "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+	target.Spec.Source.LicenseManifestDigest = "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+	target.Spec.Source.SBOM = "sha256:7777777777777777777777777777777777777777777777777777777777777777"
+	target.Spec.Source.Provenance = "sha256:8888888888888888888888888888888888888888888888888888888888888888"
+	manifest := currentVerified.Manifest
+	manifest.Version = "1.6.1"
+	manifest.BundleKey = "gateway-api/1.6.1"
+	manifest.Upstream.URL = "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.6.1"
+	manifest.Upstream.Revision = "v1.6.1"
+
+	if err := verifyInstallComponentContract(current, target, manifest); err == nil {
+		t.Fatal("generic install accepted resolved source replacement")
+	}
+	if err := verifyTransitionComponentContract(current, target, manifest); err != nil {
+		t.Fatalf("explicit gateway transition was rejected: %v", err)
+	}
+	bad := target
+	bad.Spec.SupportTier = "malicious-substitution"
+	if err := verifyTransitionComponentContract(current, bad, manifest); err == nil {
+		t.Fatal("transition accepted unrelated component contract substitution")
+	}
+}
+
+func TestRuntimeDependencyTransitionMigrationRequiresExactRKE2Evidence(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "catalog"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	current := catalog.Component{}
+	current.Metadata.Name = "gateway-api"
+	current.Spec.Release = "1.5.1"
+	current.Spec.Source.Resolved = true
+	target := current
+	target.Spec.Release = "1.6.1"
+	manifest := Manifest{Component: "gateway-api", Version: "1.6.1", SourceType: "external-tagged-source-set", BundleKey: "gateway-api/1.6.1"}
+	manifest.Upstream.URL = "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.6.1"
+
+	doc := map[string]any{
+		"apiVersion":"platform.4so.io/v1alpha1","kind":"RuntimeDependencyTransition","metadata":map[string]any{"name":"fixture"},
+		"spec":map[string]any{
+			"authority":"RUNTIME_DEPENDENCY_TRANSITION_V1","status":"runtime-certification-partial",
+			"policy":map[string]any{"runtimeCertificationRequired":true,"mutationBeforeSourceResolution":false,"physicalPassInference":false,"sourceAcquisitionIndependentOfRuntimeSuitability":true},
+			"gatewayApi":map[string]any{"currentRelease":"1.5.1","targetRelease":"1.6.1","currentSourceResolved":true,"sourceStatus":"source-acquired","releaseUrl":manifest.Upstream.URL},
+			"runtimeEvidence":map[string]any{"authority":"RKE2_NETWORK_RUNTIME_CERTIFICATION_V1","gatewayApiRelease":"1.6.1","ciliumRelease":"1.20.1","kgatewayRelease":"2.4.1","singleNodeRKE2Certified":true,"productTopologyHACertified":false,"physicalCertified":false},
+		},
+	}
+	raw, _ := json.MarshalIndent(doc, "", "  ")
+	path := filepath.Join(root, "catalog", "runtime-dependency-transition.json")
+	if err := os.WriteFile(path, append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, next, err := prepareRuntimeDependencyTransitionMigration(root, current, target, manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var migrated map[string]any
+	if err = json.Unmarshal(next, &migrated); err != nil {
+		t.Fatal(err)
+	}
+	if migrated["spec"].(map[string]any)["gatewayApi"].(map[string]any)["currentRelease"] != "1.6.1" {
+		t.Fatal("transition did not advance current release")
+	}
+	doc["spec"].(map[string]any)["runtimeEvidence"].(map[string]any)["physicalCertified"] = true
+	raw, _ = json.MarshalIndent(doc, "", "  ")
+	if err = os.WriteFile(path, append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = prepareRuntimeDependencyTransitionMigration(root, current, target, manifest); err == nil {
+		t.Fatal("transition accepted physical-certification scope inflation")
+	}
+}

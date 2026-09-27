@@ -1545,10 +1545,11 @@ type catalogAuthorityTransaction struct {
 	OldRegistry             []byte `json:"oldRegistry"`
 	OldUpgradeMatrix        []byte `json:"oldUpgradeMatrix,omitempty"`
 	OldAdmission            []byte `json:"oldAdmission,omitempty"`
+	OldUpgradeSourceAdmission []byte `json:"oldUpgradeSourceAdmission,omitempty"`
 	OldDependencyTransition []byte `json:"oldDependencyTransition,omitempty"`
 }
 
-const catalogAuthorityTransactionVersion = 3
+const catalogAuthorityTransactionVersion = 4
 
 func catalogAuthorityTransactionPath(repoRoot string) string {
 	return filepath.Join(repoRoot, ".state", "catalog-bundle-authority-transaction.json")
@@ -1792,7 +1793,7 @@ func beginCatalogAuthorityTransaction(repoRoot string, txn catalogAuthorityTrans
 }
 
 func restoreCatalogAuthorityTransaction(repoRoot string, txn catalogAuthorityTransaction) error {
-	if (txn.Version != 1 && txn.Version != 2 && txn.Version != catalogAuthorityTransactionVersion) || !componentNameRE.MatchString(txn.Component) || len(txn.OldComponent) == 0 || len(txn.OldRegistry) == 0 {
+	if (txn.Version < 1 || txn.Version > catalogAuthorityTransactionVersion) || !componentNameRE.MatchString(txn.Component) || len(txn.OldComponent) == 0 || len(txn.OldRegistry) == 0 {
 		return fmt.Errorf("catalog authority transaction journal invalid")
 	}
 	componentPath := filepath.Join(repoRoot, "catalog", "components", txn.Component+".json")
@@ -1811,6 +1812,11 @@ func restoreCatalogAuthorityTransaction(repoRoot string, txn catalogAuthorityTra
 	if len(txn.OldAdmission) > 0 {
 		if err := atomicWrite(filepath.Join(repoRoot, "catalog", "upstream-admission.json"), txn.OldAdmission, 0o644); err != nil {
 			return fmt.Errorf("restore upstream admission authority: %w", err)
+		}
+	}
+	if len(txn.OldUpgradeSourceAdmission) > 0 {
+		if err := atomicWrite(filepath.Join(repoRoot, "catalog", "component-upgrade-source-admission.json"), txn.OldUpgradeSourceAdmission, 0o644); err != nil {
+			return fmt.Errorf("restore component upgrade source admission authority: %w", err)
 		}
 	}
 	if len(txn.OldDependencyTransition) > 0 {
@@ -2316,7 +2322,7 @@ func Install(v Verified, repoRoot string) error {
 		return err
 	}
 	rollback := func(cause error) error {
-		if restoreErr := restoreCatalogAuthorityTransaction(repoRoot, catalogAuthorityTransaction{Version: catalogAuthorityTransactionVersion, Component: txn.Component, OldComponent: txn.OldComponent, OldRegistry: txn.OldRegistry, OldUpgradeMatrix: txn.OldUpgradeMatrix, OldAdmission: txn.OldAdmission, OldDependencyTransition: txn.OldDependencyTransition}); restoreErr != nil {
+		if restoreErr := restoreCatalogAuthorityTransaction(repoRoot, catalogAuthorityTransaction{Version: catalogAuthorityTransactionVersion, Component: txn.Component, OldComponent: txn.OldComponent, OldRegistry: txn.OldRegistry, OldUpgradeMatrix: txn.OldUpgradeMatrix, OldAdmission: txn.OldAdmission, OldUpgradeSourceAdmission: txn.OldUpgradeSourceAdmission, OldDependencyTransition: txn.OldDependencyTransition}); restoreErr != nil {
 			return fmt.Errorf("%w; catalog authority rollback failed: %v", cause, restoreErr)
 		}
 		if finishErr := finishCatalogAuthorityTransaction(repoRoot); finishErr != nil {
@@ -2347,6 +2353,359 @@ func Install(v Verified, repoRoot string) error {
 	}
 	if err = finishCatalogAuthorityTransaction(repoRoot); err != nil {
 		return fmt.Errorf("catalog authority transaction committed but journal cleanup failed: %w", err)
+	}
+	return nil
+}
+
+
+func verifyTransitionComponentContract(current, target catalog.Component, manifest Manifest) error {
+	if current.Metadata.Name != "gateway-api" || target.Metadata.Name != current.Metadata.Name || manifest.Component != current.Metadata.Name {
+		return fmt.Errorf("runtime dependency transition component is not admitted")
+	}
+	if !current.Spec.Source.Resolved || !target.Spec.Source.Resolved ||
+		current.Spec.Source.Type != "external-tagged-source-set" || target.Spec.Source.Type != "external-tagged-source-set" {
+		return fmt.Errorf("runtime dependency transition requires resolved tagged sources")
+	}
+	if !strictlyOlderRelease(current.Spec.Release, target.Spec.Release) ||
+		manifest.Version != target.Spec.Release ||
+		manifest.SourceType != "external-tagged-source-set" ||
+		manifest.BundleKey != current.Metadata.Name+"/"+target.Spec.Release ||
+		target.Spec.Source.BundleKey != manifest.BundleKey {
+		return fmt.Errorf("runtime dependency transition version identity invalid")
+	}
+	expected := current
+	expected.Spec.Release = target.Spec.Release
+	expected.Spec.VersionPolicy = "exact-offline-import"
+	expected.Spec.Delivery.RepositoryKey = "offline-catalog-bundle"
+	expected.Spec.Source = target.Spec.Source
+	expected.Spec.Certification.Status = "candidate"
+	expected.Spec.Certification.Profiles = nil
+	expected.Spec.Certification.EvidenceDigest = ""
+	expectedRaw, _ := canonicalJSON(expected)
+	targetRaw, _ := canonicalJSON(target)
+	if !bytes.Equal(expectedRaw, targetRaw) {
+		return fmt.Errorf("runtime dependency transition component contract substitution detected")
+	}
+	return nil
+}
+
+func prepareRuntimeCertificationRegistryMigration(repoRoot string, current, target catalog.Component) ([]byte, []byte, error) {
+	oldRaw, registry, err := loadRuntimeCertificationRegistryFile(repoRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+	components, err := loadRepositoryComponents(repoRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err = catalog.ValidateComponentRuntimeCertificationRegistry(registry, components); err != nil {
+		return nil, nil, fmt.Errorf("current component runtime certification authority invalid: %w", err)
+	}
+	if err = catalog.MigrateComponentRuntimeCertificationSource(&registry, current, target, "RUNTIME_DEPENDENCY_TRANSITION_V1"); err != nil {
+		return nil, nil, err
+	}
+	components[target.Metadata.Name] = target
+	if err = catalog.ValidateComponentRuntimeCertificationRegistry(registry, components); err != nil {
+		return nil, nil, fmt.Errorf("migrated component runtime certification authority invalid: %w", err)
+	}
+	newRaw, err := canonicalJSON(registry)
+	if err != nil {
+		return nil, nil, err
+	}
+	return oldRaw, newRaw, nil
+}
+
+func prepareRuntimeUpgradeMatrixMigration(repoRoot string, current, target catalog.Component, targetSourceLock []byte) ([]byte, []byte, error) {
+	path := filepath.Join(repoRoot, "catalog", "component-runtime-upgrade-matrix.json")
+	oldRaw, err := readRealRegularFile(path, "component runtime upgrade matrix")
+	if err != nil {
+		return nil, nil, err
+	}
+	var doc map[string]any
+	if err = decodeStrict(oldRaw, &doc); err != nil {
+		return nil, nil, fmt.Errorf("decode component runtime upgrade matrix: %w", err)
+	}
+	if doc["kind"] != "ComponentRuntimeUpgradeMatrix" || doc["authority"] != "COMPONENT_RUNTIME_UPGRADE_MATRIX_V2" {
+		return nil, nil, fmt.Errorf("component runtime upgrade matrix identity invalid")
+	}
+	currentLockRaw, err := readRealRegularFile(filepath.Join(repoRoot, "catalog", "runtime", current.Metadata.Name, current.Spec.Release, "source-lock.json"), "current transition source lock")
+	if err != nil {
+		return nil, nil, err
+	}
+	currentDigest, err := sourceLockAuthorityDigest(currentLockRaw)
+	if err != nil {
+		return nil, nil, err
+	}
+	targetDigest, err := sourceLockAuthorityDigest(targetSourceLock)
+	if err != nil {
+		return nil, nil, err
+	}
+	rows, ok := doc["components"].([]any)
+	if !ok {
+		return nil, nil, fmt.Errorf("component runtime upgrade matrix components invalid")
+	}
+	found := false
+	for _, item := range rows {
+		row, ok := item.(map[string]any)
+		if !ok || row["component"] != current.Metadata.Name {
+			continue
+		}
+		found = true
+		if row["targetRelease"] != current.Spec.Release || row["targetSourceLockDigest"] != currentDigest || row["status"] != "admitted-source-pair" {
+			return nil, nil, fmt.Errorf("component runtime upgrade matrix previous target binding drift for %s", current.Metadata.Name)
+		}
+		edges, ok := row["admittedEdges"].([]any)
+		if !ok {
+			return nil, nil, fmt.Errorf("component runtime upgrade matrix admitted edges invalid")
+		}
+		for _, raw := range edges {
+			edge, _ := raw.(map[string]any)
+			if edge["fromRelease"] == current.Spec.Release {
+				return nil, nil, fmt.Errorf("component runtime upgrade matrix already has a successor edge from %s", current.Spec.Release)
+			}
+		}
+		edges = append(edges, map[string]any{
+			"fromRelease": current.Spec.Release,
+			"fromSourceLockDigest": currentDigest,
+			"toRelease": target.Spec.Release,
+			"toSourceLockDigest": targetDigest,
+			"status": "admitted-source-pair",
+		})
+		row["targetRelease"] = target.Spec.Release
+		row["targetSourceLockDigest"] = targetDigest
+		row["status"] = "admitted-source-pair"
+		row["admittedEdges"] = edges
+		break
+	}
+	if !found {
+		return nil, nil, fmt.Errorf("component runtime upgrade matrix missing %s", current.Metadata.Name)
+	}
+	newRaw, err := canonicalJSON(doc)
+	if err != nil {
+		return nil, nil, err
+	}
+	return oldRaw, newRaw, nil
+}
+
+func prepareUpgradeSourceAdmissionMigration(repoRoot string, current, target catalog.Component, targetManifest Manifest) ([]byte, []byte, error) {
+	path := filepath.Join(repoRoot, "catalog", "component-upgrade-source-admission.json")
+	oldRaw, err := readRealRegularFile(path, "component upgrade source admission")
+	if err != nil {
+		return nil, nil, err
+	}
+	var doc map[string]any
+	if err = decodeStrict(oldRaw, &doc); err != nil {
+		return nil, nil, fmt.Errorf("decode component upgrade source admission: %w", err)
+	}
+	if doc["apiVersion"] != "platform.4so.io/v1alpha1" || doc["kind"] != "ComponentUpgradeSourceAdmission" || doc["authority"] != "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1" {
+		return nil, nil, fmt.Errorf("component upgrade source admission identity invalid")
+	}
+	currentLockRaw, err := readRealRegularFile(filepath.Join(repoRoot, "catalog", "runtime", current.Metadata.Name, current.Spec.Release, "source-lock.json"), "current transition source lock")
+	if err != nil {
+		return nil, nil, err
+	}
+	var currentLock sourceLock
+	if err = decodeStrict(currentLockRaw, &currentLock); err != nil {
+		return nil, nil, fmt.Errorf("decode current transition source lock: %w", err)
+	}
+	if currentLock.Component != current.Metadata.Name || currentLock.Version != current.Spec.Release || currentLock.NetworkFetchRequired {
+		return nil, nil, fmt.Errorf("current transition source lock identity invalid")
+	}
+	rows, ok := doc["components"].([]any)
+	if !ok {
+		return nil, nil, fmt.Errorf("component upgrade source admission components invalid")
+	}
+	found := false
+	for _, item := range rows {
+		row, ok := item.(map[string]any)
+		if !ok || row["component"] != current.Metadata.Name {
+			continue
+		}
+		found = true
+		if row["targetRelease"] != current.Spec.Release || row["status"] != "admitted-for-acquisition" {
+			return nil, nil, fmt.Errorf("component upgrade source admission previous target drift for %s", current.Metadata.Name)
+		}
+		row["targetRelease"] = target.Spec.Release
+		row["previousVersion"] = current.Spec.Release
+		row["source"] = currentLock.UpstreamURL
+		row["status"] = "admitted-for-acquisition"
+		row["rationale"] = "Reviewed exact predecessor "+current.Spec.Release+" promoted by RUNTIME_DEPENDENCY_TRANSITION_V1 for target "+target.Spec.Release+"; admission is not runtime certification."
+		row["reviewEvidence"] = []any{map[string]any{
+			"kind": "upstream-release-history",
+			"reference": targetManifest.Upstream.URL,
+			"summary": "Runtime dependency transition and upstream release history establish "+current.Spec.Release+" as the exact predecessor for target "+target.Spec.Release+".",
+		}}
+		break
+	}
+	if !found {
+		return nil, nil, fmt.Errorf("component upgrade source admission missing %s", current.Metadata.Name)
+	}
+	newRaw, err := canonicalJSON(doc)
+	if err != nil {
+		return nil, nil, err
+	}
+	return oldRaw, newRaw, nil
+}
+
+func prepareRuntimeDependencyTransitionMigration(repoRoot string, current, target catalog.Component, manifest Manifest) ([]byte, []byte, error) {
+	path := filepath.Join(repoRoot, "catalog", "runtime-dependency-transition.json")
+	oldRaw, err := readRealRegularFile(path, "runtime dependency transition")
+	if err != nil {
+		return nil, nil, err
+	}
+	var doc map[string]any
+	if err = decodeStrict(oldRaw, &doc); err != nil {
+		return nil, nil, fmt.Errorf("decode runtime dependency transition: %w", err)
+	}
+	if doc["kind"] != "RuntimeDependencyTransition" {
+		return nil, nil, fmt.Errorf("runtime dependency transition identity invalid")
+	}
+	spec, ok := doc["spec"].(map[string]any)
+	if !ok || spec["authority"] != "RUNTIME_DEPENDENCY_TRANSITION_V1" || spec["status"] != "runtime-certification-partial" {
+		return nil, nil, fmt.Errorf("runtime dependency transition authority/status invalid")
+	}
+	policy, ok := spec["policy"].(map[string]any)
+	if !ok || policy["runtimeCertificationRequired"] != true || policy["mutationBeforeSourceResolution"] != false ||
+		policy["physicalPassInference"] != false || policy["sourceAcquisitionIndependentOfRuntimeSuitability"] != true {
+		return nil, nil, fmt.Errorf("runtime dependency transition policy invalid")
+	}
+	gateway, ok := spec["gatewayApi"].(map[string]any)
+	if !ok || gateway["currentRelease"] != current.Spec.Release || gateway["targetRelease"] != target.Spec.Release ||
+		gateway["currentSourceResolved"] != true || gateway["sourceStatus"] != "source-acquired" ||
+		gateway["releaseUrl"] != manifest.Upstream.URL {
+		return nil, nil, fmt.Errorf("runtime dependency transition gateway admission mismatch")
+	}
+	evidence, ok := spec["runtimeEvidence"].(map[string]any)
+	if !ok || evidence["authority"] != "RKE2_NETWORK_RUNTIME_CERTIFICATION_V1" ||
+		evidence["gatewayApiRelease"] != target.Spec.Release || evidence["ciliumRelease"] != "1.20.1" ||
+		evidence["kgatewayRelease"] != "2.4.1" || evidence["singleNodeRKE2Certified"] != true ||
+		evidence["productTopologyHACertified"] != false || evidence["physicalCertified"] != false {
+		return nil, nil, fmt.Errorf("runtime dependency transition exact RKE2 evidence invalid")
+	}
+	gateway["currentRelease"] = target.Spec.Release
+	gateway["currentSourceResolved"] = true
+	newRaw, err := canonicalJSON(doc)
+	if err != nil {
+		return nil, nil, err
+	}
+	return oldRaw, newRaw, nil
+}
+
+// InstallTransition performs the only admitted resolved-to-resolved catalog source
+// replacement. Generic Install deliberately continues to reject this operation.
+func InstallTransition(v Verified, repoRoot string) error {
+	repoRoot, err := filepath.Abs(strings.TrimSpace(repoRoot))
+	if err != nil {
+		return err
+	}
+	if _, err = os.Stat(filepath.Join(repoRoot, "VERSION")); err != nil {
+		return fmt.Errorf("repo root missing VERSION: %w", err)
+	}
+	lock, err := acquireCatalogInstallLock(repoRoot)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = lock.release() }()
+	if err = recoverCatalogAuthorityTransaction(repoRoot); err != nil {
+		return err
+	}
+	catalogDir := filepath.Join(repoRoot, "catalog")
+	componentsDir := filepath.Join(catalogDir, "components")
+	if err = requireRealDirectory(catalogDir, "catalog directory"); err != nil {
+		return err
+	}
+	if err = requireRealDirectory(componentsDir, "catalog components directory"); err != nil {
+		return err
+	}
+	if err = cleanupStaleDurableTemps(catalogDir, "catalog authority"); err != nil {
+		return err
+	}
+	if err = cleanupStaleDurableTemps(componentsDir, "catalog component"); err != nil {
+		return err
+	}
+	componentPath := filepath.Join(componentsDir, v.Manifest.Component+".json")
+	oldComponent, err := readRealRegularFile(componentPath, "transition component contract "+v.Manifest.Component)
+	if err != nil {
+		return err
+	}
+	var current, target catalog.Component
+	if err = decodeStrict(oldComponent, &current); err != nil {
+		return fmt.Errorf("decode transition current component: %w", err)
+	}
+	if err = decodeStrict(v.Files["component.json"], &target); err != nil {
+		return fmt.Errorf("decode transition target component: %w", err)
+	}
+	if err = verifyTransitionComponentContract(current, target, v.Manifest); err != nil {
+		return err
+	}
+	oldTransition, newTransition, err := prepareRuntimeDependencyTransitionMigration(repoRoot, current, target, v.Manifest)
+	if err != nil {
+		return err
+	}
+	oldRegistry, newRegistry, err := prepareRuntimeCertificationRegistryMigration(repoRoot, current, target)
+	if err != nil {
+		return err
+	}
+	oldMatrix, newMatrix, err := prepareRuntimeUpgradeMatrixMigration(repoRoot, current, target, v.Files["source-lock.json"])
+	if err != nil {
+		return err
+	}
+	oldUpgradeAdmission, newUpgradeAdmission, err := prepareUpgradeSourceAdmissionMigration(repoRoot, current, target, v.Manifest)
+	if err != nil {
+		return err
+	}
+	runtimeDir := filepath.Join(repoRoot, "catalog", "runtime", filepath.FromSlash(v.Manifest.BundleKey))
+	if !strings.HasPrefix(runtimeDir, filepath.Join(repoRoot, "catalog", "runtime")+string(os.PathSeparator)) {
+		return fmt.Errorf("bundle destination escapes runtime root")
+	}
+	if err = installRuntimeBundle(runtimeDir, v.Files); err != nil {
+		return err
+	}
+	txn := catalogAuthorityTransaction{
+		Component: current.Metadata.Name,
+		OldComponent: oldComponent,
+		OldRegistry: oldRegistry,
+		OldUpgradeMatrix: oldMatrix,
+		OldUpgradeSourceAdmission: oldUpgradeAdmission,
+		OldDependencyTransition: oldTransition,
+	}
+	if err = beginCatalogAuthorityTransaction(repoRoot, txn); err != nil {
+		return err
+	}
+	rollback := func(cause error) error {
+		if restoreErr := restoreCatalogAuthorityTransaction(repoRoot, catalogAuthorityTransaction{
+			Version: catalogAuthorityTransactionVersion,
+			Component: txn.Component,
+			OldComponent: txn.OldComponent,
+			OldRegistry: txn.OldRegistry,
+			OldUpgradeMatrix: txn.OldUpgradeMatrix,
+			OldUpgradeSourceAdmission: txn.OldUpgradeSourceAdmission,
+			OldDependencyTransition: txn.OldDependencyTransition,
+		}); restoreErr != nil {
+			return fmt.Errorf("%w; catalog transition rollback failed: %v", cause, restoreErr)
+		}
+		if finishErr := finishCatalogAuthorityTransaction(repoRoot); finishErr != nil {
+			return fmt.Errorf("%w; catalog transition rollback journal cleanup failed: %v", cause, finishErr)
+		}
+		return cause
+	}
+	if err = atomicWrite(componentPath, v.Files["component.json"], 0o644); err != nil {
+		return rollback(err)
+	}
+	if err = atomicWrite(filepath.Join(catalogDir, "component-runtime-certification.json"), newRegistry, 0o644); err != nil {
+		return rollback(err)
+	}
+	if err = atomicWrite(filepath.Join(catalogDir, "component-runtime-upgrade-matrix.json"), newMatrix, 0o644); err != nil {
+		return rollback(err)
+	}
+	if err = atomicWrite(filepath.Join(catalogDir, "component-upgrade-source-admission.json"), newUpgradeAdmission, 0o644); err != nil {
+		return rollback(err)
+	}
+	if err = atomicWrite(filepath.Join(catalogDir, "runtime-dependency-transition.json"), newTransition, 0o644); err != nil {
+		return rollback(err)
+	}
+	if err = finishCatalogAuthorityTransaction(repoRoot); err != nil {
+		return fmt.Errorf("catalog transition committed but journal cleanup failed: %w", err)
 	}
 	return nil
 }

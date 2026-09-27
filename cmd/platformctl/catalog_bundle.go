@@ -44,6 +44,8 @@ func catalogBundleCommand(args []string) {
 			fmt.Fprintln(os.Stderr, "usage: platformctl catalog-bundle install -f BUNDLE.zip --repo-root DIR --confirmation IMPORT")
 		case "install-historical":
 			fmt.Fprintln(os.Stderr, "usage: platformctl catalog-bundle install-historical -f BUNDLE.zip --repo-root DIR --confirmation IMPORT-HISTORICAL")
+		case "install-transition":
+			fmt.Fprintln(os.Stderr, "usage: platformctl catalog-bundle install-transition -f BUNDLE.zip --repo-root DIR --confirmation IMPORT-TRANSITION")
 		default:
 			usage()
 		}
@@ -139,6 +141,30 @@ func catalogBundleCommand(args []string) {
 			"bundleDigest": verified.BundleDigest, "runtimeBundleDir": filepath.Join(root, "catalog", "runtime", filepath.FromSlash(verified.Manifest.BundleKey)),
 			"componentContract":    filepath.Join(root, "catalog", "components", verified.Manifest.Component+".json"),
 			"networkFetchRequired": false, "next": "rebuild the release so the verified bundle is embedded into catalog/runtime",
+		})
+	case "install-transition":
+		fs := flag.NewFlagSet("catalog-bundle install-transition", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		file := fs.String("f", "", "offline external catalog bundle zip")
+		repo := fs.String("repo-root", ".", "Platform Factory source root")
+		confirmation := fs.String("confirmation", "", "must be IMPORT-TRANSITION")
+		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 || strings.TrimSpace(*file) == "" || *confirmation != "IMPORT-TRANSITION" {
+			fatal(fmt.Errorf("catalog-bundle install-transition requires -f BUNDLE.zip --repo-root DIR --confirmation IMPORT-TRANSITION"))
+		}
+		verified, err := catalogbundle.VerifyFile(*file)
+		if err != nil {
+			fatal(err)
+		}
+		if err = catalogbundle.InstallTransition(verified, *repo); err != nil {
+			fatal(err)
+		}
+		root, _ := filepath.Abs(*repo)
+		printJSON(map[string]any{
+			"installedTransition": true, "component": verified.Manifest.Component, "version": verified.Manifest.Version,
+			"bundleDigest": verified.BundleDigest,
+			"runtimeBundleDir": filepath.Join(root, "catalog", "runtime", filepath.FromSlash(verified.Manifest.BundleKey)),
+			"authority": "RUNTIME_DEPENDENCY_TRANSITION_V1",
+			"runtimeCertificationPass": false, "physicalCertified": false, "networkFetchRequired": false,
 		})
 	case "install-historical":
 		fs := flag.NewFlagSet("catalog-bundle install-historical", flag.ContinueOnError)
