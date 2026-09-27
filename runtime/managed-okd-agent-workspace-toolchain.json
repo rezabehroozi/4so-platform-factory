@@ -1,0 +1,18 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "ManagedOKDAgentWorkspaceToolchain",
+  "authority": "MANAGED_OKD_AGENT_WORKSPACE_TOOLCHAIN_V1",
+  "schemaVersion": 1,
+  "nmstatectl": {
+    "version": "2.2.55",
+    "asset": "nmstatectl-linux-x64.zip",
+    "url": "https://github.com/nmstate/nmstate/releases/download/v2.2.55/nmstatectl-linux-x64.zip",
+    "sha256": "a0aaa72e9fd1c9df35a875339268cbe8acafdf269cfbca2b7a4897ba4033aa69",
+    "sizeBytes": 8381781,
+    "sourceRepository": "https://github.com/nmstate/nmstate",
+    "sourceRelease": "v2.2.55"
+  },
+  "purpose": "openshift-install Agent NMState validation only",
+  "runtimeCertified": false,
+  "physicalCertified": false
+}

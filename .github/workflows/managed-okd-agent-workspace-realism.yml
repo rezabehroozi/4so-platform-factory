@@ -8,6 +8,7 @@ on:
       - internal/managedinstall/workspace_preparer.go
       - internal/managedinstall/workspace_preparer_exact_test.go
       - lab/managed-okd-upstream-toolchain-lock.json
+      - runtime/managed-okd-agent-workspace-toolchain.json
 permissions:
   contents: write
 jobs:
@@ -35,14 +36,26 @@ jobs:
           echo "RELEASE_SHA=$(jq -r .releasePayload.digest lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
           echo "MACHINE_URL=$(jq -r .machineOSArtifact.location lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
           echo "MACHINE_SHA=sha256:$(jq -r .machineOSArtifact.sha256 lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
-      - name: Install nmstate validator required by openshift-install
+      - name: Install exact nmstatectl required by openshift-install
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y nmstate
-          command -v nmstatectl
-          nmstatectl --version
+          jq -e '.authority=="MANAGED_OKD_AGENT_WORKSPACE_TOOLCHAIN_V1" and .nmstatectl.version=="2.2.55"' runtime/managed-okd-agent-workspace-toolchain.json >/dev/null
+          url="$(jq -r .nmstatectl.url runtime/managed-okd-agent-workspace-toolchain.json)"
+          sha="$(jq -r .nmstatectl.sha256 runtime/managed-okd-agent-workspace-toolchain.json)"
+          size="$(jq -r .nmstatectl.sizeBytes runtime/managed-okd-agent-workspace-toolchain.json)"
+          curl -fL --retry 3 --connect-timeout 30 -o /tmp/nmstatectl.zip "$url"
+          test "$(stat -c %s /tmp/nmstatectl.zip)" = "$size"
+          test "$(sha256sum /tmp/nmstatectl.zip|awk '{print $1}')" = "$sha"
+          rm -rf /tmp/4so-nmstate
+          mkdir -p /tmp/4so-nmstate/unpack /tmp/4so-nmstate/bin
+          unzip -q /tmp/nmstatectl.zip -d /tmp/4so-nmstate/unpack
+          mapfile -t bins < <(find /tmp/4so-nmstate/unpack -type f -name nmstatectl)
+          test "${#bins[@]}" -eq 1
+          cp "${bins[0]}" /tmp/4so-nmstate/bin/nmstatectl
+          chmod 0755 /tmp/4so-nmstate/bin/nmstatectl
+          echo "/tmp/4so-nmstate/bin" >> "$GITHUB_PATH"
+          /tmp/4so-nmstate/bin/nmstatectl --version
 
       - name: Execute product WorkspacePreparer against exact upstream
         shell: bash
