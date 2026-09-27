@@ -33,6 +33,10 @@ func TestExactOKDAgentWorkspaceExecution(t *testing.T) {
 	workspaceRoot:=required("OKD_AGENT_WORKSPACE_ROOT")
 	mediaRoot:=required("OKD_AGENT_MEDIA_ROOT")
 	out:=required("OKD_AGENT_EVIDENCE_OUT")
+	if !filepath.IsAbs(out) { t.Fatal("OKD_AGENT_EVIDENCE_OUT must be absolute to avoid go-test package cwd drift") }
+	if filepath.Clean(filepath.Dir(out)) != filepath.Clean(filepath.Join(os.Getenv("GITHUB_WORKSPACE"), "lab")) && strings.TrimSpace(os.Getenv("GITHUB_ACTIONS"))=="true" {
+		t.Fatal("CI evidence output must remain inside the repository lab directory")
+	}
 	for _, root := range []string{workspaceRoot, mediaRoot} {
 		if err := os.MkdirAll(root, 0o700); err != nil { t.Fatal(err) }
 		if err := os.Chmod(root, 0o700); err != nil { t.Fatal(err) }

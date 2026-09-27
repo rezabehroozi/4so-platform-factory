@@ -83,7 +83,7 @@ jobs:
           OKD_TEST_PULL_SECRET: '{"auths":{"fixture.invalid":{"auth":"Zml4dHVyZTpmaXh0dXJl"}}}'
           OKD_AGENT_WORKSPACE_ROOT: /tmp/4so-okd-workspaces
           OKD_AGENT_MEDIA_ROOT: /tmp/4so-okd-media
-          OKD_AGENT_EVIDENCE_OUT: lab/managed-okd-agent-workspace-execution-evidence.json
+          OKD_AGENT_EVIDENCE_OUT: ${{ github.workspace }}/lab/managed-okd-agent-workspace-execution-evidence.json
         run: |
           set -euo pipefail
           ssh-keygen -q -t ed25519 -N '' -f /tmp/okd_test_key
