@@ -9,14 +9,14 @@ class RuntimeEvidenceRegistryTests(unittest.TestCase):
         self.assertTrue(out["ocMirror"]["transportRealismPass"])
         self.assertFalse(out["ocMirror"]["fullDisconnectedOKDInstallCertified"])
         reg=out["upgradeRegistry"]
-        self.assertEqual(1,reg["summary"]["componentsWithAnyRuntimeEvidence"])
-        self.assertEqual(0,reg["summary"]["fullyRuntimeUpgradeCertifiedComponents"])
+        self.assertEqual(2,reg["summary"]["componentsWithAnyRuntimeEvidence"])
+        self.assertEqual(1,reg["summary"]["fullyRuntimeUpgradeCertifiedComponents"])
         gateway=next(r for r in reg["components"] if r["component"]=="gateway-api")
         self.assertEqual("partial-runtime-evidence",gateway["status"])
         self.assertEqual([{"fromRelease":"1.5.0","toRelease":"1.5.1"}],gateway["pendingEdges"])
     def copy_files(self):
         td=tempfile.TemporaryDirectory();dst=Path(td.name)
-        for rel in ("lab/oc-mirror-disconnected-transport-evidence.json","lab/managed-okd-oc-mirror-source-lock.json","lab/management-workload-external-image-receipt.json","catalog/component-runtime-upgrade-evidence.json","catalog/component-runtime-upgrade-matrix.json","lab/gateway-api-upgrade-runtime-matrix-evidence.json"):
+        for rel in ("lab/oc-mirror-disconnected-transport-evidence.json","lab/managed-okd-oc-mirror-source-lock.json","lab/management-workload-external-image-receipt.json","catalog/component-runtime-upgrade-evidence.json","catalog/component-runtime-upgrade-matrix.json","lab/gateway-api-upgrade-runtime-matrix-evidence.json","lab/snapshot-controller-upgrade-runtime-matrix-evidence.json"):
             p=dst/rel;p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(ROOT/rel,p)
         return td,dst
     def test_oc_mirror_scope_inflation_rejected(self):
