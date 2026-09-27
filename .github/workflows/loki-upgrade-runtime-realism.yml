@@ -85,6 +85,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # kind installs a default StorageClass. The product Loki claim
+          # intentionally omits storageClassName, so disable defaulting in this
+          # certification topology and bind it to the explicit static PV below.
+          kubectl patch storageclass standard --type=merge -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"false","storageclass.beta.kubernetes.io/is-default-class":"false"}}}'
           kubectl create namespace logging
           cat >/tmp/loki-pv.yaml <<'YAML'
           apiVersion: v1
