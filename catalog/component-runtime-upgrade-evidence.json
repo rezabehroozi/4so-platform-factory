@@ -13,9 +13,9 @@
   "summary": {
     "components": 20,
     "upgradeApplicableComponents": 19,
-    "componentsWithAnyRuntimeEvidence": 10,
-    "fullyRuntimeUpgradeCertifiedComponents": 10,
-    "pendingRuntimeEdges": 9
+    "componentsWithAnyRuntimeEvidence": 11,
+    "fullyRuntimeUpgradeCertifiedComponents": 11,
+    "pendingRuntimeEdges": 8
   },
   "components": [
     {
@@ -399,16 +399,26 @@
     {
       "component": "velero",
       "targetRelease": "12.1.0",
-      "status": "pending-runtime-evidence",
-      "executedEdges": [],
-      "pendingEdges": [
+      "status": "runtime-evidence-complete",
+      "executedEdges": [
         {
           "fromRelease": "12.0.3",
-          "toRelease": "12.1.0"
+          "toRelease": "12.1.0",
+          "authority": "VELERO_RUNTIME_UPGRADE_MATRIX_V1",
+          "evidencePath": "lab/velero-upgrade-runtime-matrix-evidence.json",
+          "sourceRunId": "36337241789",
+          "kubernetesVersions": [
+            "1.34.11",
+            "1.35.8"
+          ],
+          "genericKubernetesRuntimeEvidenceOnly": true,
+          "rke2Certified": false,
+          "physicalCertified": false
         }
       ],
+      "pendingEdges": [],
       "runtimeSuitabilityHeld": false,
-      "runtimeUpgradeCertified": false,
+      "runtimeUpgradeCertified": true,
       "physicalCertified": false
     },
     {

@@ -49,6 +49,7 @@ def verify_upgrade_registry(root:Path)->dict:
     simple=load(root/"lab/simple-component-upgrade-runtime-matrix-evidence.json")
     cert_manager=load(root/"lab/cert-manager-upgrade-runtime-matrix-evidence.json")
     loki=load(root/"lab/loki-upgrade-runtime-matrix-evidence.json")
+    velero=load(root/"lab/velero-upgrade-runtime-matrix-evidence.json")
     kgateway=load(root/"lab/kgateway-upgrade-runtime-matrix-evidence.json")
     kyverno=load(root/"lab/kyverno-upgrade-runtime-matrix-evidence.json")
     tetragon=load(root/"lab/tetragon-upgrade-runtime-matrix-evidence.json")
@@ -183,6 +184,20 @@ def verify_upgrade_registry(root:Path)->dict:
             for e in r.get("executedEdges",[]):
                 if e.get("authority")!="LOKI_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=loki.get("sourceRunId") or e.get("evidencePath")!="lab/loki-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
                     raise RuntimeError("LOKI_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
+        elif name=="velero":
+            if velero.get("authority")!="VELERO_RUNTIME_UPGRADE_MATRIX_V1" or velero.get("matrixPass") is not True:
+                raise RuntimeError("VELERO_RUNTIME_UPGRADE_EVIDENCE_INVALID")
+            if velero.get("genericKubernetesRuntimeEvidenceOnly") is not True or any(velero.get(k) is not False for k in ("rke2Certified","productTopologyHACertified","physicalCertified")):
+                raise RuntimeError("VELERO_RUNTIME_UPGRADE_SCOPE_INFLATED")
+            if executed!={(velero.get("fromRelease"),velero.get("toRelease"))}:
+                raise RuntimeError("VELERO_RUNTIME_UPGRADE_EDGE_BINDING_INVALID")
+            rows=velero.get("matrix") or []
+            required=("historicalReady","upgradeApplyPass","targetReady","deploymentIdentityPreserved","crdIdentityPreserved","storedVersionsValid","upgradeJobReplaced","targetImagesVerified","targetReapplyConverged","reverseEdgeRejected","invalidDefaultLocationsRemoved")
+            if sorted(str(x.get("kubernetesVersion") or "") for x in rows)!=["1.34.11","1.35.8"] or not all(all(x.get(k) is True for k in required) and x.get("runtimeNormalizationAuthority")=="VELERO_12_X_EMPTY_LOCATION_NORMALIZATION_V1" and x.get("genericKubernetesRuntimeEvidenceOnly") is True and x.get("rke2Certified") is False and x.get("productTopologyHACertified") is False and x.get("physicalCertified") is False for x in rows):
+                raise RuntimeError("VELERO_RUNTIME_UPGRADE_MATRIX_INVALID")
+            for e in r.get("executedEdges",[]):
+                if e.get("authority")!="VELERO_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=velero.get("sourceRunId") or e.get("evidencePath")!="lab/velero-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
+                    raise RuntimeError("VELERO_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
         elif name=="kyverno":
             if kyverno.get("authority")!="KYVERNO_RUNTIME_UPGRADE_MATRIX_V1" or kyverno.get("matrixPass") is not True or kyverno.get("normalizationAuthority")!="KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1":
                 raise RuntimeError("KYVERNO_RUNTIME_UPGRADE_EVIDENCE_INVALID")
