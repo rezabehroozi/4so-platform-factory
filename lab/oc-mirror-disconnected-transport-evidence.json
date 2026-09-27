@@ -1,0 +1,21 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "OC_MIRROR_DISCONNECTED_TRANSPORT_REALISM_V1",
+  "destinationRegistryAuthority": "zot",
+  "destinationTLSVerified": true,
+  "diskToMirrorPass": true,
+  "fullDisconnectedOKDInstallCertified": false,
+  "kind": "OcMirrorDisconnectedTransportEvidence",
+  "mirrorArchiveFileCount": 5,
+  "mirrorArchiveInventoryDigest": "sha256:356dd28635704faf931f39e91e5458515de19775407f230f8cfad39fbbc11b3a",
+  "ocMirrorBinarySha256": "sha256:3e33c1fdb9274ce4fa8b390565baf639c77e8ef49e255ba4343658d9a4956ba1",
+  "ocMirrorSourceCommitSHA": "ecf0f222f223b5a1b1cacd3f54b2748959246ece",
+  "physicalCertified": false,
+  "registryDigestReadbackPass": true,
+  "runtimeCertified": false,
+  "sourceCommitSHA": "ddf6438a6d9722c96d832516d4d4c9b14482e7e0",
+  "sourceImage": "ghcr.io/project-zot/zot-linux-amd64@sha256:95a837a0afacf5b7edc0c92493f04beee6891989b8d2fd50a00cf65a1e6d4fd5",
+  "sourceRunId": "36306583451",
+  "targetOKDRelease": "4.19.0-okd-scos.19",
+  "transportRealismPass": true
+}
