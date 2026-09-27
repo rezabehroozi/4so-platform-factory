@@ -395,6 +395,10 @@ func TestComponentRuntimeCertificationGatewayInstallReadinessPartialAPI(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
+	gateway, ok := components["gateway-api"]
+	if !ok || !gateway.Spec.Source.Resolved {
+		t.Fatal("resolved gateway-api component missing")
+	}
 	s := New("test", components, slog.New(slog.NewTextHandler(io.Discard, nil)), store)
 	release := seedPublishedRenderCatalogForCertification(t, store, org, s)
 	caps := append(controlplane.RuntimeCertificationRequiredCapabilities(controlplane.RuntimeCertificationComponentV1), controlplane.TargetMutationRBACActiveCapability)

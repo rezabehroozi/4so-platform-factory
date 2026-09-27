@@ -177,7 +177,8 @@ def load_recipe(component: str, version: str, *, historical: bool, transition: b
     if historical == transition:
         raise RuntimeError("TAGGED_SOURCE_MODE_MUST_BE_EXACTLY_ONE_OF_HISTORICAL_OR_TRANSITION")
     row = load_historical_authority(component, root) if historical else load_transition_authority(component, version, root)
-    if row.get("previousVersion") != version:
+    admitted_version = str(row.get("previousVersion") or "") if historical else str(row.get("targetRelease") or "")
+    if admitted_version != version:
         raise RuntimeError(f"TAGGED_SOURCE_RECIPE_VERSION_NOT_ADMITTED {component}:{version}")
     path = _recipe_path(component, version, root)
     if path.is_symlink() or not path.is_file():
