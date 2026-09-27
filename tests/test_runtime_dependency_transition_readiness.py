@@ -27,7 +27,7 @@ class RuntimeDependencyTransitionReadinessTests(unittest.TestCase):
         self.assertFalse(receipt["ciliumReleased"])
         self.assertFalse(receipt["runtimeCertified"])
         self.assertFalse(receipt["physicalCertified"])
-        self.assertEqual(["cilium", "kyverno", "metallb"], receipt["remainingRuntimeSuitabilityHolds"])
+        self.assertEqual(["cilium", "metallb"], receipt["remainingRuntimeSuitabilityHolds"])
 
     def test_target_gateway_assets_are_exactly_two_and_digest_bound(self):
         receipt = mod.verify(ROOT)

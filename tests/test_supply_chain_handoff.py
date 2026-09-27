@@ -47,7 +47,7 @@ class SupplyChainHandoffTests(unittest.TestCase):
         self.assertFalse(transition["ciliumReleased"])
         self.assertFalse(transition["runtimeCertified"])
         self.assertFalse(transition["physicalCertified"])
-        self.assertEqual(["cilium", "kyverno", "metallb"], transition["remainingRuntimeSuitabilityHolds"])
+        self.assertEqual(["cilium", "metallb"], transition["remainingRuntimeSuitabilityHolds"])
         self.assertIn("lab/runtime-dependency-transition-readiness.json", spec["truthModel"]["canonicalAuthorities"])
         self.assertEqual(4, len(spec["managementWorkloads"]["externalImages"]))
         self.assertIn("lab/management-workload-external-image-receipt.json", spec["truthModel"]["canonicalAuthorities"])

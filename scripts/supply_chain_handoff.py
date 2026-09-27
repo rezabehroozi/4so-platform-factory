@@ -561,7 +561,7 @@ def validate(plan: dict, root: Path = ROOT) -> list[str]:
         errors.append("runtime dependency transition readiness illegally promotes runtime state")
     if transition.get("runtimeCertified") is not False or transition.get("physicalCertified") is not False:
         errors.append("runtime dependency transition readiness scope inflation")
-    if transition.get("remainingRuntimeSuitabilityHolds") != ["cilium","kyverno","metallb"]:
+    if transition.get("remainingRuntimeSuitabilityHolds") != ["cilium","metallb"]:
         errors.append("runtime dependency transition hold set drift")
     upgrade_adm = spec.get("componentUpgradeSourceAdmission") or {}
     if upgrade_adm.get("authority") != "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1":

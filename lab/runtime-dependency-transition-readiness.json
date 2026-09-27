@@ -31,7 +31,6 @@
   "productTopologyHACertified": false,
   "remainingRuntimeSuitabilityHolds": [
     "cilium",
-    "kyverno",
     "metallb"
   ],
   "runtimeCertified": false,

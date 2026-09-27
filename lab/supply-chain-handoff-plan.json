@@ -142,15 +142,6 @@
           "status": "source-acquired"
         },
         {
-          "component": "kyverno",
-          "evidenceURL": "https://github.com/kyverno/kyverno/issues/16764",
-          "reason": "Kyverno chart 3.8.2 upstream emits non-convergent empty metadata maps on 11 policies.kyverno.io CRDs. Product-owned KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1 now removes only those exact empty maps before runtime application; the hold remains until exact runtime apply/reconcile evidence is sealed.",
-          "runtimeAuthority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
-          "runtimeStatus": "review-required",
-          "selectedVersion": "3.8.2",
-          "status": "source-acquired"
-        },
-        {
           "component": "metallb",
           "evidenceURL": "https://github.com/metallb/metallb/issues/3113",
           "reason": "MetalLB 0.16.1 remains runtime-held while the reviewed grpc/CVE release concern is unresolved or explicitly dispositioned.",
@@ -1045,7 +1036,6 @@
       "readinessAuthority": "RUNTIME_DEPENDENCY_TRANSITION_READINESS_V1",
       "remainingRuntimeSuitabilityHolds": [
         "cilium",
-        "kyverno",
         "metallb"
       ],
       "runtimeCertified": false,

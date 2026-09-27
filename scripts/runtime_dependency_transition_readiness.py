@@ -131,7 +131,7 @@ def verify(root: Path) -> dict:
 
     registry = load(root / "catalog" / "component-runtime-certification.json", "COMPONENT_RUNTIME_CERTIFICATION")
     holds = {row.get("component"): row for row in (registry.get("spec") or {}).get("runtimeSuitabilityHolds") or [] if isinstance(row, dict)}
-    if set(holds) != {"cilium", "kyverno", "metallb"}:
+    if set(holds) != {"cilium", "metallb"}:
         raise RuntimeError("RUNTIME_SUITABILITY_HOLD_SET_INVALID")
     if holds["cilium"].get("authority") != TRANSITION_AUTHORITY or holds["cilium"].get("status") != "dependency-transition-required":
         raise RuntimeError("CILIUM_RUNTIME_SUITABILITY_HOLD_INVALID")
@@ -171,7 +171,7 @@ def verify(root: Path) -> dict:
         "ciliumReleased": False,
         "runtimeCertified": False,
         "physicalCertified": False,
-        "remainingRuntimeSuitabilityHolds": ["cilium", "kyverno", "metallb"],
+        "remainingRuntimeSuitabilityHolds": ["cilium", "metallb"],
     }
     return receipt
 
@@ -187,7 +187,7 @@ def main() -> int:
         assert receipt["transitionExecutionReady"] is True
         assert receipt["singleNodeRKE2Certified"] is True and receipt["productTopologyHACertified"] is False
         assert receipt["runtimeCertified"] is False and receipt["physicalCertified"] is False
-        assert receipt["remainingRuntimeSuitabilityHolds"] == ["cilium", "kyverno", "metallb"]
+        assert receipt["remainingRuntimeSuitabilityHolds"] == ["cilium", "metallb"]
         print("RUNTIME_DEPENDENCY_TRANSITION_READINESS_SELF_TEST_PASS")
         return 0
     receipt = verify(args.root.resolve())

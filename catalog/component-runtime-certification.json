@@ -28,13 +28,6 @@
         "evidenceURL": "https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/"
       },
       {
-        "component": "kyverno",
-        "status": "review-required",
-        "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
-        "reason": "Kyverno chart 3.8.2 upstream emits non-convergent empty metadata maps on 11 policies.kyverno.io CRDs. Product-owned KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1 now removes only those exact empty maps before runtime application; the hold remains until exact runtime apply/reconcile evidence is sealed.",
-        "evidenceURL": "https://github.com/kyverno/kyverno/issues/16764"
-      },
-      {
         "component": "metallb",
         "status": "review-required",
         "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
@@ -676,46 +669,46 @@
           "sourceLockDigest": "sha256:5f34d75ed477100311d6c765656e3701abe562b50a0083fcae12d8711732919d"
         },
         "executor": {
-          "status": "runtime-suitability-held",
+          "status": "component-install-readiness-dependency-failure-remove-partial",
           "profile": "COMPONENT_RUNTIME_V1",
           "owner": "catalog-component"
         },
         "lifecycle": [
           {
             "name": "install",
-            "status": "pending-runtime-suitability",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-install-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
+            "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "readiness",
-            "status": "pending-runtime-suitability",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-readiness-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
+            "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "dependency",
-            "status": "pending-runtime-suitability",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-dependency-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
+            "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "upgrade",
-            "status": "pending-runtime-suitability",
+            "status": "pending-upgrade-matrix",
             "evidenceContract": "component-upgrade-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
+            "authority": "COMPONENT_RUNTIME_UPGRADE_V1"
           },
           {
             "name": "remove",
-            "status": "pending-runtime-suitability",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-remove-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
+            "authority": "COMPONENT_RUNTIME_V1"
           },
           {
             "name": "failure",
-            "status": "pending-runtime-suitability",
+            "status": "component-runtime-executable",
             "evidenceContract": "component-failure-evidence/v1",
-            "authority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"
+            "authority": "COMPONENT_RUNTIME_V1"
           }
         ]
       },

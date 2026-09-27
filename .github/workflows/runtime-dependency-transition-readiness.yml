@@ -50,7 +50,7 @@ jobs:
             .ciliumReleased == false and
             .runtimeCertified == false and
             .physicalCertified == false and
-            .remainingRuntimeSuitabilityHolds == ["cilium","kyverno","metallb"]
+            .remainingRuntimeSuitabilityHolds == ["cilium","metallb"]
           ' lab/runtime-dependency-transition-readiness.json >/dev/null
           python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
           python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json

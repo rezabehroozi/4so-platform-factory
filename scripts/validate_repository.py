@@ -223,7 +223,23 @@ def validate_source_bundle(root: Path, name: str, spec: dict, errors: list[tuple
             holds_doc = load_json(holds_path, errors) if holds_path.is_file() else {}
             holds = ((holds_doc or {}).get('spec') or {}).get('runtimeSuitabilityHolds') or []
             explicit_hold = any(isinstance(h, dict) and h.get('component') == name and h.get('status') in {'review-required','dependency-transition-required'} for h in holds)
-            if not explicit_hold:
+            exact_normalized_runtime = False
+            if name == 'kyverno':
+                evidence_path = root / 'lab/rke2-kyverno-runtime-evidence.json'
+                evidence = load_json(evidence_path, errors) if evidence_path.is_file() else {}
+                exact_normalized_runtime = (
+                    isinstance(evidence, dict)
+                    and evidence.get('authority') == 'RKE2_KYVERNO_RUNTIME_CERTIFICATION_V1'
+                    and evidence.get('kyvernoRelease') == '3.8.2'
+                    and evidence.get('normalizationAuthority') == 'KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1'
+                    and evidence.get('normalizedCRDCount') == 11
+                    and evidence.get('rke2Certified') is True
+                    and evidence.get('secondApplyConverged') is True
+                    and evidence.get('runtimeHoldReleaseEligible') is True
+                    and evidence.get('productTopologyHACertified') is False
+                    and evidence.get('physicalCertified') is False
+                )
+            if not explicit_hold and not exact_normalized_runtime:
                 errors.append(('RESOLVED_SOURCE_RENDER_EMPTY_WITHOUT_RUNTIME_HOLD', name))
     for field, filename in digest_files.items():
         expected = str(src.get(field) or '')
