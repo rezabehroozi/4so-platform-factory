@@ -9,15 +9,20 @@ class RuntimeEvidenceRegistryTests(unittest.TestCase):
         self.assertTrue(out["ocMirror"]["transportRealismPass"])
         self.assertFalse(out["ocMirror"]["fullDisconnectedOKDInstallCertified"])
         reg=out["upgradeRegistry"]
-        self.assertEqual(5,reg["summary"]["componentsWithAnyRuntimeEvidence"])
-        self.assertEqual(5,reg["summary"]["fullyRuntimeUpgradeCertifiedComponents"])
+        self.assertEqual(8,reg["summary"]["componentsWithAnyRuntimeEvidence"])
+        self.assertEqual(8,reg["summary"]["fullyRuntimeUpgradeCertifiedComponents"])
         gateway=next(r for r in reg["components"] if r["component"]=="gateway-api")
         self.assertEqual("runtime-evidence-complete",gateway["status"])
         self.assertTrue(gateway["runtimeUpgradeCertified"])
         self.assertEqual([],gateway["pendingEdges"])
+        self.assertEqual(11,reg["summary"]["pendingRuntimeEdges"])
+        for name in ("external-dns","kyverno","tetragon"):
+            row=next(r for r in reg["components"] if r["component"]==name)
+            self.assertTrue(row["runtimeUpgradeCertified"])
+            self.assertEqual([],row["pendingEdges"])
     def copy_files(self):
         td=tempfile.TemporaryDirectory();dst=Path(td.name)
-        for rel in ("lab/oc-mirror-disconnected-transport-evidence.json","lab/managed-okd-oc-mirror-source-lock.json","lab/management-workload-external-image-receipt.json","catalog/component-runtime-upgrade-evidence.json","catalog/component-runtime-upgrade-matrix.json","lab/gateway-api-upgrade-runtime-matrix-evidence.json","lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json","lab/snapshot-controller-upgrade-runtime-matrix-evidence.json","lab/simple-component-upgrade-runtime-matrix-evidence.json","lab/kgateway-upgrade-runtime-matrix-evidence.json"):
+        for rel in ("lab/oc-mirror-disconnected-transport-evidence.json","lab/managed-okd-oc-mirror-source-lock.json","lab/management-workload-external-image-receipt.json","catalog/component-runtime-upgrade-evidence.json","catalog/component-runtime-upgrade-matrix.json","lab/gateway-api-upgrade-runtime-matrix-evidence.json","lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json","lab/snapshot-controller-upgrade-runtime-matrix-evidence.json","lab/simple-component-upgrade-runtime-matrix-evidence.json","lab/kgateway-upgrade-runtime-matrix-evidence.json","lab/kyverno-upgrade-runtime-matrix-evidence.json","lab/tetragon-upgrade-runtime-matrix-evidence.json"):
             p=dst/rel;p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(ROOT/rel,p)
         return td,dst
     def test_oc_mirror_scope_inflation_rejected(self):

@@ -48,6 +48,8 @@ def verify_upgrade_registry(root:Path)->dict:
     snapshot=load(root/"lab/snapshot-controller-upgrade-runtime-matrix-evidence.json")
     simple=load(root/"lab/simple-component-upgrade-runtime-matrix-evidence.json")
     kgateway=load(root/"lab/kgateway-upgrade-runtime-matrix-evidence.json")
+    kyverno=load(root/"lab/kyverno-upgrade-runtime-matrix-evidence.json")
+    tetragon=load(root/"lab/tetragon-upgrade-runtime-matrix-evidence.json")
     if reg.get("authority")!=REGISTRY_AUTH or reg.get("kind")!="ComponentRuntimeUpgradeEvidenceRegistry" or reg.get("schemaVersion")!=1:
         raise RuntimeError("RUNTIME_UPGRADE_EVIDENCE_REGISTRY_AUTHORITY_INVALID")
     expected_policy={
@@ -128,13 +130,13 @@ def verify_upgrade_registry(root:Path)->dict:
                     raise RuntimeError("SNAPSHOT_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
                 if sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
                     raise RuntimeError("SNAPSHOT_RUNTIME_UPGRADE_REGISTRY_COVERAGE_INVALID")
-        elif name in {"alloy","grafana"}:
+        elif name in {"alloy","grafana","external-dns"}:
             if simple.get("authority")!="SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1" or simple.get("matrixPass") is not True:
                 raise RuntimeError("SIMPLE_RUNTIME_UPGRADE_EVIDENCE_INVALID")
             if simple.get("genericKubernetesRuntimeEvidenceOnly") is not True or simple.get("rke2Certified") is not False or simple.get("productTopologyHACertified") is not False or simple.get("physicalCertified") is not False:
                 raise RuntimeError("SIMPLE_RUNTIME_UPGRADE_SCOPE_INFLATED")
             sr={x.get("component"):x for x in simple.get("components") or [] if isinstance(x,dict)}
-            if set(sr)!={"alloy","grafana"} or name not in sr:
+            if set(sr)!={"alloy","grafana","external-dns"} or name not in sr:
                 raise RuntimeError("SIMPLE_RUNTIME_UPGRADE_COMPONENT_SET_INVALID")
             ev=sr[name]
             expected={(ev.get("fromRelease"),ev.get("toRelease"))}
@@ -149,6 +151,36 @@ def verify_upgrade_registry(root:Path)->dict:
             for e in r.get("executedEdges",[]):
                 if e.get("authority")!="SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=simple.get("sourceRunId") or e.get("evidencePath")!="lab/simple-component-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
                     raise RuntimeError(f"SIMPLE_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID {name}")
+        elif name=="kyverno":
+            if kyverno.get("authority")!="KYVERNO_RUNTIME_UPGRADE_MATRIX_V1" or kyverno.get("matrixPass") is not True or kyverno.get("normalizationAuthority")!="KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1":
+                raise RuntimeError("KYVERNO_RUNTIME_UPGRADE_EVIDENCE_INVALID")
+            if any(kyverno.get(k) is not False for k in ("rke2Certified","productTopologyHACertified","physicalCertified")) or kyverno.get("genericKubernetesRuntimeEvidenceOnly") is not True:
+                raise RuntimeError("KYVERNO_RUNTIME_UPGRADE_SCOPE_INFLATED")
+            expected={(kyverno.get("fromRelease"),kyverno.get("toRelease"))}
+            if executed!=expected:
+                raise RuntimeError("KYVERNO_RUNTIME_UPGRADE_EDGE_BINDING_INVALID")
+            evidence_rows=kyverno.get("matrix") or []
+            required=("hookJobReplacementPerformed","historicalReady","upgradeApplyPass","targetReady","deploymentIdentityPreserved","targetReapplyConverged","reverseEdgeRejected")
+            if sorted(str(x.get("kubernetesVersion") or "") for x in evidence_rows)!=["1.34.11","1.35.8"] or not all(all(x.get(k) is True for k in required) and x.get("normalizationAuthority")=="KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1" for x in evidence_rows):
+                raise RuntimeError("KYVERNO_RUNTIME_UPGRADE_MATRIX_INVALID")
+            for e in r.get("executedEdges",[]):
+                if e.get("authority")!="KYVERNO_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=kyverno.get("sourceRunId") or e.get("evidencePath")!="lab/kyverno-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
+                    raise RuntimeError("KYVERNO_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
+        elif name=="tetragon":
+            if tetragon.get("authority")!="TETRAGON_RUNTIME_UPGRADE_MATRIX_V1" or tetragon.get("matrixPass") is not True:
+                raise RuntimeError("TETRAGON_RUNTIME_UPGRADE_EVIDENCE_INVALID")
+            if any(tetragon.get(k) is not False for k in ("rke2Certified","productTopologyHACertified","physicalCertified")) or tetragon.get("genericKubernetesRuntimeEvidenceOnly") is not True:
+                raise RuntimeError("TETRAGON_RUNTIME_UPGRADE_SCOPE_INFLATED")
+            expected={(tetragon.get("fromRelease"),tetragon.get("toRelease"))}
+            if executed!=expected:
+                raise RuntimeError("TETRAGON_RUNTIME_UPGRADE_EDGE_BINDING_INVALID")
+            evidence_rows=tetragon.get("matrix") or []
+            required=("historicalReady","upgradeApplyPass","targetReady","workloadIdentityPreserved","targetImagesVerified","targetReapplyConverged","reverseEdgeRejected")
+            if sorted(str(x.get("kubernetesVersion") or "") for x in evidence_rows)!=["1.34.11","1.35.8"] or not all(all(x.get(k) is True for k in required) for x in evidence_rows):
+                raise RuntimeError("TETRAGON_RUNTIME_UPGRADE_MATRIX_INVALID")
+            for e in r.get("executedEdges",[]):
+                if e.get("authority")!="TETRAGON_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=tetragon.get("sourceRunId") or e.get("evidencePath")!="lab/tetragon-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
+                    raise RuntimeError("TETRAGON_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
         elif name=="kgateway":
             if kgateway.get("authority")!="KGATEWAY_RUNTIME_UPGRADE_MATRIX_V1" or kgateway.get("matrixPass") is not True or kgateway.get("gatewayApiRelease")!="1.6.1":
                 raise RuntimeError("KGATEWAY_RUNTIME_UPGRADE_EVIDENCE_INVALID")
