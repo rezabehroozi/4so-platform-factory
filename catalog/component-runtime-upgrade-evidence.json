@@ -13,9 +13,9 @@
   "summary": {
     "components": 20,
     "upgradeApplicableComponents": 19,
-    "componentsWithAnyRuntimeEvidence": 11,
-    "fullyRuntimeUpgradeCertifiedComponents": 11,
-    "pendingRuntimeEdges": 8
+    "componentsWithAnyRuntimeEvidence": 12,
+    "fullyRuntimeUpgradeCertifiedComponents": 12,
+    "pendingRuntimeEdges": 7
   },
   "components": [
     {
@@ -61,16 +61,26 @@
     {
       "component": "capsule",
       "targetRelease": "0.13.11",
-      "status": "pending-runtime-evidence",
-      "executedEdges": [],
-      "pendingEdges": [
+      "status": "runtime-evidence-complete",
+      "executedEdges": [
         {
           "fromRelease": "0.13.10",
-          "toRelease": "0.13.11"
+          "toRelease": "0.13.11",
+          "authority": "HELM_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
+          "evidencePath": "lab/helm-component-upgrade-runtime-matrix-evidence.json",
+          "sourceRunId": "36343479329",
+          "kubernetesVersions": [
+            "1.34.11",
+            "1.35.8"
+          ],
+          "genericKubernetesRuntimeEvidenceOnly": true,
+          "rke2Certified": false,
+          "physicalCertified": false
         }
       ],
+      "pendingEdges": [],
       "runtimeSuitabilityHeld": false,
-      "runtimeUpgradeCertified": false,
+      "runtimeUpgradeCertified": true,
       "physicalCertified": false
     },
     {
