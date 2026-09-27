@@ -1,0 +1,159 @@
+name: gateway-api-legacy-upgrade-runtime-realism
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gateway-api-legacy-upgrade-runtime-realism.yml
+      - catalog/runtime/gateway-api/1.5.0/**
+      - catalog/runtime/gateway-api/1.5.1/**
+      - catalog/component-runtime-upgrade-matrix.json
+      - internal/runtimeupgrade/**
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes: ["1.34.11", "1.35.8"]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bind exact legacy admitted edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .components[] | select(.component=="gateway-api" and .targetRelease=="1.6.1" and .status=="admitted-source-pair")
+            | .admittedEdges[] | select(.fromRelease=="1.5.0" and .toRelease=="1.5.1")
+          ' catalog/component-runtime-upgrade-matrix.json >/tmp/edge.json
+          test -s catalog/runtime/gateway-api/1.5.0/render-manifest.json
+          test -s catalog/runtime/gateway-api/1.5.1/render-manifest.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          for version in ("1.5.0","1.5.1"):
+              items=[x for x in json.loads(Path(f"catalog/runtime/gateway-api/{version}/render-manifest.json").read_text()) if x.get("kind")=="CustomResourceDefinition"]
+              if not items:
+                  raise SystemExit(f"GATEWAY_LEGACY_RENDER_CRD_SET_EMPTY {version}")
+              Path(f"/tmp/gateway-{version}.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":items}))
+          PY
+
+      - name: Install exact kind
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$(jq -r '.spec.kind.url' runtime/network-stack-kind-toolchain.json)"
+          expected="$(jq -r '.spec.kind.sha256' runtime/network-stack-kind-toolchain.json)"
+          size="$(jq -r '.spec.kind.sizeBytes' runtime/network-stack-kind-toolchain.json)"
+          curl -fL --retry 3 --connect-timeout 30 -o /tmp/kind "$url"
+          test "$(stat -c %s /tmp/kind)" = "$size"
+          test "$(sha256sum /tmp/kind|awk '{print $1}')" = "$expected"
+          chmod +x /tmp/kind
+          image="$(jq -r --arg v "${{ matrix.kubernetes }}" '.spec.kubernetes[]|select(.version==$v)|.nodeImage' runtime/network-stack-kind-toolchain.json)"
+          case "$image" in kindest/node:v${{ matrix.kubernetes }}@sha256:*) ;; *) exit 21;; esac
+          /tmp/kind create cluster --name 4so-gw-legacy-upgrade --image "$image"
+          test "$(kubectl version -o json | jq -r .serverVersion.gitVersion)" = "v${{ matrix.kubernetes }}"
+
+      - name: Execute exact Gateway API 1.5.0 to 1.5.1 upgrade
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/gateway-1.5.0.json
+          for crd in $(jq -r '.items[].metadata.name' /tmp/gateway-1.5.0.json); do
+            kubectl wait --for=condition=Established "crd/$crd" --timeout=2m
+          done
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/gateway-1.5.1.json
+          for crd in $(jq -r '.items[].metadata.name' /tmp/gateway-1.5.1.json); do
+            kubectl wait --for=condition=Established "crd/$crd" --timeout=2m
+            kubectl get "crd/$crd" -o json | jq -e '.status.conditions[]|select(.type=="Established" and .status=="True")' >/dev/null
+            kubectl get "crd/$crd" -o json | jq -e '[.status.storedVersions[] as $s | .spec.versions[] | select(.name==$s)] | length > 0' >/dev/null
+          done
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/gateway-1.5.1.json >/tmp/reapply.txt
+
+      - name: Prove reverse edge is rejected by product executor
+        run: go test ./internal/runtimeupgrade -run 'TestUpgradeRejectsReverseOrNonCanonicalVersionEdges|TestUpgradeRequiresExactDistinctSourcePair'
+
+      - name: Seal per-version legacy upgrade evidence
+        shell: bash
+        env:
+          MATRIX_KUBERNETES: ${{ matrix.kubernetes }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          def h(p): return "sha256:"+hashlib.sha256(Path(p).read_bytes()).hexdigest()
+          v=os.environ["MATRIX_KUBERNETES"]
+          row={"apiVersion":"platform.4so.io/v1alpha1","kind":"GatewayAPILegacyUpgradeRuntimeEvidence","authority":"GATEWAY_API_LEGACY_RUNTIME_UPGRADE_EVIDENCE_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"kubernetesVersion":v,"fromRelease":"1.5.0","toRelease":"1.5.1","fromRenderSha256":h("catalog/runtime/gateway-api/1.5.0/render-manifest.json"),"toRenderSha256":h("catalog/runtime/gateway-api/1.5.1/render-manifest.json"),"upgradeApplyPass":True,"targetCRDsEstablished":True,"targetReapplyConverged":True,"reverseEdgeRejected":True,"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"productTopologyHACertified":False,"physicalCertified":False}
+          Path(f"/tmp/gateway-legacy-upgrade-{v}.json").write_text(json.dumps(row,indent=2,sort_keys=True)+"\n")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gateway-api-legacy-upgrade-${{ matrix.kubernetes }}
+          path: /tmp/gateway-legacy-upgrade-${{ matrix.kubernetes }}.json
+          retention-days: 30
+
+      - if: always()
+        run: /tmp/kind delete cluster --name 4so-gw-legacy-upgrade || true
+
+  aggregate:
+    needs: upgrade-matrix
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: gateway-api-legacy-upgrade-*
+          path: /tmp/gateway-legacy-upgrade
+          merge-multiple: true
+      - name: Aggregate exact legacy upgrade evidence
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          rows=[json.loads(p.read_text()) for p in sorted(Path("/tmp/gateway-legacy-upgrade").glob("gateway-legacy-upgrade-*.json"))]
+          if {r["kubernetesVersion"] for r in rows}!={"1.34.11","1.35.8"}:
+              raise SystemExit("GATEWAY_LEGACY_UPGRADE_MATRIX_COVERAGE_INVALID")
+          if not all(r["upgradeApplyPass"] and r["targetCRDsEstablished"] and r["targetReapplyConverged"] and r["reverseEdgeRejected"] for r in rows):
+              raise SystemExit("GATEWAY_LEGACY_UPGRADE_MATRIX_INVALID")
+          out={"apiVersion":"platform.4so.io/v1alpha1","kind":"GatewayAPILegacyUpgradeRuntimeMatrixEvidence","authority":"GATEWAY_API_LEGACY_RUNTIME_UPGRADE_MATRIX_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"fromRelease":"1.5.0","toRelease":"1.5.1","matrix":rows,"matrixPass":True,"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"productTopologyHACertified":False,"physicalCertified":False}
+          Path("lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          PY
+          git diff --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gateway-api-legacy-upgrade-runtime-matrix
+          path: lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json
+          retention-days: 30
+      - name: Persist evidence when main is unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+            echo "main advanced; skip stale legacy Gateway evidence"
+            git reset -- lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json
+            exit 0
+          fi
+          git commit -m "evidence: seal legacy Gateway API runtime upgrade"
+          if ! git push origin HEAD:main; then
+            git fetch origin main
+            if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+              echo "main advanced after legacy Gateway evidence commit; skip stale persistence"
+              exit 0
+            fi
+            exit 1
+          fi
