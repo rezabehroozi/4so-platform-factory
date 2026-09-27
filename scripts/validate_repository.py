@@ -16,6 +16,7 @@ import urllib.parse
 
 from management_workload_evidence import external_receipt_evidence, manifest_receipt_evidence, product_receipt_evidence
 from seal_management_workload_oci_archive import verify_structure as verify_management_workload_archive_receipt_structure
+from runtime_evidence_registry import verify_all as verify_runtime_evidence_registry
 
 SCAN_SUFFIXES = {'.go','.py','.md','.yaml','.yml','.json','.html','.css','.js','.sh','.txt','.service','.toml','.mod','.sql'}
 RISK = {'low','medium','high','critical'}
@@ -2067,6 +2068,10 @@ def main() -> int:
     components = validate_component_catalog(root, errors)
     validate_component_runtime_certification(root, components, errors)
     validate_component_runtime_upgrade_matrix(root, components, errors)
+    try:
+        verify_runtime_evidence_registry(root)
+    except Exception as exc:
+        errors.append(('RUNTIME_EVIDENCE_REGISTRY_INVALID', str(exc)))
     validate_boot_media_contract(root, errors)
 
     # Supply-chain acquisition, admission and handoff authorities.
