@@ -107,6 +107,11 @@ jobs:
           YAML
           kubectl apply -f /tmp/loki-pv.yaml
           kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/loki-18.12.0.json
+          for i in $(seq 1 120); do
+            kubectl -n logging get pvc/storage-platform-factory-loki-0 >/dev/null 2>&1 && break
+            sleep 1
+          done
+          kubectl -n logging get pvc/storage-platform-factory-loki-0 >/dev/null
           kubectl -n logging wait --for=jsonpath='{.status.phase}'=Bound pvc/storage-platform-factory-loki-0 --timeout=5m
           kubectl -n logging rollout status daemonset/platform-factory-loki-canary --timeout=12m
           kubectl -n logging rollout status deployment/platform-factory-loki-gateway --timeout=12m
