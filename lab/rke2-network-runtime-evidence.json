@@ -23,6 +23,6 @@
   "runtimeSuitabilityTransitionEligible": true,
   "singleNodeAntiAffinityDisposition": "one-operator-ready-second-pending-accepted-only-for-single-node-certification",
   "singleNodeRuntimeEvidenceOnly": true,
-  "sourceCommitSHA": "c4ccf0fc29b4faf38c4ec2adb24571bdf591eb63",
-  "sourceRunId": "36302583981"
+  "sourceCommitSHA": "03205657b3a9df8924627dc2206198ddbf4f3d50",
+  "sourceRunId": "36302823299"
 }
