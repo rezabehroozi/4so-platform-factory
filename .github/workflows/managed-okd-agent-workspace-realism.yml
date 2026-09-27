@@ -44,7 +44,10 @@ jobs:
           OKD_EXACT_RELEASE_SHA: ${{ env.RELEASE_SHA }}
           OKD_EXACT_MACHINE_OS_URL: ${{ env.MACHINE_URL }}
           OKD_EXACT_MACHINE_OS_SHA: ${{ env.MACHINE_SHA }}
-          OKD_TEST_PULL_SECRET: '{"auths":{}}'
+          # Syntactically valid but intentionally unusable fixture credential.
+          # The selected OKD release payload is public; this exists only because
+          # openshift-install rejects an empty auths object before asset generation.
+          OKD_TEST_PULL_SECRET: '{"auths":{"fixture.invalid":{"auth":"Zml4dHVyZTpmaXh0dXJl"}}}'
           OKD_AGENT_WORKSPACE_ROOT: /tmp/4so-okd-workspaces
           OKD_AGENT_MEDIA_ROOT: /tmp/4so-okd-media
           OKD_AGENT_EVIDENCE_OUT: lab/managed-okd-agent-workspace-execution-evidence.json
