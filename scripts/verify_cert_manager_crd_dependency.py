@@ -19,7 +19,10 @@ def crd_names(raw:str)->set[str]:
             for nxt in lines[i+1:i+12]:
                 stripped=nxt.strip()
                 if stripped.startswith("name:"):
-                    names.add(stripped.split(":",1)[1].strip().strip("\\"'"))
+                    value=stripped.split(":",1)[1].strip()
+                    if len(value)>=2 and value[0] in ('"', "'") and value[-1]==value[0]:
+                        value=value[1:-1]
+                    names.add(value)
                     break
             break
     return names
