@@ -34,8 +34,8 @@
       "rke2Certified": false,
       "runtimeHoldAutoReleased": false,
       "runtimeRealismPass": true,
-      "sourceCommitSHA": "c81fa46cd99422a4fc77dbb5852db97a7342a2df",
-      "sourceRunId": "36224180435"
+      "sourceCommitSHA": "506c80ec86fc8f79c391fce290ce4f62c89f14e9",
+      "sourceRunId": "36305943696"
     },
     {
       "allNodesReady": true,
@@ -62,18 +62,17 @@
       "rke2Certified": false,
       "runtimeHoldAutoReleased": false,
       "runtimeRealismPass": true,
-      "sourceCommitSHA": "c81fa46cd99422a4fc77dbb5852db97a7342a2df",
-      "sourceRunId": "36224180435"
+      "sourceCommitSHA": "506c80ec86fc8f79c391fce290ce4f62c89f14e9",
+      "sourceRunId": "36305943696"
     }
   ],
   "matrixPass": true,
   "physicalCertified": false,
   "remainingRuntimeSuitabilityHolds": [
     "cilium",
-    "kyverno",
     "metallb"
   ],
   "rke2Certified": false,
-  "sourceCommitSHA": "c81fa46cd99422a4fc77dbb5852db97a7342a2df",
-  "sourceRunId": "36224180435"
+  "sourceCommitSHA": "506c80ec86fc8f79c391fce290ce4f62c89f14e9",
+  "sourceRunId": "36305943696"
 }
