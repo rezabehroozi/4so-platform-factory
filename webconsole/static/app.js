@@ -4508,7 +4508,7 @@ document.addEventListener('visibilitychange',async()=>{if(document.visibilitySta
 function applyConsoleTheme(theme){
   const resolved=['light','dark'].includes(theme)?theme:(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
   document.documentElement.dataset.theme=resolved;
-  const toggle=$('#theme-toggle');if(toggle){toggle.setAttribute('aria-pressed',resolved==='dark'?'true':'false');toggle.title=resolved==='dark'?'Use light theme':'Use dark theme';}
+  const toggle=$('#theme-toggle');if(toggle){toggle.setAttribute('aria-pressed',resolved==='dark'?'true':'false');toggle.title=resolved==='dark'?t('shell.lightTheme','Use light theme'):t('shell.darkTheme','Use dark theme');}
 }
 function toggleConsoleTheme(){
   const next=document.documentElement.dataset.theme==='dark'?'light':'dark';
