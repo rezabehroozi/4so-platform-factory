@@ -89,6 +89,15 @@ jobs:
         run: |
           set -euo pipefail
           kubectl create namespace kyverno
+          # Namespace admission returns before the namespace controller has
+          # necessarily created its default ServiceAccount. Kyverno 3.8.1
+          # includes a Pod that uses that account, so make the bootstrap
+          # dependency explicit across Kubernetes minors instead of racing it.
+          for i in $(seq 1 60); do
+            kubectl -n kyverno get serviceaccount/default >/dev/null 2>&1 && break
+            sleep 1
+          done
+          kubectl -n kyverno get serviceaccount/default >/dev/null
           kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/kyverno-3.8.1.json
           for crd in $(jq -r '.items[]|select(.kind=="CustomResourceDefinition")|.metadata.name' /tmp/kyverno-3.8.1.json); do
             kubectl wait --for=condition=Established "crd/$crd" --timeout=4m
