@@ -47,6 +47,8 @@ def verify_upgrade_registry(root:Path)->dict:
     gateway_legacy=load(root/"lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json")
     snapshot=load(root/"lab/snapshot-controller-upgrade-runtime-matrix-evidence.json")
     simple=load(root/"lab/simple-component-upgrade-runtime-matrix-evidence.json")
+    cert_manager=load(root/"lab/cert-manager-upgrade-runtime-matrix-evidence.json")
+    loki=load(root/"lab/loki-upgrade-runtime-matrix-evidence.json")
     kgateway=load(root/"lab/kgateway-upgrade-runtime-matrix-evidence.json")
     kyverno=load(root/"lab/kyverno-upgrade-runtime-matrix-evidence.json")
     tetragon=load(root/"lab/tetragon-upgrade-runtime-matrix-evidence.json")
@@ -151,6 +153,36 @@ def verify_upgrade_registry(root:Path)->dict:
             for e in r.get("executedEdges",[]):
                 if e.get("authority")!="SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=simple.get("sourceRunId") or e.get("evidencePath")!="lab/simple-component-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
                     raise RuntimeError(f"SIMPLE_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID {name}")
+        elif name=="cert-manager":
+            if cert_manager.get("authority")!="CERT_MANAGER_RUNTIME_UPGRADE_MATRIX_V1" or cert_manager.get("matrixPass") is not True or cert_manager.get("crdDependencyAuthority")!="CERT_MANAGER_CRD_RUNTIME_DEPENDENCY_EVIDENCE_V1":
+                raise RuntimeError("CERT_MANAGER_RUNTIME_UPGRADE_EVIDENCE_INVALID")
+            if cert_manager.get("genericKubernetesRuntimeEvidenceOnly") is not True or any(cert_manager.get(k) is not False for k in ("rke2Certified","productTopologyHACertified","physicalCertified")):
+                raise RuntimeError("CERT_MANAGER_RUNTIME_UPGRADE_SCOPE_INFLATED")
+            expected={(cert_manager.get("fromRelease"),cert_manager.get("toRelease"))}
+            if executed!=expected:
+                raise RuntimeError("CERT_MANAGER_RUNTIME_UPGRADE_EDGE_BINDING_INVALID")
+            evidence_rows=cert_manager.get("matrix") or []
+            required=("historicalReady","upgradeApplyPass","targetReady","deploymentIdentityPreserved","webhookIdentityPreserved","crdIdentityPreserved","storedVersionsValid","startupJobReplaced","targetImagesVerified","targetReapplyConverged","reverseEdgeRejected")
+            if sorted(str(x.get("kubernetesVersion") or "") for x in evidence_rows)!=["1.34.11","1.35.8"] or not all(all(x.get(k) is True for k in required) and x.get("crdDependencyAuthority")=="CERT_MANAGER_CRD_RUNTIME_DEPENDENCY_EVIDENCE_V1" and x.get("genericKubernetesRuntimeEvidenceOnly") is True and x.get("rke2Certified") is False and x.get("productTopologyHACertified") is False and x.get("physicalCertified") is False for x in evidence_rows):
+                raise RuntimeError("CERT_MANAGER_RUNTIME_UPGRADE_MATRIX_INVALID")
+            for e in r.get("executedEdges",[]):
+                if e.get("authority")!="CERT_MANAGER_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=cert_manager.get("sourceRunId") or e.get("evidencePath")!="lab/cert-manager-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
+                    raise RuntimeError("CERT_MANAGER_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
+        elif name=="loki":
+            if loki.get("authority")!="LOKI_RUNTIME_UPGRADE_MATRIX_V1" or loki.get("matrixPass") is not True:
+                raise RuntimeError("LOKI_RUNTIME_UPGRADE_EVIDENCE_INVALID")
+            if loki.get("genericKubernetesRuntimeEvidenceOnly") is not True or any(loki.get(k) is not False for k in ("rke2Certified","productTopologyHACertified","physicalCertified")):
+                raise RuntimeError("LOKI_RUNTIME_UPGRADE_SCOPE_INFLATED")
+            expected={(loki.get("fromRelease"),loki.get("toRelease"))}
+            if executed!=expected:
+                raise RuntimeError("LOKI_RUNTIME_UPGRADE_EDGE_BINDING_INVALID")
+            evidence_rows=loki.get("matrix") or []
+            required=("historicalReady","upgradeApplyPass","targetReady","workloadIdentityPreserved","pvcIdentityPreserved","persistentVolumeBindingPreserved","targetImagesVerified","targetReapplyConverged","reverseEdgeRejected")
+            if sorted(str(x.get("kubernetesVersion") or "") for x in evidence_rows)!=["1.34.11","1.35.8"] or not all(all(x.get(k) is True for k in required) and x.get("genericKubernetesRuntimeEvidenceOnly") is True and x.get("rke2Certified") is False and x.get("productTopologyHACertified") is False and x.get("physicalCertified") is False for x in evidence_rows):
+                raise RuntimeError("LOKI_RUNTIME_UPGRADE_MATRIX_INVALID")
+            for e in r.get("executedEdges",[]):
+                if e.get("authority")!="LOKI_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=loki.get("sourceRunId") or e.get("evidencePath")!="lab/loki-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
+                    raise RuntimeError("LOKI_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
         elif name=="kyverno":
             if kyverno.get("authority")!="KYVERNO_RUNTIME_UPGRADE_MATRIX_V1" or kyverno.get("matrixPass") is not True or kyverno.get("normalizationAuthority")!="KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1":
                 raise RuntimeError("KYVERNO_RUNTIME_UPGRADE_EVIDENCE_INVALID")
