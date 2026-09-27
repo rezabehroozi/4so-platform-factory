@@ -12,6 +12,10 @@ on:
       - tests/test_tagged_source_acquisition.py
       - tests/test_catalog_upstream_admission.py
       - internal/catalogbundle/bundle.go
+      - internal/catalogbundle/bundle_test.go
+      - internal/api/runtime_certification_test.go
+      - lab/management-workload-product-image-receipt.json
+      - lab/supply-chain-handoff-plan.json
       - catalog/runtime_certification_registry.go
 
 permissions:

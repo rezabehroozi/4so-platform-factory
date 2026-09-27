@@ -935,42 +935,44 @@ func taggedSourceSetZIP(t *testing.T, component, version, releaseURL string) []b
 	return buf.Bytes()
 }
 
-func taggedSourceSetInput(t *testing.T) AssembleInput {
+func taggedSourceSetInputVersion(t *testing.T, version string) AssembleInput {
 	t.Helper()
 	base, err := os.ReadFile(filepath.Join("..", "..", "catalog", "components", "gateway-api.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	if err != nil { t.Fatal(err) }
 	var doc map[string]any
-	if err := json.Unmarshal(base, &doc); err != nil {
-		t.Fatal(err)
-	}
+	if err := json.Unmarshal(base, &doc); err != nil { t.Fatal(err) }
 	spec := doc["spec"].(map[string]any)
+	spec["release"] = version
+	if delivery, ok := spec["delivery"].(map[string]any); ok { delivery["chart"] = "gateway-api/" + version }
 	src := spec["source"].(map[string]any)
-	for _, k := range []string{"bundleKey", "artifactDigest", "renderManifestDigest", "sourceLockDigest", "imageInventoryDigest", "licenseManifestDigest"} {
-		src[k] = ""
-	}
+	for _, k := range []string{"bundleKey", "artifactDigest", "renderManifestDigest", "sourceLockDigest", "imageInventoryDigest", "licenseManifestDigest"} { src[k] = "" }
 	src["resolved"] = false
 	src["signatureVerification"] = "required"
 	src["sbom"] = "required"
 	src["provenance"] = "required"
 	base, err = json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
+	if err != nil { t.Fatal(err) }
 	base = append(base, '\n')
-	version := "1.5.1"
 	url := "https://github.com/kubernetes-sigs/gateway-api/releases/tag/v" + version
 	artifact := taggedSourceSetZIP(t, "gateway-api", version, url)
 	return AssembleInput{
 		BaseComponent: base, Artifact: artifact,
 		RenderManifest: []byte("[{\"apiVersion\":\"v1\",\"kind\":\"Namespace\",\"metadata\":{\"name\":\"platform-system\"}}]\n"),
 		ImageInventory: []byte("{\"images\":[]}\n"),
-		Licenses:       []byte("{\"licenses\":[{\"file\":\"LICENSE\",\"spdxExpression\":\"Apache-2.0\"}]}\n"),
-		SBOM:           []byte("{\"spdxVersion\":\"SPDX-2.3\",\"SPDXID\":\"SPDXRef-DOCUMENT\",\"name\":\"gateway-api-test\",\"packages\":[{\"SPDXID\":\"SPDXRef-Package-gateway-api\",\"name\":\"gateway-api\",\"versionInfo\":\"1.5.1\"}]}\n"),
-		Version:        version, SourceType: "external-tagged-source-set", SourceURL: url, SourceRevision: "v" + version,
-		UpstreamArtifact: "gateway-api-v1.5.1-source-set.zip", ExpectedArtifactDigest: sha(artifact), BundleKey: "gateway-api/1.5.1",
+		Licenses: []byte("{\"licenses\":[{\"file\":\"LICENSE\",\"spdxExpression\":\"Apache-2.0\"}]}\n"),
+		SBOM: []byte("{\"spdxVersion\":\"SPDX-2.3\",\"SPDXID\":\"SPDXRef-DOCUMENT\",\"name\":\"gateway-api-test\",\"packages\":[{\"SPDXID\":\"SPDXRef-Package-gateway-api\",\"name\":\"gateway-api\",\"versionInfo\":\"" + version + "\"}]}\n"),
+		Version: version, SourceType: "external-tagged-source-set", SourceURL: url, SourceRevision: "v" + version,
+		UpstreamArtifact: "gateway-api-v" + version + "-source-set.zip", ExpectedArtifactDigest: sha(artifact), BundleKey: "gateway-api/" + version,
 	}
+}
+
+func taggedSourceSetInput(t *testing.T) AssembleInput {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "catalog", "components", "gateway-api.json"))
+	if err != nil { t.Fatal(err) }
+	var doc struct { Spec struct { Release string `json:"release"` } `json:"spec"` }
+	if err = json.Unmarshal(raw, &doc); err != nil { t.Fatal(err) }
+	return taggedSourceSetInputVersion(t, doc.Spec.Release)
 }
 
 func TestTaggedSourceSetRequiresDeclaredUpstreamIdentity(t *testing.T) {
@@ -979,7 +981,7 @@ func TestTaggedSourceSetRequiresDeclaredUpstreamIdentity(t *testing.T) {
 		t.Fatalf("valid tagged source-set rejected: %v", err)
 	}
 	in = taggedSourceSetInput(t)
-	in.SourceURL = "https://example.invalid/releases/tag/v1.5.1"
+	in.SourceURL = "https://example.invalid/releases/tag/v" + in.Version
 	if _, _, err := Assemble(in); err == nil {
 		t.Fatal("tagged source-set accepted mismatched upstream release URL")
 	}
@@ -1374,7 +1376,7 @@ func TestInstallRejectsSymlinkedExternalComponentContractBeforeMutation(t *testi
 	if err = Install(v, root); err == nil || !strings.Contains(err.Error(), "real regular file") {
 		t.Fatalf("symlinked component authority was accepted: %v", err)
 	}
-	if _, statErr := os.Stat(filepath.Join(root, "catalog", "runtime", "gateway-api", "1.5.1")); !errors.Is(statErr, os.ErrNotExist) {
+	if _, statErr := os.Stat(filepath.Join(root, "catalog", "runtime", filepath.FromSlash(v.Manifest.BundleKey))); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("runtime mutated before component path rejection: %v", statErr)
 	}
 	outsideRaw, readErr := os.ReadFile(outside)
@@ -1668,11 +1670,9 @@ func TestReservedEndpointPlaceholderRejectsEndpointExpansion(t *testing.T) {
 
 
 func TestTransitionContractIsNarrowAndGenericInstallRuleRemainsClosed(t *testing.T) {
-	in := taggedSourceSetInput(t)
+	in := taggedSourceSetInputVersion(t, "1.5.1")
 	_, currentVerified, err := Assemble(in)
-	if err != nil {
-		t.Fatal(err)
-	}
+	if err != nil { t.Fatal(err) }
 	current := currentVerified.Component
 	target := current
 	target.Spec.Release = "1.6.1"
