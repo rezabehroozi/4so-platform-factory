@@ -163,4 +163,12 @@ jobs:
             exit 0
           fi
           git commit -m "evidence: seal Gateway API runtime upgrade matrix"
-          git push origin HEAD:main
+          if ! git push origin HEAD:main; then
+            git fetch origin main
+            if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+              echo "main advanced after evidence commit; skip stale Gateway evidence persistence"
+              exit 0
+            fi
+            echo "Gateway evidence push failed without main advancing" >&2
+            exit 1
+          fi
