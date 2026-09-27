@@ -44,10 +44,10 @@ class RuntimeEvidenceRegistryTests(unittest.TestCase):
             p=dst/"catalog/component-runtime-upgrade-evidence.json";d=json.loads(p.read_text());g=next(r for r in d["components"] if r["component"]=="gateway-api");g["runtimeUpgradeCertified"]=False;p.write_text(json.dumps(d))
             with self.assertRaisesRegex(RuntimeError,"CERTIFICATION_SCOPE"):mod.verify_upgrade_registry(dst)
         finally:td.cleanup()
-    def test_upgrade_registry_rejects_unexecuted_edge_fabrication(self):
+    def test_upgrade_registry_rejects_edge_fabrication_without_matching_runtime_evidence(self):
         td,dst=self.copy_files()
         try:
             p=dst/"catalog/component-runtime-upgrade-evidence.json";d=json.loads(p.read_text());a=next(r for r in d["components"] if r["component"]=="argocd");a["executedEdges"]=[{"fromRelease":"10.2.2","toRelease":"10.2.3"}];a["pendingEdges"]=[];a["status"]="runtime-evidence-complete";a["runtimeUpgradeCertified"]=True;p.write_text(json.dumps(d))
-            with self.assertRaisesRegex(RuntimeError,"UNSUPPORTED_RUNTIME_UPGRADE_EVIDENCE_CLAIM"):mod.verify_upgrade_registry(dst)
+            with self.assertRaisesRegex(RuntimeError,"HELM_COMPONENT_RUNTIME_UPGRADE_EDGE_BINDING_INVALID"):mod.verify_upgrade_registry(dst)
         finally:td.cleanup()
 if __name__=="__main__":unittest.main()

@@ -156,7 +156,7 @@ func postgresAuthorityConfigured(getenv func(string) string) bool {
 	return false
 }
 
-func openStore(ctx context.Context, logger *slog.Logger) (controlplane.Store, func(), error) {
+func openStore(ctx context.Context, logger *slog.Logger, allowDevelopmentFileStore bool) (controlplane.Store, func(), error) {
 	statePath := os.Getenv("PLATFORM_FACTORY_STATE_FILE")
 	postgresDSN, dsnErr := postgresDSNFromEnv(os.Getenv)
 	if dsnErr != nil {
@@ -223,6 +223,9 @@ func openStore(ctx context.Context, logger *slog.Logger) (controlplane.Store, fu
 		return store, closeFn, nil
 	}
 	if statePath != "" {
+		if !allowDevelopmentFileStore {
+			return nil, func() {}, fmt.Errorf("file-state persistence is development-only; enable PLATFORM_FACTORY_DEVELOPMENT_MODE on a loopback listener or configure PostgreSQL")
+		}
 		fileStore, err := controlplane.OpenFileStore(statePath)
 		if err != nil {
 			return nil, func() {}, fmt.Errorf("open development state store: %w", err)
@@ -549,7 +552,7 @@ func main() {
 		os.Exit(1)
 	}
 	startupCtx, startupCancel := context.WithTimeout(context.Background(), productionStoreStartupTimeout)
-	store, closeStore, err := openStore(startupCtx, logger)
+	store, closeStore, err := openStore(startupCtx, logger, localDevelopment)
 	startupCancel()
 	if err != nil {
 		logger.Error("control-plane store open failed", "error", err)

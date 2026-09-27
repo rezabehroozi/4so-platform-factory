@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -90,12 +91,27 @@ func TestOpenStoreRejectsMissingDurableAuthority(t *testing.T) {
 	t.Setenv("PLATFORM_FACTORY_STATE_FILE", "")
 	t.Setenv("PLATFORM_FACTORY_POSTGRES_DSN", "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	store, closeFn, err := openStore(context.Background(), logger)
+	store, closeFn, err := openStore(context.Background(), logger, false)
 	if closeFn != nil {
 		closeFn()
 	}
 	if err == nil || store != nil {
 		t.Fatalf("expected missing durable authority to fail closed, store=%T err=%v", store, err)
+	}
+}
+
+func TestOpenStoreRejectsFileStateOutsideExplicitDevelopment(t *testing.T) {
+	for _, key := range []string{"PLATFORM_FACTORY_POSTGRES_DSN", "PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "PGSSLMODE"} {
+		t.Setenv(key, "")
+	}
+	t.Setenv("PLATFORM_FACTORY_STATE_FILE", t.TempDir()+"/state.json")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store, closeFn, err := openStore(context.Background(), logger, false)
+	if closeFn != nil {
+		closeFn()
+	}
+	if err == nil || store != nil || !strings.Contains(err.Error(), "development-only") {
+		t.Fatalf("file-state authority outside explicit development must fail closed, store=%T err=%v", store, err)
 	}
 }
 
