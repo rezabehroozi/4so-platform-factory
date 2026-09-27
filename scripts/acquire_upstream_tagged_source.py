@@ -408,9 +408,18 @@ def acquire(component: str, version: str, *, historical: bool, transition: bool 
 
 
 def self_test() -> int:
-    for component, version, commit in (("gateway-api","1.5.0","3797b631d20f9ff4e2b4571f62d91d84a1fbdf5a"),("snapshot-controller","8.4.0","f21cb02763e7cd6a7fc84846f106b83119b5371d")):
-        recipe,row=load_recipe(component,version,historical=True)
-        assert recipe["spec"]["commitSHA"]==commit and row["previousVersion"]==version
+    # Immutable historical recipes remain verifiable even after the current
+    # reviewed predecessor advances. Admission itself must bind only the
+    # predecessor selected by the current upgrade authority.
+    legacy=_json(ROOT/"catalog/tagged-source-recipes/gateway-api/1.5.0.json")
+    assert legacy["spec"]["commitSHA"]=="3797b631d20f9ff4e2b4571f62d91d84a1fbdf5a" and legacy["metadata"]["version"]=="1.5.0"
+    admission=_json(ROOT/"catalog/component-upgrade-source-admission.json")
+    gateway_row=next(r for r in admission["components"] if r["component"]=="gateway-api")
+    gateway_version=str(gateway_row["previousVersion"])
+    recipe,row=load_recipe("gateway-api",gateway_version,historical=True)
+    assert row["previousVersion"]==gateway_version and recipe["metadata"]["version"]==gateway_version
+    recipe,row=load_recipe("snapshot-controller","8.4.0",historical=True)
+    assert recipe["spec"]["commitSHA"]=="f21cb02763e7cd6a7fc84846f106b83119b5371d" and row["previousVersion"]=="8.4.0"
     recipe,row=load_recipe("gateway-api","1.6.1",historical=False,transition=True)
     assert recipe["spec"]["commitSHA"]=="8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3" and row["targetRelease"]=="1.6.1"
     raw={"install.yaml":b"apiVersion: v1\nkind: Namespace\nmetadata:\n  name: x\n"}
@@ -421,7 +430,7 @@ def self_test() -> int:
     try: _safe_source_path("../escape")
     except RuntimeError: pass
     else: raise AssertionError("path traversal accepted")
-    print("TAGGED_SOURCE_ACQUISITION_SELF_TEST_PASS recipes=2 deterministic_zip=PASS")
+    print("TAGGED_SOURCE_ACQUISITION_SELF_TEST_PASS recipes=3 deterministic_zip=PASS")
     return 0
 
 
