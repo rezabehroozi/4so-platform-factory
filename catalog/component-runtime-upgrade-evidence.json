@@ -13,9 +13,9 @@
   "summary": {
     "components": 20,
     "upgradeApplicableComponents": 19,
-    "componentsWithAnyRuntimeEvidence": 4,
-    "fullyRuntimeUpgradeCertifiedComponents": 4,
-    "pendingRuntimeEdges": 15
+    "componentsWithAnyRuntimeEvidence": 5,
+    "fullyRuntimeUpgradeCertifiedComponents": 5,
+    "pendingRuntimeEdges": 14
   },
   "components": [
     {
@@ -230,16 +230,26 @@
     {
       "component": "kgateway",
       "targetRelease": "2.4.1",
-      "status": "pending-runtime-evidence",
-      "executedEdges": [],
-      "pendingEdges": [
+      "status": "runtime-evidence-complete",
+      "executedEdges": [
         {
           "fromRelease": "2.4.0",
-          "toRelease": "2.4.1"
+          "toRelease": "2.4.1",
+          "authority": "KGATEWAY_RUNTIME_UPGRADE_MATRIX_V1",
+          "evidencePath": "lab/kgateway-upgrade-runtime-matrix-evidence.json",
+          "sourceRunId": "36308303250",
+          "kubernetesVersions": [
+            "1.34.11",
+            "1.35.8"
+          ],
+          "genericKubernetesRuntimeEvidenceOnly": true,
+          "rke2Certified": false,
+          "physicalCertified": false
         }
       ],
+      "pendingEdges": [],
       "runtimeSuitabilityHeld": false,
-      "runtimeUpgradeCertified": false,
+      "runtimeUpgradeCertified": true,
       "physicalCertified": false
     },
     {
