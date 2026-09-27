@@ -589,11 +589,14 @@ def validate(plan: dict, root: Path = ROOT) -> list[str]:
         evidence = transition.get("runtimeEvidence") or {}
         if evidence.get("authority") != "RKE2_NETWORK_RUNTIME_CERTIFICATION_V1" or evidence.get("singleNodeRKE2Certified") is not True or evidence.get("productTopologyHACertified") is not False or evidence.get("physicalCertified") is not False:
             errors.append("runtime dependency transition partial evidence invalid")
-    if transition.get("currentGatewayApiMutationPerformed") is not False or transition.get("ciliumReleased") is not False:
-        errors.append("runtime dependency transition readiness illegally promotes runtime state")
+    mutation_performed = transition.get("currentGatewayApiMutationPerformed")
+    cilium_released = transition.get("ciliumReleased")
+    if mutation_performed not in {True, False} or cilium_released is not mutation_performed:
+        errors.append("runtime dependency transition mutation/release state invalid")
     if transition.get("runtimeCertified") is not False or transition.get("physicalCertified") is not False:
         errors.append("runtime dependency transition readiness scope inflation")
-    if transition.get("remainingRuntimeSuitabilityHolds") != ["cilium","metallb"]:
+    expected_holds = ["metallb"] if mutation_performed else ["cilium","metallb"]
+    if transition.get("remainingRuntimeSuitabilityHolds") != expected_holds:
         errors.append("runtime dependency transition hold set drift")
     upgrade_adm = spec.get("componentUpgradeSourceAdmission") or {}
     if upgrade_adm.get("authority") != "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1":

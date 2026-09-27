@@ -23,11 +23,13 @@ class RuntimeDependencyTransitionReadinessTests(unittest.TestCase):
         self.assertTrue(receipt["singleNodeRKE2Certified"])
         self.assertFalse(receipt["productTopologyHACertified"])
         self.assertEqual("36246011111", receipt["runtimeEvidence"]["sourceRunId"])
-        self.assertFalse(receipt["currentGatewayApiMutationPerformed"])
-        self.assertFalse(receipt["ciliumReleased"])
+        current = json.loads((ROOT / "catalog" / "components" / "gateway-api.json").read_text())
+        expected_mutated = current["spec"]["release"] == "1.6.1"
+        self.assertEqual(expected_mutated, receipt["currentGatewayApiMutationPerformed"])
+        self.assertEqual(expected_mutated, receipt["ciliumReleased"])
         self.assertFalse(receipt["runtimeCertified"])
         self.assertFalse(receipt["physicalCertified"])
-        self.assertEqual(["cilium", "metallb"], receipt["remainingRuntimeSuitabilityHolds"])
+        self.assertEqual(["metallb"] if expected_mutated else ["cilium", "metallb"], receipt["remainingRuntimeSuitabilityHolds"])
 
     def test_target_gateway_assets_are_exactly_two_and_digest_bound(self):
         receipt = mod.verify(ROOT)
@@ -35,13 +37,15 @@ class RuntimeDependencyTransitionReadinessTests(unittest.TestCase):
         self.assertEqual(["experimental-install.yaml", "standard-install.yaml"], [r["name"] for r in rows])
         self.assertTrue(all(r["sha256"].startswith("sha256:") and r["sizeBytes"] > 0 for r in rows))
 
-    def test_current_gateway_api_is_not_silently_promoted(self):
+    def test_current_gateway_api_truth_matches_catalog_authority(self):
         receipt = mod.verify(ROOT)
         current = json.loads((ROOT / "catalog" / "components" / "gateway-api.json").read_text())
-        self.assertEqual("1.5.1", current["spec"]["release"])
-        self.assertEqual("1.5.1", receipt["currentGatewayApi"]["release"])
+        self.assertIn(current["spec"]["release"], {"1.5.1", "1.6.1"})
+        self.assertEqual(current["spec"]["release"], receipt["currentGatewayApi"]["release"])
         self.assertEqual("1.6.1", receipt["targetGatewayApi"]["release"])
-        self.assertFalse(receipt["currentGatewayApiMutationPerformed"])
+        expected_mutated = current["spec"]["release"] == "1.6.1"
+        self.assertEqual(expected_mutated, receipt["currentGatewayApiMutationPerformed"])
+        self.assertEqual(expected_mutated, receipt["ciliumReleased"])
 
 
 if __name__ == "__main__":

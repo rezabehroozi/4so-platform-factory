@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Prove that the Cilium/Gateway API/KGateway transition is ready for runtime execution.
 
-This is preparation evidence only. It does not mutate the current Gateway API
-catalog release and cannot certify Cilium, KGateway, Runtime or Physical PASS.
+This verifier is side-effect free. It proves either the pre-mutation transition
+boundary or the post-mutation exact source authority. Runtime/Physical PASS is
+never inferred from source promotion; exact single-node RKE2 evidence remains
+separately scoped from HA and Physical certification.
 """
 from __future__ import annotations
 
@@ -66,7 +68,11 @@ def verify(root: Path) -> dict:
     ga = spec.get("gatewayApi") or {}
     kg = spec.get("kgateway") or {}
     ci = spec.get("cilium") or {}
-    if ga.get("currentRelease") != "1.5.1" or ga.get("targetRelease") != "1.6.1" or ga.get("sourceStatus") != "source-acquired":
+    gateway_component = load(root / "catalog" / "components" / "gateway-api.json", "GATEWAY_API_COMPONENT")
+    current_gateway_release = str((gateway_component.get("spec") or {}).get("release") or "")
+    if current_gateway_release not in {"1.5.1", "1.6.1"}:
+        raise RuntimeError("GATEWAY_API_CURRENT_RELEASE_INVALID")
+    if ga.get("currentRelease") != current_gateway_release or ga.get("targetRelease") != "1.6.1" or ga.get("sourceStatus") != "source-acquired":
         raise RuntimeError("GATEWAY_API_TRANSITION_INVALID")
     if kg.get("targetRelease") != "2.4.1" or kg.get("sourceStatus") != "source-acquired" or kg.get("gatewayApiCompatibility") != "1.4-1.6":
         raise RuntimeError("KGATEWAY_TRANSITION_INVALID")
@@ -94,7 +100,7 @@ def verify(root: Path) -> dict:
     if runtime_evidence != expected_runtime:
         raise RuntimeError("RKE2_SINGLE_NODE_RUNTIME_EVIDENCE_INVALID")
 
-    current_gateway, current_gateway_digest = source_lock(root, "gateway-api", "1.5.1")
+    current_gateway, current_gateway_digest = source_lock(root, "gateway-api", current_gateway_release)
     kgateway, kgateway_digest = source_lock(root, "kgateway", "2.4.1")
     cilium, cilium_digest = source_lock(root, "cilium", "1.20.1")
 
@@ -131,10 +137,13 @@ def verify(root: Path) -> dict:
 
     registry = load(root / "catalog" / "component-runtime-certification.json", "COMPONENT_RUNTIME_CERTIFICATION")
     holds = {row.get("component"): row for row in (registry.get("spec") or {}).get("runtimeSuitabilityHolds") or [] if isinstance(row, dict)}
-    if set(holds) != {"cilium", "metallb"}:
+    mutation_performed = current_gateway_release == "1.6.1"
+    expected_holds = {"metallb"} if mutation_performed else {"cilium", "metallb"}
+    if set(holds) != expected_holds:
         raise RuntimeError("RUNTIME_SUITABILITY_HOLD_SET_INVALID")
-    if holds["cilium"].get("authority") != TRANSITION_AUTHORITY or holds["cilium"].get("status") != "dependency-transition-required":
-        raise RuntimeError("CILIUM_RUNTIME_SUITABILITY_HOLD_INVALID")
+    if not mutation_performed:
+        if holds["cilium"].get("authority") != TRANSITION_AUTHORITY or holds["cilium"].get("status") != "dependency-transition-required":
+            raise RuntimeError("CILIUM_RUNTIME_SUITABILITY_HOLD_INVALID")
 
     receipt = {
         "apiVersion": "platform.4so.io/v1alpha1",
@@ -143,7 +152,7 @@ def verify(root: Path) -> dict:
         "transitionAuthority": TRANSITION_AUTHORITY,
         "transitionDigest": sha256(transition_path),
         "currentGatewayApi": {
-            "release": "1.5.1",
+            "release": current_gateway_release,
             "sourceLockSha256": current_gateway_digest,
             "artifactDigest": current_gateway.get("upstreamArtifactDigest"),
         },
@@ -167,11 +176,11 @@ def verify(root: Path) -> dict:
         "singleNodeRKE2Certified": True,
         "productTopologyHACertified": False,
         "runtimeEvidence": runtime_evidence,
-        "currentGatewayApiMutationPerformed": False,
-        "ciliumReleased": False,
+        "currentGatewayApiMutationPerformed": mutation_performed,
+        "ciliumReleased": mutation_performed,
         "runtimeCertified": False,
         "physicalCertified": False,
-        "remainingRuntimeSuitabilityHolds": ["cilium", "metallb"],
+        "remainingRuntimeSuitabilityHolds": sorted(expected_holds),
     }
     return receipt
 
@@ -187,7 +196,10 @@ def main() -> int:
         assert receipt["transitionExecutionReady"] is True
         assert receipt["singleNodeRKE2Certified"] is True and receipt["productTopologyHACertified"] is False
         assert receipt["runtimeCertified"] is False and receipt["physicalCertified"] is False
-        assert receipt["remainingRuntimeSuitabilityHolds"] == ["cilium", "metallb"]
+        expected_mutated = receipt["currentGatewayApi"]["release"] == "1.6.1"
+        assert receipt["currentGatewayApiMutationPerformed"] is expected_mutated
+        assert receipt["ciliumReleased"] is expected_mutated
+        assert receipt["remainingRuntimeSuitabilityHolds"] == (["metallb"] if expected_mutated else ["cilium", "metallb"])
         print("RUNTIME_DEPENDENCY_TRANSITION_READINESS_SELF_TEST_PASS")
         return 0
     receipt = verify(args.root.resolve())

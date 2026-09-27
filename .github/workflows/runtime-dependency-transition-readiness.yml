@@ -46,11 +46,13 @@ jobs:
             .authority == "RUNTIME_DEPENDENCY_TRANSITION_READINESS_V1" and
             .sourceClosureReady == true and
             .transitionExecutionReady == true and
-            .currentGatewayApiMutationPerformed == false and
-            .ciliumReleased == false and
             .runtimeCertified == false and
             .physicalCertified == false and
-            .remainingRuntimeSuitabilityHolds == ["cilium","metallb"]
+            (
+              (.currentGatewayApi.release == "1.5.1" and .currentGatewayApiMutationPerformed == false and .ciliumReleased == false and .remainingRuntimeSuitabilityHolds == ["cilium","metallb"])
+              or
+              (.currentGatewayApi.release == "1.6.1" and .currentGatewayApiMutationPerformed == true and .ciliumReleased == true and .remainingRuntimeSuitabilityHolds == ["metallb"])
+            )
           ' lab/runtime-dependency-transition-readiness.json >/dev/null
           python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
           python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
