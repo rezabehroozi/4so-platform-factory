@@ -2404,6 +2404,11 @@ func prepareRuntimeCertificationRegistryMigration(repoRoot string, current, targ
 	if err = catalog.MigrateComponentRuntimeCertificationSource(&registry, current, target, "RUNTIME_DEPENDENCY_TRANSITION_V1"); err != nil {
 		return nil, nil, err
 	}
+	if target.Metadata.Name == "gateway-api" {
+		if err = catalog.ReleaseComponentRuntimeSuitabilityHold(&registry, "cilium", "RUNTIME_DEPENDENCY_TRANSITION_V1"); err != nil {
+			return nil, nil, err
+		}
+	}
 	components[target.Metadata.Name] = target
 	if err = catalog.ValidateComponentRuntimeCertificationRegistry(registry, components); err != nil {
 		return nil, nil, fmt.Errorf("migrated component runtime certification authority invalid: %w", err)

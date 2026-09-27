@@ -388,6 +388,62 @@ func MigrateComponentRuntimeCertificationSource(registry *ComponentRuntimeCertif
 	return fmt.Errorf("component %s missing from runtime certification registry", previous.Metadata.Name)
 }
 
+// ReleaseComponentRuntimeSuitabilityHold converts one exact, evidence-gated
+// dependency-transition hold back into the normal component executor. It cannot
+// release review/security holds or holds owned by another authority.
+func ReleaseComponentRuntimeSuitabilityHold(registry *ComponentRuntimeCertificationRegistry, component, authority string) error {
+	if registry == nil {
+		return fmt.Errorf("component runtime certification registry is nil")
+	}
+	component = strings.TrimSpace(component)
+	authority = strings.TrimSpace(authority)
+	if component == "" || authority != "RUNTIME_DEPENDENCY_TRANSITION_V1" {
+		return fmt.Errorf("runtime suitability hold release authority denied")
+	}
+	holdIndex := -1
+	for i, hold := range registry.Spec.RuntimeSuitabilityHolds {
+		if hold.Component != component {
+			continue
+		}
+		if holdIndex >= 0 || hold.Status != "dependency-transition-required" || hold.Authority != authority {
+			return fmt.Errorf("runtime suitability hold is not releasable for %s", component)
+		}
+		holdIndex = i
+	}
+	if holdIndex < 0 {
+		return fmt.Errorf("runtime suitability hold missing for %s", component)
+	}
+	for i := range registry.Spec.Components {
+		contract := &registry.Spec.Components[i]
+		if contract.Component != component {
+			continue
+		}
+		if !contract.SourceBinding.Resolved || contract.SourceBinding.Status != "source-ready" ||
+			strings.TrimSpace(contract.SourceBinding.SourceLockDigest) == "" ||
+			contract.Executor.Status != "runtime-suitability-held" {
+			return fmt.Errorf("runtime suitability hold release source/executor binding drift for %s", component)
+		}
+		registry.Spec.RuntimeSuitabilityHolds = append(
+			registry.Spec.RuntimeSuitabilityHolds[:holdIndex],
+			registry.Spec.RuntimeSuitabilityHolds[holdIndex+1:]...,
+		)
+		contract.Executor.Status = "component-install-readiness-dependency-failure-remove-partial"
+		contract.Executor.Profile = "COMPONENT_RUNTIME_V1"
+		for j := range contract.Lifecycle {
+			stage := &contract.Lifecycle[j]
+			if stage.Name == "upgrade" {
+				stage.Status = "pending-upgrade-matrix"
+				stage.Authority = "COMPONENT_RUNTIME_UPGRADE_V1"
+			} else {
+				stage.Status = "component-runtime-executable"
+				stage.Authority = "COMPONENT_RUNTIME_V1"
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("runtime suitability hold component contract missing for %s", component)
+}
+
 func equalStringSlice(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

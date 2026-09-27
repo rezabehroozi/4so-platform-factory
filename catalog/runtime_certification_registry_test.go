@@ -178,3 +178,45 @@ func TestMigrateComponentRuntimeCertificationSourceRequiresExplicitAuthorityAndE
 		t.Fatal("stale previous binding replay was accepted")
 	}
 }
+
+
+func TestReleaseComponentRuntimeSuitabilityHoldIsAuthorityAndStatusFenced(t *testing.T) {
+	contract := ComponentRuntimeCertificationContract{
+		Component: "cilium", Release: "1.20.1",
+		SourceBinding: ComponentRuntimeSourceBinding{
+			Status: "source-ready", Resolved: true,
+			SourceLockDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		Executor: ComponentRuntimeExecutor{Status: "runtime-suitability-held", Profile: "COMPONENT_RUNTIME_V1", Owner: "catalog-component"},
+	}
+	for _, name := range RequiredComponentLifecycleStages {
+		contract.Lifecycle = append(contract.Lifecycle, ComponentRuntimeLifecycleStage{
+			Name: name, Status: "pending-runtime-suitability",
+			EvidenceContract: "component-"+name+"-evidence/v1", Authority: "RUNTIME_DEPENDENCY_TRANSITION_V1",
+		})
+	}
+	registry := ComponentRuntimeCertificationRegistry{}
+	registry.Spec.RuntimeSuitabilityHolds = []ComponentRuntimeSuitabilityHold{{
+		Component:"cilium", Status:"dependency-transition-required", Authority:"RUNTIME_DEPENDENCY_TRANSITION_V1",
+		Reason:"exact gateway dependency transition pending", EvidenceURL:"https://example.test/evidence",
+	}}
+	registry.Spec.Components = []ComponentRuntimeCertificationContract{contract}
+	if err := ReleaseComponentRuntimeSuitabilityHold(&registry, "cilium", "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1"); err == nil {
+		t.Fatal("wrong authority released dependency transition hold")
+	}
+	if err := ReleaseComponentRuntimeSuitabilityHold(&registry, "cilium", "RUNTIME_DEPENDENCY_TRANSITION_V1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(registry.Spec.RuntimeSuitabilityHolds) != 0 || registry.Spec.Components[0].Executor.Status != "component-install-readiness-dependency-failure-remove-partial" {
+		t.Fatalf("hold release did not restore normal executor: %#v", registry)
+	}
+	for _, stage := range registry.Spec.Components[0].Lifecycle {
+		if stage.Name == "upgrade" {
+			if stage.Status != "pending-upgrade-matrix" || stage.Authority != "COMPONENT_RUNTIME_UPGRADE_V1" {
+				t.Fatalf("upgrade stage authority drift: %#v", stage)
+			}
+		} else if stage.Status != "component-runtime-executable" || stage.Authority != "COMPONENT_RUNTIME_V1" {
+			t.Fatalf("runtime stage was not released: %#v", stage)
+		}
+	}
+}
