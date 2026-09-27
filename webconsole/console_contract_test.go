@@ -184,7 +184,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 		}
 	}
 	for _, contract := range []string{
-		`<span>Overview</span>`, `<span>Platforms</span>`, `<span>Blueprints</span>`, `<span>Assurance</span>`, `<span>Admin</span>`,
+		`data-en="Overview">نمای کلی</span>`, `data-en="Platforms">پلتفرم‌ها</span>`, `data-en="Blueprints">طرح‌ها و نسخه‌ها</span>`, `data-en="Assurance">اطمینان و شواهد</span>`, `data-en="Admin">مدیریت</span>`,
 		`class="product-flow"`, `data-navigate="blueprints"`, `data-navigate="clusters"`, `data-navigate="fleet"`, `data-navigate="operations"`,
 		`data-section="delivery" data-section-home="blueprints"`, `data-section="assurance" data-section-home="verification"`, `Runtime assurance`, `Supply-chain releases`, `Physical certification`, `Organizations &amp; projects`, `AI Operator`,
 	} {
