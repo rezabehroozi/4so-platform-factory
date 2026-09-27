@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the deterministic V8 appliance acquisition input-pack from exact staged bytes."""
 from __future__ import annotations
-import argparse, hashlib, json, os, stat, zipfile
+import argparse, hashlib, json, os, shutil, stat, zipfile
 from pathlib import Path, PurePosixPath
 
 AUTHORITY="LAB_APPLIANCE_INPUT_PACK_BUILD_V1"
@@ -89,15 +89,20 @@ def write_pack(staging:Path,spec:dict,out:Path)->dict:
     out.parent.mkdir(parents=True,exist_ok=True)
     if out.exists() or out.is_symlink(): raise RuntimeError("INPUT_PACK_OUTPUT_EXISTS")
     spec_raw=(json.dumps(spec,indent=2,sort_keys=True)+"\n").encode()
-    entries=[("build-spec.json",spec_raw)]
+    entries=[("build-spec.json",None)]
     for b in spec["spec"]["sourceArtifacts"]:
-        rel=b["path"]; entries.append(("staging/"+rel,(staging/rel).read_bytes()))
+        rel=b["path"]; entries.append(("staging/"+rel,staging/rel))
     with zipfile.ZipFile(out,"w",compression=zipfile.ZIP_STORED,allowZip64=True) as z:
-        for name,data in sorted(entries):
+        for name,source in sorted(entries,key=lambda row:row[0]):
             pp=PurePosixPath(name)
             if ".." in pp.parts or name.startswith("/"): raise RuntimeError("INPUT_PACK_MEMBER_PATH_INVALID")
             i=zipfile.ZipInfo(name,date_time=(1980,1,1,0,0,0)); i.create_system=3; i.external_attr=(stat.S_IFREG|0o644)<<16; i.compress_type=zipfile.ZIP_STORED
-            z.writestr(i,data)
+            if source is None:
+                z.writestr(i,spec_raw)
+            else:
+                i.file_size=source.stat().st_size
+                with source.open("rb") as src, z.open(i,"w",force_zip64=True) as dst:
+                    shutil.copyfileobj(src,dst,length=4*1024*1024)
     sha,size=digest(out)
     return {"apiVersion":"platform.4so.io/v1alpha1","kind":"ApplianceInputPackReceipt","authority":AUTHORITY,"releaseVersion":spec["metadata"]["version"],"inputPackSha256":"sha256:"+sha,"inputPackBytes":size,"format":"zip","buildSpecPath":"build-spec.json","stagingDirectory":"staging","deterministicZip":True,"distributionReady":False,"runtimeCertified":False,"physicalCertified":False}
 
