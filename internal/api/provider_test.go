@@ -26,10 +26,19 @@ func TestProviderClusterChangeRequestIdentityIsStableAndActionScoped(t *testing.
 		t.Fatalf("exact provider change was not recognized as durable replay: %#v", current)
 	}
 	current.State = controlplane.ProviderClusterActive
-	if providerClusterChangeNext(current) != "completed" {
-		t.Fatalf("completed provider replay next=%q", providerClusterChangeNext(current))
+	current.PendingAction = ""
+	if !providerClusterChangeReplay(current, "SCALE", digest) || providerClusterChangeNext(current) != "completed" {
+		t.Fatalf("completed provider lost-response retry was not replayed: %+v", current)
 	}
-	if providerClusterChangeReplay(current, "UPGRADE", digest) {
+	current.State = controlplane.ProviderClusterRecoveryRequired
+	if !providerClusterChangeReplay(current, "SCALE", digest) || providerClusterChangeNext(current) != "recovery-required" {
+		t.Fatalf("recovery-required provider retry must not redispatch: %+v", current)
+	}
+	current.State = controlplane.ProviderClusterFailed
+	if !providerClusterChangeReplay(current, "SCALE", digest) || providerClusterChangeNext(current) != "retry" {
+		t.Fatalf("failed provider retry must use explicit retry workflow: %+v", current)
+	}
+	if providerClusterChangeReplay(current, "UPGRADE", providerClusterChangeRequestDigest("UPGRADE", request, "retry-key")) {
 		t.Fatal("different provider action was treated as replay")
 	}
 }

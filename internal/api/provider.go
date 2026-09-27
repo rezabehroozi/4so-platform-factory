@@ -298,15 +298,31 @@ func providerClusterChangeRequestDigest(action string, request any, key string) 
 }
 
 func providerClusterChangeReplay(v controlplane.ProviderCluster, action, requestDigest string) bool {
-	return strings.EqualFold(strings.TrimSpace(v.PendingAction), strings.TrimSpace(action)) && strings.TrimSpace(v.RequestDigest) == strings.TrimSpace(requestDigest)
+	if strings.TrimSpace(v.RequestDigest) != strings.TrimSpace(requestDigest) {
+		return false
+	}
+	pending := strings.TrimSpace(v.PendingAction)
+	if pending != "" {
+		return strings.EqualFold(pending, strings.TrimSpace(action))
+	}
+	switch v.State {
+	case controlplane.ProviderClusterActive, controlplane.ProviderClusterDeleted, controlplane.ProviderClusterFailed, controlplane.ProviderClusterRecoveryRequired:
+		return true
+	default:
+		return false
+	}
 }
 
 func providerClusterChangeNext(v controlplane.ProviderCluster) string {
 	switch v.State {
 	case controlplane.ProviderClusterAwaitingApproval, controlplane.ProviderClusterDeleteApproval:
 		return "approval"
-	case controlplane.ProviderClusterActive:
+	case controlplane.ProviderClusterActive, controlplane.ProviderClusterDeleted:
 		return "completed"
+	case controlplane.ProviderClusterRecoveryRequired:
+		return "recovery-required"
+	case controlplane.ProviderClusterFailed:
+		return "retry"
 	default:
 		return "execution"
 	}
