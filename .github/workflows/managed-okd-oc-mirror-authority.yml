@@ -27,7 +27,7 @@ jobs:
         with:
           repository: openshift/oc-mirror
           ref: ${{ env.OC_MIRROR_SHA }}
-          path: /tmp/oc-mirror-src
+          path: _upstream/oc-mirror
           fetch-depth: 1
       - uses: actions/setup-go@v5
         with:
@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd /tmp/oc-mirror-src/v2
+          cd _upstream/oc-mirror/v2
           test "$(git rev-parse HEAD)" = "$OC_MIRROR_SHA"
           CGO_ENABLED=0 make build
           test -x build/oc-mirror
