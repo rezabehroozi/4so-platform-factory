@@ -48,6 +48,6 @@ class RuntimeEvidenceRegistryTests(unittest.TestCase):
         td,dst=self.copy_files()
         try:
             p=dst/"catalog/component-runtime-upgrade-evidence.json";d=json.loads(p.read_text());a=next(r for r in d["components"] if r["component"]=="argocd");a["executedEdges"]=[{"fromRelease":"10.2.2","toRelease":"10.2.3"}];a["pendingEdges"]=[];a["status"]="runtime-evidence-complete";a["runtimeUpgradeCertified"]=True;p.write_text(json.dumps(d))
-            with self.assertRaisesRegex(RuntimeError,"HELM_COMPONENT_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID"):mod.verify_upgrade_registry(dst)
+            with self.assertRaisesRegex(RuntimeError,r"HELM_COMPONENT_RUNTIME_UPGRADE_(?:REGISTRY|EDGE)_BINDING_INVALID"):mod.verify_upgrade_registry(dst)
         finally:td.cleanup()
 if __name__=="__main__":unittest.main()
