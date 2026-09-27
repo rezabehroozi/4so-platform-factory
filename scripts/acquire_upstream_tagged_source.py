@@ -141,12 +141,42 @@ def load_historical_authority(component: str, root: Path = ROOT) -> dict:
     return row
 
 
-def load_recipe(component: str, version: str, *, historical: bool, root: Path = ROOT) -> tuple[dict, dict]:
+def load_transition_authority(component: str, version: str | None = None, root: Path = ROOT) -> dict:
+    if component != "gateway-api":
+        raise RuntimeError(f"TAGGED_SOURCE_TRANSITION_COMPONENT_NOT_ADMITTED {component}")
+    doc = _json(root / "catalog" / "runtime-dependency-transition.json")
+    spec = doc.get("spec") or {}
+    if doc.get("kind") != "RuntimeDependencyTransition" or spec.get("authority") != "RUNTIME_DEPENDENCY_TRANSITION_V1":
+        raise RuntimeError("TAGGED_SOURCE_TRANSITION_AUTHORITY_INVALID")
+    gateway = spec.get("gatewayApi") or {}
+    target = str(gateway.get("targetRelease") or "")
+    current = str(gateway.get("currentRelease") or "")
+    if version is not None and version != target:
+        raise RuntimeError(f"TAGGED_SOURCE_TRANSITION_VERSION_NOT_ADMITTED {component}:{version}")
+    if not EXACT.fullmatch(target) or not EXACT.fullmatch(current) or gateway.get("sourceStatus") != "source-acquired":
+        raise RuntimeError("TAGGED_SOURCE_TRANSITION_RELEASE_IDENTITY_INVALID")
+    evidence = spec.get("runtimeEvidence") or {}
+    if evidence.get("authority") != "RKE2_NETWORK_RUNTIME_CERTIFICATION_V1" or evidence.get("gatewayApiRelease") != target or evidence.get("singleNodeRKE2Certified") is not True or evidence.get("productTopologyHACertified") is not False or evidence.get("physicalCertified") is not False:
+        raise RuntimeError("TAGGED_SOURCE_TRANSITION_RUNTIME_EVIDENCE_INVALID")
+    component_doc = _json(root / "catalog" / "components" / "gateway-api.json")
+    if str((component_doc.get("spec") or {}).get("release") or "") != current:
+        raise RuntimeError("TAGGED_SOURCE_TRANSITION_CURRENT_CATALOG_DRIFT")
+    return {
+        "component": component,
+        "targetRelease": target,
+        "previousVersion": current,
+        "source": str(gateway.get("releaseUrl") or ""),
+        "releaseCommitShort": str(gateway.get("releaseCommitShort") or ""),
+        "status": "admitted-by-runtime-dependency-transition",
+    }
+
+
+def load_recipe(component: str, version: str, *, historical: bool, transition: bool = False, root: Path = ROOT) -> tuple[dict, dict]:
     if not SAFE_COMPONENT.fullmatch(component) or not EXACT.fullmatch(version):
         raise RuntimeError("TAGGED_SOURCE_IDENTITY_INVALID")
-    if not historical:
-        raise RuntimeError("TAGGED_SOURCE_CURRENT_MODE_NOT_ADMITTED_YET")
-    row = load_historical_authority(component, root)
+    if historical == transition:
+        raise RuntimeError("TAGGED_SOURCE_MODE_MUST_BE_EXACTLY_ONE_OF_HISTORICAL_OR_TRANSITION")
+    row = load_historical_authority(component, root) if historical else load_transition_authority(component, version, root)
     if row.get("previousVersion") != version:
         raise RuntimeError(f"TAGGED_SOURCE_RECIPE_VERSION_NOT_ADMITTED {component}:{version}")
     path = _recipe_path(component, version, root)
@@ -166,6 +196,10 @@ def load_recipe(component: str, version: str, *, historical: bool, root: Path = 
         raise RuntimeError("TAGGED_SOURCE_RECIPE_REPOSITORY_OR_COMMIT_INVALID")
     if release_url != row.get("source"):
         raise RuntimeError(f"TAGGED_SOURCE_RECIPE_SOURCE_DRIFT {component}")
+    if transition:
+        short = str(row.get("releaseCommitShort") or "")
+        if not short or not commit.startswith(short):
+            raise RuntimeError("TAGGED_SOURCE_TRANSITION_COMMIT_DRIFT")
     if len(files) < 1 or len(files) > MAX_FILES:
         raise RuntimeError("TAGGED_SOURCE_RECIPE_FILE_COUNT_INVALID")
     seen_src, seen_out = set(), set()
@@ -308,8 +342,8 @@ def _run(cmd: list[str], timeout: int = 300) -> str:
     return p.stdout
 
 
-def acquire(component: str, version: str, *, historical: bool, out: Path | None, install: bool, platformctl: str | None, network_timeout: int) -> int:
-    recipe, row = load_recipe(component, version, historical=historical)
+def acquire(component: str, version: str, *, historical: bool, transition: bool = False, out: Path | None, install: bool, platformctl: str | None, network_timeout: int) -> int:
+    recipe, row = load_recipe(component, version, historical=historical, transition=transition)
     spec = recipe["spec"]
     resolved_commit = _resolve_tag_commit(spec["repository"], spec["tag"], timeout=network_timeout)
     if resolved_commit != spec["commitSHA"]:
@@ -344,15 +378,31 @@ def acquire(component: str, version: str, *, historical: bool, out: Path | None,
         licenses=tmp/"licenses.json"; licenses.write_text(json.dumps({"licenses":[{"file":spec["licenseFile"],"spdxExpression":spec["licenseSPDX"],"sha256":license_row["sha256"]}]},indent=2,sort_keys=True)+"\n")
         sbom=tmp/"sbom.spdx.json"; sbom.write_text(json.dumps(_sbom(component,version,spec["releaseURL"],source_rows,spec["licenseSPDX"],images,artifact_digest),indent=2,sort_keys=True)+"\n")
         component_path=ROOT/"catalog/components"/f"{component}.json"; ctl=_platformctl(platformctl)
-        final=_absolute_no_follow(out) if out else ROOT/"dist/upstream-history"/f"{component}-{version}.zip"
+        assemble_mode=["--historical"] if historical else []
+        if transition:
+            current_doc=_json(component_path)
+            current_release=str((current_doc.get("spec") or {}).get("release") or "")
+            if current_release != str(row.get("previousVersion") or ""):
+                raise RuntimeError("TAGGED_SOURCE_TRANSITION_CURRENT_RELEASE_DRIFT")
+            target_doc=json.loads(json.dumps(current_doc))
+            target_doc["spec"]["release"]=version
+            component_path=tmp/"transition-target-component.json"
+            component_path.write_text(json.dumps(target_doc,indent=2,sort_keys=True)+"\n")
+        final_root="upstream-history" if historical else "upstream-transition"
+        final=_absolute_no_follow(out) if out else ROOT/"dist"/final_root/f"{component}-{version}.zip"
         if final.is_symlink(): raise RuntimeError(f"TAGGED_SOURCE_OUTPUT_SYMLINK_FORBIDDEN {final}")
         final.parent.mkdir(parents=True,exist_ok=True)
-        cmd=ctl+["catalog-bundle","assemble","--historical","--component",str(component_path),"--artifact",str(artifact),"--render-manifest",str(render),"--image-inventory",str(inventory),"--licenses",str(licenses),"--sbom",str(sbom),"--version",version,"--source-type","external-tagged-source-set","--source-url",spec["releaseURL"],"--source-revision",spec["tag"],"--upstream-artifact-name",artifact.name,"--artifact-digest",artifact_digest,"--bundle-key",f"{component}/{version}","--out",str(final)]
+        cmd=ctl+["catalog-bundle","assemble"]+assemble_mode+["--component",str(component_path),"--artifact",str(artifact),"--render-manifest",str(render),"--image-inventory",str(inventory),"--licenses",str(licenses),"--sbom",str(sbom),"--version",version,"--source-type","external-tagged-source-set","--source-url",spec["releaseURL"],"--source-revision",spec["tag"],"--upstream-artifact-name",artifact.name,"--artifact-digest",artifact_digest,"--bundle-key",f"{component}/{version}","--out",str(final)]
         print(_run(cmd),end=""); print(_run(ctl+["catalog-bundle","verify","-f",str(final)]),end="")
         if install:
-            print(_run(ctl+["catalog-bundle","install-historical","-f",str(final),"--repo-root",str(ROOT),"--confirmation","IMPORT-HISTORICAL"]),end="")
+            if transition:
+                print(_run(ctl+["catalog-bundle","install-transition","-f",str(final),"--repo-root",str(ROOT),"--confirmation","IMPORT-TRANSITION"]),end="")
+                print(_run([sys.executable,"scripts/runtime_dependency_transition_readiness.py","--out","lab/runtime-dependency-transition-readiness.json"]),end="")
+            else:
+                print(_run(ctl+["catalog-bundle","install-historical","-f",str(final),"--repo-root",str(ROOT),"--confirmation","IMPORT-HISTORICAL"]),end="")
             print(post_install_repository_validation(),end="")
-        print(f"TAGGED_SOURCE_ACQUISITION_PASS component={component} version={version} commit={spec['commitSHA']} files={len(blobs)} images={len(images)} artifactDigest={artifact_digest} out={final}")
+        mode="transition" if transition else "historical"
+        print(f"TAGGED_SOURCE_ACQUISITION_PASS mode={mode} component={component} version={version} commit={spec['commitSHA']} files={len(blobs)} images={len(images)} artifactDigest={artifact_digest} out={final}")
     return 0
 
 
@@ -360,6 +410,8 @@ def self_test() -> int:
     for component, version, commit in (("gateway-api","1.5.0","3797b631d20f9ff4e2b4571f62d91d84a1fbdf5a"),("snapshot-controller","8.4.0","f21cb02763e7cd6a7fc84846f106b83119b5371d")):
         recipe,row=load_recipe(component,version,historical=True)
         assert recipe["spec"]["commitSHA"]==commit and row["previousVersion"]==version
+    recipe,row=load_recipe("gateway-api","1.6.1",historical=False,transition=True)
+    assert recipe["spec"]["commitSHA"]=="8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3" and row["targetRelease"]=="1.6.1"
     raw={"install.yaml":b"apiVersion: v1\nkind: Namespace\nmetadata:\n  name: x\n"}
     idx={"apiVersion":"platform.4so.io/v1alpha1","kind":"UpstreamSourceSet","component":"x","version":"1.0.0","upstream":{"revision":"v1.0.0"},"assembly":{"method":"deterministic-zip-from-official-tag-files","networkFetchRequired":False},"files":[{"path":"install.yaml","sha256":_sha_bytes(raw["install.yaml"]),"url":"https://raw.githubusercontent.com/x/y/"+"a"*40+"/install.yaml"}]}
     with tempfile.TemporaryDirectory(dir=ROOT) as td:
@@ -373,13 +425,25 @@ def self_test() -> int:
 
 
 def main() -> int:
-    p=argparse.ArgumentParser(); p.add_argument("--component"); p.add_argument("--version"); p.add_argument("--historical",action="store_true"); p.add_argument("--from-upgrade-admission",action="store_true"); p.add_argument("--out",type=Path); p.add_argument("--install",action="store_true"); p.add_argument("--platformctl"); p.add_argument("--network-timeout",type=int,default=60); p.add_argument("--self-test",action="store_true"); a=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument("--component"); p.add_argument("--version"); p.add_argument("--historical",action="store_true"); p.add_argument("--transition",action="store_true"); p.add_argument("--from-upgrade-admission",action="store_true"); p.add_argument("--from-runtime-dependency-transition",action="store_true"); p.add_argument("--out",type=Path); p.add_argument("--install",action="store_true"); p.add_argument("--platformctl"); p.add_argument("--network-timeout",type=int,default=60); p.add_argument("--self-test",action="store_true"); a=p.parse_args()
     if a.self_test: return self_test()
-    if not a.from_upgrade_admission or not a.historical or not a.component:
-        p.error("historical tagged-source acquisition requires --component --historical --from-upgrade-admission")
-    row=load_historical_authority(a.component); version=str(row.get("previousVersion") or "")
+    if not a.component or a.historical == a.transition:
+        p.error("choose exactly one tagged-source mode: --historical or --transition")
+    if a.historical:
+        if not a.from_upgrade_admission or a.from_runtime_dependency_transition:
+            p.error("historical mode requires --from-upgrade-admission")
+        row=load_historical_authority(a.component); version=str(row.get("previousVersion") or "")
+    else:
+        if not a.from_runtime_dependency_transition or a.from_upgrade_admission:
+            p.error("transition mode requires --from-runtime-dependency-transition")
+        row=load_transition_authority(a.component, a.version); version=str(row.get("targetRelease") or "")
+        current=_json(ROOT/"catalog/components"/f"{a.component}.json")
+        if a.install and str((current.get("spec") or {}).get("release") or "") == version:
+            _run([sys.executable,"scripts/runtime_dependency_transition_readiness.py","--self-test"])
+            print(f"TAGGED_SOURCE_TRANSITION_ALREADY_APPLIED component={a.component} version={version}")
+            return 0
     if a.version and a.version != version: raise SystemExit("TAGGED_SOURCE_VERSION_OVERRIDE_DENIED")
-    try: return acquire(a.component,version,historical=True,out=a.out,install=a.install,platformctl=a.platformctl,network_timeout=a.network_timeout)
+    try: return acquire(a.component,version,historical=a.historical,transition=a.transition,out=a.out,install=a.install,platformctl=a.platformctl,network_timeout=a.network_timeout)
     except (RuntimeError,OSError,ValueError,urllib.error.URLError,subprocess.TimeoutExpired,json.JSONDecodeError) as exc:
         print("TAGGED_SOURCE_ACQUISITION_BLOCKED "+str(exc),file=sys.stderr); return 3
 

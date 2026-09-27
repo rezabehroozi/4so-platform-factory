@@ -17,6 +17,17 @@ class TaggedSourceAcquisitionTests(unittest.TestCase):
             self.assertEqual(row['source'],recipe['spec']['releaseURL'])
             self.assertTrue(any(f['render'] for f in recipe['spec']['files']))
 
+
+    def test_current_gateway_transition_recipe_is_exactly_authority_bound(self):
+        recipe,row=mod.load_recipe('gateway-api','1.6.1',historical=False,transition=True,root=ROOT)
+        self.assertEqual('8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3',recipe['spec']['commitSHA'])
+        self.assertEqual('1.6.1',row['targetRelease'])
+        self.assertEqual('https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.6.1',recipe['spec']['releaseURL'])
+        rendered=[f['archivePath'] for f in recipe['spec']['files'] if f['render']]
+        self.assertIn('gateway.networking.k8s.io_tcproutes.yaml',rendered)
+        self.assertIn('gateway.networking.k8s.io_udproutes.yaml',rendered)
+        self.assertEqual(11,len(rendered))
+
     def test_tag_ref_resolution_is_commit_pinned_and_annotated_tag_safe(self):
         commit='a'*40
         direct=lambda url,**kwargs: json.dumps({'object':{'sha':commit,'type':'commit'}}).encode()

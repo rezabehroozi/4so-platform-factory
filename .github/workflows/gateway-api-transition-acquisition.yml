@@ -1,0 +1,81 @@
+name: gateway-api-transition-acquisition
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gateway-api-transition-acquisition.yml
+      - catalog/tagged-source-recipes/gateway-api/1.6.1.json
+      - scripts/acquire_upstream_tagged_source.py
+      - internal/catalogbundle/bundle.go
+      - catalog/runtime_certification_registry.go
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gateway-api-transition-acquisition
+  cancel-in-progress: false
+
+jobs:
+  acquire-promote:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - name: Verify acquisition prerequisites
+        run: |
+          set -euo pipefail
+          python3 -c 'import yaml'
+          python3 scripts/acquire_upstream_tagged_source.py --self-test
+          go test ./catalog ./internal/catalogbundle
+          go build -o /tmp/platformctl ./cmd/platformctl
+      - name: Acquire and atomically promote Gateway API 1.6.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/acquire_upstream_tagged_source.py \
+            --component gateway-api \
+            --version 1.6.1 \
+            --transition \
+            --from-runtime-dependency-transition \
+            --install \
+            --platformctl /tmp/platformctl
+          python3 scripts/runtime_dependency_transition_readiness.py --self-test
+          python3 -m unittest tests.test_tagged_source_acquisition tests.test_runtime_dependency_transition_readiness tests.test_supply_chain_handoff tests.test_catalog_upstream_admission
+          go test ./catalog ./internal/catalogbundle ./internal/api
+          python3 scripts/validate_repository.py .
+          git diff --check
+      - name: Persist exact transition authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            catalog/components/gateway-api.json \
+            catalog/runtime/gateway-api/1.6.1 \
+            catalog/component-runtime-certification.json \
+            catalog/component-runtime-upgrade-matrix.json \
+            catalog/component-upgrade-source-admission.json \
+            catalog/runtime-dependency-transition.json \
+            lab/runtime-dependency-transition-readiness.json \
+            lab/supply-chain-handoff-plan.json
+          if git diff --cached --quiet; then
+            echo "transition already applied; nothing to persist"
+            exit 0
+          fi
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+            echo "main advanced during transition; refusing stale authority persistence"
+            exit 2
+          fi
+          git commit -m "feat: promote Gateway API 1.6.1 transition authority"
+          git push origin HEAD:main
