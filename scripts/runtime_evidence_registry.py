@@ -155,7 +155,7 @@ def verify_upgrade_registry(root:Path)->dict:
             for e in r.get("executedEdges",[]):
                 if e.get("authority")!="SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=simple.get("sourceRunId") or e.get("evidencePath")!="lab/simple-component-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
                     raise RuntimeError(f"SIMPLE_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID {name}")
-        elif name in {"capsule","victoria-metrics"} and executed:
+        elif name in {"argocd","capsule","external-secrets","metallb","victoria-metrics"} and executed:
             if helm_components.get("authority")!="HELM_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1" or helm_components.get("matrixPass") is not True:
                 raise RuntimeError("HELM_COMPONENT_RUNTIME_UPGRADE_EVIDENCE_INVALID")
             if helm_components.get("genericKubernetesRuntimeEvidenceOnly") is not True or any(helm_components.get(k) is not False for k in ("rke2Certified","productTopologyHACertified","physicalCertified")):
