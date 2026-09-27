@@ -31,6 +31,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           run-id: ${{ env.ARCHIVE_RUN_ID }}
+      - name: Reclaim hosted-runner space
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
+          df -h /
       - name: Stage exact authority bytes
         shell: bash
         run: |
@@ -39,7 +45,8 @@ jobs:
           archive="$(find /tmp/archive-evidence -type f -name platform-workloads.oci.tar -print -quit)"
           test -f "$archive"
           mkdir -p /tmp/input-staging/workloads
-          cp "$archive" /tmp/input-staging/workloads/platform-workloads.oci.tar
+          mv "$archive" /tmp/input-staging/workloads/platform-workloads.oci.tar
+          rm -rf /tmp/archive-evidence
           while IFS=$'\t' read -r path url sha size; do
             target="/tmp/input-staging/$path"; mkdir -p "$(dirname "$target")"
             curl -fL --retry 3 -o "$target" "$url"
