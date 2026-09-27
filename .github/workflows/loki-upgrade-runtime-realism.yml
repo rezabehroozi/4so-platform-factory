@@ -199,6 +199,19 @@ jobs:
           node="$(/tmp/kind get nodes --name 4so-loki-upgrade 2>/dev/null | head -n1)"
           test -n "$node" && docker exec "$node" stat -c '%u:%g:%a %n' /tmp/4so-loki-upgrade-data || true
 
+      - name: Loki diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          kubectl -n logging get pods,pvc -o wide
+          kubectl -n logging describe pod platform-factory-loki-0
+          kubectl -n logging logs platform-factory-loki-0 -c loki --tail=200
+          kubectl -n logging logs platform-factory-loki-0 -c loki-sc-rules --tail=100
+          kubectl get pv platform-factory-loki-upgrade-pv -o yaml
+          node="$(/tmp/kind get nodes --name 4so-loki-upgrade 2>/dev/null | head -n1)"
+          test -n "$node" && docker exec "$node" stat -c '%u:%g:%a %n' /tmp/4so-loki-upgrade-data || true
+
       - if: always()
         run: /tmp/kind delete cluster --name 4so-loki-upgrade || true
 
