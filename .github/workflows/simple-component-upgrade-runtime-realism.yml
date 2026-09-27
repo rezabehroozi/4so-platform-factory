@@ -43,6 +43,7 @@ jobs:
               ;;
             *) echo "UNSUPPORTED_COMPONENT_PROFILE $COMPONENT" >&2; exit 20 ;;
           esac
+          export FROM_RELEASE="$from" TO_RELEASE="$to" NAMESPACE="$ns" WORKLOAD_KIND="$kind" WORKLOAD_NAME="$workload"
           printf '%s\n' "FROM_RELEASE=$from" "TO_RELEASE=$to" "NAMESPACE=$ns" "WORKLOAD_KIND=$kind" "WORKLOAD_NAME=$workload" >> "$GITHUB_ENV"
           jq -e --arg c "$COMPONENT" --arg f "$from" --arg t "$to" '
             .components[] | select(.component==$c and .targetRelease==$t and .status=="admitted-source-pair")
