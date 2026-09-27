@@ -16,7 +16,11 @@ Longhorn `v1.12.1` is the canonical replicated-storage provider for the three-no
 
 ## UI design reference
 
-The Operator Console does not vendor UI source or assets from Spectro Cloud Palette, Rafay, SUSE Rancher, TailAdmin, CoreUI or other benchmark products. Operator Horizon V3 uses Palette/Rafay/Rancher only as product-UX research references and implements its own information architecture, tokens, HTML/CSS/JavaScript, workflows and authority semantics. Historical TailAdmin/CoreUI evaluation remains design research, not a runtime dependency. If third-party source is ever copied in a future change, its license and provenance must be admitted through the normal supply-chain process before release.
+The Operator Console does not vendor UI source or assets from Spectro Cloud Palette, Rafay, SUSE Rancher, TailAdmin, CoreUI or other benchmark products. Operator Horizon V4 uses Palette/Rafay/Rancher only as product-UX research references and implements its own information architecture, tokens, HTML/CSS/JavaScript, workflows and authority semantics. Historical TailAdmin/CoreUI evaluation remains design research, not a runtime dependency. If third-party source is ever copied in a future change, its license and provenance must be admitted through the normal supply-chain process before release.
+
+## VibeFarsi UI — Persian/RTL design research only
+
+The Operator Console reviews **VibeFarsi UI** as a Persian-native design reference, pinned for this redesign to upstream commit `5b254fa3ea6a5fdf2e47abdb1cd1f626e5c5d4cb` (tree `e1774cbf1225b3866b04cfc0786d049d7105e3f7`). The adopted ideas are RTL logical layout, Persian typography discipline, semantic design tokens, compact technical surfaces, tabular numeric presentation, touch sizing and explicit accessibility/motion rules. **No VibeFarsi React/Tailwind component, font binary, asset, MCP runtime or remote dependency is vendored or required by 4SO.** The embedded HTML/CSS/JavaScript remains product-owned and offline-capable. Any future source import must go through normal license/provenance and supply-chain admission first.
 
 ## Persian product-writing quality gate
 

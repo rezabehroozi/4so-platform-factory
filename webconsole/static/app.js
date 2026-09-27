@@ -40,7 +40,7 @@ function t(key, fallback = '') { return state.locale === 'fa' ? (fa[key] || fall
 function applyLocale() {
   document.documentElement.lang = state.locale;
   document.documentElement.dir = state.locale === 'fa' ? 'rtl' : 'ltr';
-  $('#language-toggle').textContent = state.locale === 'fa' ? 'EN' : 'FA';
+  $('#language-toggle').textContent = state.locale === 'fa' ? 'EN' : 'فارسی';
   $$('[data-i18n]').forEach(el => {
     const key = el.dataset.i18n;
     if (!el.dataset.en) el.dataset.en = el.textContent;
@@ -1053,10 +1053,19 @@ dynamicLocalizationObserver.observe(document.body,{subtree:true,childList:true,c
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const technical = value => `<span class="technical">${esc(value || '—')}</span>`;
 const shortDigest = value => value ? `${esc(value.slice(0, 18))}…${esc(value.slice(-8))}` : '—';
+const displayNumber=value=>{
+  if(value===null||value===undefined||value==='')return '—';
+  const numeric=Number(value);
+  if(!Number.isFinite(numeric))return String(value);
+  return new Intl.NumberFormat(state.locale==='fa'?'fa-IR-u-nu-arabext':'en-GB',{maximumFractionDigits:20}).format(numeric);
+};
+const displayCount=(value,enLabel,faLabel='مورد')=>state.locale==='fa'
+  ? `${displayNumber(value)} ${faLabel}`
+  : `${displayNumber(value)} ${enLabel}`;
 const formatDate = value => {
   if (!value) return '—';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? esc(value) : new Intl.DateTimeFormat(state.locale === 'fa' ? 'fa-IR' : 'en-GB', {dateStyle:'medium', timeStyle:'short'}).format(date);
+  return Number.isNaN(date.getTime()) ? esc(value) : new Intl.DateTimeFormat(state.locale === 'fa' ? 'fa-IR-u-ca-persian-nu-arabext' : 'en-GB', {dateStyle:'medium', timeStyle:'short'}).format(date);
 };
 const statusClass = value => {
   const s = String(value || '').toUpperCase();
@@ -2232,11 +2241,11 @@ async function loadOverview() {
     const summary=state.summary||{};
     const connected=Number(summary.connectedClusters||0), managed=Number(summary.managedClusters||0), failed=Number(summary.failedProductWorkflows||0);
     $('#overview-metrics').innerHTML = [
-      ['Organizations', summaryUnavailable?'—':Number(summary.organizations||0), summaryUnavailable?'Summary authority unavailable':`${Number(summary.projects||0)} projects`],
-      ['Connected clusters', summaryUnavailable?'—':connected, summaryUnavailable?'Summary authority unavailable':`${Math.max(0,managed-connected)} offline or pending`],
-      ['Successful baselines', summaryUnavailable?'—':Number(summary.successfulBaselineDeployments||0), summaryUnavailable?'Summary authority unavailable':`${Number(summary.baselineDeployments||0)} total deployments`],
-      ['Needs attention', summaryUnavailable?'—':failed, summaryUnavailable?'Summary authority unavailable':(failed ? 'Open failed product workflows' : 'No failed product workflow')]
-    ].map(([label,value,detail]) => `<article class="metric-card"><strong>${esc(value)}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></article>`).join('');
+      [state.locale==='fa'?'سازمان‌ها':'Organizations', summaryUnavailable?'—':Number(summary.organizations||0), summaryUnavailable?(state.locale==='fa'?'مرجع خلاصه در دسترس نیست':'Summary authority unavailable'):(state.locale==='fa'?`${displayNumber(summary.projects||0)} پروژه`:`${displayNumber(summary.projects||0)} projects`)],
+      [state.locale==='fa'?'کلاسترهای متصل':'Connected clusters', summaryUnavailable?'—':connected, summaryUnavailable?(state.locale==='fa'?'مرجع خلاصه در دسترس نیست':'Summary authority unavailable'):(state.locale==='fa'?`${displayNumber(Math.max(0,managed-connected))} آفلاین یا در انتظار`:`${displayNumber(Math.max(0,managed-connected))} offline or pending`)],
+      [state.locale==='fa'?'Baselineهای موفق':'Successful baselines', summaryUnavailable?'—':Number(summary.successfulBaselineDeployments||0), summaryUnavailable?(state.locale==='fa'?'مرجع خلاصه در دسترس نیست':'Summary authority unavailable'):(state.locale==='fa'?`${displayNumber(summary.baselineDeployments||0)} استقرار در مجموع`:`${displayNumber(summary.baselineDeployments||0)} total deployments`)],
+      [state.locale==='fa'?'نیازمند رسیدگی':'Needs attention', summaryUnavailable?'—':failed, summaryUnavailable?(state.locale==='fa'?'مرجع خلاصه در دسترس نیست':'Summary authority unavailable'):(state.locale==='fa'?(failed?'Workflow ناموفق نیازمند رسیدگی است':'Workflow ناموفق بازی وجود ندارد'):(failed ? 'Open failed product workflows' : 'No failed product workflow'))]
+    ].map(([label,value,detail]) => `<article class="metric-card"><strong>${value==='—'?'—':esc(displayNumber(value))}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></article>`).join('');
 
     const readinessCheck=(done,title,detail,page)=>({unknown:summaryUnavailable,done:!summaryUnavailable&&done,title,detail,page});
     const checks = [
@@ -3301,7 +3310,7 @@ async function downloadSupportBundle(body,statusSelector='#fleet-support-status'
   if(status)status.innerHTML=`<div class="success-banner">Durable support bundle sealed and verified · operation <span class="technical">${esc(operationId)}</span> · digest <span class="technical">${esc(result.digest||job.evidence?.digest||'—')}</span></div>`;
 }
 $('#fleet-health-grid').onclick=async event=>{const button=event.target.closest('[data-health-action]');if(!button)return;try{if(button.dataset.healthAction==='timeline'){const events=await api(`/api/v1/clusters/${button.dataset.id}/timeline`);showDetails('Cluster timeline',events.length?`<div class="activity-list">${events.slice(0,100).map(item=>`<div class="activity-item"><div><strong>${esc(item.action)}</strong><small>${esc(item.resourceType)} · ${esc(item.resourceId)} · ${new Date(item.occurredAt).toLocaleString()}</small></div>${badge(item.actorId||'system')}</div>`).join('')}</div>`:emptyState('No timeline events','No related audit events are available yet.'));return;}await downloadSupportBundle({profile:'cluster-diagnostics',clusterId:button.dataset.id});toast('Cluster support bundle downloaded.');}catch(error){toast(error.message,'error');}};
-$('#operations-search-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const projectId=$('#operations-search-project').value,query=$('#operations-search-query').value.trim();$('#operations-search-status').innerHTML='<div class="inline-summary">Searching bounded project projection…</div>';try{const result=await api(`/api/v1/search?projectId=${encodeURIComponent(projectId)}&q=${encodeURIComponent(query)}`);$('#operations-search-status').innerHTML=`<div class="success-banner"><strong>${esc(result.resultCount||0)} result(s)</strong> · backend <span class="technical">${esc(result.backend||'postgresql-bounded')}</span> · source of truth: no</div>`;$('#operations-search-results').innerHTML=(result.results||[]).length?(result.results||[]).map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.title||item.id)}</h3><div class="resource-meta">${badge((item.type||'record').toUpperCase())}</div></div></div><p>${esc(item.summary||'No summary')}</p><div class="resource-details">${detailRow('Source',item.sourceRef||'—',true)}${detailRow('Updated',formatDate(item.updatedAt))}${detailRow('Digest',shortDigest(item.digest||''))}</div></article>`).join(''):emptyState('No search results','Try a cluster name, operation kind, evidence kind or audit actor/resource.');}catch(error){$('#operations-search-status').innerHTML=errorState(error.message);$('#operations-search-results').innerHTML='';}};
+$('#operations-search-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const projectId=$('#operations-search-project').value,query=$('#operations-search-query').value.trim();$('#operations-search-status').innerHTML='<div class="inline-summary">Searching bounded project projection…</div>';try{const result=await api(`/api/v1/search?projectId=${encodeURIComponent(projectId)}&q=${encodeURIComponent(query)}`);$('#operations-search-status').innerHTML=`<div class="success-banner"><strong>${state.locale==='fa'?`${esc(displayNumber(result.resultCount||0))} نتیجه`:`${esc(displayNumber(result.resultCount||0))} result(s)`}</strong> · backend <span class="technical">${esc(result.backend||'postgresql-bounded')}</span> · source of truth: no</div>`;$('#operations-search-results').innerHTML=(result.results||[]).length?(result.results||[]).map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.title||item.id)}</h3><div class="resource-meta">${badge((item.type||'record').toUpperCase())}</div></div></div><p>${esc(item.summary||'No summary')}</p><div class="resource-details">${detailRow('Source',item.sourceRef||'—',true)}${detailRow('Updated',formatDate(item.updatedAt))}${detailRow('Digest',shortDigest(item.digest||''))}</div></article>`).join(''):emptyState('No search results','Try a cluster name, operation kind, evidence kind or audit actor/resource.');}catch(error){$('#operations-search-status').innerHTML=errorState(error.message);$('#operations-search-results').innerHTML='';}};
 $('#fleet-support-download').onclick=async()=>{const projectId=$('#fleet-project').value;if(!projectId){toast('Select a project first.','error');return;}try{await downloadSupportBundle({profile:'fleet-diagnostics',projectId});toast('Project support bundle downloaded.');}catch(error){toast(error.message,'error');}};
 $('#data-protection-policy-form').onsubmit=async event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;const cluster=state.clusters.map(row=>row.cluster||row).find(item=>item.id===$('#data-protection-cluster').value);if(!cluster){toast('Select a connected cluster with current inventory.','error');return;}const includedNamespaces=$('#data-protection-namespaces').value.split(',').map(item=>item.trim()).filter(Boolean);try{await api('/api/v1/backup-policies',{method:'POST',body:{projectId:cluster.projectId,clusterId:cluster.id,name:$('#data-protection-name').value.trim(),provider:'velero',backupStorageLocation:$('#data-protection-storage-location').value.trim(),credentialRef:$('#data-protection-credential-ref').value.trim(),schedule:$('#data-protection-schedule').value.trim(),retention:$('#data-protection-retention').value.trim(),includedNamespaces}});toast('Backup policy created. Scheduled backups are now controlled by the policy state.');event.currentTarget.reset();await loadFleet();}catch(error){toast(error.message,'error');}};
 $('#data-protection-policy-grid').onclick=async event=>{const button=event.target.closest('[data-dp-policy-action]');if(!button)return;const item=state.backupPolicies.find(row=>row.id===button.dataset.id);if(!item)return;const action=button.dataset.dpPolicyAction;if(action==='inspect'){showDetails('Backup policy',`<dl class="key-value"><dt>ID</dt><dd class="technical">${esc(item.id)}</dd><dt>State</dt><dd>${badge(item.state)}</dd><dt>Cluster</dt><dd class="technical">${esc(item.clusterId)}</dd><dt>Schedule</dt><dd class="technical">${esc(item.schedule)}</dd><dt>Retention</dt><dd class="technical">${esc(item.retention)}</dd><dt>Namespaces</dt><dd>${esc((item.includedNamespaces||[]).join(', '))}</dd><dt>Storage location</dt><dd class="technical">${esc(item.backupStorageLocation)}</dd><dt>Credential reference</dt><dd class="technical">${esc(item.credentialRef)}</dd><dt>Desired digest</dt><dd class="technical">${esc(item.desiredDigest)}</dd></dl>`);return;}try{if(action==='backup'){await api('/api/v1/backup-runs',{method:'POST',body:{projectId:item.projectId,clusterId:item.clusterId,policyId:item.id,idempotencyKey:idempotency('backup')}});toast('Backup run queued.');}else{await api(`/api/v1/backup-policies/${encodeURIComponent(item.id)}/${action}`,{method:'POST',headers:{'If-Match':`"${item.revision}"`},body:{}});toast(action==='disable'?'Backup schedule disabled.':'Backup schedule enabled.');}await loadFleet();}catch(error){toast(error.message,'error');}};
@@ -4411,10 +4420,10 @@ function ensureCollectionToolbar(list){
     const directRecords=[...list.children].filter(node=>node!==empty&&(node.classList.contains('resource-card')||node.classList.contains('activity-item')));
     const tableRecords=[...list.querySelectorAll(':scope > .data-table-shell tbody > tr[data-record-row]')];
     const records=directRecords.length?directRecords:tableRecords;
-    if(records.length<8){const unavailable=!!list.querySelector(':scope > .unavailable-state');if(!unavailable)input.value='';toolbar.hidden=true;records.forEach(record=>record.hidden=false);empty.hidden=true;count.textContent=`${records.length}`;return;}
+    if(records.length<8){const unavailable=!!list.querySelector(':scope > .unavailable-state');if(!unavailable)input.value='';toolbar.hidden=true;records.forEach(record=>record.hidden=false);empty.hidden=true;count.textContent=displayNumber(records.length);return;}
     toolbar.hidden=false;const query=input.value.trim().toLocaleLowerCase();let visible=0;
     records.forEach(record=>{const match=!query||record.textContent.toLocaleLowerCase().includes(query);record.hidden=!match;if(match)visible++;});
-    empty.hidden=!query||visible!==0;count.textContent=query?`${visible} / ${records.length}`:`${records.length}`;
+    empty.hidden=!query||visible!==0;count.textContent=query?`${displayNumber(visible)} / ${displayNumber(records.length)}`:displayNumber(records.length);
   };
   input.addEventListener('input',apply);list.dataset.collectionTools='true';list._applyCollectionFilter=apply;apply();
 }

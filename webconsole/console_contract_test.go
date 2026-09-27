@@ -189,7 +189,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 		`data-section="delivery" data-section-home="blueprints"`, `data-section="assurance" data-section-home="verification"`, `Runtime assurance`, `Supply-chain releases`, `Physical certification`, `Organizations &amp; projects`, `AI Operator`,
 	} {
 		if !strings.Contains(html, contract) {
-			t.Fatalf("Operator Horizon V3 information-architecture contract missing %q", contract)
+			t.Fatalf("Operator Horizon V4 information-architecture contract missing %q", contract)
 		}
 	}
 	if strings.Contains(html, `<nav id="primary-nav"><button`) && (strings.Contains(html, `<span>Configurations</span>`) || strings.Contains(html, `<span>Governance</span>`)) {
@@ -298,13 +298,42 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 		t.Fatal("metric identifiers must wrap instead of causing mobile document overflow")
 	}
 	for _, contract := range []string{
-		"Operator Horizon V3", ".product-flow", "grid-template-columns:repeat(4,minmax(0,1fr))",
+		"Operator Horizon V4", ".product-flow", "grid-template-columns:repeat(4,minmax(0,1fr))",
 		"min-height: 44px", "@media (prefers-reduced-motion: reduce)", "border-inline-start: 4px solid var(--accent)", "grid-template-columns: repeat(auto-fit",
 		"--success-fg:", "--warning-fg:", "--danger-fg:", "--focus-ring:", "--focus-halo:", ".badge.technical { white-space: normal", ".data-table", ".data-table-shell", ".data-table-sort", ".unavailable-state",
 	} {
 		if !strings.Contains(css, contract) {
 			t.Fatalf("operator design-system contract missing %q", contract)
 		}
+	}
+}
+
+
+func TestOperatorConsolePersianNativeDesignContract(t *testing.T) {
+	cssBytes, err := fs.ReadFile(content, "static/styles.css")
+	if err != nil { t.Fatal(err) }
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	htmlBytes, err := fs.ReadFile(content, "static/index.html")
+	if err != nil { t.Fatal(err) }
+	css, js, html := string(cssBytes), string(jsBytes), string(htmlBytes)
+	for _, contract := range []string{
+		"Operator Horizon V4 — Persian-native technical shell",
+		"--ui-background:var(--bg)", "--ui-radius-control:8px", "--ui-motion:180ms",
+		`html[lang="fa"] body{font-size:15px;line-height:1.75;letter-spacing:0}`,
+		"padding-inline-start:8px;padding-inline-end:28px",
+		`html[dir="rtl"] :where(.technical,code,pre,kbd,[data-ltr="true"],input[type="email"],input[type="url"],input[type="tel"])`,
+	} {
+		if !strings.Contains(css, contract) { t.Fatalf("Persian-native design contract missing %q", contract) }
+	}
+	for _, contract := range []string{"const displayNumber=value=>", "fa-IR-u-nu-arabext", "fa-IR-u-ca-persian-nu-arabext", "count.textContent=displayNumber(records.length)"} {
+		if !strings.Contains(js, contract) { t.Fatalf("Persian-native runtime contract missing %q", contract) }
+	}
+	if !strings.Contains(html, `id="language-toggle" type="button">فارسی</button>`) {
+		t.Fatal("language switcher must use its native visible label")
+	}
+	if strings.Contains(strings.ReplaceAll(css, " ", ""), "flex-direction:row-reverse") {
+		t.Fatal("RTL layout must use logical properties instead of physical row reversal")
 	}
 }
 

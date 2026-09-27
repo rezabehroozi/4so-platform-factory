@@ -119,6 +119,36 @@ def static_quality_failures(root: Path) -> list[str]:
             failures.append(f"{rel}:raw-action-glyph")
         if 'class="hero"' in html:
             failures.append(f"{rel}:generic-admin-hero")
+
+    console_css = (root / "webconsole/static/styles.css").read_text(encoding="utf-8")
+    console_js = (root / "webconsole/static/app.js").read_text(encoding="utf-8")
+    v4_css_contracts = (
+        "Operator Horizon V4 — Persian-native technical shell",
+        "--ui-background:var(--bg)",
+        "--ui-radius-control:8px",
+        "--ui-motion:180ms",
+        'html[lang="fa"] body{font-size:15px;line-height:1.75;letter-spacing:0}',
+        'html[lang="fa"] :where(h1,h2,h3,h4,.eyebrow,.nav-group>span,.page-outcome-label,.workflow-eyebrow,.product-flow strong)',
+        "letter-spacing:0;text-transform:none",
+        "padding-inline-start:8px;padding-inline-end:28px",
+        'html[dir="rtl"] :where(.technical,code,pre,kbd,[data-ltr="true"],input[type="email"],input[type="url"],input[type="tel"])',
+        "font-variant-numeric:tabular-nums",
+    )
+    for contract in v4_css_contracts:
+        if contract not in console_css:
+            failures.append(f"webconsole/static/styles.css:persian-native-contract:{contract}")
+    v4_js_contracts = (
+        "const displayNumber=value=>",
+        "fa-IR-u-nu-arabext",
+        "fa-IR-u-ca-persian-nu-arabext",
+        "count.textContent=displayNumber(records.length)",
+        "displayNumber(Math.max(0,managed-connected))",
+    )
+    for contract in v4_js_contracts:
+        if contract not in console_js:
+            failures.append(f"webconsole/static/app.js:persian-native-contract:{contract}")
+    if "flex-direction:row-reverse" in console_css.replace(" ", ""):
+        failures.append("webconsole/static/styles.css:rtl-physical-reversal-forbidden")
     return failures
 
 

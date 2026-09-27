@@ -1,9 +1,16 @@
 
 ## V22 development / physical-boundary rule
 
+## Persian-native Operator Horizon V4
+
+V4 keeps the V3 information architecture and 4SO authority model, but reworks the visual and localization layer around a Persian-native contract informed by VibeFarsi research. The implementation remains 4SO-owned vanilla HTML/CSS/JavaScript: there is no React/Tailwind migration and no VibeFarsi runtime dependency.
+
+The adopted constraints are: logical inline/block CSS for RTL; Vazirmatn-first Persian typography with zero tracking and 1.75 UI line-height; Persian display digits and an explicit Persian calendar for user-readable quantities/dates while technical IDs remain Latin/LTR-isolated; one semantic token layer over existing 4SO light/dark authority; 4px-grid spacing, compact 44px interaction targets, flat technical surfaces, tabular numeric columns and reduced-motion-safe transitions. VibeFarsi source/asset copying is explicitly outside this redesign; its role is design research and negative-control guidance only.
+
+
 `PROGRAM_PHASE_MODEL_V75` keeps Physical/Exact-SHA installation deferred until C9 development closure. It is not an Operator Console or development blocker. The Assurance section now includes an Edge & Sovereign workflow for bounded policy compilation, offline request assessment, reconnect conflict review, boot-attestation assessment and disconnected local-AI profile validation; it is deliberately assessment-first and never presents source validation as runtime execution or Physical certification. The Maintenance surface consumes `TARGET_NODE_LIFECYCLE_AUTHORITY_V1` so Add/Drain/Remove/Replace/Patch/Certificate/Remediation readiness is shown from live capability/executor truth instead of UI assumptions.
 
-# Operator Console design foundation — 4SO Operator Horizon V3
+# Operator Console design foundation — 4SO Operator Horizon V4
 
 ## V28 human MCP and Persian product-copy rule
 
@@ -13,7 +20,7 @@ Persian copy is governed by `PERSIAN_PRODUCT_COPY_QA_V1` and `PERSIAN_UI_QA_V2`:
 
 ## Product UX decision
 
-4SO Platform Factory uses the product-owned **4SO Operator Horizon V3** design system and information architecture.
+4SO Platform Factory uses the product-owned **4SO Operator Horizon V4** design system and information architecture.
 
 The primary external product-UX benchmark is **Spectro Cloud Palette** because its project-oriented console separates clusters from reusable configuration objects and makes profile/template-driven platform lifecycle understandable without exposing every implementation subsystem. **Rafay Platform** is the secondary benchmark for dense multi-cluster operations, health/resource visibility and operator dashboards. **SUSE Rancher Prime** is a targeted reference for Kubernetes resource exploration and direct cluster ergonomics. TailAdmin/CoreUI remain historical component/accessibility references only; they are no longer the product information-architecture reference.
 
@@ -23,7 +30,7 @@ No competitor UI source, asset, logo, stylesheet or framework is copied or vendo
 
 The previous shell grouped product surfaces by implementation-oriented buckets such as `Infrastructure`, `Delivery` and `Administration`. Those terms are technically defensible but force an operator to understand the internal architecture before finding the workflow they need. They also create a naming collision: the existing `workspace` route represents organizations/projects while the product roadmap now reserves **Workspace** for a real cross-cluster team/application boundary.
 
-Operator Horizon V3 therefore organizes the product around operator intent:
+Operator Horizon V4 therefore organizes the product around operator intent:
 
 ```text
 Overview
@@ -81,7 +88,7 @@ The user-facing primary taxonomy is now:
 
 Compatibility-only internal section IDs such as `delivery` and `administration` remain implementation details and are not a second product taxonomy.
 
-### Operator Horizon V3 information architecture
+### Operator Horizon V4 information architecture
 
 The exact-source review plus current Palette benchmark confirms that project/scope selection and reusable profile/template mental models should stay obvious, while 4SO must surface its stronger evidence/supply-chain differentiators rather than burying them in Fleet or Operations. The visible primary navigation is therefore:
 
