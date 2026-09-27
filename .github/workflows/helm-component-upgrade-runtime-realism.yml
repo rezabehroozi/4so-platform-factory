@@ -7,6 +7,8 @@ on:
     paths:
       - .github/workflows/helm-component-upgrade-runtime-realism.yml
       - scripts/render_exact_helm_runtime.py
+      - scripts/merge_helm_component_upgrade_evidence.py
+      - scripts/runtime_evidence_registry.py
       - catalog/runtime-profiles/victoria-metrics.json
       - catalog/runtime-profiles/victoria-metrics.values.yaml
       - catalog/runtime/capsule/0.13.10/**
@@ -278,6 +280,7 @@ jobs:
         run: /tmp/kind delete cluster --name "4so-${{ matrix.component }}-upgrade" || true
 
   aggregate:
+    if: always()
     needs: upgrade-matrix
     runs-on: ubuntu-26.04
     steps:
@@ -285,47 +288,40 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           pattern: helm-upgrade-*
           path: /tmp/helm-upgrade
           merge-multiple: true
-      - name: Aggregate exact Helm component upgrade matrix
+      - name: Merge complete component evidence without erasing prior PASS
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          rows=[json.loads(p.read_text()) for p in sorted(Path("/tmp/helm-upgrade").glob("*-upgrade-*.json"))]
-          profiles={"capsule":("0.13.10","0.13.11"),"victoria-metrics":("0.90.1","0.90.2")}
-          outrows=[]
-          required=("historicalReady","upgradeApplyPass","targetReady","workloadIdentityPreserved","targetImagesVerified","targetReapplyConverged","reverseEdgeRejected")
-          for c,(f,t) in profiles.items():
-              found=[r for r in rows if r.get("component")==c]
-              if {r.get("kubernetesVersion") for r in found}!={"1.34.11","1.35.8"}: raise SystemExit(f"HELM_UPGRADE_MATRIX_COVERAGE_INVALID {c}")
-              if any((r.get("fromRelease"),r.get("toRelease"))!=(f,t) for r in found): raise SystemExit(f"HELM_UPGRADE_EDGE_DRIFT {c}")
-              if not all(all(r.get(k) is True for k in required) and r.get("genericKubernetesRuntimeEvidenceOnly") is True and r.get("rke2Certified") is False and r.get("productTopologyHACertified") is False and r.get("physicalCertified") is False for r in found): raise SystemExit(f"HELM_UPGRADE_RUNTIME_INVALID {c}")
-              outrows.append({"component":c,"fromRelease":f,"toRelease":t,"matrix":sorted(found,key=lambda x:x["kubernetesVersion"]),"matrixPass":True})
-          out={"apiVersion":"platform.4so.io/v1alpha1","kind":"HelmComponentUpgradeRuntimeMatrixEvidence","authority":"HELM_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"components":outrows,"matrixPass":True,"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"productTopologyHACertified":False,"physicalCertified":False}
-          Path("lab/helm-component-upgrade-runtime-matrix-evidence.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
-          PY
+          mkdir -p /tmp/helm-upgrade
+          python3 scripts/merge_helm_component_upgrade_evidence.py --artifacts /tmp/helm-upgrade
+          python3 scripts/runtime_evidence_registry.py
+          python3 -m unittest tests.test_runtime_evidence_registry
+          git diff --check
       - uses: actions/upload-artifact@v4
         with:
           name: helm-component-upgrade-runtime-matrix
-          path: lab/helm-component-upgrade-runtime-matrix-evidence.json
+          path: |
+            lab/helm-component-upgrade-runtime-matrix-evidence.json
+            catalog/component-runtime-upgrade-evidence.json
           retention-days: 30
-      - name: Persist evidence when main is unchanged
+      - name: Persist component-scoped evidence when main is unchanged
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 4so-evidence-bot
           git config user.email actions@users.noreply.github.com
-          git add lab/helm-component-upgrade-runtime-matrix-evidence.json
+          git add lab/helm-component-upgrade-runtime-matrix-evidence.json catalog/component-runtime-upgrade-evidence.json
+          git diff --cached --quiet && exit 0
           git fetch origin main
           if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
-            echo "main advanced; skip stale Helm upgrade evidence"
-            git reset -- lab/helm-component-upgrade-runtime-matrix-evidence.json
+            echo "main advanced; preserve artifact evidence but skip stale Git persistence"
+            git reset -- lab/helm-component-upgrade-runtime-matrix-evidence.json catalog/component-runtime-upgrade-evidence.json
             exit 0
           fi
-          git commit -m "evidence: seal Helm component runtime upgrades"
+          git commit -m "evidence: merge Helm component runtime upgrades"
           git push origin HEAD:main

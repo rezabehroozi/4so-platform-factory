@@ -2,8 +2,6 @@
   "apiVersion": "platform.4so.io/v1alpha1",
   "kind": "HelmComponentUpgradeRuntimeMatrixEvidence",
   "authority": "HELM_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
-  "sourceCommitSHA": "d252a2c852a4e30876daf3193f2fd1d55f03f533",
-  "sourceRunId": "36343479329",
   "components": [
     {
       "component": "capsule",
@@ -61,12 +59,15 @@
           "workloadIdentityPreserved": true
         }
       ],
-      "matrixPass": true
+      "matrixPass": true,
+      "sourceRunId": "36343479329",
+      "sourceCommitSHA": "d252a2c852a4e30876daf3193f2fd1d55f03f533"
     }
   ],
   "matrixPass": true,
   "genericKubernetesRuntimeEvidenceOnly": true,
   "rke2Certified": false,
   "productTopologyHACertified": false,
-  "physicalCertified": false
+  "physicalCertified": false,
+  "mergeAuthority": "component-scoped-incremental"
 }
