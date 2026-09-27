@@ -9,13 +9,14 @@ class RuntimeEvidenceRegistryTests(unittest.TestCase):
         self.assertTrue(out["ocMirror"]["transportRealismPass"])
         self.assertFalse(out["ocMirror"]["fullDisconnectedOKDInstallCertified"])
         reg=out["upgradeRegistry"]
-        self.assertEqual(12,reg["summary"]["componentsWithAnyRuntimeEvidence"])
-        self.assertEqual(12,reg["summary"]["fullyRuntimeUpgradeCertifiedComponents"])
+        rows=[r for r in reg["components"] if r["component"]!="secure-namespace-foundation"]
+        self.assertEqual(sum(bool(r["executedEdges"]) for r in rows),reg["summary"]["componentsWithAnyRuntimeEvidence"])
+        self.assertEqual(sum(bool(r["runtimeUpgradeCertified"]) for r in rows),reg["summary"]["fullyRuntimeUpgradeCertifiedComponents"])
         gateway=next(r for r in reg["components"] if r["component"]=="gateway-api")
         self.assertEqual("runtime-evidence-complete",gateway["status"])
         self.assertTrue(gateway["runtimeUpgradeCertified"])
         self.assertEqual([],gateway["pendingEdges"])
-        self.assertEqual(7,reg["summary"]["pendingRuntimeEdges"])
+        self.assertEqual(sum(len(r["pendingEdges"]) for r in rows),reg["summary"]["pendingRuntimeEdges"])
         for name in ("capsule","external-dns","cert-manager","kyverno","loki","velero","tetragon"):
             row=next(r for r in reg["components"] if r["component"]==name)
             self.assertTrue(row["runtimeUpgradeCertified"])

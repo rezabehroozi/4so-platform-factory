@@ -9,6 +9,7 @@ on:
       - scripts/render_exact_helm_runtime.py
       - scripts/merge_helm_component_upgrade_evidence.py
       - scripts/runtime_evidence_registry.py
+      - tests/test_runtime_evidence_registry.py
       - catalog/runtime-profiles/victoria-metrics.json
       - catalog/runtime-profiles/victoria-metrics.values.yaml
       - catalog/runtime/capsule/0.13.10/**
