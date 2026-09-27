@@ -309,6 +309,20 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 }
 
 
+func TestOperatorConsoleFormValidationAccessibilityContract(t *testing.T) {
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	cssBytes, err := fs.ReadFile(content, "static/styles.css")
+	if err != nil { t.Fatal(err) }
+	js, css := string(jsBytes), string(cssBytes)
+	for _, marker := range []string{"function markFieldInvalid", "function clearFieldInvalid", "addEventListener('invalid'", "aria-invalid"} {
+		if !strings.Contains(js, marker) { t.Fatalf("form validation accessibility runtime missing %q", marker) }
+	}
+	for _, marker := range []string{`[aria-invalid="true"]`, ".field-invalid>span"} {
+		if !strings.Contains(css, marker) { t.Fatalf("form validation accessibility style missing %q", marker) }
+	}
+}
+
 func TestOperatorConsolePersianCriticalInteractionContract(t *testing.T) {
 	htmlBytes, err := fs.ReadFile(content, "static/index.html")
 	if err != nil { t.Fatal(err) }

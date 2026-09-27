@@ -4438,12 +4438,24 @@ function hasActiveWork(page = state.currentPage){
 }
 function markFormClean(form){if(form?.dataset)delete form.dataset.dirty;}
 function markDirtyTarget(target){const form=target.closest?.('form');if(form?.closest('.page'))form.dataset.dirty='true';else if(target.matches?.('[data-dirty-guard]')&&target.closest?.('.page'))target.dataset.dirty='true';}
+function markFieldInvalid(target){
+  if(!target?.matches?.('input,select,textarea'))return;
+  target.setAttribute('aria-invalid','true');
+  target.closest('label')?.classList.add('field-invalid');
+}
+function clearFieldInvalid(target){
+  if(!target?.matches?.('input,select,textarea'))return;
+  if(target.validity?.valid===false)return;
+  target.removeAttribute('aria-invalid');
+  target.closest('label')?.classList.remove('field-invalid');
+}
 function dirtyWithin(root){if(!root)return false;if(root.matches?.('form[data-dirty="true"], [data-dirty-guard][data-dirty="true"]'))return true;return !!root.querySelector?.('form[data-dirty="true"], [data-dirty-guard][data-dirty="true"]');}
 function clearDirtyForms(root=document){if(root.matches?.('form[data-dirty="true"]'))markFormClean(root);if(root.matches?.('[data-dirty-guard][data-dirty="true"]'))delete root.dataset.dirty;$$('form[data-dirty="true"]',root).forEach(markFormClean);$$('[data-dirty-guard][data-dirty="true"]',root).forEach(control=>delete control.dataset.dirty);}
 async function confirmDiscardDirty(root,title,message){if(!dirtyWithin(root))return true;if(!await confirmAction(title,message,true))return false;clearDirtyForms(root);return true;}
 function hasUnsavedChanges(){return !!$('.page.active form[data-dirty="true"], .page.active [data-dirty-guard][data-dirty="true"]');}
-document.addEventListener('input',event=>markDirtyTarget(event.target));
-document.addEventListener('change',event=>markDirtyTarget(event.target));
+document.addEventListener('invalid',event=>markFieldInvalid(event.target),true);
+document.addEventListener('input',event=>{markDirtyTarget(event.target);clearFieldInvalid(event.target);});
+document.addEventListener('change',event=>{markDirtyTarget(event.target);clearFieldInvalid(event.target);});
 document.addEventListener('reset',event=>{const form=event.target;setTimeout(()=>markFormClean(form),0);});
 document.addEventListener('submit',event=>{state.lastSubmittedForm=event.target;state.lastSubmittedAt=Date.now();},true);
 document.addEventListener('pointerdown',event=>{if(event.target.closest?.('.page.active'))state.interactionHoldUntil=Date.now()+2000;},true);

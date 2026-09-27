@@ -1193,3 +1193,8 @@ html[lang="fa"] .data-table :where(.numeric,.timestamp){font-variant-numeric:tab
 /* One interaction grammar across Persian data workspaces. */
 .data-table .row-actions button,.data-table th .data-table-sort,.compact-control select,.compact-button{min-height:var(--ui-control-hit)}
 .data-table .row-actions{align-items:center}
+
+/* Persian-first form validation state. */
+:where(input,select,textarea)[aria-invalid="true"]{border-color:var(--ui-danger)!important;box-shadow:0 0 0 2px color-mix(in srgb,var(--ui-danger) 14%,transparent)!important}
+.field-invalid>span,.field-invalid>.field-label{color:var(--ui-danger-fg)}
+:where(input,select,textarea)[aria-invalid="true"]:focus-visible{outline:3px solid color-mix(in srgb,var(--ui-danger) 24%,transparent);outline-offset:1px}
