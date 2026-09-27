@@ -1,0 +1,72 @@
+name: managed-okd-agent-workspace-realism
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/managed-okd-agent-workspace-realism.yml
+      - internal/managedinstall/workspace_preparer.go
+      - internal/managedinstall/workspace_preparer_exact_test.go
+      - lab/managed-okd-upstream-toolchain-lock.json
+permissions:
+  contents: write
+jobs:
+  exact-agent-workspace:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact OKD installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$(jq -r '.artifacts[]|select(.role=="openshift-install")|.url' lab/managed-okd-upstream-toolchain-lock.json)"
+          sha="$(jq -r '.artifacts[]|select(.role=="openshift-install")|.sha256' lab/managed-okd-upstream-toolchain-lock.json)"
+          curl -fL --retry 3 -o /tmp/openshift-install.tar.gz "$url"
+          tar -xzf /tmp/openshift-install.tar.gz -C /tmp openshift-install
+          test "$(sha256sum /tmp/openshift-install|awk '{print $1}')" = "$sha"
+          chmod +x /tmp/openshift-install
+          echo "INSTALLER_SHA=$sha" >> "$GITHUB_ENV"
+          echo "RELEASE_IMAGE=$(jq -r .releasePayload.reference lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
+          echo "RELEASE_SHA=$(jq -r .releasePayload.digest lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
+          echo "MACHINE_URL=$(jq -r .machineOSArtifact.location lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
+          echo "MACHINE_SHA=sha256:$(jq -r .machineOSArtifact.sha256 lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
+      - name: Execute product WorkspacePreparer against exact upstream
+        shell: bash
+        env:
+          OKD_EXACT_INSTALLER: /tmp/openshift-install
+          OKD_EXACT_INSTALLER_SHA: ${{ env.INSTALLER_SHA }}
+          OKD_EXACT_RELEASE_IMAGE: ${{ env.RELEASE_IMAGE }}
+          OKD_EXACT_RELEASE_SHA: ${{ env.RELEASE_SHA }}
+          OKD_EXACT_MACHINE_OS_URL: ${{ env.MACHINE_URL }}
+          OKD_EXACT_MACHINE_OS_SHA: ${{ env.MACHINE_SHA }}
+          OKD_TEST_PULL_SECRET: '{"auths":{}}'
+          OKD_AGENT_WORKSPACE_ROOT: /tmp/4so-okd-workspaces
+          OKD_AGENT_MEDIA_ROOT: /tmp/4so-okd-media
+          OKD_AGENT_EVIDENCE_OUT: lab/managed-okd-agent-workspace-execution-evidence.json
+        run: |
+          set -euo pipefail
+          ssh-keygen -q -t ed25519 -N '' -f /tmp/okd_test_key
+          export OKD_TEST_SSH_KEY="$(cat /tmp/okd_test_key.pub)"
+          go test ./internal/managedinstall -run '^TestExactOKDAgentWorkspaceExecution$' -count=1 -v
+          jq -e '.authority=="MANAGED_OKD_AGENT_WORKSPACE_EXECUTION_EVIDENCE_V1" and .exactUpstreamExecution and .requestSpecificMedia and (.redfishBootExecuted|not) and (.clusterInstallExecuted|not) and (.runtimeCertified|not) and (.physicalCertified|not) and .preparation.agentIsoBytes>0' lab/managed-okd-agent-workspace-execution-evidence.json
+          digest="$(jq -r .preparation.agentIsoSha256 lab/managed-okd-agent-workspace-execution-evidence.json)"
+          iso="/tmp/4so-okd-media/sha256/${digest#sha256:}/agent.iso"
+          test -s "$iso"
+          test "sha256:$(sha256sum "$iso"|awk '{print $1}')" = "$digest"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: managed-okd-agent-workspace-execution
+          path: lab/managed-okd-agent-workspace-execution-evidence.json
+          retention-days: 30
+      - name: Persist exact execution evidence when main is unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 4so-evidence-bot
+          git config user.email actions@users.noreply.github.com
+          git add lab/managed-okd-agent-workspace-execution-evidence.json
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then git reset -- lab/managed-okd-agent-workspace-execution-evidence.json; exit 0; fi
+          git commit -m "evidence: seal exact managed OKD Agent workspace"
+          git push origin HEAD:main
