@@ -105,7 +105,7 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status "$WORKLOAD_KIND/$WORKLOAD_NAME" --timeout=10m
           after_uid="$(kubectl -n "$NAMESPACE" get "$WORKLOAD_KIND/$WORKLOAD_NAME" -o jsonpath='{.metadata.uid}')"
           test "$after_uid" = "$BEFORE_UID"
-          expected="$(cat "/tmp/${{ matrix.component }}-$TO_RELEASE-images.json")"
+          expected="$(jq -c . "/tmp/${{ matrix.component }}-$TO_RELEASE-images.json")"
           actual="$(kubectl -n "$NAMESPACE" get "$WORKLOAD_KIND/$WORKLOAD_NAME" -o json | jq -c '[.spec.template.spec.containers[].image]')"
           test "$actual" = "$expected"
           kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/${{ matrix.component }}-$TO_RELEASE.json" >/tmp/reapply.txt
