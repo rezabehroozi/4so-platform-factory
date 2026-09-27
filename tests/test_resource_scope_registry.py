@@ -46,7 +46,10 @@ def test_every_stable_resource_family_has_source_reviewed_owner_classification()
     extra = sorted(set(reviewed) - set(expected))
     assert extra == []
     assert missing == [], f"unreviewed stable Product API families: {missing}"
-    assert len(reviewed) == len(expected) == contract["routeCount"] * 0 + 73
+    registry = json.loads((ROOT / "internal" / "api" / "resource_scope_registry.json").read_text())
+    assert len(reviewed) == len(expected) == registry["familyCount"]
+    assert registry["classifiedCount"] == registry["familyCount"]
+    assert registry["ownerReviewRequiredCount"] == 0
     for family in expected:
         row = reviewed[family]
         assert row["scope"] in {"PLATFORM_SCOPED", "ORGANIZATION_SCOPED", "PROJECT_SCOPED", "DYNAMIC_SCOPED"}
