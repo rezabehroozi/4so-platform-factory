@@ -1,0 +1,37 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "CertManagerCRDRuntimeDependencyLock",
+  "authority": "CERT_MANAGER_CRD_RUNTIME_DEPENDENCY_LOCK_V1",
+  "schemaVersion": 1,
+  "component": "cert-manager",
+  "purpose": "product-owned exact CRD dependency for cert-manager runtime and upgrade certification",
+  "assets": [
+    {
+      "release": "1.21.0",
+      "name": "cert-manager.crds.yaml",
+      "path": "catalog/runtime-dependencies/cert-manager/1.21.0/cert-manager.crds.yaml",
+      "url": "https://github.com/cert-manager/cert-manager/releases/download/v1.21.0/cert-manager.crds.yaml",
+      "sha256": "cc046deb0ef4aaa8237f1ae448ef463446905bfc310cba88f25fc614389f84fd",
+      "sizeBytes": 997110
+    },
+    {
+      "release": "1.21.1",
+      "name": "cert-manager.crds.yaml",
+      "path": "catalog/runtime-dependencies/cert-manager/1.21.1/cert-manager.crds.yaml",
+      "url": "https://github.com/cert-manager/cert-manager/releases/download/v1.21.1/cert-manager.crds.yaml",
+      "sha256": "a1383be02862dd2802e6810f19dd1f4784550f336ff4eb27788e842302f76977",
+      "sizeBytes": 997110
+    }
+  ],
+  "expectedCRDs": [
+    "certificaterequests.cert-manager.io",
+    "certificates.cert-manager.io",
+    "challenges.acme.cert-manager.io",
+    "clusterissuers.cert-manager.io",
+    "issuers.cert-manager.io",
+    "orders.acme.cert-manager.io"
+  ],
+  "bytesRequiredForRuntime": true,
+  "runtimeCertified": false,
+  "physicalCertified": false
+}
