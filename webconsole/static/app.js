@@ -2303,7 +2303,7 @@ async function loadOverview() {
       readinessCheck(Number(summary.successfulRuntimeVerifications||0)>0,'Verify runtime health','Digest-pinned probe and report','verification'),
       readinessCheck(Number(summary.successfulRuntimeClosureCampaigns||0)>0,'Close runtime evidence','Bind inventory, baseline and verification digests','verification')
     ];
-    $('#journey-checklist').innerHTML = checks.map(check => `<div class="check-item ${check.done ? 'done' : check.unknown ? 'unknown' : ''}"><span class="check-icon">${check.done ? '✓' : check.unknown ? '?' : '○'}</span><div><strong>${esc(check.title)}</strong><small>${esc(check.detail)}${check.unknown?' Authority unavailable; retry before acting.':''}</small>${!check.done&&!check.unknown ? `<button type="button" class="link-button small-button" data-navigate="${check.page}">Continue</button>` : ''}</div></div>`).join('');
+    $('#journey-checklist').innerHTML = checks.map(check => `<div class="check-item ${check.done ? 'done' : check.unknown ? 'unknown' : ''}" data-state="${check.done?'done':check.unknown?'unknown':'open'}"><span aria-hidden="true" class="check-icon">${check.done ? '✓' : check.unknown ? '?' : '○'}</span><div><strong>${esc(check.title)}</strong><small>${esc(check.detail)}${check.unknown?' '+esc(localizeDynamicText('Authority unavailable; retry before acting.')):''}</small>${!check.done&&!check.unknown ? `<button type="button" class="link-button small-button" data-navigate="${check.page}">${esc(localizeDynamicText('Continue'))}</button>` : ''}</div></div>`).join('');
     const next = checks.find(check => !check.done&&!check.unknown);
     const unknownReadiness = checks.find(check => check.unknown);
     setIntrinsicDisabled($('#overview-next-action'), false);
@@ -2319,7 +2319,7 @@ async function loadOverview() {
     }
 
     const attentionPartial=sourceUnavailable(failureSources);
-    const attention=(state.attention||[]).map(item=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">!</span><div><strong>${esc(item.displayName||item.id)}</strong><small>${esc(item.message||localizeDynamicText('Operator attention is required.'))}</small></div></div><div class="activity-actions">${badge(item.state)}${item.page?`<button type="button" class="link-button small-button" data-navigate="${esc(item.page)}">Open</button>`:''}</div></div>`);
+    const attention=(state.attention||[]).map(item=>`<div class="activity-item"><div class="activity-main"><span class="check-icon">!</span><div><strong>${esc(item.displayName||item.id)}</strong><small>${esc(item.message||localizeDynamicText('Operator attention is required.'))}</small></div></div><div class="activity-actions">${badge(item.state)}${item.page?`<button type="button" class="link-button small-button" data-navigate="${esc(item.page)}">${esc(localizeDynamicText('Open'))}</button>`:''}</div></div>`);
     $('#attention-list').innerHTML = attention.length ? `${attentionPartial?'<div class="warning-banner"><strong>Attention is partial.</strong> The bounded attention authority is temporarily unavailable.</div>':''}${attention.join('')}` : attentionPartial ? unavailableState('Attention data') : emptyState('No urgent action', 'No failed workflow or offline connected cluster is currently reported.');
 
     const recent = latest([...state.operations.map(item => ({...item,_type:'operation'})), ...state.audit.map(item => ({...item,_type:'audit'}))]).slice(0,10);
