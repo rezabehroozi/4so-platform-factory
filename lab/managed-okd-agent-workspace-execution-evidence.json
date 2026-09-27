@@ -1,0 +1,37 @@
+{
+  "agentISOPathConvention": "sha256/<agentIsoSha256>/agent.iso",
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "MANAGED_OKD_AGENT_WORKSPACE_EXECUTION_EVIDENCE_V1",
+  "clusterInstallExecuted": false,
+  "exactUpstreamExecution": true,
+  "kind": "ManagedOKDAgentWorkspaceExecutionEvidence",
+  "physicalCertified": false,
+  "preparation": {
+    "authority": "MANAGED_OKD_AGENT_WORKSPACE_PREPARATION_V1",
+    "preparationDigest": "sha256:62fe42512bfd8a200e00bce47f3db03648657eb553dfc8c996a2dcc2fe29661b",
+    "requestDigest": "sha256:94b3008e222e8d543e64afd8b626fcb048e6658dd5faa0db61ca4d2a434249b2",
+    "targetVersion": "4.19.0",
+    "clusterName": "cert-okd",
+    "openshiftInstallSha256": "sha256:4da2727213b50407fcbbbaac5a73242e88fec23fe330bd978c9110aae263b714",
+    "releasePayloadSha256": "sha256:d6a4b74886326bd2196bd834f8351a4e142a9ffd278beef1b56f5da9cdb772e2",
+    "machineOsSha256": "sha256:4035381cdca88c6dd20e11a529d6d850d54340d5425a831a9bab38fc6c3795e6",
+    "agentIsoSha256": "sha256:849537491b1d520da3bbdb40570509dfa639815d92fda5b685d0af55ab81f540",
+    "agentIsoBytes": 1202937856,
+    "workspaceAuthority": "MANAGED_OKD_INSTALL_WORKSPACE_V1",
+    "mediaAuthority": "MANAGED_OKD_CONTENT_ADDRESSED_MEDIA_V1",
+    "hostnames": [
+      "node-a",
+      "node-b",
+      "node-c"
+    ],
+    "secretMaterialPersisted": false,
+    "runtimeCertified": false,
+    "physicalCertified": false
+  },
+  "redfishBootExecuted": false,
+  "requestDigest": "sha256:94b3008e222e8d543e64afd8b626fcb048e6658dd5faa0db61ca4d2a434249b2",
+  "requestSpecificMedia": true,
+  "runtimeCertified": false,
+  "openShiftInstallArchiveSha256": "sha256:4ed2d87777cfd5597e76f11c4d48d5db42aad6d42fb92cfe296ecc45bee0777e",
+  "openShiftInstallBinarySha256": "sha256:4da2727213b50407fcbbbaac5a73242e88fec23fe330bd978c9110aae263b714"
+}
