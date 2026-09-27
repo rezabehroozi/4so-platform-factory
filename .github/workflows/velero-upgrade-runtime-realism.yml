@@ -45,6 +45,8 @@ jobs:
                   images += [c["image"] for c in [*(pod.get("initContainers") or []),*(pod.get("containers") or [])] if c.get("image")]
               if not images or any("@sha256:" not in x for x in images): raise SystemExit(f"VELERO_IMAGE_NOT_PINNED {v}")
               Path(f"/tmp/velero-{v}.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":items}))
+              Path(f"/tmp/velero-{v}-crds.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":[x for x in items if x.get("kind")=="CustomResourceDefinition"]}))
+              Path(f"/tmp/velero-{v}-resources.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":[x for x in items if x.get("kind")!="CustomResourceDefinition"]}))
               Path(f"/tmp/velero-{v}-images.json").write_text(json.dumps(images,sort_keys=True))
           PY
       - name: Install exact kind runtime
@@ -66,18 +68,20 @@ jobs:
         run: |
           set -euo pipefail
           kubectl create namespace velero
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.0.3.json
-          for crd in $(jq -r '.items[]|select(.kind=="CustomResourceDefinition")|.metadata.name' /tmp/velero-12.0.3.json); do kubectl wait --for=condition=Established "crd/$crd" --timeout=4m; done
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.0.3-crds.json
+          for crd in $(jq -r '.items[].metadata.name' /tmp/velero-12.0.3-crds.json); do kubectl wait --for=condition=Established "crd/$crd" --timeout=4m; done
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.0.3-resources.json
           kubectl -n velero rollout status deployment/velero --timeout=12m
           kubectl -n velero wait --for=condition=Complete job/platform-factory-velero-upgrade-crds --timeout=12m
           kubectl -n velero get deploy/velero -o jsonpath='{.metadata.uid}' >/tmp/velero-deploy-uid
           kubectl get crd $(jq -r '.items[]|select(.kind=="CustomResourceDefinition")|.metadata.name' /tmp/velero-12.0.3.json) -o json | jq -c '[.items[]|{name:.metadata.name,uid:.metadata.uid}]|sort_by(.name)' >/tmp/velero-crd-uids
           kubectl -n velero delete job platform-factory-velero-upgrade-crds --wait=true
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.1.0.json
-          for crd in $(jq -r '.items[]|select(.kind=="CustomResourceDefinition")|.metadata.name' /tmp/velero-12.1.0.json); do
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.1.0-crds.json
+          for crd in $(jq -r '.items[].metadata.name' /tmp/velero-12.1.0-crds.json); do
             kubectl wait --for=condition=Established "crd/$crd" --timeout=4m
             kubectl get "crd/$crd" -o json | jq -e '[.status.storedVersions[] as $s|.spec.versions[]|select(.name==$s)]|length>0' >/dev/null
           done
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.1.0-resources.json
           kubectl -n velero rollout status deployment/velero --timeout=12m
           kubectl -n velero wait --for=condition=Complete job/platform-factory-velero-upgrade-crds --timeout=12m
           test "$(kubectl -n velero get deploy/velero -o jsonpath='{.metadata.uid}')" = "$(cat /tmp/velero-deploy-uid)"
@@ -86,7 +90,8 @@ jobs:
           expected="$(jq -c . /tmp/velero-12.1.0-images.json)"
           actual="$(kubectl -n velero get deploy/velero -o json | jq -c '[.spec.template.spec.initContainers[]?.image,.spec.template.spec.containers[].image]')"
           test "$actual" = "$(jq -c '[.[0]]' /tmp/velero-12.1.0-images.json)"
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.1.0.json >/tmp/reapply.txt
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.1.0-crds.json >/tmp/reapply-crds.txt
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.1.0-resources.json >/tmp/reapply-resources.txt
           kubectl -n velero rollout status deployment/velero --timeout=4m
       - name: Prove reverse edge and seal evidence
         shell: bash
