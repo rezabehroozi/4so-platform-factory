@@ -45,6 +45,7 @@ def verify_upgrade_registry(root:Path)->dict:
     matrix=load(root/"catalog/component-runtime-upgrade-matrix.json")
     gateway=load(root/"lab/gateway-api-upgrade-runtime-matrix-evidence.json")
     snapshot=load(root/"lab/snapshot-controller-upgrade-runtime-matrix-evidence.json")
+    simple=load(root/"lab/simple-component-upgrade-runtime-matrix-evidence.json")
     if reg.get("authority")!=REGISTRY_AUTH or reg.get("kind")!="ComponentRuntimeUpgradeEvidenceRegistry" or reg.get("schemaVersion")!=1:
         raise RuntimeError("RUNTIME_UPGRADE_EVIDENCE_REGISTRY_AUTHORITY_INVALID")
     expected_policy={
@@ -112,6 +113,27 @@ def verify_upgrade_registry(root:Path)->dict:
                     raise RuntimeError("SNAPSHOT_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
                 if sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
                     raise RuntimeError("SNAPSHOT_RUNTIME_UPGRADE_REGISTRY_COVERAGE_INVALID")
+        elif name in {"alloy","grafana"}:
+            if simple.get("authority")!="SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1" or simple.get("matrixPass") is not True:
+                raise RuntimeError("SIMPLE_RUNTIME_UPGRADE_EVIDENCE_INVALID")
+            if simple.get("genericKubernetesRuntimeEvidenceOnly") is not True or simple.get("rke2Certified") is not False or simple.get("productTopologyHACertified") is not False or simple.get("physicalCertified") is not False:
+                raise RuntimeError("SIMPLE_RUNTIME_UPGRADE_SCOPE_INFLATED")
+            sr={x.get("component"):x for x in simple.get("components") or [] if isinstance(x,dict)}
+            if set(sr)!={"alloy","grafana"} or name not in sr:
+                raise RuntimeError("SIMPLE_RUNTIME_UPGRADE_COMPONENT_SET_INVALID")
+            ev=sr[name]
+            expected={(ev.get("fromRelease"),ev.get("toRelease"))}
+            if ev.get("matrixPass") is not True or executed!=expected:
+                raise RuntimeError(f"SIMPLE_RUNTIME_UPGRADE_EDGE_BINDING_INVALID {name}")
+            matrix_rows=ev.get("matrix") or []
+            if sorted(str(x.get("kubernetesVersion") or "") for x in matrix_rows)!=["1.34.11","1.35.8"]:
+                raise RuntimeError(f"SIMPLE_RUNTIME_UPGRADE_MATRIX_COVERAGE_INVALID {name}")
+            required=("historicalReady","upgradeApplyPass","targetReady","workloadIdentityPreserved","targetReapplyConverged","reverseEdgeRejected")
+            if not all(all(x.get(k) is True for k in required) and x.get("genericKubernetesRuntimeEvidenceOnly") is True and x.get("rke2Certified") is False and x.get("productTopologyHACertified") is False and x.get("physicalCertified") is False for x in matrix_rows):
+                raise RuntimeError(f"SIMPLE_RUNTIME_UPGRADE_MATRIX_INVALID {name}")
+            for e in r.get("executedEdges",[]):
+                if e.get("authority")!="SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=simple.get("sourceRunId") or e.get("evidencePath")!="lab/simple-component-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
+                    raise RuntimeError(f"SIMPLE_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID {name}")
         elif executed:
             raise RuntimeError(f"UNSUPPORTED_RUNTIME_UPGRADE_EVIDENCE_CLAIM {name}")
     summary=reg.get("summary") or {}

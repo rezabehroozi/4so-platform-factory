@@ -9,14 +9,14 @@ class RuntimeEvidenceRegistryTests(unittest.TestCase):
         self.assertTrue(out["ocMirror"]["transportRealismPass"])
         self.assertFalse(out["ocMirror"]["fullDisconnectedOKDInstallCertified"])
         reg=out["upgradeRegistry"]
-        self.assertEqual(2,reg["summary"]["componentsWithAnyRuntimeEvidence"])
-        self.assertEqual(1,reg["summary"]["fullyRuntimeUpgradeCertifiedComponents"])
+        self.assertEqual(4,reg["summary"]["componentsWithAnyRuntimeEvidence"])
+        self.assertEqual(3,reg["summary"]["fullyRuntimeUpgradeCertifiedComponents"])
         gateway=next(r for r in reg["components"] if r["component"]=="gateway-api")
         self.assertEqual("partial-runtime-evidence",gateway["status"])
         self.assertEqual([{"fromRelease":"1.5.0","toRelease":"1.5.1"}],gateway["pendingEdges"])
     def copy_files(self):
         td=tempfile.TemporaryDirectory();dst=Path(td.name)
-        for rel in ("lab/oc-mirror-disconnected-transport-evidence.json","lab/managed-okd-oc-mirror-source-lock.json","lab/management-workload-external-image-receipt.json","catalog/component-runtime-upgrade-evidence.json","catalog/component-runtime-upgrade-matrix.json","lab/gateway-api-upgrade-runtime-matrix-evidence.json","lab/snapshot-controller-upgrade-runtime-matrix-evidence.json"):
+        for rel in ("lab/oc-mirror-disconnected-transport-evidence.json","lab/managed-okd-oc-mirror-source-lock.json","lab/management-workload-external-image-receipt.json","catalog/component-runtime-upgrade-evidence.json","catalog/component-runtime-upgrade-matrix.json","lab/gateway-api-upgrade-runtime-matrix-evidence.json","lab/snapshot-controller-upgrade-runtime-matrix-evidence.json","lab/simple-component-upgrade-runtime-matrix-evidence.json"):
             p=dst/rel;p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(ROOT/rel,p)
         return td,dst
     def test_oc_mirror_scope_inflation_rejected(self):
@@ -40,7 +40,7 @@ class RuntimeEvidenceRegistryTests(unittest.TestCase):
     def test_upgrade_registry_rejects_unexecuted_edge_fabrication(self):
         td,dst=self.copy_files()
         try:
-            p=dst/"catalog/component-runtime-upgrade-evidence.json";d=json.loads(p.read_text());a=next(r for r in d["components"] if r["component"]=="alloy");a["executedEdges"]=[{"fromRelease":"1.10.1","toRelease":"1.11.0"}];a["pendingEdges"]=[];a["status"]="runtime-evidence-complete";a["runtimeUpgradeCertified"]=True;p.write_text(json.dumps(d))
+            p=dst/"catalog/component-runtime-upgrade-evidence.json";d=json.loads(p.read_text());a=next(r for r in d["components"] if r["component"]=="argocd");a["executedEdges"]=[{"fromRelease":"10.2.2","toRelease":"10.2.3"}];a["pendingEdges"]=[];a["status"]="runtime-evidence-complete";a["runtimeUpgradeCertified"]=True;p.write_text(json.dumps(d))
             with self.assertRaisesRegex(RuntimeError,"UNSUPPORTED_RUNTIME_UPGRADE_EVIDENCE_CLAIM"):mod.verify_upgrade_registry(dst)
         finally:td.cleanup()
 if __name__=="__main__":unittest.main()

@@ -13,24 +13,34 @@
   "summary": {
     "components": 20,
     "upgradeApplicableComponents": 19,
-    "componentsWithAnyRuntimeEvidence": 2,
-    "fullyRuntimeUpgradeCertifiedComponents": 1,
-    "pendingRuntimeEdges": 18
+    "componentsWithAnyRuntimeEvidence": 4,
+    "fullyRuntimeUpgradeCertifiedComponents": 3,
+    "pendingRuntimeEdges": 16
   },
   "components": [
     {
       "component": "alloy",
       "targetRelease": "1.11.0",
-      "status": "pending-runtime-evidence",
-      "executedEdges": [],
-      "pendingEdges": [
+      "status": "runtime-evidence-complete",
+      "executedEdges": [
         {
           "fromRelease": "1.10.1",
-          "toRelease": "1.11.0"
+          "toRelease": "1.11.0",
+          "authority": "SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
+          "evidencePath": "lab/simple-component-upgrade-runtime-matrix-evidence.json",
+          "sourceRunId": "36308174030",
+          "kubernetesVersions": [
+            "1.34.11",
+            "1.35.8"
+          ],
+          "genericKubernetesRuntimeEvidenceOnly": true,
+          "rke2Certified": false,
+          "physicalCertified": false
         }
       ],
+      "pendingEdges": [],
       "runtimeSuitabilityHeld": false,
-      "runtimeUpgradeCertified": false,
+      "runtimeUpgradeCertified": true,
       "physicalCertified": false
     },
     {
@@ -186,16 +196,26 @@
     {
       "component": "grafana",
       "targetRelease": "12.10.0",
-      "status": "pending-runtime-evidence",
-      "executedEdges": [],
-      "pendingEdges": [
+      "status": "runtime-evidence-complete",
+      "executedEdges": [
         {
           "fromRelease": "12.9.0",
-          "toRelease": "12.10.0"
+          "toRelease": "12.10.0",
+          "authority": "SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
+          "evidencePath": "lab/simple-component-upgrade-runtime-matrix-evidence.json",
+          "sourceRunId": "36308174030",
+          "kubernetesVersions": [
+            "1.34.11",
+            "1.35.8"
+          ],
+          "genericKubernetesRuntimeEvidenceOnly": true,
+          "rke2Certified": false,
+          "physicalCertified": false
         }
       ],
+      "pendingEdges": [],
       "runtimeSuitabilityHeld": false,
-      "runtimeUpgradeCertified": false,
+      "runtimeUpgradeCertified": true,
       "physicalCertified": false
     },
     {
