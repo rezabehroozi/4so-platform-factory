@@ -1,0 +1,17 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "RKE2_KYVERNO_RUNTIME_CERTIFICATION_V1",
+  "kind": "RKE2KyvernoRuntimeEvidence",
+  "kyvernoRelease": "3.8.2",
+  "normalizationAuthority": "KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1",
+  "normalizedCRDCount": 11,
+  "physicalCertified": false,
+  "productTopologyHACertified": false,
+  "renderedDigest": "sha256:c609b3e039b5571ae8fa8eca4f6951f85a3f30215f2efb512be4546d297c04bc",
+  "rke2Certified": true,
+  "rke2Version": "v1.34.10+rke2r1",
+  "runtimeHoldReleaseEligible": true,
+  "secondApplyConverged": true,
+  "sourceCommitSHA": "e5abce3eb13c9f430266ed3d80f0bc0ba197f59d",
+  "sourceRunId": "36298361800"
+}
