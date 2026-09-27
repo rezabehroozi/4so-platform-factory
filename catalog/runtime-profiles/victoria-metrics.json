@@ -1,0 +1,20 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "HelmRuntimeProfile",
+  "authority": "VICTORIA_METRICS_RUNTIME_PROFILE_V1",
+  "component": "victoria-metrics",
+  "releases": [
+    "0.90.1",
+    "0.90.2"
+  ],
+  "valuesPath": "catalog/runtime-profiles/victoria-metrics.values.yaml",
+  "valuesSha256": "sha256:8918b650132537591bd3eb90211dbb6935cd160dab00e2b339382c0f65b150d1",
+  "sourceDefaultRenderDeterministic": false,
+  "replacesSourceGenerationValues": true,
+  "deterministicRerenderRequired": true,
+  "embeddedGrafanaEnabled": false,
+  "operatorAdmissionWebhooksEnabled": false,
+  "rationale": "4SO owns Grafana as a separate catalog component; disabling the embedded Grafana and self-signed operator admission webhook removes duplicate authority and upstream Helm lookup/random render state while preserving exact chart bytes.",
+  "runtimeCertified": false,
+  "physicalCertified": false
+}

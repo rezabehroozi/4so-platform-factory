@@ -7,6 +7,8 @@ on:
     paths:
       - .github/workflows/helm-component-upgrade-runtime-realism.yml
       - scripts/render_exact_helm_runtime.py
+      - catalog/runtime-profiles/victoria-metrics.json
+      - catalog/runtime-profiles/victoria-metrics.values.yaml
       - catalog/runtime/capsule/0.13.10/**
       - catalog/runtime/capsule/0.13.11/**
       - catalog/runtime/victoria-metrics/0.90.1/**
@@ -70,9 +72,11 @@ jobs:
           for version in "$FROM_RELEASE" "$TO_RELEASE"; do
             python3 scripts/render_exact_helm_runtime.py               --component "$COMPONENT"               --release "$version"               --kube-version "$RENDER_KUBERNETES"               --out "/tmp/$COMPONENT-$version.json"               --evidence "/tmp/$COMPONENT-$version-render-evidence.json"
             jq -e --arg c "$COMPONENT" --arg v "$version" --arg k "$RENDER_KUBERNETES" '
-              .authority=="EXACT_HELM_RUNTIME_RENDER_V1" and .component==$c and .release==$v and
+              .authority=="EXACT_HELM_RUNTIME_RENDER_V2" and .component==$c and .release==$v and
               .kubernetesVersion==$k and .networkSourceFetchRequired==false and
-              (.images|length)>0 and all(.images[]; contains("@sha256:"))
+              (.images|length)>0 and all(.images[]; contains("@sha256:")) and
+              (.sourceGenerationDigestCompared == true or
+               (.runtimeProfileAuthority=="VICTORIA_METRICS_RUNTIME_PROFILE_V1" and .deterministicRerenderVerified==true))
             ' "/tmp/$COMPONENT-$version-render-evidence.json" >/dev/null
           done
           python3 - <<'PY'

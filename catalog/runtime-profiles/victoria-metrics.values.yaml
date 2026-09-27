@@ -1,0 +1,6 @@
+grafana:
+  enabled: false
+
+victoria-metrics-operator:
+  admissionWebhooks:
+    enabled: false
