@@ -1,0 +1,56 @@
+name: helm-render-admission-backfill
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/helm-render-admission-backfill.yml
+      - scripts/helm_runtime_render_admission.py
+      - tests/test_helm_runtime_render_admission.py
+
+permissions:
+  contents: write
+
+jobs:
+  exact-render-admission:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Seal exact source-bound render admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/helm_runtime_render_admission.py --component argocd --release 10.2.3
+          python3 scripts/helm_runtime_render_admission.py --component external-secrets --release 2.8.0
+          python3 scripts/helm_runtime_render_admission.py --component argocd --release 10.2.3 --verify catalog/runtime/argocd/10.2.3/render-admission.json
+          python3 scripts/helm_runtime_render_admission.py --component external-secrets --release 2.8.0 --verify catalog/runtime/external-secrets/2.8.0/render-admission.json
+          python3 -m unittest tests.test_helm_runtime_render_admission
+          git diff --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: helm-render-admission
+          path: |
+            catalog/runtime/argocd/10.2.3/render-admission.json
+            catalog/runtime/external-secrets/2.8.0/render-admission.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Persist admission only when main is unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 4so-evidence-bot
+          git config user.email actions@users.noreply.github.com
+          git add catalog/runtime/argocd/10.2.3/render-admission.json catalog/runtime/external-secrets/2.8.0/render-admission.json
+          git diff --cached --quiet && exit 0
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+            echo "main advanced; preserve artifact evidence but skip stale Git persistence"
+            git reset -- catalog/runtime/argocd/10.2.3/render-admission.json catalog/runtime/external-secrets/2.8.0/render-admission.json
+            exit 0
+          fi
+          git commit -m "evidence: seal legacy Helm render admission"
+          git push origin HEAD:main
