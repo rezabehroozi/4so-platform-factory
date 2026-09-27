@@ -1844,7 +1844,7 @@ def validate_source_runtime_surfaces(root: Path, version: str, current_program_a
             'MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING',
             'MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING',
             'OKD_CONNECTED_MANAGED_INSTALL_PENDING',
-            'OKD_OC_MIRROR_V2_ACQUISITION_PENDING',
+            'OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING',
             'COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING',
         ):
             if marker_text and marker_text not in status_text:
