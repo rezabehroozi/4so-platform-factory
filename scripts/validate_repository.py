@@ -1688,8 +1688,9 @@ def validate_supply_chain_handoff(root: Path, version: str, components: dict[str
         if (transition or {}).get('kind') != 'RuntimeDependencyTransition' or ts.get('authority') != 'RUNTIME_DEPENDENCY_TRANSITION_V1' or status not in {'acquisition-pending','runtime-certification-pending','runtime-certification-partial','complete'}:
             errors.append(('RUNTIME_DEPENDENCY_TRANSITION_INVALID','catalog/runtime-dependency-transition.json'))
         ga = ts.get('gatewayApi') or {}
-        if ga.get('currentRelease') != '1.5.1' or ga.get('targetRelease') != '1.6.1' or len(ga.get('assets') or []) != 2:
-            errors.append(('RUNTIME_DEPENDENCY_GATEWAY_TRANSITION_INVALID','1.5.1->1.6.1'))
+        gateway_catalog_release = str((((components.get('gateway-api') or {}).get('spec') or {}).get('release')) or '')
+        if gateway_catalog_release not in {'1.5.1','1.6.1'} or ga.get('currentRelease') != gateway_catalog_release or ga.get('targetRelease') != '1.6.1' or len(ga.get('assets') or []) != 2:
+            errors.append(('RUNTIME_DEPENDENCY_GATEWAY_TRANSITION_INVALID',f'{gateway_catalog_release}->1.6.1'))
         gateway_source_status = str(ga.get('sourceStatus') or '')
         if status == 'acquisition-pending' and gateway_source_status != 'pending-byte-acquisition':
             errors.append(('RUNTIME_DEPENDENCY_GATEWAY_SOURCE_STATE_INVALID',f'{status}:{gateway_source_status}'))
@@ -1789,7 +1790,17 @@ def validate_supply_chain_handoff(root: Path, version: str, components: dict[str
                     errors.append(('TAGGED_SOURCE_RECIPE_AUTHORITY_INVALID',component_name))
                 if md.get('component') != component_name or md.get('version') != previous_version or rs.get('tag') != 'v'+previous_version or rs.get('commitSHA') != commit_sha:
                     errors.append(('TAGGED_SOURCE_RECIPE_IDENTITY_INVALID',component_name))
-                if row.get('previousVersion') != previous_version or rs.get('releaseURL') != row.get('source'):
+                if component_name == 'gateway-api' and gateway_catalog_release == '1.6.1':
+                    previous_lock_path = root/'catalog'/'runtime'/'gateway-api'/'1.5.1'/'source-lock.json'
+                    previous_lock = load_json(previous_lock_path, errors) if previous_lock_path.is_file() else {}
+                    if row.get('targetRelease') != '1.6.1' or row.get('previousVersion') != '1.5.1' or row.get('source') != (previous_lock or {}).get('upstreamUrl'):
+                        errors.append(('TAGGED_SOURCE_RECIPE_ADMISSION_DRIFT','gateway-api:1.5.1->1.6.1'))
+                    transition_recipe_path = root/'catalog'/'tagged-source-recipes'/'gateway-api'/'1.6.1.json'
+                    transition_recipe = load_json(transition_recipe_path, errors) if transition_recipe_path.is_file() else {}
+                    tr_md, tr_spec = (transition_recipe or {}).get('metadata') or {}, (transition_recipe or {}).get('spec') or {}
+                    if (transition_recipe or {}).get('kind') != 'TaggedSourceAcquisitionRecipe' or tr_spec.get('authority') != 'TAGGED_SOURCE_ACQUISITION_RECIPE_V1' or tr_md.get('component') != 'gateway-api' or tr_md.get('version') != '1.6.1' or tr_spec.get('tag') != 'v1.6.1' or tr_spec.get('commitSHA') != '8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3' or tr_spec.get('releaseURL') != 'https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.6.1':
+                        errors.append(('TAGGED_SOURCE_TRANSITION_RECIPE_INVALID','gateway-api:1.6.1'))
+                elif row.get('previousVersion') != previous_version or rs.get('releaseURL') != row.get('source'):
                     errors.append(('TAGGED_SOURCE_RECIPE_ADMISSION_DRIFT',component_name))
                 recipe_files = rs.get('files') or []
                 archive_names = [str(x.get('archivePath') or '') for x in recipe_files if isinstance(x,dict)]

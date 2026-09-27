@@ -8,6 +8,7 @@ on:
       - .github/workflows/gateway-api-transition-acquisition.yml
       - catalog/tagged-source-recipes/gateway-api/1.6.1.json
       - scripts/acquire_upstream_tagged_source.py
+      - scripts/validate_repository.py
       - internal/catalogbundle/bundle.go
       - catalog/runtime_certification_registry.go
 
