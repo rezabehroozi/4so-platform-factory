@@ -15,6 +15,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 import acquire_upstream_helm as helm_acq
 import upstream_acquisition_toolchain as tools
+import helm_runtime_render_admission as render_admission
 
 AUTHORITY="EXACT_HELM_RUNTIME_RENDER_V2"
 PROFILE_AUTHORITY="VICTORIA_METRICS_RUNTIME_PROFILE_V1"
@@ -93,7 +94,16 @@ def render(component:str,release:str,kube_version:str,out:Path,evidence:Path)->d
     if sha(chart)!=lock.get("upstreamArtifactDigest"):
         raise RuntimeError("EXACT_RUNTIME_ARTIFACT_DIGEST_DRIFT")
     generation=lock.get("generation") or {}
-    expected=(generation.get("kubernetesRenderDigests") or {}).get(kube_version)
+    digest_matrix=generation.get("kubernetesRenderDigests") or {}
+    admission_authority=""
+    admission_digest=""
+    admission_path=base/"render-admission.json"
+    if not digest_matrix and admission_path.is_file():
+        admission=json.loads(admission_path.read_text())
+        digest_matrix=render_admission.verify(component,release,admission)
+        admission_authority=render_admission.AUTHORITY
+        admission_digest=sha(admission_path)
+    expected=digest_matrix.get(kube_version)
     if not expected or not SHA_RE.fullmatch(str(expected)):
         raise RuntimeError("EXACT_RUNTIME_KUBERNETES_RENDER_NOT_ADMITTED")
     locked_values=source_values(generation)
@@ -124,7 +134,7 @@ def render(component:str,release:str,kube_version:str,out:Path,evidence:Path)->d
         out.parent.mkdir(parents=True,exist_ok=True)
         out.write_text(json.dumps({"apiVersion":"v1","kind":"List","items":pinned},indent=2,sort_keys=True)+"\n")
         profile_path=ROOT/"catalog"/"runtime-profiles"/f"{component}.json"
-        doc={"apiVersion":"platform.4so.io/v1alpha1","kind":"ExactHelmRuntimeRenderEvidence","authority":AUTHORITY,"component":component,"release":release,"kubernetesVersion":kube_version,"sourceLockSha256":sha(lock_path),"artifactSha256":sha(chart),"sourceGenerationRenderDigest":expected,"sourceGenerationDigestCompared":source_compared,"rawRenderDigest":raw_digest,"pinnedRenderSha256":sha(out),"images":images,"helmVersion":resolved["helm"][1],"craneVersion":resolved["crane"][1],"networkSourceFetchRequired":False,"runtimeProfileAuthority":profile.get("authority") if profile else "","runtimeProfileSha256":sha(profile_path) if profile else "","runtimeValuesSha256":[sha(v) for v in values],"deterministicRerenderVerified":rerender_verified}
+        doc={"apiVersion":"platform.4so.io/v1alpha1","kind":"ExactHelmRuntimeRenderEvidence","authority":AUTHORITY,"component":component,"release":release,"kubernetesVersion":kube_version,"sourceLockSha256":sha(lock_path),"artifactSha256":sha(chart),"sourceGenerationRenderDigest":expected,"sourceGenerationDigestCompared":source_compared,"rawRenderDigest":raw_digest,"pinnedRenderSha256":sha(out),"images":images,"helmVersion":resolved["helm"][1],"craneVersion":resolved["crane"][1],"networkSourceFetchRequired":False,"runtimeProfileAuthority":profile.get("authority") if profile else "","runtimeProfileSha256":sha(profile_path) if profile else "","runtimeValuesSha256":[sha(v) for v in values],"deterministicRerenderVerified":rerender_verified,"renderAdmissionAuthority":admission_authority,"renderAdmissionSha256":admission_digest}
         evidence.parent.mkdir(parents=True,exist_ok=True); evidence.write_text(json.dumps(doc,indent=2,sort_keys=True)+"\n")
         return doc
 
