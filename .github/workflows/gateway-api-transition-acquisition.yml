@@ -9,6 +9,8 @@ on:
       - catalog/tagged-source-recipes/gateway-api/1.6.1.json
       - scripts/acquire_upstream_tagged_source.py
       - scripts/validate_repository.py
+      - tests/test_tagged_source_acquisition.py
+      - tests/test_catalog_upstream_admission.py
       - internal/catalogbundle/bundle.go
       - catalog/runtime_certification_registry.go
 

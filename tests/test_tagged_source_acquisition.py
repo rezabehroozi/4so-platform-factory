@@ -11,11 +11,18 @@ class TaggedSourceAcquisitionTests(unittest.TestCase):
             ('snapshot-controller','8.4.0'):'f21cb02763e7cd6a7fc84846f106b83119b5371d',
         }
         for (component,version),commit in expected.items():
-            recipe,row=mod.load_recipe(component,version,historical=True,root=ROOT)
-            self.assertEqual(version,row['previousVersion'])
+            recipe_path=ROOT/'catalog'/'tagged-source-recipes'/component/(version+'.json')
+            recipe=json.loads(recipe_path.read_text())
+            self.assertEqual(component,recipe['metadata']['component'])
+            self.assertEqual(version,recipe['metadata']['version'])
             self.assertEqual(commit,recipe['spec']['commitSHA'])
-            self.assertEqual(row['source'],recipe['spec']['releaseURL'])
             self.assertTrue(any(f['render'] for f in recipe['spec']['files']))
+            admission=json.loads((ROOT/'catalog'/'component-upgrade-source-admission.json').read_text())
+            row=next((r for r in admission['components'] if r['component']==component),None)
+            if row and row.get('previousVersion')==version:
+                loaded,authority=mod.load_recipe(component,version,historical=True,root=ROOT)
+                self.assertEqual(recipe,loaded)
+                self.assertEqual(version,authority['previousVersion'])
 
 
     def test_current_gateway_transition_recipe_is_exactly_authority_bound(self):

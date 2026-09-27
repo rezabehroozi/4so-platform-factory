@@ -234,8 +234,17 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
         self.assertTrue(component["spec"]["source"]["resolved"])
         self.assertTrue(component["spec"]["source"]["sourceLockDigest"].startswith("sha256:"))
         self.assertNotIn("cilium", {r["component"] for r in admission["spec"]["components"]})
-        hold = next(r for r in registry["spec"]["runtimeSuitabilityHolds"] if r["component"] == "cilium")
-        self.assertEqual("dependency-transition-required", hold["status"])
+        gateway=json.loads((ROOT / "catalog/components/gateway-api.json").read_text())
+        cilium_holds=[r for r in registry["spec"]["runtimeSuitabilityHolds"] if r["component"]=="cilium"]
+        if gateway["spec"]["release"]=="1.6.1":
+            self.assertEqual([],cilium_holds)
+            evidence=json.loads((ROOT/"lab/runtime-dependency-transition-readiness.json").read_text())
+            self.assertTrue(evidence["ciliumReleased"])
+            self.assertTrue(evidence["currentGatewayApiMutationPerformed"])
+            self.assertEqual(["metallb"],evidence["remainingRuntimeSuitabilityHolds"])
+        else:
+            self.assertEqual(1,len(cilium_holds))
+            self.assertEqual("dependency-transition-required",cilium_holds[0]["status"])
 
     def test_acquisition_rejects_direct_version_source_bypass_before_tool_or_network_use(self):
         proc = subprocess.run(
