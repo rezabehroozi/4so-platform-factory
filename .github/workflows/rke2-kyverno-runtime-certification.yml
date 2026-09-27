@@ -30,6 +30,8 @@ jobs:
           echo "TAR_SHA=$(jq -r '.artifacts[]|select(.name=="rke2.linux-amd64.tar.gz")|.sha256' <<<"$row")" >> "$GITHUB_ENV"
           echo "IMAGES_URL=$(jq -r '.artifacts[]|select(.name=="rke2-images.linux-amd64.tar.zst")|.urls[0]' <<<"$row")" >> "$GITHUB_ENV"
           echo "IMAGES_SHA=$(jq -r '.artifacts[]|select(.name=="rke2-images.linux-amd64.tar.zst")|.sha256' <<<"$row")" >> "$GITHUB_ENV"
+          echo "SUMS_URL=$(jq -r '.artifacts[]|select(.name=="sha256sum-amd64.txt")|.urls[0]' <<<"$row")" >> "$GITHUB_ENV"
+          echo "SUMS_SHA=$(jq -r '.artifacts[]|select(.name=="sha256sum-amd64.txt")|.sha256' <<<"$row")" >> "$GITHUB_ENV"
       - name: Download exact RKE2 bytes
         shell: bash
         run: |
@@ -37,9 +39,13 @@ jobs:
           curl -fL --retry 3 -o /tmp/install.sh "$INSTALL_URL"
           curl -fL --retry 3 -o /tmp/rke2.linux-amd64.tar.gz "$TAR_URL"
           curl -fL --retry 3 -o /tmp/rke2-images.linux-amd64.tar.zst "$IMAGES_URL"
+          curl -fL --retry 3 -o /tmp/sha256sum-amd64.txt "$SUMS_URL"
           test "$(sha256sum /tmp/install.sh|awk '{print $1}')" = "$INSTALL_SHA"
           test "$(sha256sum /tmp/rke2.linux-amd64.tar.gz|awk '{print $1}')" = "$TAR_SHA"
           test "$(sha256sum /tmp/rke2-images.linux-amd64.tar.zst|awk '{print $1}')" = "$IMAGES_SHA"
+          test "$(sha256sum /tmp/sha256sum-amd64.txt|awk '{print $1}')" = "$SUMS_SHA"
+          grep -F "$TAR_SHA  rke2.linux-amd64.tar.gz" /tmp/sha256sum-amd64.txt
+          grep -F "$IMAGES_SHA  rke2-images.linux-amd64.tar.zst" /tmp/sha256sum-amd64.txt
       - name: Install exact RKE2 runtime
         shell: bash
         run: |
@@ -107,6 +113,6 @@ jobs:
         shell: bash
         run: |
           set +e
-          sudo journalctl -u rke2-server --no-pager -n 200
+          sudo journalctl -u rke2-server --no-pager -n 200 || true
           export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
-          test -x /var/lib/rancher/rke2/bin/kubectl && /var/lib/rancher/rke2/bin/kubectl get pods -A -o wide
+          test -x /var/lib/rancher/rke2/bin/kubectl && /var/lib/rancher/rke2/bin/kubectl get pods -A -o wide || true
