@@ -44,6 +44,7 @@ def verify_upgrade_registry(root:Path)->dict:
     reg=load(root/"catalog/component-runtime-upgrade-evidence.json")
     matrix=load(root/"catalog/component-runtime-upgrade-matrix.json")
     gateway=load(root/"lab/gateway-api-upgrade-runtime-matrix-evidence.json")
+    gateway_legacy=load(root/"lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json")
     snapshot=load(root/"lab/snapshot-controller-upgrade-runtime-matrix-evidence.json")
     simple=load(root/"lab/simple-component-upgrade-runtime-matrix-evidence.json")
     if reg.get("authority")!=REGISTRY_AUTH or reg.get("kind")!="ComponentRuntimeUpgradeEvidenceRegistry" or reg.get("schemaVersion")!=1:
@@ -87,13 +88,26 @@ def verify_upgrade_registry(root:Path)->dict:
         if name=="gateway-api":
             if gateway.get("authority")!="GATEWAY_API_RUNTIME_UPGRADE_MATRIX_V1" or gateway.get("matrixPass") is not True:
                 raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_EVIDENCE_INVALID")
-            expected={(gateway.get("fromRelease"),gateway.get("toRelease"))}
+            if gateway_legacy.get("authority")!="GATEWAY_API_LEGACY_RUNTIME_UPGRADE_MATRIX_V1" or gateway_legacy.get("matrixPass") is not True:
+                raise RuntimeError("GATEWAY_LEGACY_RUNTIME_UPGRADE_EVIDENCE_INVALID")
+            expected={(gateway_legacy.get("fromRelease"),gateway_legacy.get("toRelease")),(gateway.get("fromRelease"),gateway.get("toRelease"))}
             if executed!=expected:
                 raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_EDGE_BINDING_INVALID")
-            if gateway.get("rke2Certified") is not False or gateway.get("productTopologyHACertified") is not False or gateway.get("physicalCertified") is not False:
-                raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_SCOPE_INFLATED")
+            for ev in (gateway_legacy,gateway):
+                if ev.get("genericKubernetesRuntimeEvidenceOnly") is not True or ev.get("rke2Certified") is not False or ev.get("productTopologyHACertified") is not False or ev.get("physicalCertified") is not False:
+                    raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_SCOPE_INFLATED")
+                rows=ev.get("matrix") or []
+                if sorted(str(x.get("kubernetesVersion") or "") for x in rows)!=["1.34.11","1.35.8"]:
+                    raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_MATRIX_COVERAGE_INVALID")
+                required=("upgradeApplyPass","targetCRDsEstablished","targetReapplyConverged","reverseEdgeRejected")
+                if not all(all(x.get(k) is True for k in required) for x in rows):
+                    raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_MATRIX_INVALID")
             for e in r.get("executedEdges",[]):
-                if e.get("authority")!="GATEWAY_API_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=gateway.get("sourceRunId") or e.get("evidencePath")!="lab/gateway-api-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False:
+                edge=(e.get("fromRelease"),e.get("toRelease"))
+                ev=gateway_legacy if edge==(gateway_legacy.get("fromRelease"),gateway_legacy.get("toRelease")) else gateway
+                expected_authority="GATEWAY_API_LEGACY_RUNTIME_UPGRADE_MATRIX_V1" if ev is gateway_legacy else "GATEWAY_API_RUNTIME_UPGRADE_MATRIX_V1"
+                expected_path="lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json" if ev is gateway_legacy else "lab/gateway-api-upgrade-runtime-matrix-evidence.json"
+                if e.get("authority")!=expected_authority or e.get("sourceRunId")!=ev.get("sourceRunId") or e.get("evidencePath")!=expected_path or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False:
                     raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
                 if sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
                     raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_MATRIX_COVERAGE_INVALID")

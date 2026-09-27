@@ -14,8 +14,8 @@
     "components": 20,
     "upgradeApplicableComponents": 19,
     "componentsWithAnyRuntimeEvidence": 4,
-    "fullyRuntimeUpgradeCertifiedComponents": 3,
-    "pendingRuntimeEdges": 16
+    "fullyRuntimeUpgradeCertifiedComponents": 4,
+    "pendingRuntimeEdges": 15
   },
   "components": [
     {
@@ -166,8 +166,22 @@
     {
       "component": "gateway-api",
       "targetRelease": "1.6.1",
-      "status": "partial-runtime-evidence",
+      "status": "runtime-evidence-complete",
       "executedEdges": [
+        {
+          "fromRelease": "1.5.0",
+          "toRelease": "1.5.1",
+          "authority": "GATEWAY_API_LEGACY_RUNTIME_UPGRADE_MATRIX_V1",
+          "evidencePath": "lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json",
+          "sourceRunId": "36308229921",
+          "kubernetesVersions": [
+            "1.34.11",
+            "1.35.8"
+          ],
+          "genericKubernetesRuntimeEvidenceOnly": true,
+          "rke2Certified": false,
+          "physicalCertified": false
+        },
         {
           "fromRelease": "1.5.1",
           "toRelease": "1.6.1",
@@ -183,14 +197,9 @@
           "physicalCertified": false
         }
       ],
-      "pendingEdges": [
-        {
-          "fromRelease": "1.5.0",
-          "toRelease": "1.5.1"
-        }
-      ],
+      "pendingEdges": [],
       "runtimeSuitabilityHeld": false,
-      "runtimeUpgradeCertified": false,
+      "runtimeUpgradeCertified": true,
       "physicalCertified": false
     },
     {
