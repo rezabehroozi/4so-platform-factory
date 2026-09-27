@@ -91,3 +91,21 @@ func TestRuntimeNormalizeResourcesExportPreservesExactScope(t *testing.T) {
 		t.Fatalf("normalization leaked to 3.8.1 ev=%#v err=%v", ev, err)
 	}
 }
+
+func TestVeleroEmptyDefaultLocationsAreNarrowlyRemoved(t *testing.T) {
+	resources := []map[string]any{
+		{"apiVersion":"velero.io/v1","kind":"BackupStorageLocation","metadata":map[string]any{"name":"default","namespace":"velero"},"spec":map[string]any{"provider":nil,"credential":nil,"objectStorage":map[string]any{"bucket":""}}},
+		{"apiVersion":"velero.io/v1","kind":"VolumeSnapshotLocation","metadata":map[string]any{"name":"default","namespace":"velero"},"spec":map[string]any{"provider":nil,"credential":nil}},
+		{"apiVersion":"apps/v1","kind":"Deployment","metadata":map[string]any{"name":"velero","namespace":"velero"}},
+	}
+	out, ev, err := RuntimeNormalizeResourceList("velero","12.1.0",resources)
+	if err != nil { t.Fatal(err) }
+	if len(out)!=1 || ev.Authority!=VeleroEmptyLocationNormalizationAuthority || ev.RemovedInvalidDefaultLocations!=2 || len(ev.RemovedResources)!=2 { t.Fatalf("unexpected normalization: out=%#v ev=%#v",out,ev) }
+}
+func TestVeleroNormalizationRefusesConfiguredLocation(t *testing.T) {
+	resources := []map[string]any{
+		{"apiVersion":"velero.io/v1","kind":"BackupStorageLocation","metadata":map[string]any{"name":"default","namespace":"velero"},"spec":map[string]any{"provider":"aws","credential":nil,"objectStorage":map[string]any{"bucket":"real"}}},
+		{"apiVersion":"velero.io/v1","kind":"VolumeSnapshotLocation","metadata":map[string]any{"name":"default","namespace":"velero"},"spec":map[string]any{"provider":nil,"credential":nil}},
+	}
+	if _,_,err:=RuntimeNormalizeResourceList("velero","12.1.0",resources); err==nil { t.Fatal("configured Velero location must never be normalized away") }
+}

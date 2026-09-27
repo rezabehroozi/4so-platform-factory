@@ -637,7 +637,7 @@ func RenderComponent(c Component, namespace, catalogReleaseID string) (RenderedC
 		seen[identity] = true
 		resources = append(resources, resource)
 	}
-	normalization, err := normalizeRuntimeResources(c, resources)
+	resources, normalization, err = RuntimeNormalizeResourceList(c.Metadata.Name, c.Spec.Release, resources)
 	if err != nil {
 		return RenderedComponent{}, err
 	}

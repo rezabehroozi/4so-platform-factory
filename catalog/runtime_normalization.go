@@ -7,6 +7,7 @@ import (
 )
 
 const KyvernoCRDNormalizationAuthority = "KYVERNO_3_8_2_GITOPS_CRD_NORMALIZATION_V1"
+const VeleroEmptyLocationNormalizationAuthority = "VELERO_12_X_EMPTY_LOCATION_NORMALIZATION_V1"
 
 var kyverno382PoliciesCRDs = map[string]struct{}{
 	"deletingpolicies.policies.kyverno.io": {},
@@ -32,6 +33,8 @@ type RuntimeNormalizationEvidence struct {
 	RemovedEmptyAnnotations  int      `json:"removedEmptyAnnotations,omitempty"`
 	ServerSideApplyAnnotated int      `json:"serverSideApplyAnnotated,omitempty"`
 	ServerSideApplyResources []string `json:"serverSideApplyResources,omitempty"`
+	RemovedResources         []string `json:"removedResources,omitempty"`
+	RemovedInvalidDefaultLocations int `json:"removedInvalidDefaultLocations,omitempty"`
 }
 
 // normalizeRuntimeResources keeps upstream source evidence immutable while
@@ -45,6 +48,59 @@ func RuntimeNormalizeResources(component, release string, resources []map[string
 	c.Metadata.Name = strings.TrimSpace(component)
 	c.Spec.Release = strings.TrimSpace(release)
 	return normalizeRuntimeResources(c, resources)
+}
+
+
+func RuntimeNormalizeResourceList(component, release string, resources []map[string]any) ([]map[string]any, RuntimeNormalizationEvidence, error) {
+	component = strings.TrimSpace(component)
+	release = strings.TrimSpace(release)
+	if component != "velero" || (release != "12.0.3" && release != "12.1.0") {
+		ev, err := RuntimeNormalizeResources(component, release, resources)
+		return resources, ev, err
+	}
+	ev := RuntimeNormalizationEvidence{Authority: VeleroEmptyLocationNormalizationAuthority, Component: component, Version: release, Applied: true}
+	out := make([]map[string]any, 0, len(resources))
+	seen := map[string]bool{}
+	for _, resource := range resources {
+		kind := strings.TrimSpace(fmt.Sprint(resource["kind"]))
+		metadata, _ := resource["metadata"].(map[string]any)
+		name := strings.TrimSpace(fmt.Sprint(metadata["name"]))
+		namespace := strings.TrimSpace(fmt.Sprint(metadata["namespace"]))
+		if (kind == "BackupStorageLocation" || kind == "VolumeSnapshotLocation") && name == "default" && namespace == "velero" {
+			key := kind + "/" + namespace + "/" + name
+			if seen[key] {
+				return nil, RuntimeNormalizationEvidence{}, fmt.Errorf("velero runtime normalization found duplicate placeholder %s", key)
+			}
+			seen[key] = true
+			spec, ok := resource["spec"].(map[string]any)
+			if !ok {
+				return nil, RuntimeNormalizationEvidence{}, fmt.Errorf("velero runtime normalization found placeholder without spec: %s", key)
+			}
+			provider := strings.TrimSpace(fmt.Sprint(spec["provider"]))
+			credential := spec["credential"]
+			if provider != "" && provider != "<nil>" {
+				return nil, RuntimeNormalizationEvidence{}, fmt.Errorf("velero runtime normalization refuses configured provider on %s", key)
+			}
+			if credential != nil {
+				return nil, RuntimeNormalizationEvidence{}, fmt.Errorf("velero runtime normalization refuses configured credential on %s", key)
+			}
+			if kind == "BackupStorageLocation" {
+				objectStorage, ok := spec["objectStorage"].(map[string]any)
+				if !ok || strings.TrimSpace(fmt.Sprint(objectStorage["bucket"])) != "" {
+					return nil, RuntimeNormalizationEvidence{}, fmt.Errorf("velero runtime normalization refuses configured object storage on %s", key)
+				}
+			}
+			ev.RemovedInvalidDefaultLocations++
+			ev.RemovedResources = append(ev.RemovedResources, key)
+			continue
+		}
+		out = append(out, resource)
+	}
+	if ev.RemovedInvalidDefaultLocations != 2 || !seen["BackupStorageLocation/velero/default"] || !seen["VolumeSnapshotLocation/velero/default"] {
+		return nil, RuntimeNormalizationEvidence{}, fmt.Errorf("velero runtime normalization placeholder coverage mismatch: removed=%d", ev.RemovedInvalidDefaultLocations)
+	}
+	sort.Strings(ev.RemovedResources)
+	return out, ev, nil
 }
 
 func normalizeRuntimeResources(c Component, resources []map[string]any) (RuntimeNormalizationEvidence, error) {
