@@ -10,6 +10,8 @@ on:
       - catalog/runtime/alloy/1.11.0/**
       - catalog/runtime/grafana/12.9.0/**
       - catalog/runtime/grafana/12.10.0/**
+      - catalog/runtime/external-dns/1.20.0/**
+      - catalog/runtime/external-dns/1.21.1/**
       - catalog/component-runtime-upgrade-matrix.json
       - internal/runtimeupgrade/**
 
@@ -21,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [alloy, grafana]
+        component: [alloy, grafana, external-dns]
         kubernetes: ["1.34.11", "1.35.8"]
     runs-on: ubuntu-26.04
     timeout-minutes: 35
@@ -40,6 +42,9 @@ jobs:
               ;;
             grafana)
               from=12.9.0; to=12.10.0; ns=monitoring; kind=deployment; workload=platform-factory-grafana
+              ;;
+            external-dns)
+              from=1.20.0; to=1.21.1; ns=external-dns; kind=deployment; workload=platform-factory-external-dns
               ;;
             *) echo "UNSUPPORTED_COMPONENT_PROFILE $COMPONENT" >&2; exit 20 ;;
           esac
@@ -92,6 +97,9 @@ jobs:
           set -euo pipefail
           kubectl create namespace "$NAMESPACE"
           kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/${{ matrix.component }}-$FROM_RELEASE.json"
+          for crd in $(jq -r '.items[]|select(.kind=="CustomResourceDefinition")|.metadata.name' "/tmp/${{ matrix.component }}-$FROM_RELEASE.json"); do
+            kubectl wait --for=condition=Established "crd/$crd" --timeout=4m
+          done
           kubectl -n "$NAMESPACE" rollout status "$WORKLOAD_KIND/$WORKLOAD_NAME" --timeout=10m
           before_uid="$(kubectl -n "$NAMESPACE" get "$WORKLOAD_KIND/$WORKLOAD_NAME" -o jsonpath='{.metadata.uid}')"
           test -n "$before_uid"
@@ -102,6 +110,9 @@ jobs:
         run: |
           set -euo pipefail
           kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/${{ matrix.component }}-$TO_RELEASE.json"
+          for crd in $(jq -r '.items[]|select(.kind=="CustomResourceDefinition")|.metadata.name' "/tmp/${{ matrix.component }}-$TO_RELEASE.json"); do
+            kubectl wait --for=condition=Established "crd/$crd" --timeout=4m
+          done
           kubectl -n "$NAMESPACE" rollout status "$WORKLOAD_KIND/$WORKLOAD_NAME" --timeout=10m
           after_uid="$(kubectl -n "$NAMESPACE" get "$WORKLOAD_KIND/$WORKLOAD_NAME" -o jsonpath='{.metadata.uid}')"
           test "$after_uid" = "$BEFORE_UID"
@@ -168,7 +179,7 @@ jobs:
           import json,os
           from pathlib import Path
           rows=[json.loads(p.read_text()) for p in sorted(Path("/tmp/simple-upgrade").glob("*-upgrade-*.json"))]
-          profiles={"alloy":("1.10.1","1.11.0"),"grafana":("12.9.0","12.10.0")}
+          profiles={"alloy":("1.10.1","1.11.0"),"grafana":("12.9.0","12.10.0"),"external-dns":("1.20.0","1.21.1")}
           outrows=[]
           for c,(f,t) in profiles.items():
               found=[r for r in rows if r.get("component")==c]
