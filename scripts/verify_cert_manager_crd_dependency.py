@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 AUTHORITY="CERT_MANAGER_CRD_RUNTIME_DEPENDENCY_LOCK_V1"
 SHA=re.compile(r"^[0-9a-f]{64}$")
 CRD_KIND=re.compile(r"(?m)^kind:\s*CustomResourceDefinition\s*$")
-CRD_NAME=re.compile(r'''(?m)^\s*name:\s*["']?([a-z0-9.-]+)["']?\s*
+CRD_NAME=re.compile(r"(?m)^\\s*name:\\s*[\\\"']?([a-z0-9.-]+)[\\\"']?\\s*$")["']?\s*
 EXPECTED={
  "certificates.cert-manager.io","certificaterequests.cert-manager.io",
  "issuers.cert-manager.io","clusterissuers.cert-manager.io",
