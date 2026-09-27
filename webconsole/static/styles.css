@@ -1189,3 +1189,7 @@ html[dir="rtl"] .data-table :where(.technical,[data-ltr="true"]){direction:ltr;u
 html[lang="fa"] .data-table :where(.numeric,.timestamp){font-variant-numeric:tabular-nums}
 @media(max-width:1024px){.overview-context-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.overview-context-strip{grid-template-columns:1fr}.context-signal{padding:10px 12px}}
+
+/* One interaction grammar across Persian data workspaces. */
+.data-table .row-actions button,.data-table th .data-table-sort,.compact-control select,.compact-button{min-height:var(--ui-control-hit)}
+.data-table .row-actions{align-items:center}
