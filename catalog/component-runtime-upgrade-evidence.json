@@ -56,7 +56,7 @@
           ],
           "physicalCertified": false,
           "rke2Certified": false,
-          "sourceRunId": "36350839169",
+          "sourceRunId": "36355708871",
           "toRelease": "0.13.11"
         }
       ],
@@ -318,17 +318,27 @@
     },
     {
       "component": "metallb",
-      "executedEdges": [],
-      "pendingEdges": [
+      "executedEdges": [
         {
+          "authority": "HELM_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
+          "evidencePath": "lab/helm-component-upgrade-runtime-matrix-evidence.json",
           "fromRelease": "0.16.0",
+          "genericKubernetesRuntimeEvidenceOnly": true,
+          "kubernetesVersions": [
+            "1.34.11",
+            "1.35.8"
+          ],
+          "physicalCertified": false,
+          "rke2Certified": false,
+          "sourceRunId": "36355708871",
           "toRelease": "0.16.1"
         }
       ],
+      "pendingEdges": [],
       "physicalCertified": false,
       "runtimeSuitabilityHeld": true,
       "runtimeUpgradeCertified": false,
-      "status": "pending-runtime-evidence",
+      "status": "runtime-evidence-complete",
       "targetRelease": "0.16.1"
     },
     {
@@ -417,17 +427,27 @@
     },
     {
       "component": "victoria-metrics",
-      "executedEdges": [],
-      "pendingEdges": [
+      "executedEdges": [
         {
+          "authority": "HELM_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
+          "evidencePath": "lab/helm-component-upgrade-runtime-matrix-evidence.json",
           "fromRelease": "0.90.1",
+          "genericKubernetesRuntimeEvidenceOnly": true,
+          "kubernetesVersions": [
+            "1.34.11",
+            "1.35.8"
+          ],
+          "physicalCertified": false,
+          "rke2Certified": false,
+          "sourceRunId": "36355708871",
           "toRelease": "0.90.2"
         }
       ],
+      "pendingEdges": [],
       "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
-      "runtimeUpgradeCertified": false,
-      "status": "pending-runtime-evidence",
+      "runtimeUpgradeCertified": true,
+      "status": "runtime-evidence-complete",
       "targetRelease": "0.90.2"
     }
   ],
@@ -442,9 +462,9 @@
   "schemaVersion": 1,
   "summary": {
     "components": 20,
-    "componentsWithAnyRuntimeEvidence": 12,
-    "fullyRuntimeUpgradeCertifiedComponents": 12,
-    "pendingRuntimeEdges": 7,
+    "componentsWithAnyRuntimeEvidence": 14,
+    "fullyRuntimeUpgradeCertifiedComponents": 13,
+    "pendingRuntimeEdges": 5,
     "upgradeApplicableComponents": 19
   }
 }
