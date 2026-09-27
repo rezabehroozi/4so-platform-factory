@@ -414,7 +414,7 @@ func TestComponentRuntimeCertificationGatewayInstallReadinessPartialAPI(t *testi
 	if err = json.Unmarshal(w.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	if created.Run.Profile != controlplane.RuntimeCertificationComponentV1 || created.Run.ComponentName != "gateway-api" || created.Run.ComponentRelease != "1.5.1" || created.Run.ResourceCount != 10 {
+	if created.Run.Profile != controlplane.RuntimeCertificationComponentV1 || created.Run.ComponentName != "gateway-api" || created.Run.ComponentRelease != gateway.Spec.Release || created.Run.ResourceCount != 10 {
 		t.Fatalf("component run identity drift: %+v", created.Run)
 	}
 	w = apiRequest(t, h, http.MethodGet, "/agent/v1/clusters/"+cluster.ID+"/runtime-certification-tasks/next", "", map[string]string{"Authorization": "Bearer " + agentToken})
@@ -422,7 +422,7 @@ func TestComponentRuntimeCertificationGatewayInstallReadinessPartialAPI(t *testi
 		t.Fatalf("install task=%d %s", w.Code, w.Body.String())
 	}
 	installTask := decodeBody[controlplane.RuntimeCertificationTask](t, w)
-	if installTask.ComponentName != "gateway-api" || installTask.ComponentRelease != "1.5.1" || installTask.Profile != controlplane.RuntimeCertificationComponentV1 || len(installTask.Resources) != 10 {
+	if installTask.ComponentName != "gateway-api" || installTask.ComponentRelease != gateway.Spec.Release || installTask.Profile != controlplane.RuntimeCertificationComponentV1 || len(installTask.Resources) != 10 {
 		t.Fatalf("component install task drift: %+v", installTask)
 	}
 	installChecks := []controlplane.RuntimeCheck{{Key: "fresh-install-target", Status: "PASS"}}

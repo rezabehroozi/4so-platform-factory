@@ -52,7 +52,9 @@ class CatalogUpstreamAdmissionTests(unittest.TestCase):
     def test_runtime_suitability_holds_persist_independent_of_source_acquisition(self):
         registry=json.loads((ROOT/"catalog/component-runtime-certification.json").read_text())
         holds={r["component"]:r for r in registry["spec"]["runtimeSuitabilityHolds"]}
-        self.assertEqual({"cilium","metallb"},set(holds))
+        gateway=json.loads((ROOT/"catalog/components/gateway-api.json").read_text())
+        expected_holds={"metallb"} if gateway["spec"]["release"]=="1.6.1" else {"cilium","metallb"}
+        self.assertEqual(expected_holds,set(holds))
         _, rows = mod.validate(ROOT, ROOT / "catalog" / "upstream-admission.json")
         by_name={r["component"]:r for r in rows}
         for name,hold in holds.items():
