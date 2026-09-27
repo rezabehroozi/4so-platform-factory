@@ -30,6 +30,18 @@ class RuntimeDependencyTransitionTests(unittest.TestCase):
         if deps.is_dir():
             shutil.copytree(deps,dst/'catalog/runtime-dependencies')
         return td,dst
+    def restore_cilium_hold(self,dst):
+        p=dst/'catalog/component-runtime-certification.json'
+        d=json.loads(p.read_text())
+        d['spec']['runtimeSuitabilityHolds']=[r for r in d['spec']['runtimeSuitabilityHolds'] if r['component']!='cilium']
+        d['spec']['runtimeSuitabilityHolds'].append({
+            'component':'cilium',
+            'status':'dependency-transition-required',
+            'authority':'RUNTIME_DEPENDENCY_TRANSITION_V1',
+            'reason':'fixture pre-transition hold',
+            'evidenceURL':'https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/'
+        })
+        p.write_text(json.dumps(d))
     def test_partial_runtime_evidence_scope_inflation_fails_closed(self):
         td,dst=self.copy_repo()
         try:
@@ -50,6 +62,7 @@ class RuntimeDependencyTransitionTests(unittest.TestCase):
             d['spec']['cilium']['runtimeStatus']='dependency-transition-required'
             d['spec'].pop('runtimeEvidence',None)
             p.write_text(json.dumps(d))
+            self.restore_cilium_hold(dst)
             with self.assertRaisesRegex(RuntimeError,'ASSET_BYTES_MISSING'): mod.validate(dst)
         finally: td.cleanup()
     def test_pending_gateway_cannot_hide_canonical_bytes(self):
@@ -62,6 +75,7 @@ class RuntimeDependencyTransitionTests(unittest.TestCase):
             d['spec']['cilium']['runtimeStatus']='dependency-transition-required'
             d['spec'].pop('runtimeEvidence',None)
             p.write_text(json.dumps(d))
+            self.restore_cilium_hold(dst)
             asset=d['spec']['gatewayApi']['assets'][0]
             out=mod.gateway_asset_path(dst,'1.6.1',asset['name'])
             out.parent.mkdir(parents=True,exist_ok=True); out.write_text('forged')
@@ -73,14 +87,11 @@ class RuntimeDependencyTransitionTests(unittest.TestCase):
             p=dst/'catalog/runtime-dependency-transition.json'; d=json.loads(p.read_text()); d['spec']['gatewayApi']['assets'][0]['sha256']='0'*64; p.write_text(json.dumps(d))
             with self.assertRaisesRegex(RuntimeError,'ASSET_INVALID'): mod.validate(dst)
         finally: td.cleanup()
-    def test_cilium_runtime_status_drift_fails_closed(self):
+    def test_post_transition_cilium_hold_reintroduction_fails_closed(self):
         td,dst=self.copy_repo()
         try:
-            p=dst/'catalog/component-runtime-certification.json'
-            d=json.loads(p.read_text())
-            next(r for r in d['spec']['runtimeSuitabilityHolds'] if r['component']=='cilium')['status']='review-required'
-            p.write_text(json.dumps(d))
-            with self.assertRaisesRegex(RuntimeError,'CILIUM_RUNTIME_STATUS_INVALID'): mod.validate(dst)
+            self.restore_cilium_hold(dst)
+            with self.assertRaisesRegex(RuntimeError,'CILIUM_RELEASE_HOLD_NOT_RETIRED'): mod.validate(dst)
         finally: td.cleanup()
     def test_kgateway_target_drift_fails_closed(self):
         td,dst=self.copy_repo()
@@ -88,19 +99,21 @@ class RuntimeDependencyTransitionTests(unittest.TestCase):
             p=dst/'catalog/runtime-dependency-transition.json'; d=json.loads(p.read_text()); d['spec']['kgateway']['targetRelease']='2.4.0'; p.write_text(json.dumps(d))
             with self.assertRaisesRegex(RuntimeError,'KGATEWAY_DRIFT'): mod.validate(dst)
         finally: td.cleanup()
-    def test_source_acquired_cilium_retires_admission_but_keeps_runtime_hold(self):
+    def test_post_transition_cilium_release_is_canonical(self):
+        out=mod.validate(ROOT)
+        registry=json.loads((ROOT/'catalog/component-runtime-certification.json').read_text())
+        self.assertNotIn('cilium',{r['component'] for r in registry['spec']['runtimeSuitabilityHolds']})
+        transition=json.loads((ROOT/'catalog/runtime-dependency-transition.json').read_text())
+        self.assertEqual('single-node-rke2-certified-ha-pending',transition['spec']['cilium']['runtimeStatus'])
+        self.assertEqual('1.20.1',out['ciliumTarget'])
+
+    def test_post_transition_cilium_runtime_status_regression_fails_closed(self):
         td,dst=self.copy_repo()
         try:
-            cp=dst/'catalog/components/cilium.json'; component=json.loads(cp.read_text()); component['spec']['source']['resolved']=True; cp.write_text(json.dumps(component))
-            ap=dst/'catalog/upstream-admission.json'; admission=json.loads(ap.read_text()); admission['spec']['components']=[r for r in admission['spec']['components'] if r['component']!='cilium']; ap.write_text(json.dumps(admission))
-            tp=dst/'catalog/runtime-dependency-transition.json'; transition=json.loads(tp.read_text()); transition['spec']['cilium']['sourceStatus']='source-acquired'; tp.write_text(json.dumps(transition))
-            out=mod.validate(dst)
-            self.assertEqual('1.20.1',out['ciliumTarget'])
-        finally: td.cleanup()
-    def test_cilium_persistent_runtime_hold_removal_fails_closed(self):
-        td,dst=self.copy_repo()
-        try:
-            p=dst/'catalog/component-runtime-certification.json'; d=json.loads(p.read_text()); d['spec']['runtimeSuitabilityHolds']=[r for r in d['spec']['runtimeSuitabilityHolds'] if r['component']!='cilium']; p.write_text(json.dumps(d))
-            with self.assertRaisesRegex(RuntimeError,'CILIUM_RUNTIME_STATUS_INVALID'): mod.validate(dst)
+            p=dst/'catalog/runtime-dependency-transition.json'
+            d=json.loads(p.read_text())
+            d['spec']['cilium']['runtimeStatus']='dependency-transition-required'
+            p.write_text(json.dumps(d))
+            with self.assertRaisesRegex(RuntimeError,'CILIUM_DRIFT'): mod.validate(dst)
         finally: td.cleanup()
 if __name__=='__main__': unittest.main()

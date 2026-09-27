@@ -94,9 +94,19 @@ def validate(root: Path):
     expected_cilium_status = "single-node-rke2-certified-ha-pending" if transition_status == "runtime-certification-partial" else "dependency-transition-required"
     if ci.get("runtimeStatus") != expected_cilium_status:
         raise RuntimeError("RUNTIME_DEPENDENCY_CILIUM_DRIFT")
-    ch = holds.get("cilium") or {}
-    if ch.get("status") != "dependency-transition-required" or ch.get("authority") != AUTHORITY:
-        raise RuntimeError("RUNTIME_DEPENDENCY_CILIUM_RUNTIME_STATUS_INVALID")
+    cilium_released = (
+        ga.get("currentRelease") == ga.get("targetRelease")
+        and ga.get("sourceStatus") == "source-acquired"
+        and ci.get("sourceStatus") == "source-acquired"
+        and ci.get("runtimeStatus") == "single-node-rke2-certified-ha-pending"
+    )
+    ch = holds.get("cilium")
+    if cilium_released:
+        if ch is not None:
+            raise RuntimeError("RUNTIME_DEPENDENCY_CILIUM_RELEASE_HOLD_NOT_RETIRED")
+    else:
+        if not isinstance(ch, dict) or ch.get("status") != "dependency-transition-required" or ch.get("authority") != AUTHORITY:
+            raise RuntimeError("RUNTIME_DEPENDENCY_CILIUM_RUNTIME_STATUS_INVALID")
     validate_source_progress("cilium", cilium, ci, rows, expected_runtime_status="dependency-transition-required")
     if spec.get("ordering") != EXPECTED_ORDER:
         raise RuntimeError("RUNTIME_DEPENDENCY_ORDER_INVALID")

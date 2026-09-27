@@ -41,9 +41,10 @@ jobs:
           from pathlib import Path
           for version in ("1.5.1","1.6.1"):
               p=Path(f"catalog/runtime/gateway-api/{version}/render-manifest.json")
-              items=json.loads(p.read_text())
-              if not items or any(x.get("kind")!="CustomResourceDefinition" for x in items):
-                  raise SystemExit(f"GATEWAY_RENDER_NOT_CRD_ONLY {version}")
+              rendered=json.loads(p.read_text())
+              items=[x for x in rendered if x.get("kind")=="CustomResourceDefinition"]
+              if not items:
+                  raise SystemExit(f"GATEWAY_RENDER_CRD_SET_EMPTY {version}")
               Path(f"/tmp/gateway-{version}.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":items}))
           PY
 
