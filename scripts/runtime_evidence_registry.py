@@ -97,11 +97,11 @@ def verify_upgrade_registry(root:Path)->dict:
             for ev in (gateway_legacy,gateway):
                 if ev.get("genericKubernetesRuntimeEvidenceOnly") is not True or ev.get("rke2Certified") is not False or ev.get("productTopologyHACertified") is not False or ev.get("physicalCertified") is not False:
                     raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_SCOPE_INFLATED")
-                rows=ev.get("matrix") or []
-                if sorted(str(x.get("kubernetesVersion") or "") for x in rows)!=["1.34.11","1.35.8"]:
+                evidence_rows=ev.get("matrix") or []
+                if sorted(str(x.get("kubernetesVersion") or "") for x in evidence_rows)!=["1.34.11","1.35.8"]:
                     raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_MATRIX_COVERAGE_INVALID")
                 required=("upgradeApplyPass","targetCRDsEstablished","targetReapplyConverged","reverseEdgeRejected")
-                if not all(all(x.get(k) is True for k in required) for x in rows):
+                if not all(all(x.get(k) is True for k in required) for x in evidence_rows):
                     raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_MATRIX_INVALID")
             for e in r.get("executedEdges",[]):
                 edge=(e.get("fromRelease"),e.get("toRelease"))
@@ -140,11 +140,11 @@ def verify_upgrade_registry(root:Path)->dict:
             expected={(ev.get("fromRelease"),ev.get("toRelease"))}
             if ev.get("matrixPass") is not True or executed!=expected:
                 raise RuntimeError(f"SIMPLE_RUNTIME_UPGRADE_EDGE_BINDING_INVALID {name}")
-            matrix_rows=ev.get("matrix") or []
-            if sorted(str(x.get("kubernetesVersion") or "") for x in matrix_rows)!=["1.34.11","1.35.8"]:
+            evidence_rows=ev.get("matrix") or []
+            if sorted(str(x.get("kubernetesVersion") or "") for x in evidence_rows)!=["1.34.11","1.35.8"]:
                 raise RuntimeError(f"SIMPLE_RUNTIME_UPGRADE_MATRIX_COVERAGE_INVALID {name}")
             required=("historicalReady","upgradeApplyPass","targetReady","workloadIdentityPreserved","targetReapplyConverged","reverseEdgeRejected")
-            if not all(all(x.get(k) is True for k in required) and x.get("genericKubernetesRuntimeEvidenceOnly") is True and x.get("rke2Certified") is False and x.get("productTopologyHACertified") is False and x.get("physicalCertified") is False for x in matrix_rows):
+            if not all(all(x.get(k) is True for k in required) and x.get("genericKubernetesRuntimeEvidenceOnly") is True and x.get("rke2Certified") is False and x.get("productTopologyHACertified") is False and x.get("physicalCertified") is False for x in evidence_rows):
                 raise RuntimeError(f"SIMPLE_RUNTIME_UPGRADE_MATRIX_INVALID {name}")
             for e in r.get("executedEdges",[]):
                 if e.get("authority")!="SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=simple.get("sourceRunId") or e.get("evidencePath")!="lab/simple-component-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
@@ -157,9 +157,9 @@ def verify_upgrade_registry(root:Path)->dict:
             expected={(kgateway.get("fromRelease"),kgateway.get("toRelease"))}
             if executed!=expected:
                 raise RuntimeError("KGATEWAY_RUNTIME_UPGRADE_EDGE_BINDING_INVALID")
-            rows=kgateway.get("matrix") or []
+            evidence_rows=kgateway.get("matrix") or []
             required=("historicalReady","upgradeApplyPass","targetReady","workloadIdentityPreserved","targetReapplyConverged","reverseEdgeRejected")
-            if sorted(str(x.get("kubernetesVersion") or "") for x in rows)!=["1.34.11","1.35.8"] or not all(all(x.get(k) is True for k in required) and x.get("gatewayApiRelease")=="1.6.1" for x in rows):
+            if sorted(str(x.get("kubernetesVersion") or "") for x in evidence_rows)!=["1.34.11","1.35.8"] or not all(all(x.get(k) is True for k in required) and x.get("gatewayApiRelease")=="1.6.1" for x in evidence_rows):
                 raise RuntimeError("KGATEWAY_RUNTIME_UPGRADE_MATRIX_INVALID")
             for e in r.get("executedEdges",[]):
                 if e.get("authority")!="KGATEWAY_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=kgateway.get("sourceRunId") or e.get("evidencePath")!="lab/kgateway-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
