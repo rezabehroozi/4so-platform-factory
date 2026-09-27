@@ -1,0 +1,25 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "assets": [
+    {
+      "path": "catalog/runtime-dependencies/cert-manager/1.21.0/cert-manager.crds.yaml",
+      "release": "1.21.0",
+      "sha256": "sha256:cc046deb0ef4aaa8237f1ae448ef463446905bfc310cba88f25fc614389f84fd",
+      "sizeBytes": 997110
+    },
+    {
+      "path": "catalog/runtime-dependencies/cert-manager/1.21.1/cert-manager.crds.yaml",
+      "release": "1.21.1",
+      "sha256": "sha256:a1383be02862dd2802e6810f19dd1f4784550f336ff4eb27788e842302f76977",
+      "sizeBytes": 997110
+    }
+  ],
+  "authority": "CERT_MANAGER_CRD_RUNTIME_DEPENDENCY_EVIDENCE_V1",
+  "bytesVerified": true,
+  "expectedCRDCount": 6,
+  "kind": "CertManagerCRDRuntimeDependencyEvidence",
+  "physicalCertified": false,
+  "runtimeCertified": false,
+  "sourceCommitSHA": "747e2da6c5defd75d88e12575643d51deb16b536",
+  "sourceRunId": "36327027686"
+}
