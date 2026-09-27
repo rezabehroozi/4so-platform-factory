@@ -415,7 +415,7 @@ def self_test() -> int:
     assert legacy["spec"]["commitSHA"]=="3797b631d20f9ff4e2b4571f62d91d84a1fbdf5a" and legacy["metadata"]["version"]=="1.5.0"
     admission=_json(ROOT/"catalog/component-upgrade-source-admission.json")
     gateway_row=next(r for r in admission["components"] if r["component"]=="gateway-api")
-    assert gateway_row["previousVersion"]=="1.5.1" and gateway_row["targetVersion"]=="1.6.1"
+    assert gateway_row["previousVersion"]=="1.5.1" and gateway_row["targetRelease"]=="1.6.1"
     assert (ROOT/"catalog/runtime/gateway-api/1.5.1/source-lock.json").is_file()
     # A reviewed predecessor may originate from an earlier transition/rebind and
     # therefore need not have been produced by this tagged-source recipe tool.
