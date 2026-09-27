@@ -1,52 +1,34 @@
 {
   "apiVersion": "platform.4so.io/v1alpha1",
-  "kind": "ComponentRuntimeUpgradeEvidenceRegistry",
   "authority": "COMPONENT_RUNTIME_UPGRADE_EVIDENCE_REGISTRY_V1",
-  "schemaVersion": 1,
-  "policy": {
-    "sourcePairAdmissionDoesNotEqualRuntimePass": true,
-    "everyAdmittedEdgeRequiresExecutionEvidence": true,
-    "genericKubernetesEvidenceDoesNotImplyRKE2Certification": true,
-    "runtimeSuitabilityHoldPreventsCertification": true,
-    "physicalPassInference": false
-  },
-  "summary": {
-    "components": 20,
-    "upgradeApplicableComponents": 19,
-    "componentsWithAnyRuntimeEvidence": 12,
-    "fullyRuntimeUpgradeCertifiedComponents": 12,
-    "pendingRuntimeEdges": 7
-  },
   "components": [
     {
       "component": "alloy",
-      "targetRelease": "1.11.0",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "1.10.1",
-          "toRelease": "1.11.0",
           "authority": "SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/simple-component-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36325690830",
+          "fromRelease": "1.10.1",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36325690830",
+          "toRelease": "1.11.0"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "1.11.0"
     },
     {
       "component": "argocd",
-      "targetRelease": "10.2.3",
-      "status": "pending-runtime-evidence",
       "executedEdges": [],
       "pendingEdges": [
         {
@@ -54,39 +36,39 @@
           "toRelease": "10.2.3"
         }
       ],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": false,
-      "physicalCertified": false
+      "status": "pending-runtime-evidence",
+      "targetRelease": "10.2.3"
     },
     {
       "component": "capsule",
-      "targetRelease": "0.13.11",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "0.13.10",
-          "toRelease": "0.13.11",
           "authority": "HELM_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/helm-component-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36343479329",
+          "fromRelease": "0.13.10",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36350839169",
+          "toRelease": "0.13.11"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "0.13.11"
     },
     {
       "component": "ceph-csi-operator",
-      "targetRelease": "1.0.4",
-      "status": "pending-runtime-evidence",
       "executedEdges": [],
       "pendingEdges": [
         {
@@ -94,14 +76,14 @@
           "toRelease": "1.0.4"
         }
       ],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": false,
-      "physicalCertified": false
+      "status": "pending-runtime-evidence",
+      "targetRelease": "1.0.4"
     },
     {
       "component": "ceph-csi-rbd",
-      "targetRelease": "1.0.4",
-      "status": "pending-runtime-evidence",
       "executedEdges": [],
       "pendingEdges": [
         {
@@ -109,39 +91,39 @@
           "toRelease": "1.0.4"
         }
       ],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": false,
-      "physicalCertified": false
+      "status": "pending-runtime-evidence",
+      "targetRelease": "1.0.4"
     },
     {
       "component": "cert-manager",
-      "targetRelease": "1.21.1",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "1.21.0",
-          "toRelease": "1.21.1",
           "authority": "CERT_MANAGER_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/cert-manager-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36327214840",
+          "fromRelease": "1.21.0",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36327214840",
+          "toRelease": "1.21.1"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "1.21.1"
     },
     {
       "component": "cilium",
-      "targetRelease": "1.20.1",
-      "status": "pending-runtime-evidence",
       "executedEdges": [],
       "pendingEdges": [
         {
@@ -149,39 +131,39 @@
           "toRelease": "1.20.1"
         }
       ],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": false,
-      "physicalCertified": false
+      "status": "pending-runtime-evidence",
+      "targetRelease": "1.20.1"
     },
     {
       "component": "external-dns",
-      "targetRelease": "1.21.1",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "1.20.0",
-          "toRelease": "1.21.1",
           "authority": "SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/simple-component-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36325690830",
+          "fromRelease": "1.20.0",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36325690830",
+          "toRelease": "1.21.1"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "1.21.1"
     },
     {
       "component": "external-secrets",
-      "targetRelease": "2.8.0",
-      "status": "pending-runtime-evidence",
       "executedEdges": [],
       "pendingEdges": [
         {
@@ -189,153 +171,153 @@
           "toRelease": "2.8.0"
         }
       ],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": false,
-      "physicalCertified": false
+      "status": "pending-runtime-evidence",
+      "targetRelease": "2.8.0"
     },
     {
       "component": "gateway-api",
-      "targetRelease": "1.6.1",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "1.5.0",
-          "toRelease": "1.5.1",
           "authority": "GATEWAY_API_LEGACY_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36308229921",
+          "fromRelease": "1.5.0",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36308229921",
+          "toRelease": "1.5.1"
         },
         {
-          "fromRelease": "1.5.1",
-          "toRelease": "1.6.1",
           "authority": "GATEWAY_API_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/gateway-api-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36306745230",
+          "fromRelease": "1.5.1",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36306745230",
+          "toRelease": "1.6.1"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "1.6.1"
     },
     {
       "component": "grafana",
-      "targetRelease": "12.10.0",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "12.9.0",
-          "toRelease": "12.10.0",
           "authority": "SIMPLE_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/simple-component-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36325690830",
+          "fromRelease": "12.9.0",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36325690830",
+          "toRelease": "12.10.0"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "12.10.0"
     },
     {
       "component": "kgateway",
-      "targetRelease": "2.4.1",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "2.4.0",
-          "toRelease": "2.4.1",
           "authority": "KGATEWAY_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/kgateway-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36308303250",
+          "fromRelease": "2.4.0",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36308303250",
+          "toRelease": "2.4.1"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "2.4.1"
     },
     {
       "component": "kyverno",
-      "targetRelease": "3.8.2",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "3.8.1",
-          "toRelease": "3.8.2",
           "authority": "KYVERNO_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/kyverno-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36325367575",
+          "fromRelease": "3.8.1",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36325367575",
+          "toRelease": "3.8.2"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "3.8.2"
     },
     {
       "component": "loki",
-      "targetRelease": "18.12.1",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "18.12.0",
-          "toRelease": "18.12.1",
           "authority": "LOKI_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/loki-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36335873112",
+          "fromRelease": "18.12.0",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36335873112",
+          "toRelease": "18.12.1"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "18.12.1"
     },
     {
       "component": "metallb",
-      "targetRelease": "0.16.1",
-      "status": "pending-runtime-evidence",
       "executedEdges": [],
       "pendingEdges": [
         {
@@ -343,98 +325,98 @@
           "toRelease": "0.16.1"
         }
       ],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": true,
       "runtimeUpgradeCertified": false,
-      "physicalCertified": false
+      "status": "pending-runtime-evidence",
+      "targetRelease": "0.16.1"
     },
     {
       "component": "secure-namespace-foundation",
-      "targetRelease": "1.0.0",
-      "status": "install-only-first-product-release",
       "executedEdges": [],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeUpgradeCertified": false,
-      "physicalCertified": false
+      "status": "install-only-first-product-release",
+      "targetRelease": "1.0.0"
     },
     {
       "component": "snapshot-controller",
-      "targetRelease": "8.5.0",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "8.4.0",
-          "toRelease": "8.5.0",
           "authority": "SNAPSHOT_CONTROLLER_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/snapshot-controller-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36307206367",
+          "fromRelease": "8.4.0",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36307206367",
+          "toRelease": "8.5.0"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "8.5.0"
     },
     {
       "component": "tetragon",
-      "targetRelease": "1.7.0",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "1.6.1",
-          "toRelease": "1.7.0",
           "authority": "TETRAGON_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/tetragon-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36325690928",
+          "fromRelease": "1.6.1",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36325690928",
+          "toRelease": "1.7.0"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "1.7.0"
     },
     {
       "component": "velero",
-      "targetRelease": "12.1.0",
-      "status": "runtime-evidence-complete",
       "executedEdges": [
         {
-          "fromRelease": "12.0.3",
-          "toRelease": "12.1.0",
           "authority": "VELERO_RUNTIME_UPGRADE_MATRIX_V1",
           "evidencePath": "lab/velero-upgrade-runtime-matrix-evidence.json",
-          "sourceRunId": "36337241789",
+          "fromRelease": "12.0.3",
+          "genericKubernetesRuntimeEvidenceOnly": true,
           "kubernetesVersions": [
             "1.34.11",
             "1.35.8"
           ],
-          "genericKubernetesRuntimeEvidenceOnly": true,
+          "physicalCertified": false,
           "rke2Certified": false,
-          "physicalCertified": false
+          "sourceRunId": "36337241789",
+          "toRelease": "12.1.0"
         }
       ],
       "pendingEdges": [],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": true,
-      "physicalCertified": false
+      "status": "runtime-evidence-complete",
+      "targetRelease": "12.1.0"
     },
     {
       "component": "victoria-metrics",
-      "targetRelease": "0.90.2",
-      "status": "pending-runtime-evidence",
       "executedEdges": [],
       "pendingEdges": [
         {
@@ -442,9 +424,27 @@
           "toRelease": "0.90.2"
         }
       ],
+      "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
       "runtimeUpgradeCertified": false,
-      "physicalCertified": false
+      "status": "pending-runtime-evidence",
+      "targetRelease": "0.90.2"
     }
-  ]
+  ],
+  "kind": "ComponentRuntimeUpgradeEvidenceRegistry",
+  "policy": {
+    "everyAdmittedEdgeRequiresExecutionEvidence": true,
+    "genericKubernetesEvidenceDoesNotImplyRKE2Certification": true,
+    "physicalPassInference": false,
+    "runtimeSuitabilityHoldPreventsCertification": true,
+    "sourcePairAdmissionDoesNotEqualRuntimePass": true
+  },
+  "schemaVersion": 1,
+  "summary": {
+    "components": 20,
+    "componentsWithAnyRuntimeEvidence": 12,
+    "fullyRuntimeUpgradeCertifiedComponents": 12,
+    "pendingRuntimeEdges": 7,
+    "upgradeApplicableComponents": 19
+  }
 }

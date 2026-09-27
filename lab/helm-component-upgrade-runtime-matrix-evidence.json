@@ -1,12 +1,10 @@
 {
   "apiVersion": "platform.4so.io/v1alpha1",
-  "kind": "HelmComponentUpgradeRuntimeMatrixEvidence",
   "authority": "HELM_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1",
   "components": [
     {
       "component": "capsule",
       "fromRelease": "0.13.10",
-      "toRelease": "0.13.11",
       "matrix": [
         {
           "apiVersion": "platform.4so.io/v1alpha1",
@@ -22,9 +20,9 @@
           "productTopologyHACertified": false,
           "reverseEdgeRejected": true,
           "rke2Certified": false,
-          "sourceCommitSHA": "d252a2c852a4e30876daf3193f2fd1d55f03f533",
+          "sourceCommitSHA": "073a95c8eed1c0d0d46c9cf10edce4f6bd960df1",
           "sourceRenderKubernetesVersion": "1.34.0",
-          "sourceRunId": "36343479329",
+          "sourceRunId": "36350839169",
           "targetImagesVerified": true,
           "targetReady": true,
           "targetReapplyConverged": true,
@@ -47,9 +45,9 @@
           "productTopologyHACertified": false,
           "reverseEdgeRejected": true,
           "rke2Certified": false,
-          "sourceCommitSHA": "d252a2c852a4e30876daf3193f2fd1d55f03f533",
+          "sourceCommitSHA": "073a95c8eed1c0d0d46c9cf10edce4f6bd960df1",
           "sourceRenderKubernetesVersion": "1.35.0",
-          "sourceRunId": "36343479329",
+          "sourceRunId": "36350839169",
           "targetImagesVerified": true,
           "targetReady": true,
           "targetReapplyConverged": true,
@@ -60,14 +58,16 @@
         }
       ],
       "matrixPass": true,
-      "sourceRunId": "36343479329",
-      "sourceCommitSHA": "d252a2c852a4e30876daf3193f2fd1d55f03f533"
+      "sourceCommitSHA": "073a95c8eed1c0d0d46c9cf10edce4f6bd960df1",
+      "sourceRunId": "36350839169",
+      "toRelease": "0.13.11"
     }
   ],
-  "matrixPass": true,
   "genericKubernetesRuntimeEvidenceOnly": true,
-  "rke2Certified": false,
-  "productTopologyHACertified": false,
+  "kind": "HelmComponentUpgradeRuntimeMatrixEvidence",
+  "matrixPass": true,
+  "mergeAuthority": "component-scoped-incremental",
   "physicalCertified": false,
-  "mergeAuthority": "component-scoped-incremental"
+  "productTopologyHACertified": false,
+  "rke2Certified": false
 }
