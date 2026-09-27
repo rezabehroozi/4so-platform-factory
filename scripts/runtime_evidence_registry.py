@@ -191,9 +191,9 @@ def verify_upgrade_registry(root:Path)->dict:
                 raise RuntimeError("VELERO_RUNTIME_UPGRADE_SCOPE_INFLATED")
             if executed!={(velero.get("fromRelease"),velero.get("toRelease"))}:
                 raise RuntimeError("VELERO_RUNTIME_UPGRADE_EDGE_BINDING_INVALID")
-            rows=velero.get("matrix") or []
+            evidence_rows=velero.get("matrix") or []
             required=("historicalReady","upgradeApplyPass","targetReady","deploymentIdentityPreserved","crdIdentityPreserved","storedVersionsValid","upgradeJobReplaced","targetImagesVerified","targetReapplyConverged","reverseEdgeRejected","invalidDefaultLocationsRemoved")
-            if sorted(str(x.get("kubernetesVersion") or "") for x in rows)!=["1.34.11","1.35.8"] or not all(all(x.get(k) is True for k in required) and x.get("runtimeNormalizationAuthority")=="VELERO_12_X_EMPTY_LOCATION_NORMALIZATION_V1" and x.get("genericKubernetesRuntimeEvidenceOnly") is True and x.get("rke2Certified") is False and x.get("productTopologyHACertified") is False and x.get("physicalCertified") is False for x in rows):
+            if sorted(str(x.get("kubernetesVersion") or "") for x in evidence_rows)!=["1.34.11","1.35.8"] or not all(all(x.get(k) is True for k in required) and x.get("runtimeNormalizationAuthority")=="VELERO_12_X_EMPTY_LOCATION_NORMALIZATION_V1" and x.get("genericKubernetesRuntimeEvidenceOnly") is True and x.get("rke2Certified") is False and x.get("productTopologyHACertified") is False and x.get("physicalCertified") is False for x in evidence_rows):
                 raise RuntimeError("VELERO_RUNTIME_UPGRADE_MATRIX_INVALID")
             for e in r.get("executedEdges",[]):
                 if e.get("authority")!="VELERO_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=velero.get("sourceRunId") or e.get("evidencePath")!="lab/velero-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:

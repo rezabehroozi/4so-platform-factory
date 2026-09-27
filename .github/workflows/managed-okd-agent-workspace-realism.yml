@@ -35,6 +35,15 @@ jobs:
           echo "RELEASE_SHA=$(jq -r .releasePayload.digest lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
           echo "MACHINE_URL=$(jq -r .machineOSArtifact.location lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
           echo "MACHINE_SHA=sha256:$(jq -r .machineOSArtifact.sha256 lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
+      - name: Install nmstate validator required by openshift-install
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y nmstate
+          command -v nmstatectl
+          nmstatectl --version
+
       - name: Execute product WorkspacePreparer against exact upstream
         shell: bash
         env:
