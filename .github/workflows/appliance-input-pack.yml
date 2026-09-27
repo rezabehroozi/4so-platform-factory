@@ -1,0 +1,77 @@
+name: appliance-input-pack
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/appliance-input-pack.yml
+      - scripts/build_appliance_input_pack.py
+      - lab/appliance-bundle-acquisition-lock.json
+      - lab/management-workload-oci-archive-receipt.json
+      - lab/management-workload-external-image-receipt.json
+      - lab/management-workload-product-image-receipt.json
+permissions:
+  contents: write
+  actions: read
+jobs:
+  build-exact-input-pack:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve current archive evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ARCHIVE_RUN_ID=$(jq -r .sourceRunId lab/management-workload-oci-archive-receipt.json)" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: management-workload-oci-archive
+          path: /tmp/archive-evidence
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.ARCHIVE_RUN_ID }}
+      - name: Stage exact authority bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/input-staging && mkdir -p /tmp/input-staging
+          archive="$(find /tmp/archive-evidence -type f -name platform-workloads.oci.tar -print -quit)"
+          test -f "$archive"
+          mkdir -p /tmp/input-staging/workloads
+          cp "$archive" /tmp/input-staging/workloads/platform-workloads.oci.tar
+          while IFS=$'\t' read -r path url sha size; do
+            target="/tmp/input-staging/$path"; mkdir -p "$(dirname "$target")"
+            curl -fL --retry 3 -o "$target" "$url"
+            test "$(sha256sum "$target"|awk '{print $1}')" = "$sha"
+            test "$(stat -c %s "$target")" = "$size"
+          done < <(jq -r '.resolvedAuthorities[].artifacts[] | [.stagingPath,.urls[0],.sha256,(.sizeBytes|tostring)] | @tsv' lab/appliance-bundle-acquisition-lock.json)
+          test "$(sha256sum /tmp/input-staging/workloads/platform-workloads.oci.tar|awk '{print "sha256:"$1}')" = "$(jq -r .archiveSha256 lab/management-workload-oci-archive-receipt.json)"
+          test "$(stat -c %s /tmp/input-staging/workloads/platform-workloads.oci.tar)" = "$(jq -r .archiveBytes lab/management-workload-oci-archive-receipt.json)"
+      - name: Build deterministic input pack
+        run: python3 scripts/build_appliance_input_pack.py --staging /tmp/input-staging --out /tmp/appliance-input-pack.zip --receipt lab/appliance-input-pack-receipt.json
+      - name: Verify pack contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.authority=="LAB_APPLIANCE_INPUT_PACK_BUILD_V1" and .deterministicZip and (.distributionReady|not) and (.runtimeCertified|not) and (.physicalCertified|not)' lab/appliance-input-pack-receipt.json
+          python3 -m unittest tests.test_appliance_input_pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appliance-input-pack
+          path: |
+            /tmp/appliance-input-pack.zip
+            lab/appliance-input-pack-receipt.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - name: Persist Git-safe pack receipt when main is unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"; git config user.email "actions@users.noreply.github.com"
+          git add lab/appliance-input-pack-receipt.json
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then echo "main advanced; skip stale input-pack receipt"; git reset -- lab/appliance-input-pack-receipt.json; exit 0; fi
+          git commit -m "evidence: seal deterministic appliance input pack"
+          git push origin HEAD:main
