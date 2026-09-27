@@ -1166,3 +1166,26 @@ html[lang="fa"] .ownership-model-strip span+span::before{content:"←"}
 html[lang="fa"] :where(button,input,select,textarea,summary,label,.command-palette,.sidebar,.topbar){letter-spacing:0}
 .command-palette-arrow{inline-size:1.25rem;text-align:center;font-family:var(--font-ui);font-variant-numeric:tabular-nums}
 html[dir="rtl"] .command-palette-arrow{font-family:var(--font-fa)}
+
+
+/* Persian-first control-room composition: compact operational context, semantic status and RTL-safe data density. */
+.overview-context-strip{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;
+  margin-block:0 var(--ui-space-3);border:1px solid var(--ui-border);
+  border-radius:var(--ui-radius-surface);overflow:hidden;background:var(--ui-border);
+}
+.context-signal{min-width:0;padding:var(--ui-space-3) var(--ui-space-4);background:var(--ui-card);border-block-start:2px solid transparent}
+.context-signal>span{display:block;color:var(--ui-muted-foreground);font-size:10.5px;font-weight:750}
+.context-signal>strong{display:block;margin-block:2px 1px;color:var(--ui-foreground-strong);font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+.context-signal>small{display:block;color:var(--ui-muted-foreground);font-size:10.5px;line-height:1.45}
+.context-signal[data-tone="success"]{border-block-start-color:var(--ui-success)}
+.context-signal[data-tone="warning"]{border-block-start-color:var(--ui-warning)}
+.context-signal[data-tone="danger"]{border-block-start-color:var(--ui-danger)}
+.metric-card[data-tone="success"]::before{background:var(--ui-success)}
+.metric-card[data-tone="warning"]::before{background:var(--ui-warning)}
+.metric-card[data-tone="danger"]::before{background:var(--ui-danger)}
+.check-item.unknown{border-style:dashed;background:var(--ui-muted)}
+html[dir="rtl"] .data-table :where(.technical,[data-ltr="true"]){direction:ltr;unicode-bidi:isolate;text-align:start}
+html[lang="fa"] .data-table :where(.numeric,.timestamp){font-variant-numeric:tabular-nums}
+@media(max-width:1024px){.overview-context-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.overview-context-strip{grid-template-columns:1fr}.context-signal{padding:10px 12px}}
