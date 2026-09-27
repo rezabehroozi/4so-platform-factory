@@ -1099,7 +1099,7 @@ const statusClass = value => {
 const badge = value => `<span class="badge ${statusClass(value)}">${esc(value || 'unknown')}</span>`;
 const detailRow = (label, value, raw = false) => `<div class="detail-row"><span>${esc(label)}</span><span${raw ? ' class="technical" dir="ltr"' : ''}>${raw ? esc(value || '—') : (value ?? '—')}</span></div>`;
 const emptyState = (title, message, page = '', action = '') => `<div class="empty-state"><h3>${esc(localizeDynamicText(title))}</h3><p>${esc(localizeDynamicText(message))}</p>${page ? `<button class="primary" type="button" data-navigate="${esc(page)}">${esc(localizeDynamicText(action || 'Continue'))}</button>` : ''}</div>`;
-const errorState = message => `<div class="empty-state error-state"><h3>${esc(localizeDynamicText('Unable to load'))}</h3><p>${esc(message)}</p></div>`;
+const errorState = message => `<div class="empty-state error-state"><h3>${esc(localizeDynamicText('Unable to load'))}</h3><p>${esc(message)}</p><button class="secondary" type="button" data-retry-current>${esc(t('action.refresh','Refresh'))}</button></div>`;
 const sourceUnavailable = labels => {
   const wanted = new Set((Array.isArray(labels) ? labels : [labels]).filter(Boolean));
   return state.degradedRequests.some(item => wanted.has(item.label));
