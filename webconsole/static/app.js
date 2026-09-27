@@ -18,7 +18,7 @@ const state = {
 };
 
 const fa = {
-  'shell.documentTitle':'4SO Platform Factory · کنسول اپراتور',
+  'shell.documentTitle':'4SO Platform Factory · کنسول اپراتور','shell.confirmTitle':'تأیید اقدام','shell.detailsTitle':'جزئیات','mutation.accepted':'درخواست پذیرفته شد؛ موفقیت نهایی هنوز اثبات نشده است.','mutation.viewOperation':'مشاهده عملیات','mutation.viewState':'مشاهده وضعیت معتبر','mutation.dismiss':'بستن','mutation.operation':'عملیات',
   'overview.contextLoadingTitle':'نمای عملیاتی',
   'overview.contextLoadingState':'در حال دریافت وضعیت…',
   'overview.contextLoadingHelp':'داده‌ها مستقیماً از API معتبر خوانده می‌شوند.',
@@ -62,6 +62,13 @@ function applyLocale() {
 }
 
 const faDynamic = {
+  "Recovery checkpoint": "نقطهٔ بازیابی",
+  "Bind recovery & continue": "اتصال نقطهٔ بازیابی و ادامه",
+  "Register a VERIFIED recovery checkpoint for the current cluster inventory before this destructive action.": "پیش از این اقدام مخرب، برای موجودی فعلی کلاستر یک نقطهٔ بازیابی با وضعیت VERIFIED ثبت کنید.",
+  "Step evidence payload": "محتوای شواهد مرحله",
+  "Operation": "عملیات",
+  "Evidence": "شواهد",
+  "Page refreshed.": "صفحه بازخوانی شد.",
   "Ownership boundary for projects and entitlements": "مرز مالکیت پروژه‌ها و مجوزها",
   "Resource and operation isolation boundary": "مرز جداسازی منابع و عملیات",
   "Outbound agent enrollment and fresh inventory": "ثبت Agent و دریافت موجودی تازه",
@@ -1688,9 +1695,9 @@ function renderMutationOutcome() {
   const banner=$('#mutation-outcome');if(!banner)return;
   const outcome=state.mutationOutcome;
   if(!outcome){banner.hidden=true;banner.innerHTML='';return;}
-  const operationPart=outcome.operationId?` · operation <span class="technical">${esc(outcome.operationId)}</span>`:'';
+  const operationPart=outcome.operationId?` · ${esc(t('mutation.operation','operation'))} <span class="technical" dir="ltr">${esc(outcome.operationId)}</span>`:'';
   banner.hidden=false;
-  banner.innerHTML=`<div><strong>Request accepted; terminal success is not implied.</strong><span>${badge(outcome.state)} <span class="technical">${esc(outcome.id||outcome.kind)}</span>${operationPart}</span></div><div class="button-row"><button type="button" class="secondary small-button" id="mutation-outcome-view">${outcome.operationId?'View operation':'View authoritative state'}</button><button type="button" class="quiet small-button" id="mutation-outcome-dismiss">Dismiss</button></div>`;
+  banner.innerHTML=`<div><strong>${esc(t('mutation.accepted','Request accepted; terminal success is not implied.'))}</strong><span>${badge(outcome.state)} <span class="technical" dir="ltr">${esc(outcome.id||outcome.kind)}</span>${operationPart}</span></div><div class="button-row"><button type="button" class="secondary small-button" id="mutation-outcome-view">${esc(outcome.operationId?t('mutation.viewOperation','View operation'):t('mutation.viewState','View authoritative state'))}</button><button type="button" class="quiet small-button" id="mutation-outcome-dismiss">${esc(t('mutation.dismiss','Dismiss'))}</button></div>`;
   banner.querySelector('#mutation-outcome-view').onclick=()=>navigate(outcome.operationId?'operations':outcome.page);
   banner.querySelector('#mutation-outcome-dismiss').onclick=()=>{state.mutationOutcome=null;renderMutationOutcome();};
 }
@@ -1820,7 +1827,7 @@ function toast(message, type = 'success') {
   const node = document.createElement('div');
   node.className = `toast ${type}`;
   node.setAttribute('role', type === 'error' ? 'alert' : 'status');
-  node.innerHTML = `<span>${esc(message)}</span><button type="button" class="toast-close icon-button" aria-label="Close"><svg aria-hidden="true" class="control-icon"><use href="#icon-close"></use></svg></button>`;
+  node.innerHTML = `<span>${esc(localizeDynamicText(message))}</span><button type="button" class="toast-close icon-button" aria-label="${esc(localizeDynamicText('Close'))}"><svg aria-hidden="true" class="control-icon"><use href="#icon-close"></use></svg></button>`;
   node.querySelector('button').onclick = () => node.remove();
   $('#toast-region').append(node);
   if (type !== 'error') setTimeout(() => node.remove(), 5200);
@@ -1829,8 +1836,8 @@ function toast(message, type = 'success') {
 function confirmAction(title, message, danger = false) {
   return new Promise(resolve => {
     const dialog = $('#confirm-dialog');
-    $('#confirm-title').textContent = title;
-    $('#confirm-message').textContent = message;
+    $('#confirm-title').textContent = localizeDynamicText(title);
+    $('#confirm-message').textContent = localizeDynamicText(message);
     $('#confirm-accept').className = danger ? 'danger' : 'primary';
     dialog.returnValue = '';
     dialog.onclose = () => resolve(dialog.returnValue === 'confirm');
@@ -1840,7 +1847,7 @@ function confirmAction(title, message, danger = false) {
 
 function showDetails(title, html) {
   const dialog=$('#detail-dialog');
-  $('#detail-title').textContent = title;
+  $('#detail-title').textContent = localizeDynamicText(title);
   $('#detail-content').innerHTML = html;
   applyAccessMode(dialog);
   dialog.showModal();
@@ -1914,8 +1921,8 @@ document.addEventListener('click', async event => {
 function askFields(title, fields, submitLabel = 'Continue') {
   return new Promise(resolve => {
     const dialog = $('#detail-dialog');
-    $('#detail-title').textContent = title;
-    $('#detail-content').innerHTML = `<div class="form-stack">${fields.map(field => `<label><span>${esc(field.label)}</span>${field.type === 'select' ? `<select data-field="${esc(field.name)}">${field.options.map(option => `<option value="${esc(option.value)}"${String(option.value) === String(field.value) ? ' selected' : ''}>${esc(option.label)}</option>`).join('')}</select>` : `<input data-field="${esc(field.name)}" type="${esc(field.type || 'text')}" value="${esc(field.value ?? '')}" ${field.min !== undefined ? `min="${esc(field.min)}"` : ''} ${field.max !== undefined ? `max="${esc(field.max)}"` : ''} required>`}</label>`).join('')}<div class="dialog-actions"><button type="button" class="secondary" data-dialog-cancel>Cancel</button><button type="button" class="primary" data-dialog-submit>${esc(submitLabel)}</button></div></div>`;
+    $('#detail-title').textContent = localizeDynamicText(title);
+    $('#detail-content').innerHTML = `<div class="form-stack">${fields.map(field => `<label><span>${esc(localizeDynamicText(field.label))}</span>${field.type === 'select' ? `<select data-field="${esc(field.name)}">${field.options.map(option => `<option value="${esc(option.value)}"${String(option.value) === String(field.value) ? ' selected' : ''}>${esc(localizeDynamicText(option.label))}</option>`).join('')}</select>` : `<input data-field="${esc(field.name)}" type="${esc(field.type || 'text')}" value="${esc(field.value ?? '')}" ${field.min !== undefined ? `min="${esc(field.min)}"` : ''} ${field.max !== undefined ? `max="${esc(field.max)}"` : ''} required>`}</label>`).join('')}<div class="dialog-actions"><button type="button" class="secondary" data-dialog-cancel>${esc(t('action.cancel','Cancel'))}</button><button type="button" class="primary" data-dialog-submit>${esc(localizeDynamicText(submitLabel))}</button></div></div>`;
     const cancel = $('[data-dialog-cancel]', dialog);
     const submit = $('[data-dialog-submit]', dialog);
     const close = value => { dialog.close(); resolve(value); };

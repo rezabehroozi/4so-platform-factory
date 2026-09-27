@@ -309,6 +309,32 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 }
 
 
+func TestOperatorConsolePersianCriticalInteractionContract(t *testing.T) {
+	htmlBytes, err := fs.ReadFile(content, "static/index.html")
+	if err != nil { t.Fatal(err) }
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	html, js := string(htmlBytes), string(jsBytes)
+	for _, marker := range []string{
+		`data-en="Confirm action" data-i18n="shell.confirmTitle"`,
+		`data-en="Details" data-i18n="shell.detailsTitle"`,
+	} {
+		if !strings.Contains(html, marker) { t.Fatalf("Persian critical-dialog bootstrap missing %q", marker) }
+	}
+	for _, marker := range []string{
+		"localizeDynamicText(title)",
+		"localizeDynamicText(message)",
+		"t('mutation.accepted'",
+		"t('mutation.viewOperation'",
+		"t('mutation.viewState'",
+		"t('mutation.dismiss'",
+		"localizeDynamicText(field.label)",
+		"localizeDynamicText(option.label)",
+	} {
+		if !strings.Contains(js, marker) { t.Fatalf("Persian critical-interaction runtime missing %q", marker) }
+	}
+}
+
 func TestOperatorConsolePersianNativeDesignContract(t *testing.T) {
 	cssBytes, err := fs.ReadFile(content, "static/styles.css")
 	if err != nil { t.Fatal(err) }
