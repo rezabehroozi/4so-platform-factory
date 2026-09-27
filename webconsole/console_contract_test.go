@@ -321,15 +321,15 @@ func TestOperatorConsolePersianNativeDesignContract(t *testing.T) {
 		"Operator Horizon V4 — Persian-native technical shell",
 		"--ui-background:var(--bg)", "--ui-radius-control:8px", "--ui-motion:180ms",
 		`html[lang="fa"] body{font-size:15px;line-height:var(--ui-line-height-fa);letter-spacing:0}`,
-		"--ui-space-2:8px", "--ui-control-hit:44px", "padding-inline-start:8px;padding-inline-end:28px",
+		"--ui-space-2:8px", "--ui-control-hit:44px", "padding-inline-start:8px;padding-inline-end:28px", ".overview-context-strip", ".context-signal[data-tone=\"danger\"]", `html[dir="rtl"] .data-table :where(.technical,[data-ltr="true"])`,
 		`html[dir="rtl"] :where(.technical,code,pre,kbd,[data-ltr="true"],input[type="email"],input[type="url"],input[type="tel"])`,
 	} {
 		if !strings.Contains(css, contract) { t.Fatalf("Persian-native design contract missing %q", contract) }
 	}
-	for _, contract := range []string{"localStorage.getItem('platformLocale') || 'fa'", "const displayNumber=value=>", "fa-IR-u-nu-arabext", "fa-IR-u-ca-persian-nu-arabext", "count.textContent=displayNumber(records.length)", "state.locale==='fa'?'←':'→'"} {
+	for _, contract := range []string{"localStorage.getItem('platformLocale') || 'fa'", "const displayNumber=value=>", "fa-IR-u-nu-arabext", "fa-IR-u-ca-persian-nu-arabext", "count.textContent=displayNumber(records.length)", "state.locale==='fa'?'←':'→'", "renderOverviewContext", "همهٔ محدوده‌های مجاز", "t('shell.leaveDiscard'"} {
 		if !strings.Contains(js, contract) { t.Fatalf("Persian-native runtime contract missing %q", contract) }
 	}
-	if !strings.Contains(html, `<html dir="rtl" lang="fa">`) || !strings.Contains(html, `id="language-toggle" type="button">EN</button>`) || !strings.Contains(html, `data-localized-number="1">۱</span>`) {
+	if !strings.Contains(html, `<html dir="rtl" lang="fa">`) || !strings.Contains(html, `id="language-toggle" type="button">EN</button>`) || !strings.Contains(html, `data-localized-number="1">۱</span>`) || !strings.Contains(html, `id="overview-context-strip"`) {
 		t.Fatal("Persian-first shell bootstrap contract missing")
 	}
 	if strings.Contains(strings.ReplaceAll(css, " ", ""), "flex-direction:row-reverse") {
