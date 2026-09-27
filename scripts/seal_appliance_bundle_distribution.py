@@ -25,8 +25,10 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 LOCK_REL = Path("lab/appliance-bundle-acquisition-lock.json")
 RECEIPT_REL = Path("lab/management-workload-oci-archive-receipt.json")
+PACK_RECEIPT_REL = Path("lab/appliance-input-pack-receipt.json")
 LOCK_AUTHORITY = "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8"
 RECEIPT_AUTHORITY = "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_RECEIPT_V1"
+PACK_RECEIPT_AUTHORITY = "LAB_APPLIANCE_INPUT_PACK_BUILD_V1"
 ARCHIVE_AUTHORITY = "management-workload-oci-archive"
 ZERO_RELEASE_DIGEST = "sha256:" + "0" * 64
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -125,6 +127,19 @@ def inspect_input_pack(path: Path, lock: dict, receipt: dict) -> tuple[str, int]
     return digest, size
 
 
+def verify_input_pack_receipt(doc: dict, lock: dict, *, pack_sha: str, pack_size: int) -> None:
+    if doc.get("authority") != PACK_RECEIPT_AUTHORITY or doc.get("kind") != "ApplianceInputPackReceipt":
+        raise RuntimeError("INPUT_PACK_RECEIPT_AUTHORITY_INVALID")
+    if str(doc.get("releaseVersion") or "") != str(lock.get("releaseVersion") or ""):
+        raise RuntimeError("INPUT_PACK_RECEIPT_RELEASE_MISMATCH")
+    if doc.get("deterministicZip") is not True or doc.get("format") != "zip" or doc.get("buildSpecPath") != "build-spec.json" or doc.get("stagingDirectory") != "staging":
+        raise RuntimeError("INPUT_PACK_RECEIPT_CONTRACT_INVALID")
+    if any(doc.get(k) is not False for k in ("distributionReady", "runtimeCertified", "physicalCertified")):
+        raise RuntimeError("INPUT_PACK_RECEIPT_SCOPE_INFLATED")
+    if doc.get("inputPackSha256") != "sha256:" + pack_sha or doc.get("inputPackBytes") != pack_size:
+        raise RuntimeError("INPUT_PACK_RECEIPT_BYTE_IDENTITY_MISMATCH")
+
+
 def build_ready_lock(lock: dict, receipt: dict, *, archive_url: str, input_pack_url: str, pack_sha: str, pack_size: int) -> dict:
     if lock.get("authority") != LOCK_AUTHORITY or lock.get("schemaVersion") != 8 or lock.get("status") != "incomplete":
         raise RuntimeError("ACQUISITION_LOCK_STATE_INVALID")
@@ -192,7 +207,9 @@ def main() -> int:
     receipt_path = root / RECEIPT_REL
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    pack_receipt = json.loads((root / PACK_RECEIPT_REL).read_text(encoding="utf-8"))
     pack_sha, pack_size = inspect_input_pack(args.input_pack.resolve(), lock, receipt)
+    verify_input_pack_receipt(pack_receipt, lock, pack_sha=pack_sha, pack_size=pack_size)
     ready = build_ready_lock(lock, receipt, archive_url=args.archive_url, input_pack_url=args.input_pack_url, pack_sha=pack_sha, pack_size=pack_size)
     if args.write:
         tmp = lock_path.with_suffix(lock_path.suffix + ".tmp")

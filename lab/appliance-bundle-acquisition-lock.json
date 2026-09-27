@@ -17,9 +17,9 @@
         {
           "name": "platform-workloads.oci.tar",
           "stagingPath": "workloads/platform-workloads.oci.tar",
-          "reason": "A historical archive assembly receipt is retained as evidence, but current exact product-image inputs may advance independently. Rebuild and re-seal the archive against the current product/external/manifest receipts before immutable public HTTPS distribution; archiveBuilt must not imply distributionReady.",
-          "sourceRef": "https://github.com/rezabehroozi/4so-platform-factory/actions/runs/36222903265",
-          "contentAddress": "git-sha1:221f91c4fe14ef16ea98657048319507bae8375a"
+          "reason": "Exact 20-image OCI archive and deterministic appliance input-pack are built and digest-bound; only immutable public HTTPS distribution authority remains before LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8 can become ready.",
+          "sourceRef": "https://github.com/rezabehroozi/4so-platform-factory/actions/runs/36253833953",
+          "contentAddress": "git-sha1:005b8e11013c28cb36e86259f40418c074476074"
         }
       ]
     }

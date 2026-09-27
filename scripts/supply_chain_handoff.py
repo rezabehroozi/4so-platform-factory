@@ -133,6 +133,36 @@ def _management_archive_state(lock: dict, release_version: str) -> dict:
     }
 
 
+def _input_pack_state(root: Path, release_version: str) -> dict:
+    path = root / "lab" / "appliance-input-pack-receipt.json"
+    if path.is_symlink() or not path.is_file():
+        return {"authority": "LAB_APPLIANCE_INPUT_PACK_BUILD_V1", "status": "build-pending", "built": False, "distributionReady": False}
+    doc = _json(path)
+    digest = str(doc.get("inputPackSha256") or "")
+    size = doc.get("inputPackBytes")
+    if doc.get("authority") != "LAB_APPLIANCE_INPUT_PACK_BUILD_V1" or doc.get("kind") != "ApplianceInputPackReceipt":
+        raise RuntimeError("APPLIANCE_INPUT_PACK_RECEIPT_AUTHORITY_INVALID")
+    if str(doc.get("releaseVersion") or "") != release_version:
+        raise RuntimeError("APPLIANCE_INPUT_PACK_RECEIPT_RELEASE_DRIFT")
+    if doc.get("deterministicZip") is not True or doc.get("format") != "zip" or doc.get("buildSpecPath") != "build-spec.json" or doc.get("stagingDirectory") != "staging":
+        raise RuntimeError("APPLIANCE_INPUT_PACK_RECEIPT_CONTRACT_INVALID")
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest) or not isinstance(size, int) or size <= 0:
+        raise RuntimeError("APPLIANCE_INPUT_PACK_RECEIPT_DIGEST_INVALID")
+    if any(doc.get(k) is not False for k in ("distributionReady", "runtimeCertified", "physicalCertified")):
+        raise RuntimeError("APPLIANCE_INPUT_PACK_RECEIPT_SCOPE_INFLATED")
+    return {
+        "authority": "LAB_APPLIANCE_INPUT_PACK_BUILD_V1",
+        "status": "distribution-pending",
+        "built": True,
+        "deterministicZip": True,
+        "sha256": digest,
+        "sizeBytes": size,
+        "distributionReady": False,
+        "runtimeCertified": False,
+        "physicalCertified": False,
+    }
+
+
 def build(root: Path = ROOT) -> dict:
     version = (root / "VERSION").read_text().strip()
     admission = _json(root / "catalog" / "upstream-admission.json")
@@ -146,6 +176,7 @@ def build(root: Path = ROOT) -> dict:
     product_base_by_role = product_evidence["byBaseRole"]
     acquisition_lock = _json(root / "lab" / "appliance-bundle-acquisition-lock.json")
     management_archive = _management_archive_state(acquisition_lock, version)
+    input_pack = _input_pack_state(root, version)
     toolchain = _json(root / "lab" / "release-build-toolchain-lock.json")
     upgrade_admission = _json(root / "catalog" / "component-upgrade-source-admission.json")
     runtime_transition = _json(root / "catalog" / "runtime-dependency-transition.json")
@@ -361,7 +392,7 @@ def build(root: Path = ROOT) -> dict:
     if tc_spec.get("admissionStatus") != "admitted":
         blockers.append("RELEASE_BUILD_TOOLCHAIN_LOCK_PENDING")
     if management_archive["status"] != "ready":
-        blockers.append("MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING")
+        blockers.append("APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING" if input_pack["built"] else "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING")
     base_roles = {str(row.get("role") or "") for row in (image_plan.get("baseImages") or []) if isinstance(row, dict)}
     product_roles = {str(row.get("role") or "") for row in (image_plan.get("coreImages") or []) if isinstance(row, dict) and row.get("ownership") == "product"}
     if set(product_base_by_role) != base_roles or set(product_by_role) != product_roles or any(str(row.get("sourceAuthority") or "") not in manifest_ready for row in (image_plan.get("derivedManifestImageSets") or [])):
@@ -444,6 +475,7 @@ def build(root: Path = ROOT) -> dict:
                 "productImages": sorted(product_images, key=lambda r: r["role"]),
                 "archiveStagingPath": image_plan.get("archiveStagingPath"),
                 "archiveAuthority": management_archive,
+                "inputPackReceipt": input_pack,
             },
             "releaseToolchain": toolchain_row,
             "runtimeDependencyTransition": {

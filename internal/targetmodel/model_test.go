@@ -201,7 +201,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if s1.Status != ProgramStatusBlocked || !s1.RequiredForFeatureFreeze || !containsString(s1.ParallelWith, "C7W-mcp-user-admin-write-parity") || !containsString(s1.ParallelWith, "G4-data-protection-productization") || !containsString(s1.ParallelWith, "G5-enterprise-identity-compliance") || containsString(s1.ParallelWith, "H2-vmware-provider") || containsString(s1.ParallelWith, "J1-automation-external-integrations") {
 		t.Fatalf("supply-chain phase is not an immediate parallel critical path: %#v", s1)
 	}
-	if len(s1.Blockers) != 1 || !containsString(s1.Blockers, "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING") {
+	if len(s1.Blockers) != 1 || !containsString(s1.Blockers, "APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING") {
 		t.Fatalf("supply-chain blocker truth drift: %#v", s1)
 	}
 	c7r := byID["C7R-mcp-remote-oauth-human-delegation"]

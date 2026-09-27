@@ -71,6 +71,34 @@ class ApplianceBundleDistributionSealTests(unittest.TestCase):
             self.assertFalse(receipt["runtimeCertified"])
             self.assertFalse(receipt["physicalCertified"])
 
+    def test_pack_receipt_must_bind_exact_bytes_and_scope(self):
+        with tempfile.TemporaryDirectory() as td:
+            lock, receipt, pack = self.fixture(Path(td))
+            sha, size = mod.inspect_input_pack(pack, lock, receipt)
+            good = {
+                "authority": mod.PACK_RECEIPT_AUTHORITY,
+                "kind": "ApplianceInputPackReceipt",
+                "releaseVersion": "9.9.9",
+                "deterministicZip": True,
+                "format": "zip",
+                "buildSpecPath": "build-spec.json",
+                "stagingDirectory": "staging",
+                "inputPackSha256": "sha256:" + sha,
+                "inputPackBytes": size,
+                "distributionReady": False,
+                "runtimeCertified": False,
+                "physicalCertified": False,
+            }
+            mod.verify_input_pack_receipt(good, lock, pack_sha=sha, pack_size=size)
+            bad = dict(good)
+            bad["inputPackSha256"] = "sha256:" + "0" * 64
+            with self.assertRaisesRegex(RuntimeError, "BYTE_IDENTITY"):
+                mod.verify_input_pack_receipt(bad, lock, pack_sha=sha, pack_size=size)
+            bad = dict(good)
+            bad["distributionReady"] = True
+            with self.assertRaisesRegex(RuntimeError, "SCOPE_INFLATED"):
+                mod.verify_input_pack_receipt(bad, lock, pack_sha=sha, pack_size=size)
+
     def test_pack_tamper_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             lock, receipt, pack = self.fixture(Path(td))

@@ -489,3 +489,12 @@ Refresh `origin/main` first and trust the newer HEAD if main advanced. Read this
 - OpenChoreo J8 runtime realism is now proven by run `36223347334` = **SUCCESS** with exact upstream commit `178dfbde3e3343e5ac151b88a2f203f523f97480`, six exact runtime images, ephemeral product-shaped zot mirroring, BuildKit `v0.33.0`, offline executor-context construction, executor image push/readback and final source-authority seal. Durable evidence is `lab/openchoreo-runtime-realism-receipt.json` under `OPENCHOREO_RUNTIME_REALISM_EVIDENCE_V1`.
 - J8 deliberately remains `ProgramStatusBlocked`: the remaining blocker is narrowed from broad acquisition debt to `OPENCHOREO_PRODUCTION_ZOT_SEAL_PENDING`. The durable receipt explicitly records `productionSourceSealed=false`, `runtimeCertified=false`, and `physicalCertified=false`; `runtime/openchoreo/source-selection.json` remains unresolved and is not mutated by the ephemeral evidence workflow.
 - The appliance-bundle acquisition lock remains distribution-incomplete. A GitHub Actions artifact is not substituted for the required public/distribution input-pack authority, so no false `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8 ready` state is inferred.
+
+
+## 2026-09-27 — Deterministic appliance input-pack distribution rebaseline
+
+- The final management workload OCI archive is already built and exact: 20 images / 238 blobs, 2,306,048,512 bytes, SHA-256 `sha256:7b6df110a4c661c5f03ac05499dd1ec15cd2e1956dfa4c50e128d107b0fb7fbe`.
+- GitHub Actions run `36299114244` completed **SUCCESS** for the deterministic appliance input-pack. Canonical `LAB_APPLIANCE_INPUT_PACK_BUILD_V1` evidence records 3,177,949,715 bytes and SHA-256 `sha256:8802cc60321e66aec8a69ce8da46c7e01db6e5bca9f43b19fb5e67fe2a70fd0d`.
+- S1 therefore no longer claims that archive assembly is pending. The remaining S1 blocker is `APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING`: immutable public HTTPS distribution authority for the exact archive/input-pack must be sealed before `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8` may become `ready`.
+- `scripts/seal_appliance_bundle_distribution.py` must verify the canonical input-pack receipt against the exact ZIP bytes before promoting the acquisition lock. GitHub Actions artifacts are retained build evidence only and are not substituted for immutable distribution authority.
+- This rebaseline does not claim Generated/Installed Runtime PASS or Exact-SHA Physical Runtime PASS.
