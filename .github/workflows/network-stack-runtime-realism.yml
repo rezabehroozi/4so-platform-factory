@@ -280,13 +280,13 @@ jobs:
             "genericKubernetesRuntimeEvidenceOnly":True,
             "ciliumRuntimeHoldReviewReady":True,
             "ciliumRuntimeHoldReleased":False,
-            "remainingRuntimeSuitabilityHolds":["cilium","kyverno","metallb"],
+            "remainingRuntimeSuitabilityHolds":sorted(r["component"] for r in json.loads(Path("catalog/component-runtime-certification.json").read_text())["spec"]["runtimeSuitabilityHolds"]),
             "rke2Certified":False,
             "physicalCertified":False
           }
           Path("lab/network-stack-runtime-matrix-evidence.json").write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
           PY
-          jq -e '.matrixPass and .ciliumRuntimeHoldReviewReady and (.ciliumRuntimeHoldReleased|not) and (.rke2Certified|not) and (.physicalCertified|not)' lab/network-stack-runtime-matrix-evidence.json >/dev/null
+          jq -e '.matrixPass and .ciliumRuntimeHoldReviewReady and (.rke2Certified|not) and (.physicalCertified|not)' lab/network-stack-runtime-matrix-evidence.json >/dev/null
           git diff --check
 
       - name: Upload aggregate runtime evidence

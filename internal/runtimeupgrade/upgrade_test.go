@@ -66,6 +66,20 @@ func TestUpgradeRequiresExactDistinctSourcePair(t *testing.T) {
 		t.Fatal("same source lock admitted")
 	}
 }
+func TestUpgradeRejectsReverseOrNonCanonicalVersionEdges(t *testing.T) {
+	for _, mutate := range []func(*Edge){
+		func(e *Edge) { e.FromRelease, e.ToRelease = "1.5.1", "1.5.0" },
+		func(e *Edge) { e.ToRelease = "1.5.0-rc.1" },
+		func(e *Edge) { e.ToRelease = "1.05.1" },
+	} {
+		e := edge()
+		mutate(&e)
+		if ValidateEdge(e) == nil {
+			t.Fatalf("unsafe or non-canonical edge admitted: %#v", e)
+		}
+	}
+}
+
 func TestUpgradeFiveStagesAreFencedResumableAndEvidenceBacked(t *testing.T) {
 	e := edge()
 	pd, _ := PlanDigest(e)

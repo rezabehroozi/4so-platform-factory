@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -70,12 +71,39 @@ type Executor interface {
 
 var digestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
+func exactReleaseKey(value string) ([3]int, error) {
+	var out [3]int
+	parts := strings.Split(strings.TrimPrefix(strings.TrimSpace(value), "v"), ".")
+	if len(parts) != 3 {
+		return out, errors.New("release must be exact major.minor.patch")
+	}
+	for i, part := range parts {
+		if part == "" || (len(part) > 1 && part[0] == '0') {
+			return out, errors.New("release must be canonical major.minor.patch")
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 0 {
+			return out, errors.New("release must be exact major.minor.patch")
+		}
+		out[i] = n
+	}
+	return out, nil
+}
+
 func ValidateEdge(e Edge) error {
 	if strings.TrimSpace(e.Component) == "" || strings.TrimSpace(e.FromRelease) == "" || strings.TrimSpace(e.ToRelease) == "" {
 		return errors.New("component/fromRelease/toRelease are required")
 	}
-	if e.FromRelease == e.ToRelease {
-		return errors.New("upgrade edge requires distinct releases")
+	from, err := exactReleaseKey(e.FromRelease)
+	if err != nil {
+		return fmt.Errorf("fromRelease: %w", err)
+	}
+	to, err := exactReleaseKey(e.ToRelease)
+	if err != nil {
+		return fmt.Errorf("toRelease: %w", err)
+	}
+	if from[0] > to[0] || (from[0] == to[0] && from[1] > to[1]) || (from[0] == to[0] && from[1] == to[1] && from[2] >= to[2]) {
+		return errors.New("upgrade edge requires strict increasing exact releases")
 	}
 	for name, v := range map[string]string{"fromSourceLockDigest": e.FromSourceLockDigest, "toSourceLockDigest": e.ToSourceLockDigest, "fromRenderedDigest": e.FromRenderedDigest, "toRenderedDigest": e.ToRenderedDigest} {
 		if !digestRE.MatchString(v) {
