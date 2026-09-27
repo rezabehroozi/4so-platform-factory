@@ -44,6 +44,7 @@ def verify_upgrade_registry(root:Path)->dict:
     reg=load(root/"catalog/component-runtime-upgrade-evidence.json")
     matrix=load(root/"catalog/component-runtime-upgrade-matrix.json")
     gateway=load(root/"lab/gateway-api-upgrade-runtime-matrix-evidence.json")
+    snapshot=load(root/"lab/snapshot-controller-upgrade-runtime-matrix-evidence.json")
     if reg.get("authority")!=REGISTRY_AUTH or reg.get("kind")!="ComponentRuntimeUpgradeEvidenceRegistry" or reg.get("schemaVersion")!=1:
         raise RuntimeError("RUNTIME_UPGRADE_EVIDENCE_REGISTRY_AUTHORITY_INVALID")
     expected_policy={
@@ -95,6 +96,22 @@ def verify_upgrade_registry(root:Path)->dict:
                     raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
                 if sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
                     raise RuntimeError("GATEWAY_RUNTIME_UPGRADE_MATRIX_COVERAGE_INVALID")
+        elif name=="snapshot-controller":
+            if snapshot.get("authority")!="SNAPSHOT_CONTROLLER_RUNTIME_UPGRADE_MATRIX_V1" or snapshot.get("matrixPass") is not True:
+                raise RuntimeError("SNAPSHOT_RUNTIME_UPGRADE_EVIDENCE_INVALID")
+            expected={(snapshot.get("fromRelease"),snapshot.get("toRelease"))}
+            if executed!=expected:
+                raise RuntimeError("SNAPSHOT_RUNTIME_UPGRADE_EDGE_BINDING_INVALID")
+            if snapshot.get("genericKubernetesRuntimeEvidenceOnly") is not True or snapshot.get("rke2Certified") is not False or snapshot.get("productTopologyHACertified") is not False or snapshot.get("physicalCertified") is not False:
+                raise RuntimeError("SNAPSHOT_RUNTIME_UPGRADE_SCOPE_INFLATED")
+            versions=sorted(str(x.get("kubernetesVersion") or "") for x in snapshot.get("matrix") or [])
+            if versions!=["1.34.11","1.35.8"] or not all(x.get("oldReady") and x.get("upgradeApplyPass") and x.get("targetReady") and x.get("deploymentIdentityPreserved") and x.get("targetReapplyConverged") and x.get("reverseEdgeRejected") for x in snapshot.get("matrix") or []):
+                raise RuntimeError("SNAPSHOT_RUNTIME_UPGRADE_MATRIX_COVERAGE_INVALID")
+            for e in r.get("executedEdges",[]):
+                if e.get("authority")!="SNAPSHOT_CONTROLLER_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=snapshot.get("sourceRunId") or e.get("evidencePath")!="lab/snapshot-controller-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False:
+                    raise RuntimeError("SNAPSHOT_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
+                if sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
+                    raise RuntimeError("SNAPSHOT_RUNTIME_UPGRADE_REGISTRY_COVERAGE_INVALID")
         elif executed:
             raise RuntimeError(f"UNSUPPORTED_RUNTIME_UPGRADE_EVIDENCE_CLAIM {name}")
     summary=reg.get("summary") or {}

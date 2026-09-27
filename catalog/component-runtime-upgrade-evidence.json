@@ -13,9 +13,9 @@
   "summary": {
     "components": 20,
     "upgradeApplicableComponents": 19,
-    "componentsWithAnyRuntimeEvidence": 1,
-    "fullyRuntimeUpgradeCertifiedComponents": 0,
-    "pendingRuntimeEdges": 19
+    "componentsWithAnyRuntimeEvidence": 2,
+    "fullyRuntimeUpgradeCertifiedComponents": 1,
+    "pendingRuntimeEdges": 18
   },
   "components": [
     {
@@ -270,16 +270,26 @@
     {
       "component": "snapshot-controller",
       "targetRelease": "8.5.0",
-      "status": "pending-runtime-evidence",
-      "executedEdges": [],
-      "pendingEdges": [
+      "status": "runtime-evidence-complete",
+      "executedEdges": [
         {
           "fromRelease": "8.4.0",
-          "toRelease": "8.5.0"
+          "toRelease": "8.5.0",
+          "authority": "SNAPSHOT_CONTROLLER_RUNTIME_UPGRADE_MATRIX_V1",
+          "evidencePath": "lab/snapshot-controller-upgrade-runtime-matrix-evidence.json",
+          "sourceRunId": "36307206367",
+          "kubernetesVersions": [
+            "1.34.11",
+            "1.35.8"
+          ],
+          "genericKubernetesRuntimeEvidenceOnly": true,
+          "rke2Certified": false,
+          "physicalCertified": false
         }
       ],
+      "pendingEdges": [],
       "runtimeSuitabilityHeld": false,
-      "runtimeUpgradeCertified": false,
+      "runtimeUpgradeCertified": true,
       "physicalCertified": false
     },
     {
