@@ -894,8 +894,8 @@
           "effectiveState": "ready",
           "evidence": {
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
-            "exactReference": "platform.4so.local/management/maintenance@sha256:59f62da22aa9bdf9b4d2f0319035195fe684875988ba486005cf3db3708bcf77",
-            "releaseArtifactDigest": "sha256:6ae9d3203a2e96e2c490787f167283ab0005f18ef32329f0e5ff872165ee5821",
+            "exactReference": "platform.4so.local/management/maintenance@sha256:5dd0296f9755b83db90326848b9650a45a8a588db1eae97422b17da6fd4ba902",
+            "releaseArtifactDigest": "sha256:6a52c637207f7f2d0537093010d1a1d9c26bd5ccb2a7081e987ee8726ccff983",
             "runtimeRealismProbe": {
               "defaultNonRootToolset": true,
               "execution": true,
@@ -913,8 +913,8 @@
           "effectiveState": "ready",
           "evidence": {
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
-            "exactReference": "platform.4so.local/management/platform-agent@sha256:6d820bf17671b7e1ee596103546d2801afb63a32c90a130d61b0a023d84b632f",
-            "releaseArtifactDigest": "sha256:6ae9d3203a2e96e2c490787f167283ab0005f18ef32329f0e5ff872165ee5821",
+            "exactReference": "platform.4so.local/management/platform-agent@sha256:31dfd9e603e2cb86e10dba81f7089e4fb29c4f3cd0fbb4286104225477efa916",
+            "releaseArtifactDigest": "sha256:6a52c637207f7f2d0537093010d1a1d9c26bd5ccb2a7081e987ee8726ccff983",
             "runtimeRealismProbe": {
               "execution": true
             }
@@ -930,8 +930,8 @@
           "effectiveState": "ready",
           "evidence": {
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
-            "exactReference": "platform.4so.local/management/platform-api@sha256:a90c345748f005f33444addafb2fdbbc56e7044856abe2a988c9386d28db8892",
-            "releaseArtifactDigest": "sha256:6ae9d3203a2e96e2c490787f167283ab0005f18ef32329f0e5ff872165ee5821",
+            "exactReference": "platform.4so.local/management/platform-api@sha256:3e624372de86529ab21b454465fc249b8a4ab89caedffe89d5abc33487f9c1b5",
+            "releaseArtifactDigest": "sha256:6a52c637207f7f2d0537093010d1a1d9c26bd5ccb2a7081e987ee8726ccff983",
             "runtimeRealismProbe": {
               "dynamicDependencyClosure": true,
               "execution": true
@@ -948,8 +948,8 @@
           "effectiveState": "ready",
           "evidence": {
             "certificationAuthority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
-            "exactReference": "platform.4so.local/management/platform-probe@sha256:ee8acfbed6fc36a224d0d8fa5a9eb3ddf5228b84e08ac30b6c33f2fdf43607f8",
-            "releaseArtifactDigest": "sha256:6ae9d3203a2e96e2c490787f167283ab0005f18ef32329f0e5ff872165ee5821",
+            "exactReference": "platform.4so.local/management/platform-probe@sha256:9425b0eaecbf756891e43d6309cf2ce6c3e8030a9cc336411a1355c96ef2cb39",
+            "releaseArtifactDigest": "sha256:6a52c637207f7f2d0537093010d1a1d9c26bd5ccb2a7081e987ee8726ccff983",
             "runtimeRealismProbe": {
               "execution": true
             }
@@ -961,9 +961,8 @@
         }
       ],
       "productReceipt": {
+        "archiveReady": false,
         "authority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_RECEIPT_V1",
-        "planDigest": "sha256:11d59ba7d2d991c5211bfeaacc354fc1362306076ce1f49fbb19b2f61cd2794f",
-        "releaseArtifactDigest": "sha256:6ae9d3203a2e96e2c490787f167283ab0005f18ef32329f0e5ff872165ee5821",
         "baseImages": [
           {
             "compatibilityProbe": {
@@ -975,7 +974,7 @@
               "caSourceReference": "gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
               "postgresqlSourceReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3"
             },
-            "exactReference": "platform.4so.local/management/api-runtime-base@sha256:756e2e0358453801cbca46132c0849eb4cbe1332a353579b84d934a401694e59",
+            "exactReference": "platform.4so.local/management/api-runtime-base@sha256:fea921c0d5fdb4420a05d4a33c1c5d6db22ee6dd5db3136096e165a6ee37de18",
             "role": "api-runtime-base"
           },
           {
@@ -990,7 +989,7 @@
               "awsCliVersion": "2.37.1",
               "postgresqlSourceReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3"
             },
-            "exactReference": "platform.4so.local/management/maintenance-runtime-base@sha256:406ca213e9f43cdf8a276d285d8981b06d3bc20a055183dfd5379a1d84a35229",
+            "exactReference": "platform.4so.local/management/maintenance-runtime-base@sha256:263523159c502e30d417dfa60239e9c5f7444fe651c9ca02f1d8cb4ba41bd274",
             "role": "maintenance-toolchain-base"
           },
           {
@@ -1004,10 +1003,11 @@
             "role": "static-runtime-base"
           }
         ],
-        "sourceRunId": "36436908957",
-        "sourceCommitSHA": "ec6b19a95eb7ec84f4a9639659c7e22c902c8092",
+        "planDigest": "sha256:11d59ba7d2d991c5211bfeaacc354fc1362306076ce1f49fbb19b2f61cd2794f",
+        "releaseArtifactDigest": "sha256:6a52c637207f7f2d0537093010d1a1d9c26bd5ccb2a7081e987ee8726ccff983",
         "runtimeRealismVerified": true,
-        "archiveReady": false
+        "sourceCommitSHA": "d2a703b56e3539867cf23301db5587e7f1717909",
+        "sourceRunId": "36438637724"
       }
     },
     "openBlockers": [
