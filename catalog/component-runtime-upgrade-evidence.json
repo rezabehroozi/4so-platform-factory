@@ -104,17 +104,27 @@
     },
     {
       "component": "ceph-csi-rbd",
-      "executedEdges": [],
-      "pendingEdges": [
+      "executedEdges": [
         {
+          "authority": "CEPH_CSI_RBD_RUNTIME_UPGRADE_MATRIX_V1",
+          "evidencePath": "lab/ceph-csi-rbd-upgrade-runtime-matrix-evidence.json",
           "fromRelease": "1.0.3",
+          "genericKubernetesRuntimeEvidenceOnly": true,
+          "kubernetesVersions": [
+            "1.34.11",
+            "1.35.8"
+          ],
+          "physicalCertified": false,
+          "rke2Certified": false,
+          "sourceRunId": "36401213237",
           "toRelease": "1.0.4"
         }
       ],
+      "pendingEdges": [],
       "physicalCertified": false,
       "runtimeSuitabilityHeld": false,
-      "runtimeUpgradeCertified": false,
-      "status": "pending-runtime-evidence",
+      "runtimeUpgradeCertified": true,
+      "status": "runtime-evidence-complete",
       "targetRelease": "1.0.4"
     },
     {
@@ -502,9 +512,9 @@
   "schemaVersion": 1,
   "summary": {
     "components": 20,
-    "componentsWithAnyRuntimeEvidence": 18,
-    "fullyRuntimeUpgradeCertifiedComponents": 17,
-    "pendingRuntimeEdges": 1,
+    "componentsWithAnyRuntimeEvidence": 19,
+    "fullyRuntimeUpgradeCertifiedComponents": 18,
+    "pendingRuntimeEdges": 0,
     "upgradeApplicableComponents": 19
   }
 }
