@@ -94,15 +94,26 @@ def render(component:str,release:str,kube_version:str,out:Path,evidence:Path)->d
     if sha(chart)!=lock.get("upstreamArtifactDigest"):
         raise RuntimeError("EXACT_RUNTIME_ARTIFACT_DIGEST_DRIFT")
     generation=lock.get("generation") or {}
-    digest_matrix=generation.get("kubernetesRenderDigests") or {}
+    source_digest_matrix=generation.get("kubernetesRenderDigests") or {}
+    digest_matrix=dict(source_digest_matrix)
     admission_authority=""
     admission_digest=""
+    admission_override=False
     admission_path=base/"render-admission.json"
-    if not digest_matrix and admission_path.is_file():
+    if admission_path.is_file():
         admission=json.loads(admission_path.read_text())
-        digest_matrix=render_admission.verify(component,release,admission)
-        admission_authority=render_admission.AUTHORITY
-        admission_digest=sha(admission_path)
+        admission_matrix=render_admission.verify(component,release,admission)
+        if not digest_matrix:
+            digest_matrix=admission_matrix
+            admission_authority=render_admission.AUTHORITY
+            admission_digest=sha(admission_path)
+        elif admission.get("sourceGenerationDrift") is True:
+            if admission.get("sourceGenerationRenderDigests") != source_digest_matrix:
+                raise RuntimeError("EXACT_RUNTIME_RENDER_ADMISSION_SOURCE_MATRIX_DRIFT")
+            digest_matrix=admission_matrix
+            admission_authority=render_admission.AUTHORITY
+            admission_digest=sha(admission_path)
+            admission_override=True
     expected=digest_matrix.get(kube_version)
     if not expected or not SHA_RE.fullmatch(str(expected)):
         raise RuntimeError("EXACT_RUNTIME_KUBERNETES_RENDER_NOT_ADMITTED")
@@ -117,7 +128,7 @@ def render(component:str,release:str,kube_version:str,out:Path,evidence:Path)->d
         env=helm_acq.helm_env(tool_dir/"helm-home")
         raw=helm_acq.render_chart(chart,str(generation.get("namespace") or "default"),kube_version,values,env)
         raw_digest="sha256:"+hashlib.sha256(helm_acq.canonical_resources(raw)).hexdigest()
-        source_compared=profile is None
+        source_compared=profile is None and not admission_override
         rerender_verified=False
         if profile is None:
             if raw_digest!=expected:
@@ -134,7 +145,7 @@ def render(component:str,release:str,kube_version:str,out:Path,evidence:Path)->d
         out.parent.mkdir(parents=True,exist_ok=True)
         out.write_text(json.dumps({"apiVersion":"v1","kind":"List","items":pinned},indent=2,sort_keys=True)+"\n")
         profile_path=ROOT/"catalog"/"runtime-profiles"/f"{component}.json"
-        doc={"apiVersion":"platform.4so.io/v1alpha1","kind":"ExactHelmRuntimeRenderEvidence","authority":AUTHORITY,"component":component,"release":release,"kubernetesVersion":kube_version,"sourceLockSha256":sha(lock_path),"artifactSha256":sha(chart),"sourceGenerationRenderDigest":expected,"sourceGenerationDigestCompared":source_compared,"rawRenderDigest":raw_digest,"pinnedRenderSha256":sha(out),"images":images,"helmVersion":resolved["helm"][1],"craneVersion":resolved["crane"][1],"networkSourceFetchRequired":False,"runtimeProfileAuthority":profile.get("authority") if profile else "","runtimeProfileSha256":sha(profile_path) if profile else "","runtimeValuesSha256":[sha(v) for v in values],"deterministicRerenderVerified":rerender_verified,"renderAdmissionAuthority":admission_authority,"renderAdmissionSha256":admission_digest}
+        doc={"apiVersion":"platform.4so.io/v1alpha1","kind":"ExactHelmRuntimeRenderEvidence","authority":AUTHORITY,"component":component,"release":release,"kubernetesVersion":kube_version,"sourceLockSha256":sha(lock_path),"artifactSha256":sha(chart),"sourceGenerationRenderDigest":expected,"sourceGenerationDigestCompared":source_compared,"rawRenderDigest":raw_digest,"pinnedRenderSha256":sha(out),"images":images,"helmVersion":resolved["helm"][1],"craneVersion":resolved["crane"][1],"networkSourceFetchRequired":False,"runtimeProfileAuthority":profile.get("authority") if profile else "","runtimeProfileSha256":sha(profile_path) if profile else "","runtimeValuesSha256":[sha(v) for v in values],"deterministicRerenderVerified":rerender_verified,"renderAdmissionAuthority":admission_authority,"renderAdmissionSha256":admission_digest,"sourceGenerationDriftAdmitted":admission_override}
         evidence.parent.mkdir(parents=True,exist_ok=True); evidence.write_text(json.dumps(doc,indent=2,sort_keys=True)+"\n")
         return doc
 

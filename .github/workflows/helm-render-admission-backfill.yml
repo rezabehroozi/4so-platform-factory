@@ -27,9 +27,13 @@ jobs:
           python3 scripts/helm_runtime_render_admission.py --component argocd --release 10.2.3
           python3 scripts/helm_runtime_render_admission.py --component external-secrets --release 2.8.0
           python3 scripts/helm_runtime_render_admission.py --component ceph-csi-operator --release 1.0.4
+          python3 scripts/helm_runtime_render_admission.py --component cilium --release 1.20.0
+          python3 scripts/helm_runtime_render_admission.py --component cilium --release 1.20.1
           python3 scripts/helm_runtime_render_admission.py --component argocd --release 10.2.3 --verify catalog/runtime/argocd/10.2.3/render-admission.json
           python3 scripts/helm_runtime_render_admission.py --component external-secrets --release 2.8.0 --verify catalog/runtime/external-secrets/2.8.0/render-admission.json
           python3 scripts/helm_runtime_render_admission.py --component ceph-csi-operator --release 1.0.4 --verify catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json
+          python3 scripts/helm_runtime_render_admission.py --component cilium --release 1.20.0 --verify catalog/runtime/cilium/1.20.0/render-admission.json
+          python3 scripts/helm_runtime_render_admission.py --component cilium --release 1.20.1 --verify catalog/runtime/cilium/1.20.1/render-admission.json
           python3 -m unittest tests.test_helm_runtime_render_admission
           git diff --check
       - uses: actions/upload-artifact@v4
@@ -39,6 +43,8 @@ jobs:
             catalog/runtime/argocd/10.2.3/render-admission.json
             catalog/runtime/external-secrets/2.8.0/render-admission.json
             catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json
+            catalog/runtime/cilium/1.20.0/render-admission.json
+            catalog/runtime/cilium/1.20.1/render-admission.json
           if-no-files-found: error
           retention-days: 30
       - name: Persist admission only when main is unchanged
@@ -47,12 +53,12 @@ jobs:
           set -euo pipefail
           git config user.name 4so-evidence-bot
           git config user.email actions@users.noreply.github.com
-          git add catalog/runtime/argocd/10.2.3/render-admission.json catalog/runtime/external-secrets/2.8.0/render-admission.json catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json
+          git add catalog/runtime/argocd/10.2.3/render-admission.json catalog/runtime/external-secrets/2.8.0/render-admission.json catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json catalog/runtime/cilium/1.20.0/render-admission.json catalog/runtime/cilium/1.20.1/render-admission.json
           git diff --cached --quiet && exit 0
           git fetch origin main
           if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
             echo "main advanced; preserve artifact evidence but skip stale Git persistence"
-            git reset -- catalog/runtime/argocd/10.2.3/render-admission.json catalog/runtime/external-secrets/2.8.0/render-admission.json catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json
+            git reset -- catalog/runtime/argocd/10.2.3/render-admission.json catalog/runtime/external-secrets/2.8.0/render-admission.json catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json catalog/runtime/cilium/1.20.0/render-admission.json catalog/runtime/cilium/1.20.1/render-admission.json
             exit 0
           fi
           git commit -m "evidence: seal legacy Helm render admission"

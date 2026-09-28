@@ -75,6 +75,8 @@ def create(component:str,release:str)->dict:
         "sourceLockSha256":digest(lock_path),"artifactSha256":digest(artifact),
         "helmVersion":generation.get("toolVersion"),"releaseName":generation.get("releaseName"),
         "namespace":generation.get("namespace"),"includeCRDs":generation.get("includeCRDs"),
+        "sourceGenerationRenderDigests":dict(generation.get("kubernetesRenderDigests") or {}),
+        "sourceGenerationDrift":renders != dict(generation.get("kubernetesRenderDigests") or {}),
         "kubernetesRenderDigests":renders,"networkSourceFetchRequired":False,
         "runtimeCertified":False,"physicalCertified":False,
     }
@@ -92,6 +94,10 @@ def verify(component:str,release:str,evidence:dict)->dict[str,str]:
     renders=evidence.get("kubernetesRenderDigests") or {}
     if set(renders)!=set(versions) or any(not SHA.fullmatch(str(renders.get(v) or "")) for v in versions):
         raise RuntimeError("HELM_RENDER_ADMISSION_COVERAGE_INVALID")
+    source_matrix={str(k):str(v) for k,v in (generation.get("kubernetesRenderDigests") or {}).items()}
+    if "sourceGenerationRenderDigests" in evidence or "sourceGenerationDrift" in evidence:
+        if evidence.get("sourceGenerationRenderDigests") != source_matrix or evidence.get("sourceGenerationDrift") is not (renders != source_matrix):
+            raise RuntimeError("HELM_RENDER_ADMISSION_SOURCE_GENERATION_DRIFT_INVALID")
     if evidence.get("networkSourceFetchRequired") is not False or evidence.get("runtimeCertified") is not False or evidence.get("physicalCertified") is not False:
         raise RuntimeError("HELM_RENDER_ADMISSION_SCOPE_INFLATED")
     return {str(k):str(v) for k,v in renders.items()}

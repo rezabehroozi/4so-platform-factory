@@ -14,10 +14,14 @@ class HelmRuntimeRenderAdmissionTests(unittest.TestCase):
                 "helmVersion":g["toolVersion"],"releaseName":g["releaseName"],
                 "namespace":g["namespace"],"includeCRDs":True,
                 "kubernetesRenderDigests":{v:"sha256:"+"1"*64 for v in g["kubernetesVersions"]},
+                "sourceGenerationRenderDigests":dict(g.get("kubernetesRenderDigests") or {}),
+                "sourceGenerationDrift":{v:"sha256:"+"1"*64 for v in g["kubernetesVersions"]} != dict(g.get("kubernetesRenderDigests") or {}),
                 "networkSourceFetchRequired":False,"runtimeCertified":False,"physicalCertified":False}
             self.assertEqual(set(g["kubernetesVersions"]),set(mod.verify(component,release,evidence)))
             bad=copy.deepcopy(evidence);bad["sourceLockSha256"]="sha256:"+"0"*64
             with self.assertRaisesRegex(RuntimeError,"SOURCE_BINDING"): mod.verify(component,release,bad)
+            bad=copy.deepcopy(evidence);bad["sourceGenerationDrift"]=not evidence["sourceGenerationDrift"]
+            with self.assertRaisesRegex(RuntimeError,"SOURCE_GENERATION_DRIFT"): mod.verify(component,release,bad)
             bad=copy.deepcopy(evidence);bad["runtimeCertified"]=True
             with self.assertRaisesRegex(RuntimeError,"SCOPE_INFLATED"): mod.verify(component,release,bad)
 
