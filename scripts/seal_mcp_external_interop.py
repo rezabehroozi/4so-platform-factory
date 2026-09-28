@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"
 MATRIX_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_MATRIX_V2"
 RECEIPT_AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_RECEIPT_V1"
+CAMPAIGN_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1"
 CLIENTS=("chatgpt","claude","gemini","grok")
 SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
 
@@ -39,13 +40,20 @@ def endpoint(value:str)->str:
     return p.geturl()
 
 
-def verify_receipt(path:Path,client:str,required:list[str],protocol:str)->dict:
+def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign:dict)->dict:
     row=load(path,client.upper()+"_RECEIPT")
     if row.get("authority")!=RECEIPT_AUTHORITY or row.get("clientId")!=client:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_IDENTITY_INVALID {client}")
     if row.get("protocol")!=protocol or row.get("transport")!="streamable-http":
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_PROTOCOL_INVALID {client}")
+    challenge=next((x for x in campaign["clients"] if x.get("clientId")==client),None)
+    if not challenge:
+        raise RuntimeError(f"MCP_EXTERNAL_CAMPAIGN_CLIENT_MISSING {client}")
+    if row.get("campaignId")!=campaign.get("campaignId") or row.get("challengeSha256")!=challenge.get("challengeSha256"):
+        raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_CAMPAIGN_BINDING_INVALID {client}")
     ep=endpoint(row.get("endpoint",""))
+    if ep!=campaign.get("endpoint"):
+        raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_CAMPAIGN_ENDPOINT_INVALID {client}")
     run_id=str(row.get("executionId") or "").strip()
     if not run_id or len(run_id)>160:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EXECUTION_ID_INVALID {client}")
@@ -59,10 +67,30 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str)->dict:
     evidence=str(row.get("evidenceDigest") or "")
     if not SHA.fullmatch(evidence):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
-    return {"clientId":client,"endpoint":ep,"executionId":run_id,"evidenceDigest":evidence,"receiptSha256":sha256(path),"checks":checks}
+    return {"clientId":client,"endpoint":ep,"executionId":run_id,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"evidenceDigest":evidence,"receiptSha256":sha256(path),"checks":checks}
 
 
-def seal(matrix_path:Path,receipt_dir:Path)->dict:
+def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
+    campaign=load(campaign_path,"CAMPAIGN")
+    if campaign.get("authority")!=CAMPAIGN_AUTHORITY or campaign.get("matrixAuthority")!=MATRIX_AUTHORITY:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_AUTHORITY_INVALID")
+    if campaign.get("matrixSha256")!=sha256(matrix_path) or campaign.get("protocol")!=spec.get("protocol") or campaign.get("transport")!=spec.get("transport") or campaign.get("externalExecutionRequired") is not True:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_MATRIX_BINDING_INVALID")
+    if not str(campaign.get("campaignId") or "").startswith("mcp-interop-"):
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_ID_INVALID")
+    campaign["endpoint"]=endpoint(campaign.get("endpoint",""))
+    rows=campaign.get("clients")
+    if not isinstance(rows,list) or [x.get("clientId") for x in rows if isinstance(x,dict)]!=list(CLIENTS):
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_CLIENT_SET_INVALID")
+    for row in rows:
+        challenge=str(row.get("challenge") or "")
+        expected="sha256:"+hashlib.sha256(challenge.encode()).hexdigest()
+        if len(challenge)<32 or row.get("challengeSha256")!=expected:
+            raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_CHALLENGE_INVALID")
+    return campaign
+
+
+def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path)->dict:
     matrix=load(matrix_path,"MATRIX")
     spec=matrix.get("spec") or {}
     if matrix.get("authority")!=MATRIX_AUTHORITY or spec.get("externalCertificationStatus")!="pending":
@@ -74,13 +102,15 @@ def seal(matrix_path:Path,receipt_dir:Path)->dict:
     declared=[r.get("id") for r in spec.get("clients") or [] if isinstance(r,dict)]
     if declared!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_MATRIX_CLIENT_SET_INVALID")
-    rows=[verify_receipt(receipt_dir/(client+".json"),client,required,protocol) for client in CLIENTS]
+    campaign=verify_campaign(campaign_path,matrix_path,spec)
+    rows=[verify_receipt(receipt_dir/(client+".json"),client,required,protocol,campaign) for client in CLIENTS]
     endpoints={r["endpoint"] for r in rows}
     if len(endpoints)!=1:
         raise RuntimeError("MCP_EXTERNAL_RECEIPT_ENDPOINT_DRIFT")
     return {
       "apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteroperabilityEvidence",
       "authority":AUTHORITY,"matrixAuthority":MATRIX_AUTHORITY,"matrixSha256":sha256(matrix_path),
+      "campaignAuthority":CAMPAIGN_AUTHORITY,"campaignId":campaign["campaignId"],"campaignSha256":sha256(campaign_path),
       "protocol":protocol,"transport":"streamable-http","endpoint":next(iter(endpoints)),
       "clients":rows,"certifiedClientCount":4,"allRequiredChecksPass":True,
       "externalCertificationPass":True,"runtimeCertified":False,"physicalCertified":False
@@ -88,8 +118,8 @@ def seal(matrix_path:Path,receipt_dir:Path)->dict:
 
 
 def main()->int:
-    p=argparse.ArgumentParser(); p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json")); p.add_argument("--receipts",type=Path,required=True); p.add_argument("--out",type=Path)
-    a=p.parse_args(); out=seal(a.matrix,a.receipts)
+    p=argparse.ArgumentParser(); p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json")); p.add_argument("--campaign",type=Path,required=True); p.add_argument("--receipts",type=Path,required=True); p.add_argument("--out",type=Path)
+    a=p.parse_args(); out=seal(a.matrix,a.campaign,a.receipts)
     if a.out:
         a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
     print(json.dumps(out,sort_keys=True)); return 0
