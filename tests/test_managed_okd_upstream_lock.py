@@ -29,7 +29,9 @@ class ManagedOKDUpstreamLockTests(unittest.TestCase):
     def test_mutable_url_and_scope_inflation_are_rejected(self):
         original=json.loads((ROOT/"lab"/"managed-okd-upstream-toolchain-lock.json").read_text())
         with tempfile.TemporaryDirectory() as td:
-            p=Path(td)/"lock.json"; bad=copy.deepcopy(original)
+            td=Path(td)
+            (td/"managed-okd-agent-workspace-execution-evidence.json").write_bytes((ROOT/"lab"/"managed-okd-agent-workspace-execution-evidence.json").read_bytes())
+            p=td/"lock.json"; bad=copy.deepcopy(original)
             bad["artifacts"][0]["url"]="https://github.com/okd-project/okd/releases/latest/download/"+bad["artifacts"][0]["name"]
             p.write_text(json.dumps(bad))
             with self.assertRaisesRegex(RuntimeError,"RELEASE_BINDING"):
