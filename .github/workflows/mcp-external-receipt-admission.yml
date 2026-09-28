@@ -16,8 +16,8 @@ on:
         required: true
         type: choice
         options: [chatgpt, claude, gemini, grok]
-      receipt_b64:
-        description: Base64 independently produced client execution receipt
+      capture_b64:
+        description: Base64 independently produced raw external-client capture; the workflow finalizes the canonical receipt
         required: true
         type: string
       supersede_incomplete_campaign:
@@ -43,13 +43,13 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Resolve exact campaign and decode external receipt
+      - name: Resolve exact campaign and finalize external capture
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           CAMPAIGN_RUN_ID: ${{ inputs.campaign_run_id }}
           CAMPAIGN_B64: ${{ inputs.campaign_b64 }}
-          RECEIPT_B64: ${{ inputs.receipt_b64 }}
+          CAPTURE_B64: ${{ inputs.capture_b64 }}
           CLIENT: ${{ inputs.client }}
         run: |
           set -euo pipefail
@@ -69,7 +69,9 @@ jobs:
             test -n "$CAMPAIGN_B64" || { echo "campaign_run_id or campaign_b64 is required"; exit 2; }
             printf '%s' "$CAMPAIGN_B64" | base64 -d > /tmp/mcp-external/campaign.json
           fi
-          printf '%s' "$RECEIPT_B64" | base64 -d > "/tmp/mcp-external/$CLIENT.json"
+          printf '%s' "$CAPTURE_B64" | base64 -d > "/tmp/mcp-external/$CLIENT.capture.json"
+          python3 scripts/prepare_mcp_external_client_execution.py --campaign /tmp/mcp-external/campaign.json --client "$CLIENT" --out "/tmp/mcp-external/$CLIENT.packet.json"
+          python3 scripts/finalize_mcp_external_client_receipt.py --packet "/tmp/mcp-external/$CLIENT.packet.json" --capture "/tmp/mcp-external/$CLIENT.capture.json" --out "/tmp/mcp-external/$CLIENT.json"
       - name: Fetch authoritative server security audit
         shell: bash
         env:
@@ -116,6 +118,8 @@ jobs:
           name: mcp-external-receipt-${{ inputs.client }}-${{ github.run_id }}
           path: |
             /tmp/mcp-external/campaign.json
+            /tmp/mcp-external/${{ inputs.client }}.capture.json
+            /tmp/mcp-external/${{ inputs.client }}.packet.json
             /tmp/mcp-external/${{ inputs.client }}.json
             /tmp/mcp-external/security-audit.json
           if-no-files-found: error
