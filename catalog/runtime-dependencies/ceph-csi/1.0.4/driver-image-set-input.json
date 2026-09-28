@@ -1,0 +1,47 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "CephCSIDriverImageSetInput",
+  "authority": "CEPH_CSI_DRIVER_IMAGE_SET_INPUT_V1",
+  "schemaVersion": 1,
+  "cephCSIOperatorRelease": "1.0.4",
+  "upstreamRepository": "https://github.com/ceph/ceph-csi-operator",
+  "upstreamCommitSHA": "29a66b683aa8873001c729b7b120e18604cdb445",
+  "upstreamSourcePath": "internal/controller/defaults.go",
+  "images": [
+    {
+      "key": "provisioner",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-provisioner:v6.2.0"
+    },
+    {
+      "key": "attacher",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-attacher:v4.12.0"
+    },
+    {
+      "key": "resizer",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-resizer:v2.1.0"
+    },
+    {
+      "key": "snapshotter",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-snapshotter:v8.5.0"
+    },
+    {
+      "key": "registrar",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0"
+    },
+    {
+      "key": "snapshot-metadata",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-snapshot-metadata:v1.0.0"
+    },
+    {
+      "key": "plugin",
+      "sourceReference": "quay.io/cephcsi/cephcsi:v3.17.0"
+    },
+    {
+      "key": "addons",
+      "sourceReference": "quay.io/csiaddons/k8s-sidecar:v0.14.0"
+    }
+  ],
+  "networkResolutionRequired": true,
+  "runtimeCertified": false,
+  "physicalCertified": false
+}
