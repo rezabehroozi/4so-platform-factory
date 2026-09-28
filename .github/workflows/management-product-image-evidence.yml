@@ -30,6 +30,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 90
     env:
+      S1_CONVERGENCE_GENERATION: "archive-space-v2"
       GOTOOLCHAIN: local
       EXACT_GO: /tmp/4so-exact-go/go/bin/go
     steps:

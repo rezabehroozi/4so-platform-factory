@@ -356,8 +356,11 @@ func AssembleToFile(sources []SourceImage, outPath string) (AssemblyResult, erro
 		h := sha256.New()
 		written, copyErr := io.Copy(io.MultiWriter(tw, h), bufio.NewReaderSize(f, 1<<20))
 		_ = f.Close()
-		if copyErr != nil || written != blob.size {
-			return empty, fmt.Errorf("copy OCI blob %q", digest)
+		if copyErr != nil {
+			return empty, fmt.Errorf("copy OCI blob %q: wrote %d of %d bytes: %w", digest, written, blob.size, copyErr)
+		}
+		if written != blob.size {
+			return empty, fmt.Errorf("copy OCI blob %q: wrote %d of %d bytes", digest, written, blob.size)
 		}
 		if got := "sha256:" + hex.EncodeToString(h.Sum(nil)); got != digest {
 			return empty, fmt.Errorf("OCI blob %q changed during assembly", digest)

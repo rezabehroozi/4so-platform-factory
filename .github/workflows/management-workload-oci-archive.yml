@@ -33,6 +33,14 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Reclaim hosted-runner space
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
+          docker system prune -af >/dev/null 2>&1 || true
+          df -h /
+
       - name: Install OCI tooling
         shell: bash
         run: |
@@ -85,9 +93,12 @@ jobs:
           chmod 0755 "$platformctl"
           expected_ctl="$(jq -r '[.productImages[].certification.platformctlBinaryDigest] | unique | if length == 1 then .[0] else error("platformctl digest drift") end' lab/management-workload-product-image-receipt.json)"
           test "sha256:$(sha256sum "$platformctl" | awk '{print $1}')" = "$expected_ctl"
+          cp "$platformctl" /tmp/platformctl
+          chmod 0755 /tmp/platformctl
+          rm -rf /tmp/product-evidence /tmp/exact-release
           echo "PRODUCT_LAYOUT_ROOT=/tmp/product-layouts" >> "$GITHUB_ENV"
-          echo "EXACT_RELEASE=$release" >> "$GITHUB_ENV"
-          echo "PLATFORMCTL=$platformctl" >> "$GITHUB_ENV"
+          echo "PLATFORMCTL=/tmp/platformctl" >> "$GITHUB_ENV"
+          df -h /
 
       - name: Resolve exact non-product runtime image set
         shell: bash
@@ -131,6 +142,9 @@ jobs:
             fi
             printf "ACQUIRE_PASS=%s\\n" "$ref"
           ' _ < /tmp/nonproduct-refs.txt
+          df -h /
+          free_bytes="$(df -PB1 /tmp | awk 'NR==2 {print $4}')"
+          test "$free_bytes" -ge 5368709120 || { echo "FINAL_OCI_RUNNER_SPACE_INSUFFICIENT bytes=$free_bytes" >&2; exit 33; }
 
       - name: Assemble exact twenty-image management workload archive
         shell: bash
