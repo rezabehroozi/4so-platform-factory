@@ -120,6 +120,8 @@ jobs:
             /tmp/mcp-external/campaign.json
             /tmp/mcp-external/${{ inputs.client }}.capture.json
             /tmp/mcp-external/${{ inputs.client }}.packet.json
+            /tmp/mcp-external/${{ inputs.client }}.capture.json
+            /tmp/mcp-external/${{ inputs.client }}.packet.json
             /tmp/mcp-external/${{ inputs.client }}.json
             /tmp/mcp-external/security-audit.json
           if-no-files-found: error
