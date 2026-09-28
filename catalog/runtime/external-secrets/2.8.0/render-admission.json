@@ -16,5 +16,7 @@
   "release": "2.8.0",
   "releaseName": "platform-factory",
   "runtimeCertified": false,
+  "sourceGenerationDrift": true,
+  "sourceGenerationRenderDigests": {},
   "sourceLockSha256": "sha256:a80dab38a01692f9d5da255d3a741cfe1316bd2b645dcd0810ab7dab50da7d47"
 }

@@ -16,5 +16,7 @@
   "release": "10.2.3",
   "releaseName": "platform-factory",
   "runtimeCertified": false,
+  "sourceGenerationDrift": true,
+  "sourceGenerationRenderDigests": {},
   "sourceLockSha256": "sha256:4e1eb4695e7a84b0b683d7ff9144c73c35c3c0a8fa06801135f054616e594f28"
 }

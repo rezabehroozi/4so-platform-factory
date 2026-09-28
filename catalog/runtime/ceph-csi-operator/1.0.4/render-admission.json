@@ -16,5 +16,7 @@
   "release": "1.0.4",
   "releaseName": "platform-factory",
   "runtimeCertified": false,
+  "sourceGenerationDrift": true,
+  "sourceGenerationRenderDigests": {},
   "sourceLockSha256": "sha256:9a850123f3674e387f1c6f25e1f3516c5828941be1ba500f6d79916962f9c050"
 }
