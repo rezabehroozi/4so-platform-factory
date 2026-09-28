@@ -75,6 +75,8 @@ jobs:
           mkdir -p /tmp/mcp-external
           gh run download "$ADMISSION_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT_NAME" --dir /tmp/mcp-external
           test -s /tmp/mcp-external/campaign.json
+          test -s "/tmp/mcp-external/$CLIENT.capture.json"
+          test -s "/tmp/mcp-external/$CLIENT.packet.json"
           test -s "/tmp/mcp-external/$CLIENT.json"
           test -s /tmp/mcp-external/security-audit.json
           echo "recoverable=true" >> "$GITHUB_OUTPUT"
@@ -87,8 +89,10 @@ jobs:
           CLIENT: ${{ steps.packet.outputs.client }}
         run: |
           set -euo pipefail
+          python3 scripts/finalize_mcp_external_client_receipt.py --packet "/tmp/mcp-external/$CLIENT.packet.json" --capture "/tmp/mcp-external/$CLIENT.capture.json" --out "/tmp/mcp-external/$CLIENT.rebuilt.json"
+          cmp "/tmp/mcp-external/$CLIENT.rebuilt.json" "/tmp/mcp-external/$CLIENT.json"
           extra=()
-          test "$GITHUB_EVENT_NAME" = "workflow_dispatch" && test "$GITHUB_EVENT_NAME" = "workflow_dispatch" && test "${{ inputs.supersede_incomplete_campaign }}" = "true" && extra+=(--allow-campaign-supersede)
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch" && test "${{ inputs.supersede_incomplete_campaign }}" = "true" && extra+=(--allow-campaign-supersede)
           python3 scripts/admit_mcp_external_receipt.py             --campaign /tmp/mcp-external/campaign.json             --receipt "/tmp/mcp-external/$CLIENT.json"             --audit /tmp/mcp-external/security-audit.json             --client "$CLIENT" "${extra[@]}"
           jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1" and .certifiedClientCount>=1 and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interop-progress.json
           python3 -m unittest tests.test_mcp_external_interop_seal tests.test_mcp_external_receipt_progress
@@ -105,6 +109,8 @@ jobs:
           git fetch origin main
           if test "$(git rev-parse origin/main)" != "$(git rev-parse HEAD)"; then
             git reset --hard origin/main
+            python3 scripts/finalize_mcp_external_client_receipt.py --packet "/tmp/mcp-external/$CLIENT.packet.json" --capture "/tmp/mcp-external/$CLIENT.capture.json" --out "/tmp/mcp-external/$CLIENT.rebuilt.json"
+            cmp "/tmp/mcp-external/$CLIENT.rebuilt.json" "/tmp/mcp-external/$CLIENT.json"
             extra=()
             test "$GITHUB_EVENT_NAME" = "workflow_dispatch" && test "${{ inputs.supersede_incomplete_campaign }}" = "true" && extra+=(--allow-campaign-supersede)
             python3 scripts/admit_mcp_external_receipt.py               --campaign /tmp/mcp-external/campaign.json               --receipt "/tmp/mcp-external/$CLIENT.json"               --audit /tmp/mcp-external/security-audit.json               --client "$CLIENT" "${extra[@]}"
