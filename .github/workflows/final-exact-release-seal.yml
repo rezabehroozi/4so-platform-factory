@@ -39,7 +39,7 @@ jobs:
           rc=$?
           set -e
           if test "$rc" -eq 3; then
-            jq -e '.ready==false and (.blockers|length>0)' /tmp/final-admission-status.json
+            jq -e '.authority=="FINAL_EXACT_RELEASE_ADMISSION_V1" and .admitted==false and (.pending|type=="string") and (.pending|length>0)' /tmp/final-admission-status.json
             echo "ready=false" >> "$GITHUB_OUTPUT"
             {
               echo "### Final exact release admission"
@@ -51,7 +51,7 @@ jobs:
             exit 0
           fi
           test "$rc" -eq 0
-          jq -e '.ready==true and .authority=="FINAL_EXACT_RELEASE_ADMISSION_V1"' /tmp/final-admission-status.json
+          jq -e '.authority=="FINAL_EXACT_RELEASE_ADMISSION_V1" and .admitted==true and (.physicalCertified|not)' /tmp/final-admission-status.json
           echo "ready=true" >> "$GITHUB_OUTPUT"
           {
             echo "### Final exact release admission"
