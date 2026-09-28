@@ -13,7 +13,7 @@
         "caSourceReference": "gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
         "postgresqlSourceReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3"
       },
-      "exactReference": "platform.4so.local/management/api-runtime-base@sha256:7d8a32f212843dbf2f569c70891c67ccd1bdb7d0ba23162323da1c041ccb1149",
+      "exactReference": "platform.4so.local/management/api-runtime-base@sha256:51d2354b23aa4d715235149387a690a722865f1718028d5c793b89f5657179cd",
       "role": "api-runtime-base"
     },
     {
@@ -28,7 +28,7 @@
         "awsCliVersion": "2.37.1",
         "postgresqlSourceReference": "docker.io/library/postgres@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3"
       },
-      "exactReference": "platform.4so.local/management/maintenance-runtime-base@sha256:5d54a2d05b552ef28361f5df7d0fc3a1a5359526dc41f4178d3105375b3f7393",
+      "exactReference": "platform.4so.local/management/maintenance-runtime-base@sha256:76ff828e892b34041c3d13c674c5711886dc10dde866d3f1d2389a5ea10dae50",
       "role": "maintenance-toolchain-base"
     },
     {
@@ -51,22 +51,22 @@
     {
       "certification": {
         "certified": true,
-        "platformctlBinaryDigest": "sha256:022d1a180cde5fe8b57e6988cf70346dfda403981ed3dffb1f2a4b5da2f497aa",
-        "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
+        "platformctlBinaryDigest": "sha256:235609812bc899140611e25a0383818458e7a761ebe48aca5df2681468bbeb7c",
+        "releaseArtifactDigest": "sha256:40b5635501794975e9e52493b11bf5cf828ac9029daf2d699a8567562354e758",
         "result": {
           "authority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
           "entrypoint": [
             "/bin/sh"
           ],
           "exactPayloadBound": true,
-          "reference": "platform.4so.local/management/maintenance@sha256:1f4afae02bb6293ece89e06428e28b85c831b08e938437ba56ec6f9539035c5a",
-          "releaseDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
+          "reference": "platform.4so.local/management/maintenance@sha256:30885de1ab361ffb5f28378f477afc909afee17605e4fcc0df561537391a7e26",
+          "releaseDigest": "sha256:40b5635501794975e9e52493b11bf5cf828ac9029daf2d699a8567562354e758",
           "role": "maintenance",
           "runtimeClosurePass": false,
           "user": "65532:65532"
         }
       },
-      "exactReference": "platform.4so.local/management/maintenance@sha256:1f4afae02bb6293ece89e06428e28b85c831b08e938437ba56ec6f9539035c5a",
+      "exactReference": "platform.4so.local/management/maintenance@sha256:30885de1ab361ffb5f28378f477afc909afee17605e4fcc0df561537391a7e26",
       "role": "maintenance",
       "runtimeRealismProbe": {
         "defaultNonRootToolset": true,
@@ -77,11 +77,11 @@
     {
       "certification": {
         "certified": true,
-        "platformctlBinaryDigest": "sha256:022d1a180cde5fe8b57e6988cf70346dfda403981ed3dffb1f2a4b5da2f497aa",
-        "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
+        "platformctlBinaryDigest": "sha256:235609812bc899140611e25a0383818458e7a761ebe48aca5df2681468bbeb7c",
+        "releaseArtifactDigest": "sha256:40b5635501794975e9e52493b11bf5cf828ac9029daf2d699a8567562354e758",
         "result": {
           "authority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
-          "binaryDigest": "sha256:99e0727ade895a844edb16bc79e3c31fe3717ebdef2d9b8b608a2ba6393b1901",
+          "binaryDigest": "sha256:1edfd751724dd7bb25897a6de0ef4198a5674f054a8b3aeefb754976130de7ee",
           "binaryPath": "/platform-agent",
           "caBundlePresent": true,
           "entrypoint": [
@@ -89,14 +89,14 @@
           ],
           "exactPayloadBound": true,
           "linkage": "static",
-          "reference": "platform.4so.local/management/platform-agent@sha256:cd00d541048cae6c54443cb96b9b0711577159907ef39126c5539a27180b599c",
-          "releaseDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
+          "reference": "platform.4so.local/management/platform-agent@sha256:191830fb8e63628a94e633172be28e4f2fd437061ea758d3e4d637595cb2f491",
+          "releaseDigest": "sha256:40b5635501794975e9e52493b11bf5cf828ac9029daf2d699a8567562354e758",
           "role": "platform-agent",
           "runtimeClosurePass": false,
           "user": "65532:65532"
         }
       },
-      "exactReference": "platform.4so.local/management/platform-agent@sha256:cd00d541048cae6c54443cb96b9b0711577159907ef39126c5539a27180b599c",
+      "exactReference": "platform.4so.local/management/platform-agent@sha256:191830fb8e63628a94e633172be28e4f2fd437061ea758d3e4d637595cb2f491",
       "role": "platform-agent",
       "runtimeRealismProbe": {
         "execution": true
@@ -105,11 +105,11 @@
     {
       "certification": {
         "certified": true,
-        "platformctlBinaryDigest": "sha256:022d1a180cde5fe8b57e6988cf70346dfda403981ed3dffb1f2a4b5da2f497aa",
-        "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
+        "platformctlBinaryDigest": "sha256:235609812bc899140611e25a0383818458e7a761ebe48aca5df2681468bbeb7c",
+        "releaseArtifactDigest": "sha256:40b5635501794975e9e52493b11bf5cf828ac9029daf2d699a8567562354e758",
         "result": {
           "authority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
-          "binaryDigest": "sha256:d1b4726c196eb8cb6f80a2ed2120974f28a55cfbf3767ad25dfdc8a9f75e5a43",
+          "binaryDigest": "sha256:11db0470da97200234e7d2cd56c9dfdfb7e79992e9cc5aba757f0ac7bd42ed64",
           "binaryPath": "/platform-api",
           "elfInterpreter": "/lib64/ld-linux-x86-64.so.2",
           "entrypoint": [
@@ -121,14 +121,14 @@
             "libc.so.6",
             "libpq.so.5"
           ],
-          "reference": "platform.4so.local/management/platform-api@sha256:339cb270dce30a31efcdea1badb4eb4d2e48b0ab6847e6e735845492416e0a0c",
-          "releaseDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
+          "reference": "platform.4so.local/management/platform-api@sha256:8def3750edcd8242cc0ce0b732c1a62cf241ab26035d00f88c332417bcdb33f0",
+          "releaseDigest": "sha256:40b5635501794975e9e52493b11bf5cf828ac9029daf2d699a8567562354e758",
           "role": "platform-api",
           "runtimeClosurePass": false,
           "user": "65532:65532"
         }
       },
-      "exactReference": "platform.4so.local/management/platform-api@sha256:339cb270dce30a31efcdea1badb4eb4d2e48b0ab6847e6e735845492416e0a0c",
+      "exactReference": "platform.4so.local/management/platform-api@sha256:8def3750edcd8242cc0ce0b732c1a62cf241ab26035d00f88c332417bcdb33f0",
       "role": "platform-api",
       "runtimeRealismProbe": {
         "dynamicDependencyClosure": true,
@@ -138,8 +138,8 @@
     {
       "certification": {
         "certified": true,
-        "platformctlBinaryDigest": "sha256:022d1a180cde5fe8b57e6988cf70346dfda403981ed3dffb1f2a4b5da2f497aa",
-        "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
+        "platformctlBinaryDigest": "sha256:235609812bc899140611e25a0383818458e7a761ebe48aca5df2681468bbeb7c",
+        "releaseArtifactDigest": "sha256:40b5635501794975e9e52493b11bf5cf828ac9029daf2d699a8567562354e758",
         "result": {
           "authority": "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1",
           "binaryDigest": "sha256:951a3b535efb4e7b7566b4194e80aee15fd58c3214834a3704a18e64c4272a0a",
@@ -149,25 +149,25 @@
           ],
           "exactPayloadBound": true,
           "linkage": "static",
-          "reference": "platform.4so.local/management/platform-probe@sha256:8cfb04a19bceafd8c930a57081e4183104aff3e5fbf3fb8bac8beffbb54cf0cf",
-          "releaseDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
+          "reference": "platform.4so.local/management/platform-probe@sha256:590a8689dcd1b63a8e8fe0462e89a69a49eb31b5dc7815c426be13e0e6378ae2",
+          "releaseDigest": "sha256:40b5635501794975e9e52493b11bf5cf828ac9029daf2d699a8567562354e758",
           "role": "platform-probe",
           "runtimeClosurePass": false,
           "user": "65532:65532"
         }
       },
-      "exactReference": "platform.4so.local/management/platform-probe@sha256:8cfb04a19bceafd8c930a57081e4183104aff3e5fbf3fb8bac8beffbb54cf0cf",
+      "exactReference": "platform.4so.local/management/platform-probe@sha256:590a8689dcd1b63a8e8fe0462e89a69a49eb31b5dc7815c426be13e0e6378ae2",
       "role": "platform-probe",
       "runtimeRealismProbe": {
         "execution": true
       }
     }
   ],
-  "releaseArtifactDigest": "sha256:8837eeb4c20d376a16f65ce630111521bcc1675d21ff0188b4121cd37ddfc440",
+  "releaseArtifactDigest": "sha256:40b5635501794975e9e52493b11bf5cf828ac9029daf2d699a8567562354e758",
   "releaseVersion": "0.0.363",
   "runtimeCertified": false,
   "runtimeRealismVerified": true,
   "schemaVersion": 1,
-  "sourceCommitSHA": "7b244227a529647bfb17bae22ad705bdfa7643aa",
-  "sourceRunId": "36303963598"
+  "sourceCommitSHA": "cb51ade27f39336d5afc5ee5f3faf9e6b0c0ab69",
+  "sourceRunId": "36416822237"
 }
