@@ -84,6 +84,8 @@ def verify(root:Path)->dict:
     mcp=load(mcp_path,"MCP_EXTERNAL_INTEROP")
     if mcp.get("authority")!=MCP_AUTHORITY or mcp.get("externalCertificationPass") is not True or mcp.get("allRequiredChecksPass") is not True or mcp.get("certifiedClientCount")!=4:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_AUTHORITY_INVALID")
+    if mcp.get("serverAuditWitnessPass") is not True or mcp.get("serverAuditWitnessedCheckCount") != 24:
+        raise Pending("MCP_EXTERNAL_SERVER_AUDIT_WITNESS_PENDING")
     if mcp.get("runtimeCertified") is not False or mcp.get("physicalCertified") is not False:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_SCOPE_INFLATED")
     if mcp.get("campaignAuthority")!="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1" or not SHA.fullmatch(str(mcp.get("campaignSha256") or "")):
@@ -95,8 +97,11 @@ def verify(root:Path)->dict:
         checks=row.get("checks")
         if not isinstance(checks,dict) or len(checks)!=7 or any(v is not True for v in checks.values()):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_CHECKS_INVALID")
-        if not SHA.fullmatch(str(row.get("evidenceDigest") or "")) or not SHA.fullmatch(str(row.get("receiptSha256") or "")) or not SHA.fullmatch(str(row.get("challengeSha256") or "")):
+        if not SHA.fullmatch(str(row.get("evidenceDigest") or "")) or not SHA.fullmatch(str(row.get("externalReceiptSha256") or row.get("receiptSha256") or "")) or not SHA.fullmatch(str(row.get("challengeSha256") or "")):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_RECEIPT_BINDING_INVALID")
+        witness=row.get("serverAuditWitness") or {}
+        if witness.get("authority")!="MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1" or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=6 or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
+            raise RuntimeError("MCP_EXTERNAL_INTEROP_SERVER_WITNESS_INVALID")
 
     return {
       "apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseAdmission",

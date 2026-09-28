@@ -12,8 +12,8 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
         (root/"lab/appliance-bundle-acquisition-lock.json").write_text(json.dumps(lock))
         clients=[]
         for c in mod.CLIENTS:
-            clients.append({"clientId":c,"challengeSha256":"sha256:"+hashlib.sha256((c+"-challenge").encode()).hexdigest(),"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"receiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"checks":{"a":True,"b":True,"c":True,"d":True,"e":True,"f":True,"g":True}})
-        mcp={"authority":mod.MCP_AUTHORITY,"externalCertificationPass":True,"allRequiredChecksPass":True,"certifiedClientCount":4,"campaignAuthority":"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"clients":clients,"runtimeCertified":False,"physicalCertified":False}
+            clients.append({"clientId":c,"challengeSha256":"sha256:"+hashlib.sha256((c+"-challenge").encode()).hexdigest(),"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"checks":{"a":True,"b":True,"c":True,"d":True,"e":True,"f":True,"g":True},"serverAuditWitness":{"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest()}})
+        mcp={"authority":mod.MCP_AUTHORITY,"externalCertificationPass":True,"allRequiredChecksPass":True,"serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":24,"certifiedClientCount":4,"campaignAuthority":"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"clients":clients,"runtimeCertified":False,"physicalCertified":False}
         (root/"lab/mcp-external-client-interoperability-evidence.json").write_text(json.dumps(mcp))
         return lock,mcp
     def test_two_external_authorities_admit_final_release_without_physical_claim(self):
