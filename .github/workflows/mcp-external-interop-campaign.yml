@@ -45,6 +45,7 @@ jobs:
                 "externalExecution":False,
                 "credentialedExecution":False,
                 "checks":{name:False for name in checks},
+                "requestIds":{name:"" for name in checks if name!="oauth-protected-resource-discovery"},
                 "scopeLeakObserved":True,
                 "revokedGrantAccepted":True,
                 "selfApprovalAccepted":True,

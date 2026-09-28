@@ -58,6 +58,14 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             else:
                 self.fail("pending evidence unexpectedly admitted")
 
+    def test_unwitnessed_external_evidence_remains_pending(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            p=root/"lab/mcp-external-client-interoperability-evidence.json"
+            evidence=json.loads(p.read_text()); evidence["serverAuditWitnessPass"]=False; evidence["serverAuditWitnessedCheckCount"]=0; p.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(mod.Pending,"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_PENDING"):
+                mod.verify(root)
+
     def test_mutable_distribution_url_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root)

@@ -54,15 +54,30 @@ jobs:
           printf '%s' "$GEMINI_B64" | base64 -d > /tmp/mcp-interop/receipts/gemini.json
           printf '%s' "$GROK_B64" | base64 -d > /tmp/mcp-interop/receipts/grok.json
           test "$(find /tmp/mcp-interop/receipts -type f | wc -l)" = "4"
-      - name: Verify replay fencing, negative controls and seal C7W evidence
+      - name: Fetch authoritative server security audit
+        shell: bash
+        env:
+          C7W_PLATFORM_ADMIN_TOKEN: ${{ secrets.C7W_PLATFORM_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$C7W_PLATFORM_ADMIN_TOKEN" || { echo "C7W_PLATFORM_ADMIN_TOKEN repository/environment secret is required"; exit 2; }
+          endpoint="$(jq -r .endpoint /tmp/mcp-interop/campaign.json)"
+          base="${endpoint%/mcp}"
+          case "$base" in https://*) ;; *) echo "campaign endpoint must be HTTPS"; exit 2;; esac
+          mkdir -p /tmp/mcp-interop/audits
+          curl -fsS --retry 3 -H "Authorization: Bearer $C7W_PLATFORM_ADMIN_TOKEN" "$base/api/v1/security-audit-events?limit=1000" > /tmp/mcp-interop/security-audit.json
+          jq -e 'type=="array" and length>0' /tmp/mcp-interop/security-audit.json >/dev/null
+          for client in chatgpt claude gemini grok; do cp /tmp/mcp-interop/security-audit.json "/tmp/mcp-interop/audits/$client.json"; done
+      - name: Verify replay fencing, server audit, negative controls and seal C7W evidence
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/seal_mcp_external_interop.py \
             --campaign /tmp/mcp-interop/campaign.json \
             --receipts /tmp/mcp-interop/receipts \
+            --audits /tmp/mcp-interop/audits \
             --out lab/mcp-external-client-interoperability-evidence.json
-          jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1" and .certifiedClientCount==4 and .allRequiredChecksPass and .externalCertificationPass and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interoperability-evidence.json
+          jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1" and .certifiedClientCount==4 and .allRequiredChecksPass and .serverAuditWitnessPass and .serverAuditWitnessedCheckCount==24 and .externalCertificationPass and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interoperability-evidence.json
           python3 -m unittest tests.test_mcp_external_interop_seal
           python3 scripts/final_exact_release_admission.py --allow-pending --out /tmp/final-admission.json || test "$?" = "3"
           git diff --check

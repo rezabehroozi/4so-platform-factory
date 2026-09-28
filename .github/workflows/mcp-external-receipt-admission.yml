@@ -65,16 +65,28 @@ jobs:
             printf '%s' "$CAMPAIGN_B64" | base64 -d > /tmp/mcp-external/campaign.json
           fi
           printf '%s' "$RECEIPT_B64" | base64 -d > "/tmp/mcp-external/$CLIENT.json"
+      - name: Fetch authoritative server security audit
+        shell: bash
+        env:
+          C7W_PLATFORM_ADMIN_TOKEN: ${{ secrets.C7W_PLATFORM_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$C7W_PLATFORM_ADMIN_TOKEN" || { echo "C7W_PLATFORM_ADMIN_TOKEN repository/environment secret is required"; exit 2; }
+          endpoint="$(jq -r .endpoint /tmp/mcp-external/campaign.json)"
+          base="${endpoint%/mcp}"
+          case "$base" in https://*) ;; *) echo "campaign endpoint must be HTTPS"; exit 2;; esac
+          curl -fsS --retry 3 -H "Authorization: Bearer $C7W_PLATFORM_ADMIN_TOKEN" "$base/api/v1/security-audit-events?limit=1000" > /tmp/mcp-external/security-audit.json
+          jq -e 'type=="array" and length>0' /tmp/mcp-external/security-audit.json >/dev/null
       - name: Verify and merge one independently executed client
         shell: bash
         env:
           CLIENT: ${{ inputs.client }}
         run: |
           set -euo pipefail
-          python3 scripts/admit_mcp_external_receipt.py --campaign /tmp/mcp-external/campaign.json --receipt "/tmp/mcp-external/$CLIENT.json" --client "$CLIENT"
+          python3 scripts/admit_mcp_external_receipt.py --campaign /tmp/mcp-external/campaign.json --receipt "/tmp/mcp-external/$CLIENT.json" --audit /tmp/mcp-external/security-audit.json --client "$CLIENT"
           jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1" and .certifiedClientCount>=1 and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interop-progress.json
           if jq -e '.complete' lab/mcp-external-client-interop-progress.json >/dev/null; then
-            jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1" and .certifiedClientCount==4 and .externalCertificationPass and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interoperability-evidence.json
+            jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1" and .certifiedClientCount==4 and .externalCertificationPass and .serverAuditWitnessPass and .serverAuditWitnessedCheckCount==24 and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interoperability-evidence.json
           fi
           python3 -m unittest tests.test_mcp_external_interop_seal tests.test_mcp_external_receipt_progress
           git diff --check
