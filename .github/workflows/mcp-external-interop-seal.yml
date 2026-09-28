@@ -121,7 +121,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: mcp-external-client-interoperability-evidence
-          path: lab/mcp-external-client-interoperability-evidence.json
+          path: |
+            lab/mcp-external-client-interoperability-evidence.json
+            /tmp/mcp-interop/campaign.json
+            /tmp/mcp-interop/captures
+            /tmp/mcp-interop/receipts
+            /tmp/mcp-interop/security-audit.json
           if-no-files-found: error
           retention-days: 30
       - name: Persist exact external-client evidence

@@ -82,6 +82,13 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
         self.assertIn("git reset --hard origin/main", text)
         self.assertIn("cancel-in-progress: false", text)
 
+    def test_bulk_seal_preserves_replayable_sanitized_evidence_packet(self):
+        text = self.read(".github/workflows/mcp-external-interop-seal.yml")
+        self.assertIn("/tmp/mcp-interop/captures", text)
+        self.assertIn("/tmp/mcp-interop/receipts", text)
+        self.assertIn("/tmp/mcp-interop/security-audit.json", text)
+        self.assertIn("lab/mcp-external-client-interoperability-evidence.json", text)
+
     def test_bulk_seal_reuses_campaign_artifact_and_retries_audit_visibility(self):
         text = self.read(".github/workflows/mcp-external-interop-seal.yml")
         self.assertIn("campaign_run_id:", text)
