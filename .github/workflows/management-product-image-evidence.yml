@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 90
     env:
-      S1_CONVERGENCE_GENERATION: "archive-space-v2"
+      S1_CONVERGENCE_GENERATION: "derived-handoff-v3"
       GOTOOLCHAIN: local
       EXACT_GO: /tmp/4so-exact-go/go/bin/go
     steps:
@@ -224,7 +224,10 @@ jobs:
           PY
           python3 scripts/management_product_image_evidence.py             --seal-input /tmp/management-product-input.json             --out lab/management-workload-product-image-receipt.json             --run-id "$GITHUB_RUN_ID"             --source-sha "$GITHUB_SHA"
           python3 scripts/management_product_image_evidence.py             --verify lab/management-workload-product-image-receipt.json >/dev/null
+          python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
           python3 scripts/validate_repository.py .
+          python3 -m unittest tests.test_management_product_image_evidence tests.test_supply_chain_handoff
           git diff --check
 
       - name: Package product OCI evidence
@@ -253,7 +256,7 @@ jobs:
           set -euo pipefail
           git config user.name "4so-evidence-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add lab/management-workload-product-image-receipt.json
+          git add lab/management-workload-product-image-receipt.json lab/supply-chain-handoff-plan.json
           git diff --cached --quiet && { echo "no evidence delta"; exit 0; }
           git fetch origin main
           if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
