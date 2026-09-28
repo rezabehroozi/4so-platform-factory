@@ -1,8 +1,8 @@
 {
   "apiVersion": "platform.4so.io/v1alpha1",
   "archiveBuilt": true,
-  "archiveBytes": 2306048512,
-  "archiveSha256": "sha256:7b6df110a4c661c5f03ac05499dd1ec15cd2e1956dfa4c50e128d107b0fb7fbe",
+  "archiveBytes": 2307195904,
+  "archiveSha256": "sha256:33122daf7b73bd6c9929dc5aa0a6d1ea8066f3a3b6486d0a753f0bf09a3f06dc",
   "assemblyAuthority": "MANAGEMENT_WORKLOAD_OCI_ASSEMBLY_AUTHORITY_V1",
   "authority": "MANAGEMENT_WORKLOAD_OCI_ARCHIVE_RECEIPT_V1",
   "blobCount": 238,
@@ -21,10 +21,10 @@
     "ghcr.io/cloudnative-pg/cloudnative-pg@sha256:091d306935cfdf646debfe78010d59ebfb572150eb6eb922b0203873c0c68841",
     "ghcr.io/dexidp/dex@sha256:8a9281c3a115180415b0726ca160e38fc40f9284bc9a2d1032c839a3a934695c",
     "ghcr.io/project-zot/zot-linux-amd64@sha256:95a837a0afacf5b7edc0c92493f04beee6891989b8d2fd50a00cf65a1e6d4fd5",
-    "platform.4so.local/management/maintenance@sha256:3504e958aed09a7012e4ee25aefb28b5b35d39af40800e5198d7ca2a279426a0",
-    "platform.4so.local/management/platform-agent@sha256:ed40ce7ece544b2407169e06dd1a8476008f38d3ba1306ed4d4e26c35ab50586",
-    "platform.4so.local/management/platform-api@sha256:af3ff4e8f58cc4e14967a5fdae227b85080703d5a0bd55e45690df53bc6ee3ae",
-    "platform.4so.local/management/platform-probe@sha256:c43c21ee069d2287eb99751d44725e7cd3b9d24eb48dbaddffc409e43c480412",
+    "platform.4so.local/management/maintenance@sha256:5dd0296f9755b83db90326848b9650a45a8a588db1eae97422b17da6fd4ba902",
+    "platform.4so.local/management/platform-agent@sha256:31dfd9e603e2cb86e10dba81f7089e4fb29c4f3cd0fbb4286104225477efa916",
+    "platform.4so.local/management/platform-api@sha256:3e624372de86529ab21b454465fc249b8a4ab89caedffe89d5abc33487f9c1b5",
+    "platform.4so.local/management/platform-probe@sha256:9425b0eaecbf756891e43d6309cf2ce6c3e8030a9cc336411a1355c96ef2cb39",
     "public.ecr.aws/docker/library/haproxy@sha256:3ad414bdb5c94d712e0e9a7dc1517eca45cce652afc85a002fd7bb42b44d5dde",
     "public.ecr.aws/docker/library/redis@sha256:e499175dfb27569cd40010c2eee346113db95fdd0efc88ab9fd70a9e807f4542",
     "quay.io/argoproj/argocd@sha256:521d6b62ecd0434c9cc6e9242a74f0e1137bb8fc0026b2c483ea88f3f17e725d",
@@ -37,15 +37,15 @@
   "releaseVersion": "0.0.363",
   "runtimeCertified": false,
   "schemaVersion": 1,
-  "sourceCommitSHA": "005b8e11013c28cb36e86259f40418c074476074",
+  "sourceCommitSHA": "7786df663a5d70a8485936a60398de788c309d05",
   "sourceEvidence": {
     "externalReceiptSha256": "sha256:e6f8fffd9d2f95711818a8c7399820a9fb1788aca9c3aa7b5aa1325b7231cb17",
     "externalSourceRunId": "36115673607",
     "manifestReceiptSha256": "sha256:9264886ac916f6c3878023bf7618983cc41d1921807a8129a3be28fd0e0050b2",
     "manifestSourceRunId": "36221167418",
-    "productReceiptSha256": "sha256:8ab2c9a60a65aa5236ce792a9576b4bc1577f4e06d1a1b2442ffc13dfd360dce",
-    "productSourceCommitSHA": "a75c28de4e4bf4c80abaab298985365025bd72e6",
-    "productSourceRunId": "36220252667"
+    "productReceiptSha256": "sha256:2cd69b70ee3393ea1f49cf97a1225d907a1586ba67ec6c6c685de5701cf0a32b",
+    "productSourceCommitSHA": "d2a703b56e3539867cf23301db5587e7f1717909",
+    "productSourceRunId": "36438637724"
   },
-  "sourceRunId": "36253833953"
+  "sourceRunId": "36438998333"
 }
