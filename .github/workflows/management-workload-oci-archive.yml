@@ -144,7 +144,12 @@ jobs:
           ' _ < /tmp/nonproduct-refs.txt
           df -h /
           free_bytes="$(df -PB1 /tmp | awk 'NR==2 {print $4}')"
-          test "$free_bytes" -ge 5368709120 || { echo "FINAL_OCI_RUNNER_SPACE_INSUFFICIENT bytes=$free_bytes" >&2; exit 33; }
+          prior_archive_bytes="$(jq -r '.archiveBytes // 0' lab/management-workload-oci-archive-receipt.json)"
+          [[ "$prior_archive_bytes" =~ ^[0-9]+$ ]] && test "$prior_archive_bytes" -gt 1073741824
+          safety_bytes=2147483648
+          required_bytes=$((prior_archive_bytes + safety_bytes))
+          echo "FINAL_OCI_RUNNER_SPACE_CHECK free=$free_bytes required=$required_bytes priorArchive=$prior_archive_bytes safety=$safety_bytes"
+          test "$free_bytes" -ge "$required_bytes" || { echo "FINAL_OCI_RUNNER_SPACE_INSUFFICIENT free=$free_bytes required=$required_bytes priorArchive=$prior_archive_bytes" >&2; exit 33; }
 
       - name: Assemble exact twenty-image management workload archive
         shell: bash

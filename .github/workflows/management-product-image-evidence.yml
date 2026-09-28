@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 90
     env:
-      S1_CONVERGENCE_GENERATION: "derived-handoff-v3"
+      S1_CONVERGENCE_GENERATION: "evidence-derived-space-v4"
       GOTOOLCHAIN: local
       EXACT_GO: /tmp/4so-exact-go/go/bin/go
     steps:
