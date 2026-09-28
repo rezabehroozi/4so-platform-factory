@@ -185,6 +185,10 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if roadmap.CurrentExecutionWave != "W2-core-evidence-parallel" || len(roadmap.ExecutionWaves) != 6 {
 		t.Fatalf("execution-wave authority drift: current=%q waves=%#v", roadmap.CurrentExecutionWave, roadmap.ExecutionWaves)
 	}
+	w2 := roadmap.ExecutionWaves[2]
+	if w2.ID != "W2-core-evidence-parallel" || w2.MaxParallel != 2 || len(w2.PhaseIDs) != 2 || !containsString(w2.PhaseIDs, roadmap.CurrentPhase) || !containsString(w2.PhaseIDs, "C7W-mcp-user-admin-write-parity") || containsString(w2.PhaseIDs, "H1-baremetal-connected-managed-okd") || containsString(w2.PhaseIDs, "I1-disconnected-okd-core") {
+		t.Fatalf("W2 must target only remaining external pre-freeze closure: %#v", w2)
+	}
 	for _, id := range []string{"A-architecture-authority-rebaseline", "B-target-capability-supplychain-foundation", "C1-operator-ia-scope-authority", "C2-console-data-scale-refresh-semantics", "C3-console-action-workflow-evidence-convergence", "C4-console-e2e-ux-certification", "E-certified-platform-template-workspace-foundation", "C5-installer-production-lifecycle-closure", "C6-multi-agent-test-autopilot", "C7-ai-mcp-delegated-operations", "C8-console-operational-completion", "F-okd-import-capability-certification", "R0-release-authority-certification-rebaseline", "G1-operational-runtime-hardening", "G2-generalized-day2-campaign-engine", "G3-target-node-maintenance-lifecycle"} {
 		phase, ok := byID[id]
 		if !ok || phase.Status != ProgramStatusSourceImplemented || phase.DeliveryTier != ProgramTierCoreFreeze || !phase.RequiredForFeatureFreeze || len(phase.Blockers) != 0 {
