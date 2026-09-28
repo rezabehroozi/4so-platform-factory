@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+try:
+    import distribution_transport as transport
+except ModuleNotFoundError:
+    from scripts import distribution_transport as transport
 import argparse
 import ast
 import hashlib
@@ -1486,19 +1490,32 @@ def validate_lab_bundle_acquisition_lock(root: Path, errors: list[tuple[str,str]
                 errors.append(('LAB_BUNDLE_ACQUISITION_MISSING_INVALID', str(missing)))
 
             def check_locked_artifact(artifact, label):
-                if not isinstance(artifact,dict) or set(artifact) != {'name','stagingPath','urls','sha256','sizeBytes'}:
+                base={'name','stagingPath','sha256','sizeBytes'}
+                valid_fields=(base|{'urls'},base|{'parts'})
+                if not isinstance(artifact,dict) or not any(set(artifact)==fields for fields in valid_fields):
                     errors.append(('LAB_BUNDLE_ACQUISITION_ARTIFACT_FIELDS_INVALID', label)); return
-                name=artifact.get('name'); staging_path=artifact.get('stagingPath'); urls=artifact.get('urls'); digest=artifact.get('sha256'); size=artifact.get('sizeBytes')
+                name=artifact.get('name'); staging_path=artifact.get('stagingPath'); digest=artifact.get('sha256'); size=artifact.get('sizeBytes')
                 if not isinstance(name,str) or not name or '/' in name or '\\' in name:
                     errors.append(('LAB_BUNDLE_ACQUISITION_ARTIFACT_NAME_INVALID', f'{label}:{name}'))
                 if not isinstance(staging_path,str) or not staging_path or staging_path.startswith('/') or '\\' in staging_path or any(part in ('','.','..') for part in staging_path.split('/')):
                     errors.append(('LAB_BUNDLE_ACQUISITION_STAGING_PATH_INVALID', f'{label}:{staging_path}'))
-                if not isinstance(urls,list) or not (1 <= len(urls) <= 4) or len(set(urls)) != len(urls) or any(not public_https_source_url(u) for u in urls):
-                    errors.append(('LAB_BUNDLE_ACQUISITION_RESOLVED_URLS_INVALID', f'{label}:{urls}'))
                 if not isinstance(digest,str) or not re.fullmatch(r'[0-9a-f]{64}',digest):
                     errors.append(('LAB_BUNDLE_ACQUISITION_RESOLVED_DIGEST_INVALID', f'{label}:{digest}'))
                 if not isinstance(size,int) or isinstance(size,bool) or size <= 0 or size > 32*1024*1024*1024:
                     errors.append(('LAB_BUNDLE_ACQUISITION_RESOLVED_SIZE_INVALID', f'{label}:{size}'))
+                    return
+                if 'urls' in artifact:
+                    urls=artifact.get('urls')
+                    if not isinstance(urls,list) or not (1 <= len(urls) <= 4) or len(set(urls)) != len(urls) or any(not public_https_source_url(u) for u in urls):
+                        errors.append(('LAB_BUNDLE_ACQUISITION_RESOLVED_URLS_INVALID', f'{label}:{urls}'))
+                else:
+                    try:
+                        rows=transport.validate_parts(artifact.get('parts'),size,label)
+                        if any(not public_https_source_url(url) for row in rows for url in row['urls']):
+                            errors.append(('LAB_BUNDLE_ACQUISITION_RESOLVED_URLS_INVALID',label))
+                    except RuntimeError as exc:
+                        errors.append(('LAB_BUNDLE_ACQUISITION_MULTIPART_INVALID',f'{label}:{exc}'))
+
 
             all_staging_paths=[]
 
@@ -1608,14 +1625,29 @@ def validate_lab_bundle_acquisition_lock(root: Path, errors: list[tuple[str,str]
                 if partial_ids or missing or len(resolved_ids)!=len(required_source_authorities) or not isinstance(pack, dict):
                     errors.append(('LAB_BUNDLE_ACQUISITION_READY_TRUTH_INVALID', 'ready requires every source authority fully resolved, no partial/missing, and inputPack'))
                 else:
-                    urls = pack.get('urls')
-                    if not isinstance(urls, list) or not urls or len(urls) > 4 or any(not public_https_source_url(url) for url in urls):
-                        errors.append(('LAB_BUNDLE_ACQUISITION_URLS_INVALID', str(urls)))
                     if not re.fullmatch(r'[0-9a-f]{64}', str(pack.get('sha256') or '')):
                         errors.append(('LAB_BUNDLE_ACQUISITION_DIGEST_INVALID', str(pack.get('sha256'))))
                     size = pack.get('sizeBytes')
                     if not isinstance(size, int) or size <= 0 or size > 32*1024*1024*1024:
                         errors.append(('LAB_BUNDLE_ACQUISITION_SIZE_INVALID', str(size)))
+                    else:
+                        valid_pack_fields=(
+                            {'urls','sha256','sizeBytes','format','buildSpecPath','stagingDirectory'},
+                            {'parts','sha256','sizeBytes','format','buildSpecPath','stagingDirectory'},
+                        )
+                        if not any(set(pack)==fields for fields in valid_pack_fields):
+                            errors.append(('LAB_BUNDLE_ACQUISITION_TRANSPORT_FIELDS_INVALID',str(sorted(pack))))
+                        elif 'urls' in pack:
+                            urls=pack.get('urls')
+                            if not isinstance(urls,list) or not urls or len(urls)>4 or len(set(urls))!=len(urls) or any(not public_https_source_url(url) for url in urls):
+                                errors.append(('LAB_BUNDLE_ACQUISITION_URLS_INVALID',str(urls)))
+                        else:
+                            try:
+                                rows=transport.validate_parts(pack.get('parts'),size,'inputPack')
+                                if any(not public_https_source_url(url) for row in rows for url in row['urls']):
+                                    errors.append(('LAB_BUNDLE_ACQUISITION_URLS_INVALID','inputPack.parts'))
+                            except RuntimeError as exc:
+                                errors.append(('LAB_BUNDLE_ACQUISITION_MULTIPART_INVALID',str(exc)))
                     if pack.get('format') != 'zip':
                         errors.append(('LAB_BUNDLE_ACQUISITION_FORMAT_INVALID', str(pack.get('format'))))
                     for key in ('buildSpecPath','stagingDirectory'):
