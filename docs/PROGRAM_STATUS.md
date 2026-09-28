@@ -499,3 +499,14 @@ Refresh `origin/main` first and trust the newer HEAD if main advanced. Read this
 - S1 therefore no longer claims that archive assembly is pending. The remaining S1 blocker is `APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING`: immutable public HTTPS distribution authority for the exact archive/input-pack must be sealed before `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8` may become `ready`.
 - `scripts/seal_appliance_bundle_distribution.py` must verify the canonical input-pack receipt against the exact ZIP bytes before promoting the acquisition lock. GitHub Actions artifacts are retained build evidence only and are not substituted for immutable distribution authority.
 - This rebaseline does not claim Generated/Installed Runtime PASS or Exact-SHA Physical Runtime PASS.
+
+
+## 2026-09-28 — S1 immutable distribution closure
+
+- GitHub Actions run `36455627691` completed **SUCCESS** for `appliance-multipart-distribution`.
+- Public unauthenticated readback reconstructed and verified the exact management OCI archive and deterministic appliance input-pack from content-addressed multipart release assets.
+- Canonical `LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8` is now `status=ready`, with `missingAuthorities=[]` and `partialAuthorities=[]`.
+- The deterministic input-pack is 3,179,097,107 bytes with SHA-256 `sha256:33fa8a9ae6ce94f2f517a500858c2dc910b3c382cbdb0ab88ea41f2e56a63fc6`.
+- The canonical management workload OCI archive distribution is 2,307,195,904 bytes with SHA-256 `sha256:33122daf7b73bd6c9929dc5aa0a6d1ea8066f3a3b6486d0a753f0bf09a3f06dc`.
+- S1 is therefore source/closure ready. No Runtime or Physical PASS is inferred from distribution closure.
+- Mandatory pre-freeze external closure is now narrowed to `MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING`; C9 remains independently blocked on `FINAL_EXACT_RELEASE_SEAL_PENDING` until that named-client evidence exists.

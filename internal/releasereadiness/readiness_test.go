@@ -110,8 +110,11 @@ func TestBuildCannotReportProductReadyWhileMandatoryRoadmapIsBlocked(t *testing.
 	if report.ProductBlockerCodes["OKD_CONNECTED_MANAGED_INSTALL_PENDING"] != 0 {
 		t.Fatalf("connected managed OKD physical execution leaked into pre-freeze blocker authority: %#v", report.ProductBlockerCodes)
 	}
-	if report.ProductBlockerCodes["APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING"] == 0 || report.ProductBlockerCodes["MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING"] == 0 {
-		t.Fatalf("current pre-freeze external blockers are absent from product blocker authority: %#v", report.ProductBlockerCodes)
+	if report.ProductBlockerCodes["APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING"] != 0 {
+		t.Fatalf("closed S1 distribution blocker remained in product blocker authority: %#v", report.ProductBlockerCodes)
+	}
+	if report.ProductBlockerCodes["MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING"] == 0 {
+		t.Fatalf("current C7W external blocker is absent from product blocker authority: %#v", report.ProductBlockerCodes)
 	}
 	if report.ProductBlockerCodes["TARGET_DATA_PROTECTION_WORKFLOW_PENDING"] != 0 {
 		t.Fatalf("closed G4 blocker remained in product blocker authority: %#v", report.ProductBlockerCodes)

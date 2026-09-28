@@ -153,18 +153,18 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("phase count=%d", len(roadmap.Phases))
 	}
 	progress := roadmap.Progress
-	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 22 || progress.CorePhaseBlocked != 3 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 88 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
+	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 23 || progress.CorePhaseBlocked != 2 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 92 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
 		t.Fatalf("program progress truth drift: %#v", progress)
 	}
 	if progress.PrePhysicalSoftwarePhases != 36 || progress.PrePhysicalSoftwareClosedPhases != 36 || progress.PrePhysicalSoftwareOpenPhases != 0 || progress.PrePhysicalSoftwareClosurePercent != 100 || len(progress.SourceOpenPhaseIDs) != 0 {
 		t.Fatalf("pre-physical software progress truth drift: %#v", progress)
 	}
-	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "C9-pre-certification-feature-freeze-exact-bundle"} {
+	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "C9-pre-certification-feature-freeze-exact-bundle"} {
 		if !containsString(progress.ExternalClosureOnlyPhaseIDs, id) {
 			t.Fatalf("external-only closure phase missing %s: %#v", id, progress.ExternalClosureOnlyPhaseIDs)
 		}
 	}
-	if progress.RemainingBlockerClasses["source-software-closure"] != 0 || progress.RemainingBlockerClasses["external-distribution-evidence"] < 1 || progress.RemainingBlockerClasses["physical-runtime-evidence"] != 0 || progress.RemainingBlockerClasses["external-client-evidence"] < 1 || progress.RemainingBlockerClasses["runtime-certification-evidence"] != 0 {
+	if progress.RemainingBlockerClasses["source-software-closure"] != 0 || progress.RemainingBlockerClasses["external-distribution-evidence"] != 0 || progress.RemainingBlockerClasses["physical-runtime-evidence"] != 0 || progress.RemainingBlockerClasses["external-client-evidence"] < 1 || progress.RemainingBlockerClasses["runtime-certification-evidence"] != 0 {
 		t.Fatalf("remaining blocker classification drift: %#v", progress.RemainingBlockerClasses)
 	}
 	if len(roadmap.Tracks) != 17 || len(roadmap.GlobalGuardrails) < 8 || len(roadmap.CertificationRegistry) < 10 {
@@ -202,11 +202,8 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	s1 := byID[roadmap.CurrentPhase]
-	if s1.Status != ProgramStatusBlocked || !s1.RequiredForFeatureFreeze || !containsString(s1.ParallelWith, "C7W-mcp-user-admin-write-parity") || !containsString(s1.ParallelWith, "G4-data-protection-productization") || !containsString(s1.ParallelWith, "G5-enterprise-identity-compliance") || containsString(s1.ParallelWith, "H2-vmware-provider") || containsString(s1.ParallelWith, "J1-automation-external-integrations") {
+	if s1.Status != ProgramStatusSourceImplemented || s1.ClosureStatus != ProgramClosureStatusReady || len(s1.Blockers) != 0 || !s1.RequiredForFeatureFreeze || !containsString(s1.ParallelWith, "C7W-mcp-user-admin-write-parity") || !containsString(s1.ParallelWith, "G4-data-protection-productization") || !containsString(s1.ParallelWith, "G5-enterprise-identity-compliance") || containsString(s1.ParallelWith, "H2-vmware-provider") || containsString(s1.ParallelWith, "J1-automation-external-integrations") {
 		t.Fatalf("supply-chain phase is not an immediate parallel critical path: %#v", s1)
-	}
-	if len(s1.Blockers) != 1 || !containsString(s1.Blockers, "APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING") {
-		t.Fatalf("supply-chain blocker truth drift: %#v", s1)
 	}
 	for _, evidence := range []string{"LAB_APPLIANCE_INPUT_PACK_BUILD_V1", "scripts/build_appliance_input_pack.py", "lab/appliance-input-pack-receipt.json", "scripts/seal_appliance_bundle_distribution.py", ".github/workflows/appliance-distribution-seal.yml"} {
 		if !containsString(s1.Evidence, evidence) {
@@ -351,13 +348,16 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("final chaos/soak phase authority drift: %#v", phaseM)
 	}
 	blockers := FeatureFreezeBlockerCounts(roadmap)
-	for _, code := range []string{"MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING", "APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING"} {
+	for _, code := range []string{"MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING"} {
 		if blockers[code] == 0 {
 			t.Fatalf("mandatory feature-freeze blocker %q missing: %#v", code, blockers)
 		}
 	}
 	if blockers["PRE_CERTIFICATION_REQUIRED_FEATURES_OPEN"] != 0 || blockers["LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING"] != 0 {
 		t.Fatalf("retired C9 aggregate blockers must not remain: %#v", blockers)
+	}
+	if blockers["APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING"] != 0 {
+		t.Fatalf("closed S1 distribution blocker remained in feature-freeze authority: %#v", blockers)
 	}
 	if blockers["FINAL_EXACT_RELEASE_SEAL_PENDING"] != 1 {
 		t.Fatalf("C9 must expose exactly one independent final exact-release seal blocker: %#v", blockers)

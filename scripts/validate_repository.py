@@ -1887,7 +1887,6 @@ def validate_source_runtime_surfaces(root: Path, version: str, current_program_a
             'SERVICE_HEALTH_AUTHORITY_V1',
             'INCIDENT_AUTHORITY_V1',
             'SLO_ERROR_BUDGET_AUTHORITY_V1',
-            'APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING',
             'MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING',
             'OKD_CONNECTED_MANAGED_INSTALL_PENDING',
             'OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING',
