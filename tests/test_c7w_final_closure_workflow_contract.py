@@ -9,6 +9,26 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
     def read(self, rel):
         return (ROOT / rel).read_text(encoding="utf-8")
 
+    def test_external_workflows_accept_captures_and_finalize_receipts_server_side(self):
+        incremental = self.read(".github/workflows/mcp-external-receipt-admission.yml")
+        self.assertIn("capture_b64:", incremental)
+        self.assertNotIn("receipt_b64:", incremental)
+        self.assertIn("finalize_mcp_external_client_receipt.py", incremental)
+        self.assertIn(".capture.json", incremental)
+        bulk = self.read(".github/workflows/mcp-external-interop-seal.yml")
+        for client in ("chatgpt", "claude", "gemini", "grok"):
+            self.assertIn(f"{client}_capture_b64:", bulk)
+            self.assertNotIn(f"{client}_receipt_b64:", bulk)
+        self.assertIn("finalize_mcp_external_client_receipt.py", bulk)
+
+    def test_recovery_rebuilds_receipt_from_preserved_capture_before_merge(self):
+        text = self.read(".github/workflows/mcp-external-receipt-recovery.yml")
+        self.assertIn("$CLIENT.capture.json", text)
+        self.assertIn("$CLIENT.packet.json", text)
+        self.assertIn("$CLIENT.rebuilt.json", text)
+        self.assertIn("finalize_mcp_external_client_receipt.py", text)
+        self.assertIn('cmp "/tmp/mcp-external/$CLIENT.rebuilt.json" "/tmp/mcp-external/$CLIENT.json"', text)
+
     def test_incremental_receipt_admission_uses_exact_audit_ids_and_replays_with_audit(self):
         text = self.read(".github/workflows/mcp-external-receipt-admission.yml")
         self.assertNotIn("security-audit-events?limit=1000", text)
