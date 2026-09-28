@@ -67,6 +67,7 @@ func mcpRequestForTest(method, name, body string) *http.Request {
 	r.Header.Set("Content-Type", "application/json")
 	r.Header.Set("Accept", "application/json, text/event-stream")
 	r.Header.Set("MCP-Protocol-Version", mcpProtocolVersion)
+	r.Header.Set("X-Request-ID", "mcp-test-request")
 	r.Header.Set("Mcp-Method", method)
 	if name != "" {
 		r.Header.Set("Mcp-Name", name)
@@ -248,8 +249,8 @@ func TestMCP20260728RequiresMetadataAndCompleteResults(t *testing.T) {
 
 	w = httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, mcpRequestForTest("tools/list", "", `{"jsonrpc":"2.0","id":12,"method":"tools/list"}`))
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"resultType":"complete"`) || !strings.Contains(w.Body.String(), "io.modelcontextprotocol/serverInfo") {
-		t.Fatalf("2026-07-28 complete result metadata missing: status=%d body=%s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"resultType":"complete"`) || !strings.Contains(w.Body.String(), "io.modelcontextprotocol/serverInfo") || !strings.Contains(w.Body.String(), `"io.4so/requestId":"mcp-test-request"`) || w.Header().Get("X-Request-ID") != "mcp-test-request" {
+		t.Fatalf("2026-07-28 complete result/request witness metadata missing: status=%d header=%q body=%s", w.Code, w.Header().Get("X-Request-ID"), w.Body.String())
 	}
 }
 
