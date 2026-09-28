@@ -55,6 +55,4 @@ jobs:
             --input catalog/runtime/ceph-csi-operator/1.0.4/artifact.bin \
             --output catalog/runtime/argocd/10.2.3/render-admission.json \
             --output catalog/runtime/external-secrets/2.8.0/render-admission.json \
-            --output catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json \
-            --output \
-            --output
+            --output catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json
