@@ -1,0 +1,64 @@
+{
+  "allImagesDigestPinned": true,
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "authority": "CEPH_CSI_DRIVER_IMAGE_SET_V1",
+  "cephCSIOperatorRelease": "1.0.4",
+  "craneVersion": "0.22.1",
+  "images": [
+    {
+      "digest": "sha256:69092d026323307933fba2bed9c57d864f2a92cfd385d644b478442ded0d2886",
+      "exactReference": "quay.io/csiaddons/k8s-sidecar@sha256:69092d026323307933fba2bed9c57d864f2a92cfd385d644b478442ded0d2886",
+      "key": "addons",
+      "sourceReference": "quay.io/csiaddons/k8s-sidecar:v0.14.0"
+    },
+    {
+      "digest": "sha256:b9dc9a714a484ccdeeb6f86d88d4db9b7a5ecfc5a55da6db3a60bb3fa33c278a",
+      "exactReference": "registry.k8s.io/sig-storage/csi-attacher@sha256:b9dc9a714a484ccdeeb6f86d88d4db9b7a5ecfc5a55da6db3a60bb3fa33c278a",
+      "key": "attacher",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-attacher:v4.12.0"
+    },
+    {
+      "digest": "sha256:886e6d2416d62dd7c8fbe659b6306b6c9451d6918e35ad5d1ac774520e11ef87",
+      "exactReference": "quay.io/cephcsi/cephcsi@sha256:886e6d2416d62dd7c8fbe659b6306b6c9451d6918e35ad5d1ac774520e11ef87",
+      "key": "plugin",
+      "sourceReference": "quay.io/cephcsi/cephcsi:v3.17.0"
+    },
+    {
+      "digest": "sha256:6be9f63ca4caa6c46aae55aa372500949d8a21473d72f819da1f746076b32d4e",
+      "exactReference": "registry.k8s.io/sig-storage/csi-provisioner@sha256:6be9f63ca4caa6c46aae55aa372500949d8a21473d72f819da1f746076b32d4e",
+      "key": "provisioner",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-provisioner:v6.2.0"
+    },
+    {
+      "digest": "sha256:f9de845b170155199f2a2a3f9531cf13d78e31235e9db6b6582a8b0db0a50dad",
+      "exactReference": "registry.k8s.io/sig-storage/csi-node-driver-registrar@sha256:f9de845b170155199f2a2a3f9531cf13d78e31235e9db6b6582a8b0db0a50dad",
+      "key": "registrar",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0"
+    },
+    {
+      "digest": "sha256:589e525cddef6d768e68da1f0bc9ffd0a24bf3add3dd010648eb7189976fde79",
+      "exactReference": "registry.k8s.io/sig-storage/csi-resizer@sha256:589e525cddef6d768e68da1f0bc9ffd0a24bf3add3dd010648eb7189976fde79",
+      "key": "resizer",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-resizer:v2.1.0"
+    },
+    {
+      "digest": "sha256:fc77ca4e7f0e8a0d1b1894a32aef9c254a9998cdfb3ec46469004a4970c22dc7",
+      "exactReference": "registry.k8s.io/sig-storage/csi-snapshot-metadata@sha256:fc77ca4e7f0e8a0d1b1894a32aef9c254a9998cdfb3ec46469004a4970c22dc7",
+      "key": "snapshot-metadata",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-snapshot-metadata:v1.0.0"
+    },
+    {
+      "digest": "sha256:da081c27e8a6d91f36042c1942362d0515ced8d06e18c11b8f893e58c4d6d797",
+      "exactReference": "registry.k8s.io/sig-storage/csi-snapshotter@sha256:da081c27e8a6d91f36042c1942362d0515ced8d06e18c11b8f893e58c4d6d797",
+      "key": "snapshotter",
+      "sourceReference": "registry.k8s.io/sig-storage/csi-snapshotter:v8.5.0"
+    }
+  ],
+  "inputAuthority": "CEPH_CSI_DRIVER_IMAGE_SET_INPUT_V1",
+  "inputSha256": "sha256:1b3e5fb55c8eff7fe3b5bf255985cfc8fd7d93420d0facdbbcde5b231bc4e1c9",
+  "kind": "CephCSIDriverImageSetEvidence",
+  "physicalCertified": false,
+  "runtimeCertified": false,
+  "schemaVersion": 1,
+  "upstreamCommitSHA": "29a66b683aa8873001c729b7b120e18604cdb445"
+}
