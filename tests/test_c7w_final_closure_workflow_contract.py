@@ -38,6 +38,18 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
         self.assertIn('test "$code" = "401"', text)
         self.assertIn("MCP-Protocol-Version: 2026-07-28", text)
 
+    def test_incremental_admission_preserves_verified_packet_before_git_push(self):
+        text = self.read(".github/workflows/mcp-external-receipt-admission.yml")
+        self.assertIn("Preserve verified admission packet before Git persistence", text)
+        self.assertIn("actions/upload-artifact@v4", text)
+        self.assertIn("/tmp/mcp-external/campaign.json", text)
+        self.assertIn("/tmp/mcp-external/${{ inputs.client }}.json", text)
+        self.assertIn("/tmp/mcp-external/security-audit.json", text)
+        self.assertLess(
+            text.index("Preserve verified admission packet before Git persistence"),
+            text.index("Reconcile onto latest main and persist progress"),
+        )
+
     def test_bulk_seal_reuses_campaign_artifact_and_retries_audit_visibility(self):
         text = self.read(".github/workflows/mcp-external-interop-seal.yml")
         self.assertIn("campaign_run_id:", text)

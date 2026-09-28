@@ -110,6 +110,17 @@ jobs:
           fi
           python3 -m unittest tests.test_mcp_external_interop_seal tests.test_mcp_external_receipt_progress
           git diff --check
+      - name: Preserve verified admission packet before Git persistence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-external-receipt-${{ inputs.client }}-${{ github.run_id }}
+          path: |
+            /tmp/mcp-external/campaign.json
+            /tmp/mcp-external/${{ inputs.client }}.json
+            /tmp/mcp-external/security-audit.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Reconcile onto latest main and persist progress
         shell: bash
         env:
