@@ -3,46 +3,70 @@
   "derivedAuthorities": [
     "digest-pinned-core-workload-images"
   ],
-  "inputPack": null,
+  "inputPack": {
+    "buildSpecPath": "build-spec.json",
+    "format": "zip",
+    "parts": [
+      {
+        "index": 0,
+        "sha256": "660137e664cce4f3862c134247fc919bbcd555b352b1c22632526d9f6be1c2c1",
+        "sizeBytes": 1610612736,
+        "urls": [
+          "https://github.com/rezabehroozi/4so-platform-factory/releases/download/appliance-dist-v0.0.363-33fa8a9ae6ce94f2/appliance-input-pack.zip.part0000.sha256-660137e664cce4f3862c134247fc919bbcd555b352b1c22632526d9f6be1c2c1"
+        ]
+      },
+      {
+        "index": 1,
+        "sha256": "4fce56f5c40e636a29fb0cbdc6c41d22059eeba64517e374c9ed339bc470f40f",
+        "sizeBytes": 1568484371,
+        "urls": [
+          "https://github.com/rezabehroozi/4so-platform-factory/releases/download/appliance-dist-v0.0.363-33fa8a9ae6ce94f2/appliance-input-pack.zip.part0001.sha256-4fce56f5c40e636a29fb0cbdc6c41d22059eeba64517e374c9ed339bc470f40f"
+        ]
+      }
+    ],
+    "sha256": "33fa8a9ae6ce94f2f517a500858c2dc910b3c382cbdb0ab88ea41f2e56a63fc6",
+    "sizeBytes": 3179097107,
+    "stagingDirectory": "staging"
+  },
   "missingAuthorities": [],
-  "partialAuthorities": [
-    {
-      "id": "management-workload-oci-archive",
-      "kind": "oci-archive",
-      "provider": "4so",
-      "version": "0.0.363",
-      "scope": "management-plane-workload-images-offline-distribution",
-      "artifacts": [],
-      "pendingArtifacts": [
-        {
-          "name": "platform-workloads.oci.tar",
-          "stagingPath": "workloads/platform-workloads.oci.tar",
-          "reason": "Exact 20-image OCI archive and deterministic appliance input-pack are built and digest-bound; archiveBuilt must not imply distributionReady; only immutable public HTTPS distribution authority remains before LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8 can become ready.",
-          "sourceRef": "https://github.com/rezabehroozi/4so-platform-factory/actions/runs/36253833953",
-          "contentAddress": "git-sha1:005b8e11013c28cb36e86259f40418c074476074"
-        }
-      ]
-    }
-  ],
+  "partialAuthorities": [],
   "releaseVersion": "0.0.363",
   "resolvedAuthorities": [
     {
       "artifacts": [
         {
-          "name": "longhorn.yaml",
-          "sha256": "41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd",
-          "sizeBytes": 207054,
-          "stagingPath": "manifests/replicated-storage-install.yaml",
+          "name": "ha-install.yaml",
+          "sha256": "65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6",
+          "sizeBytes": 1969264,
+          "stagingPath": "manifests/argocd-ha-install.yaml",
           "urls": [
-            "https://github.com/longhorn/longhorn/releases/download/v1.12.1/longhorn.yaml"
+            "https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/ha/install.yaml"
           ]
         }
       ],
-      "id": "replicated-storage-install-manifest",
+      "id": "argocd-ha-install-manifest",
       "kind": "kubernetes-manifest",
-      "provider": "longhorn",
-      "scope": "management-plane-rke2-production-ha-only",
-      "version": "v1.12.1"
+      "provider": "argocd",
+      "scope": "management-plane-gitops-reconciler-production-ha",
+      "version": "v3.5.0"
+    },
+    {
+      "artifacts": [
+        {
+          "name": "install.yaml",
+          "sha256": "a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe",
+          "sizeBytes": 1917766,
+          "stagingPath": "manifests/argocd-install.yaml",
+          "urls": [
+            "https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/install.yaml"
+          ]
+        }
+      ],
+      "id": "argocd-install-manifest",
+      "kind": "kubernetes-manifest",
+      "provider": "argocd",
+      "scope": "management-plane-gitops-reconciler",
+      "version": "v3.5.0"
     },
     {
       "artifacts": [
@@ -61,6 +85,57 @@
       "provider": "cloudnative-pg",
       "scope": "management-plane-postgresql-operator",
       "version": "v1.30.0"
+    },
+    {
+      "artifacts": [
+        {
+          "name": "platform-workloads.oci.tar",
+          "parts": [
+            {
+              "index": 0,
+              "sha256": "959f5cbf38636318b67c8521ded10861061df92b98537281bb6b8662e3526b87",
+              "sizeBytes": 1610612736,
+              "urls": [
+                "https://github.com/rezabehroozi/4so-platform-factory/releases/download/appliance-dist-v0.0.363-33fa8a9ae6ce94f2/platform-workloads.oci.tar.part0000.sha256-959f5cbf38636318b67c8521ded10861061df92b98537281bb6b8662e3526b87"
+              ]
+            },
+            {
+              "index": 1,
+              "sha256": "c498f77776573f1fd9887ad2f017a2cffaea716b304ad1d3481361f3dc48696f",
+              "sizeBytes": 696583168,
+              "urls": [
+                "https://github.com/rezabehroozi/4so-platform-factory/releases/download/appliance-dist-v0.0.363-33fa8a9ae6ce94f2/platform-workloads.oci.tar.part0001.sha256-c498f77776573f1fd9887ad2f017a2cffaea716b304ad1d3481361f3dc48696f"
+              ]
+            }
+          ],
+          "sha256": "33122daf7b73bd6c9929dc5aa0a6d1ea8066f3a3b6486d0a753f0bf09a3f06dc",
+          "sizeBytes": 2307195904,
+          "stagingPath": "workloads/platform-workloads.oci.tar"
+        }
+      ],
+      "id": "management-workload-oci-archive",
+      "kind": "oci-archive",
+      "provider": "4so",
+      "scope": "management-plane-workload-images-offline-distribution",
+      "version": "0.0.363"
+    },
+    {
+      "artifacts": [
+        {
+          "name": "longhorn.yaml",
+          "sha256": "41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd",
+          "sizeBytes": 207054,
+          "stagingPath": "manifests/replicated-storage-install.yaml",
+          "urls": [
+            "https://github.com/longhorn/longhorn/releases/download/v1.12.1/longhorn.yaml"
+          ]
+        }
+      ],
+      "id": "replicated-storage-install-manifest",
+      "kind": "kubernetes-manifest",
+      "provider": "longhorn",
+      "scope": "management-plane-rke2-production-ha-only",
+      "version": "v1.12.1"
     },
     {
       "artifacts": [
@@ -106,44 +181,8 @@
       "provider": "rke2",
       "scope": "management-plane-rke2-production-ha-only",
       "version": "v1.34.10+rke2r1"
-    },
-    {
-      "artifacts": [
-        {
-          "name": "install.yaml",
-          "sha256": "a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe",
-          "sizeBytes": 1917766,
-          "stagingPath": "manifests/argocd-install.yaml",
-          "urls": [
-            "https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/install.yaml"
-          ]
-        }
-      ],
-      "id": "argocd-install-manifest",
-      "kind": "kubernetes-manifest",
-      "provider": "argocd",
-      "scope": "management-plane-gitops-reconciler",
-      "version": "v3.5.0"
-    },
-    {
-      "artifacts": [
-        {
-          "name": "ha-install.yaml",
-          "sha256": "65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6",
-          "sizeBytes": 1969264,
-          "stagingPath": "manifests/argocd-ha-install.yaml",
-          "urls": [
-            "https://raw.githubusercontent.com/argoproj/argo-cd/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/manifests/ha/install.yaml"
-          ]
-        }
-      ],
-      "id": "argocd-ha-install-manifest",
-      "kind": "kubernetes-manifest",
-      "provider": "argocd",
-      "scope": "management-plane-gitops-reconciler-production-ha",
-      "version": "v3.5.0"
     }
   ],
   "schemaVersion": 8,
-  "status": "incomplete"
+  "status": "ready"
 }

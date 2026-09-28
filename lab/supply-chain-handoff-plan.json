@@ -738,10 +738,10 @@
     },
     "managementWorkloads": {
       "archiveAuthority": {
-        "acquisitionLockStatus": "incomplete",
+        "acquisitionLockStatus": "ready",
         "authority": "management-workload-oci-archive",
-        "resolved": false,
-        "status": "pending"
+        "resolved": true,
+        "status": "ready"
       },
       "archiveStagingPath": "workloads/platform-workloads.oci.tar",
       "externalImages": [
@@ -840,14 +840,14 @@
       },
       "inputPackReceipt": {
         "authority": "LAB_APPLIANCE_INPUT_PACK_BUILD_V1",
-        "status": "distribution-pending",
         "built": true,
         "deterministicZip": true,
+        "distributionReady": true,
+        "physicalCertified": false,
+        "runtimeCertified": false,
         "sha256": "sha256:33fa8a9ae6ce94f2f517a500858c2dc910b3c382cbdb0ab88ea41f2e56a63fc6",
         "sizeBytes": 3179097107,
-        "distributionReady": false,
-        "runtimeCertified": false,
-        "physicalCertified": false
+        "status": "distribution-ready"
       },
       "manifestImageResolution": [
         {
@@ -1010,9 +1010,7 @@
         "sourceRunId": "36438637724"
       }
     },
-    "openBlockers": [
-      "APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING"
-    ],
+    "openBlockers": [],
     "releaseToolchain": {
       "admissionStatus": "admitted",
       "archiveFile": "go1.27.1.linux-amd64.tar.gz",
