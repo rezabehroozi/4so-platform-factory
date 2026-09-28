@@ -257,7 +257,319 @@ jobs:
           mkdir -p /tmp/distribution/pack
           python3 scripts/prepare_appliance_distribution_parts.py --input "$pack" --out-dir /tmp/distribution/pack --name appliance-input-pack.zip --manifest /tmp/distribution/manifests/pack.json
           jq -e '.partCount>=2 and .sizeBytes>0' /tmp/distribution/manifests/pack.json
+          for asset in /tmp/distribution/pack/*; do
+            name="$(basename "$asset")"
+            size="$(stat -c %s "$asset")"
+            digest="sha256:$(sha256sum "$asset" | awk '{print $1}')"
+            existing="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$DIST_TAG" --jq '.assets[] | select(.name=="'"$name"'") | [.size,.digest] | @tsv' | head -1 || true)"
+            if test "$existing" = "$size"
+          echo "PACK_FILE=$pack" >> "$GITHUB_ENV"
+          df -h /
+
+      - name: Build public multipart authority manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          repo=os.environ["GITHUB_REPOSITORY"]; tag=os.environ["DIST_TAG"]
+          def convert(path):
+              d=json.loads(Path(path).read_text())
+              parts=[]
+              for row in d["parts"]:
+                  url=f"https://github.com/{repo}/releases/download/{tag}/{row['fileName']}"
+                  parts.append({"index":row["index"],"urls":[url],"sha256":row["sha256"],"sizeBytes":row["sizeBytes"]})
+              return {"sha256":"sha256:"+d["sha256"],"sizeBytes":d["sizeBytes"],"parts":parts}
+          out={"authority":"APPLIANCE_MULTIPART_DISTRIBUTION_AUTHORITY_V1","archive":convert("/tmp/distribution/manifests/archive.json"),"inputPack":convert("/tmp/distribution/manifests/pack.json")}
+          Path("/tmp/distribution/public-manifest.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          PY
+
+      - name: Prove unauthenticated public streaming readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,time,urllib.request
+          from pathlib import Path
+          manifest=json.loads(Path("/tmp/distribution/public-manifest.json").read_text())
+
+          def fetch_exact(part,key):
+              last=""
+              for attempt in range(1,7):
+                  request=urllib.request.Request(part["urls"][0],headers={"User-Agent":"4SO-Public-Distribution-Readback/1","Cache-Control":"no-cache"})
+                  ph=hashlib.sha256(); ptotal=0; tmp=Path(f"/tmp/readback-{key}-{part['index']}")
+                  tmp.unlink(missing_ok=True)
+                  try:
+                      with urllib.request.urlopen(request,timeout=180) as resp, tmp.open("wb") as out:
+                          while True:
+                              block=resp.read(4*1024*1024)
+                              if not block: break
+                              ph.update(block); ptotal+=len(block); out.write(block)
+                      got=ph.hexdigest()
+                      if got==part["sha256"] and ptotal==part["sizeBytes"]:
+                          return tmp
+                      last=f"digest={got} bytes={ptotal}"
+                  except Exception as exc:
+                      last=f"{type(exc).__name__}: {exc}"
+                  tmp.unlink(missing_ok=True)
+                  print(f"PUBLIC_READBACK_RETRY {key} part={part['index']} attempt={attempt} last={last}",flush=True)
+                  time.sleep(min(5*attempt,20))
+              raise SystemExit(f"{key}: part byte identity mismatch after bounded retry: {last}")
+
+          for key in ("archive","inputPack"):
+              obj=manifest[key]; whole=hashlib.sha256(); total=0
+              for expected_index,part in enumerate(obj["parts"]):
+                  if part["index"]!=expected_index: raise SystemExit(f"{key}: part index drift")
+                  tmp=fetch_exact(part,key)
+                  with tmp.open("rb") as fh:
+                      for block in iter(lambda:fh.read(4*1024*1024),b""):
+                          whole.update(block); total+=len(block)
+                  tmp.unlink()
+              if "sha256:"+whole.hexdigest()!=obj["sha256"] or total!=obj["sizeBytes"]: raise SystemExit(f"{key}: full reconstruction identity mismatch")
+              print(f"PUBLIC_READBACK_PASS {key} parts={len(obj['parts'])} bytes={total}")
+          PY
+
+      - name: Seal canonical S1 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/seal_appliance_bundle_distribution.py --input-pack "$PACK_FILE" --distribution-manifest /tmp/distribution/public-manifest.json --write
+          python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/validate_repository.py .
+          python3 -m unittest tests.test_distribution_transport tests.test_appliance_bundle_distribution tests.test_final_exact_release_admission tests.test_supply_chain_handoff
+          git diff --check
+
+      - name: Persist exact multipart distribution authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+            echo "main advanced; recomputing distribution authority on latest canonical main"
+            git reset --hard origin/main
+            if jq -e '.status=="ready"' lab/appliance-bundle-acquisition-lock.json >/dev/null; then
+              python3 scripts/validate_repository.py .
+            else
+              python3 scripts/seal_appliance_bundle_distribution.py --input-pack "$PACK_FILE" --distribution-manifest /tmp/distribution/public-manifest.json --write
+              python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+              python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+              python3 scripts/validate_repository.py .
+            fi
+          fi
+          git add lab/appliance-bundle-acquisition-lock.json lab/supply-chain-handoff-plan.json
+          git diff --cached --quiet && { echo "no distribution authority delta"; exit 0; }
+          git commit -m "evidence: seal public multipart appliance distribution"
+          git push origin HEAD:main
+\t'"$digest"; then
+              echo "release asset already exact; skip upload: $name"
+            else
+              gh release upload "$DIST_TAG" "$asset" --clobber
+            fi
+          done
+          rm -rf /tmp/distribution/pack
+          echo "PACK_FILE=$pack" >> "$GITHUB_ENV"
+          df -h /
+
+      - name: Build public multipart authority manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          repo=os.environ["GITHUB_REPOSITORY"]; tag=os.environ["DIST_TAG"]
+          def convert(path):
+              d=json.loads(Path(path).read_text())
+              parts=[]
+              for row in d["parts"]:
+                  url=f"https://github.com/{repo}/releases/download/{tag}/{row['fileName']}"
+                  parts.append({"index":row["index"],"urls":[url],"sha256":row["sha256"],"sizeBytes":row["sizeBytes"]})
+              return {"sha256":"sha256:"+d["sha256"],"sizeBytes":d["sizeBytes"],"parts":parts}
+          out={"authority":"APPLIANCE_MULTIPART_DISTRIBUTION_AUTHORITY_V1","archive":convert("/tmp/distribution/manifests/archive.json"),"inputPack":convert("/tmp/distribution/manifests/pack.json")}
+          Path("/tmp/distribution/public-manifest.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          PY
+
+      - name: Prove unauthenticated public streaming readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,urllib.request
+          from pathlib import Path
+          manifest=json.loads(Path("/tmp/distribution/public-manifest.json").read_text())
+          for key in ("archive","inputPack"):
+              obj=manifest[key]; whole=hashlib.sha256(); total=0
+              for expected_index,part in enumerate(obj["parts"]):
+                  if part["index"]!=expected_index: raise SystemExit(f"{key}: part index drift")
+                  request=urllib.request.Request(part["urls"][0],headers={"User-Agent":"4SO-Public-Distribution-Readback/1"})
+                  ph=hashlib.sha256(); ptotal=0
+                  with urllib.request.urlopen(request,timeout=120) as resp:
+                      while True:
+                          block=resp.read(1024*1024)
+                          if not block: break
+                          ph.update(block); whole.update(block); ptotal+=len(block); total+=len(block)
+                  if ph.hexdigest()!=part["sha256"] or ptotal!=part["sizeBytes"]: raise SystemExit(f"{key}: part byte identity mismatch")
+              if "sha256:"+whole.hexdigest()!=obj["sha256"] or total!=obj["sizeBytes"]: raise SystemExit(f"{key}: full reconstruction identity mismatch")
+              print(f"PUBLIC_READBACK_PASS {key} parts={len(obj['parts'])} bytes={total}")
+          PY
+
+      - name: Seal canonical S1 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/seal_appliance_bundle_distribution.py --input-pack "$PACK_FILE" --distribution-manifest /tmp/distribution/public-manifest.json --write
+          python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/validate_repository.py .
+          python3 -m unittest tests.test_distribution_transport tests.test_appliance_bundle_distribution tests.test_final_exact_release_admission tests.test_supply_chain_handoff
+          git diff --check
+
+      - name: Persist exact multipart distribution authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+            echo "main advanced; recomputing distribution authority on latest canonical main"
+            git reset --hard origin/main
+            if jq -e '.status=="ready"' lab/appliance-bundle-acquisition-lock.json >/dev/null; then
+              python3 scripts/validate_repository.py .
+            else
+              python3 scripts/seal_appliance_bundle_distribution.py --input-pack "$PACK_FILE" --distribution-manifest /tmp/distribution/public-manifest.json --write
+              python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+              python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+              python3 scripts/validate_repository.py .
+            fi
+          fi
+          git add lab/appliance-bundle-acquisition-lock.json lab/supply-chain-handoff-plan.json
+          git diff --cached --quiet && { echo "no distribution authority delta"; exit 0; }
+          git commit -m "evidence: seal public multipart appliance distribution"
+          git push origin HEAD:main
+\t'"$digest"; then
+              echo "release asset already exact; skip upload: $name"
+            else
+              gh release upload "$DIST_TAG" "$asset" --clobber
+            fi
+          done
+          rm -rf /tmp/archive-artifact /tmp/distribution/archive
+          df -h /
+
+      - name: Download exact input-pack artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: appliance-input-pack
+          path: /tmp/pack-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PACK_RUN_ID }}
+
+      - name: Verify, split and publish input-pack parts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          pack="$(find /tmp/pack-artifact -type f -name appliance-input-pack.zip -print -quit)"
+          test -f "$pack"
+          test "$(sha256sum "$pack"|awk '{print "sha256:"$1}')" = "$(jq -r .inputPackSha256 lab/appliance-input-pack-receipt.json)"
+          test "$(stat -c %s "$pack")" = "$(jq -r .inputPackBytes lab/appliance-input-pack-receipt.json)"
+          mkdir -p /tmp/distribution/pack
+          python3 scripts/prepare_appliance_distribution_parts.py --input "$pack" --out-dir /tmp/distribution/pack --name appliance-input-pack.zip --manifest /tmp/distribution/manifests/pack.json
+          jq -e '.partCount>=2 and .sizeBytes>0' /tmp/distribution/manifests/pack.json
           gh release upload "$DIST_TAG" /tmp/distribution/pack/* --clobber
+          rm -rf /tmp/distribution/pack
+          echo "PACK_FILE=$pack" >> "$GITHUB_ENV"
+          df -h /
+
+      - name: Build public multipart authority manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          repo=os.environ["GITHUB_REPOSITORY"]; tag=os.environ["DIST_TAG"]
+          def convert(path):
+              d=json.loads(Path(path).read_text())
+              parts=[]
+              for row in d["parts"]:
+                  url=f"https://github.com/{repo}/releases/download/{tag}/{row['fileName']}"
+                  parts.append({"index":row["index"],"urls":[url],"sha256":row["sha256"],"sizeBytes":row["sizeBytes"]})
+              return {"sha256":"sha256:"+d["sha256"],"sizeBytes":d["sizeBytes"],"parts":parts}
+          out={"authority":"APPLIANCE_MULTIPART_DISTRIBUTION_AUTHORITY_V1","archive":convert("/tmp/distribution/manifests/archive.json"),"inputPack":convert("/tmp/distribution/manifests/pack.json")}
+          Path("/tmp/distribution/public-manifest.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          PY
+
+      - name: Prove unauthenticated public streaming readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,urllib.request
+          from pathlib import Path
+          manifest=json.loads(Path("/tmp/distribution/public-manifest.json").read_text())
+          for key in ("archive","inputPack"):
+              obj=manifest[key]; whole=hashlib.sha256(); total=0
+              for expected_index,part in enumerate(obj["parts"]):
+                  if part["index"]!=expected_index: raise SystemExit(f"{key}: part index drift")
+                  request=urllib.request.Request(part["urls"][0],headers={"User-Agent":"4SO-Public-Distribution-Readback/1"})
+                  ph=hashlib.sha256(); ptotal=0
+                  with urllib.request.urlopen(request,timeout=120) as resp:
+                      while True:
+                          block=resp.read(1024*1024)
+                          if not block: break
+                          ph.update(block); whole.update(block); ptotal+=len(block); total+=len(block)
+                  if ph.hexdigest()!=part["sha256"] or ptotal!=part["sizeBytes"]: raise SystemExit(f"{key}: part byte identity mismatch")
+              if "sha256:"+whole.hexdigest()!=obj["sha256"] or total!=obj["sizeBytes"]: raise SystemExit(f"{key}: full reconstruction identity mismatch")
+              print(f"PUBLIC_READBACK_PASS {key} parts={len(obj['parts'])} bytes={total}")
+          PY
+
+      - name: Seal canonical S1 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/seal_appliance_bundle_distribution.py --input-pack "$PACK_FILE" --distribution-manifest /tmp/distribution/public-manifest.json --write
+          python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/validate_repository.py .
+          python3 -m unittest tests.test_distribution_transport tests.test_appliance_bundle_distribution tests.test_final_exact_release_admission tests.test_supply_chain_handoff
+          git diff --check
+
+      - name: Persist exact multipart distribution authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+            echo "main advanced; recomputing distribution authority on latest canonical main"
+            git reset --hard origin/main
+            if jq -e '.status=="ready"' lab/appliance-bundle-acquisition-lock.json >/dev/null; then
+              python3 scripts/validate_repository.py .
+            else
+              python3 scripts/seal_appliance_bundle_distribution.py --input-pack "$PACK_FILE" --distribution-manifest /tmp/distribution/public-manifest.json --write
+              python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+              python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+              python3 scripts/validate_repository.py .
+            fi
+          fi
+          git add lab/appliance-bundle-acquisition-lock.json lab/supply-chain-handoff-plan.json
+          git diff --cached --quiet && { echo "no distribution authority delta"; exit 0; }
+          git commit -m "evidence: seal public multipart appliance distribution"
+          git push origin HEAD:main
+\t'"$digest"; then
+              echo "release asset already exact; skip upload: $name"
+            else
+              gh release upload "$DIST_TAG" "$asset" --clobber
+            fi
+          done
           rm -rf /tmp/distribution/pack
           echo "PACK_FILE=$pack" >> "$GITHUB_ENV"
           df -h /
