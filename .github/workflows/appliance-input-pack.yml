@@ -98,13 +98,22 @@ jobs:
           PY
           jq -e '.sourceRunId!="" and (.sourceCommitSHA|test("^[0-9a-f]{40}$")) and .workflowArtifactId!=""' lab/appliance-input-pack-receipt.json
 
+      - name: Converge derived S1 handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/validate_repository.py .
+          git diff --check
+
       - name: Persist Git-safe pack receipt when main is unchanged
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "4so-evidence-bot"; git config user.email "actions@users.noreply.github.com"
-          git add lab/appliance-input-pack-receipt.json
+          git add lab/appliance-input-pack-receipt.json lab/supply-chain-handoff-plan.json
           git fetch origin main
-          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then echo "main advanced; skip stale input-pack receipt"; git reset -- lab/appliance-input-pack-receipt.json; exit 0; fi
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then echo "main advanced; skip stale input-pack receipt/handoff"; git reset -- lab/appliance-input-pack-receipt.json lab/supply-chain-handoff-plan.json; exit 0; fi
           git commit -m "evidence: seal deterministic appliance input pack"
           git push origin HEAD:main

@@ -840,14 +840,14 @@
       },
       "inputPackReceipt": {
         "authority": "LAB_APPLIANCE_INPUT_PACK_BUILD_V1",
+        "status": "distribution-pending",
         "built": true,
         "deterministicZip": true,
+        "sha256": "sha256:33fa8a9ae6ce94f2f517a500858c2dc910b3c382cbdb0ab88ea41f2e56a63fc6",
+        "sizeBytes": 3179097107,
         "distributionReady": false,
-        "physicalCertified": false,
         "runtimeCertified": false,
-        "sha256": "sha256:8802cc60321e66aec8a69ce8da46c7e01db6e5bca9f43b19fb5e67fe2a70fd0d",
-        "sizeBytes": 3177949715,
-        "status": "distribution-pending"
+        "physicalCertified": false
       },
       "manifestImageResolution": [
         {
