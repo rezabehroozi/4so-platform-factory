@@ -45,6 +45,19 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root); (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
             with self.assertRaisesRegex(mod.Pending,"MCP_EXTERNAL_INTEROP_PENDING"): mod.verify(root)
+    def test_pending_status_is_structured_for_ci_summary(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root); (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
+            try:
+                mod.verify(root)
+            except mod.Pending as exc:
+                pending=str(exc)
+                status={"authority":mod.AUTHORITY,"admitted":False,"pending":pending,"blockers":[{"code":pending,"detail":"required external closure evidence is not sealed on canonical main"}],"physicalCertified":False}
+                self.assertEqual("MCP_EXTERNAL_INTEROP_PENDING",status["blockers"][0]["code"])
+                self.assertFalse(status["admitted"])
+            else:
+                self.fail("pending evidence unexpectedly admitted")
+
     def test_mutable_distribution_url_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root)

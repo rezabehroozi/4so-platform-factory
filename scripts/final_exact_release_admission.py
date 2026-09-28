@@ -113,7 +113,8 @@ def main()->int:
     try: out=verify(a.root.resolve())
     except Pending as exc:
         if not a.allow_pending: raise
-        print(json.dumps({"authority":AUTHORITY,"admitted":False,"pending":str(exc),"physicalCertified":False},sort_keys=True))
+        pending=str(exc)
+        print(json.dumps({"authority":AUTHORITY,"admitted":False,"pending":pending,"blockers":[{"code":pending,"detail":"required external closure evidence is not sealed on canonical main"}],"physicalCertified":False},sort_keys=True))
         return 3
     if a.out:
         a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
