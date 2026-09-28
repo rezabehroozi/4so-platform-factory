@@ -2,6 +2,9 @@ name: appliance-multipart-distribution
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["appliance-input-pack"]
+    types: [completed]
   push:
     branches: [main]
     paths:
@@ -22,11 +25,13 @@ concurrency:
 
 jobs:
   publish-and-seal:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Reclaim hosted-runner space
@@ -39,18 +44,29 @@ jobs:
       - name: Resolve exact provenance and immutable release tag
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
         run: |
           set -euo pipefail
           archive_run="$(jq -r .sourceRunId lab/management-workload-oci-archive-receipt.json)"
+          archive_source="$(jq -r .sourceCommitSHA lab/management-workload-oci-archive-receipt.json)"
           pack_run="$(jq -r .sourceRunId lab/appliance-input-pack-receipt.json)"
-          test "$(jq -r .workflowArtifactId lab/appliance-input-pack-receipt.json)" = "10925107578"
-          test "$(jq -r .sourceCommitSHA lab/appliance-input-pack-receipt.json)" = "095dfad17aa452213d53d7859160cae52686ef9c"
+          pack_source="$(jq -r .sourceCommitSHA lab/appliance-input-pack-receipt.json)"
+          pack_artifact_id="$(jq -r .workflowArtifactId lab/appliance-input-pack-receipt.json)"
+          [[ "$archive_run" =~ ^[0-9]+$ && "$pack_run" =~ ^[0-9]+$ && "$pack_artifact_id" =~ ^[0-9]+$ ]]
+          [[ "$archive_source" =~ ^[0-9a-f]{40}$ && "$pack_source" =~ ^[0-9a-f]{40}$ ]]
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$archive_run" --jq .conclusion)" = "success"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$archive_run" --jq .head_sha)" = "$archive_source"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$pack_run" --jq .conclusion)" = "success"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$pack_run" --jq .head_sha)" = "$pack_source"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$pack_run/artifacts" --jq ".artifacts[] | select(.id==$pack_artifact_id and .name==\"appliance-input-pack\" and (.expired|not)) | .id")" = "$pack_artifact_id"
           version="$(cat VERSION)"
           pack_sha="$(jq -r '.inputPackSha256|sub("^sha256:";"")' lab/appliance-input-pack-receipt.json)"
           tag="appliance-dist-v${version}-${pack_sha:0:16}"
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --target "$GITHUB_SHA" --title "4SO appliance distribution ${version}" --notes "Content-addressed transport parts for the exact pre-certification appliance input pack. Full-object SHA-256 remains canonical."
+            if ! gh release create "$tag" --target "$GITHUB_SHA" --title "4SO appliance distribution ${version}" --notes "Content-addressed transport parts for the exact pre-certification appliance input pack. Full-object SHA-256 remains canonical."; then
+              echo "::error::APPLIANCE_RELEASE_TOKEN_REQUIRED: built-in GITHUB_TOKEN cannot publish immutable release assets in this repository. Configure a fine-grained APPLIANCE_RELEASE_TOKEN with Contents: write, then rerun."
+              exit 73
+            fi
           fi
           echo "ARCHIVE_RUN_ID=$archive_run" >> "$GITHUB_ENV"
           echo "PACK_RUN_ID=$pack_run" >> "$GITHUB_ENV"
@@ -68,7 +84,7 @@ jobs:
       - name: Verify, split and publish archive parts
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
         run: |
           set -euo pipefail
           archive="$(find /tmp/archive-artifact -type f -name platform-workloads.oci.tar -print -quit)"
@@ -94,7 +110,7 @@ jobs:
       - name: Verify, split and publish input-pack parts
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
         run: |
           set -euo pipefail
           pack="$(find /tmp/pack-artifact -type f -name appliance-input-pack.zip -print -quit)"

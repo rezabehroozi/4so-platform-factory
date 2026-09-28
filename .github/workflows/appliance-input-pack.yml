@@ -1,6 +1,9 @@
 name: appliance-input-pack
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["management-workload-oci-archive"]
+    types: [completed]
   push:
     branches: [main]
     paths:
@@ -15,10 +18,14 @@ permissions:
   actions: read
 jobs:
   build-exact-input-pack:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
       - name: Resolve current archive evidence
         shell: bash
         run: |
