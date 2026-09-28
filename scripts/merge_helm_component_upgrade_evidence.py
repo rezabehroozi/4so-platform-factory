@@ -5,7 +5,7 @@ from pathlib import Path
 
 AUTH="HELM_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1"
 ROW_AUTH="HELM_COMPONENT_RUNTIME_UPGRADE_EVIDENCE_V1"
-PROFILES={"argocd":("10.2.2","10.2.3"),"capsule":("0.13.10","0.13.11"),"external-secrets":("2.7.0","2.8.0"),"metallb":("0.16.0","0.16.1"),"victoria-metrics":("0.90.1","0.90.2")}
+PROFILES={"argocd":("10.2.2","10.2.3"),"capsule":("0.13.10","0.13.11"),"external-secrets":("2.7.0","2.8.0"),"metallb":("0.16.0","0.16.1"),"victoria-metrics":("0.90.1","0.90.2"),"cilium":("1.20.0","1.20.1"),"ceph-csi-operator":("1.0.3","1.0.4")}
 VERSIONS={"1.34.11","1.35.8"}
 REQUIRED=("historicalReady","upgradeApplyPass","targetReady","workloadIdentityPreserved","targetImagesVerified","targetReapplyConverged","reverseEdgeRejected")
 
