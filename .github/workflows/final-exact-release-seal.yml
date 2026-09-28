@@ -1,0 +1,122 @@
+name: final-exact-release-seal
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - lab/appliance-bundle-acquisition-lock.json
+      - lab/mcp-external-client-interoperability-evidence.json
+      - scripts/final_exact_release_admission.py
+      - .github/workflows/final-exact-release-seal.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-when-admitted:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 180
+    env:
+      GOTOOLCHAIN: local
+      EXACT_GO: /tmp/4so-exact-go/go/bin/go
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: admission
+        name: Check S1 and C7W external closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python3 scripts/final_exact_release_admission.py --allow-pending --out /tmp/final-admission.json
+          rc=$?
+          set -e
+          if test "$rc" -eq 3; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          test "$rc" -eq 0
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - name: Install exact build prerequisites
+        if: steps.admission.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpq-dev jq
+      - name: Activate admitted exact Go toolchain
+        if: steps.admission.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/acquire_release_build_toolchain.py --check
+          rm -rf /tmp/4so-exact-go
+          mkdir -p /tmp/4so-exact-go
+          tar -C /tmp/4so-exact-go -xzf vendor/toolchains/go1.27.1.linux-amd64.tar.gz
+          test "$("$EXACT_GO" version)" = "go version go1.27.1 linux/amd64"
+      - name: Build deterministic exact release
+        if: steps.admission.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_release_build_toolchain.py --require-admitted
+          make build-release GO="$EXACT_GO"
+          python3 scripts/build_release.py .
+          release="$(find release -maxdepth 1 -type f -name '4so-platform-factory-*.zip' | sort | tail -1)"
+          test -s "$release"
+          echo "EXACT_RELEASE=$release" >> "$GITHUB_ENV"
+      - name: Full verify exact release
+        if: steps.admission.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_release.py "$EXACT_RELEASE" --full
+      - name: Seal final exact release evidence
+        if: steps.admission.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$(basename "$EXACT_RELEASE" .zip)"
+          stage="release/$root"
+          test -d "$stage"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          def sha(p):
+              h=hashlib.sha256()
+              with Path(p).open("rb") as f:
+                  for b in iter(lambda:f.read(1024*1024),b""): h.update(b)
+              return "sha256:"+h.hexdigest()
+          release=Path(os.environ["EXACT_RELEASE"])
+          stage=Path("release")/release.stem
+          admission=json.loads(Path("/tmp/final-admission.json").read_text())
+          out={"apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseEvidence","authority":"FINAL_EXACT_RELEASE_SEAL_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"version":Path("VERSION").read_text().strip(),"releaseName":Path("RELEASE-NAME").read_text().strip(),"releaseArchive":release.name,"releaseArchiveSha256":sha(release),"releaseArchiveBytes":release.stat().st_size,"artifactManifestSha256":sha(stage/"ARTIFACT-MANIFEST.json"),"buildProvenanceSha256":sha(stage/"BUILD-PROVENANCE.json"),"sbomSha256":sha(stage/"SBOM.spdx.json"),"admissionAuthority":admission["authority"],"applianceDistributionSha256":admission["applianceDistributionSha256"],"mcpExternalInteropSha256":admission["mcpExternalInteropSha256"],"fullVerifierPass":True,"physicalCertified":False}
+          Path("lab/final-exact-release-evidence.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          PY
+          jq -e '.authority=="FINAL_EXACT_RELEASE_SEAL_V1" and .fullVerifierPass and (.physicalCertified|not)' lab/final-exact-release-evidence.json
+      - uses: actions/upload-artifact@v4
+        if: steps.admission.outputs.ready == 'true'
+        with:
+          name: final-exact-release
+          path: |
+            ${{ env.EXACT_RELEASE }}
+            lab/final-exact-release-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Persist final seal when main is unchanged
+        if: steps.admission.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lab/final-exact-release-evidence.json
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+            echo "main advanced; refusing stale final-release seal"
+            exit 1
+          fi
+          git commit -m "evidence: seal final exact pre-certification release"
+          git push origin HEAD:main

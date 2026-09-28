@@ -289,6 +289,11 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if len(c9.Blockers) != 1 || !containsString(c9.Blockers, "FINAL_EXACT_RELEASE_SEAL_PENDING") {
 		t.Fatalf("C9 independent exact-release seal blocker drift: %#v", c9)
 	}
+	for _, evidence := range []string{"FINAL_EXACT_RELEASE_ADMISSION_V1", "scripts/final_exact_release_admission.py", ".github/workflows/final-exact-release-seal.yml", "FINAL_EXACT_RELEASE_SEAL_V1", "lab/final-exact-release-evidence.json"} {
+		if !containsString(c9.Evidence, evidence) {
+			t.Fatalf("C9 exact-release finalizer evidence missing %q: %#v", evidence, c9.Evidence)
+		}
+	}
 	for _, dependency := range []string{"C7R-mcp-remote-oauth-human-delegation", "C7W-mcp-user-admin-write-parity", "S2-component-runtime-certification-authorities", "G3-target-node-maintenance-lifecycle", "G4-data-protection-productization", "G5-enterprise-identity-compliance", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core"} {
 		if !containsString(c9.DependsOn, dependency) {
 			t.Fatalf("feature freeze dependency %q missing: %#v", dependency, c9.DependsOn)
