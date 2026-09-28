@@ -85,3 +85,29 @@ func TestSecurityAuditChainTimeStable(t *testing.T) {
 		t.Fatalf("digest unstable %#v", events)
 	}
 }
+
+
+func TestSecurityAuditRequestIDWindowIsExactAndContiguous(t *testing.T) {
+	s := NewMemoryStore()
+	ctx := context.Background()
+	inputs := []SecurityAuditInput{
+		{Category:"AUTHENTICATION",Decision:"ALLOW",ActorID:"user-1",Method:"POST",Path:"/mcp",ReasonCode:"OIDC_AUTHENTICATED",RequestID:"req-client-a-001"},
+		{Category:"AUTHORIZATION",Decision:"ALLOW",ActorID:"other",Method:"GET",Path:"/api/v1/projects",ReasonCode:"PRODUCT_RBAC_ALLOWED",RequestID:"req-unrelated-001"},
+		{Category:"SCOPE_AUTHORIZATION",Decision:"DENY",ActorID:"user-1",Method:"POST",Path:"/mcp",ReasonCode:"PROJECT_ACCESS_DENIED",RequestID:"req-client-a-002"},
+	}
+	for _, in := range inputs {
+		if _, err := s.AppendSecurityAudit(ctx, in); err != nil { t.Fatal(err) }
+	}
+	window, err := s.ListSecurityAuditRequestIDWindow(ctx, []string{"req-client-a-001","req-client-a-002"})
+	if err != nil { t.Fatal(err) }
+	if len(window) != 3 || window[0].Sequence+1 != window[1].Sequence || window[1].Sequence+1 != window[2].Sequence {
+		t.Fatalf("window=%#v", window)
+	}
+	if window[1].RequestID != "req-unrelated-001" {
+		t.Fatalf("interleaved chain event was dropped: %#v", window)
+	}
+	single, err := s.ListSecurityAuditRequestIDWindow(ctx, []string{"req-client-a-002"})
+	if err != nil || len(single) != 1 || single[0].RequestID != "req-client-a-002" {
+		t.Fatalf("single=%#v err=%v", single, err)
+	}
+}

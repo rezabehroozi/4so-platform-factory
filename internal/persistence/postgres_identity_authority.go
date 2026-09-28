@@ -349,3 +349,45 @@ func (s *PostgresStore) ListSecurityAudit(ctx context.Context, limit int) ([]con
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Sequence < out[j].Sequence })
 	return out, rows.Err()
 }
+func (s *PostgresStore) ListSecurityAuditRequestIDWindow(ctx context.Context, requestIDs []string) ([]controlplane.SecurityAuditEvent, error) {
+	if len(requestIDs) == 0 || len(requestIDs) > 24 {
+		return nil, fmt.Errorf("%w: security audit request-id count must be 1..24", controlplane.ErrValidation)
+	}
+	seen := map[string]bool{}
+	args := make([]any, 0, len(requestIDs))
+	placeholders := make([]string, 0, len(requestIDs))
+	for _, raw := range requestIDs {
+		id := strings.TrimSpace(raw)
+		if id == "" || seen[id] {
+			return nil, fmt.Errorf("%w: security audit request ids must be non-empty and unique", controlplane.ErrValidation)
+		}
+		seen[id] = true
+		args = append(args, id)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
+	}
+	var first, last sql.NullInt64
+	bounds := "SELECT MIN(sequence),MAX(sequence) FROM security_audit_events WHERE request_id IN (" + strings.Join(placeholders, ",") + ")"
+	if err := s.db.QueryRowContext(ctx, bounds, args...).Scan(&first, &last); err != nil {
+		return nil, err
+	}
+	if !first.Valid || !last.Valid {
+		return []controlplane.SecurityAuditEvent{}, nil
+	}
+	if last.Int64-first.Int64+1 > 20000 {
+		return nil, fmt.Errorf("%w: security audit witness window exceeds 20000 events", controlplane.ErrValidation)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT sequence,id,occurred_at,method_version,category,decision,actor_id,authentication,request_method,request_path,status_code,reason_code,request_id,scope_type,scope_id,effective_role,mapping_digest,previous_digest,event_digest FROM security_audit_events WHERE sequence BETWEEN $1 AND $2 ORDER BY sequence ASC`, first.Int64, last.Int64)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []controlplane.SecurityAuditEvent{}
+	for rows.Next() {
+		var v controlplane.SecurityAuditEvent
+		if e := rows.Scan(&v.Sequence, &v.ID, &v.OccurredAt, &v.MethodVersion, &v.Category, &v.Decision, &v.ActorID, &v.Authentication, &v.Method, &v.Path, &v.StatusCode, &v.ReasonCode, &v.RequestID, &v.ScopeType, &v.ScopeID, &v.EffectiveRole, &v.MappingDigest, &v.PreviousDigest, &v.Digest); e != nil {
+			return nil, e
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}

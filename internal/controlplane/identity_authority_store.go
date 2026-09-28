@@ -114,3 +114,34 @@ func (s *MemoryStore) ListSecurityAudit(_ context.Context, limit int) ([]Securit
 	out := append([]SecurityAuditEvent(nil), s.securityAudit[start:]...)
 	return out, nil
 }
+func (s *MemoryStore) ListSecurityAuditRequestIDWindow(_ context.Context, requestIDs []string) ([]SecurityAuditEvent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(requestIDs) == 0 || len(requestIDs) > 24 {
+		return nil, fmt.Errorf("%w: security audit request-id count must be 1..24", ErrValidation)
+	}
+	wanted := make(map[string]bool, len(requestIDs))
+	for _, id := range requestIDs {
+		id = strings.TrimSpace(id)
+		if id == "" || wanted[id] {
+			return nil, fmt.Errorf("%w: security audit request ids must be non-empty and unique", ErrValidation)
+		}
+		wanted[id] = true
+	}
+	first, last := -1, -1
+	for i, event := range s.securityAudit {
+		if wanted[event.RequestID] {
+			if first < 0 {
+				first = i
+			}
+			last = i
+		}
+	}
+	if first < 0 {
+		return []SecurityAuditEvent{}, nil
+	}
+	if last-first+1 > 20000 {
+		return nil, fmt.Errorf("%w: security audit witness window exceeds 20000 events", ErrValidation)
+	}
+	return append([]SecurityAuditEvent(nil), s.securityAudit[first:last+1]...), nil
+}
