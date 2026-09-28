@@ -135,12 +135,12 @@
         {
           "component": "metallb",
           "evidenceURL": "https://github.com/metallb/metallb/issues/3113",
+          "mandatory": false,
           "reason": "MetalLB 0.16.1 remains runtime-held while the reviewed grpc/CVE release concern is unresolved or explicitly dispositioned.",
           "runtimeAuthority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
           "runtimeStatus": "review-required",
           "selectedVersion": "0.16.1",
-          "status": "source-acquired",
-          "mandatory": false
+          "status": "source-acquired"
         }
       ],
       "stageManifestPath": "components/stage-manifest.json"
