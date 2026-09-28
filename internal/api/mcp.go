@@ -486,14 +486,22 @@ func decodeMCPHeaderValue(value string) (string, bool) {
 	return value, true
 }
 
-func mcpServerMeta(version string) map[string]any {
-	return map[string]any{"io.modelcontextprotocol/serverInfo": map[string]any{"name": "4so-platform-factory", "version": version}}
+func mcpServerMeta(version, requestID string) map[string]any {
+	meta := map[string]any{"io.modelcontextprotocol/serverInfo": map[string]any{"name": "4so-platform-factory", "version": version}}
+	if requestID = strings.TrimSpace(requestID); requestID != "" {
+		meta["io.4so/requestId"] = requestID
+	}
+	return meta
 }
 
-func (s *Server) writeMCPResult(w http.ResponseWriter, id json.RawMessage, result map[string]any) {
+func (s *Server) writeMCPResult(w http.ResponseWriter, r *http.Request, id json.RawMessage, result map[string]any) {
+	requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+	if requestID != "" {
+		w.Header().Set("X-Request-ID", requestID)
+	}
 	result["resultType"] = "complete"
 	if _, ok := result["_meta"]; !ok {
-		result["_meta"] = mcpServerMeta(s.version)
+		result["_meta"] = mcpServerMeta(s.version, requestID)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"jsonrpc": "2.0", "id": id, "result": result})
 }
@@ -514,6 +522,9 @@ func writeMCPError(w http.ResponseWriter, id json.RawMessage, status, code int, 
 }
 
 func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
+	if requestID := strings.TrimSpace(r.Header.Get("X-Request-ID")); requestID != "" {
+		w.Header().Set("X-Request-ID", requestID)
+	}
 	var delegationErr error
 	r, delegationErr = s.applyMCPHumanDelegation(r)
 	if delegationErr != nil {
@@ -589,7 +600,7 @@ func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
 
 	switch req.Method {
 	case "server/discover":
-		s.writeMCPResult(w, req.ID, map[string]any{
+		s.writeMCPResult(w, r, req.ID, map[string]any{
 			"supportedVersions": []string{mcpProtocolVersion},
 			"capabilities":      map[string]any{"tools": map[string]any{"listChanged": false}},
 			"instructions":      "4SO Platform Factory MCP is read-only by default. Explicit mcp.operate grants expose only allow-listed product operations through normal RBAC, project scope, revision, durable-operation and audit authority. Test PASS and Physical PASS are never decided by MCP or AI.",
@@ -597,7 +608,7 @@ func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
 			"cacheScope":        "private",
 		})
 	case "tools/list":
-		s.writeMCPResult(w, req.ID, map[string]any{"tools": s.mcpVisibleTools(r), "ttlMs": 60000, "cacheScope": "private"})
+		s.writeMCPResult(w, r, req.ID, map[string]any{"tools": s.mcpVisibleTools(r), "ttlMs": 60000, "cacheScope": "private"})
 	case "tools/call":
 		tool, exists := mcpToolByName(req.Params.Name)
 		if !exists {
@@ -615,7 +626,7 @@ func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
 				writeMCPErrorData(w, req.ID, http.StatusConflict, -32030, "MCP fixed-route action was not completed", map[string]any{"detail": err.Error(), "authority": mcpRouteParityAuthority})
 				return
 			}
-			s.writeMCPResult(w, req.ID, map[string]any{"content": []map[string]any{{"type": "text", "text": mustJSON(bridgeValue)}}, "structuredContent": bridgeValue})
+			s.writeMCPResult(w, r, req.ID, map[string]any{"content": []map[string]any{{"type": "text", "text": mustJSON(bridgeValue)}}, "structuredContent": bridgeValue})
 			return
 		}
 		switch strings.TrimSpace(req.Params.Name) {
@@ -2015,7 +2026,7 @@ func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
 			writeMCPError(w, req.ID, http.StatusInternalServerError, -32603, "encode tool result")
 			return
 		}
-		s.writeMCPResult(w, req.ID, map[string]any{
+		s.writeMCPResult(w, r, req.ID, map[string]any{
 			"content":           []map[string]string{{"type": "text", "text": string(raw)}},
 			"structuredContent": value,
 			"isError":           false,
