@@ -63,7 +63,8 @@ jobs:
           set -euo pipefail
           jq -e '.authority=="LAB_APPLIANCE_INPUT_PACK_BUILD_V1" and .deterministicZip and (.distributionReady|not) and (.runtimeCertified|not) and (.physicalCertified|not)' lab/appliance-input-pack-receipt.json
           python3 -m unittest tests.test_appliance_input_pack
-      - uses: actions/upload-artifact@v4
+      - id: upload_pack
+        uses: actions/upload-artifact@v4
         with:
           name: appliance-input-pack
           path: |
@@ -72,6 +73,24 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 14
+      - name: Bind workflow provenance to pack receipt
+        shell: bash
+        env:
+          PACK_ARTIFACT_ID: ${{ steps.upload_pack.outputs.artifact-id }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path("lab/appliance-input-pack-receipt.json")
+          d=json.loads(p.read_text())
+          d["sourceRunId"]=os.environ["GITHUB_RUN_ID"]
+          d["sourceCommitSHA"]=os.environ["GITHUB_SHA"]
+          d["workflowArtifactId"]=os.environ["PACK_ARTIFACT_ID"]
+          p.write_text(json.dumps(d,indent=2,sort_keys=True)+"\n")
+          PY
+          jq -e '.sourceRunId!="" and (.sourceCommitSHA|test("^[0-9a-f]{40}$")) and .workflowArtifactId!=""' lab/appliance-input-pack-receipt.json
+
       - name: Persist Git-safe pack receipt when main is unchanged
         shell: bash
         run: |

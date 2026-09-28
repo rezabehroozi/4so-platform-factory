@@ -11,5 +11,9 @@
   "physicalCertified": false,
   "releaseVersion": "0.0.363",
   "runtimeCertified": false,
-  "stagingDirectory": "staging"
+  "stagingDirectory": "staging",
+  "sourceRunId": "36299114244",
+  "sourceCommitSHA": "095dfad17aa452213d53d7859160cae52686ef9c",
+  "workflowArtifactId": "10925107578",
+  "workflowArtifactDigest": "sha256:7f42b9689a3e79121e8a16f46060a2ff8afb4639d166395816f0cb27114f8b73"
 }
