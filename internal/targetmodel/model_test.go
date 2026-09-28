@@ -208,6 +208,11 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if len(s1.Blockers) != 1 || !containsString(s1.Blockers, "APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING") {
 		t.Fatalf("supply-chain blocker truth drift: %#v", s1)
 	}
+	for _, evidence := range []string{"LAB_APPLIANCE_INPUT_PACK_BUILD_V1", "scripts/build_appliance_input_pack.py", "lab/appliance-input-pack-receipt.json", "scripts/seal_appliance_bundle_distribution.py", ".github/workflows/appliance-distribution-seal.yml"} {
+		if !containsString(s1.Evidence, evidence) {
+			t.Fatalf("S1 distribution closure evidence missing %q: %#v", evidence, s1.Evidence)
+		}
+	}
 	c7r := byID["C7R-mcp-remote-oauth-human-delegation"]
 	if c7r.Status != ProgramStatusSourceImplemented || !c7r.RequiredForFeatureFreeze || len(c7r.Blockers) != 0 || !containsString(c7r.Evidence, "MCP_OAUTH_PROTECTED_RESOURCE_DISCOVERY_V1") || !containsString(c7r.Evidence, "MCP_DEDICATED_AUDIENCE_VALIDATION_V1") || !containsString(c7r.Evidence, "MCP_HUMAN_DELEGATION_AUTHORITY_V1") || !containsString(c7r.Evidence, "MCP_CLIENT_TRUST_REGISTRY_V1") || !containsString(c7r.Evidence, "MCP_TOKEN_REVOCATION_ENFORCEMENT_V1") {
 		t.Fatalf("remote OAuth MCP phase drift: %#v", c7r)
