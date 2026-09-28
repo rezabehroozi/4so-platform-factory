@@ -33,7 +33,32 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - id: state
+        name: Resolve sealed archive state
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=false
+          if jq -e '.status=="ready" and (.missingAuthorities|length==0) and (.partialAuthorities|length==0)' lab/appliance-bundle-acquisition-lock.json >/dev/null; then
+            lock_sha="$(jq -r '.resolvedAuthorities[] | select(.id=="management-workload-oci-archive") | .artifacts[0].sha256' lab/appliance-bundle-acquisition-lock.json)"
+            lock_size="$(jq -r '.resolvedAuthorities[] | select(.id=="management-workload-oci-archive") | .artifacts[0].sizeBytes' lab/appliance-bundle-acquisition-lock.json)"
+            receipt_sha="$(jq -r '.archiveSha256 | sub("^sha256:";"")' lab/management-workload-oci-archive-receipt.json)"
+            receipt_size="$(jq -r '.archiveBytes' lab/management-workload-oci-archive-receipt.json)"
+            test "$lock_sha" = "$receipt_sha"
+            test "$lock_size" = "$receipt_size"
+            ready=true
+          fi
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+      - name: Verify already sealed archive authority
+        if: steps.state.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/seal_management_workload_oci_archive.py --verify lab/management-workload-oci-archive-receipt.json >/dev/null
+          python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+          python3 scripts/validate_repository.py .
       - name: Reclaim hosted-runner space
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -42,6 +67,7 @@ jobs:
           df -h /
 
       - name: Install OCI tooling
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -49,6 +75,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends skopeo jq unzip
 
       - name: Bind retained product artifact authority
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -60,6 +87,7 @@ jobs:
           echo "PRODUCT_SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
 
       - name: Download immutable product OCI evidence
+        if: steps.state.outputs.ready != 'true'
         uses: actions/download-artifact@v4
         with:
           name: management-product-image-evidence
@@ -69,6 +97,7 @@ jobs:
           run-id: ${{ env.PRODUCT_RUN_ID }}
 
       - name: Verify retained product evidence and exact release
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -101,6 +130,7 @@ jobs:
           df -h /
 
       - name: Resolve exact non-product runtime image set
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -119,6 +149,7 @@ jobs:
           PY
 
       - name: Acquire sixteen exact external and manifest images
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -152,6 +183,7 @@ jobs:
           test "$free_bytes" -ge "$required_bytes" || { echo "FINAL_OCI_RUNNER_SPACE_INSUFFICIENT free=$free_bytes required=$required_bytes priorArchive=$prior_archive_bytes" >&2; exit 33; }
 
       - name: Assemble exact twenty-image management workload archive
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -175,6 +207,7 @@ jobs:
           test -s /tmp/platform-workloads.oci.tar
 
       - name: Verify archive inventory and import addressability
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -194,6 +227,7 @@ jobs:
           PY
 
       - name: Seal Git-safe archive receipt
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -203,6 +237,7 @@ jobs:
           git diff --check
 
       - name: Upload final OCI bytes and receipt
+        if: steps.state.outputs.ready != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: management-workload-oci-archive
@@ -215,6 +250,7 @@ jobs:
           retention-days: 14
 
       - name: Commit final OCI archive receipt to main
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
