@@ -133,7 +133,7 @@ def _management_archive_state(lock: dict, release_version: str) -> dict:
     }
 
 
-def _input_pack_state(root: Path, release_version: str) -> dict:
+def _input_pack_state(root: Path, release_version: str, acquisition_lock: dict) -> dict:
     path = root / "lab" / "appliance-input-pack-receipt.json"
     if path.is_symlink() or not path.is_file():
         return {"authority": "LAB_APPLIANCE_INPUT_PACK_BUILD_V1", "status": "build-pending", "built": False, "distributionReady": False}
@@ -150,14 +150,25 @@ def _input_pack_state(root: Path, release_version: str) -> dict:
         raise RuntimeError("APPLIANCE_INPUT_PACK_RECEIPT_DIGEST_INVALID")
     if any(doc.get(k) is not False for k in ("distributionReady", "runtimeCertified", "physicalCertified")):
         raise RuntimeError("APPLIANCE_INPUT_PACK_RECEIPT_SCOPE_INFLATED")
+    lock_pack = acquisition_lock.get("inputPack") or {}
+    distribution_ready = (
+        acquisition_lock.get("status") == "ready"
+        and not (acquisition_lock.get("missingAuthorities") or [])
+        and not (acquisition_lock.get("partialAuthorities") or [])
+        and str(lock_pack.get("sha256") or "").removeprefix("sha256:") == digest.removeprefix("sha256:")
+        and lock_pack.get("sizeBytes") == size
+        and lock_pack.get("format") == "zip"
+        and lock_pack.get("buildSpecPath") == "build-spec.json"
+        and lock_pack.get("stagingDirectory") == "staging"
+    )
     return {
         "authority": "LAB_APPLIANCE_INPUT_PACK_BUILD_V1",
-        "status": "distribution-pending",
+        "status": "distribution-ready" if distribution_ready else "distribution-pending",
         "built": True,
         "deterministicZip": True,
         "sha256": digest,
         "sizeBytes": size,
-        "distributionReady": False,
+        "distributionReady": distribution_ready,
         "runtimeCertified": False,
         "physicalCertified": False,
     }
@@ -176,7 +187,7 @@ def build(root: Path = ROOT) -> dict:
     product_base_by_role = product_evidence["byBaseRole"]
     acquisition_lock = _json(root / "lab" / "appliance-bundle-acquisition-lock.json")
     management_archive = _management_archive_state(acquisition_lock, version)
-    input_pack = _input_pack_state(root, version)
+    input_pack = _input_pack_state(root, version, acquisition_lock)
     toolchain = _json(root / "lab" / "release-build-toolchain-lock.json")
     upgrade_admission = _json(root / "catalog" / "component-upgrade-source-admission.json")
     runtime_transition = _json(root / "catalog" / "runtime-dependency-transition.json")

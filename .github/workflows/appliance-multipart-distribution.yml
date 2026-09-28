@@ -12,6 +12,8 @@ on:
       - scripts/distribution_transport.py
       - scripts/prepare_appliance_distribution_parts.py
       - scripts/seal_appliance_bundle_distribution.py
+      - scripts/supply_chain_handoff.py
+      - tests/test_supply_chain_handoff.py
       - lab/appliance-input-pack-receipt.json
       - lab/management-workload-oci-archive-receipt.json
 

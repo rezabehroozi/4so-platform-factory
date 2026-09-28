@@ -64,9 +64,15 @@ class SupplyChainHandoffTests(unittest.TestCase):
             self.assertIn("@sha256:", row["evidence"]["exactReference"])
         self.assertNotIn("MANAGEMENT_IMAGE_DIGEST_LOCKS_PENDING", spec["openBlockers"])
         self.assertNotIn("MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING", spec["openBlockers"])
-        self.assertIn("APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING", spec["openBlockers"])
+        acquisition_lock = json.loads((ROOT / "lab" / "appliance-bundle-acquisition-lock.json").read_text())
+        distribution_ready = acquisition_lock.get("status") == "ready"
+        if distribution_ready:
+            self.assertNotIn("APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING", spec["openBlockers"])
+        else:
+            self.assertIn("APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING", spec["openBlockers"])
         self.assertTrue(spec["managementWorkloads"]["inputPackReceipt"]["built"])
-        self.assertEqual("distribution-pending", spec["managementWorkloads"]["inputPackReceipt"]["status"])
+        self.assertEqual("distribution-ready" if distribution_ready else "distribution-pending", spec["managementWorkloads"]["inputPackReceipt"]["status"])
+        self.assertEqual(distribution_ready, spec["managementWorkloads"]["inputPackReceipt"]["distributionReady"])
         input_pack_receipt = json.loads((ROOT / "lab" / "appliance-input-pack-receipt.json").read_text())
         self.assertEqual(input_pack_receipt["inputPackSha256"], spec["managementWorkloads"]["inputPackReceipt"]["sha256"])
         self.assertEqual(input_pack_receipt["inputPackBytes"], spec["managementWorkloads"]["inputPackReceipt"]["sizeBytes"])
