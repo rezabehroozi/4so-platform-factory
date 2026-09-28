@@ -233,6 +233,7 @@ def build(root: Path = ROOT) -> dict:
             "component": name,
             "selectedVersion": selected,
             "status": source_status,
+            "mandatory": bool(cspec.get("mandatory")),
             "runtimeStatus": status,
             "runtimeAuthority": authority,
             "reason": reason,
@@ -385,7 +386,7 @@ def build(root: Path = ROOT) -> dict:
     blockers = []
     if review:
         blockers.append("UPSTREAM_SOURCE_SELECTION_REVIEWS_PENDING")
-    if runtime_holds:
+    if any(row.get("mandatory") is True for row in runtime_holds):
         blockers.append("UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING")
     if ready:
         blockers += ["COMPONENT_SOURCE_ACQUISITION_PENDING", "SOURCE_LOCKS_PENDING"]

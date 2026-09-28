@@ -153,13 +153,13 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("phase count=%d", len(roadmap.Phases))
 	}
 	progress := roadmap.Progress
-	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 19 || progress.CorePhaseBlocked != 6 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 76 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
+	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 20 || progress.CorePhaseBlocked != 5 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 80 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
 		t.Fatalf("program progress truth drift: %#v", progress)
 	}
 	if progress.PrePhysicalSoftwarePhases != 36 || progress.PrePhysicalSoftwareClosedPhases != 36 || progress.PrePhysicalSoftwareOpenPhases != 0 || progress.PrePhysicalSoftwareClosurePercent != 100 || len(progress.SourceOpenPhaseIDs) != 0 {
 		t.Fatalf("pre-physical software progress truth drift: %#v", progress)
 	}
-	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "S2-component-runtime-certification-authorities", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "C9-pre-certification-feature-freeze-exact-bundle"} {
+	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "C9-pre-certification-feature-freeze-exact-bundle"} {
 		if !containsString(progress.ExternalClosureOnlyPhaseIDs, id) {
 			t.Fatalf("external-only closure phase missing %s: %#v", id, progress.ExternalClosureOnlyPhaseIDs)
 		}
@@ -213,7 +213,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("MCP write parity phase drift: %#v", c7w)
 	}
 	s2 := byID["S2-component-runtime-certification-authorities"]
-	if s2.Status != ProgramStatusBlocked || len(s2.Blockers) != 2 || !containsString(s2.Blockers, "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING") || containsString(s2.Blockers, "COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING") || !containsString(s2.Blockers, "COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING") || !containsString(s2.Evidence, "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1") || !containsString(s2.Evidence, "CATALOG_HISTORICAL_SOURCE_IMPORT_V1") || !containsString(s2.Evidence, "COMPONENT_RUNTIME_UPGRADE_EVIDENCE_REGISTRY_V1") || !containsString(s2.Evidence, "GATEWAY_API_RUNTIME_UPGRADE_MATRIX_V1") {
+	if s2.Status != ProgramStatusSourceImplemented || s2.ClosureStatus != ProgramClosureStatusReady || len(s2.Blockers) != 0 || containsString(s2.Blockers, "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING") || containsString(s2.Blockers, "COMPONENT_HISTORICAL_SOURCE_ACQUISITION_PENDING") || containsString(s2.Blockers, "COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING") || !containsString(s2.Evidence, "COMPONENT_UPGRADE_SOURCE_ADMISSION_V1") || !containsString(s2.Evidence, "CATALOG_HISTORICAL_SOURCE_IMPORT_V1") || !containsString(s2.Evidence, "COMPONENT_RUNTIME_UPGRADE_EVIDENCE_REGISTRY_V1") || !containsString(s2.Evidence, "GATEWAY_API_RUNTIME_UPGRADE_MATRIX_V1") {
 		t.Fatalf("component runtime S2 admission drift: %#v", s2)
 	}
 	g1 := byID["G1-operational-runtime-hardening"]

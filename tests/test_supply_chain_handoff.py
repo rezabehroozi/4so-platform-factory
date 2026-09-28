@@ -100,7 +100,12 @@ class SupplyChainHandoffTests(unittest.TestCase):
         locked = {row["component"] for row in ca["alreadySourceLocked"]}
         self.assertEqual(expected_holds, holds)
         self.assertTrue(holds.issubset(ready | locked))
+        mandatory_holds = {row["component"] for row in ca["runtimeHolds"] if row["mandatory"]}
+        self.assertEqual(set(), mandatory_holds)
+        self.assertNotIn("UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING", plan["spec"]["openBlockers"])
         for row in ca["runtimeHolds"]:
+            spec = json.loads((ROOT / "catalog" / "components" / f"{row['component']}.json").read_text())["spec"]
+            self.assertEqual(bool(spec["mandatory"]), row["mandatory"])
             self.assertIn(row["status"], {"ready-for-acquisition","source-acquired"})
             self.assertIn(row["runtimeStatus"], {"dependency-transition-required","review-required"})
             self.assertTrue(row["runtimeAuthority"])

@@ -139,7 +139,8 @@
           "runtimeAuthority": "COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1",
           "runtimeStatus": "review-required",
           "selectedVersion": "0.16.1",
-          "status": "source-acquired"
+          "status": "source-acquired",
+          "mandatory": false
         }
       ],
       "stageManifestPath": "components/stage-manifest.json"
@@ -1010,8 +1011,7 @@
       }
     },
     "openBlockers": [
-      "APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING",
-      "UPSTREAM_RUNTIME_SUITABILITY_HOLDS_PENDING"
+      "APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING"
     ],
     "releaseToolchain": {
       "admissionStatus": "admitted",

@@ -1021,6 +1021,8 @@ def validate_component_runtime_certification(root: Path, components: dict[str,di
         'requiredLifecycleStages':runtime_stages,
         'replacementPolicy':'resolved-source-replacement-denied-without-explicit-versioned-migration',
         'runtimeSuitabilityBinding':'persistent-independent-of-source-acquisition',
+        'coreClosureScope':'mandatory-components-only',
+        'optionalRuntimeHoldSemantics':'profile-blocking-not-core-freeze-blocking',
     }
     if not isinstance(runtime_cert, dict) or runtime_cert.get('apiVersion') != 'platform.4so.io/v1alpha1' or runtime_cert.get('kind') != 'ComponentRuntimeCertificationRegistry' or ((runtime_cert.get('metadata') or {}).get('name') != 'COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_V1'):
         errors.append(('COMPONENT_RUNTIME_CERTIFICATION_REGISTRY_INVALID','catalog/component-runtime-certification.json'))

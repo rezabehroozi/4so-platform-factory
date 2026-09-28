@@ -17,7 +17,9 @@
         "failure"
       ],
       "replacementPolicy": "resolved-source-replacement-denied-without-explicit-versioned-migration",
-      "runtimeSuitabilityBinding": "persistent-independent-of-source-acquisition"
+      "runtimeSuitabilityBinding": "persistent-independent-of-source-acquisition",
+      "coreClosureScope": "mandatory-components-only",
+      "optionalRuntimeHoldSemantics": "profile-blocking-not-core-freeze-blocking"
     },
     "runtimeSuitabilityHolds": [
       {
