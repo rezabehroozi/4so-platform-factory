@@ -51,12 +51,26 @@ jobs:
           Path("/tmp/operator-deployment-name").write_text(deployments[0]["metadata"]["name"])
           Path("/tmp/operator-crds.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":crds}))
           Path("/tmp/operator-resources.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":resources}))
-          def driver(path):
-              rows=json.loads(Path(path).read_text())["items"]; ds=[x for x in rows if x.get("apiVersion")=="csi.ceph.io/v1" and x.get("kind")=="Driver" and (x.get("metadata") or {}).get("name")=="rbd.csi.ceph.com"]
+          def split_driver(path):
+              rows=json.loads(Path(path).read_text())["items"]
+              ds=[x for x in rows if x.get("apiVersion")=="csi.ceph.io/v1" and x.get("kind")=="Driver" and (x.get("metadata") or {}).get("name")=="rbd.csi.ceph.com"]
               if len(ds)!=1: raise SystemExit("CEPH_CSI_RBD_DRIVER_RENDER_INVALID")
-              return ds[0]
-          old=driver("/tmp/rbd-from-list.json"); new=driver("/tmp/rbd-to-list.json")
+              support=[]
+              for x in rows:
+                  if x in ds: continue
+                  kind=x.get("kind"); name=(x.get("metadata") or {}).get("name","")
+                  if kind=="OperatorConfig" or str(name).startswith("rbd-csi-ceph-com-"):
+                      support.append(x)
+              required_sa={"rbd-csi-ceph-com-ctrlplugin-sa","rbd-csi-ceph-com-nodeplugin-sa"}
+              seen_sa={(x.get("metadata") or {}).get("name") for x in support if x.get("kind")=="ServiceAccount"}
+              if not required_sa.issubset(seen_sa): raise SystemExit("CEPH_CSI_RBD_SUPPORT_SERVICEACCOUNT_MISSING")
+              return ds[0],support
+          old,old_support=split_driver("/tmp/rbd-from-list.json"); new,new_support=split_driver("/tmp/rbd-to-list.json")
           if old.get("spec")!=new.get("spec"): raise SystemExit("CEPH_CSI_RBD_EXPECTED_SEMANTIC_NOOP_DRIFT")
+          if json.dumps(old_support,sort_keys=True,separators=(",",":"))!=json.dumps(new_support,sort_keys=True,separators=(",",":")):
+              raise SystemExit("CEPH_CSI_RBD_SUPPORT_RESOURCE_DRIFT")
+          Path("/tmp/rbd-support-from.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":old_support}))
+          Path("/tmp/rbd-support-to.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":new_support}))
           for row,out in ((old,"/tmp/rbd-from.json"),(new,"/tmp/rbd-to.json")):
               row.setdefault("spec",{})["imageSet"]={"name":"4so-ceph-csi-images"}; Path(out).write_text(json.dumps(row))
           PY
@@ -91,6 +105,8 @@ jobs:
       - name: Install historical Driver and prove generated runtime
         run: |
           set -euo pipefail
+          kubectl apply --server-side --force-conflicts --field-manager=4so-ceph-upgrade -f /tmp/rbd-support-from.json
+          kubectl -n ceph-csi-operator-system get serviceaccount rbd-csi-ceph-com-ctrlplugin-sa rbd-csi-ceph-com-nodeplugin-sa
           kubectl apply --server-side --force-conflicts --field-manager=4so-ceph-upgrade -f /tmp/rbd-from.json
           kubectl -n ceph-csi-operator-system rollout status deployment/rbd.csi.ceph.com-ctrlplugin --timeout=12m
           kubectl -n ceph-csi-operator-system rollout status daemonset/rbd.csi.ceph.com-nodeplugin --timeout=12m
@@ -103,6 +119,7 @@ jobs:
       - name: Upgrade exact target and prove convergence
         run: |
           set -euo pipefail
+          kubectl apply --server-side --force-conflicts --field-manager=4so-ceph-upgrade -f /tmp/rbd-support-to.json
           kubectl apply --server-side --force-conflicts --field-manager=4so-ceph-upgrade -f /tmp/rbd-to.json
           kubectl -n ceph-csi-operator-system rollout status deployment/rbd.csi.ceph.com-ctrlplugin --timeout=12m
           kubectl -n ceph-csi-operator-system rollout status daemonset/rbd.csi.ceph.com-nodeplugin --timeout=12m
