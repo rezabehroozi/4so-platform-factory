@@ -37,7 +37,9 @@ jobs:
           op=json.loads(Path("/tmp/operator.json").read_text())["items"]
           crds=[x for x in op if x.get("kind")=="CustomResourceDefinition"]
           resources=[x for x in op if x.get("kind")!="CustomResourceDefinition"]
-          if not crds or not any(x.get("kind")=="Deployment" and (x.get("metadata") or {}).get("name")=="ceph-csi-operator-controller-manager" for x in resources): raise SystemExit("CEPH_CSI_OPERATOR_RENDER_SHAPE_INVALID")
+          deployments=[x for x in resources if x.get("kind")=="Deployment" and (x.get("metadata") or {}).get("labels",{}).get("control-plane")=="controller-manager"]
+          if not crds or len(deployments)!=1: raise SystemExit("CEPH_CSI_OPERATOR_RENDER_SHAPE_INVALID")
+          Path("/tmp/operator-deployment-name").write_text(deployments[0]["metadata"]["name"])
           Path("/tmp/operator-crds.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":crds}))
           Path("/tmp/operator-resources.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":resources}))
           def driver(path):
@@ -69,7 +71,8 @@ jobs:
           kubectl apply --server-side --force-conflicts --field-manager=4so-ceph-upgrade -f /tmp/operator-crds.json
           for crd in $(jq -r '.items[].metadata.name' /tmp/operator-crds.json); do kubectl wait --for=condition=Established "crd/$crd" --timeout=4m; done
           kubectl apply --server-side --force-conflicts --field-manager=4so-ceph-upgrade -f /tmp/operator-resources.json
-          kubectl -n ceph-csi-operator-system rollout status deployment/ceph-csi-operator-controller-manager --timeout=12m
+          operator_deployment="$(cat /tmp/operator-deployment-name)"
+          kubectl -n ceph-csi-operator-system rollout status "deployment/$operator_deployment" --timeout=12m
           python3 - <<'PY' >/tmp/image-set.json
           import json
           d=json.load(open("lab/ceph-csi-driver-image-set-evidence.json"))
