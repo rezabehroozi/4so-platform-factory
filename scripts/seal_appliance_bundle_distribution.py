@@ -47,7 +47,7 @@ def sha256_file(path: Path) -> tuple[str, int]:
     return h.hexdigest(), info.st_size
 
 
-def immutable_https_url(raw: str, label: str) -> str:
+def immutable_https_url(raw: str, label: str, expected_sha256: str = "") -> str:
     value = str(raw or "").strip()
     parsed = urllib.parse.urlsplit(value)
     if (
@@ -62,6 +62,12 @@ def immutable_https_url(raw: str, label: str) -> str:
     host = parsed.hostname.lower().rstrip(".")
     if host in {"localhost"} or host.endswith(".localhost"):
         raise RuntimeError(f"{label}_PUBLIC_HOST_REQUIRED")
+    if expected_sha256:
+        digest = expected_sha256.lower().removeprefix("sha256:")
+        if not SHA_RE.fullmatch(digest):
+            raise RuntimeError(f"{label}_EXPECTED_SHA256_INVALID")
+        if digest not in parsed.path.lower():
+            raise RuntimeError(f"{label}_CONTENT_ADDRESS_REQUIRED")
     return value
 
 
@@ -159,10 +165,10 @@ def build_ready_lock(lock: dict, receipt: dict, *, archive_url: str, input_pack_
     archive_size = receipt.get("archiveBytes")
     if not SHA_RE.fullmatch(archive_hex) or not isinstance(archive_size, int) or archive_size <= 0:
         raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_DIGEST_INVALID")
-    immutable_https_url(archive_url, "ARCHIVE_URL")
-    immutable_https_url(input_pack_url, "INPUT_PACK_URL")
     if not SHA_RE.fullmatch(pack_sha) or pack_size <= 0:
         raise RuntimeError("INPUT_PACK_DIGEST_INVALID")
+    immutable_https_url(archive_url, "ARCHIVE_URL", archive_hex)
+    immutable_https_url(input_pack_url, "INPUT_PACK_URL", pack_sha)
 
     archive = {
         "id": ARCHIVE_AUTHORITY,

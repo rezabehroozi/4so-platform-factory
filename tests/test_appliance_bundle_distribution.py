@@ -59,8 +59,8 @@ class ApplianceBundleDistributionSealTests(unittest.TestCase):
             sha, size = mod.inspect_input_pack(pack, lock, receipt)
             out = mod.build_ready_lock(
                 lock, receipt,
-                archive_url="https://downloads.example.test/platform-workloads.oci.tar",
-                input_pack_url="https://downloads.example.test/appliance-input-pack.zip",
+                archive_url="https://downloads.example.test/sha256/" + receipt["archiveSha256"].removeprefix("sha256:") + "/platform-workloads.oci.tar",
+                input_pack_url="https://downloads.example.test/sha256/" + sha + "/appliance-input-pack.zip",
                 pack_sha=sha, pack_size=size,
             )
             self.assertEqual("ready", out["status"])
@@ -108,10 +108,17 @@ class ApplianceBundleDistributionSealTests(unittest.TestCase):
                 mod.inspect_input_pack(pack, lock, receipt)
 
     def test_nonimmutable_urls_are_rejected(self):
+        expected = "a" * 64
         with self.assertRaisesRegex(RuntimeError, "IMMUTABLE_PUBLIC_HTTPS_REQUIRED"):
-            mod.immutable_https_url("https://example.test/archive?token=secret", "ARCHIVE_URL")
+            mod.immutable_https_url("https://example.test/archive?token=secret", "ARCHIVE_URL", expected)
         with self.assertRaisesRegex(RuntimeError, "IMMUTABLE_PUBLIC_HTTPS_REQUIRED"):
-            mod.immutable_https_url("http://example.test/archive", "ARCHIVE_URL")
+            mod.immutable_https_url("http://example.test/archive", "ARCHIVE_URL", expected)
+        with self.assertRaisesRegex(RuntimeError, "CONTENT_ADDRESS_REQUIRED"):
+            mod.immutable_https_url("https://example.test/releases/latest/archive.tar", "ARCHIVE_URL", expected)
+        self.assertEqual(
+            "https://example.test/sha256/" + expected + "/archive.tar",
+            mod.immutable_https_url("https://example.test/sha256/" + expected + "/archive.tar", "ARCHIVE_URL", expected),
+        )
 
 
 if __name__ == "__main__":
