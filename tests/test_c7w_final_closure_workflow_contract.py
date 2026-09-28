@@ -15,6 +15,8 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("receipt_b64:", incremental)
         self.assertIn("finalize_mcp_external_client_receipt.py", incremental)
         self.assertIn(".capture.json", incremental)
+        self.assertEqual(1, incremental.count("/tmp/mcp-external/${{ inputs.client }}.capture.json"))
+        self.assertEqual(1, incremental.count("/tmp/mcp-external/${{ inputs.client }}.packet.json"))
         bulk = self.read(".github/workflows/mcp-external-interop-seal.yml")
         for client in ("chatgpt", "claude", "gemini", "grok"):
             self.assertIn(f"{client}_capture_b64:", bulk)
