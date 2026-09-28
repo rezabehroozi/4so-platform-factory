@@ -44,34 +44,6 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/mcp-interop
           python3 scripts/prepare_mcp_external_interop_campaign.py             --endpoint "$MCP_ENDPOINT"             --out /tmp/mcp-interop/campaign.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          campaign=json.loads(Path("/tmp/mcp-interop/campaign.json").read_text())
-          matrix=json.loads(Path("lab/mcp-external-client-interop-matrix.json").read_text())
-          checks=matrix["spec"]["sharedRequiredChecks"]
-          out=Path("/tmp/mcp-interop/receipt-templates"); out.mkdir()
-          for client in campaign["clients"]:
-              row={
-                "authority":"MCP_EXTERNAL_CLIENT_EXECUTION_RECEIPT_V1",
-                "clientId":client["clientId"],
-                "campaignId":campaign["campaignId"],
-                "challengeSha256":client["challengeSha256"],
-                "protocol":campaign["protocol"],
-                "transport":campaign["transport"],
-                "endpoint":campaign["endpoint"],
-                "executionId":"",
-                "externalExecution":False,
-                "credentialedExecution":False,
-                "checks":{name:False for name in checks},
-                "requestIds":{name:"" for name in checks if name!="oauth-protected-resource-discovery"},
-                "scopeLeakObserved":True,
-                "revokedGrantAccepted":True,
-                "selfApprovalAccepted":True,
-                "evidenceDigest":"",
-              }
-              (out/(client["clientId"]+".json")).write_text(json.dumps(row,indent=2,sort_keys=True)+"\n")
-          PY
           python3 -m unittest tests.test_mcp_external_interop_seal
           jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1" and .externalExecutionRequired and (.clients|length==4)' /tmp/mcp-interop/campaign.json
           python3 - <<'PY'
@@ -94,7 +66,7 @@ jobs:
           audited=set(packet["receiptRequirements"]["requestIds"])
           for row in packet["checks"]:
               checks[row["id"]]={"passed":False,**({"requestId":""} if row["id"] in audited else {})}
-          out={"authority":packet["receiptRequirements"]["captureAuthority"],"clientId":packet["clientId"],"campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"executionId":"","externalExecution":False,"credentialedExecution":False,"checks":checks,"providerExecutionRef":""}
+          out={"authority":packet["receiptRequirements"]["captureAuthority"],"clientId":packet["clientId"],"clientSurface":packet["clientSurface"],"campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"executionId":"","externalExecution":False,"credentialedExecution":False,"checks":checks,"providerExecutionRef":""}
           Path(sys.argv[2]).write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
           PY
           done

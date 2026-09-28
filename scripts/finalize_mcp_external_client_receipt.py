@@ -25,13 +25,13 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CLIENT_INVALID")
     if not isinstance(capture,dict) or capture.get("authority")!=AUTHORITY or capture.get("clientId")!=client:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_IDENTITY_INVALID")
-    allowed_capture={"authority","clientId","campaignId","challengeSha256","endpoint","executionId","externalExecution","credentialedExecution","checks","providerExecutionRef"}
+    allowed_capture={"authority","clientId","clientSurface","campaignId","challengeSha256","endpoint","executionId","externalExecution","credentialedExecution","checks","providerExecutionRef"}
     if set(capture)!=allowed_capture:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_FIELDS_INVALID")
     provider_ref=str(capture.get("providerExecutionRef") or "").strip()
     if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PROVIDER_EXECUTION_REF_INVALID")
-    for key in ("campaignId","challengeSha256","endpoint"):
+    for key in ("clientSurface","campaignId","challengeSha256","endpoint"):
         if capture.get(key)!=packet.get(key):
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_BINDING_INVALID {key}")
     meta=packet.get("requestMeta") or {}
@@ -74,6 +74,7 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     return {
       "authority":core.RECEIPT_AUTHORITY,
       "clientId":client,
+      "clientSurface":packet["clientSurface"],
       "campaignId":packet["campaignId"],
       "challengeSha256":packet["challengeSha256"],
       "protocol":packet["protocol"],

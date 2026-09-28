@@ -13,7 +13,8 @@ def matrix_contract(matrix_path:Path,campaign_path:Path):
         raise RuntimeError("MCP_EXTERNAL_MATRIX_STATE_INVALID")
     protocol=str(spec.get("protocol") or ""); required=list(spec.get("sharedRequiredChecks") or [])
     declared=[r.get("id") for r in spec.get("clients") or [] if isinstance(r,dict)]
-    if protocol!="2026-07-28" or len(required)!=7 or len(set(required))!=7 or declared!=list(core.CLIENTS):
+    surfaces={r.get("id"):r.get("displayName") for r in spec.get("clients") or [] if isinstance(r,dict)}
+    if protocol!="2026-07-28" or len(required)!=7 or len(set(required))!=7 or declared!=list(core.CLIENTS) or surfaces!=core.CLIENT_SURFACES:
         raise RuntimeError("MCP_EXTERNAL_MATRIX_CONTRACT_INVALID")
     return spec,required,core.verify_campaign(campaign_path,matrix_path,spec)
 
@@ -37,6 +38,7 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
     by_id={}; order={name:i for i,name in enumerate(core.CLIENTS)}; last=-1
     for row in rows:
         if not isinstance(row,dict) or row.get("clientId") not in order or row["clientId"] in by_id: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_IDENTITY_INVALID")
+        if row.get("clientSurface")!=core.CLIENT_SURFACES[row["clientId"]]: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_SURFACE_INVALID")
         idx=order[row["clientId"]]
         if idx<=last: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_ORDER_INVALID")
         last=idx

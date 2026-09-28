@@ -18,6 +18,7 @@ RECEIPT_AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_RECEIPT_V1"
 CAMPAIGN_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1"
 AUDIT_WITNESS_AUTHORITY="MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1"
 CLIENTS=("chatgpt","claude","gemini","grok")
+CLIENT_SURFACES={"chatgpt":"ChatGPT custom MCP","claude":"Claude remote MCP","gemini":"Gemini remote MCP","grok":"Grok custom MCP"}
 SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
 REQUEST_ID=re.compile(r"^[A-Za-z0-9._:-]{8,200}$")
 AUDITED_CHECKS=(
@@ -68,6 +69,8 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     row=load(path,client.upper()+"_RECEIPT")
     if not isinstance(row,dict) or row.get("authority")!=RECEIPT_AUTHORITY or row.get("clientId")!=client:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_IDENTITY_INVALID {client}")
+    if row.get("clientSurface")!=CLIENT_SURFACES[client]:
+        raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_CLIENT_SURFACE_INVALID {client}")
     if row.get("protocol")!=protocol or row.get("transport")!="streamable-http":
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_PROTOCOL_INVALID {client}")
     challenge=next((x for x in campaign["clients"] if x.get("clientId")==client),None)
@@ -92,7 +95,7 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     if not SHA.fullmatch(evidence):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
     request_ids=_request_ids(row,client)
-    return {"clientId":client,"endpoint":ep,"executionId":run_id,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids}
+    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids}
 
 def _audit_rows(path:Path)->list[dict]:
     value=load(path,"SECURITY_AUDIT")
@@ -165,7 +168,8 @@ def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->d
     if protocol!="2026-07-28" or len(required)!=7 or len(set(required))!=7:
         raise RuntimeError("MCP_EXTERNAL_MATRIX_REQUIRED_CHECKS_INVALID")
     declared=[r.get("id") for r in spec.get("clients") or [] if isinstance(r,dict)]
-    if declared!=list(CLIENTS):
+    surfaces={r.get("id"):r.get("displayName") for r in spec.get("clients") or [] if isinstance(r,dict)}
+    if declared!=list(CLIENTS) or surfaces!=CLIENT_SURFACES:
         raise RuntimeError("MCP_EXTERNAL_MATRIX_CLIENT_SET_INVALID")
     campaign=verify_campaign(campaign_path,matrix_path,spec)
     rows=[]; used_request_ids={}; used_execution_ids={}; used_evidence_digests={}
