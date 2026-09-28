@@ -41,6 +41,16 @@ class ReceiptFinalizerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_INVALID"): mod.finalize(pp,cap)
             bad=copy.deepcopy(capture); bad["campaignId"]="mcp-interop-other"; cap.write_text(json.dumps(bad))
             with self.assertRaisesRegex(RuntimeError,"BINDING_INVALID"): mod.finalize(pp,cap)
+    def test_capture_rejects_extra_fields_missing_provider_ref_and_check_shape_drift(self):
+        with tempfile.TemporaryDirectory() as raw:
+            pp,cap,capture=self.fixture(Path(raw))
+            bad=copy.deepcopy(capture); bad["authorization"]="secret"; cap.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"FIELDS_INVALID"): mod.finalize(pp,cap)
+            bad=copy.deepcopy(capture); bad["providerExecutionRef"]=""; cap.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"PROVIDER_EXECUTION_REF_INVALID"): mod.finalize(pp,cap)
+            bad=copy.deepcopy(capture); bad["checks"]["oauth-protected-resource-discovery"]["requestId"]="req-public-01"; cap.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"CHECK_FIELDS_INVALID"): mod.finalize(pp,cap)
+
     def test_capture_symlink_is_rejected(self):
         with tempfile.TemporaryDirectory() as raw:
             td=Path(raw); pp,cap,_=self.fixture(td); link=td/"capture-link.json"; link.symlink_to(cap.name)

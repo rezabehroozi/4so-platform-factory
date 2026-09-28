@@ -25,6 +25,12 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CLIENT_INVALID")
     if not isinstance(capture,dict) or capture.get("authority")!=AUTHORITY or capture.get("clientId")!=client:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_IDENTITY_INVALID")
+    allowed_capture={"authority","clientId","campaignId","challengeSha256","endpoint","executionId","externalExecution","credentialedExecution","checks","providerExecutionRef"}
+    if set(capture)!=allowed_capture:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_FIELDS_INVALID")
+    provider_ref=str(capture.get("providerExecutionRef") or "").strip()
+    if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref):
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PROVIDER_EXECUTION_REF_INVALID")
     for key in ("campaignId","challengeSha256","endpoint"):
         if capture.get(key)!=packet.get(key):
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_BINDING_INVALID {key}")
@@ -53,15 +59,16 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     request_ids={}
     for check_id in expected_ids:
         row=observed.get(check_id)
-        if not isinstance(row,dict) or row.get("passed") is not True:
+        expected_fields={"passed","requestId"} if check_id in core.AUDITED_CHECKS else {"passed"}
+        if not isinstance(row,dict) or set(row)!=expected_fields:
+            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_CHECK_FIELDS_INVALID {check_id}")
+        if row.get("passed") is not True:
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_CHECK_NOT_PASS {check_id}")
         rid=str(row.get("requestId") or "").strip()
         if check_id in core.AUDITED_CHECKS:
             if not core.REQUEST_ID.fullmatch(rid):
                 raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_REQUEST_ID_INVALID {check_id}")
             request_ids[check_id]=rid
-        elif rid:
-            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PUBLIC_CHECK_REQUEST_ID_FORBIDDEN {check_id}")
     if len(set(request_ids.values()))!=len(core.AUDITED_CHECKS):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_REQUEST_ID_REUSE")
     return {
