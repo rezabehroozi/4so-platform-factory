@@ -164,8 +164,16 @@ jobs:
           set -euo pipefail
           git config user.name "4so-evidence-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add lab/appliance-bundle-acquisition-lock.json lab/supply-chain-handoff-plan.json
           git fetch origin main
-          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing stale distribution seal"; exit 1; }
+          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+            echo "main advanced; recomputing distribution authority on latest canonical main"
+            git reset --hard origin/main
+            python3 scripts/seal_appliance_bundle_distribution.py --input-pack /tmp/readback/appliance-input-pack.zip --distribution-manifest /tmp/distribution/public-manifest.json --write
+            python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+            python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+            python3 scripts/validate_repository.py .
+          fi
+          git add lab/appliance-bundle-acquisition-lock.json lab/supply-chain-handoff-plan.json
+          git diff --cached --quiet && { echo "no distribution authority delta"; exit 0; }
           git commit -m "evidence: seal public multipart appliance distribution"
           git push origin HEAD:main
