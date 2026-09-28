@@ -1,0 +1,78 @@
+name: mcp-external-receipt-admission
+
+on:
+  workflow_dispatch:
+    inputs:
+      campaign_b64:
+        description: Base64 campaign.json from mcp-external-interop-campaign
+        required: true
+        type: string
+      client:
+        description: Named external MCP client
+        required: true
+        type: choice
+        options: [chatgpt, claude, gemini, grok]
+      receipt_b64:
+        description: Base64 independently produced client execution receipt
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mcp-external-receipt-admission
+  cancel-in-progress: false
+
+jobs:
+  admit-one-client:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Decode external evidence packet
+        shell: bash
+        env:
+          CAMPAIGN_B64: ${{ inputs.campaign_b64 }}
+          RECEIPT_B64: ${{ inputs.receipt_b64 }}
+          CLIENT: ${{ inputs.client }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p /tmp/mcp-external
+          printf '%s' "$CAMPAIGN_B64" | base64 -d > /tmp/mcp-external/campaign.json
+          printf '%s' "$RECEIPT_B64" | base64 -d > "/tmp/mcp-external/$CLIENT.json"
+      - name: Verify and merge one independently executed client
+        shell: bash
+        env:
+          CLIENT: ${{ inputs.client }}
+        run: |
+          set -euo pipefail
+          python3 scripts/admit_mcp_external_receipt.py --campaign /tmp/mcp-external/campaign.json --receipt "/tmp/mcp-external/$CLIENT.json" --client "$CLIENT"
+          jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1" and .certifiedClientCount>=1 and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interop-progress.json
+          if jq -e '.complete' lab/mcp-external-client-interop-progress.json >/dev/null; then
+            jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1" and .certifiedClientCount==4 and .externalCertificationPass and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interoperability-evidence.json
+          fi
+          python3 -m unittest tests.test_mcp_external_interop_seal tests.test_mcp_external_receipt_progress
+          git diff --check
+      - name: Reconcile onto latest main and persist progress
+        shell: bash
+        env:
+          CLIENT: ${{ inputs.client }}
+        run: |
+          set -euo pipefail
+          git config user.name "4so-evidence-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch origin main
+          if test "$(git rev-parse origin/main)" != "$(git rev-parse HEAD)"; then
+            git reset --hard origin/main
+            python3 scripts/admit_mcp_external_receipt.py --campaign /tmp/mcp-external/campaign.json --receipt "/tmp/mcp-external/$CLIENT.json" --client "$CLIENT"
+          fi
+          git add lab/mcp-external-client-interop-progress.json
+          test ! -f lab/mcp-external-client-interoperability-evidence.json || git add lab/mcp-external-client-interoperability-evidence.json
+          git diff --cached --quiet && { echo "no external-client progress delta"; exit 0; }
+          git commit -m "evidence: admit $CLIENT MCP interoperability receipt"
+          git push origin HEAD:main
