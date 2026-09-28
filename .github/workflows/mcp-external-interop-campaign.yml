@@ -62,6 +62,10 @@ jobs:
           ref={"authority":"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_REFERENCE_V1","workflowRunId":os.environ["GITHUB_RUN_ID"],"sourceCommitSHA":os.environ["GITHUB_SHA"],"campaignId":campaign["campaignId"],"matrixSha256":campaign["matrixSha256"],"endpoint":campaign["endpoint"],"clients":[x["clientId"] for x in campaign["clients"]]}
           Path("/tmp/mcp-interop/campaign-reference.json").write_text(json.dumps(ref,indent=2,sort_keys=True)+"\n")
           PY
+          for client in chatgpt claude gemini grok; do
+            python3 scripts/prepare_mcp_external_client_execution.py --campaign /tmp/mcp-interop/campaign.json --client "$client" --out "/tmp/mcp-interop/execution-packets/$client.json"
+          done
+          python3 -m unittest tests.test_mcp_external_client_execution_packet
       - name: Upload campaign packet
         uses: actions/upload-artifact@v4
         with:
