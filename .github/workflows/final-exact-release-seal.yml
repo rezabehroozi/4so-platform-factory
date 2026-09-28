@@ -7,14 +7,15 @@ on:
     types: [completed]
   push:
     branches: [main]
-    paths:
-      - lab/appliance-bundle-acquisition-lock.json
-      - lab/mcp-external-client-interoperability-evidence.json
-      - scripts/final_exact_release_admission.py
-      - .github/workflows/final-exact-release-seal.yml
+    paths-ignore:
+      - lab/final-exact-release-evidence.json
 
 permissions:
   contents: write
+
+concurrency:
+  group: final-exact-release-main
+  cancel-in-progress: true
 
 jobs:
   build-when-admitted:
@@ -29,6 +30,16 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      - id: source
+        name: Bind exact checked-out main SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(git rev-parse HEAD)"
+          test -n "$source_sha"
+          echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          test -z "$(git status --porcelain)"
       - id: admission
         name: Check S1 and C7W external closure
         shell: bash
@@ -65,6 +76,16 @@ jobs:
           path: /tmp/final-admission-status.json
           if-no-files-found: error
           retention-days: 30
+      - name: Fence exact source before expensive build
+        if: steps.admission.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$SOURCE_SHA" || {
+            echo "main advanced before exact build; a newer workflow run owns reseal"
+            exit 1
+          }
       - name: Install exact build prerequisites
         if: steps.admission.outputs.ready == 'true'
         shell: bash
@@ -118,7 +139,7 @@ jobs:
           release=Path(os.environ["EXACT_RELEASE"])
           stage=Path("release")/release.stem
           admission=json.loads(Path("/tmp/final-admission.json").read_text())
-          out={"apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseEvidence","authority":"FINAL_EXACT_RELEASE_SEAL_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"version":Path("VERSION").read_text().strip(),"releaseName":Path("RELEASE-NAME").read_text().strip(),"releaseArchive":release.name,"releaseArchiveSha256":sha(release),"releaseArchiveBytes":release.stat().st_size,"artifactManifestSha256":sha(stage/"ARTIFACT-MANIFEST.json"),"buildProvenanceSha256":sha(stage/"BUILD-PROVENANCE.json"),"sbomSha256":sha(stage/"SBOM.spdx.json"),"admissionAuthority":admission["authority"],"applianceDistributionSha256":admission["applianceDistributionSha256"],"mcpExternalInteropSha256":admission["mcpExternalInteropSha256"],"fullVerifierPass":True,"physicalCertified":False}
+          out={"apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseEvidence","authority":"FINAL_EXACT_RELEASE_SEAL_V1","sourceCommitSHA":os.environ["SOURCE_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"version":Path("VERSION").read_text().strip(),"releaseName":Path("RELEASE-NAME").read_text().strip(),"releaseArchive":release.name,"releaseArchiveSha256":sha(release),"releaseArchiveBytes":release.stat().st_size,"artifactManifestSha256":sha(stage/"ARTIFACT-MANIFEST.json"),"buildProvenanceSha256":sha(stage/"BUILD-PROVENANCE.json"),"sbomSha256":sha(stage/"SBOM.spdx.json"),"admissionAuthority":admission["authority"],"applianceDistributionSha256":admission["applianceDistributionSha256"],"mcpExternalInteropSha256":admission["mcpExternalInteropSha256"],"fullVerifierPass":True,"physicalCertified":False}
           Path("lab/final-exact-release-evidence.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
           PY
           jq -e '.authority=="FINAL_EXACT_RELEASE_SEAL_V1" and .fullVerifierPass and (.physicalCertified|not)' lab/final-exact-release-evidence.json
@@ -140,7 +161,7 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add lab/final-exact-release-evidence.json
           git fetch origin main
-          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
+          if test "$(git rev-parse origin/main)" != "$SOURCE_SHA"; then
             echo "main advanced; refusing stale final-release seal"
             exit 1
           fi
