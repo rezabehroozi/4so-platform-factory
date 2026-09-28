@@ -33,7 +33,7 @@ func TestTargetArchitectureModelSeparatesDistributionFromProvisioning(t *testing
 	if model.ManagementPlane.DistributionIdentity != targetmodel.DistributionRKE2 || model.ManagementPlane.ProvisioningMode != targetmodel.ProvisioningManagedInstall {
 		t.Fatalf("management plane=%#v", model.ManagementPlane)
 	}
-	if model.CapabilityResolver.Authority != targetmodel.CapabilityResolverAuthority || model.ProgramRoadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" {
+	if model.CapabilityResolver.Authority != targetmodel.CapabilityResolverAuthority || model.ProgramRoadmap.CurrentPhase != "C7W-mcp-user-admin-write-parity" {
 		t.Fatalf("target program authority=%#v resolver=%#v", model.ProgramRoadmap, model.CapabilityResolver)
 	}
 }

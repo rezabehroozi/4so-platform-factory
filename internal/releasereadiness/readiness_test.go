@@ -193,7 +193,7 @@ func TestBuildIncludesCanonicalProgramRoadmapWithoutConflatingPhysicalRuntime(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.ProgramRoadmap.Authority != "PROGRAM_PHASE_MODEL_V75" || report.ProgramRoadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" {
+	if report.ProgramRoadmap.Authority != "PROGRAM_PHASE_MODEL_V75" || report.ProgramRoadmap.CurrentPhase != "C7W-mcp-user-admin-write-parity" {
 		t.Fatalf("unexpected program roadmap: %#v", report.ProgramRoadmap)
 	}
 	if report.ProgramRoadmap.GoalReady {

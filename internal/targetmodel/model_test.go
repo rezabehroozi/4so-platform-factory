@@ -146,7 +146,7 @@ func TestManagementPlaneStorageAuthorityMatchesAcquisitionSourceLock(t *testing.
 
 func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.T) {
 	roadmap := ArchitectureModel().ProgramRoadmap
-	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V75" || roadmap.CurrentPhase != "S1-exact-supply-chain-acquisition-closure" || roadmap.GoalReady {
+	if roadmap.Authority != "PROGRAM_PHASE_MODEL_V75" || roadmap.CurrentPhase != "C7W-mcp-user-admin-write-parity" || roadmap.GoalReady {
 		t.Fatalf("unexpected roadmap authority: %#v", roadmap)
 	}
 	if len(roadmap.Phases) != 40 {
@@ -201,7 +201,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 			t.Fatalf("R0 evidence %q missing: %#v", evidence, r0)
 		}
 	}
-	s1 := byID[roadmap.CurrentPhase]
+	s1 := byID["S1-exact-supply-chain-acquisition-closure"]
 	if s1.Status != ProgramStatusSourceImplemented || s1.ClosureStatus != ProgramClosureStatusReady || len(s1.Blockers) != 0 || !s1.RequiredForFeatureFreeze || !containsString(s1.ParallelWith, "C7W-mcp-user-admin-write-parity") || !containsString(s1.ParallelWith, "G4-data-protection-productization") || !containsString(s1.ParallelWith, "G5-enterprise-identity-compliance") || containsString(s1.ParallelWith, "H2-vmware-provider") || containsString(s1.ParallelWith, "J1-automation-external-integrations") {
 		t.Fatalf("supply-chain phase is not an immediate parallel critical path: %#v", s1)
 	}
@@ -275,7 +275,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	g3 := byID["G3-target-node-maintenance-lifecycle"]
-	if g3.Status != ProgramStatusSourceImplemented || len(g3.Blockers) != 0 || !containsString(g3.Evidence, "TARGET_NODE_LIFECYCLE_AUTHORITY_V1") || !containsString(g3.Evidence, "TARGET_NODE_PROVIDER_BINDING_AUTHORITY_V1") || !containsString(g3.Evidence, "TARGET_NODE_PROVIDER_MACHINE_LIFECYCLE_V1") || !containsString(g3.Evidence, "CAPI_EXACT_WORKER_MACHINE_REMOVE_REPLACE_V1") || !containsString(g3.Evidence, "RKE2_WORKER_CERTIFICATE_RENEWAL_BY_CAPI_REPLACEMENT_V1") || !containsString(g3.Evidence, "CAPI_WORKER_MACHINE_REMEDIATION_REPLACEMENT_V1") || !containsString(g3.Evidence, "migrations/0061_target_node_provider_machine_lifecycle.sql") || !containsString(g3.Evidence, "CAPI_TOPOLOGY_WORKER_ADD_V1") || !containsString(g3.Evidence, "POST /api/v1/clusters/{id}/provider-binding") || !containsString(g3.Evidence, "POST /api/v1/clusters/{id}/node-lifecycle-actions") || !containsString(g3.Evidence, "TARGET_NODE_HOST_MAINTENANCE_EXECUTOR_V1") || !containsString(g3.ParallelWith, roadmap.CurrentPhase) || !containsString(g3.ParallelWith, "S2-component-runtime-certification-authorities") {
+	if g3.Status != ProgramStatusSourceImplemented || len(g3.Blockers) != 0 || !containsString(g3.Evidence, "TARGET_NODE_LIFECYCLE_AUTHORITY_V1") || !containsString(g3.Evidence, "TARGET_NODE_PROVIDER_BINDING_AUTHORITY_V1") || !containsString(g3.Evidence, "TARGET_NODE_PROVIDER_MACHINE_LIFECYCLE_V1") || !containsString(g3.Evidence, "CAPI_EXACT_WORKER_MACHINE_REMOVE_REPLACE_V1") || !containsString(g3.Evidence, "RKE2_WORKER_CERTIFICATE_RENEWAL_BY_CAPI_REPLACEMENT_V1") || !containsString(g3.Evidence, "CAPI_WORKER_MACHINE_REMEDIATION_REPLACEMENT_V1") || !containsString(g3.Evidence, "migrations/0061_target_node_provider_machine_lifecycle.sql") || !containsString(g3.Evidence, "CAPI_TOPOLOGY_WORKER_ADD_V1") || !containsString(g3.Evidence, "POST /api/v1/clusters/{id}/provider-binding") || !containsString(g3.Evidence, "POST /api/v1/clusters/{id}/node-lifecycle-actions") || !containsString(g3.Evidence, "TARGET_NODE_HOST_MAINTENANCE_EXECUTOR_V1") || !containsString(g3.ParallelWith, "S1-exact-supply-chain-acquisition-closure") || !containsString(g3.ParallelWith, "S2-component-runtime-certification-authorities") {
 		t.Fatalf("node lifecycle source closure drift: %#v", g3)
 	}
 	g4 := byID["G4-data-protection-productization"]

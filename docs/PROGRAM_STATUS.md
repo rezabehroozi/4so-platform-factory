@@ -510,3 +510,12 @@ Refresh `origin/main` first and trust the newer HEAD if main advanced. Read this
 - The canonical management workload OCI archive distribution is 2,307,195,904 bytes with SHA-256 `sha256:33122daf7b73bd6c9929dc5aa0a6d1ea8066f3a3b6486d0a753f0bf09a3f06dc`.
 - S1 is therefore source/closure ready. No Runtime or Physical PASS is inferred from distribution closure.
 - Mandatory pre-freeze external closure is now narrowed to `MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING`; C9 remains independently blocked on `FINAL_EXACT_RELEASE_SEAL_PENDING` until that named-client evidence exists.
+
+
+## 2026-09-28 — Current execution focus moved to C7W
+
+- S1 immutable appliance distribution is closed and no longer the current blocked phase.
+- `ProgramRoadmap.CurrentPhase` now points to `C7W-mcp-user-admin-write-parity`, the only remaining independent mandatory pre-freeze external evidence lane.
+- A dedicated `s1Phase` identifier preserves all historical/dependency edges that depend on S1; changing the current execution focus does not rewrite the DAG.
+- W2 is narrowed from two parallel external authorities to the single remaining C7W named-client interoperability authority.
+- C9 remains blocked independently on the final exact release seal and may run only after C7W evidence is canonical.
