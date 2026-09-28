@@ -166,14 +166,18 @@ jobs:
           test "$(kubectl version -o json | jq -r .serverVersion.gitVersion)" = "v${{ matrix.kubernetes }}"
           if test "${{ matrix.component }}" = argocd; then
             jq -r '.[].images[]' "/tmp/argocd-$FROM_RELEASE-workloads.json" "/tmp/argocd-$TO_RELEASE-workloads.json" | sort -u >/tmp/argocd-images.txt
+            node="4so-argocd-upgrade-control-plane"
             while read -r exact; do
               ok=false
               for attempt in 1 2 3 4 5 6; do
-                if docker pull "$exact"; then ok=true; break; fi
+                if docker exec --privileged "$node" ctr --namespace=k8s.io images pull --platform linux/amd64 "$exact"; then
+                  ok=true
+                  break
+                fi
                 sleep $((attempt*15))
               done
               test "$ok" = true
-              /tmp/kind load docker-image --name "4so-argocd-upgrade" "$exact"
+              docker exec --privileged "$node" ctr --namespace=k8s.io images check "$exact" >/dev/null
             done </tmp/argocd-images.txt
           fi
 
