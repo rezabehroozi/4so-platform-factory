@@ -75,8 +75,21 @@ jobs:
           endpoint="$(jq -r .endpoint /tmp/mcp-external/campaign.json)"
           base="${endpoint%/mcp}"
           case "$base" in https://*) ;; *) echo "campaign endpoint must be HTTPS"; exit 2;; esac
-          curl -fsS --retry 3 -H "Authorization: Bearer $C7W_PLATFORM_ADMIN_TOKEN" "$base/api/v1/security-audit-events?limit=1000" > /tmp/mcp-external/security-audit.json
-          jq -e 'type=="array" and length>0' /tmp/mcp-external/security-audit.json >/dev/null
+          args=()
+          while IFS= read -r rid; do
+            test -n "$rid" || { echo "empty requestId"; exit 2; }
+            args+=(--data-urlencode "requestId=$rid")
+          done < <(jq -r '.requestIds | to_entries[] | .value' "/tmp/mcp-external/$CLIENT.json")
+          test "${#args[@]}" = "6" || { echo "exactly six audited requestIds are required"; exit 2; }
+          ok=false
+          for attempt in $(seq 1 15); do
+            code="$(curl -sS -o /tmp/mcp-external/security-audit.json -w '%{http_code}' -G --retry 2 -H "Authorization: Bearer $C7W_PLATFORM_ADMIN_TOKEN" "${args[@]}" "$base/api/v1/security-audit-events")"
+            if test "$code" = "200"; then ok=true; break; fi
+            test "$code" = "409" || { cat /tmp/mcp-external/security-audit.json; echo "audit witness lookup failed HTTP $code"; exit 2; }
+            sleep 2
+          done
+          test "$ok" = true || { echo "audit witness events did not become visible"; exit 2; }
+          jq -e 'type=="array" and length>=6' /tmp/mcp-external/security-audit.json >/dev/null
       - name: Verify and merge one independently executed client
         shell: bash
         env:

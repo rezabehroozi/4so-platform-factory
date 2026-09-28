@@ -65,8 +65,14 @@ jobs:
           base="${endpoint%/mcp}"
           case "$base" in https://*) ;; *) echo "campaign endpoint must be HTTPS"; exit 2;; esac
           mkdir -p /tmp/mcp-interop/audits
-          curl -fsS --retry 3 -H "Authorization: Bearer $C7W_PLATFORM_ADMIN_TOKEN" "$base/api/v1/security-audit-events?limit=1000" > /tmp/mcp-interop/security-audit.json
-          jq -e 'type=="array" and length>0' /tmp/mcp-interop/security-audit.json >/dev/null
+          args=()
+          for client in chatgpt claude gemini grok; do
+            while IFS= read -r rid; do args+=(--data-urlencode "requestId=$rid"); done < <(jq -r '.requestIds | to_entries[] | .value' "/tmp/mcp-interop/receipts/$client.json")
+          done
+          test "${#args[@]}" = "24" || { echo "exactly 24 audited requestIds are required"; exit 2; }
+          code="$(curl -sS -o /tmp/mcp-interop/security-audit.json -w '%{http_code}' -G --retry 3 -H "Authorization: Bearer $C7W_PLATFORM_ADMIN_TOKEN" "${args[@]}" "$base/api/v1/security-audit-events")"
+          test "$code" = "200" || { cat /tmp/mcp-interop/security-audit.json; echo "audit witness lookup failed HTTP $code"; exit 2; }
+          jq -e 'type=="array" and length>=24' /tmp/mcp-interop/security-audit.json >/dev/null
           for client in chatgpt claude gemini grok; do cp /tmp/mcp-interop/security-audit.json "/tmp/mcp-interop/audits/$client.json"; done
       - name: Verify replay fencing, server audit, negative controls and seal C7W evidence
         shell: bash

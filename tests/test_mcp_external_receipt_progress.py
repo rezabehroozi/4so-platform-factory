@@ -32,6 +32,16 @@ class IncrementalMCPInteropTests(unittest.TestCase):
                 out=mod.merge(matrix,cp,rp,ap,client,progress if progress.exists() else None); progress.write_text(json.dumps(out))
                 self.assertEqual(idx,out["certifiedClientCount"]); self.assertEqual(idx==4,out["complete"])
             evidence=mod.final_evidence(out,progress); self.assertEqual(4,evidence["certifiedClientCount"]); self.assertTrue(evidence["serverAuditWitnessPass"]); self.assertEqual(24,evidence["serverAuditWitnessedCheckCount"]); self.assertFalse(evidence["physicalCertified"])
+    def test_cross_client_request_id_reuse_rejects_incrementally(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); campaign=self.campaign(matrix); cp=root/"campaign.json"; cp.write_text(json.dumps(campaign)); progress=root/"progress.json"
+            first=self.receipt("chatgpt",checks,campaign); rp=root/"chatgpt.json"; ap=root/"chatgpt-audit.json"; rp.write_text(json.dumps(first)); ap.write_text(json.dumps(self.audit(first)))
+            out=mod.merge(matrix,cp,rp,ap,"chatgpt",None); progress.write_text(json.dumps(out))
+            second=self.receipt("claude",checks,campaign); key=next(iter(second["requestIds"])); second["requestIds"][key]=next(iter(first["requestIds"].values()))
+            rp2=root/"claude.json"; ap2=root/"claude-audit.json"; rp2.write_text(json.dumps(second)); ap2.write_text(json.dumps(self.audit(second)))
+            with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_REUSE"): mod.merge(matrix,cp,rp2,ap2,"claude",progress)
+
     def test_divergent_replacement_and_campaign_drift_reject(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
         with tempfile.TemporaryDirectory() as td:

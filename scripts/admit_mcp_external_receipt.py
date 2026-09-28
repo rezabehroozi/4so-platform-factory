@@ -59,6 +59,13 @@ def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,
     if progress_path is not None and progress_path.exists():
         by_id=validate_existing(core.load(progress_path,"PROGRESS"),expected)
     row=core.verify_receipt(receipt_path,client,required,str(spec["protocol"]),campaign)
+    used={}
+    for existing_client,existing in by_id.items():
+        for existing_check,rid in (existing.get("requestIds") or {}).items():
+            used[rid]=f"{existing_client}:{existing_check}"
+    for check,rid in row["requestIds"].items():
+        if rid in used and client not in by_id:
+            raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_REQUEST_ID_REUSE {client}:{check}:{used[rid]}")
     row["serverAuditWitness"]=core.verify_server_audit(audit_path,row,client)
     if client in by_id and by_id[client]!=row: raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_RECEIPT_REPLACEMENT_FORBIDDEN {client}")
     by_id[client]=row

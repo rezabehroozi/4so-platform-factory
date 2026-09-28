@@ -43,6 +43,14 @@ class MCPExternalSealTests(unittest.TestCase):
             row=self.receipt("chatgpt",checks,campaign); (receipts/"chatgpt.json").write_text(json.dumps(row))
             audit=json.loads((audits/"chatgpt.json").read_text()); audit[0]["reasonCode"]="WRONG"; (audits/"chatgpt.json").write_text(json.dumps(audit))
             with self.assertRaisesRegex(RuntimeError,"SEMANTIC_WITNESS"): mod.seal(matrix,campaign_path,receipts,audits)
+    def test_cross_client_request_id_reuse_rejects(self):
+        with tempfile.TemporaryDirectory() as td:
+            matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
+            chat=json.loads((receipts/"chatgpt.json").read_text()); claude=json.loads((receipts/"claude.json").read_text())
+            first=next(iter(chat["requestIds"].values())); key=next(iter(claude["requestIds"]))
+            claude["requestIds"][key]=first; (receipts/"claude.json").write_text(json.dumps(claude))
+            with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_REUSE"): mod.seal(matrix,campaign_path,receipts,audits)
+
     def test_missing_negative_control_or_duplicate_request_id_rejects(self):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))

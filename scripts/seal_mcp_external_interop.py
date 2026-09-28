@@ -168,9 +168,14 @@ def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->d
     if declared!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_MATRIX_CLIENT_SET_INVALID")
     campaign=verify_campaign(campaign_path,matrix_path,spec)
-    rows=[]
+    rows=[]; used_request_ids={}
     for client in CLIENTS:
         row=verify_receipt(receipt_dir/(client+".json"),client,required,protocol,campaign)
+        for check,rid in row["requestIds"].items():
+            owner=used_request_ids.get(rid)
+            if owner is not None:
+                raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_REQUEST_ID_REUSE {client}:{check}:{owner}")
+            used_request_ids[rid]=client
         row["serverAuditWitness"]=verify_server_audit(audit_dir/(client+".json"),row,client)
         rows.append(row)
     endpoints={r["endpoint"] for r in rows}
