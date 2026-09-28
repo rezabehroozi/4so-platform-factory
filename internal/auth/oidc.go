@@ -245,6 +245,9 @@ func ensureRequestID(r *http.Request) {
 func (m *Manager) RequireAPI(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ensureRequestID(r)
+		if requestID := strings.TrimSpace(r.Header.Get("X-Request-ID")); requestID != "" {
+			w.Header().Set("X-Request-ID", requestID)
+		}
 		if m.validBootstrap(r) {
 			principal := Principal{Subject: "bootstrap-installer", Roles: []string{"platform-admin"}, Expires: time.Now().Add(5 * time.Minute).Unix(), Authentication: "bootstrap"}
 			if err := m.auditRequest(r, principal, "AUTHENTICATION", "ALLOW", "BOOTSTRAP_TOKEN_ACCEPTED", http.StatusOK); err != nil {

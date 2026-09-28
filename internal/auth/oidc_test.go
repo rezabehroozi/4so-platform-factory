@@ -99,6 +99,23 @@ func TestReadOnlyPostClassification(t *testing.T) {
 	}
 }
 
+func TestRequireAPIExposesServerRequestID(t *testing.T) {
+	manager, err := New(Config{Enabled: false, LocalDevelopment: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := manager.RequireAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	r := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("X-Request-ID"); !strings.HasPrefix(got, "auth-") {
+		t.Fatalf("server request witness id missing: %q", got)
+	}
+}
+
 func TestBootstrapBypass(t *testing.T) {
 	testSecret := strings.Repeat("s", 40)
 	bootstrapValue := strings.Repeat("b", 32)
