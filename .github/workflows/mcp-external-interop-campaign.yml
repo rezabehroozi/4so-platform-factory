@@ -17,6 +17,25 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Preflight public MCP OAuth discovery and challenge
+        shell: bash
+        env:
+          MCP_ENDPOINT: ${{ inputs.endpoint }}
+        run: |
+          set -euo pipefail
+          case "$MCP_ENDPOINT" in https://*/mcp) ;; *) echo "endpoint must be exactly https://<host>/mcp"; exit 2;; esac
+          base="${MCP_ENDPOINT%/mcp}"
+          curl -fsS --retry 3 "$base/.well-known/oauth-protected-resource" > /tmp/mcp-resource.json
+          jq -e --arg endpoint "$MCP_ENDPOINT" '
+            .resource == $endpoint and
+            (.authorization_servers | type=="array" and length>=1) and
+            (.scopes_supported | type=="array") and
+            (.scopes_supported | index("mcp.read") != null) and
+            (.scopes_supported | index("mcp.operate") != null)
+          ' /tmp/mcp-resource.json >/dev/null
+          code="$(curl -sS -o /tmp/mcp-unauth.json -D /tmp/mcp-unauth.headers -w '%{http_code}'             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             --data '{"jsonrpc":"2.0","id":"c7w-preflight","method":"tools/list","params":{}}'             "$MCP_ENDPOINT")"
+          test "$code" = "401" || { cat /tmp/mcp-unauth.json; echo "protected MCP endpoint did not challenge unauthenticated access"; exit 2; }
+          grep -qi '^www-authenticate:.*Bearer' /tmp/mcp-unauth.headers
       - name: Prepare one-shot replay-fenced campaign
         shell: bash
         env:

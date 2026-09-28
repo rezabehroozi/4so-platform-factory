@@ -25,6 +25,16 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
         self.assertIn("supersede_incomplete_campaign:", text)
         self.assertIn("--allow-campaign-supersede", text)
 
+    def test_campaign_is_live_discovery_gated_before_packets_are_created(self):
+        text = self.read(".github/workflows/mcp-external-interop-campaign.yml")
+        self.assertIn("Preflight public MCP OAuth discovery and challenge", text)
+        self.assertIn("/.well-known/oauth-protected-resource", text)
+        self.assertIn('.resource == $endpoint', text)
+        self.assertIn('index("mcp.read")', text)
+        self.assertIn('index("mcp.operate")', text)
+        self.assertIn('test "$code" = "401"', text)
+        self.assertIn("MCP-Protocol-Version: 2026-07-28", text)
+
     def test_bulk_seal_reuses_campaign_artifact_and_retries_audit_visibility(self):
         text = self.read(".github/workflows/mcp-external-interop-seal.yml")
         self.assertIn("campaign_run_id:", text)
