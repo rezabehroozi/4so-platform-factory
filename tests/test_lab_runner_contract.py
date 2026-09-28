@@ -1351,6 +1351,24 @@ class LabRunnerContractTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "without credentials/query/fragment"):
                 lab._load_bundle_acquisition_lock(release_root, "9.9.9")
 
+    def test_ready_acquisition_lock_accepts_content_addressed_multipart_input_pack(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); resolved,_,_=self._ready_source_fixture()
+            digest="b"*64
+            pack={"parts":[{"index":0,"urls":[f"https://downloads.example.invalid/sha256/{digest}/part0"],"sha256":digest,"sizeBytes":123}],"sha256":digest,"sizeBytes":123,"format":"zip","buildSpecPath":"build-spec.json","stagingDirectory":"staging"}
+            self._write_acquisition_lock(root,version="9.9.9",status="ready",pack=pack,missing=[],resolved=resolved)
+            lock,_=lab._load_bundle_acquisition_lock(root,"9.9.9")
+            self.assertEqual(1,len(lock["inputPack"]["parts"]))
+            self.assertNotIn("urls",lock["inputPack"])
+
+    def test_ready_acquisition_lock_rejects_multipart_index_and_size_drift(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); resolved,_,_=self._ready_source_fixture(); digest="b"*64
+            pack={"parts":[{"index":1,"urls":[f"https://downloads.example.invalid/sha256/{digest}/part0"],"sha256":digest,"sizeBytes":122}],"sha256":digest,"sizeBytes":123,"format":"zip","buildSpecPath":"build-spec.json","stagingDirectory":"staging"}
+            self._write_acquisition_lock(root,version="9.9.9",status="ready",pack=pack,missing=[],resolved=resolved)
+            with self.assertRaisesRegex(RuntimeError,"PART_(INDEX|SIZE_SUM)"):
+                lab._load_bundle_acquisition_lock(root,"9.9.9")
+
     def test_bundle_input_pack_normalization_binds_exact_release_digest(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

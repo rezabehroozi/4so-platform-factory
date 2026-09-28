@@ -1533,46 +1533,94 @@ def _load_exact_bundle_acquisition_lock(archive: Path, version: str, expected_sh
 def _download_locked_input_pack(pack: dict[str, Any], output: Path) -> tuple[str, str]:
     expected_sha = str(pack["sha256"])
     expected_size = int(pack["sizeBytes"])
-    last_error = ""
-    for raw_url in pack["urls"]:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        tmp_fd, tmp_name = tempfile.mkstemp(prefix=output.name + ".tmp.", dir=output.parent)
-        os.close(tmp_fd)
-        tmp = Path(tmp_name)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _PublicHTTPSRedirectHandler(), _PinnedPublicHTTPSHandler())
+
+    def stream_url(raw_url: str, dst, *, part_sha: str | None = None, part_size: int | None = None, accept: str = "application/zip") -> str:
+        _validate_public_https_url(raw_url, label="acquisition distribution source")
+        request = urllib.request.Request(raw_url, headers={"User-Agent": "4SO-Platform-Factory-Lab/1", "Accept": accept})
+        offset = dst.tell()
+        h = hashlib.sha256()
+        total = 0
         try:
-            _validate_public_https_url(raw_url, label="acquisition inputPack")
-            request = urllib.request.Request(raw_url, headers={"User-Agent": "4SO-Platform-Factory-Lab/1", "Accept": "application/zip"})
-            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _PublicHTTPSRedirectHandler(), _PinnedPublicHTTPSHandler())
-            h = hashlib.sha256()
-            total = 0
-            with opener.open(request, timeout=60) as resp, tmp.open("wb") as dst:
+            with opener.open(request, timeout=60) as resp:
                 _validate_public_https_url(resp.geturl(), label="acquisition final URL", allow_query=True)
                 while True:
                     chunk = resp.read(1024 * 1024)
                     if not chunk:
                         break
                     total += len(chunk)
-                    if total > expected_size or total > MAX_BUNDLE_INPUT_PACK_BYTES:
-                        raise RuntimeError("acquisition input pack exceeded locked size")
+                    if part_size is not None and total > part_size:
+                        raise RuntimeError("acquisition distribution part exceeded locked size")
                     h.update(chunk)
                     dst.write(chunk)
-            if total != expected_size:
-                raise RuntimeError(f"acquisition input pack size mismatch expected={expected_size} actual={total}")
-            got = h.hexdigest()
-            if got != expected_sha:
-                raise RuntimeError(f"acquisition input pack digest mismatch expected={expected_sha} actual={got}")
-            tmp.chmod(0o600)
-            os.replace(tmp, output)
-            safe_url = urllib.parse.urlunsplit((urllib.parse.urlsplit(raw_url).scheme, urllib.parse.urlsplit(raw_url).netloc, urllib.parse.urlsplit(raw_url).path, "", ""))
-            return safe_url, "sha256:" + got
-        except Exception as exc:
-            last_error = str(exc)
-            try:
-                tmp.unlink()
-            except FileNotFoundError:
-                pass
-    raise RuntimeError("all immutable inputPack urls failed: " + _tail(last_error, 1000))
+            if part_size is not None and total != part_size:
+                raise RuntimeError(f"acquisition distribution part size mismatch expected={part_size} actual={total}")
+            if part_sha is not None and h.hexdigest() != part_sha:
+                raise RuntimeError(f"acquisition distribution part digest mismatch expected={part_sha} actual={h.hexdigest()}")
+            parsed = urllib.parse.urlsplit(raw_url)
+            return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+        except Exception:
+            dst.seek(offset)
+            dst.truncate()
+            raise
 
+    tmp_fd, tmp_name = tempfile.mkstemp(prefix=output.name + ".tmp.", dir=output.parent)
+    os.close(tmp_fd)
+    tmp = Path(tmp_name)
+    try:
+        if "parts" in pack:
+            parts = _validate_distribution_parts(pack["parts"], expected_size=expected_size, label="acquisition inputPack")
+            selected_urls: list[str] = []
+            with tmp.open("wb") as dst:
+                for part in parts:
+                    selected = ""
+                    last_error = ""
+                    for raw_url in part["urls"]:
+                        try:
+                            selected = stream_url(
+                                raw_url,
+                                dst,
+                                part_sha=str(part["sha256"]),
+                                part_size=int(part["sizeBytes"]),
+                                accept="application/octet-stream",
+                            )
+                            break
+                        except Exception as exc:
+                            last_error = str(exc)
+                    if not selected:
+                        raise RuntimeError("all immutable inputPack part urls failed: " + _tail(last_error, 1000))
+                    selected_urls.append(selected)
+            source_label = f"multipart:{len(parts)}:" + ",".join(selected_urls)
+        else:
+            selected = ""
+            last_error = ""
+            for raw_url in pack["urls"]:
+                try:
+                    with tmp.open("wb") as dst:
+                        selected = stream_url(raw_url, dst)
+                    break
+                except Exception as exc:
+                    last_error = str(exc)
+            if not selected:
+                raise RuntimeError("all immutable inputPack urls failed: " + _tail(last_error, 1000))
+            source_label = selected
+
+        got_size = tmp.stat().st_size
+        got_sha = _sha256(tmp)
+        if got_size != expected_size:
+            raise RuntimeError(f"acquisition input pack size mismatch expected={expected_size} actual={got_size}")
+        if got_sha != expected_sha:
+            raise RuntimeError(f"acquisition input pack digest mismatch expected={expected_sha} actual={got_sha}")
+        tmp.chmod(0o600)
+        os.replace(tmp, output)
+        return source_label, "sha256:" + got_sha
+    except Exception:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 def _safe_extract_input_pack(archive: Path, dest: Path) -> Path:
     if dest.exists():
