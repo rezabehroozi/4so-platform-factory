@@ -13,7 +13,10 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
         text = self.read(".github/workflows/mcp-external-receipt-admission.yml")
         self.assertNotIn("security-audit-events?limit=1000", text)
         self.assertIn('--data-urlencode "requestId=$rid"', text)
-        self.assertIn("AUDIT_REQUEST_IDS_PENDING", self.read("internal/api/identity_authority.go"))
+        api = self.read("internal/api/identity_authority.go")
+        self.assertIn("AUDIT_REQUEST_IDS_PENDING", api)
+        self.assertIn("securityAuditRequestIDValid", api)
+        self.assertNotIn("securityAuditRequestIDPattern", api)
         commands = [
             line.strip()
             for line in text.splitlines()

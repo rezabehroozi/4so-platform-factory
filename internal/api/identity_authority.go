@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -95,7 +94,17 @@ func (s *Server) revokeOIDCGroupMapping(w http.ResponseWriter, r *http.Request) 
 	setRevisionETag(w, out.Revision)
 	writeJSON(w, http.StatusOK, out)
 }
-var securityAuditRequestIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{8,200}$`)
+func securityAuditRequestIDValid(value string) bool {
+	if value == "" || len(value) > 200 || strings.TrimSpace(value) != value {
+		return false
+	}
+	for _, r := range value {
+		if r < 0x21 || r > 0x7e {
+			return false
+		}
+	}
+	return true
+}
 
 type securityAuditRequestIDWindowStore interface {
 	ListSecurityAuditRequestIDWindow(context.Context, []string) ([]controlplane.SecurityAuditEvent, error)
@@ -116,8 +125,8 @@ func (s *Server) listSecurityAudit(w http.ResponseWriter, r *http.Request) {
 		canonical := make([]string, 0, len(requestIDs))
 		for _, raw := range requestIDs {
 			id := strings.TrimSpace(raw)
-			if !securityAuditRequestIDPattern.MatchString(id) || seen[id] {
-				writeError(w, http.StatusBadRequest, "INVALID_AUDIT_REQUEST_ID", "requestId values must be unique and match the server request-id contract")
+			if !securityAuditRequestIDValid(id) || seen[id] {
+				writeError(w, http.StatusBadRequest, "INVALID_AUDIT_REQUEST_ID", "requestId values must be unique printable server request ids up to 200 bytes")
 				return
 			}
 			seen[id] = true
