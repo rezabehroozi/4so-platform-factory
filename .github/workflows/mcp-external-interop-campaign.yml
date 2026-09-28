@@ -1,0 +1,63 @@
+name: mcp-external-interop-campaign
+
+on:
+  workflow_dispatch:
+    inputs:
+      endpoint:
+        description: Public protected MCP endpoint, exactly https://<host>/mcp
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-campaign:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare one-shot replay-fenced campaign
+        shell: bash
+        env:
+          MCP_ENDPOINT: ${{ inputs.endpoint }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mcp-interop
+          python3 scripts/prepare_mcp_external_interop_campaign.py             --endpoint "$MCP_ENDPOINT"             --out /tmp/mcp-interop/campaign.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          campaign=json.loads(Path("/tmp/mcp-interop/campaign.json").read_text())
+          matrix=json.loads(Path("lab/mcp-external-client-interop-matrix.json").read_text())
+          checks=matrix["spec"]["sharedRequiredChecks"]
+          out=Path("/tmp/mcp-interop/receipt-templates"); out.mkdir()
+          for client in campaign["clients"]:
+              row={
+                "authority":"MCP_EXTERNAL_CLIENT_EXECUTION_RECEIPT_V1",
+                "clientId":client["clientId"],
+                "campaignId":campaign["campaignId"],
+                "challengeSha256":client["challengeSha256"],
+                "protocol":campaign["protocol"],
+                "transport":campaign["transport"],
+                "endpoint":campaign["endpoint"],
+                "executionId":"",
+                "externalExecution":False,
+                "credentialedExecution":False,
+                "checks":{name:False for name in checks},
+                "scopeLeakObserved":True,
+                "revokedGrantAccepted":True,
+                "selfApprovalAccepted":True,
+                "evidenceDigest":"",
+              }
+              (out/(client["clientId"]+".json")).write_text(json.dumps(row,indent=2,sort_keys=True)+"\n")
+          PY
+          python3 -m unittest tests.test_mcp_external_interop_seal
+          jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1" and .externalExecutionRequired and (.clients|length==4)' /tmp/mcp-interop/campaign.json
+      - name: Upload campaign packet
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-external-interop-campaign
+          path: /tmp/mcp-interop
+          if-no-files-found: error
+          retention-days: 3

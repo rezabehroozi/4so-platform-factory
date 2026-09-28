@@ -213,7 +213,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("remote OAuth MCP phase drift: %#v", c7r)
 	}
 	c7w := byID["C7W-mcp-user-admin-write-parity"]
-	if !containsString(c7w.Evidence, "MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1") || !containsString(c7w.Evidence, "scripts/prepare_mcp_external_interop_campaign.py") {
+	if !containsString(c7w.Evidence, "MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1") || !containsString(c7w.Evidence, "scripts/prepare_mcp_external_interop_campaign.py") || !containsString(c7w.Evidence, ".github/workflows/mcp-external-interop-campaign.yml") {
 		t.Fatalf("C7W one-shot external campaign evidence missing: %#v", c7w.Evidence)
 	}
 	if c7w.Status != ProgramStatusBlocked || !c7w.RequiredForFeatureFreeze || !containsString(c7w.DependsOn, c7r.ID) || containsString(c7w.Blockers, "MCP_ACTION_REGISTRY_ENFORCEMENT_PENDING") || containsString(c7w.Blockers, "MCP_EFFECTIVE_TOOL_FILTERING_PENDING") || containsString(c7w.Blockers, "MCP_WRITE_JOB_COVERAGE_PENDING") || !containsString(c7w.Blockers, "MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING") || !containsString(c7w.Evidence, "MCP_PRODUCT_ACTION_REGISTRY_V1") || !containsString(c7w.Evidence, "MCP_EFFECTIVE_TOOL_FILTERING_V1") {
