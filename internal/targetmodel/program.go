@@ -529,6 +529,11 @@ func FeatureFreezeBlockerCounts(roadmap ProgramRoadmap) map[string]int {
 		if !phase.RequiredForFeatureFreeze || phase.ClosureStatus == ProgramClosureStatusReady {
 			continue
 		}
+		// C9 is an aggregate freeze/release phase. Its blockers summarize unresolved
+		// leaf authorities and must not be double-counted as independent causes.
+		if phase.ID == "C9-pre-certification-feature-freeze-exact-bundle" {
+			continue
+		}
 		if len(phase.Blockers) == 0 {
 			out["ROADMAP_PHASE_NOT_READY"]++
 			continue

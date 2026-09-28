@@ -336,6 +336,9 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 			t.Fatalf("mandatory feature-freeze blocker %q missing: %#v", code, blockers)
 		}
 	}
+	if blockers["PRE_CERTIFICATION_REQUIRED_FEATURES_OPEN"] != 0 || blockers["LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING"] != 0 {
+		t.Fatalf("C9 aggregate blockers must not double-count leaf closure causes: %#v", blockers)
+	}
 	for _, code := range []string{"COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING", "OKD_CONNECTED_MANAGED_INSTALL_PENDING", "OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING"} {
 		if blockers[code] != 0 {
 			t.Fatalf("Phase-D or closed pre-certification blocker %q leaked into feature-freeze authority: %#v", code, blockers)
