@@ -160,6 +160,18 @@ jobs:
               /tmp/kind load docker-image --name "4so-argocd-upgrade" "$exact"
             done </tmp/argocd-images.txt
           fi
+          if test "${{ matrix.component }}" = argocd; then
+            jq -r '.[].images[]' "/tmp/argocd-$FROM_RELEASE-workloads.json" "/tmp/argocd-$TO_RELEASE-workloads.json" | sort -u >/tmp/argocd-images.txt
+            while read -r exact; do
+              ok=false
+              for attempt in 1 2 3 4 5 6; do
+                if docker pull "$exact"; then ok=true; break; fi
+                sleep $((attempt*15))
+              done
+              test "$ok" = true
+              /tmp/kind load docker-image --name "4so-argocd-upgrade" "$exact"
+            done </tmp/argocd-images.txt
+          fi
 
       - name: Install historical release and prove workload readiness
         shell: bash
@@ -208,20 +220,14 @@ jobs:
           rows=json.load(open(f"/tmp/{c}-{os.environ['FROM_RELEASE']}-workloads.json"))
           print("set -euo pipefail")
           for r in rows:
-              kind=r["kind"].lower()
-              ns=r["namespace"]
-              name=r["name"]
+              kind=r["kind"].lower(); ns=r["namespace"]; name=r["name"]
               if kind=="deployment" and c=="cilium" and name=="cilium-operator":
                   print(f"""for i in $(seq 1 120); do a=$(kubectl -n {ns} get deployment/{name} -o jsonpath='{{.status.availableReplicas}}' 2>/dev/null || true); test "${{a:-0}}" -ge 1 && break; sleep 5; done""")
                   print(f"""test "$(kubectl -n {ns} get deployment/{name} -o jsonpath='{{.spec.replicas}}')" = "2" """)
                   print(f"""test "$(kubectl -n {ns} get deployment/{name} -o jsonpath='{{.status.availableReplicas}}')" -ge 1""")
                   print(f"""kubectl -n {ns} get pods -l io.cilium/app=operator -o json | jq -e '[.items[] | select(.status.phase=="Pending") | .status.conditions[]? | select(.type=="PodScheduled" and .status=="False" and .reason=="Unschedulable")] | length >= 1' >/dev/null""")
-              elif kind=="deployment":
-                  print(f"kubectl -n {ns} rollout status deployment/{name} --timeout=12m")
-              elif kind=="daemonset":
-                  print(f"kubectl -n {ns} rollout status daemonset/{name} --timeout=12m")
               else:
-                  print(f"kubectl -n {ns} rollout status statefulset/{name} --timeout=12m")
+                  print(f"kubectl -n {ns} rollout status {kind}/{name} --timeout=12m")
           PY
           bash /tmp/wait-old.sh
           python3 - <<'PY'
