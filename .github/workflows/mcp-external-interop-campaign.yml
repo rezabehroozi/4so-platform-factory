@@ -54,10 +54,17 @@ jobs:
           PY
           python3 -m unittest tests.test_mcp_external_interop_seal
           jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1" and .externalExecutionRequired and (.clients|length==4)' /tmp/mcp-interop/campaign.json
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          campaign=json.loads(Path("/tmp/mcp-interop/campaign.json").read_text())
+          ref={"authority":"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_REFERENCE_V1","workflowRunId":os.environ["GITHUB_RUN_ID"],"sourceCommitSHA":os.environ["GITHUB_SHA"],"campaignId":campaign["campaignId"],"matrixSha256":campaign["matrixSha256"],"endpoint":campaign["endpoint"],"clients":[x["clientId"] for x in campaign["clients"]]}
+          Path("/tmp/mcp-interop/campaign-reference.json").write_text(json.dumps(ref,indent=2,sort_keys=True)+"\n")
+          PY
       - name: Upload campaign packet
         uses: actions/upload-artifact@v4
         with:
           name: mcp-external-interop-campaign
           path: /tmp/mcp-interop
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 30
