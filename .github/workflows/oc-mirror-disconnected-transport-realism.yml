@@ -1,6 +1,7 @@
 name: oc-mirror-disconnected-transport-realism
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
