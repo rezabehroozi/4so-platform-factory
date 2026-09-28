@@ -331,9 +331,14 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("final chaos/soak phase authority drift: %#v", phaseM)
 	}
 	blockers := FeatureFreezeBlockerCounts(roadmap)
-	for _, code := range []string{"MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING", "COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING", "OKD_CONNECTED_MANAGED_INSTALL_PENDING"} {
+	for _, code := range []string{"MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING", "APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING"} {
 		if blockers[code] == 0 {
 			t.Fatalf("mandatory feature-freeze blocker %q missing: %#v", code, blockers)
+		}
+	}
+	for _, code := range []string{"COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING", "OKD_CONNECTED_MANAGED_INSTALL_PENDING", "OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING"} {
+		if blockers[code] != 0 {
+			t.Fatalf("Phase-D or closed pre-certification blocker %q leaked into feature-freeze authority: %#v", code, blockers)
 		}
 	}
 	if blockers["TARGET_DATA_PROTECTION_WORKFLOW_PENDING"] != 0 {

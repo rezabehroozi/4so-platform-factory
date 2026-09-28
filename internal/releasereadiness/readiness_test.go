@@ -107,8 +107,11 @@ func TestBuildCannotReportProductReadyWhileMandatoryRoadmapIsBlocked(t *testing.
 	if report.ProductReleaseBlockers != report.RoadmapFeatureBlockers {
 		t.Fatalf("roadmap-only plan should have only roadmap product blockers: %#v", report)
 	}
-	if report.ProductBlockerCodes["OKD_CONNECTED_MANAGED_INSTALL_PENDING"] == 0 {
-		t.Fatalf("connected managed OKD blocker is absent from product blocker authority: %#v", report.ProductBlockerCodes)
+	if report.ProductBlockerCodes["OKD_CONNECTED_MANAGED_INSTALL_PENDING"] != 0 {
+		t.Fatalf("connected managed OKD physical execution leaked into pre-freeze blocker authority: %#v", report.ProductBlockerCodes)
+	}
+	if report.ProductBlockerCodes["APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING"] == 0 || report.ProductBlockerCodes["MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING"] == 0 {
+		t.Fatalf("current pre-freeze external blockers are absent from product blocker authority: %#v", report.ProductBlockerCodes)
 	}
 	if report.ProductBlockerCodes["TARGET_DATA_PROTECTION_WORKFLOW_PENDING"] != 0 {
 		t.Fatalf("closed G4 blocker remained in product blocker authority: %#v", report.ProductBlockerCodes)
