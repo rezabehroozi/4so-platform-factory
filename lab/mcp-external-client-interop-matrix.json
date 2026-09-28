@@ -45,7 +45,7 @@
       }
     ],
     "localBlackBoxHarness": "python3 scripts/mcp_external_client_certify.py --endpoint <api>/mcp --token <scoped-mcp-read-token>",
-    "truthRule": "Passing the baseline local black-box harness proves only the checks named in baselineHarnessChecks. Named-client certification additionally requires one MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1 with per-client replay challenges plus real credentialed execution receipts from ChatGPT, Claude, Gemini and Grok. No local harness or copied receipt claims named-client certification.",
+    "truthRule": "Passing the baseline local black-box harness proves only the checks named in baselineHarnessChecks. Named-client certification additionally requires one MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1 with per-client replay challenges plus real credentialed external execution receipts from ChatGPT, Claude, Gemini and Grok. No local harness or copied receipt claims named-client certification.",
     "baselineHarnessChecks": [
       "oauth-protected-resource-discovery",
       "authorization-filtered-tools-list",
