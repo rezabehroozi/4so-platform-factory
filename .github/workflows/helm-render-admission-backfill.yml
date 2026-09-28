@@ -47,19 +47,20 @@ jobs:
             catalog/runtime/cilium/1.20.1/render-admission.json
           if-no-files-found: error
           retention-days: 30
-      - name: Persist admission only when main is unchanged
-        shell: bash
+      - name: Persist admission if owner inputs are unchanged
         run: |
-          set -euo pipefail
-          git config user.name 4so-evidence-bot
-          git config user.email actions@users.noreply.github.com
-          git add catalog/runtime/argocd/10.2.3/render-admission.json catalog/runtime/external-secrets/2.8.0/render-admission.json catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json catalog/runtime/cilium/1.20.0/render-admission.json catalog/runtime/cilium/1.20.1/render-admission.json
-          git diff --cached --quiet && exit 0
-          git fetch origin main
-          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
-            echo "main advanced; preserve artifact evidence but skip stale Git persistence"
-            git reset -- catalog/runtime/argocd/10.2.3/render-admission.json catalog/runtime/external-secrets/2.8.0/render-admission.json catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json catalog/runtime/cilium/1.20.0/render-admission.json catalog/runtime/cilium/1.20.1/render-admission.json
-            exit 0
-          fi
-          git commit -m "evidence: seal legacy Helm render admission"
-          git push origin HEAD:main
+          python3 scripts/persist_evidence_if_inputs_unchanged.py \
+            --source-sha "$GITHUB_SHA" --message "evidence: seal legacy Helm render admission" \
+            --input scripts/helm_runtime_render_admission.py \
+            --input scripts/render_exact_helm_runtime.py \
+            --input catalog/runtime/cilium/1.20.0/source-lock.json \
+            --input catalog/runtime/cilium/1.20.0/artifact.bin \
+            --input catalog/runtime/cilium/1.20.1/source-lock.json \
+            --input catalog/runtime/cilium/1.20.1/artifact.bin \
+            --input catalog/runtime/ceph-csi-operator/1.0.4/source-lock.json \
+            --input catalog/runtime/ceph-csi-operator/1.0.4/artifact.bin \
+            --output catalog/runtime/argocd/10.2.3/render-admission.json \
+            --output catalog/runtime/external-secrets/2.8.0/render-admission.json \
+            --output catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json \
+            --output catalog/runtime/cilium/1.20.0/render-admission.json \
+            --output catalog/runtime/cilium/1.20.1/render-admission.json

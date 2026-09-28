@@ -149,17 +149,15 @@ jobs:
             catalog/component-runtime-upgrade-evidence.json
           if-no-files-found: error
           retention-days: 30
-      - name: Persist exact matrix only when main is unchanged
+      - name: Persist exact matrix if owner inputs are unchanged
         run: |
-          set -euo pipefail
-          git config user.name 4so-evidence-bot
-          git config user.email actions@users.noreply.github.com
-          git add lab/ceph-csi-rbd-upgrade-runtime-matrix-evidence.json catalog/component-runtime-upgrade-evidence.json
-          git fetch origin main
-          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
-            echo "main advanced; skip stale Ceph RBD evidence persistence"
-            git reset -- lab/ceph-csi-rbd-upgrade-runtime-matrix-evidence.json catalog/component-runtime-upgrade-evidence.json
-            exit 0
-          fi
-          git commit -m "evidence: seal Ceph RBD runtime upgrade"
-          git push origin HEAD:main
+          python3 scripts/persist_evidence_if_inputs_unchanged.py \
+            --source-sha "$GITHUB_SHA" --message "evidence: seal Ceph RBD runtime upgrade" \
+            --input scripts/merge_ceph_csi_rbd_upgrade_evidence.py \
+            --input scripts/runtime_evidence_registry.py \
+            --input lab/ceph-csi-driver-image-set-evidence.json \
+            --input catalog/runtime/ceph-csi-rbd/1.0.3/source-lock.json \
+            --input catalog/runtime/ceph-csi-rbd/1.0.4/source-lock.json \
+            --input catalog/runtime/ceph-csi-operator/1.0.4/source-lock.json \
+            --output lab/ceph-csi-rbd-upgrade-runtime-matrix-evidence.json \
+            --output catalog/component-runtime-upgrade-evidence.json
