@@ -11,32 +11,44 @@ class MCPExternalSealTests(unittest.TestCase):
             challenge=("challenge-"+c+"-")*4
             rows.append({"clientId":c,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest()})
         return {"authority":mod.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","matrixAuthority":mod.MATRIX_AUTHORITY,"matrixSha256":mod.sha256(matrix_path),"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"clients":rows,"externalExecutionRequired":True}
+    def request_ids(self,client):
+        return {name:f"{client}-{idx:02d}-request" for idx,name in enumerate(mod.AUDITED_CHECKS,1)}
     def receipt(self,client,checks,campaign,endpoint="https://mcp.example.test/mcp"):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
-        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+    def audit(self,receipt):
+        rows=[]; prev=""; seq=1
+        for check in mod.AUDITED_CHECKS:
+            category,decision,reason=mod.AUDIT_REQUIREMENTS[check]
+            digest="sha256:"+hashlib.sha256(f"{receipt['clientId']}:{seq}".encode()).hexdigest()
+            rows.append({"id":f"sau-{seq}","sequence":seq,"occurredAt":"2026-09-28T00:00:00Z","methodVersion":"SECURITY_AUDIT_CHAIN_V1","category":category,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":receipt["requestIds"][check],"previousDigest":prev,"digest":digest})
+            prev=digest; seq+=1
+        return rows
     def fixture(self,root):
-        matrix_path=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
-        matrix=json.loads(matrix_path.read_text()); checks=matrix["spec"]["sharedRequiredChecks"]
+        matrix_path=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; matrix=json.loads(matrix_path.read_text()); checks=matrix["spec"]["sharedRequiredChecks"]
         campaign=self.campaign(matrix_path); campaign_path=root/"campaign.json"; campaign_path.write_text(json.dumps(campaign))
-        receipts=root/"receipts"; receipts.mkdir()
-        for c in mod.CLIENTS:(receipts/(c+".json")).write_text(json.dumps(self.receipt(c,checks,campaign)))
-        return matrix_path,campaign_path,receipts,campaign,checks
-    def test_four_named_clients_are_campaign_bound_and_sealed(self):
+        receipts=root/"receipts"; receipts.mkdir(); audits=root/"audits"; audits.mkdir()
+        for c in mod.CLIENTS:
+            row=self.receipt(c,checks,campaign); (receipts/(c+".json")).write_text(json.dumps(row)); (audits/(c+".json")).write_text(json.dumps(self.audit(row)))
+        return matrix_path,campaign_path,receipts,audits,campaign,checks
+    def test_four_named_clients_are_campaign_and_server_audit_bound(self):
         with tempfile.TemporaryDirectory() as td:
-            matrix,campaign_path,receipts,campaign,_=self.fixture(Path(td))
-            out=mod.seal(matrix,campaign_path,receipts)
-            self.assertEqual(4,out["certifiedClientCount"]); self.assertEqual(campaign["campaignId"],out["campaignId"]); self.assertTrue(out["externalCertificationPass"]); self.assertFalse(out["runtimeCertified"]); self.assertFalse(out["physicalCertified"])
-    def test_replay_negative_control_and_endpoint_drift_reject(self):
+            matrix,campaign_path,receipts,audits,campaign,_=self.fixture(Path(td)); out=mod.seal(matrix,campaign_path,receipts,audits)
+            self.assertEqual(4,out["certifiedClientCount"]); self.assertEqual(campaign["campaignId"],out["campaignId"]); self.assertTrue(out["serverAuditWitnessPass"]); self.assertEqual(24,out["serverAuditWitnessedCheckCount"]); self.assertFalse(out["physicalCertified"])
+    def test_replay_endpoint_and_audit_semantics_reject(self):
         with tempfile.TemporaryDirectory() as td:
-            matrix,campaign_path,receipts,campaign,checks=self.fixture(Path(td))
+            matrix,campaign_path,receipts,audits,campaign,checks=self.fixture(Path(td))
             bad=json.loads((receipts/"chatgpt.json").read_text()); bad["challengeSha256"]="sha256:"+"0"*64; (receipts/"chatgpt.json").write_text(json.dumps(bad))
-            with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_BINDING"):mod.seal(matrix,campaign_path,receipts)
-            (receipts/"chatgpt.json").write_text(json.dumps(self.receipt("chatgpt",checks,campaign,"https://other.example.test/mcp")))
-            with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_ENDPOINT"):mod.seal(matrix,campaign_path,receipts)
-    def test_missing_negative_control_rejects(self):
+            with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_BINDING"): mod.seal(matrix,campaign_path,receipts,audits)
+            row=self.receipt("chatgpt",checks,campaign); (receipts/"chatgpt.json").write_text(json.dumps(row))
+            audit=json.loads((audits/"chatgpt.json").read_text()); audit[0]["reasonCode"]="WRONG"; (audits/"chatgpt.json").write_text(json.dumps(audit))
+            with self.assertRaisesRegex(RuntimeError,"SEMANTIC_WITNESS"): mod.seal(matrix,campaign_path,receipts,audits)
+    def test_missing_negative_control_or_duplicate_request_id_rejects(self):
         with tempfile.TemporaryDirectory() as td:
-            matrix,campaign_path,receipts,_,_=self.fixture(Path(td))
+            matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
             bad=json.loads((receipts/"chatgpt.json").read_text()); bad["revokedGrantAccepted"]=True; (receipts/"chatgpt.json").write_text(json.dumps(bad))
-            with self.assertRaisesRegex(RuntimeError,"NEGATIVE_CONTROL"):mod.seal(matrix,campaign_path,receipts)
+            with self.assertRaisesRegex(RuntimeError,"NEGATIVE_CONTROL"): mod.seal(matrix,campaign_path,receipts,audits)
+            bad["revokedGrantAccepted"]=False; vals=list(bad["requestIds"].values()); bad["requestIds"][mod.AUDITED_CHECKS[1]]=vals[0]; (receipts/"chatgpt.json").write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"REQUEST_IDS"): mod.seal(matrix,campaign_path,receipts,audits)
 
 if __name__=="__main__": unittest.main()
