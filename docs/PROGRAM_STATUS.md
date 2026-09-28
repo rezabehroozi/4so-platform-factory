@@ -134,6 +134,7 @@ These are closure/evidence blockers, not a reason to reopen completed source wor
 
 - `MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING` ? S1 exact management workload archive/digest closure.
 - `COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING` ? S2 exact historical source/upgrade evidence.
+- `FINAL_EXACT_RELEASE_SEAL_PENDING` → C9 final immutable Exact Release seal after S1/C7W leaf closure; this is independent of Physical PASS.
 - `MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING` ? C7W named external-client live interoperability.
 - `OKD_CONNECTED_MANAGED_INSTALL_PENDING` ? H1 connected Managed OKD runtime evidence.
 - `OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING` ? I1 exact disconnected mirror/install runtime certification; oc-mirror v2 acquisition is already exact and evidence-bound.

@@ -286,6 +286,9 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("data protection source closure drift: %#v", g4)
 	}
 	c9 := byID["C9-pre-certification-feature-freeze-exact-bundle"]
+	if len(c9.Blockers) != 1 || !containsString(c9.Blockers, "FINAL_EXACT_RELEASE_SEAL_PENDING") {
+		t.Fatalf("C9 independent exact-release seal blocker drift: %#v", c9)
+	}
 	for _, dependency := range []string{"C7R-mcp-remote-oauth-human-delegation", "C7W-mcp-user-admin-write-parity", "S2-component-runtime-certification-authorities", "G3-target-node-maintenance-lifecycle", "G4-data-protection-productization", "G5-enterprise-identity-compliance", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core"} {
 		if !containsString(c9.DependsOn, dependency) {
 			t.Fatalf("feature freeze dependency %q missing: %#v", dependency, c9.DependsOn)
@@ -349,7 +352,10 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	if blockers["PRE_CERTIFICATION_REQUIRED_FEATURES_OPEN"] != 0 || blockers["LAB_CANONICAL_BUNDLE_SOURCE_LOCKS_PENDING"] != 0 {
-		t.Fatalf("C9 aggregate blockers must not double-count leaf closure causes: %#v", blockers)
+		t.Fatalf("retired C9 aggregate blockers must not remain: %#v", blockers)
+	}
+	if blockers["FINAL_EXACT_RELEASE_SEAL_PENDING"] != 1 {
+		t.Fatalf("C9 must expose exactly one independent final exact-release seal blocker: %#v", blockers)
 	}
 	for _, code := range []string{"COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING", "OKD_CONNECTED_MANAGED_INSTALL_PENDING", "OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING"} {
 		if blockers[code] != 0 {
