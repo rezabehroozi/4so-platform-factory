@@ -1,6 +1,15 @@
 name: ceph-csi-rbd-upgrade-runtime-realism
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ceph-csi-rbd-upgrade-runtime-realism.yml
+      - scripts/ceph_csi_driver_image_set.py
+      - lab/ceph-csi-driver-image-set-evidence.json
+      - catalog/runtime/ceph-csi-operator/1.0.4/**
+      - catalog/runtime/ceph-csi-rbd/1.0.3/**
+      - catalog/runtime/ceph-csi-rbd/1.0.4/**
   workflow_run:
     workflows: ["ceph-csi-driver-image-set-authority"]
     types: [completed]
@@ -70,7 +79,7 @@ jobs:
           kubectl create namespace ceph-csi-operator-system --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply --server-side --force-conflicts --field-manager=4so-ceph-upgrade -f /tmp/operator-crds.json
           for crd in $(jq -r '.items[].metadata.name' /tmp/operator-crds.json); do kubectl wait --for=condition=Established "crd/$crd" --timeout=4m; done
-          kubectl apply --server-side --force-conflicts --field-manager=4so-ceph-upgrade -f /tmp/operator-resources.json
+          kubectl -n ceph-csi-operator-system apply --server-side --force-conflicts --field-manager=4so-ceph-upgrade -f /tmp/operator-resources.json
           operator_deployment="$(cat /tmp/operator-deployment-name)"
           kubectl -n ceph-csi-operator-system rollout status "deployment/$operator_deployment" --timeout=12m
           python3 - <<'PY' >/tmp/image-set.json
@@ -121,6 +130,11 @@ jobs:
           path: /tmp/ceph-csi-rbd-upgrade-${{ matrix.kubernetes }}.json
           if-no-files-found: error
           retention-days: 30
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl get pods,deployments,daemonsets,statefulsets -A -o wide || true
+          kubectl get events -A --sort-by=.lastTimestamp | tail -150 || true
       - if: always()
         run: /tmp/kind delete cluster --name 4so-ceph-rbd-upgrade || true
   aggregate:
