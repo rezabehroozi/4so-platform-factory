@@ -66,10 +66,16 @@ def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,
         else:
             by_id=validate_existing(existing,expected)
     row=core.verify_receipt(receipt_path,client,required,str(spec["protocol"]),campaign)
-    used={}
+    used={}; used_executions={}; used_evidence={}
     for existing_client,existing in by_id.items():
+        used_executions[existing.get("executionId")]=existing_client
+        used_evidence[existing.get("evidenceDigest")]=existing_client
         for existing_check,rid in (existing.get("requestIds") or {}).items():
             used[rid]=f"{existing_client}:{existing_check}"
+    if client not in by_id and row["executionId"] in used_executions:
+        raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_EXECUTION_REUSE {client}:{used_executions[row['executionId']]}")
+    if client not in by_id and row["evidenceDigest"] in used_evidence:
+        raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE {client}:{used_evidence[row['evidenceDigest']]}")
     for check,rid in row["requestIds"].items():
         if rid in used and client not in by_id:
             raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_REQUEST_ID_REUSE {client}:{check}:{used[rid]}")

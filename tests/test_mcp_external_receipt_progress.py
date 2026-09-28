@@ -32,6 +32,18 @@ class IncrementalMCPInteropTests(unittest.TestCase):
                 out=mod.merge(matrix,cp,rp,ap,client,progress if progress.exists() else None); progress.write_text(json.dumps(out))
                 self.assertEqual(idx,out["certifiedClientCount"]); self.assertEqual(idx==4,out["complete"])
             evidence=mod.final_evidence(out,progress); self.assertEqual(4,evidence["certifiedClientCount"]); self.assertTrue(evidence["serverAuditWitnessPass"]); self.assertEqual(24,evidence["serverAuditWitnessedCheckCount"]); self.assertFalse(evidence["physicalCertified"])
+    def test_cross_client_execution_or_evidence_reuse_rejects_incrementally(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); campaign=self.campaign(matrix); cp=root/"campaign.json"; cp.write_text(json.dumps(campaign)); progress=root/"progress.json"
+            first=self.receipt("chatgpt",checks,campaign); rp=root/"chatgpt.json"; ap=root/"chatgpt-audit.json"; rp.write_text(json.dumps(first)); ap.write_text(json.dumps(self.audit(first)))
+            out=mod.merge(matrix,cp,rp,ap,"chatgpt",None); progress.write_text(json.dumps(out))
+            second=self.receipt("claude",checks,campaign); second["executionId"]=first["executionId"]
+            rp2=root/"claude.json"; ap2=root/"claude-audit.json"; rp2.write_text(json.dumps(second)); ap2.write_text(json.dumps(self.audit(second)))
+            with self.assertRaisesRegex(RuntimeError,"EXECUTION_REUSE"): mod.merge(matrix,cp,rp2,ap2,"claude",progress)
+            second["executionId"]="run-claude"; second["evidenceDigest"]=first["evidenceDigest"]; rp2.write_text(json.dumps(second))
+            with self.assertRaisesRegex(RuntimeError,"EVIDENCE_REUSE"): mod.merge(matrix,cp,rp2,ap2,"claude",progress)
+
     def test_cross_client_request_id_reuse_rejects_incrementally(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
         with tempfile.TemporaryDirectory() as td:
