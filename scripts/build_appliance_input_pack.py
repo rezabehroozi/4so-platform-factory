@@ -38,24 +38,43 @@ def authorities(root:Path)->tuple[dict,dict,dict,dict]:
     archive=load(root/"lab/management-workload-oci-archive-receipt.json")
     ext=load(root/"lab/management-workload-external-image-receipt.json")
     prod=load(root/"lab/management-workload-product-image-receipt.json")
-    if lock.get("authority")!=LOCK_AUTHORITY or lock.get("status")!="incomplete" or lock.get("inputPack") is not None or lock.get("missingAuthorities")!=[]:
+    if lock.get("authority")!=LOCK_AUTHORITY or lock.get("status") not in {"incomplete","ready"} or lock.get("missingAuthorities")!=[]:
         raise RuntimeError("INPUT_PACK_LOCK_STATE_INVALID")
+    status=lock["status"]
     partial=lock.get("partialAuthorities") or []
-    if len(partial)!=1 or partial[0].get("id")!="management-workload-oci-archive":
-        raise RuntimeError("INPUT_PACK_ARCHIVE_PARTIAL_STATE_INVALID")
+    resolved=lock.get("resolvedAuthorities") or []
     if archive.get("authority")!=ARCHIVE_AUTHORITY or archive.get("archiveBuilt") is not True or archive.get("distributionReady") is not False:
         raise RuntimeError("INPUT_PACK_ARCHIVE_RECEIPT_INVALID")
     if archive.get("releaseVersion")!=lock.get("releaseVersion"):
         raise RuntimeError("INPUT_PACK_RELEASE_VERSION_DRIFT")
+    if status=="incomplete":
+        if lock.get("inputPack") is not None or len(partial)!=1 or partial[0].get("id")!="management-workload-oci-archive":
+            raise RuntimeError("INPUT_PACK_ARCHIVE_PARTIAL_STATE_INVALID")
+        if any(isinstance(row,dict) and row.get("id")=="management-workload-oci-archive" for row in resolved):
+            raise RuntimeError("INPUT_PACK_ARCHIVE_STATE_OVERLAP")
+    else:
+        if partial or not isinstance(lock.get("inputPack"),dict):
+            raise RuntimeError("INPUT_PACK_READY_STATE_INVALID")
+        archive_rows=[row for row in resolved if isinstance(row,dict) and row.get("id")=="management-workload-oci-archive"]
+        if len(archive_rows)!=1:
+            raise RuntimeError("INPUT_PACK_READY_ARCHIVE_AUTHORITY_INVALID")
+        artifacts=archive_rows[0].get("artifacts") or []
+        if len(artifacts)!=1:
+            raise RuntimeError("INPUT_PACK_READY_ARCHIVE_ARTIFACT_INVALID")
+        artifact=artifacts[0]
+        if artifact.get("stagingPath")!="workloads/platform-workloads.oci.tar" or artifact.get("sha256")!=str(archive.get("archiveSha256") or "").removeprefix("sha256:") or artifact.get("sizeBytes")!=archive.get("archiveBytes"):
+            raise RuntimeError("INPUT_PACK_READY_ARCHIVE_RECEIPT_DRIFT")
     return lock,archive,ext,prod
 
 def build_spec(root:Path)->dict:
     lock,archive,ext,prod=authorities(root)
     resolved={r["id"]:r for r in lock["resolvedAuthorities"]}
     required={"rke2-installer-and-offline-artifacts","argocd-install-manifest","argocd-ha-install-manifest","cloudnative-pg-install-manifest","replicated-storage-install-manifest"}
-    if set(resolved)!=required: raise RuntimeError("INPUT_PACK_RESOLVED_AUTHORITY_SET_INVALID")
+    source_resolved=set(resolved)-{"management-workload-oci-archive"}
+    if source_resolved!=required: raise RuntimeError("INPUT_PACK_RESOLVED_AUTHORITY_SET_INVALID")
     bindings=[]
     for authority in lock["resolvedAuthorities"]:
+        if authority["id"]=="management-workload-oci-archive": continue
         for a in authority["artifacts"]:
             bindings.append({"path":a["stagingPath"],"sha256":"sha256:"+a["sha256"],"sizeBytes":a["sizeBytes"]})
     bindings.append({"path":"workloads/platform-workloads.oci.tar","sha256":archive["archiveSha256"],"sizeBytes":archive["archiveBytes"]})

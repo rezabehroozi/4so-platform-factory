@@ -10,6 +10,10 @@ class InputPackTests(unittest.TestCase):
     paths={x["path"] for x in s["spec"]["sourceArtifacts"]}
     self.assertEqual({"rke2/install.sh","rke2/rke2.linux-amd64.tar.gz","rke2/sha256sum-amd64.txt","rke2/rke2-images.linux-amd64.tar.zst","workloads/platform-workloads.oci.tar","manifests/argocd-install.yaml","manifests/argocd-ha-install.yaml","manifests/cloudnative-pg-install.yaml","manifests/replicated-storage-install.yaml"},paths)
     w=s["spec"]["workloads"]; self.assertIn("@sha256:",w["platformApiImage"]); self.assertIn("@sha256:",w["postgresqlImage"]); self.assertEqual("manifests/argocd-ha-install.yaml",w["gitOpsHAManifest"])
+  def test_ready_lock_remains_valid_build_input(self):
+    lock,archive,_,_=mod.authorities(ROOT)
+    self.assertEqual("ready",lock["status"])
+    self.assertEqual(archive["archiveSha256"].removeprefix("sha256:"),next(x for x in lock["resolvedAuthorities"] if x["id"]=="management-workload-oci-archive")["artifacts"][0]["sha256"])
   def test_deterministic_zip_and_tamper_rejection(self):
     with tempfile.TemporaryDirectory() as td:
       root=Path(td); staging=root/"staging"; staging.mkdir()

@@ -21,10 +21,10 @@ class ManagementWorkloadBatchTests(unittest.TestCase):
     def test_diagnose_reports_current_partial_archive_without_fake_readiness(self):
         result = mod.diagnose(ROOT)
         self.assertEqual(mod.DIAGNOSTIC_AUTHORITY, result["authority"])
-        self.assertEqual("BLOCKED", result["status"])
+        self.assertEqual("READY", result["status"])
         self.assertEqual([], result["missingAuthorities"])
-        self.assertEqual(["management-workload-oci-archive"], result["partialAuthorities"])
-        self.assertFalse(result["managementWorkloadArchiveResolved"])
+        self.assertEqual([], result["partialAuthorities"])
+        self.assertTrue(result["managementWorkloadArchiveResolved"])
         self.assertTrue(result["canStartExternalAcquisition"])
         self.assertEqual([], result["pending"]["externalImages"])
         self.assertEqual(["forgejo", "keycloak", "postgresql", "zot"], result["externalReceipt"]["readyRoles"])
@@ -42,7 +42,7 @@ class ManagementWorkloadBatchTests(unittest.TestCase):
         self.assertEqual(["api-runtime-base", "maintenance-toolchain-base", "static-runtime-base"], result["productReceipt"]["readyBaseRoles"])
         self.assertEqual(["maintenance", "platform-agent", "platform-api", "platform-probe"], result["productReceipt"]["readyProductRoles"])
         self.assertEqual([], result["blockers"])
-        self.assertEqual("assemble-management-workload-oci", result["nextAction"])
+        self.assertEqual("bundle-source-authority-ready", result["nextAction"])
         self.assertIn("sha256:", json.dumps(result).lower())
 
     def test_tree_digest_is_deterministic_and_rejects_symlinks(self):

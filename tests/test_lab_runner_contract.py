@@ -1193,17 +1193,18 @@ class LabRunnerContractTests(unittest.TestCase):
     def test_shipped_acquisition_lock_v8_tracks_source_and_derived_truth(self):
         release_root = ROOT
         lock, _ = lab._load_bundle_acquisition_lock(release_root, (release_root / "VERSION").read_text(encoding="utf-8").strip())
-        self.assertEqual("incomplete", lock["status"])
-        self.assertEqual(5, len(lock["resolvedAuthorities"]))
-        self.assertEqual(1, len(lock["partialAuthorities"]))
+        self.assertEqual("ready", lock["status"])
+        self.assertEqual(6, len(lock["resolvedAuthorities"]))
+        self.assertEqual(0, len(lock["partialAuthorities"]))
         self.assertEqual(0, len(lock["missingAuthorities"]))
-        archive = lock["partialAuthorities"][0]
-        self.assertEqual("management-workload-oci-archive", archive["id"])
-        self.assertEqual([], archive["artifacts"])
-        self.assertEqual(1, len(archive["pendingArtifacts"]))
-        self.assertIn("archiveBuilt must not imply distributionReady", archive["pendingArtifacts"][0]["reason"])
+        self.assertIsInstance(lock["inputPack"], dict)
+        self.assertEqual("33fa8a9ae6ce94f2f517a500858c2dc910b3c382cbdb0ab88ea41f2e56a63fc6", lock["inputPack"]["sha256"])
+        self.assertEqual(3179097107, lock["inputPack"]["sizeBytes"])
         self.assertEqual(["digest-pinned-core-workload-images"], lock["derivedAuthorities"])
         by_id = {item["id"]: item for item in lock["resolvedAuthorities"]}
+        archive = by_id["management-workload-oci-archive"]
+        self.assertEqual("33122daf7b73bd6c9929dc5aa0a6d1ea8066f3a3b6486d0a753f0bf09a3f06dc", archive["artifacts"][0]["sha256"])
+        self.assertEqual(2307195904, archive["artifacts"][0]["sizeBytes"])
         storage = by_id["replicated-storage-install-manifest"]
         self.assertEqual("longhorn", storage["provider"])
         self.assertEqual("41648963af867ac1d0c85755fb53cf61cacd57c9bb22e1942e3fb0439eeb04fd", storage["artifacts"][0]["sha256"])
