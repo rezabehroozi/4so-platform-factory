@@ -1,0 +1,4 @@
+hubble:
+  tls:
+    auto:
+      method: cronJob

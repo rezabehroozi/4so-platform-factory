@@ -17,6 +17,20 @@ class ExactHelmRuntimeProfileTests(unittest.TestCase):
         self.assertFalse(d["embeddedGrafanaEnabled"])
         self.assertFalse(d["operatorAdmissionWebhooksEnabled"])
         self.assertFalse(d["runtimeCertified"]); self.assertFalse(d["physicalCertified"])
+    def test_cilium_profile_uses_runtime_certificate_generation(self):
+        p=ROOT/"catalog/runtime-profiles/cilium.json"
+        d=json.loads(p.read_text())
+        self.assertEqual("CILIUM_RUNTIME_PROFILE_V1",d["authority"])
+        self.assertEqual(["1.20.0","1.20.1"],d["releases"])
+        values=ROOT/d["valuesPath"]
+        self.assertEqual(d["valuesSha256"],mod.sha(values))
+        self.assertEqual("cronJob",d["hubbleTLSAutoMethod"])
+        self.assertIn("method: cronJob",values.read_text())
+        self.assertFalse(d["runtimeCertified"]); self.assertFalse(d["physicalCertified"])
+        profile,paths=mod.runtime_profile("cilium","1.20.1",[])
+        self.assertEqual("CILIUM_RUNTIME_PROFILE_V1",profile["authority"])
+        self.assertEqual([values],paths)
+
     def test_runtime_profile_rejects_source_values_conflict_and_escape(self):
         with self.assertRaisesRegex(RuntimeError,"SOURCE_VALUE_CONFLICT"):
             mod.runtime_profile("victoria-metrics","0.90.2",[ROOT/"VERSION"])

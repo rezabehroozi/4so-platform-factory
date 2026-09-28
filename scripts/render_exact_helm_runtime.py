@@ -18,7 +18,7 @@ import upstream_acquisition_toolchain as tools
 import helm_runtime_render_admission as render_admission
 
 AUTHORITY="EXACT_HELM_RUNTIME_RENDER_V2"
-PROFILE_AUTHORITY="VICTORIA_METRICS_RUNTIME_PROFILE_V1"
+PROFILE_AUTHORITIES={"victoria-metrics":"VICTORIA_METRICS_RUNTIME_PROFILE_V1","cilium":"CILIUM_RUNTIME_PROFILE_V1"}
 SHA_RE=re.compile(r"^sha256:[0-9a-f]{64}$")
 
 def sha(path:Path)->str:
@@ -64,7 +64,8 @@ def runtime_profile(component:str,release:str,locked_values:list[Path])->tuple[d
         raise RuntimeError("HELM_RUNTIME_PROFILE_IDENTITY_INVALID")
     if doc.get("component")!=component or release not in (doc.get("releases") or []):
         raise RuntimeError("HELM_RUNTIME_PROFILE_RELEASE_INVALID")
-    if doc.get("authority")!=PROFILE_AUTHORITY:
+    expected_authority=PROFILE_AUTHORITIES.get(component)
+    if not expected_authority or doc.get("authority")!=expected_authority:
         raise RuntimeError("HELM_RUNTIME_PROFILE_AUTHORITY_INVALID")
     if doc.get("replacesSourceGenerationValues") is not True or locked_values:
         raise RuntimeError("HELM_RUNTIME_PROFILE_SOURCE_VALUE_CONFLICT")
@@ -75,6 +76,10 @@ def runtime_profile(component:str,release:str,locked_values:list[Path])->tuple[d
     values=repo_file(str(doc.get("valuesPath") or ""),"HELM_RUNTIME_PROFILE_VALUES")
     if sha(values)!=doc.get("valuesSha256"):
         raise RuntimeError("HELM_RUNTIME_PROFILE_VALUES_DIGEST_DRIFT")
+    if component=="cilium":
+        text=values.read_text(encoding="utf-8")
+        if doc.get("hubbleTLSAutoMethod")!="cronJob" or "method: cronJob" not in text:
+            raise RuntimeError("CILIUM_RUNTIME_PROFILE_TLS_METHOD_INVALID")
     if component=="victoria-metrics":
         if doc.get("fullnameOverride")!="vmstack":
             raise RuntimeError("VICTORIA_METRICS_RUNTIME_PROFILE_NAME_OVERRIDE_INVALID")

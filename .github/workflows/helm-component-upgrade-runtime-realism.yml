@@ -100,7 +100,7 @@ jobs:
               .kubernetesVersion==$k and .networkSourceFetchRequired==false and
               (.images|length)>0 and all(.images[]; contains("@sha256:")) and
               (.sourceGenerationDigestCompared == true or
-               (.runtimeProfileAuthority=="VICTORIA_METRICS_RUNTIME_PROFILE_V1" and .deterministicRerenderVerified==true))
+               ((.runtimeProfileAuthority=="VICTORIA_METRICS_RUNTIME_PROFILE_V1" or .runtimeProfileAuthority=="CILIUM_RUNTIME_PROFILE_V1") and .deterministicRerenderVerified==true))
             ' "/tmp/$COMPONENT-$version-render-evidence.json" >/dev/null
           done
           python3 - <<'PY'

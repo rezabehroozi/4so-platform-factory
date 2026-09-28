@@ -1,0 +1,19 @@
+{
+  "apiVersion": "platform.4so.io/v1alpha1",
+  "kind": "HelmRuntimeProfile",
+  "authority": "CILIUM_RUNTIME_PROFILE_V1",
+  "component": "cilium",
+  "releases": [
+    "1.20.0",
+    "1.20.1"
+  ],
+  "valuesPath": "catalog/runtime-profiles/cilium.values.yaml",
+  "valuesSha256": "sha256:17c2005476c0a461486f74d156b0186bf08038dd04b60cc7ebec7b7c1e884b7f",
+  "sourceDefaultRenderDeterministic": false,
+  "replacesSourceGenerationValues": true,
+  "deterministicRerenderRequired": true,
+  "hubbleTLSAutoMethod": "cronJob",
+  "rationale": "4SO uses the upstream-supported Hubble TLS cronJob generator so GitOps/runtime renders are deterministic; Helm-time ephemeral CA/key generation is excluded from desired-state authority.",
+  "runtimeCertified": false,
+  "physicalCertified": false
+}
