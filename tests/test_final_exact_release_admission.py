@@ -21,6 +21,26 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             root=Path(td); self.fixture(root); out=mod.verify(root)
             self.assertTrue(out["admitted"]); self.assertFalse(out["physicalCertified"])
             self.assertTrue(out["applianceDistributionSha256"].startswith("sha256:"))
+    def test_multipart_distribution_is_admitted_with_same_full_digest(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); lock,_=self.fixture(root)
+            p=root/"lab/appliance-bundle-acquisition-lock.json"; d=json.loads(p.read_text())
+            pack=d["inputPack"]; pd=pack.pop("urls")
+            pack["parts"]=[{"index":0,"urls":[pd[0].replace("appliance.zip","part0")],"sha256":pack["sha256"],"sizeBytes":pack["sizeBytes"]}]
+            ar=d["resolvedAuthorities"][0]["artifacts"][0]; au=ar.pop("urls")
+            ar["parts"]=[{"index":0,"urls":[au[0].replace("archive.tar","part0")],"sha256":ar["sha256"],"sizeBytes":ar["sizeBytes"]}]
+            p.write_text(json.dumps(d))
+            out=mod.verify(root); self.assertTrue(out["admitted"])
+
+    def test_multipart_distribution_rejects_part_sum_drift(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            p=root/"lab/appliance-bundle-acquisition-lock.json"; d=json.loads(p.read_text())
+            pack=d["inputPack"]; url=pack.pop("urls")[0]
+            pack["parts"]=[{"index":0,"urls":[url.replace("appliance.zip","part0")],"sha256":pack["sha256"],"sizeBytes":pack["sizeBytes"]-1}]
+            p.write_text(json.dumps(d))
+            with self.assertRaisesRegex(RuntimeError,"SIZE_SUM"): mod.verify(root)
+
     def test_missing_mcp_evidence_is_pending(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root); (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()

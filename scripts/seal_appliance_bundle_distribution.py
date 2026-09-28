@@ -21,6 +21,10 @@ import re
 import stat
 import urllib.parse
 import zipfile
+try:
+    import distribution_transport as transport
+except ModuleNotFoundError:
+    from scripts import distribution_transport as transport
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK_REL = Path("lab/appliance-bundle-acquisition-lock.json")
@@ -146,7 +150,7 @@ def verify_input_pack_receipt(doc: dict, lock: dict, *, pack_sha: str, pack_size
         raise RuntimeError("INPUT_PACK_RECEIPT_BYTE_IDENTITY_MISMATCH")
 
 
-def build_ready_lock(lock: dict, receipt: dict, *, archive_url: str, input_pack_url: str, pack_sha: str, pack_size: int) -> dict:
+def build_ready_lock(lock: dict, receipt: dict, *, archive_url: str = "", input_pack_url: str = "", archive_parts: list[dict] | None = None, input_pack_parts: list[dict] | None = None, pack_sha: str, pack_size: int) -> dict:
     if lock.get("authority") != LOCK_AUTHORITY or lock.get("schemaVersion") != 8 or lock.get("status") != "incomplete":
         raise RuntimeError("ACQUISITION_LOCK_STATE_INVALID")
     if lock.get("missingAuthorities"):
@@ -167,8 +171,10 @@ def build_ready_lock(lock: dict, receipt: dict, *, archive_url: str, input_pack_
         raise RuntimeError("MANAGEMENT_ARCHIVE_RECEIPT_DIGEST_INVALID")
     if not SHA_RE.fullmatch(pack_sha) or pack_size <= 0:
         raise RuntimeError("INPUT_PACK_DIGEST_INVALID")
-    immutable_https_url(archive_url, "ARCHIVE_URL", archive_hex)
-    immutable_https_url(input_pack_url, "INPUT_PACK_URL", pack_sha)
+    archive_locator = {"urls":[archive_url]} if archive_url else {"parts":archive_parts}
+    pack_locator = {"urls":[input_pack_url]} if input_pack_url else {"parts":input_pack_parts}
+    archive_locator = transport.validate_locator(archive_locator, expected_sha256=archive_hex, expected_size=archive_size, label="ARCHIVE")
+    pack_locator = transport.validate_locator(pack_locator, expected_sha256=pack_sha, expected_size=pack_size, label="INPUT_PACK")
 
     archive = {
         "id": ARCHIVE_AUTHORITY,
@@ -179,7 +185,7 @@ def build_ready_lock(lock: dict, receipt: dict, *, archive_url: str, input_pack_
         "artifacts": [{
             "name": "platform-workloads.oci.tar",
             "stagingPath": "workloads/platform-workloads.oci.tar",
-            "urls": [archive_url],
+            **archive_locator,
             "sha256": archive_hex,
             "sizeBytes": archive_size,
         }],
@@ -189,7 +195,7 @@ def build_ready_lock(lock: dict, receipt: dict, *, archive_url: str, input_pack_
     out["partialAuthorities"] = []
     out["missingAuthorities"] = []
     out["inputPack"] = {
-        "urls": [input_pack_url],
+        **pack_locator,
         "sha256": pack_sha,
         "sizeBytes": pack_size,
         "format": "zip",
@@ -204,8 +210,9 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--root", type=Path, default=ROOT)
     p.add_argument("--input-pack", type=Path, required=True)
-    p.add_argument("--input-pack-url", required=True)
-    p.add_argument("--archive-url", required=True)
+    p.add_argument("--input-pack-url")
+    p.add_argument("--archive-url")
+    p.add_argument("--distribution-manifest", type=Path)
     p.add_argument("--write", action="store_true")
     args = p.parse_args()
     root = args.root.resolve()
@@ -216,7 +223,26 @@ def main() -> int:
     pack_receipt = json.loads((root / PACK_RECEIPT_REL).read_text(encoding="utf-8"))
     pack_sha, pack_size = inspect_input_pack(args.input_pack.resolve(), lock, receipt)
     verify_input_pack_receipt(pack_receipt, lock, pack_sha=pack_sha, pack_size=pack_size)
-    ready = build_ready_lock(lock, receipt, archive_url=args.archive_url, input_pack_url=args.input_pack_url, pack_sha=pack_sha, pack_size=pack_size)
+    archive_parts = input_pack_parts = None
+    archive_url = str(args.archive_url or "").strip()
+    input_pack_url = str(args.input_pack_url or "").strip()
+    if args.distribution_manifest:
+        if archive_url or input_pack_url:
+            raise RuntimeError("DISTRIBUTION_TRANSPORT_MODE_CONFLICT")
+        manifest = json.loads(args.distribution_manifest.read_text(encoding="utf-8"))
+        if manifest.get("authority") != "APPLIANCE_MULTIPART_DISTRIBUTION_AUTHORITY_V1":
+            raise RuntimeError("DISTRIBUTION_MANIFEST_AUTHORITY_INVALID")
+        archive_row = manifest.get("archive") or {}
+        pack_row = manifest.get("inputPack") or {}
+        if archive_row.get("sha256") != "sha256:" + str(receipt.get("archiveSha256") or "").removeprefix("sha256:") or archive_row.get("sizeBytes") != receipt.get("archiveBytes"):
+            raise RuntimeError("DISTRIBUTION_MANIFEST_ARCHIVE_IDENTITY_INVALID")
+        if pack_row.get("sha256") != "sha256:" + pack_sha or pack_row.get("sizeBytes") != pack_size:
+            raise RuntimeError("DISTRIBUTION_MANIFEST_INPUT_PACK_IDENTITY_INVALID")
+        archive_parts = archive_row.get("parts")
+        input_pack_parts = pack_row.get("parts")
+    elif not archive_url or not input_pack_url:
+        raise RuntimeError("DISTRIBUTION_DIRECT_URLS_REQUIRED")
+    ready = build_ready_lock(lock, receipt, archive_url=archive_url, input_pack_url=input_pack_url, archive_parts=archive_parts, input_pack_parts=input_pack_parts, pack_sha=pack_sha, pack_size=pack_size)
     if args.write:
         tmp = lock_path.with_suffix(lock_path.suffix + ".tmp")
         tmp.write_text(json.dumps(ready, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -224,8 +250,9 @@ def main() -> int:
     print(json.dumps({
         "authority": LOCK_AUTHORITY,
         "status": ready["status"],
-        "archiveURL": args.archive_url,
-        "inputPackURL": args.input_pack_url,
+        "transportMode": "multipart" if args.distribution_manifest else "direct",
+        "archiveURL": archive_url or None,
+        "inputPackURL": input_pack_url or None,
         "inputPackSha256": "sha256:" + pack_sha,
         "inputPackBytes": pack_size,
         "runtimeCertified": False,

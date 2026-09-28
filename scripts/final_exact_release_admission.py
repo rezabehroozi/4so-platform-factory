@@ -11,6 +11,10 @@ from __future__ import annotations
 import argparse, hashlib, json, re
 from pathlib import Path
 from urllib.parse import urlsplit
+try:
+    import distribution_transport as transport
+except ModuleNotFoundError:
+    from scripts import distribution_transport as transport
 
 AUTHORITY="FINAL_EXACT_RELEASE_ADMISSION_V1"
 S1_AUTHORITY="LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8"
@@ -63,10 +67,7 @@ def verify(root:Path)->dict:
         raise RuntimeError("APPLIANCE_INPUT_PACK_AUTHORITY_INVALID")
     if not SHA.fullmatch("sha256:"+str(pack.get("sha256") or "").removeprefix("sha256:")) or not isinstance(pack.get("sizeBytes"),int) or pack["sizeBytes"]<=0:
         raise RuntimeError("APPLIANCE_INPUT_PACK_DIGEST_INVALID")
-    urls=pack.get("urls")
-    if not isinstance(urls,list) or len(urls)!=1:
-        raise RuntimeError("APPLIANCE_INPUT_PACK_URL_COVERAGE_INVALID")
-    public_content_addressed(urls[0],"sha256:"+str(pack["sha256"]).removeprefix("sha256:"),"APPLIANCE_INPUT_PACK")
+    transport.validate_locator(pack, expected_sha256=str(pack["sha256"]).removeprefix("sha256:"), expected_size=pack["sizeBytes"], label="APPLIANCE_INPUT_PACK")
 
     archive=next((x for x in lock.get("resolvedAuthorities") or [] if isinstance(x,dict) and x.get("id")=="management-workload-oci-archive"),None)
     if not archive:
@@ -77,10 +78,7 @@ def verify(root:Path)->dict:
     ar=artifacts[0]
     if not re.fullmatch(r"[0-9a-f]{64}",str(ar.get("sha256") or "")) or not isinstance(ar.get("sizeBytes"),int) or ar["sizeBytes"]<=0:
         raise RuntimeError("MANAGEMENT_ARCHIVE_DIGEST_INVALID")
-    aurls=ar.get("urls")
-    if not isinstance(aurls,list) or len(aurls)!=1:
-        raise RuntimeError("MANAGEMENT_ARCHIVE_URL_COVERAGE_INVALID")
-    public_content_addressed(aurls[0],"sha256:"+ar["sha256"],"MANAGEMENT_ARCHIVE")
+    transport.validate_locator(ar, expected_sha256=ar["sha256"], expected_size=ar["sizeBytes"], label="MANAGEMENT_ARCHIVE")
 
     mcp_path=root/"lab/mcp-external-client-interoperability-evidence.json"
     mcp=load(mcp_path,"MCP_EXTERNAL_INTEROP")

@@ -41,7 +41,6 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "urls",
             "sha256",
             "sizeBytes",
             "format",
@@ -66,8 +65,33 @@
             },
             "stagingDirectory": {
               "$ref": "#/$defs/relativePath"
+            },
+            "parts": {
+              "$ref": "#/$defs/multipartParts"
             }
-          }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "urls"
+              ],
+              "not": {
+                "required": [
+                  "parts"
+                ]
+              }
+            },
+            {
+              "required": [
+                "parts"
+              ],
+              "not": {
+                "required": [
+                  "urls"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -136,7 +160,6 @@
       "required": [
         "name",
         "stagingPath",
-        "urls",
         "sha256",
         "sizeBytes"
       ],
@@ -157,8 +180,33 @@
         },
         "sizeBytes": {
           "$ref": "#/$defs/sizeBytes"
+        },
+        "parts": {
+          "$ref": "#/$defs/multipartParts"
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "urls"
+          ],
+          "not": {
+            "required": [
+              "parts"
+            ]
+          }
+        },
+        {
+          "required": [
+            "parts"
+          ],
+          "not": {
+            "required": [
+              "urls"
+            ]
+          }
+        }
+      ]
     },
     "pendingArtifact": {
       "type": "object",
@@ -327,6 +375,40 @@
             "$ref": "#/$defs/pendingArtifact"
           }
         }
+      }
+    },
+    "multipartPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "urls",
+        "sha256",
+        "sizeBytes"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 63
+        },
+        "urls": {
+          "$ref": "#/$defs/urls"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sizeBytes": {
+          "$ref": "#/$defs/sizeBytes"
+        }
+      }
+    },
+    "multipartParts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/multipartPart"
       }
     }
   },

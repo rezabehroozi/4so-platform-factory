@@ -71,6 +71,33 @@ class ApplianceBundleDistributionSealTests(unittest.TestCase):
             self.assertFalse(receipt["runtimeCertified"])
             self.assertFalse(receipt["physicalCertified"])
 
+    def test_multipart_seal_preserves_full_object_identity(self):
+        with tempfile.TemporaryDirectory() as td:
+            lock, receipt, pack = self.fixture(Path(td))
+            sha, size = mod.inspect_input_pack(pack, lock, receipt)
+            ahex=receipt["archiveSha256"].removeprefix("sha256:")
+            aparts=[{"index":0,"urls":["https://dist.example.test/sha256/"+ahex+"/archive.part0"],"sha256":ahex,"sizeBytes":receipt["archiveBytes"]}]
+            pparts=[{"index":0,"urls":["https://dist.example.test/sha256/"+sha+"/pack.part0"],"sha256":sha,"sizeBytes":size}]
+            out=mod.build_ready_lock(lock,receipt,archive_parts=aparts,input_pack_parts=pparts,pack_sha=sha,pack_size=size)
+            self.assertEqual("ready",out["status"])
+            self.assertNotIn("urls",out["inputPack"])
+            self.assertEqual(pparts,out["inputPack"]["parts"])
+            archive=next(x for x in out["resolvedAuthorities"] if x["id"]==mod.ARCHIVE_AUTHORITY)["artifacts"][0]
+            self.assertEqual(aparts,archive["parts"])
+            self.assertEqual(ahex,archive["sha256"])
+
+    def test_multipart_seal_rejects_bad_part_sum_and_address(self):
+        with tempfile.TemporaryDirectory() as td:
+            lock, receipt, pack = self.fixture(Path(td)); sha,size=mod.inspect_input_pack(pack,lock,receipt)
+            ahex=receipt["archiveSha256"].removeprefix("sha256:")
+            good_archive=[{"index":0,"urls":["https://dist.example.test/sha256/"+ahex+"/a"],"sha256":ahex,"sizeBytes":receipt["archiveBytes"]}]
+            bad_pack=[{"index":0,"urls":["https://dist.example.test/not-addressed/p"],"sha256":sha,"sizeBytes":size}]
+            with self.assertRaisesRegex(RuntimeError,"CONTENT_ADDRESS"):
+                mod.build_ready_lock(lock,receipt,archive_parts=good_archive,input_pack_parts=bad_pack,pack_sha=sha,pack_size=size)
+            bad_pack=[{"index":0,"urls":["https://dist.example.test/sha256/"+sha+"/p"],"sha256":sha,"sizeBytes":size-1}]
+            with self.assertRaisesRegex(RuntimeError,"SIZE_SUM"):
+                mod.build_ready_lock(lock,receipt,archive_parts=good_archive,input_pack_parts=bad_pack,pack_sha=sha,pack_size=size)
+
     def test_pack_receipt_must_bind_exact_bytes_and_scope(self):
         with tempfile.TemporaryDirectory() as td:
             lock, receipt, pack = self.fixture(Path(td))
