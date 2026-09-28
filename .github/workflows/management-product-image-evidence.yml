@@ -1,6 +1,7 @@
 name: management-product-image-evidence
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -19,6 +20,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: management-product-image-evidence
+  cancel-in-progress: false
 
 jobs:
   build-certify-seal:
