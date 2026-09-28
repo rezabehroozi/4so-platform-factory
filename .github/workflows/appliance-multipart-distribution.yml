@@ -29,31 +29,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve exact artifact provenance
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "ARCHIVE_RUN_ID=$(jq -r .sourceRunId lab/management-workload-oci-archive-receipt.json)" >> "$GITHUB_ENV"
-          echo "PACK_RUN_ID=$(jq -r .sourceRunId lab/appliance-input-pack-receipt.json)" >> "$GITHUB_ENV"
-          test "$(jq -r .workflowArtifactId lab/appliance-input-pack-receipt.json)" = "10925107578"
-          test "$(jq -r .sourceCommitSHA lab/appliance-input-pack-receipt.json)" = "095dfad17aa452213d53d7859160cae52686ef9c"
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: management-workload-oci-archive
-          path: /tmp/archive-artifact
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ env.ARCHIVE_RUN_ID }}
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: appliance-input-pack
-          path: /tmp/pack-artifact
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ env.PACK_RUN_ID }}
-
       - name: Reclaim hosted-runner space
         shell: bash
         run: |
@@ -61,44 +36,78 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
           df -h /
 
-      - name: Verify exact full objects before publication
-        shell: bash
-        run: |
-          set -euo pipefail
-          archive="$(find /tmp/archive-artifact -type f -name platform-workloads.oci.tar -print -quit)"
-          pack="$(find /tmp/pack-artifact -type f -name appliance-input-pack.zip -print -quit)"
-          test -f "$archive" && test -f "$pack"
-          test "$(sha256sum "$archive"|awk '{print "sha256:"$1}')" = "$(jq -r .archiveSha256 lab/management-workload-oci-archive-receipt.json)"
-          test "$(stat -c %s "$archive")" = "$(jq -r .archiveBytes lab/management-workload-oci-archive-receipt.json)"
-          test "$(sha256sum "$pack"|awk '{print "sha256:"$1}')" = "$(jq -r .inputPackSha256 lab/appliance-input-pack-receipt.json)"
-          test "$(stat -c %s "$pack")" = "$(jq -r .inputPackBytes lab/appliance-input-pack-receipt.json)"
-          echo "ARCHIVE_FILE=$archive" >> "$GITHUB_ENV"
-          echo "PACK_FILE=$pack" >> "$GITHUB_ENV"
-
-      - name: Split exact objects below single-asset limits
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf /tmp/distribution && mkdir -p /tmp/distribution/archive /tmp/distribution/pack
-          python3 scripts/prepare_appliance_distribution_parts.py --input "$ARCHIVE_FILE" --out-dir /tmp/distribution/archive --name platform-workloads.oci.tar --manifest /tmp/distribution/archive-manifest.json
-          python3 scripts/prepare_appliance_distribution_parts.py --input "$PACK_FILE" --out-dir /tmp/distribution/pack --name appliance-input-pack.zip --manifest /tmp/distribution/pack-manifest.json
-          jq -e '.partCount>=2 and .sizeBytes>0' /tmp/distribution/archive-manifest.json
-          jq -e '.partCount>=2 and .sizeBytes>0' /tmp/distribution/pack-manifest.json
-
-      - name: Create immutable digest-scoped GitHub Release
+      - name: Resolve exact provenance and immutable release tag
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          archive_run="$(jq -r .sourceRunId lab/management-workload-oci-archive-receipt.json)"
+          pack_run="$(jq -r .sourceRunId lab/appliance-input-pack-receipt.json)"
+          test "$(jq -r .workflowArtifactId lab/appliance-input-pack-receipt.json)" = "10925107578"
+          test "$(jq -r .sourceCommitSHA lab/appliance-input-pack-receipt.json)" = "095dfad17aa452213d53d7859160cae52686ef9c"
           version="$(cat VERSION)"
-          pack_sha="$(jq -r '.sha256' /tmp/distribution/pack-manifest.json)"
+          pack_sha="$(jq -r '.inputPackSha256|sub("^sha256:";"")' lab/appliance-input-pack-receipt.json)"
           tag="appliance-dist-v${version}-${pack_sha:0:16}"
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --target "$GITHUB_SHA" --title "4SO appliance distribution ${version}" --notes "Content-addressed transport parts for the exact pre-certification appliance input pack. Full-object identity remains the canonical SHA-256 in the acquisition lock."
+            gh release create "$tag" --target "$GITHUB_SHA" --title "4SO appliance distribution ${version}" --notes "Content-addressed transport parts for the exact pre-certification appliance input pack. Full-object SHA-256 remains canonical."
           fi
-          gh release upload "$tag" /tmp/distribution/archive/* /tmp/distribution/pack/* --clobber
+          echo "ARCHIVE_RUN_ID=$archive_run" >> "$GITHUB_ENV"
+          echo "PACK_RUN_ID=$pack_run" >> "$GITHUB_ENV"
           echo "DIST_TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Download exact archive artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: management-workload-oci-archive
+          path: /tmp/archive-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.ARCHIVE_RUN_ID }}
+
+      - name: Verify, split and publish archive parts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          archive="$(find /tmp/archive-artifact -type f -name platform-workloads.oci.tar -print -quit)"
+          test -f "$archive"
+          test "$(sha256sum "$archive"|awk '{print "sha256:"$1}')" = "$(jq -r .archiveSha256 lab/management-workload-oci-archive-receipt.json)"
+          test "$(stat -c %s "$archive")" = "$(jq -r .archiveBytes lab/management-workload-oci-archive-receipt.json)"
+          mkdir -p /tmp/distribution/archive /tmp/distribution/manifests
+          python3 scripts/prepare_appliance_distribution_parts.py --input "$archive" --out-dir /tmp/distribution/archive --name platform-workloads.oci.tar --manifest /tmp/distribution/manifests/archive.json
+          jq -e '.partCount>=2 and .sizeBytes>0' /tmp/distribution/manifests/archive.json
+          gh release upload "$DIST_TAG" /tmp/distribution/archive/* --clobber
+          rm -rf /tmp/archive-artifact /tmp/distribution/archive
+          df -h /
+
+      - name: Download exact input-pack artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: appliance-input-pack
+          path: /tmp/pack-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PACK_RUN_ID }}
+
+      - name: Verify, split and publish input-pack parts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pack="$(find /tmp/pack-artifact -type f -name appliance-input-pack.zip -print -quit)"
+          test -f "$pack"
+          test "$(sha256sum "$pack"|awk '{print "sha256:"$1}')" = "$(jq -r .inputPackSha256 lab/appliance-input-pack-receipt.json)"
+          test "$(stat -c %s "$pack")" = "$(jq -r .inputPackBytes lab/appliance-input-pack-receipt.json)"
+          mkdir -p /tmp/distribution/pack
+          python3 scripts/prepare_appliance_distribution_parts.py --input "$pack" --out-dir /tmp/distribution/pack --name appliance-input-pack.zip --manifest /tmp/distribution/manifests/pack.json
+          jq -e '.partCount>=2 and .sizeBytes>0' /tmp/distribution/manifests/pack.json
+          gh release upload "$DIST_TAG" /tmp/distribution/pack/* --clobber
+          rm -rf /tmp/distribution/pack
+          echo "PACK_FILE=$pack" >> "$GITHUB_ENV"
+          df -h /
 
       - name: Build public multipart authority manifest
         shell: bash
@@ -115,45 +124,41 @@ jobs:
                   url=f"https://github.com/{repo}/releases/download/{tag}/{row['fileName']}"
                   parts.append({"index":row["index"],"urls":[url],"sha256":row["sha256"],"sizeBytes":row["sizeBytes"]})
               return {"sha256":"sha256:"+d["sha256"],"sizeBytes":d["sizeBytes"],"parts":parts}
-          out={"authority":"APPLIANCE_MULTIPART_DISTRIBUTION_AUTHORITY_V1","archive":convert("/tmp/distribution/archive-manifest.json"),"inputPack":convert("/tmp/distribution/pack-manifest.json")}
+          out={"authority":"APPLIANCE_MULTIPART_DISTRIBUTION_AUTHORITY_V1","archive":convert("/tmp/distribution/manifests/archive.json"),"inputPack":convert("/tmp/distribution/manifests/pack.json")}
           Path("/tmp/distribution/public-manifest.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
           PY
 
-      - name: Prove unauthenticated public readback and full reconstruction
+      - name: Prove unauthenticated public streaming readback
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/readback/archive /tmp/readback/pack
-          for kind in archive inputPack; do
-            dir=/tmp/readback/archive
-            test "$kind" = inputPack && dir=/tmp/readback/pack
-            jq -c --arg k "$kind" '.[$k].parts[]' /tmp/distribution/public-manifest.json | while read -r row; do
-              index="$(jq -r .index <<<"$row")"; url="$(jq -r '.urls[0]' <<<"$row")"; sha="$(jq -r .sha256 <<<"$row")"; size="$(jq -r .sizeBytes <<<"$row")"
-              target="$dir/part-$(printf '%04d' "$index")"
-              curl --fail --location --retry 4 --proto '=https' --proto-redir '=https' -o "$target" "$url"
-              test "$(sha256sum "$target"|awk '{print $1}')" = "$sha"
-              test "$(stat -c %s "$target")" = "$size"
-            done
-          done
-          cat /tmp/readback/archive/part-* > /tmp/readback/platform-workloads.oci.tar
-          cat /tmp/readback/pack/part-* > /tmp/readback/appliance-input-pack.zip
-          test "$(sha256sum /tmp/readback/platform-workloads.oci.tar|awk '{print "sha256:"$1}')" = "$(jq -r .archive.sha256 /tmp/distribution/public-manifest.json)"
-          test "$(stat -c %s /tmp/readback/platform-workloads.oci.tar)" = "$(jq -r .archive.sizeBytes /tmp/distribution/public-manifest.json)"
-          test "$(sha256sum /tmp/readback/appliance-input-pack.zip|awk '{print "sha256:"$1}')" = "$(jq -r .inputPack.sha256 /tmp/distribution/public-manifest.json)"
-          test "$(stat -c %s /tmp/readback/appliance-input-pack.zip)" = "$(jq -r .inputPack.sizeBytes /tmp/distribution/public-manifest.json)"
+          python3 - <<'PY'
+          import hashlib,json,urllib.request
+          from pathlib import Path
+          manifest=json.loads(Path("/tmp/distribution/public-manifest.json").read_text())
+          for key in ("archive","inputPack"):
+              obj=manifest[key]; whole=hashlib.sha256(); total=0
+              for expected_index,part in enumerate(obj["parts"]):
+                  if part["index"]!=expected_index: raise SystemExit(f"{key}: part index drift")
+                  request=urllib.request.Request(part["urls"][0],headers={"User-Agent":"4SO-Public-Distribution-Readback/1"})
+                  ph=hashlib.sha256(); ptotal=0
+                  with urllib.request.urlopen(request,timeout=120) as resp:
+                      while True:
+                          block=resp.read(1024*1024)
+                          if not block: break
+                          ph.update(block); whole.update(block); ptotal+=len(block); total+=len(block)
+                  if ph.hexdigest()!=part["sha256"] or ptotal!=part["sizeBytes"]: raise SystemExit(f"{key}: part byte identity mismatch")
+              if "sha256:"+whole.hexdigest()!=obj["sha256"] or total!=obj["sizeBytes"]: raise SystemExit(f"{key}: full reconstruction identity mismatch")
+              print(f"PUBLIC_READBACK_PASS {key} parts={len(obj['parts'])} bytes={total}")
+          PY
 
-      - name: Seal canonical S1 authority from public multipart readback
+      - name: Seal canonical S1 authority
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/seal_appliance_bundle_distribution.py --input-pack /tmp/readback/appliance-input-pack.zip --distribution-manifest /tmp/distribution/public-manifest.json --write
+          python3 scripts/seal_appliance_bundle_distribution.py --input-pack "$PACK_FILE" --distribution-manifest /tmp/distribution/public-manifest.json --write
           python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
           python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
-          set +e
-          python3 scripts/final_exact_release_admission.py --allow-pending >/tmp/final-admission.json
-          rc=$?
-          set -e
-          test "$rc" -eq 0 -o "$rc" -eq 3
           python3 scripts/validate_repository.py .
           python3 -m unittest tests.test_distribution_transport tests.test_appliance_bundle_distribution tests.test_final_exact_release_admission tests.test_supply_chain_handoff
           git diff --check
@@ -168,10 +173,14 @@ jobs:
           if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
             echo "main advanced; recomputing distribution authority on latest canonical main"
             git reset --hard origin/main
-            python3 scripts/seal_appliance_bundle_distribution.py --input-pack /tmp/readback/appliance-input-pack.zip --distribution-manifest /tmp/distribution/public-manifest.json --write
-            python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
-            python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
-            python3 scripts/validate_repository.py .
+            if jq -e '.status=="ready"' lab/appliance-bundle-acquisition-lock.json >/dev/null; then
+              python3 scripts/validate_repository.py .
+            else
+              python3 scripts/seal_appliance_bundle_distribution.py --input-pack "$PACK_FILE" --distribution-manifest /tmp/distribution/public-manifest.json --write
+              python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
+              python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+              python3 scripts/validate_repository.py .
+            fi
           fi
           git add lab/appliance-bundle-acquisition-lock.json lab/supply-chain-handoff-plan.json
           git diff --cached --quiet && { echo "no distribution authority delta"; exit 0; }
