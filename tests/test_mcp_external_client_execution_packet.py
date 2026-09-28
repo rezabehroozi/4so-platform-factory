@@ -15,6 +15,8 @@ class PacketTests(unittest.TestCase):
             out=mod.packet(matrix,cp,"chatgpt")
             self.assertEqual(core.CLIENTS[0],out["clientId"]); self.assertEqual(set(json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]),{x["id"] for x in out["checks"]})
             self.assertFalse(out["secretsIncluded"]); self.assertFalse(out["runtimeCertified"]); self.assertFalse(out["physicalCertified"])
+            self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",out["receiptRequirements"]["captureAuthority"])
+            self.assertIn("finalize_mcp_external_client_receipt.py",out["receiptRequirements"]["finalizer"])
             audited=[x for x in out["checks"] if x.get("serverAudit")]
             self.assertEqual(set(core.AUDITED_CHECKS),{x["id"] for x in audited})
             self.assertTrue(all("X-Request-ID" in x["request"]["captureRequestIdFrom"][0] for x in audited))

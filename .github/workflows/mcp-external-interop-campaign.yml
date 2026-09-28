@@ -82,9 +82,23 @@ jobs:
           Path("/tmp/mcp-interop/campaign-reference.json").write_text(json.dumps(ref,indent=2,sort_keys=True)+"\n")
           PY
           for client in chatgpt claude gemini grok; do
-            python3 scripts/prepare_mcp_external_client_execution.py --campaign /tmp/mcp-interop/campaign.json --client "$client" --out "/tmp/mcp-interop/execution-packets/$client.json"
+            packet="/tmp/mcp-interop/execution-packets/$client.json"
+            capture="/tmp/mcp-interop/capture-templates/$client.json"
+            python3 scripts/prepare_mcp_external_client_execution.py --campaign /tmp/mcp-interop/campaign.json --client "$client" --out "$packet"
+            mkdir -p "$(dirname "$capture")"
+            python3 - "$packet" "$capture" <<'PY'
+          import json,sys
+          from pathlib import Path
+          packet=json.loads(Path(sys.argv[1]).read_text())
+          checks={}
+          audited=set(packet["receiptRequirements"]["requestIds"])
+          for row in packet["checks"]:
+              checks[row["id"]]={"passed":False,**({"requestId":""} if row["id"] in audited else {})}
+          out={"authority":packet["receiptRequirements"]["captureAuthority"],"clientId":packet["clientId"],"campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"executionId":"","externalExecution":False,"credentialedExecution":False,"checks":checks,"providerExecutionRef":""}
+          Path(sys.argv[2]).write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          PY
           done
-          python3 -m unittest tests.test_mcp_external_client_execution_packet
+          python3 -m unittest tests.test_mcp_external_client_execution_packet tests.test_mcp_external_client_receipt_finalizer
       - name: Upload campaign packet
         uses: actions/upload-artifact@v4
         with:
