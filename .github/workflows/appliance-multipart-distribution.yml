@@ -20,7 +20,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: appliance-multipart-distribution
+  group: appliance-multipart-distribution-v2
   cancel-in-progress: false
 
 jobs:
@@ -72,7 +72,49 @@ jobs:
           echo "PACK_RUN_ID=$pack_run" >> "$GITHUB_ENV"
           echo "DIST_TAG=$tag" >> "$GITHUB_ENV"
 
+      - name: Detect resumable exact public assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/distribution
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$DIST_TAG" > /tmp/distribution/release.json
+          python3 - <<'PY'
+          import json,os,re
+          from pathlib import Path
+          release=json.loads(Path("/tmp/distribution/release.json").read_text())
+          archive=json.loads(Path("lab/management-workload-oci-archive-receipt.json").read_text())
+          pack=json.loads(Path("lab/appliance-input-pack-receipt.json").read_text())
+          specs={
+            "archive":("platform-workloads.oci.tar",archive["archiveSha256"],archive["archiveBytes"]),
+            "inputPack":("appliance-input-pack.zip",pack["inputPackSha256"],pack["inputPackBytes"]),
+          }
+          assets=release.get("assets") or []
+          out={"authority":"APPLIANCE_MULTIPART_DISTRIBUTION_AUTHORITY_V1"}
+          complete=True
+          for key,(prefix,whole_sha,whole_size) in specs.items():
+              rows=[]
+              rx=re.compile(r"^"+re.escape(prefix)+r"\.part([0-9]{4})\.sha256-([0-9a-f]{64})$")
+              for asset in assets:
+                  m=rx.fullmatch(str(asset.get("name") or ""))
+                  if not m: continue
+                  digest=m.group(2)
+                  if asset.get("digest")!="sha256:"+digest or not isinstance(asset.get("size"),int) or asset["size"]<=0:
+                      complete=False; continue
+                  rows.append({"index":int(m.group(1)),"urls":[asset["browser_download_url"]],"sha256":digest,"sizeBytes":asset["size"]})
+              rows.sort(key=lambda x:x["index"])
+              if not rows or [r["index"] for r in rows]!=list(range(len(rows))) or sum(r["sizeBytes"] for r in rows)!=whole_size:
+                  complete=False
+              out[key]={"sha256":whole_sha,"sizeBytes":whole_size,"parts":rows}
+          Path("/tmp/distribution/public-manifest.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          with open(os.environ["GITHUB_ENV"],"a") as fh:
+              fh.write("PUBLIC_ASSETS_READY="+("true" if complete else "false")+"\n")
+          print("PUBLIC_ASSET_RESUME_READY",complete)
+          PY
+
       - name: Download exact archive artifact
+        if: env.PUBLIC_ASSETS_READY != 'true'
         uses: actions/download-artifact@v4
         with:
           name: management-workload-oci-archive
@@ -82,6 +124,7 @@ jobs:
           run-id: ${{ env.ARCHIVE_RUN_ID }}
 
       - name: Verify, split and publish archive parts
+        if: env.PUBLIC_ASSETS_READY != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
@@ -110,6 +153,7 @@ jobs:
           df -h /
 
       - name: Download exact input-pack artifact
+        if: env.PUBLIC_ASSETS_READY != 'true'
         uses: actions/download-artifact@v4
         with:
           name: appliance-input-pack
@@ -119,6 +163,7 @@ jobs:
           run-id: ${{ env.PACK_RUN_ID }}
 
       - name: Verify, split and publish input-pack parts
+        if: env.PUBLIC_ASSETS_READY != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
@@ -148,6 +193,7 @@ jobs:
           df -h /
 
       - name: Build public multipart authority manifest
+        if: env.PUBLIC_ASSETS_READY != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -182,7 +228,7 @@ jobs:
                   tmp.unlink(missing_ok=True)
                   request=urllib.request.Request(
                       part["urls"][0],
-                      headers={"User-Agent":"4SO-Public-Distribution-Readback/1","Cache-Control":"no-cache"},
+                      headers={"User-Agent":"4SO-Public-Distribution-Readback/2","Cache-Control":"no-cache"},
                   )
                   ph=hashlib.sha256(); ptotal=0
                   try:
@@ -202,25 +248,37 @@ jobs:
                   time.sleep(min(5*attempt,20))
               raise SystemExit(f"{key}: part byte identity mismatch after bounded retry: {last}")
 
+          pack_output=Path("/tmp/appliance-input-pack-public.zip")
+          pack_output.unlink(missing_ok=True)
           for key in ("archive","inputPack"):
               obj=manifest[key]; whole=hashlib.sha256(); total=0
-              for expected_index,part in enumerate(obj["parts"]):
-                  if part["index"]!=expected_index: raise SystemExit(f"{key}: part index drift")
-                  tmp=fetch_exact(part,key)
-                  with tmp.open("rb") as fh:
-                      for block in iter(lambda:fh.read(4*1024*1024),b""):
-                          whole.update(block); total+=len(block)
-                  tmp.unlink()
+              dst=pack_output.open("wb") if key=="inputPack" else None
+              try:
+                  for expected_index,part in enumerate(obj["parts"]):
+                      if part["index"]!=expected_index: raise SystemExit(f"{key}: part index drift")
+                      tmp=fetch_exact(part,key)
+                      with tmp.open("rb") as fh:
+                          for block in iter(lambda:fh.read(4*1024*1024),b""):
+                              whole.update(block); total+=len(block)
+                              if dst is not None: dst.write(block)
+                      tmp.unlink()
+              finally:
+                  if dst is not None: dst.close()
               if "sha256:"+whole.hexdigest()!=obj["sha256"] or total!=obj["sizeBytes"]:
                   raise SystemExit(f"{key}: full reconstruction identity mismatch")
               print(f"PUBLIC_READBACK_PASS {key} parts={len(obj['parts'])} bytes={total}")
           PY
+          echo "PACK_FILE=/tmp/appliance-input-pack-public.zip" >> "$GITHUB_ENV"
 
       - name: Seal canonical S1 authority
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/seal_appliance_bundle_distribution.py --input-pack "$PACK_FILE" --distribution-manifest /tmp/distribution/public-manifest.json --write
+          if jq -e '.status=="ready"' lab/appliance-bundle-acquisition-lock.json >/dev/null; then
+            echo "S1 distribution already ready; validate without rewriting"
+          else
+            python3 scripts/seal_appliance_bundle_distribution.py --input-pack "$PACK_FILE" --distribution-manifest /tmp/distribution/public-manifest.json --write
+          fi
           python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
           python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
           python3 scripts/validate_repository.py .
