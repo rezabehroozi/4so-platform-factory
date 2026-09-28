@@ -50,6 +50,16 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
             text.index("Reconcile onto latest main and persist progress"),
         )
 
+    def test_verified_admission_packet_has_recovery_workflow(self):
+        text = self.read(".github/workflows/mcp-external-receipt-recovery.yml")
+        self.assertIn("admission_run_id:", text)
+        self.assertIn('test "$(jq -r .name <<<"$run_json")" = "mcp-external-receipt-admission"', text)
+        self.assertIn('gh run download "$ADMISSION_RUN_ID"', text)
+        self.assertIn('mcp-external-receipt-$CLIENT-$ADMISSION_RUN_ID', text)
+        self.assertIn("python3 scripts/admit_mcp_external_receipt.py", text)
+        self.assertIn("git reset --hard origin/main", text)
+        self.assertIn("cancel-in-progress: false", text)
+
     def test_bulk_seal_reuses_campaign_artifact_and_retries_audit_visibility(self):
         text = self.read(".github/workflows/mcp-external-interop-seal.yml")
         self.assertIn("campaign_run_id:", text)
