@@ -54,6 +54,8 @@ def verify_upgrade_registry(root:Path)->dict:
     kyverno=load(root/"lab/kyverno-upgrade-runtime-matrix-evidence.json")
     tetragon=load(root/"lab/tetragon-upgrade-runtime-matrix-evidence.json")
     helm_components=load(root/"lab/helm-component-upgrade-runtime-matrix-evidence.json")
+    ceph_rbd_path=root/"lab/ceph-csi-rbd-upgrade-runtime-matrix-evidence.json"
+    ceph_rbd=load(ceph_rbd_path) if ceph_rbd_path.is_file() else {}
     if reg.get("authority")!=REGISTRY_AUTH or reg.get("kind")!="ComponentRuntimeUpgradeEvidenceRegistry" or reg.get("schemaVersion")!=1:
         raise RuntimeError("RUNTIME_UPGRADE_EVIDENCE_REGISTRY_AUTHORITY_INVALID")
     expected_policy={
@@ -171,6 +173,21 @@ def verify_upgrade_registry(root:Path)->dict:
             for e in r.get("executedEdges",[]):
                 if e.get("authority")!="HELM_COMPONENT_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=ev.get("sourceRunId") or e.get("evidencePath")!="lab/helm-component-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
                     raise RuntimeError(f"HELM_COMPONENT_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID {name}")
+        elif name=="ceph-csi-rbd" and executed:
+            if ceph_rbd.get("authority")!="CEPH_CSI_RBD_RUNTIME_UPGRADE_MATRIX_V1" or ceph_rbd.get("matrixPass") is not True:
+                raise RuntimeError("CEPH_CSI_RBD_RUNTIME_UPGRADE_EVIDENCE_INVALID")
+            if ceph_rbd.get("genericKubernetesRuntimeEvidenceOnly") is not True or any(ceph_rbd.get(k) is not False for k in ("rke2Certified","productTopologyHACertified","physicalCertified")):
+                raise RuntimeError("CEPH_CSI_RBD_RUNTIME_UPGRADE_SCOPE_INFLATED")
+            expected={(ceph_rbd.get("fromRelease"),ceph_rbd.get("toRelease"))}
+            if executed!=expected:
+                raise RuntimeError("CEPH_CSI_RBD_RUNTIME_UPGRADE_EDGE_BINDING_INVALID")
+            evidence_rows=ceph_rbd.get("matrix") or []
+            required=("historicalReady","upgradeApplyPass","targetReady","driverIdentityPreserved","generatedDeploymentIdentityPreserved","generatedDaemonSetIdentityPreserved","targetSpecReadbackVerified","generatedImagesDigestPinned","targetReapplyConverged","reverseEdgeRejected","semanticNoopSourceRender")
+            if sorted(str(x.get("kubernetesVersion") or "") for x in evidence_rows)!=["1.34.11","1.35.8"] or not all(all(x.get(k) is True for k in required) for x in evidence_rows):
+                raise RuntimeError("CEPH_CSI_RBD_RUNTIME_UPGRADE_MATRIX_INVALID")
+            for e in r.get("executedEdges",[]):
+                if e.get("authority")!="CEPH_CSI_RBD_RUNTIME_UPGRADE_MATRIX_V1" or e.get("sourceRunId")!=ceph_rbd.get("sourceRunId") or e.get("evidencePath")!="lab/ceph-csi-rbd-upgrade-runtime-matrix-evidence.json" or e.get("genericKubernetesRuntimeEvidenceOnly") is not True or e.get("rke2Certified") is not False or e.get("physicalCertified") is not False or sorted(e.get("kubernetesVersions") or [])!=["1.34.11","1.35.8"]:
+                    raise RuntimeError("CEPH_CSI_RBD_RUNTIME_UPGRADE_REGISTRY_BINDING_INVALID")
         elif name=="cert-manager":
             if cert_manager.get("authority")!="CERT_MANAGER_RUNTIME_UPGRADE_MATRIX_V1" or cert_manager.get("matrixPass") is not True or cert_manager.get("crdDependencyAuthority")!="CERT_MANAGER_CRD_RUNTIME_DEPENDENCY_EVIDENCE_V1":
                 raise RuntimeError("CERT_MANAGER_RUNTIME_UPGRADE_EVIDENCE_INVALID")

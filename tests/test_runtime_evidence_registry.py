@@ -25,6 +25,9 @@ class RuntimeEvidenceRegistryTests(unittest.TestCase):
         td=tempfile.TemporaryDirectory();dst=Path(td.name)
         for rel in ("lab/oc-mirror-disconnected-transport-evidence.json","lab/managed-okd-oc-mirror-source-lock.json","lab/management-workload-external-image-receipt.json","catalog/component-runtime-upgrade-evidence.json","catalog/component-runtime-upgrade-matrix.json","lab/gateway-api-upgrade-runtime-matrix-evidence.json","lab/gateway-api-legacy-upgrade-runtime-matrix-evidence.json","lab/snapshot-controller-upgrade-runtime-matrix-evidence.json","lab/simple-component-upgrade-runtime-matrix-evidence.json","lab/cert-manager-upgrade-runtime-matrix-evidence.json","lab/loki-upgrade-runtime-matrix-evidence.json","lab/velero-upgrade-runtime-matrix-evidence.json","lab/kgateway-upgrade-runtime-matrix-evidence.json","lab/kyverno-upgrade-runtime-matrix-evidence.json","lab/tetragon-upgrade-runtime-matrix-evidence.json","lab/helm-component-upgrade-runtime-matrix-evidence.json"):
             p=dst/rel;p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(ROOT/rel,p)
+        optional=ROOT/"lab/ceph-csi-rbd-upgrade-runtime-matrix-evidence.json"
+        if optional.is_file():
+            p=dst/"lab/ceph-csi-rbd-upgrade-runtime-matrix-evidence.json";p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(optional,p)
         return td,dst
     def test_oc_mirror_scope_inflation_rejected(self):
         td,dst=self.copy_files()
@@ -43,6 +46,14 @@ class RuntimeEvidenceRegistryTests(unittest.TestCase):
         try:
             p=dst/"catalog/component-runtime-upgrade-evidence.json";d=json.loads(p.read_text());g=next(r for r in d["components"] if r["component"]=="gateway-api");g["runtimeUpgradeCertified"]=False;p.write_text(json.dumps(d))
             with self.assertRaisesRegex(RuntimeError,"CERTIFICATION_SCOPE"):mod.verify_upgrade_registry(dst)
+        finally:td.cleanup()
+    def test_ceph_rbd_upgrade_registry_rejects_unbound_execution(self):
+        td,dst=self.copy_files()
+        try:
+            p=dst/"catalog/component-runtime-upgrade-evidence.json";d=json.loads(p.read_text());a=next(r for r in d["components"] if r["component"]=="ceph-csi-rbd")
+            a["executedEdges"]=[{"fromRelease":"1.0.3","toRelease":"1.0.4","authority":"CEPH_CSI_RBD_RUNTIME_UPGRADE_MATRIX_V1","evidencePath":"lab/ceph-csi-rbd-upgrade-runtime-matrix-evidence.json","sourceRunId":"0","kubernetesVersions":["1.34.11","1.35.8"],"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"physicalCertified":False}]
+            a["pendingEdges"]=[];a["status"]="runtime-evidence-complete";a["runtimeUpgradeCertified"]=True;p.write_text(json.dumps(d))
+            with self.assertRaisesRegex(RuntimeError,"CEPH_CSI_RBD_RUNTIME_UPGRADE"):mod.verify_upgrade_registry(dst)
         finally:td.cleanup()
     def test_upgrade_registry_rejects_edge_fabrication_without_matching_runtime_evidence(self):
         td,dst=self.copy_files()
