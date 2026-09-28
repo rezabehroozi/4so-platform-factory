@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [argocd, capsule, external-secrets, metallb, victoria-metrics]
+        component: [argocd, capsule, external-secrets, metallb, victoria-metrics, cilium, ceph-csi-operator]
         kubernetes: ["1.34.11", "1.35.8"]
     runs-on: ubuntu-26.04
     timeout-minutes: 50
@@ -58,6 +58,8 @@ jobs:
             external-secrets) from=2.7.0; to=2.8.0 ;;
             metallb) from=0.16.0; to=0.16.1 ;;
             victoria-metrics) from=0.90.1; to=0.90.2 ;;
+            cilium) from=1.20.0; to=1.20.1 ;;
+            ceph-csi-operator) from=1.0.3; to=1.0.4 ;;
             *) echo "UNSUPPORTED_HELM_UPGRADE_PROFILE $COMPONENT" >&2; exit 20 ;;
           esac
           case "$RUNTIME_KUBERNETES" in
@@ -180,7 +182,7 @@ jobs:
             kubectl -n cert-manager wait --for=condition=Available deployment --all --timeout=12m
             if kubectl -n cert-manager get job -o name | grep -q .; then kubectl -n cert-manager wait --for=condition=Complete job --all --timeout=12m; fi
           fi
-          kubectl create namespace "$NAMESPACE"
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
           if test "$(jq '.items|length' "/tmp/$COMPONENT-$FROM_RELEASE-crds.json")" -gt 0; then
             kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/$COMPONENT-$FROM_RELEASE-crds.json"
             for crd in $(jq -r '.items[].metadata.name' "/tmp/$COMPONENT-$FROM_RELEASE-crds.json"); do
