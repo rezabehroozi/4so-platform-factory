@@ -37,6 +37,11 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+try:
+    import distribution_transport as transport
+except ModuleNotFoundError:
+    from scripts import distribution_transport as transport
+
 ROOT = Path(__file__).resolve().parents[1]
 GUIDE_PATH = ROOT / "internal" / "labmodel" / "certification-matrix.json"
 DEFAULT_PACKET_BYTES = 8 * 1024
@@ -790,6 +795,16 @@ def _validate_public_https_urls(urls: Any, *, label: str) -> list[str]:
         _validate_public_https_url(raw_url, label=f"{label}[{index}]")
     return urls
 
+def _validate_distribution_parts(parts: Any, *, expected_size: int, label: str) -> list[dict[str, Any]]:
+    try:
+        rows = transport.validate_parts(parts, expected_size, label)
+    except RuntimeError as exc:
+        raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: {exc}") from exc
+    for index, row in enumerate(rows):
+        _validate_public_https_urls(row["urls"], label=f"{label}.parts[{index}]")
+    return rows
+
+
 
 def _pinned_socket_timeout(value: Any) -> Any:
     """Resolve an http.client timeout into a value a raw socket accepts.
@@ -1080,18 +1095,23 @@ def _control_plane_open(req: urllib.request.Request, *, timeout: int):
 
 
 def _validate_locked_artifact(artifact: Any, *, label: str) -> dict[str, Any]:
-    allowed = {"name", "stagingPath", "urls", "sha256", "sizeBytes"}
-    if not isinstance(artifact, dict) or set(artifact) != allowed:
-        raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: {label} has invalid fields")
+    base = {"name", "stagingPath", "sha256", "sizeBytes"}
+    valid_fields = (base | {"urls"}, base | {"parts"})
+    if not isinstance(artifact, dict) or not any(set(artifact) == fields for fields in valid_fields):
+        raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: {label} has invalid fields or transport mode")
     if not isinstance(artifact.get("name"), str) or not artifact["name"].strip() or "/" in artifact["name"] or "\\" in artifact["name"]:
         raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: {label}.name must be a basename")
     _safe_relative_path(str(artifact.get("stagingPath", "")), label=f"{label}.stagingPath")
-    _validate_public_https_urls(artifact.get("urls"), label=label)
-    if not re.fullmatch(r"[0-9a-f]{64}", str(artifact.get("sha256", ""))):
+    digest = str(artifact.get("sha256", ""))
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: {label}.sha256 must be a lowercase hex digest")
     size = artifact.get("sizeBytes")
     if not isinstance(size, int) or isinstance(size, bool) or size <= 0 or size > MAX_BUNDLE_INPUT_PACK_BYTES:
         raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: {label}.sizeBytes is invalid")
+    if "urls" in artifact:
+        _validate_public_https_urls(artifact.get("urls"), label=label)
+    else:
+        _validate_distribution_parts(artifact.get("parts"), expected_size=size, label=label)
     return artifact
 
 
@@ -1219,16 +1239,19 @@ def _parse_bundle_acquisition_lock(raw: bytes, version: str) -> tuple[dict[str, 
             raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: ready acquisition lock requires every canonical source authority to be fully resolved")
         if not isinstance(pack, dict):
             raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: ready acquisition lock requires inputPack")
-        pack_allowed = {"urls", "sha256", "sizeBytes", "format", "buildSpecPath", "stagingDirectory"}
-        pack_extras = sorted(set(pack) - pack_allowed)
-        if pack_extras:
-            raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: inputPack has unknown fields: {pack_extras}")
-        _validate_public_https_urls(pack.get("urls"), label="ready inputPack")
+        base_pack = {"sha256", "sizeBytes", "format", "buildSpecPath", "stagingDirectory"}
+        valid_pack_fields = (base_pack | {"urls"}, base_pack | {"parts"})
+        if not any(set(pack) == fields for fields in valid_pack_fields):
+            raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: inputPack has invalid fields or transport mode")
         if not re.fullmatch(r"[0-9a-f]{64}", str(pack.get("sha256", ""))):
             raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: inputPack sha256 must be a lowercase hex digest")
         size = pack.get("sizeBytes")
         if not isinstance(size, int) or isinstance(size, bool) or size <= 0 or size > MAX_BUNDLE_INPUT_PACK_BYTES:
             raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: inputPack sizeBytes is invalid")
+        if "urls" in pack:
+            _validate_public_https_urls(pack.get("urls"), label="ready inputPack")
+        else:
+            _validate_distribution_parts(pack.get("parts"), expected_size=size, label="ready inputPack")
         if pack.get("format") != "zip":
             raise RuntimeError(f"{BUNDLE_SOURCE_LOCKS_BLOCKER}: only deterministic ZIP input packs are supported")
         _safe_relative_path(str(pack.get("buildSpecPath", "")), label="inputPack.buildSpecPath")
