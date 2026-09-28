@@ -153,18 +153,18 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("phase count=%d", len(roadmap.Phases))
 	}
 	progress := roadmap.Progress
-	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 20 || progress.CorePhaseBlocked != 5 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 80 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
+	if progress.Authority != ProgramProgressAuthority || progress.CoreRequiredPhases != 25 || progress.CoreSourceClosedPhases != 25 || progress.CoreSourceOpenPhases != 0 || progress.CorePhaseReady != 22 || progress.CorePhaseBlocked != 3 || progress.CoreSourceClosurePercent != 100 || progress.CorePhaseReadyPercent != 88 || !progress.CoreSourceClosureComplete || progress.FeatureFreezeReady {
 		t.Fatalf("program progress truth drift: %#v", progress)
 	}
 	if progress.PrePhysicalSoftwarePhases != 36 || progress.PrePhysicalSoftwareClosedPhases != 36 || progress.PrePhysicalSoftwareOpenPhases != 0 || progress.PrePhysicalSoftwareClosurePercent != 100 || len(progress.SourceOpenPhaseIDs) != 0 {
 		t.Fatalf("pre-physical software progress truth drift: %#v", progress)
 	}
-	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core", "C9-pre-certification-feature-freeze-exact-bundle"} {
+	for _, id := range []string{"C7W-mcp-user-admin-write-parity", "S1-exact-supply-chain-acquisition-closure", "C9-pre-certification-feature-freeze-exact-bundle"} {
 		if !containsString(progress.ExternalClosureOnlyPhaseIDs, id) {
 			t.Fatalf("external-only closure phase missing %s: %#v", id, progress.ExternalClosureOnlyPhaseIDs)
 		}
 	}
-	if progress.RemainingBlockerClasses["source-software-closure"] != 0 || progress.RemainingBlockerClasses["external-byte-acquisition"] < 1 || progress.RemainingBlockerClasses["physical-runtime-evidence"] < 1 || progress.RemainingBlockerClasses["external-client-evidence"] < 1 || progress.RemainingBlockerClasses["runtime-certification-evidence"] < 1 {
+	if progress.RemainingBlockerClasses["source-software-closure"] != 0 || progress.RemainingBlockerClasses["external-distribution-evidence"] < 1 || progress.RemainingBlockerClasses["physical-runtime-evidence"] != 0 || progress.RemainingBlockerClasses["external-client-evidence"] < 1 || progress.RemainingBlockerClasses["runtime-certification-evidence"] != 0 {
 		t.Fatalf("remaining blocker classification drift: %#v", progress.RemainingBlockerClasses)
 	}
 	if len(roadmap.Tracks) != 17 || len(roadmap.GlobalGuardrails) < 8 || len(roadmap.CertificationRegistry) < 10 {
@@ -225,11 +225,11 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("G2 generalized campaign closure drift: %#v", g2)
 	}
 	h1 := byID["H1-baremetal-connected-managed-okd"]
-	if !containsString(h1.Blockers, "OKD_CONNECTED_MANAGED_INSTALL_PENDING") || containsString(h1.DependsOn, "H2-vmware-provider") {
+	if h1.Status != ProgramStatusSourceImplemented || h1.ClosureStatus != ProgramClosureStatusReady || len(h1.Blockers) != 0 || containsString(h1.DependsOn, "H2-vmware-provider") {
 		t.Fatalf("connected managed OKD authority drift: %#v", h1)
 	}
 	i1 := byID["I1-disconnected-okd-core"]
-	if i1.Status != ProgramStatusBlocked || len(i1.Blockers) != 1 || !containsString(i1.Blockers, "OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING") || containsString(i1.Blockers, "OKD_DISCONNECTED_INSTALL_WORKFLOW_PENDING") || !containsString(i1.Evidence, "DISCONNECTED_OKD_MIRROR_RUNTIME_V1") || !containsString(i1.Evidence, "DISCONNECTED_OKD_MIRROR_INVENTORY_V1") || !containsString(i1.Evidence, "OC_MIRROR_DISCONNECTED_TRANSPORT_REALISM_V1") || !containsString(i1.Evidence, "mode-specific Operator Console readiness") {
+	if i1.Status != ProgramStatusSourceImplemented || i1.ClosureStatus != ProgramClosureStatusReady || len(i1.Blockers) != 0 || containsString(i1.Blockers, "OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING") || containsString(i1.Blockers, "OKD_DISCONNECTED_INSTALL_WORKFLOW_PENDING") || !containsString(i1.Evidence, "DISCONNECTED_OKD_MIRROR_RUNTIME_V1") || !containsString(i1.Evidence, "DISCONNECTED_OKD_MIRROR_INVENTORY_V1") || !containsString(i1.Evidence, "OC_MIRROR_DISCONNECTED_TRANSPORT_REALISM_V1") || !containsString(i1.Evidence, "mode-specific Operator Console readiness") {
 		t.Fatalf("disconnected managed OKD source-workflow drift: %#v", i1)
 	}
 	h2 := byID["H2-vmware-provider"]

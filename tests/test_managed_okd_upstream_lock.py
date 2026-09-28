@@ -15,11 +15,13 @@ class ManagedOKDUpstreamLockTests(unittest.TestCase):
         if doc.get("machineOSArtifact") is None:
             self.assertEqual({"fcos","agent-iso-workspace","oc-mirror-v2"},pending)
         else:
-            self.assertEqual({"agent-iso-workspace"},pending)
+            self.assertEqual(set(),pending)
             self.assertTrue(doc["machineOSArtifact"]["byteVerified"])
             self.assertEqual("9.0.20250827-0",doc["machineOSArtifact"]["payloadComponentVersion"])
             self.assertRegex(doc["machineOSArtifact"]["streamRelease"],r"^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$")
-        self.assertFalse(doc["managedInstallContentReady"])
+        self.assertTrue(doc["managedInstallContentReady"])
+        self.assertEqual("MANAGED_OKD_AGENT_WORKSPACE_EXECUTION_EVIDENCE_V1",doc["agentWorkspace"]["authority"])
+        self.assertEqual(3,len(doc["agentWorkspace"]["hostnames"]))
         self.assertTrue(doc["disconnectedToolchainReady"])
         self.assertEqual("36298325959",doc["ocMirrorV2"]["sourceRunId"])
         self.assertFalse(doc["runtimeCertified"])
@@ -34,6 +36,9 @@ class ManagedOKDUpstreamLockTests(unittest.TestCase):
                 mod.verify(p)
             bad=copy.deepcopy(original); bad["runtimeCertified"]=True; p.write_text(json.dumps(bad))
             with self.assertRaisesRegex(RuntimeError,"CLAIM_SCOPE_INFLATED"):
+                mod.verify(p)
+            bad=copy.deepcopy(original); bad["agentWorkspace"]["agentIsoSha256"]="sha256:"+"0"*64; p.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"LOCK_BINDING"):
                 mod.verify(p)
 
 if __name__=="__main__": unittest.main()

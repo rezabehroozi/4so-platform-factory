@@ -49,7 +49,7 @@ def verify(path: Path) -> dict:
         if pending_ids!={"fcos","agent-iso-workspace","oc-mirror-v2"}:
             raise RuntimeError("MANAGED_OKD_TOOLCHAIN_LOCK_PENDING_SET_INVALID")
     else:
-        if pending_ids!={"agent-iso-workspace"}:
+        if pending_ids:
             raise RuntimeError("MANAGED_OKD_TOOLCHAIN_LOCK_PENDING_SET_INVALID")
         installer_sha=next(r["sha256"] for r in rows if r["role"]=="openshift-install")
         required={"authority":"MANAGED_OKD_MACHINE_OS_DISCOVERY_V1","distribution":"okd-scos","architecture":"x86_64","artifactClass":"metal","payloadComponentVersion":"9.0.20250827-0","sourceAuthority":"openshift-install-coreos-print-stream-json","sourceInstallerSHA256":installer_sha,"byteVerified":True}
@@ -63,7 +63,30 @@ def verify(path: Path) -> dict:
     expected_mirror={"authority":"MANAGED_OKD_OC_MIRROR_V2_BINARY_EVIDENCE_V1","sourceAuthority":"MANAGED_OKD_OC_MIRROR_V2_SOURCE_LOCK_V1","sourceCommitSHA":"ecf0f222f223b5a1b1cacd3f54b2748959246ece","sourceRunId":"36298325959","binarySha256":"sha256:3e33c1fdb9274ce4fa8b390565baf639c77e8ef49e255ba4343658d9a4956ba1","binarySizeBytes":96334918,"v2HelpVerified":True}
     if mirror != expected_mirror: raise RuntimeError("MANAGED_OKD_OC_MIRROR_EVIDENCE_INVALID")
     if doc.get("disconnectedToolchainReady") is not True: raise RuntimeError("MANAGED_OKD_DISCONNECTED_TOOLCHAIN_NOT_READY")
-    if any(doc.get(k) is not False for k in ("managedInstallContentReady","runtimeCertified","physicalCertified")): raise RuntimeError("MANAGED_OKD_TOOLCHAIN_CLAIM_SCOPE_INFLATED")
+    evidence_path=path.parent/"managed-okd-agent-workspace-execution-evidence.json"
+    if evidence_path.is_symlink() or not evidence_path.is_file() or evidence_path.stat().st_size<=0:
+        raise RuntimeError("MANAGED_OKD_AGENT_WORKSPACE_EVIDENCE_MISSING")
+    workspace=json.loads(evidence_path.read_text(encoding="utf-8"))
+    prep=workspace.get("preparation") or {}
+    if workspace.get("authority")!="MANAGED_OKD_AGENT_WORKSPACE_EXECUTION_EVIDENCE_V1" or workspace.get("exactUpstreamExecution") is not True or workspace.get("requestSpecificMedia") is not True:
+        raise RuntimeError("MANAGED_OKD_AGENT_WORKSPACE_EVIDENCE_INVALID")
+    if any(workspace.get(k) is not False for k in ("redfishBootExecuted","clusterInstallExecuted","runtimeCertified","physicalCertified")):
+        raise RuntimeError("MANAGED_OKD_AGENT_WORKSPACE_SCOPE_INFLATED")
+    installer=next(r for r in rows if r["role"]=="openshift-install")
+    if workspace.get("openShiftInstallArchiveSha256")!="sha256:"+installer["sha256"] or prep.get("releasePayloadSha256")!=payload_digest or prep.get("machineOsSha256")!="sha256:"+str(machine.get("sha256") or ""):
+        raise RuntimeError("MANAGED_OKD_AGENT_WORKSPACE_INPUT_BINDING_INVALID")
+    if prep.get("authority")!="MANAGED_OKD_AGENT_WORKSPACE_PREPARATION_V1" or prep.get("targetVersion")!="4.19.0" or prep.get("workspaceAuthority")!="MANAGED_OKD_INSTALL_WORKSPACE_V1" or prep.get("mediaAuthority")!="MANAGED_OKD_CONTENT_ADDRESSED_MEDIA_V1":
+        raise RuntimeError("MANAGED_OKD_AGENT_WORKSPACE_AUTHORITY_INVALID")
+    agent_sha=str(prep.get("agentIsoSha256") or "")
+    hosts=prep.get("hostnames") or []
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}",agent_sha) or not isinstance(prep.get("agentIsoBytes"),int) or prep["agentIsoBytes"]<=0 or len(hosts)!=3 or prep.get("secretMaterialPersisted") is not False:
+        raise RuntimeError("MANAGED_OKD_AGENT_WORKSPACE_MEDIA_INVALID")
+    expected_workspace={"authority":"MANAGED_OKD_AGENT_WORKSPACE_EXECUTION_EVIDENCE_V1","evidenceCommitSHA":"31294991dc286cd9e3d8928a7b81f16091ca8fbc","requestDigest":workspace["requestDigest"],"preparationAuthority":prep["authority"],"preparationDigest":prep["preparationDigest"],"agentIsoSha256":agent_sha,"agentIsoBytes":prep["agentIsoBytes"],"hostnames":hosts,"exactUpstreamExecution":True,"requestSpecificMedia":True}
+    if doc.get("agentWorkspace")!=expected_workspace:
+        raise RuntimeError("MANAGED_OKD_AGENT_WORKSPACE_LOCK_BINDING_INVALID")
+    if doc.get("managedInstallContentReady") is not True:
+        raise RuntimeError("MANAGED_OKD_CONNECTED_CONTENT_NOT_READY")
+    if any(doc.get(k) is not False for k in ("runtimeCertified","physicalCertified")): raise RuntimeError("MANAGED_OKD_TOOLCHAIN_CLAIM_SCOPE_INFLATED")
     return doc
 
 

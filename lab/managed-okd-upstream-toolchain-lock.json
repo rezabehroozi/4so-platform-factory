@@ -44,13 +44,8 @@
     "sourceInstallerSHA256": "4ed2d87777cfd5597e76f11c4d48d5db42aad6d42fb92cfe296ecc45bee0777e",
     "streamRelease": "9.0.20250510-0"
   },
-  "managedInstallContentReady": false,
-  "pendingAuthorities": [
-    {
-      "id": "agent-iso-workspace",
-      "reason": "Product-owned MANAGED_OKD_AGENT_WORKSPACE_PREPARATION_V1 source generator exists; durable API/MCP preparation operation, exact installer execution evidence, and final workspace/media certification remain pending."
-    }
-  ],
+  "managedInstallContentReady": true,
+  "pendingAuthorities": [],
   "physicalCertified": false,
   "productTargetVersion": "4.19.0",
   "releasePage": "https://github.com/okd-project/okd/releases/tag/4.19.0-okd-scos.19",
@@ -72,5 +67,21 @@
     "binarySha256": "sha256:3e33c1fdb9274ce4fa8b390565baf639c77e8ef49e255ba4343658d9a4956ba1",
     "binarySizeBytes": 96334918,
     "v2HelpVerified": true
+  },
+  "agentWorkspace": {
+    "authority": "MANAGED_OKD_AGENT_WORKSPACE_EXECUTION_EVIDENCE_V1",
+    "evidenceCommitSHA": "31294991dc286cd9e3d8928a7b81f16091ca8fbc",
+    "requestDigest": "sha256:94b3008e222e8d543e64afd8b626fcb048e6658dd5faa0db61ca4d2a434249b2",
+    "preparationAuthority": "MANAGED_OKD_AGENT_WORKSPACE_PREPARATION_V1",
+    "preparationDigest": "sha256:62fe42512bfd8a200e00bce47f3db03648657eb553dfc8c996a2dcc2fe29661b",
+    "agentIsoSha256": "sha256:849537491b1d520da3bbdb40570509dfa639815d92fda5b685d0af55ab81f540",
+    "agentIsoBytes": 1202937856,
+    "hostnames": [
+      "node-a",
+      "node-b",
+      "node-c"
+    ],
+    "exactUpstreamExecution": true,
+    "requestSpecificMedia": true
   }
 }
