@@ -160,8 +160,7 @@ jobs:
           run-id: ${{ env.ARCHIVE_RUN_ID }}
 
       - name: Verify, split and publish archive parts
-        if: steps.state.outputs.ready != 'true'
-        if: env.PUBLIC_ASSETS_READY != 'true'
+        if: steps.state.outputs.ready != 'true' && env.PUBLIC_ASSETS_READY != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
@@ -200,8 +199,7 @@ jobs:
           run-id: ${{ env.PACK_RUN_ID }}
 
       - name: Verify, split and publish input-pack parts
-        if: steps.state.outputs.ready != 'true'
-        if: env.PUBLIC_ASSETS_READY != 'true'
+        if: steps.state.outputs.ready != 'true' && env.PUBLIC_ASSETS_READY != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
@@ -231,8 +229,7 @@ jobs:
           df -h /
 
       - name: Build public multipart authority manifest
-        if: steps.state.outputs.ready != 'true'
-        if: env.PUBLIC_ASSETS_READY != 'true'
+        if: steps.state.outputs.ready != 'true' && env.PUBLIC_ASSETS_READY != 'true'
         shell: bash
         run: |
           set -euo pipefail
