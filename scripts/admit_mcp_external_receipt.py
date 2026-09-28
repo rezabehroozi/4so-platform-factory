@@ -51,13 +51,20 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_COUNT_INVALID")
     return by_id
 
-def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,client:str,progress_path:Path|None)->dict:
+def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,client:str,progress_path:Path|None,allow_campaign_supersede:bool=False)->dict:
     client=str(client or "").strip().lower()
     if client not in core.CLIENTS: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_UNSUPPORTED")
     spec,required,campaign=matrix_contract(matrix_path,campaign_path)
     expected=base_progress(matrix_path,campaign_path,campaign,spec); by_id={}
     if progress_path is not None and progress_path.exists():
-        by_id=validate_existing(core.load(progress_path,"PROGRESS"),expected)
+        existing=core.load(progress_path,"PROGRESS")
+        binding_keys=("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","protocol","transport","endpoint")
+        same_campaign=all(existing.get(k)==expected.get(k) for k in binding_keys)
+        if not same_campaign:
+            if not allow_campaign_supersede or existing.get("complete") is True:
+                raise RuntimeError("MCP_EXTERNAL_PROGRESS_CAMPAIGN_DRIFT")
+        else:
+            by_id=validate_existing(existing,expected)
     row=core.verify_receipt(receipt_path,client,required,str(spec["protocol"]),campaign)
     used={}
     for existing_client,existing in by_id.items():
@@ -91,7 +98,8 @@ def main()->int:
     p.add_argument("--campaign",type=Path,required=True); p.add_argument("--receipt",type=Path,required=True); p.add_argument("--audit",type=Path,required=True)
     p.add_argument("--client",choices=core.CLIENTS,required=True); p.add_argument("--progress",type=Path,default=Path("lab/mcp-external-client-interop-progress.json"))
     p.add_argument("--evidence-out",type=Path,default=Path("lab/mcp-external-client-interoperability-evidence.json"))
-    a=p.parse_args(); out=merge(a.matrix,a.campaign,a.receipt,a.audit,a.client,a.progress)
+    p.add_argument("--allow-campaign-supersede",action="store_true")
+    a=p.parse_args(); out=merge(a.matrix,a.campaign,a.receipt,a.audit,a.client,a.progress,allow_campaign_supersede=a.allow_campaign_supersede)
     a.progress.parent.mkdir(parents=True,exist_ok=True); a.progress.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n",encoding="utf-8")
     if out["complete"]: a.evidence_out.write_text(json.dumps(final_evidence(out,a.progress),indent=2,sort_keys=True)+"\n",encoding="utf-8")
     print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"client":a.client,"certifiedClientCount":out["certifiedClientCount"],"complete":out["complete"],"serverAuditWitnessed":True},sort_keys=True)); return 0
