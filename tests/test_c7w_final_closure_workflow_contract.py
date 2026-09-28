@@ -75,6 +75,21 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
         self.assertIn("MCP_EXTERNAL_RECEIPT_REQUEST_ID_REUSE", seal)
         self.assertIn("MCP_EXTERNAL_PROGRESS_REQUEST_ID_REUSE", progress)
 
+    def test_failed_incremental_admission_auto_recovers_only_preserved_verified_packets(self):
+        text = self.read(".github/workflows/mcp-external-receipt-recovery.yml")
+        self.assertIn('workflows: ["mcp-external-receipt-admission"]', text)
+        self.assertIn("github.event.workflow_run.conclusion == 'failure'", text)
+        self.assertIn("admission failed before a verified packet was preserved; automatic recovery is a safe no-op", text)
+        self.assertIn('select(test("^mcp-external-receipt-(chatgpt|claude|gemini|grok)-"+$run+"$"))', text)
+        self.assertIn("expected exactly one recoverable packet artifact", text)
+        self.assertIn("if: steps.packet.outputs.recoverable == 'true'", text)
+
+    def test_final_seal_is_triggered_by_incremental_or_recovered_c7w_completion(self):
+        text = self.read(".github/workflows/final-exact-release-seal.yml")
+        self.assertIn('"mcp-external-receipt-admission"', text)
+        self.assertIn('"mcp-external-receipt-recovery"', text)
+        self.assertIn("github.event.workflow_run.conclusion == 'success'", text)
+
     def test_final_release_seals_actual_checkout_and_avoids_self_trigger_loop(self):
         text = self.read(".github/workflows/final-exact-release-seal.yml")
         self.assertIn("paths-ignore:", text)

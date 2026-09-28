@@ -1,6 +1,9 @@
 name: mcp-external-receipt-recovery
 
 on:
+  workflow_run:
+    workflows: ["mcp-external-receipt-admission"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       admission_run_id:
@@ -23,11 +26,12 @@ permissions:
   actions: read
 
 concurrency:
-  group: mcp-external-receipt-recovery-${{ inputs.admission_run_id }}
+  group: mcp-external-receipt-recovery-${{ github.event.workflow_run.id || inputs.admission_run_id }}
   cancel-in-progress: false
 
 jobs:
   recover-verified-packet:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -35,39 +39,65 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Recover exact verified admission packet
+      - id: packet
+        name: Resolve and recover exact verified admission packet
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          ADMISSION_RUN_ID: ${{ inputs.admission_run_id }}
-          CLIENT: ${{ inputs.client }}
+          MANUAL_RUN_ID: ${{ inputs.admission_run_id }}
+          MANUAL_CLIENT: ${{ inputs.client }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
-          [[ "$ADMISSION_RUN_ID" =~ ^[0-9]+$ ]] || { echo "admission_run_id must be numeric"; exit 2; }
+          if test "$GITHUB_EVENT_NAME" = "workflow_run"; then
+            ADMISSION_RUN_ID="$EVENT_RUN_ID"
+            artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ADMISSION_RUN_ID/artifacts")"
+            mapfile -t names < <(jq -r --arg run "$ADMISSION_RUN_ID" '.artifacts[] | select(.expired==false) | .name | select(test("^mcp-external-receipt-(chatgpt|claude|gemini|grok)-"+$run+"$"))' <<<"$artifacts")
+            if test "${#names[@]}" -eq 0; then
+              echo "recoverable=false" >> "$GITHUB_OUTPUT"
+              echo "admission failed before a verified packet was preserved; automatic recovery is a safe no-op"
+              exit 0
+            fi
+            test "${#names[@]}" -eq 1 || { echo "expected exactly one recoverable packet artifact"; exit 2; }
+            ARTIFACT_NAME="${names[0]}"
+            CLIENT="${ARTIFACT_NAME#mcp-external-receipt-}"
+            CLIENT="${CLIENT%-$ADMISSION_RUN_ID}"
+          else
+            ADMISSION_RUN_ID="$MANUAL_RUN_ID"
+            CLIENT="$MANUAL_CLIENT"
+            [[ "$ADMISSION_RUN_ID" =~ ^[0-9]+$ ]] || { echo "admission_run_id must be numeric"; exit 2; }
+            [[ "$CLIENT" =~ ^(chatgpt|claude|gemini|grok)$ ]] || { echo "unsupported client"; exit 2; }
+            ARTIFACT_NAME="mcp-external-receipt-$CLIENT-$ADMISSION_RUN_ID"
+          fi
           run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ADMISSION_RUN_ID")"
           test "$(jq -r .name <<<"$run_json")" = "mcp-external-receipt-admission"
           test "$(jq -r .head_branch <<<"$run_json")" = "main"
           mkdir -p /tmp/mcp-external
-          gh run download "$ADMISSION_RUN_ID" --repo "$GITHUB_REPOSITORY"             --name "mcp-external-receipt-$CLIENT-$ADMISSION_RUN_ID"             --dir /tmp/mcp-external
+          gh run download "$ADMISSION_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT_NAME" --dir /tmp/mcp-external
           test -s /tmp/mcp-external/campaign.json
           test -s "/tmp/mcp-external/$CLIENT.json"
           test -s /tmp/mcp-external/security-audit.json
+          echo "recoverable=true" >> "$GITHUB_OUTPUT"
+          echo "client=$CLIENT" >> "$GITHUB_OUTPUT"
+          echo "admission_run_id=$ADMISSION_RUN_ID" >> "$GITHUB_OUTPUT"
       - name: Re-verify packet and merge onto current main
+        if: steps.packet.outputs.recoverable == 'true'
         shell: bash
         env:
-          CLIENT: ${{ inputs.client }}
+          CLIENT: ${{ steps.packet.outputs.client }}
         run: |
           set -euo pipefail
           extra=()
-          test "${{ inputs.supersede_incomplete_campaign }}" = "true" && extra+=(--allow-campaign-supersede)
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch" && test "$GITHUB_EVENT_NAME" = "workflow_dispatch" && test "${{ inputs.supersede_incomplete_campaign }}" = "true" && extra+=(--allow-campaign-supersede)
           python3 scripts/admit_mcp_external_receipt.py             --campaign /tmp/mcp-external/campaign.json             --receipt "/tmp/mcp-external/$CLIENT.json"             --audit /tmp/mcp-external/security-audit.json             --client "$CLIENT" "${extra[@]}"
           jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1" and .certifiedClientCount>=1 and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interop-progress.json
           python3 -m unittest tests.test_mcp_external_interop_seal tests.test_mcp_external_receipt_progress
           git diff --check
       - name: Persist recovered progress with latest-main reconciliation
+        if: steps.packet.outputs.recoverable == 'true'
         shell: bash
         env:
-          CLIENT: ${{ inputs.client }}
+          CLIENT: ${{ steps.packet.outputs.client }}
         run: |
           set -euo pipefail
           git config user.name "4so-evidence-bot"
@@ -76,7 +106,7 @@ jobs:
           if test "$(git rev-parse origin/main)" != "$(git rev-parse HEAD)"; then
             git reset --hard origin/main
             extra=()
-            test "${{ inputs.supersede_incomplete_campaign }}" = "true" && extra+=(--allow-campaign-supersede)
+            test "$GITHUB_EVENT_NAME" = "workflow_dispatch" && test "${{ inputs.supersede_incomplete_campaign }}" = "true" && extra+=(--allow-campaign-supersede)
             python3 scripts/admit_mcp_external_receipt.py               --campaign /tmp/mcp-external/campaign.json               --receipt "/tmp/mcp-external/$CLIENT.json"               --audit /tmp/mcp-external/security-audit.json               --client "$CLIENT" "${extra[@]}"
           fi
           git add lab/mcp-external-client-interop-progress.json

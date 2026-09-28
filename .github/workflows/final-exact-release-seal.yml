@@ -3,7 +3,7 @@ name: final-exact-release-admission-and-seal
 on:
   workflow_dispatch:
   workflow_run:
-    workflows: ["appliance-multipart-distribution", "mcp-external-interop-seal"]
+    workflows: ["appliance-multipart-distribution", "mcp-external-interop-seal", "mcp-external-receipt-admission", "mcp-external-receipt-recovery"]
     types: [completed]
   push:
     branches: [main]
