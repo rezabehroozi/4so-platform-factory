@@ -115,6 +115,21 @@ jobs:
                   raise SystemExit(f"HELM_UPGRADE_RENDER_EMPTY {c}:{version}")
               crds=[x for x in items if x.get("kind")=="CustomResourceDefinition"]
               resources=[x for x in items if x.get("kind")!="CustomResourceDefinition"]
+              release_namespace=os.environ["NAMESPACE"]
+              namespaced_builtin_kinds={
+                  "ServiceAccount","Role","RoleBinding","ConfigMap","Secret","Service",
+                  "Deployment","DaemonSet","StatefulSet","ReplicaSet","Job","CronJob","Pod",
+                  "PodDisruptionBudget","HorizontalPodAutoscaler","NetworkPolicy",
+                  "PersistentVolumeClaim","Ingress","EndpointSlice","Endpoints","LimitRange","ResourceQuota"
+              }
+              namespace_defaults=0
+              for obj in resources:
+                  if obj.get("kind") not in namespaced_builtin_kinds:
+                      continue
+                  meta=obj.setdefault("metadata",{})
+                  if not str(meta.get("namespace") or "").strip():
+                      meta["namespace"]=release_namespace
+                      namespace_defaults+=1
               workloads=[]
               for obj in resources:
                   kind=obj.get("kind")
@@ -131,6 +146,7 @@ jobs:
               Path(f"/tmp/{c}-{version}-crds.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":crds}))
               Path(f"/tmp/{c}-{version}-resources.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":resources}))
               Path(f"/tmp/{c}-{version}-workloads.json").write_text(json.dumps(workloads,sort_keys=True))
+              Path(f"/tmp/{c}-{version}-namespace-defaults.json").write_text(json.dumps({"authority":"HELM_RELEASE_NAMESPACE_DEFAULTING_V1","component":c,"release":version,"releaseNamespace":release_namespace,"defaultedBuiltinResourceCount":namespace_defaults},sort_keys=True))
           PY
 
       - name: Install exact kind runtime
@@ -201,7 +217,7 @@ jobs:
               kubectl wait --for=condition=Established "crd/$crd" --timeout=4m
             done
           fi
-          kubectl -n "$NAMESPACE" apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/$COMPONENT-$FROM_RELEASE-resources.json"
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/$COMPONENT-$FROM_RELEASE-resources.json"
           python3 - <<'PY' >/tmp/wait-old.sh
           import json,os
           c=os.environ["COMPONENT"]
@@ -246,7 +262,7 @@ jobs:
               kubectl get "crd/$crd" -o json | jq -e '[.status.storedVersions[] as $s|.spec.versions[]|select(.name==$s)]|length>0' >/dev/null
             done
           fi
-          kubectl -n "$NAMESPACE" apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/$COMPONENT-$TO_RELEASE-resources.json"
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/$COMPONENT-$TO_RELEASE-resources.json"
           python3 - <<'PY' >/tmp/wait-new.sh
           import json,os
           c=os.environ["COMPONENT"]
@@ -284,7 +300,7 @@ jobs:
           if common<1: raise SystemExit("HELM_UPGRADE_NO_PRESERVED_WORKLOAD_IDENTITY")
           PY
           kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/$COMPONENT-$TO_RELEASE-crds.json" >/tmp/reapply-crds.txt || true
-          kubectl -n "$NAMESPACE" apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/$COMPONENT-$TO_RELEASE-resources.json" >/tmp/reapply-resources.txt
+          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f "/tmp/$COMPONENT-$TO_RELEASE-resources.json" >/tmp/reapply-resources.txt
           bash /tmp/wait-new.sh
 
       - name: Prove reverse edge and seal evidence
