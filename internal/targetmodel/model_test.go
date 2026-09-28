@@ -182,7 +182,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 		byID[phase.ID] = phase
 	}
-	if roadmap.CurrentExecutionWave != "W1-core-closure-blitz" || len(roadmap.ExecutionWaves) != 6 {
+	if roadmap.CurrentExecutionWave != "W2-core-evidence-parallel" || len(roadmap.ExecutionWaves) != 6 {
 		t.Fatalf("execution-wave authority drift: current=%q waves=%#v", roadmap.CurrentExecutionWave, roadmap.ExecutionWaves)
 	}
 	for _, id := range []string{"A-architecture-authority-rebaseline", "B-target-capability-supplychain-foundation", "C1-operator-ia-scope-authority", "C2-console-data-scale-refresh-semantics", "C3-console-action-workflow-evidence-convergence", "C4-console-e2e-ux-certification", "E-certified-platform-template-workspace-foundation", "C5-installer-production-lifecycle-closure", "C6-multi-agent-test-autopilot", "C7-ai-mcp-delegated-operations", "C8-console-operational-completion", "F-okd-import-capability-certification", "R0-release-authority-certification-rebaseline", "G1-operational-runtime-hardening", "G2-generalized-day2-campaign-engine", "G3-target-node-maintenance-lifecycle"} {

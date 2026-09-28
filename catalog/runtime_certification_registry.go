@@ -59,7 +59,9 @@ type ComponentRuntimeCertificationRegistry struct {
 			ExecutorBinding         string   `json:"executorBinding"`
 			RequiredLifecycleStages []string `json:"requiredLifecycleStages"`
 			ReplacementPolicy       string   `json:"replacementPolicy"`
-			RuntimeSuitabilityBinding string `json:"runtimeSuitabilityBinding"`
+			RuntimeSuitabilityBinding   string `json:"runtimeSuitabilityBinding"`
+			CoreClosureScope            string `json:"coreClosureScope"`
+			OptionalRuntimeHoldSemantics string `json:"optionalRuntimeHoldSemantics"`
 		} `json:"policy"`
 		RuntimeSuitabilityHolds []ComponentRuntimeSuitabilityHold         `json:"runtimeSuitabilityHolds"`
 		Components              []ComponentRuntimeCertificationContract   `json:"components"`
@@ -100,7 +102,9 @@ func ValidateComponentRuntimeCertificationRegistry(registry ComponentRuntimeCert
 	if registry.Spec.Policy.SourceBinding != "exact-component-release-and-source-lock" ||
 		registry.Spec.Policy.ExecutorBinding != "component-owned-no-generic-runtime-certification-claim" ||
 		registry.Spec.Policy.ReplacementPolicy != "resolved-source-replacement-denied-without-explicit-versioned-migration" ||
-		registry.Spec.Policy.RuntimeSuitabilityBinding != "persistent-independent-of-source-acquisition" {
+		registry.Spec.Policy.RuntimeSuitabilityBinding != "persistent-independent-of-source-acquisition" ||
+		registry.Spec.Policy.CoreClosureScope != "mandatory-components-only" ||
+		registry.Spec.Policy.OptionalRuntimeHoldSemantics != "profile-blocking-not-core-freeze-blocking" {
 		return fmt.Errorf("component runtime certification registry policy invalid")
 	}
 	if !equalStringSlice(registry.Spec.Policy.RequiredLifecycleStages, RequiredComponentLifecycleStages) {
