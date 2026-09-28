@@ -36,7 +36,39 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - id: state
+        name: Resolve sealed distribution state
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=false
+          if jq -e '
+            .status=="ready" and
+            (.missingAuthorities|length==0) and
+            (.partialAuthorities|length==0) and
+            (.inputPack|type=="object") and
+            (.inputPack.parts|length>=2) and
+            ([.resolvedAuthorities[]|select(.id=="management-workload-oci-archive")]|length==1) and
+            (.resolvedAuthorities[]|select(.id=="management-workload-oci-archive")|.artifacts[0].parts|length>=2)
+          ' lab/appliance-bundle-acquisition-lock.json >/dev/null; then
+            ready=true
+          fi
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+      - name: Verify already sealed public distribution authority
+        if: steps.state.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
+          set +e
+          python3 scripts/final_exact_release_admission.py --allow-pending >/tmp/final-admission-status.json
+          rc=$?
+          set -e
+          test "$rc" -eq 0 -o "$rc" -eq 3
+          python3 scripts/validate_repository.py .
+          python3 -m unittest tests.test_distribution_transport tests.test_appliance_bundle_distribution tests.test_final_exact_release_admission tests.test_supply_chain_handoff
       - name: Reclaim hosted-runner space
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -44,6 +76,7 @@ jobs:
           df -h /
 
       - name: Resolve exact provenance and immutable release tag
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
@@ -75,6 +108,7 @@ jobs:
           echo "DIST_TAG=$tag" >> "$GITHUB_ENV"
 
       - name: Detect resumable exact public assets
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.APPLIANCE_RELEASE_TOKEN != '' && secrets.APPLIANCE_RELEASE_TOKEN || github.token }}
@@ -116,7 +150,7 @@ jobs:
           PY
 
       - name: Download exact archive artifact
-        if: env.PUBLIC_ASSETS_READY != 'true'
+        if: steps.state.outputs.ready != 'true' && env.PUBLIC_ASSETS_READY != 'true'
         uses: actions/download-artifact@v4
         with:
           name: management-workload-oci-archive
@@ -126,6 +160,7 @@ jobs:
           run-id: ${{ env.ARCHIVE_RUN_ID }}
 
       - name: Verify, split and publish archive parts
+        if: steps.state.outputs.ready != 'true'
         if: env.PUBLIC_ASSETS_READY != 'true'
         shell: bash
         env:
@@ -155,7 +190,7 @@ jobs:
           df -h /
 
       - name: Download exact input-pack artifact
-        if: env.PUBLIC_ASSETS_READY != 'true'
+        if: steps.state.outputs.ready != 'true' && env.PUBLIC_ASSETS_READY != 'true'
         uses: actions/download-artifact@v4
         with:
           name: appliance-input-pack
@@ -165,6 +200,7 @@ jobs:
           run-id: ${{ env.PACK_RUN_ID }}
 
       - name: Verify, split and publish input-pack parts
+        if: steps.state.outputs.ready != 'true'
         if: env.PUBLIC_ASSETS_READY != 'true'
         shell: bash
         env:
@@ -195,6 +231,7 @@ jobs:
           df -h /
 
       - name: Build public multipart authority manifest
+        if: steps.state.outputs.ready != 'true'
         if: env.PUBLIC_ASSETS_READY != 'true'
         shell: bash
         run: |
@@ -215,6 +252,7 @@ jobs:
           PY
 
       - name: Prove unauthenticated public streaming readback
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -273,6 +311,7 @@ jobs:
           echo "PACK_FILE=/tmp/appliance-input-pack-public.zip" >> "$GITHUB_ENV"
 
       - name: Seal canonical S1 authority
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -288,6 +327,7 @@ jobs:
           git diff --check
 
       - name: Persist exact multipart distribution authority
+        if: steps.state.outputs.ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
