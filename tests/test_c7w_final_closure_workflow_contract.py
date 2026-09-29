@@ -108,6 +108,14 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
         self.assertIn("for attempt in $(seq 1 15)", text)
         self.assertIn('test "$code" = "409"', text)
 
+    def test_bulk_seal_can_auto_discover_latest_successful_main_campaign(self):
+        text = self.read(".github/workflows/mcp-external-interop-seal.yml")
+        self.assertIn("gh run list", text)
+        self.assertIn("--workflow mcp-external-interop-campaign.yml", text)
+        self.assertIn("--branch main --status success", text)
+        self.assertIn("auto-discovered campaign run", text)
+        self.assertIn("no successful main mcp-external-interop-campaign run exists", text)
+
     def test_matrix_seal_command_requires_server_audit_exports(self):
         matrix = self.read("lab/mcp-external-client-interop-matrix.json")
         self.assertIn("--audits /secure/audits", matrix)
