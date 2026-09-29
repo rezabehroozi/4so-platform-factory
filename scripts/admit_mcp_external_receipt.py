@@ -14,7 +14,7 @@ def matrix_contract(matrix_path:Path,campaign_path:Path):
     protocol=str(spec.get("protocol") or ""); required=list(spec.get("sharedRequiredChecks") or [])
     declared=[r.get("id") for r in spec.get("clients") or [] if isinstance(r,dict)]
     surfaces={r.get("id"):r.get("displayName") for r in spec.get("clients") or [] if isinstance(r,dict)}
-    if protocol!="2026-07-28" or len(required)!=7 or len(set(required))!=7 or declared!=list(core.CLIENTS) or surfaces!=core.CLIENT_SURFACES:
+    if protocol!="2026-07-28" or required!=list(core.REQUIRED_CHECKS) or declared!=list(core.CLIENTS) or surfaces!=core.CLIENT_SURFACES:
         raise RuntimeError("MCP_EXTERNAL_MATRIX_CONTRACT_INVALID")
     return spec,required,core.verify_campaign(campaign_path,matrix_path,spec)
 
@@ -53,7 +53,7 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         if owner is not None: raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REUSE {row_client}:{owner}")
         provider_refs[provider_ref]=row_client
         checks=row.get("checks")
-        if not isinstance(checks,dict) or len(checks)!=7 or any(v is not True for v in checks.values()): raise RuntimeError("MCP_EXTERNAL_PROGRESS_CHECKS_INVALID")
+        if not isinstance(checks,dict) or set(checks)!=set(core.REQUIRED_CHECKS) or any(v is not True for v in checks.values()): raise RuntimeError("MCP_EXTERNAL_PROGRESS_CHECKS_INVALID")
         request_ids=row.get("requestIds")
         if not isinstance(request_ids,dict) or set(request_ids)!=set(core.AUDITED_CHECKS):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_REQUEST_IDS_INVALID")
@@ -78,7 +78,7 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_SERVER_WITNESS_INVALID")
         by_id[row["clientId"]]=row
     complete=len(rows)==len(core.CLIENTS)
-    if existing.get("certifiedClientCount")!=len(rows) or existing.get("complete") is not complete or existing.get("externalCertificationPass") is not complete or existing.get("serverAuditWitnessPass") is not complete:
+    if existing.get("allAdmittedReceiptsPass") is not True or existing.get("certifiedClientCount")!=len(rows) or existing.get("complete") is not complete or existing.get("externalCertificationPass") is not complete or existing.get("serverAuditWitnessPass") is not complete:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_COUNT_INVALID")
     return by_id
 
