@@ -51,9 +51,14 @@ def live_preflight(endpoint_url:str)->dict:
         metadata=json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError,json.JSONDecodeError) as exc:
         raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_METADATA_JSON_INVALID") from exc
-    servers=metadata.get("authorization_servers") if isinstance(metadata,dict) else None
-    scopes=metadata.get("scopes_supported") if isinstance(metadata,dict) else None
-    if metadata.get("resource")!=ep or not isinstance(servers,list) or not servers or any(urlsplit(str(x)).scheme!="https" for x in servers) or not isinstance(scopes,list) or not {"mcp.read","mcp.operate"}.issubset(set(scopes)):
+    if not isinstance(metadata,dict):
+        raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_METADATA_CONTRACT_INVALID")
+    servers=metadata.get("authorization_servers")
+    scopes=metadata.get("scopes_supported")
+    def valid_server(value:object)->bool:
+        parsed_server=urlsplit(str(value or "").strip())
+        return parsed_server.scheme=="https" and bool(parsed_server.hostname) and not parsed_server.username and not parsed_server.password and not parsed_server.query and not parsed_server.fragment
+    if metadata.get("resource")!=ep or not isinstance(servers,list) or not servers or any(not valid_server(x) for x in servers) or not isinstance(scopes,list) or not {"mcp.read","mcp.operate"}.issubset(set(scopes)):
         raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_METADATA_CONTRACT_INVALID")
 
     body=json.dumps({"jsonrpc":"2.0","id":"c7w-preflight","method":"tools/list","params":{"_meta":{}}},separators=(",",":")).encode("utf-8")
