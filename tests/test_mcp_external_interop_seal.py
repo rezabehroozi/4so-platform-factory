@@ -16,13 +16,24 @@ class MCPExternalSealTests(unittest.TestCase):
     def receipt(self,client,checks,campaign,endpoint="https://mcp.example.test/mcp"):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
         return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+    def audit_digest(self,row):
+        canonical={}
+        required=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
+        ordered=required+("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","previousDigest")
+        for key in ordered:
+            value=row.get(key)
+            if key in required or value not in ("",0,None):
+                canonical[key]=value
+        canonical["digest"]=""
+        raw=json.dumps(canonical,separators=(",",":"),ensure_ascii=False).encode()
+        return "sha256:"+hashlib.sha256(raw).hexdigest()
     def audit(self,receipt):
         rows=[]; prev=""; seq=1
         for check in mod.AUDITED_CHECKS:
             category,decision,reason=mod.AUDIT_REQUIREMENTS[check]
-            digest="sha256:"+hashlib.sha256(f"{receipt['clientId']}:{seq}".encode()).hexdigest()
-            rows.append({"id":f"sau-{seq}","sequence":seq,"occurredAt":"2026-09-28T00:00:00Z","methodVersion":"SECURITY_AUDIT_CHAIN_V1","category":category,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":receipt["requestIds"][check],"previousDigest":prev,"digest":digest})
-            prev=digest; seq+=1
+            row={"id":f"sau-{seq}","sequence":seq,"occurredAt":"2026-09-28T00:00:00Z","methodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","category":category,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":receipt["requestIds"][check],"previousDigest":prev}
+            row["digest"]=self.audit_digest(row)
+            rows.append(row); prev=row["digest"]; seq+=1
         return rows
     def fixture(self,root):
         matrix_path=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; matrix=json.loads(matrix_path.read_text()); checks=matrix["spec"]["sharedRequiredChecks"]
