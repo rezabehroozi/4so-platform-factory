@@ -56,7 +56,11 @@ func (s *Server) requireCapabilityAuthorization(r *http.Request, permission stri
 		status = http.StatusOK
 		reason = "CAPABILITY_AUTHORIZED"
 	}
-	if _, err := s.store.AppendSecurityAudit(r.Context(), controlplane.SecurityAuditInput{Category: "CAPABILITY_AUTHORIZATION", Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, StatusCode: status, ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), EffectiveRole: auth.CanonicalRole(principal.Roles), MappingDigest: principal.MappingDigest}); err != nil {
+	binding, err := auth.MCPInteropBindingDigest(r)
+	if err != nil {
+		return fmt.Errorf("MCP interoperability binding invalid: %w", err)
+	}
+	if _, err := s.store.AppendSecurityAudit(r.Context(), controlplane.SecurityAuditInput{Category: "CAPABILITY_AUTHORIZATION", Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, StatusCode: status, ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), EffectiveRole: auth.CanonicalRole(principal.Roles), MappingDigest: principal.MappingDigest, MCPInteropBindingDigest: binding}); err != nil {
 		return fmt.Errorf("security audit unavailable: %w", err)
 	}
 	if !allowed {
