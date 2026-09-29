@@ -93,7 +93,7 @@ def release_source_files(root: Path) -> list[Path]:
     if git_root != root.resolve():
         raise SystemExit("RELEASE_GIT_ROOT_INVALID")
     listed = subprocess.run(
-        ["git", "ls-files", "-z"],
+        ["git", "ls-files", "-v", "-z"],
         cwd=root,
         capture_output=True,
         check=False,
@@ -105,8 +105,10 @@ def release_source_files(root: Path) -> list[Path]:
     for raw in listed.stdout.split(b"\x00"):
         if not raw:
             continue
+        if not raw.startswith(b"H "):
+            raise SystemExit("RELEASE_GIT_INDEX_FLAGS_FORBIDDEN")
         try:
-            rel_text = raw.decode("utf-8", errors="strict")
+            rel_text = raw[2:].decode("utf-8", errors="strict")
         except UnicodeDecodeError as exc:
             raise SystemExit("RELEASE_GIT_TRACKED_PATH_INVALID") from exc
         rel = Path(rel_text)
