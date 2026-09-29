@@ -36,21 +36,30 @@ def error_code(raw: bytes) -> str:
     return str(value.get("code") or "")
 
 
-def atomic_write(path: Path, raw: bytes) -> None:
-    if path.exists() and path.is_symlink():
-        raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_SYMLINK_FORBIDDEN")
+def atomic_write(path: Path, raw: bytes, receipt: dict, client: str) -> dict:
+    if path.exists():
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_PATH_INVALID")
+        if path.read_bytes()!=raw:
+            raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_REPLACEMENT_FORBIDDEN")
+        return core.verify_server_audit(path,receipt,client)
     path.parent.mkdir(parents=True,exist_ok=True)
     temp=path.with_name("."+path.name+".tmp")
     if temp.exists():
         if temp.is_symlink() or not temp.is_file():
             raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_TEMP_INVALID")
         temp.unlink()
-    with temp.open("xb") as fh:
-        fh.write(raw)
-        fh.flush()
-        os.fsync(fh.fileno())
-    core.validate_audit_export(temp)
-    os.replace(temp,path)
+    try:
+        with temp.open("xb") as fh:
+            fh.write(raw)
+            fh.flush()
+            os.fsync(fh.fileno())
+        witness=core.verify_server_audit(temp,receipt,client)
+        os.replace(temp,path)
+        return witness
+    finally:
+        if temp.exists():
+            temp.unlink()
 
 
 def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: str, token_env: str, out: Path, attempts: int, interval: float) -> dict:
@@ -106,12 +115,15 @@ def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: st
                 if not isinstance(value,list) or not value:
                     raise RuntimeError("MCP_EXTERNAL_AUDIT_RESPONSE_INVALID")
                 canonical=(json.dumps(value,indent=2,sort_keys=True)+"\n").encode("utf-8")
-                atomic_write(out,canonical)
+                witness=atomic_write(out,canonical,receipt,client)
                 return {
                     "clientId":client,
                     "requestIdCount":len(request_ids),
                     "auditEventCount":len(value),
                     "auditExportSha256":core.sha256(out),
+                    "auditHeadSequence":witness["auditHeadSequence"],
+                    "auditHeadDigest":witness["auditHeadDigest"],
+                    "interopBindingDigest":witness["interopBindingDigest"],
                     "output":str(out),
                 }
         except HTTPError as exc:
