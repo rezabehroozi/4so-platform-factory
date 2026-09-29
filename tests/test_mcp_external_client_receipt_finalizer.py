@@ -12,7 +12,9 @@ class ReceiptFinalizerTests(unittest.TestCase):
         for c in core.CLIENTS:
             challenge=("capture-"+c+"-")*4
             rows.append({"clientId":c,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest()})
-        campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-capturetest","matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),"protocol":"2026-07-28","transport":"streamable-http","endpoint":"https://mcp.example.test/mcp","clients":rows,"externalExecutionRequired":True}
+        ep="https://mcp.example.test/mcp"; metadata="https://mcp.example.test/.well-known/oauth-protected-resource"
+        preflight={"authority":core.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":ep,"protectedResourceMetadata":metadata,"resource":ep,"authorizationServers":["https://identity.example.test/realms/4so"],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":f'Bearer resource_metadata="{metadata}"',"protocol":"2026-07-28"}
+        campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-capturetest","matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),"protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
         cp=td/"campaign.json"; cp.write_text(json.dumps(campaign))
         packet=packetmod.packet(matrix,cp,"chatgpt"); pp=td/"packet.json"; pp.write_text(json.dumps(packet))
         checks={}
