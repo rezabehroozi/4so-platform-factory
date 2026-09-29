@@ -84,6 +84,17 @@ def git_source(root: Path) -> str:
     )
     if head.returncode != 0 or len(head.stdout.strip()) != 40:
         raise RuntimeError("FINAL_EXACT_RELEASE_GIT_HEAD_INVALID")
+    indexed = subprocess.run(
+        ["git", "ls-files", "-v", "-z"],
+        cwd=root,
+        capture_output=True,
+        check=False,
+    )
+    if indexed.returncode != 0:
+        raise RuntimeError("FINAL_EXACT_RELEASE_GIT_INDEX_UNAVAILABLE")
+    for raw in indexed.stdout.split(b"\x00"):
+        if raw and not raw.startswith(b"H "):
+            raise RuntimeError("FINAL_EXACT_RELEASE_GIT_INDEX_FLAGS_FORBIDDEN")
     dirty = subprocess.run(
         ["git", "status", "--porcelain", "--untracked-files=all"],
         cwd=root,
