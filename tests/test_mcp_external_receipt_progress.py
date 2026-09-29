@@ -20,8 +20,10 @@ class IncrementalMCPInteropTests(unittest.TestCase):
     def audit(self,row):
         out=[]; prev=""
         for seq,check in enumerate(seal.AUDITED_CHECKS,1):
-            cat,decision,reason=seal.AUDIT_REQUIREMENTS[check]; digest="sha256:"+hashlib.sha256(f"{row['clientId']}:{seq}".encode()).hexdigest()
-            out.append({"sequence":seq,"category":cat,"decision":decision,"method":"POST","path":"/mcp","reasonCode":reason,"requestId":row["requestIds"][check],"previousDigest":prev,"digest":digest}); prev=digest
+            cat,decision,reason=seal.AUDIT_REQUIREMENTS[check]
+            event={"id":f"sau-{row['clientId']}-{seq}","sequence":seq,"occurredAt":"2026-09-29T00:00:00Z","methodVersion":seal.AUDIT_METHOD_VERSION,"category":cat,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":row["requestIds"][check],"previousDigest":prev}
+            event["digest"]=seal.audit_event_digest(event)
+            out.append(event); prev=event["digest"]
         return out
     def test_receipts_merge_incrementally_and_fourth_seals(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
