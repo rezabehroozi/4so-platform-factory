@@ -18,6 +18,7 @@ FIXED_DATE = (2026, 1, 1, 0, 0, 0)
 FIXED_CREATED = "2026-01-01T00:00:00Z"
 TARGETS = ("linux-amd64",)
 BINARIES = ("platform-api", "platformctl", "platform-installer", "platform-agent", "platform-probe", "virtual-cluster-renderer", "openchoreo-runtime")
+GENERATED_METADATA = {"ARTIFACT-MANIFEST.json", "BUILD-PROVENANCE.json", "SBOM.spdx.json", "DERIVED-AGENT-KNOWLEDGE.json"}
 
 
 def checked_regular_file(path: Path, *, label: str) -> os.stat_result:
@@ -55,7 +56,36 @@ def release_source_files(root: Path) -> list[Path]:
         check=False,
     )
     if probe.returncode != 0:
-        return source_files(root, apply_excludes=True)
+        manifest_path=root/"ARTIFACT-MANIFEST.json"
+        try:
+            checked_regular_file(manifest_path,label="RELEASE_SOURCE_MANIFEST")
+            manifest=json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError,json.JSONDecodeError,UnicodeDecodeError) as exc:
+            raise SystemExit("RELEASE_SOURCE_AUTHORITY_UNAVAILABLE") from exc
+        rows=manifest.get("files") if isinstance(manifest,dict) else None
+        if not isinstance(rows,list):
+            raise SystemExit("RELEASE_SOURCE_MANIFEST_INVALID")
+        files=[]
+        seen=set()
+        for row in rows:
+            if not isinstance(row,dict):
+                raise SystemExit("RELEASE_SOURCE_MANIFEST_INVALID")
+            rel_text=str(row.get("path") or "")
+            rel=Path(rel_text)
+            if not rel_text or rel.is_absolute() or ".." in rel.parts:
+                raise SystemExit(f"RELEASE_SOURCE_MANIFEST_PATH_INVALID {rel_text}")
+            if rel_text in seen:
+                raise SystemExit(f"RELEASE_SOURCE_MANIFEST_PATH_DUPLICATE {rel_text}")
+            seen.add(rel_text)
+            if rel_text in GENERATED_METADATA or rel_text.startswith("bin/") or any(part in EXCLUDE for part in rel.parts):
+                continue
+            src=root/rel
+            info=checked_regular_file(src,label="RELEASE_MANIFEST_SOURCE")
+            wanted_size=row.get("size"); wanted_sha=str(row.get("sha256") or "")
+            if wanted_size!=info.st_size or wanted_sha!=sha(src):
+                raise SystemExit(f"RELEASE_MANIFEST_SOURCE_MISMATCH {rel_text}")
+            files.append(src)
+        return sorted(files)
     try:
         git_root = Path(probe.stdout.strip()).resolve()
     except OSError as exc:
@@ -107,12 +137,7 @@ def write_json(path: Path, value: object) -> None:
 
 def source_rows(stage: Path) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
-    excluded_generated = {
-        "ARTIFACT-MANIFEST.json",
-        "BUILD-PROVENANCE.json",
-        "SBOM.spdx.json",
-        "DERIVED-AGENT-KNOWLEDGE.json",
-    }
+    excluded_generated = GENERATED_METADATA
     for file in source_files(stage):
         rel = str(file.relative_to(stage))
         if rel in excluded_generated or rel.startswith("bin/"):
