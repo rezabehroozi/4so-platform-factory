@@ -68,14 +68,15 @@ def write_state(root,state,override=None):
     body=dict(state); body["authority"]=AUTHORITY; body["schemaVersion"]=SCHEMA; body["updatedAt"]=now()
     atomic_json(state_file(root,override),body)
 
-def git(root,refresh=True):
+def git(root,refresh=True,allow_detached=False):
     def run(*args,check=True,timeout=30):
         p=subprocess.run(["git",*args],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=timeout)
         if check and p.returncode: raise RuntimeError("GIT_COMMAND_FAILED "+" ".join(args)+" "+p.stdout.strip())
         return p.stdout.strip()
     if refresh: run("fetch","--quiet","origin","main",timeout=120)
     head=run("rev-parse","HEAD"); origin=run("rev-parse","origin/main"); branch=run("branch","--show-current")
-    if branch!="main": raise RuntimeError(f"GIT_BRANCH_NOT_MAIN {branch}")
+    if not branch: branch="(detached)"
+    if branch!="main" and not allow_detached: raise RuntimeError(f"GIT_BRANCH_NOT_MAIN {branch}")
     if head!=origin: raise RuntimeError(f"GIT_MAIN_DIVERGED head={head} originMain={origin}")
     return {"repository":run("config","--get","remote.origin.url",check=False),"branch":branch,"head":head,"originMain":origin}
 
@@ -152,8 +153,8 @@ def checkpoint(root,path):
     return {"path":str(p),"currentStage":str(d.get("currentStage") or d.get("stage") or d.get("phase") or ""),
             "latestCompletedCheckpoint":str(d.get("latestCompletedCheckpoint") or ""),"nextIndex":d.get("nextIndex") if isinstance(d.get("nextIndex"),int) else None}
 
-def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=False,override=None,skip_git=False):
-    info={"repository":"self-test","branch":"main","head":"self-test","originMain":"self-test"} if skip_git else git(root)
+def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=False,override=None,skip_git=False,allow_detached=False):
+    info={"repository":"self-test","branch":"main","head":"self-test","originMain":"self-test"} if skip_git else git(root,allow_detached=allow_detached)
     prev=read_state(root,override)
     if prev:
         prev=reconcile(root,prev,override)
@@ -186,7 +187,7 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
     write_state(root,s,override)
     return {"action":"STARTED","runId":run_id,"pid":worker.pid,"log":str(lp),"state":s}
 
-def resume(root,override=None):
+def resume(root,override=None,allow_detached=False):
     s=read_state(root,override)
     if not s: raise RuntimeError("PROJECT_RUNTIME_NO_STATE")
     s=reconcile(root,s,override)
@@ -198,7 +199,7 @@ def resume(root,override=None):
         s.update(status="WAITING",recoveryRequired=True,latestError="MANUAL_READBACK_REQUIRED_BEFORE_REPLAY")
         write_state(root,s,override)
         return {"action":"RECOVERY_REQUIRED","state":s}
-    info=git(root)
+    info=git(root,allow_detached=allow_detached)
     if s.get("head")!=info["head"] or s.get("originMain")!=info["originMain"]:
         s.update(status="WAITING",recoveryRequired=True,latestError="GIT_AUTHORITY_CHANGED_REPLAN_REQUIRED")
         write_state(root,s,override)
@@ -322,7 +323,8 @@ def main():
     ap=argparse.ArgumentParser(); sub=ap.add_subparsers(dest="cmd",required=True)
     for name in ("status","watchdog","resume","self-test"):
         p=sub.add_parser(name); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root")
-    p=sub.add_parser("start"); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root"); p.add_argument("--phase",required=True); p.add_argument("--task",required=True); p.add_argument("--heartbeat-seconds",type=int,default=30); p.add_argument("--checkpoint-file"); p.add_argument("--replay-safe",action="store_true"); p.add_argument("command",nargs=argparse.REMAINDER)
+        if name=="resume": p.add_argument("--allow-detached",action="store_true")
+    p=sub.add_parser("start"); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root"); p.add_argument("--phase",required=True); p.add_argument("--task",required=True); p.add_argument("--heartbeat-seconds",type=int,default=30); p.add_argument("--checkpoint-file"); p.add_argument("--replay-safe",action="store_true"); p.add_argument("--allow-detached",action="store_true"); p.add_argument("command",nargs=argparse.REMAINDER)
     p=sub.add_parser("_worker"); p.add_argument("--root",required=True); p.add_argument("--runtime-root"); p.add_argument("--run-id",required=True)
     a=ap.parse_args(); root=Path(a.root).resolve()
     try:
@@ -332,7 +334,7 @@ def main():
             if not s: print(json.dumps({"status":"IDLE","activeRun":False,"authority":AUTHORITY,"schemaVersion":SCHEMA},sort_keys=True)); return 0
             print(json.dumps(reconcile(root,s,a.runtime_root),sort_keys=True)); return 0
         if a.cmd=="resume":
-            result=resume(root,a.runtime_root); print(json.dumps(result,sort_keys=True))
+            result=resume(root,a.runtime_root,getattr(a,"allow_detached",False)); print(json.dumps(result,sort_keys=True))
             return 4 if result["action"] in {"RECOVERY_REQUIRED","REPLAN_REQUIRED"} else 0
         if a.cmd=="watchdog":
             s=read_state(root,a.runtime_root)
@@ -343,7 +345,7 @@ def main():
         if a.cmd=="_worker": return worker(root,a.run_id,a.runtime_root)
         command=list(a.command); command=command[1:] if command and command[0]=="--" else command
         if not command: raise RuntimeError("PROJECT_RUNTIME_COMMAND_REQUIRED")
-        print(json.dumps(start(root,a.phase,a.task,command,a.heartbeat_seconds,a.checkpoint_file or "",a.replay_safe,a.runtime_root),sort_keys=True)); return 0
+        print(json.dumps(start(root,a.phase,a.task,command,a.heartbeat_seconds,a.checkpoint_file or "",a.replay_safe,a.runtime_root,allow_detached=a.allow_detached),sort_keys=True)); return 0
     except Exception as e:
         print(f"PROJECT_RUNTIME_ERROR {e}",file=sys.stderr); return 2
 if __name__=="__main__": raise SystemExit(main())

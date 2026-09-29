@@ -17,7 +17,61 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Practical detached observer test
+        with:
+          fetch-depth: 0
+      - name: Practical detached observer self-test
         run: python3 scripts/project_runtime.py self-test
       - name: Unit regression
         run: python3 -m unittest tests.test_project_runtime -v
+      - name: Prepare cross-step long job
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .project-runtime
+          cat >.project-runtime/cross_step_job.py <<'PY'
+          import json,time
+          from pathlib import Path
+          count=Path(".project-runtime/cross-step-count")
+          count.write_text(str(int(count.read_text())+1) if count.exists() else "1")
+          cp=Path(".project-runtime/cross-step-checkpoint.json")
+          cp.write_text(json.dumps({"currentStage":"build","latestCompletedCheckpoint":"prepare","nextIndex":1}))
+          time.sleep(8)
+          cp.write_text(json.dumps({"currentStage":"validate","latestCompletedCheckpoint":"build","nextIndex":2}))
+          time.sleep(4)
+          PY
+      - name: Start long job and end observer shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          python3 scripts/project_runtime.py start --allow-detached --phase stream-disconnect-proof --task cross-step-long-job --heartbeat-seconds 1 --checkpoint-file .project-runtime/cross-step-checkpoint.json --replay-safe -- python3 .project-runtime/cross_step_job.py | tee /tmp/runtime-start.json
+          jq -e '.action=="STARTED" and (.pid|type=="number")' /tmp/runtime-start.json
+      - name: New observer reattaches without duplicate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/project_runtime.py status | tee /tmp/runtime-status.json
+          jq -e '.status=="RUNNING" and .activeRun and .workerAlive and (.lastHeartbeat|length>0)' /tmp/runtime-status.json
+          first_run="$(jq -r .runId /tmp/runtime-status.json)"
+          first_pid="$(jq -r .activePid /tmp/runtime-status.json)"
+          python3 scripts/project_runtime.py start --allow-detached --phase stream-disconnect-proof --task cross-step-long-job --heartbeat-seconds 1 --checkpoint-file .project-runtime/cross-step-checkpoint.json --replay-safe -- python3 .project-runtime/cross_step_job.py | tee /tmp/runtime-rejoin.json
+          jq -e --arg run "$first_run" --argjson pid "$first_pid" '.action=="REJOIN" and .state.runId==$run and .state.activePid==$pid' /tmp/runtime-rejoin.json
+          test "$(cat .project-runtime/cross-step-count)" = "1"
+      - name: Observe completion and preserved checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 40); do
+            python3 scripts/project_runtime.py status > /tmp/runtime-final.json
+            state="$(jq -r .status /tmp/runtime-final.json)"
+            if test "$state" = "COMPLETED"; then break; fi
+            test "$state" = "RUNNING" -o "$state" = "WAITING"
+            sleep 1
+          done
+          cat /tmp/runtime-final.json
+          jq -e '.status=="COMPLETED" and (.activeRun|not) and .latestCompletedCheckpoint=="build" and .exitCode==0' /tmp/runtime-final.json
+          test "$(cat .project-runtime/cross-step-count)" = "1"
+          log="$(jq -r .latestLogPath /tmp/runtime-final.json)"
+          test -s "$log"
+          test ! -e .project-runtime/mutation.lock
