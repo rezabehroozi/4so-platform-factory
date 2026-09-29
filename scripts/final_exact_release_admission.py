@@ -23,20 +23,13 @@ except ModuleNotFoundError:
 AUTHORITY="FINAL_EXACT_RELEASE_ADMISSION_V1"
 S1_AUTHORITY="LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8"
 MCP_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"
-MCP_AUDIT_WITNESS_AUTHORITY="MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1"
-MCP_AUDIT_METHOD_VERSION="IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1"
-CLIENTS=("chatgpt","claude","gemini","grok")
-CLIENT_SURFACES={"chatgpt":"ChatGPT custom MCP","claude":"Claude remote MCP","gemini":"Gemini remote MCP","grok":"Grok custom MCP"}
-MCP_AUDITED_CHECKS=(
-    "dedicated-audience-validation",
-    "authorization-filtered-tools-list",
-    "project-resource-scope-negative-control",
-    "revoked-delegation-negative-control",
-    "read-only-client-mutation-negative-control",
-    "administration-approval-self-approval-negative-control",
-)
-MCP_REQUIRED_CHECKS=("oauth-protected-resource-discovery",)+MCP_AUDITED_CHECKS
-SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
+MCP_AUDIT_WITNESS_AUTHORITY=mcp_contract.AUDIT_WITNESS_AUTHORITY
+MCP_AUDIT_METHOD_VERSION=mcp_contract.AUDIT_METHOD_VERSION
+CLIENTS=mcp_contract.CLIENTS
+CLIENT_SURFACES=mcp_contract.CLIENT_SURFACES
+MCP_AUDITED_CHECKS=mcp_contract.AUDITED_CHECKS
+MCP_REQUIRED_CHECKS=mcp_contract.REQUIRED_CHECKS
+SHA=mcp_contract.SHA
 
 
 class Pending(RuntimeError):
@@ -105,11 +98,7 @@ def external_client_progress(root:Path)->dict:
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
-        mcp_contract.validate_witness_interop_binding(witness,binding,client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS")
-        start_seq=witness.get("auditWindowStartSequence"); start_prev=str(witness.get("auditWindowPreviousDigest") or ""); head_seq=witness.get("auditHeadSequence")
-        start_valid=type(start_seq) is int and start_seq>0 and type(head_seq) is int and head_seq>=start_seq and ((start_seq==1 and start_prev=="") or (start_seq>1 and SHA.fullmatch(start_prev)))
-        if witness.get("authority")!=MCP_AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=MCP_AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=6 or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
-            raise RuntimeError("MCP_EXTERNAL_PROGRESS_SERVER_WITNESS_INVALID")
+        mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS")
         seen.add(client); provider_refs.add(provider_ref); execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest); challenge_digests.add(challenge_digest)
     certified=[c for c in CLIENTS if c in seen]
     missing=[c for c in CLIENTS if c not in seen]
@@ -204,11 +193,7 @@ def verify(root:Path)->dict:
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_INTEROP_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
-        mcp_contract.validate_witness_interop_binding(witness,binding,client,"MCP_EXTERNAL_INTEROP_SERVER_WITNESS")
-        start_seq=witness.get("auditWindowStartSequence"); start_prev=str(witness.get("auditWindowPreviousDigest") or ""); head_seq=witness.get("auditHeadSequence")
-        start_valid=type(start_seq) is int and start_seq>0 and type(head_seq) is int and head_seq>=start_seq and ((start_seq==1 and start_prev=="") or (start_seq>1 and SHA.fullmatch(start_prev)))
-        if witness.get("authority")!=MCP_AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=MCP_AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=6 or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
-            raise RuntimeError("MCP_EXTERNAL_INTEROP_SERVER_WITNESS_INVALID")
+        mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_INTEROP_SERVER_WITNESS")
         execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest); challenge_digests.add(challenge_digest)
 
     return {
