@@ -54,7 +54,7 @@ class MCPExternalSealTests(unittest.TestCase):
             bad=json.loads((receipts/"chatgpt.json").read_text()); bad["challengeSha256"]="sha256:"+"0"*64; (receipts/"chatgpt.json").write_text(json.dumps(bad))
             with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_BINDING"): mod.seal(matrix,campaign_path,receipts,audits)
             row=self.receipt("chatgpt",checks,campaign); (receipts/"chatgpt.json").write_text(json.dumps(row))
-            audit=json.loads((audits/"chatgpt.json").read_text()); audit[0]["reasonCode"]="WRONG"; (audits/"chatgpt.json").write_text(json.dumps(audit))
+            audit=json.loads((audits/"chatgpt.json").read_text()); audit[-1]["reasonCode"]="WRONG"; audit[-1]["digest"]=self.audit_digest(audit[-1]); (audits/"chatgpt.json").write_text(json.dumps(audit))
             with self.assertRaisesRegex(RuntimeError,"SEMANTIC_WITNESS"): mod.seal(matrix,campaign_path,receipts,audits)
     def test_forged_audit_event_payload_rejects_before_semantic_witness(self):
         with tempfile.TemporaryDirectory() as td:
