@@ -527,6 +527,70 @@ func TestMCPHighImpactMaintenanceRequestStopsAtIndependentApproval(t *testing.T)
 	}
 }
 
+func TestMCPManagedOKDSelfApprovalDenialIsServerAuditWitnessed(t *testing.T) {
+	ctx := context.Background()
+	store := controlplane.NewMemoryStore()
+	s := New("test", nil, nil, store)
+	org, err := store.CreateOrganization(ctx, controlplane.Organization{Name: "mcp-okd-audit-org", DisplayName: "MCP OKD Audit Org"}, "same-admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "mcp-okd-audit", DisplayName: "MCP OKD Audit"}, "same-admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, replay, err := store.CreateOperationAwaitingApprovalWithPayload(
+		ctx,
+		controlplane.OperationRequest{ProjectID: project.ID, Kind: managedOKDInstallOperationKind, TargetRef: "managed-okd-install/audit-cluster", DesiredRevision: "audit-revision", Risk: "critical", Class: controlplane.OperationClassMutating},
+		"mcp-okd-self-approval-audit",
+		"same-admin",
+		"seed-managed-okd-request",
+		"application/json",
+		[]byte("{\"cluster\":\"audit-cluster\"}"),
+	)
+	if err != nil || replay || op.State != controlplane.OperationAwaitingApproval {
+		t.Fatalf("seed managed OKD approval operation failed: replay=%v err=%v op=%#v", replay, err, op)
+	}
+	principal := auth.Principal{
+		Subject: "same-admin",
+		Roles: []string{"platform-admin"},
+		Authentication: "mcp-human",
+		DelegationAccessProfile: "ADMINISTRATION",
+		OrganizationID: org.ID,
+		ProjectID: project.ID,
+		OrganizationRoles: map[string]string{org.ID: "admin"},
+		ProjectRoles: map[string]string{project.ID: "project-admin"},
+	}
+	body := fmt.Sprintf("{\"jsonrpc\":\"2.0\",\"id\":173,\"method\":\"tools/call\",\"params\":{\"name\":\"managed_okd_install_approve\",\"arguments\":{\"id\":%q,\"expectedRevision\":%d}}}", op.ID, op.Revision)
+	r := mcpRequestForTest("tools/call", "managed_okd_install_approve", body)
+	r.Header.Set("X-Request-ID", "mcp-okd-self-approval-audit")
+	r = r.WithContext(auth.WithPrincipal(r.Context(), principal))
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "separation of duties") {
+		t.Fatalf("managed OKD requester self-approval was not rejected: %d %s", w.Code, w.Body.String())
+	}
+	audit, err := store.ListSecurityAudit(ctx, 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, event := range audit {
+		if event.RequestID == "mcp-okd-self-approval-audit" &&
+			event.Category == "APPROVAL_AUTHORIZATION" &&
+			event.Decision == "DENY" &&
+			event.ReasonCode == "SEPARATION_OF_DUTIES_REQUIRED" &&
+			event.Method == http.MethodPost &&
+			event.Path == "/mcp" &&
+			event.StatusCode == http.StatusForbidden {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("managed OKD self-approval deny audit missing: %#v", audit)
+	}
+}
+
 func TestMCPDelegatedRegistryCoversAssuranceAndUpgradeWithoutSelfApproval(t *testing.T) {
 	ctx := context.Background()
 	store := controlplane.NewMemoryStore()
