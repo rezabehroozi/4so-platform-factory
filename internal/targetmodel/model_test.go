@@ -215,8 +215,15 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("remote OAuth MCP phase drift: %#v", c7r)
 	}
 	c7w := byID["C7W-mcp-user-admin-write-parity"]
-	if !containsString(c7w.Evidence, "MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1") || !containsString(c7w.Evidence, "scripts/prepare_mcp_external_interop_campaign.py") || !containsString(c7w.Evidence, ".github/workflows/mcp-external-interop-campaign.yml") {
-		t.Fatalf("C7W one-shot external campaign evidence missing: %#v", c7w.Evidence)
+	for _, evidence := range []string{"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1", "scripts/prepare_mcp_external_interop_campaign.py", "MCP_EXTERNAL_CLIENT_INTEROP_BINDING_V1", "scripts/prepare_mcp_external_client_execution.py", "scripts/finalize_mcp_external_client_receipt.py", "migrations/0084_security_audit_mcp_interop_binding.sql"} {
+		if !containsString(c7w.Evidence, evidence) {
+			t.Fatalf("C7W Git/source evidence missing %q: %#v", evidence, c7w.Evidence)
+		}
+	}
+	for _, forbidden := range []string{".github/workflows/mcp-external-interop-campaign.yml", ".github/workflows/mcp-external-interop-seal.yml", ".github/workflows/mcp-external-receipt-admission.yml"} {
+		if containsString(c7w.Evidence, forbidden) {
+			t.Fatalf("C7W execution authority must not depend on GitHub workflow evidence %q: %#v", forbidden, c7w.Evidence)
+		}
 	}
 	if c7w.Status != ProgramStatusBlocked || !c7w.RequiredForFeatureFreeze || !containsString(c7w.DependsOn, c7r.ID) || containsString(c7w.Blockers, "MCP_ACTION_REGISTRY_ENFORCEMENT_PENDING") || containsString(c7w.Blockers, "MCP_EFFECTIVE_TOOL_FILTERING_PENDING") || containsString(c7w.Blockers, "MCP_WRITE_JOB_COVERAGE_PENDING") || !containsString(c7w.Blockers, "MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING") || !containsString(c7w.Evidence, "MCP_PRODUCT_ACTION_REGISTRY_V1") || !containsString(c7w.Evidence, "MCP_EFFECTIVE_TOOL_FILTERING_V1") {
 		t.Fatalf("MCP write parity phase drift: %#v", c7w)
@@ -286,10 +293,13 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if len(c9.Blockers) != 1 || !containsString(c9.Blockers, "FINAL_EXACT_RELEASE_SEAL_PENDING") {
 		t.Fatalf("C9 independent exact-release seal blocker drift: %#v", c9)
 	}
-	for _, evidence := range []string{"FINAL_EXACT_RELEASE_ADMISSION_V1", "scripts/final_exact_release_admission.py", ".github/workflows/final-exact-release-seal.yml", "FINAL_EXACT_RELEASE_SEAL_V1", "lab/final-exact-release-evidence.json"} {
+	for _, evidence := range []string{"FINAL_EXACT_RELEASE_ADMISSION_V1", "scripts/final_exact_release_admission.py", "FINAL_EXACT_RELEASE_SEAL_V1", "lab/final-exact-release-evidence.json"} {
 		if !containsString(c9.Evidence, evidence) {
 			t.Fatalf("C9 exact-release finalizer evidence missing %q: %#v", evidence, c9.Evidence)
 		}
+	}
+	if containsString(c9.Evidence, ".github/workflows/final-exact-release-seal.yml") {
+		t.Fatalf("C9 exact release authority must not depend on GitHub workflow evidence: %#v", c9.Evidence)
 	}
 	for _, dependency := range []string{"C7R-mcp-remote-oauth-human-delegation", "C7W-mcp-user-admin-write-parity", "S2-component-runtime-certification-authorities", "G3-target-node-maintenance-lifecycle", "G4-data-protection-productization", "G5-enterprise-identity-compliance", "H1-baremetal-connected-managed-okd", "I1-disconnected-okd-core"} {
 		if !containsString(c9.DependsOn, dependency) {
