@@ -85,14 +85,14 @@ def git_source(root: Path) -> str:
     if head.returncode != 0 or len(head.stdout.strip()) != 40:
         raise RuntimeError("FINAL_EXACT_RELEASE_GIT_HEAD_INVALID")
     dirty = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=no"],
+        ["git", "status", "--porcelain", "--untracked-files=all"],
         cwd=root,
         text=True,
         capture_output=True,
         check=False,
     )
     if dirty.returncode != 0 or dirty.stdout.strip():
-        raise RuntimeError("FINAL_EXACT_RELEASE_TRACKED_SOURCE_DIRTY")
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_NOT_EXACT_HEAD")
     return head.stdout.strip()
 
 
@@ -228,29 +228,55 @@ def build_evidence(
 
 
 def atomic_write_json(path: Path, value: dict) -> None:
-    if path.exists() and path.is_symlink():
-        raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_SYMLINK_FORBIDDEN")
+    if path.exists() or path.is_symlink():
+        raise RuntimeError("FINAL_EXACT_RELEASE_ALREADY_SEALED")
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_name("." + path.name + ".tmp")
     if temp.exists():
         if temp.is_symlink() or not temp.is_file():
             raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_TEMP_INVALID")
         temp.unlink()
-    with temp.open("x", encoding="utf-8") as fh:
-        fh.write(json.dumps(value, indent=2, sort_keys=True) + "\n")
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.replace(temp, path)
+    try:
+        with temp.open("x", encoding="utf-8") as fh:
+            fh.write(json.dumps(value, indent=2, sort_keys=True) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        try:
+            os.link(temp, path, follow_symlinks=False)
+        except FileExistsError as exc:
+            raise RuntimeError("FINAL_EXACT_RELEASE_ALREADY_SEALED") from exc
+        directory_fd=os.open(path.parent,os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if temp.exists():
+            temp.unlink()
+
+
+def admit_output_path(root: Path, out: Path) -> Path:
+    candidate = out if out.is_absolute() else root / out
+    candidate = Path(os.path.abspath(candidate))
+    try:
+        rel = candidate.relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_OUTSIDE_ROOT") from exc
+    cursor = root
+    for part in rel.parts[:-1]:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_PARENT_SYMLINK_FORBIDDEN")
+        if cursor.exists() and not cursor.is_dir():
+            raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_PARENT_INVALID")
+    if candidate.is_symlink():
+        raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_SYMLINK_FORBIDDEN")
+    return candidate
 
 
 def execute(root: Path, out: Path) -> dict:
     root = root.resolve()
-    out = out if out.is_absolute() else root / out
-    out = out.resolve(strict=False)
-    try:
-        out.relative_to(root)
-    except ValueError as exc:
-        raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_OUTSIDE_ROOT") from exc
+    out = admit_output_path(root,out)
     if out.exists():
         raise RuntimeError("FINAL_EXACT_RELEASE_ALREADY_SEALED")
 
