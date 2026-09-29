@@ -85,12 +85,9 @@ func (s *MemoryStore) ResolveOIDCGroups(_ context.Context, groups []string) (OID
 func (s *MemoryStore) AppendSecurityAudit(_ context.Context, in SecurityAuditInput) (SecurityAuditEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if strings.TrimSpace(in.Category) == "" || strings.TrimSpace(in.Decision) == "" {
-		return SecurityAuditEvent{}, fmt.Errorf("%w: security audit category and decision are required", ErrValidation)
-	}
 	in.MCPInteropBindingDigest = strings.TrimSpace(in.MCPInteropBindingDigest)
-	if in.MCPInteropBindingDigest != "" && !validSHA256(in.MCPInteropBindingDigest) {
-		return SecurityAuditEvent{}, fmt.Errorf("%w: MCP interoperability binding digest is invalid", ErrValidation)
+	if err := ValidateSecurityAuditInput(in); err != nil {
+		return SecurityAuditEvent{}, err
 	}
 	seq := int64(len(s.securityAudit) + 1)
 	prev := ""
