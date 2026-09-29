@@ -1,5 +1,6 @@
 import hashlib, importlib.util, json, tempfile, unittest, sys
 from pathlib import Path
+from unittest import mock
 
 ROOT=Path(__file__).resolve().parents[1]
 SEAL_SPEC=importlib.util.spec_from_file_location("seal_mcp_external_interop",ROOT/"scripts"/"seal_mcp_external_interop.py")
@@ -48,6 +49,23 @@ class C7WAuditFetchEvidenceTests(unittest.TestCase):
             altered=json.loads(raw.decode()); altered[0]["actorId"]="other-user"; altered[0]["digest"]=seal.audit_event_digest(altered[0])
             with self.assertRaisesRegex(RuntimeError,"OUTPUT_REPLACEMENT_FORBIDDEN"):
                 fetcher.atomic_write(path,self.raw(altered),receipt,"chatgpt")
+
+    def test_concurrent_different_evidence_cannot_win_publication_race(self):
+        receipt=self.receipt(); rows=self.audit(receipt); raw=self.raw(rows)
+        altered=list(rows); altered=json.loads(json.dumps(rows)); altered[0]["actorId"]="racing-writer"
+        previous=""
+        for row in altered:
+            row["previousDigest"]=previous; row["digest"]=seal.audit_event_digest(row); previous=row["digest"]
+        raced_raw=self.raw(altered)
+        with tempfile.TemporaryDirectory() as td:
+            path=Path(td)/"chatgpt.json"
+            def race_link(_src,dst,follow_symlinks=False):
+                Path(dst).write_bytes(raced_raw)
+                raise FileExistsError(dst)
+            with mock.patch.object(fetcher.os,"link",side_effect=race_link):
+                with self.assertRaisesRegex(RuntimeError,"OUTPUT_REPLACEMENT_FORBIDDEN"):
+                    fetcher.atomic_write(path,raw,receipt,"chatgpt")
+            self.assertEqual(raced_raw,path.read_bytes())
 
     def test_semantically_unbound_audit_is_rejected_before_persist(self):
         receipt=self.receipt(); rows=self.audit(receipt)
