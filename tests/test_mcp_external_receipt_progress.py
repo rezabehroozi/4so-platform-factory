@@ -12,7 +12,9 @@ class IncrementalMCPInteropTests(unittest.TestCase):
         for c in seal.CLIENTS:
             challenge=("incremental-"+c+"-")*4
             rows.append({"clientId":c,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest()})
-        return {"authority":seal.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-incremental","matrixAuthority":seal.MATRIX_AUTHORITY,"matrixSha256":seal.sha256(matrix),"protocol":"2026-07-28","transport":"streamable-http","endpoint":"https://mcp.example.test/mcp","clients":rows,"externalExecutionRequired":True}
+        endpoint="https://mcp.example.test/mcp"; metadata="https://mcp.example.test/.well-known/oauth-protected-resource"
+        preflight={"authority":seal.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":endpoint,"protectedResourceMetadata":metadata,"resource":endpoint,"authorizationServers":["https://identity.example.test/realms/4so"],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":f'Bearer resource_metadata="{metadata}"',"protocol":"2026-07-28"}
+        return {"authority":seal.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-incremental","matrixAuthority":seal.MATRIX_AUTHORITY,"matrixSha256":seal.sha256(matrix),"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
     def receipt(self,client,checks,campaign,execution=None):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
         binding=seal.interop_binding_digest(campaign["campaignId"],client,challenge["challengeSha256"])
