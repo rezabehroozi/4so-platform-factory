@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if s1.Status != ProgramStatusSourceImplemented || s1.ClosureStatus != ProgramClosureStatusReady || len(s1.Blockers) != 0 || !s1.RequiredForFeatureFreeze || !containsString(s1.ParallelWith, "C7W-mcp-user-admin-write-parity") || !containsString(s1.ParallelWith, "G4-data-protection-productization") || !containsString(s1.ParallelWith, "G5-enterprise-identity-compliance") || containsString(s1.ParallelWith, "H2-vmware-provider") || containsString(s1.ParallelWith, "J1-automation-external-integrations") {
 		t.Fatalf("supply-chain phase is not an immediate parallel critical path: %#v", s1)
 	}
-	for _, evidence := range []string{"LAB_APPLIANCE_INPUT_PACK_BUILD_V1", "scripts/build_appliance_input_pack.py", "lab/appliance-input-pack-receipt.json", "scripts/seal_appliance_bundle_distribution.py", ".github/workflows/appliance-distribution-seal.yml"} {
+	for _, evidence := range []string{"LAB_APPLIANCE_INPUT_PACK_BUILD_V1", "scripts/build_appliance_input_pack.py", "lab/appliance-input-pack-receipt.json", "scripts/seal_appliance_bundle_distribution.py", "APPLIANCE_MULTIPART_DISTRIBUTION_AUTHORITY_V1"} {
 		if !containsString(s1.Evidence, evidence) {
 			t.Fatalf("S1 distribution closure evidence missing %q: %#v", evidence, s1.Evidence)
 		}
@@ -267,9 +267,16 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if j1.Status != ProgramStatusSourceImplemented || len(j1.Blockers) != 0 {
 		t.Fatalf("J1 automation integrations must be source-implemented after Terraform and Crossplane closure: %#v", j1)
 	}
-	for _, evidence := range []string{"providers/terraform", "providers/terraform/internal/provider/saml_broker_resource.go", ".github/workflows/repository-integrity.yml:terraform-provider", "providers/crossplane", "providers/crossplane/internal/controller/samlbroker/controller.go", "providers/crossplane/package/crossplane.yaml", "providers/crossplane/package/crds", ".github/workflows/repository-integrity.yml:crossplane-provider", "EXTERNAL_REGISTRY_ADMISSION_AUTHORITY_V1", "NOTIFICATION_PROVIDER_ADAPTER_CONTRACT_V1", "NOTIFICATION_PREFERENCE_DIGEST_POLICY_V1", "POST /api/v1/external-registry/admission", "GET /api/v1/notification-provider-contracts", "GET /api/v1/notification-routes/{id}/policy-digest"} {
+	for _, evidence := range []string{"providers/terraform", "providers/terraform/internal/provider/saml_broker_resource.go", "providers/crossplane", "providers/crossplane/internal/controller/samlbroker/controller.go", "providers/crossplane/package/crossplane.yaml", "providers/crossplane/package/crds", "EXTERNAL_REGISTRY_ADMISSION_AUTHORITY_V1", "NOTIFICATION_PROVIDER_ADAPTER_CONTRACT_V1", "NOTIFICATION_PREFERENCE_DIGEST_POLICY_V1", "POST /api/v1/external-registry/admission", "GET /api/v1/notification-provider-contracts", "GET /api/v1/notification-routes/{id}/policy-digest"} {
 		if !containsString(j1.Evidence, evidence) {
 			t.Fatalf("J1 evidence %q missing: %#v", evidence, j1)
+		}
+	}
+	for _, phase := range roadmap.Phases {
+		for _, evidence := range phase.Evidence {
+			if strings.HasPrefix(evidence, ".github/workflows/") {
+				t.Fatalf("roadmap evidence must be source/runtime authority, not CI workflow %s: %#v", phase.ID, evidence)
+			}
 		}
 	}
 	j2 := byID["J2-finops-usage"]
