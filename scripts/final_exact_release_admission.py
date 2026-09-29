@@ -23,6 +23,15 @@ MCP_AUDIT_WITNESS_AUTHORITY="MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1"
 MCP_AUDIT_METHOD_VERSION="IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1"
 CLIENTS=("chatgpt","claude","gemini","grok")
 CLIENT_SURFACES={"chatgpt":"ChatGPT custom MCP","claude":"Claude remote MCP","gemini":"Gemini remote MCP","grok":"Grok custom MCP"}
+MCP_AUDITED_CHECKS=(
+    "dedicated-audience-validation",
+    "authorization-filtered-tools-list",
+    "project-resource-scope-negative-control",
+    "revoked-delegation-negative-control",
+    "read-only-client-mutation-negative-control",
+    "administration-approval-self-approval-negative-control",
+)
+MCP_REQUIRED_CHECKS=("oauth-protected-resource-discovery",)+MCP_AUDITED_CHECKS
 SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
@@ -73,10 +82,10 @@ def external_client_progress(root:Path)->dict:
         if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref) or provider_ref in provider_refs:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REF_INVALID")
         checks=row.get("checks")
-        if not isinstance(checks,dict) or len(checks)!=7 or any(v is not True for v in checks.values()):
+        if not isinstance(checks,dict) or set(checks)!=set(MCP_REQUIRED_CHECKS) or any(v is not True for v in checks.values()):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_CHECKS_INVALID")
         request_ids=row.get("requestIds")
-        if not isinstance(request_ids,dict) or len(request_ids)!=6 or len(set(str(v or "").strip() for v in request_ids.values()))!=6 or any(not re.fullmatch(r"[A-Za-z0-9._:-]{8,200}",str(v or "").strip()) for v in request_ids.values()):
+        if not isinstance(request_ids,dict) or set(request_ids)!=set(MCP_AUDITED_CHECKS) or len(set(str(v or "").strip() for v in request_ids.values()))!=len(MCP_AUDITED_CHECKS) or any(not re.fullmatch(r"[A-Za-z0-9._:-]{8,200}",str(v or "").strip()) for v in request_ids.values()):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_REQUEST_IDS_INVALID")
         for check,rid_raw in request_ids.items():
             rid=str(rid_raw or "").strip()
@@ -97,7 +106,7 @@ def external_client_progress(root:Path)->dict:
     certified=[c for c in CLIENTS if c in seen]
     missing=[c for c in CLIENTS if c not in seen]
     complete=len(missing)==0
-    if progress.get("certifiedClientCount")!=len(certified) or progress.get("complete") is not complete or progress.get("externalCertificationPass") is not complete or progress.get("serverAuditWitnessPass") is not complete:
+    if progress.get("allAdmittedReceiptsPass") is not True or progress.get("certifiedClientCount")!=len(certified) or progress.get("complete") is not complete or progress.get("externalCertificationPass") is not complete or progress.get("serverAuditWitnessPass") is not complete:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_COUNT_INVALID")
     return {"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","certifiedClientCount":len(certified),"certifiedClients":certified,"missingClients":missing,"nextClient":missing[0] if missing else None,"complete":complete,"evidenceSealPending":complete}
 
@@ -166,10 +175,10 @@ def verify(root:Path)->dict:
             raise RuntimeError("MCP_EXTERNAL_INTEROP_PROVIDER_EXECUTION_REUSE")
         provider_refs.add(provider_ref)
         checks=row.get("checks")
-        if not isinstance(checks,dict) or len(checks)!=7 or any(v is not True for v in checks.values()):
+        if not isinstance(checks,dict) or set(checks)!=set(MCP_REQUIRED_CHECKS) or any(v is not True for v in checks.values()):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_CHECKS_INVALID")
         request_ids=row.get("requestIds")
-        if not isinstance(request_ids,dict) or len(request_ids)!=6 or len(set(str(v or "").strip() for v in request_ids.values()))!=6:
+        if not isinstance(request_ids,dict) or set(request_ids)!=set(MCP_AUDITED_CHECKS) or len(set(str(v or "").strip() for v in request_ids.values()))!=len(MCP_AUDITED_CHECKS):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_REQUEST_IDS_INVALID")
         for check,rid_raw in request_ids.items():
             rid=str(rid_raw or "").strip()
