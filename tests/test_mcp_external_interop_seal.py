@@ -46,6 +46,8 @@ class MCPExternalSealTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,campaign,_=self.fixture(Path(td)); out=mod.seal(matrix,campaign_path,receipts,audits)
             self.assertEqual(4,out["certifiedClientCount"]); self.assertEqual(campaign["campaignId"],out["campaignId"]); self.assertTrue(out["serverAuditWitnessPass"]); self.assertEqual(24,out["serverAuditWitnessedCheckCount"]); self.assertFalse(out["physicalCertified"])
+            self.assertTrue(all(row["serverAuditWitness"]["auditChainDigestVerified"] for row in out["clients"]))
+            self.assertTrue(all(row["serverAuditWitness"]["auditMethodVersion"]==mod.AUDIT_METHOD_VERSION for row in out["clients"]))
     def test_replay_endpoint_and_audit_semantics_reject(self):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,campaign,checks=self.fixture(Path(td))
@@ -54,6 +56,13 @@ class MCPExternalSealTests(unittest.TestCase):
             row=self.receipt("chatgpt",checks,campaign); (receipts/"chatgpt.json").write_text(json.dumps(row))
             audit=json.loads((audits/"chatgpt.json").read_text()); audit[0]["reasonCode"]="WRONG"; (audits/"chatgpt.json").write_text(json.dumps(audit))
             with self.assertRaisesRegex(RuntimeError,"SEMANTIC_WITNESS"): mod.seal(matrix,campaign_path,receipts,audits)
+    def test_forged_audit_event_payload_rejects_before_semantic_witness(self):
+        with tempfile.TemporaryDirectory() as td:
+            matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
+            audit_path=audits/"chatgpt.json"
+            audit=json.loads(audit_path.read_text()); audit[0]["actorId"]="forged-external-user"; audit_path.write_text(json.dumps(audit))
+            with self.assertRaisesRegex(RuntimeError,"AUDIT_DIGEST_INVALID"): mod.seal(matrix,campaign_path,receipts,audits)
+
     def test_cross_client_execution_or_evidence_reuse_rejects(self):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
