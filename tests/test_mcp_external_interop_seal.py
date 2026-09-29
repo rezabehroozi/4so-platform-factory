@@ -89,6 +89,18 @@ class MCPExternalSealTests(unittest.TestCase):
             audit=json.loads(audit_path.read_text()); audit[0]["actorId"]="forged-external-user"; audit_path.write_text(json.dumps(audit))
             with self.assertRaisesRegex(RuntimeError,"AUDIT_DIGEST_INVALID"): mod.seal(matrix,campaign_path,receipts,audits)
 
+    def test_campaign_live_preflight_is_mandatory_and_endpoint_bound(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; spec=json.loads(matrix.read_text())["spec"]
+            campaign=self.campaign(matrix)
+            campaign.pop("livePreflight")
+            cp=root/"campaign.json"; cp.write_text(json.dumps(campaign))
+            with self.assertRaisesRegex(RuntimeError,"PREFLIGHT_INVALID"): mod.verify_campaign(cp,matrix,spec)
+            campaign=self.campaign(matrix); campaign["livePreflight"]["resource"]="https://other.example.test/mcp"; cp.write_text(json.dumps(campaign))
+            with self.assertRaisesRegex(RuntimeError,"PREFLIGHT_INVALID"): mod.verify_campaign(cp,matrix,spec)
+            campaign=self.campaign(matrix); campaign["livePreflight"]["challenge"]="Bearer wrong"; cp.write_text(json.dumps(campaign))
+            with self.assertRaisesRegex(RuntimeError,"PREFLIGHT_INVALID"): mod.verify_campaign(cp,matrix,spec)
+
     def test_campaign_challenge_reuse_and_audit_request_ambiguity_reject(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
