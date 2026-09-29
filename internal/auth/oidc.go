@@ -32,10 +32,16 @@ type GroupMappingResult struct {
 
 type GroupMapper func(context.Context, []string) (GroupMappingResult, error)
 
+const (
+	MCPInteropBindingHeader    = "Mcp-Interop-Binding"
+	MCPInteropBindingAuthority = "MCP_EXTERNAL_CLIENT_INTEROP_BINDING_V1"
+)
+
 type SecurityAuditRecord struct {
 	Category, Decision, ActorID, Authentication, Method, Path, ReasonCode, RequestID string
 	StatusCode                                                                       int
 	ScopeType, ScopeID, EffectiveRole, MappingDigest                                 string
+	MCPInteropBindingDigest                                                         string
 }
 
 type AuditSink func(context.Context, SecurityAuditRecord) error
@@ -203,11 +209,34 @@ func hasPermission(principal Principal, wanted string) bool {
 	return false
 }
 
+func MCPInteropBindingDigest(r *http.Request) (string, error) {
+	if r == nil || r.URL == nil || r.URL.Path != "/mcp" {
+		return "", nil
+	}
+	value := strings.TrimSpace(r.Header.Get(MCPInteropBindingHeader))
+	if value == "" {
+		return "", nil
+	}
+	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") {
+		return "", errors.New("MCP interoperability binding digest must be sha256:<64 lowercase hex>")
+	}
+	for _, ch := range value[len("sha256:"):] {
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
+			return "", errors.New("MCP interoperability binding digest must be sha256:<64 lowercase hex>")
+		}
+	}
+	return value, nil
+}
+
 func (m *Manager) auditRequest(r *http.Request, principal Principal, category, decision, reason string, status int) error {
 	if m.config.AuditSink == nil {
 		return nil
 	}
-	return m.config.AuditSink(r.Context(), SecurityAuditRecord{Category: category, Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), StatusCode: status, EffectiveRole: CanonicalRole(principal.Roles), MappingDigest: principal.MappingDigest})
+	binding, err := MCPInteropBindingDigest(r)
+	if err != nil {
+		return err
+	}
+	return m.config.AuditSink(r.Context(), SecurityAuditRecord{Category: category, Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), StatusCode: status, EffectiveRole: CanonicalRole(principal.Roles), MappingDigest: principal.MappingDigest, MCPInteropBindingDigest: binding})
 }
 func (m *Manager) authorizePrincipalForRequest(w http.ResponseWriter, r *http.Request, principal Principal) bool {
 	deny := func(code, message string) bool {
@@ -247,6 +276,10 @@ func (m *Manager) RequireAPI(next http.Handler) http.Handler {
 		ensureRequestID(r)
 		if requestID := strings.TrimSpace(r.Header.Get("X-Request-ID")); requestID != "" {
 			w.Header().Set("X-Request-ID", requestID)
+		}
+		if _, err := MCPInteropBindingDigest(r); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]string{"code": "MCP_INTEROP_BINDING_INVALID", "message": err.Error()}})
+			return
 		}
 		if m.validBootstrap(r) {
 			principal := Principal{Subject: "bootstrap-installer", Roles: []string{"platform-admin"}, Expires: time.Now().Add(5 * time.Minute).Unix(), Authentication: "bootstrap"}
