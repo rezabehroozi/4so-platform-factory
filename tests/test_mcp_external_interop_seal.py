@@ -55,7 +55,7 @@ class MCPExternalSealTests(unittest.TestCase):
             bad=json.loads((receipts/"chatgpt.json").read_text()); bad["interopBindingDigest"]="sha256:"+"0"*64; (receipts/"chatgpt.json").write_text(json.dumps(bad))
             with self.assertRaisesRegex(RuntimeError,"INTEROP_BINDING_INVALID"): mod.seal(matrix,campaign_path,receipts,audits)
             good=self.receipt("chatgpt",checks,campaign); (receipts/"chatgpt.json").write_text(json.dumps(good))
-            audit=json.loads((audits/"chatgpt.json").read_text()); audit[0]["mcpInteropBindingDigest"]="sha256:"+"1"*64; audit[0]["digest"]=self.audit_digest(audit[0]); (audits/"chatgpt.json").write_text(json.dumps(audit))
+            audit=json.loads((audits/"chatgpt.json").read_text()); audit[-1]["mcpInteropBindingDigest"]="sha256:"+"1"*64; audit[-1]["digest"]=self.audit_digest(audit[-1]); (audits/"chatgpt.json").write_text(json.dumps(audit))
             with self.assertRaisesRegex(RuntimeError,"AUDIT_INTEROP_BINDING_MISSING"): mod.seal(matrix,campaign_path,receipts,audits)
 
     def test_bounded_non_genesis_audit_window_is_valid(self):
