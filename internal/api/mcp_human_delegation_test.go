@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/http"
 	"context"
 	"net/http/httptest"
 	"testing"
