@@ -161,6 +161,24 @@ type SecurityAuditInput struct {
 	MCPInteropBindingDigest string `json:"mcpInteropBindingDigest,omitempty"`
 }
 
+func ValidateSecurityAuditInput(v SecurityAuditInput) error {
+	v.Category = strings.TrimSpace(v.Category)
+	v.Decision = strings.TrimSpace(v.Decision)
+	switch v.Category {
+	case "AUTHENTICATION", "AUTHORIZATION", "SCOPE_AUTHORIZATION", "CAPABILITY_AUTHORIZATION", "DELEGATION_AUTHORIZATION", "APPROVAL_AUTHORIZATION":
+	default:
+		return fmt.Errorf("%w: security audit category is invalid", ErrValidation)
+	}
+	if v.Decision != "ALLOW" && v.Decision != "DENY" {
+		return fmt.Errorf("%w: security audit decision is invalid", ErrValidation)
+	}
+	binding := strings.TrimSpace(v.MCPInteropBindingDigest)
+	if binding != "" && !validSHA256(binding) {
+		return fmt.Errorf("%w: MCP interoperability binding digest is invalid", ErrValidation)
+	}
+	return nil
+}
+
 type SecurityAuditEvent struct {
 	ID            string    `json:"id"`
 	Sequence      int64     `json:"sequence"`
