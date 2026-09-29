@@ -8,7 +8,6 @@ on:
       - .github/workflows/management-product-image-evidence.yml
       - .dockerignore
       - scripts/management_product_image_evidence.py
-      - scripts/validate_repository.py
       - tests/test_management_product_image_evidence.py
       - catalog/management-maintenance-toolset.json
       - deploy/images/Dockerfile.api-runtime-base
@@ -93,11 +92,31 @@ jobs:
           echo "AWS_CLI_REF=$aws_ref" >> "$GITHUB_ENV"
           echo "STATIC_BASE_REF=$static_ref" >> "$GITHUB_ENV"
 
+      - name: Prefetch exact base images with bounded retry
+        shell: bash
+        run: |
+          set -euo pipefail
+          pull_exact() {
+            ref="$1"
+            for attempt in 1 2 3 4 5; do
+              if docker pull "$ref"; then return 0; fi
+              sleep "$((attempt * 20))"
+            done
+            echo "failed to prefetch exact image after bounded retries: $ref" >&2
+            return 1
+          }
+          pull_exact "$POSTGRES_REF"
+          pull_exact "$AWS_CLI_REF"
+          pull_exact "$STATIC_BASE_REF"
+          docker tag "$POSTGRES_REF" 4so-postgres-source:evidence
+          docker tag "$AWS_CLI_REF" 4so-aws-cli-source:evidence
+          docker tag "$STATIC_BASE_REF" 4so-static-source:evidence
+
       - name: Build and probe offline API runtime base
         shell: bash
         run: |
           set -euo pipefail
-          docker build --pull --platform linux/amd64             --build-arg "POSTGRES_RUNTIME_IMAGE=$POSTGRES_REF"             --build-arg "CA_RUNTIME_IMAGE=$STATIC_BASE_REF"             -f deploy/images/Dockerfile.api-runtime-base             -t 4so-api-runtime-base:evidence .
+          docker build --platform linux/amd64             --build-arg "POSTGRES_RUNTIME_IMAGE=4so-postgres-source:evidence"             --build-arg "CA_RUNTIME_IMAGE=4so-static-source:evidence"             -f deploy/images/Dockerfile.api-runtime-base             -t 4so-api-runtime-base:evidence .
           docker run --rm --entrypoint /bin/sh --user 65532:65532 4so-api-runtime-base:evidence -c '
             uid="$(id -u)"; printf "API_BASE_UID=%s\n" "$uid"; test "$uid" = 65532 || exit 21
             test -s /etc/ssl/certs/ca-certificates.crt || exit 22
@@ -113,7 +132,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker build --pull --platform linux/amd64             --build-arg "POSTGRES_RUNTIME_IMAGE=$POSTGRES_REF"             --build-arg "AWS_CLI_IMAGE=$AWS_CLI_REF"             -f deploy/images/Dockerfile.maintenance-runtime-base             -t 4so-maintenance-runtime-base:evidence .
+          docker build --platform linux/amd64             --build-arg "POSTGRES_RUNTIME_IMAGE=4so-postgres-source:evidence"             --build-arg "AWS_CLI_IMAGE=4so-aws-cli-source:evidence"             -f deploy/images/Dockerfile.maintenance-runtime-base             -t 4so-maintenance-runtime-base:evidence .
           required="$(jq -r '.requiredExecutables | join(" ")' catalog/management-maintenance-toolset.json)"
           docker run --rm --entrypoint /bin/sh --user 65532:65532 -e REQUIRED="$required" -e AWS_CLI_VERSION="$AWS_CLI_VERSION" 4so-maintenance-runtime-base:evidence -ec 'test "$(id -u)" = 65532; for tool in $REQUIRED; do command -v "$tool" >/dev/null; done; psql --version | grep -E " 17\\."; set +e; out="$(HOME=/tmp aws --version 2>&1)"; rc=$?; set -e; printf "AWS_PROBE_RC=%s\\n%s\\n" "$rc" "$out"; if test "$rc" -ne 0; then ls -ld /usr/local/aws-cli /usr/local/aws-cli/v2 /usr/local/aws-cli/v2/current /usr/local/bin/aws || true; readlink -f /usr/local/bin/aws || true; ldd "$(readlink -f /usr/local/bin/aws)" || true; exit "$rc"; fi; printf "%s\\n" "$out" | grep -F "aws-cli/$AWS_CLI_VERSION"'
           docker run --rm --entrypoint /bin/sh --user 0:0 -e REQUIRED="$required" 4so-maintenance-runtime-base:evidence -ec 'test "$(id -u)" = 0; for tool in $REQUIRED; do command -v "$tool" >/dev/null; done'
@@ -128,8 +147,8 @@ jobs:
         run: |
           set -euo pipefail
           docker build --platform linux/amd64             --build-arg "RUNTIME_IMAGE=4so-api-runtime-base:evidence"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.api-release -t 4so-platform-api:evidence .
-          docker build --pull --platform linux/amd64             --build-arg "RUNTIME_IMAGE=$STATIC_BASE_REF"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.agent-release -t 4so-platform-agent:evidence .
-          docker build --pull --platform linux/amd64             --build-arg "RUNTIME_IMAGE=$STATIC_BASE_REF"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.probe-release -t 4so-platform-probe:evidence .
+          docker build --platform linux/amd64             --build-arg "RUNTIME_IMAGE=4so-static-source:evidence"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.agent-release -t 4so-platform-agent:evidence .
+          docker build --platform linux/amd64             --build-arg "RUNTIME_IMAGE=4so-static-source:evidence"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.probe-release -t 4so-platform-probe:evidence .
           docker build --platform linux/amd64             --build-arg "MAINTENANCE_RUNTIME_IMAGE=4so-maintenance-runtime-base:evidence"             --build-arg "SOURCE_RELEASE_DIGEST=$RELEASE_DIGEST"             -f deploy/images/Dockerfile.maintenance -t 4so-maintenance:evidence .
 
       - name: Execute runtime-realism probes
