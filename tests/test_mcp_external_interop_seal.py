@@ -63,6 +63,23 @@ class MCPExternalSealTests(unittest.TestCase):
             audit=json.loads(audit_path.read_text()); audit[0]["actorId"]="forged-external-user"; audit_path.write_text(json.dumps(audit))
             with self.assertRaisesRegex(RuntimeError,"AUDIT_DIGEST_INVALID"): mod.seal(matrix,campaign_path,receipts,audits)
 
+    def test_campaign_challenge_reuse_and_audit_request_ambiguity_reject(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
+            campaign=self.campaign(matrix)
+            campaign["clients"][1]["challenge"]=campaign["clients"][0]["challenge"]
+            campaign["clients"][1]["challengeSha256"]=campaign["clients"][0]["challengeSha256"]
+            cp=root/"campaign.json"; cp.write_text(json.dumps(campaign))
+            spec=json.loads(matrix.read_text())["spec"]
+            with self.assertRaisesRegex(RuntimeError,"CHALLENGE_REUSE"): mod.verify_campaign(cp,matrix,spec)
+
+        with tempfile.TemporaryDirectory() as td:
+            matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
+            audit_path=audits/"chatgpt.json"; audit=json.loads(audit_path.read_text())
+            duplicate=dict(audit[-1]); duplicate["id"]="sau-duplicate"; duplicate["sequence"]=len(audit)+1; duplicate["previousDigest"]=audit[-1]["digest"]; duplicate["digest"]=self.audit_digest(duplicate)
+            audit.append(duplicate); audit_path.write_text(json.dumps(audit))
+            with self.assertRaisesRegex(RuntimeError,"REQUEST_AMBIGUOUS"): mod.seal(matrix,campaign_path,receipts,audits)
+
     def test_cross_client_execution_or_evidence_reuse_rejects(self):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
