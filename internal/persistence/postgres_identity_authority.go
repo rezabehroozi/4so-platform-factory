@@ -193,8 +193,9 @@ const (
 )
 
 func (s *PostgresStore) AppendSecurityAudit(ctx context.Context, in controlplane.SecurityAuditInput) (controlplane.SecurityAuditEvent, error) {
-	if strings.TrimSpace(in.Category) == "" || strings.TrimSpace(in.Decision) == "" {
-		return controlplane.SecurityAuditEvent{}, fmt.Errorf("%w: security audit category and decision are required", controlplane.ErrValidation)
+	in.MCPInteropBindingDigest = strings.TrimSpace(in.MCPInteropBindingDigest)
+	if err := controlplane.ValidateSecurityAuditInput(in); err != nil {
+		return controlplane.SecurityAuditEvent{}, err
 	}
 	req := &securityAuditRequest{input: in, result: make(chan securityAuditResult, 1)}
 	s.securityAuditMu.Lock()
@@ -317,7 +318,7 @@ func (s *PostgresStore) appendSecurityAuditBatch(ctx context.Context, batch []*s
 				event.ActorID = "anonymous"
 			}
 			event.Digest = controlplane.SecurityAuditEventDigest(event)
-			if _, e = tx.ExecContext(ctx, `INSERT INTO security_audit_events(sequence,id,occurred_at,method_version,category,decision,actor_id,authentication,request_method,request_path,status_code,reason_code,request_id,scope_type,scope_id,effective_role,mapping_digest,previous_digest,event_digest) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`, event.Sequence, event.ID, event.OccurredAt, event.MethodVersion, event.Category, event.Decision, event.ActorID, event.Authentication, event.Method, event.Path, event.StatusCode, event.ReasonCode, event.RequestID, event.ScopeType, event.ScopeID, event.EffectiveRole, event.MappingDigest, event.PreviousDigest, event.Digest); e != nil {
+			if _, e = tx.ExecContext(ctx, `INSERT INTO security_audit_events(sequence,id,occurred_at,method_version,category,decision,actor_id,authentication,request_method,request_path,status_code,reason_code,request_id,scope_type,scope_id,effective_role,mapping_digest,mcp_interop_binding_digest,previous_digest,event_digest) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`, event.Sequence, event.ID, event.OccurredAt, event.MethodVersion, event.Category, event.Decision, event.ActorID, event.Authentication, event.Method, event.Path, event.StatusCode, event.ReasonCode, event.RequestID, event.ScopeType, event.ScopeID, event.EffectiveRole, event.MappingDigest, event.MCPInteropBindingDigest, event.PreviousDigest, event.Digest); e != nil {
 				return e
 			}
 			candidate = append(candidate, event)
@@ -333,7 +334,7 @@ func (s *PostgresStore) ListSecurityAudit(ctx context.Context, limit int) ([]con
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT sequence,id,occurred_at,method_version,category,decision,actor_id,authentication,request_method,request_path,status_code,reason_code,request_id,scope_type,scope_id,effective_role,mapping_digest,previous_digest,event_digest FROM security_audit_events ORDER BY sequence DESC LIMIT $1`, limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT sequence,id,occurred_at,method_version,category,decision,actor_id,authentication,request_method,request_path,status_code,reason_code,request_id,scope_type,scope_id,effective_role,mapping_digest,mcp_interop_binding_digest,previous_digest,event_digest FROM security_audit_events ORDER BY sequence DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +342,7 @@ func (s *PostgresStore) ListSecurityAudit(ctx context.Context, limit int) ([]con
 	out := []controlplane.SecurityAuditEvent{}
 	for rows.Next() {
 		var v controlplane.SecurityAuditEvent
-		if e := rows.Scan(&v.Sequence, &v.ID, &v.OccurredAt, &v.MethodVersion, &v.Category, &v.Decision, &v.ActorID, &v.Authentication, &v.Method, &v.Path, &v.StatusCode, &v.ReasonCode, &v.RequestID, &v.ScopeType, &v.ScopeID, &v.EffectiveRole, &v.MappingDigest, &v.PreviousDigest, &v.Digest); e != nil {
+		if e := rows.Scan(&v.Sequence, &v.ID, &v.OccurredAt, &v.MethodVersion, &v.Category, &v.Decision, &v.ActorID, &v.Authentication, &v.Method, &v.Path, &v.StatusCode, &v.ReasonCode, &v.RequestID, &v.ScopeType, &v.ScopeID, &v.EffectiveRole, &v.MappingDigest, &v.MCPInteropBindingDigest, &v.PreviousDigest, &v.Digest); e != nil {
 			return nil, e
 		}
 		out = append(out, v)
@@ -376,7 +377,7 @@ func (s *PostgresStore) ListSecurityAuditRequestIDWindow(ctx context.Context, re
 	if last.Int64-first.Int64+1 > 20000 {
 		return nil, fmt.Errorf("%w: security audit witness window exceeds 20000 events", controlplane.ErrValidation)
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT sequence,id,occurred_at,method_version,category,decision,actor_id,authentication,request_method,request_path,status_code,reason_code,request_id,scope_type,scope_id,effective_role,mapping_digest,previous_digest,event_digest FROM security_audit_events WHERE sequence BETWEEN $1 AND $2 ORDER BY sequence ASC`, first.Int64, last.Int64)
+	rows, err := s.db.QueryContext(ctx, `SELECT sequence,id,occurred_at,method_version,category,decision,actor_id,authentication,request_method,request_path,status_code,reason_code,request_id,scope_type,scope_id,effective_role,mapping_digest,mcp_interop_binding_digest,previous_digest,event_digest FROM security_audit_events WHERE sequence BETWEEN $1 AND $2 ORDER BY sequence ASC`, first.Int64, last.Int64)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +385,7 @@ func (s *PostgresStore) ListSecurityAuditRequestIDWindow(ctx context.Context, re
 	out := []controlplane.SecurityAuditEvent{}
 	for rows.Next() {
 		var v controlplane.SecurityAuditEvent
-		if e := rows.Scan(&v.Sequence, &v.ID, &v.OccurredAt, &v.MethodVersion, &v.Category, &v.Decision, &v.ActorID, &v.Authentication, &v.Method, &v.Path, &v.StatusCode, &v.ReasonCode, &v.RequestID, &v.ScopeType, &v.ScopeID, &v.EffectiveRole, &v.MappingDigest, &v.PreviousDigest, &v.Digest); e != nil {
+		if e := rows.Scan(&v.Sequence, &v.ID, &v.OccurredAt, &v.MethodVersion, &v.Category, &v.Decision, &v.ActorID, &v.Authentication, &v.Method, &v.Path, &v.StatusCode, &v.ReasonCode, &v.RequestID, &v.ScopeType, &v.ScopeID, &v.EffectiveRole, &v.MappingDigest, &v.MCPInteropBindingDigest, &v.PreviousDigest, &v.Digest); e != nil {
 			return nil, e
 		}
 		out = append(out, v)
