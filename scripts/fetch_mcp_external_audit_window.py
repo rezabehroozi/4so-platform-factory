@@ -36,16 +36,19 @@ def error_code(raw: bytes) -> str:
     return str(value.get("code") or "")
 
 
+def _existing_witness(path: Path, raw: bytes, receipt: dict, client: str) -> dict:
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_PATH_INVALID")
+    if path.read_bytes()!=raw:
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_REPLACEMENT_FORBIDDEN")
+    return core.verify_server_audit(path,receipt,client)
+
 def atomic_write(path: Path, raw: bytes, receipt: dict, client: str) -> dict:
-    if path.exists():
-        if path.is_symlink() or not path.is_file():
-            raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_PATH_INVALID")
-        if path.read_bytes()!=raw:
-            raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_REPLACEMENT_FORBIDDEN")
-        return core.verify_server_audit(path,receipt,client)
+    if path.exists() or path.is_symlink():
+        return _existing_witness(path,raw,receipt,client)
     path.parent.mkdir(parents=True,exist_ok=True)
     temp=path.with_name("."+path.name+".tmp")
-    if temp.exists():
+    if temp.exists() or temp.is_symlink():
         if temp.is_symlink() or not temp.is_file():
             raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_TEMP_INVALID")
         temp.unlink()
@@ -55,7 +58,15 @@ def atomic_write(path: Path, raw: bytes, receipt: dict, client: str) -> dict:
             fh.flush()
             os.fsync(fh.fileno())
         witness=core.verify_server_audit(temp,receipt,client)
-        os.replace(temp,path)
+        try:
+            os.link(temp,path,follow_symlinks=False)
+        except FileExistsError:
+            return _existing_witness(path,raw,receipt,client)
+        directory_fd=os.open(path.parent,os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
         return witness
     finally:
         if temp.exists():
