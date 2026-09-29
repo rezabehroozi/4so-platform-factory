@@ -17,6 +17,7 @@ MATRIX_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_MATRIX_V2"
 RECEIPT_AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_RECEIPT_V1"
 CAMPAIGN_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1"
 AUDIT_WITNESS_AUTHORITY="MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1"
+AUDIT_METHOD_VERSION="IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1"
 CLIENTS=("chatgpt","claude","gemini","grok")
 CLIENT_SURFACES={"chatgpt":"ChatGPT custom MCP","claude":"Claude remote MCP","gemini":"Gemini remote MCP","grok":"Grok custom MCP"}
 SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -55,6 +56,30 @@ def endpoint(value:str)->str:
     if p.scheme!="https" or not p.hostname or p.username or p.password or p.query or p.fragment or p.path!="/mcp":
         raise RuntimeError("MCP_EXTERNAL_ENDPOINT_INVALID")
     return p.geturl()
+
+_AUDIT_REQUIRED=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
+_AUDIT_OPTIONAL=("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","previousDigest")
+_AUDIT_ALLOWED=set(_AUDIT_REQUIRED+_AUDIT_OPTIONAL+("digest",))
+
+def _go_json_bytes(value:dict)->bytes:
+    raw=json.dumps(value,separators=(",",":"),ensure_ascii=False)
+    raw=raw.replace("&","\\u0026").replace("<","\\u003c").replace(">","\\u003e").replace("\u2028","\\u2028").replace("\u2029","\\u2029")
+    return raw.encode("utf-8")
+
+def audit_event_digest(raw:dict)->str:
+    if not isinstance(raw,dict) or set(raw)-_AUDIT_ALLOWED:
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_EVENT_FIELDS_INVALID")
+    canonical={}
+    for key in _AUDIT_REQUIRED:
+        if key not in raw:
+            raise RuntimeError("MCP_EXTERNAL_AUDIT_EVENT_FIELDS_INVALID")
+        canonical[key]=raw[key]
+    for key in _AUDIT_OPTIONAL:
+        value=raw.get(key)
+        if value not in ("",0,None):
+            canonical[key]=value
+    canonical["digest"]=""
+    return "sha256:"+hashlib.sha256(_go_json_bytes(canonical)).hexdigest()
 
 def _request_ids(row:dict,client:str)->dict[str,str]:
     values=row.get("requestIds")
@@ -106,18 +131,16 @@ def _audit_rows(path:Path)->list[dict]:
         value=value["items"]
     if not isinstance(value,list) or not value:
         raise RuntimeError("MCP_EXTERNAL_AUDIT_EXPORT_INVALID")
-    rows=[]
-    prev=None
-    for raw in value:
+    rows=[]; previous_digest=""
+    for index,raw in enumerate(value,1):
         if not isinstance(raw,dict):
             raise RuntimeError("MCP_EXTERNAL_AUDIT_EXPORT_INVALID")
         seq=raw.get("sequence"); digest=str(raw.get("digest") or "")
-        if not isinstance(seq,int) or seq<=0 or not SHA.fullmatch(digest):
+        if seq!=index or raw.get("methodVersion")!=AUDIT_METHOD_VERSION or str(raw.get("previousDigest") or "")!=previous_digest or not SHA.fullmatch(digest):
             raise RuntimeError("MCP_EXTERNAL_AUDIT_CHAIN_INVALID")
-        if prev is not None:
-            if seq!=prev["sequence"]+1 or raw.get("previousDigest")!=prev.get("digest"):
-                raise RuntimeError("MCP_EXTERNAL_AUDIT_CHAIN_INVALID")
-        rows.append(raw); prev=raw
+        if audit_event_digest(raw)!=digest:
+            raise RuntimeError("MCP_EXTERNAL_AUDIT_DIGEST_INVALID")
+        rows.append(raw); previous_digest=digest
     return rows
 
 def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
@@ -138,6 +161,7 @@ def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
     head=rows[-1]
     return {
       "authority":AUDIT_WITNESS_AUTHORITY,"clientId":client,
+      "auditMethodVersion":AUDIT_METHOD_VERSION,"auditChainDigestVerified":True,
       "auditExportSha256":sha256(audit_path),"auditHeadSequence":head["sequence"],"auditHeadDigest":head["digest"],
       "witnessedCheckCount":len(AUDITED_CHECKS),"serverAuditWitnessPass":True,"matchedEvents":matched
     }
