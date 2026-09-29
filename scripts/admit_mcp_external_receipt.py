@@ -44,9 +44,10 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         last=idx
         provider_ref=str(row.get("providerExecutionRef") or "").strip()
         if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref): raise RuntimeError("MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REF_INVALID")
+        row_client=row["clientId"]
         owner=provider_refs.get(provider_ref)
-        if owner is not None: raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REUSE {row[\"clientId\"]}:{owner}")
-        provider_refs[provider_ref]=row["clientId"]
+        if owner is not None: raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REUSE {row_client}:{owner}")
+        provider_refs[provider_ref]=row_client
         checks=row.get("checks")
         if not isinstance(checks,dict) or len(checks)!=7 or any(v is not True for v in checks.values()): raise RuntimeError("MCP_EXTERNAL_PROGRESS_CHECKS_INVALID")
         witness=row.get("serverAuditWitness") or {}
