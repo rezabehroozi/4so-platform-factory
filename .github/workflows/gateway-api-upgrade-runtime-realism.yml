@@ -142,7 +142,18 @@ jobs:
               raise SystemExit("GATEWAY_API_UPGRADE_MATRIX_INVALID")
           out={"apiVersion":"platform.4so.io/v1alpha1","kind":"GatewayAPIUpgradeRuntimeMatrixEvidence","authority":"GATEWAY_API_RUNTIME_UPGRADE_MATRIX_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"fromRelease":"1.5.1","toRelease":"1.6.1","matrix":rows,"matrixPass":True,"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"productTopologyHACertified":False,"physicalCertified":False}
           Path("lab/gateway-api-upgrade-runtime-matrix-evidence.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          registry_path=Path("catalog/component-runtime-upgrade-evidence.json")
+          registry=json.loads(registry_path.read_text())
+          gateway=next((x for x in registry.get("components",[]) if x.get("component")=="gateway-api"),None)
+          if not gateway:
+              raise SystemExit("GATEWAY_RUNTIME_UPGRADE_REGISTRY_ROW_MISSING")
+          edge=next((x for x in gateway.get("executedEdges",[]) if x.get("fromRelease")=="1.5.1" and x.get("toRelease")=="1.6.1"),None)
+          if not edge:
+              raise SystemExit("GATEWAY_RUNTIME_UPGRADE_REGISTRY_EDGE_MISSING")
+          edge["sourceRunId"]=os.environ["GITHUB_RUN_ID"]
+          registry_path.write_text(json.dumps(registry,indent=2,sort_keys=True)+"\n")
           PY
+          python3 scripts/runtime_evidence_registry.py
           git diff --check
       - uses: actions/upload-artifact@v4
         with:
@@ -155,7 +166,7 @@ jobs:
           set -euo pipefail
           git config user.name "4so-evidence-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add lab/gateway-api-upgrade-runtime-matrix-evidence.json
+          git add lab/gateway-api-upgrade-runtime-matrix-evidence.json catalog/component-runtime-upgrade-evidence.json
           git fetch origin main
           if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
             echo "main advanced; skip stale upgrade evidence persistence"
