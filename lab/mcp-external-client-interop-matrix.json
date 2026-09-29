@@ -8,7 +8,7 @@
     "resourcePath": "/mcp",
     "sourceContractStatus": "implemented",
     "externalCertificationStatus": "pending",
-    "blocker": "MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING",
+    "blocker": "MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING",
     "sharedRequiredChecks": [
       "oauth-protected-resource-discovery",
       "dedicated-audience-validation",
