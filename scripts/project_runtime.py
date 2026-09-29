@@ -16,7 +16,7 @@ def ticks(pid):
     try:
         raw=Path(f"/proc/{int(pid)}/stat").read_text()
         return raw[raw.rfind(")")+2:].split()[19]
-    except (OSError,ValueError,IndexError):
+    except (OSError,TypeError,ValueError,IndexError):
         return None
 
 def alive(pid,start):
