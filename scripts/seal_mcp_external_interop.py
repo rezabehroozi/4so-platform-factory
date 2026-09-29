@@ -78,6 +78,14 @@ def validate_witness_interop_binding(witness:dict,binding:str,client:str,label:s
     if not isinstance(witness,dict) or witness.get("clientId")!=client or witness.get("interopBindingAuthority")!=INTEROP_BINDING_AUTHORITY or witness.get("interopBindingDigest")!=binding:
         raise RuntimeError(f"{label}_INTEROP_BINDING_INVALID {client}")
 
+def validate_server_audit_witness(witness:dict,binding:str,client:str,label:str)->dict:
+    validate_witness_interop_binding(witness,binding,client,label)
+    start_seq=witness.get("auditWindowStartSequence"); start_prev=str(witness.get("auditWindowPreviousDigest") or ""); head_seq=witness.get("auditHeadSequence")
+    start_valid=type(start_seq) is int and start_seq>0 and type(head_seq) is int and head_seq>=start_seq and ((start_seq==1 and start_prev=="") or (start_seq>1 and SHA.fullmatch(start_prev)))
+    if witness.get("authority")!=AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=len(AUDITED_CHECKS) or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
+        raise RuntimeError(f"{label}_INVALID")
+    return witness
+
 _AUDIT_REQUIRED=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
 _AUDIT_OPTIONAL=("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","mcpInteropBindingDigest","previousDigest")
 _AUDIT_ALLOWED=set(_AUDIT_REQUIRED+_AUDIT_OPTIONAL+("digest",))
