@@ -15,11 +15,12 @@ class MCPExternalSealTests(unittest.TestCase):
         return {name:f"{client}-{idx:02d}-request" for idx,name in enumerate(mod.AUDITED_CHECKS,1)}
     def receipt(self,client,checks,campaign,endpoint="https://mcp.example.test/mcp"):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
-        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+        binding=mod.interop_binding_digest(campaign["campaignId"],client,challenge["challengeSha256"])
+        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"interopBindingAuthority":mod.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
     def audit_digest(self,row):
         canonical={}
         required=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
-        ordered=required+("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","previousDigest")
+        ordered=required+("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","mcpInteropBindingDigest","previousDigest")
         for key in ordered:
             value=row.get(key)
             if key in required or value not in ("",0,None):
@@ -31,7 +32,7 @@ class MCPExternalSealTests(unittest.TestCase):
         rows=[]; prev=""; seq=1
         for check in mod.AUDITED_CHECKS:
             category,decision,reason=mod.AUDIT_REQUIREMENTS[check]
-            row={"id":f"sau-{seq}","sequence":seq,"occurredAt":"2026-09-28T00:00:00Z","methodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","category":category,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":receipt["requestIds"][check],"previousDigest":prev}
+            row={"id":f"sau-{seq}","sequence":seq,"occurredAt":"2026-09-28T00:00:00Z","methodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","category":category,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":receipt["requestIds"][check],"mcpInteropBindingDigest":receipt["interopBindingDigest"],"previousDigest":prev}
             row["digest"]=self.audit_digest(row)
             rows.append(row); prev=row["digest"]; seq+=1
         return rows
@@ -48,6 +49,15 @@ class MCPExternalSealTests(unittest.TestCase):
             self.assertEqual(4,out["certifiedClientCount"]); self.assertEqual(campaign["campaignId"],out["campaignId"]); self.assertTrue(out["serverAuditWitnessPass"]); self.assertEqual(24,out["serverAuditWitnessedCheckCount"]); self.assertFalse(out["physicalCertified"])
             self.assertTrue(all(row["serverAuditWitness"]["auditChainDigestVerified"] for row in out["clients"]))
             self.assertTrue(all(row["serverAuditWitness"]["auditMethodVersion"]==mod.AUDIT_METHOD_VERSION for row in out["clients"]))
+    def test_receipt_or_server_audit_binding_tamper_rejects(self):
+        with tempfile.TemporaryDirectory() as td:
+            matrix,campaign_path,receipts,audits,campaign,checks=self.fixture(Path(td))
+            bad=json.loads((receipts/"chatgpt.json").read_text()); bad["interopBindingDigest"]="sha256:"+"0"*64; (receipts/"chatgpt.json").write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"INTEROP_BINDING_INVALID"): mod.seal(matrix,campaign_path,receipts,audits)
+            good=self.receipt("chatgpt",checks,campaign); (receipts/"chatgpt.json").write_text(json.dumps(good))
+            audit=json.loads((audits/"chatgpt.json").read_text()); audit[0]["mcpInteropBindingDigest"]="sha256:"+"1"*64; audit[0]["digest"]=self.audit_digest(audit[0]); (audits/"chatgpt.json").write_text(json.dumps(audit))
+            with self.assertRaisesRegex(RuntimeError,"AUDIT_INTEROP_BINDING_MISSING"): mod.seal(matrix,campaign_path,receipts,audits)
+
     def test_bounded_non_genesis_audit_window_is_valid(self):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
