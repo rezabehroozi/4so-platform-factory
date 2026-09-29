@@ -126,7 +126,7 @@ func populateSupplementalSnapshot(ctx context.Context, reader snapshotSupplement
 }
 
 func (s *PostgresStore) snapshotSecurityAudit(ctx context.Context) ([]controlplane.SecurityAuditEvent, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT sequence,id,occurred_at,method_version,category,decision,actor_id,authentication,request_method,request_path,status_code,reason_code,request_id,scope_type,scope_id,effective_role,mapping_digest,previous_digest,event_digest FROM security_audit_events ORDER BY sequence ASC`)
+	rows, err := s.db.QueryContext(ctx, `SELECT sequence,id,occurred_at,method_version,category,decision,actor_id,authentication,request_method,request_path,status_code,reason_code,request_id,scope_type,scope_id,effective_role,mapping_digest,mcp_interop_binding_digest,previous_digest,event_digest FROM security_audit_events ORDER BY sequence ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func (s *PostgresStore) snapshotSecurityAudit(ctx context.Context) ([]controlpla
 	out := []controlplane.SecurityAuditEvent{}
 	for rows.Next() {
 		var v controlplane.SecurityAuditEvent
-		if err := rows.Scan(&v.Sequence, &v.ID, &v.OccurredAt, &v.MethodVersion, &v.Category, &v.Decision, &v.ActorID, &v.Authentication, &v.Method, &v.Path, &v.StatusCode, &v.ReasonCode, &v.RequestID, &v.ScopeType, &v.ScopeID, &v.EffectiveRole, &v.MappingDigest, &v.PreviousDigest, &v.Digest); err != nil {
+		if err := rows.Scan(&v.Sequence, &v.ID, &v.OccurredAt, &v.MethodVersion, &v.Category, &v.Decision, &v.ActorID, &v.Authentication, &v.Method, &v.Path, &v.StatusCode, &v.ReasonCode, &v.RequestID, &v.ScopeType, &v.ScopeID, &v.EffectiveRole, &v.MappingDigest, &v.MCPInteropBindingDigest, &v.PreviousDigest, &v.Digest); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
