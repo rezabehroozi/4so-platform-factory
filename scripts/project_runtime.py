@@ -186,6 +186,46 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
     write_state(root,s,override)
     return {"action":"STARTED","runId":run_id,"pid":worker.pid,"log":str(lp),"state":s}
 
+def resume(root,override=None):
+    s=read_state(root,override)
+    if not s: raise RuntimeError("PROJECT_RUNTIME_NO_STATE")
+    s=reconcile(root,s,override)
+    if s.get("status") in {"RUNNING","WAITING"} and s.get("activeRun"):
+        return {"action":"REJOIN","state":s}
+    if s.get("status")=="COMPLETED":
+        return {"action":"ALREADY_COMPLETED","state":s}
+    if not s.get("replaySafe"):
+        s.update(status="WAITING",recoveryRequired=True,latestError="MANUAL_READBACK_REQUIRED_BEFORE_REPLAY")
+        write_state(root,s,override)
+        return {"action":"RECOVERY_REQUIRED","state":s}
+    info=git(root)
+    if s.get("head")!=info["head"] or s.get("originMain")!=info["originMain"]:
+        s.update(status="WAITING",recoveryRequired=True,latestError="GIT_AUTHORITY_CHANGED_REPLAN_REQUIRED")
+        write_state(root,s,override)
+        return {"action":"REPLAN_REQUIRED","state":s}
+    run_id=str(s.get("runId") or "")
+    if not run_id: raise RuntimeError("PROJECT_RUNTIME_RUN_ID_MISSING")
+    acquire(root,run_id,override)
+    s.update(status="REQUESTED",attempt=int(s.get("attempt") or 1)+1,latestError="",orphaned=False,recoveryRequired=False,
+             activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,lastHeartbeat=now())
+    write_state(root,s,override)
+    lp=Path(s["latestLogPath"]); lp.parent.mkdir(parents=True,exist_ok=True)
+    args=[sys.executable,str(Path(__file__).resolve()),"_worker","--root",str(root),"--run-id",run_id]
+    if override: args+=["--runtime-root",override]
+    with lp.open("a",buffering=1) as log:
+        log.write(json.dumps({"event":"run-resume-launch","runId":run_id,"attempt":s["attempt"],"at":now()},sort_keys=True)+"\n")
+        worker=subprocess.Popen(args,cwd=root,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
+    wt=None
+    for _ in range(50):
+        wt=ticks(worker.pid)
+        if wt: break
+        time.sleep(.01)
+    if not wt: raise RuntimeError("PROJECT_RUNTIME_RESUME_WORKER_IDENTITY_UNAVAILABLE")
+    transfer(root,run_id,worker.pid,wt,override)
+    s.update(status="RUNNING",activePid=worker.pid,activePidStartTicks=wt,lastHeartbeat=now())
+    write_state(root,s,override)
+    return {"action":"RESUMED","runId":run_id,"pid":worker.pid,"attempt":s["attempt"],"state":s}
+
 def worker(root,run_id,override=None):
     pid=os.getpid(); pt=ticks(pid)
     for _ in range(200):
@@ -280,7 +320,7 @@ def self_test():
 
 def main():
     ap=argparse.ArgumentParser(); sub=ap.add_subparsers(dest="cmd",required=True)
-    for name in ("status","watchdog","self-test"):
+    for name in ("status","watchdog","resume","self-test"):
         p=sub.add_parser(name); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root")
     p=sub.add_parser("start"); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root"); p.add_argument("--phase",required=True); p.add_argument("--task",required=True); p.add_argument("--heartbeat-seconds",type=int,default=30); p.add_argument("--checkpoint-file"); p.add_argument("--replay-safe",action="store_true"); p.add_argument("command",nargs=argparse.REMAINDER)
     p=sub.add_parser("_worker"); p.add_argument("--root",required=True); p.add_argument("--runtime-root"); p.add_argument("--run-id",required=True)
@@ -291,6 +331,9 @@ def main():
             s=read_state(root,a.runtime_root)
             if not s: print(json.dumps({"status":"IDLE","activeRun":False,"authority":AUTHORITY,"schemaVersion":SCHEMA},sort_keys=True)); return 0
             print(json.dumps(reconcile(root,s,a.runtime_root),sort_keys=True)); return 0
+        if a.cmd=="resume":
+            result=resume(root,a.runtime_root); print(json.dumps(result,sort_keys=True))
+            return 4 if result["action"] in {"RECOVERY_REQUIRED","REPLAN_REQUIRED"} else 0
         if a.cmd=="watchdog":
             s=read_state(root,a.runtime_root)
             if not s: print(json.dumps({"status":"IDLE","action":"NO_STATE"},sort_keys=True)); return 0
