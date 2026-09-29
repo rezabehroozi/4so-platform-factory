@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 SPEC=importlib.util.spec_from_file_location("final_adm",ROOT/"scripts"/"final_exact_release_admission.py")
 mod=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(mod)
+from scripts import seal_final_exact_release as local_seal
 
 class FinalExactReleaseAdmissionTests(unittest.TestCase):
     def progress_row(self,c):
@@ -21,6 +22,24 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
         mcp={"authority":mod.MCP_AUTHORITY,"externalCertificationPass":True,"allRequiredChecksPass":True,"serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":24,"certifiedClientCount":4,"campaignAuthority":"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1","campaignId":"mcp-interop-testcampaign","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"clients":clients,"runtimeCertified":False,"physicalCertified":False}
         (root/"lab/mcp-external-client-interoperability-evidence.json").write_text(json.dumps(mcp))
         return lock,mcp
+    def test_local_final_seal_evidence_is_exact_file_bound_and_never_physical(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); release_dir=root/"release"; release_dir.mkdir()
+            version="0.0.test"; release_name="unit"
+            release=release_dir/f"4so-platform-factory-{version}-{release_name}.zip"; release.write_bytes(b"exact-release")
+            stage=release_dir/release.stem; stage.mkdir()
+            for name,payload in (("ARTIFACT-MANIFEST.json",b"manifest"),("BUILD-PROVENANCE.json",b"provenance"),("SBOM.spdx.json",b"sbom")):
+                (stage/name).write_bytes(payload)
+            admitted={"authority":mod.AUTHORITY,"admitted":True,"applianceDistributionSha256":"sha256:"+"a"*64,"mcpExternalInteropSha256":"sha256:"+"b"*64,"physicalCertified":False}
+            out=local_seal.build_evidence(root,release,stage,admitted,"c"*40,version,release_name)
+            self.assertEqual(local_seal.AUTHORITY,out["authority"])
+            self.assertEqual(local_seal.EXECUTION_AUTHORITY,out["sourceExecutionAuthority"])
+            self.assertEqual("sha256:"+hashlib.sha256(b"exact-release").hexdigest(),out["releaseArchiveSha256"])
+            self.assertTrue(out["fullVerifierPass"]); self.assertFalse(out["physicalCertified"])
+            inflated=dict(admitted); inflated["physicalCertified"]=True
+            with self.assertRaisesRegex(RuntimeError,"SCOPE_INFLATED"):
+                local_seal.build_evidence(root,release,stage,inflated,"c"*40,version,release_name)
+
     def test_two_external_authorities_admit_final_release_without_physical_claim(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root); out=mod.verify(root)
