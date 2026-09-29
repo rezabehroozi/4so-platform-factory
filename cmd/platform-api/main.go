@@ -708,7 +708,7 @@ func main() {
 			return auth.GroupMappingResult{Roles: resolved.ProductRoles, OrganizationRoles: resolved.OrganizationRoles, ProjectRoles: resolved.ProjectRoles, MappingDigest: resolved.MappingDigest}, nil
 		},
 		AuditSink: func(ctx context.Context, record auth.SecurityAuditRecord) error {
-			_, auditErr := store.AppendSecurityAudit(ctx, controlplane.SecurityAuditInput{Category: record.Category, Decision: record.Decision, ActorID: record.ActorID, Authentication: record.Authentication, Method: record.Method, Path: record.Path, StatusCode: record.StatusCode, ReasonCode: record.ReasonCode, RequestID: record.RequestID, ScopeType: record.ScopeType, ScopeID: record.ScopeID, EffectiveRole: record.EffectiveRole, MappingDigest: record.MappingDigest})
+			_, auditErr := store.AppendSecurityAudit(ctx, controlplane.SecurityAuditInput{Category: record.Category, Decision: record.Decision, ActorID: record.ActorID, Authentication: record.Authentication, Method: record.Method, Path: record.Path, StatusCode: record.StatusCode, ReasonCode: record.ReasonCode, RequestID: record.RequestID, ScopeType: record.ScopeType, ScopeID: record.ScopeID, EffectiveRole: record.EffectiveRole, MappingDigest: record.MappingDigest, MCPInteropBindingDigest: record.MCPInteropBindingDigest})
 			return auditErr
 		},
 	})
