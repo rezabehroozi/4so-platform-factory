@@ -34,6 +34,8 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             out=local_seal.build_evidence(root,release,stage,admitted,"c"*40,version,release_name)
             self.assertEqual(local_seal.AUTHORITY,out["authority"])
             self.assertEqual(local_seal.EXECUTION_AUTHORITY,out["sourceExecutionAuthority"])
+            self.assertEqual(local_seal.SOURCE_WORKSPACE_AUTHORITY,out["sourceWorkspaceAuthority"])
+            self.assertEqual(f"release/{release.name}",out["releaseArchivePath"])
             self.assertEqual("sha256:"+hashlib.sha256(b"exact-release").hexdigest(),out["releaseArchiveSha256"])
             self.assertTrue(out["fullVerifierPass"]); self.assertFalse(out["physicalCertified"])
             inflated=dict(admitted); inflated["physicalCertified"]=True
