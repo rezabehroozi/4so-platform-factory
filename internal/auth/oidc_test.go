@@ -116,6 +116,66 @@ func TestRequireAPIExposesServerRequestID(t *testing.T) {
 	}
 }
 
+func TestRequireAPIMCPInteropBindingIsIncludedInSecurityAudit(t *testing.T) {
+	binding := "sha256:" + strings.Repeat("a", 64)
+	records := []SecurityAuditRecord{}
+	manager, err := New(Config{
+		Enabled: false, LocalDevelopment: true,
+		AuditSink: func(_ context.Context, record SecurityAuditRecord) error {
+			records = append(records, record)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := manager.RequireAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	r := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	r.Header.Set(MCPInteropBindingHeader, binding)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	if len(records) == 0 {
+		t.Fatal("expected MCP security audit records")
+	}
+	for _, record := range records {
+		if record.Path == "/mcp" && record.MCPInteropBindingDigest != binding {
+			t.Fatalf("MCP audit binding=%q want=%q record=%+v", record.MCPInteropBindingDigest, binding, record)
+		}
+	}
+}
+
+func TestRequireAPIRejectsMalformedMCPInteropBindingBeforeDispatch(t *testing.T) {
+	called := false
+	audits := 0
+	manager, err := New(Config{
+		Enabled: false, LocalDevelopment: true,
+		AuditSink: func(context.Context, SecurityAuditRecord) error {
+			audits++
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := manager.RequireAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	r := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	r.Header.Set(MCPInteropBindingHeader, "sha256:"+strings.Repeat("G", 64))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest || called || audits != 0 {
+		t.Fatalf("status=%d called=%v audits=%d body=%s", w.Code, called, audits, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "MCP_INTEROP_BINDING_INVALID") {
+		t.Fatalf("body=%s", w.Body.String())
+	}
+}
+
 func TestBootstrapBypass(t *testing.T) {
 	testSecret := strings.Repeat("s", 40)
 	bootstrapValue := strings.Repeat("b", 32)
