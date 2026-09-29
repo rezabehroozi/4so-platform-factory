@@ -74,7 +74,9 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         evidence_digests[evidence_digest]=row_client; receipt_digests[receipt_digest]=row_client; challenge_digests[challenge_digest]=row_client
         witness=row.get("serverAuditWitness") or {}
-        if witness.get("authority")!=core.AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=core.AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=len(core.AUDITED_CHECKS) or not core.SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not core.SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
+        start_seq=witness.get("auditWindowStartSequence"); start_prev=str(witness.get("auditWindowPreviousDigest") or ""); head_seq=witness.get("auditHeadSequence")
+        start_valid=type(start_seq) is int and start_seq>0 and type(head_seq) is int and head_seq>=start_seq and ((start_seq==1 and start_prev=="") or (start_seq>1 and core.SHA.fullmatch(start_prev)))
+        if witness.get("authority")!=core.AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=core.AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=len(core.AUDITED_CHECKS) or not core.SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not core.SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_SERVER_WITNESS_INVALID")
         by_id[row["clientId"]]=row
     complete=len(rows)==len(core.CLIENTS)
