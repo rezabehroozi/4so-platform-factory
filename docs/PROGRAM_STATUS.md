@@ -4,7 +4,7 @@
 
 ## Progress authority
 
-`PROGRAM_PROGRESS_MODEL_V2` remains the executable progress authority. The current execution wave is `W1-core-closure-blitz`.
+`PROGRAM_PROGRESS_MODEL_V2` remains the executable progress authority. The current execution wave is `W2-core-evidence-parallel`.
 
 | Measure | Current | Meaning |
 | --- | ---: | --- |
@@ -20,7 +20,7 @@ All **36/36 (100%)** Core + Expansion pre-physical software phases are now sourc
 
 `I2-edge-sovereign-extension` is source-implemented. `EDGE_LOCAL_AUTHORITY_V1` now has project/site/revision/digest-fenced policy compilation, side-effect-free offline mutation admission and deterministic reconnect conflict review; central drift requires `REVIEW_REQUIRED` rather than silent last-write-wins. `BOOT_SECURITY_ATTESTATION_AUTHORITY_V1` validates source-level attestation claims without claiming collected physical evidence, and `LOCAL_AI_DISCONNECTED_PROFILE_AUTHORITY_V1` validates exact-digest/no-egress local-AI profiles without starting a runtime. Operator Horizon exposes all five assessment workflows under **Edge & sovereign** with zero-gap localization. Exact disconnected runtime and Physical evidence remain NOT inferred.
 
-`J8-application-platform-abstraction-composition` is now source-implemented. Its exact-source OpenChoreo install/upgrade/remove runtime, target-agent dispatch, BuildKit executor image path, zot mirror/seal path, bounded RBAC, canonical Keycloak OIDC binding, ownership/readback receipts and ambiguity fences are present. J8 remains closure-blocked only on exact external OpenChoreo chart/source/image acquisition and mirror evidence; no runtime or Physical PASS is inferred.
+`J8-application-platform-abstraction-composition` is now source-implemented. Its exact-source OpenChoreo install/upgrade/remove runtime, target-agent dispatch, BuildKit executor image path, zot mirror/seal path, bounded RBAC, canonical Keycloak OIDC binding, ownership/readback receipts and ambiguity fences are present. J8 remains optional Expansion closure-blocked only on the persistent product-owned Zot production seal. Exact acquisition and ephemeral runtime-realism evidence already exist; production promotion now additionally requires a live 7/7 Zot digest-readback authority. No Runtime or Physical PASS is inferred.
 
 `J3-virtual-cluster-profile` is source-implemented. Exact-source/offline runtime execution, durable dispatch and lifecycle fencing, suspend/resume/delete authoritative readback, bounded diagnostics, Product API/SDK/MCP/Console parity and immutable FinOps virtual-cluster attribution are present. Exact-SHA Physical Runtime remains independently certification-gated.
 
@@ -31,11 +31,21 @@ All **36/36 (100%)** Core + Expansion pre-physical software phases are now sourc
 ## Execution waves
 
 1. **W0 — Truth rebaseline:** keep executable roadmap, docs and canonical main synchronized; V75 records 36/36 pre-physical source closure without changing runtime/Physical claims.
-2. **W1 — Core closure blitz (current):** S1 exact acquisition and S2 component certification run as a streaming pipeline with up to six independent lanes.
-3. **W2 — Core evidence parallel:** MCP external-client interoperability, Connected Managed OKD and Disconnected OKD evidence advance independently.
+2. **W1 — Core closure blitz:** S1/S2 source and pre-physical software closure are complete; remaining physical execution belongs to certification phases rather than this wave.
+3. **W2 — Core evidence parallel (current):** close the single remaining mandatory pre-freeze external authority: named-client MCP interoperability (`C7W`). Managed OKD physical execution remains owned by Phase D.
 4. **W3 — Expansion mega-wave:** all Expansion software phases in the current roadmap are source-implemented; they move independently to external acquisition, integration/runtime evidence and later certification without waiting for unrelated Physical gates.
 5. **W4 — Cross-surface convergence:** converge API, SDK, MCP, Console, PostgreSQL, Durable Ops, Evidence and negative controls.
 6. **W5 — Feature freeze:** C9 freezes mandatory scope and emits one exact immutable release before Phase D physical certification.
+
+## C7W/J8 closure hardening checkpoint — 2026-09-29
+
+- Executable roadmap authority is now `W2-core-evidence-parallel`; the only mandatory pre-freeze external closure lane is `C7W-mcp-user-admin-write-parity`.
+- Final exact-release admission is intentionally pending at **0/4** named external clients (`chatgpt`, `claude`, `gemini`, `grok`). No endpoint, credential or client execution is synthesized from CI.
+- C7W receipt provenance now preserves a unique `providerExecutionRef` from external capture through incremental admission, sealed interoperability evidence and final release admission. Cross-client provider-execution reuse fails closed.
+- C7W progress projection now counts a client only when execution ID, provider provenance, seven required checks, six unique protected request IDs, receipt/challenge digests and `MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1` are all valid; malformed progress can no longer inflate `N/4`.
+- Repository Integrity for parser-safe C7W provenance commit `accfe26eeb5278ccffebe20848170eb6dfc0b12b` completed **SUCCESS** in run `36523364167`; final admission run `36523364106` also completed **SUCCESS** while correctly remaining pending on external evidence.
+- Optional J8 production promotion now has `OPENCHOREO_PRODUCTION_ZOT_READBACK_EVIDENCE_V1`: six mirrored OpenChoreo image references plus the BuildKit executor must be read back live from one non-ephemeral product-owned Zot registry at their exact digests before `OPENCHOREO_PRODUCTION_ZOT_SEAL_EVIDENCE_V1` can be emitted.
+- J8 readback and production sealing remain source/evidence hardening only. They do not set `runtimeCertified` or `physicalCertified`, and J8 remains outside the mandatory Core feature-freeze dependency set.
 
 ## J8 fleet-gateway transport checkpoint — 2026-09-23
 
