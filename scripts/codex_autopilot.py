@@ -879,52 +879,33 @@ def _clear_active_process(root: Path, pid: int | None = None) -> None:
     _write_state_raw(path, state)
 
 
-def _cleanup_checkpoint_process(root: Path, state: dict) -> None:
+def _cleanup_checkpoint_process(root: Path, state: dict) -> bool:
+    """Validate checkpoint process identity without killing live work.
+
+    Chat/UI/controller loss is not execution failure. If the tracked stage child
+    is still alive with the same PID start identity, a new observer must rejoin
+    rather than terminate or duplicate it. Only disproven/stale identities are
+    removed from the checkpoint.
+    """
     active = state.get("activeProcess")
     if not isinstance(active, dict):
-        return
+        return False
     try:
         pid = int(active.get("pid", 0))
     except (TypeError, ValueError):
         pid = 0
-    expected_ticks = active.get("startTicks")
+    expected_ticks = str(active.get("startTicks") or "")
     label = str(active.get("label", "unknown"))
     if pid <= 1:
         state.pop("activeProcess", None)
-        return
+        return False
     current_ticks = _process_start_ticks(pid)
-    if current_ticks is None or (expected_ticks is not None and current_ticks != expected_ticks):
+    if current_ticks is None or not expected_ticks or current_ticks != expected_ticks:
         print(f"AUTOPILOT_RESUME_PROCESS=STALE pid={pid} label={label}", flush=True)
         state.pop("activeProcess", None)
-        return
-    print(f"AUTOPILOT_RESUME_PROCESS=TERMINATE pid={pid} label={label}", flush=True)
-    if os.name == "posix":
-        try:
-            os.killpg(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        deadline = time.monotonic() + 2.0
-        while time.monotonic() < deadline and _process_start_ticks(pid) == current_ticks:
-            time.sleep(0.05)
-        if _process_start_ticks(pid) == current_ticks:
-            try:
-                os.killpg(pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-    elif os.name == "nt":
-        taskkill = shutil.which("taskkill")
-        if taskkill:
-            subprocess.run(
-                [taskkill, "/PID", str(pid), "/T", "/F"],
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, check=False,
-            )
-        elif _process_start_ticks(pid) == current_ticks:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-    state.pop("activeProcess", None)
+        return False
+    print(f"AUTOPILOT_RESUME_PROCESS=REJOIN pid={pid} label={label}", flush=True)
+    return True
 
 
 def _write_checkpoint(root: Path, payload: dict) -> None:
@@ -956,7 +937,7 @@ def _load_checkpoint(root: Path, *, graph_signature: str, repair: bool) -> dict 
         print("AUTOPILOT_RESUME=RESET reason=STATE_INVALID", flush=True)
         _clear_checkpoint(root)
         return None
-    _cleanup_checkpoint_process(root, state)
+    active_process_live = _cleanup_checkpoint_process(root, state)
     _write_state_raw(path, state)
     expected = {
         "schemaVersion": _AUTOPILOT_STATE_SCHEMA,
@@ -973,6 +954,8 @@ def _load_checkpoint(root: Path, *, graph_signature: str, repair: bool) -> dict 
         print("AUTOPILOT_RESUME=RESET reason=WORKSPACE_CHANGED", flush=True)
         _clear_checkpoint(root)
         return None
+    if active_process_live:
+        state["_activeProcessLive"] = True
     return state
 
 
@@ -1015,6 +998,14 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
     results: list[StageResult] = []
     graph_signature = _stage_graph_signature(stages, repair=repair)
     state = _load_checkpoint(root, graph_signature=graph_signature, repair=repair)
+    if state and state.pop("_activeProcessLive", False):
+        active = state.get("activeProcess") or {}
+        print(
+            f"AUTOPILOT_RESULT=RUNNING_REJOIN runId={state.get('runId','')} "
+            f"pid={active.get('pid','')} stage={state.get('currentStage','')}",
+            flush=True,
+        )
+        return 4
     seen_failures: dict[tuple[str, str], int] = _decode_seen_failures(state or {})
     repair_count = int((state or {}).get("repairCount", 0))
     phase = str((state or {}).get("phase", "forward"))

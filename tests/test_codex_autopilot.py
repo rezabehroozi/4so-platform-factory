@@ -331,6 +331,51 @@ class AutopilotReportTests(unittest.TestCase):
             self.assertTrue(data["invocation"])
             self.assertIn("rerun the same invocation", data["resumeHint"])
 
+
+class LiveCheckpointProcessResumeTests(unittest.TestCase):
+    def test_live_checkpoint_process_is_rejoined_not_terminated(self):
+        if os.name != "posix":
+            self.skipTest("process identity regression uses /proc on POSIX")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "source.txt").write_text("stable\n")
+            stage = AUTOPILOT.Stage("live-stage", (sys.executable, "-c", "pass"), 10)
+            graph = AUTOPILOT._stage_graph_signature([stage], repair=False)
+            AUTOPILOT._checkpoint_forward(
+                root, graph_signature=graph, repair=False, next_index=0,
+                repair_count=0, seen_failures={}, current_stage="live-stage",
+                run_id="run-live",
+            )
+            proc = subprocess.Popen(
+                [sys.executable, "-c", "import time;time.sleep(30)"],
+                cwd=root, start_new_session=True,
+            )
+            try:
+                for _ in range(50):
+                    if AUTOPILOT._process_start_ticks(proc.pid):
+                        break
+                    time.sleep(0.01)
+                AUTOPILOT._mark_active_process(root, proc.pid, "live-stage-child")
+                state = AUTOPILOT._load_checkpoint(root, graph_signature=graph, repair=False)
+                self.assertIsNotNone(state)
+                self.assertTrue(state.pop("_activeProcessLive"))
+                self.assertIsNone(proc.poll(), "resume observer killed live stage process")
+                with mock.patch.object(AUTOPILOT, "run_stage") as run:
+                    code = AUTOPILOT._execute_stages(
+                        root, [stage], repair=False, max_repairs=0,
+                        codex_timeout=10, enforce_supply_chain=False,
+                        emit_ready_result=False,
+                    )
+                    self.assertEqual(4, code)
+                    run.assert_not_called()
+                self.assertIsNone(proc.poll(), "rejoin path killed live stage process")
+            finally:
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                proc.wait(timeout=5)
+
 class ProcessTreeTimeoutTests(unittest.TestCase):
     def test_timeout_terminates_descendant_process_tree(self):
         with tempfile.TemporaryDirectory() as directory:
