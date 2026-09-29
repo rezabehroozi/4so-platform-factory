@@ -46,6 +46,53 @@ def source_files(root: Path, *, apply_excludes: bool = False) -> list[Path]:
     return sorted(files)
 
 
+def release_source_files(root: Path) -> list[Path]:
+    probe = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if probe.returncode != 0:
+        return source_files(root, apply_excludes=True)
+    try:
+        git_root = Path(probe.stdout.strip()).resolve()
+    except OSError as exc:
+        raise SystemExit("RELEASE_GIT_ROOT_INVALID") from exc
+    if git_root != root.resolve():
+        raise SystemExit("RELEASE_GIT_ROOT_INVALID")
+    listed = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=root,
+        capture_output=True,
+        check=False,
+    )
+    if listed.returncode != 0:
+        raise SystemExit("RELEASE_GIT_TRACKED_FILES_UNAVAILABLE")
+    files: list[Path] = []
+    seen: set[str] = set()
+    for raw in listed.stdout.split(b"\x00"):
+        if not raw:
+            continue
+        try:
+            rel_text = raw.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as exc:
+            raise SystemExit("RELEASE_GIT_TRACKED_PATH_INVALID") from exc
+        rel = Path(rel_text)
+        if rel.is_absolute() or ".." in rel.parts or any(part in EXCLUDE for part in rel.parts):
+            continue
+        if rel_text in seen:
+            raise SystemExit(f"RELEASE_GIT_TRACKED_PATH_DUPLICATE {rel_text}")
+        seen.add(rel_text)
+        src = root / rel
+        checked_regular_file(src, label="RELEASE_GIT_TRACKED_SOURCE")
+        if src.name.startswith(".durable-"):
+            raise SystemExit(f"SOURCE_TREE_STALE_DURABLE_TEMP_FORBIDDEN {rel}")
+        files.append(src)
+    return sorted(files)
+
+
 def sha_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -255,7 +302,7 @@ def main() -> int:
     if stage.exists():
         shutil.rmtree(stage)
 
-    for src in source_files(root, apply_excludes=True):
+    for src in release_source_files(root):
         rel = src.relative_to(root)
         checked_regular_file(src, label="SOURCE_TREE")
         dst = stage / rel
