@@ -113,7 +113,10 @@ def safe_toolchain_archive(root: Path, lock: dict) -> tuple[Path, dict]:
     ):
         raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_PATH_INVALID")
     archive = root.joinpath(*pure.parts)
-    info = archive.lstat()
+    try:
+        info = archive.lstat()
+    except FileNotFoundError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE_MISSING") from exc
     if not stat.S_ISREG(info.st_mode) or archive.is_symlink():
         raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE_INVALID")
     wanted_size = int(exact.get("archiveSize") or 0)
@@ -243,7 +246,7 @@ def atomic_write_json(path: Path, value: dict) -> None:
 def execute(root: Path, out: Path) -> dict:
     root = root.resolve()
     out = out if out.is_absolute() else root / out
-    out = out.absolute()
+    out = out.resolve(strict=False)
     try:
         out.relative_to(root)
     except ValueError as exc:
@@ -266,14 +269,15 @@ def execute(root: Path, out: Path) -> dict:
         env = os.environ.copy()
         env["GO"] = str(go)
         env["GOTOOLCHAIN"] = "local"
+        env["PYTHON"] = sys.executable
 
         run(
-            ["python3", "scripts/verify_release_build_toolchain.py", "--require-admitted"],
+            [sys.executable, "scripts/verify_release_build_toolchain.py", "--require-admitted"],
             root=root,
             env=env,
         )
-        run(["make", "build-release", f"GO={go}"], root=root, env=env)
-        run(["python3", "scripts/build_release.py", "."], root=root, env=env)
+        run(["make", "build-release", f"GO={go}", f"PYTHON={sys.executable}"], root=root, env=env)
+        run([sys.executable, "scripts/build_release.py", "."], root=root, env=env)
 
         release, stage, version, release_name = expected_release(root)
         sha256(release)
@@ -281,7 +285,7 @@ def execute(root: Path, out: Path) -> dict:
             raise RuntimeError("FINAL_EXACT_RELEASE_STAGE_INVALID")
 
         run(
-            ["python3", "scripts/verify_release.py", str(release), "--full"],
+            [sys.executable, "scripts/verify_release.py", str(release), "--full"],
             root=root,
             env=env,
         )
