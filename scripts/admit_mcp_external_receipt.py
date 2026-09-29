@@ -70,10 +70,12 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         challenge_digest=str(row.get("challengeSha256") or "")
         if not core.SHA.fullmatch(evidence_digest) or not core.SHA.fullmatch(receipt_digest) or not core.SHA.fullmatch(challenge_digest):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_RECEIPT_BINDING_INVALID")
+        binding=core.validate_interop_binding(row,expected["campaignId"],row_client,"MCP_EXTERNAL_PROGRESS")
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         evidence_digests[evidence_digest]=row_client; receipt_digests[receipt_digest]=row_client; challenge_digests[challenge_digest]=row_client
         witness=row.get("serverAuditWitness") or {}
+        core.validate_witness_interop_binding(witness,binding,row_client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS")
         start_seq=witness.get("auditWindowStartSequence"); start_prev=str(witness.get("auditWindowPreviousDigest") or ""); head_seq=witness.get("auditHeadSequence")
         start_valid=type(start_seq) is int and start_seq>0 and type(head_seq) is int and head_seq>=start_seq and ((start_seq==1 and start_prev=="") or (start_seq>1 and core.SHA.fullmatch(start_prev)))
         if witness.get("authority")!=core.AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=core.AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=len(core.AUDITED_CHECKS) or not core.SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not core.SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
