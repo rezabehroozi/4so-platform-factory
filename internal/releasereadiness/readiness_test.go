@@ -113,7 +113,7 @@ func TestBuildCannotReportProductReadyWhileMandatoryRoadmapIsBlocked(t *testing.
 	if report.ProductBlockerCodes["APPLIANCE_INPUT_PACK_DISTRIBUTION_PENDING"] != 0 {
 		t.Fatalf("closed S1 distribution blocker remained in product blocker authority: %#v", report.ProductBlockerCodes)
 	}
-	if report.ProductBlockerCodes["MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING"] == 0 {
+	if report.ProductBlockerCodes["MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING"] == 0 {
 		t.Fatalf("current C7W external blocker is absent from product blocker authority: %#v", report.ProductBlockerCodes)
 	}
 	if report.ProductBlockerCodes["TARGET_DATA_PROTECTION_WORKFLOW_PENDING"] != 0 {
