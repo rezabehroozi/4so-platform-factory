@@ -72,6 +72,10 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         seal = self.read("scripts/seal_final_exact_release.py")
         self.assertIn('AUTHORITY = "FINAL_EXACT_RELEASE_SEAL_V1"', seal)
         self.assertIn('EXECUTION_AUTHORITY = "LOCAL_EXACT_RELEASE_SEAL_V1"', seal)
+        self.assertIn('SOURCE_WORKSPACE_AUTHORITY = "GIT_DETACHED_EXACT_SHA_WORKTREE_V1"', seal)
+        self.assertIn("prepare_exact_worktree", seal)
+        self.assertIn("verify_worktree_source_unchanged", seal)
+        self.assertIn("publish_verified_file", seal)
         self.assertIn("admission.verify(root)", seal)
         self.assertIn('"build-release"', seal)
         self.assertIn('"scripts/build_release.py"', seal)
@@ -82,16 +86,10 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertNotIn("GITHUB_RUN_ID", seal)
         self.assertNotIn("gh run", seal)
 
-    def test_roadmap_does_not_treat_github_workflows_as_c7w_or_c9_authority(self):
+    def test_roadmap_never_treats_github_workflows_as_evidence_authority(self):
         program = self.read("internal/targetmodel/program.go")
         self.assertIn("MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING", program)
-        for workflow in (
-            ".github/workflows/mcp-external-interop-campaign.yml",
-            ".github/workflows/mcp-external-interop-seal.yml",
-            ".github/workflows/mcp-external-receipt-admission.yml",
-            ".github/workflows/final-exact-release-seal.yml",
-        ):
-            self.assertNotIn(workflow, program)
+        self.assertNotIn(".github/workflows/", program)
 
 
 if __name__ == "__main__":
