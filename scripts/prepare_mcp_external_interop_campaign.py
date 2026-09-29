@@ -6,14 +6,17 @@ external execution receipt is admissible only for the exact matrix, endpoint,
 campaign and per-client challenge that were prepared for that run.
 """
 from __future__ import annotations
-import argparse, hashlib, json, secrets
+import argparse, hashlib, json, secrets, ssl
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1"
 MATRIX_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_MATRIX_V2"
 CLIENTS=("chatgpt","claude","gemini","grok")
+PREFLIGHT_AUTHORITY="MCP_EXTERNAL_CAMPAIGN_LIVE_PREFLIGHT_V1"
 
 
 def file_sha(path:Path)->str:
@@ -30,7 +33,48 @@ def endpoint(raw:str)->str:
     return p.geturl()
 
 
-def prepare(matrix_path:Path, endpoint_url:str)->dict:
+def live_preflight(endpoint_url:str)->dict:
+    ep=endpoint(endpoint_url); parsed=urlsplit(ep); base=f"{parsed.scheme}://{parsed.netloc}"
+    metadata_url=base+"/.well-known/oauth-protected-resource"
+    context=ssl.create_default_context()
+    req=Request(metadata_url,headers={"Accept":"application/json","User-Agent":"4so-c7w-campaign/1"},method="GET")
+    try:
+        with urlopen(req,timeout=20,context=context) as response:
+            if response.status!=200 or response.geturl()!=metadata_url:
+                raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_METADATA_HTTP_INVALID")
+            raw=response.read(1024*1024+1)
+    except (HTTPError,URLError) as exc:
+        raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_METADATA_UNAVAILABLE") from exc
+    if len(raw)>1024*1024:
+        raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_METADATA_TOO_LARGE")
+    try:
+        metadata=json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+        raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_METADATA_JSON_INVALID") from exc
+    servers=metadata.get("authorization_servers") if isinstance(metadata,dict) else None
+    scopes=metadata.get("scopes_supported") if isinstance(metadata,dict) else None
+    if metadata.get("resource")!=ep or not isinstance(servers,list) or not servers or any(urlsplit(str(x)).scheme!="https" for x in servers) or not isinstance(scopes,list) or not {"mcp.read","mcp.operate"}.issubset(set(scopes)):
+        raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_METADATA_CONTRACT_INVALID")
+
+    body=json.dumps({"jsonrpc":"2.0","id":"c7w-preflight","method":"tools/list","params":{"_meta":{}}},separators=(",",":")).encode("utf-8")
+    challenge=Request(ep,data=body,headers={"Content-Type":"application/json","Accept":"application/json","MCP-Protocol-Version":"2026-07-28","User-Agent":"4so-c7w-campaign/1"},method="POST")
+    try:
+        with urlopen(challenge,timeout=20,context=context) as response:
+            raise RuntimeError(f"MCP_EXTERNAL_PREFLIGHT_UNAUTHENTICATED_ACCEPTED status={response.status}")
+    except HTTPError as exc:
+        if exc.code!=401:
+            raise RuntimeError(f"MCP_EXTERNAL_PREFLIGHT_CHALLENGE_STATUS_INVALID {exc.code}") from exc
+        auth=str(exc.headers.get("WWW-Authenticate") or "")
+        expected=f'Bearer resource_metadata="{metadata_url}"'
+        if auth!=expected:
+            raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_CHALLENGE_INVALID") from exc
+    except URLError as exc:
+        raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_CHALLENGE_UNAVAILABLE") from exc
+
+    return {"authority":PREFLIGHT_AUTHORITY,"endpoint":ep,"protectedResourceMetadata":metadata_url,"resource":ep,"authorizationServers":[str(x) for x in servers],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":expected,"protocol":"2026-07-28"}
+
+
+def prepare(matrix_path:Path, endpoint_url:str, preflight:dict)->dict:
     if matrix_path.is_symlink() or not matrix_path.is_file():
         raise RuntimeError("MCP_EXTERNAL_MATRIX_FILE_INVALID")
     matrix=json.loads(matrix_path.read_text(encoding="utf-8"))
@@ -50,13 +94,13 @@ def prepare(matrix_path:Path, endpoint_url:str)->dict:
       "authority":AUTHORITY,"campaignId":campaign_id,"createdAt":datetime.now(timezone.utc).isoformat(),
       "matrixAuthority":MATRIX_AUTHORITY,"matrixSha256":file_sha(matrix_path),
       "endpoint":endpoint(endpoint_url),"protocol":spec.get("protocol"),"transport":spec.get("transport"),
-      "clients":rows,"externalExecutionRequired":True
+      "livePreflight":preflight,"clients":rows,"externalExecutionRequired":True
     }
 
 
 def main()->int:
     p=argparse.ArgumentParser(); p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json")); p.add_argument("--endpoint",required=True); p.add_argument("--out",type=Path,required=True)
-    a=p.parse_args(); out=prepare(a.matrix,a.endpoint)
+    a=p.parse_args(); preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight)
     a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n",encoding="utf-8")
     print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"matrixSha256":out["matrixSha256"],"endpoint":out["endpoint"],"clients":[x["clientId"] for x in out["clients"]]},sort_keys=True))
     return 0
