@@ -150,6 +150,21 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":mutated,"certifiedClientCount":2,"complete":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_REUSE"): mod.external_client_progress(root)
 
+    def test_weak_audit_witness_is_rejected_in_progress_and_final_admission(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            progress_path=root/"lab/mcp-external-client-interop-progress.json"
+            rows=[self.progress_row("chatgpt")]
+            rows[0]["serverAuditWitness"]["auditChainDigestVerified"]=False
+            progress_path.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":rows,"certifiedClientCount":1,"complete":False,"runtimeCertified":False,"physicalCertified":False}))
+            with self.assertRaisesRegex(RuntimeError,"PROGRESS_SERVER_WITNESS"): mod.external_client_progress(root)
+            self.fixture(root)
+            evidence_path=root/"lab/mcp-external-client-interoperability-evidence.json"
+            evidence=json.loads(evidence_path.read_text())
+            evidence["clients"][0]["serverAuditWitness"].pop("auditMethodVersion")
+            evidence_path.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(RuntimeError,"INTEROP_SERVER_WITNESS"): mod.verify(root)
+
     def test_wrong_client_surface_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root)
