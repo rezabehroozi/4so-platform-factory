@@ -66,6 +66,18 @@ def interop_binding_digest(campaign_id:str,client:str,challenge_sha256:str)->str
     raw=f"{INTEROP_BINDING_AUTHORITY}\n{campaign_id}\n{client}\n{challenge_sha256}".encode("utf-8")
     return "sha256:"+hashlib.sha256(raw).hexdigest()
 
+def validate_interop_binding(row:dict,campaign_id:str,client:str,label:str)->str:
+    if not isinstance(row,dict):
+        raise RuntimeError(f"{label}_INTEROP_BINDING_INVALID {client}")
+    expected=interop_binding_digest(campaign_id,client,str(row.get("challengeSha256") or ""))
+    if row.get("interopBindingAuthority")!=INTEROP_BINDING_AUTHORITY or row.get("interopBindingDigest")!=expected:
+        raise RuntimeError(f"{label}_INTEROP_BINDING_INVALID {client}")
+    return expected
+
+def validate_witness_interop_binding(witness:dict,binding:str,client:str,label:str)->None:
+    if not isinstance(witness,dict) or witness.get("interopBindingAuthority")!=INTEROP_BINDING_AUTHORITY or witness.get("interopBindingDigest")!=binding:
+        raise RuntimeError(f"{label}_INTEROP_BINDING_INVALID {client}")
+
 _AUDIT_REQUIRED=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
 _AUDIT_OPTIONAL=("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","mcpInteropBindingDigest","previousDigest")
 _AUDIT_ALLOWED=set(_AUDIT_REQUIRED+_AUDIT_OPTIONAL+("digest",))
@@ -112,9 +124,7 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
         raise RuntimeError(f"MCP_EXTERNAL_CAMPAIGN_CLIENT_MISSING {client}")
     if row.get("campaignId")!=campaign.get("campaignId") or row.get("challengeSha256")!=challenge.get("challengeSha256"):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_CAMPAIGN_BINDING_INVALID {client}")
-    binding=interop_binding_digest(campaign["campaignId"],client,challenge["challengeSha256"])
-    if row.get("interopBindingDigest")!=binding:
-        raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_SERVER_BINDING_INVALID {client}")
+    binding=validate_interop_binding(row,campaign["campaignId"],client,"MCP_EXTERNAL_RECEIPT_SERVER")
     ep=endpoint(row.get("endpoint",""))
     if ep!=campaign.get("endpoint"):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_CAMPAIGN_ENDPOINT_INVALID {client}")
