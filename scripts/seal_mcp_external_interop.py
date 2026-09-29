@@ -110,7 +110,7 @@ def audit_event_digest(raw:dict)->str:
     canonical["digest"]=""
     return "sha256:"+hashlib.sha256(_go_json_bytes(canonical)).hexdigest()
 
-def _request_ids(row:dict,client:str)->dict[str,str]:
+def validate_request_ids(row:dict,client:str)->dict[str,str]:
     values=row.get("requestIds")
     if not isinstance(values,dict) or set(values)!=set(AUDITED_CHECKS):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_REQUEST_IDS_INVALID {client}")
@@ -152,7 +152,7 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     evidence=str(row.get("evidenceDigest") or "")
     if not SHA.fullmatch(evidence):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
-    request_ids=_request_ids(row,client)
+    request_ids=validate_request_ids(row,client)
     return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"providerExecutionRef":provider_ref,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids}
 
 def _audit_rows(path:Path)->list[dict]:
