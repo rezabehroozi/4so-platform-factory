@@ -35,23 +35,46 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_SCOPE_INFLATED")
     rows=existing.get("clients")
     if not isinstance(rows,list): raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
-    by_id={}; order={name:i for i,name in enumerate(core.CLIENTS)}; last=-1; provider_refs={}
+    by_id={}; order={name:i for i,name in enumerate(core.CLIENTS)}; last=-1
+    provider_refs={}; execution_ids={}; evidence_digests={}; receipt_digests={}; challenge_digests={}; request_id_owners={}
     for row in rows:
         if not isinstance(row,dict) or row.get("clientId") not in order or row["clientId"] in by_id: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_IDENTITY_INVALID")
         if row.get("clientSurface")!=core.CLIENT_SURFACES[row["clientId"]]: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_SURFACE_INVALID")
         idx=order[row["clientId"]]
         if idx<=last: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_ORDER_INVALID")
         last=idx
+        row_client=row["clientId"]
+        execution_id=str(row.get("executionId") or "").strip()
+        if not execution_id or len(execution_id)>160 or execution_id in execution_ids: raise RuntimeError("MCP_EXTERNAL_PROGRESS_EXECUTION_ID_INVALID")
+        execution_ids[execution_id]=row_client
         provider_ref=str(row.get("providerExecutionRef") or "").strip()
         if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref): raise RuntimeError("MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REF_INVALID")
-        row_client=row["clientId"]
         owner=provider_refs.get(provider_ref)
         if owner is not None: raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REUSE {row_client}:{owner}")
         provider_refs[provider_ref]=row_client
         checks=row.get("checks")
         if not isinstance(checks,dict) or len(checks)!=7 or any(v is not True for v in checks.values()): raise RuntimeError("MCP_EXTERNAL_PROGRESS_CHECKS_INVALID")
+        request_ids=row.get("requestIds")
+        if not isinstance(request_ids,dict) or set(request_ids)!=set(core.AUDITED_CHECKS):
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_REQUEST_IDS_INVALID")
+        if len(set(str(v or "").strip() for v in request_ids.values()))!=len(core.AUDITED_CHECKS):
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_REQUEST_IDS_INVALID")
+        for check,rid_raw in request_ids.items():
+            rid=str(rid_raw or "").strip()
+            if not core.REQUEST_ID.fullmatch(rid): raise RuntimeError("MCP_EXTERNAL_PROGRESS_REQUEST_IDS_INVALID")
+            previous=request_id_owners.get(rid)
+            if previous is not None: raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_REQUEST_ID_REUSE {row_client}:{check}:{previous}")
+            request_id_owners[rid]=f"{row_client}:{check}"
+        evidence_digest=str(row.get("evidenceDigest") or "")
+        receipt_digest=str(row.get("externalReceiptSha256") or "")
+        challenge_digest=str(row.get("challengeSha256") or "")
+        if not core.SHA.fullmatch(evidence_digest) or not core.SHA.fullmatch(receipt_digest) or not core.SHA.fullmatch(challenge_digest):
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_RECEIPT_BINDING_INVALID")
+        if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
+        evidence_digests[evidence_digest]=row_client; receipt_digests[receipt_digest]=row_client; challenge_digests[challenge_digest]=row_client
         witness=row.get("serverAuditWitness") or {}
-        if witness.get("authority")!=core.AUDIT_WITNESS_AUTHORITY or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=len(core.AUDITED_CHECKS) or not core.SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not core.SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
+        if witness.get("authority")!=core.AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=core.AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=len(core.AUDITED_CHECKS) or not core.SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not core.SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_SERVER_WITNESS_INVALID")
         by_id[row["clientId"]]=row
     complete=len(rows)==len(core.CLIENTS)
@@ -99,6 +122,9 @@ def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,
     return expected
 
 def final_evidence(progress:dict,progress_path:Path)->dict:
+    persisted=core.load(progress_path,"PROGRESS")
+    if persisted!=progress:
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_FILE_BINDING_INVALID")
     by_id=validate_existing(progress,progress)
     if list(by_id)!=list(core.CLIENTS) or progress.get("complete") is not True: raise RuntimeError("MCP_EXTERNAL_PROGRESS_NOT_COMPLETE")
     return {"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteroperabilityEvidence","authority":core.AUTHORITY,
