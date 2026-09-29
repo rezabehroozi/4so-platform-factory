@@ -56,6 +56,30 @@ class ReleaseSourceTreeBoundary(unittest.TestCase):
             rels = {str(path.relative_to(root)) for path in BUILD.release_source_files(root)}
             self.assertEqual({".gitignore", "tracked.txt"}, rels)
 
+    def test_no_git_release_source_uses_only_manifest_sealed_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "bundle"
+            root.mkdir()
+            tracked = root / "tracked.txt"
+            tracked.write_text("sealed\n", encoding="utf-8")
+            extra = root / "local-secret.txt"
+            extra.write_text("must-not-enter-rebuild\n", encoding="utf-8")
+            manifest = {
+                "schemaVersion": 2,
+                "files": [{
+                    "path": "tracked.txt",
+                    "sha256": BUILD.sha(tracked),
+                    "size": tracked.stat().st_size,
+                    "mode": "0o644",
+                }],
+            }
+            (root / "ARTIFACT-MANIFEST.json").write_text(__import__("json").dumps(manifest), encoding="utf-8")
+            rels = {str(path.relative_to(root)) for path in BUILD.release_source_files(root)}
+            self.assertEqual({"tracked.txt"}, rels)
+            tracked.write_text("tampered\n", encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "RELEASE_MANIFEST_SOURCE_MISMATCH"):
+                BUILD.release_source_files(root)
+
     def test_go_toolchain_version_uses_explicit_go_authority_from_environment(self):
         completed = mock.Mock(stdout="go version go1.27.1 linux/amd64\n")
         with mock.patch.dict(BUILD.os.environ, {"GO": "/opt/4so/go1.27.1/bin/go"}, clear=False):
