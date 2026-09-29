@@ -30,6 +30,7 @@ AUDITED_CHECKS=(
     "read-only-client-mutation-negative-control",
     "administration-approval-self-approval-negative-control",
 )
+REQUIRED_CHECKS=("oauth-protected-resource-discovery",)+AUDITED_CHECKS
 AUDIT_REQUIREMENTS={
     "dedicated-audience-validation":("AUTHENTICATION","DENY","OIDC_AUTHENTICATION_REJECTED"),
     "authorization-filtered-tools-list":("CAPABILITY_AUTHORIZATION","ALLOW","CAPABILITY_AUTHORIZED"),
@@ -197,7 +198,7 @@ def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->d
         raise RuntimeError("MCP_EXTERNAL_MATRIX_STATE_INVALID")
     protocol=str(spec.get("protocol") or "")
     required=list(spec.get("sharedRequiredChecks") or [])
-    if protocol!="2026-07-28" or len(required)!=7 or len(set(required))!=7:
+    if protocol!="2026-07-28" or required!=list(REQUIRED_CHECKS):
         raise RuntimeError("MCP_EXTERNAL_MATRIX_REQUIRED_CHECKS_INVALID")
     declared=[r.get("id") for r in spec.get("clients") or [] if isinstance(r,dict)]
     surfaces={r.get("id"):r.get("displayName") for r in spec.get("clients") or [] if isinstance(r,dict)}
