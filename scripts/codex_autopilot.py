@@ -1733,11 +1733,16 @@ def self_test() -> int:
                     raise AssertionError("live checkpoint process was not classified for rejoin")
                 if stranded.poll() is not None:
                     raise AssertionError("resume observer terminated the still-live stage process")
-                with unittest.mock.patch(__name__ + ".run_stage") as stage_runner:
+                original_run_stage = globals()["run_stage"]
+                def forbidden_run_stage(*_args, **_kwargs):
+                    raise AssertionError("RUNNING_REJOIN started a duplicate stage")
+                globals()["run_stage"] = forbidden_run_stage
+                try:
                     rc = _execute_stages(root, resume_stages, repair=False, max_repairs=0, codex_timeout=10, enforce_supply_chain=False)
-                    if rc != 4:
-                        raise AssertionError(f"live checkpoint did not return RUNNING_REJOIN rc={rc}")
-                    stage_runner.assert_not_called()
+                finally:
+                    globals()["run_stage"] = original_run_stage
+                if rc != 4:
+                    raise AssertionError(f"live checkpoint did not return RUNNING_REJOIN rc={rc}")
                 if stranded.poll() is not None:
                     raise AssertionError("RUNNING_REJOIN path killed the live stage process")
             finally:
