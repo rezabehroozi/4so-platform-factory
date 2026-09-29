@@ -81,6 +81,7 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
       "transport":packet["transport"],
       "endpoint":packet["endpoint"],
       "executionId":execution_id,
+      "providerExecutionRef":provider_ref,
       "externalExecution":True,
       "credentialedExecution":True,
       "checks":{name:True for name in expected_ids},

@@ -30,7 +30,7 @@ class ReceiptFinalizerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             pp,cap,_=self.fixture(Path(raw)); out=mod.finalize(pp,cap)
             self.assertEqual(core.RECEIPT_AUTHORITY,out["authority"]); self.assertEqual("chatgpt",out["clientId"]); self.assertEqual(core.CLIENT_SURFACES["chatgpt"],out["clientSurface"])
-            self.assertEqual(core.sha256(cap),out["evidenceDigest"]); self.assertEqual(set(core.AUDITED_CHECKS),set(out["requestIds"]))
+            self.assertEqual(core.sha256(cap),out["evidenceDigest"]); self.assertEqual("opaque-provider-execution-001",out["providerExecutionRef"]); self.assertEqual(set(core.AUDITED_CHECKS),set(out["requestIds"]))
             self.assertTrue(all(out["checks"].values())); self.assertFalse(out["scopeLeakObserved"]); self.assertFalse(out["revokedGrantAccepted"]); self.assertFalse(out["selfApprovalAccepted"])
     def test_false_check_missing_request_id_and_binding_drift_fail_closed(self):
         with tempfile.TemporaryDirectory() as raw:

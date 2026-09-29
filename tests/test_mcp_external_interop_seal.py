@@ -15,7 +15,7 @@ class MCPExternalSealTests(unittest.TestCase):
         return {name:f"{client}-{idx:02d}-request" for idx,name in enumerate(mod.AUDITED_CHECKS,1)}
     def receipt(self,client,checks,campaign,endpoint="https://mcp.example.test/mcp"):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
-        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
     def audit(self,receipt):
         rows=[]; prev=""; seq=1
         for check in mod.AUDITED_CHECKS:
@@ -51,6 +51,8 @@ class MCPExternalSealTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"EXECUTION_REUSE"): mod.seal(matrix,campaign_path,receipts,audits)
             claude["executionId"]="run-claude"; claude["evidenceDigest"]=chat["evidenceDigest"]; (receipts/"claude.json").write_text(json.dumps(claude))
             with self.assertRaisesRegex(RuntimeError,"EVIDENCE_REUSE"): mod.seal(matrix,campaign_path,receipts,audits)
+            claude["evidenceDigest"]="sha256:"+hashlib.sha256(b"claude-unique").hexdigest(); claude["providerExecutionRef"]=chat["providerExecutionRef"]; (receipts/"claude.json").write_text(json.dumps(claude))
+            with self.assertRaisesRegex(RuntimeError,"PROVIDER_EXECUTION_REUSE"): mod.seal(matrix,campaign_path,receipts,audits)
 
     def test_cross_client_request_id_reuse_rejects(self):
         with tempfile.TemporaryDirectory() as td:

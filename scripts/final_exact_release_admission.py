@@ -122,10 +122,17 @@ def verify(root:Path)->dict:
     clients=mcp.get("clients")
     if not isinstance(clients,list) or [x.get("clientId") for x in clients if isinstance(x,dict)]!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_SET_INVALID")
+    provider_refs=set()
     for row in clients:
         client=str(row.get("clientId") or "")
         if row.get("clientSurface")!=CLIENT_SURFACES.get(client):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_SURFACE_INVALID")
+        provider_ref=str(row.get("providerExecutionRef") or "").strip()
+        if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref):
+            raise RuntimeError("MCP_EXTERNAL_INTEROP_PROVIDER_EXECUTION_REF_INVALID")
+        if provider_ref in provider_refs:
+            raise RuntimeError("MCP_EXTERNAL_INTEROP_PROVIDER_EXECUTION_REUSE")
+        provider_refs.add(provider_ref)
         checks=row.get("checks")
         if not isinstance(checks,dict) or len(checks)!=7 or any(v is not True for v in checks.values()):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_CHECKS_INVALID")

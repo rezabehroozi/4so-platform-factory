@@ -35,13 +35,18 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_SCOPE_INFLATED")
     rows=existing.get("clients")
     if not isinstance(rows,list): raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
-    by_id={}; order={name:i for i,name in enumerate(core.CLIENTS)}; last=-1
+    by_id={}; order={name:i for i,name in enumerate(core.CLIENTS)}; last=-1; provider_refs={}
     for row in rows:
         if not isinstance(row,dict) or row.get("clientId") not in order or row["clientId"] in by_id: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_IDENTITY_INVALID")
         if row.get("clientSurface")!=core.CLIENT_SURFACES[row["clientId"]]: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_SURFACE_INVALID")
         idx=order[row["clientId"]]
         if idx<=last: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_ORDER_INVALID")
         last=idx
+        provider_ref=str(row.get("providerExecutionRef") or "").strip()
+        if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref): raise RuntimeError("MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REF_INVALID")
+        owner=provider_refs.get(provider_ref)
+        if owner is not None: raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REUSE {client}:{owner}")
+        provider_refs[provider_ref]=client
         checks=row.get("checks")
         if not isinstance(checks,dict) or len(checks)!=7 or any(v is not True for v in checks.values()): raise RuntimeError("MCP_EXTERNAL_PROGRESS_CHECKS_INVALID")
         witness=row.get("serverAuditWitness") or {}
@@ -68,16 +73,19 @@ def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,
         else:
             by_id=validate_existing(existing,expected)
     row=core.verify_receipt(receipt_path,client,required,str(spec["protocol"]),campaign)
-    used={}; used_executions={}; used_evidence={}
+    used={}; used_executions={}; used_evidence={}; used_provider_refs={}
     for existing_client,existing in by_id.items():
         used_executions[existing.get("executionId")]=existing_client
         used_evidence[existing.get("evidenceDigest")]=existing_client
+        used_provider_refs[existing.get("providerExecutionRef")]=existing_client
         for existing_check,rid in (existing.get("requestIds") or {}).items():
             used[rid]=f"{existing_client}:{existing_check}"
     if client not in by_id and row["executionId"] in used_executions:
         raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_EXECUTION_REUSE {client}:{used_executions[row['executionId']]}")
     if client not in by_id and row["evidenceDigest"] in used_evidence:
         raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE {client}:{used_evidence[row['evidenceDigest']]}")
+    if client not in by_id and row["providerExecutionRef"] in used_provider_refs:
+        raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REUSE {client}:{used_provider_refs[row['providerExecutionRef']]}")
     for check,rid in row["requestIds"].items():
         if rid in used and client not in by_id:
             raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_REQUEST_ID_REUSE {client}:{check}:{used[rid]}")

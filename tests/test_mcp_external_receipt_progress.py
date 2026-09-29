@@ -16,7 +16,7 @@ class IncrementalMCPInteropTests(unittest.TestCase):
     def receipt(self,client,checks,campaign,execution=None):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
         ids={name:f"{client}-{idx:02d}-request" for idx,name in enumerate(seal.AUDITED_CHECKS,1)}
-        return {"authority":seal.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":seal.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"protocol":"2026-07-28","transport":"streamable-http","endpoint":campaign["endpoint"],"executionId":execution or "run-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":ids,"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+        return {"authority":seal.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":seal.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"protocol":"2026-07-28","transport":"streamable-http","endpoint":campaign["endpoint"],"executionId":execution or "run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":ids,"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
     def audit(self,row):
         out=[]; prev=""
         for seq,check in enumerate(seal.AUDITED_CHECKS,1):
@@ -43,6 +43,8 @@ class IncrementalMCPInteropTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"EXECUTION_REUSE"): mod.merge(matrix,cp,rp2,ap2,"claude",progress)
             second["executionId"]="run-claude"; second["evidenceDigest"]=first["evidenceDigest"]; rp2.write_text(json.dumps(second))
             with self.assertRaisesRegex(RuntimeError,"EVIDENCE_REUSE"): mod.merge(matrix,cp,rp2,ap2,"claude",progress)
+            second["evidenceDigest"]="sha256:"+hashlib.sha256(b"claude-unique").hexdigest(); second["providerExecutionRef"]=first["providerExecutionRef"]; rp2.write_text(json.dumps(second))
+            with self.assertRaisesRegex(RuntimeError,"PROVIDER_EXECUTION_REUSE"): mod.merge(matrix,cp,rp2,ap2,"claude",progress)
 
     def test_cross_client_request_id_reuse_rejects_incrementally(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]

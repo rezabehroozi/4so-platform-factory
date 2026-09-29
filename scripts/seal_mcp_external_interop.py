@@ -84,6 +84,9 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     run_id=str(row.get("executionId") or "").strip()
     if not run_id or len(run_id)>160:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EXECUTION_ID_INVALID {client}")
+    provider_ref=str(row.get("providerExecutionRef") or "").strip()
+    if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref):
+        raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_PROVIDER_EXECUTION_REF_INVALID {client}")
     if row.get("externalExecution") is not True or row.get("credentialedExecution") is not True:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_NOT_EXTERNAL_CREDENTIALED {client}")
     checks=row.get("checks")
@@ -95,7 +98,7 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     if not SHA.fullmatch(evidence):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
     request_ids=_request_ids(row,client)
-    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids}
+    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"providerExecutionRef":provider_ref,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids}
 
 def _audit_rows(path:Path)->list[dict]:
     value=load(path,"SECURITY_AUDIT")
@@ -172,15 +175,17 @@ def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->d
     if declared!=list(CLIENTS) or surfaces!=CLIENT_SURFACES:
         raise RuntimeError("MCP_EXTERNAL_MATRIX_CLIENT_SET_INVALID")
     campaign=verify_campaign(campaign_path,matrix_path,spec)
-    rows=[]; used_request_ids={}; used_execution_ids={}; used_evidence_digests={}
+    rows=[]; used_request_ids={}; used_execution_ids={}; used_evidence_digests={}; used_provider_execution_refs={}
     for client in CLIENTS:
         row=verify_receipt(receipt_dir/(client+".json"),client,required,protocol,campaign)
-        execution_id=row["executionId"]; evidence_digest=row["evidenceDigest"]
+        execution_id=row["executionId"]; evidence_digest=row["evidenceDigest"]; provider_ref=row["providerExecutionRef"]
         if execution_id in used_execution_ids:
             raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EXECUTION_REUSE {client}:{used_execution_ids[execution_id]}")
         if evidence_digest in used_evidence_digests:
             raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_REUSE {client}:{used_evidence_digests[evidence_digest]}")
-        used_execution_ids[execution_id]=client; used_evidence_digests[evidence_digest]=client
+        if provider_ref in used_provider_execution_refs:
+            raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_PROVIDER_EXECUTION_REUSE {client}:{used_provider_execution_refs[provider_ref]}")
+        used_execution_ids[execution_id]=client; used_evidence_digests[evidence_digest]=client; used_provider_execution_refs[provider_ref]=client
         for check,rid in row["requestIds"].items():
             owner=used_request_ids.get(rid)
             if owner is not None:
