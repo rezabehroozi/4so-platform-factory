@@ -36,6 +36,25 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"GIT_INDEX_FLAGS_FORBIDDEN"):
                 mod.git_source(root.resolve())
 
+    def test_detached_worktree_is_pinned_to_exact_head_and_isolated_from_root_drift(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir()
+            self.git(root,"init")
+            self.git(root,"config","user.email","test@example.invalid")
+            self.git(root,"config","user.name","Test")
+            tracked=root/"tracked.txt"; tracked.write_text("v1\n")
+            self.git(root,"add","tracked.txt"); self.git(root,"commit","-m","initial")
+            head=self.git(root,"rev-parse","HEAD")
+            workspace=Path(td)/"workspace"; workspace.mkdir()
+            worktree=mod.prepare_exact_worktree(root.resolve(),head,workspace)
+            try:
+                self.assertEqual("v1\n",(worktree/"tracked.txt").read_text())
+                tracked.write_text("root-drift\n")
+                self.assertEqual("v1\n",(worktree/"tracked.txt").read_text())
+                mod.verify_worktree_source_unchanged(worktree,head)
+            finally:
+                mod.remove_exact_worktree(root.resolve(),worktree)
+
     def test_output_path_preserves_and_rejects_symlink_identity(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td).resolve()
