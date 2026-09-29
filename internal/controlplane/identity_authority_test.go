@@ -87,6 +87,44 @@ func TestSecurityAuditChainTimeStable(t *testing.T) {
 }
 
 
+func TestSecurityAuditMCPInteropBindingIsCanonicalAndDigestBound(t *testing.T) {
+	s := NewMemoryStore()
+	ctx := context.Background()
+	binding := "sha256:" + strings.Repeat("a", 64)
+	categories := []string{"CAPABILITY_AUTHORIZATION", "DELEGATION_AUTHORIZATION", "APPROVAL_AUTHORIZATION"}
+	for i, category := range categories {
+		decision := "ALLOW"
+		if i > 0 {
+			decision = "DENY"
+		}
+		if _, err := s.AppendSecurityAudit(ctx, SecurityAuditInput{
+			Category: category, Decision: decision, ActorID: "external-user",
+			Method: "POST", Path: "/mcp", RequestID: fmt.Sprintf("interop-request-%d", i+1),
+			MCPInteropBindingDigest: binding,
+		}); err != nil {
+			t.Fatalf("category %s rejected: %v", category, err)
+		}
+	}
+	events, err := s.ListSecurityAudit(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != len(categories) || events[0].MCPInteropBindingDigest != binding {
+		t.Fatalf("interop audit events=%#v", events)
+	}
+	if err := ValidateSecurityAuditChain(events); err != nil {
+		t.Fatal(err)
+	}
+	tampered := append([]SecurityAuditEvent(nil), events...)
+	tampered[len(tampered)-1].MCPInteropBindingDigest = "sha256:" + strings.Repeat("b", 64)
+	if err := ValidateSecurityAuditChain(tampered); err == nil {
+		t.Fatal("tampered MCP interoperability binding remained valid in audit hash chain")
+	}
+	if _, err := s.AppendSecurityAudit(ctx, SecurityAuditInput{Category: "CAPABILITY_AUTHORIZATION", Decision: "ALLOW", MCPInteropBindingDigest: "sha256:NOT-LOWERCASE"}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("malformed MCP interoperability binding admitted: %v", err)
+	}
+}
+
 func TestSecurityAuditRequestIDWindowIsExactAndContiguous(t *testing.T) {
 	s := NewMemoryStore()
 	ctx := context.Background()
