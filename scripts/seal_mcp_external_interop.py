@@ -18,6 +18,7 @@ RECEIPT_AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_RECEIPT_V1"
 CAMPAIGN_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1"
 AUDIT_WITNESS_AUTHORITY="MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1"
 AUDIT_METHOD_VERSION="IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1"
+INTEROP_BINDING_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_BINDING_V1"
 CLIENTS=("chatgpt","claude","gemini","grok")
 CLIENT_SURFACES={"chatgpt":"ChatGPT custom MCP","claude":"Claude remote MCP","gemini":"Gemini remote MCP","grok":"Grok custom MCP"}
 SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -58,8 +59,15 @@ def endpoint(value:str)->str:
         raise RuntimeError("MCP_EXTERNAL_ENDPOINT_INVALID")
     return p.geturl()
 
+def interop_binding_digest(campaign_id:str,client:str,challenge_sha256:str)->str:
+    campaign_id=str(campaign_id or "").strip(); client=str(client or "").strip().lower(); challenge_sha256=str(challenge_sha256 or "").strip()
+    if not campaign_id.startswith("mcp-interop-") or client not in CLIENTS or not SHA.fullmatch(challenge_sha256):
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_BINDING_INPUT_INVALID")
+    raw=f"{INTEROP_BINDING_AUTHORITY}\n{campaign_id}\n{client}\n{challenge_sha256}".encode("utf-8")
+    return "sha256:"+hashlib.sha256(raw).hexdigest()
+
 _AUDIT_REQUIRED=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
-_AUDIT_OPTIONAL=("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","previousDigest")
+_AUDIT_OPTIONAL=("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","mcpInteropBindingDigest","previousDigest")
 _AUDIT_ALLOWED=set(_AUDIT_REQUIRED+_AUDIT_OPTIONAL+("digest",))
 
 def _go_json_bytes(value:dict)->bytes:
@@ -104,6 +112,9 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
         raise RuntimeError(f"MCP_EXTERNAL_CAMPAIGN_CLIENT_MISSING {client}")
     if row.get("campaignId")!=campaign.get("campaignId") or row.get("challengeSha256")!=challenge.get("challengeSha256"):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_CAMPAIGN_BINDING_INVALID {client}")
+    binding=interop_binding_digest(campaign["campaignId"],client,challenge["challengeSha256"])
+    if row.get("interopBindingDigest")!=binding:
+        raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_SERVER_BINDING_INVALID {client}")
     ep=endpoint(row.get("endpoint",""))
     if ep!=campaign.get("endpoint"):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_CAMPAIGN_ENDPOINT_INVALID {client}")
@@ -124,7 +135,7 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     if not SHA.fullmatch(evidence):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
     request_ids=_request_ids(row,client)
-    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"providerExecutionRef":provider_ref,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids}
+    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"providerExecutionRef":provider_ref,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids}
 
 def _audit_rows(path:Path)->list[dict]:
     value=load(path,"SECURITY_AUDIT")
@@ -163,10 +174,12 @@ def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
         event=candidates[0]
         if event.get("category")!=category or event.get("decision")!=decision or event.get("reasonCode")!=reason:
             raise RuntimeError(f"MCP_EXTERNAL_AUDIT_SEMANTIC_WITNESS_MISSING {client}:{check}")
-        matched[check]={"requestId":rid,"sequence":event["sequence"],"digest":event["digest"],"category":category,"decision":decision,"reasonCode":reason}
+        if event.get("mcpInteropBindingDigest")!=receipt["interopBindingDigest"]:
+            raise RuntimeError(f"MCP_EXTERNAL_AUDIT_INTEROP_BINDING_MISSING {client}:{check}")
+        matched[check]={"requestId":rid,"sequence":event["sequence"],"digest":event["digest"],"category":category,"decision":decision,"reasonCode":reason,"interopBindingDigest":receipt["interopBindingDigest"]}
     head=rows[-1]
     return {
-      "authority":AUDIT_WITNESS_AUTHORITY,"clientId":client,
+      "authority":AUDIT_WITNESS_AUTHORITY,"clientId":client,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":receipt["interopBindingDigest"],
       "auditMethodVersion":AUDIT_METHOD_VERSION,"auditChainDigestVerified":True,
       "auditWindowStartSequence":rows[0]["sequence"],"auditWindowPreviousDigest":str(rows[0].get("previousDigest") or ""),
       "auditExportSha256":sha256(audit_path),"auditHeadSequence":head["sequence"],"auditHeadDigest":head["digest"],
