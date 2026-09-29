@@ -71,7 +71,8 @@
       "read-only-client-mutation-negative-control",
       "administration-approval-self-approval-negative-control"
     ],
-    "auditFetchCommand": "C7W_PLATFORM_ADMIN_TOKEN=<secret> python3 scripts/fetch_mcp_external_audit_window.py --campaign /secure/campaign.json --receipt /secure/receipts/<client>.json --client <client> --out /secure/audits/<client>.json",
+    "auditTokenSource": "environment:C7W_PLATFORM_ADMIN_TOKEN",
+    "auditFetchCommand": "python3 scripts/fetch_mcp_external_audit_window.py --campaign /secure/campaign.json --receipt /secure/receipts/<client>.json --client <client> --out /secure/audits/<client>.json",
     "receiptAdmissionCommand": "python3 scripts/admit_mcp_external_receipt.py --campaign /secure/campaign.json --receipt /secure/receipts/<client>.json --audit /secure/audits/<client>.json --client <client> --progress lab/mcp-external-client-interop-progress.json",
     "finalReleaseSealCommand": "python3 scripts/seal_final_exact_release.py --root . --out lab/final-exact-release-evidence.json"
   }
