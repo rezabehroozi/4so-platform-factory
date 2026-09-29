@@ -59,7 +59,7 @@ def external_client_progress(root:Path)->dict:
     rows=progress.get("clients")
     if not isinstance(rows,list):
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
-    seen=set(); provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); request_id_owners={}
+    seen=set(); provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); challenge_digests=set(); request_id_owners={}
     for row in rows:
         if not isinstance(row,dict):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
@@ -88,16 +88,16 @@ def external_client_progress(root:Path)->dict:
         challenge_digest=str(row.get("challengeSha256") or "")
         if not SHA.fullmatch(evidence_digest) or not SHA.fullmatch(receipt_digest) or not SHA.fullmatch(challenge_digest):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_RECEIPT_BINDING_INVALID")
-        if evidence_digest in evidence_digests or receipt_digest in receipt_digests:
+        if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
         if witness.get("authority")!=MCP_AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=MCP_AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=6 or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_SERVER_WITNESS_INVALID")
-        seen.add(client); provider_refs.add(provider_ref); execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest)
+        seen.add(client); provider_refs.add(provider_ref); execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest); challenge_digests.add(challenge_digest)
     certified=[c for c in CLIENTS if c in seen]
     missing=[c for c in CLIENTS if c not in seen]
     complete=len(missing)==0
-    if progress.get("certifiedClientCount")!=len(certified) or progress.get("complete") is not complete:
+    if progress.get("certifiedClientCount")!=len(certified) or progress.get("complete") is not complete or progress.get("externalCertificationPass") is not complete or progress.get("serverAuditWitnessPass") is not complete:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_COUNT_INVALID")
     return {"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","certifiedClientCount":len(certified),"certifiedClients":certified,"missingClients":missing,"nextClient":missing[0] if missing else None,"complete":complete,"evidenceSealPending":complete}
 
