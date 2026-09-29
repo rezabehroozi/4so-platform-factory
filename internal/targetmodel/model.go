@@ -138,7 +138,7 @@ func MCPRemoteOAuthModel() MCPRemoteOAuthDescriptor {
 		ActionRegistryAuthority: "MCP_PRODUCT_ACTION_REGISTRY_V1",
 		EffectiveToolFiltering:  "MCP_EFFECTIVE_TOOL_FILTERING_V1",
 		PendingC7WBlockers: []string{
-			"MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING",
+			"MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING",
 		},
 		ForbiddenDirectAuthorities: []string{
 			"raw-user-password-or-session-cookie",
