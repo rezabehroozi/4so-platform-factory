@@ -45,6 +45,18 @@ class MCPExternalSealTests(unittest.TestCase):
         for c in mod.CLIENTS:
             row=self.receipt(c,checks,campaign); (receipts/(c+".json")).write_text(json.dumps(row)); (audits/(c+".json")).write_text(json.dumps(self.audit(row)))
         return matrix_path,campaign_path,receipts,audits,campaign,checks
+    def test_go_security_audit_digest_vector_parity(self):
+        row={
+            "id":"sau-parity","sequence":7,"occurredAt":"2026-09-29T01:02:03Z",
+            "methodVersion":mod.AUDIT_METHOD_VERSION,
+            "category":"CAPABILITY_AUTHORIZATION","decision":"DENY",
+            "actorId":"actor&<>\u2028\u2029","authentication":"oidc","method":"POST","path":"/mcp",
+            "statusCode":403,"reasonCode":"CAPABILITY_PERMISSION_REQUIRED","requestId":"request-12345",
+            "effectiveRole":"operator","mappingDigest":"sha256:"+"a"*64,
+            "mcpInteropBindingDigest":"sha256:"+"b"*64,"previousDigest":"sha256:"+"c"*64,
+        }
+        self.assertEqual("sha256:948eadc1f4c1d16dbe6e34cb6859e0e7cb4498655054ea7720a95e1001717619",mod.audit_event_digest(row))
+
     def test_four_named_clients_are_campaign_and_server_audit_bound(self):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,campaign,_=self.fixture(Path(td)); out=mod.seal(matrix,campaign_path,receipts,audits)
