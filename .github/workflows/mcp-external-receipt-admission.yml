@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       campaign_run_id:
-        description: Successful mcp-external-interop-campaign workflow run ID (preferred)
+        description: Successful campaign run ID; leave empty to auto-discover latest successful main campaign
         required: false
         type: string
       campaign_b64:
@@ -55,6 +55,11 @@ jobs:
           set -euo pipefail
           umask 077
           mkdir -p /tmp/mcp-external
+          if test -z "$CAMPAIGN_RUN_ID" && test -z "$CAMPAIGN_B64"; then
+            CAMPAIGN_RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow mcp-external-interop-campaign.yml --branch main --status success --limit 20 --json databaseId,conclusion,headBranch,createdAt --jq '[.[] | select(.conclusion=="success" and .headBranch=="main")] | sort_by(.createdAt) | reverse | .[0].databaseId // empty')"
+            test -n "$CAMPAIGN_RUN_ID" || { echo "no successful main mcp-external-interop-campaign run exists"; exit 2; }
+            echo "auto-discovered campaign run $CAMPAIGN_RUN_ID"
+          fi
           if test -n "$CAMPAIGN_RUN_ID"; then
             [[ "$CAMPAIGN_RUN_ID" =~ ^[0-9]+$ ]] || { echo "campaign_run_id must be numeric"; exit 2; }
             run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CAMPAIGN_RUN_ID")"
@@ -66,7 +71,6 @@ jobs:
             test -s /tmp/mcp-campaign-artifact/campaign.json
             cp /tmp/mcp-campaign-artifact/campaign.json /tmp/mcp-external/campaign.json
           else
-            test -n "$CAMPAIGN_B64" || { echo "campaign_run_id or campaign_b64 is required"; exit 2; }
             printf '%s' "$CAMPAIGN_B64" | base64 -d > /tmp/mcp-external/campaign.json
           fi
           printf '%s' "$CAPTURE_B64" | base64 -d > "/tmp/mcp-external/$CLIENT.capture.json"

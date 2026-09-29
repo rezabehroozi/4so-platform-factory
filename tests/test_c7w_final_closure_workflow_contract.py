@@ -60,6 +60,16 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
         self.assertIn('test "$code" = "401"', text)
         self.assertIn("MCP-Protocol-Version: 2026-07-28", text)
 
+    def test_incremental_admission_can_auto_discover_latest_successful_main_campaign(self):
+        text = self.read(".github/workflows/mcp-external-receipt-admission.yml")
+        self.assertIn("gh run list", text)
+        self.assertIn("--workflow mcp-external-interop-campaign.yml", text)
+        self.assertIn("--branch main --status success", text)
+        self.assertIn("auto-discovered campaign run", text)
+        self.assertIn("no successful main mcp-external-interop-campaign run exists", text)
+        self.assertIn('test "$(jq -r .name <<<"$run_json")" = "mcp-external-interop-campaign"', text)
+        self.assertIn('test "$(jq -r .head_branch <<<"$run_json")" = "main"', text)
+
     def test_incremental_admission_preserves_verified_packet_before_git_push(self):
         text = self.read(".github/workflows/mcp-external-receipt-admission.yml")
         self.assertIn("Preserve verified admission packet before Git persistence", text)
