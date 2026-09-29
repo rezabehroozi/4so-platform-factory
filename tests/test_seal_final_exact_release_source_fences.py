@@ -52,6 +52,9 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
                 tracked.write_text("root-drift\n")
                 self.assertEqual("v1\n",(worktree/"tracked.txt").read_text())
                 mod.verify_worktree_source_unchanged(worktree,head)
+                self.git(worktree,"update-index","--assume-unchanged","tracked.txt")
+                with self.assertRaisesRegex(RuntimeError,"WORKTREE_SOURCE_CHANGED"):
+                    mod.verify_worktree_source_unchanged(worktree,head)
             finally:
                 mod.remove_exact_worktree(root.resolve(),worktree)
 
