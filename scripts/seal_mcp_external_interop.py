@@ -132,16 +132,20 @@ def _audit_rows(path:Path)->list[dict]:
         value=value["items"]
     if not isinstance(value,list) or not value:
         raise RuntimeError("MCP_EXTERNAL_AUDIT_EXPORT_INVALID")
-    rows=[]; previous_digest=""
-    for index,raw in enumerate(value,1):
+    rows=[]; previous=None
+    for raw in value:
         if not isinstance(raw,dict):
             raise RuntimeError("MCP_EXTERNAL_AUDIT_EXPORT_INVALID")
-        seq=raw.get("sequence"); digest=str(raw.get("digest") or "")
-        if seq!=index or raw.get("methodVersion")!=AUDIT_METHOD_VERSION or str(raw.get("previousDigest") or "")!=previous_digest or not SHA.fullmatch(digest):
+        seq=raw.get("sequence"); digest=str(raw.get("digest") or ""); previous_digest=str(raw.get("previousDigest") or "")
+        if type(seq) is not int or seq<=0 or raw.get("methodVersion")!=AUDIT_METHOD_VERSION or not SHA.fullmatch(digest):
+            raise RuntimeError("MCP_EXTERNAL_AUDIT_CHAIN_INVALID")
+        if previous is not None and (seq!=previous["sequence"]+1 or previous_digest!=previous["digest"]):
+            raise RuntimeError("MCP_EXTERNAL_AUDIT_CHAIN_INVALID")
+        if previous is None and previous_digest and not SHA.fullmatch(previous_digest):
             raise RuntimeError("MCP_EXTERNAL_AUDIT_CHAIN_INVALID")
         if audit_event_digest(raw)!=digest:
             raise RuntimeError("MCP_EXTERNAL_AUDIT_DIGEST_INVALID")
-        rows.append(raw); previous_digest=digest
+        rows.append(raw); previous=raw
     return rows
 
 def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
@@ -164,6 +168,7 @@ def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
     return {
       "authority":AUDIT_WITNESS_AUTHORITY,"clientId":client,
       "auditMethodVersion":AUDIT_METHOD_VERSION,"auditChainDigestVerified":True,
+      "auditWindowStartSequence":rows[0]["sequence"],"auditWindowPreviousDigest":str(rows[0].get("previousDigest") or ""),
       "auditExportSha256":sha256(audit_path),"auditHeadSequence":head["sequence"],"auditHeadDigest":head["digest"],
       "witnessedCheckCount":len(AUDITED_CHECKS),"serverAuditWitnessPass":True,"matchedEvents":matched
     }
