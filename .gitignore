@@ -24,3 +24,5 @@ __pycache__/
 /SBOM.spdx.json
 
 /.local-dev/
+
+/.project-runtime/

@@ -1,0 +1,23 @@
+name: project-runtime-stream-independence
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/project_runtime.py
+      - tests/test_project_runtime.py
+      - .github/workflows/project-runtime-stream-independence.yml
+      - scripts/codex_autopilot.py
+      - tests/test_codex_autopilot.py
+permissions:
+  contents: read
+jobs:
+  disconnect-resume-proof:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Practical detached observer test
+        run: python3 scripts/project_runtime.py self-test
+      - name: Unit regression
+        run: python3 -m unittest tests.test_project_runtime -v

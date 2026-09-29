@@ -7,7 +7,7 @@ export PLATFORM_FACTORY_DEVELOPMENT_MODE
 
 BUILD_LDFLAGS := -s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version=$(VERSION)
 
-.PHONY: validate test test-postgres-integration vet race build build-release run smoke smoke-ui agent-evidence browser-triage-profile persian-ui-lint release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
+.PHONY: runtime-status runtime-watchdog runtime-self-test autopilot-durable validate test test-postgres-integration vet race build build-release run smoke smoke-ui agent-evidence browser-triage-profile persian-ui-lint release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
 
 validate:
 	$(PYTHON) scripts/validate_repository.py .
@@ -175,3 +175,15 @@ clean:
 	rm -rf bin dist release .state
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
 	find . -type f -name '*.pyc' -delete
+
+runtime-status:
+	$(PYTHON) scripts/project_runtime.py status
+
+runtime-watchdog:
+	$(PYTHON) scripts/project_runtime.py watchdog
+
+runtime-self-test:
+	$(PYTHON) scripts/project_runtime.py self-test
+
+autopilot-durable:
+	$(PYTHON) scripts/project_runtime.py start --phase C6-multi-agent-test-autopilot --task codex-autopilot --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json --replay-safe -- $(PYTHON) scripts/codex_autopilot.py --repair
