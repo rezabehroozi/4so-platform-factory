@@ -23,13 +23,13 @@ class ReceiptFinalizerTests(unittest.TestCase):
                 n+=1; checks[cid]={"passed":True,"requestId":f"req-chatgpt-{n:02d}"}
             else:
                 checks[cid]={"passed":True}
-        capture={"authority":mod.AUTHORITY,"clientId":"chatgpt","campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"executionId":"provider-run-chatgpt-001","externalExecution":True,"credentialedExecution":True,"checks":checks,"providerExecutionRef":"opaque-provider-execution-001"}
+        capture={"authority":mod.AUTHORITY,"clientId":"chatgpt","clientSurface":packet["clientSurface"],"campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"executionId":"provider-run-chatgpt-001","externalExecution":True,"credentialedExecution":True,"checks":checks,"providerExecutionRef":"opaque-provider-execution-001"}
         cap=td/"capture.json"; cap.write_text(json.dumps(capture))
         return pp,cap,capture
     def test_capture_finalizes_to_digest_bound_receipt(self):
         with tempfile.TemporaryDirectory() as raw:
             pp,cap,_=self.fixture(Path(raw)); out=mod.finalize(pp,cap)
-            self.assertEqual(core.RECEIPT_AUTHORITY,out["authority"]); self.assertEqual("chatgpt",out["clientId"])
+            self.assertEqual(core.RECEIPT_AUTHORITY,out["authority"]); self.assertEqual("chatgpt",out["clientId"]); self.assertEqual(core.CLIENT_SURFACES["chatgpt"],out["clientSurface"])
             self.assertEqual(core.sha256(cap),out["evidenceDigest"]); self.assertEqual(set(core.AUDITED_CHECKS),set(out["requestIds"]))
             self.assertTrue(all(out["checks"].values())); self.assertFalse(out["scopeLeakObserved"]); self.assertFalse(out["revokedGrantAccepted"]); self.assertFalse(out["selfApprovalAccepted"])
     def test_false_check_missing_request_id_and_binding_drift_fail_closed(self):
