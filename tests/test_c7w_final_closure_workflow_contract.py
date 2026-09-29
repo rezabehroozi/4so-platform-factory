@@ -50,6 +50,23 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING", matrix)
         self.assertNotIn("MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING", matrix)
         self.assertIn("--audits /secure/audits", matrix)
+        self.assertIn("finalReleaseSealCommand", matrix)
+        self.assertIn("scripts/seal_final_exact_release.py", matrix)
+        self.assertNotIn("finalReleaseAdmissionCommand", matrix)
+
+    def test_c9_is_locally_executable_without_ci_run_identity(self):
+        seal = self.read("scripts/seal_final_exact_release.py")
+        self.assertIn('AUTHORITY = "FINAL_EXACT_RELEASE_SEAL_V1"', seal)
+        self.assertIn('EXECUTION_AUTHORITY = "LOCAL_EXACT_RELEASE_SEAL_V1"', seal)
+        self.assertIn("admission.verify(root)", seal)
+        self.assertIn('"build-release"', seal)
+        self.assertIn('"scripts/build_release.py"', seal)
+        self.assertIn('"scripts/verify_release.py"', seal)
+        self.assertIn('"--full"', seal)
+        self.assertIn("git_source(root)", seal)
+        self.assertIn("atomic_write_json", seal)
+        self.assertNotIn("GITHUB_RUN_ID", seal)
+        self.assertNotIn("gh run", seal)
 
     def test_roadmap_does_not_treat_github_workflows_as_c7w_or_c9_authority(self):
         program = self.read("internal/targetmodel/program.go")
