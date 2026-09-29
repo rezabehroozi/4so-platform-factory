@@ -19,6 +19,7 @@ CAMPAIGN_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1"
 AUDIT_WITNESS_AUTHORITY="MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1"
 AUDIT_METHOD_VERSION="IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1"
 INTEROP_BINDING_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_BINDING_V1"
+CAMPAIGN_PREFLIGHT_AUTHORITY="MCP_EXTERNAL_CAMPAIGN_LIVE_PREFLIGHT_V1"
 CLIENTS=("chatgpt","claude","gemini","grok")
 CLIENT_SURFACES={"chatgpt":"ChatGPT custom MCP","claude":"Claude remote MCP","gemini":"Gemini remote MCP","grok":"Grok custom MCP"}
 SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -204,6 +205,23 @@ def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
       "witnessedCheckCount":len(AUDITED_CHECKS),"serverAuditWitnessPass":True,"matchedEvents":matched
     }
 
+def validate_campaign_live_preflight(campaign:dict)->None:
+    ep=endpoint(campaign.get("endpoint","")); parsed=urlsplit(ep); base=f"{parsed.scheme}://{parsed.netloc}"
+    metadata_url=base+"/.well-known/oauth-protected-resource"
+    row=campaign.get("livePreflight")
+    if not isinstance(row,dict) or row.get("authority")!=CAMPAIGN_PREFLIGHT_AUTHORITY:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_PREFLIGHT_INVALID")
+    servers=row.get("authorizationServers")
+    if not isinstance(servers,list) or not servers:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_PREFLIGHT_INVALID")
+    for value in servers:
+        p=urlsplit(str(value or "").strip())
+        if p.scheme!="https" or not p.hostname or p.username or p.password or p.query or p.fragment:
+            raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_PREFLIGHT_INVALID")
+    expected_challenge=f'Bearer resource_metadata="{metadata_url}"'
+    if row.get("endpoint")!=ep or row.get("protectedResourceMetadata")!=metadata_url or row.get("resource")!=ep or row.get("scopes")!=["mcp.read","mcp.operate"] or row.get("unauthenticatedStatus")!=401 or row.get("challenge")!=expected_challenge or row.get("protocol")!="2026-07-28":
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_PREFLIGHT_INVALID")
+
 def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
     campaign=load(campaign_path,"CAMPAIGN")
     if not isinstance(campaign,dict) or campaign.get("authority")!=CAMPAIGN_AUTHORITY or campaign.get("matrixAuthority")!=MATRIX_AUTHORITY:
@@ -213,6 +231,7 @@ def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
     if not str(campaign.get("campaignId") or "").startswith("mcp-interop-"):
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_ID_INVALID")
     campaign["endpoint"]=endpoint(campaign.get("endpoint",""))
+    validate_campaign_live_preflight(campaign)
     rows=campaign.get("clients")
     if not isinstance(rows,list) or [x.get("clientId") for x in rows if isinstance(x,dict)]!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_CLIENT_SET_INVALID")
