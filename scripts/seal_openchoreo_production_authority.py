@@ -9,6 +9,7 @@ from openchoreo_runtime_contract import (
 )
 
 EVIDENCE_AUTHORITY="OPENCHOREO_PRODUCTION_ZOT_SEAL_EVIDENCE_V1"
+READBACK_AUTHORITY="OPENCHOREO_PRODUCTION_ZOT_READBACK_EVIDENCE_V1"
 SELECTION_KIND="OpenChoreoRuntimeSourceSelection"
 DIGEST_KEYS=("chartSha256","valuesSha256","renderManifestSha256")
 
@@ -57,7 +58,7 @@ def plane_map(rows:list[dict])->dict[str,dict]:
         raise RuntimeError("OPENCHOREO_PRODUCTION_PLANE_INVALID")
     return out
 
-def promote(runtime_path:Path, acquisition_path:Path, selection_path:Path, expected_registry:str, out_selection:Path, evidence_out:Path)->dict:
+def promote(runtime_path:Path, acquisition_path:Path, selection_path:Path, expected_registry:str, out_selection:Path, evidence_out:Path, readback_path:Path)->dict:
     runtime=load(runtime_path,"OPENCHOREO_RUNTIME_SOURCE")
     acquisition=load(acquisition_path,"OPENCHOREO_ACQUISITION_RECEIPT")
     selection=load(selection_path,"OPENCHOREO_SOURCE_SELECTION")
@@ -115,6 +116,28 @@ def promote(runtime_path:Path, acquisition_path:Path, selection_path:Path, expec
     if not executor_ref.endswith("@"+executor_digest) or registry_identity_from_reference(executor_ref,"OPENCHOREO_PRODUCTION_EXECUTOR")!=registry or "/openchoreo-runtime@" not in executor_ref:
         raise RuntimeError("OPENCHOREO_PRODUCTION_EXECUTOR_INVALID")
 
+    readback=load(readback_path,"OPENCHOREO_PRODUCTION_ZOT_READBACK")
+    if readback.get("authority")!=READBACK_AUTHORITY or readback.get("runtimeSourceAuthority")!=SOURCE_AUTHORITY:
+        raise RuntimeError("OPENCHOREO_PRODUCTION_ZOT_READBACK_AUTHORITY_INVALID")
+    if readback.get("runtimeSourceSha256")!=sha256(runtime_path) or readback.get("registryAuthority")!="zot" or readback.get("registryIdentity")!=registry:
+        raise RuntimeError("OPENCHOREO_PRODUCTION_ZOT_READBACK_BINDING_INVALID")
+    if readback.get("imageCount")!=6 or readback.get("readbackCount")!=7 or readback.get("liveRegistryReadbackPass") is not True:
+        raise RuntimeError("OPENCHOREO_PRODUCTION_ZOT_READBACK_INCOMPLETE")
+    if readback.get("runtimeCertified") is not False or readback.get("physicalCertified") is not False:
+        raise RuntimeError("OPENCHOREO_PRODUCTION_ZOT_READBACK_SCOPE_INFLATED")
+    expected_readback={row["mirrorReference"]:str(row["digest"]).lower() for row in runtime.get("images") or []}
+    expected_readback[executor_ref]=executor_digest
+    observed={}
+    for row in readback.get("references") or []:
+        if not isinstance(row,dict):
+            raise RuntimeError("OPENCHOREO_PRODUCTION_ZOT_READBACK_REFERENCE_INVALID")
+        ref=str(row.get("reference") or ""); digest=str(row.get("digest") or "").lower()
+        if ref in observed:
+            raise RuntimeError("OPENCHOREO_PRODUCTION_ZOT_READBACK_REFERENCE_REUSE")
+        observed[ref]=digest
+    if observed!=expected_readback:
+        raise RuntimeError("OPENCHOREO_PRODUCTION_ZOT_READBACK_REFERENCE_MISMATCH")
+
     if selection.get("apiVersion")!="platform.4so.io/v1alpha1" or selection.get("kind")!=SELECTION_KIND:
         raise RuntimeError("OPENCHOREO_PRODUCTION_SELECTION_AUTHORITY_INVALID")
     current=selection.get("spec") or {}
@@ -137,6 +160,7 @@ def promote(runtime_path:Path, acquisition_path:Path, selection_path:Path, expec
       "runtimeSourceSha256":sha256(runtime_path),"acquisitionReceiptSha256":sha256(acquisition_path),
       "sourceSelectionSha256":sha256(out_selection),"version":VERSION,"upstreamCommit":UPSTREAM_COMMIT,
       "registryAuthority":"zot","registryIdentity":registry,"imageCount":len(mirrored),
+      "zotReadbackAuthority":READBACK_AUTHORITY,"zotReadbackSha256":sha256(readback_path),"liveRegistryReadbackPass":True,"liveRegistryReadbackCount":7,
       "productionSourceSealed":True,"runtimeCertified":False,"physicalCertified":False}
     evidence_out.parent.mkdir(parents=True,exist_ok=True)
     etmp=evidence_out.with_suffix(evidence_out.suffix+".tmp")
@@ -152,9 +176,10 @@ def main()->int:
     p.add_argument("--expected-registry-identity",required=True)
     p.add_argument("--out-selection",type=Path,required=True)
     p.add_argument("--evidence-out",type=Path,required=True)
+    p.add_argument("--registry-readback-evidence",type=Path,required=True)
     a=p.parse_args()
     try:
-        out=promote(a.runtime_source,a.acquisition_receipt,a.selection,a.expected_registry_identity,a.out_selection,a.evidence_out)
+        out=promote(a.runtime_source,a.acquisition_receipt,a.selection,a.expected_registry_identity,a.out_selection,a.evidence_out,a.registry_readback_evidence)
     except (RuntimeError,OSError,ValueError,json.JSONDecodeError) as exc:
         print(f"OPENCHOREO_PRODUCTION_ZOT_SEAL_BLOCKED {exc}",file=__import__("sys").stderr)
         return 3
