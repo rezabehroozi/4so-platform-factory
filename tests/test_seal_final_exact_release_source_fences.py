@@ -23,6 +23,19 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"SOURCE_NOT_EXACT_HEAD"):
                 mod.git_source(root.resolve())
 
+    def test_git_source_rejects_assume_unchanged_index_masking(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            self.git(root,"init")
+            self.git(root,"config","user.email","test@example.invalid")
+            self.git(root,"config","user.name","Test")
+            tracked=root/"tracked.txt"; tracked.write_text("tracked\n")
+            self.git(root,"add","tracked.txt"); self.git(root,"commit","-m","initial")
+            self.git(root,"update-index","--assume-unchanged","tracked.txt")
+            tracked.write_text("hidden-drift\n")
+            with self.assertRaisesRegex(RuntimeError,"GIT_INDEX_FLAGS_FORBIDDEN"):
+                mod.git_source(root.resolve())
+
     def test_output_path_preserves_and_rejects_symlink_identity(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td).resolve()
