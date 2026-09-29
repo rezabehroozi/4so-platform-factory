@@ -15,13 +15,14 @@ class IncrementalMCPInteropTests(unittest.TestCase):
         return {"authority":seal.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-incremental","matrixAuthority":seal.MATRIX_AUTHORITY,"matrixSha256":seal.sha256(matrix),"protocol":"2026-07-28","transport":"streamable-http","endpoint":"https://mcp.example.test/mcp","clients":rows,"externalExecutionRequired":True}
     def receipt(self,client,checks,campaign,execution=None):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
+        binding=seal.interop_binding_digest(campaign["campaignId"],client,challenge["challengeSha256"])
         ids={name:f"{client}-{idx:02d}-request" for idx,name in enumerate(seal.AUDITED_CHECKS,1)}
-        return {"authority":seal.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":seal.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"protocol":"2026-07-28","transport":"streamable-http","endpoint":campaign["endpoint"],"executionId":execution or "run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":ids,"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+        return {"authority":seal.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":seal.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"interopBindingAuthority":seal.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":campaign["endpoint"],"executionId":execution or "run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":ids,"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
     def audit(self,row):
         out=[]; prev=""
         for seq,check in enumerate(seal.AUDITED_CHECKS,1):
             cat,decision,reason=seal.AUDIT_REQUIREMENTS[check]
-            event={"id":f"sau-{row['clientId']}-{seq}","sequence":seq,"occurredAt":"2026-09-29T00:00:00Z","methodVersion":seal.AUDIT_METHOD_VERSION,"category":cat,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":row["requestIds"][check],"previousDigest":prev}
+            event={"id":f"sau-{row['clientId']}-{seq}","sequence":seq,"occurredAt":"2026-09-29T00:00:00Z","methodVersion":seal.AUDIT_METHOD_VERSION,"category":cat,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":row["requestIds"][check],"mcpInteropBindingDigest":row["interopBindingDigest"],"previousDigest":prev}
             event["digest"]=seal.audit_event_digest(event)
             out.append(event); prev=event["digest"]
         return out
@@ -34,6 +35,17 @@ class IncrementalMCPInteropTests(unittest.TestCase):
                 out=mod.merge(matrix,cp,rp,ap,client,progress if progress.exists() else None); progress.write_text(json.dumps(out))
                 self.assertEqual(idx,out["certifiedClientCount"]); self.assertEqual(idx==4,out["complete"])
             evidence=mod.final_evidence(out,progress); self.assertEqual(4,evidence["certifiedClientCount"]); self.assertTrue(evidence["serverAuditWitnessPass"]); self.assertEqual(24,evidence["serverAuditWitnessedCheckCount"]); self.assertFalse(evidence["physicalCertified"])
+    def test_existing_progress_rejects_interop_binding_or_witness_binding_drift(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); campaign=self.campaign(matrix); cp=root/"campaign.json"; cp.write_text(json.dumps(campaign))
+            row=self.receipt("chatgpt",checks,campaign); rp=root/"chatgpt.json"; ap=root/"chatgpt-audit.json"; rp.write_text(json.dumps(row)); ap.write_text(json.dumps(self.audit(row)))
+            out=mod.merge(matrix,cp,rp,ap,"chatgpt",None)
+            bad=json.loads(json.dumps(out)); bad["clients"][0]["interopBindingDigest"]="sha256:"+"0"*64
+            with self.assertRaisesRegex(RuntimeError,"INTEROP_BINDING_INVALID"): mod.validate_existing(bad,out)
+            bad=json.loads(json.dumps(out)); bad["clients"][0]["serverAuditWitness"]["interopBindingDigest"]="sha256:"+"1"*64
+            with self.assertRaisesRegex(RuntimeError,"INTEROP_BINDING_INVALID"): mod.validate_existing(bad,out)
+
     def test_cross_client_execution_or_evidence_reuse_rejects_incrementally(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
         with tempfile.TemporaryDirectory() as td:
