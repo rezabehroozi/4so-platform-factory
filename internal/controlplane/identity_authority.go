@@ -157,7 +157,8 @@ type SecurityAuditInput struct {
 	ScopeType      string `json:"scopeType,omitempty"`
 	ScopeID        string `json:"scopeId,omitempty"`
 	EffectiveRole  string `json:"effectiveRole,omitempty"`
-	MappingDigest  string `json:"mappingDigest,omitempty"`
+	MappingDigest            string `json:"mappingDigest,omitempty"`
+	MCPInteropBindingDigest string `json:"mcpInteropBindingDigest,omitempty"`
 }
 
 type SecurityAuditEvent struct {
