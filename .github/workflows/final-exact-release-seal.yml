@@ -57,7 +57,10 @@ jobs:
               echo
               echo "**PENDING — no exact release was built or sealed.**"
               echo
-              jq -r '.blockers[] | "- (.code): (.detail)"' /tmp/final-admission-status.json
+              jq -r '.blockers[] | "- \(.code): \(.detail)"' /tmp/final-admission-status.json
+              if jq -e '.externalClientProgress' /tmp/final-admission-status.json >/dev/null; then
+                jq -r '.externalClientProgress | "- C7W clients: \(.certifiedClientCount)/4 certified; missing=" + (.missingClients|join(",")) + (if .nextClient then "; next=" + .nextClient else "; evidence seal pending" end)' /tmp/final-admission-status.json
+              fi
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi

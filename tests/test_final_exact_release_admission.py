@@ -58,6 +58,29 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             else:
                 self.fail("pending evidence unexpectedly admitted")
 
+    def test_external_progress_reports_missing_clients_without_inventing_evidence(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
+            p=root/"lab/mcp-external-client-interop-progress.json"
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":[{"clientId":"chatgpt","clientSurface":mod.CLIENT_SURFACES["chatgpt"]},{"clientId":"gemini","clientSurface":mod.CLIENT_SURFACES["gemini"]}],"certifiedClientCount":2,"complete":False,"runtimeCertified":False,"physicalCertified":False}))
+            progress=mod.external_client_progress(root)
+            self.assertEqual(["chatgpt","gemini"],progress["certifiedClients"])
+            self.assertEqual(["claude","grok"],progress["missingClients"])
+            self.assertEqual("claude",progress["nextClient"])
+            self.assertFalse(progress["evidenceSealPending"])
+
+    def test_complete_progress_without_evidence_reports_seal_pending(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
+            rows=[{"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c]} for c in mod.CLIENTS]
+            (root/"lab/mcp-external-client-interop-progress.json").write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":rows,"certifiedClientCount":4,"complete":True,"runtimeCertified":False,"physicalCertified":False}))
+            progress=mod.external_client_progress(root)
+            self.assertEqual([],progress["missingClients"])
+            self.assertIsNone(progress["nextClient"])
+            self.assertTrue(progress["evidenceSealPending"])
+
     def test_unwitnessed_external_evidence_remains_pending(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root)

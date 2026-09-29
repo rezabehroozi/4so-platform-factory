@@ -45,6 +45,34 @@ def load(path:Path,label:str)->dict:
     return value
 
 
+def external_client_progress(root:Path)->dict:
+    path=root/"lab/mcp-external-client-interop-progress.json"
+    if not path.exists():
+        return {"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","certifiedClientCount":0,"certifiedClients":[],"missingClients":list(CLIENTS),"nextClient":CLIENTS[0],"complete":False,"evidenceSealPending":False}
+    progress=load(path,"MCP_EXTERNAL_PROGRESS")
+    if progress.get("authority")!="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1" or progress.get("kind")!="MCPExternalClientInteropProgress":
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_AUTHORITY_INVALID")
+    if progress.get("runtimeCertified") is not False or progress.get("physicalCertified") is not False:
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_SCOPE_INFLATED")
+    rows=progress.get("clients")
+    if not isinstance(rows,list):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
+    seen=set()
+    for row in rows:
+        if not isinstance(row,dict):
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
+        client=str(row.get("clientId") or "")
+        if client not in CLIENTS or client in seen or row.get("clientSurface")!=CLIENT_SURFACES[client]:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_IDENTITY_INVALID")
+        seen.add(client)
+    certified=[c for c in CLIENTS if c in seen]
+    missing=[c for c in CLIENTS if c not in seen]
+    complete=len(missing)==0
+    if progress.get("certifiedClientCount")!=len(certified) or progress.get("complete") is not complete:
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_COUNT_INVALID")
+    return {"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","certifiedClientCount":len(certified),"certifiedClients":certified,"missingClients":missing,"nextClient":missing[0] if missing else None,"complete":complete,"evidenceSealPending":complete}
+
+
 def public_content_addressed(url:str,sha:str,label:str)->None:
     p=urlsplit(str(url or "").strip())
     d=str(sha or "").removeprefix("sha256:")
@@ -123,7 +151,12 @@ def main()->int:
     except Pending as exc:
         if not a.allow_pending: raise
         pending=str(exc)
-        print(json.dumps({"authority":AUTHORITY,"admitted":False,"pending":pending,"blockers":[{"code":pending,"detail":"required external closure evidence is not sealed on canonical main"}],"physicalCertified":False},sort_keys=True))
+        status={"authority":AUTHORITY,"admitted":False,"pending":pending,"blockers":[{"code":pending,"detail":"required external closure evidence is not sealed on canonical main"}],"physicalCertified":False}
+        if pending=="MCP_EXTERNAL_INTEROP_PENDING":
+            status["externalClientProgress"]=external_client_progress(a.root.resolve())
+        if a.out:
+            a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(status,indent=2,sort_keys=True)+"\n")
+        print(json.dumps(status,sort_keys=True))
         return 3
     if a.out:
         a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
