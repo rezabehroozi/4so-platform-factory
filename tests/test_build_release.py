@@ -35,6 +35,27 @@ class ReleaseSourceTreeBoundary(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "SOURCE_TREE_STALE_DURABLE_TEMP_FORBIDDEN"):
                 BUILD.source_files(root, apply_excludes=True)
 
+    def test_git_backed_release_source_excludes_ignored_and_untracked_local_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            def git(*args):
+                return BUILD.subprocess.run(["git", *args], cwd=root, text=True, capture_output=True, check=True).stdout.strip()
+            git("init")
+            git("config", "user.email", "test@example.invalid")
+            git("config", "user.name", "Test")
+            (root / ".gitignore").write_text("*.key\n.local-dev/\n", encoding="utf-8")
+            (root / "tracked.txt").write_text("tracked\n", encoding="utf-8")
+            git("add", ".gitignore", "tracked.txt")
+            git("commit", "-m", "initial")
+            (root / "secret.key").write_text("private\n", encoding="utf-8")
+            (root / "untracked.txt").write_text("not in HEAD\n", encoding="utf-8")
+            local = root / ".local-dev"
+            local.mkdir()
+            (local / "state.json").write_text("{}\n", encoding="utf-8")
+            rels = {str(path.relative_to(root)) for path in BUILD.release_source_files(root)}
+            self.assertEqual({".gitignore", "tracked.txt"}, rels)
+
     def test_go_toolchain_version_uses_explicit_go_authority_from_environment(self):
         completed = mock.Mock(stdout="go version go1.27.1 linux/amd64\n")
         with mock.patch.dict(BUILD.os.environ, {"GO": "/opt/4so/go1.27.1/bin/go"}, clear=False):
