@@ -298,6 +298,14 @@ def publish_verified_file(source: Path, target: Path) -> Path:
     return target
 
 
+def exact_release_publication_path(root: Path, source_sha: str, filename: str) -> Path:
+    if len(source_sha) != 40 or any(ch not in "0123456789abcdef" for ch in source_sha):
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
+    if not filename or "/" in filename or "\\" in filename or filename in {".", ".."}:
+        raise RuntimeError("FINAL_EXACT_RELEASE_ARTIFACT_NAME_INVALID")
+    return admit_output_path(root, root / "release" / "exact-sha" / source_sha / filename)
+
+
 def build_evidence(
     root: Path,
     release: Path,
@@ -312,7 +320,11 @@ def build_evidence(
     if admission_row.get("physicalCertified") is not False:
         raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_SCOPE_INFLATED")
     expected_name = f"4so-platform-factory-{version}-{release_name}"
-    if release.parent != root / "release" or release.name != expected_name + ".zip" or stage.name != expected_name:
+    allowed_parents = {
+        root / "release",
+        root / "release" / "exact-sha" / source_sha,
+    }
+    if release.parent not in allowed_parents or release.name != expected_name + ".zip" or stage.name != expected_name:
         raise RuntimeError("FINAL_EXACT_RELEASE_PATH_INVALID")
     for required in (
         stage / "ARTIFACT-MANIFEST.json",
@@ -330,6 +342,7 @@ def build_evidence(
         "version": version,
         "releaseName": release_name,
         "releaseArchive": release.name,
+        "releaseArchivePath": release.relative_to(root).as_posix(),
         "releaseArchiveSha256": sha256(release),
         "releaseArchiveBytes": release.stat().st_size,
         "artifactManifestSha256": sha256(stage / "ARTIFACT-MANIFEST.json"),
@@ -445,8 +458,8 @@ def execute(root: Path, out: Path) -> dict:
             if git_source(root) != source_sha:
                 raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_BUILD")
 
-            published_release_path = admit_output_path(root, root / "release" / release.name)
-            published_checksum_path = admit_output_path(root, root / "release" / (release.name + ".sha256"))
+            published_release_path = exact_release_publication_path(root, source_sha, release.name)
+            published_checksum_path = exact_release_publication_path(root, source_sha, release.name + ".sha256")
             published_release = publish_verified_file(release, published_release_path)
             publish_verified_file(release.with_name(release.name + ".sha256"), published_checksum_path)
             evidence = build_evidence(
