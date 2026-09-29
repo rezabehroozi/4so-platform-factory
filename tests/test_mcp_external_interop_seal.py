@@ -10,7 +10,9 @@ class MCPExternalSealTests(unittest.TestCase):
         for c in mod.CLIENTS:
             challenge=("challenge-"+c+"-")*4
             rows.append({"clientId":c,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest()})
-        return {"authority":mod.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","matrixAuthority":mod.MATRIX_AUTHORITY,"matrixSha256":mod.sha256(matrix_path),"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"clients":rows,"externalExecutionRequired":True}
+        metadata=endpoint.rsplit("/mcp",1)[0]+"/.well-known/oauth-protected-resource"
+        preflight={"authority":mod.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":endpoint,"protectedResourceMetadata":metadata,"resource":endpoint,"authorizationServers":["https://identity.example.test/realms/4so"],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":f'Bearer resource_metadata="{metadata}"',"protocol":"2026-07-28"}
+        return {"authority":mod.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","matrixAuthority":mod.MATRIX_AUTHORITY,"matrixSha256":mod.sha256(matrix_path),"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
     def request_ids(self,client):
         return {name:f"{client}-{idx:02d}-request" for idx,name in enumerate(mod.AUDITED_CHECKS,1)}
     def receipt(self,client,checks,campaign,endpoint="https://mcp.example.test/mcp"):
