@@ -71,8 +71,7 @@
       "read-only-client-mutation-negative-control",
       "administration-approval-self-approval-negative-control"
     ],
-    "receiptAdmissionWorkflow": ".github/workflows/mcp-external-receipt-admission.yml",
-    "bulkSealWorkflow": ".github/workflows/mcp-external-interop-seal.yml",
-    "finalReleaseWorkflow": ".github/workflows/final-exact-release-seal.yml"
+    "receiptAdmissionCommand": "python3 scripts/admit_mcp_external_receipt.py --campaign /secure/campaign.json --receipt /secure/receipts/<client>.json --audit /secure/audits/<client>.json --client <client> --progress lab/mcp-external-client-interop-progress.json",
+    "finalReleaseAdmissionCommand": "python3 scripts/final_exact_release_admission.py --root . --out lab/final-exact-release-evidence.json"
   }
 }
