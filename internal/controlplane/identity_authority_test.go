@@ -90,6 +90,28 @@ func TestSecurityAuditChainTimeStable(t *testing.T) {
 }
 
 
+func TestSecurityAuditDigestVectorMatchesExternalSealer(t *testing.T) {
+	event := SecurityAuditEvent{
+		ID: "sau-parity", Sequence: 7,
+		OccurredAt: time.Date(2026, 9, 29, 1, 2, 3, 0, time.UTC),
+		MethodVersion: SecurityAuditMethod,
+		SecurityAuditInput: SecurityAuditInput{
+			Category: "CAPABILITY_AUTHORIZATION", Decision: "DENY",
+			ActorID: "actor&<>\u2028\u2029", Authentication: "oidc",
+			Method: "POST", Path: "/mcp", StatusCode: 403,
+			ReasonCode: "CAPABILITY_PERMISSION_REQUIRED", RequestID: "request-12345",
+			EffectiveRole: "operator",
+			MappingDigest: "sha256:" + strings.Repeat("a", 64),
+			MCPInteropBindingDigest: "sha256:" + strings.Repeat("b", 64),
+		},
+		PreviousDigest: "sha256:" + strings.Repeat("c", 64),
+	}
+	const expected = "sha256:948eadc1f4c1d16dbe6e34cb6859e0e7cb4498655054ea7720a95e1001717619"
+	if got := SecurityAuditEventDigest(event); got != expected {
+		t.Fatalf("security audit canonical digest drift: got %s want %s", got, expected)
+	}
+}
+
 func TestSecurityAuditMCPInteropBindingIsCanonicalAndDigestBound(t *testing.T) {
 	s := NewMemoryStore()
 	ctx := context.Background()
