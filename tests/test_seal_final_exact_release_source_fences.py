@@ -58,6 +58,18 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             finally:
                 mod.remove_exact_worktree(root.resolve(),worktree)
 
+    def test_exact_release_publication_is_source_sha_scoped(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            name="4so-platform-factory-0.0.363-test.zip"
+            first=mod.exact_release_publication_path(root,"a"*40,name)
+            second=mod.exact_release_publication_path(root,"b"*40,name)
+            self.assertEqual(root/"release"/"exact-sha"/("a"*40)/name,first)
+            self.assertEqual(root/"release"/"exact-sha"/("b"*40)/name,second)
+            self.assertNotEqual(first,second)
+            with self.assertRaisesRegex(RuntimeError,"SOURCE_SHA_INVALID"):
+                mod.exact_release_publication_path(root,"bad",name)
+
     def test_output_path_preserves_and_rejects_symlink_identity(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td).resolve()
