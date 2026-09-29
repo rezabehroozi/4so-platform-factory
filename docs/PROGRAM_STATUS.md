@@ -37,6 +37,20 @@ All **36/36 (100%)** Core + Expansion pre-physical software phases are now sourc
 5. **W4 — Cross-surface convergence:** converge API, SDK, MCP, Console, PostgreSQL, Durable Ops, Evidence and negative controls.
 6. **W5 — Feature freeze:** C9 freezes mandatory scope and emits one exact immutable release before Phase D physical certification.
 
+## Git-only C7W/C9 final source-hardening checkpoint — 2026-09-29
+
+- Current source checkpoint before this status commit: `3cb0a5d7f725a939631c520329b80361504e3684`. Development access in this wave is Git repository read/update/push only; CI jobs, GitHub Actions, Remote/Desktop Commander and external runners are not current execution authority.
+- C7W campaign preparation is live-discovery gated: the real HTTPS protected-resource metadata and unauthenticated `POST /mcp` 401 challenge must match the product OAuth resource contract before a one-shot campaign is emitted.
+- Every protected named-client request carries `Mcp-Interop-Binding`; the binding is persisted inside `IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1`, included in the audit-event digest, and independently revalidated by receipt, incremental-progress and Final Exact Release admission.
+- C7W audit windows are fetched directly from the Product API by exact protected request IDs using an environment-sourced platform-admin token. The fetched window must pass the same semantic/binding validator as the sealer before it is persisted; an existing evidence file is idempotent only for identical bytes and cannot be replaced by a different audit window.
+- PostgreSQL migration `0084_security_audit_mcp_interop_binding.sql` aligns the durable audit schema with capability/delegation/approval authorization categories and persists `mcp_interop_binding_digest`; snapshot/readback source fixtures use the same column order.
+- C9 is CI-independent: `scripts/seal_final_exact_release.py` admits S1+C7W, requires a clean exact Git HEAD including untracked-file rejection, uses the admitted offline toolchain, builds and fully verifies the exact release, rechecks source HEAD, and publishes final evidence with no-replace semantics while keeping `physicalCertified=false`.
+- Release source packaging is fenced to Git-tracked files when Git is authoritative, so ignored local state/secrets cannot enter the ZIP. A no-Git rebuild is allowed only from source bytes already named and digest/size-bound by `ARTIFACT-MANIFEST.json`; arbitrary filesystem files are not package authority.
+- Executable roadmap Evidence no longer treats `.github/workflows/*` as a phase authority. Provider, API, source, migration, artifact and runtime contracts remain the evidence owners; workflow files may exist historically but are not execution truth.
+- **Validation for the current HEAD is NOT RUN in this Git-only access mode.** The new focused tests are source changes only until they are executed in an authorized local environment. No Runtime, Lab or Physical PASS is inferred.
+- Program truth remains: Core source/software closure **25/25 = 100%**; Core closure/release readiness **23/25 = 92%**; Core+Expansion pre-physical software source closure **36/36 = 100%**. C7W remains **0/4 external clients** until real named-client evidence is supplied; C9 remains `FINAL_EXACT_RELEASE_SEAL_PENDING`.
+- Historical sections below may record CI/runner/Remote evidence from earlier development periods. They are retained as history only and do not override the current Git-only execution-authority rule.
+
 ## Git-only C7W authority hardening checkpoint — 2026-09-29
 
 - Development access for this wave is intentionally limited to Git repository read/update/push. No Remote Commander, CI runner, GitHub Actions result, external test host or background runner is treated as current execution authority.
@@ -423,7 +437,7 @@ Execution order while Remote Commander is paused: **Lab-derived source hardening
 - The historical retained Longhorn volume remains deliberately outside automatic cleanup authority because it predates `LONGHORN_DISPOSABLE_VOLUME_EVIDENCE_V1`.
 - Full Verifier browser **source authority** is complete, but exact Chromium bytes plus their authority manifest remain a supply-chain input and must not be inferred from CI.
 - MCP C7W source implementation remains complete; `MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING` is external named-client execution evidence, not a reason to invent additional MCP business logic.
-- The next genuine source-open expansion priority is J1: a real Terraform provider using the official Terraform provider framework and then a Crossplane provider over the same Product API/SDK authority. Mock/schema-only provider substitutes do not close J1.
+- No Core or Expansion source-open phase remains in the current V75 scope: J1 Terraform/Crossplane and the rest of the 36 pre-physical software phases are source-implemented. Remaining work is external/runtime/production-seal/Physical closure, not a reason to invent new source debt.
 
 
 ## Current handoff checkpoint — 2026-09-20 J3 desired-state convergence
