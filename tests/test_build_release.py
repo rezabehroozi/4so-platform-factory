@@ -56,6 +56,22 @@ class ReleaseSourceTreeBoundary(unittest.TestCase):
             rels = {str(path.relative_to(root)) for path in BUILD.release_source_files(root)}
             self.assertEqual({".gitignore", "tracked.txt"}, rels)
 
+    def test_git_backed_release_source_rejects_hidden_index_flags(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            def git(*args):
+                return BUILD.subprocess.run(["git", *args], cwd=root, text=True, capture_output=True, check=True).stdout.strip()
+            git("init")
+            git("config", "user.email", "test@example.invalid")
+            git("config", "user.name", "Test")
+            tracked=root/"tracked.txt"; tracked.write_text("tracked\n",encoding="utf-8")
+            git("add","tracked.txt"); git("commit","-m","initial")
+            git("update-index","--assume-unchanged","tracked.txt")
+            tracked.write_text("hidden-drift\n",encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit,"RELEASE_GIT_INDEX_FLAGS_FORBIDDEN"):
+                BUILD.release_source_files(root)
+
     def test_no_git_release_source_uses_only_manifest_sealed_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "bundle"
