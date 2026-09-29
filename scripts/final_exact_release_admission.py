@@ -15,6 +15,10 @@ try:
     import distribution_transport as transport
 except ModuleNotFoundError:
     from scripts import distribution_transport as transport
+try:
+    import seal_mcp_external_interop as mcp_contract
+except ModuleNotFoundError:
+    from scripts import seal_mcp_external_interop as mcp_contract
 
 AUTHORITY="FINAL_EXACT_RELEASE_ADMISSION_V1"
 S1_AUTHORITY="LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8"
@@ -97,9 +101,11 @@ def external_client_progress(root:Path)->dict:
         challenge_digest=str(row.get("challengeSha256") or "")
         if not SHA.fullmatch(evidence_digest) or not SHA.fullmatch(receipt_digest) or not SHA.fullmatch(challenge_digest):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_RECEIPT_BINDING_INVALID")
+        binding=mcp_contract.validate_interop_binding(row,progress.get("campaignId"),client,"MCP_EXTERNAL_PROGRESS")
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
+        mcp_contract.validate_witness_interop_binding(witness,binding,client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS")
         start_seq=witness.get("auditWindowStartSequence"); start_prev=str(witness.get("auditWindowPreviousDigest") or ""); head_seq=witness.get("auditHeadSequence")
         start_valid=type(start_seq) is int and start_seq>0 and type(head_seq) is int and head_seq>=start_seq and ((start_seq==1 and start_prev=="") or (start_seq>1 and SHA.fullmatch(start_prev)))
         if witness.get("authority")!=MCP_AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=MCP_AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=6 or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
@@ -194,9 +200,11 @@ def verify(root:Path)->dict:
         challenge_digest=str(row.get("challengeSha256") or "")
         if not SHA.fullmatch(evidence_digest) or not SHA.fullmatch(receipt_digest) or not SHA.fullmatch(challenge_digest):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_RECEIPT_BINDING_INVALID")
+        binding=mcp_contract.validate_interop_binding(row,mcp.get("campaignId"),client,"MCP_EXTERNAL_INTEROP")
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_INTEROP_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
+        mcp_contract.validate_witness_interop_binding(witness,binding,client,"MCP_EXTERNAL_INTEROP_SERVER_WITNESS")
         start_seq=witness.get("auditWindowStartSequence"); start_prev=str(witness.get("auditWindowPreviousDigest") or ""); head_seq=witness.get("auditHeadSequence")
         start_valid=type(start_seq) is int and start_seq>0 and type(head_seq) is int and head_seq>=start_seq and ((start_seq==1 and start_prev=="") or (start_seq>1 and SHA.fullmatch(start_prev)))
         if witness.get("authority")!=MCP_AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=MCP_AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=6 or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
