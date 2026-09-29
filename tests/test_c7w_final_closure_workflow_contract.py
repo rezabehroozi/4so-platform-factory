@@ -31,6 +31,18 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("validate_server_audit_witness", seal)
         self.assertIn("mcpInteropBindingDigest", seal)
 
+    def test_audit_window_fetch_is_campaign_bound_and_secret_safe(self):
+        fetcher = self.read("scripts/fetch_mcp_external_audit_window.py")
+        matrix = self.read("lab/mcp-external-client-interop-matrix.json")
+        self.assertIn("core.verify_campaign", fetcher)
+        self.assertIn("core.verify_receipt", fetcher)
+        self.assertIn("core.validate_audit_export", fetcher)
+        self.assertIn("AUDIT_REQUEST_IDS_PENDING", fetcher)
+        self.assertIn('default="C7W_PLATFORM_ADMIN_TOKEN"', fetcher)
+        self.assertNotIn("--token ", fetcher)
+        self.assertIn('"auditTokenSource": "environment:C7W_PLATFORM_ADMIN_TOKEN"', matrix)
+        self.assertNotIn("C7W_PLATFORM_ADMIN_TOKEN=<secret>", matrix)
+
     def test_incremental_progress_reuses_canonical_binding_and_witness_contract(self):
         progress = self.read("scripts/admit_mcp_external_receipt.py")
         self.assertIn("core.validate_interop_binding", progress)
