@@ -61,6 +61,11 @@ func TestOpenChoreoReferencePhaseIsExpansionOnlyAndDoesNotBlockCoreFreeze(t *tes
 		t.Fatalf("delivery deployment evidence ingestion blocker remained after durable projection closure: %#v", phase.Blockers)
 	}
 	c9 := byID["C9-pre-certification-feature-freeze-exact-bundle"]
+	for _, evidence := range []string{"scripts/seal_openchoreo_production_authority.py", "OPENCHOREO_PRODUCTION_ZOT_SEAL_EVIDENCE_V1"} {
+		if !containsString(phase.Evidence, evidence) {
+			t.Fatalf("J8 production Zot closure evidence missing %q: %#v", evidence, phase.Evidence)
+		}
+	}
 	if containsString(c9.DependsOn, phase.ID) {
 		t.Fatalf("optional expansion phase must not gate Core feature freeze: %#v", c9.DependsOn)
 	}
