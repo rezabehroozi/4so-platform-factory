@@ -141,7 +141,7 @@ def _audit_rows(path:Path)->list[dict]:
             raise RuntimeError("MCP_EXTERNAL_AUDIT_CHAIN_INVALID")
         if previous is not None and (seq!=previous["sequence"]+1 or previous_digest!=previous["digest"]):
             raise RuntimeError("MCP_EXTERNAL_AUDIT_CHAIN_INVALID")
-        if previous is None and previous_digest and not SHA.fullmatch(previous_digest):
+        if previous is None and ((seq==1 and previous_digest!="") or (seq>1 and not SHA.fullmatch(previous_digest))):
             raise RuntimeError("MCP_EXTERNAL_AUDIT_CHAIN_INVALID")
         if audit_event_digest(raw)!=digest:
             raise RuntimeError("MCP_EXTERNAL_AUDIT_DIGEST_INVALID")
