@@ -58,6 +58,35 @@ class IncrementalMCPInteropTests(unittest.TestCase):
             rp2=root/"claude.json"; ap2=root/"claude-audit.json"; rp2.write_text(json.dumps(second)); ap2.write_text(json.dumps(self.audit(second)))
             with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_REUSE"): mod.merge(matrix,cp,rp2,ap2,"claude",progress)
 
+    def test_existing_progress_revalidates_witness_and_replay_authorities(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); campaign=self.campaign(matrix); cp=root/"campaign.json"; cp.write_text(json.dumps(campaign)); progress=root/"progress.json"
+            rows=[]
+            for client in ("chatgpt","claude"):
+                receipt=self.receipt(client,checks,campaign); rp=root/(client+".json"); ap=root/(client+"-audit.json")
+                rp.write_text(json.dumps(receipt)); ap.write_text(json.dumps(self.audit(receipt)))
+                current=mod.merge(matrix,cp,rp,ap,client,progress if progress.exists() else None); progress.write_text(json.dumps(current)); rows.append(current)
+            expected=rows[-1]
+            bad=json.loads(json.dumps(expected)); bad["clients"][0]["serverAuditWitness"]["auditChainDigestVerified"]=False
+            with self.assertRaisesRegex(RuntimeError,"SERVER_WITNESS"): mod.validate_existing(bad,expected)
+            bad=json.loads(json.dumps(expected)); bad["clients"][1]["executionId"]=bad["clients"][0]["executionId"]
+            with self.assertRaisesRegex(RuntimeError,"EXECUTION_ID"): mod.validate_existing(bad,expected)
+            bad=json.loads(json.dumps(expected)); key=next(iter(bad["clients"][1]["requestIds"])); bad["clients"][1]["requestIds"][key]=next(iter(bad["clients"][0]["requestIds"].values()))
+            with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_REUSE"): mod.validate_existing(bad,expected)
+
+    def test_final_evidence_requires_exact_persisted_progress_bytes(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); campaign=self.campaign(matrix); cp=root/"campaign.json"; cp.write_text(json.dumps(campaign)); progress=root/"progress.json"
+            out=None
+            for client in seal.CLIENTS:
+                receipt=self.receipt(client,checks,campaign); rp=root/(client+".json"); ap=root/(client+"-audit.json")
+                rp.write_text(json.dumps(receipt)); ap.write_text(json.dumps(self.audit(receipt)))
+                out=mod.merge(matrix,cp,rp,ap,client,progress if progress.exists() else None); progress.write_text(json.dumps(out))
+            persisted=json.loads(progress.read_text()); persisted["clients"][0]["executionId"]="tampered-after-memory"; progress.write_text(json.dumps(persisted))
+            with self.assertRaisesRegex(RuntimeError,"FILE_BINDING"): mod.final_evidence(out,progress)
+
     def test_explicit_supersede_replaces_only_incomplete_campaign(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
         with tempfile.TemporaryDirectory() as td:
