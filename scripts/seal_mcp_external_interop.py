@@ -152,11 +152,12 @@ def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
         candidates=[r for r in rows if str(r.get("requestId") or "")==rid and r.get("path")=="/mcp" and r.get("method")=="POST"]
         if not candidates:
             raise RuntimeError(f"MCP_EXTERNAL_AUDIT_REQUEST_NOT_OBSERVED {client}:{check}")
+        if len(candidates)!=1:
+            raise RuntimeError(f"MCP_EXTERNAL_AUDIT_REQUEST_AMBIGUOUS {client}:{check}")
         category,decision,reason=AUDIT_REQUIREMENTS[check]
-        semantic=[r for r in candidates if r.get("category")==category and r.get("decision")==decision and r.get("reasonCode")==reason]
-        if not semantic:
+        event=candidates[0]
+        if event.get("category")!=category or event.get("decision")!=decision or event.get("reasonCode")!=reason:
             raise RuntimeError(f"MCP_EXTERNAL_AUDIT_SEMANTIC_WITNESS_MISSING {client}:{check}")
-        event=semantic[-1]
         matched[check]={"requestId":rid,"sequence":event["sequence"],"digest":event["digest"],"category":category,"decision":decision,"reasonCode":reason}
     head=rows[-1]
     return {
@@ -178,11 +179,15 @@ def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
     rows=campaign.get("clients")
     if not isinstance(rows,list) or [x.get("clientId") for x in rows if isinstance(x,dict)]!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_CLIENT_SET_INVALID")
+    challenge_values=set(); challenge_digests=set()
     for row in rows:
         challenge=str(row.get("challenge") or "")
         expected="sha256:"+hashlib.sha256(challenge.encode()).hexdigest()
         if len(challenge)<32 or row.get("challengeSha256")!=expected:
             raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_CHALLENGE_INVALID")
+        if challenge in challenge_values or expected in challenge_digests:
+            raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_CHALLENGE_REUSE")
+        challenge_values.add(challenge); challenge_digests.add(expected)
     return campaign
 
 def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->dict:
