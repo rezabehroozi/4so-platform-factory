@@ -48,6 +48,20 @@ class MCPExternalSealTests(unittest.TestCase):
             self.assertEqual(4,out["certifiedClientCount"]); self.assertEqual(campaign["campaignId"],out["campaignId"]); self.assertTrue(out["serverAuditWitnessPass"]); self.assertEqual(24,out["serverAuditWitnessedCheckCount"]); self.assertFalse(out["physicalCertified"])
             self.assertTrue(all(row["serverAuditWitness"]["auditChainDigestVerified"] for row in out["clients"]))
             self.assertTrue(all(row["serverAuditWitness"]["auditMethodVersion"]==mod.AUDIT_METHOD_VERSION for row in out["clients"]))
+    def test_bounded_non_genesis_audit_window_is_valid(self):
+        with tempfile.TemporaryDirectory() as td:
+            matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
+            audit_path=audits/"chatgpt.json"; audit=json.loads(audit_path.read_text())
+            prev="sha256:"+hashlib.sha256(b"prior-audit-head").hexdigest()
+            for seq,row in enumerate(audit,101):
+                row["sequence"]=seq; row["previousDigest"]=prev; row["digest"]=self.audit_digest(row); prev=row["digest"]
+            audit_path.write_text(json.dumps(audit))
+            out=mod.seal(matrix,campaign_path,receipts,audits)
+            witness=out["clients"][0]["serverAuditWitness"]
+            self.assertEqual(101,witness["auditWindowStartSequence"])
+            self.assertEqual("sha256:"+hashlib.sha256(b"prior-audit-head").hexdigest(),witness["auditWindowPreviousDigest"])
+            self.assertEqual(106,witness["auditHeadSequence"])
+
     def test_replay_endpoint_and_audit_semantics_reject(self):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,campaign,checks=self.fixture(Path(td))
