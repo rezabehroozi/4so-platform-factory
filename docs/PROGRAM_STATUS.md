@@ -158,7 +158,7 @@ These are closure/evidence blockers, not a reason to reopen completed source wor
 - `MANAGEMENT_WORKLOAD_OCI_ARCHIVE_PENDING` ? S1 exact management workload archive/digest closure.
 - `COMPONENT_RUNTIME_UPGRADE_MATRIX_PENDING` ? S2 exact historical source/upgrade evidence.
 - `FINAL_EXACT_RELEASE_SEAL_PENDING` → C9 final immutable Exact Release seal after S1/C7W leaf closure; this is independent of Physical PASS.
-- `MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING` ? C7W named external-client live interoperability.
+- `MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING` ? C7W named external-client live interoperability.
 - `OKD_CONNECTED_MANAGED_INSTALL_PENDING` ? H1 connected Managed OKD runtime evidence.
 - `OKD_DISCONNECTED_RUNTIME_CERTIFICATION_PENDING` ? I1 exact disconnected mirror/install runtime certification; oc-mirror v2 acquisition is already exact and evidence-bound.
 - `OPENCHOREO_EXACT_RUNTIME_ACQUISITION_PENDING` ? J8 exact OpenChoreo source/chart/image acquisition, zot mirror and sealed runtime-source evidence.
@@ -422,7 +422,7 @@ Execution order while Remote Commander is paused: **Lab-derived source hardening
 - The Lab-derived software queue now has source-level closure for SSH host-key rotation/recovery, legacy GitOps namespace/reconciler migration, exact Full Verifier browser authority, durable legacy HA database migration phases, and exact-evidence disposable Longhorn smoke cleanup.
 - The historical retained Longhorn volume remains deliberately outside automatic cleanup authority because it predates `LONGHORN_DISPOSABLE_VOLUME_EVIDENCE_V1`.
 - Full Verifier browser **source authority** is complete, but exact Chromium bytes plus their authority manifest remain a supply-chain input and must not be inferred from CI.
-- MCP C7W source implementation remains complete; `MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING` is external named-client execution evidence, not a reason to invent additional MCP business logic.
+- MCP C7W source implementation remains complete; `MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING` is external named-client execution evidence, not a reason to invent additional MCP business logic.
 - The next genuine source-open expansion priority is J1: a real Terraform provider using the official Terraform provider framework and then a Crossplane provider over the same Product API/SDK authority. Mock/schema-only provider substitutes do not close J1.
 
 
@@ -532,7 +532,7 @@ Refresh `origin/main` first and trust the newer HEAD if main advanced. Read this
 - The deterministic input-pack is 3,179,097,107 bytes with SHA-256 `sha256:33fa8a9ae6ce94f2f517a500858c2dc910b3c382cbdb0ab88ea41f2e56a63fc6`.
 - The canonical management workload OCI archive distribution is 2,307,195,904 bytes with SHA-256 `sha256:33122daf7b73bd6c9929dc5aa0a6d1ea8066f3a3b6486d0a753f0bf09a3f06dc`.
 - S1 is therefore source/closure ready. No Runtime or Physical PASS is inferred from distribution closure.
-- Mandatory pre-freeze external closure is now narrowed to `MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING`; C9 remains independently blocked on `FINAL_EXACT_RELEASE_SEAL_PENDING` until that named-client evidence exists.
+- Mandatory pre-freeze external closure is now narrowed to `MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING`; C9 remains independently blocked on `FINAL_EXACT_RELEASE_SEAL_PENDING` until that named-client evidence exists.
 
 
 ## 2026-09-28 — Current execution focus moved to C7W
