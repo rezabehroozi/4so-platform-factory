@@ -1879,11 +1879,15 @@ def validate_source_runtime_surfaces(root: Path, version: str, current_program_a
         errors.append(('MCP_SUPPORT_BUNDLE_JOB_PARITY_MISSING', 'support_bundle_request'))
     if current_phase_doc is not None and current_phase_doc.is_file():
         status_text = current_phase_doc.read_text(encoding='utf-8')
+        wave_match = re.search(r'CurrentExecutionWave:\s*"([^"]+)"', program_text)
+        current_execution_wave = wave_match.group(1) if wave_match else ''
+        if not current_execution_wave:
+            errors.append(('CURRENT_EXECUTION_WAVE_UNREADABLE', 'internal/targetmodel/program.go'))
         for marker_text in (
             current_program_authority,
             'PROGRAM_PROGRESS_MODEL_V2',
             version,
-            'W1-core-closure-blitz',
+            current_execution_wave,
             'SERVICE_HEALTH_AUTHORITY_V1',
             'INCIDENT_AUTHORITY_V1',
             'SLO_ERROR_BUDGET_AUTHORITY_V1',
