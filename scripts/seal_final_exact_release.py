@@ -271,8 +271,10 @@ def stage_toolchain_archive(archive: Path, exact: dict, worktree: Path) -> Path:
 
 def verify_worktree_source_unchanged(worktree: Path, source_sha: str) -> None:
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=worktree, text=True, capture_output=True, check=False)
+    indexed = subprocess.run(["git", "ls-files", "-v", "-z"], cwd=worktree, capture_output=True, check=False)
     dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=worktree, text=True, capture_output=True, check=False)
-    if head.returncode != 0 or head.stdout.strip() != source_sha or dirty.returncode != 0 or dirty.stdout.strip():
+    index_valid = indexed.returncode == 0 and all(not raw or raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00"))
+    if head.returncode != 0 or head.stdout.strip() != source_sha or not index_valid or dirty.returncode != 0 or dirty.stdout.strip():
         raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_SOURCE_CHANGED")
 
 
