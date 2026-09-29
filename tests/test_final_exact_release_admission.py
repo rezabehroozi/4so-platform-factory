@@ -5,6 +5,11 @@ SPEC=importlib.util.spec_from_file_location("final_adm",ROOT/"scripts"/"final_ex
 mod=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(mod)
 
 class FinalExactReleaseAdmissionTests(unittest.TestCase):
+    def progress_row(self,c):
+        checks={name:True for name in ("oauth-protected-resource-discovery","dedicated-audience-validation","authorization-filtered-tools-list","project-resource-scope-negative-control","revoked-delegation-negative-control","read-only-client-mutation-negative-control","administration-approval-self-approval-negative-control")}
+        request_ids={name:f"{c}-{idx:02d}-request" for idx,name in enumerate(("dedicated-audience-validation","authorization-filtered-tools-list","project-resource-scope-negative-control","revoked-delegation-negative-control","read-only-client-mutation-negative-control","administration-approval-self-approval-negative-control"),1)}
+        return {"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c],"executionId":"run-"+c,"providerExecutionRef":"provider-execution-"+c,"checks":checks,"requestIds":request_ids,"challengeSha256":"sha256:"+hashlib.sha256((c+"-challenge").encode()).hexdigest(),"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"serverAuditWitness":{"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest()}}
+
     def fixture(self,root:Path):
         (root/"lab").mkdir()
         pack="a"*64; archive="b"*64
@@ -63,18 +68,33 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             root=Path(td); self.fixture(root)
             (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
             p=root/"lab/mcp-external-client-interop-progress.json"
-            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":[{"clientId":"chatgpt","clientSurface":mod.CLIENT_SURFACES["chatgpt"]},{"clientId":"gemini","clientSurface":mod.CLIENT_SURFACES["gemini"]}],"certifiedClientCount":2,"complete":False,"runtimeCertified":False,"physicalCertified":False}))
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":[self.progress_row("chatgpt"),self.progress_row("gemini")],"certifiedClientCount":2,"complete":False,"runtimeCertified":False,"physicalCertified":False}))
             progress=mod.external_client_progress(root)
             self.assertEqual(["chatgpt","gemini"],progress["certifiedClients"])
             self.assertEqual(["claude","grok"],progress["missingClients"])
             self.assertEqual("claude",progress["nextClient"])
             self.assertFalse(progress["evidenceSealPending"])
 
+    def test_external_progress_rejects_unwitnessed_or_reused_provider_provenance(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
+            rows=[self.progress_row("chatgpt"),self.progress_row("claude")]
+            rows[1]["providerExecutionRef"]=rows[0]["providerExecutionRef"]
+            p=root/"lab/mcp-external-client-interop-progress.json"
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":rows,"certifiedClientCount":2,"complete":False,"runtimeCertified":False,"physicalCertified":False}))
+            with self.assertRaisesRegex(RuntimeError,"PROVIDER_EXECUTION_REF"):
+                mod.external_client_progress(root)
+            rows=[self.progress_row("chatgpt")]; rows[0]["serverAuditWitness"]["serverAuditWitnessPass"]=False
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":rows,"certifiedClientCount":1,"complete":False,"runtimeCertified":False,"physicalCertified":False}))
+            with self.assertRaisesRegex(RuntimeError,"SERVER_WITNESS"):
+                mod.external_client_progress(root)
+
     def test_complete_progress_without_evidence_reports_seal_pending(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root)
             (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
-            rows=[{"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c]} for c in mod.CLIENTS]
+            rows=[self.progress_row(c) for c in mod.CLIENTS]
             (root/"lab/mcp-external-client-interop-progress.json").write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":rows,"certifiedClientCount":4,"complete":True,"runtimeCertified":False,"physicalCertified":False}))
             progress=mod.external_client_progress(root)
             self.assertEqual([],progress["missingClients"])

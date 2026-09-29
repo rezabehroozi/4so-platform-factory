@@ -57,14 +57,31 @@ def external_client_progress(root:Path)->dict:
     rows=progress.get("clients")
     if not isinstance(rows,list):
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
-    seen=set()
+    seen=set(); provider_refs=set()
     for row in rows:
         if not isinstance(row,dict):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
         client=str(row.get("clientId") or "")
         if client not in CLIENTS or client in seen or row.get("clientSurface")!=CLIENT_SURFACES[client]:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_IDENTITY_INVALID")
-        seen.add(client)
+        execution_id=str(row.get("executionId") or "").strip()
+        provider_ref=str(row.get("providerExecutionRef") or "").strip()
+        if not execution_id or len(execution_id)>160:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_EXECUTION_ID_INVALID")
+        if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref) or provider_ref in provider_refs:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REF_INVALID")
+        checks=row.get("checks")
+        if not isinstance(checks,dict) or len(checks)!=7 or any(v is not True for v in checks.values()):
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_CHECKS_INVALID")
+        request_ids=row.get("requestIds")
+        if not isinstance(request_ids,dict) or len(request_ids)!=6 or len(set(str(v or "").strip() for v in request_ids.values()))!=6 or any(not re.fullmatch(r"[A-Za-z0-9._:-]{8,200}",str(v or "").strip()) for v in request_ids.values()):
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_REQUEST_IDS_INVALID")
+        if not SHA.fullmatch(str(row.get("evidenceDigest") or "")) or not SHA.fullmatch(str(row.get("externalReceiptSha256") or row.get("receiptSha256") or "")) or not SHA.fullmatch(str(row.get("challengeSha256") or "")):
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_RECEIPT_BINDING_INVALID")
+        witness=row.get("serverAuditWitness") or {}
+        if witness.get("authority")!="MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1" or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=6 or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_SERVER_WITNESS_INVALID")
+        seen.add(client); provider_refs.add(provider_ref)
     certified=[c for c in CLIENTS if c in seen]
     missing=[c for c in CLIENTS if c not in seen]
     complete=len(missing)==0
