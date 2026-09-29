@@ -67,7 +67,7 @@ def interop_binding_digest(campaign_id:str,client:str,challenge_sha256:str)->str
     return "sha256:"+hashlib.sha256(raw).hexdigest()
 
 def validate_interop_binding(row:dict,campaign_id:str,client:str,label:str)->str:
-    if not isinstance(row,dict):
+    if not isinstance(row,dict) or row.get("campaignId")!=campaign_id or row.get("clientId")!=client:
         raise RuntimeError(f"{label}_INTEROP_BINDING_INVALID {client}")
     expected=interop_binding_digest(campaign_id,client,str(row.get("challengeSha256") or ""))
     if row.get("interopBindingAuthority")!=INTEROP_BINDING_AUTHORITY or row.get("interopBindingDigest")!=expected:
@@ -75,7 +75,7 @@ def validate_interop_binding(row:dict,campaign_id:str,client:str,label:str)->str
     return expected
 
 def validate_witness_interop_binding(witness:dict,binding:str,client:str,label:str)->None:
-    if not isinstance(witness,dict) or witness.get("interopBindingAuthority")!=INTEROP_BINDING_AUTHORITY or witness.get("interopBindingDigest")!=binding:
+    if not isinstance(witness,dict) or witness.get("clientId")!=client or witness.get("interopBindingAuthority")!=INTEROP_BINDING_AUTHORITY or witness.get("interopBindingDigest")!=binding:
         raise RuntimeError(f"{label}_INTEROP_BINDING_INVALID {client}")
 
 _AUDIT_REQUIRED=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
