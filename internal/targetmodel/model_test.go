@@ -218,7 +218,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if !containsString(c7w.Evidence, "MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1") || !containsString(c7w.Evidence, "scripts/prepare_mcp_external_interop_campaign.py") || !containsString(c7w.Evidence, ".github/workflows/mcp-external-interop-campaign.yml") {
 		t.Fatalf("C7W one-shot external campaign evidence missing: %#v", c7w.Evidence)
 	}
-	if c7w.Status != ProgramStatusBlocked || !c7w.RequiredForFeatureFreeze || !containsString(c7w.DependsOn, c7r.ID) || containsString(c7w.Blockers, "MCP_ACTION_REGISTRY_ENFORCEMENT_PENDING") || containsString(c7w.Blockers, "MCP_EFFECTIVE_TOOL_FILTERING_PENDING") || containsString(c7w.Blockers, "MCP_WRITE_JOB_COVERAGE_PENDING") || !containsString(c7w.Blockers, "MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING") || !containsString(c7w.Evidence, "MCP_PRODUCT_ACTION_REGISTRY_V1") || !containsString(c7w.Evidence, "MCP_EFFECTIVE_TOOL_FILTERING_V1") {
+	if c7w.Status != ProgramStatusBlocked || !c7w.RequiredForFeatureFreeze || !containsString(c7w.DependsOn, c7r.ID) || containsString(c7w.Blockers, "MCP_ACTION_REGISTRY_ENFORCEMENT_PENDING") || containsString(c7w.Blockers, "MCP_EFFECTIVE_TOOL_FILTERING_PENDING") || containsString(c7w.Blockers, "MCP_WRITE_JOB_COVERAGE_PENDING") || !containsString(c7w.Blockers, "MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING") || !containsString(c7w.Evidence, "MCP_PRODUCT_ACTION_REGISTRY_V1") || !containsString(c7w.Evidence, "MCP_EFFECTIVE_TOOL_FILTERING_V1") {
 		t.Fatalf("MCP write parity phase drift: %#v", c7w)
 	}
 	s2 := byID["S2-component-runtime-certification-authorities"]
@@ -348,7 +348,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("final chaos/soak phase authority drift: %#v", phaseM)
 	}
 	blockers := FeatureFreezeBlockerCounts(roadmap)
-	for _, code := range []string{"MCP_EXTERNAL_CLIENT_INTEROP_MATRIX_PENDING"} {
+	for _, code := range []string{"MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING"} {
 		if blockers[code] == 0 {
 			t.Fatalf("mandatory feature-freeze blocker %q missing: %#v", code, blockers)
 		}
