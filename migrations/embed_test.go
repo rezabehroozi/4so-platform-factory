@@ -87,6 +87,7 @@ func TestPostgresAuthorityMigrationContract(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS application_platform_authorities", "application_platform_authority_identity_unique", "application_platform_authorities_immutable",
 		"CREATE TABLE IF NOT EXISTS application_environment_bindings", "application_environment_binding_scope_unique", "validate_application_environment_binding",
 		"CREATE TABLE IF NOT EXISTS fleet_gateway_sessions", "fleet_gateway_sessions_cluster_epoch_unique", "fleet_gateway_sessions_one_live_per_cluster", "validate_fleet_gateway_session_authority",
+		"SECURITY_AUDIT_MCP_INTEROP_BINDING_V1", "mcp_interop_binding_digest", "CAPABILITY_AUTHORIZATION", "DELEGATION_AUTHORIZATION", "APPROVAL_AUTHORIZATION",
 	}
 	for _, term := range required {
 		if !strings.Contains(combined, term) {
@@ -101,6 +102,32 @@ func TestPostgresAuthorityMigrationContract(t *testing.T) {
 	for _, migration := range all {
 		if !strings.HasPrefix(migration.Checksum, "sha256:") {
 			t.Fatalf("bad checksum %s", migration.Checksum)
+		}
+	}
+}
+
+func TestSecurityAuditMCPInteropMigrationIsRollingSafeAndNarrow(t *testing.T) {
+	all, err := All()
+	if err != nil { t.Fatal(err) }
+	if len(all) < 84 { t.Fatalf("expected migration 84, got %d migrations", len(all)) }
+	m := all[83]
+	if m.Version != 84 || m.Compatibility != CompatibilityRollingSafe {
+		t.Fatalf("migration 84 compatibility mismatch: %#v", m)
+	}
+	for _, term := range []string{
+		"SECURITY_AUDIT_MCP_INTEROP_BINDING_V1",
+		"ALTER TABLE security_audit_events",
+		"CAPABILITY_AUTHORIZATION",
+		"DELEGATION_AUTHORIZATION",
+		"APPROVAL_AUTHORIZATION",
+		"mcp_interop_binding_digest text NOT NULL DEFAULT ''",
+		"security_audit_events_mcp_interop_binding_digest_check",
+	} {
+		if !strings.Contains(m.SQL, term) { t.Fatalf("migration 84 missing %q", term) }
+	}
+	for _, forbidden := range []string{"UPDATE security_audit_events", "DELETE FROM security_audit_events", "TRUNCATE security_audit_events"} {
+		if strings.Contains(strings.ToUpper(m.SQL), strings.ToUpper(forbidden)) {
+			t.Fatalf("migration 84 mutates immutable audit history via %q", forbidden)
 		}
 	}
 }
