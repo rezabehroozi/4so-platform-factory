@@ -9,7 +9,7 @@
 | Measure | Current | Meaning |
 | --- | ---: | --- |
 | Core source/software closure | **25/25 (100%)** | All mandatory Core phases have source/software contracts implemented. |
-| Core closure/release ready | **19/25 (76%)** | Six mandatory Core phases still require external/runtime/evidence closure. |
+| Core closure/release ready | **23/25 (92%)** | Only C7W named-client external interoperability and C9 final Exact Release sealing remain open before Feature Freeze. |
 | Pre-physical software closure | **36/36 (100%)** | Core + Expansion source/software closure; Physical certification is excluded. |
 
 V75 preserves independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
