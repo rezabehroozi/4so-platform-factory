@@ -33,6 +33,7 @@ AUTHORITY = "FINAL_EXACT_RELEASE_SEAL_V1"
 EXECUTION_AUTHORITY = "LOCAL_EXACT_RELEASE_SEAL_V1"
 FULL_VERIFIER_AUTHORITY = "CHECKPOINT_SAFE_FULL_VERIFIER_V2"
 TOOLCHAIN_AUTHORITY = "RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1"
+SOURCE_WORKSPACE_AUTHORITY = "GIT_DETACHED_EXACT_SHA_WORKTREE_V1"
 
 
 def sha256(path: Path) -> str:
@@ -194,6 +195,107 @@ def expected_release(root: Path) -> tuple[Path, Path, str, str]:
     return root / "release" / f"{name}.zip", root / "release" / name, version, release_name
 
 
+def prepare_exact_worktree(root: Path, source_sha: str, parent: Path) -> Path:
+    target = parent / "source"
+    proc = subprocess.run(
+        ["git", "worktree", "add", "--detach", str(target), source_sha],
+        cwd=root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"FINAL_EXACT_RELEASE_WORKTREE_CREATE_FAILED {proc.stdout.strip()}")
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=target,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        indexed = subprocess.run(
+            ["git", "ls-files", "-v", "-z"],
+            cwd=target,
+            capture_output=True,
+            check=False,
+        )
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=target,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if head.returncode != 0 or head.stdout.strip() != source_sha:
+            raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_HEAD_MISMATCH")
+        if indexed.returncode != 0 or any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
+            raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_INDEX_INVALID")
+        if dirty.returncode != 0 or dirty.stdout.strip():
+            raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_NOT_CLEAN")
+        return target
+    except Exception:
+        subprocess.run(["git", "worktree", "remove", "--force", str(target)], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        raise
+
+
+def remove_exact_worktree(root: Path, target: Path) -> None:
+    proc = subprocess.run(
+        ["git", "worktree", "remove", "--force", str(target)],
+        cwd=root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"FINAL_EXACT_RELEASE_WORKTREE_CLEANUP_FAILED {proc.stdout.strip()}")
+    subprocess.run(["git", "worktree", "prune"], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+
+
+def stage_toolchain_archive(archive: Path, exact: dict, worktree: Path) -> Path:
+    rel = PurePosixPath(str(exact.get("localArchivePath") or ""))
+    target = worktree.joinpath(*rel.parts)
+    if target.exists() or target.is_symlink():
+        raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_TOOLCHAIN_CONFLICT")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with archive.open("rb") as source, target.open("xb") as output:
+        shutil.copyfileobj(source, output, length=1024 * 1024)
+        output.flush()
+        os.fsync(output.fileno())
+    if target.stat().st_size != archive.stat().st_size or sha256(target) != sha256(archive):
+        raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_TOOLCHAIN_MISMATCH")
+    return target
+
+
+def verify_worktree_source_unchanged(worktree: Path, source_sha: str) -> None:
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=worktree, text=True, capture_output=True, check=False)
+    dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=worktree, text=True, capture_output=True, check=False)
+    if head.returncode != 0 or head.stdout.strip() != source_sha or dirty.returncode != 0 or dirty.stdout.strip():
+        raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_SOURCE_CHANGED")
+
+
+def publish_verified_file(source: Path, target: Path) -> Path:
+    wanted = sha256(source)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists() or target.is_symlink():
+        if target.is_symlink() or not target.is_file() or target.stat().st_size != source.stat().st_size or sha256(target) != wanted:
+            raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_CONFLICT {target}")
+        return target
+    try:
+        os.link(source, target, follow_symlinks=False)
+    except FileExistsError:
+        if target.is_symlink() or not target.is_file() or target.stat().st_size != source.stat().st_size or sha256(target) != wanted:
+            raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_CONFLICT {target}")
+    directory_fd = os.open(target.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+    return target
+
+
 def build_evidence(
     root: Path,
     release: Path,
@@ -207,7 +309,8 @@ def build_evidence(
         raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_INVALID")
     if admission_row.get("physicalCertified") is not False:
         raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_SCOPE_INFLATED")
-    if release.parent != root / "release" or stage.parent != root / "release":
+    expected_name = f"4so-platform-factory-{version}-{release_name}"
+    if release.parent != root / "release" or release.name != expected_name + ".zip" or stage.name != expected_name:
         raise RuntimeError("FINAL_EXACT_RELEASE_PATH_INVALID")
     for required in (
         stage / "ARTIFACT-MANIFEST.json",
@@ -220,6 +323,7 @@ def build_evidence(
         "kind": "FinalExactReleaseEvidence",
         "authority": AUTHORITY,
         "sourceExecutionAuthority": EXECUTION_AUTHORITY,
+        "sourceWorkspaceAuthority": SOURCE_WORKSPACE_AUTHORITY,
         "sourceCommitSHA": source_sha,
         "version": version,
         "releaseName": release_name,
@@ -301,38 +405,58 @@ def execute(root: Path, out: Path) -> dict:
     )
     archive, exact = safe_toolchain_archive(root, lock)
 
-    with tempfile.TemporaryDirectory(prefix="4so-final-release-toolchain-") as td:
-        go = extract_toolchain(archive, exact, Path(td))
-        env = os.environ.copy()
-        env["GO"] = str(go)
-        env["GOTOOLCHAIN"] = "local"
-        env["PYTHON"] = sys.executable
+    state_dir = root / ".state"
+    if state_dir.is_symlink() or (state_dir.exists() and not state_dir.is_dir()):
+        raise RuntimeError("FINAL_EXACT_RELEASE_STATE_DIR_INVALID")
+    state_dir.mkdir(exist_ok=True)
 
-        run(
-            [sys.executable, "scripts/verify_release_build_toolchain.py", "--require-admitted"],
-            root=root,
-            env=env,
-        )
-        run(["make", "build-release", f"GO={go}", f"PYTHON={sys.executable}"], root=root, env=env)
-        run([sys.executable, "scripts/build_release.py", "."], root=root, env=env)
+    evidence = None
+    with tempfile.TemporaryDirectory(prefix="4so-final-release-toolchain-", dir=state_dir) as tool_td, tempfile.TemporaryDirectory(prefix="4so-final-release-source-", dir=state_dir) as source_td:
+        go = extract_toolchain(archive, exact, Path(tool_td))
+        worktree = prepare_exact_worktree(root, source_sha, Path(source_td))
+        try:
+            staged_archive = stage_toolchain_archive(archive, exact, worktree)
+            env = os.environ.copy()
+            env["GO"] = str(go)
+            env["GOTOOLCHAIN"] = "local"
+            env["PYTHON"] = sys.executable
 
-        release, stage, version, release_name = expected_release(root)
-        sha256(release)
-        if not stage.is_dir() or stage.is_symlink():
-            raise RuntimeError("FINAL_EXACT_RELEASE_STAGE_INVALID")
+            run(
+                [sys.executable, "scripts/verify_release_build_toolchain.py", "--require-admitted", "--archive", str(staged_archive)],
+                root=worktree,
+                env=env,
+            )
+            run(["make", "build-release", f"GO={go}", f"PYTHON={sys.executable}"], root=worktree, env=env)
+            run([sys.executable, "scripts/build_release.py", "."], root=worktree, env=env)
 
-        run(
-            [sys.executable, "scripts/verify_release.py", str(release), "--full"],
-            root=root,
-            env=env,
-        )
+            release, stage, version, release_name = expected_release(worktree)
+            sha256(release)
+            if not stage.is_dir() or stage.is_symlink():
+                raise RuntimeError("FINAL_EXACT_RELEASE_STAGE_INVALID")
+
+            run(
+                [sys.executable, "scripts/verify_release.py", str(release), "--full"],
+                root=worktree,
+                env=env,
+            )
+            verify_worktree_source_unchanged(worktree, source_sha)
+            if git_source(root) != source_sha:
+                raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_BUILD")
+
+            published_release_path = admit_output_path(root, root / "release" / release.name)
+            published_checksum_path = admit_output_path(root, root / "release" / (release.name + ".sha256"))
+            published_release = publish_verified_file(release, published_release_path)
+            publish_verified_file(release.with_name(release.name + ".sha256"), published_checksum_path)
+            evidence = build_evidence(
+                root, published_release, stage, admitted, source_sha, version, release_name
+            )
+        finally:
+            remove_exact_worktree(root, worktree)
 
     if git_source(root) != source_sha:
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_BUILD")
-
-    evidence = build_evidence(
-        root, release, stage, admitted, source_sha, version, release_name
-    )
+    if evidence is None:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_NOT_BUILT")
     atomic_write_json(out, evidence)
     return evidence
 
