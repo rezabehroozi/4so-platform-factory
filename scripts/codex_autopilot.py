@@ -1720,26 +1720,33 @@ def self_test() -> int:
             if rc != 0 or count.read_text() != "1":
                 raise AssertionError(f"valid checkpoint replayed an already-passed stage rc={rc} count={count.read_text()}")
 
-            # If the runner itself dies mid-stage, the checkpoint retains the
-            # active process group. The next invocation must terminate that exact
-            # PID/start-time identity before resuming, preventing an orphaned
-            # `go test`, API server or browser from contaminating the retry.
+            # If the observer/controller dies mid-stage, the checkpoint retains
+            # the exact PID/start-time identity. A later observer must rejoin the
+            # still-live child and MUST NOT kill it or start a duplicate.
             graph = _stage_graph_signature(resume_stages, repair=False)
             _checkpoint_forward(root, graph_signature=graph, repair=False, next_index=1, repair_count=0, seen_failures={})
             stranded = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(30)"], cwd=root, start_new_session=True)
             try:
                 _mark_active_process(root, stranded.pid, "self-test-stranded-stage")
                 loaded = _load_checkpoint(root, graph_signature=graph, repair=False)
-                if loaded is None:
-                    raise AssertionError("checkpoint with stranded process did not load")
-                try:
-                    stranded.wait(timeout=3)
-                except subprocess.TimeoutExpired as exc:
-                    raise AssertionError("resume did not terminate the stranded stage process group") from exc
+                if loaded is None or loaded.pop("_activeProcessLive", False) is not True:
+                    raise AssertionError("live checkpoint process was not classified for rejoin")
+                if stranded.poll() is not None:
+                    raise AssertionError("resume observer terminated the still-live stage process")
+                with unittest.mock.patch(__name__ + ".run_stage") as stage_runner:
+                    rc = _execute_stages(root, resume_stages, repair=False, max_repairs=0, codex_timeout=10, enforce_supply_chain=False)
+                    if rc != 4:
+                        raise AssertionError(f"live checkpoint did not return RUNNING_REJOIN rc={rc}")
+                    stage_runner.assert_not_called()
+                if stranded.poll() is not None:
+                    raise AssertionError("RUNNING_REJOIN path killed the live stage process")
             finally:
                 if stranded.poll() is None:
-                    stranded.kill()
-                    stranded.wait()
+                    try:
+                        os.killpg(stranded.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    stranded.wait(timeout=5)
             _clear_checkpoint(root)
 
             # The same checkpoint must be discarded after a source mutation.
