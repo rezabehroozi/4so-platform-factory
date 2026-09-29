@@ -1879,6 +1879,8 @@ def validate_source_runtime_surfaces(root: Path, version: str, current_program_a
         errors.append(('MCP_SUPPORT_BUNDLE_JOB_PARITY_MISSING', 'support_bundle_request'))
     if current_phase_doc is not None and current_phase_doc.is_file():
         status_text = current_phase_doc.read_text(encoding='utf-8')
+        program_path = root/'internal/targetmodel/program.go'
+        program_text = program_path.read_text(encoding='utf-8') if program_path.is_file() else ''
         wave_match = re.search(r'CurrentExecutionWave:\s*"([^"]+)"', program_text)
         current_execution_wave = wave_match.group(1) if wave_match else ''
         if not current_execution_wave:
