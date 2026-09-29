@@ -355,6 +355,9 @@ func (s *Server) applyMCPHumanDelegation(r *http.Request) (*http.Request, error)
 	}
 	grant, err := st.GetActiveMCPDelegationGrant(r.Context(), p.Issuer, p.Subject, p.AuthorizedClientID, time.Now().UTC())
 	if err != nil {
+		if auditErr := s.recordAuthorizationDecision(r, "DELEGATION_AUTHORIZATION", "DENY", "MCP_DELEGATION_INACTIVE", http.StatusForbidden); auditErr != nil {
+			return r, fmt.Errorf("MCP delegation security audit unavailable: %w", auditErr)
+		}
 		return r, fmt.Errorf("active MCP delegation grant is required")
 	}
 	required := mcpProfileRequiredLevel(grant.AccessProfile)

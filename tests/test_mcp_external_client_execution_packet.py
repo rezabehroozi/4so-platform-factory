@@ -20,4 +20,8 @@ class PacketTests(unittest.TestCase):
             audited=[x for x in out["checks"] if x.get("serverAudit")]
             self.assertEqual(set(core.AUDITED_CHECKS),{x["id"] for x in audited})
             self.assertTrue(all("X-Request-ID" in x["request"]["captureRequestIdFrom"][0] for x in audited))
+            audit_by_id={x["id"]:x["serverAudit"] for x in audited}
+            self.assertEqual({"category":"DELEGATION_AUTHORIZATION","decision":"DENY","reasonCode":"MCP_DELEGATION_INACTIVE"},audit_by_id["revoked-delegation-negative-control"])
+            self.assertEqual({"category":"CAPABILITY_AUTHORIZATION","decision":"DENY","reasonCode":"CAPABILITY_PERMISSION_REQUIRED"},audit_by_id["read-only-client-mutation-negative-control"])
+            self.assertEqual({"category":"APPROVAL_AUTHORIZATION","decision":"DENY","reasonCode":"SEPARATION_OF_DUTIES_REQUIRED"},audit_by_id["administration-approval-self-approval-negative-control"])
 if __name__=="__main__": unittest.main()

@@ -156,6 +156,15 @@ func projectRoleLevel(role string) organizationAccessLevel {
 		return 0
 	}
 }
+func (s *Server) recordAuthorizationDecision(r *http.Request, category, decision, reason string, status int) error {
+	principal, ok := requestPrincipal(r)
+	if !ok {
+		return nil
+	}
+	_, err := s.store.AppendSecurityAudit(r.Context(), controlplane.SecurityAuditInput{Category: category, Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, StatusCode: status, ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), EffectiveRole: auth.CanonicalRole(principal.Roles), MappingDigest: principal.MappingDigest})
+	return err
+}
+
 func (s *Server) recordScopeAuthorization(r *http.Request, decision, reason, scopeType, scopeID, effectiveRole string) error {
 	principal, ok := requestPrincipal(r)
 	if !ok {

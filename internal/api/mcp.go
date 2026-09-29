@@ -1543,6 +1543,10 @@ func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if strings.TrimSpace(op.ActorID) == actor {
+				if auditErr := s.recordAuthorizationDecision(r, "APPROVAL_AUTHORIZATION", "DENY", "SEPARATION_OF_DUTIES_REQUIRED", http.StatusForbidden); auditErr != nil {
+					writeMCPError(w, req.ID, http.StatusServiceUnavailable, -32002, "MCP approval authorization audit unavailable")
+					return
+				}
 				writeMCPError(w, req.ID, http.StatusForbidden, -32011, "separation of duties requires a different approver")
 				return
 			}

@@ -33,9 +33,9 @@ AUDIT_REQUIREMENTS={
     "dedicated-audience-validation":("AUTHENTICATION","DENY","OIDC_AUTHENTICATION_REJECTED"),
     "authorization-filtered-tools-list":("CAPABILITY_AUTHORIZATION","ALLOW","CAPABILITY_AUTHORIZED"),
     "project-resource-scope-negative-control":("SCOPE_AUTHORIZATION","DENY","PROJECT_ACCESS_DENIED"),
-    "revoked-delegation-negative-control":("AUTHENTICATION","ALLOW","OIDC_AUTHENTICATED"),
-    "read-only-client-mutation-negative-control":("AUTHENTICATION","ALLOW","OIDC_AUTHENTICATED"),
-    "administration-approval-self-approval-negative-control":("AUTHENTICATION","ALLOW","OIDC_AUTHENTICATED"),
+    "revoked-delegation-negative-control":("DELEGATION_AUTHORIZATION","DENY","MCP_DELEGATION_INACTIVE"),
+    "read-only-client-mutation-negative-control":("CAPABILITY_AUTHORIZATION","DENY","CAPABILITY_PERMISSION_REQUIRED"),
+    "administration-approval-self-approval-negative-control":("APPROVAL_AUTHORIZATION","DENY","SEPARATION_OF_DUTIES_REQUIRED"),
 }
 
 def load(path:Path,label:str):

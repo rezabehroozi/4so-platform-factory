@@ -98,6 +98,10 @@ class C7WFinalClosureWorkflowContractTests(unittest.TestCase):
         self.assertIn("for attempt in $(seq 1 15)", text)
         self.assertIn('test "$code" = "409"', text)
 
+    def test_matrix_seal_command_requires_server_audit_exports(self):
+        matrix = self.read("lab/mcp-external-client-interop-matrix.json")
+        self.assertIn("--audits /secure/audits", matrix)
+
     def test_external_receipts_cannot_reuse_server_request_ids_across_clients(self):
         seal = self.read("scripts/seal_mcp_external_interop.py")
         progress = self.read("scripts/admit_mcp_external_receipt.py")

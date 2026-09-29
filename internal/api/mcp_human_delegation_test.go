@@ -48,8 +48,22 @@ func TestMCPHumanDelegationEnforcesTrustedClientGrantAndImmediateRevocation(t *t
 	if _, err := store.RevokeMCPDelegationGrant(ctx, grant.ID, grant.Revision, principal.Subject); err != nil {
 		t.Fatal(err)
 	}
+	mcpReq.Header.Set("X-Request-ID", "mcp-revoked-grant-request")
 	if _, err := s.applyMCPHumanDelegation(mcpReq); err == nil {
 		t.Fatal("revoked grant did not immediately reject still-valid OAuth principal")
+	}
+	audit, err := store.ListSecurityAudit(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, event := range audit {
+		if event.RequestID == "mcp-revoked-grant-request" && event.Category == "DELEGATION_AUTHORIZATION" && event.Decision == "DENY" && event.ReasonCode == "MCP_DELEGATION_INACTIVE" && event.StatusCode == http.StatusForbidden {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("revoked delegation deny audit missing: %#v", audit)
 	}
 }
 
