@@ -155,7 +155,7 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     request_ids=validate_request_ids(row,client)
     return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"providerExecutionRef":provider_ref,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids}
 
-def _audit_rows(path:Path)->list[dict]:
+def validate_audit_export(path:Path)->list[dict]:
     value=load(path,"SECURITY_AUDIT")
     if isinstance(value,dict) and isinstance(value.get("items"),list):
         value=value["items"]
@@ -179,7 +179,7 @@ def _audit_rows(path:Path)->list[dict]:
 
 def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
     request_ids=receipt["requestIds"]
-    rows=_audit_rows(audit_path)
+    rows=validate_audit_export(audit_path)
     matched={}
     for check in AUDITED_CHECKS:
         rid=request_ids[check]
