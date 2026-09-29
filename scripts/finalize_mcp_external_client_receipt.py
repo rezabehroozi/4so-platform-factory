@@ -34,6 +34,9 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     for key in ("clientSurface","campaignId","challengeSha256","endpoint"):
         if capture.get(key)!=packet.get(key):
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_BINDING_INVALID {key}")
+    binding=core.interop_binding_digest(packet.get("campaignId"),client,packet.get("challengeSha256"))
+    if packet.get("interopBindingAuthority")!=core.INTEROP_BINDING_AUTHORITY or packet.get("interopBindingDigest")!=binding:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_SERVER_BINDING_INVALID")
     meta=packet.get("requestMeta") or {}
     expected_meta={
       "io.4so/interopCampaignId":packet.get("campaignId"),
@@ -51,8 +54,11 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     if not isinstance(packet_checks,list):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CHECKS_INVALID")
     expected_ids=[str(x.get("id") or "") for x in packet_checks if isinstance(x,dict)]
-    if len(expected_ids)!=7 or len(set(expected_ids))!=7:
+    if expected_ids!=list(core.REQUIRED_CHECKS):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CHECKS_INVALID")
+    for row in packet_checks:
+        if row["id"] in core.AUDITED_CHECKS and ((row.get("request") or {}).get("headers") or {}).get("Mcp-Interop-Binding")!=binding:
+            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_SERVER_BINDING_MISSING {row['id']}")
     observed=capture.get("checks")
     if not isinstance(observed,dict) or set(observed)!=set(expected_ids):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_CHECK_COVERAGE_INVALID")
@@ -77,6 +83,8 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
       "clientSurface":packet["clientSurface"],
       "campaignId":packet["campaignId"],
       "challengeSha256":packet["challengeSha256"],
+      "interopBindingAuthority":core.INTEROP_BINDING_AUTHORITY,
+      "interopBindingDigest":binding,
       "protocol":packet["protocol"],
       "transport":packet["transport"],
       "endpoint":packet["endpoint"],
