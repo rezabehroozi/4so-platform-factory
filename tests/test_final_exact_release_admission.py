@@ -8,7 +8,7 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
     def progress_row(self,c):
         checks={name:True for name in ("oauth-protected-resource-discovery","dedicated-audience-validation","authorization-filtered-tools-list","project-resource-scope-negative-control","revoked-delegation-negative-control","read-only-client-mutation-negative-control","administration-approval-self-approval-negative-control")}
         request_ids={name:f"{c}-{idx:02d}-request" for idx,name in enumerate(("dedicated-audience-validation","authorization-filtered-tools-list","project-resource-scope-negative-control","revoked-delegation-negative-control","read-only-client-mutation-negative-control","administration-approval-self-approval-negative-control"),1)}
-        return {"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c],"executionId":"run-"+c,"providerExecutionRef":"provider-execution-"+c,"checks":checks,"requestIds":request_ids,"challengeSha256":"sha256:"+hashlib.sha256((c+"-challenge").encode()).hexdigest(),"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"serverAuditWitness":{"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","auditMethodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","auditChainDigestVerified":True,"serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest()}}
+        return {"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c],"executionId":"run-"+c,"providerExecutionRef":"provider-execution-"+c,"checks":checks,"requestIds":request_ids,"challengeSha256":"sha256:"+hashlib.sha256((c+"-challenge").encode()).hexdigest(),"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"serverAuditWitness":{"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","auditMethodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","auditChainDigestVerified":True,"auditWindowStartSequence":1,"auditWindowPreviousDigest":"","auditHeadSequence":6,"serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest()}}
 
     def fixture(self,root:Path):
         (root/"lab").mkdir(exist_ok=True)
@@ -176,6 +176,20 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             rows=[self.progress_row("chatgpt")]
             p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":1,"complete":False,"externalCertificationPass":True,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"COUNT_INVALID"): mod.external_client_progress(root)
+
+    def test_non_genesis_audit_window_metadata_is_accepted_but_malformed_anchor_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            p=root/"lab/mcp-external-client-interop-progress.json"
+            row=self.progress_row("chatgpt")
+            row["serverAuditWitness"]["auditWindowStartSequence"]=101
+            row["serverAuditWitness"]["auditWindowPreviousDigest"]="sha256:"+hashlib.sha256(b"prior-head").hexdigest()
+            row["serverAuditWitness"]["auditHeadSequence"]=106
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            self.assertEqual(1,mod.external_client_progress(root)["certifiedClientCount"])
+            row["serverAuditWitness"]["auditWindowPreviousDigest"]="not-a-digest"
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            with self.assertRaisesRegex(RuntimeError,"SERVER_WITNESS"): mod.external_client_progress(root)
 
     def test_weak_audit_witness_is_rejected_in_progress_and_final_admission(self):
         with tempfile.TemporaryDirectory() as td:
