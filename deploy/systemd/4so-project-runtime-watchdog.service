@@ -1,0 +1,18 @@
+[Unit]
+Description=4SO Platform Factory durable execution watchdog
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+Environment=PLATFORM_FACTORY_SOURCE_ROOT=/opt/4so-platform-factory/source
+EnvironmentFile=-/etc/4so-platform-factory/project-runtime.env
+ExecStart=/bin/sh -ec '/usr/bin/python3 "$PLATFORM_FACTORY_SOURCE_ROOT/scripts/project_runtime.py" watchdog --root "$PLATFORM_FACTORY_SOURCE_ROOT"'
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/4so-platform-factory

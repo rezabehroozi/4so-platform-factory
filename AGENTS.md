@@ -2,6 +2,8 @@
 
 This file is a machine-consumed contributor contract. It intentionally contains stable engineering rules, not release history or project-state mirrors.
 
+- Conversation/UI streams are observers/controllers, never execution authority. Before long build/test/install/repair work, read `.project-runtime/state.json` through `python3 scripts/project_runtime.py status`; if a live run exists, rejoin/observe it instead of starting a duplicate. Start interactive heavy work through `scripts/project_runtime.py`/the durable Make targets so run-id, PID identity, Git HEAD/origin-main, heartbeat, checkpoint and disk log survive observer disconnects.
+- Durable runtime state and the single-writer lock are local runtime artifacts and MUST NOT be committed. A RUNNING state with a disproven PID identity is an interrupted/orphaned run, not success. The watchdog may reclaim a lock only after PID/start-time validation proves the owner dead and no tracked child remains. Destructive/physical runs are non-replay-safe by default: after interruption, inspect authoritative product/installer state before replay.
 - Product behavior is authoritative in implementation, schemas, migrations and tests. Do not create prose source-of-truth layers for runtime state.
 - Production control-plane state must be durable; do not introduce an implicit in-memory production fallback.
 - Preserve fail-closed handling at authoritative persistence, approval, credential, rollback/recovery and supply-chain boundaries.

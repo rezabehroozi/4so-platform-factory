@@ -163,13 +163,13 @@ autopilot-test:
 	$(PYTHON) scripts/codex_autopilot.py
 
 autopilot-release-test:
-	$(PYTHON) scripts/codex_autopilot.py --release-ready
+	$(PYTHON) scripts/project_runtime.py start --phase C9-pre-certification-feature-freeze-exact-bundle --task autopilot-release-test --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json --replay-safe -- $(PYTHON) scripts/codex_autopilot.py --release-ready
 
 autopilot-real-test:
-	$(PYTHON) scripts/codex_autopilot.py --real-test
+	$(PYTHON) scripts/project_runtime.py start --phase D-exact-sha-physical-runtime --task autopilot-real-test --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json -- $(PYTHON) scripts/codex_autopilot.py --real-test
 
 autopilot:
-	$(PYTHON) scripts/codex_autopilot.py --repair
+	$(PYTHON) scripts/project_runtime.py start --phase C6-multi-agent-test-autopilot --task codex-autopilot --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json --replay-safe -- $(PYTHON) scripts/codex_autopilot.py --repair
 
 clean:
 	rm -rf bin dist release .state

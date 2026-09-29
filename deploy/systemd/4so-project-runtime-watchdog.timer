@@ -1,0 +1,12 @@
+[Unit]
+Description=Check 4SO durable execution state for stale/orphaned runs
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=45s
+AccuracySec=5s
+Persistent=true
+Unit=4so-project-runtime-watchdog.service
+
+[Install]
+WantedBy=timers.target
