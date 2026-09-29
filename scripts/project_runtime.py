@@ -91,19 +91,33 @@ def read_lock(root,override=None):
     return d
 
 def reconcile(root,state,override=None,write=True):
+    # Observation must never overwrite newer worker-owned state.  In
+    # particular, a status/watchdog poll may hold a stale RUNNING snapshot
+    # while the detached worker commits COMPLETED.  Only a proven orphan/stale
+    # transition is persisted; liveness fields are derived for the observer.
     s=dict(state)
     worker=alive(s.get("activePid"),s.get("activePidStartTicks"))
     child=alive(s.get("commandPid"),s.get("commandPidStartTicks"))
     s["workerAlive"]=worker; s["commandAlive"]=child; s["activeRun"]=worker or child
+    transition=False
     if s.get("status") in ACTIVE:
         if worker:
             pass
         elif child:
             s.update(status="WAITING",orphaned=True,recoveryRequired=True,latestError="ORPHANED_SUPERVISOR_CHILD_STILL_ACTIVE")
+            transition=True
         else:
             s.update(status="INTERRUPTED",orphaned=True,recoveryRequired=not bool(s.get("replaySafe")),latestError="ORPHANED_OR_STALE_RUN",
                      activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None)
-    if write: write_state(root,s,override)
+            transition=True
+    if write and transition:
+        # Re-read before a recovery mutation.  If the execution owner advanced
+        # state since this observer snapshot was taken, preserve that newer
+        # authority instead of writing stale recovery state.
+        current=read_state(root,override)
+        if current and current.get("runId")==state.get("runId") and current.get("updatedAt")!=state.get("updatedAt"):
+            return reconcile(root,current,override,write=False)
+        write_state(root,s,override)
     return s
 
 def reclaim_stale_lock(root,state,override=None):

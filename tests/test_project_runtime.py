@@ -21,6 +21,24 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertFalse((root/".project-runtime"/"state.json.tmp").exists())
 
 
+    def test_live_observer_cannot_overwrite_newer_terminal_state(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            pid=R.os.getpid()
+            start=R.ticks(pid)
+            stale={"status":"RUNNING","runId":"observer-race","activePid":pid,"activePidStartTicks":start,
+                   "commandPid":None,"commandPidStartTicks":None,"replaySafe":True}
+            R.write_state(root,stale)
+            stale_snapshot=R.read_state(root)
+            terminal=dict(stale_snapshot)
+            terminal.update(status="COMPLETED",activePid=None,activePidStartTicks=None,
+                            latestCompletedCheckpoint="validate",latestError="")
+            R.write_state(root,terminal)
+            observed=R.reconcile(root,stale_snapshot)
+            self.assertTrue(observed["workerAlive"])
+            self.assertEqual("COMPLETED",R.read_state(root)["status"])
+            self.assertEqual("validate",R.read_state(root)["latestCompletedCheckpoint"])
+
     def test_resume_reuses_run_id_only_for_replay_safe_work(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
