@@ -37,10 +37,23 @@ All **36/36 (100%)** Core + Expansion pre-physical software phases are now sourc
 5. **W4 — Cross-surface convergence:** converge API, SDK, MCP, Console, PostgreSQL, Durable Ops, Evidence and negative controls.
 6. **W5 — Feature freeze:** C9 freezes mandatory scope and emits one exact immutable release before Phase D physical certification.
 
+## Git-only C7W authority hardening checkpoint — 2026-09-29
+
+- Development access for this wave is intentionally limited to Git repository read/update/push. No Remote Commander, CI runner, GitHub Actions result, external test host or background runner is treated as current execution authority.
+- Source checkpoint immediately before this status update: `af11597c319662374e1215948b23fa0212db097c`.
+- C7W audit evidence now recomputes every `IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1` event digest with the Control Plane canonical JSON contract, rejects malformed chain links and accepts the real server request-ID bounded audit window even when its first sequence is greater than 1. The first window row must carry the exact predecessor digest when it is not genesis.
+- Server-audit correlation is now unambiguous: each protected request ID must map to exactly one `POST /mcp` audit event with the required category/decision/reason tuple.
+- One campaign may not reuse a replay challenge or challenge digest across named clients. The exact seven interoperability check IDs and exact six audited check IDs are pinned end-to-end rather than accepted by count alone.
+- Incremental progress revalidates execution IDs, provider execution references, evidence/receipt/challenge digests, request-ID uniqueness, exact check identities and strong bounded audit-window witness metadata on every read. Final evidence must equal the exact persisted progress file before it can be sealed.
+- Final exact-release admission applies the same exact check/request-ID identities, replay fences, bounded audit-window metadata and completion-flag consistency, preventing a weaker intermediate authority from claiming completion that C9 would later reject.
+- Focused negative-control tests were added for challenge reuse, duplicate audit request correlation, weak/stale witness metadata, cross-client replay, invented check IDs, progress-file drift and non-genesis audit windows.
+- **Validation for the current HEAD is NOT RUN in this access mode.** These are source-level changes reviewed and persisted through Git only; no test PASS, Runtime PASS, Lab PASS or Physical PASS is inferred.
+- Core source/software closure remains **25/25 = 100%**, Core closure/release readiness remains **23/25 = 92%**, and pre-physical software source closure remains **36/36 = 100%**. C7W remains external-evidence blocked at **0/4** clients and C9 remains pending behind it.
+
 ## C7W/J8 closure hardening checkpoint — 2026-09-29
 
 - Executable roadmap authority is now `W2-core-evidence-parallel`; the only mandatory pre-freeze external closure lane is `C7W-mcp-user-admin-write-parity`.
-- Final exact-release admission is intentionally pending at **0/4** named external clients (`chatgpt`, `claude`, `gemini`, `grok`). No endpoint, credential or client execution is synthesized from CI.
+- Final exact-release admission is intentionally pending at **0/4** named external clients (`chatgpt`, `claude`, `gemini`, `grok`). No endpoint, credential or client execution is synthesized by repository tooling; real external execution evidence remains mandatory.
 - C7W receipt provenance now preserves a unique `providerExecutionRef` from external capture through incremental admission, sealed interoperability evidence and final release admission. Cross-client provider-execution reuse fails closed.
 - C7W progress projection now counts a client only when execution ID, provider provenance, seven required checks, six unique protected request IDs, receipt/challenge digests and `MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1` are all valid; malformed progress can no longer inflate `N/4`.
 - Repository Integrity for parser-safe C7W provenance commit `accfe26eeb5278ccffebe20848170eb6dfc0b12b` completed **SUCCESS** in run `36523364167`; final admission run `36523364106` also completed **SUCCESS** while correctly remaining pending on external evidence.
