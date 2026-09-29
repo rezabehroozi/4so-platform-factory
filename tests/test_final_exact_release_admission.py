@@ -11,13 +11,11 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
         return {"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c],"executionId":"run-"+c,"providerExecutionRef":"provider-execution-"+c,"checks":checks,"requestIds":request_ids,"challengeSha256":"sha256:"+hashlib.sha256((c+"-challenge").encode()).hexdigest(),"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"serverAuditWitness":{"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest()}}
 
     def fixture(self,root:Path):
-        (root/"lab").mkdir()
+        (root/"lab").mkdir(exist_ok=True)
         pack="a"*64; archive="b"*64
         lock={"authority":mod.S1_AUTHORITY,"schemaVersion":8,"status":"ready","missingAuthorities":[],"partialAuthorities":[],"inputPack":{"format":"zip","buildSpecPath":"build-spec.json","stagingDirectory":"staging","sha256":pack,"sizeBytes":123,"urls":[f"https://dist.example.test/sha256/{pack}/appliance.zip"]},"resolvedAuthorities":[{"id":"management-workload-oci-archive","artifacts":[{"sha256":archive,"sizeBytes":456,"urls":[f"https://dist.example.test/sha256/{archive}/archive.tar"]}]}]}
         (root/"lab/appliance-bundle-acquisition-lock.json").write_text(json.dumps(lock))
-        clients=[]
-        for c in mod.CLIENTS:
-            clients.append({"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c],"providerExecutionRef":"provider-execution-"+c,"challengeSha256":"sha256:"+hashlib.sha256((c+"-challenge").encode()).hexdigest(),"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"checks":{"a":True,"b":True,"c":True,"d":True,"e":True,"f":True,"g":True},"serverAuditWitness":{"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest()}})
+        clients=[self.progress_row(c) for c in mod.CLIENTS]
         mcp={"authority":mod.MCP_AUTHORITY,"externalCertificationPass":True,"allRequiredChecksPass":True,"serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":24,"certifiedClientCount":4,"campaignAuthority":"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"clients":clients,"runtimeCertified":False,"physicalCertified":False}
         (root/"lab/mcp-external-client-interoperability-evidence.json").write_text(json.dumps(mcp))
         return lock,mcp
@@ -116,6 +114,41 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             evidence=json.loads(p.read_text()); evidence["clients"][1]["providerExecutionRef"]=evidence["clients"][0]["providerExecutionRef"]; p.write_text(json.dumps(evidence))
             with self.assertRaisesRegex(RuntimeError,"PROVIDER_EXECUTION_REUSE"):
                 mod.verify(root)
+
+    def test_final_evidence_rejects_cross_client_replay_identifiers(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            p=root/"lab/mcp-external-client-interoperability-evidence.json"
+            for field,error in (("executionId","EXECUTION_REUSE"),("evidenceDigest","EVIDENCE_REUSE"),("externalReceiptSha256","EVIDENCE_REUSE"),("challengeSha256","EVIDENCE_REUSE")):
+                evidence=json.loads(p.read_text())
+                evidence["clients"][1][field]=evidence["clients"][0][field]
+                p.write_text(json.dumps(evidence))
+                with self.assertRaisesRegex(RuntimeError,error): mod.verify(root)
+                self.fixture(root)
+
+    def test_final_evidence_rejects_cross_client_request_id_reuse(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            p=root/"lab/mcp-external-client-interoperability-evidence.json"
+            evidence=json.loads(p.read_text())
+            first_key=next(iter(evidence["clients"][0]["requestIds"]))
+            second_key=next(iter(evidence["clients"][1]["requestIds"]))
+            evidence["clients"][1]["requestIds"][second_key]=evidence["clients"][0]["requestIds"][first_key]
+            p.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_REUSE"): mod.verify(root)
+
+    def test_progress_rejects_cross_client_execution_evidence_and_request_reuse(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            p=root/"lab/mcp-external-client-interop-progress.json"
+            rows=[self.progress_row("chatgpt"),self.progress_row("claude")]
+            for field,error in (("executionId","EXECUTION_ID"),("evidenceDigest","EVIDENCE_REUSE"),("externalReceiptSha256","EVIDENCE_REUSE")):
+                mutated=json.loads(json.dumps(rows)); mutated[1][field]=mutated[0][field]
+                p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":mutated,"certifiedClientCount":2,"complete":False,"runtimeCertified":False,"physicalCertified":False}))
+                with self.assertRaisesRegex(RuntimeError,error): mod.external_client_progress(root)
+            mutated=json.loads(json.dumps(rows)); a=next(iter(mutated[0]["requestIds"])); b=next(iter(mutated[1]["requestIds"])); mutated[1]["requestIds"][b]=mutated[0]["requestIds"][a]
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","clients":mutated,"certifiedClientCount":2,"complete":False,"runtimeCertified":False,"physicalCertified":False}))
+            with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_REUSE"): mod.external_client_progress(root)
 
     def test_wrong_client_surface_rejected(self):
         with tempfile.TemporaryDirectory() as td:

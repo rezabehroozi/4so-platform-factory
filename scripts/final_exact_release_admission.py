@@ -57,7 +57,7 @@ def external_client_progress(root:Path)->dict:
     rows=progress.get("clients")
     if not isinstance(rows,list):
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
-    seen=set(); provider_refs=set()
+    seen=set(); provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); request_id_owners={}
     for row in rows:
         if not isinstance(row,dict):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
@@ -66,7 +66,7 @@ def external_client_progress(root:Path)->dict:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_IDENTITY_INVALID")
         execution_id=str(row.get("executionId") or "").strip()
         provider_ref=str(row.get("providerExecutionRef") or "").strip()
-        if not execution_id or len(execution_id)>160:
+        if not execution_id or len(execution_id)>160 or execution_id in execution_ids:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EXECUTION_ID_INVALID")
         if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref) or provider_ref in provider_refs:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REF_INVALID")
@@ -76,12 +76,22 @@ def external_client_progress(root:Path)->dict:
         request_ids=row.get("requestIds")
         if not isinstance(request_ids,dict) or len(request_ids)!=6 or len(set(str(v or "").strip() for v in request_ids.values()))!=6 or any(not re.fullmatch(r"[A-Za-z0-9._:-]{8,200}",str(v or "").strip()) for v in request_ids.values()):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_REQUEST_IDS_INVALID")
-        if not SHA.fullmatch(str(row.get("evidenceDigest") or "")) or not SHA.fullmatch(str(row.get("externalReceiptSha256") or row.get("receiptSha256") or "")) or not SHA.fullmatch(str(row.get("challengeSha256") or "")):
+        for check,rid_raw in request_ids.items():
+            rid=str(rid_raw or "").strip()
+            if rid in request_id_owners:
+                raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_REQUEST_ID_REUSE {client}:{check}:{request_id_owners[rid]}")
+            request_id_owners[rid]=f"{client}:{check}"
+        evidence_digest=str(row.get("evidenceDigest") or "")
+        receipt_digest=str(row.get("externalReceiptSha256") or row.get("receiptSha256") or "")
+        challenge_digest=str(row.get("challengeSha256") or "")
+        if not SHA.fullmatch(evidence_digest) or not SHA.fullmatch(receipt_digest) or not SHA.fullmatch(challenge_digest):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_RECEIPT_BINDING_INVALID")
+        if evidence_digest in evidence_digests or receipt_digest in receipt_digests:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
         if witness.get("authority")!="MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1" or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=6 or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_SERVER_WITNESS_INVALID")
-        seen.add(client); provider_refs.add(provider_ref)
+        seen.add(client); provider_refs.add(provider_ref); execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest)
     certified=[c for c in CLIENTS if c in seen]
     missing=[c for c in CLIENTS if c not in seen]
     complete=len(missing)==0
@@ -139,12 +149,15 @@ def verify(root:Path)->dict:
     clients=mcp.get("clients")
     if not isinstance(clients,list) or [x.get("clientId") for x in clients if isinstance(x,dict)]!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_SET_INVALID")
-    provider_refs=set()
+    provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); challenge_digests=set(); request_id_owners={}
     for row in clients:
         client=str(row.get("clientId") or "")
         if row.get("clientSurface")!=CLIENT_SURFACES.get(client):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_SURFACE_INVALID")
+        execution_id=str(row.get("executionId") or "").strip()
         provider_ref=str(row.get("providerExecutionRef") or "").strip()
+        if not execution_id or len(execution_id)>160 or execution_id in execution_ids:
+            raise RuntimeError("MCP_EXTERNAL_INTEROP_EXECUTION_REUSE")
         if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_PROVIDER_EXECUTION_REF_INVALID")
         if provider_ref in provider_refs:
@@ -153,11 +166,27 @@ def verify(root:Path)->dict:
         checks=row.get("checks")
         if not isinstance(checks,dict) or len(checks)!=7 or any(v is not True for v in checks.values()):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_CHECKS_INVALID")
-        if not SHA.fullmatch(str(row.get("evidenceDigest") or "")) or not SHA.fullmatch(str(row.get("externalReceiptSha256") or row.get("receiptSha256") or "")) or not SHA.fullmatch(str(row.get("challengeSha256") or "")):
+        request_ids=row.get("requestIds")
+        if not isinstance(request_ids,dict) or len(request_ids)!=6 or len(set(str(v or "").strip() for v in request_ids.values()))!=6:
+            raise RuntimeError("MCP_EXTERNAL_INTEROP_REQUEST_IDS_INVALID")
+        for check,rid_raw in request_ids.items():
+            rid=str(rid_raw or "").strip()
+            if not re.fullmatch(r"[A-Za-z0-9._:-]{8,200}",rid):
+                raise RuntimeError("MCP_EXTERNAL_INTEROP_REQUEST_IDS_INVALID")
+            if rid in request_id_owners:
+                raise RuntimeError(f"MCP_EXTERNAL_INTEROP_REQUEST_ID_REUSE {client}:{check}:{request_id_owners[rid]}")
+            request_id_owners[rid]=f"{client}:{check}"
+        evidence_digest=str(row.get("evidenceDigest") or "")
+        receipt_digest=str(row.get("externalReceiptSha256") or row.get("receiptSha256") or "")
+        challenge_digest=str(row.get("challengeSha256") or "")
+        if not SHA.fullmatch(evidence_digest) or not SHA.fullmatch(receipt_digest) or not SHA.fullmatch(challenge_digest):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_RECEIPT_BINDING_INVALID")
+        if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
+            raise RuntimeError("MCP_EXTERNAL_INTEROP_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
         if witness.get("authority")!="MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1" or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=6 or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_SERVER_WITNESS_INVALID")
+        execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest); challenge_digests.add(challenge_digest)
 
     return {
       "apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseAdmission",
