@@ -53,15 +53,21 @@ def atomic_write(path: Path, raw: bytes) -> None:
     os.replace(temp,path)
 
 
-def fetch(receipt_path: Path, client: str, token_env: str, out: Path, attempts: int, interval: float) -> dict:
+def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: str, token_env: str, out: Path, attempts: int, interval: float) -> dict:
     client=str(client or "").strip().lower()
     if client not in core.CLIENTS:
         raise RuntimeError("MCP_EXTERNAL_AUDIT_CLIENT_INVALID")
-    receipt=core.load(receipt_path,"RECEIPT")
-    if not isinstance(receipt,dict) or receipt.get("authority")!=core.RECEIPT_AUTHORITY or receipt.get("clientId")!=client:
-        raise RuntimeError("MCP_EXTERNAL_AUDIT_RECEIPT_INVALID")
-    endpoint=core.endpoint(receipt.get("endpoint",""))
-    request_ids=core.validate_request_ids(receipt,client)
+    matrix=core.load(matrix_path,"MATRIX")
+    spec=matrix.get("spec") if isinstance(matrix,dict) else None
+    if matrix.get("authority")!=core.MATRIX_AUTHORITY or not isinstance(spec,dict):
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_MATRIX_INVALID")
+    required=list(spec.get("sharedRequiredChecks") or [])
+    if required!=list(core.REQUIRED_CHECKS):
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_MATRIX_CHECKS_INVALID")
+    campaign=core.verify_campaign(campaign_path,matrix_path,spec)
+    receipt=core.verify_receipt(receipt_path,client,required,str(spec.get("protocol") or ""),campaign)
+    endpoint=receipt["endpoint"]
+    request_ids=receipt["requestIds"]
 
     token=str(os.environ.get(token_env) or "").strip()
     if not token or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in token):
@@ -125,6 +131,8 @@ def fetch(receipt_path: Path, client: str, token_env: str, out: Path, attempts: 
 
 def main()->int:
     p=argparse.ArgumentParser()
+    p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json"))
+    p.add_argument("--campaign",type=Path,required=True)
     p.add_argument("--receipt",type=Path,required=True)
     p.add_argument("--client",choices=core.CLIENTS,required=True)
     p.add_argument("--token-env",default="C7W_PLATFORM_ADMIN_TOKEN")
@@ -132,7 +140,7 @@ def main()->int:
     p.add_argument("--attempts",type=int,default=15)
     p.add_argument("--interval-seconds",type=float,default=2.0)
     a=p.parse_args()
-    result=fetch(a.receipt,a.client,a.token_env,a.out,a.attempts,a.interval_seconds)
+    result=fetch(a.matrix,a.campaign,a.receipt,a.client,a.token_env,a.out,a.attempts,a.interval_seconds)
     print(json.dumps(result,sort_keys=True))
     return 0
 
