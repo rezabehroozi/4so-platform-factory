@@ -12,7 +12,7 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
         (root/"lab/appliance-bundle-acquisition-lock.json").write_text(json.dumps(lock))
         clients=[]
         for c in mod.CLIENTS:
-            clients.append({"clientId":c,"challengeSha256":"sha256:"+hashlib.sha256((c+"-challenge").encode()).hexdigest(),"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"checks":{"a":True,"b":True,"c":True,"d":True,"e":True,"f":True,"g":True},"serverAuditWitness":{"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest()}})
+            clients.append({"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c],"challengeSha256":"sha256:"+hashlib.sha256((c+"-challenge").encode()).hexdigest(),"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"checks":{"a":True,"b":True,"c":True,"d":True,"e":True,"f":True,"g":True},"serverAuditWitness":{"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest()}})
         mcp={"authority":mod.MCP_AUTHORITY,"externalCertificationPass":True,"allRequiredChecksPass":True,"serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":24,"certifiedClientCount":4,"campaignAuthority":"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"clients":clients,"runtimeCertified":False,"physicalCertified":False}
         (root/"lab/mcp-external-client-interoperability-evidence.json").write_text(json.dumps(mcp))
         return lock,mcp
@@ -64,6 +64,14 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             p=root/"lab/mcp-external-client-interoperability-evidence.json"
             evidence=json.loads(p.read_text()); evidence["serverAuditWitnessPass"]=False; evidence["serverAuditWitnessedCheckCount"]=0; p.write_text(json.dumps(evidence))
             with self.assertRaisesRegex(mod.Pending,"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_PENDING"):
+                mod.verify(root)
+
+    def test_wrong_client_surface_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            p=root/"lab/mcp-external-client-interoperability-evidence.json"
+            evidence=json.loads(p.read_text()); evidence["clients"][0]["clientSurface"]="Generic MCP"; p.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(RuntimeError,"CLIENT_SURFACE"):
                 mod.verify(root)
 
     def test_mutable_distribution_url_rejected(self):

@@ -61,7 +61,7 @@
     ],
     "campaignAuthority": "MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1",
     "campaignPreparation": "python3 scripts/prepare_mcp_external_interop_campaign.py --endpoint https://<api>/mcp --out /secure/campaign.json",
-    "sealCommand": "python3 scripts/seal_mcp_external_interop.py --campaign /secure/campaign.json --receipts /secure/receipts --out /secure/evidence.json",
+    "sealCommand": "python3 scripts/seal_mcp_external_interop.py --campaign /secure/campaign.json --receipts /secure/receipts --audits /secure/audits --out /secure/evidence.json",
     "serverAuditWitnessAuthority": "MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1",
     "serverAuditWitnessedChecks": [
       "dedicated-audience-validation",
@@ -70,6 +70,9 @@
       "revoked-delegation-negative-control",
       "read-only-client-mutation-negative-control",
       "administration-approval-self-approval-negative-control"
-    ]
+    ],
+    "receiptAdmissionWorkflow": ".github/workflows/mcp-external-receipt-admission.yml",
+    "bulkSealWorkflow": ".github/workflows/mcp-external-interop-seal.yml",
+    "finalReleaseWorkflow": ".github/workflows/final-exact-release-seal.yml"
   }
 }

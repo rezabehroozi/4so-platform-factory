@@ -13,7 +13,7 @@ class PacketTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cp=Path(td)/"campaign.json"; cp.write_text(json.dumps(campaign))
             out=mod.packet(matrix,cp,"chatgpt")
-            self.assertEqual(core.CLIENTS[0],out["clientId"]); self.assertEqual(set(json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]),{x["id"] for x in out["checks"]})
+            self.assertEqual(core.CLIENTS[0],out["clientId"]); self.assertEqual(core.CLIENT_SURFACES["chatgpt"],out["clientSurface"]); self.assertEqual(set(json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]),{x["id"] for x in out["checks"]})
             self.assertFalse(out["secretsIncluded"]); self.assertFalse(out["runtimeCertified"]); self.assertFalse(out["physicalCertified"])
             self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",out["receiptRequirements"]["captureAuthority"])
             self.assertIn("finalize_mcp_external_client_receipt.py",out["receiptRequirements"]["finalizer"])
