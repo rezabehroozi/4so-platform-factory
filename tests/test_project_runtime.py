@@ -257,6 +257,56 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("UNAVAILABLE",info["gitSyncStatus"])
             self.assertFalse(info["originRefreshAttempted"])
             self.assertEqual("",info["originRefreshError"])
+            self.assertFalse(info["worktreeDirty"])
+            self.assertTrue(info["worktreeFingerprint"].startswith("sha256:"))
+
+    def test_worktree_fingerprint_changes_with_bytes_without_head_change(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-q","-b","main"],cwd=root,check=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            tracked=root/"tracked"; tracked.write_text("v1\n")
+            subprocess.run(["git","add","tracked"],cwd=root,check=True)
+            subprocess.run(["git","commit","-qm","initial"],cwd=root,check=True)
+            clean=R.git(root)
+            tracked.write_text("v2\n")
+            dirty=R.git(root)
+            self.assertEqual(clean["head"],dirty["head"])
+            self.assertNotEqual(clean["worktreeFingerprint"],dirty["worktreeFingerprint"])
+            self.assertTrue(dirty["worktreeDirty"])
+            tracked.write_text("v1\n")
+            untracked=root/"new.txt"; untracked.write_text("one\n")
+            first=R.git(root)
+            untracked.write_text("two\n")
+            second=R.git(root)
+            self.assertEqual(first["head"],second["head"])
+            self.assertNotEqual(first["worktreeFingerprint"],second["worktreeFingerprint"])
+
+    def test_resume_replans_when_worktree_changes_under_same_head(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-q","-b","main"],cwd=root,check=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            tracked=root/"tracked"; tracked.write_text("v1\n")
+            subprocess.run(["git","add","tracked"],cwd=root,check=True)
+            subprocess.run(["git","commit","-qm","initial"],cwd=root,check=True)
+            info=R.git(root)
+            state={"status":"INTERRUPTED","runId":"fingerprint-resume",**info,
+                   "phase":"validate","currentTask":"owner-tests","command":[sys.executable,"-c","print('x')"],
+                   "activePid":None,"activePidStartTicks":None,"commandPid":None,"commandPidStartTicks":None,
+                   "replaySafe":True,"recoveryRequired":False,"attempt":1}
+            R.write_state(root,state)
+            tracked.write_text("v2\n")
+            result=R.resume(root)
+            self.assertEqual("REPLAN_REQUIRED",result["action"])
+            final=R.read_state(root)
+            self.assertEqual("WAITING",final["status"])
+            self.assertEqual("LOCAL_GIT_AUTHORITY_CHANGED_REPLAN_REQUIRED",final["latestError"])
+            self.assertNotEqual(info["worktreeFingerprint"],final["currentWorktreeFingerprint"])
+            self.assertTrue(final["currentWorktreeDirty"])
+            self.assertFalse(R.lock_file(root).exists())
 
     def test_manual_waiting_state_is_stable_under_observation(self):
         with tempfile.TemporaryDirectory() as td:
