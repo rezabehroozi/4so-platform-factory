@@ -1631,6 +1631,7 @@ func (a *agent) daprExecutorRBACActive(ctx context.Context) bool {
 	checks := []struct{ user, namespace, verb, group, version, resource string }{
 		{agentUser, namespace, "create", "batch", "v1", "jobs"},
 		{agentUser, namespace, "get", "", "v1", "configmaps"},
+		{agentUser, "dapr-system", "get", "", "v1", "configmaps"},
 		{agentUser, namespace, "get", "", "v1", "serviceaccounts"},
 		{executorUser, "", "get", "", "v1", "namespaces"},
 		{executorUser, "", "create", "", "v1", "namespaces"},
