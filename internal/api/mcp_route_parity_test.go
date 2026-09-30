@@ -111,6 +111,12 @@ func TestMCPRouteParityRegistryHasNoUnclassifiedStableRoute(t *testing.T) {
 			if !route.DurableJob || !route.IdempotencyRequired {
 				t.Fatalf("AI mutation lacks durable semantics: %+v", route)
 			}
+		} else if route.DurableJob {
+			if route.Disposition != "tool-read" || route.Method != http.MethodPost || !route.IdempotencyRequired {
+				t.Fatalf("durable MCP read must be an explicit idempotent POST: %+v", route)
+			}
+		} else if route.IdempotencyRequired {
+			t.Fatalf("non-durable MCP route unexpectedly requires idempotency: %+v", route)
 		}
 	}
 	for disposition, count := range observedCounts {
@@ -120,6 +126,35 @@ func TestMCPRouteParityRegistryHasNoUnclassifiedStableRoute(t *testing.T) {
 	}
 	if len(observedCounts) != len(registry.Counts) {
 		t.Fatalf("route parity summary contains unexpected dispositions: declared=%+v actual=%+v", registry.Counts, observedCounts)
+	}
+}
+
+func TestMCPDaprWorkloadAdmissionIsDurableReadOnly(t *testing.T) {
+	registry := loadMCPRouteParityRegistry()
+	want := map[string]struct {
+		method  string
+		durable bool
+	}{
+		"/api/v1/application-platform/dapr/workload-admissions":      {method: http.MethodPost, durable: true},
+		"/api/v1/application-platform/dapr/workload-admissions/{id}": {method: http.MethodGet, durable: false},
+	}
+	seen := map[string]bool{}
+	for _, route := range registry.Routes {
+		expected, ok := want[route.Path]
+		if !ok {
+			continue
+		}
+		seen[route.Path] = true
+		if route.Method != expected.method || route.Disposition != "tool-read" ||
+			route.DurableJob != expected.durable || route.IdempotencyRequired != expected.durable ||
+			route.Risk != "low" {
+			t.Fatalf("Dapr workload admission MCP semantics drifted: %+v", route)
+		}
+	}
+	for path := range want {
+		if !seen[path] {
+			t.Fatalf("Dapr workload admission route missing from MCP parity: %s", path)
+		}
 	}
 }
 
