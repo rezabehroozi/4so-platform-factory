@@ -49,6 +49,7 @@ build:
 	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/platform-probe ./cmd/platform-probe
 	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/virtual-cluster-renderer ./cmd/virtual-cluster-renderer
 	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/openchoreo-runtime ./cmd/openchoreo-runtime
+	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/dapr-runtime ./cmd/dapr-runtime
 
 build-release:
 	$(PYTHON) scripts/verify_release_build_toolchain.py --require-admitted
@@ -60,6 +61,7 @@ build-release:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/platform-probe ./cmd/platform-probe
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/virtual-cluster-renderer ./cmd/virtual-cluster-renderer
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/openchoreo-runtime ./cmd/openchoreo-runtime
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/linux-amd64/dapr-runtime ./cmd/dapr-runtime
 
 run: build
 	mkdir -p .state
