@@ -290,6 +290,33 @@
 <details class="inline-action-disclosure"><summary><span class="summary-title">Preview target capability resolution</span><span class="summary-help">Read-only: determine which traits apply and which are suppressed because the target already owns that capability.</span></summary><div class="inline-action-body"><form class="form-grid" id="application-resolution-form" novalidate=""><label><span>Workload shape</span><select id="application-resolution-workload" required=""></select></label><label><span>Capability traits</span><select id="application-resolution-traits" multiple="" size="4"></select></label><label class="span-full"><span>Capabilities already provided by target</span><input class="technical" dir="ltr" id="application-resolution-native" placeholder="networking.ingress, monitoring.metrics"/><small>Comma-separated canonical capability IDs from target discovery. This preview does not mutate target runtime.</small></label><div class="form-actions span-full"><button class="secondary" type="submit">Preview resolution</button></div></form></div></details>
 <details class="inline-action-disclosure"><summary><span class="summary-title">Promote an environment binding</span><span class="summary-help">Advance one exact environment binding to another immutable release. Scope cannot move during promotion.</span></summary><div class="inline-action-body"><form class="form-grid" id="application-promotion-form" novalidate=""><label><span>Environment binding</span><select id="application-promotion-binding" required=""></select></label><label><span>Immutable release</span><select id="application-promotion-release" required=""></select></label><label class="span-full"><span>Observed native capabilities</span><input class="technical" dir="ltr" id="application-promotion-native" placeholder="networking.ingress, monitoring.metrics"/></label><div class="form-actions span-full"><button class="primary" type="submit">Review &amp; promote release</button></div></form></div></details>
 </div>
+<div class="grid two">
+<details class="inline-action-disclosure"><summary><span class="summary-title">Create immutable application release</span><span class="summary-help">Bind composition authority to an exact workload OCI artifact. New deploy-oriented releases require a digest-pinned image.</span></summary><div class="inline-action-body">
+<form class="form-grid" id="application-release-create-form" novalidate="">
+<label><span>Project</span><select id="application-release-project" required=""></select></label>
+<label><span>Release name</span><input id="application-release-name" maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="payments" required=""/></label>
+<label><span>Release version</span><input class="technical" dir="ltr" id="application-release-version" pattern="[0-9]+\.[0-9]+\.[0-9]+" placeholder="1.0.0" required=""/></label>
+<label><span>Workload shape</span><select id="application-release-workload" required=""></select></label>
+<label><span>Workspace profile</span><select id="application-release-profile" required=""></select></label>
+<label class="span-full"><span>Capability traits</span><select id="application-release-traits" multiple="" size="4"></select><small>Only traits in the selected project are shown.</small></label>
+<label class="span-full"><span>Managed dependency types</span><select id="application-release-resources" multiple="" size="4"></select><small>These are immutable type contracts, not runtime resource instances.</small></label>
+<label class="span-full"><span>Exact workload image</span><input class="technical" dir="ltr" id="application-release-image" pattern="[^\s@]+@sha256:[0-9a-f]{64}" placeholder="zot.internal.example/apps/payments@sha256:..." required=""/><small>The image becomes immutable release material. Mutable tags and URL-shaped references are rejected.</small></label>
+<label class="span-full"><span>Source digest</span><input class="technical" dir="ltr" id="application-release-source-digest" pattern="sha256:[0-9a-f]{64}" placeholder="sha256:..." required=""/></label>
+<div class="form-actions span-full"><button class="primary" type="submit">Create immutable release</button></div>
+</form>
+</div></details>
+<details class="inline-action-disclosure"><summary><span class="summary-title">Create environment binding</span><span class="summary-help">Bind one immutable release to one active Workspace namespace reference. This creates desired authority only.</span></summary><div class="inline-action-body">
+<form class="form-grid" id="application-binding-create-form" novalidate="">
+<label><span>Immutable release</span><select id="application-binding-release" required=""></select></label>
+<label><span>Workspace</span><select id="application-binding-workspace" required=""></select></label>
+<label class="span-full"><span>Active namespace binding</span><select id="application-binding-workspace-binding" required=""></select><small>The exact WorkspaceBinding revision, cluster and namespace are captured by the backend.</small></label>
+<label><span>Environment</span><select id="application-binding-environment" required=""><option value="development">Development</option><option value="staging">Staging</option><option value="production">Production</option></select></label>
+<label><span>Observed native capabilities</span><input class="technical" dir="ltr" id="application-binding-native" placeholder="networking.ingress, monitoring.metrics"/></label>
+<div class="form-actions span-full"><button class="primary" type="submit">Create desired binding</button></div>
+<small class="span-full">Creating a binding does not deploy an application. Runtime convergence requires the separate durable deployment authority and observed readback.</small>
+</form>
+</div></details>
+</div>
 <details class="inline-action-disclosure" id="dapr-runtime-workflow"><summary><span class="summary-title">Dapr application runtime</span><span class="summary-help">Assess native-vs-managed Dapr first. Product-managed install/upgrade/remove always becomes a durable, approval-gated operation.</span></summary><div class="inline-action-body">
 <div class="grid two">
 <form class="form-grid" id="dapr-assessment-form" novalidate="">
