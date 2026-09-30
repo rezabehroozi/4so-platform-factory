@@ -268,6 +268,8 @@ func (s *Server) createDaprLifecycle(w http.ResponseWriter, r *http.Request) {
 		ClusterID: input.ClusterID,
 		Action: action,
 		RuntimeLockDigest: lockDigest,
+		RuntimeVersion: s.daprRuntimeLock.Version,
+		UpstreamCommit: s.daprRuntimeLock.UpstreamCommit,
 		Disconnected: input.Disconnected,
 	}
 	if observed != nil {
@@ -591,8 +593,8 @@ func (s *Server) reportDaprLifecycleTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if wantInstalled {
-		if result.ObservedLockDigest != req.RuntimeLockDigest || result.Version != s.daprRuntimeLock.Version || result.UpstreamCommit != s.daprRuntimeLock.UpstreamCommit {
-			writeError(w, http.StatusUnprocessableEntity, "DAPR_OBSERVED_LOCK_MISMATCH", "observed target Dapr runtime does not match exact admitted lock")
+		if result.ObservedLockDigest != req.RuntimeLockDigest || result.Version != req.RuntimeVersion || result.UpstreamCommit != req.UpstreamCommit {
+			writeError(w, http.StatusUnprocessableEntity, "DAPR_OBSERVED_LOCK_MISMATCH", "observed target Dapr runtime does not match sealed lifecycle authority")
 			return
 		}
 	}
