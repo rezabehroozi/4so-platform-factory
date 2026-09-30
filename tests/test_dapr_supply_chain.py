@@ -23,7 +23,7 @@ class DaprSupplyChainTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
 
     def test_source_only_self_tests(self):
-        for name in ("acquire_dapr_runtime.py", "mirror_dapr_runtime.py", "seal_dapr_runtime.py"):
+        for name in ("acquire_dapr_runtime.py", "mirror_dapr_runtime.py", "prepare_dapr_executor.py", "build_dapr_executor_image.py", "seal_dapr_runtime.py"):
             with self.subTest(name=name):
                 self.run_script(name)
 
@@ -117,6 +117,27 @@ class DaprSupplyChainTests(unittest.TestCase):
             "physicalCertificationInferred": False,
         }
 
+    def executor_evidence(self, acquisition_digest: str, registry: str = "platform-zot:5000") -> dict:
+        digest = "sha256:" + "f" * 64
+        return {
+            "authority": seal.EXECUTOR_AUTHORITY,
+            "executorContextAuthority": seal.EXECUTOR_CONTEXT_AUTHORITY,
+            "executorContextDigest": "sha256:" + "7" * 64,
+            "acquisitionReceiptDigest": acquisition_digest,
+            "sourceReleaseDigest": "sha256:" + "8" * 64,
+            "buildAuthority": "buildkit",
+            "buildctlVersion": "buildctl v0.test",
+            "registryAuthority": "zot",
+            "registryScheme": "http",
+            "registryIdentity": registry,
+            "imageReference": f"{registry}/4so/dapr-runtime@{digest}",
+            "imageDigest": digest,
+            "registryReadback": True,
+            "credentialsEmbedded": False,
+            "runtimeMutationPerformed": False,
+            "physicalCertificationInferred": False,
+        }
+
     def test_seal_accepts_exact_evidence_and_rejects_schema_drift(self):
         with tempfile.TemporaryDirectory(prefix="4so-dapr-seal-") as td:
             root = Path(td)
@@ -126,9 +147,12 @@ class DaprSupplyChainTests(unittest.TestCase):
             mirror_doc = self.mirror_evidence(acquisition, acquisition_digest)
             mirror_path = root / "mirror.json"
             self.write_json(mirror_path, mirror_doc)
+            executor_doc = self.executor_evidence(acquisition_digest)
+            executor_path = root / "executor.json"
+            self.write_json(executor_path, executor_doc)
             out = root / "runtime-lock.json"
 
-            lock = seal.seal(acquisition_path, mirror_path, out)
+            lock = seal.seal(acquisition_path, mirror_path, executor_path, out)
             self.assertTrue(lock["admitted"])
             self.assertEqual("zot", lock["registryAuthority"])
             self.assertEqual("http", lock["registryScheme"])
@@ -138,11 +162,14 @@ class DaprSupplyChainTests(unittest.TestCase):
             self.assertEqual(mirror_doc["helmMirrorReference"], lock["helmMirrorReference"])
             self.assertRegex(lock["acquisitionReceiptDigest"], r"^sha256:[0-9a-f]{64}$")
             self.assertRegex(lock["mirrorEvidenceDigest"], r"^sha256:[0-9a-f]{64}$")
+            self.assertEqual(executor_doc["imageReference"], lock["executorImageReference"])
+            self.assertEqual(executor_doc["imageDigest"], lock["executorImageDigest"])
+            self.assertRegex(lock["executorEvidenceDigest"], r"^sha256:[0-9a-f]{64}$")
 
             acquisition["untrustedClaim"] = True
             self.write_json(acquisition_path, acquisition)
             with self.assertRaisesRegex(RuntimeError, "DAPR_ACQUISITION_SCHEMA_INVALID"):
-                seal.seal(acquisition_path, mirror_path, out)
+                seal.seal(acquisition_path, mirror_path, executor_path, out)
 
     def test_seal_rejects_mirror_reference_substitution(self):
         with tempfile.TemporaryDirectory(prefix="4so-dapr-mirror-drift-") as td:
@@ -154,8 +181,25 @@ class DaprSupplyChainTests(unittest.TestCase):
             mirror_doc["images"][0]["mirrorReference"] += ".tampered"
             mirror_path = root / "mirror.json"
             self.write_json(mirror_path, mirror_doc)
+            executor_path = root / "executor.json"
+            self.write_json(executor_path, self.executor_evidence(acquisition_digest))
             with self.assertRaisesRegex(RuntimeError, "DAPR_MIRROR_REFERENCE_INVALID"):
-                seal.seal(acquisition_path, mirror_path, root / "runtime-lock.json")
+                seal.seal(acquisition_path, mirror_path, executor_path, root / "runtime-lock.json")
+
+    def test_seal_rejects_executor_registry_or_acquisition_drift(self):
+        with tempfile.TemporaryDirectory(prefix="4so-dapr-executor-drift-") as td:
+            root = Path(td)
+            acquisition = self.acquisition()
+            acquisition_path = root / "acquisition.json"
+            acquisition_digest = self.write_json(acquisition_path, acquisition)
+            mirror_path = root / "mirror.json"
+            self.write_json(mirror_path, self.mirror_evidence(acquisition, acquisition_digest))
+            executor = self.executor_evidence(acquisition_digest)
+            executor["registryIdentity"] = "other-zot:5000"
+            executor_path = root / "executor.json"
+            self.write_json(executor_path, executor)
+            with self.assertRaisesRegex(RuntimeError, "DAPR_EXECUTOR_EVIDENCE_AUTHORITY_INVALID"):
+                seal.seal(acquisition_path, mirror_path, executor_path, root / "lock.json")
 
     def test_evidence_inputs_reject_symlinks(self):
         with tempfile.TemporaryDirectory(prefix="4so-dapr-symlink-") as td:
