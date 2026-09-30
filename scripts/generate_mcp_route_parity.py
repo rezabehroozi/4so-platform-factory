@@ -30,6 +30,12 @@ READLIKE_POST={
  '/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/validate','/api/v1/compatibility/evaluate','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/blueprint-releases/compare','/api/v1/installations/plans','/api/v1/notification-routing/preview','/api/v1/external-registry/admission','/api/v1/runtime-closure-reports/verify',
  '/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate','/api/v1/edge/local-authority/policies/compile','/api/v1/edge/local-authority/mutations/admit','/api/v1/edge/local-authority/reconnect/resolve','/api/v1/application-platform/resolve','/api/v1/application-platform/dapr/assessment','/api/v1/application-platform/dapr/workload-plan','/api/v1/application-platform/openchoreo/assessment',
 }
+# Async read operations still create a durable, idempotent product job even
+# though the target-side action is non-mutating. Keep them tool-read for AI
+# policy while preserving durableJob/idempotency requirements in the registry.
+DURABLE_READ_POST={
+ '/api/v1/application-platform/dapr/workload-admissions',
+}
 ADMIN_MARKERS=(
  '/finops/rate-cards','/finops/budget-policies', '/identity/saml-brokers','/identity/group-mappings','/identity/admin-jobs/','/compliance/profiles','/compliance/waivers','/catalog-trust-keys','/catalog-releases','/blueprint-releases','/git-providers','/organizations','/service-accounts','/notification-destinations','/notification-routes','/recovery-checkpoints','/backup-policies','/restore-runs/{id}/approve','/upgrade-campaigns/{id}/approve','/upgrade-campaigns/{id}/cancel','/clusters/{id}/revoke','/clusters/{id}/agent-certificates','/cluster-imports/{id}/approve','/cluster-imports/{id}/revoke','/baseline-deployments/{id}/approve','/baseline-deployments/{id}/rollback','/runtime-certifications/{id}/revoke','/tenants/{id}/approve','/tenants/{id}/delete','/provider-profiles','/provider-clusters/{id}/approve','/provider-clusters/{id}/delete','/marketplace/installations/{id}/approve','/marketplace/installations/{id}/uninstall',
 )
@@ -63,7 +69,7 @@ def action(path):
 def disposition(method,path):
     if any(path.startswith(p) for p in EXCLUDED_PREFIXES) or (method,path) in EXCLUDED_EXACT:
         return 'security-excluded'
-    if method=='GET' or (method=='POST' and path in READLIKE_POST): return 'tool-read'
+    if method=='GET' or (method=='POST' and (path in READLIKE_POST or path in DURABLE_READ_POST)): return 'tool-read'
     if path.endswith('/approve') or any(marker in path for marker in ADMIN_MARKERS): return 'tool-admin'
     return 'tool-operate'
 def exclusion_reason(method,path):
@@ -96,7 +102,8 @@ entries=[]
 for method,path in routes:
     d=disposition(method,path); params=re.findall(r'\{([^}]+)\}',path); conf=CONFIRM.get((method,path))
     route_family=family(path); route_scope,route_scope_status=scope_registry.get(route_family,('UNCLASSIFIED','OWNER_REVIEW_REQUIRED'))
-    entries.append({'method':method,'path':path,'family':route_family,'action':action(path),'disposition':d,'toolName':tool_name(method,path) if d!='security-excluded' else '', 'risk':risk(d,path),'pathParams':params,'resourceScope':route_scope,'resourceScopeStatus':route_scope_status,'confirmationHeader':conf[0] if conf else '', 'confirmationValue':conf[1] if conf else '', 'exclusionReason':exclusion_reason(method,path) if d=='security-excluded' else '', 'durableJob':d in ('tool-operate','tool-admin'),'idempotencyRequired':d in ('tool-operate','tool-admin')})
+    durable=(d in ('tool-operate','tool-admin')) or (method=='POST' and path in DURABLE_READ_POST)
+    entries.append({'method':method,'path':path,'family':route_family,'action':action(path),'disposition':d,'toolName':tool_name(method,path) if d!='security-excluded' else '', 'risk':risk(d,path),'pathParams':params,'resourceScope':route_scope,'resourceScopeStatus':route_scope_status,'confirmationHeader':conf[0] if conf else '', 'confirmationValue':conf[1] if conf else '', 'exclusionReason':exclusion_reason(method,path) if d=='security-excluded' else '', 'durableJob':durable,'idempotencyRequired':durable})
 from collections import Counter
 counts=Counter(e['disposition'] for e in entries)
 out={'authority':'MCP_ROUTE_PARITY_AUTHORITY_V1','source':'internal/api/server.go','routeCount':len(entries),'counts':dict(sorted(counts.items())),'routes':entries}
