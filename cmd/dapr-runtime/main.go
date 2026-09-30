@@ -530,11 +530,7 @@ func (k *kubeClient) getState(ctx context.Context, name string) (*ownerState, st
 	return &state, cm.Metadata.ResourceVersion, nil
 }
 
-func (k *kubeClient) putState(ctx context.Context, name string, state ownerState) error {
-	_, rv, err := k.getState(ctx, name)
-	if err != nil {
-		return err
-	}
+func (k *kubeClient) putStateCAS(ctx context.Context, name string, state ownerState, expectedResourceVersion string) error {
 	stateRaw, err := json.Marshal(state)
 	if err != nil {
 		return err
@@ -544,7 +540,7 @@ func (k *kubeClient) putState(ctx context.Context, name string, state ownerState
 	cm.Kind = "ConfigMap"
 	cm.Metadata.Name = name
 	cm.Metadata.Namespace = runtimeNamespace
-	cm.Metadata.ResourceVersion = rv
+	cm.Metadata.ResourceVersion = strings.TrimSpace(expectedResourceVersion)
 	cm.Data = map[string]string{"state.json": string(stateRaw)}
 	raw, err := json.Marshal(cm)
 	if err != nil {
@@ -552,7 +548,7 @@ func (k *kubeClient) putState(ctx context.Context, name string, state ownerState
 	}
 	method := http.MethodPost
 	path := "/api/v1/namespaces/" + runtimeNamespace + "/configmaps"
-	if rv != "" {
+	if cm.Metadata.ResourceVersion != "" {
 		method = http.MethodPut
 		path += "/" + name
 	}
@@ -560,10 +556,32 @@ func (k *kubeClient) putState(ctx context.Context, name string, state ownerState
 	if err != nil {
 		return err
 	}
+	if res.StatusCode == http.StatusConflict {
+		return errors.New("DAPR_OWNER_CAS_CONFLICT")
+	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return fmt.Errorf("Dapr ConfigMap write failed: %s %s", res.Status, strings.TrimSpace(string(response)))
 	}
 	return nil
+}
+
+func (k *kubeClient) putState(ctx context.Context, name string, state ownerState) error {
+	_, rv, err := k.getState(ctx, name)
+	if err != nil {
+		return err
+	}
+	return k.putStateCAS(ctx, name, state, rv)
+}
+
+func (k *kubeClient) putOwnedState(ctx context.Context, name string, state ownerState, operationID string, fenceToken int64) error {
+	current, rv, err := k.getState(ctx, name)
+	if err != nil {
+		return err
+	}
+	if current == nil || current.OperationID != operationID || current.FenceToken != fenceToken {
+		return errors.New("DAPR_RUNTIME_OWNER_FENCE_CHANGED")
+	}
+	return k.putStateCAS(ctx, name, state, rv)
 }
 
 func helmStatus(ctx context.Context, env []string) (bool, error) {
@@ -626,7 +644,7 @@ func runLifecycle(args []string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
 	defer cancel()
-	owner, _, err := kube.getState(ctx, ownerName)
+	owner, ownerResourceVersion, err := kube.getState(ctx, ownerName)
 	if err != nil {
 		return err
 	}
@@ -636,6 +654,9 @@ func runLifecycle(args []string) error {
 	}
 	sameOperation := owner != nil && owner.OperationID == cfg.OperationID && owner.FenceToken == cfg.FenceToken
 	samePending := sameOperation && owner.Phase == "Mutating"
+	if owner != nil && owner.Phase == "Mutating" && !samePending {
+		return errors.New("DAPR_RUNTIME_MUTATION_ALREADY_OWNED_RECOVERY_REQUIRED")
+	}
 
 	if sameOperation && !samePending {
 		switch cfg.Action {
@@ -674,7 +695,7 @@ func runLifecycle(args []string) error {
 			}
 			now := time.Now().UTC().Format(time.RFC3339Nano)
 			final := ownerState{Authority: receiptAuthority, Installed: false, OperationID: cfg.OperationID, FenceToken: cfg.FenceToken, ObservedAt: now, Phase: "Removed"}
-			if err = kube.putState(ctx, ownerName, final); err != nil { return err }
+			if err = kube.putOwnedState(ctx, ownerName, final, cfg.OperationID, cfg.FenceToken); err != nil { return err }
 			return kube.putState(ctx, receiptName, final)
 		}
 		return errors.New("DAPR_OWNED_RELEASE_MISSING_RECOVERY_REQUIRED")
@@ -696,7 +717,7 @@ func runLifecycle(args []string) error {
 			pending.Version = owner.Version
 			pending.UpstreamCommit = owner.UpstreamCommit
 		}
-		if err = kube.putState(ctx, ownerName, pending); err != nil {
+		if err = kube.putStateCAS(ctx, ownerName, pending, ownerResourceVersion); err != nil {
 			return err
 		}
 	}
@@ -747,7 +768,7 @@ func runLifecycle(args []string) error {
 		state.Version = cfg.Lock.Version
 		state.UpstreamCommit = cfg.Lock.UpstreamCommit
 	}
-	if err = kube.putState(ctx, ownerName, state); err != nil {
+	if err = kube.putOwnedState(ctx, ownerName, state, cfg.OperationID, cfg.FenceToken); err != nil {
 		return err
 	}
 	if err = kube.putState(ctx, receiptName, state); err != nil {
