@@ -136,6 +136,22 @@ func TestWorkloadAdmissionRejectsInjectorSecurityAndImageSubstitution(t *testing
 	}
 }
 
+func TestWorkloadAdmissionRejectsMissingExplicitPrivilegeEscalationField(t *testing.T) {
+	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
+	deployment, err := BuildWorkloadAdmissionDeployment(request, "op_missing_security")
+	if err != nil { t.Fatal(err) }
+	response := injectTestDaprSidecar(t, deployment, request.ExpectedSidecarImage)
+	spec := response["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
+	containers := spec["containers"].([]any)
+	sidecar := containers[len(containers)-1].(map[string]any)
+	security := sidecar["securityContext"].(map[string]any)
+	delete(security, "allowPrivilegeEscalation")
+	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_missing_security", response, 201, time.Now().UTC()); err == nil ||
+		!strings.Contains(err.Error(), "SECURITY_FIELDS_MISSING") {
+		t.Fatalf("missing explicit allowPrivilegeEscalation=false was treated as proof: %v", err)
+	}
+}
+
 func TestNativeDaprAdmissionObservesSecurityButNeverClaimsProductImageFence(t *testing.T) {
 	request := workloadAdmissionTestRequest(t, "USE_NATIVE")
 	deployment, err := BuildWorkloadAdmissionDeployment(request, "op_native")
