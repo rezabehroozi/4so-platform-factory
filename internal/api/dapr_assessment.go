@@ -59,6 +59,11 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 		admissionInput.ObservedCapabilities = append([]string(nil), inventory.Capabilities...)
 	}
 	out := targetmodel.EvaluateDaprTargetAdmission(admissionInput)
+	observed, observedErr := s.latestDaprObserved(r.Context(), input.ProjectID, input.ClusterID)
+	if observedErr != nil {
+		writeStoreError(w, observedErr)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"authority":                     targetmodel.DaprTargetAdmissionAuthority,
 		"profileAuthority":              targetmodel.DaprApplicationRuntimeAuthority,
@@ -68,6 +73,7 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 		"supplyChainDigest":             s.daprRuntimeDigest,
 		"reviewedRuntimeVersion":        targetmodel.DaprReviewedRuntimeVersion,
 		"assessment":                    out,
+		"observed":                      observed,
 		"runtimeInstallImplemented":     true,
 		"physicalCertificationInferred": false,
 	})
