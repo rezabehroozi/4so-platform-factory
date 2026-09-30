@@ -15,13 +15,20 @@ import ssl
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 try:
     import seal_mcp_external_interop as core
 except ModuleNotFoundError:
     from scripts import seal_mcp_external_interop as core
 
+
+class RejectRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+def exact_https_opener(context):
+    return build_opener(HTTPSHandler(context=context),RejectRedirects())
 
 def error_code(raw: bytes) -> str:
     try:
@@ -100,6 +107,7 @@ def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: st
     query=urlencode([("requestId",request_ids[name]) for name in core.AUDITED_CHECKS])
     url=base+"/api/v1/security-audit-events?"+query
     context=ssl.create_default_context()
+    opener=exact_https_opener(context)
     last=""
 
     for attempt in range(1,attempts+1):
@@ -113,9 +121,9 @@ def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: st
             method="GET",
         )
         try:
-            with urlopen(req,timeout=20,context=context) as response:
-                if response.status!=200:
-                    raise RuntimeError(f"MCP_EXTERNAL_AUDIT_HTTP_STATUS {response.status}")
+            with opener.open(req,timeout=20) as response:
+                if response.status!=200 or response.geturl()!=url:
+                    raise RuntimeError(f"MCP_EXTERNAL_AUDIT_HTTP_ORIGIN_INVALID status={response.status}")
                 body=response.read(4*1024*1024+1)
                 if len(body)>4*1024*1024:
                     raise RuntimeError("MCP_EXTERNAL_AUDIT_RESPONSE_TOO_LARGE")
