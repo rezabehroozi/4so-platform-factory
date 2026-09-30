@@ -94,6 +94,9 @@ func validateDaprAgentTask(task daprAgentTask, clusterID string) error {
 	if digest != req.RuntimeLockDigest {
 		return fmt.Errorf("Dapr task runtime lock digest does not match sealed lifecycle request")
 	}
+	if task.RuntimeLock.Version != req.RuntimeVersion || strings.ToLower(strings.TrimSpace(task.RuntimeLock.UpstreamCommit)) != req.UpstreamCommit {
+		return fmt.Errorf("Dapr task runtime identity does not match sealed lifecycle request")
+	}
 	if strings.TrimSpace(task.RuntimeLock.ExecutorImageReference) == "" || !strings.Contains(task.RuntimeLock.ExecutorImageReference, "@sha256:") {
 		return fmt.Errorf("Dapr executor image is not exact-digest pinned")
 	}
