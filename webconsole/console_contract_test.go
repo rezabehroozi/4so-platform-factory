@@ -215,7 +215,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("PlatformTemplate console runtime contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{`id="application-composition-panel"`, `id="application-resolution-form"`, `id="application-promotion-form"`, "Authority boundary:", "immutable release"} {
+	for _, contract := range []string{`id="application-composition-panel"`, `id="application-resolution-form"`, `id="application-promotion-form"`, `id="application-release-create-form"`, `id="application-release-image"`, `id="application-binding-create-form"`, `id="application-binding-workspace-binding"`, "Authority boundary:", "immutable release", "does not deploy an application"} {
 		if !strings.Contains(html, contract) {
 			t.Fatalf("J8 application composition console contract missing %q", contract)
 		}
@@ -225,7 +225,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("J8 Dapr workload admission console contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{"applicationWorkloadTypes", "applicationCapabilityTraits", "applicationResourceTypes", "applicationWorkspaceProfiles", "applicationReleases", "applicationEnvironmentBindings", "/api/v1/application-platform/resolve", "/application-platform/environment-bindings/", "If-Match", "Preview only. No target", "Runtime convergence and Physical certification remain separate"} {
+	for _, contract := range []string{"applicationWorkloadTypes", "applicationCapabilityTraits", "applicationResourceTypes", "applicationWorkspaceProfiles", "applicationReleases", "applicationEnvironmentBindings", "applicationWorkspaceBindings", "/api/v1/application-platform/releases", "/api/v1/application-platform/environment-bindings", "/api/v1/application-platform/resolve", "/application-platform/environment-bindings/", "/api/v1/workspaces/", "workloadImageReference", "Immutable application release requires an exact digest-pinned workload image.", "Desired environment binding created. No runtime deployment has been inferred.", "If-Match", "Preview only. No target", "Runtime convergence and Physical certification remain separate"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("J8 application composition runtime contract missing %q", contract)
 		}
