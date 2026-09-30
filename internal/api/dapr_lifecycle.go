@@ -875,7 +875,7 @@ func (s *Server) reportDaprRecoveryTask(w http.ResponseWriter, r *http.Request) 
 		writeStoreError(w, err)
 		return
 	}
-	if op.Kind != daprLifecycleOperationKind || op.Revision != expected {
+	if op.Kind != daprLifecycleOperationKind {
 		writeStoreError(w, controlplane.ErrConflict)
 		return
 	}
@@ -896,6 +896,10 @@ func (s *Server) reportDaprRecoveryTask(w http.ResponseWriter, r *http.Request) 
 	}
 	task := daprRecoveryTask{OperationID: op.ID, OperationRevision: op.Revision, TaskFenceToken: op.FenceToken, Request: req}
 	if !result.ConfirmedSuccess {
+		if op.Revision != expected || op.State != controlplane.OperationFailed || op.LastFailureClass != controlplane.OperationFailureUnknown {
+			writeError(w, http.StatusConflict, "DAPR_RECOVERY_STATE_CHANGED", "operation is no longer the expected FAILED/UNKNOWN revision")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"authority": daprRecoveryReadbackAuthority,
 			"operation": op,
@@ -918,6 +922,10 @@ func (s *Server) reportDaprRecoveryTask(w http.ResponseWriter, r *http.Request) 
 			"idempotentReplay": true,
 			"physicalCertificationInferred": false,
 		})
+		return
+	}
+	if op.Revision != expected {
+		writeStoreError(w, controlplane.ErrConflict)
 		return
 	}
 	if op.State != controlplane.OperationFailed || op.LastFailureClass != controlplane.OperationFailureUnknown {
