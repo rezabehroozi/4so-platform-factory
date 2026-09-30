@@ -624,10 +624,7 @@ func DaprRuntimeSupplyChainAdmitted(lock DaprRuntimeSupplyChainLock) bool {
 
 const (
 	DaprTargetAdmissionAuthority       = "DAPR_TARGET_ADMISSION_V1"
-	DaprSidecarSecurityCapability      = "application-runtime.dapr-sidecar-security-compatible"
-	DaprComponentScopeCapability       = "application-runtime.dapr-component-scope-enforced"
-	DaprResourceSizingCapability       = "application-runtime.dapr-resource-sizing-ready"
-	DaprMirrorPullCapability           = "application-runtime.dapr-mirror-pull-ready"
+	DaprSidecarSecurityCapability = "application-runtime.dapr-sidecar-security-compatible"
 )
 
 type DaprTargetAdmissionInput struct {
@@ -649,9 +646,11 @@ type DaprTargetAdmission struct {
 	Eligible                      bool     `json:"eligible"`
 	Mode                          string   `json:"mode"`
 	DistributionIdentity          string   `json:"distributionIdentity"`
-	InstallSuppressed             bool     `json:"installSuppressed"`
-	Blockers                      []string `json:"blockers,omitempty"`
-	PhysicalCertificationInferred bool     `json:"physicalCertificationInferred"`
+	InstallSuppressed                     bool     `json:"installSuppressed"`
+	TargetMirrorPullEvidenceRequired      bool     `json:"targetMirrorPullEvidenceRequired"`
+	WorkloadSidecarAdmissionIndependent   bool     `json:"workloadSidecarAdmissionIndependent"`
+	Blockers                              []string `json:"blockers,omitempty"`
+	PhysicalCertificationInferred         bool     `json:"physicalCertificationInferred"`
 }
 
 func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmission {
@@ -695,11 +694,13 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 	// Sidecar security compatibility is workload-namespace-specific and belongs
 	// to deployment dry-run/admission, not cluster-wide runtime installation.
 	// Component scoping and sidecar resource sizing are product-owned invariants
-	// enforced by ResolveDaprWorkloadRuntimePlan. They are not target-discovered
-	// capabilities and must never be accepted as self-asserted inventory proof.
-	if out.Mode == "INSTALL_REQUIRED" && in.Disconnected && !capabilities[DaprMirrorPullCapability] {
-		out.Blockers = append(out.Blockers, "DAPR_MIRROR_PULL_CAPABILITY_PENDING")
-	}
+	// enforced by ResolveDaprWorkloadRuntimePlan. Target mirror-pull evidence is
+	// execution evidence: requiring an inventory capability before installation
+	// creates an impossible precondition and would let a self-asserted capability
+	// masquerade as proof. The executor must emit exact target readback after the
+	// product-managed runtime actually converges instead.
+	out.WorkloadSidecarAdmissionIndependent = true
+	out.TargetMirrorPullEvidenceRequired = out.Mode == "INSTALL_REQUIRED" && in.Disconnected
 	if out.Mode == "INSTALL_REQUIRED" && !in.ExecutorRBACReady {
 		out.Blockers = append(out.Blockers, "DAPR_EXECUTOR_RBAC_PENDING")
 	}
