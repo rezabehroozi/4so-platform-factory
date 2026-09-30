@@ -34,6 +34,9 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     for key in ("clientSurface","campaignId","challengeSha256","endpoint"):
         if capture.get(key)!=packet.get(key):
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_BINDING_INVALID {key}")
+    oauth_client_id=str(packet.get("oauthClientId") or "").strip()
+    if not oauth_client_id or len(oauth_client_id.encode("utf-8"))>512 or any(ch in oauth_client_id for ch in "\r\n\t"):
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_OAUTH_CLIENT_INVALID")
     binding=core.interop_binding_digest(packet.get("campaignId"),client,packet.get("challengeSha256"))
     if packet.get("interopBindingAuthority")!=core.INTEROP_BINDING_AUTHORITY or packet.get("interopBindingDigest")!=binding:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_SERVER_BINDING_INVALID")
@@ -83,6 +86,7 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
       "clientSurface":packet["clientSurface"],
       "campaignId":packet["campaignId"],
       "challengeSha256":packet["challengeSha256"],
+      "oauthClientId":oauth_client_id,
       "interopBindingAuthority":core.INTEROP_BINDING_AUTHORITY,
       "interopBindingDigest":binding,
       "protocol":packet["protocol"],
