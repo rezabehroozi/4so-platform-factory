@@ -49,6 +49,9 @@ type WorkloadAdmissionEvidence struct {
 	PlanDigest                 string   `json:"planDigest"`
 	Namespace                  string   `json:"namespace"`
 	AppID                      string   `json:"appId"`
+	AdmissionObjectKind        string   `json:"admissionObjectKind"`
+	AdmissionResource          string   `json:"admissionResource"`
+	AdmissionObjectName        string   `json:"admissionObjectName"`
 	DryRunHTTPStatus           int      `json:"dryRunHttpStatus"`
 	InjectedSidecarObserved    bool     `json:"injectedSidecarObserved"`
 	SidecarContainerName       string   `json:"sidecarContainerName"`
@@ -207,13 +210,18 @@ func ValidateWorkloadAdmissionEvidence(value WorkloadAdmissionEvidence, request 
 	value.PlanDigest = strings.ToLower(strings.TrimSpace(value.PlanDigest))
 	value.Namespace = strings.TrimSpace(value.Namespace)
 	value.AppID = strings.TrimSpace(value.AppID)
+	value.AdmissionObjectKind = strings.TrimSpace(value.AdmissionObjectKind)
+	value.AdmissionResource = strings.TrimSpace(value.AdmissionResource)
+	value.AdmissionObjectName = strings.TrimSpace(value.AdmissionObjectName)
 	value.SidecarContainerName = strings.TrimSpace(value.SidecarContainerName)
 	value.SidecarImageReference = strings.TrimSpace(value.SidecarImageReference)
 	if value.Authority != WorkloadAdmissionEvidenceAuthority || value.OperationID != strings.TrimSpace(operationID) ||
 		value.ProjectID != request.ProjectID || value.ClusterID != request.ClusterID || value.TraitDigest != request.TraitDigest ||
 		value.InventoryDigest != request.InventoryDigest || value.RuntimeMode != request.RuntimeMode ||
 		value.RuntimeLockDigest != request.RuntimeLockDigest || value.ExecutorEvidenceDigest != request.ExecutorEvidenceDigest || value.PlanDigest != request.PlanDigest ||
-		value.Namespace != request.Plan.Namespace || value.AppID != request.Plan.AppID {
+		value.Namespace != request.Plan.Namespace || value.AppID != request.Plan.AppID ||
+		value.AdmissionObjectKind != "Pod" || value.AdmissionResource != "pods" ||
+		value.AdmissionObjectName != AdmissionObjectName(operationID) {
 		return fmt.Errorf("DAPR_WORKLOAD_ADMISSION_EVIDENCE_BINDING_INVALID")
 	}
 	if value.DryRunHTTPStatus < 200 || value.DryRunHTTPStatus >= 300 || !value.ServerSideDryRun || !value.StrictFieldValidation {
@@ -267,7 +275,7 @@ func AdmissionObjectName(operationID string) string {
 	return "4so-dapr-admission-" + hex.EncodeToString(sum[:6])
 }
 
-func BuildWorkloadAdmissionDeployment(request WorkloadAdmissionRequest, operationID string) (map[string]any, error) {
+func BuildWorkloadAdmissionPod(request WorkloadAdmissionRequest, operationID string) (map[string]any, error) {
 	request, err := CanonicalWorkloadAdmissionRequest(request)
 	if err != nil {
 		return nil, err
@@ -275,33 +283,32 @@ func BuildWorkloadAdmissionDeployment(request WorkloadAdmissionRequest, operatio
 	if strings.TrimSpace(operationID) == "" {
 		return nil, fmt.Errorf("DAPR_WORKLOAD_ADMISSION_OPERATION_REQUIRED")
 	}
-	labels := map[string]any{"platform.4so.io/dapr-admission": AdmissionObjectName(operationID)}
+	name := AdmissionObjectName(operationID)
+	labels := map[string]any{
+		"platform.4so.io/dapr-admission": name,
+		"platform.4so.io/managed": "true",
+		"platform.4so.io/admission-only": "true",
+	}
 	annotations := map[string]any{}
 	for _, item := range request.Plan.Annotations {
 		annotations[item.Key] = item.Value
 	}
 	return map[string]any{
-		"apiVersion": "apps/v1", "kind": "Deployment",
+		"apiVersion": "v1", "kind": "Pod",
 		"metadata": map[string]any{
-			"name": AdmissionObjectName(operationID), "namespace": request.Plan.Namespace,
-			"labels": map[string]any{"platform.4so.io/managed": "true", "platform.4so.io/admission-only": "true"},
+			"name": name, "namespace": request.Plan.Namespace,
+			"labels": labels, "annotations": annotations,
 		},
 		"spec": map[string]any{
-			"replicas": 1,
-			"selector": map[string]any{"matchLabels": labels},
-			"template": map[string]any{
-				"metadata": map[string]any{"labels": labels, "annotations": annotations},
-				"spec": map[string]any{
-					"automountServiceAccountToken": false,
-					"containers": []any{map[string]any{
-						"name": "app", "image": request.WorkloadImage, "imagePullPolicy": "IfNotPresent",
-						"securityContext": map[string]any{
-							"allowPrivilegeEscalation": false, "readOnlyRootFilesystem": true, "runAsNonRoot": true,
-							"capabilities": map[string]any{"drop": []any{"ALL"}},
-						},
-					}},
+			"automountServiceAccountToken": false,
+			"restartPolicy": "Never",
+			"containers": []any{map[string]any{
+				"name": "app", "image": request.WorkloadImage, "imagePullPolicy": "IfNotPresent",
+				"securityContext": map[string]any{
+					"allowPrivilegeEscalation": false, "readOnlyRootFilesystem": true, "runAsNonRoot": true,
+					"capabilities": map[string]any{"drop": []any{"ALL"}},
 				},
-			},
+			}},
 		},
 	}, nil
 }
@@ -328,12 +335,17 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 	if err != nil {
 		return WorkloadAdmissionEvidence{}, err
 	}
-	templateMeta := admissionNestedMap(response, "spec", "template", "metadata")
-	templateSpec := admissionNestedMap(response, "spec", "template", "spec")
-	if templateMeta == nil || templateSpec == nil {
-		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_DEPLOYMENT_SHAPE_INVALID")
+	if strings.TrimSpace(fmt.Sprint(response["apiVersion"])) != "v1" || strings.TrimSpace(fmt.Sprint(response["kind"])) != "Pod" {
+		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_POD_SHAPE_INVALID")
 	}
-	actualAnnotations, _ := templateMeta["annotations"].(map[string]any)
+	metadata, _ := response["metadata"].(map[string]any)
+	podSpec, _ := response["spec"].(map[string]any)
+	if metadata == nil || podSpec == nil ||
+		strings.TrimSpace(fmt.Sprint(metadata["name"])) != AdmissionObjectName(operationID) ||
+		strings.TrimSpace(fmt.Sprint(metadata["namespace"])) != request.Plan.Namespace {
+		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_POD_IDENTITY_INVALID")
+	}
+	actualAnnotations, _ := metadata["annotations"].(map[string]any)
 	annotationsVerified := len(actualAnnotations) >= len(request.Plan.Annotations)
 	for _, wanted := range request.Plan.Annotations {
 		if strings.TrimSpace(fmt.Sprint(actualAnnotations[wanted.Key])) != wanted.Value {
@@ -341,7 +353,7 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 			break
 		}
 	}
-	containers, _ := templateSpec["containers"].([]any)
+	containers, _ := podSpec["containers"].([]any)
 	appPreserved := false
 	var sidecar map[string]any
 	for _, raw := range containers {
@@ -398,6 +410,7 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 		InventoryDigest: request.InventoryDigest, RuntimeMode: request.RuntimeMode, RuntimeLockDigest: request.RuntimeLockDigest,
 		ExecutorEvidenceDigest: request.ExecutorEvidenceDigest,
 		PlanDigest: request.PlanDigest, Namespace: request.Plan.Namespace, AppID: request.Plan.AppID,
+		AdmissionObjectKind: "Pod", AdmissionResource: "pods", AdmissionObjectName: AdmissionObjectName(operationID),
 		DryRunHTTPStatus: status, InjectedSidecarObserved: true, SidecarContainerName: "daprd",
 		SidecarImageReference: sidecarImage, ExpectedSidecarImageMatched: expectedMatched,
 		RunAsNonRoot: runAsNonRoot,
