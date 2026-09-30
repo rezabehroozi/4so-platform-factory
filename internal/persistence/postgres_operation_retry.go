@@ -180,6 +180,43 @@ func (s *PostgresStore) ReportOperationFailure(ctx context.Context, id string, e
 	return out, err
 }
 
+func (s *PostgresStore) ResolveUnknownOperationOutcome(ctx context.Context, id string, expected int64, resolution controlplane.OperationUnknownOutcomeResolution, evidenceDigest, actor string) (controlplane.Operation, error) {
+	var out controlplane.Operation
+	err := s.serializable(ctx, func(tx *sql.Tx) error {
+		op, err := scanOperation(tx.QueryRowContext(ctx, `SELECT `+operationColumns+` FROM operations WHERE id=$1 FOR UPDATE`, id))
+		if err != nil {
+			return mapDBError(err)
+		}
+		next, err := controlplane.ApplyUnknownOutcomeResolution(op, expected, resolution, evidenceDigest, actor)
+		if err != nil {
+			return err
+		}
+		now := utcNow(s.now)
+		next.UpdatedAt = now
+		if _, err = tx.ExecContext(ctx, `
+			UPDATE operations
+			SET revision=$2,state=$3,last_error=$4,last_failure_class=$5,retry_exhausted=$6,
+			    recovery_evidence_digest=$7,next_attempt_at=NULL,lease_owner=NULL,lease_expires_at=NULL,updated_at=$8
+			WHERE id=$1
+		`, id, next.Revision, string(next.State), next.LastError, string(next.LastFailureClass), next.RetryExhausted, next.RecoveryEvidenceDigest, now); err != nil {
+			return err
+		}
+		if err = s.appendAuditTx(ctx, tx, actor, "operation.unknown_outcome_resolved", "operation", id, next.Revision, "", map[string]any{
+			"authority": controlplane.OperationUnknownOutcomeRecoveryAuthority,
+			"resolution": resolution,
+			"recoveryEvidenceDigest": next.RecoveryEvidenceDigest,
+		}); err != nil {
+			return err
+		}
+		if err = s.appendOutboxTx(ctx, tx, "operation", id, "operation.unknown_outcome_resolved", next); err != nil {
+			return err
+		}
+		out = next
+		return nil
+	})
+	return out, err
+}
+
 func (s *PostgresStore) CompleteOperation(ctx context.Context, id string, expected int64, worker string, fence int64, actor string) (controlplane.Operation, error) {
 	var out controlplane.Operation
 	err := s.serializable(ctx, func(tx *sql.Tx) error {
