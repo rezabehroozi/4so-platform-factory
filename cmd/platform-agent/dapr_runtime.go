@@ -22,6 +22,7 @@ const (
 	daprExecutorJobLabel       = "platform.4so.io/dapr-runtime-executor"
 	daprExecutorServiceAccount = "4so-dapr-executor"
 	daprReceiptName            = "4so-dapr-runtime-observed"
+	daprOwnerName              = "4so-dapr-runtime-owner"
 	daprReceiptNamespace       = "dapr-system"
 	daprReceiptAuthority       = "DAPR_TARGET_OBSERVED_RECEIPT_V1"
 )
@@ -385,13 +386,13 @@ func validateDaprObservedReceipt(receipt daprObservedReceipt, operationID string
 	return result
 }
 
-func (a *agent) readDaprReceipt(ctx context.Context, task daprAgentTask) daprAgentResult {
+func (a *agent) readDaprStateConfigMap(ctx context.Context, name string, task daprAgentTask) daprAgentResult {
 	result := daprAgentResult{TaskFenceToken: task.TaskFenceToken, Phase: "ReceiptReadback"}
-	path := "/api/v1/namespaces/" + url.PathEscape(daprReceiptNamespace) + "/configmaps/" + url.PathEscape(daprReceiptName)
+	path := "/api/v1/namespaces/" + url.PathEscape(daprReceiptNamespace) + "/configmaps/" + url.PathEscape(name)
 	obj, found, err := a.getKubeObject(ctx, path)
 	if err != nil || !found {
 		result.RecoveryRequired = true
-		result.Error = "Dapr observed receipt is unavailable after executor completion"
+		result.Error = "Dapr observed state " + name + " is unavailable"
 		if err != nil {
 			result.Error += ": " + err.Error()
 		}
@@ -401,7 +402,7 @@ func (a *agent) readDaprReceipt(ctx context.Context, task daprAgentTask) daprAge
 	stateRaw := strings.TrimSpace(fmt.Sprint(data["state.json"]))
 	if stateRaw == "" {
 		result.RecoveryRequired = true
-		result.Error = "Dapr observed receipt state is missing"
+		result.Error = "Dapr observed state " + name + " is missing"
 		return result
 	}
 	var receipt daprObservedReceipt
@@ -409,11 +410,32 @@ func (a *agent) readDaprReceipt(ctx context.Context, task daprAgentTask) daprAge
 	decoder.DisallowUnknownFields()
 	if err = decoder.Decode(&receipt); err != nil {
 		result.RecoveryRequired = true
-		result.Error = "Dapr observed receipt is invalid: " + err.Error()
+		result.Error = "Dapr observed state " + name + " is invalid: " + err.Error()
 		return result
 	}
-	validated := validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
-	return validated
+	return validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+}
+
+func (a *agent) readDaprReceipt(ctx context.Context, task daprAgentTask) daprAgentResult {
+	receipt := a.readDaprStateConfigMap(ctx, daprReceiptName, task)
+	if receipt.Success && !receipt.RecoveryRequired {
+		return receipt
+	}
+	owner := a.readDaprStateConfigMap(ctx, daprOwnerName, task)
+	if owner.Success && !owner.RecoveryRequired {
+		owner.Phase = "OwnerStateReadback:" + owner.Phase
+		return owner
+	}
+	result := receipt
+	result.RecoveryRequired = true
+	result.Success = false
+	if strings.TrimSpace(result.Error) == "" {
+		result.Error = "Dapr observed receipt is not authoritative for this operation"
+	}
+	if strings.TrimSpace(owner.Error) != "" {
+		result.Error += "; owner readback: " + owner.Error
+	}
+	return result
 }
 
 func (a *agent) reportDaprLifecycleTask(ctx context.Context, task daprAgentTask, result daprAgentResult) error {
