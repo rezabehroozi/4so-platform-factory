@@ -77,6 +77,31 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("worker-terminal",out["latestCompletedCheckpoint"])
             self.assertEqual("COMPLETED",R.read_state(root)["status"])
 
+    def test_runtime_root_and_subdirectories_reject_symlink_authority(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            outside=root/"outside"; outside.mkdir()
+            runtime=root/".project-runtime"; runtime.symlink_to(outside,target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError,"ROOT_SYMLINK_FORBIDDEN"):
+                R.write_state(root,{"status":"WAITING","runId":"symlink-root"})
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            runtime=R.ensure_runtime_dir(root)
+            outside=root/"outside"; outside.mkdir()
+            (runtime/"logs").symlink_to(outside,target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError,"SUBDIR_INVALID"):
+                R.log_file(root,"symlink-logs")
+
+    def test_state_log_path_is_derived_from_run_id_not_persisted_alias(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            canonical=R.log_file(root,"log-fence")
+            state={"status":"WAITING","runId":"log-fence","latestLogPath":str(root/"outside.log")}
+            with self.assertRaisesRegex(RuntimeError,"LOG_PATH_DRIFT"):
+                R.state_log_file(root,state)
+            state["latestLogPath"]=str(canonical)
+            self.assertEqual(canonical,R.state_log_file(root,state))
+
     def test_lock_acquire_fails_closed_without_process_start_identity(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
