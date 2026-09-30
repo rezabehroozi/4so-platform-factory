@@ -192,6 +192,38 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("replay-1",R.read_state(root)["runId"])
             self.assertEqual("owner-tests",R.read_state(root)["currentTask"])
 
+    def test_command_gate_requires_exact_durable_pid_identity(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            pid=R.os.getpid(); pt=R.ticks(pid)
+            state={
+                "status":"RUNNING","runId":"gate-1","commandPid":pid,"commandPidStartTicks":pt,
+                "executionStarted":True,"attempt":1,"command":["/definitely/missing-command"],
+            }
+            R.write_state(root,state)
+            self.assertIsNotNone(R.command_gate_state(root,"gate-1",pid,pt))
+            self.assertIsNone(R.command_gate_state(root,"gate-1",pid,"wrong"))
+            self.assertIsNone(R.command_gate_state(root,"other-run",pid,pt))
+
+    def test_command_exec_failure_is_attempt_scoped_preexecution_evidence(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            pid=R.os.getpid(); pt=R.ticks(pid)
+            state={
+                "status":"RUNNING","runId":"exec-fail-1","commandPid":pid,"commandPidStartTicks":pt,
+                "executionStarted":True,"attempt":3,"command":["/definitely/missing-command"],
+            }
+            R.write_state(root,state)
+            rc=R.command_wrapper(root,"exec-fail-1")
+            self.assertEqual(125,rc)
+            marker=R.command_exec_failure_file(root,"exec-fail-1",3)
+            self.assertTrue(marker.is_file())
+            evidence=json.loads(marker.read_text())
+            self.assertEqual(R.COMMAND_EXEC_FAILURE_AUTHORITY,evidence["authority"])
+            self.assertEqual(3,evidence["attempt"])
+            self.assertIn("COMMAND_EXEC_ERROR",evidence["error"])
+            self.assertFalse(R.command_exec_failure_file(root,"exec-fail-1",2).exists())
+
     def test_worker_launch_failure_before_execution_is_safe_to_resume_and_releases_lock(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
