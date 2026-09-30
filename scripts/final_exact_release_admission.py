@@ -58,6 +58,8 @@ def external_client_progress(root:Path)->dict:
     if not path.exists():
         return {"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","certifiedClientCount":0,"certifiedClients":[],"missingClients":list(CLIENTS),"nextClient":CLIENTS[0],"complete":False,"evidenceSealPending":False}
     progress=load(path,"MCP_EXTERNAL_PROGRESS")
+    if set(progress)!=set(mcp_contract.PROGRESS_EVIDENCE_KEYS):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_FIELDS_INVALID")
     if progress.get("authority")!="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1" or progress.get("kind")!="MCPExternalClientInteropProgress":
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_AUTHORITY_INVALID")
     if progress.get("runtimeCertified") is not False or progress.get("physicalCertified") is not False:
@@ -157,6 +159,8 @@ def verify(root:Path)->dict:
 
     mcp_path=root/"lab/mcp-external-client-interoperability-evidence.json"
     mcp=load(mcp_path,"MCP_EXTERNAL_INTEROP")
+    if set(mcp)!=set(mcp_contract.INTEROP_EVIDENCE_KEYS):
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_FIELDS_INVALID")
     if mcp.get("authority")!=MCP_AUTHORITY or mcp.get("externalCertificationPass") is not True or mcp.get("allRequiredChecksPass") is not True or mcp.get("certifiedClientCount")!=4:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_AUTHORITY_INVALID")
     if mcp.get("serverAuditWitnessPass") is not True or mcp.get("serverAuditWitnessedCheckCount") != 24:
