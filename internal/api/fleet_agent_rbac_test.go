@@ -149,6 +149,20 @@ func TestMutationActivationIncludesBoundedDaprExecutorAuthority(t *testing.T) {
 	} {
 		if !strings.Contains(manifest, want) { t.Fatalf("Dapr executor RBAC missing %q", want) }
 	}
+	launcherStart := strings.Index(manifest, "name: 4so-platform-runtime-job-launcher\n  namespace: 4so-platform-agent")
+	if launcherStart < 0 {
+		t.Fatal("runtime Job launcher Role is missing")
+	}
+	launcherTail := manifest[launcherStart:]
+	if end := strings.Index(launcherTail, "\n---\n"); end >= 0 {
+		launcherTail = launcherTail[:end]
+	}
+	if !strings.Contains(launcherTail, `resources: ["pods"]`) || !strings.Contains(launcherTail, `verbs: ["get", "list"]`) {
+		t.Fatalf("runtime Job launcher cannot read exact executor Pod termination evidence:\n%s", launcherTail)
+	}
+	if strings.Contains(launcherTail, `resources: ["deployments"]`) || strings.Contains(launcherTail, `verbs: ["create", "update", "patch"]`) {
+		t.Fatalf("runtime Job launcher gained workload mutation authority instead of read-only executor readback:\n%s", launcherTail)
+	}
 	if strings.Contains(manifest, "cluster-admin") || strings.Contains(manifest, `resources: ["*"]`) {
 		t.Fatalf("Dapr executor RBAC became wildcard/cluster-admin:\n%s", manifest)
 	}
