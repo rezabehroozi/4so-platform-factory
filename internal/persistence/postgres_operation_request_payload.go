@@ -96,6 +96,86 @@ func (s *PostgresStore) CreateOperationAwaitingApprovalWithPayload(ctx context.C
 	return result, replay, err
 }
 
+func (s *PostgresStore) CreateOperationQueuedWithPayload(ctx context.Context, request controlplane.OperationRequest, key, actor, requestID, mediaType string, payload []byte) (controlplane.Operation, bool, error) {
+	key = strings.TrimSpace(key)
+	actor = strings.TrimSpace(actor)
+	mediaType = strings.TrimSpace(mediaType)
+	if key == "" || len(key) > 200 || actor == "" || mediaType == "" || len(mediaType) > 160 || len(payload) == 0 || len(payload) > 1024*1024 {
+		return controlplane.Operation{}, false, fmt.Errorf("%w: bounded idempotency key, actor, media type and payload are required", controlplane.ErrValidation)
+	}
+	if request.Risk != "low" && request.Risk != "medium" && request.Risk != "high" && request.Risk != "critical" {
+		return controlplane.Operation{}, false, fmt.Errorf("%w: invalid operation risk", controlplane.ErrValidation)
+	}
+	class, classErr := controlplane.NormalizeOperationClass(request.Class)
+	if classErr != nil {
+		return controlplane.Operation{}, false, classErr
+	}
+	if class != controlplane.OperationClassReadOnly {
+		return controlplane.Operation{}, false, fmt.Errorf("%w: queued request payload creation is read-only only", controlplane.ErrValidation)
+	}
+	request.Class = class
+	if request.ProjectID == "" || request.Kind == "" || request.TargetRef == "" || request.DesiredRevision == "" {
+		return controlplane.Operation{}, false, fmt.Errorf("%w: projectId, kind, targetRef and desiredRevision are required", controlplane.ErrValidation)
+	}
+	requestDigest := operationDigest(request)
+	payloadDigest := controlplane.OperationRequestPayloadDigest(payload)
+	var result controlplane.Operation
+	var replay bool
+	err := s.serializable(ctx, func(tx *sql.Tx) error {
+		replay = false
+		existing, err := scanOperation(tx.QueryRowContext(ctx, `SELECT `+operationColumns+` FROM operations WHERE project_id=$1 AND idempotency_key=$2 FOR UPDATE`, request.ProjectID, key))
+		if err == nil {
+			if existing.RequestDigest != requestDigest {
+				return controlplane.ErrIdempotencyConflict
+			}
+			sealed, payloadErr := scanOperationRequestPayload(tx.QueryRowContext(ctx, `SELECT operation_id,payload_digest,media_type,payload,created_at FROM operation_request_payloads WHERE operation_id=$1`, existing.ID))
+			if payloadErr != nil {
+				return mapDBError(payloadErr)
+			}
+			if sealed.PayloadDigest != payloadDigest || sealed.MediaType != mediaType {
+				return controlplane.ErrIdempotencyConflict
+			}
+			result, replay = existing, true
+			return nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		now := utcNow(s.now)
+		result = controlplane.Operation{
+			ResourceMeta: controlplane.ResourceMeta{ID: s.id("op"), Revision: 3, CreatedAt: now, UpdatedAt: now},
+			ProjectID: request.ProjectID, Kind: request.Kind, TargetRef: request.TargetRef, DesiredRevision: request.DesiredRevision,
+			State: controlplane.OperationQueued, Risk: request.Risk, Class: class,
+			RetryPolicy: controlplane.RetryPolicyForOperationClass(class),
+			IdempotencyKey: key, RequestDigest: requestDigest, ActorID: actor,
+		}
+		retryPolicy, _ := json.Marshal(result.RetryPolicy)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO operations(id,project_id,revision,kind,target_ref,desired_revision,state,risk,operation_class,retry_policy,attempt,retry_exhausted,recovery_checkpoint_id,recovery_evidence_digest,recovery_inventory_digest,idempotency_key,request_digest,actor_id,fence_token,last_error,created_at,updated_at) VALUES($1,$2,3,$3,$4,$5,$6,$7,$8,$9::jsonb,0,false,NULL,$10,$11,$12,$13,$14,0,'',$15,$15)`, result.ID, result.ProjectID, result.Kind, result.TargetRef, result.DesiredRevision, string(result.State), result.Risk, string(result.Class), retryPolicy, result.RecoveryEvidenceDigest, result.RecoveryInventoryDigest, result.IdempotencyKey, result.RequestDigest, result.ActorID, now); err != nil {
+			return mapDBError(err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO operation_request_payloads(operation_id,payload_digest,media_type,payload,created_at) VALUES($1,$2,$3,$4,$5)`, result.ID, payloadDigest, mediaType, payload, now); err != nil {
+			return mapDBError(err)
+		}
+		if err := s.appendAuditTx(ctx, tx, actor, "operation.created", "operation", result.ID, 1, requestID, map[string]any{"state": controlplane.OperationDraft}); err != nil {
+			return err
+		}
+		if err := s.appendAuditTx(ctx, tx, actor, "operation.planning", "operation", result.ID, 2, requestID, map[string]any{"state": controlplane.OperationPlanning}); err != nil {
+			return err
+		}
+		if err := s.appendAuditTx(ctx, tx, actor, "operation.queued", "operation", result.ID, 3, requestID, map[string]any{"state": controlplane.OperationQueued, "readOnlyQueued": true}); err != nil {
+			return err
+		}
+		if err := s.appendAuditTx(ctx, tx, actor, "operation.request_payload.sealed", "operation", result.ID, 3, requestID, map[string]any{"authority": controlplane.OperationRequestPayloadAuthority, "payloadDigest": payloadDigest, "mediaType": mediaType, "readOnlyQueued": true}); err != nil {
+			return err
+		}
+		if err := s.appendOutboxTx(ctx, tx, "operation", result.ID, "operation.queued", result); err != nil {
+			return err
+		}
+		return nil
+	})
+	return result, replay, err
+}
+
 func (s *PostgresStore) GetOperationRequestPayload(ctx context.Context, operationID string) (controlplane.OperationRequestPayload, error) {
 	v, err := scanOperationRequestPayload(s.db.QueryRowContext(ctx, `SELECT operation_id,payload_digest,media_type,payload,created_at FROM operation_request_payloads WHERE operation_id=$1`, strings.TrimSpace(operationID)))
 	return v, mapDBError(err)
