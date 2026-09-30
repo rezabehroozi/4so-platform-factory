@@ -21,6 +21,7 @@ const (
 	daprLifecycleOperationKind = "dapr.runtime.lifecycle"
 	daprLifecycleTargetPrefix  = "dapr:"
 	daprLifecycleLease         = 30 * time.Minute
+	daprRecoveryEvidenceKind   = "dapr-runtime-recovery-confirmed"
 )
 
 type daprLifecycleInput struct {
@@ -168,30 +169,35 @@ func (s *Server) latestDaprObserved(ctx context.Context, projectID, clusterID st
 			return &observed, nil
 		}
 		if strings.TrimSpace(op.RecoveryEvidenceDigest) != "" {
-			sealed, payloadErr := s.store.GetOperationRequestPayload(ctx, op.ID)
-			if payloadErr != nil {
-				return nil, payloadErr
+			for _, ev := range evidence {
+				if ev.Kind != daprRecoveryEvidenceKind || ev.Digest != op.RecoveryEvidenceDigest || !ev.HasPayload || !ev.Sealed {
+					continue
+				}
+				_, payload, getErr := s.store.GetEvidencePayload(ctx, ev.ID)
+				if getErr != nil {
+					return nil, getErr
+				}
+				var recovered daprRecoveryReadback
+				decoder := json.NewDecoder(strings.NewReader(string(payload)))
+				decoder.DisallowUnknownFields()
+				if decodeErr := decoder.Decode(&recovered); decodeErr != nil || recovered.Authority != daprRecoveryReadbackAuthority ||
+					recovered.OperationID != op.ID || recovered.ClusterID != clusterID || !recovered.ConfirmedSuccess {
+					return nil, fmt.Errorf("%w: invalid sealed Dapr recovery readback", controlplane.ErrConflict)
+				}
+				return &daprruntime.ObservedState{
+					Authority: daprruntime.LifecycleAuthority,
+					OperationID: op.ID,
+					ClusterID: clusterID,
+					Action: recovered.Action,
+					Installed: recovered.Installed,
+					RuntimeLockDigest: recovered.ObservedLockDigest,
+					Version: recovered.Version,
+					UpstreamCommit: recovered.UpstreamCommit,
+					ObservedAt: op.UpdatedAt.UTC().Format(time.RFC3339Nano),
+					Phase: "RecoveredConfirmedSuccess",
+				}, nil
 			}
-			req, parseErr := daprruntime.ParseLifecycleRequest(sealed.Payload, sealed.PayloadDigest)
-			if parseErr != nil || req.ClusterID != clusterID {
-				return nil, fmt.Errorf("%w: invalid recovered Dapr lifecycle authority", controlplane.ErrConflict)
-			}
-			installed := req.Action != daprruntime.ActionRemove
-			observed := daprruntime.ObservedState{
-				Authority: daprruntime.LifecycleAuthority,
-				OperationID: op.ID,
-				ClusterID: clusterID,
-				Action: req.Action,
-				Installed: installed,
-				ObservedAt: op.UpdatedAt.UTC().Format(time.RFC3339Nano),
-				Phase: "RecoveredConfirmedSuccess",
-			}
-			if installed {
-				observed.RuntimeLockDigest = req.RuntimeLockDigest
-				observed.Version = req.RuntimeVersion
-				observed.UpstreamCommit = req.UpstreamCommit
-			}
-			return &observed, nil
+			return nil, fmt.Errorf("%w: recovered Dapr operation is missing its sealed recovery payload", controlplane.ErrConflict)
 		}
 	}
 	return nil, nil
@@ -919,18 +925,19 @@ func (s *Server) reportDaprRecoveryTask(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	actor := "agent:" + clusterID
-	if _, err = s.store.AppendEvidence(r.Context(), controlplane.EvidenceMetadata{
-		OperationID: op.ID,
-		Kind: "dapr-runtime-recovery-confirmed",
-		Digest: digest,
-		MediaType: "application/json",
-		Location: "authority://dapr/recovery/" + op.ID + "/" + strings.TrimPrefix(digest, "sha256:"),
-		Size: int64(len(raw)),
-	}, actor); err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	op, err = s.store.ResolveUnknownOperationOutcome(r.Context(), op.ID, op.Revision, controlplane.OperationUnknownOutcomeConfirmedSuccess, digest, actor)
+	var sealedEvidence controlplane.EvidenceMetadata
+	op, sealedEvidence, err = s.store.ResolveUnknownOperationOutcomeWithEvidence(
+		r.Context(), op.ID, op.Revision, controlplane.OperationUnknownOutcomeConfirmedSuccess,
+		controlplane.EvidenceMetadata{
+			OperationID: op.ID,
+			Kind: daprRecoveryEvidenceKind,
+			Digest: digest,
+			MediaType: "application/json",
+			Location: "authority://dapr/recovery/" + op.ID + "/" + strings.TrimPrefix(digest, "sha256:"),
+			Size: int64(len(raw)),
+		},
+		raw, actor,
+	)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -939,6 +946,7 @@ func (s *Server) reportDaprRecoveryTask(w http.ResponseWriter, r *http.Request) 
 		"authority": daprRecoveryReadbackAuthority,
 		"operation": op,
 		"readback": readback,
+		"evidence": sealedEvidence,
 		"automaticReplay": false,
 		"physicalCertificationInferred": false,
 	})
