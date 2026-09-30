@@ -40,7 +40,7 @@ func TestDaprWorkloadAdmissionCreatesReadOnlyDurableNativeDryRun(t *testing.T) {
 	lock := daprAPITestRuntimeLock(t)
 	executorAuthority, err := daprruntime.ExecutorAuthorityFromRuntimeLock(lock)
 	if err != nil { t.Fatal(err) }
-	if err = srv.ConfigureDaprExecutorAuthority(executorAuthority, "https://zot.internal.example"); err != nil {
+	if err = srv.ConfigureDaprExecutorAuthority(executorAuthority, "https://zot.internal.example", executorAuthority.SourceReleaseDigest); err != nil {
 		t.Fatal(err)
 	}
 	body := fmt.Sprintf(`{"projectId":%q,"clusterId":%q,"traitId":%q,"workloadImage":%q,"namespace":"payments","appId":"payments-api","appPort":8080,"appProtocol":"http","cpuRequest":"100m","cpuLimit":"500m","memoryRequest":"128Mi","memoryLimit":"256Mi","componentNames":["orders-broker"],"enableInvocation":true,"enablePubSub":true}`,
@@ -57,6 +57,7 @@ func TestDaprWorkloadAdmissionCreatesReadOnlyDurableNativeDryRun(t *testing.T) {
 		created.Request.RuntimeMode != "USE_NATIVE" ||
 		created.Request.RuntimeLockDigest != "" || created.Request.ExpectedSidecarImage != "" ||
 		created.Request.ExecutorEvidenceDigest != executorAuthority.EvidenceDigest ||
+		created.Request.ExecutorSourceReleaseDigest != executorAuthority.SourceReleaseDigest ||
 		created.Request.ExecutorImageReference != executorAuthority.ImageReference ||
 		created.IdempotentReplay {
 		t.Fatalf("native Dapr workload admission authority drift: %#v", created)
@@ -74,6 +75,21 @@ func TestDaprWorkloadAdmissionCreatesReadOnlyDurableNativeDryRun(t *testing.T) {
 	replay := decodeApplicationResponse[daprWorkloadAdmissionCreateResponse](t, w)
 	if !replay.IdempotentReplay || replay.Operation.ID != created.Operation.ID || replay.Operation.State != controlplane.OperationQueued {
 		t.Fatalf("Dapr workload admission idempotency drift: %#v", replay)
+	}
+}
+
+func TestDaprStandaloneExecutorAuthorityRejectsForeignRelease(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	srv := scopedServer(t, store)
+	lock := daprAPITestRuntimeLock(t)
+	authority, err := daprruntime.ExecutorAuthorityFromRuntimeLock(lock)
+	if err != nil { t.Fatal(err) }
+	if err = srv.ConfigureDaprExecutorAuthority(authority, "https://zot.internal.example", daprAPITestDigest("9")); err == nil ||
+		!strings.Contains(err.Error(), "SOURCE_RELEASE_MISMATCH") {
+		t.Fatalf("foreign exact release accepted for standalone Dapr executor: %v", err)
+	}
+	if err = srv.ConfigureDaprExecutorAuthority(authority, "https://zot.internal.example", authority.SourceReleaseDigest); err != nil {
+		t.Fatalf("matching exact release rejected for standalone Dapr executor: %v", err)
 	}
 }
 
@@ -97,7 +113,7 @@ func TestDaprWorkloadAdmissionCurrentAuthorityRejectsInventoryDrift(t *testing.T
 	lock := daprAPITestRuntimeLock(t)
 	executorAuthority, err := daprruntime.ExecutorAuthorityFromRuntimeLock(lock)
 	if err != nil { t.Fatal(err) }
-	if err = srv.ConfigureDaprExecutorAuthority(executorAuthority, "https://zot.internal.example"); err != nil { t.Fatal(err) }
+	if err = srv.ConfigureDaprExecutorAuthority(executorAuthority, "https://zot.internal.example", executorAuthority.SourceReleaseDigest); err != nil { t.Fatal(err) }
 
 	request, _, err := srv.buildDaprWorkloadAdmissionRequest(ctx, daprWorkloadAdmissionInput{
 		ProjectID: project.ID, ClusterID: cluster.ID, TraitID: trait.ID,
@@ -138,7 +154,7 @@ func TestDaprWorkloadAdmissionFailsClosedWithoutStrictTargetDryRunCapability(t *
 	lock := daprAPITestRuntimeLock(t)
 	executorAuthority, err := daprruntime.ExecutorAuthorityFromRuntimeLock(lock)
 	if err != nil { t.Fatal(err) }
-	if err = srv.ConfigureDaprExecutorAuthority(executorAuthority, "https://zot.internal.example"); err != nil { t.Fatal(err) }
+	if err = srv.ConfigureDaprExecutorAuthority(executorAuthority, "https://zot.internal.example", executorAuthority.SourceReleaseDigest); err != nil { t.Fatal(err) }
 
 	_, _, err = srv.buildDaprWorkloadAdmissionRequest(ctx, daprWorkloadAdmissionInput{
 		ProjectID: project.ID, ClusterID: cluster.ID, TraitID: trait.ID,
