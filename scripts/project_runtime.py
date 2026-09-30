@@ -9,6 +9,7 @@ SCHEMA=1
 ACTIVE={"REQUESTED","RUNNING","WAITING"}
 TERMINAL={"FAILED","INTERRUPTED","COMPLETED","ABANDONED"}
 RESOLUTION_AUTHORITY="PROJECT_RUNTIME_RECOVERY_RESOLUTION_V1"
+COMMAND_EXEC_FAILURE_AUTHORITY="PROJECT_RUNTIME_COMMAND_EXEC_FAILURE_V1"
 RESOLUTION_DECISIONS={"allow-replay","mark-completed","abandon"}
 
 def now():
@@ -76,6 +77,10 @@ def log_file(root,run_id,override=None): return runtime_dir(root,override)/"logs
 def recovery_file(root,run_id,override=None):
     digest=hashlib.sha256(str(run_id or "").encode("utf-8")).hexdigest()
     return runtime_dir(root,override)/"recovery"/f"{digest}.json"
+def command_exec_failure_file(root,run_id,attempt,override=None):
+    identity=f"{run_id}:{int(attempt or 0)}"
+    digest=hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    return runtime_dir(root,override)/"command-exec-failures"/f"{digest}.json"
 
 def load(path):
     if path.is_symlink() or not path.is_file() or path.stat().st_size<=0 or path.stat().st_size>4*1024*1024:
@@ -261,6 +266,45 @@ def release(root,run_id,pid,start,override=None):
     if lk and lk.get("runId")==run_id and lk.get("pid")==pid and str(lk.get("startTicks"))==str(start):
         p.unlink(missing_ok=True); fsync_dir(p)
 
+def command_gate_state(root,run_id,pid,start,override=None):
+    s=read_state(root,override)
+    if not s or s.get("runId")!=run_id:
+        return None
+    if s.get("status")!="RUNNING" or s.get("commandPid")!=pid or str(s.get("commandPidStartTicks"))!=str(start):
+        return None
+    if s.get("executionStarted") is not True:
+        return None
+    return s
+
+def record_command_exec_failure(root,state,error,override=None):
+    attempt=int(state.get("attempt") or 0)
+    evidence={
+        "authority":COMMAND_EXEC_FAILURE_AUTHORITY,"runId":state.get("runId"),"attempt":attempt,
+        "commandPid":os.getpid(),"commandPidStartTicks":ticks(os.getpid()),
+        "error":str(error or "COMMAND_EXEC_FAILED"),"recordedAt":now(),
+    }
+    immutable_json(command_exec_failure_file(root,state.get("runId"),attempt,override),evidence,"PROJECT_RUNTIME_COMMAND_EXEC_FAILURE")
+    return evidence
+
+def command_wrapper(root,run_id,override=None):
+    pid=os.getpid(); pt=ticks(pid); last_state=None
+    for _ in range(400):
+        last_state=read_state(root,override)
+        gated=command_gate_state(root,run_id,pid,pt,override)
+        if gated is not None:
+            command=list(gated.get("command") or [])
+            if not command:
+                record_command_exec_failure(root,gated,"COMMAND_EMPTY",override); return 125
+            try:
+                os.execvpe(command[0],command,os.environ.copy())
+            except OSError as exc:
+                record_command_exec_failure(root,gated,f"COMMAND_EXEC_ERROR {exc}",override); return 125
+            raise RuntimeError("PROJECT_RUNTIME_COMMAND_EXEC_RETURNED")
+        time.sleep(.025)
+    if last_state and last_state.get("runId")==run_id:
+        record_command_exec_failure(root,last_state,"COMMAND_GATE_TIMEOUT",override)
+    return 125
+
 def checkpoint(root,path):
     if not path: return {}
     p=Path(path); p=p if p.is_absolute() else root/p
@@ -410,11 +454,13 @@ def worker(root,run_id,override=None):
     signal.signal(signal.SIGTERM,stop); signal.signal(signal.SIGINT,stop)
     with log.open("a",buffering=1) as out:
         out.write(json.dumps({"event":"run-start","runId":run_id,"at":now(),"command":command},sort_keys=True)+"\n")
+        wrapper=[sys.executable,str(Path(__file__).resolve()),"_command","--root",str(root),"--run-id",run_id]
+        if override: wrapper+=["--runtime-root",override]
         try:
-            child=subprocess.Popen(command,cwd=root,stdin=subprocess.DEVNULL,stdout=out,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
+            child=subprocess.Popen(wrapper,cwd=root,stdin=subprocess.DEVNULL,stdout=out,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
         except Exception:
             s=read_state(root,override) or s
-            s=preexecution_failure(root,s,"COMMAND_LAUNCH_FAILED_BEFORE_EXECUTION",override)
+            s=preexecution_failure(root,s,"COMMAND_WRAPPER_LAUNCH_FAILED_BEFORE_EXECUTION",override)
             out.write(json.dumps({"event":"run-terminal","runId":run_id,"status":s["status"],"exitCode":None,"at":now()},sort_keys=True)+"\n"); out.flush()
             release(root,run_id,pid,pt,override)
             return 1
@@ -444,6 +490,16 @@ def worker(root,run_id,override=None):
                 try: os.killpg(child.pid,signal.SIGKILL)
                 except ProcessLookupError: pass
         rc=child.wait(); s=read_state(root,override) or s; cp=checkpoint(root,s.get("checkpointFile"))
+        preexec_path=command_exec_failure_file(root,run_id,s.get("attempt"),override)
+        if preexec_path.exists():
+            marker=load(preexec_path)
+            if marker.get("authority")!=COMMAND_EXEC_FAILURE_AUTHORITY or marker.get("runId")!=run_id or marker.get("attempt")!=int(s.get("attempt") or 0):
+                raise RuntimeError("PROJECT_RUNTIME_COMMAND_EXEC_FAILURE_EVIDENCE_INVALID")
+            s=preexecution_failure(root,s,str(marker.get("error") or "COMMAND_EXEC_FAILED_BEFORE_EXECUTION"),override)
+            s["exitCode"]=rc; s["checkpoint"]=cp
+            out.write(json.dumps({"event":"run-terminal","runId":run_id,"status":s["status"],"exitCode":rc,"preExecutionFailure":True,"at":now()},sort_keys=True)+"\n"); out.flush()
+            release(root,run_id,pid,pt,override)
+            return 1
         if cp.get("currentStage"): s["currentStage"]=cp["currentStage"]
         if cp.get("latestCompletedCheckpoint"): s["latestCompletedCheckpoint"]=cp["latestCompletedCheckpoint"]
         s.update(activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,lastHeartbeat=now(),checkpoint=cp,exitCode=rc)
@@ -499,6 +555,7 @@ def main():
     p.add_argument("--run-id",required=True); p.add_argument("--decision",choices=sorted(RESOLUTION_DECISIONS),required=True); p.add_argument("--reason",required=True)
     p=sub.add_parser("start"); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root"); p.add_argument("--phase",required=True); p.add_argument("--task",required=True); p.add_argument("--heartbeat-seconds",type=int,default=30); p.add_argument("--checkpoint-file"); p.add_argument("--replay-safe",action="store_true"); p.add_argument("--allow-detached",action="store_true"); p.add_argument("command",nargs=argparse.REMAINDER)
     p=sub.add_parser("_worker"); p.add_argument("--root",required=True); p.add_argument("--runtime-root"); p.add_argument("--run-id",required=True)
+    p=sub.add_parser("_command"); p.add_argument("--root",required=True); p.add_argument("--runtime-root"); p.add_argument("--run-id",required=True)
     a=ap.parse_args(); root=Path(a.root).resolve()
     try:
         if a.cmd=="self-test": return self_test()
@@ -518,6 +575,7 @@ def main():
             if s.get("status") in TERMINAL and not s.get("activeRun"): reclaimed=reclaim_stale_lock(root,s,a.runtime_root)
             print(json.dumps({"action":"WATCHDOG","before":before,"after":s.get("status"),"lockReclaimed":reclaimed,"state":s},sort_keys=True)); return 0
         if a.cmd=="_worker": return worker(root,a.run_id,a.runtime_root)
+        if a.cmd=="_command": return command_wrapper(root,a.run_id,a.runtime_root)
         command=list(a.command); command=command[1:] if command and command[0]=="--" else command
         if not command: raise RuntimeError("PROJECT_RUNTIME_COMMAND_REQUIRED")
         result=start(root,a.phase,a.task,command,a.heartbeat_seconds,a.checkpoint_file or "",a.replay_safe,a.runtime_root,allow_detached=a.allow_detached)
