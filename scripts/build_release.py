@@ -315,6 +315,22 @@ def build_sbom(stage: Path, version: str, release_name: str) -> None:
     write_json(stage / "SBOM.spdx.json", sbom)
 
 
+def write_release_zip(stage: Path, zip_path: Path, name: str) -> None:
+    if zip_path.exists() or zip_path.is_symlink():
+        if zip_path.is_symlink() or not zip_path.is_file():
+            raise SystemExit(f"RELEASE_ARCHIVE_PATH_INVALID {zip_path}")
+        zip_path.unlink()
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_STORED) as archive:
+        for file in source_files(stage):
+            rel = Path(name) / file.relative_to(stage)
+            info = zipfile.ZipInfo(str(rel), FIXED_DATE)
+            mode = stat.S_IMODE(file.stat().st_mode)
+            info.create_system = 3
+            info.external_attr = ((stat.S_IFREG | mode) & 0xFFFF) << 16
+            info.compress_type = zipfile.ZIP_STORED
+            archive.writestr(info, file.read_bytes())
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", nargs="?", default=".")
@@ -394,17 +410,7 @@ def main() -> int:
     write_json(stage / "ARTIFACT-MANIFEST.json", manifest)
 
     zip_path = release / (name + ".zip")
-    if zip_path.exists():
-        zip_path.unlink()
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        for file in source_files(stage):
-            rel = Path(name) / file.relative_to(stage)
-            info = zipfile.ZipInfo(str(rel), FIXED_DATE)
-            mode = stat.S_IMODE(file.stat().st_mode)
-            info.create_system = 3
-            info.external_attr = ((stat.S_IFREG | mode) & 0xFFFF) << 16
-            info.compress_type = zipfile.ZIP_DEFLATED
-            archive.writestr(info, file.read_bytes())
+    write_release_zip(stage, zip_path, name)
 
     digest = sha(zip_path)
     checksum = release / (zip_path.name + ".sha256")
