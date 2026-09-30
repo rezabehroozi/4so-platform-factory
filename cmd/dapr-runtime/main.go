@@ -469,6 +469,28 @@ func (k *kubeClient) verifyInstalledRuntime(ctx context.Context, lock daprruntim
 	return nil
 }
 
+func (k *kubeClient) verifyRemovedRuntime(ctx context.Context) error {
+	for _, name := range []string{"dapr-operator", "dapr-sidecar-injector", "dapr-sentry"} {
+		_, found, err := k.getDeployment(ctx, name)
+		if err != nil {
+			return err
+		}
+		if found {
+			return fmt.Errorf("DAPR_RUNTIME_RESOURCE_REMAINS %s", name)
+		}
+	}
+	for _, name := range []string{"dapr-placement-server", "dapr-scheduler-server"} {
+		exists, err := k.statefulSetExists(ctx, name)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return fmt.Errorf("DAPR_FORBIDDEN_RUNTIME_AUTHORITY_PRESENT %s", name)
+		}
+	}
+	return nil
+}
+
 func (k *kubeClient) getState(ctx context.Context, name string) (*ownerState, string, error) {
 	path := "/api/v1/namespaces/" + runtimeNamespace + "/configmaps/" + name
 	res, raw, err := k.request(ctx, http.MethodGet, path, nil, "")
@@ -619,6 +641,9 @@ func runLifecycle(args []string) error {
 			}
 		case daprruntime.ActionRemove:
 			if !owner.Installed && !releaseExists {
+				if err = kube.verifyRemovedRuntime(ctx); err != nil {
+					return err
+				}
 				return kube.putState(ctx, receiptName, *owner)
 			}
 		}
@@ -637,6 +662,9 @@ func runLifecycle(args []string) error {
 	}
 	if (cfg.Action == daprruntime.ActionUpgrade || cfg.Action == daprruntime.ActionRemove) && !releaseExists {
 		if cfg.Action == daprruntime.ActionRemove && samePending {
+			if err = kube.verifyRemovedRuntime(ctx); err != nil {
+				return err
+			}
 			now := time.Now().UTC().Format(time.RFC3339Nano)
 			final := ownerState{Authority: receiptAuthority, Installed: false, OperationID: cfg.OperationID, FenceToken: cfg.FenceToken, ObservedAt: now, Phase: "Removed"}
 			if err = kube.putState(ctx, ownerName, final); err != nil { return err }
@@ -682,6 +710,9 @@ func runLifecycle(args []string) error {
 		}
 	case daprruntime.ActionRemove:
 		if err = runHelm(ctx, env, "uninstall", "dapr", "--namespace", runtimeNamespace, "--wait", "--timeout", "10m"); err != nil {
+			return err
+		}
+		if err = kube.verifyRemovedRuntime(ctx); err != nil {
 			return err
 		}
 	default:
