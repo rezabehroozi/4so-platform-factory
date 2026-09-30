@@ -1378,6 +1378,9 @@ function applyKnownMutationScopes() {
   setScopedAccess($('#template-schema-form'),{projectId:$('#template-schema-project')?.value||''});
   setScopedAccess($('#template-policy-form'),{projectId:$('#template-policy-project')?.value||''});
   setScopedAccess($('#platform-template-form'),{projectId:$('#platform-template-project')?.value||''});
+  setScopedAccess($('#application-release-create-form'),{projectId:$('#application-release-project')?.value||''});
+  const applicationBindingRelease=state.applicationReleases.find(item=>item.id===$('#application-binding-release')?.value);
+  setScopedAccess($('#application-binding-create-form'),{projectId:applicationBindingRelease?.projectId||''});
   setScopedAccess($('#workspace-authority-form'),{projectId:$('#workspace-authority-project')?.value||''});
   const selectedWorkspace=state.workspaces.find(item=>item.id===$('#workspace-binding-workspace')?.value);
   setScopedAccess($('#workspace-binding-form'),{projectId:selectedWorkspace?.projectId||''});
@@ -4476,8 +4479,48 @@ $('#dapr-lifecycle-approve').onclick=async()=>{
     state.daprLifecycle=result;renderDaprRuntimeControls();renderDaprRuntimeResult();toast('Dapr lifecycle request approved and queued; runtime success is not implied.');
   }catch(error){toast(error.message,'error');}
 };
+$('#application-release-project').addEventListener('change',()=>{renderApplicationAuthoringOptions();applyAccessMode();});
+$('#application-binding-release').addEventListener('change',async()=>{state.applicationWorkspaceBindings=[];renderApplicationAuthoringOptions();await loadApplicationBindingWorkspaceBindings();});
+$('#application-binding-workspace').addEventListener('change',loadApplicationBindingWorkspaceBindings);
 $('#application-resolution-workload').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-promotion-binding').addEventListener('change',renderApplicationPlatformComposition);
+$('#application-release-create-form').onsubmit=async event=>{
+  event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;
+  const workloadImageReference=$('#application-release-image').value.trim();
+  if(!/^[^\s@]+@sha256:[0-9a-f]{64}$/.test(workloadImageReference)){toast('Immutable application release requires an exact digest-pinned workload image.','error');return;}
+  const body={
+    projectId:$('#application-release-project').value,
+    name:$('#application-release-name').value.trim(),
+    version:$('#application-release-version').value.trim(),
+    workloadTypeId:$('#application-release-workload').value,
+    traitIds:[...$('#application-release-traits').selectedOptions].map(option=>option.value),
+    managedResourceTypeIds:[...$('#application-release-resources').selectedOptions].map(option=>option.value),
+    workspaceProfileId:$('#application-release-profile').value,
+    workloadImageReference,
+    sourceDigest:$('#application-release-source-digest').value.trim()
+  };
+  try{
+    const created=await api('/api/v1/application-platform/releases',{method:'POST',body});
+    toast('Immutable application release created with exact workload artifact.');
+    form.reset();await loadPlatformTemplates();
+    const release=state.applicationReleases.find(item=>item.id===created.id);
+    if(release){$('#application-binding-release').value=release.id;await loadApplicationBindingWorkspaceBindings();}
+  }catch(error){toast(error.message,'error');}
+};
+$('#application-binding-create-form').onsubmit=async event=>{
+  event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;
+  const release=state.applicationReleases.find(item=>item.id===$('#application-binding-release').value);
+  const workspace=state.workspaces.find(item=>item.id===$('#application-binding-workspace').value);
+  const binding=state.applicationWorkspaceBindings.find(item=>item.id===$('#application-binding-workspace-binding').value&&item.state==='ACTIVE');
+  if(!release||!workspace||!binding){toast('Select an immutable release and an active Workspace namespace binding.','error');return;}
+  if(release.projectId!==workspace.projectId){toast('Release and Workspace must belong to the same project.','error');return;}
+  const observedNativeCapabilities=$('#application-binding-native').value.split(',').map(v=>v.trim()).filter(Boolean);
+  try{
+    await api('/api/v1/application-platform/environment-bindings',{method:'POST',body:{releaseId:release.id,workspaceBindingId:binding.id,environment:$('#application-binding-environment').value,observedNativeCapabilities}});
+    toast('Desired environment binding created. No runtime deployment has been inferred.');
+    form.reset();state.applicationWorkspaceBindings=[];await loadPlatformTemplates();
+  }catch(error){toast(error.message,'error');}
+};
 $('#application-resolution-form').onsubmit=async event=>{event.preventDefault();const workloadId=$('#application-resolution-workload').value;if(!workloadId)return;const workload=state.applicationWorkloadTypes.find(item=>item.id===workloadId);const traitIds=[...$('#application-resolution-traits').selectedOptions].map(option=>option.value);const observedNativeCapabilities=$('#application-resolution-native').value.split(',').map(v=>v.trim()).filter(Boolean);try{const result=await api('/api/v1/application-platform/resolve',{method:'POST',body:{projectId:workload.projectId,workloadTypeId:workloadId,traitIds,observedNativeCapabilities}});$('#application-composition-result').innerHTML=`<div class="inline-summary"><strong>Capability resolution preview</strong> · ${esc(shortDigest(result.resolutionDigest))}<br>${(result.decisions||[]).map(row=>`${badge(row.action)} ${esc(row.capability)} — ${esc(row.reason)}`).join('<br>')||'No traits selected.'}<br><small>Preview only. No target or desired binding was mutated.</small></div>`;}catch(error){toast(error.message,'error');}};
 $('#application-promotion-form').onsubmit=async event=>{event.preventDefault();const binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-promotion-binding').value),release=state.applicationReleases.find(item=>item.id===$('#application-promotion-release').value);if(!binding||!release)return;if(binding.projectId!==release.projectId){toast('Release and environment binding must belong to the same project.','error');return;}const observedNativeCapabilities=$('#application-promotion-native').value.split(',').map(v=>v.trim()).filter(Boolean);if(!await confirmAction('Promote environment release',`Advance ${binding.environment} / ${binding.namespace} from its current immutable release to ${release.name} ${release.version}? The WorkspaceBinding scope cannot change and will be revalidated before commit.`,false))return;try{await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/promote`,{method:'POST',headers:{'If-Match':`"${binding.revision}"`},body:{releaseId:release.id,observedNativeCapabilities}});toast('Environment binding promoted. Runtime convergence and Physical certification remain separate.');await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
 $('#templates').addEventListener('click',async event=>{const inspect=event.target.closest('[data-application-inspect]');if(inspect){const kind=inspect.dataset.applicationInspect;let item=null;if(kind==='workload')item=state.applicationWorkloadTypes.find(row=>row.id===inspect.dataset.id);if(kind==='release')item=state.applicationReleases.find(row=>row.id===inspect.dataset.id);if(kind==='binding')item=state.applicationEnvironmentBindings.find(row=>row.id===inspect.dataset.id);if(item){showDetails('Application composition authority',`<div class="warning-banner">Desired authority only. Rendered/observed runtime and Exact-SHA Physical certification remain independent.</div><dl class="key-value">${Object.entries(item).filter(([key,value])=>value!==null&&value!==undefined&&typeof value!=='object').map(([key,value])=>`<dt>${esc(key)}</dt><dd class="${String(key).toLowerCase().includes('digest')||String(key).toLowerCase().includes('id')?'technical':''}">${esc(value)}</dd>`).join('')}</dl>`);}return;}const button=event.target.closest('[data-template-admission]');if(!button)return;try{const result=await api(`/api/v1/platform-templates/${button.dataset.templateAdmission}/admission?targetClass=${encodeURIComponent(button.dataset.targetClass||'')}`);$('#platform-template-admission-result').innerHTML=`<div class="${result.blockers?.length?'warning-banner':'inline-summary'}"><strong>Source admission</strong> · binding ${result.bindingValid?'valid':'invalid'} · target ${result.targetAllowed?'allowed':'blocked'} · adoption ready <strong>${result.adoptionReady?'YES':'NO'}</strong> · impact ${esc(result.impactStatus)}${result.blockers?.length?`<br>Blockers: ${esc(result.blockers.join(', '))}`:''}<br><small>Even with zero source blockers, adoptionReady remains false until target-specific impact and required certification evidence exist.</small></div>`;}catch(error){toast(error.message,'error');}});
