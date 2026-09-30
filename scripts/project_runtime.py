@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, datetime, json, os, secrets, signal, socket, subprocess, sys, tempfile, time
+import argparse, datetime, hashlib, json, os, secrets, signal, socket, subprocess, sys, tempfile, time
 from pathlib import Path
 
 AUTHORITY="PROJECT_RUNTIME_STATE_V1"
 LOCK_AUTHORITY="PROJECT_RUNTIME_SINGLE_WRITER_LOCK_V1"
 SCHEMA=1
 ACTIVE={"REQUESTED","RUNNING","WAITING"}
-TERMINAL={"FAILED","INTERRUPTED","COMPLETED"}
+TERMINAL={"FAILED","INTERRUPTED","COMPLETED","ABANDONED"}
+RESOLUTION_AUTHORITY="PROJECT_RUNTIME_RECOVERY_RESOLUTION_V1"
+RESOLUTION_DECISIONS={"allow-replay","mark-completed","abandon"}
 
 def now():
     return datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00","Z")
@@ -40,6 +42,29 @@ def atomic_json(path,data):
     finally:
         tmp.unlink(missing_ok=True)
 
+def immutable_json(path,data,label):
+    raw=(json.dumps(data,sort_keys=True,indent=2)+"\n").encode("utf-8")
+    path.parent.mkdir(parents=True,exist_ok=True)
+    if path.exists() or path.is_symlink():
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f"{label}_PATH_INVALID")
+        if path.read_bytes()!=raw:
+            raise RuntimeError(f"{label}_REPLACEMENT_FORBIDDEN")
+        return
+    fd,tmp=tempfile.mkstemp(prefix=path.name+".",suffix=".tmp",dir=path.parent)
+    tmp=Path(tmp)
+    try:
+        with os.fdopen(fd,"wb") as f:
+            f.write(raw); f.flush(); os.fsync(f.fileno())
+        try:
+            os.link(tmp,path,follow_symlinks=False)
+        except FileExistsError:
+            if path.is_symlink() or not path.is_file() or path.read_bytes()!=raw:
+                raise RuntimeError(f"{label}_REPLACEMENT_FORBIDDEN")
+        fsync_dir(path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
 def runtime_dir(root,override=None):
     value=override or os.getenv("PLATFORM_FACTORY_RUNTIME_ROOT") or ".project-runtime"
     p=Path(value)
@@ -48,6 +73,9 @@ def runtime_dir(root,override=None):
 def state_file(root,override=None): return runtime_dir(root,override)/"state.json"
 def lock_file(root,override=None): return runtime_dir(root,override)/"mutation.lock"
 def log_file(root,run_id,override=None): return runtime_dir(root,override)/"logs"/f"{run_id}.log"
+def recovery_file(root,run_id,override=None):
+    digest=hashlib.sha256(str(run_id or "").encode("utf-8")).hexdigest()
+    return runtime_dir(root,override)/"recovery"/f"{digest}.json"
 
 def load(path):
     if path.is_symlink() or not path.is_file() or path.stat().st_size<=0 or path.stat().st_size>4*1024*1024:
@@ -247,6 +275,58 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
     s=activate_worker(root,s,run_id,worker.pid,wt,override)
     return {"action":"STARTED","runId":run_id,"pid":worker.pid,"log":str(lp),"state":s}
 
+def resolve_recovery(root,run_id,decision,reason,override=None):
+    s=read_state(root,override)
+    if not s: raise RuntimeError("PROJECT_RUNTIME_NO_STATE")
+    s=reconcile(root,s,override)
+    if s.get("activeRun"):
+        raise RuntimeError("PROJECT_RUNTIME_RECOVERY_ACTIVE_RUN")
+    run_id=str(run_id or "").strip()
+    if not run_id or s.get("runId")!=run_id:
+        raise RuntimeError("PROJECT_RUNTIME_RECOVERY_RUN_ID_MISMATCH")
+    decision=str(decision or "").strip()
+    if decision not in RESOLUTION_DECISIONS:
+        raise RuntimeError("PROJECT_RUNTIME_RECOVERY_DECISION_INVALID")
+    reason=str(reason or "").strip()
+    if len(reason)<4 or len(reason)>1000:
+        raise RuntimeError("PROJECT_RUNTIME_RECOVERY_REASON_INVALID")
+    if s.get("status")=="COMPLETED" and decision!="mark-completed":
+        raise RuntimeError("PROJECT_RUNTIME_RECOVERY_ALREADY_COMPLETED")
+    if s.get("status")=="ABANDONED" and decision!="abandon":
+        raise RuntimeError("PROJECT_RUNTIME_RECOVERY_ALREADY_ABANDONED")
+    existing=s.get("recoveryResolution")
+    if isinstance(existing,dict):
+        if existing.get("decision")!=decision or existing.get("reason")!=reason:
+            raise RuntimeError("PROJECT_RUNTIME_RECOVERY_RESOLUTION_CONFLICT")
+        immutable_json(recovery_file(root,run_id,override),existing,"PROJECT_RUNTIME_RECOVERY_EVIDENCE")
+        return {"action":"ALREADY_RESOLVED","state":s,"resolution":existing}
+    resolution={
+        "authority":RESOLUTION_AUTHORITY,"runId":run_id,"decision":decision,"reason":reason,
+        "resolvedAt":now(),"previousStatus":s.get("status"),"previousError":s.get("latestError",""),
+        "phase":s.get("phase",""),"task":s.get("currentTask",""),
+        "latestCompletedCheckpoint":s.get("latestCompletedCheckpoint",""),
+    }
+    if decision=="allow-replay":
+        s.update(status="INTERRUPTED",recoveryRequired=False,manualReplayAuthorized=True,
+                 latestError="MANUAL_READBACK_AUTHORIZED_REPLAY")
+    elif decision=="mark-completed":
+        task=str(s.get("currentTask") or "")
+        done=list(s.get("completedTasks") or [])
+        if task and task not in done: done.append(task)
+        failed=[item for item in list(s.get("failedTasks") or []) if item!=task]
+        s.update(status="COMPLETED",recoveryRequired=False,manualReplayAuthorized=False,orphaned=False,
+                 latestError="",completedTasks=done,failedTasks=failed,
+                 lastSuccessfulAction="manual-readback-completed",
+                 latestCompletedCheckpoint=s.get("latestCompletedCheckpoint") or "manual-readback-completed")
+    else:
+        s.update(status="ABANDONED",recoveryRequired=False,manualReplayAuthorized=False,orphaned=False,
+                 latestError="",lastSuccessfulAction="manual-recovery-abandoned")
+    s.update(activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,
+             recoveryResolution=resolution)
+    write_state(root,s,override)
+    immutable_json(recovery_file(root,run_id,override),resolution,"PROJECT_RUNTIME_RECOVERY_EVIDENCE")
+    return {"action":"RECOVERY_RESOLVED","state":read_state(root,override),"resolution":resolution}
+
 def resume(root,override=None,allow_detached=False):
     s=read_state(root,override)
     if not s: raise RuntimeError("PROJECT_RUNTIME_NO_STATE")
@@ -255,7 +335,7 @@ def resume(root,override=None,allow_detached=False):
         return {"action":"REJOIN","state":s}
     if s.get("status")=="COMPLETED":
         return {"action":"ALREADY_COMPLETED","state":s}
-    if not s.get("replaySafe"):
+    if not s.get("replaySafe") and s.get("manualReplayAuthorized") is not True:
         s.update(status="WAITING",recoveryRequired=True,latestError="MANUAL_READBACK_REQUIRED_BEFORE_REPLAY")
         write_state(root,s,override)
         return {"action":"RECOVERY_REQUIRED","state":s}
@@ -271,7 +351,7 @@ def resume(root,override=None,allow_detached=False):
     if not run_id: raise RuntimeError("PROJECT_RUNTIME_RUN_ID_MISSING")
     acquire(root,run_id,override)
     s.update(status="REQUESTED",attempt=int(s.get("attempt") or 1)+1,latestError="",orphaned=False,recoveryRequired=False,
-             activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,lastHeartbeat=now())
+             manualReplayAuthorized=False,activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,lastHeartbeat=now())
     write_state(root,s,override)
     lp=Path(s["latestLogPath"]); lp.parent.mkdir(parents=True,exist_ok=True)
     args=[sys.executable,str(Path(__file__).resolve()),"_worker","--root",str(root),"--run-id",run_id]
@@ -386,6 +466,8 @@ def main():
     for name in ("status","watchdog","resume","self-test"):
         p=sub.add_parser(name); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root")
         if name=="resume": p.add_argument("--allow-detached",action="store_true")
+    p=sub.add_parser("resolve"); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root")
+    p.add_argument("--run-id",required=True); p.add_argument("--decision",choices=sorted(RESOLUTION_DECISIONS),required=True); p.add_argument("--reason",required=True)
     p=sub.add_parser("start"); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root"); p.add_argument("--phase",required=True); p.add_argument("--task",required=True); p.add_argument("--heartbeat-seconds",type=int,default=30); p.add_argument("--checkpoint-file"); p.add_argument("--replay-safe",action="store_true"); p.add_argument("--allow-detached",action="store_true"); p.add_argument("command",nargs=argparse.REMAINDER)
     p=sub.add_parser("_worker"); p.add_argument("--root",required=True); p.add_argument("--runtime-root"); p.add_argument("--run-id",required=True)
     a=ap.parse_args(); root=Path(a.root).resolve()
@@ -398,6 +480,8 @@ def main():
         if a.cmd=="resume":
             result=resume(root,a.runtime_root,getattr(a,"allow_detached",False)); print(json.dumps(result,sort_keys=True))
             return 4 if result["action"] in {"RECOVERY_REQUIRED","REPLAN_REQUIRED"} else 0
+        if a.cmd=="resolve":
+            result=resolve_recovery(root,a.run_id,a.decision,a.reason,a.runtime_root); print(json.dumps(result,sort_keys=True)); return 0
         if a.cmd=="watchdog":
             s=read_state(root,a.runtime_root)
             if not s: print(json.dumps({"status":"IDLE","action":"NO_STATE"},sort_keys=True)); return 0
