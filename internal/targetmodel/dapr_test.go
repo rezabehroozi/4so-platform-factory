@@ -287,21 +287,32 @@ func TestDaprTargetAdmissionFailsClosedUntilInstallProfileIsActuallyReady(t *tes
 	}
 }
 
-func TestDaprDisconnectedInstallRequiresMirrorButNativeRuntimeDoesNot(t *testing.T) {
+func TestDaprDisconnectedInstallRequiresProductMirrorAndDefersTargetPullProofToExecution(t *testing.T) {
 	base := DaprTargetAdmissionInput{
 		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true, ExecutorRBACReady: true,
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true, Disconnected: true,
-		ObservedCapabilities: nil,
+		ObservedCapabilities: []string{"application-runtime.dapr-mirror-pull-ready"},
 		ExactSourceAdmitted: true,
 	}
 	blocked := EvaluateDaprTargetAdmission(base)
-	if blocked.Eligible || !contains(blocked.Blockers, "DAPR_DISCONNECTED_MIRROR_PENDING") || !contains(blocked.Blockers, "DAPR_MIRROR_PULL_CAPABILITY_PENDING") {
-		t.Fatalf("disconnected Dapr install bypassed mirror admission: %#v", blocked)
+	if blocked.Eligible || !contains(blocked.Blockers, "DAPR_DISCONNECTED_MIRROR_PENDING") ||
+		!blocked.TargetMirrorPullEvidenceRequired || !blocked.WorkloadSidecarAdmissionIndependent {
+		t.Fatalf("disconnected Dapr install bypassed product mirror admission or lost execution-evidence contract: %#v", blocked)
+	}
+	for _, blocker := range blocked.Blockers {
+		if strings.Contains(blocker, "MIRROR_PULL_CAPABILITY") {
+			t.Fatalf("self-asserted target capability was treated as mirror-pull evidence: %#v", blocked)
+		}
+	}
+	base.DisconnectedMirrorAdmitted = true
+	admitted := EvaluateDaprTargetAdmission(base)
+	if !admitted.Eligible || !admitted.TargetMirrorPullEvidenceRequired {
+		t.Fatalf("disconnected install did not defer target pull proof to executor readback: %#v", admitted)
 	}
 	base.ObservedCapabilities = append(base.ObservedCapabilities, DaprApplicationRuntimeCapability)
 	native := EvaluateDaprTargetAdmission(base)
-	if !native.Eligible || native.Mode != "USE_NATIVE" {
-		t.Fatalf("already-native Dapr capability incorrectly required product mirror: %#v", native)
+	if !native.Eligible || native.Mode != "USE_NATIVE" || native.TargetMirrorPullEvidenceRequired {
+		t.Fatalf("already-native Dapr capability incorrectly entered product mirror execution proof: %#v", native)
 	}
 }
 
