@@ -77,6 +77,58 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("worker-terminal",out["latestCompletedCheckpoint"])
             self.assertEqual("COMPLETED",R.read_state(root)["status"])
 
+    def test_live_lock_fences_requested_handoff_before_worker_pid_persistence(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state={"status":"REQUESTED","runId":"handoff-lock","activePid":None,"activePidStartTicks":None,
+                   "commandPid":None,"commandPidStartTicks":None,"replaySafe":False,"recoveryRequired":False}
+            R.write_state(root,state)
+            owner=R.acquire(root,"handoff-lock")
+            try:
+                observed=R.reconcile(root,R.read_state(root))
+                self.assertEqual("REQUESTED",observed["status"])
+                self.assertTrue(observed["activeRun"])
+                self.assertTrue(observed["lockAlive"])
+                self.assertEqual("handoff-lock",observed["lockRunId"])
+                with self.assertRaisesRegex(RuntimeError,"RECOVERY_ACTIVE_RUN"):
+                    R.resolve_recovery(root,"handoff-lock","abandon","must not resolve during live handoff")
+            finally:
+                R.release(root,"handoff-lock",owner["pid"],owner["startTicks"])
+
+    def test_concurrent_recovery_resolution_cannot_last_write_win(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state={"status":"WAITING","runId":"resolution-race","activePid":None,"activePidStartTicks":None,
+                   "commandPid":None,"commandPidStartTicks":None,"replaySafe":False,"recoveryRequired":True,
+                   "latestError":"MANUAL_READBACK_REQUIRED_BEFORE_REPLAY","phase":"install","currentTask":"apply"}
+            R.write_state(root,state)
+            original_write=R.write_state
+            injected={"done":False}
+            def racing_write(_root,new_state,override=None,expected_revision=None):
+                if expected_revision is not None and not injected["done"]:
+                    current=R.read_state(root)
+                    competing=dict(current)
+                    competing_resolution={
+                        "authority":R.RESOLUTION_AUTHORITY,"runId":"resolution-race","decision":"abandon",
+                        "reason":"competing authoritative resolution","resolvedAt":R.now(),
+                        "previousStatus":current.get("status"),"previousError":current.get("latestError",""),
+                        "phase":current.get("phase",""),"task":current.get("currentTask",""),
+                        "latestCompletedCheckpoint":current.get("latestCompletedCheckpoint",""),
+                    }
+                    competing.update(status="ABANDONED",recoveryRequired=False,manualReplayAuthorized=False,
+                                     orphaned=False,latestError="",lastSuccessfulAction="manual-recovery-abandoned",
+                                     recoveryResolution=competing_resolution)
+                    original_write(root,competing)
+                    injected["done"]=True
+                return original_write(_root,new_state,override,expected_revision=expected_revision)
+            with mock.patch.object(R,"write_state",side_effect=racing_write):
+                with self.assertRaisesRegex(RuntimeError,"RESOLUTION_CONFLICT"):
+                    R.resolve_recovery(root,"resolution-race","allow-replay","authoritative readback allows replay")
+            final=R.read_state(root)
+            self.assertEqual("ABANDONED",final["status"])
+            self.assertEqual("abandon",final["recoveryResolution"]["decision"])
+            self.assertEqual("competing authoritative resolution",final["recoveryResolution"]["reason"])
+
     def test_worker_handoff_persists_identity_before_transfer_without_clobbering_worker_state(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
