@@ -15,6 +15,12 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
         trusted={"trustedClientId":"mcpcli-"+c,"trustedClientRevision":1,"trustedClientProvider":c}
         return {"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c],"campaignId":"mcp-interop-testcampaign","executionId":"run-"+c,"providerExecutionRef":"provider-execution-"+c,"checks":checks,"requestIds":request_ids,"challengeSha256":challenge,"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":mod.mcp_contract.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"serverAuditWitness":{"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","clientId":c,"oauthClientId":oauth_client_id,"interopBindingAuthority":mod.mcp_contract.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"auditMethodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","auditChainDigestVerified":True,"oauthClientWitnessPass":True,"oauthClientWitnessedCheckCount":5,"auditWindowStartSequence":1,"auditWindowPreviousDigest":"","auditHeadSequence":6,"serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest()}}
 
+    def oauth_bindings(self):
+        return {c:c+"-oauth-client" for c in mod.CLIENTS}
+
+    def trusted_bindings(self):
+        return {c:{"trustedClientId":"mcpcli-"+c,"trustedClientRevision":1,"trustedClientProvider":c} for c in mod.CLIENTS}
+
     def fixture(self,root:Path):
         (root/"lab").mkdir(exist_ok=True)
         pack="a"*64; archive="b"*64
@@ -93,7 +99,7 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             root=Path(td); self.fixture(root)
             (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
             p=root/"lab/mcp-external-client-interop-progress.json"
-            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":[self.progress_row("chatgpt"),self.progress_row("gemini")],"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":[self.progress_row("chatgpt"),self.progress_row("gemini")],"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             progress=mod.external_client_progress(root)
             self.assertEqual(["chatgpt","gemini"],progress["certifiedClients"])
             self.assertEqual(["claude","grok"],progress["missingClients"])
@@ -107,11 +113,11 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             rows=[self.progress_row("chatgpt"),self.progress_row("claude")]
             rows[1]["providerExecutionRef"]=rows[0]["providerExecutionRef"]
             p=root/"lab/mcp-external-client-interop-progress.json"
-            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"PROVIDER_EXECUTION_REF"):
                 mod.external_client_progress(root)
             rows=[self.progress_row("chatgpt")]; rows[0]["serverAuditWitness"]["serverAuditWitnessPass"]=False
-            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"SERVER_WITNESS"):
                 mod.external_client_progress(root)
 
@@ -120,7 +126,7 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             root=Path(td); self.fixture(root)
             (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
             rows=[self.progress_row(c) for c in mod.CLIENTS]
-            (root/"lab/mcp-external-client-interop-progress.json").write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":4,"complete":True,"externalCertificationPass":True,"serverAuditWitnessPass":True,"runtimeCertified":False,"physicalCertified":False}))
+            (root/"lab/mcp-external-client-interop-progress.json").write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":4,"complete":True,"externalCertificationPass":True,"serverAuditWitnessPass":True,"runtimeCertified":False,"physicalCertified":False}))
             progress=mod.external_client_progress(root)
             self.assertEqual([],progress["missingClients"])
             self.assertIsNone(progress["nextClient"])
@@ -171,10 +177,10 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             rows=[self.progress_row("chatgpt"),self.progress_row("claude")]
             for field,error in (("executionId","EXECUTION_ID"),("evidenceDigest","EVIDENCE_REUSE"),("externalReceiptSha256","EVIDENCE_REUSE")):
                 mutated=json.loads(json.dumps(rows)); mutated[1][field]=mutated[0][field]
-                p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":mutated,"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+                p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":mutated,"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
                 with self.assertRaisesRegex(RuntimeError,error): mod.external_client_progress(root)
             mutated=json.loads(json.dumps(rows)); a=next(iter(mutated[0]["requestIds"])); b=next(iter(mutated[1]["requestIds"])); mutated[1]["requestIds"][b]=mutated[0]["requestIds"][a]
-            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":mutated,"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":mutated,"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_REUSE"): mod.external_client_progress(root)
 
     def test_progress_and_final_evidence_require_exact_check_names(self):
@@ -183,7 +189,7 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             p=root/"lab/mcp-external-client-interop-progress.json"
             rows=[self.progress_row("chatgpt")]
             rows[0]["checks"]["invented-check"]=rows[0]["checks"].pop("oauth-protected-resource-discovery")
-            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"CHECKS_INVALID"): mod.external_client_progress(root)
             self.fixture(root)
             evidence_path=root/"lab/mcp-external-client-interoperability-evidence.json"
@@ -198,10 +204,10 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             p=root/"lab/mcp-external-client-interop-progress.json"
             rows=[self.progress_row("chatgpt"),self.progress_row("claude")]
             rows[1]["challengeSha256"]=rows[0]["challengeSha256"]
-            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"EVIDENCE_REUSE"): mod.external_client_progress(root)
             rows=[self.progress_row("chatgpt")]
-            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":1,"complete":False,"externalCertificationPass":True,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":1,"complete":False,"externalCertificationPass":True,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"COUNT_INVALID"): mod.external_client_progress(root)
 
     def test_non_genesis_audit_window_metadata_is_accepted_but_malformed_anchor_rejected(self):
@@ -212,10 +218,10 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             row["serverAuditWitness"]["auditWindowStartSequence"]=101
             row["serverAuditWitness"]["auditWindowPreviousDigest"]="sha256:"+hashlib.sha256(b"prior-head").hexdigest()
             row["serverAuditWitness"]["auditHeadSequence"]=106
-            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             self.assertEqual(1,mod.external_client_progress(root)["certifiedClientCount"])
             row["serverAuditWitness"]["auditWindowPreviousDigest"]="not-a-digest"
-            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            p.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"SERVER_WITNESS"): mod.external_client_progress(root)
 
     def test_weak_audit_witness_is_rejected_in_progress_and_final_admission(self):
@@ -224,7 +230,7 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             progress_path=root/"lab/mcp-external-client-interop-progress.json"
             rows=[self.progress_row("chatgpt")]
             rows[0]["serverAuditWitness"]["auditChainDigestVerified"]=False
-            progress_path.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            progress_path.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":rows,"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"PROGRESS_SERVER_WITNESS"): mod.external_client_progress(root)
             self.fixture(root)
             evidence_path=root/"lab/mcp-external-client-interoperability-evidence.json"
@@ -239,7 +245,7 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             progress_path=root/"lab/mcp-external-client-interop-progress.json"
             row=self.progress_row("chatgpt")
             row["interopBindingDigest"]="sha256:"+"0"*64
-            progress_path.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
+            progress_path.write_text(json.dumps({"authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","kind":"MCPExternalClientInteropProgress","campaignId":"mcp-interop-testcampaign","oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"INTEROP_BINDING_INVALID"): mod.external_client_progress(root)
             self.fixture(root)
             evidence_path=root/"lab/mcp-external-client-interoperability-evidence.json"
