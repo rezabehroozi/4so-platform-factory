@@ -27,7 +27,68 @@ const (
 	TraitDecisionSuppressNative = "SUPPRESS_NATIVE"
 )
 
-var applicationPlatformDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+var (
+	applicationPlatformDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}package controlplane
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+)
+
+const (
+	WorkloadTypeAuthority           = "WORKLOAD_TYPE_AUTHORITY_V1"
+	CapabilityTraitAuthority        = "CAPABILITY_TRAIT_AUTHORITY_V1"
+	WorkloadCompositionAuthority    = "WORKLOAD_COMPOSITION_AUTHORITY_V1"
+	ManagedResourceTypeAuthority    = "MANAGED_RESOURCE_TYPE_AUTHORITY_V1"
+	WorkspaceProfileAuthority       = "WORKSPACE_PROFILE_AUTHORITY_V1"
+	ApplicationReleaseAuthority     = "APPLICATION_RELEASE_AUTHORITY_V1"
+	EnvironmentBindingAuthority     = "ENVIRONMENT_BINDING_AUTHORITY_V1"
+	ApplicationRuntimeDaprCapability = "application-runtime.dapr"
+)
+
+const (
+	TraitDecisionApply          = "APPLY"
+	TraitDecisionSuppressNative = "SUPPRESS_NATIVE"
+)
+
+)
+	applicationWorkloadImagePattern  = regexp.MustCompile(`^[^\\s@]+@sha256:[0-9a-f]{64}package controlplane
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+)
+
+const (
+	WorkloadTypeAuthority           = "WORKLOAD_TYPE_AUTHORITY_V1"
+	CapabilityTraitAuthority        = "CAPABILITY_TRAIT_AUTHORITY_V1"
+	WorkloadCompositionAuthority    = "WORKLOAD_COMPOSITION_AUTHORITY_V1"
+	ManagedResourceTypeAuthority    = "MANAGED_RESOURCE_TYPE_AUTHORITY_V1"
+	WorkspaceProfileAuthority       = "WORKSPACE_PROFILE_AUTHORITY_V1"
+	ApplicationReleaseAuthority     = "APPLICATION_RELEASE_AUTHORITY_V1"
+	EnvironmentBindingAuthority     = "ENVIRONMENT_BINDING_AUTHORITY_V1"
+	ApplicationRuntimeDaprCapability = "application-runtime.dapr"
+)
+
+const (
+	TraitDecisionApply          = "APPLY"
+	TraitDecisionSuppressNative = "SUPPRESS_NATIVE"
+)
+
+)
+)
 
 type WorkloadType struct {
 	ResourceMeta
@@ -113,6 +174,7 @@ type ApplicationRelease struct {
 	TraitDigests           []string `json:"traitDigests"`
 	ManagedResourceDigests []string `json:"managedResourceDigests"`
 	WorkspaceProfileDigest string   `json:"workspaceProfileDigest"`
+	WorkloadImageReference string   `json:"workloadImageReference,omitempty"`
 	SourceDigest           string     `json:"sourceDigest"`
 	SourceCommittedAt      *time.Time `json:"sourceCommittedAt,omitempty"`
 	Digest                 string     `json:"digest"`
@@ -433,6 +495,7 @@ func NormalizeApplicationRelease(in ApplicationRelease) (ApplicationRelease, err
 	out.Version = strings.TrimSpace(out.Version)
 	out.WorkloadTypeDigest = strings.TrimSpace(out.WorkloadTypeDigest)
 	out.WorkspaceProfileDigest = strings.TrimSpace(out.WorkspaceProfileDigest)
+	out.WorkloadImageReference = strings.TrimSpace(out.WorkloadImageReference)
 	out.SourceDigest = strings.TrimSpace(out.SourceDigest)
 	if out.SourceCommittedAt != nil {
 		if out.SourceCommittedAt.IsZero() {
@@ -453,6 +516,11 @@ func NormalizeApplicationRelease(in ApplicationRelease) (ApplicationRelease, err
 			return ApplicationRelease{}, err
 		}
 	}
+	if out.WorkloadImageReference != "" {
+		if strings.Contains(out.WorkloadImageReference, "://") || !applicationWorkloadImagePattern.MatchString(out.WorkloadImageReference) {
+			return ApplicationRelease{}, fmt.Errorf("%w: workloadImageReference must be an exact digest-pinned OCI reference", ErrValidation)
+		}
+	}
 	var err error
 	out.TraitDigests, err = canonicalDigestSet(out.TraitDigests, 32, "traitDigests")
 	if err != nil {
@@ -469,9 +537,10 @@ func NormalizeApplicationRelease(in ApplicationRelease) (ApplicationRelease, err
 		TraitDigests           []string `json:"traitDigests"`
 		ManagedResourceDigests []string `json:"managedResourceDigests"`
 		WorkspaceProfileDigest string     `json:"workspaceProfileDigest"`
+		WorkloadImageReference string     `json:"workloadImageReference,omitempty"`
 		SourceDigest           string     `json:"sourceDigest"`
 		SourceCommittedAt      *time.Time `json:"sourceCommittedAt,omitempty"`
-	}{out.Name, out.Version, out.WorkloadTypeDigest, out.TraitDigests, out.ManagedResourceDigests, out.WorkspaceProfileDigest, out.SourceDigest, out.SourceCommittedAt})
+	}{out.Name, out.Version, out.WorkloadTypeDigest, out.TraitDigests, out.ManagedResourceDigests, out.WorkspaceProfileDigest, out.WorkloadImageReference, out.SourceDigest, out.SourceCommittedAt})
 	return out, nil
 }
 
