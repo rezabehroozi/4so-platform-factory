@@ -23,6 +23,7 @@ const (
 	PlatformProbeBinaryPath = "bin/linux-amd64/platform-probe"
 	VirtualClusterRendererBinaryPath = "bin/linux-amd64/virtual-cluster-renderer"
 	OpenChoreoRuntimeBinaryPath = "bin/linux-amd64/openchoreo-runtime"
+	DaprRuntimeBinaryPath = "bin/linux-amd64/dapr-runtime"
 )
 
 const maxArtifactManifestBytes = 8 << 20
