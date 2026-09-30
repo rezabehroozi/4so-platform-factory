@@ -6,7 +6,7 @@ const state = {
   locale: localStorage.getItem('platformLocale') || 'fa',
   session: null,
   currentPage: 'overview',
-  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], daprAssessment: null, daprLifecycle: null, daprWorkloadPlan: null, daprWorkloadAdmission: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
+  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], applicationWorkspaceBindings: [], daprAssessment: null, daprLifecycle: null, daprWorkloadPlan: null, daprWorkloadAdmission: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
   baselines: [], baselineDeployments: [], verifications: [], closures: [], runtimeCertifications: [],
   fleetGroups: [], driftScans: [], upgradeCampaigns: [], recoveryCheckpoints: [], backupPolicies: [], dataProtectionRuns: [], fleetHealth: null, day2CampaignEngine: null, tenants: [], tenantPlans: [],
   clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], targetNodeLifecycleAuthority: null, currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], virtualClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
@@ -4333,6 +4333,50 @@ async function refreshDaprLifecycle(){
   if(result.observed&&state.daprAssessment)state.daprAssessment={...state.daprAssessment,observed:result.observed};
   renderDaprRuntimeControls();renderDaprRuntimeResult();
 }
+function applicationMultiSelectOptions(select,items,label){
+  if(!select)return;
+  const previous=new Set([...select.selectedOptions].map(option=>option.value));
+  select.innerHTML=items.map(item=>`<option value="${esc(item.id)}"${previous.has(item.id)?' selected':''}>${esc(label(item))}</option>`).join('');
+}
+function renderApplicationAuthoringOptions(){
+  const projectSelect=$('#application-release-project');
+  if(!projectSelect)return;
+  const previousProject=projectSelect.value;
+  setProjectOptions(projectSelect,state.projects,item=>item.displayName||item.name||item.id,'Create a project first');
+  if(previousProject&&state.projects.some(item=>item.id===previousProject))projectSelect.value=previousProject;
+  const projectId=projectSelect.value;
+  applicationListOptions($('#application-release-workload'),state.applicationWorkloadTypes.filter(item=>item.projectId===projectId),item=>`${item.name} · ${item.version}`);
+  applicationListOptions($('#application-release-profile'),state.applicationWorkspaceProfiles.filter(item=>item.projectId===projectId),item=>`${item.name} · ${item.version}`);
+  applicationMultiSelectOptions($('#application-release-traits'),state.applicationCapabilityTraits.filter(item=>item.projectId===projectId),item=>`${item.name} · ${item.capability}`);
+  applicationMultiSelectOptions($('#application-release-resources'),state.applicationResourceTypes.filter(item=>item.projectId===projectId),item=>`${item.name} · ${item.category}`);
+
+  const bindingRelease=$('#application-binding-release');
+  const previousRelease=bindingRelease?.value||'';
+  applicationListOptions(bindingRelease,state.applicationReleases,item=>`${item.name} · ${item.version} · ${applicationProjectName(item.projectId)}`);
+  if(previousRelease&&state.applicationReleases.some(item=>item.id===previousRelease))bindingRelease.value=previousRelease;
+  const selectedRelease=state.applicationReleases.find(item=>item.id===bindingRelease?.value)||state.applicationReleases[0]||null;
+  if(selectedRelease&&bindingRelease)bindingRelease.value=selectedRelease.id;
+
+  const workspaceSelect=$('#application-binding-workspace');
+  const previousWorkspace=workspaceSelect?.value||'';
+  const eligibleWorkspaces=(state.workspaces||[]).filter(item=>!selectedRelease||item.projectId===selectedRelease.projectId);
+  applicationListOptions(workspaceSelect,eligibleWorkspaces,item=>`${item.displayName||item.name} · ${applicationProjectName(item.projectId)}`);
+  if(previousWorkspace&&eligibleWorkspaces.some(item=>item.id===previousWorkspace))workspaceSelect.value=previousWorkspace;
+  else if(eligibleWorkspaces[0]&&workspaceSelect)workspaceSelect.value=eligibleWorkspaces[0].id;
+
+  const activeBindings=(state.applicationWorkspaceBindings||[]).filter(item=>item.state==='ACTIVE'&&item.workspaceId===workspaceSelect?.value);
+  applicationListOptions($('#application-binding-workspace-binding'),activeBindings,item=>{
+    const cluster=(state.clusters||[]).map(row=>row?.cluster||row).find(row=>row.id===item.clusterId);
+    return `${cluster?.displayName||cluster?.name||item.clusterId} · ${item.namespace} · r${item.revision}`;
+  });
+}
+async function loadApplicationBindingWorkspaceBindings(){
+  const workspaceId=$('#application-binding-workspace')?.value||'';
+  if(!workspaceId){state.applicationWorkspaceBindings=[];renderApplicationAuthoringOptions();return;}
+  state.applicationWorkspaceBindings=await softApi(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/bindings`,[],'application workspace bindings');
+  renderApplicationAuthoringOptions();
+  applyAccessMode();
+}
 function renderApplicationPlatformComposition(){
   const workloadGrid=$('#application-workload-grid'),resourceGrid=$('#application-resource-grid'),releaseGrid=$('#application-release-grid'),bindingGrid=$('#application-binding-grid');
   if(!workloadGrid||!resourceGrid||!releaseGrid||!bindingGrid)return;
@@ -4347,9 +4391,9 @@ function renderApplicationPlatformComposition(){
   if(traitCards)workloadGrid.insertAdjacentHTML('beforeend',traitCards);
   resourceGrid.innerHTML=state.applicationResourceTypes.length?state.applicationResourceTypes.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)} <span class="technical">${esc(item.version)}</span></h3><div class="resource-meta">${badge(item.category||'RESOURCE')}</div></div></div><p>${esc(applicationProjectName(item.projectId))}</p><div class="resource-details">${detailRow('Provisioner',item.provisioner)}${detailRow('Delete policy',item.deletePolicy)}${detailRow('Outputs',(item.outputs||[]).map(v=>v.sensitive?`${v.name} → secret reference`:v.name).join(', ')||'—')}${detailRow('Readiness',(item.readinessConditions||[]).join(', ')||'—')}${detailRow('Digest',shortDigest(item.digest))}</div></article>`).join(''):emptyState('No managed dependencies','ManagedResourceType keeps DB/cache/queue/object-store intent behind product-owned authority.');
   const profiles=state.applicationWorkspaceProfiles.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)} <span class="technical">${esc(item.version)}</span></h3><div class="resource-meta">${badge('WORKSPACE PROFILE')}</div></div></div><p>${esc(applicationProjectName(item.projectId))}</p><div class="resource-details">${detailRow('Bound policies',(item.authorityRefs||[]).length)}${detailRow('Digest',shortDigest(item.digest))}</div></article>`).join('');
-  const releases=state.applicationReleases.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)} <span class="technical">${esc(item.version)}</span></h3><div class="resource-meta">${badge('IMMUTABLE RELEASE')}</div></div></div><p>${esc(applicationProjectName(item.projectId))}</p><div class="resource-details">${detailRow('Workload',shortDigest(item.workloadTypeDigest))}${detailRow('Traits',(item.traitDigests||[]).length)}${detailRow('Managed dependencies',(item.managedResourceDigests||[]).length)}${detailRow('Source',shortDigest(item.sourceDigest))}${detailRow('Release digest',shortDigest(item.digest))}</div><div class="resource-actions"><button class="secondary small-button" type="button" data-application-inspect="release" data-id="${esc(item.id)}">Inspect immutable release</button></div></article>`).join('');
+  const releases=state.applicationReleases.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)} <span class="technical">${esc(item.version)}</span></h3><div class="resource-meta">${badge('IMMUTABLE RELEASE')}${item.workloadImageReference?badge('ARTIFACT BOUND'):badge('LEGACY NO ARTIFACT')}</div></div></div><p>${esc(applicationProjectName(item.projectId))}</p><div class="resource-details">${detailRow('Workload',shortDigest(item.workloadTypeDigest))}${detailRow('Workload image',item.workloadImageReference||'Legacy release · not deployable',true)}${detailRow('Traits',(item.traitDigests||[]).length)}${detailRow('Managed dependencies',(item.managedResourceDigests||[]).length)}${detailRow('Source',shortDigest(item.sourceDigest))}${detailRow('Release digest',shortDigest(item.digest))}</div><div class="resource-actions"><button class="secondary small-button" type="button" data-application-inspect="release" data-id="${esc(item.id)}">Inspect immutable release</button></div></article>`).join('');
   releaseGrid.innerHTML=(profiles+releases)||emptyState('No profiles or releases','Bind existing policy authorities into a WorkspaceProfile, then create immutable application releases.');
-  bindingGrid.innerHTML=state.applicationEnvironmentBindings.length?state.applicationEnvironmentBindings.map(item=>{const release=state.applicationReleases.find(row=>row.id===item.releaseId);return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.environment)} <span class="technical">r${esc(item.revision)}</span></h3><div class="resource-meta">${badge('BOUND')}</div></div></div><p>${esc(applicationProjectName(item.projectId))}</p><div class="resource-details">${detailRow('Release',release?`${release.name} ${release.version}`:item.releaseId,true)}${detailRow('Workspace binding',item.workspaceBindingId,true)}${detailRow('Binding revision',item.workspaceBindingRevision)}${detailRow('Cluster',item.clusterId,true)}${detailRow('Namespace',item.namespace,true)}${detailRow('Capability resolution',shortDigest(item.capabilityResolutionDigest))}${detailRow('Desired binding',shortDigest(item.digest))}</div><div class="resource-actions"><button class="secondary small-button" type="button" data-application-inspect="binding" data-id="${esc(item.id)}">Inspect authority fence</button></div></article>`}).join(''):emptyState('No environment bindings','Bind an immutable release to one active Workspace namespace reference before promotion.');
+  bindingGrid.innerHTML=state.applicationEnvironmentBindings.length?state.applicationEnvironmentBindings.map(item=>{const release=state.applicationReleases.find(row=>row.id===item.releaseId);return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.environment)} <span class="technical">r${esc(item.revision)}</span></h3><div class="resource-meta">${badge('BOUND')}</div></div></div><p>${esc(applicationProjectName(item.projectId))}</p><div class="resource-details">${detailRow('Release',release?`${release.name} ${release.version}`:item.releaseId,true)}${detailRow('Release artifact',release?.workloadImageReference||'Legacy release · deployment blocked',true)}${detailRow('Workspace binding',item.workspaceBindingId,true)}${detailRow('Binding revision',item.workspaceBindingRevision)}${detailRow('Cluster',item.clusterId,true)}${detailRow('Namespace',item.namespace,true)}${detailRow('Capability resolution',shortDigest(item.capabilityResolutionDigest))}${detailRow('Desired binding',shortDigest(item.digest))}</div><div class="resource-actions"><button class="secondary small-button" type="button" data-application-inspect="binding" data-id="${esc(item.id)}">Inspect authority fence</button></div></article>`}).join(''):emptyState('No environment bindings','Bind an immutable release to one active Workspace namespace reference before promotion.');
   applicationListOptions($('#application-resolution-workload'),state.applicationWorkloadTypes,item=>`${item.name} · ${item.version} · ${applicationProjectName(item.projectId)}`);
   const resolveWorkload=state.applicationWorkloadTypes.find(item=>item.id===$('#application-resolution-workload')?.value)||state.applicationWorkloadTypes[0];
   const eligibleTraits=resolveWorkload?(traitsByProject.get(resolveWorkload.projectId)||[]):state.applicationCapabilityTraits;
@@ -4357,15 +4401,17 @@ function renderApplicationPlatformComposition(){
   applicationListOptions($('#application-promotion-binding'),state.applicationEnvironmentBindings,item=>`${item.environment} · ${item.namespace} · r${item.revision}`);
   const selectedBinding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-promotion-binding')?.value)||state.applicationEnvironmentBindings[0];
   applicationListOptions($('#application-promotion-release'),state.applicationReleases.filter(item=>!selectedBinding||item.projectId===selectedBinding.projectId),item=>`${item.name} · ${item.version}`);
+  renderApplicationAuthoringOptions();
   renderDaprRuntimeOptions();
   renderDaprRuntimeResult();
   renderDaprWorkloadResult();
 }
 async function loadPlatformTemplates(){
   try{
-    const [projects,releases,schemas,policies,templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters]=await Promise.all([softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/blueprint-releases',[],'blueprint releases'),softApi('/api/v1/variable-schemas',[],'variable schemas'),softApi('/api/v1/platform-policy-sets',[],'platform policy sets'),softApi('/api/v1/platform-templates',[],'platform templates'),softApi('/api/v1/application-platform/workload-types',[],'application workload shapes'),softApi('/api/v1/application-platform/capability-traits',[],'application capability traits'),softApi('/api/v1/application-platform/resource-types',[],'managed dependency types'),softApi('/api/v1/application-platform/workspace-profiles',[],'workspace profiles'),softApi('/api/v1/application-platform/releases',[],'application releases'),softApi('/api/v1/application-platform/environment-bindings',[],'environment bindings'),softApi('/api/v1/clusters',[],'connected clusters')]);
-    Object.assign(state,{projects,blueprintReleases:releases,variableSchemas:schemas,platformPolicySets:policies,platformTemplates:templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters});
+    const [projects,releases,schemas,policies,templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters,workspaces]=await Promise.all([softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/blueprint-releases',[],'blueprint releases'),softApi('/api/v1/variable-schemas',[],'variable schemas'),softApi('/api/v1/platform-policy-sets',[],'platform policy sets'),softApi('/api/v1/platform-templates',[],'platform templates'),softApi('/api/v1/application-platform/workload-types',[],'application workload shapes'),softApi('/api/v1/application-platform/capability-traits',[],'application capability traits'),softApi('/api/v1/application-platform/resource-types',[],'managed dependency types'),softApi('/api/v1/application-platform/workspace-profiles',[],'workspace profiles'),softApi('/api/v1/application-platform/releases',[],'application releases'),softApi('/api/v1/application-platform/environment-bindings',[],'environment bindings'),softApi('/api/v1/clusters',[],'connected clusters'),softApi('/api/v1/workspaces',[],'application workspaces')]);
+    Object.assign(state,{projects,blueprintReleases:releases,variableSchemas:schemas,platformPolicySets:policies,platformTemplates:templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters,workspaces});
     renderPlatformTemplateAuthorities();
+    await loadApplicationBindingWorkspaceBindings();
   }catch(error){$('#platform-template-grid').innerHTML=errorState(error.message);toast(error.message,'error');}
 }
 function parseTemplateJSON(id,label){try{const value=JSON.parse($(id).value.trim());if(!Array.isArray(value))throw new Error(`${label} must be a JSON array.`);return value;}catch(error){throw new Error(`${label}: ${error.message}`);}}
