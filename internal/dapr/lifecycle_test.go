@@ -11,6 +11,8 @@ func TestLifecycleRequestCanonicalDigestIsStable(t *testing.T) {
 	in := LifecycleRequest{
 		ProjectID: " prj_1 ", ClusterID: " clu_1 ", Action: "install",
 		RuntimeLockDigest: lifecycleTestDigest("a"),
+		RuntimeVersion: "v1.18.4",
+		UpstreamCommit: "6d1c53f430205c0c0f3bc3589ce5a3ec3f6f1647",
 	}
 	raw, digest, err := MarshalLifecycleRequest(in)
 	if err != nil { t.Fatal(err) }
