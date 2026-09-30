@@ -78,7 +78,7 @@ func parseDaprLifecycleTarget(target string) (string, daprruntime.LifecycleActio
 func (s *Server) daprAdmissionForCluster(cluster controlplane.ManagedCluster, inventory controlplane.ClusterInventory, disconnected bool) targetmodel.DaprTargetAdmission {
 	return targetmodel.EvaluateDaprTargetAdmission(targetmodel.DaprTargetAdmissionInput{
 		DistributionIdentity:        inventory.Distribution,
-		TargetAdmitted:              cluster.ConnectionState != "REVOKED",
+		TargetAdmitted:              controlplane.ClusterTaskAdmitted(cluster),
 		TargetMutationReady:         openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability),
 		ExecutorRBACReady:           openChoreoInventoryCapability(inventory, controlplane.DaprExecutorRBACCapability),
 		CapabilityDiscoveryComplete: inventory.APIDiscoveryComplete && inventory.CRDDiscoveryComplete && inventory.SchemaDiscoveryComplete,
@@ -382,6 +382,36 @@ func (s *Server) approveDaprLifecycle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "DAPR_RUNTIME_LOCK_FENCE_CHANGED", "configured exact Dapr runtime lock changed before approval")
 		return
 	}
+	cluster, err := s.store.GetManagedCluster(r.Context(), req.ClusterID)
+	if err != nil || cluster.ProjectID != req.ProjectID {
+		if err == nil { err = controlplane.ErrNotFound }
+		writeStoreError(w, err)
+		return
+	}
+	inventory, err := s.store.GetLatestClusterInventory(r.Context(), cluster.ID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if !controlplane.ClusterInventoryAuthorityFreshAt(cluster, time.Now().UTC()) {
+		writeError(w, http.StatusConflict, "INVENTORY_STALE", "fresh target capability discovery is required before Dapr approval")
+		return
+	}
+	admission := s.daprAdmissionForCluster(cluster, inventory, req.Disconnected)
+	if admission.Mode == "USE_NATIVE" {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error": map[string]any{"code": "DAPR_NATIVE_RUNTIME_NOT_PRODUCT_MANAGED", "message": "target-native Dapr appeared before approval; product lifecycle mutation is suppressed"},
+			"admission": admission,
+		})
+		return
+	}
+	if !admission.Eligible {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+			"error": map[string]any{"code": "DAPR_TARGET_NOT_ADMITTED", "message": "current target admission changed before Dapr approval"},
+			"admission": admission,
+		})
+		return
+	}
 	observed, err := s.latestDaprObserved(r.Context(), req.ProjectID, req.ClusterID)
 	if err != nil {
 		writeStoreError(w, err)
@@ -414,6 +444,18 @@ func (s *Server) nextDaprLifecycleTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "DAPR_RUNTIME_SOURCE_NOT_READY", "exact Dapr runtime is unavailable")
 		return
 	}
+	cluster, clusterErr := s.store.GetManagedCluster(r.Context(), clusterID)
+	if clusterErr != nil {
+		writeStoreError(w, clusterErr)
+		return
+	}
+	inventory, inventoryErr := s.store.GetLatestClusterInventory(r.Context(), clusterID)
+	if inventoryErr != nil || !controlplane.ClusterInventoryAuthorityFreshAt(cluster, time.Now().UTC()) {
+		// Do not claim a durable mutation while current target authority is stale.
+		// The agent will refresh inventory and poll again without consuming the task.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	pager, ok := s.store.(daprLifecycleOperationPager)
 	if !ok {
 		writeError(w, http.StatusServiceUnavailable, "DAPR_LIFECYCLE_QUEUE_UNAVAILABLE", "bounded lifecycle operation queue is unavailable")
@@ -444,6 +486,28 @@ func (s *Server) nextDaprLifecycleTask(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		req, parseErr := daprruntime.ParseLifecycleRequest(sealed.Payload, sealed.PayloadDigest)
+		if parseErr == nil && req.ClusterID == clusterID && req.RuntimeLockDigest == s.daprRuntimeDigest {
+			admission := s.daprAdmissionForCluster(cluster, inventory, req.Disconnected)
+			if cluster.ProjectID != req.ProjectID || admission.Mode == "USE_NATIVE" || !admission.Eligible {
+				if op.State == controlplane.OperationQueued {
+					op, _ = s.store.StartOperationAttempt(r.Context(), op.ID, op.Revision, "agent:"+clusterID, claim.FenceToken, "agent:"+clusterID)
+				}
+				if op.State == controlplane.OperationRunning {
+					class := controlplane.OperationFailureDependencyUnavailable
+					code := "DAPR_CURRENT_ADMISSION_BLOCKED"
+					message := "current target capability/RBAC admission no longer permits Dapr lifecycle dispatch"
+					if admission.Mode == "USE_NATIVE" || cluster.ProjectID != req.ProjectID {
+						class = controlplane.OperationFailurePermanent
+						code = "DAPR_NATIVE_OR_SCOPE_DRIFT"
+						message = "target became native-Dapr managed or project scope changed before dispatch"
+					}
+					_, _ = s.store.ReportOperationFailure(r.Context(), op.ID, op.Revision, "agent:"+clusterID, claim.FenceToken, controlplane.OperationFailureReport{
+						Class: class, Code: code, Message: message,
+					}, "agent:"+clusterID)
+				}
+				continue
+			}
+		}
 		if parseErr != nil || req.ClusterID != clusterID || req.RuntimeLockDigest != s.daprRuntimeDigest {
 			if op.State == controlplane.OperationQueued {
 				op, _ = s.store.StartOperationAttempt(r.Context(), op.ID, op.Revision, "agent:"+clusterID, claim.FenceToken, "agent:"+clusterID)
