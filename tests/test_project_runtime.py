@@ -1,4 +1,4 @@
-import importlib.util, json, subprocess, sys, tempfile, time, unittest
+import importlib.util, json, subprocess, sys, tempfile, threading, time, unittest
 from unittest import mock
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
@@ -119,6 +119,30 @@ class ProjectRuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"LOCK_IDENTITY_INVALID"):
                 R.acquire(root,"new-run")
             self.assertEqual(before,path.read_bytes())
+
+    def test_public_stale_lock_reclaim_waits_for_state_mutex(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); path=R.lock_file(root); path.parent.mkdir(parents=True,exist_ok=True)
+            stale={"authority":R.LOCK_AUTHORITY,"runId":"stale-watchdog","pid":99999991,"startTicks":"1","hostname":"fixture","acquiredAt":R.now()}
+            path.write_text(json.dumps(stale))
+            state={"status":"COMPLETED","runId":"stale-watchdog","activePid":None,"activePidStartTicks":None,
+                   "commandPid":None,"commandPidStartTicks":None}
+            R.write_state(root,state)
+            entered=threading.Event(); release=threading.Event(); result={}
+            def hold_mutex():
+                with R.state_guard(root):
+                    entered.set(); release.wait(2)
+            def reclaim():
+                result["value"]=R.reclaim_stale_lock(root,R.read_state(root))
+            holder=threading.Thread(target=hold_mutex); holder.start(); self.assertTrue(entered.wait(1))
+            worker=threading.Thread(target=reclaim); worker.start()
+            time.sleep(.1)
+            self.assertTrue(worker.is_alive())
+            self.assertTrue(path.exists())
+            release.set(); holder.join(2); worker.join(2)
+            self.assertFalse(worker.is_alive())
+            self.assertTrue(result["value"])
+            self.assertFalse(path.exists())
 
     def test_stale_lock_from_other_run_cannot_be_reclaimed_over_live_state(self):
         with tempfile.TemporaryDirectory() as td:
