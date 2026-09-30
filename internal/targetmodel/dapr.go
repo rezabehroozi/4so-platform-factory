@@ -170,3 +170,88 @@ func ValidateDaprApplicationRuntimeModel(model DaprApplicationRuntimeDescriptor)
 	}
 	return issues
 }
+
+const (
+	DaprTargetAdmissionAuthority       = "DAPR_TARGET_ADMISSION_V1"
+	DaprSidecarSecurityCapability      = "application-runtime.dapr-sidecar-security-compatible"
+	DaprComponentScopeCapability       = "application-runtime.dapr-component-scope-enforced"
+	DaprResourceSizingCapability       = "application-runtime.dapr-resource-sizing-ready"
+)
+
+type DaprTargetAdmissionInput struct {
+	DistributionIdentity        string   `json:"distributionIdentity"`
+	TargetAdmitted              bool     `json:"targetAdmitted"`
+	TargetMutationReady         bool     `json:"targetMutationReady"`
+	CapabilityDiscoveryComplete bool     `json:"capabilityDiscoveryComplete"`
+	ObservedCapabilities        []string `json:"observedCapabilities,omitempty"`
+	ExactSourceAdmitted         bool     `json:"exactSourceAdmitted"`
+	Disconnected                bool     `json:"disconnected"`
+	DisconnectedMirrorAdmitted  bool     `json:"disconnectedMirrorAdmitted"`
+	DurableLifecycleReady       bool     `json:"durableLifecycleReady"`
+}
+
+type DaprTargetAdmission struct {
+	Authority                     string   `json:"authority"`
+	Capability                    string   `json:"capability"`
+	Eligible                      bool     `json:"eligible"`
+	Mode                          string   `json:"mode"`
+	DistributionIdentity          string   `json:"distributionIdentity"`
+	InstallSuppressed             bool     `json:"installSuppressed"`
+	Blockers                      []string `json:"blockers,omitempty"`
+	PhysicalCertificationInferred bool     `json:"physicalCertificationInferred"`
+}
+
+func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmission {
+	distribution := strings.ToLower(strings.TrimSpace(in.DistributionIdentity))
+	out := DaprTargetAdmission{
+		Authority: DaprTargetAdmissionAuthority, Capability: DaprApplicationRuntimeCapability,
+		DistributionIdentity: distribution, Mode: "INSTALL_REQUIRED",
+	}
+	switch distribution {
+	case "rke2", "okd":
+	default:
+		out.Blockers = append(out.Blockers, "UNSUPPORTED_TARGET_DISTRIBUTION")
+	}
+	if !in.TargetAdmitted {
+		out.Blockers = append(out.Blockers, "TARGET_NOT_ADMITTED")
+	}
+	if !in.TargetMutationReady {
+		out.Blockers = append(out.Blockers, "TARGET_MUTATION_RBAC_NOT_READY")
+	}
+	if !in.CapabilityDiscoveryComplete {
+		out.Blockers = append(out.Blockers, "CAPABILITY_DISCOVERY_INCOMPLETE")
+	}
+	capabilities := map[string]bool{}
+	for _, raw := range in.ObservedCapabilities {
+		value := strings.ToLower(strings.TrimSpace(raw))
+		if value != "" {
+			capabilities[value] = true
+		}
+	}
+	if capabilities[DaprApplicationRuntimeCapability] {
+		out.Mode = "USE_NATIVE"
+		out.InstallSuppressed = true
+	} else {
+		if !in.ExactSourceAdmitted {
+			out.Blockers = append(out.Blockers, "DAPR_EXACT_SOURCE_AUTHORITY_PENDING")
+		}
+		if in.Disconnected && !in.DisconnectedMirrorAdmitted {
+			out.Blockers = append(out.Blockers, "DAPR_DISCONNECTED_MIRROR_PENDING")
+		}
+	}
+	if !capabilities[DaprSidecarSecurityCapability] {
+		out.Blockers = append(out.Blockers, "DAPR_SIDECAR_SECURITY_COMPATIBILITY_PENDING")
+	}
+	if !capabilities[DaprComponentScopeCapability] {
+		out.Blockers = append(out.Blockers, "DAPR_COMPONENT_SCOPE_ENFORCEMENT_PENDING")
+	}
+	if !capabilities[DaprResourceSizingCapability] {
+		out.Blockers = append(out.Blockers, "DAPR_RESOURCE_SIZING_PENDING")
+	}
+	if !in.DurableLifecycleReady {
+		out.Blockers = append(out.Blockers, "DAPR_DURABLE_LIFECYCLE_CONTRACT_PENDING")
+	}
+	sort.Strings(out.Blockers)
+	out.Eligible = len(out.Blockers) == 0
+	return out
+}
