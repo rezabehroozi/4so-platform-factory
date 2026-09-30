@@ -253,14 +253,9 @@ func TestDaprSupplyChainLockRejectsForbiddenSchedulerImage(t *testing.T) {
 
 func TestDaprTargetAdmissionSuppressesDuplicateNativeRuntime(t *testing.T) {
 	out := EvaluateDaprTargetAdmission(DaprTargetAdmissionInput{
-		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true, ExecutorRBACReady: true,
+		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true,
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true,
-		ObservedCapabilities: []string{
-			DaprApplicationRuntimeCapability,
-			DaprSidecarSecurityCapability,
-			DaprComponentScopeCapability,
-			DaprResourceSizingCapability,
-		},
+		ObservedCapabilities: []string{DaprApplicationRuntimeCapability},
 	})
 	if !out.Eligible || out.Mode != "USE_NATIVE" || !out.InstallSuppressed || len(out.Blockers) != 0 {
 		t.Fatalf("native Dapr capability must suppress duplicate install without source acquisition: %#v", out)
@@ -280,9 +275,7 @@ func TestDaprTargetAdmissionFailsClosedUntilInstallProfileIsActuallyReady(t *tes
 	}
 	want := map[string]bool{
 		"DAPR_EXACT_SOURCE_AUTHORITY_PENDING": true,
-		"DAPR_SIDECAR_SECURITY_COMPATIBILITY_PENDING": true,
-		"DAPR_COMPONENT_SCOPE_ENFORCEMENT_PENDING": true,
-		"DAPR_RESOURCE_SIZING_PENDING": true,
+		"DAPR_EXECUTOR_RBAC_PENDING": true,
 	}
 	for _, blocker := range out.Blockers {
 		delete(want, blocker)
@@ -296,7 +289,7 @@ func TestDaprDisconnectedInstallRequiresMirrorButNativeRuntimeDoesNot(t *testing
 	base := DaprTargetAdmissionInput{
 		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true, ExecutorRBACReady: true,
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true, Disconnected: true,
-		ObservedCapabilities: []string{DaprSidecarSecurityCapability, DaprComponentScopeCapability, DaprResourceSizingCapability},
+		ObservedCapabilities: nil,
 		ExactSourceAdmitted: true,
 	}
 	blocked := EvaluateDaprTargetAdmission(base)
