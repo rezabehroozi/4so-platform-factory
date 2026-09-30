@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -47,6 +48,10 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 		DurableLifecycleReady:      false,
 	}
 	inventory, invErr := s.store.GetLatestClusterInventory(r.Context(), cluster.ID)
+	if invErr != nil && !errors.Is(invErr, controlplane.ErrNotFound) {
+		writeStoreError(w, invErr)
+		return
+	}
 	if invErr == nil {
 		admissionInput.DistributionIdentity = inventory.Distribution
 		admissionInput.TargetMutationReady = openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability)
