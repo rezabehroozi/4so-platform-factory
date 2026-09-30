@@ -737,6 +737,9 @@ rules:
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["create"]
+- apiGroups: ["dapr.io"]
+  resources: ["configurations", "components"]
+  verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
