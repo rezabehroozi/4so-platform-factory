@@ -85,6 +85,32 @@ func daprAgentTestTask(t *testing.T) daprAgentTask {
 	}
 }
 
+func daprAgentMirrorEvidence(t *testing.T, task daprAgentTask) (*daprruntime.TargetMirrorPullEvidence, string) {
+	t.Helper()
+	refs := map[string]string{}
+	for _, image := range task.RuntimeLock.ImageLocks {
+		refs[image.Role] = image.MirrorReference
+	}
+	evidence := daprruntime.TargetMirrorPullEvidence{
+		Authority: daprruntime.TargetMirrorPullEvidenceAuthority,
+		ClusterID: task.Request.ClusterID, OperationID: task.OperationID, FenceToken: task.TaskFenceToken,
+		RuntimeLockDigest: task.Request.RuntimeLockDigest, MirrorRegistry: task.RuntimeLock.MirrorRegistry,
+		RuntimeImages: []daprruntime.TargetMirrorPullObservation{
+			{Role: "operator", WorkloadKind: "Deployment", Namespace: "dapr-system", WorkloadName: "dapr-operator", Container: "dapr-operator", ImageReference: refs["operator"], Ready: true},
+			{Role: "injector", WorkloadKind: "Deployment", Namespace: "dapr-system", WorkloadName: "dapr-sidecar-injector", Container: "dapr-sidecar-injector", ImageReference: refs["injector"], Ready: true},
+			{Role: "sentry", WorkloadKind: "Deployment", Namespace: "dapr-system", WorkloadName: "dapr-sentry", Container: "dapr-sentry", ImageReference: refs["sentry"], Ready: true},
+		},
+		SidecarImageReference: refs["sidecar"],
+		WorkloadSidecarPullEvidenceRequired: true,
+		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	digest, err := daprruntime.TargetMirrorPullEvidenceDigest(
+		evidence, task.RuntimeLock, task.Request.ClusterID, task.OperationID, task.TaskFenceToken, task.Request.RuntimeLockDigest,
+	)
+	if err != nil { t.Fatal(err) }
+	return &evidence, digest
+}
+
 func TestDaprAgentTaskAndJobAreExactLockAndFenceBound(t *testing.T) {
 	task := daprAgentTestTask(t)
 	if err := validateDaprAgentTask(task, "clu_test"); err != nil {
@@ -106,6 +132,7 @@ func TestDaprAgentTaskAndJobAreExactLockAndFenceBound(t *testing.T) {
 		`"serviceAccountName":"4so-dapr-executor"`,
 		`"image":"` + task.RuntimeLock.ExecutorImageReference + `"`,
 		`"name":"FOURSO_DAPR_RUNTIME_LOCK_DIGEST","value":"` + task.Request.RuntimeLockDigest + `"`,
+		`"name":"FOURSO_DAPR_CLUSTER_ID","value":"` + task.Request.ClusterID + `"`,
 		`"name":"FOURSO_DAPR_OPERATION_ID","value":"` + task.OperationID + `"`,
 		`"name":"FOURSO_DAPR_TASK_FENCE_TOKEN","value":"11"`,
 		`"allowPrivilegeEscalation":false`,
@@ -174,6 +201,7 @@ func TestDaprAgentTaskRejectsExpiredLeaseAndLockDrift(t *testing.T) {
 
 func TestValidateDaprObservedReceiptRequiresExactOperationFenceAndRuntime(t *testing.T) {
 	task := daprAgentTestTask(t)
+	evidence, evidenceDigest := daprAgentMirrorEvidence(t, task)
 	receipt := daprObservedReceipt{
 		Authority: daprReceiptAuthority,
 		Installed: true,
@@ -182,23 +210,32 @@ func TestValidateDaprObservedReceiptRequiresExactOperationFenceAndRuntime(t *tes
 		FenceToken: task.TaskFenceToken,
 		Version: task.Request.RuntimeVersion,
 		UpstreamCommit: task.Request.UpstreamCommit,
+		MirrorPullEvidence: evidence,
+		MirrorPullEvidenceDigest: evidenceDigest,
 		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		Phase: "Installed",
 	}
-	got := validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	got := validateDaprObservedReceipt(receipt, task)
 	if !got.Success || got.RecoveryRequired {
 		t.Fatalf("exact Dapr receipt rejected: %#v", got)
 	}
 	receipt.FenceToken++
-	got = validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	got = validateDaprObservedReceipt(receipt, task)
 	if got.Success || !got.RecoveryRequired || !strings.Contains(got.Error, "fence mismatch") {
 		t.Fatalf("foreign Dapr fence receipt accepted: %#v", got)
 	}
 	receipt.FenceToken = task.TaskFenceToken
 	receipt.RuntimeLockDigest = daprAgentTestDigest("9")
-	got = validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	got = validateDaprObservedReceipt(receipt, task)
 	if got.Success || !got.RecoveryRequired || !strings.Contains(got.Error, "exact admitted runtime lock") {
 		t.Fatalf("Dapr runtime substitution receipt accepted: %#v", got)
+	}
+	receipt.RuntimeLockDigest = task.Request.RuntimeLockDigest
+	receipt.MirrorPullEvidence = nil
+	receipt.MirrorPullEvidenceDigest = ""
+	got = validateDaprObservedReceipt(receipt, task)
+	if got.Success || !got.RecoveryRequired || !strings.Contains(got.Error, "mirror-pull evidence is missing") {
+		t.Fatalf("Dapr installed receipt without target mirror proof accepted: %#v", got)
 	}
 }
 
@@ -239,12 +276,12 @@ func TestValidateDaprRemovedReceiptRejectsResidualRuntimeIdentity(t *testing.T) 
 		FenceToken: task.TaskFenceToken,
 		Phase: "Removed",
 	}
-	got := validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	got := validateDaprObservedReceipt(receipt, task)
 	if !got.Success || got.RecoveryRequired {
 		t.Fatalf("exact removed Dapr receipt rejected: %#v", got)
 	}
 	receipt.RuntimeLockDigest = task.Request.RuntimeLockDigest
-	got = validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	got = validateDaprObservedReceipt(receipt, task)
 	if got.Success || !got.RecoveryRequired || !strings.Contains(got.Error, "retained runtime identity") {
 		t.Fatalf("removed Dapr receipt retained stale identity: %#v", got)
 	}
