@@ -1672,6 +1672,8 @@ func (a *agent) daprWorkloadAdmissionRBACActive(ctx context.Context) bool {
 		{agentUser, namespace, "get", "", "v1", "pods"},
 		{agentUser, namespace, "list", "", "v1", "pods"},
 		{admitterUser, "default", "create", "", "v1", "pods"},
+		{admitterUser, "default", "get", "dapr.io", "v1alpha1", "configurations"},
+		{admitterUser, "default", "get", "dapr.io", "v1alpha1", "components"},
 	}
 	for _, check := range checks {
 		if !a.subjectAccessAllowed(ctx, check.user, check.namespace, check.verb, check.group, check.version, check.resource) {
