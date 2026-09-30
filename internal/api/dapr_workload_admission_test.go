@@ -77,6 +77,50 @@ func TestDaprWorkloadAdmissionCreatesReadOnlyDurableNativeDryRun(t *testing.T) {
 	}
 }
 
+func TestDaprWorkloadAdmissionCurrentAuthorityRejectsInventoryDrift(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	ctx := context.Background()
+	org, _ := store.CreateOrganization(ctx, controlplane.Organization{Name: "dapr-admission-current", DisplayName: "Dapr Admission Current"}, "owner")
+	project, _ := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "apps", DisplayName: "Apps"}, "owner")
+	cluster := workspaceAPICluster(t, store, project.ID, "dapr-native-current", "uid-dapr-native-current")
+	seedDaprAssessmentInventory(t, store, cluster, []string{
+		targetmodel.DaprApplicationRuntimeCapability,
+		"strict-schema-dry-run",
+	}, 92)
+	trait, err := store.CreateCapabilityTrait(ctx, controlplane.CapabilityTrait{
+		ProjectID: project.ID, Name: "dapr-runtime", Version: "1.0.0", Kind: "sidecar",
+		Capability: controlplane.ApplicationRuntimeDaprCapability,
+		InputSchemaDigest: daprAPITestDigest("b"), NativeSuppression: true,
+	}, "owner")
+	if err != nil { t.Fatal(err) }
+	srv := scopedServer(t, store)
+	lock := daprAPITestRuntimeLock(t)
+	executorAuthority, err := daprruntime.ExecutorAuthorityFromRuntimeLock(lock)
+	if err != nil { t.Fatal(err) }
+	if err = srv.ConfigureDaprExecutorAuthority(executorAuthority, "https://zot.internal.example"); err != nil { t.Fatal(err) }
+
+	request, _, err := srv.buildDaprWorkloadAdmissionRequest(ctx, daprWorkloadAdmissionInput{
+		ProjectID: project.ID, ClusterID: cluster.ID, TraitID: trait.ID,
+		WorkloadImage: "zot.internal.example/apps/payments@" + daprAPITestDigest("c"),
+		Namespace: "payments", AppID: "payments-api",
+		CPURequest: "100m", CPULimit: "500m", MemoryRequest: "128Mi", MemoryLimit: "256Mi",
+		EnableInvocation: true,
+	})
+	if err != nil { t.Fatal(err) }
+	if err = srv.validateDaprWorkloadAdmissionCurrentAuthority(ctx, request); err != nil {
+		t.Fatalf("fresh native Dapr workload authority rejected: %v", err)
+	}
+
+	seedDaprAssessmentInventory(t, store, cluster, []string{
+		targetmodel.DaprApplicationRuntimeCapability,
+		"strict-schema-dry-run",
+	}, 93)
+	if err = srv.validateDaprWorkloadAdmissionCurrentAuthority(ctx, request); err == nil ||
+		!strings.Contains(err.Error(), "inventory fence changed") {
+		t.Fatalf("stale Dapr workload admission remained current after inventory drift: %v", err)
+	}
+}
+
 func TestDaprWorkloadAdmissionFailsClosedWithoutStrictTargetDryRunCapability(t *testing.T) {
 	store := controlplane.NewMemoryStore()
 	ctx := context.Background()
