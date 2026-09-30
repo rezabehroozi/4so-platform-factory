@@ -192,6 +192,23 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("replay-1",R.read_state(root)["runId"])
             self.assertEqual("owner-tests",R.read_state(root)["currentTask"])
 
+    def test_worker_launch_failure_before_execution_is_safe_to_resume_and_releases_lock(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            with mock.patch.object(R.subprocess,"Popen",side_effect=OSError("spawn failed")):
+                with self.assertRaisesRegex(RuntimeError,"WORKER_LAUNCH_FAILED_BEFORE_EXECUTION"):
+                    R.start(root,"validate","owner-tests",[sys.executable,"-c","print('x')"],replay_safe=False,skip_git=True)
+            state=R.read_state(root)
+            self.assertEqual("INTERRUPTED",state["status"])
+            self.assertTrue(state["safeToRetry"])
+            self.assertFalse(state["executionStarted"])
+            self.assertFalse(state["recoveryRequired"])
+            self.assertEqual("WORKER_LAUNCH_FAILED_BEFORE_EXECUTION",state["latestError"])
+            self.assertFalse(R.lock_file(root).exists())
+            follow=R.start(root,"different","different-task",[sys.executable,"-c","print('new')"],replay_safe=False,skip_git=True)
+            self.assertEqual("RESUME_REQUIRED",follow["action"])
+            self.assertEqual(state["runId"],follow["state"]["runId"])
+
     def test_manual_resolution_can_authorize_one_non_replay_safe_resume(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
