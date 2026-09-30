@@ -194,7 +194,8 @@ def render_chart(helm: str, chart: Path, env: dict[str, str]) -> tuple[list[dict
         "--include-crds", "--kube-version", "1.34.0",
     ]
     for path, value in HELM_OVERRIDES.items():
-        cmd += ["--set-string", f"{path}={value}"]
+        flag = "--set-string" if path in {"global.registry", "global.tag"} else "--set"
+        cmd += [flag, f"{path}={value}"]
     rendered = run(cmd, env=env)
     docs = []
     for doc in yaml.safe_load_all(rendered):
@@ -332,6 +333,12 @@ def self_test() -> int:
         raise RuntimeError("DAPR_ACQUISITION_IDENTITY_DRIFT")
     if HELM_OVERRIDES.get("global.tag") != IMAGE_TAG or HELM_OVERRIDES.get("global.registry") != IMAGE_REGISTRY:
         raise RuntimeError("DAPR_ACQUISITION_IMAGE_SELECTION_DRIFT")
+    string_overrides = {"global.registry", "global.tag"}
+    if any(path in string_overrides for path in (
+        "global.actors.enabled", "global.scheduler.enabled", "global.mtls.enabled",
+        "dapr_rbac.secretReader.enabled", "dapr_sidecar_injector.sidecarRunAsNonRoot",
+    )):
+        raise RuntimeError("DAPR_ACQUISITION_HELM_TYPE_POLICY_INVALID")
     if HELM_OVERRIDES.get("global.actors.enabled") != "false" or HELM_OVERRIDES.get("global.scheduler.enabled") != "false":
         raise RuntimeError("DAPR_ACQUISITION_DUPLICATE_AUTHORITY_PROFILE_INVALID")
     if set(REQUIRED_IMAGES) != {"sidecar", "operator", "injector", "sentry"}:
