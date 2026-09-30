@@ -623,8 +623,13 @@ func DaprRuntimeSupplyChainAdmitted(lock DaprRuntimeSupplyChainLock) bool {
 }
 
 const (
-	DaprTargetAdmissionAuthority       = "DAPR_TARGET_ADMISSION_V1"
+	DaprTargetAdmissionAuthority  = "DAPR_TARGET_ADMISSION_V1"
+	// These names remain compatibility vocabulary for observed inventory and UI,
+	// but target admission never treats them as proof of product-owned workload
+	// scoping/resource sizing or namespace-specific sidecar security.
 	DaprSidecarSecurityCapability = "application-runtime.dapr-sidecar-security-compatible"
+	DaprComponentScopeCapability  = "application-runtime.dapr-component-scope-enforced"
+	DaprResourceSizingCapability  = "application-runtime.dapr-resource-sizing-ready"
 )
 
 type DaprTargetAdmissionInput struct {
