@@ -77,6 +77,57 @@ func (s *MemoryStore) CreateOperationAwaitingApprovalWithPayload(_ context.Conte
 	return op, false, nil
 }
 
+// CreateOperationQueuedWithPayload atomically binds an immutable request
+// payload to a read-only durable operation and advances it directly to QUEUED.
+// It is intentionally separate from approval-gated mutation creation: callers
+// must use this only for operations whose target action is demonstrably
+// non-mutating (for example Kubernetes server-side dry-run admission).
+func (s *MemoryStore) CreateOperationQueuedWithPayload(_ context.Context, r OperationRequest, key, actor, requestID, mediaType string, payload []byte) (Operation, bool, error) {
+	if err := validateOperationRequestPayload(mediaType, payload); err != nil {
+		return Operation{}, false, err
+	}
+	class, err := NormalizeOperationClass(r.Class)
+	if err != nil {
+		return Operation{}, false, err
+	}
+	if class != OperationClassReadOnly {
+		return Operation{}, false, fmt.Errorf("%w: queued request payload creation is read-only only", ErrValidation)
+	}
+	r.Class = class
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	op, replay, err := s.createOperationLocked(r, key, actor, requestID)
+	if err != nil {
+		return Operation{}, false, err
+	}
+	digest := OperationRequestPayloadDigest(payload)
+	if replay {
+		stored, ok := s.operationRequestPayloads[op.ID]
+		if !ok || stored.PayloadDigest != digest || stored.MediaType != strings.TrimSpace(mediaType) {
+			return Operation{}, false, ErrIdempotencyConflict
+		}
+		return op, true, nil
+	}
+	op, err = s.transitionOperationLocked(op.ID, op.Revision, OperationPlanning, "", actor)
+	if err == nil {
+		op, err = s.transitionOperationLocked(op.ID, op.Revision, OperationQueued, "", actor)
+	}
+	if err != nil {
+		delete(s.operations, op.ID)
+		delete(s.idempotency, r.ProjectID+":"+strings.TrimSpace(key))
+		return Operation{}, false, err
+	}
+	s.operationRequestPayloads[op.ID] = OperationRequestPayload{
+		OperationID: op.ID, PayloadDigest: digest, MediaType: strings.TrimSpace(mediaType),
+		Payload: append([]byte(nil), payload...), CreatedAt: nowUTC(s.now),
+	}
+	s.appendAuditLocked(actor, "operation.request_payload.sealed", "operation", op.ID, op.Revision, map[string]any{
+		"authority": OperationRequestPayloadAuthority, "payloadDigest": digest, "mediaType": strings.TrimSpace(mediaType),
+		"readOnlyQueued": true,
+	})
+	return op, false, nil
+}
+
 func (s *MemoryStore) GetOperationRequestPayload(_ context.Context, operationID string) (OperationRequestPayload, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
