@@ -125,6 +125,21 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,"EXISTING_ARCHIVE_DRIFT"):
                     mod.execute(root,out)
 
+    def test_completed_c9_seal_resume_rejects_extra_fields_and_missing_checksum(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
+            out,release,evidence,admitted=self.final_evidence_fixture(root)
+            extra=dict(evidence); extra["runtimeCertified"]=True
+            out.write_text(json.dumps(extra),encoding="utf-8")
+            with mock.patch.object(mod.admission,"verify",return_value=admitted):
+                with self.assertRaisesRegex(RuntimeError,"EVIDENCE_FIELDS_INVALID"):
+                    mod.execute(root,out)
+            out.write_text(json.dumps(evidence),encoding="utf-8")
+            release.with_name(release.name+".sha256").unlink()
+            with mock.patch.object(mod.admission,"verify",return_value=admitted):
+                with self.assertRaisesRegex(RuntimeError,"CHECKSUM_DRIFT"):
+                    mod.execute(root,out)
+
     def test_completed_c9_seal_resume_rejects_unrelated_source_drift(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
