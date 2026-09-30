@@ -57,6 +57,9 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, map[string]any{
 		"authority":                     targetmodel.DaprTargetAdmissionAuthority,
 		"profileAuthority":              targetmodel.DaprApplicationRuntimeAuthority,
+		"sourcePlan":                    targetmodel.DaprRuntimeSourcePlanModel(),
+		"supplyChainAuthority":          targetmodel.DaprRuntimeSupplyChainAuthority,
+		"supplyChainAdmitted":           false,
 		"reviewedRuntimeVersion":        targetmodel.DaprReviewedRuntimeVersion,
 		"assessment":                    out,
 		"runtimeInstallImplemented":     false,
