@@ -18,7 +18,7 @@ import (
 const (
 	daprLifecycleOperationKind = "dapr.runtime.lifecycle"
 	daprLifecycleTargetPrefix  = "dapr:"
-	daprLifecycleLease         = 15 * time.Minute
+	daprLifecycleLease         = 30 * time.Minute
 )
 
 type daprLifecycleInput struct {
