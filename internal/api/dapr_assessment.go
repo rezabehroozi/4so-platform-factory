@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"platform.4so.io/factory/internal/controlplane"
+	daprruntime "platform.4so.io/factory/internal/dapr"
 	"platform.4so.io/factory/internal/targetmodel"
 )
 
@@ -129,9 +130,29 @@ func (s *Server) resolveDaprWorkloadPlan(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusUnprocessableEntity, err.Error(), "Dapr workload plan admission failed")
 		return
 	}
+	configurationProjection, err := daprruntime.BuildWorkloadConfigurationProjection(plan)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "DAPR_WORKLOAD_POLICY_PROJECTION_INVALID", "Dapr workload policy projection failed")
+		return
+	}
+	configurationPolicyDigest, err := daprruntime.WorkloadConfigurationPolicyDigest(plan)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "DAPR_WORKLOAD_POLICY_PROJECTION_INVALID", "Dapr workload policy projection digest failed")
+		return
+	}
+	componentScopeDigest, err := daprruntime.WorkloadComponentScopeDigest(plan)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "DAPR_WORKLOAD_POLICY_PROJECTION_INVALID", "Dapr workload component scope digest failed")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"authority": targetmodel.DaprWorkloadRuntimePlanAuthority,
 		"traitId": trait.ID, "traitDigest": trait.Digest,
-		"plan": plan, "runtimeMutationPerformed": false, "physicalCertificationInferred": false,
+		"plan": plan,
+		"configurationProjectionAuthority": daprruntime.WorkloadPolicyProjectionAuthority,
+		"configurationProjection": configurationProjection,
+		"configurationPolicyDigest": configurationPolicyDigest,
+		"componentScopeDigest": componentScopeDigest,
+		"runtimeMutationPerformed": false, "physicalCertificationInferred": false,
 	})
 }
