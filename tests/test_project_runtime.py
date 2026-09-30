@@ -63,7 +63,7 @@ class ProjectRuntimeTests(unittest.TestCase):
             root=Path(td)
             runtime=root/".project-runtime"
             log=runtime/"logs"/"resume-1.log"
-            info={"repository":"fixture","branch":"main","head":"abc","originMain":"abc"}
+            info={"repository":"fixture","branch":"main","head":"abc","originMain":"remote-advanced","gitSyncStatus":"DIFFERENT"}
             state={
                 "status":"INTERRUPTED","runId":"resume-1",**info,
                 "phase":"validate","currentTask":"resume-fixture",
@@ -94,6 +94,22 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("resume-1",final["runId"])
             self.assertEqual(2,final["attempt"])
             self.assertEqual("ok",(root/"resumed").read_text())
+
+    def test_local_git_authority_does_not_require_remote_or_fetch(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-q","-b","main"],cwd=root,check=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/"tracked").write_text("x\n")
+            subprocess.run(["git","add","tracked"],cwd=root,check=True)
+            subprocess.run(["git","commit","-qm","initial"],cwd=root,check=True)
+            info=R.git(root)
+            self.assertEqual("main",info["branch"])
+            self.assertEqual("",info["originMain"])
+            self.assertEqual("UNAVAILABLE",info["gitSyncStatus"])
+            self.assertFalse(info["originRefreshAttempted"])
+            self.assertEqual("",info["originRefreshError"])
 
     def test_non_replay_safe_resume_requires_authoritative_readback(self):
         with tempfile.TemporaryDirectory() as td:
