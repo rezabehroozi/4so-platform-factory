@@ -35,6 +35,14 @@ EXECUTION_AUTHORITY = "LOCAL_EXACT_RELEASE_SEAL_V1"
 FULL_VERIFIER_AUTHORITY = "CHECKPOINT_SAFE_FULL_VERIFIER_V2"
 TOOLCHAIN_AUTHORITY = "RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1"
 SOURCE_WORKSPACE_AUTHORITY = "GIT_DETACHED_EXACT_SHA_WORKTREE_V1"
+FINAL_EVIDENCE_KEYS = {
+    "apiVersion","kind","authority","sourceExecutionAuthority","sourceWorkspaceAuthority",
+    "sourceCommitSHA","version","releaseName","releaseArchive","releaseArchivePath",
+    "releaseArchiveSha256","releaseArchiveBytes","artifactManifestSha256",
+    "buildProvenanceSha256","sbomSha256","admissionAuthority",
+    "applianceDistributionSha256","mcpExternalInteropSha256","fullVerifierAuthority",
+    "fullVerifierPass","physicalCertified",
+}
 
 
 def sha256(path: Path) -> str:
@@ -432,8 +440,8 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
         evidence=json.loads(out.read_text(encoding="utf-8"))
     except (UnicodeDecodeError,json.JSONDecodeError) as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
-    if not isinstance(evidence,dict):
-        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
+    if not isinstance(evidence,dict) or set(evidence)!=FINAL_EVIDENCE_KEYS:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_FIELDS_INVALID")
     version=(root/"VERSION").read_text(encoding="utf-8").strip()
     release_name=(root/"RELEASE-NAME").read_text(encoding="utf-8").strip()
     expected_name=f"4so-platform-factory-{version}-{release_name}.zip"
@@ -454,14 +462,24 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
     for key in ("applianceDistributionSha256","mcpExternalInteropSha256"):
         if evidence.get(key)!=admitted.get(key):
             raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ADMISSION_DRIFT")
+    for key in ("releaseArchiveSha256","artifactManifestSha256","buildProvenanceSha256","sbomSha256","applianceDistributionSha256","mcpExternalInteropSha256"):
+        value=evidence.get(key)
+        if not isinstance(value,str) or len(value)!=71 or not value.startswith("sha256:") or any(ch not in "0123456789abcdef" for ch in value[7:]):
+            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_DIGEST_INVALID")
+    if type(evidence.get("releaseArchiveBytes")) is not int or evidence["releaseArchiveBytes"]<=0:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_SIZE_INVALID")
     release=root.joinpath(*expected_rel.parts)
     digest=sha256(release)
     if evidence.get("releaseArchiveSha256")!=digest or evidence.get("releaseArchiveBytes")!=release.stat().st_size:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_DRIFT")
     checksum=release.with_name(release.name+".sha256")
-    checksum_info=checksum.lstat()
+    try:
+        checksum_info=checksum.lstat()
+        checksum_text=checksum.read_text(encoding="utf-8")
+    except (FileNotFoundError,UnicodeDecodeError,OSError) as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_CHECKSUM_DRIFT") from exc
     wanted_checksum=f"{digest.removeprefix('sha256:')}  {release.name}\n"
-    if not stat.S_ISREG(checksum_info.st_mode) or checksum.is_symlink() or checksum.read_text(encoding="utf-8")!=wanted_checksum:
+    if not stat.S_ISREG(checksum_info.st_mode) or checksum.is_symlink() or checksum_text!=wanted_checksum:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_CHECKSUM_DRIFT")
     prefix=f"4so-platform-factory-{version}-{release_name}/"
     expected_embedded={
