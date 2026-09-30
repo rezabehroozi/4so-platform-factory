@@ -29,7 +29,8 @@ type WorkloadAdmissionRequest struct {
 	RuntimeMode       string                             `json:"runtimeMode"`
 	RuntimeLockDigest string                             `json:"runtimeLockDigest,omitempty"`
 	ExpectedSidecarImage string                          `json:"expectedSidecarImage,omitempty"`
-	ExecutorImageReference string                       `json:"executorImageReference"`
+	ExecutorEvidenceDigest string                        `json:"executorEvidenceDigest"`
+	ExecutorImageReference string                        `json:"executorImageReference"`
 	WorkloadImage     string                             `json:"workloadImage"`
 	Plan              targetmodel.DaprWorkloadRuntimePlan `json:"plan"`
 	PlanDigest        string                             `json:"planDigest"`
@@ -44,6 +45,7 @@ type WorkloadAdmissionEvidence struct {
 	InventoryDigest            string   `json:"inventoryDigest"`
 	RuntimeMode                string   `json:"runtimeMode"`
 	RuntimeLockDigest          string   `json:"runtimeLockDigest,omitempty"`
+	ExecutorEvidenceDigest     string   `json:"executorEvidenceDigest"`
 	PlanDigest                 string   `json:"planDigest"`
 	Namespace                  string   `json:"namespace"`
 	AppID                      string   `json:"appId"`
@@ -106,13 +108,14 @@ func CanonicalWorkloadAdmissionRequest(value WorkloadAdmissionRequest) (Workload
 	value.RuntimeMode = strings.ToUpper(strings.TrimSpace(value.RuntimeMode))
 	value.RuntimeLockDigest = strings.ToLower(strings.TrimSpace(value.RuntimeLockDigest))
 	value.ExpectedSidecarImage = strings.TrimSpace(value.ExpectedSidecarImage)
+	value.ExecutorEvidenceDigest = strings.ToLower(strings.TrimSpace(value.ExecutorEvidenceDigest))
 	value.ExecutorImageReference = strings.TrimSpace(value.ExecutorImageReference)
 	value.WorkloadImage = strings.TrimSpace(value.WorkloadImage)
 	value.PlanDigest = strings.ToLower(strings.TrimSpace(value.PlanDigest))
 	if value.Authority != WorkloadAdmissionAuthority || value.ProjectID == "" || value.ClusterID == "" || value.TraitID == "" {
 		return WorkloadAdmissionRequest{}, fmt.Errorf("DAPR_WORKLOAD_ADMISSION_SCOPE_INVALID")
 	}
-	for _, digest := range []string{value.TraitDigest, value.InventoryDigest, value.PlanDigest} {
+	for _, digest := range []string{value.TraitDigest, value.InventoryDigest, value.PlanDigest, value.ExecutorEvidenceDigest} {
 		if !lifecycleDigest(digest) {
 			return WorkloadAdmissionRequest{}, fmt.Errorf("DAPR_WORKLOAD_ADMISSION_DIGEST_INVALID")
 		}
@@ -200,6 +203,7 @@ func ValidateWorkloadAdmissionEvidence(value WorkloadAdmissionEvidence, request 
 	value.InventoryDigest = strings.ToLower(strings.TrimSpace(value.InventoryDigest))
 	value.RuntimeMode = strings.ToUpper(strings.TrimSpace(value.RuntimeMode))
 	value.RuntimeLockDigest = strings.ToLower(strings.TrimSpace(value.RuntimeLockDigest))
+	value.ExecutorEvidenceDigest = strings.ToLower(strings.TrimSpace(value.ExecutorEvidenceDigest))
 	value.PlanDigest = strings.ToLower(strings.TrimSpace(value.PlanDigest))
 	value.Namespace = strings.TrimSpace(value.Namespace)
 	value.AppID = strings.TrimSpace(value.AppID)
@@ -208,7 +212,7 @@ func ValidateWorkloadAdmissionEvidence(value WorkloadAdmissionEvidence, request 
 	if value.Authority != WorkloadAdmissionEvidenceAuthority || value.OperationID != strings.TrimSpace(operationID) ||
 		value.ProjectID != request.ProjectID || value.ClusterID != request.ClusterID || value.TraitDigest != request.TraitDigest ||
 		value.InventoryDigest != request.InventoryDigest || value.RuntimeMode != request.RuntimeMode ||
-		value.RuntimeLockDigest != request.RuntimeLockDigest || value.PlanDigest != request.PlanDigest ||
+		value.RuntimeLockDigest != request.RuntimeLockDigest || value.ExecutorEvidenceDigest != request.ExecutorEvidenceDigest || value.PlanDigest != request.PlanDigest ||
 		value.Namespace != request.Plan.Namespace || value.AppID != request.Plan.AppID {
 		return fmt.Errorf("DAPR_WORKLOAD_ADMISSION_EVIDENCE_BINDING_INVALID")
 	}
@@ -392,6 +396,7 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 		Authority: WorkloadAdmissionEvidenceAuthority, OperationID: strings.TrimSpace(operationID),
 		ProjectID: request.ProjectID, ClusterID: request.ClusterID, TraitDigest: request.TraitDigest,
 		InventoryDigest: request.InventoryDigest, RuntimeMode: request.RuntimeMode, RuntimeLockDigest: request.RuntimeLockDigest,
+		ExecutorEvidenceDigest: request.ExecutorEvidenceDigest,
 		PlanDigest: request.PlanDigest, Namespace: request.Plan.Namespace, AppID: request.Plan.AppID,
 		DryRunHTTPStatus: status, InjectedSidecarObserved: true, SidecarContainerName: "daprd",
 		SidecarImageReference: sidecarImage, ExpectedSidecarImageMatched: expectedMatched,
