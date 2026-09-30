@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -27,6 +28,8 @@ func normalize(lock targetmodel.DaprRuntimeSupplyChainLock) targetmodel.DaprRunt
 	lock.UpstreamCommit = strings.ToLower(strings.TrimSpace(lock.UpstreamCommit))
 	lock.SourceArchiveDigest = strings.ToLower(strings.TrimSpace(lock.SourceArchiveDigest))
 	lock.HelmChartDigest = strings.ToLower(strings.TrimSpace(lock.HelmChartDigest))
+	lock.RegistryAuthority = strings.ToLower(strings.TrimSpace(lock.RegistryAuthority))
+	lock.MirrorRegistry = strings.ToLower(strings.TrimSpace(lock.MirrorRegistry))
 	for i := range lock.ImageLocks {
 		image := &lock.ImageLocks[i]
 		image.Role = strings.ToLower(strings.TrimSpace(image.Role))
@@ -48,6 +51,47 @@ func ValidateRuntimeLock(lock targetmodel.DaprRuntimeSupplyChainLock) error {
 	lock = normalize(lock)
 	if issues := targetmodel.ValidateDaprRuntimeSupplyChainLock(lock); len(issues) != 0 {
 		return fmt.Errorf("DAPR_RUNTIME_SUPPLY_CHAIN_LOCK_INVALID %s", strings.Join(issues, ","))
+	}
+	return nil
+}
+
+func expectedRegistryHost(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", fmt.Errorf("DAPR_EXPECTED_REGISTRY_REQUIRED")
+	}
+	if !strings.Contains(value, "://") {
+		value = "https://" + strings.TrimRight(value, "/")
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("DAPR_EXPECTED_REGISTRY_INVALID")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", fmt.Errorf("DAPR_EXPECTED_REGISTRY_INVALID")
+	}
+	if path := strings.Trim(parsed.Path, "/"); path != "" {
+		return "", fmt.Errorf("DAPR_EXPECTED_REGISTRY_INVALID")
+	}
+	return strings.ToLower(parsed.Host), nil
+}
+
+func ValidateRuntimeLockForRegistry(lock targetmodel.DaprRuntimeSupplyChainLock, expectedRegistry string) error {
+	lock = normalize(lock)
+	if err := ValidateRuntimeLock(lock); err != nil {
+		return err
+	}
+	host, err := expectedRegistryHost(expectedRegistry)
+	if err != nil {
+		return err
+	}
+	if lock.MirrorRegistry != host {
+		return fmt.Errorf("DAPR_RUNTIME_MIRROR_REGISTRY_MISMATCH")
+	}
+	for _, image := range lock.ImageLocks {
+		if !strings.HasPrefix(image.MirrorReference, host+"/dapr/") {
+			return fmt.Errorf("DAPR_RUNTIME_MIRROR_REGISTRY_MISMATCH")
+		}
 	}
 	return nil
 }
