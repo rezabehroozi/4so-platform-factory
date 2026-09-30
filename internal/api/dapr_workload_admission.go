@@ -138,8 +138,8 @@ func (s *Server) buildDaprWorkloadAdmissionRequest(ctx context.Context, input da
 		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: complete target discovery and strict schema dry-run capability are required", controlplane.ErrPrerequisite)
 	}
 	if !openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability) ||
-		!openChoreoInventoryCapability(inventory, controlplane.DaprExecutorRBACCapability) {
-		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: target Dapr workload executor RBAC is not active", controlplane.ErrPrerequisite)
+		!openChoreoInventoryCapability(inventory, controlplane.DaprWorkloadAdmissionRBACCapability) {
+		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: target Dapr workload admission prober RBAC is not active", controlplane.ErrPrerequisite)
 	}
 	admission := s.daprAdmissionForCluster(cluster, inventory, false)
 	plan, err := targetmodel.ResolveDaprWorkloadRuntimePlan(targetmodel.DaprWorkloadPlanInput{
@@ -344,7 +344,7 @@ func (s *Server) nextDaprWorkloadAdmissionTask(w http.ResponseWriter, r *http.Re
 			!inventory.APIDiscoveryComplete || !inventory.CRDDiscoveryComplete || !inventory.SchemaDiscoveryComplete ||
 			!openChoreoInventoryCapability(inventory, "strict-schema-dry-run") ||
 			!openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability) ||
-			!openChoreoInventoryCapability(inventory, controlplane.DaprExecutorRBACCapability) ||
+			!openChoreoInventoryCapability(inventory, controlplane.DaprWorkloadAdmissionRBACCapability) ||
 			!s.daprExecutorReady ||
 			s.daprExecutorAuthority.EvidenceDigest != request.ExecutorEvidenceDigest ||
 			s.daprExecutorAuthority.ImageReference != request.ExecutorImageReference
