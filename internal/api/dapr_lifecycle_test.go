@@ -48,6 +48,7 @@ func daprAPITestRuntimeLock(t *testing.T) daprruntime.RuntimeLock {
 		AcquisitionReceiptDigest: daprAPITestDigest("2"),
 		MirrorEvidenceDigest: daprAPITestDigest("3"),
 		ExecutorEvidenceDigest: daprAPITestDigest("5"),
+		ExecutorSourceReleaseDigest: daprAPITestDigest("7"),
 		ExecutorImageReference: "zot.internal.example/4so/dapr-runtime@" + daprAPITestDigest("6"),
 		ExecutorImageDigest: daprAPITestDigest("6"),
 		RegistryAuthority: "zot",
