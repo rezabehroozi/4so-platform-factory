@@ -45,6 +45,21 @@ class MCPExternalSealTests(unittest.TestCase):
         for c in mod.CLIENTS:
             row=self.receipt(c,checks,campaign); (receipts/(c+".json")).write_text(json.dumps(row)); (audits/(c+".json")).write_text(json.dumps(self.audit(row)))
         return matrix_path,campaign_path,receipts,audits,campaign,checks
+    def test_json_persistence_is_atomic_and_immutable_by_authority_type(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            sealed=root/"sealed.json"
+            mod.write_json_once_or_identical(sealed,{"value":1},"TEST_SEALED")
+            first=sealed.read_bytes()
+            mod.write_json_once_or_identical(sealed,{"value":1},"TEST_SEALED")
+            self.assertEqual(first,sealed.read_bytes())
+            with self.assertRaisesRegex(RuntimeError,"OUTPUT_REPLACEMENT_FORBIDDEN"):
+                mod.write_json_once_or_identical(sealed,{"value":2},"TEST_SEALED")
+            progress=root/"progress.json"
+            mod.write_json_atomic_replace(progress,{"value":1},"TEST_PROGRESS")
+            mod.write_json_atomic_replace(progress,{"value":2},"TEST_PROGRESS")
+            self.assertEqual({"value":2},json.loads(progress.read_text()))
+
     def test_go_security_audit_digest_vector_parity(self):
         row={
             "id":"sau-parity","sequence":7,"occurredAt":"2026-09-29T01:02:03Z",
