@@ -39,6 +39,44 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("COMPLETED",R.read_state(root)["status"])
             self.assertEqual("validate",R.read_state(root)["latestCompletedCheckpoint"])
 
+    def test_state_revision_cas_rejects_stale_observer_write(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            initial={"status":"RUNNING","runId":"cas-1","activePid":99999991,"activePidStartTicks":"1",
+                     "commandPid":None,"commandPidStartTicks":None,"replaySafe":True}
+            R.write_state(root,initial)
+            snapshot=R.read_state(root)
+            terminal=dict(snapshot,status="COMPLETED",activePid=None,activePidStartTicks=None,latestCompletedCheckpoint="done")
+            R.write_state(root,terminal)
+            stale=dict(snapshot,status="INTERRUPTED",latestError="stale-observer")
+            written,current=R.write_state(root,stale,expected_revision=snapshot["stateRevision"])
+            self.assertFalse(written)
+            self.assertEqual("COMPLETED",current["status"])
+            self.assertGreater(current["stateRevision"],snapshot["stateRevision"])
+            self.assertEqual("COMPLETED",R.read_state(root)["status"])
+
+    def test_reconcile_cas_preserves_terminal_state_written_during_transition(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            initial={"status":"RUNNING","runId":"cas-race","activePid":99999991,"activePidStartTicks":"1",
+                     "commandPid":None,"commandPidStartTicks":None,"replaySafe":True}
+            R.write_state(root,initial)
+            original_write=R.write_state
+            injected={"done":False}
+            def racing_write(_root,state,override=None,expected_revision=None):
+                if expected_revision is not None and not injected["done"]:
+                    injected["done"]=True
+                    current=R.read_state(root)
+                    terminal=dict(current,status="COMPLETED",activePid=None,activePidStartTicks=None,
+                                  latestCompletedCheckpoint="worker-terminal")
+                    original_write(root,terminal)
+                return original_write(_root,state,override,expected_revision=expected_revision)
+            with mock.patch.object(R,"write_state",side_effect=racing_write):
+                out=R.reconcile(root,R.read_state(root))
+            self.assertEqual("COMPLETED",out["status"])
+            self.assertEqual("worker-terminal",out["latestCompletedCheckpoint"])
+            self.assertEqual("COMPLETED",R.read_state(root)["status"])
+
     def test_worker_handoff_persists_identity_before_transfer_without_clobbering_worker_state(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
