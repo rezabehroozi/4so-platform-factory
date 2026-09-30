@@ -41,7 +41,7 @@ type SecurityAuditRecord struct {
 	Category, Decision, ActorID, Authentication, Method, Path, ReasonCode, RequestID string
 	StatusCode                                                                       int
 	ScopeType, ScopeID, EffectiveRole, MappingDigest                                 string
-	MCPInteropBindingDigest                                                         string
+	OAuthClientID, MCPInteropBindingDigest                                           string
 }
 
 type AuditSink func(context.Context, SecurityAuditRecord) error
@@ -236,7 +236,7 @@ func (m *Manager) auditRequest(r *http.Request, principal Principal, category, d
 	if err != nil {
 		return err
 	}
-	return m.config.AuditSink(r.Context(), SecurityAuditRecord{Category: category, Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), StatusCode: status, EffectiveRole: CanonicalRole(principal.Roles), MappingDigest: principal.MappingDigest, MCPInteropBindingDigest: binding})
+	return m.config.AuditSink(r.Context(), SecurityAuditRecord{Category: category, Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), StatusCode: status, EffectiveRole: CanonicalRole(principal.Roles), MappingDigest: principal.MappingDigest, OAuthClientID: strings.TrimSpace(principal.AuthorizedClientID), MCPInteropBindingDigest: binding})
 }
 func (m *Manager) authorizePrincipalForRequest(w http.ResponseWriter, r *http.Request, principal Principal) bool {
 	deny := func(code, message string) bool {
