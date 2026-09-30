@@ -147,6 +147,26 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("abandon",final["recoveryResolution"]["decision"])
             self.assertEqual("competing authoritative resolution",final["recoveryResolution"]["reason"])
 
+    def test_worker_lock_transfer_failure_rolls_back_before_execution(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state={"status":"REQUESTED","runId":"handoff-fail","activePid":None,"activePidStartTicks":None,
+                   "commandPid":None,"commandPidStartTicks":None,"replaySafe":False,"recoveryRequired":False,
+                   "executionStarted":False}
+            R.write_state(root,state)
+            owner=R.acquire(root,"handoff-fail")
+            with mock.patch.object(R,"transfer",side_effect=RuntimeError("transfer failed")), mock.patch.object(R.os,"kill") as kill:
+                with self.assertRaisesRegex(RuntimeError,"WORKER_LOCK_TRANSFER_FAILED_BEFORE_EXECUTION"):
+                    R.activate_worker(root,R.read_state(root),"handoff-fail",12345,"67890")
+            kill.assert_called_once_with(12345,R.signal.SIGTERM)
+            final=R.read_state(root)
+            self.assertEqual("INTERRUPTED",final["status"])
+            self.assertTrue(final["safeToRetry"])
+            self.assertFalse(final["executionStarted"])
+            self.assertEqual("WORKER_LOCK_TRANSFER_FAILED_BEFORE_EXECUTION",final["latestError"])
+            self.assertFalse(R.lock_file(root).exists())
+            self.assertEqual(owner["runId"],final["runId"])
+
     def test_worker_handoff_persists_identity_before_transfer_without_clobbering_worker_state(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
