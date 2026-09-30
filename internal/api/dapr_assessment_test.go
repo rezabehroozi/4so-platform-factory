@@ -13,12 +13,15 @@ import (
 )
 
 type daprAssessmentResponse struct {
-	Authority                     string                        `json:"authority"`
-	ProfileAuthority              string                        `json:"profileAuthority"`
-	ReviewedRuntimeVersion        string                        `json:"reviewedRuntimeVersion"`
-	Assessment                    targetmodel.DaprTargetAdmission `json:"assessment"`
-	RuntimeInstallImplemented     bool                          `json:"runtimeInstallImplemented"`
-	PhysicalCertificationInferred bool                          `json:"physicalCertificationInferred"`
+	Authority                     string                            `json:"authority"`
+	ProfileAuthority              string                            `json:"profileAuthority"`
+	SourcePlan                    targetmodel.DaprRuntimeSourcePlan `json:"sourcePlan"`
+	SupplyChainAuthority          string                            `json:"supplyChainAuthority"`
+	SupplyChainAdmitted           bool                              `json:"supplyChainAdmitted"`
+	ReviewedRuntimeVersion        string                            `json:"reviewedRuntimeVersion"`
+	Assessment                    targetmodel.DaprTargetAdmission   `json:"assessment"`
+	RuntimeInstallImplemented     bool                              `json:"runtimeInstallImplemented"`
+	PhysicalCertificationInferred bool                              `json:"physicalCertificationInferred"`
 }
 
 func seedDaprAssessmentInventory(t *testing.T, store *controlplane.MemoryStore, cluster controlplane.ManagedCluster, capabilities []string, n int) {
@@ -61,6 +64,8 @@ func TestDaprAssessmentUsesNativeCapabilityAndBlocksUnimplementedInstall(t *test
 	}
 	native := decodeApplicationResponse[daprAssessmentResponse](t, w)
 	if native.Authority != targetmodel.DaprTargetAdmissionAuthority || native.ProfileAuthority != targetmodel.DaprApplicationRuntimeAuthority ||
+		native.SourcePlan.Authority != targetmodel.DaprRuntimeSourcePlanAuthority || native.SourcePlan.UpstreamCommit != targetmodel.DaprUpstreamCommit ||
+		native.SupplyChainAuthority != targetmodel.DaprRuntimeSupplyChainAuthority || native.SupplyChainAdmitted ||
 		native.ReviewedRuntimeVersion != targetmodel.DaprReviewedRuntimeVersion || !native.Assessment.Eligible ||
 		native.Assessment.Mode != "USE_NATIVE" || !native.Assessment.InstallSuppressed || native.RuntimeInstallImplemented ||
 		native.PhysicalCertificationInferred {
