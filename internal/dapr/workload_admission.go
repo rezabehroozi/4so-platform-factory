@@ -314,9 +314,9 @@ func admissionNestedMap(value map[string]any, keys ...string) map[string]any {
 	return current
 }
 
-func admissionBoolField(value map[string]any, key string) bool {
+func admissionBoolField(value map[string]any, key string) (bool, bool) {
 	v, ok := value[key].(bool)
-	return ok && v
+	return v, ok
 }
 
 func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, operationID string, response map[string]any, status int, observedAt time.Time) (WorkloadAdmissionEvidence, error) {
@@ -357,8 +357,20 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_SIDECAR_NOT_INJECTED")
 	}
 	security, _ := sidecar["securityContext"].(map[string]any)
-	capabilities, _ := security["capabilities"].(map[string]any)
-	rawDrops, _ := capabilities["drop"].([]any)
+	runAsNonRoot, runAsNonRootPresent := admissionBoolField(security, "runAsNonRoot")
+	readOnlyRootFilesystem, readOnlyRootFilesystemPresent := admissionBoolField(security, "readOnlyRootFilesystem")
+	allowPrivilegeEscalation, allowPrivilegeEscalationPresent := admissionBoolField(security, "allowPrivilegeEscalation")
+	if !runAsNonRootPresent || !readOnlyRootFilesystemPresent || !allowPrivilegeEscalationPresent {
+		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_SIDECAR_SECURITY_FIELDS_MISSING")
+	}
+	capabilities, capabilitiesPresent := security["capabilities"].(map[string]any)
+	if !capabilitiesPresent {
+		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_SIDECAR_CAPABILITIES_MISSING")
+	}
+	rawDrops, dropsPresent := capabilities["drop"].([]any)
+	if !dropsPresent {
+		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_SIDECAR_CAPABILITY_DROP_MISSING")
+	}
 	drops := make([]string, 0, len(rawDrops))
 	for _, raw := range rawDrops {
 		value := strings.ToUpper(strings.TrimSpace(fmt.Sprint(raw)))
@@ -383,9 +395,9 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 		PlanDigest: request.PlanDigest, Namespace: request.Plan.Namespace, AppID: request.Plan.AppID,
 		DryRunHTTPStatus: status, InjectedSidecarObserved: true, SidecarContainerName: "daprd",
 		SidecarImageReference: sidecarImage, ExpectedSidecarImageMatched: expectedMatched,
-		RunAsNonRoot: admissionBoolField(security, "runAsNonRoot"),
-		ReadOnlyRootFilesystem: admissionBoolField(security, "readOnlyRootFilesystem"),
-		AllowPrivilegeEscalation: admissionBoolField(security, "allowPrivilegeEscalation"),
+		RunAsNonRoot: runAsNonRoot,
+		ReadOnlyRootFilesystem: readOnlyRootFilesystem,
+		AllowPrivilegeEscalation: allowPrivilegeEscalation,
 		DroppedCapabilities: drops, DropAllCapabilities: dropAll,
 		AppContainerPreserved: appPreserved, AnnotationsVerified: annotationsVerified,
 		ServerSideDryRun: true, StrictFieldValidation: true, SidecarPullObserved: false,
