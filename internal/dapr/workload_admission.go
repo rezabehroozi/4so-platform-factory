@@ -355,12 +355,17 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 	}
 	containers, _ := podSpec["containers"].([]any)
 	appPreserved := false
+	appCount := 0
 	var sidecar map[string]any
 	for _, raw := range containers {
 		container, _ := raw.(map[string]any)
 		name := strings.TrimSpace(fmt.Sprint(container["name"]))
 		switch name {
 		case "app":
+			appCount++
+			if appCount > 1 {
+				return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_DUPLICATE_APP_CONTAINER")
+			}
 			appPreserved = strings.TrimSpace(fmt.Sprint(container["image"])) == request.WorkloadImage
 		case "daprd":
 			if sidecar != nil {
@@ -368,6 +373,9 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 			}
 			sidecar = container
 		}
+	}
+	if appCount != 1 || !appPreserved {
+		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_APP_CONTAINER_INVALID")
 	}
 	if sidecar == nil {
 		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_SIDECAR_NOT_INJECTED")
