@@ -30,6 +30,10 @@ func operationStepPayloadDigest(payload []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
+func OperationEvidencePayloadDigest(payload []byte) string {
+	return operationStepPayloadDigest(payload)
+}
+
 func operationStepTraceMapKey(operationID string, phase OperationStepPhase, stepKey string, attempt int, traceKey string) string {
 	return fmt.Sprintf("%s:%s:%s:%d:%s", operationID, phase, stepKey, attempt, traceKey)
 }
