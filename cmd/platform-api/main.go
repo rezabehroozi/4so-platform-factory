@@ -580,7 +580,7 @@ func main() {
 			logger.Error("Dapr runtime supply-chain configuration failed", "error", lockErr)
 			os.Exit(1)
 		}
-		if lockErr = apiServer.ConfigureDaprRuntimeLock(lock); lockErr != nil {
+		if lockErr = apiServer.ConfigureDaprRuntimeLock(lock, os.Getenv("PLATFORM_FACTORY_INTERNAL_REGISTRY_URL")); lockErr != nil {
 			logger.Error("Dapr runtime supply-chain admission failed", "error", lockErr)
 			os.Exit(1)
 		}
