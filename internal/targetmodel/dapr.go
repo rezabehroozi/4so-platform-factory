@@ -522,6 +522,7 @@ type DaprRuntimeSupplyChainLock struct {
 	AcquisitionReceiptDigest string                 `json:"acquisitionReceiptDigest"`
 	MirrorEvidenceDigest     string                 `json:"mirrorEvidenceDigest"`
 	RegistryAuthority         string                 `json:"registryAuthority"`
+	RegistryScheme            string                 `json:"registryScheme"`
 	MirrorRegistry            string                 `json:"mirrorRegistry"`
 	ImageLocks          []DaprRuntimeImageLock `json:"imageLocks"`
 	ZotMirrorVerified   bool                   `json:"zotMirrorVerified"`
@@ -557,7 +558,9 @@ func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []strin
 		issues = append(issues, "dapr-supply-chain-source-digest-invalid")
 	}
 	mirrorRegistry := strings.TrimSpace(lock.MirrorRegistry)
-	if strings.ToLower(strings.TrimSpace(lock.RegistryAuthority)) != "zot" || mirrorRegistry == "" ||
+	registryScheme := strings.ToLower(strings.TrimSpace(lock.RegistryScheme))
+	if strings.ToLower(strings.TrimSpace(lock.RegistryAuthority)) != "zot" ||
+		(registryScheme != "http" && registryScheme != "https") || mirrorRegistry == "" ||
 		strings.Contains(mirrorRegistry, "://") || strings.Contains(mirrorRegistry, "/") || strings.ContainsAny(mirrorRegistry, " \t\r\n") {
 		issues = append(issues, "dapr-supply-chain-registry-authority-invalid")
 	}
