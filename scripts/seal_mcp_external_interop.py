@@ -124,6 +124,29 @@ def interop_binding_digest(campaign_id:str,client:str,challenge_sha256:str)->str
     raw=f"{INTEROP_BINDING_AUTHORITY}\n{campaign_id}\n{client}\n{challenge_sha256}".encode("utf-8")
     return "sha256:"+hashlib.sha256(raw).hexdigest()
 
+def validate_oauth_client_id(value:object,label:str)->str:
+    client_id=str(value or "").strip()
+    if not client_id or len(client_id.encode("utf-8"))>512 or any(ch in client_id for ch in "\r\n\t"):
+        raise RuntimeError(f"{label}_OAUTH_CLIENT_INVALID")
+    return client_id
+
+def validate_oauth_client_bindings(value:object,label:str)->dict[str,str]:
+    if not isinstance(value,dict) or set(value)!=set(CLIENTS):
+        raise RuntimeError(f"{label}_OAUTH_CLIENT_BINDINGS_INVALID")
+    out={client:validate_oauth_client_id(value.get(client),label+"_"+client.upper()) for client in CLIENTS}
+    if len(set(out.values()))!=len(CLIENTS):
+        raise RuntimeError(f"{label}_OAUTH_CLIENT_REUSE")
+    return out
+
+def campaign_oauth_client_bindings(campaign:dict)->dict[str,str]:
+    rows=campaign.get("clients") if isinstance(campaign,dict) else None
+    if not isinstance(rows,list):
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_OAUTH_CLIENT_BINDINGS_INVALID")
+    return validate_oauth_client_bindings(
+        {str(row.get("clientId") or ""):row.get("oauthClientId") for row in rows if isinstance(row,dict)},
+        "MCP_EXTERNAL_CAMPAIGN",
+    )
+
 def validate_interop_binding(row:dict,campaign_id:str,client:str,label:str)->str:
     if not isinstance(row,dict) or row.get("campaignId")!=campaign_id or row.get("clientId")!=client:
         raise RuntimeError(f"{label}_INTEROP_BINDING_INVALID {client}")
@@ -136,13 +159,13 @@ def validate_witness_interop_binding(witness:dict,binding:str,client:str,label:s
     if not isinstance(witness,dict) or witness.get("clientId")!=client or witness.get("interopBindingAuthority")!=INTEROP_BINDING_AUTHORITY or witness.get("interopBindingDigest")!=binding:
         raise RuntimeError(f"{label}_INTEROP_BINDING_INVALID {client}")
 
-def validate_server_audit_witness(witness:dict,binding:str,client:str,label:str)->dict:
+def validate_server_audit_witness(witness:dict,binding:str,client:str,label:str,oauth_client_id:str|None=None)->dict:
     validate_witness_interop_binding(witness,binding,client,label)
     start_seq=witness.get("auditWindowStartSequence"); start_prev=str(witness.get("auditWindowPreviousDigest") or ""); head_seq=witness.get("auditHeadSequence")
     start_valid=type(start_seq) is int and start_seq>0 and type(head_seq) is int and head_seq>=start_seq and ((start_seq==1 and start_prev=="") or (start_seq>1 and SHA.fullmatch(start_prev)))
-    oauth_client_id=str(witness.get("oauthClientId") or "").strip()
-    if not oauth_client_id or len(oauth_client_id.encode("utf-8"))>512 or any(ch in oauth_client_id for ch in "\r\n\t"):
-        raise RuntimeError(f"{label}_OAUTH_CLIENT_INVALID")
+    observed_oauth_client_id=validate_oauth_client_id(witness.get("oauthClientId"),label)
+    if oauth_client_id is not None and observed_oauth_client_id!=validate_oauth_client_id(oauth_client_id,label):
+        raise RuntimeError(f"{label}_OAUTH_CLIENT_MISMATCH")
     if witness.get("authority")!=AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=len(AUDITED_CHECKS) or witness.get("oauthClientWitnessPass") is not True or witness.get("oauthClientWitnessedCheckCount")!=len(OAUTH_CLIENT_AUDITED_CHECKS) or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
         raise RuntimeError(f"{label}_INVALID")
     return witness
@@ -193,8 +216,8 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
         raise RuntimeError(f"MCP_EXTERNAL_CAMPAIGN_CLIENT_MISSING {client}")
     if row.get("campaignId")!=campaign.get("campaignId") or row.get("challengeSha256")!=challenge.get("challengeSha256"):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_CAMPAIGN_BINDING_INVALID {client}")
-    oauth_client_id=str(row.get("oauthClientId") or "").strip()
-    if oauth_client_id!=str(challenge.get("oauthClientId") or "").strip():
+    oauth_client_id=validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_RECEIPT")
+    if oauth_client_id!=validate_oauth_client_id(challenge.get("oauthClientId"),"MCP_EXTERNAL_CAMPAIGN"):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_OAUTH_CLIENT_INVALID {client}")
     binding=validate_interop_binding(row,campaign["campaignId"],client,"MCP_EXTERNAL_RECEIPT_SERVER")
     ep=endpoint(row.get("endpoint",""))
@@ -310,11 +333,9 @@ def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
     for row in rows:
         challenge=str(row.get("challenge") or "")
         expected="sha256:"+hashlib.sha256(challenge.encode()).hexdigest()
-        oauth_client_id=str(row.get("oauthClientId") or "").strip()
+        oauth_client_id=validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_CAMPAIGN")
         if len(challenge)<32 or row.get("challengeSha256")!=expected:
             raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_CHALLENGE_INVALID")
-        if not oauth_client_id or len(oauth_client_id.encode("utf-8"))>512 or any(ch in oauth_client_id for ch in "\r\n\t"):
-            raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_OAUTH_CLIENT_INVALID")
         if row.get("trustedClientProvider")!=row.get("clientId") or not str(row.get("trustedClientId") or "").strip() or type(row.get("trustedClientRevision")) is not int or row["trustedClientRevision"]<=0:
             raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_READBACK_INVALID")
         if challenge in challenge_values or expected in challenge_digests:
@@ -337,6 +358,7 @@ def build_interop_evidence(matrix_sha256:str,campaign_id:str,campaign_sha256:str
       "authority":AUTHORITY,"matrixAuthority":MATRIX_AUTHORITY,"matrixSha256":matrix_sha256,
       "campaignAuthority":CAMPAIGN_AUTHORITY,"campaignId":campaign_id,"campaignSha256":campaign_sha256,
       "oauthClientBindingAuthority":OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":oauth_binding_sha256,
+      "oauthClientBindings":validate_oauth_client_bindings({row["clientId"]:row.get("oauthClientId") for row in rows},"MCP_EXTERNAL_EVIDENCE"),
       "protocol":protocol,"transport":transport,"endpoint":ep,
       "clients":rows,"certifiedClientCount":len(CLIENTS),"allRequiredChecksPass":True,
       "serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":len(AUDITED_CHECKS)*len(CLIENTS),
