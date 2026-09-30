@@ -36,8 +36,18 @@ func TestExecutorAuthorityAcceptsStandaloneEvidenceAndMatchesRuntimeLock(t *test
 	lock := daprLifecycleTestLock(t)
 	fromLock, err := ExecutorAuthorityFromRuntimeLock(lock)
 	if err != nil { t.Fatal(err) }
-	if fromLock.ImageReference != lock.ExecutorImageReference || fromLock.EvidenceDigest != lock.ExecutorEvidenceDigest {
+	if fromLock.ImageReference != lock.ExecutorImageReference || fromLock.EvidenceDigest != lock.ExecutorEvidenceDigest ||
+		fromLock.SourceReleaseDigest != lock.ExecutorSourceReleaseDigest {
 		t.Fatalf("runtime lock executor authority drift: %#v", fromLock)
+	}
+	authority, err := ExecutorAuthorityFromEvidence(evidence, lifecycleTestDigest("9"))
+	if err != nil { t.Fatal(err) }
+	if err = ValidateExecutorAuthorityForRelease(authority, evidence.SourceReleaseDigest); err != nil {
+		t.Fatalf("matching exact release rejected: %v", err)
+	}
+	if err = ValidateExecutorAuthorityForRelease(authority, lifecycleTestDigest("8")); err == nil ||
+		!strings.Contains(err.Error(), "SOURCE_RELEASE_MISMATCH") {
+		t.Fatalf("foreign exact release accepted for Dapr executor: %v", err)
 	}
 }
 
