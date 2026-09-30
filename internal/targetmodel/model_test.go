@@ -579,11 +579,11 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 	}
 
 	j8 := byID["J8-application-platform-abstraction-composition"]
-	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusImplemented || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) {
+	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusImplemented || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) || !containsString(j8.Evidence, DaprApplicationRuntimeAuthority) || !containsString(j8.Evidence, "application-runtime.dapr") || !containsString(j8.Evidence, "internal/targetmodel/dapr.go") {
 		t.Fatalf("application-platform composition phase drift: %+v", j8)
 	}
-	if len(j8.Blockers) != 1 || !containsString(j8.Blockers, "OPENCHOREO_PRODUCTION_ZOT_SEAL_PENDING") {
-		t.Fatalf("J8 must retain only the OpenChoreo production zot seal blocker: %+v", j8)
+	if len(j8.Blockers) != 1 || !containsString(j8.Blockers, "OPENCHOREO_PRODUCTION_ZOT_SEAL_PENDING") || containsString(j8.Blockers, "DAPR_RUNTIME_PENDING") {
+		t.Fatalf("J8 must retain only the OpenChoreo production zot seal blocker; optional Dapr may not become a release blocker: %+v", j8)
 	}
 	if containsString(j8.Blockers, "FLEET_GATEWAY_RUNTIME_TRANSPORT_PENDING") {
 		t.Fatalf("Fleet gateway source blocker remained after reconnect/runtime closure: %+v", j8)
