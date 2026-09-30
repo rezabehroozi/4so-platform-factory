@@ -91,8 +91,8 @@ func TestFleetAgentEnrollmentPrincipalIsImportScoped(t *testing.T) {
 
 func TestClusterRevocationRBACManifestNeutersEveryAgentBinding(t *testing.T) {
 	manifest := renderClusterRevocationRBACManifest("clu_revoked", "uid-revoked", "sha256:"+strings.Repeat("d", 64), true)
-	if got := strings.Count(manifest, "subjects: []"); got != 10 {
-		t.Fatalf("revocation fence neutralized %d bindings, want 10\n%s", got, manifest)
+	if got := strings.Count(manifest, "subjects: []"); got != 11 {
+		t.Fatalf("revocation fence neutralized %d bindings, want 11\n%s", got, manifest)
 	}
 	for _, want := range []string{
 		"name: 4so-platform-agent-credential",
@@ -105,6 +105,7 @@ func TestClusterRevocationRBACManifestNeutersEveryAgentBinding(t *testing.T) {
 		"name: 4so-platform-runtime-job-launcher",
 		"name: 4so-platform-runtime-rbac-observer",
 		"name: 4so-openchoreo-runtime-manager",
+		"name: 4so-dapr-runtime-manager",
 		`clusterId: "clu_revoked"`,
 		`externalUid: "uid-revoked"`,
 		`revoked: "true"`,
@@ -130,6 +131,24 @@ func TestClusterRevocationRBACManifestForReadOnlyTargetOmitsMutationNamespaces(t
 	}
 	if !strings.Contains(manifest, `issuedFromInventoryDigest: "sha256:`+strings.Repeat("0", 64)+`"`) {
 		t.Fatalf("read-only revocation fence did not normalize missing inventory digest\n%s", manifest)
+	}
+}
+
+func TestMutationActivationIncludesBoundedDaprExecutorAuthority(t *testing.T) {
+	manifest := renderClusterMutationActivationManifest("clu_dapr", "4so-platform-agent-test", "uid-dapr", "sha256:"+strings.Repeat("b", 64))
+	for _, want := range []string{
+		"4so-dapr-executor",
+		"4so-dapr-runtime-manager",
+		`resourceNames: ["4so-openchoreo-runtime", "4so-openchoreo-runtime-ownership", "4so-dapr-runtime-owner", "4so-dapr-runtime-observed"]`,
+		`resourceNames: ["4so-openchoreo-executor", "4so-dapr-executor"]`,
+		`resources: ["customresourcedefinitions"]`,
+		`resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]`,
+		`resources: ["deployments", "replicasets"]`,
+	} {
+		if !strings.Contains(manifest, want) { t.Fatalf("Dapr executor RBAC missing %q", want) }
+	}
+	if strings.Contains(manifest, "cluster-admin") || strings.Contains(manifest, `resources: ["*"]`) {
+		t.Fatalf("Dapr executor RBAC became wildcard/cluster-admin:\n%s", manifest)
 	}
 }
 
