@@ -44,6 +44,8 @@ def base_progress(matrix_path:Path,campaign_path:Path,campaign:dict,spec:dict)->
       "externalCertificationPass":False,"runtimeCertified":False,"physicalCertified":False}
 
 def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
+    if set(existing)!=set(core.PROGRESS_EVIDENCE_KEYS):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_FIELDS_INVALID")
     if existing.get("authority")!=AUTHORITY or existing.get("kind")!="MCPExternalClientInteropProgress":
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_AUTHORITY_INVALID")
     for key in ("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","trustedClientBindings","protocol","transport","endpoint"):
