@@ -39,6 +39,13 @@ class C7WAuditFetchEvidenceTests(unittest.TestCase):
     def raw(self,rows):
         return (json.dumps(rows,indent=2,sort_keys=True)+"\n").encode()
 
+    def test_admin_audit_fetch_opener_refuses_redirects(self):
+        opener=fetcher.exact_https_opener(fetcher.ssl.create_default_context())
+        self.assertTrue(any(isinstance(handler,fetcher.RejectRedirects) for handler in opener.handlers))
+        req=fetcher.Request("https://mcp.example.test/api/v1/security-audit-events")
+        handler=fetcher.RejectRedirects()
+        self.assertIsNone(handler.redirect_request(req,None,307,"Temporary Redirect",{},"https://other.example.test/audit"))
+
     def test_atomic_audit_write_is_idempotent_but_not_replaceable(self):
         receipt=self.receipt(); raw=self.raw(self.audit(receipt))
         with tempfile.TemporaryDirectory() as td:
