@@ -43,7 +43,7 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 		// Exact source/mirror readiness remains external evidence, while the
 		// product-owned durable lifecycle path is now source-implemented.
 		ExactSourceAdmitted:        s.daprRuntimeReady,
-		DisconnectedMirrorAdmitted: s.daprRuntimeReady,
+		DisconnectedProductMirrorAdmitted: s.daprRuntimeReady,
 		DurableLifecycleReady:      true,
 	}
 	inventory, invErr := s.store.GetLatestClusterInventory(r.Context(), cluster.ID)
