@@ -164,6 +164,14 @@ func TestDaprWorkloadPlanRejectsUnsizedDuplicateOrOverlongIdentity(t *testing.T)
 	if _, err := ResolveDaprWorkloadRuntimePlan(long); err == nil || err.Error() != "DAPR_WORKLOAD_IDENTITY_INVALID" {
 		t.Fatalf("overlong Dapr derived configuration identity accepted: %v", err)
 	}
+	unused := base; unused.ComponentNames = []string{"orders-broker"}
+	if _, err := ResolveDaprWorkloadRuntimePlan(unused); err == nil || err.Error() != "DAPR_COMPONENT_PROFILE_UNUSED" {
+		t.Fatalf("Dapr Component without pubsub/bindings API profile accepted: %v", err)
+	}
+	missing := base; missing.EnablePubSub = true
+	if _, err := ResolveDaprWorkloadRuntimePlan(missing); err == nil || err.Error() != "DAPR_COMPONENT_SCOPE_REQUIRED" {
+		t.Fatalf("Dapr pubsub profile without scoped Component accepted: %v", err)
+	}
 }
 
 func validDaprSupplyChainLock() DaprRuntimeSupplyChainLock {
