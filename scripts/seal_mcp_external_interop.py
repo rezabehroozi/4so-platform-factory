@@ -143,7 +143,7 @@ def validate_server_audit_witness(witness:dict,binding:str,client:str,label:str)
     return witness
 
 _AUDIT_REQUIRED=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
-_AUDIT_OPTIONAL=("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","mcpInteropBindingDigest","previousDigest")
+_AUDIT_OPTIONAL=("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","oauthClientId","mcpInteropBindingDigest","previousDigest")
 _AUDIT_ALLOWED=set(_AUDIT_REQUIRED+_AUDIT_OPTIONAL+("digest",))
 
 def _go_json_bytes(value:dict)->bytes:
