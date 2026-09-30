@@ -301,6 +301,24 @@ def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
         challenge_values.add(challenge); challenge_digests.add(expected)
     return campaign
 
+def build_interop_evidence(matrix_sha256:str,campaign_id:str,campaign_sha256:str,protocol:str,transport:str,endpoint_value:str,rows:list[dict])->dict:
+    if not SHA.fullmatch(str(matrix_sha256 or "")) or not SHA.fullmatch(str(campaign_sha256 or "")):
+        raise RuntimeError("MCP_EXTERNAL_EVIDENCE_BINDING_INVALID")
+    if not str(campaign_id or "").startswith("mcp-interop-") or protocol!="2026-07-28" or transport!="streamable-http":
+        raise RuntimeError("MCP_EXTERNAL_EVIDENCE_BINDING_INVALID")
+    if not isinstance(rows,list) or [row.get("clientId") for row in rows if isinstance(row,dict)]!=list(CLIENTS):
+        raise RuntimeError("MCP_EXTERNAL_EVIDENCE_CLIENT_SET_INVALID")
+    ep=endpoint(endpoint_value)
+    return {
+      "apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteroperabilityEvidence",
+      "authority":AUTHORITY,"matrixAuthority":MATRIX_AUTHORITY,"matrixSha256":matrix_sha256,
+      "campaignAuthority":CAMPAIGN_AUTHORITY,"campaignId":campaign_id,"campaignSha256":campaign_sha256,
+      "protocol":protocol,"transport":transport,"endpoint":ep,
+      "clients":rows,"certifiedClientCount":len(CLIENTS),"allRequiredChecksPass":True,
+      "serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":len(AUDITED_CHECKS)*len(CLIENTS),
+      "externalCertificationPass":True,"runtimeCertified":False,"physicalCertified":False
+    }
+
 def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->dict:
     matrix=load(matrix_path,"MATRIX")
     spec=matrix.get("spec") or {}
@@ -336,15 +354,10 @@ def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->d
     endpoints={r["endpoint"] for r in rows}
     if len(endpoints)!=1:
         raise RuntimeError("MCP_EXTERNAL_RECEIPT_ENDPOINT_DRIFT")
-    return {
-      "apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteroperabilityEvidence",
-      "authority":AUTHORITY,"matrixAuthority":MATRIX_AUTHORITY,"matrixSha256":sha256(matrix_path),
-      "campaignAuthority":CAMPAIGN_AUTHORITY,"campaignId":campaign["campaignId"],"campaignSha256":sha256(campaign_path),
-      "protocol":protocol,"transport":"streamable-http","endpoint":next(iter(endpoints)),
-      "clients":rows,"certifiedClientCount":4,"allRequiredChecksPass":True,
-      "serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":len(AUDITED_CHECKS)*len(CLIENTS),
-      "externalCertificationPass":True,"runtimeCertified":False,"physicalCertified":False
-    }
+    return build_interop_evidence(
+        sha256(matrix_path),campaign["campaignId"],sha256(campaign_path),
+        protocol,"streamable-http",next(iter(endpoints)),rows,
+    )
 
 def main()->int:
     p=argparse.ArgumentParser()
