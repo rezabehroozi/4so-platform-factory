@@ -1644,6 +1644,7 @@ func (a *agent) daprExecutorRBACActive(ctx context.Context) bool {
 		{executorUser, "dapr-system", "create", "", "v1", "serviceaccounts"},
 		{executorUser, "dapr-system", "create", "", "v1", "services"},
 		{executorUser, "dapr-system", "create", "apps", "v1", "deployments"},
+		{executorUser, "dapr-system", "get", "apps", "v1", "statefulsets"},
 	}
 	for _, check := range checks {
 		if !a.subjectAccessAllowed(ctx, check.user, check.namespace, check.verb, check.group, check.version, check.resource) {
