@@ -8,7 +8,7 @@ OAuth protected-resource discovery remains a public metadata check and is not
 expected to create an authenticated audit event.
 """
 from __future__ import annotations
-import argparse, hashlib, json, re
+import argparse, hashlib, json, os, re, tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -53,6 +53,61 @@ def sha256(path:Path)->str:
     with path.open("rb") as f:
         for b in iter(lambda:f.read(1024*1024),b""): h.update(b)
     return "sha256:"+h.hexdigest()
+
+def canonical_json_bytes(value:object)->bytes:
+    return (json.dumps(value,indent=2,sort_keys=True)+"\n").encode("utf-8")
+
+def _prepare_output_parent(path:Path,label:str)->Path:
+    absolute=Path(os.path.abspath(path))
+    for parent in reversed(absolute.parents):
+        if parent.exists() and (parent.is_symlink() or not parent.is_dir()):
+            raise RuntimeError(f"{label}_OUTPUT_PARENT_INVALID")
+    absolute.parent.mkdir(parents=True,exist_ok=True)
+    if absolute.parent.is_symlink() or not absolute.parent.is_dir():
+        raise RuntimeError(f"{label}_OUTPUT_PARENT_INVALID")
+    return absolute
+
+def _existing_output_matches(path:Path,raw:bytes,label:str)->None:
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID")
+    if path.read_bytes()!=raw:
+        raise RuntimeError(f"{label}_OUTPUT_REPLACEMENT_FORBIDDEN")
+
+def write_json_once_or_identical(path:Path,value:object,label:str)->None:
+    path=_prepare_output_parent(path,label); raw=canonical_json_bytes(value)
+    if path.exists() or path.is_symlink():
+        _existing_output_matches(path,raw,label); return
+    fd,temp_name=tempfile.mkstemp(prefix="."+path.name+".tmp.",dir=path.parent)
+    temp=Path(temp_name)
+    try:
+        with os.fdopen(fd,"wb") as fh:
+            fh.write(raw); fh.flush(); os.fsync(fh.fileno())
+        try:
+            os.link(temp,path,follow_symlinks=False)
+        except FileExistsError:
+            _existing_output_matches(path,raw,label); return
+        directory_fd=os.open(path.parent,os.O_RDONLY)
+        try: os.fsync(directory_fd)
+        finally: os.close(directory_fd)
+    finally:
+        if temp.exists(): temp.unlink()
+
+def write_json_atomic_replace(path:Path,value:object,label:str)->None:
+    path=_prepare_output_parent(path,label); raw=canonical_json_bytes(value)
+    if path.exists() or path.is_symlink():
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID")
+    fd,temp_name=tempfile.mkstemp(prefix="."+path.name+".tmp.",dir=path.parent)
+    temp=Path(temp_name)
+    try:
+        with os.fdopen(fd,"wb") as fh:
+            fh.write(raw); fh.flush(); os.fsync(fh.fileno())
+        os.replace(temp,path)
+        directory_fd=os.open(path.parent,os.O_RDONLY)
+        try: os.fsync(directory_fd)
+        finally: os.close(directory_fd)
+    finally:
+        if temp.exists(): temp.unlink()
 
 def endpoint(value:str)->str:
     p=urlsplit(str(value or "").strip())
@@ -300,6 +355,6 @@ def main()->int:
     p.add_argument("--out",type=Path)
     a=p.parse_args(); out=seal(a.matrix,a.campaign,a.receipts,a.audits)
     if a.out:
-        a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+        write_json_once_or_identical(a.out,out,"MCP_EXTERNAL_INTEROP_EVIDENCE")
     print(json.dumps(out,sort_keys=True)); return 0
 if __name__=="__main__": raise SystemExit(main())
