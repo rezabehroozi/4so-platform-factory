@@ -119,7 +119,8 @@ func TestDaprWorkloadPlanIsScopedSizedAndAPIAllowListed(t *testing.T) {
 	}
 	if plan.Authority != DaprWorkloadRuntimePlanAuthority || plan.ConfigurationName != "4so-dapr-payments-api" ||
 		!plan.ConfigurationDerived || plan.ConfigurationBecomesSoT || plan.ServiceInvocationDefault != "DENY" ||
-		plan.CrossNamespaceInvocation || plan.SecretMaterialEmbedded || plan.PhysicalCertificationInferred {
+		plan.CrossNamespaceInvocation || plan.SecretMaterialEmbedded || !plan.DeploymentDryRunRequired ||
+		plan.SidecarSecurityCompatibilityInferred || plan.PhysicalCertificationInferred {
 		t.Fatalf("Dapr workload authority drift: %#v", plan)
 	}
 	annotations := map[string]string{}
@@ -257,7 +258,6 @@ func TestDaprTargetAdmissionSuppressesDuplicateNativeRuntime(t *testing.T) {
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true,
 		ObservedCapabilities: []string{
 			DaprApplicationRuntimeCapability,
-			DaprSidecarSecurityCapability,
 		},
 	})
 	if !out.Eligible || out.Mode != "USE_NATIVE" || !out.InstallSuppressed || len(out.Blockers) != 0 {
@@ -278,7 +278,6 @@ func TestDaprTargetAdmissionFailsClosedUntilInstallProfileIsActuallyReady(t *tes
 	}
 	want := map[string]bool{
 		"DAPR_EXACT_SOURCE_AUTHORITY_PENDING": true,
-		"DAPR_SIDECAR_SECURITY_COMPATIBILITY_PENDING": true,
 	}
 	for _, blocker := range out.Blockers {
 		delete(want, blocker)
@@ -292,9 +291,7 @@ func TestDaprDisconnectedInstallRequiresMirrorButNativeRuntimeDoesNot(t *testing
 	base := DaprTargetAdmissionInput{
 		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true, ExecutorRBACReady: true,
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true, Disconnected: true,
-		ObservedCapabilities: []string{
-			DaprSidecarSecurityCapability,
-		},
+		ObservedCapabilities: nil,
 		ExactSourceAdmitted: true,
 	}
 	blocked := EvaluateDaprTargetAdmission(base)
