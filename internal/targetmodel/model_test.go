@@ -579,7 +579,7 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 	}
 
 	j8 := byID["J8-application-platform-abstraction-composition"]
-	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusImplemented || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) || !containsString(j8.Evidence, DaprApplicationRuntimeAuthority) || !containsString(j8.Evidence, "application-runtime.dapr") || !containsString(j8.Evidence, "internal/targetmodel/dapr.go") {
+	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusImplemented || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) || !containsString(j8.Evidence, DaprApplicationRuntimeAuthority) || !containsString(j8.Evidence, DaprRuntimeSourcePlanAuthority) || !containsString(j8.Evidence, DaprRuntimeSupplyChainAuthority) || !containsString(j8.Evidence, DaprTargetAdmissionAuthority) || !containsString(j8.Evidence, "application-runtime.dapr") || !containsString(j8.Evidence, "internal/targetmodel/dapr.go") || !containsString(j8.Evidence, "POST /api/v1/application-platform/dapr/assessment") {
 		t.Fatalf("application-platform composition phase drift: %+v", j8)
 	}
 	if len(j8.Blockers) != 1 || !containsString(j8.Blockers, "OPENCHOREO_PRODUCTION_ZOT_SEAL_PENDING") || containsString(j8.Blockers, "DAPR_RUNTIME_PENDING") {
