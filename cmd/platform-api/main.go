@@ -32,6 +32,7 @@ import (
 	"platform.4so.io/factory/internal/auth"
 	"platform.4so.io/factory/internal/bootmedia"
 	"platform.4so.io/factory/internal/controlplane"
+	daprruntime "platform.4so.io/factory/internal/dapr"
 	"platform.4so.io/factory/internal/identityadmin"
 	"platform.4so.io/factory/internal/integrations"
 	"platform.4so.io/factory/internal/managedinstall"
@@ -572,6 +573,18 @@ func main() {
 			os.Exit(1)
 		}
 		logger.Info("virtual cluster runtime source configured", "authority", virtualcluster.RuntimeSourceAuthority, "digest", sourceDigest, "engine", source.Engine, "version", source.Version)
+	}
+	if lockFile := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_DAPR_RUNTIME_SUPPLY_CHAIN_FILE")); lockFile != "" {
+		lock, lockDigest, lockErr := daprruntime.LoadRuntimeLock(lockFile)
+		if lockErr != nil {
+			logger.Error("Dapr runtime supply-chain configuration failed", "error", lockErr)
+			os.Exit(1)
+		}
+		if lockErr = apiServer.ConfigureDaprRuntimeLock(lock); lockErr != nil {
+			logger.Error("Dapr runtime supply-chain admission failed", "error", lockErr)
+			os.Exit(1)
+		}
+		logger.Info("Dapr runtime supply-chain lock configured", "authority", daprruntime.RuntimeLockAuthority, "digest", lockDigest, "version", lock.Version, "upstreamCommit", lock.UpstreamCommit)
 	}
 	if sourceFile := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_OPENCHOREO_RUNTIME_SOURCE_FILE")); sourceFile != "" {
 		source, sourceDigest, sourceErr := openchoreo.LoadRuntimeExecutionSource(sourceFile)
