@@ -322,6 +322,94 @@ func ValidateDaprRuntimeSourcePlan(plan DaprRuntimeSourcePlan) []string {
 	return issues
 }
 
+const DaprRuntimeSupplyChainAuthority = "DAPR_RUNTIME_SUPPLY_CHAIN_LOCK_V1"
+
+type DaprRuntimeImageLock struct {
+	Role             string `json:"role"`
+	SourceRepository string `json:"sourceRepository"`
+	SourceDigest     string `json:"sourceDigest"`
+	MirrorReference  string `json:"mirrorReference"`
+	MirrorDigest     string `json:"mirrorDigest"`
+}
+
+type DaprRuntimeSupplyChainLock struct {
+	Authority           string                 `json:"authority"`
+	SourcePlanAuthority string                 `json:"sourcePlanAuthority"`
+	Version             string                 `json:"version"`
+	UpstreamRepository  string                 `json:"upstreamRepository"`
+	UpstreamRef         string                 `json:"upstreamRef"`
+	UpstreamCommit      string                 `json:"upstreamCommit"`
+	SourceArchiveDigest string                 `json:"sourceArchiveDigest"`
+	HelmChartDigest     string                 `json:"helmChartDigest"`
+	ImageLocks          []DaprRuntimeImageLock `json:"imageLocks"`
+	ZotMirrorVerified   bool                   `json:"zotMirrorVerified"`
+	OfflineReplayReady  bool                   `json:"offlineReplayReady"`
+	Admitted            bool                   `json:"admitted"`
+}
+
+func daprSHA256Digest(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) != 71 || !strings.HasPrefix(value, "sha256:") {
+		return false
+	}
+	for _, ch := range value[len("sha256:"):] {
+		if !strings.ContainsRune("0123456789abcdef", ch) {
+			return false
+		}
+	}
+	return true
+}
+
+func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []string {
+	issues := []string{}
+	plan := DaprRuntimeSourcePlanModel()
+	if lock.Authority != DaprRuntimeSupplyChainAuthority || lock.SourcePlanAuthority != plan.Authority ||
+		lock.Version != plan.Version || lock.UpstreamRepository != plan.UpstreamRepository ||
+		lock.UpstreamRef != plan.UpstreamRef || lock.UpstreamCommit != plan.UpstreamCommit {
+		issues = append(issues, "dapr-supply-chain-source-identity-invalid")
+	}
+	if !daprSHA256Digest(lock.SourceArchiveDigest) || !daprSHA256Digest(lock.HelmChartDigest) {
+		issues = append(issues, "dapr-supply-chain-source-digest-invalid")
+	}
+	expected := map[string]string{}
+	for _, image := range plan.RequiredImages {
+		expected[image.Role] = image.Repository
+	}
+	seenRoles := map[string]bool{}
+	seenSources := map[string]bool{}
+	for _, image := range lock.ImageLocks {
+		role := strings.TrimSpace(image.Role)
+		repository := strings.TrimSpace(image.SourceRepository)
+		if expected[role] == "" || expected[role] != repository || seenRoles[role] || seenSources[repository] {
+			issues = append(issues, "dapr-supply-chain-image-identity-invalid")
+			continue
+		}
+		if !daprSHA256Digest(image.SourceDigest) || !daprSHA256Digest(image.MirrorDigest) || image.SourceDigest != image.MirrorDigest {
+			issues = append(issues, "dapr-supply-chain-image-digest-invalid")
+		}
+		mirror := strings.TrimSpace(image.MirrorReference)
+		if mirror == "" || !strings.Contains(mirror, "@"+image.MirrorDigest) || !strings.Contains(mirror, "/dapr/") {
+			issues = append(issues, "dapr-supply-chain-mirror-reference-invalid")
+		}
+		seenRoles[role], seenSources[repository] = true, true
+	}
+	if len(seenRoles) != len(expected) {
+		issues = append(issues, "dapr-supply-chain-image-set-incomplete")
+	}
+	if !lock.ZotMirrorVerified || !lock.OfflineReplayReady {
+		issues = append(issues, "dapr-supply-chain-mirror-evidence-incomplete")
+	}
+	expectedAdmitted := len(issues) == 0
+	if lock.Admitted != expectedAdmitted {
+		issues = append(issues, "dapr-supply-chain-admission-claim-invalid")
+	}
+	return issues
+}
+
+func DaprRuntimeSupplyChainAdmitted(lock DaprRuntimeSupplyChainLock) bool {
+	return len(ValidateDaprRuntimeSupplyChainLock(lock)) == 0 && lock.Admitted
+}
+
 const (
 	DaprTargetAdmissionAuthority       = "DAPR_TARGET_ADMISSION_V1"
 	DaprSidecarSecurityCapability      = "application-runtime.dapr-sidecar-security-compatible"
