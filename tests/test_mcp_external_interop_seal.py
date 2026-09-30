@@ -9,20 +9,24 @@ class MCPExternalSealTests(unittest.TestCase):
         rows=[]
         for c in mod.CLIENTS:
             challenge=("challenge-"+c+"-")*4
-            rows.append({"clientId":c,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest()})
+            rows.append({"clientId":c,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest(),
+                         "oauthClientId":c+"-oauth-client","trustedClientId":"mcpcli-"+c,
+                         "trustedClientRevision":1,"trustedClientProvider":c})
         metadata=endpoint.rsplit("/mcp",1)[0]+"/.well-known/oauth-protected-resource"
         preflight={"authority":mod.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":endpoint,"protectedResourceMetadata":metadata,"resource":endpoint,"authorizationServers":["https://identity.example.test/realms/4so"],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":f'Bearer resource_metadata="{metadata}"',"protocol":"2026-07-28"}
-        return {"authority":mod.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","matrixAuthority":mod.MATRIX_AUTHORITY,"matrixSha256":mod.sha256(matrix_path),"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
+        return {"authority":mod.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","matrixAuthority":mod.MATRIX_AUTHORITY,"matrixSha256":mod.sha256(matrix_path),
+                "oauthClientBindingAuthority":mod.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"seal-oauth-bindings").hexdigest(),
+                "protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
     def request_ids(self,client):
         return {name:f"{client}-{idx:02d}-request" for idx,name in enumerate(mod.AUDITED_CHECKS,1)}
     def receipt(self,client,checks,campaign,endpoint="https://mcp.example.test/mcp"):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
         binding=mod.interop_binding_digest(campaign["campaignId"],client,challenge["challengeSha256"])
-        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"interopBindingAuthority":mod.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"oauthClientId":challenge["oauthClientId"],"interopBindingAuthority":mod.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
     def audit_digest(self,row):
         canonical={}
         required=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
-        ordered=required+("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","mcpInteropBindingDigest","previousDigest")
+        ordered=required+("authentication","method","path","statusCode","reasonCode","requestId","scopeType","scopeId","effectiveRole","mappingDigest","oauthClientId","mcpInteropBindingDigest","previousDigest")
         for key in ordered:
             value=row.get(key)
             if key in required or value not in ("",0,None):
@@ -35,6 +39,8 @@ class MCPExternalSealTests(unittest.TestCase):
         for check in mod.AUDITED_CHECKS:
             category,decision,reason=mod.AUDIT_REQUIREMENTS[check]
             row={"id":f"sau-{seq}","sequence":seq,"occurredAt":"2026-09-28T00:00:00Z","methodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","category":category,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":receipt["requestIds"][check],"mcpInteropBindingDigest":receipt["interopBindingDigest"],"previousDigest":prev}
+            if check in mod.OAUTH_CLIENT_AUDITED_CHECKS:
+                row["oauthClientId"]=receipt["oauthClientId"]
             row["digest"]=self.audit_digest(row)
             rows.append(row); prev=row["digest"]; seq+=1
         return rows
