@@ -631,6 +631,7 @@ type DaprTargetAdmissionInput struct {
 	DistributionIdentity        string   `json:"distributionIdentity"`
 	TargetAdmitted              bool     `json:"targetAdmitted"`
 	TargetMutationReady         bool     `json:"targetMutationReady"`
+	ExecutorRBACReady           bool     `json:"executorRbacReady"`
 	CapabilityDiscoveryComplete bool     `json:"capabilityDiscoveryComplete"`
 	ObservedCapabilities        []string `json:"observedCapabilities,omitempty"`
 	ExactSourceAdmitted         bool     `json:"exactSourceAdmitted"`
@@ -666,6 +667,9 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 	}
 	if !in.TargetMutationReady {
 		out.Blockers = append(out.Blockers, "TARGET_MUTATION_RBAC_NOT_READY")
+	}
+	if !in.ExecutorRBACReady {
+		out.Blockers = append(out.Blockers, "DAPR_EXECUTOR_RBAC_PENDING")
 	}
 	if !in.CapabilityDiscoveryComplete {
 		out.Blockers = append(out.Blockers, "CAPABILITY_DISCOVERY_INCOMPLETE")
