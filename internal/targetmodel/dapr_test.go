@@ -68,6 +68,7 @@ func TestDaprRuntimeSourcePlanPinsMinimalUpstreamProfile(t *testing.T) {
 		"global.mtls.enabled": "true",
 		"global.prometheus.enabled": "true",
 		"dapr_config.dapr_config_chart_included": "false",
+		"dapr_rbac.secretReader.enabled": "false",
 		"dapr_sidecar_injector.sidecarDropALLCapabilities": "true",
 	} {
 		if overrides[path] != want {
@@ -125,7 +126,8 @@ func TestDaprWorkloadPlanIsScopedSizedAndAPIAllowListed(t *testing.T) {
 	for _, item := range plan.Annotations { annotations[item.Key] = item.Value }
 	for key, want := range map[string]string{
 		"dapr.io/enabled": "true", "dapr.io/app-id": "payments-api", "dapr.io/config": "4so-dapr-payments-api",
-		"dapr.io/app-port": "8080", "dapr.io/sidecar-cpu-request": "100m", "dapr.io/sidecar-cpu-limit": "500m",
+		"dapr.io/app-port": "8080", "dapr.io/disable-builtin-k8s-secret-store": "true",
+		"dapr.io/sidecar-cpu-request": "100m", "dapr.io/sidecar-cpu-limit": "500m",
 		"dapr.io/sidecar-memory-request": "128Mi", "dapr.io/sidecar-memory-limit": "256Mi",
 	} {
 		if annotations[key] != want { t.Fatalf("Dapr annotation %s=%q want %q", key, annotations[key], want) }
