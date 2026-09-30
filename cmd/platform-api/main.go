@@ -574,6 +574,22 @@ func main() {
 		}
 		logger.Info("virtual cluster runtime source configured", "authority", virtualcluster.RuntimeSourceAuthority, "digest", sourceDigest, "engine", source.Engine, "version", source.Version)
 	}
+	if executorFile := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_DAPR_EXECUTOR_EVIDENCE_FILE")); executorFile != "" {
+		executorEvidence, executorAuthority, executorDigest, executorErr := daprruntime.LoadExecutorImageEvidence(executorFile)
+		if executorErr != nil {
+			logger.Error("Dapr executor image authority configuration failed", "error", executorErr)
+			os.Exit(1)
+		}
+		if executorErr = apiServer.ConfigureDaprExecutorAuthority(executorAuthority, os.Getenv("PLATFORM_FACTORY_INTERNAL_REGISTRY_URL")); executorErr != nil {
+			logger.Error("Dapr executor image authority admission failed", "error", executorErr)
+			os.Exit(1)
+		}
+		logger.Info("Dapr executor image authority configured",
+			"authority", daprruntime.ExecutorImageEvidenceAuthority,
+			"digest", executorDigest,
+			"image", executorEvidence.ImageReference,
+		)
+	}
 	if lockFile := strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_DAPR_RUNTIME_SUPPLY_CHAIN_FILE")); lockFile != "" {
 		lock, lockDigest, lockErr := daprruntime.LoadRuntimeLock(lockFile)
 		if lockErr != nil {
