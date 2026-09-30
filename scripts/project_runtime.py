@@ -67,19 +67,51 @@ def immutable_json(path,data,label):
     finally:
         tmp.unlink(missing_ok=True)
 
+def canonical_run_id(value):
+    run_id=str(value or "").strip()
+    if not run_id or len(run_id)>160 or any(not (ch.isalnum() or ch in "._:-") for ch in run_id):
+        raise RuntimeError("PROJECT_RUNTIME_RUN_ID_INVALID")
+    return run_id
+
 def runtime_dir(root,override=None):
+    root=Path(root).resolve()
     value=override or os.getenv("PLATFORM_FACTORY_RUNTIME_ROOT") or ".project-runtime"
-    p=Path(value)
-    return p if p.is_absolute() else root/p
+    raw=Path(str(value))
+    if not str(value).strip() or ".." in raw.parts:
+        raise RuntimeError("PROJECT_RUNTIME_ROOT_INVALID")
+    target=Path(os.path.abspath(raw if raw.is_absolute() else root/raw))
+    if not raw.is_absolute():
+        try: target.relative_to(root)
+        except ValueError as exc: raise RuntimeError("PROJECT_RUNTIME_ROOT_OUTSIDE_PROJECT") from exc
+    if target==root:
+        raise RuntimeError("PROJECT_RUNTIME_ROOT_PROJECT_ALIAS_FORBIDDEN")
+    for candidate in (target,*target.parents):
+        if candidate.is_symlink():
+            raise RuntimeError(f"PROJECT_RUNTIME_ROOT_SYMLINK_FORBIDDEN {candidate}")
+        if candidate.exists() and not candidate.is_dir():
+            raise RuntimeError(f"PROJECT_RUNTIME_ROOT_COMPONENT_INVALID {candidate}")
+        if candidate==Path(candidate.anchor):
+            break
+    return target
+
+def ensure_runtime_dir(root,override=None):
+    target=runtime_dir(root,override)
+    target.mkdir(parents=True,exist_ok=True)
+    checked=runtime_dir(root,override)
+    if checked!=target or target.is_symlink() or not target.is_dir():
+        raise RuntimeError("PROJECT_RUNTIME_ROOT_INVALID")
+    return target
 
 def state_file(root,override=None): return runtime_dir(root,override)/"state.json"
 def state_mutex_file(root,override=None): return runtime_dir(root,override)/"state.mutex"
 def lock_file(root,override=None): return runtime_dir(root,override)/"mutation.lock"
-def log_file(root,run_id,override=None): return runtime_dir(root,override)/"logs"/f"{run_id}.log"
+def log_file(root,run_id,override=None): return runtime_dir(root,override)/"logs"/f"{canonical_run_id(run_id)}.log"
 def recovery_file(root,run_id,override=None):
-    digest=hashlib.sha256(str(run_id or "").encode("utf-8")).hexdigest()
+    run_id=canonical_run_id(run_id)
+    digest=hashlib.sha256(run_id.encode("utf-8")).hexdigest()
     return runtime_dir(root,override)/"recovery"/f"{digest}.json"
 def command_exec_failure_file(root,run_id,attempt,override=None):
+    run_id=canonical_run_id(run_id)
     identity=f"{run_id}:{int(attempt or 0)}"
     digest=hashlib.sha256(identity.encode("utf-8")).hexdigest()
     return runtime_dir(root,override)/"command-exec-failures"/f"{digest}.json"
@@ -100,19 +132,27 @@ def read_state(root,override=None):
     revision=data.get("stateRevision",0)
     if type(revision) is not int or revision<0:
         raise RuntimeError("PROJECT_RUNTIME_STATE_REVISION_INVALID")
+    if data.get("runId") not in (None,""):
+        canonical_run_id(data.get("runId"))
     data["stateRevision"]=revision
     return data
 
 @contextmanager
 def state_guard(root,override=None):
-    p=state_mutex_file(root,override); p.parent.mkdir(parents=True,exist_ok=True)
-    fd=os.open(p,os.O_CREAT|os.O_RDWR|os.O_CLOEXEC,0o600)
+    ensure_runtime_dir(root,override)
+    p=state_mutex_file(root,override)
+    flags=os.O_CREAT|os.O_RDWR|os.O_CLOEXEC
+    if hasattr(os,"O_NOFOLLOW"): flags|=os.O_NOFOLLOW
+    fd=os.open(p,flags,0o600)
     try:
+        info=os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise RuntimeError("PROJECT_RUNTIME_STATE_MUTEX_INVALID")
         fcntl.flock(fd,fcntl.LOCK_EX)
         yield
     finally:
-        fcntl.flock(fd,fcntl.LOCK_UN)
-        os.close(fd)
+        try: fcntl.flock(fd,fcntl.LOCK_UN)
+        finally: os.close(fd)
 
 def write_state(root,state,override=None,expected_revision=None):
     with state_guard(root,override):
