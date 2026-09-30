@@ -1310,6 +1310,9 @@ func (a *agent) report(ctx context.Context) error {
 	if a.openChoreoExecutorRBACActive(ctx) {
 		capabilities = append(capabilities, controlplane.OpenChoreoExecutorRBACCapability)
 	}
+	if a.daprExecutorRBACActive(ctx) {
+		capabilities = append(capabilities, controlplane.DaprExecutorRBACCapability)
+	}
 	if workloadExplorer.Complete {
 		capabilities = append(capabilities, "workload-explorer-read")
 	}
@@ -1608,6 +1611,37 @@ func (a *agent) openChoreoExecutorRBACActive(ctx context.Context) bool {
 		{executorUser, "", "create", "admissionregistration.k8s.io", "v1", "validatingwebhookconfigurations"},
 		{executorUser, "openchoreo-control-plane", "create", "cert-manager.io", "v1", "certificates"},
 		{executorUser, "openchoreo-control-plane", "create", "apps", "v1", "deployments"},
+	}
+	for _, check := range checks {
+		if !a.subjectAccessAllowed(ctx, check.user, check.namespace, check.verb, check.group, check.version, check.resource) {
+			return false
+		}
+	}
+	return true
+}
+
+func (a *agent) daprExecutorRBACActive(ctx context.Context) bool {
+	namespace := strings.TrimSpace(a.cfg.Namespace)
+	agentSA := strings.TrimSpace(a.cfg.ServiceAccount)
+	if namespace == "" || agentSA == "" {
+		return false
+	}
+	agentUser := "system:serviceaccount:" + namespace + ":" + agentSA
+	executorUser := "system:serviceaccount:" + namespace + ":4so-dapr-executor"
+	checks := []struct{ user, namespace, verb, group, version, resource string }{
+		{agentUser, namespace, "create", "batch", "v1", "jobs"},
+		{agentUser, namespace, "get", "", "v1", "configmaps"},
+		{agentUser, namespace, "get", "", "v1", "serviceaccounts"},
+		{executorUser, "", "get", "", "v1", "namespaces"},
+		{executorUser, "", "create", "", "v1", "namespaces"},
+		{executorUser, "", "create", "apiextensions.k8s.io", "v1", "customresourcedefinitions"},
+		{executorUser, "", "create", "rbac.authorization.k8s.io", "v1", "clusterroles"},
+		{executorUser, "", "create", "rbac.authorization.k8s.io", "v1", "clusterrolebindings"},
+		{executorUser, "", "create", "admissionregistration.k8s.io", "v1", "mutatingwebhookconfigurations"},
+		{executorUser, "dapr-system", "create", "", "v1", "secrets"},
+		{executorUser, "dapr-system", "create", "", "v1", "serviceaccounts"},
+		{executorUser, "dapr-system", "create", "", "v1", "services"},
+		{executorUser, "dapr-system", "create", "apps", "v1", "deployments"},
 	}
 	for _, check := range checks {
 		if !a.subjectAccessAllowed(ctx, check.user, check.namespace, check.verb, check.group, check.version, check.resource) {
