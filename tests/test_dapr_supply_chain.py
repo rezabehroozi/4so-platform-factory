@@ -98,6 +98,7 @@ class DaprSupplyChainTests(unittest.TestCase):
         return {
             "authority": seal.MIRROR_AUTHORITY,
             "registryAuthority": "zot",
+            "registryScheme": "http",
             "registryIdentity": registry,
             "version": acquire.VERSION,
             "upstreamCommit": acquire.UPSTREAM_COMMIT,
@@ -130,6 +131,7 @@ class DaprSupplyChainTests(unittest.TestCase):
             lock = seal.seal(acquisition_path, mirror_path, out)
             self.assertTrue(lock["admitted"])
             self.assertEqual("zot", lock["registryAuthority"])
+            self.assertEqual("http", lock["registryScheme"])
             self.assertEqual("platform-zot:5000", lock["mirrorRegistry"])
             self.assertEqual(4, len(lock["imageLocks"]))
             self.assertEqual(acquisition["helmPackageDigest"], lock["helmPackageDigest"])
@@ -168,6 +170,13 @@ class DaprSupplyChainTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "DAPR_ACQUISITION_FILE_INVALID"):
                 seal.load_json(link, "DAPR_ACQUISITION")
 
+
+    def test_registry_transport_parser_is_explicit(self):
+        self.assertEqual(("http", "platform-zot:5000"), mirror.validate_registry_url("http://platform-zot:5000"))
+        self.assertEqual(("https", "registry.example"), mirror.validate_registry_url("https://registry.example"))
+        for invalid in ("platform-zot:5000", "ftp://platform-zot:5000", "http://platform-zot:5000/dapr"):
+            with self.assertRaises(RuntimeError):
+                mirror.validate_registry_url(invalid)
 
 if __name__ == "__main__":
     unittest.main()
