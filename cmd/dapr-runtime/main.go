@@ -39,21 +39,24 @@ type lifecycleConfig struct {
 	Action                     daprruntime.LifecycleAction
 	Lock                       daprruntime.RuntimeLock
 	LockDigest                 string
+	ClusterID                  string
 	OperationID                string
 	FenceToken                 int64
 	ExpectedObservedLockDigest string
 }
 
 type ownerState struct {
-	Authority         string `json:"authority"`
-	Installed         bool   `json:"installed"`
-	RuntimeLockDigest string `json:"runtimeLockDigest,omitempty"`
-	OperationID       string `json:"operationId"`
-	FenceToken        int64  `json:"fenceToken"`
-	Version           string `json:"version,omitempty"`
-	UpstreamCommit    string `json:"upstreamCommit,omitempty"`
-	ObservedAt        string `json:"observedAt"`
-	Phase             string `json:"phase"`
+	Authority                string                                `json:"authority"`
+	Installed                bool                                  `json:"installed"`
+	RuntimeLockDigest        string                                `json:"runtimeLockDigest,omitempty"`
+	OperationID              string                                `json:"operationId"`
+	FenceToken               int64                                 `json:"fenceToken"`
+	Version                  string                                `json:"version,omitempty"`
+	UpstreamCommit           string                                `json:"upstreamCommit,omitempty"`
+	MirrorPullEvidence       *daprruntime.TargetMirrorPullEvidence `json:"mirrorPullEvidence,omitempty"`
+	MirrorPullEvidenceDigest string                                `json:"mirrorPullEvidenceDigest,omitempty"`
+	ObservedAt               string                                `json:"observedAt"`
+	Phase                    string                                `json:"phase"`
 }
 
 type kubeConfigMap struct {
@@ -145,11 +148,12 @@ func loadConfig(args []string) (lifecycleConfig, error) {
 	if err != nil {
 		return cfg, err
 	}
+	cfg.ClusterID = strings.TrimSpace(os.Getenv("FOURSO_DAPR_CLUSTER_ID"))
 	cfg.OperationID = strings.TrimSpace(os.Getenv("FOURSO_DAPR_OPERATION_ID"))
 	cfg.ExpectedObservedLockDigest = strings.ToLower(strings.TrimSpace(os.Getenv("FOURSO_DAPR_EXPECTED_OBSERVED_LOCK_DIGEST")))
 	fence, fenceErr := strconv.ParseInt(strings.TrimSpace(os.Getenv("FOURSO_DAPR_TASK_FENCE_TOKEN")), 10, 64)
-	if cfg.OperationID == "" || fenceErr != nil || fence <= 0 {
-		return cfg, errors.New("Dapr operation identity/fence environment is invalid")
+	if cfg.ClusterID == "" || cfg.OperationID == "" || fenceErr != nil || fence <= 0 {
+		return cfg, errors.New("Dapr cluster/operation identity/fence environment is invalid")
 	}
 	cfg.FenceToken = fence
 	cfg.Lock, cfg.LockDigest, err = strictRuntimeLock(os.Getenv("FOURSO_DAPR_RUNTIME_LOCK_JSON"))
@@ -427,53 +431,81 @@ func verifyInjectorObservedPolicy(env map[string]string, sidecarImage string) er
 	return nil
 }
 
-func (k *kubeClient) verifyInstalledRuntime(ctx context.Context, lock daprruntime.RuntimeLock) error {
+func (k *kubeClient) verifyInstalledRuntime(ctx context.Context, lock daprruntime.RuntimeLock) ([]daprruntime.TargetMirrorPullObservation, string, error) {
 	operatorImage, err := imageByRole(lock, "operator")
-	if err != nil { return err }
+	if err != nil { return nil, "", err }
 	injectorImage, err := imageByRole(lock, "injector")
-	if err != nil { return err }
+	if err != nil { return nil, "", err }
 	sidecarImage, err := imageByRole(lock, "sidecar")
-	if err != nil { return err }
+	if err != nil { return nil, "", err }
 	sentryImage, err := imageByRole(lock, "sentry")
-	if err != nil { return err }
+	if err != nil { return nil, "", err }
 
 	checks := []struct {
-		name, container, image string
+		role, name, container, image string
 	}{
-		{"dapr-operator", "dapr-operator", operatorImage},
-		{"dapr-sidecar-injector", "dapr-sidecar-injector", injectorImage},
-		{"dapr-sentry", "dapr-sentry", sentryImage},
+		{"operator", "dapr-operator", "dapr-operator", operatorImage},
+		{"injector", "dapr-sidecar-injector", "dapr-sidecar-injector", injectorImage},
+		{"sentry", "dapr-sentry", "dapr-sentry", sentryImage},
 	}
+	observations := make([]daprruntime.TargetMirrorPullObservation, 0, len(checks))
 	var injectorEnv map[string]string
 	for _, check := range checks {
 		deployment, found, getErr := k.getDeployment(ctx, check.name)
 		if getErr != nil {
-			return getErr
+			return nil, "", getErr
 		}
 		if !found {
-			return fmt.Errorf("DAPR_OBSERVED_DEPLOYMENT_MISSING %s", check.name)
+			return nil, "", fmt.Errorf("DAPR_OBSERVED_DEPLOYMENT_MISSING %s", check.name)
 		}
 		env, verifyErr := verifyDeploymentReadyExact(deployment, check.name, check.container, check.image)
 		if verifyErr != nil {
-			return verifyErr
+			return nil, "", verifyErr
 		}
+		observations = append(observations, daprruntime.TargetMirrorPullObservation{
+			Role: check.role, WorkloadKind: "Deployment", Namespace: runtimeNamespace,
+			WorkloadName: check.name, Container: check.container, ImageReference: check.image, Ready: true,
+		})
 		if check.name == "dapr-sidecar-injector" {
 			injectorEnv = env
 		}
 	}
 	if err = verifyInjectorObservedPolicy(injectorEnv, sidecarImage); err != nil {
-		return err
+		return nil, "", err
 	}
 	for _, forbidden := range []string{"dapr-placement-server", "dapr-scheduler-server"} {
 		exists, getErr := k.statefulSetExists(ctx, forbidden)
 		if getErr != nil {
-			return getErr
+			return nil, "", getErr
 		}
 		if exists {
-			return fmt.Errorf("DAPR_FORBIDDEN_RUNTIME_AUTHORITY_PRESENT %s", forbidden)
+			return nil, "", fmt.Errorf("DAPR_FORBIDDEN_RUNTIME_AUTHORITY_PRESENT %s", forbidden)
 		}
 	}
-	return nil
+	return observations, sidecarImage, nil
+}
+
+func targetMirrorPullEvidence(cfg lifecycleConfig, observations []daprruntime.TargetMirrorPullObservation, sidecarImage string) (daprruntime.TargetMirrorPullEvidence, string, error) {
+	evidence := daprruntime.TargetMirrorPullEvidence{
+		Authority: daprruntime.TargetMirrorPullEvidenceAuthority,
+		ClusterID: cfg.ClusterID,
+		OperationID: cfg.OperationID,
+		FenceToken: cfg.FenceToken,
+		RuntimeLockDigest: cfg.LockDigest,
+		MirrorRegistry: cfg.Lock.MirrorRegistry,
+		RuntimeImages: append([]daprruntime.TargetMirrorPullObservation(nil), observations...),
+		SidecarImageReference: strings.TrimSpace(sidecarImage),
+		SidecarPullInferred: false,
+		WorkloadSidecarPullEvidenceRequired: true,
+		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	digest, err := daprruntime.TargetMirrorPullEvidenceDigest(
+		evidence, cfg.Lock, cfg.ClusterID, cfg.OperationID, cfg.FenceToken, cfg.LockDigest,
+	)
+	if err != nil {
+		return daprruntime.TargetMirrorPullEvidence{}, "", err
+	}
+	return evidence, digest, nil
 }
 
 func (k *kubeClient) verifyRemovedRuntime(ctx context.Context) error {
@@ -670,10 +702,21 @@ func runLifecycle(args []string) error {
 		switch cfg.Action {
 		case daprruntime.ActionInstall, daprruntime.ActionUpgrade:
 			if owner.Installed && owner.RuntimeLockDigest == cfg.LockDigest && releaseExists {
-				if err = kube.verifyInstalledRuntime(ctx, cfg.Lock); err != nil {
+				observations, sidecarImage, verifyErr := kube.verifyInstalledRuntime(ctx, cfg.Lock)
+				if verifyErr != nil {
+					return verifyErr
+				}
+				evidence, evidenceDigest, evidenceErr := targetMirrorPullEvidence(cfg, observations, sidecarImage)
+				if evidenceErr != nil {
+					return evidenceErr
+				}
+				replayed := *owner
+				replayed.MirrorPullEvidence = &evidence
+				replayed.MirrorPullEvidenceDigest = evidenceDigest
+				if err = kube.putOwnedState(ctx, ownerName, replayed, cfg.OperationID, cfg.FenceToken); err != nil {
 					return err
 				}
-				return kube.putState(ctx, receiptName, *owner)
+				return kube.putState(ctx, receiptName, replayed)
 			}
 		case daprruntime.ActionRemove:
 			if !owner.Installed && !releaseExists {
@@ -730,6 +773,8 @@ func runLifecycle(args []string) error {
 		}
 	}
 
+	var mirrorPullEvidence *daprruntime.TargetMirrorPullEvidence
+	var mirrorPullEvidenceDigest string
 	switch cfg.Action {
 	case daprruntime.ActionInstall, daprruntime.ActionUpgrade:
 		profile, profileErr := helmProfileArgs(cfg.Lock)
@@ -741,9 +786,16 @@ func runLifecycle(args []string) error {
 		if err = runHelm(ctx, env, helmArgs...); err != nil {
 			return err
 		}
-		if err = kube.verifyInstalledRuntime(ctx, cfg.Lock); err != nil {
-			return err
+		observations, sidecarImage, verifyErr := kube.verifyInstalledRuntime(ctx, cfg.Lock)
+		if verifyErr != nil {
+			return verifyErr
 		}
+		evidence, evidenceDigest, evidenceErr := targetMirrorPullEvidence(cfg, observations, sidecarImage)
+		if evidenceErr != nil {
+			return evidenceErr
+		}
+		mirrorPullEvidence = &evidence
+		mirrorPullEvidenceDigest = evidenceDigest
 	case daprruntime.ActionRemove:
 		if err = runHelm(ctx, env, "uninstall", "dapr", "--namespace", runtimeNamespace, "--wait", "--timeout", "10m"); err != nil {
 			return err
@@ -775,6 +827,8 @@ func runLifecycle(args []string) error {
 		state.RuntimeLockDigest = cfg.LockDigest
 		state.Version = cfg.Lock.Version
 		state.UpstreamCommit = cfg.Lock.UpstreamCommit
+		state.MirrorPullEvidence = mirrorPullEvidence
+		state.MirrorPullEvidenceDigest = mirrorPullEvidenceDigest
 	}
 	if err = kube.putOwnedState(ctx, ownerName, state, cfg.OperationID, cfg.FenceToken); err != nil {
 		return err
