@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"platform.4so.io/factory/internal/controlplane"
+	daprruntime "platform.4so.io/factory/internal/dapr"
 	"platform.4so.io/factory/internal/targetmodel"
 )
 
@@ -92,12 +93,16 @@ func TestDaprAssessmentUsesNativeCapabilityAndBlocksUnimplementedInstall(t *test
 
 
 type daprWorkloadPlanResponse struct {
-	Authority                     string                          `json:"authority"`
-	TraitID                       string                          `json:"traitId"`
-	TraitDigest                   string                          `json:"traitDigest"`
-	Plan                          targetmodel.DaprWorkloadRuntimePlan `json:"plan"`
-	RuntimeMutationPerformed      bool                            `json:"runtimeMutationPerformed"`
-	PhysicalCertificationInferred bool                            `json:"physicalCertificationInferred"`
+	Authority                        string                          `json:"authority"`
+	TraitID                          string                          `json:"traitId"`
+	TraitDigest                      string                          `json:"traitDigest"`
+	Plan                             targetmodel.DaprWorkloadRuntimePlan `json:"plan"`
+	ConfigurationProjectionAuthority string                         `json:"configurationProjectionAuthority"`
+	ConfigurationProjection          map[string]any                 `json:"configurationProjection"`
+	ConfigurationPolicyDigest        string                         `json:"configurationPolicyDigest"`
+	ComponentScopeDigest             string                         `json:"componentScopeDigest"`
+	RuntimeMutationPerformed         bool                           `json:"runtimeMutationPerformed"`
+	PhysicalCertificationInferred    bool                           `json:"physicalCertificationInferred"`
 }
 
 func TestDaprWorkloadPlanRequiresPersistedDaprSidecarTrait(t *testing.T) {
@@ -123,8 +128,19 @@ func TestDaprWorkloadPlanRequiresPersistedDaprSidecarTrait(t *testing.T) {
 	out := decodeApplicationResponse[daprWorkloadPlanResponse](t, w)
 	if out.Authority != targetmodel.DaprWorkloadRuntimePlanAuthority || out.TraitID != trait.ID || out.TraitDigest != trait.Digest ||
 		out.Plan.AppID != "payments-api" || out.Plan.ConfigurationName != "4so-dapr-payments-api" ||
+		out.ConfigurationProjectionAuthority != daprruntime.WorkloadPolicyProjectionAuthority ||
 		out.RuntimeMutationPerformed || out.PhysicalCertificationInferred {
 		t.Fatalf("Dapr workload plan response drift: %#v", out)
+	}
+	policyDigest, err := daprruntime.WorkloadConfigurationPolicyDigest(out.Plan)
+	if err != nil { t.Fatal(err) }
+	componentScopeDigest, err := daprruntime.WorkloadComponentScopeDigest(out.Plan)
+	if err != nil { t.Fatal(err) }
+	metadata, _ := out.ConfigurationProjection["metadata"].(map[string]any)
+	if out.ConfigurationPolicyDigest != policyDigest || out.ComponentScopeDigest != componentScopeDigest ||
+		strings.TrimSpace(fmt.Sprint(out.ConfigurationProjection["kind"])) != "Configuration" ||
+		strings.TrimSpace(fmt.Sprint(metadata["name"])) != out.Plan.ConfigurationName {
+		t.Fatalf("Dapr workload policy projection response drift: %#v", out)
 	}
 	if len(out.Plan.ComponentScopes) != 1 || len(out.Plan.ComponentScopes[0].Scopes) != 1 || out.Plan.ComponentScopes[0].Scopes[0] != "payments-api" {
 		t.Fatalf("Dapr component scope escaped app identity: %#v", out.Plan.ComponentScopes)
