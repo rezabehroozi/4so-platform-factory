@@ -91,6 +91,18 @@ func daprAPITestMirrorEvidence(t *testing.T, lock daprruntime.RuntimeLock, clust
 	return &evidence, digest
 }
 
+func TestDaprRuntimeLockRejectsExecutorFromForeignRelease(t *testing.T) {
+	srv := scopedServer(t, controlplane.NewMemoryStore())
+	lock := daprAPITestRuntimeLock(t)
+	if err := srv.ConfigureDaprRuntimeLock(lock, "https://zot.internal.example", daprAPITestDigest("9")); err == nil ||
+		!strings.Contains(err.Error(), "SOURCE_RELEASE_MISMATCH") {
+		t.Fatalf("cross-release Dapr runtime executor was admitted: %v", err)
+	}
+	if err := srv.ConfigureDaprRuntimeLock(lock, "https://zot.internal.example", lock.ExecutorSourceReleaseDigest); err != nil {
+		t.Fatalf("matching Dapr executor release binding rejected: %v", err)
+	}
+}
+
 type daprLifecycleCreateResponse struct {
 	Authority        string                       `json:"authority"`
 	Operation        controlplane.Operation       `json:"operation"`
