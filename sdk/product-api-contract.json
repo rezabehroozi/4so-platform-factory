@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 388,
-  "routeDigest": "sha256:754cc95db17dadefb75e7d55e8c16d91a272d8afffe0fcd97acf37d5ba5518ac",
+  "routeCount": 390,
+  "routeDigest": "sha256:fc3145c48014e8f07d0a2253c8be7190b6930c9924683a90fdfdc1b4106f57c8",
   "routes": [
     {
       "family": "version",
@@ -1041,6 +1041,26 @@
       "mutation": true,
       "path": "/api/v1/application-platform/dapr/workload-plan",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/application-platform/dapr/workload-admissions",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/application-platform/dapr/workload-admissions/{id}",
+      "pathParams": [
+        "id"
+      ],
       "resourceScope": "PROJECT_SCOPED",
       "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
