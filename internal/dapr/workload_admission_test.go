@@ -230,6 +230,50 @@ func TestWorkloadAdmissionRequiresComponentFamilyForEnabledAPI(t *testing.T) {
 	}
 }
 
+func TestWorkloadAdmissionAcceptsBindingsComponentOnlyWhenBindingsAPIEnabled(t *testing.T) {
+	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
+	plan, err := targetmodel.ResolveDaprWorkloadRuntimePlan(targetmodel.DaprWorkloadPlanInput{
+		Namespace: "payments", AppID: "payments-api", AppPort: 8080, AppProtocol: "http",
+		CPURequest: "100m", CPULimit: "500m", MemoryRequest: "128Mi", MemoryLimit: "256Mi",
+		ComponentNames: []string{"billing-binding"}, EnableInvocation: true, EnableBindings: true,
+	})
+	if err != nil { t.Fatal(err) }
+	planDigest, err := WorkloadPlanDigest(plan)
+	if err != nil { t.Fatal(err) }
+	request.Plan, request.PlanDigest = plan, planDigest
+	request, err = CanonicalWorkloadAdmissionRequest(request)
+	if err != nil { t.Fatal(err) }
+	configuration, err := BuildWorkloadConfigurationProjection(request.Plan)
+	if err != nil { t.Fatal(err) }
+	components := map[string]map[string]any{
+		"billing-binding": {
+			"apiVersion": "dapr.io/v1alpha1", "kind": "Component",
+			"metadata": map[string]any{"name": "billing-binding", "namespace": request.Plan.Namespace},
+			"spec": map[string]any{"type": "bindings.http", "version": "v1", "metadata": []any{}},
+			"scopes": []any{request.Plan.AppID},
+		},
+	}
+	observation, err := ValidateWorkloadPolicyReadback(request, configuration, components)
+	if err != nil { t.Fatalf("valid Dapr binding Component rejected: %v", err) }
+	if !observation.ComponentTypesVerified || observation.BindingComponentCount != 1 || observation.PubSubComponentCount != 0 {
+		t.Fatalf("Dapr binding component evidence drift: %#v", observation)
+	}
+	if err = ValidateWorkloadPolicyObservation(observation, request); err != nil {
+		t.Fatalf("valid Dapr binding observation rejected: %v", err)
+	}
+}
+
+func TestWorkloadPolicyObservationRejectsForgedComponentTypeCounts(t *testing.T) {
+	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
+	observation := workloadAdmissionTestPolicyObservation(t, request)
+	observation.PubSubComponentCount = 0
+	observation.BindingComponentCount = 1
+	if err := ValidateWorkloadPolicyObservation(observation, request); err == nil ||
+		!strings.Contains(err.Error(), "POLICY_OBSERVATION_INVALID") {
+		t.Fatalf("forged Dapr Component family counts entered workload evidence: %v", err)
+	}
+}
+
 func TestWorkloadAdmissionEvidenceRejectsForeignPolicyObservation(t *testing.T) {
 	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
 	pod, err := BuildWorkloadAdmissionPod(request, "op_policy_drift")
