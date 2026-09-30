@@ -57,6 +57,11 @@ type WorkloadAdmissionEvidence struct {
 	SidecarContainerName       string   `json:"sidecarContainerName"`
 	SidecarImageReference      string   `json:"sidecarImageReference"`
 	ExpectedSidecarImageMatched bool    `json:"expectedSidecarImageMatched"`
+	SidecarCPURequest         string   `json:"sidecarCpuRequest"`
+	SidecarCPULimit           string   `json:"sidecarCpuLimit"`
+	SidecarMemoryRequest      string   `json:"sidecarMemoryRequest"`
+	SidecarMemoryLimit        string   `json:"sidecarMemoryLimit"`
+	SidecarResourcesVerified  bool     `json:"sidecarResourcesVerified"`
 	RunAsNonRoot              bool     `json:"runAsNonRoot"`
 	ReadOnlyRootFilesystem    bool     `json:"readOnlyRootFilesystem"`
 	AllowPrivilegeEscalation  bool     `json:"allowPrivilegeEscalation"`
@@ -215,6 +220,10 @@ func ValidateWorkloadAdmissionEvidence(value WorkloadAdmissionEvidence, request 
 	value.AdmissionObjectName = strings.TrimSpace(value.AdmissionObjectName)
 	value.SidecarContainerName = strings.TrimSpace(value.SidecarContainerName)
 	value.SidecarImageReference = strings.TrimSpace(value.SidecarImageReference)
+	value.SidecarCPURequest = strings.TrimSpace(value.SidecarCPURequest)
+	value.SidecarCPULimit = strings.TrimSpace(value.SidecarCPULimit)
+	value.SidecarMemoryRequest = strings.TrimSpace(value.SidecarMemoryRequest)
+	value.SidecarMemoryLimit = strings.TrimSpace(value.SidecarMemoryLimit)
 	if value.Authority != WorkloadAdmissionEvidenceAuthority || value.OperationID != strings.TrimSpace(operationID) ||
 		value.ProjectID != request.ProjectID || value.ClusterID != request.ClusterID || value.TraitDigest != request.TraitDigest ||
 		value.InventoryDigest != request.InventoryDigest || value.RuntimeMode != request.RuntimeMode ||
@@ -231,6 +240,15 @@ func ValidateWorkloadAdmissionEvidence(value WorkloadAdmissionEvidence, request 
 		!value.RunAsNonRoot || !value.ReadOnlyRootFilesystem || value.AllowPrivilegeEscalation ||
 		!value.DropAllCapabilities || !value.AppContainerPreserved || !value.AnnotationsVerified {
 		return fmt.Errorf("DAPR_WORKLOAD_SIDECAR_SECURITY_INVALID")
+	}
+	expectedCPURequest := workloadPlanAnnotation(request.Plan, "dapr.io/sidecar-cpu-request")
+	expectedCPULimit := workloadPlanAnnotation(request.Plan, "dapr.io/sidecar-cpu-limit")
+	expectedMemoryRequest := workloadPlanAnnotation(request.Plan, "dapr.io/sidecar-memory-request")
+	expectedMemoryLimit := workloadPlanAnnotation(request.Plan, "dapr.io/sidecar-memory-limit")
+	if !value.SidecarResourcesVerified ||
+		value.SidecarCPURequest != expectedCPURequest || value.SidecarCPULimit != expectedCPULimit ||
+		value.SidecarMemoryRequest != expectedMemoryRequest || value.SidecarMemoryLimit != expectedMemoryLimit {
+		return fmt.Errorf("DAPR_WORKLOAD_SIDECAR_RESOURCE_SIZING_INVALID")
 	}
 	drops := append([]string(nil), value.DroppedCapabilities...)
 	for i := range drops {
@@ -330,6 +348,28 @@ func admissionBoolField(value map[string]any, key string) (bool, bool) {
 	return v, ok
 }
 
+func workloadPlanAnnotation(plan targetmodel.DaprWorkloadRuntimePlan, key string) string {
+	for _, item := range plan.Annotations {
+		if strings.TrimSpace(item.Key) == key {
+			return strings.TrimSpace(item.Value)
+		}
+	}
+	return ""
+}
+
+func admissionResourceQuantity(value map[string]any, section, resource string) (string, bool) {
+	sectionMap, ok := value[section].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	quantity, ok := sectionMap[resource]
+	if !ok {
+		return "", false
+	}
+	out := strings.TrimSpace(fmt.Sprint(quantity))
+	return out, out != ""
+}
+
 func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, operationID string, response map[string]any, status int, observedAt time.Time) (WorkloadAdmissionEvidence, error) {
 	request, err := CanonicalWorkloadAdmissionRequest(request)
 	if err != nil {
@@ -410,6 +450,16 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 			break
 		}
 	}
+	resources, resourcesPresent := sidecar["resources"].(map[string]any)
+	cpuRequest, cpuRequestPresent := admissionResourceQuantity(resources, "requests", "cpu")
+	cpuLimit, cpuLimitPresent := admissionResourceQuantity(resources, "limits", "cpu")
+	memoryRequest, memoryRequestPresent := admissionResourceQuantity(resources, "requests", "memory")
+	memoryLimit, memoryLimitPresent := admissionResourceQuantity(resources, "limits", "memory")
+	resourcesVerified := resourcesPresent && cpuRequestPresent && cpuLimitPresent && memoryRequestPresent && memoryLimitPresent &&
+		cpuRequest == workloadPlanAnnotation(request.Plan, "dapr.io/sidecar-cpu-request") &&
+		cpuLimit == workloadPlanAnnotation(request.Plan, "dapr.io/sidecar-cpu-limit") &&
+		memoryRequest == workloadPlanAnnotation(request.Plan, "dapr.io/sidecar-memory-request") &&
+		memoryLimit == workloadPlanAnnotation(request.Plan, "dapr.io/sidecar-memory-limit")
 	sidecarImage := strings.TrimSpace(fmt.Sprint(sidecar["image"]))
 	expectedMatched := request.RuntimeMode == "PRODUCT_MANAGED" && sidecarImage == request.ExpectedSidecarImage
 	evidence := WorkloadAdmissionEvidence{
@@ -421,6 +471,9 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 		AdmissionObjectKind: "Pod", AdmissionResource: "pods", AdmissionObjectName: AdmissionObjectName(operationID),
 		DryRunHTTPStatus: status, InjectedSidecarObserved: true, SidecarContainerName: "daprd",
 		SidecarImageReference: sidecarImage, ExpectedSidecarImageMatched: expectedMatched,
+		SidecarCPURequest: cpuRequest, SidecarCPULimit: cpuLimit,
+		SidecarMemoryRequest: memoryRequest, SidecarMemoryLimit: memoryLimit,
+		SidecarResourcesVerified: resourcesVerified,
 		RunAsNonRoot: runAsNonRoot,
 		ReadOnlyRootFilesystem: readOnlyRootFilesystem,
 		AllowPrivilegeEscalation: allowPrivilegeEscalation,
