@@ -104,13 +104,21 @@ def prepare(matrix_path:Path, endpoint_url:str, preflight:dict)->dict:
     }
 
 
+def resume_existing(matrix_path:Path,endpoint_url:str,out_path:Path)->dict:
+    matrix=core.load(matrix_path,"MATRIX"); spec=matrix.get("spec") or {}
+    existing=core.verify_campaign(out_path,matrix_path,spec)
+    if existing.get("endpoint")!=endpoint(endpoint_url):
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_RESUME_ENDPOINT_DRIFT")
+    return existing
+
 def main()->int:
     p=argparse.ArgumentParser(); p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json")); p.add_argument("--endpoint",required=True); p.add_argument("--out",type=Path,required=True)
-    a=p.parse_args()
+    a=p.parse_args(); resumed=False
     if a.out.exists() or a.out.is_symlink():
-        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_OUTPUT_ALREADY_EXISTS")
-    preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight)
-    core.write_json_once_or_identical(a.out,out,"MCP_EXTERNAL_CAMPAIGN")
-    print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"matrixSha256":out["matrixSha256"],"endpoint":out["endpoint"],"clients":[x["clientId"] for x in out["clients"]]},sort_keys=True))
+        out=resume_existing(a.matrix,a.endpoint,a.out); resumed=True
+    else:
+        preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight)
+        core.write_json_once_or_identical(a.out,out,"MCP_EXTERNAL_CAMPAIGN")
+    print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"matrixSha256":out["matrixSha256"],"endpoint":out["endpoint"],"clients":[x["clientId"] for x in out["clients"]],"resumed":resumed},sort_keys=True))
     return 0
 if __name__=="__main__": raise SystemExit(main())
