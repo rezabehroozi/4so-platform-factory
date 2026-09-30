@@ -122,6 +122,21 @@ func ValidateExecutorAuthority(value ExecutorAuthority) error {
 	return nil
 }
 
+func ValidateExecutorAuthorityForRegistry(value ExecutorAuthority, expectedRegistry string) error {
+	if err := ValidateExecutorAuthority(value); err != nil {
+		return err
+	}
+	expectedScheme, expectedHost, err := expectedRegistryIdentity(expectedRegistry)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(strings.TrimSpace(value.RegistryScheme), expectedScheme) ||
+		!strings.EqualFold(strings.TrimSpace(value.RegistryIdentity), expectedHost) {
+		return fmt.Errorf("DAPR_EXECUTOR_AUTHORITY_REGISTRY_MISMATCH")
+	}
+	return nil
+}
+
 func ExecutorAuthorityFromEvidence(value ExecutorImageEvidence, evidenceDigest string) (ExecutorAuthority, error) {
 	value = normalizeExecutorEvidence(value)
 	evidenceDigest = strings.ToLower(strings.TrimSpace(evidenceDigest))
