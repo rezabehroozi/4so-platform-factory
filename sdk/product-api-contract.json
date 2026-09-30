@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 385,
-  "routeDigest": "sha256:21ca1baa906acea268d6b22563e7c33bc5bc82d2211b63952f31e9d978b8d9c4",
+  "routeCount": 388,
+  "routeDigest": "sha256:754cc95db17dadefb75e7d55e8c16d91a272d8afffe0fcd97acf37d5ba5518ac",
   "routes": [
     {
       "family": "version",
@@ -1041,6 +1041,37 @@
       "mutation": true,
       "path": "/api/v1/application-platform/dapr/workload-plan",
       "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/application-platform/dapr/lifecycle",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/application-platform/dapr/lifecycle/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/application-platform/dapr/lifecycle/{id}/approve",
+      "pathParams": [
+        "id"
+      ],
       "resourceScope": "PROJECT_SCOPED",
       "resourceScopeStatus": "OWNER_CLASSIFIED"
     },
