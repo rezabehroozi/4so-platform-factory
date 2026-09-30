@@ -50,6 +50,15 @@ MIRROR_IMAGE_KEYS = {
     "role", "sourceRepository", "sourceReference", "sourceDigest",
     "mirrorTagReference", "mirrorReference", "mirrorDigest",
 }
+EXECUTOR_AUTHORITY = "DAPR_EXECUTOR_IMAGE_EVIDENCE_V1"
+EXECUTOR_CONTEXT_AUTHORITY = "DAPR_EXECUTOR_CONTEXT_AUTHORITY_V1"
+EXECUTOR_KEYS = {
+    "authority", "executorContextAuthority", "executorContextDigest",
+    "acquisitionReceiptDigest", "sourceReleaseDigest", "buildAuthority",
+    "buildctlVersion", "registryAuthority", "registryScheme", "registryIdentity",
+    "imageReference", "imageDigest", "registryReadback", "credentialsEmbedded",
+    "runtimeMutationPerformed", "physicalCertificationInferred",
+}
 
 
 def exact_keys(value: dict, expected: set[str], label: str) -> None:
@@ -232,7 +241,7 @@ def mirror_images(mirror: dict, acquired: dict[str, dict], registry: str) -> lis
     return sorted(out, key=lambda row: row["role"])
 
 
-def seal(acquisition_path: Path, mirror_path: Path, out: Path) -> dict:
+def seal(acquisition_path: Path, mirror_path: Path, executor_path: Path, out: Path) -> dict:
     acquisition, acquisition_digest = load_json(acquisition_path, "DAPR_ACQUISITION")
     acquired = validate_acquisition(acquisition)
     mirror, mirror_digest = load_json(mirror_path, "DAPR_MIRROR_EVIDENCE")
@@ -266,6 +275,28 @@ def seal(acquisition_path: Path, mirror_path: Path, out: Path) -> dict:
     ):
         raise RuntimeError("DAPR_MIRROR_HELM_CHART_EVIDENCE_INVALID")
     images = mirror_images(mirror, acquired, registry)
+    executor, executor_evidence_digest = load_json(executor_path, "DAPR_EXECUTOR_EVIDENCE")
+    exact_keys(executor, EXECUTOR_KEYS, "DAPR_EXECUTOR_EVIDENCE")
+    executor_digest = valid_digest(executor.get("imageDigest"))
+    executor_context_digest = valid_digest(executor.get("executorContextDigest"))
+    valid_digest(executor.get("sourceReleaseDigest"))
+    if (
+        executor.get("authority") != EXECUTOR_AUTHORITY
+        or executor.get("executorContextAuthority") != EXECUTOR_CONTEXT_AUTHORITY
+        or executor.get("acquisitionReceiptDigest") != acquisition_digest
+        or executor.get("buildAuthority") != "buildkit"
+        or executor.get("registryAuthority") != "zot"
+        or valid_registry_scheme(executor.get("registryScheme")) != scheme
+        or valid_registry(executor.get("registryIdentity")) != registry
+        or str(executor.get("imageReference") or "").strip() != f"{registry}/4so/dapr-runtime@{executor_digest}"
+        or executor.get("registryReadback") is not True
+        or executor.get("credentialsEmbedded") is not False
+        or executor.get("runtimeMutationPerformed") is not False
+        or executor.get("physicalCertificationInferred") is not False
+    ):
+        raise RuntimeError("DAPR_EXECUTOR_EVIDENCE_AUTHORITY_INVALID")
+    if not str(executor.get("buildctlVersion") or "").strip():
+        raise RuntimeError("DAPR_EXECUTOR_BUILDKIT_VERSION_MISSING")
     lock = {
         "authority": LOCK_AUTHORITY,
         "sourcePlanAuthority": SOURCE_PLAN_AUTHORITY,
@@ -281,6 +312,9 @@ def seal(acquisition_path: Path, mirror_path: Path, out: Path) -> dict:
         "helmMirrorManifestDigest": manifest_digest,
         "acquisitionReceiptDigest": acquisition_digest,
         "mirrorEvidenceDigest": mirror_digest,
+        "executorEvidenceDigest": executor_evidence_digest,
+        "executorImageReference": executor["imageReference"],
+        "executorImageDigest": executor_digest,
         "registryAuthority": "zot",
         "registryScheme": scheme,
         "mirrorRegistry": registry,
@@ -320,6 +354,7 @@ def main() -> int:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--acquisition", type=Path)
     parser.add_argument("--mirror-evidence", type=Path)
+    parser.add_argument("--executor-evidence", type=Path)
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     if args.self_test:
@@ -328,10 +363,10 @@ def main() -> int:
         except RuntimeError as exc:
             print(f"DAPR_RUNTIME_SEAL_BLOCKED {exc}", file=__import__("sys").stderr)
             return 3
-    if not all((args.acquisition, args.mirror_evidence, args.out)):
-        parser.error("--acquisition, --mirror-evidence and --out are required")
+    if not all((args.acquisition, args.mirror_evidence, args.executor_evidence, args.out)):
+        parser.error("--acquisition, --mirror-evidence, --executor-evidence and --out are required")
     try:
-        lock = seal(args.acquisition, args.mirror_evidence, args.out)
+        lock = seal(args.acquisition, args.mirror_evidence, args.executor_evidence, args.out)
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError, RuntimeError) as exc:
         print(f"DAPR_RUNTIME_SEAL_BLOCKED {exc}", file=__import__("sys").stderr)
         return 3
