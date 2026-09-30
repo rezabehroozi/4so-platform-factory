@@ -126,6 +126,7 @@ func TestReadWorkloadPolicyObservationUsesExactTargetObjects(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"apiVersion": "dapr.io/v1alpha1", "kind": "Component",
 				"metadata": map[string]any{"name": "orders-broker", "namespace": "payments"},
+				"spec": map[string]any{"type": "pubsub.redis", "version": "v1", "metadata": []any{}},
 				"scopes": []any{scope},
 			})
 		default:
