@@ -27,12 +27,16 @@ func daprWorkloadAdmissionAgentTask(t *testing.T) agentDaprWorkloadAdmissionTask
 	for _, image := range lock.ImageLocks {
 		if image.Role == "sidecar" { sidecar = image.MirrorReference }
 	}
+	executorAuthority, err := daprruntime.ExecutorAuthorityFromRuntimeLock(lock)
+	if err != nil { t.Fatal(err) }
 	request := daprruntime.WorkloadAdmissionRequest{
 		Authority: daprruntime.WorkloadAdmissionAuthority,
 		ProjectID: "prj_test", ClusterID: "clu_test", TraitID: "trait_test",
 		TraitDigest: daprAgentTestDigest("7"), InventoryDigest: daprAgentTestDigest("8"),
 		RuntimeMode: "PRODUCT_MANAGED", RuntimeLockDigest: lockDigest,
-		ExpectedSidecarImage: sidecar, ExecutorImageReference: lock.ExecutorImageReference,
+		ExpectedSidecarImage: sidecar,
+		ExecutorEvidenceDigest: executorAuthority.EvidenceDigest,
+		ExecutorImageReference: executorAuthority.ImageReference,
 		WorkloadImage: "zot.internal.example/apps/payments@" + daprAgentTestDigest("9"),
 		Plan: plan, PlanDigest: planDigest,
 	}
@@ -41,7 +45,7 @@ func daprWorkloadAdmissionAgentTask(t *testing.T) agentDaprWorkloadAdmissionTask
 	return agentDaprWorkloadAdmissionTask{
 		OperationID: "op_dapr_admission", OperationRevision: 7, TaskFenceToken: 13,
 		LeaseExpiresAt: time.Now().UTC().Add(5 * time.Minute),
-		Request: request, RuntimeLock: lock,
+		Request: request, ExecutorAuthority: executorAuthority, RuntimeLock: &lock,
 	}
 }
 
@@ -60,7 +64,7 @@ func TestDaprWorkloadAdmissionJobUsesExactExecutorAndDedicatedPrincipal(t *testi
 	if err != nil { t.Fatal(err) }
 	rendered := string(raw)
 	for _, want := range []string{
-		`"serviceAccountName":"4so-dapr-executor"`,
+		`"serviceAccountName":"4so-dapr-workload-admitter"`,
 		`"image":"` + task.Request.ExecutorImageReference + `"`,
 		`"args":["workload-admission"]`,
 		`"name":"FOURSO_DAPR_WORKLOAD_OPERATION_ID","value":"` + task.OperationID + `"`,
@@ -73,6 +77,27 @@ func TestDaprWorkloadAdmissionJobUsesExactExecutorAndDedicatedPrincipal(t *testi
 	}
 	if strings.Contains(rendered, `"kind":"Deployment"`) || strings.Contains(rendered, "dryRun=All") {
 		t.Fatalf("Agent Job embedded direct workload mutation instead of delegating dry-run to exact executor: %s", rendered)
+	}
+}
+
+func TestNativeDaprWorkloadAdmissionUsesExecutorOnlyAuthority(t *testing.T) {
+	task := daprWorkloadAdmissionAgentTask(t)
+	task.Request.RuntimeMode = "USE_NATIVE"
+	task.Request.RuntimeLockDigest = ""
+	task.Request.ExpectedSidecarImage = ""
+	task.RuntimeLock = nil
+	canonical, err := daprruntime.CanonicalWorkloadAdmissionRequest(task.Request)
+	if err != nil { t.Fatal(err) }
+	task.Request = canonical
+	a := &agent{clusterID: task.Request.ClusterID}
+	if _, ok, err := a.nextDaprWorkloadAdmissionTaskValidation(task); err != nil || !ok {
+		t.Fatalf("native Dapr executor-only task rejected: ok=%v err=%v", ok, err)
+	}
+	lock := daprAgentTestLock(t)
+	task.RuntimeLock = &lock
+	if _, ok, err := a.nextDaprWorkloadAdmissionTaskValidation(task); err == nil || ok ||
+		!strings.Contains(err.Error(), "must not receive product runtime lock") {
+		t.Fatalf("native Dapr task accepted product runtime lock: ok=%v err=%v", ok, err)
 	}
 }
 
