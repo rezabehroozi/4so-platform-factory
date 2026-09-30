@@ -355,3 +355,54 @@ func TestOperationLeaseWorkerIdentityIsCanonical(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+
+func TestUnknownOperationOutcomeResolutionRequiresFailedUnknownAndEvidence(t *testing.T) {
+	store, ctx, project, _, _, now := retryFixture(t)
+	op, _, err := store.CreateOperation(ctx, OperationRequest{
+		ProjectID: project.ID, Kind: "dapr.runtime.lifecycle", TargetRef: "dapr:clu:test",
+		DesiredRevision: testDigest(9700), Risk: "high", Class: OperationClassMutating,
+	}, "unknown-resolution", "operator", "req")
+	if err != nil { t.Fatal(err) }
+	op = queueGenericOperation(t, store, ctx, op)
+	claim, err := store.ClaimOperation(ctx, op.ID, "worker", time.Minute, *now)
+	if err != nil { t.Fatal(err) }
+	op, err = store.GetOperation(ctx, op.ID)
+	if err != nil { t.Fatal(err) }
+	op, err = store.StartOperationAttempt(ctx, op.ID, op.Revision, "worker", claim.FenceToken, "worker")
+	if err != nil { t.Fatal(err) }
+	op, err = store.ReportOperationFailure(ctx, op.ID, op.Revision, "worker", claim.FenceToken, OperationFailureReport{
+		Class: OperationFailureUnknown, Code: "LOST_RESPONSE", Message: "external outcome unknown",
+	}, "worker")
+	if err != nil || op.State != OperationFailed || op.LastFailureClass != OperationFailureUnknown {
+		t.Fatalf("failed/unknown fixture drift op=%+v err=%v", op, err)
+	}
+	evidence := testDigest(9701)
+	resolved, err := store.ResolveUnknownOperationOutcome(ctx, op.ID, op.Revision, OperationUnknownOutcomeConfirmedSuccess, evidence, "recovery-agent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.State != OperationSucceeded || resolved.RecoveryEvidenceDigest != evidence || resolved.LastFailureClass != "" || resolved.Attempt != op.Attempt {
+		t.Fatalf("unknown outcome recovery mutated retry authority incorrectly: before=%+v after=%+v", op, resolved)
+	}
+	if _, err = store.ResolveUnknownOperationOutcome(ctx, op.ID, resolved.Revision, OperationUnknownOutcomeConfirmedSuccess, evidence, "recovery-agent"); !errors.Is(err, ErrPrerequisite) {
+		t.Fatalf("terminal operation was re-resolved: %v", err)
+	}
+}
+
+func TestUnknownOperationOutcomeResolutionRejectsInvalidDigestAndStaleRevision(t *testing.T) {
+	op := Operation{
+		ResourceMeta: ResourceMeta{ID: "op_unknown", Revision: 9},
+		State: OperationFailed, LastFailureClass: OperationFailureUnknown, Attempt: 1,
+	}
+	if _, err := ApplyUnknownOutcomeResolution(op, 8, OperationUnknownOutcomeConfirmedSuccess, testDigest(9710), "operator"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("stale recovery revision accepted: %v", err)
+	}
+	if _, err := ApplyUnknownOutcomeResolution(op, 9, OperationUnknownOutcomeConfirmedSuccess, "sha256:bad", "operator"); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid recovery evidence digest accepted: %v", err)
+	}
+	op.LastFailureClass = OperationFailurePermanent
+	if _, err := ApplyUnknownOutcomeResolution(op, 9, OperationUnknownOutcomeConfirmedSuccess, testDigest(9711), "operator"); !errors.Is(err, ErrPrerequisite) {
+		t.Fatalf("non-UNKNOWN failure was recovery-resolved: %v", err)
+	}
+}
