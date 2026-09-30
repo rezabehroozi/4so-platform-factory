@@ -48,9 +48,9 @@
       },
       {
         "family": "application-platform",
-        "routeCount": 24,
-        "mutationCount": 11,
-        "callableRouteCount": 24,
+        "routeCount": 25,
+        "mutationCount": 12,
+        "callableRouteCount": 25,
         "securityExcludedRouteCount": 0,
         "disposition": "typed-tool-complete",
         "toolNames": [
@@ -61,6 +61,7 @@
           "api_get_application_platform_capability_traits",
           "api_get_application_platform_capability_traits_by_id",
           "api_post_application_platform_resolve",
+          "api_post_application_platform_dapr_assessment",
           "api_post_application_platform_openchoreo_assessment",
           "api_post_application_platform_openchoreo_lifecycle",
           "api_get_application_platform_openchoreo_lifecycle_by_id",
@@ -79,7 +80,7 @@
           "api_get_application_platform_environment_bindings_by_id",
           "api_post_application_platform_environment_bindings_by_id_promote"
         ],
-        "rationale": "All 24 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
+        "rationale": "All 25 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
       },
       {
         "family": "audit-events",
