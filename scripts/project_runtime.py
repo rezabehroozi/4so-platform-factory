@@ -218,8 +218,12 @@ def reclaim_stale_lock(root,state,override=None):
     p=lock_file(root,override); lk=read_lock(root,override)
     if not lk: return True
     if lock_owner_live(lk): return False
-    if state and state.get("runId")==lk.get("runId"):
-        if alive(state.get("activePid"),state.get("activePidStartTicks")) or alive(state.get("commandPid"),state.get("commandPidStartTicks")):
+    if state:
+        worker_live=alive(state.get("activePid"),state.get("activePidStartTicks"))
+        child_live=alive(state.get("commandPid"),state.get("commandPidStartTicks"))
+        if worker_live or child_live:
+            return False
+        if state.get("runId")!=lk.get("runId") and state.get("status") in ACTIVE:
             return False
     p.unlink(missing_ok=True); fsync_dir(p); return True
 
