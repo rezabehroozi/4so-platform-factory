@@ -16,6 +16,7 @@ class C7WAuditFetchEvidenceTests(unittest.TestCase):
         return {
             "clientId":client,
             "challengeSha256":challenge,
+            "oauthClientId":"chatgpt-oauth-client",
             "interopBindingAuthority":seal.INTEROP_BINDING_AUTHORITY,
             "interopBindingDigest":binding,
             "requestIds":{name:f"{client}-{idx:02d}-request" for idx,name in enumerate(seal.AUDITED_CHECKS,1)},
@@ -33,6 +34,8 @@ class C7WAuditFetchEvidenceTests(unittest.TestCase):
                 "requestId":receipt["requestIds"][check],
                 "mcpInteropBindingDigest":receipt["interopBindingDigest"],"previousDigest":previous,
             }
+            if check in seal.OAUTH_CLIENT_AUDITED_CHECKS:
+                row["oauthClientId"]=receipt["oauthClientId"]
             row["digest"]=seal.audit_event_digest(row); rows.append(row); previous=row["digest"]
         return rows
 
