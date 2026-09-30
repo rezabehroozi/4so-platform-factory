@@ -107,8 +107,7 @@ def main()->int:
     p.add_argument("--out",type=Path,required=True)
     a=p.parse_args()
     out=finalize(a.packet,a.capture)
-    a.out.parent.mkdir(parents=True,exist_ok=True)
-    a.out.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    core.write_json_once_or_identical(a.out,out,"MCP_EXTERNAL_CLIENT_RECEIPT")
     print(json.dumps({"authority":core.RECEIPT_AUTHORITY,"clientId":out["clientId"],"executionId":out["executionId"],"evidenceDigest":out["evidenceDigest"]},sort_keys=True))
     return 0
 if __name__=="__main__": raise SystemExit(main())
