@@ -184,9 +184,17 @@ func (s *Server) ConfigureVirtualClusterRuntimeSource(source virtualcluster.Runt
 	return nil
 }
 
-func (s *Server) ConfigureDaprExecutorAuthority(authority daprruntime.ExecutorAuthority, expectedRegistry string) error {
+func (s *Server) ConfigureDaprExecutorAuthority(authority daprruntime.ExecutorAuthority, expectedRegistry string, expectedSourceReleaseDigest ...string) error {
+	if len(expectedSourceReleaseDigest) > 1 {
+		return fmt.Errorf("DAPR_EXECUTOR_SOURCE_RELEASE_ARGUMENT_INVALID")
+	}
 	if err := daprruntime.ValidateExecutorAuthorityForRegistry(authority, expectedRegistry); err != nil {
 		return err
+	}
+	if len(expectedSourceReleaseDigest) == 1 {
+		if err := daprruntime.ValidateExecutorAuthorityForRelease(authority, expectedSourceReleaseDigest[0]); err != nil {
+			return err
+		}
 	}
 	if s.daprExecutorReady && !daprruntime.ExecutorAuthoritiesEqual(s.daprExecutorAuthority, authority) {
 		return fmt.Errorf("DAPR_EXECUTOR_AUTHORITY_CONFLICT")
@@ -205,7 +213,10 @@ func (s *Server) ConfigureDaprExecutorAuthority(authority daprruntime.ExecutorAu
 	return nil
 }
 
-func (s *Server) ConfigureDaprRuntimeLock(lock daprruntime.RuntimeLock, expectedRegistry string) error {
+func (s *Server) ConfigureDaprRuntimeLock(lock daprruntime.RuntimeLock, expectedRegistry string, expectedSourceReleaseDigest ...string) error {
+	if len(expectedSourceReleaseDigest) > 1 {
+		return fmt.Errorf("DAPR_EXECUTOR_SOURCE_RELEASE_ARGUMENT_INVALID")
+	}
 	if err := daprruntime.ValidateRuntimeLockForRegistry(lock, expectedRegistry); err != nil {
 		return err
 	}
@@ -219,6 +230,11 @@ func (s *Server) ConfigureDaprRuntimeLock(lock daprruntime.RuntimeLock, expected
 	}
 	if err = daprruntime.ValidateExecutorAuthorityForRegistry(executorAuthority, expectedRegistry); err != nil {
 		return err
+	}
+	if len(expectedSourceReleaseDigest) == 1 {
+		if err = daprruntime.ValidateExecutorAuthorityForRelease(executorAuthority, expectedSourceReleaseDigest[0]); err != nil {
+			return err
+		}
 	}
 	if s.daprExecutorReady && !daprruntime.ExecutorAuthoritiesEqual(s.daprExecutorAuthority, executorAuthority) {
 		return fmt.Errorf("DAPR_EXECUTOR_RUNTIME_LOCK_MISMATCH")
