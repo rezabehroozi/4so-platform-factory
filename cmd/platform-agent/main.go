@@ -1316,6 +1316,9 @@ func (a *agent) report(ctx context.Context) error {
 	if a.daprExecutorRBACActive(ctx) {
 		capabilities = append(capabilities, controlplane.DaprExecutorRBACCapability)
 	}
+	if a.daprWorkloadAdmissionRBACActive(ctx) {
+		capabilities = append(capabilities, controlplane.DaprWorkloadAdmissionRBACCapability)
+	}
 	if workloadExplorer.Complete {
 		capabilities = append(capabilities, "workload-explorer-read")
 	}
@@ -1647,6 +1650,28 @@ func (a *agent) daprExecutorRBACActive(ctx context.Context) bool {
 		{executorUser, "dapr-system", "create", "", "v1", "services"},
 		{executorUser, "dapr-system", "create", "apps", "v1", "deployments"},
 		{executorUser, "dapr-system", "get", "apps", "v1", "statefulsets"},
+	}
+	for _, check := range checks {
+		if !a.subjectAccessAllowed(ctx, check.user, check.namespace, check.verb, check.group, check.version, check.resource) {
+			return false
+		}
+	}
+	return true
+}
+
+func (a *agent) daprWorkloadAdmissionRBACActive(ctx context.Context) bool {
+	namespace := strings.TrimSpace(a.cfg.Namespace)
+	agentSA := strings.TrimSpace(a.cfg.ServiceAccount)
+	if namespace == "" || agentSA == "" {
+		return false
+	}
+	agentUser := "system:serviceaccount:" + namespace + ":" + agentSA
+	admitterUser := "system:serviceaccount:" + namespace + ":4so-dapr-workload-admitter"
+	checks := []struct{ user, namespace, verb, group, version, resource string }{
+		{agentUser, namespace, "create", "batch", "v1", "jobs"},
+		{agentUser, namespace, "get", "", "v1", "pods"},
+		{agentUser, namespace, "list", "", "v1", "pods"},
+		{admitterUser, "default", "create", "", "v1", "pods"},
 	}
 	for _, check := range checks {
 		if !a.subjectAccessAllowed(ctx, check.user, check.namespace, check.verb, check.group, check.version, check.resource) {
