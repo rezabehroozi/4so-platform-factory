@@ -39,7 +39,7 @@ func validRecoveryEvidenceDigest(value string) bool {
 	return true
 }
 
-func applyUnknownOutcomeResolution(op Operation, expected int64, resolution OperationUnknownOutcomeResolution, evidenceDigest, actor string) (Operation, error) {
+func ApplyUnknownOutcomeResolution(op Operation, expected int64, resolution OperationUnknownOutcomeResolution, evidenceDigest, actor string) (Operation, error) {
 	if op.Revision != expected {
 		return Operation{}, ErrConflict
 	}
@@ -82,7 +82,7 @@ func (s *MemoryStore) ResolveUnknownOperationOutcome(_ context.Context, id strin
 	if !ok {
 		return Operation{}, ErrNotFound
 	}
-	next, err := applyUnknownOutcomeResolution(op, expected, resolution, evidenceDigest, actor)
+	next, err := ApplyUnknownOutcomeResolution(op, expected, resolution, evidenceDigest, actor)
 	if err != nil {
 		return Operation{}, err
 	}
