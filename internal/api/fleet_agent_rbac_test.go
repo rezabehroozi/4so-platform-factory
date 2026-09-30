@@ -91,8 +91,8 @@ func TestFleetAgentEnrollmentPrincipalIsImportScoped(t *testing.T) {
 
 func TestClusterRevocationRBACManifestNeutersEveryAgentBinding(t *testing.T) {
 	manifest := renderClusterRevocationRBACManifest("clu_revoked", "uid-revoked", "sha256:"+strings.Repeat("d", 64), true)
-	if got := strings.Count(manifest, "subjects: []"); got != 11 {
-		t.Fatalf("revocation fence neutralized %d bindings, want 11\n%s", got, manifest)
+	if got := strings.Count(manifest, "subjects: []"); got != 12 {
+		t.Fatalf("revocation fence neutralized %d bindings, want 12\n%s", got, manifest)
 	}
 	for _, want := range []string{
 		"name: 4so-platform-agent-credential",
@@ -105,6 +105,7 @@ func TestClusterRevocationRBACManifestNeutersEveryAgentBinding(t *testing.T) {
 		"name: 4so-platform-runtime-job-launcher",
 		"name: 4so-platform-runtime-rbac-observer",
 		"name: 4so-openchoreo-runtime-manager",
+		"name: 4so-dapr-workload-admission-prober",
 		"name: 4so-dapr-runtime-manager",
 		`clusterId: "clu_revoked"`,
 		`externalUid: "uid-revoked"`,
@@ -138,9 +139,11 @@ func TestMutationActivationIncludesBoundedDaprExecutorAuthority(t *testing.T) {
 	manifest := renderClusterMutationActivationManifest("clu_dapr", "4so-platform-agent-test", "uid-dapr", "sha256:"+strings.Repeat("b", 64))
 	for _, want := range []string{
 		"4so-dapr-executor",
+		"4so-dapr-workload-admitter",
+		"4so-dapr-workload-admission-prober",
 		"4so-dapr-runtime-manager",
 		`resourceNames: ["4so-openchoreo-runtime", "4so-openchoreo-runtime-ownership", "4so-dapr-runtime-owner", "4so-dapr-runtime-observed"]`,
-		`resourceNames: ["4so-openchoreo-executor", "4so-dapr-executor"]`,
+		`resourceNames: ["4so-openchoreo-executor", "4so-dapr-executor", "4so-dapr-workload-admitter"]`,
 		`resources: ["customresourcedefinitions"]`,
 		`resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]`,
 		`resources: ["deployments", "replicasets"]`,
@@ -148,6 +151,22 @@ func TestMutationActivationIncludesBoundedDaprExecutorAuthority(t *testing.T) {
 		`verbs: ["get", "list"]`,
 	} {
 		if !strings.Contains(manifest, want) { t.Fatalf("Dapr executor RBAC missing %q", want) }
+	}
+	proberStart := strings.Index(manifest, "name: 4so-dapr-workload-admission-prober\nrules:")
+	if proberStart < 0 {
+		t.Fatal("Dapr workload admission prober ClusterRole is missing")
+	}
+	proberTail := manifest[proberStart:]
+	if end := strings.Index(proberTail, "\n---\n"); end >= 0 {
+		proberTail = proberTail[:end]
+	}
+	if !strings.Contains(proberTail, `resources: ["pods"]`) || !strings.Contains(proberTail, `verbs: ["create"]`) {
+		t.Fatalf("Dapr workload admission prober lost Pod-create-only authority:\n%s", proberTail)
+	}
+	for _, forbidden := range []string{"deployments", "secrets", "configmaps", "clusterroles", "delete", "patch", "update"} {
+		if strings.Contains(proberTail, forbidden) {
+			t.Fatalf("Dapr workload admission prober gained forbidden authority %q:\n%s", forbidden, proberTail)
+		}
 	}
 	launcherStart := strings.Index(manifest, "name: 4so-platform-runtime-job-launcher\n  namespace: 4so-platform-agent")
 	if launcherStart < 0 {
