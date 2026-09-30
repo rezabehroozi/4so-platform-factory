@@ -505,6 +505,8 @@ type DaprRuntimeSupplyChainLock struct {
 	UpstreamCommit      string                 `json:"upstreamCommit"`
 	SourceArchiveDigest string                 `json:"sourceArchiveDigest"`
 	HelmChartDigest     string                 `json:"helmChartDigest"`
+	RegistryAuthority   string                 `json:"registryAuthority"`
+	MirrorRegistry      string                 `json:"mirrorRegistry"`
 	ImageLocks          []DaprRuntimeImageLock `json:"imageLocks"`
 	ZotMirrorVerified   bool                   `json:"zotMirrorVerified"`
 	OfflineReplayReady  bool                   `json:"offlineReplayReady"`
@@ -535,6 +537,11 @@ func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []strin
 	if !daprSHA256Digest(lock.SourceArchiveDigest) || !daprSHA256Digest(lock.HelmChartDigest) {
 		issues = append(issues, "dapr-supply-chain-source-digest-invalid")
 	}
+	mirrorRegistry := strings.TrimSpace(lock.MirrorRegistry)
+	if strings.ToLower(strings.TrimSpace(lock.RegistryAuthority)) != "zot" || mirrorRegistry == "" ||
+		strings.Contains(mirrorRegistry, "://") || strings.Contains(mirrorRegistry, "/") || strings.ContainsAny(mirrorRegistry, " \t\r\n") {
+		issues = append(issues, "dapr-supply-chain-registry-authority-invalid")
+	}
 	expected := map[string]string{}
 	for _, image := range plan.RequiredImages {
 		expected[image.Role] = image.Repository
@@ -552,7 +559,7 @@ func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []strin
 			issues = append(issues, "dapr-supply-chain-image-digest-invalid")
 		}
 		mirror := strings.TrimSpace(image.MirrorReference)
-		if mirror == "" || !strings.Contains(mirror, "@"+image.MirrorDigest) || !strings.Contains(mirror, "/dapr/") {
+		if mirror == "" || !strings.HasPrefix(mirror, mirrorRegistry+"/dapr/") || !strings.Contains(mirror, "@"+image.MirrorDigest) {
 			issues = append(issues, "dapr-supply-chain-mirror-reference-invalid")
 		}
 		seenRoles[role], seenSources[repository] = true, true
