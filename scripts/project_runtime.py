@@ -195,8 +195,17 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
         prev=reconcile(root,prev,override)
         if prev.get("status") in {"RUNNING","WAITING"} and prev.get("activeRun"):
             return {"action":"REJOIN","state":prev}
-        if prev.get("status")=="COMPLETED" and prev.get("head")==info["head"] and prev.get("phase")==phase and prev.get("currentTask")==task and prev.get("command")==command:
+        if prev.get("recoveryRequired") is True and not prev.get("activeRun"):
+            return {"action":"RECOVERY_REQUIRED","state":prev}
+        same_job=(prev.get("head")==info["head"] and prev.get("branch")==info["branch"] and prev.get("phase")==phase and prev.get("currentTask")==task and prev.get("command")==command)
+        if prev.get("status")=="COMPLETED" and same_job:
             return {"action":"CACHED_COMPLETED","state":prev}
+        if same_job and prev.get("status") in {"FAILED","INTERRUPTED","WAITING"} and not prev.get("activeRun"):
+            if prev.get("replaySafe") is True:
+                return {"action":"RESUME_REQUIRED","state":prev}
+            prev.update(status="WAITING",recoveryRequired=True,latestError=prev.get("latestError") or "MANUAL_READBACK_REQUIRED_BEFORE_REPLAY")
+            write_state(root,prev,override)
+            return {"action":"RECOVERY_REQUIRED","state":prev}
     run_id="run-"+datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")+"-"+secrets.token_hex(4)
     acquire(root,run_id,override)
     lp=log_file(root,run_id,override); lp.parent.mkdir(parents=True,exist_ok=True)
@@ -316,7 +325,8 @@ def worker(root,run_id,override=None):
         elif rc==0:
             done=list(s.get("completedTasks") or [])
             if task and task not in done: done.append(task)
-            s.update(status="COMPLETED",latestError="",completedTasks=done,recoveryRequired=False,lastSuccessfulAction=task or "command-completed",
+            failed=[item for item in list(s.get("failedTasks") or []) if item!=task]
+            s.update(status="COMPLETED",latestError="",completedTasks=done,failedTasks=failed,recoveryRequired=False,lastSuccessfulAction=task or "command-completed",
                      latestCompletedCheckpoint=s.get("latestCompletedCheckpoint") or s.get("currentStage") or task)
         else:
             failed=list(s.get("failedTasks") or [])
@@ -379,7 +389,9 @@ def main():
         if a.cmd=="_worker": return worker(root,a.run_id,a.runtime_root)
         command=list(a.command); command=command[1:] if command and command[0]=="--" else command
         if not command: raise RuntimeError("PROJECT_RUNTIME_COMMAND_REQUIRED")
-        print(json.dumps(start(root,a.phase,a.task,command,a.heartbeat_seconds,a.checkpoint_file or "",a.replay_safe,a.runtime_root,allow_detached=a.allow_detached),sort_keys=True)); return 0
+        result=start(root,a.phase,a.task,command,a.heartbeat_seconds,a.checkpoint_file or "",a.replay_safe,a.runtime_root,allow_detached=a.allow_detached)
+        print(json.dumps(result,sort_keys=True))
+        return 4 if result["action"] in {"RECOVERY_REQUIRED","RESUME_REQUIRED"} else 0
     except Exception as e:
         print(f"PROJECT_RUNTIME_ERROR {e}",file=sys.stderr); return 2
 if __name__=="__main__": raise SystemExit(main())
