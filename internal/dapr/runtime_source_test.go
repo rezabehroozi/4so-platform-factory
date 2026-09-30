@@ -31,7 +31,7 @@ func validRuntimeLock() RuntimeLock {
 		HelmPackageDigest: testDigest("0"), HelmRenderDigest: testDigest("1"),
 		HelmMirrorReference: "zot.internal.example/dapr-charts/dapr@" + testDigest("4"), HelmMirrorManifestDigest: testDigest("4"),
 		AcquisitionReceiptDigest: testDigest("2"), MirrorEvidenceDigest: testDigest("3"),
-		ExecutorEvidenceDigest: testDigest("5"), ExecutorImageDigest: testDigest("6"),
+		ExecutorEvidenceDigest: testDigest("5"), ExecutorSourceReleaseDigest: testDigest("7"), ExecutorImageDigest: testDigest("6"),
 		ExecutorImageReference: "zot.internal.example/4so/dapr-runtime@" + testDigest("6"),
 		RegistryAuthority: "zot", RegistryScheme: "https", MirrorRegistry: "zot.internal.example",
 		ImageLocks: images, ZotMirrorVerified: true, OfflineReplayReady: true, Admitted: true,
