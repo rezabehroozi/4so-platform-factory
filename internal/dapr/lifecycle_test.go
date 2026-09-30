@@ -91,6 +91,7 @@ func daprLifecycleTestLock(t *testing.T) RuntimeLock {
 		HelmMirrorManifestDigest: lifecycleTestDigest("4"),
 		AcquisitionReceiptDigest: lifecycleTestDigest("2"), MirrorEvidenceDigest: lifecycleTestDigest("3"),
 		ExecutorEvidenceDigest: lifecycleTestDigest("5"),
+		ExecutorSourceReleaseDigest: lifecycleTestDigest("7"),
 		ExecutorImageReference: "zot.internal.example/4so/dapr-runtime@" + lifecycleTestDigest("6"),
 		ExecutorImageDigest: lifecycleTestDigest("6"),
 		RegistryAuthority: "zot", RegistryScheme: "https", MirrorRegistry: "zot.internal.example",
