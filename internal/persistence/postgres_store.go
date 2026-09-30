@@ -1764,3 +1764,23 @@ ORDER BY CASE WHEN state='RETRY_WAIT' THEN next_attempt_at ELSE created_at END,i
 	}
 	return out, rows.Err()
 }
+
+func (s *PostgresStore) ListUnknownRecoveryOperationsByKindTargetPrefix(ctx context.Context, kind, targetPrefix string, limit int) ([]controlplane.Operation, error) {
+	kind, targetPrefix = strings.TrimSpace(kind), strings.TrimSpace(targetPrefix)
+	if kind == "" || targetPrefix == "" || limit <= 0 || limit > 200 {
+		return nil, fmt.Errorf("%w: operation kind, target prefix and limit 1..200 are required", controlplane.ErrValidation)
+	}
+	prefix := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(targetPrefix, `\`, `\\`), `%`, `\%`), `_`, `\_`) + "%"
+	rows, err := s.db.QueryContext(ctx, `SELECT `+operationColumns+` FROM operations
+WHERE kind=$1 AND target_ref LIKE $2 ESCAPE '\\' AND state='FAILED' AND last_failure_class='UNKNOWN'
+ORDER BY updated_at,id LIMIT $3`, kind, prefix, limit)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	out := make([]controlplane.Operation, 0, limit)
+	for rows.Next() {
+		v, scanErr := scanOperation(rows)
+		if scanErr != nil { return nil, scanErr }
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
