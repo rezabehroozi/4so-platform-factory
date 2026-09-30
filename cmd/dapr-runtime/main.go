@@ -413,6 +413,20 @@ func verifyDeploymentReadyExact(deployment *kubeDeployment, name, containerName,
 	return env, nil
 }
 
+func verifyInjectorObservedPolicy(env map[string]string, sidecarImage string) error {
+	for key, want := range map[string]string{
+		"SIDECAR_IMAGE": sidecarImage,
+		"SIDECAR_RUN_AS_NON_ROOT": "true",
+		"SIDECAR_DROP_ALL_CAPABILITIES": "true",
+		"SIDECAR_READ_ONLY_ROOT_FILESYSTEM": "true",
+	} {
+		if strings.TrimSpace(env[key]) != want {
+			return fmt.Errorf("DAPR_OBSERVED_INJECTOR_POLICY_MISMATCH %s got=%q want=%q", key, env[key], want)
+		}
+	}
+	return nil
+}
+
 func (k *kubeClient) verifyInstalledRuntime(ctx context.Context, lock daprruntime.RuntimeLock) error {
 	operatorImage, err := imageByRole(lock, "operator")
 	if err != nil { return err }
@@ -447,15 +461,8 @@ func (k *kubeClient) verifyInstalledRuntime(ctx context.Context, lock daprruntim
 			injectorEnv = env
 		}
 	}
-	for key, want := range map[string]string{
-		"SIDECAR_IMAGE": sidecarImage,
-		"SIDECAR_RUN_AS_NON_ROOT": "true",
-		"SIDECAR_DROP_ALL_CAPABILITIES": "true",
-		"SIDECAR_READ_ONLY_ROOT_FILESYSTEM": "true",
-	} {
-		if injectorEnv[key] != want {
-			return fmt.Errorf("DAPR_OBSERVED_INJECTOR_POLICY_MISMATCH %s got=%q want=%q", key, injectorEnv[key], want)
-		}
+	if err = verifyInjectorObservedPolicy(injectorEnv, sidecarImage); err != nil {
+		return err
 	}
 	for _, forbidden := range []string{"dapr-placement-server", "dapr-scheduler-server"} {
 		exists, getErr := k.statefulSetExists(ctx, forbidden)
