@@ -215,9 +215,14 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertTrue(evidence.is_file())
             self.assertEqual(R.RESOLUTION_AUTHORITY,json.loads(evidence.read_text())["authority"])
             current_info={"repository":"fixture","branch":"main","head":"abc","originMain":"","gitSyncStatus":"UNAVAILABLE"}
-            with mock.patch.object(R,"git",return_value=current_info), mock.patch.object(R,"acquire"), mock.patch.object(R,"activate_worker",side_effect=RuntimeError("stop-before-launch")):
-                with self.assertRaisesRegex(RuntimeError,"stop-before-launch"):
-                    R.resume(root)
+            fake_worker=mock.Mock(pid=12345)
+            with mock.patch.object(R,"git",return_value=current_info), \
+                 mock.patch.object(R,"acquire"), \
+                 mock.patch.object(R.subprocess,"Popen",return_value=fake_worker), \
+                 mock.patch.object(R,"ticks",return_value="777"), \
+                 mock.patch.object(R,"activate_worker",side_effect=lambda _root,s,*_args,**_kwargs:s):
+                resumed=R.resume(root)
+            self.assertEqual("RESUMED",resumed["action"])
             consumed=R.read_state(root)
             self.assertFalse(consumed["manualReplayAuthorized"])
             self.assertEqual("REQUESTED",consumed["status"])
