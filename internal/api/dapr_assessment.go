@@ -66,3 +66,60 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 		"physicalCertificationInferred": false,
 	})
 }
+
+
+type daprWorkloadPlanRequest struct {
+	ProjectID       string   `json:"projectId"`
+	TraitID         string   `json:"traitId"`
+	Namespace       string   `json:"namespace"`
+	AppID           string   `json:"appId"`
+	AppPort         int      `json:"appPort,omitempty"`
+	AppProtocol     string   `json:"appProtocol,omitempty"`
+	CPURequest      string   `json:"cpuRequest"`
+	CPULimit        string   `json:"cpuLimit"`
+	MemoryRequest   string   `json:"memoryRequest"`
+	MemoryLimit     string   `json:"memoryLimit"`
+	ComponentNames  []string `json:"componentNames,omitempty"`
+	EnablePubSub    bool     `json:"enablePubSub"`
+	EnableBindings  bool     `json:"enableBindings"`
+	EnableInvocation bool    `json:"enableInvocation"`
+}
+
+func (s *Server) resolveDaprWorkloadPlan(w http.ResponseWriter, r *http.Request) {
+	store, ok := s.applicationPlatformAuthority(w)
+	if !ok { return }
+	var input daprWorkloadPlanRequest
+	if err := decodeJSON(w, r, &input); err != nil { return }
+	input.ProjectID = strings.TrimSpace(input.ProjectID)
+	input.TraitID = strings.TrimSpace(input.TraitID)
+	if input.ProjectID == "" || input.TraitID == "" {
+		writeError(w, http.StatusUnprocessableEntity, "DAPR_TRAIT_SCOPE_REQUIRED", "projectId and traitId are required")
+		return
+	}
+	if !s.applicationProjectRead(w, r, input.ProjectID) { return }
+	trait, err := store.GetCapabilityTrait(r.Context(), input.TraitID)
+	if err != nil || trait.ProjectID != input.ProjectID {
+		if err == nil { err = controlplane.ErrNotFound }
+		writeStoreError(w, err)
+		return
+	}
+	if trait.Kind != "sidecar" || trait.Capability != controlplane.ApplicationRuntimeDaprCapability {
+		writeError(w, http.StatusUnprocessableEntity, "DAPR_TRAIT_REQUIRED", "trait must be the application-runtime.dapr sidecar capability")
+		return
+	}
+	plan, err := targetmodel.ResolveDaprWorkloadRuntimePlan(targetmodel.DaprWorkloadPlanInput{
+		Namespace: input.Namespace, AppID: input.AppID, AppPort: input.AppPort, AppProtocol: input.AppProtocol,
+		CPURequest: input.CPURequest, CPULimit: input.CPULimit, MemoryRequest: input.MemoryRequest, MemoryLimit: input.MemoryLimit,
+		ComponentNames: append([]string(nil), input.ComponentNames...),
+		EnablePubSub: input.EnablePubSub, EnableBindings: input.EnableBindings, EnableInvocation: input.EnableInvocation,
+	})
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error(), "Dapr workload plan admission failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"authority": targetmodel.DaprWorkloadRuntimePlanAuthority,
+		"traitId": trait.ID, "traitDigest": trait.Digest,
+		"plan": plan, "runtimeMutationPerformed": false, "physicalCertificationInferred": false,
+	})
+}
