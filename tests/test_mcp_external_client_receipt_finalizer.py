@@ -11,10 +11,14 @@ class ReceiptFinalizerTests(unittest.TestCase):
         rows=[]
         for c in core.CLIENTS:
             challenge=("capture-"+c+"-")*4
-            rows.append({"clientId":c,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest()})
+            rows.append({"clientId":c,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest(),
+                         "oauthClientId":c+"-oauth-client","trustedClientId":"mcpcli-"+c,
+                         "trustedClientRevision":1,"trustedClientProvider":c})
         ep="https://mcp.example.test/mcp"; metadata="https://mcp.example.test/.well-known/oauth-protected-resource"
         preflight={"authority":core.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":ep,"protectedResourceMetadata":metadata,"resource":ep,"authorizationServers":["https://identity.example.test/realms/4so"],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":f'Bearer resource_metadata="{metadata}"',"protocol":"2026-07-28"}
-        campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-capturetest","matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),"protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
+        campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-capturetest","matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
+                  "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"capture-oauth-bindings").hexdigest(),
+                  "protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
         cp=td/"campaign.json"; cp.write_text(json.dumps(campaign))
         packet=packetmod.packet(matrix,cp,"chatgpt"); pp=td/"packet.json"; pp.write_text(json.dumps(packet))
         checks={}
@@ -33,6 +37,7 @@ class ReceiptFinalizerTests(unittest.TestCase):
             pp,cap,_=self.fixture(Path(raw)); out=mod.finalize(pp,cap)
             self.assertEqual(core.RECEIPT_AUTHORITY,out["authority"]); self.assertEqual("chatgpt",out["clientId"]); self.assertEqual(core.CLIENT_SURFACES["chatgpt"],out["clientSurface"])
             self.assertEqual(core.sha256(cap),out["evidenceDigest"]); self.assertEqual("opaque-provider-execution-001",out["providerExecutionRef"]); self.assertEqual(set(core.AUDITED_CHECKS),set(out["requestIds"]))
+            self.assertEqual("chatgpt-oauth-client",out["oauthClientId"])
             self.assertTrue(all(out["checks"].values())); self.assertFalse(out["scopeLeakObserved"]); self.assertFalse(out["revokedGrantAccepted"]); self.assertFalse(out["selfApprovalAccepted"])
     def test_false_check_missing_request_id_and_binding_drift_fail_closed(self):
         with tempfile.TemporaryDirectory() as raw:
