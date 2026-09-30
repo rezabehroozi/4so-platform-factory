@@ -515,7 +515,10 @@ type DaprRuntimeSupplyChainLock struct {
 	UpstreamCommit      string                 `json:"upstreamCommit"`
 	SourceArchiveDigest       string                 `json:"sourceArchiveDigest"`
 	HelmChartDigest           string                 `json:"helmChartDigest"`
+	HelmPackageDigest         string                 `json:"helmPackageDigest"`
 	HelmRenderDigest          string                 `json:"helmRenderDigest"`
+	HelmMirrorReference       string                 `json:"helmMirrorReference"`
+	HelmMirrorManifestDigest  string                 `json:"helmMirrorManifestDigest"`
 	AcquisitionReceiptDigest string                 `json:"acquisitionReceiptDigest"`
 	MirrorEvidenceDigest     string                 `json:"mirrorEvidenceDigest"`
 	RegistryAuthority         string                 `json:"registryAuthority"`
@@ -548,7 +551,8 @@ func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []strin
 		issues = append(issues, "dapr-supply-chain-source-identity-invalid")
 	}
 	if !daprSHA256Digest(lock.SourceArchiveDigest) || !daprSHA256Digest(lock.HelmChartDigest) ||
-		!daprSHA256Digest(lock.HelmRenderDigest) || !daprSHA256Digest(lock.AcquisitionReceiptDigest) ||
+		!daprSHA256Digest(lock.HelmPackageDigest) || !daprSHA256Digest(lock.HelmRenderDigest) ||
+		!daprSHA256Digest(lock.HelmMirrorManifestDigest) || !daprSHA256Digest(lock.AcquisitionReceiptDigest) ||
 		!daprSHA256Digest(lock.MirrorEvidenceDigest) {
 		issues = append(issues, "dapr-supply-chain-source-digest-invalid")
 	}
@@ -556,6 +560,10 @@ func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []strin
 	if strings.ToLower(strings.TrimSpace(lock.RegistryAuthority)) != "zot" || mirrorRegistry == "" ||
 		strings.Contains(mirrorRegistry, "://") || strings.Contains(mirrorRegistry, "/") || strings.ContainsAny(mirrorRegistry, " \t\r\n") {
 		issues = append(issues, "dapr-supply-chain-registry-authority-invalid")
+	}
+	expectedChartMirror := mirrorRegistry + "/dapr-charts/dapr@" + lock.HelmMirrorManifestDigest
+	if strings.TrimSpace(lock.HelmMirrorReference) != expectedChartMirror {
+		issues = append(issues, "dapr-supply-chain-chart-mirror-reference-invalid")
 	}
 	expected := map[string]string{}
 	for _, image := range plan.RequiredImages {
