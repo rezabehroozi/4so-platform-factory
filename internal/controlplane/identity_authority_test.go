@@ -102,11 +102,12 @@ func TestSecurityAuditDigestVectorMatchesExternalSealer(t *testing.T) {
 			ReasonCode: "CAPABILITY_PERMISSION_REQUIRED", RequestID: "request-12345",
 			EffectiveRole: "operator",
 			MappingDigest: "sha256:" + strings.Repeat("a", 64),
+			OAuthClientID: "chatgpt-c7w-client",
 			MCPInteropBindingDigest: "sha256:" + strings.Repeat("b", 64),
 		},
 		PreviousDigest: "sha256:" + strings.Repeat("c", 64),
 	}
-	const expected = "sha256:948eadc1f4c1d16dbe6e34cb6859e0e7cb4498655054ea7720a95e1001717619"
+	const expected = "sha256:3a1000439b4083afeccfae99c17e4e44843949c94e3d27158d9d2ad932d16b56"
 	if got := SecurityAuditEventDigest(event); got != expected {
 		t.Fatalf("security audit canonical digest drift: got %s want %s", got, expected)
 	}
