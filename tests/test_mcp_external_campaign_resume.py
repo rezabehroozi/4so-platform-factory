@@ -30,6 +30,13 @@ class CampaignResumeTests(unittest.TestCase):
             "clients":rows,"externalExecutionRequired":True,
         }
 
+    def test_live_preflight_http_opener_refuses_redirects(self):
+        opener=mod.exact_https_opener(mod.ssl.create_default_context())
+        self.assertTrue(any(isinstance(handler,mod.RejectRedirects) for handler in opener.handlers))
+        req=mod.Request("https://mcp.example.test/mcp")
+        handler=mod.RejectRedirects()
+        self.assertIsNone(handler.redirect_request(req,None,302,"Found",{},"https://other.example.test/mcp"))
+
     def test_existing_campaign_resumes_without_network_or_challenge_regeneration(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
         with tempfile.TemporaryDirectory() as td:
