@@ -290,6 +290,23 @@
 <details class="inline-action-disclosure"><summary><span class="summary-title">Preview target capability resolution</span><span class="summary-help">Read-only: determine which traits apply and which are suppressed because the target already owns that capability.</span></summary><div class="inline-action-body"><form class="form-grid" id="application-resolution-form" novalidate=""><label><span>Workload shape</span><select id="application-resolution-workload" required=""></select></label><label><span>Capability traits</span><select id="application-resolution-traits" multiple="" size="4"></select></label><label class="span-full"><span>Capabilities already provided by target</span><input class="technical" dir="ltr" id="application-resolution-native" placeholder="networking.ingress, monitoring.metrics"/><small>Comma-separated canonical capability IDs from target discovery. This preview does not mutate target runtime.</small></label><div class="form-actions span-full"><button class="secondary" type="submit">Preview resolution</button></div></form></div></details>
 <details class="inline-action-disclosure"><summary><span class="summary-title">Promote an environment binding</span><span class="summary-help">Advance one exact environment binding to another immutable release. Scope cannot move during promotion.</span></summary><div class="inline-action-body"><form class="form-grid" id="application-promotion-form" novalidate=""><label><span>Environment binding</span><select id="application-promotion-binding" required=""></select></label><label><span>Immutable release</span><select id="application-promotion-release" required=""></select></label><label class="span-full"><span>Observed native capabilities</span><input class="technical" dir="ltr" id="application-promotion-native" placeholder="networking.ingress, monitoring.metrics"/></label><div class="form-actions span-full"><button class="primary" type="submit">Review &amp; promote release</button></div></form></div></details>
 </div>
+<details class="inline-action-disclosure" id="dapr-runtime-workflow"><summary><span class="summary-title">Dapr application runtime</span><span class="summary-help">Assess native-vs-managed Dapr first. Product-managed install/upgrade/remove always becomes a durable, approval-gated operation.</span></summary><div class="inline-action-body">
+<div class="grid two">
+<form class="form-grid" id="dapr-assessment-form" novalidate="">
+<label><span>Project</span><select id="dapr-project" required=""></select></label>
+<label><span>Connected cluster</span><select id="dapr-cluster" required=""></select></label>
+<label class="check-row span-full"><input id="dapr-disconnected" type="checkbox"/><span>Target is operating without public registry access</span></label>
+<div class="form-actions span-full"><button class="secondary" type="submit">Assess Dapr runtime</button></div>
+</form>
+<form class="form-grid" id="dapr-lifecycle-form" novalidate="">
+<label><span>Lifecycle action</span><select id="dapr-lifecycle-action" required=""><option value="INSTALL">Install</option><option value="UPGRADE">Upgrade</option><option value="REMOVE">Remove</option></select></label>
+<label><span>Current operation</span><input class="technical" dir="ltr" id="dapr-lifecycle-operation" placeholder="No request created" readonly=""/></label>
+<div class="form-actions span-full"><button class="primary" id="dapr-lifecycle-submit" type="submit" disabled="">Create approval-gated request</button><button class="secondary" id="dapr-lifecycle-refresh" type="button" disabled="">Refresh status</button><button class="secondary" id="dapr-lifecycle-approve" type="button" disabled="">Approve request</button></div>
+<small class="span-full">Approval is independent and revision-fenced. A request being accepted does not imply runtime success or Physical certification.</small>
+</form>
+</div>
+<div aria-live="polite" id="dapr-runtime-result"></div>
+</div></details>
 <div id="application-composition-result"></div>
 <h3>Workload shapes &amp; capabilities</h3><div class="resource-grid record-list" id="application-workload-grid"></div>
 <h3>Managed dependencies</h3><div class="resource-grid record-list" id="application-resource-grid"></div>
