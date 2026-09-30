@@ -115,6 +115,46 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertFalse(info["originRefreshAttempted"])
             self.assertEqual("",info["originRefreshError"])
 
+    def test_manual_waiting_state_is_stable_under_observation(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state={
+                "status":"WAITING","runId":"manual-1",
+                "activePid":None,"activePidStartTicks":None,"commandPid":None,"commandPidStartTicks":None,
+                "replaySafe":False,"recoveryRequired":True,"orphaned":True,
+                "latestError":"MANUAL_READBACK_REQUIRED_BEFORE_REPLAY",
+                "latestCompletedCheckpoint":"install-dispatched",
+            }
+            R.write_state(root,state)
+            observed=R.reconcile(root,R.read_state(root))
+            self.assertEqual("WAITING",observed["status"])
+            self.assertEqual("MANUAL_READBACK_REQUIRED_BEFORE_REPLAY",observed["latestError"])
+            self.assertEqual("install-dispatched",observed["latestCompletedCheckpoint"])
+
+    def test_orphaned_child_exit_transitions_by_replay_safety(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            base={
+                "status":"WAITING","runId":"orphan-1",
+                "activePid":99999991,"activePidStartTicks":"1",
+                "commandPid":99999992,"commandPidStartTicks":"1",
+                "recoveryRequired":True,"orphaned":True,
+                "latestError":"ORPHANED_SUPERVISOR_CHILD_STILL_ACTIVE",
+            }
+            replay=dict(base,replaySafe=True)
+            R.write_state(root,replay)
+            out=R.reconcile(root,R.read_state(root))
+            self.assertEqual("INTERRUPTED",out["status"])
+            self.assertFalse(out["recoveryRequired"])
+            self.assertEqual("ORPHANED_CHILD_EXITED_OUTCOME_UNKNOWN_REPLAY_SAFE",out["latestError"])
+
+            manual=dict(base,runId="orphan-2",replaySafe=False)
+            R.write_state(root,manual)
+            out=R.reconcile(root,R.read_state(root))
+            self.assertEqual("WAITING",out["status"])
+            self.assertTrue(out["recoveryRequired"])
+            self.assertEqual("ORPHANED_CHILD_EXITED_OUTCOME_UNKNOWN_MANUAL_READBACK",out["latestError"])
+
     def test_start_cannot_bypass_non_replay_safe_recovery(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
