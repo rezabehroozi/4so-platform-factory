@@ -202,6 +202,32 @@ func TestValidateDaprObservedReceiptRequiresExactOperationFenceAndRuntime(t *tes
 	}
 }
 
+func TestChooseDaprObservedReadbackFallsBackToExactOwnerState(t *testing.T) {
+	receipt := daprAgentResult{
+		TaskFenceToken: 11, RecoveryRequired: true,
+		Error: "Dapr observed state 4so-dapr-runtime-observed is unavailable",
+		Phase: "ReceiptReadback",
+	}
+	owner := daprAgentResult{
+		TaskFenceToken: 11, Success: true, Installed: true,
+		ObservedLockDigest: daprAgentTestDigest("7"), Version: "v1.18.4",
+		UpstreamCommit: "6d1c53f430205c0c0f3bc3589ce5a3ec3f6f1647", Phase: "Installed",
+	}
+	got := chooseDaprObservedReadback(receipt, owner)
+	if !got.Success || got.RecoveryRequired || !strings.HasPrefix(got.Phase, "OwnerStateReadback:") {
+		t.Fatalf("final owner state did not recover lost receipt: %#v", got)
+	}
+}
+
+func TestChooseDaprObservedReadbackDoesNotPromotePendingOrStaleOwnerState(t *testing.T) {
+	receipt := daprAgentResult{TaskFenceToken: 11, RecoveryRequired: true, Error: "receipt missing"}
+	owner := daprAgentResult{TaskFenceToken: 11, RecoveryRequired: true, Error: "owner state fence mismatch", Phase: "Mutating"}
+	got := chooseDaprObservedReadback(receipt, owner)
+	if got.Success || !got.RecoveryRequired || !strings.Contains(got.Error, "owner state fence mismatch") {
+		t.Fatalf("non-authoritative owner state was promoted: %#v", got)
+	}
+}
+
 func TestValidateDaprRemovedReceiptRejectsResidualRuntimeIdentity(t *testing.T) {
 	task := daprAgentTestTask(t)
 	task.Request.Action = daprruntime.ActionRemove
