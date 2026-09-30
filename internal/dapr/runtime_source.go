@@ -28,6 +28,9 @@ func normalize(lock targetmodel.DaprRuntimeSupplyChainLock) targetmodel.DaprRunt
 	lock.UpstreamCommit = strings.ToLower(strings.TrimSpace(lock.UpstreamCommit))
 	lock.SourceArchiveDigest = strings.ToLower(strings.TrimSpace(lock.SourceArchiveDigest))
 	lock.HelmChartDigest = strings.ToLower(strings.TrimSpace(lock.HelmChartDigest))
+	lock.HelmRenderDigest = strings.ToLower(strings.TrimSpace(lock.HelmRenderDigest))
+	lock.AcquisitionReceiptDigest = strings.ToLower(strings.TrimSpace(lock.AcquisitionReceiptDigest))
+	lock.MirrorEvidenceDigest = strings.ToLower(strings.TrimSpace(lock.MirrorEvidenceDigest))
 	lock.RegistryAuthority = strings.ToLower(strings.TrimSpace(lock.RegistryAuthority))
 	lock.MirrorRegistry = strings.ToLower(strings.TrimSpace(lock.MirrorRegistry))
 	for i := range lock.ImageLocks {
