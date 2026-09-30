@@ -260,7 +260,15 @@ def activate_worker(root,state,run_id,worker_pid,worker_ticks,override=None):
     s=dict(state)
     s.update(status="RUNNING",activePid=worker_pid,activePidStartTicks=worker_ticks,lastHeartbeat=now(),safeToRetry=False)
     write_state(root,s,override)
-    transfer(root,run_id,worker_pid,worker_ticks,override)
+    try:
+        transfer(root,run_id,worker_pid,worker_ticks,override)
+    except Exception as exc:
+        try: os.kill(worker_pid,signal.SIGTERM)
+        except (ProcessLookupError,PermissionError): pass
+        current=read_state(root,override) or s
+        preexecution_failure(root,current,"WORKER_LOCK_TRANSFER_FAILED_BEFORE_EXECUTION",override)
+        release(root,run_id,os.getpid(),ticks(os.getpid()),override)
+        raise RuntimeError("PROJECT_RUNTIME_WORKER_LOCK_TRANSFER_FAILED_BEFORE_EXECUTION") from exc
     return s
 
 def preexecution_failure(root,state,error,override=None):
