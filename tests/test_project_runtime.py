@@ -133,7 +133,7 @@ class ProjectRuntimeTests(unittest.TestCase):
             acquire.assert_not_called()
             self.assertEqual("unsafe-1",R.read_state(root)["runId"])
 
-    def test_start_same_replay_safe_job_requires_resume_instead_of_new_run(self):
+    def test_unresolved_replay_safe_run_blocks_even_a_different_new_job(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
             info={"repository":"fixture","branch":"main","head":"abc","originMain":"","gitSyncStatus":"UNAVAILABLE"}
@@ -146,10 +146,11 @@ class ProjectRuntimeTests(unittest.TestCase):
             }
             R.write_state(root,state)
             with mock.patch.object(R,"git",return_value=info), mock.patch.object(R,"acquire") as acquire:
-                result=R.start(root,"validate","owner-tests",command,replay_safe=True)
+                result=R.start(root,"different-phase","different-task",[sys.executable,"-c","print('new-job')"],replay_safe=True)
             self.assertEqual("RESUME_REQUIRED",result["action"])
             acquire.assert_not_called()
             self.assertEqual("replay-1",R.read_state(root)["runId"])
+            self.assertEqual("owner-tests",R.read_state(root)["currentTask"])
 
     def test_non_replay_safe_resume_requires_authoritative_readback(self):
         with tempfile.TemporaryDirectory() as td:
