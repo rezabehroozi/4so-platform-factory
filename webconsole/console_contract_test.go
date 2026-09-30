@@ -220,9 +220,19 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("J8 application composition console contract missing %q", contract)
 		}
 	}
+	for _, contract := range []string{`id="dapr-workload-form"`, `id="dapr-workload-trait"`, `id="dapr-workload-image"`, `id="dapr-workload-admit"`, `id="dapr-workload-refresh"`, "Dapr workload policy &amp; admission", "durable READ_ONLY verification job"} {
+		if !strings.Contains(html, contract) {
+			t.Fatalf("J8 Dapr workload admission console contract missing %q", contract)
+		}
+	}
 	for _, contract := range []string{"applicationWorkloadTypes", "applicationCapabilityTraits", "applicationResourceTypes", "applicationWorkspaceProfiles", "applicationReleases", "applicationEnvironmentBindings", "/api/v1/application-platform/resolve", "/application-platform/environment-bindings/", "If-Match", "Preview only. No target", "Runtime convergence and Physical certification remain separate"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("J8 application composition runtime contract missing %q", contract)
+		}
+	}
+	for _, contract := range []string{"daprWorkloadPlan", "daprWorkloadAdmission", "/api/v1/application-platform/dapr/workload-plan", "/api/v1/application-platform/dapr/workload-admissions", "configurationProjection", "componentScopeDigest", "Target admission requires an exact digest-pinned workload image", "Admission proves current policy/scopes and server-side injection only"} {
+		if !strings.Contains(js, contract) {
+			t.Fatalf("J8 Dapr workload admission runtime contract missing %q", contract)
 		}
 	}
 	for _, contract := range []string{`class="skip-link"`, `name="theme-color"`} {
