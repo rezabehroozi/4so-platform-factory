@@ -299,6 +299,7 @@ func (a *agent) taskProcessors() []agentTaskProcessor {
 		{name: "provider cluster", run: a.processProviderClusterTask},
 		{name: "virtual cluster", run: a.processVirtualClusterTask},
 		{name: "OpenChoreo lifecycle", run: a.processOpenChoreoLifecycleTask},
+		{name: "Dapr recovery readback", run: a.processDaprRecoveryTask},
 		{name: "Dapr lifecycle", run: a.processDaprLifecycleTask},
 		{name: "cluster maintenance", run: a.processClusterMaintenanceTask},
 		{name: "workload logs", run: a.processWorkloadLogTask},
