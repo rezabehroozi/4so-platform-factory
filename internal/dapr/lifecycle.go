@@ -29,6 +29,8 @@ type LifecycleRequest struct {
 	ClusterID                    string          `json:"clusterId"`
 	Action                       LifecycleAction `json:"action"`
 	RuntimeLockDigest            string          `json:"runtimeLockDigest"`
+	RuntimeVersion               string          `json:"runtimeVersion"`
+	UpstreamCommit               string          `json:"upstreamCommit"`
 	ExpectedObservedLockDigest   string          `json:"expectedObservedLockDigest,omitempty"`
 	Disconnected                 bool            `json:"disconnected,omitempty"`
 }
@@ -76,6 +78,8 @@ func CanonicalLifecycleRequest(value LifecycleRequest) (LifecycleRequest, error)
 	value.ProjectID = strings.TrimSpace(value.ProjectID)
 	value.ClusterID = strings.TrimSpace(value.ClusterID)
 	value.RuntimeLockDigest = strings.ToLower(strings.TrimSpace(value.RuntimeLockDigest))
+	value.RuntimeVersion = strings.TrimSpace(value.RuntimeVersion)
+	value.UpstreamCommit = strings.ToLower(strings.TrimSpace(value.UpstreamCommit))
 	value.ExpectedObservedLockDigest = strings.ToLower(strings.TrimSpace(value.ExpectedObservedLockDigest))
 	action, err := NormalizeLifecycleAction(value.Action)
 	if err != nil {
@@ -87,6 +91,14 @@ func CanonicalLifecycleRequest(value LifecycleRequest) (LifecycleRequest, error)
 	}
 	if !lifecycleDigest(value.RuntimeLockDigest) {
 		return LifecycleRequest{}, fmt.Errorf("DAPR_LIFECYCLE_LOCK_DIGEST_INVALID")
+	}
+	if value.RuntimeVersion == "" || len(value.UpstreamCommit) != 40 {
+		return LifecycleRequest{}, fmt.Errorf("DAPR_LIFECYCLE_RUNTIME_IDENTITY_INVALID")
+	}
+	for _, ch := range value.UpstreamCommit {
+		if !strings.ContainsRune("0123456789abcdef", ch) {
+			return LifecycleRequest{}, fmt.Errorf("DAPR_LIFECYCLE_RUNTIME_IDENTITY_INVALID")
+		}
 	}
 	if value.ExpectedObservedLockDigest != "" && !lifecycleDigest(value.ExpectedObservedLockDigest) {
 		return LifecycleRequest{}, fmt.Errorf("DAPR_LIFECYCLE_OBSERVED_DIGEST_INVALID")
