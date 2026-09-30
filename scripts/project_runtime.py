@@ -211,10 +211,48 @@ def activate_worker(root,state,run_id,worker_pid,worker_ticks,override=None):
     # ordering prevents the parent from overwriting a newer commandPid written
     # by the worker after it starts the child process.
     s=dict(state)
-    s.update(status="RUNNING",activePid=worker_pid,activePidStartTicks=worker_ticks,lastHeartbeat=now())
+    s.update(status="RUNNING",activePid=worker_pid,activePidStartTicks=worker_ticks,lastHeartbeat=now(),safeToRetry=False)
     write_state(root,s,override)
     transfer(root,run_id,worker_pid,worker_ticks,override)
     return s
+
+def preexecution_failure(root,state,error,override=None):
+    s=dict(state)
+    s.update(status="INTERRUPTED",recoveryRequired=False,safeToRetry=True,executionStarted=False,
+             activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,
+             lastHeartbeat=now(),latestError=error)
+    write_state(root,s,override)
+    return s
+
+def spawn_waiting_worker(root,run_id,state,log_path,override=None,resume_attempt=None):
+    args=[sys.executable,str(Path(__file__).resolve()),"_worker","--root",str(root),"--run-id",run_id]
+    if override: args+=["--runtime-root",override]
+    worker=None
+    try:
+        with log_path.open("a",buffering=1) as log:
+            if resume_attempt is not None:
+                log.write(json.dumps({"event":"run-resume-launch","runId":run_id,"attempt":resume_attempt,"at":now()},sort_keys=True)+"\n")
+            worker=subprocess.Popen(args,cwd=root,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
+        wt=None
+        for _ in range(50):
+            wt=ticks(worker.pid)
+            if wt: break
+            time.sleep(.01)
+        if not wt:
+            try: worker.terminate()
+            except Exception: pass
+            raise RuntimeError("PROJECT_RUNTIME_WORKER_IDENTITY_UNAVAILABLE")
+        return worker,wt
+    except Exception as exc:
+        owner=read_lock(root,override)
+        if owner and owner.get("runId")==run_id and owner.get("pid")==os.getpid() and str(owner.get("startTicks"))==str(ticks(os.getpid())):
+            if worker is not None:
+                try: worker.terminate()
+                except Exception: pass
+            preexecution_failure(root,state,"WORKER_LAUNCH_FAILED_BEFORE_EXECUTION",override)
+            release(root,run_id,os.getpid(),ticks(os.getpid()),override)
+            raise RuntimeError("PROJECT_RUNTIME_WORKER_LAUNCH_FAILED_BEFORE_EXECUTION") from exc
+        raise
 
 def release(root,run_id,pid,start,override=None):
     p=lock_file(root,override)
@@ -242,7 +280,7 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
         if prev.get("recoveryRequired") is True and not prev.get("activeRun"):
             return {"action":"RECOVERY_REQUIRED","state":prev}
         if prev.get("status") in {"FAILED","INTERRUPTED","WAITING"} and not prev.get("activeRun"):
-            if prev.get("replaySafe") is True or prev.get("manualReplayAuthorized") is True:
+            if prev.get("replaySafe") is True or prev.get("manualReplayAuthorized") is True or prev.get("safeToRetry") is True:
                 return {"action":"RESUME_REQUIRED","state":prev}
             prev.update(status="WAITING",recoveryRequired=True,latestError=prev.get("latestError") or "MANUAL_READBACK_REQUIRED_BEFORE_REPLAY")
             write_state(root,prev,override)
@@ -260,18 +298,10 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
        "currentStage":"prepare","latestCompletedCheckpoint":"","latestError":"","latestLogPath":str(lp),"command":command,
        "heartbeatSeconds":max(1,min(60,int(heartbeat))),"checkpointFile":checkpoint_file,"progress":{"heartbeatCount":0,"stage":"prepare"},
        "lastSuccessfulAction":"git-authority-verified","replaySafe":bool(replay_safe),"recoveryRequired":False,"orphaned":False,
+       "safeToRetry":False,"executionStarted":False,
        "attempt":1,"backend":"detached-process-supervisor","observerAuthority":False,"executionAuthority":AUTHORITY}
     write_state(root,s,override)
-    args=[sys.executable,str(Path(__file__).resolve()),"_worker","--root",str(root),"--run-id",run_id]
-    if override: args+=["--runtime-root",override]
-    with lp.open("a",buffering=1) as log:
-        worker=subprocess.Popen(args,cwd=root,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
-    wt=None
-    for _ in range(50):
-        wt=ticks(worker.pid)
-        if wt: break
-        time.sleep(.01)
-    if not wt: raise RuntimeError("PROJECT_RUNTIME_WORKER_IDENTITY_UNAVAILABLE")
+    worker,wt=spawn_waiting_worker(root,run_id,s,lp,override)
     s=activate_worker(root,s,run_id,worker.pid,wt,override)
     return {"action":"STARTED","runId":run_id,"pid":worker.pid,"log":str(lp),"state":s}
 
@@ -335,7 +365,7 @@ def resume(root,override=None,allow_detached=False):
         return {"action":"REJOIN","state":s}
     if s.get("status")=="COMPLETED":
         return {"action":"ALREADY_COMPLETED","state":s}
-    if not s.get("replaySafe") and s.get("manualReplayAuthorized") is not True:
+    if not s.get("replaySafe") and s.get("manualReplayAuthorized") is not True and s.get("safeToRetry") is not True:
         s.update(status="WAITING",recoveryRequired=True,latestError="MANUAL_READBACK_REQUIRED_BEFORE_REPLAY")
         write_state(root,s,override)
         return {"action":"RECOVERY_REQUIRED","state":s}
@@ -351,20 +381,11 @@ def resume(root,override=None,allow_detached=False):
     if not run_id: raise RuntimeError("PROJECT_RUNTIME_RUN_ID_MISSING")
     acquire(root,run_id,override)
     s.update(status="REQUESTED",attempt=int(s.get("attempt") or 1)+1,latestError="",orphaned=False,recoveryRequired=False,
-             manualReplayAuthorized=False,activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,lastHeartbeat=now())
+             manualReplayAuthorized=False,safeToRetry=False,executionStarted=False,
+             activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,lastHeartbeat=now())
     write_state(root,s,override)
     lp=Path(s["latestLogPath"]); lp.parent.mkdir(parents=True,exist_ok=True)
-    args=[sys.executable,str(Path(__file__).resolve()),"_worker","--root",str(root),"--run-id",run_id]
-    if override: args+=["--runtime-root",override]
-    with lp.open("a",buffering=1) as log:
-        log.write(json.dumps({"event":"run-resume-launch","runId":run_id,"attempt":s["attempt"],"at":now()},sort_keys=True)+"\n")
-        worker=subprocess.Popen(args,cwd=root,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
-    wt=None
-    for _ in range(50):
-        wt=ticks(worker.pid)
-        if wt: break
-        time.sleep(.01)
-    if not wt: raise RuntimeError("PROJECT_RUNTIME_RESUME_WORKER_IDENTITY_UNAVAILABLE")
+    worker,wt=spawn_waiting_worker(root,run_id,s,lp,override,resume_attempt=s["attempt"])
     s=activate_worker(root,s,run_id,worker.pid,wt,override)
     return {"action":"RESUMED","runId":run_id,"pid":worker.pid,"attempt":s["attempt"],"state":s}
 
@@ -389,13 +410,21 @@ def worker(root,run_id,override=None):
     signal.signal(signal.SIGTERM,stop); signal.signal(signal.SIGINT,stop)
     with log.open("a",buffering=1) as out:
         out.write(json.dumps({"event":"run-start","runId":run_id,"at":now(),"command":command},sort_keys=True)+"\n")
-        child=subprocess.Popen(command,cwd=root,stdin=subprocess.DEVNULL,stdout=out,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
+        try:
+            child=subprocess.Popen(command,cwd=root,stdin=subprocess.DEVNULL,stdout=out,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
+        except Exception:
+            s=read_state(root,override) or s
+            s=preexecution_failure(root,s,"COMMAND_LAUNCH_FAILED_BEFORE_EXECUTION",override)
+            out.write(json.dumps({"event":"run-terminal","runId":run_id,"status":s["status"],"exitCode":None,"at":now()},sort_keys=True)+"\n"); out.flush()
+            release(root,run_id,pid,pt,override)
+            return 1
         ct=None
         for _ in range(50):
             ct=ticks(child.pid)
             if ct: break
             time.sleep(.01)
-        s.update(status="RUNNING",activePid=pid,activePidStartTicks=pt,commandPid=child.pid,commandPidStartTicks=ct,lastSuccessfulAction="command-started")
+        s.update(status="RUNNING",activePid=pid,activePidStartTicks=pt,commandPid=child.pid,commandPidStartTicks=ct,
+                 safeToRetry=False,executionStarted=True,lastSuccessfulAction="command-started")
         write_state(root,s,override)
         count=0; next_hb=0.0
         while child.poll() is None and not interrupted:
