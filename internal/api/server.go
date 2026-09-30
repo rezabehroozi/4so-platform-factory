@@ -15,6 +15,7 @@ import (
 	"platform.4so.io/factory/internal/auth"
 	bp "platform.4so.io/factory/internal/blueprint"
 	"platform.4so.io/factory/internal/controlplane"
+	daprruntime "platform.4so.io/factory/internal/dapr"
 	"platform.4so.io/factory/internal/domain"
 	"platform.4so.io/factory/internal/installation"
 	"platform.4so.io/factory/internal/integrations"
@@ -55,6 +56,9 @@ type Server struct {
 	virtualClusterRuntimeSource  virtualcluster.RuntimeSource
 	virtualClusterRuntimeDigest  string
 	virtualClusterRuntimeReady   bool
+	daprRuntimeLock              daprruntime.RuntimeLock
+	daprRuntimeDigest            string
+	daprRuntimeReady             bool
 	openChoreoRuntimeSource      openchoreo.RuntimeSource
 	openChoreoRuntimeDigest      string
 	openChoreoRuntimeReady       bool
@@ -175,6 +179,20 @@ func (s *Server) ConfigureVirtualClusterRuntimeSource(source virtualcluster.Runt
 	s.virtualClusterRuntimeSource = source
 	s.virtualClusterRuntimeDigest = digest
 	s.virtualClusterRuntimeReady = true
+	return nil
+}
+
+func (s *Server) ConfigureDaprRuntimeLock(lock daprruntime.RuntimeLock) error {
+	if err := daprruntime.ValidateRuntimeLock(lock); err != nil {
+		return err
+	}
+	digest, err := daprruntime.RuntimeLockDigest(lock)
+	if err != nil {
+		return err
+	}
+	s.daprRuntimeLock = lock
+	s.daprRuntimeDigest = digest
+	s.daprRuntimeReady = true
 	return nil
 }
 
