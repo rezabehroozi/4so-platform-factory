@@ -15,7 +15,7 @@ const (
 	OperationUnknownOutcomeConfirmedNoEffect OperationUnknownOutcomeResolution = "CONFIRMED_NO_EFFECT"
 )
 
-func normalizeUnknownOutcomeResolution(value OperationUnknownOutcomeResolution) (OperationUnknownOutcomeResolution, error) {
+func NormalizeUnknownOutcomeResolution(value OperationUnknownOutcomeResolution) (OperationUnknownOutcomeResolution, error) {
 	switch OperationUnknownOutcomeResolution(strings.ToUpper(strings.TrimSpace(string(value)))) {
 	case OperationUnknownOutcomeConfirmedSuccess:
 		return OperationUnknownOutcomeConfirmedSuccess, nil
@@ -46,7 +46,7 @@ func ApplyUnknownOutcomeResolution(op Operation, expected int64, resolution Oper
 	if op.State != OperationFailed || op.LastFailureClass != OperationFailureUnknown {
 		return Operation{}, fmt.Errorf("%w: operation is not FAILED/UNKNOWN", ErrPrerequisite)
 	}
-	resolution, err := normalizeUnknownOutcomeResolution(resolution)
+	resolution, err := NormalizeUnknownOutcomeResolution(resolution)
 	if err != nil {
 		return Operation{}, err
 	}
