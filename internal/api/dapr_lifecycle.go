@@ -132,7 +132,7 @@ func (s *Server) daprAdmissionForCluster(cluster controlplane.ManagedCluster, in
 		ObservedCapabilities:        inventory.Capabilities,
 		ExactSourceAdmitted:         s.daprRuntimeReady,
 		Disconnected:                disconnected,
-		DisconnectedMirrorAdmitted:  s.daprRuntimeReady,
+		DisconnectedProductMirrorAdmitted:  s.daprRuntimeReady,
 		DurableLifecycleReady:       true,
 	})
 }
