@@ -182,6 +182,8 @@ const (
 	DaprUpstreamRepository         = "https://github.com/dapr/dapr"
 	DaprUpstreamRef                = "v1.18.4"
 	DaprUpstreamCommit             = "6d1c53f430205c0c0f3bc3589ce5a3ec3f6f1647"
+	DaprRuntimeImageTag            = "1.18.4"
+	DaprUpstreamImageRegistry      = "ghcr.io/dapr"
 	DaprHelmChartPath              = "charts/dapr"
 )
 
@@ -220,6 +222,8 @@ func DaprRuntimeSourcePlanModel() DaprRuntimeSourcePlan {
 		UpstreamCommit:     DaprUpstreamCommit,
 		HelmChartPath:      DaprHelmChartPath,
 		HelmOverrides: []DaprHelmOverride{
+			{Path: "global.registry", Value: DaprUpstreamImageRegistry},
+			{Path: "global.tag", Value: DaprRuntimeImageTag},
 			{Path: "global.actors.enabled", Value: "false"},
 			{Path: "global.scheduler.enabled", Value: "false"},
 			{Path: "global.mtls.enabled", Value: "true"},
@@ -272,6 +276,8 @@ func ValidateDaprRuntimeSourcePlan(plan DaprRuntimeSourcePlan) []string {
 		overrides[item.Path] = item.Value
 	}
 	requiredOverrides := map[string]string{
+		"global.registry": DaprUpstreamImageRegistry,
+		"global.tag": DaprRuntimeImageTag,
 		"global.actors.enabled": "false",
 		"global.scheduler.enabled": "false",
 		"global.mtls.enabled": "true",
