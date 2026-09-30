@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, datetime, hashlib, json, os, secrets, signal, socket, subprocess, sys, tempfile, time
+import argparse, datetime, fcntl, hashlib, json, os, secrets, signal, socket, subprocess, sys, tempfile, time
+from contextlib import contextmanager
 from pathlib import Path
 
 AUTHORITY="PROJECT_RUNTIME_STATE_V1"
@@ -72,6 +73,7 @@ def runtime_dir(root,override=None):
     return p if p.is_absolute() else root/p
 
 def state_file(root,override=None): return runtime_dir(root,override)/"state.json"
+def state_mutex_file(root,override=None): return runtime_dir(root,override)/"state.mutex"
 def lock_file(root,override=None): return runtime_dir(root,override)/"mutation.lock"
 def log_file(root,run_id,override=None): return runtime_dir(root,override)/"logs"/f"{run_id}.log"
 def recovery_file(root,run_id,override=None):
@@ -95,11 +97,33 @@ def read_state(root,override=None):
     data=load(p)
     if data.get("authority")!=AUTHORITY or data.get("schemaVersion")!=SCHEMA:
         raise RuntimeError("PROJECT_RUNTIME_STATE_AUTHORITY_INVALID")
+    revision=data.get("stateRevision",0)
+    if type(revision) is not int or revision<0:
+        raise RuntimeError("PROJECT_RUNTIME_STATE_REVISION_INVALID")
+    data["stateRevision"]=revision
     return data
 
-def write_state(root,state,override=None):
-    body=dict(state); body["authority"]=AUTHORITY; body["schemaVersion"]=SCHEMA; body["updatedAt"]=now()
-    atomic_json(state_file(root,override),body)
+@contextmanager
+def state_guard(root,override=None):
+    p=state_mutex_file(root,override); p.parent.mkdir(parents=True,exist_ok=True)
+    fd=os.open(p,os.O_CREAT|os.O_RDWR|os.O_CLOEXEC,0o600)
+    try:
+        fcntl.flock(fd,fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd,fcntl.LOCK_UN)
+        os.close(fd)
+
+def write_state(root,state,override=None,expected_revision=None):
+    with state_guard(root,override):
+        current=read_state(root,override)
+        current_revision=int((current or {}).get("stateRevision") or 0)
+        if expected_revision is not None and current_revision!=int(expected_revision):
+            return False,current
+        body=dict(state); body["authority"]=AUTHORITY; body["schemaVersion"]=SCHEMA
+        body["stateRevision"]=current_revision+1; body["updatedAt"]=now()
+        atomic_json(state_file(root,override),body)
+        return True,body
 
 def git(root,refresh=False,allow_detached=False,require_origin_sync=False):
     def run(*args,check=True,timeout=30):
@@ -171,13 +195,16 @@ def reconcile(root,state,override=None,write=True):
                      activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None)
             transition=True
     if write and transition:
-        # Re-read before a recovery mutation.  If the execution owner advanced
-        # state since this observer snapshot was taken, preserve that newer
-        # authority instead of writing stale recovery state.
-        current=read_state(root,override)
-        if current and current.get("runId")==state.get("runId") and current.get("updatedAt")!=state.get("updatedAt"):
-            return reconcile(root,current,override,write=False)
-        write_state(root,s,override)
+        # Compare-and-swap under the local state mutex.  A worker can complete
+        # between liveness observation and this mutation; revision fencing
+        # prevents an observer from overwriting that newer terminal state.
+        expected=int(state.get("stateRevision") or 0)
+        written,current=write_state(root,s,override,expected_revision=expected)
+        if not written:
+            if current and current.get("runId")==state.get("runId"):
+                return reconcile(root,current,override,write=False)
+            return current or s
+        return current if False else (read_state(root,override) or s)
     return s
 
 def reclaim_stale_lock(root,state,override=None):
