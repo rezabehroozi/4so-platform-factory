@@ -406,3 +406,48 @@ func TestUnknownOperationOutcomeResolutionRejectsInvalidDigestAndStaleRevision(t
 		t.Fatalf("non-UNKNOWN failure was recovery-resolved: %v", err)
 	}
 }
+
+
+func TestUnknownOutcomeResolutionAtomicallySealsRecoveryPayload(t *testing.T) {
+	store, ctx, project, _, _, now := retryFixture(t)
+	op, _, err := store.CreateOperation(ctx, OperationRequest{
+		ProjectID: project.ID, Kind: "dapr.runtime.lifecycle", TargetRef: "dapr:clu:install",
+		DesiredRevision: testDigest(9720), Risk: "high", Class: OperationClassMutating,
+	}, "unknown-with-payload", "operator", "req")
+	if err != nil { t.Fatal(err) }
+	op = queueGenericOperation(t, store, ctx, op)
+	claim, err := store.ClaimOperation(ctx, op.ID, "worker", time.Minute, *now)
+	if err != nil { t.Fatal(err) }
+	op, _ = store.GetOperation(ctx, op.ID)
+	op, err = store.StartOperationAttempt(ctx, op.ID, op.Revision, "worker", claim.FenceToken, "worker")
+	if err != nil { t.Fatal(err) }
+	op, err = store.ReportOperationFailure(ctx, op.ID, op.Revision, "worker", claim.FenceToken, OperationFailureReport{
+		Class: OperationFailureUnknown, Code: "LOST_RESPONSE", Message: "unknown outcome",
+	}, "worker")
+	if err != nil { t.Fatal(err) }
+
+	payload := []byte(`{"authority":"DAPR_TARGET_RECOVERY_READBACK_V1","confirmedSuccess":true}`)
+	wantDigest := OperationEvidencePayloadDigest(payload)
+	resolved, evidence, err := store.ResolveUnknownOperationOutcomeWithEvidence(
+		ctx, op.ID, op.Revision, OperationUnknownOutcomeConfirmedSuccess,
+		EvidenceMetadata{OperationID: op.ID, Kind: "dapr-runtime-recovery-confirmed", MediaType: "application/json"},
+		payload, "recovery-agent",
+	)
+	if err != nil { t.Fatal(err) }
+	if resolved.State != OperationSucceeded || resolved.RecoveryEvidenceDigest != wantDigest ||
+		evidence.Digest != wantDigest || !evidence.HasPayload || !evidence.Sealed {
+		t.Fatalf("atomic recovery authority drift op=%+v evidence=%+v", resolved, evidence)
+	}
+	meta, got, err := store.GetEvidencePayload(ctx, evidence.ID)
+	if err != nil || meta.Digest != wantDigest || !bytes.Equal(got, payload) {
+		t.Fatalf("sealed recovery payload readback drift meta=%+v payload=%q err=%v", meta, got, err)
+	}
+	replay, replayEvidence, err := store.ResolveUnknownOperationOutcomeWithEvidence(
+		ctx, op.ID, op.Revision, OperationUnknownOutcomeConfirmedSuccess,
+		EvidenceMetadata{OperationID: op.ID, Kind: "dapr-runtime-recovery-confirmed", MediaType: "application/json"},
+		payload, "recovery-agent",
+	)
+	if err != nil || replay.ID != resolved.ID || replay.Revision != resolved.Revision || replayEvidence.ID != evidence.ID {
+		t.Fatalf("recovery response-loss replay was not idempotent op=%+v evidence=%+v err=%v", replay, replayEvidence, err)
+	}
+}
