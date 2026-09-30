@@ -4,9 +4,9 @@
     "security-excluded": 40,
     "tool-admin": 74,
     "tool-operate": 80,
-    "tool-read": 189
+    "tool-read": 190
   },
-  "routeCount": 383,
+  "routeCount": 384,
   "routes": [
     {
       "action": "version",
@@ -1862,6 +1862,23 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_application_platform_resolve"
+    },
+    {
+      "action": "dapr_assessment",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": false,
+      "method": "POST",
+      "path": "/api/v1/application-platform/dapr/assessment",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_post_application_platform_dapr_assessment"
     },
     {
       "action": "openchoreo_assessment",
