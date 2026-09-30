@@ -1,6 +1,7 @@
 package targetmodel
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -320,6 +321,168 @@ func ValidateDaprRuntimeSourcePlan(plan DaprRuntimeSourcePlan) []string {
 		issues = append(issues, "dapr-supply-chain-boundary-invalid")
 	}
 	return issues
+}
+
+const (
+	DaprWorkloadRuntimePlanAuthority = "DAPR_WORKLOAD_RUNTIME_PLAN_V1"
+	DaprDerivedConfigurationKind     = "Configuration"
+)
+
+type DaprWorkloadPlanInput struct {
+	Namespace           string   `json:"namespace"`
+	AppID               string   `json:"appId"`
+	AppPort              int      `json:"appPort,omitempty"`
+	AppProtocol          string   `json:"appProtocol,omitempty"`
+	CPURequest           string   `json:"cpuRequest"`
+	CPULimit             string   `json:"cpuLimit"`
+	MemoryRequest        string   `json:"memoryRequest"`
+	MemoryLimit          string   `json:"memoryLimit"`
+	ComponentNames       []string `json:"componentNames,omitempty"`
+	EnablePubSub         bool     `json:"enablePubSub"`
+	EnableBindings       bool     `json:"enableBindings"`
+	EnableInvocation     bool     `json:"enableInvocation"`
+}
+
+type DaprAPIAccessRule struct {
+	Name     string `json:"name"`
+	Version  string `json:"version"`
+	Protocol string `json:"protocol"`
+}
+
+type DaprWorkloadAnnotation struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type DaprComponentScope struct {
+	ComponentName string   `json:"componentName"`
+	Scopes        []string `json:"scopes"`
+}
+
+type DaprWorkloadRuntimePlan struct {
+	Authority                 string                   `json:"authority"`
+	Capability                string                   `json:"capability"`
+	Namespace                 string                   `json:"namespace"`
+	AppID                     string                   `json:"appId"`
+	ConfigurationName         string                   `json:"configurationName"`
+	ConfigurationDerived      bool                     `json:"configurationDerived"`
+	ConfigurationBecomesSoT   bool                     `json:"configurationBecomesSoT"`
+	Annotations               []DaprWorkloadAnnotation `json:"annotations"`
+	AllowedAPIs               []DaprAPIAccessRule      `json:"allowedApis"`
+	ComponentScopes           []DaprComponentScope     `json:"componentScopes,omitempty"`
+	ServiceInvocationDefault  string                   `json:"serviceInvocationDefault"`
+	CrossNamespaceInvocation  bool                     `json:"crossNamespaceInvocation"`
+	SecretMaterialEmbedded    bool                     `json:"secretMaterialEmbedded"`
+	PhysicalCertificationInferred bool                 `json:"physicalCertificationInferred"`
+}
+
+func daprDNSLabel(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 63 || value[0] == '-' || value[len(value)-1] == '-' {
+		return false
+	}
+	for _, ch := range value {
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func daprResourceQuantity(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 24 {
+		return false
+	}
+	for _, ch := range value {
+		if (ch >= '0' && ch <= '9') || ch == '.' || ch == 'm' || ch == 'M' || ch == 'i' || ch == 'G' || ch == 'K' || ch == 'T' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func ResolveDaprWorkloadRuntimePlan(in DaprWorkloadPlanInput) (DaprWorkloadRuntimePlan, error) {
+	namespace := strings.ToLower(strings.TrimSpace(in.Namespace))
+	appID := strings.ToLower(strings.TrimSpace(in.AppID))
+	if !daprDNSLabel(namespace) || !daprDNSLabel(appID) {
+		return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_WORKLOAD_IDENTITY_INVALID")
+	}
+	protocol := strings.ToLower(strings.TrimSpace(in.AppProtocol))
+	if protocol == "" {
+		protocol = "http"
+	}
+	if protocol != "http" && protocol != "https" && protocol != "grpc" && protocol != "grpcs" {
+		return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_WORKLOAD_PROTOCOL_INVALID")
+	}
+	if in.AppPort < 0 || in.AppPort > 65535 {
+		return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_WORKLOAD_PORT_INVALID")
+	}
+	for _, value := range []string{in.CPURequest, in.CPULimit, in.MemoryRequest, in.MemoryLimit} {
+		if !daprResourceQuantity(value) {
+			return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_WORKLOAD_RESOURCE_SIZING_INVALID")
+		}
+	}
+	components := append([]string(nil), in.ComponentNames...)
+	sort.Strings(components)
+	for i, component := range components {
+		component = strings.ToLower(strings.TrimSpace(component))
+		if !daprDNSLabel(component) || (i > 0 && component == components[i-1]) {
+			return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_COMPONENT_SCOPE_INVALID")
+		}
+		components[i] = component
+	}
+	if len(components) > 32 {
+		return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_COMPONENT_SCOPE_LIMIT_EXCEEDED")
+	}
+	if !in.EnableInvocation && !in.EnablePubSub && !in.EnableBindings {
+		return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_WORKLOAD_API_PROFILE_EMPTY")
+	}
+	configurationName := "4so-dapr-" + appID
+	annotations := []DaprWorkloadAnnotation{
+		{Key: "dapr.io/enabled", Value: "true"},
+		{Key: "dapr.io/app-id", Value: appID},
+		{Key: "dapr.io/config", Value: configurationName},
+		{Key: "dapr.io/app-protocol", Value: protocol},
+		{Key: "dapr.io/sidecar-cpu-request", Value: strings.TrimSpace(in.CPURequest)},
+		{Key: "dapr.io/sidecar-cpu-limit", Value: strings.TrimSpace(in.CPULimit)},
+		{Key: "dapr.io/sidecar-memory-request", Value: strings.TrimSpace(in.MemoryRequest)},
+		{Key: "dapr.io/sidecar-memory-limit", Value: strings.TrimSpace(in.MemoryLimit)},
+		{Key: "dapr.io/enable-metrics", Value: "true"},
+		{Key: "dapr.io/log-as-json", Value: "true"},
+	}
+	if in.AppPort > 0 {
+		annotations = append(annotations, DaprWorkloadAnnotation{Key: "dapr.io/app-port", Value: fmt.Sprintf("%d", in.AppPort)})
+	}
+	sort.Slice(annotations, func(i, j int) bool { return annotations[i].Key < annotations[j].Key })
+	rules := []DaprAPIAccessRule{}
+	addRule := func(name string) {
+		rules = append(rules,
+			DaprAPIAccessRule{Name: name, Version: "v1", Protocol: "http"},
+			DaprAPIAccessRule{Name: name, Version: "v1", Protocol: "grpc"},
+		)
+	}
+	if in.EnableInvocation { addRule("invoke") }
+	if in.EnablePubSub { addRule("publish") }
+	if in.EnableBindings { addRule("bindings") }
+	sort.Slice(rules, func(i, j int) bool {
+		if rules[i].Name != rules[j].Name { return rules[i].Name < rules[j].Name }
+		return rules[i].Protocol < rules[j].Protocol
+	})
+	scopes := make([]DaprComponentScope, 0, len(components))
+	for _, component := range components {
+		scopes = append(scopes, DaprComponentScope{ComponentName: component, Scopes: []string{appID}})
+	}
+	return DaprWorkloadRuntimePlan{
+		Authority: DaprWorkloadRuntimePlanAuthority, Capability: DaprApplicationRuntimeCapability,
+		Namespace: namespace, AppID: appID, ConfigurationName: configurationName,
+		ConfigurationDerived: true, ConfigurationBecomesSoT: false,
+		Annotations: annotations, AllowedAPIs: rules, ComponentScopes: scopes,
+		ServiceInvocationDefault: "DENY", CrossNamespaceInvocation: false,
+		SecretMaterialEmbedded: false, PhysicalCertificationInferred: false,
+	}, nil
 }
 
 const DaprRuntimeSupplyChainAuthority = "DAPR_RUNTIME_SUPPLY_CHAIN_LOCK_V1"
