@@ -54,6 +54,7 @@ func workloadAdmissionTestPolicyObservation(t *testing.T, request WorkloadAdmiss
 			"apiVersion": "dapr.io/v1alpha1",
 			"kind": "Component",
 			"metadata": map[string]any{"name": scope.ComponentName, "namespace": request.Plan.Namespace},
+			"spec": map[string]any{"type": "pubsub.redis", "version": "v1", "metadata": []any{}},
 			"scopes": []any{request.Plan.AppID},
 		}
 	}
@@ -141,7 +142,9 @@ func TestWorkloadAdmissionDryRunProvesInjectedSidecarSecurityWithoutPullOrPhysic
 		t.Fatalf("Dapr workload dry-run evidence missing security proof: %#v", evidence)
 	}
 	if evidence.SidecarPullObserved || evidence.PhysicalCertificationInferred ||
-		evidence.ExecutorSourceReleaseDigest != request.ExecutorSourceReleaseDigest {
+		evidence.ExecutorSourceReleaseDigest != request.ExecutorSourceReleaseDigest ||
+		!evidence.PolicyObservation.ComponentTypesVerified || evidence.PolicyObservation.PubSubComponentCount != 1 ||
+		evidence.PolicyObservation.BindingComponentCount != 0 {
 		t.Fatalf("Dapr workload dry-run overclaimed or lost executor release binding: %#v", evidence)
 	}
 	first, err := WorkloadAdmissionEvidenceDigest(evidence, request, "op_test")
@@ -180,6 +183,50 @@ func TestWorkloadAdmissionRejectsPolicyProjectionDrift(t *testing.T) {
 	if _, err = ValidateWorkloadPolicyReadback(request, configuration, components); err == nil ||
 		!strings.Contains(err.Error(), "COMPONENT_SCOPE_MISMATCH") {
 		t.Fatalf("cross-app Dapr Component scope passed policy admission: %v", err)
+	}
+}
+
+func TestWorkloadAdmissionRejectsForbiddenComponentFamiliesAndSecretAuthority(t *testing.T) {
+	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
+	configuration, err := BuildWorkloadConfigurationProjection(request.Plan)
+	if err != nil { t.Fatal(err) }
+	component := map[string]any{
+		"apiVersion": "dapr.io/v1alpha1",
+		"kind": "Component",
+		"metadata": map[string]any{"name": "orders-broker", "namespace": request.Plan.Namespace},
+		"spec": map[string]any{"type": "state.redis", "version": "v1", "metadata": []any{}},
+		"scopes": []any{request.Plan.AppID},
+	}
+	components := map[string]map[string]any{"orders-broker": component}
+	if _, err = ValidateWorkloadPolicyReadback(request, configuration, components); err == nil ||
+		!strings.Contains(err.Error(), "COMPONENT_TYPE_FORBIDDEN") {
+		t.Fatalf("forbidden Dapr state Component entered initial workload profile: %v", err)
+	}
+
+	component["spec"] = map[string]any{"type": "pubsub.redis", "version": "v1", "metadata": []any{}}
+	component["auth"] = map[string]any{"secretStore": "kubernetes"}
+	if _, err = ValidateWorkloadPolicyReadback(request, configuration, components); err == nil ||
+		!strings.Contains(err.Error(), "SECRET_AUTHORITY_FORBIDDEN") {
+		t.Fatalf("Dapr Component secret authority entered initial workload profile: %v", err)
+	}
+}
+
+func TestWorkloadAdmissionRequiresComponentFamilyForEnabledAPI(t *testing.T) {
+	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
+	configuration, err := BuildWorkloadConfigurationProjection(request.Plan)
+	if err != nil { t.Fatal(err) }
+	components := map[string]map[string]any{
+		"orders-broker": {
+			"apiVersion": "dapr.io/v1alpha1",
+			"kind": "Component",
+			"metadata": map[string]any{"name": "orders-broker", "namespace": request.Plan.Namespace},
+			"spec": map[string]any{"type": "bindings.http", "version": "v1", "metadata": []any{}},
+			"scopes": []any{request.Plan.AppID},
+		},
+	}
+	if _, err = ValidateWorkloadPolicyReadback(request, configuration, components); err == nil ||
+		!strings.Contains(err.Error(), "COMPONENT_TYPE_FORBIDDEN") {
+		t.Fatalf("binding Component satisfied publish-only Dapr profile: %v", err)
 	}
 }
 
