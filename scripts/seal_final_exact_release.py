@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import zipfile
 
 try:
     import final_exact_release_admission as admission
@@ -404,11 +405,89 @@ def admit_output_path(root: Path, out: Path) -> Path:
     return candidate
 
 
+def git_source_for_resume(root: Path, out: Path) -> str:
+    top = subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,text=True,capture_output=True,check=False)
+    head = subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    indexed = subprocess.run(["git","ls-files","-v","-z"],cwd=root,capture_output=True,check=False)
+    status = subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,capture_output=True,check=False)
+    if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root or head.returncode!=0 or len(head.stdout.strip())!=40 or indexed.returncode!=0 or status.returncode!=0:
+        raise RuntimeError("FINAL_EXACT_RELEASE_RESUME_GIT_STATE_INVALID")
+    if any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
+        raise RuntimeError("FINAL_EXACT_RELEASE_GIT_INDEX_FLAGS_FORBIDDEN")
+    allowed=os.fsencode(out.relative_to(root).as_posix())
+    for record in status.stdout.split(b"\x00"):
+        if not record:
+            continue
+        if record==b"?? "+allowed:
+            continue
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_NOT_EXACT_HEAD")
+    return head.stdout.strip()
+
+
+def resume_existing_evidence(root: Path, out: Path) -> dict:
+    if out.is_symlink() or not out.is_file() or out.stat().st_size<=0 or out.stat().st_size>1024*1024:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
+    source_sha=git_source_for_resume(root,out)
+    try:
+        evidence=json.loads(out.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
+    if not isinstance(evidence,dict):
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
+    version=(root/"VERSION").read_text(encoding="utf-8").strip()
+    release_name=(root/"RELEASE-NAME").read_text(encoding="utf-8").strip()
+    expected_name=f"4so-platform-factory-{version}-{release_name}.zip"
+    expected_rel=PurePosixPath("release")/"exact-sha"/source_sha/expected_name
+    fixed={
+        "apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseEvidence","authority":AUTHORITY,
+        "sourceExecutionAuthority":EXECUTION_AUTHORITY,"sourceWorkspaceAuthority":SOURCE_WORKSPACE_AUTHORITY,
+        "sourceCommitSHA":source_sha,"version":version,"releaseName":release_name,
+        "releaseArchive":expected_name,"releaseArchivePath":expected_rel.as_posix(),
+        "admissionAuthority":admission.AUTHORITY,"fullVerifierAuthority":FULL_VERIFIER_AUTHORITY,
+        "fullVerifierPass":True,"physicalCertified":False,
+    }
+    if any(evidence.get(k)!=v for k,v in fixed.items()):
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_DRIFT")
+    admitted=admission.verify(root)
+    if admitted.get("admitted") is not True or admitted.get("physicalCertified") is not False:
+        raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_INVALID")
+    for key in ("applianceDistributionSha256","mcpExternalInteropSha256"):
+        if evidence.get(key)!=admitted.get(key):
+            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ADMISSION_DRIFT")
+    release=root.joinpath(*expected_rel.parts)
+    digest=sha256(release)
+    if evidence.get("releaseArchiveSha256")!=digest or evidence.get("releaseArchiveBytes")!=release.stat().st_size:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_DRIFT")
+    checksum=release.with_name(release.name+".sha256")
+    checksum_info=checksum.lstat()
+    wanted_checksum=f"{digest.removeprefix('sha256:')}  {release.name}\n"
+    if not stat.S_ISREG(checksum_info.st_mode) or checksum.is_symlink() or checksum.read_text(encoding="utf-8")!=wanted_checksum:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_CHECKSUM_DRIFT")
+    prefix=f"4so-platform-factory-{version}-{release_name}/"
+    expected_embedded={
+        prefix+"ARTIFACT-MANIFEST.json":evidence.get("artifactManifestSha256"),
+        prefix+"BUILD-PROVENANCE.json":evidence.get("buildProvenanceSha256"),
+        prefix+"SBOM.spdx.json":evidence.get("sbomSha256"),
+    }
+    try:
+        with zipfile.ZipFile(release,"r") as archive:
+            names=set(archive.namelist())
+            for name,wanted in expected_embedded.items():
+                if name not in names or not isinstance(wanted,str) or not wanted.startswith("sha256:"):
+                    raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_METADATA_DRIFT")
+                got="sha256:"+hashlib.sha256(archive.read(name)).hexdigest()
+                if got!=wanted:
+                    raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_METADATA_DRIFT")
+    except (zipfile.BadZipFile,KeyError,OSError) as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_INVALID") from exc
+    return evidence
+
+
 def execute(root: Path, out: Path) -> dict:
     root = root.resolve()
     out = admit_output_path(root,out)
     if out.exists():
-        raise RuntimeError("FINAL_EXACT_RELEASE_ALREADY_SEALED")
+        return resume_existing_evidence(root,out)
 
     source_sha = git_source(root)
     admitted = admission.verify(root)
