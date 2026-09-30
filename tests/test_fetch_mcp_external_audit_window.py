@@ -74,6 +74,15 @@ class C7WAuditFetchEvidenceTests(unittest.TestCase):
                     fetcher.atomic_write(path,raw,receipt,"chatgpt")
             self.assertEqual(raced_raw,path.read_bytes())
 
+    def test_audit_output_parent_symlink_is_rejected(self):
+        receipt=self.receipt(); raw=self.raw(self.audit(receipt))
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); real=root/"real"; real.mkdir()
+            alias=root/"alias"; alias.symlink_to(real,target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError,"OUTPUT_PARENT_INVALID"):
+                fetcher.atomic_write(alias/"chatgpt.json",raw,receipt,"chatgpt")
+            self.assertFalse((real/"chatgpt.json").exists())
+
     def test_semantically_unbound_audit_is_rejected_before_persist(self):
         receipt=self.receipt(); rows=self.audit(receipt)
         rows[0]["mcpInteropBindingDigest"]="sha256:"+"0"*64
