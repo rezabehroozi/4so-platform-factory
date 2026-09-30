@@ -407,7 +407,7 @@ func daprResourceQuantity(value string) bool {
 func ResolveDaprWorkloadRuntimePlan(in DaprWorkloadPlanInput) (DaprWorkloadRuntimePlan, error) {
 	namespace := strings.ToLower(strings.TrimSpace(in.Namespace))
 	appID := strings.ToLower(strings.TrimSpace(in.AppID))
-	if !daprDNSLabel(namespace) || !daprDNSLabel(appID) {
+	if !daprDNSLabel(namespace) || !daprDNSLabel(appID) || len(appID) > 54 {
 		return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_WORKLOAD_IDENTITY_INVALID")
 	}
 	protocol := strings.ToLower(strings.TrimSpace(in.AppProtocol))
@@ -425,14 +425,15 @@ func ResolveDaprWorkloadRuntimePlan(in DaprWorkloadPlanInput) (DaprWorkloadRunti
 			return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_WORKLOAD_RESOURCE_SIZING_INVALID")
 		}
 	}
-	components := append([]string(nil), in.ComponentNames...)
+	components := make([]string, len(in.ComponentNames))
+	for i, raw := range in.ComponentNames {
+		components[i] = strings.ToLower(strings.TrimSpace(raw))
+	}
 	sort.Strings(components)
 	for i, component := range components {
-		component = strings.ToLower(strings.TrimSpace(component))
 		if !daprDNSLabel(component) || (i > 0 && component == components[i-1]) {
 			return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_COMPONENT_SCOPE_INVALID")
 		}
-		components[i] = component
 	}
 	if len(components) > 32 {
 		return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_COMPONENT_SCOPE_LIMIT_EXCEEDED")
