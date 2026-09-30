@@ -182,8 +182,8 @@ func (s *Server) ConfigureVirtualClusterRuntimeSource(source virtualcluster.Runt
 	return nil
 }
 
-func (s *Server) ConfigureDaprRuntimeLock(lock daprruntime.RuntimeLock) error {
-	if err := daprruntime.ValidateRuntimeLock(lock); err != nil {
+func (s *Server) ConfigureDaprRuntimeLock(lock daprruntime.RuntimeLock, expectedRegistry string) error {
+	if err := daprruntime.ValidateRuntimeLockForRegistry(lock, expectedRegistry); err != nil {
 		return err
 	}
 	digest, err := daprruntime.RuntimeLockDigest(lock)
