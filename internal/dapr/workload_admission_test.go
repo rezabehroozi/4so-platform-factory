@@ -30,6 +30,7 @@ func workloadAdmissionTestRequest(t *testing.T, mode string) WorkloadAdmissionRe
 		TraitDigest: workloadAdmissionTestDigest("1"), InventoryDigest: workloadAdmissionTestDigest("2"),
 		RuntimeMode: mode,
 		ExecutorEvidenceDigest: workloadAdmissionTestDigest("7"),
+		ExecutorSourceReleaseDigest: workloadAdmissionTestDigest("8"),
 		ExecutorImageReference: "zot.internal.example/4so/dapr-runtime@" + workloadAdmissionTestDigest("3"),
 		WorkloadImage: "zot.internal.example/apps/payments@" + workloadAdmissionTestDigest("4"),
 		Plan: plan, PlanDigest: planDigest,
@@ -82,6 +83,7 @@ func TestWorkloadAdmissionRequestIsDigestBoundAndRequiresExactImages(t *testing.
 	parsed, err := ParseWorkloadAdmissionRequest(raw, digest)
 	if err != nil { t.Fatal(err) }
 	if parsed.ProjectID != request.ProjectID || parsed.PlanDigest != request.PlanDigest ||
+		parsed.ExecutorSourceReleaseDigest != request.ExecutorSourceReleaseDigest ||
 		parsed.ExecutorImageReference != request.ExecutorImageReference || parsed.ExpectedSidecarImage != request.ExpectedSidecarImage {
 		t.Fatalf("Dapr workload admission request drift: %#v", parsed)
 	}
@@ -99,6 +101,11 @@ func TestWorkloadAdmissionRequestIsDigestBoundAndRequiresExactImages(t *testing.
 	if _, err = CanonicalWorkloadAdmissionRequest(bad); err == nil {
 		t.Fatal("mutable Dapr executor image entered workload admission")
 	}
+	bad = request
+	bad.ExecutorSourceReleaseDigest = ""
+	if _, err = CanonicalWorkloadAdmissionRequest(bad); err == nil {
+		t.Fatal("Dapr workload admission accepted executor without exact release binding")
+	}
 }
 
 func TestWorkloadAdmissionDryRunProvesInjectedSidecarSecurityWithoutPullOrPhysicalClaims(t *testing.T) {
@@ -115,8 +122,9 @@ func TestWorkloadAdmissionDryRunProvesInjectedSidecarSecurityWithoutPullOrPhysic
 		!evidence.AppContainerPreserved || !evidence.AnnotationsVerified || !evidence.ServerSideDryRun || !evidence.StrictFieldValidation {
 		t.Fatalf("Dapr workload dry-run evidence missing security proof: %#v", evidence)
 	}
-	if evidence.SidecarPullObserved || evidence.PhysicalCertificationInferred {
-		t.Fatalf("Dapr workload dry-run overclaimed runtime/physical evidence: %#v", evidence)
+	if evidence.SidecarPullObserved || evidence.PhysicalCertificationInferred ||
+		evidence.ExecutorSourceReleaseDigest != request.ExecutorSourceReleaseDigest {
+		t.Fatalf("Dapr workload dry-run overclaimed or lost executor release binding: %#v", evidence)
 	}
 	first, err := WorkloadAdmissionEvidenceDigest(evidence, request, "op_test")
 	if err != nil { t.Fatal(err) }
