@@ -38,7 +38,9 @@ func TestDaprWorkloadAdmissionCreatesReadOnlyDurableNativeDryRun(t *testing.T) {
 
 	srv := scopedServer(t, store)
 	lock := daprAPITestRuntimeLock(t)
-	if err = srv.ConfigureDaprRuntimeLock(lock, "https://zot.internal.example"); err != nil {
+	executorAuthority, err := daprruntime.ExecutorAuthorityFromRuntimeLock(lock)
+	if err != nil { t.Fatal(err) }
+	if err = srv.ConfigureDaprExecutorAuthority(executorAuthority, "https://zot.internal.example"); err != nil {
 		t.Fatal(err)
 	}
 	body := fmt.Sprintf(`{"projectId":%q,"clusterId":%q,"traitId":%q,"workloadImage":%q,"namespace":"payments","appId":"payments-api","appPort":8080,"appProtocol":"http","cpuRequest":"100m","cpuLimit":"500m","memoryRequest":"128Mi","memoryLimit":"256Mi","componentNames":["orders-broker"],"enableInvocation":true,"enablePubSub":true}`,
@@ -54,7 +56,8 @@ func TestDaprWorkloadAdmissionCreatesReadOnlyDurableNativeDryRun(t *testing.T) {
 		created.Operation.Class != controlplane.OperationClassReadOnly ||
 		created.Request.RuntimeMode != "USE_NATIVE" ||
 		created.Request.RuntimeLockDigest != "" || created.Request.ExpectedSidecarImage != "" ||
-		created.Request.ExecutorImageReference != lock.ExecutorImageReference ||
+		created.Request.ExecutorEvidenceDigest != executorAuthority.EvidenceDigest ||
+		created.Request.ExecutorImageReference != executorAuthority.ImageReference ||
 		created.IdempotentReplay {
 		t.Fatalf("native Dapr workload admission authority drift: %#v", created)
 	}
@@ -88,7 +91,10 @@ func TestDaprWorkloadAdmissionFailsClosedWithoutStrictTargetDryRunCapability(t *
 	}, "owner")
 	if err != nil { t.Fatal(err) }
 	srv := scopedServer(t, store)
-	if err = srv.ConfigureDaprRuntimeLock(daprAPITestRuntimeLock(t), "https://zot.internal.example"); err != nil { t.Fatal(err) }
+	lock := daprAPITestRuntimeLock(t)
+	executorAuthority, err := daprruntime.ExecutorAuthorityFromRuntimeLock(lock)
+	if err != nil { t.Fatal(err) }
+	if err = srv.ConfigureDaprExecutorAuthority(executorAuthority, "https://zot.internal.example"); err != nil { t.Fatal(err) }
 
 	_, _, err = srv.buildDaprWorkloadAdmissionRequest(ctx, daprWorkloadAdmissionInput{
 		ProjectID: project.ID, ClusterID: cluster.ID, TraitID: trait.ID,
