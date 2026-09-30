@@ -110,7 +110,24 @@ def reconcile(root,state,override=None,write=True):
     child=alive(s.get("commandPid"),s.get("commandPidStartTicks"))
     s["workerAlive"]=worker; s["commandAlive"]=child; s["activeRun"]=worker or child
     transition=False
-    if s.get("status") in ACTIVE:
+    status=s.get("status")
+    if status=="WAITING" and s.get("orphaned") is True and s.get("latestError")=="ORPHANED_SUPERVISOR_CHILD_STILL_ACTIVE":
+        if child:
+            pass
+        elif s.get("replaySafe") is True:
+            s.update(status="INTERRUPTED",recoveryRequired=False,latestError="ORPHANED_CHILD_EXITED_OUTCOME_UNKNOWN_REPLAY_SAFE",
+                     activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None)
+            transition=True
+        else:
+            s.update(status="WAITING",recoveryRequired=True,latestError="ORPHANED_CHILD_EXITED_OUTCOME_UNKNOWN_MANUAL_READBACK",
+                     activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None)
+            transition=True
+    elif status=="WAITING" and not worker and not child:
+        # Durable WAITING is an intentional recovery/readback state, not proof
+        # of a stale execution.  Preserve the reason and checkpoint until an
+        # operator explicitly resolves or resumes it.
+        pass
+    elif status in ACTIVE:
         if worker:
             pass
         elif child:
