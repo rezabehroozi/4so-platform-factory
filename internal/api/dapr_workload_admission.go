@@ -47,7 +47,7 @@ type daprWorkloadAdmissionTask struct {
 	LeaseExpiresAt    time.Time                            `json:"leaseExpiresAt"`
 	Request           daprruntime.WorkloadAdmissionRequest `json:"request"`
 	ExecutorAuthority daprruntime.ExecutorAuthority         `json:"executorAuthority"`
-	RuntimeLock       daprruntime.RuntimeLock               `json:"runtimeLock,omitempty"`
+	RuntimeLock       *daprruntime.RuntimeLock              `json:"runtimeLock,omitempty"`
 }
 
 type daprWorkloadAdmissionResult struct {
@@ -380,9 +380,10 @@ func (s *Server) nextDaprWorkloadAdmissionTask(w http.ResponseWriter, r *http.Re
 			return
 		}
 		setRevisionETag(w, op.Revision)
-		runtimeLock := daprruntime.RuntimeLock{}
+		var runtimeLock *daprruntime.RuntimeLock
 		if request.RuntimeMode == "PRODUCT_MANAGED" {
-			runtimeLock = s.daprRuntimeLock
+			locked := s.daprRuntimeLock
+			runtimeLock = &locked
 		}
 		writeJSON(w, http.StatusOK, daprWorkloadAdmissionTask{
 			OperationID: op.ID, OperationRevision: op.Revision, TaskFenceToken: claim.FenceToken,
