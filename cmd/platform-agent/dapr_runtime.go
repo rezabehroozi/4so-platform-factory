@@ -37,15 +37,17 @@ type daprAgentTask struct {
 }
 
 type daprAgentResult struct {
-	TaskFenceToken     int64  `json:"taskFenceToken"`
-	Success            bool   `json:"success"`
-	RecoveryRequired   bool   `json:"recoveryRequired,omitempty"`
-	Installed          bool   `json:"installed"`
-	ObservedLockDigest string `json:"observedLockDigest,omitempty"`
-	Version            string `json:"version,omitempty"`
-	UpstreamCommit     string `json:"upstreamCommit,omitempty"`
-	Phase              string `json:"phase,omitempty"`
-	Error              string `json:"error,omitempty"`
+	TaskFenceToken          int64                                  `json:"taskFenceToken"`
+	Success                 bool                                   `json:"success"`
+	RecoveryRequired        bool                                   `json:"recoveryRequired,omitempty"`
+	Installed               bool                                   `json:"installed"`
+	ObservedLockDigest      string                                 `json:"observedLockDigest,omitempty"`
+	Version                 string                                 `json:"version,omitempty"`
+	UpstreamCommit          string                                 `json:"upstreamCommit,omitempty"`
+	MirrorPullEvidence      *daprruntime.TargetMirrorPullEvidence `json:"mirrorPullEvidence,omitempty"`
+	MirrorPullEvidenceDigest string                                `json:"mirrorPullEvidenceDigest,omitempty"`
+	Phase                   string                                 `json:"phase,omitempty"`
+	Error                   string                                 `json:"error,omitempty"`
 }
 
 type daprRecoveryTask struct {
@@ -53,28 +55,33 @@ type daprRecoveryTask struct {
 	OperationRevision int64                        `json:"operationRevision"`
 	TaskFenceToken    int64                        `json:"taskFenceToken"`
 	Request           daprruntime.LifecycleRequest `json:"request"`
+	RuntimeLock       daprruntime.RuntimeLock       `json:"runtimeLock"`
 }
 
 type daprRecoveryResult struct {
-	ConfirmedSuccess   bool   `json:"confirmedSuccess"`
-	Installed          bool   `json:"installed"`
-	ObservedLockDigest string `json:"observedLockDigest,omitempty"`
-	Version            string `json:"version,omitempty"`
-	UpstreamCommit     string `json:"upstreamCommit,omitempty"`
-	Phase              string `json:"phase,omitempty"`
-	Error              string `json:"error,omitempty"`
+	ConfirmedSuccess        bool                                   `json:"confirmedSuccess"`
+	Installed               bool                                   `json:"installed"`
+	ObservedLockDigest      string                                 `json:"observedLockDigest,omitempty"`
+	Version                 string                                 `json:"version,omitempty"`
+	UpstreamCommit          string                                 `json:"upstreamCommit,omitempty"`
+	MirrorPullEvidence      *daprruntime.TargetMirrorPullEvidence `json:"mirrorPullEvidence,omitempty"`
+	MirrorPullEvidenceDigest string                                `json:"mirrorPullEvidenceDigest,omitempty"`
+	Phase                   string                                 `json:"phase,omitempty"`
+	Error                   string                                 `json:"error,omitempty"`
 }
 
 type daprObservedReceipt struct {
-	Authority         string `json:"authority"`
-	Installed         bool   `json:"installed"`
-	RuntimeLockDigest string `json:"runtimeLockDigest,omitempty"`
-	OperationID       string `json:"operationId"`
-	FenceToken        int64  `json:"fenceToken"`
-	Version           string `json:"version,omitempty"`
-	UpstreamCommit    string `json:"upstreamCommit,omitempty"`
-	ObservedAt        string `json:"observedAt"`
-	Phase             string `json:"phase"`
+	Authority                string                                 `json:"authority"`
+	Installed                bool                                   `json:"installed"`
+	RuntimeLockDigest        string                                 `json:"runtimeLockDigest,omitempty"`
+	OperationID              string                                 `json:"operationId"`
+	FenceToken               int64                                  `json:"fenceToken"`
+	Version                  string                                 `json:"version,omitempty"`
+	UpstreamCommit           string                                 `json:"upstreamCommit,omitempty"`
+	MirrorPullEvidence       *daprruntime.TargetMirrorPullEvidence `json:"mirrorPullEvidence,omitempty"`
+	MirrorPullEvidenceDigest string                                 `json:"mirrorPullEvidenceDigest,omitempty"`
+	ObservedAt               string                                 `json:"observedAt"`
+	Phase                    string                                 `json:"phase"`
 }
 
 func daprObjectName(prefix, operationID string, fence int64) string {
@@ -129,6 +136,7 @@ func daprExecutorJob(task daprAgentTask, namespace string) (map[string]any, erro
 	action := strings.ToLower(string(task.Request.Action))
 	annotations := map[string]any{
 		"platform.4so.io/authority":           daprExecutorJobAuthority,
+		"platform.4so.io/cluster-id":          task.Request.ClusterID,
 		"platform.4so.io/operation-id":        task.OperationID,
 		"platform.4so.io/task-fence-token":    strconv.FormatInt(task.TaskFenceToken, 10),
 		"platform.4so.io/runtime-lock-digest": task.Request.RuntimeLockDigest,
@@ -151,6 +159,7 @@ func daprExecutorJob(task daprAgentTask, namespace string) (map[string]any, erro
 						"env": []any{
 							map[string]any{"name": "FOURSO_DAPR_RUNTIME_LOCK_JSON", "value": string(lockRaw)},
 							map[string]any{"name": "FOURSO_DAPR_RUNTIME_LOCK_DIGEST", "value": task.Request.RuntimeLockDigest},
+							map[string]any{"name": "FOURSO_DAPR_CLUSTER_ID", "value": task.Request.ClusterID},
 							map[string]any{"name": "FOURSO_DAPR_OPERATION_ID", "value": task.OperationID},
 							map[string]any{"name": "FOURSO_DAPR_TASK_FENCE_TOKEN", "value": strconv.FormatInt(task.TaskFenceToken, 10)},
 							map[string]any{"name": "FOURSO_DAPR_EXPECTED_OBSERVED_LOCK_DIGEST", "value": task.Request.ExpectedObservedLockDigest},
@@ -188,6 +197,7 @@ func daprExecutorJobOwnership(job map[string]any, task daprAgentTask, namespace 
 	annotations, _ := meta["annotations"].(map[string]any)
 	want := map[string]string{
 		"platform.4so.io/authority":           daprExecutorJobAuthority,
+		"platform.4so.io/cluster-id":          task.Request.ClusterID,
 		"platform.4so.io/operation-id":        task.OperationID,
 		"platform.4so.io/task-fence-token":    strconv.FormatInt(task.TaskFenceToken, 10),
 		"platform.4so.io/runtime-lock-digest": task.Request.RuntimeLockDigest,
@@ -353,14 +363,14 @@ func (a *agent) dispatchDaprExecutor(ctx context.Context, task daprAgentTask) da
 	return result
 }
 
-func validateDaprObservedReceipt(receipt daprObservedReceipt, operationID string, fenceToken int64, request daprruntime.LifecycleRequest) daprAgentResult {
-	result := daprAgentResult{TaskFenceToken: fenceToken, Phase: "ReceiptReadback"}
-	if receipt.Authority != daprReceiptAuthority || receipt.OperationID != operationID || receipt.FenceToken != fenceToken {
+func validateDaprObservedReceipt(receipt daprObservedReceipt, task daprAgentTask) daprAgentResult {
+	result := daprAgentResult{TaskFenceToken: task.TaskFenceToken, Phase: "ReceiptReadback"}
+	if receipt.Authority != daprReceiptAuthority || receipt.OperationID != task.OperationID || receipt.FenceToken != task.TaskFenceToken {
 		result.RecoveryRequired = true
 		result.Error = "Dapr observed receipt authority/operation/fence mismatch"
 		return result
 	}
-	wantInstalled := request.Action != daprruntime.ActionRemove
+	wantInstalled := task.Request.Action != daprruntime.ActionRemove
 	if receipt.Installed != wantInstalled || strings.TrimSpace(receipt.Phase) == "" {
 		result.RecoveryRequired = true
 		result.Error = "Dapr observed receipt installed state does not match lifecycle action"
@@ -371,15 +381,42 @@ func validateDaprObservedReceipt(receipt daprObservedReceipt, operationID string
 	result.Version = strings.TrimSpace(receipt.Version)
 	result.UpstreamCommit = strings.ToLower(strings.TrimSpace(receipt.UpstreamCommit))
 	result.Phase = strings.TrimSpace(receipt.Phase)
-	if wantInstalled && (result.ObservedLockDigest != request.RuntimeLockDigest ||
-		result.Version != request.RuntimeVersion || result.UpstreamCommit != request.UpstreamCommit) {
+	if wantInstalled && (result.ObservedLockDigest != task.Request.RuntimeLockDigest ||
+		result.Version != task.Request.RuntimeVersion || result.UpstreamCommit != task.Request.UpstreamCommit) {
 		result.RecoveryRequired = true
 		result.Error = "Dapr observed receipt does not match exact admitted runtime lock"
 		return result
 	}
-	if !wantInstalled && (result.ObservedLockDigest != "" || result.Version != "" || result.UpstreamCommit != "") {
+	if wantInstalled {
+		if receipt.MirrorPullEvidence == nil || strings.TrimSpace(receipt.MirrorPullEvidenceDigest) == "" {
+			result.RecoveryRequired = true
+			result.Error = "Dapr target mirror-pull evidence is missing"
+			return result
+		}
+		if err := daprruntime.ValidateTargetMirrorPullEvidence(
+			*receipt.MirrorPullEvidence, task.RuntimeLock, task.Request.ClusterID, task.OperationID,
+			task.TaskFenceToken, task.Request.RuntimeLockDigest,
+		); err != nil {
+			result.RecoveryRequired = true
+			result.Error = "Dapr target mirror-pull evidence is invalid: " + err.Error()
+			return result
+		}
+		digest, err := daprruntime.TargetMirrorPullEvidenceDigest(
+			*receipt.MirrorPullEvidence, task.RuntimeLock, task.Request.ClusterID, task.OperationID,
+			task.TaskFenceToken, task.Request.RuntimeLockDigest,
+		)
+		if err != nil || digest != strings.ToLower(strings.TrimSpace(receipt.MirrorPullEvidenceDigest)) {
+			result.RecoveryRequired = true
+			result.Error = "Dapr target mirror-pull evidence digest mismatch"
+			return result
+		}
+		result.MirrorPullEvidence = receipt.MirrorPullEvidence
+		result.MirrorPullEvidenceDigest = digest
+	}
+	if !wantInstalled && (result.ObservedLockDigest != "" || result.Version != "" || result.UpstreamCommit != "" ||
+		receipt.MirrorPullEvidence != nil || strings.TrimSpace(receipt.MirrorPullEvidenceDigest) != "") {
 		result.RecoveryRequired = true
-		result.Error = "removed Dapr receipt retained runtime identity"
+		result.Error = "removed Dapr receipt retained runtime or mirror-pull identity"
 		return result
 	}
 	result.Success = true
@@ -413,7 +450,7 @@ func (a *agent) readDaprStateConfigMap(ctx context.Context, name string, task da
 		result.Error = "Dapr observed state " + name + " is invalid: " + err.Error()
 		return result
 	}
-	return validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	return validateDaprObservedReceipt(receipt, task)
 }
 
 func chooseDaprObservedReadback(receipt, owner daprAgentResult) daprAgentResult {
@@ -494,6 +531,13 @@ func (a *agent) nextDaprRecoveryTask(ctx context.Context) (daprRecoveryTask, boo
 	if task.Request.ClusterID != a.clusterID {
 		return task, false, fmt.Errorf("Dapr recovery task cluster does not match this agent")
 	}
+	if err = daprruntime.ValidateRuntimeLock(task.RuntimeLock); err != nil {
+		return task, false, fmt.Errorf("Dapr recovery runtime lock is invalid: %w", err)
+	}
+	lockDigest, err := daprruntime.RuntimeLockDigest(task.RuntimeLock)
+	if err != nil || lockDigest != task.Request.RuntimeLockDigest {
+		return task, false, fmt.Errorf("Dapr recovery runtime lock does not match sealed request")
+	}
 	return task, true, nil
 }
 
@@ -503,6 +547,7 @@ func (a *agent) readDaprRecoveryReceipt(ctx context.Context, task daprRecoveryTa
 		OperationRevision: task.OperationRevision,
 		TaskFenceToken: task.TaskFenceToken,
 		Request: task.Request,
+		RuntimeLock: task.RuntimeLock,
 	}
 	readback := a.readDaprReceipt(ctx, lifecycleTask)
 	return daprRecoveryResult{
@@ -511,6 +556,8 @@ func (a *agent) readDaprRecoveryReceipt(ctx context.Context, task daprRecoveryTa
 		ObservedLockDigest: readback.ObservedLockDigest,
 		Version: readback.Version,
 		UpstreamCommit: readback.UpstreamCommit,
+		MirrorPullEvidence: readback.MirrorPullEvidence,
+		MirrorPullEvidenceDigest: readback.MirrorPullEvidenceDigest,
 		Phase: readback.Phase,
 		Error: readback.Error,
 	}
