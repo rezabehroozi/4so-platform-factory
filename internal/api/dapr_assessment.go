@@ -40,12 +40,11 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 		DistributionIdentity: cluster.Distribution,
 		TargetAdmitted:       cluster.ConnectionState != "REVOKED",
 		Disconnected:         input.Disconnected,
-		// The source decision is intentionally ahead of runtime acquisition.
-		// Product-managed installation stays blocked until exact Dapr chart/image
-		// authority and durable lifecycle execution are separately implemented.
+		// Exact source/mirror readiness remains external evidence, while the
+		// product-owned durable lifecycle path is now source-implemented.
 		ExactSourceAdmitted:        s.daprRuntimeReady,
 		DisconnectedMirrorAdmitted: s.daprRuntimeReady,
-		DurableLifecycleReady:      false,
+		DurableLifecycleReady:      true,
 	}
 	inventory, invErr := s.store.GetLatestClusterInventory(r.Context(), cluster.ID)
 	if invErr != nil && !errors.Is(invErr, controlplane.ErrNotFound) {
@@ -69,7 +68,7 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 		"supplyChainDigest":             s.daprRuntimeDigest,
 		"reviewedRuntimeVersion":        targetmodel.DaprReviewedRuntimeVersion,
 		"assessment":                    out,
-		"runtimeInstallImplemented":     false,
+		"runtimeInstallImplemented":     true,
 		"physicalCertificationInferred": false,
 	})
 }
