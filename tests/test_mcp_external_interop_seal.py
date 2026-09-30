@@ -146,6 +146,15 @@ class MCPExternalSealTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"CHALLENGE_REUSE"): mod.verify_campaign(cp,matrix,spec)
 
         with tempfile.TemporaryDirectory() as td:
+            root=Path(td); matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
+            campaign=self.campaign(matrix)
+            campaign["clients"][1]["trustedClientId"]=campaign["clients"][0]["trustedClientId"]
+            cp=root/"campaign.json"; cp.write_text(json.dumps(campaign))
+            spec=json.loads(matrix.read_text())["spec"]
+            with self.assertRaisesRegex(RuntimeError,"TRUSTED_CLIENT_ID_REUSE"):
+                mod.verify_campaign(cp,matrix,spec)
+
+        with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
             audit_path=audits/"chatgpt.json"; audit=json.loads(audit_path.read_text())
             duplicate=dict(audit[-1]); duplicate["id"]="sau-duplicate"; duplicate["sequence"]=len(audit)+1; duplicate["previousDigest"]=audit[-1]["digest"]; duplicate["digest"]=self.audit_digest(duplicate)
