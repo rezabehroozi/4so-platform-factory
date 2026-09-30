@@ -42,15 +42,17 @@ type daprLifecycleTask struct {
 }
 
 type daprLifecycleResult struct {
-	TaskFenceToken     int64  `json:"taskFenceToken"`
-	Success            bool   `json:"success"`
-	RecoveryRequired   bool   `json:"recoveryRequired,omitempty"`
-	Installed          bool   `json:"installed"`
-	ObservedLockDigest string `json:"observedLockDigest,omitempty"`
-	Version            string `json:"version,omitempty"`
-	UpstreamCommit     string `json:"upstreamCommit,omitempty"`
-	Phase              string `json:"phase,omitempty"`
-	Error              string `json:"error,omitempty"`
+	TaskFenceToken          int64                                  `json:"taskFenceToken"`
+	Success                 bool                                   `json:"success"`
+	RecoveryRequired        bool                                   `json:"recoveryRequired,omitempty"`
+	Installed               bool                                   `json:"installed"`
+	ObservedLockDigest      string                                 `json:"observedLockDigest,omitempty"`
+	Version                 string                                 `json:"version,omitempty"`
+	UpstreamCommit          string                                 `json:"upstreamCommit,omitempty"`
+	MirrorPullEvidence      *daprruntime.TargetMirrorPullEvidence `json:"mirrorPullEvidence,omitempty"`
+	MirrorPullEvidenceDigest string                                `json:"mirrorPullEvidenceDigest,omitempty"`
+	Phase                   string                                 `json:"phase,omitempty"`
+	Error                   string                                 `json:"error,omitempty"`
 }
 
 type daprLifecycleOperationPager interface {
@@ -68,30 +70,35 @@ type daprRecoveryTask struct {
 	OperationRevision int64                        `json:"operationRevision"`
 	TaskFenceToken    int64                        `json:"taskFenceToken"`
 	Request           daprruntime.LifecycleRequest `json:"request"`
+	RuntimeLock       daprruntime.RuntimeLock       `json:"runtimeLock"`
 }
 
 type daprRecoveryResult struct {
-	ConfirmedSuccess   bool   `json:"confirmedSuccess"`
-	Installed          bool   `json:"installed"`
-	ObservedLockDigest string `json:"observedLockDigest,omitempty"`
-	Version            string `json:"version,omitempty"`
-	UpstreamCommit     string `json:"upstreamCommit,omitempty"`
-	Phase              string `json:"phase,omitempty"`
-	Error              string `json:"error,omitempty"`
+	ConfirmedSuccess        bool                                   `json:"confirmedSuccess"`
+	Installed               bool                                   `json:"installed"`
+	ObservedLockDigest      string                                 `json:"observedLockDigest,omitempty"`
+	Version                 string                                 `json:"version,omitempty"`
+	UpstreamCommit          string                                 `json:"upstreamCommit,omitempty"`
+	MirrorPullEvidence      *daprruntime.TargetMirrorPullEvidence `json:"mirrorPullEvidence,omitempty"`
+	MirrorPullEvidenceDigest string                                `json:"mirrorPullEvidenceDigest,omitempty"`
+	Phase                   string                                 `json:"phase,omitempty"`
+	Error                   string                                 `json:"error,omitempty"`
 }
 
 type daprRecoveryReadback struct {
-	Authority          string                      `json:"authority"`
-	OperationID        string                      `json:"operationId"`
-	ClusterID          string                      `json:"clusterId"`
-	TaskFenceToken     int64                       `json:"taskFenceToken"`
-	Action             daprruntime.LifecycleAction `json:"action"`
-	ConfirmedSuccess   bool                        `json:"confirmedSuccess"`
-	Installed          bool                        `json:"installed"`
-	ObservedLockDigest string                      `json:"observedLockDigest,omitempty"`
-	Version            string                      `json:"version,omitempty"`
-	UpstreamCommit     string                      `json:"upstreamCommit,omitempty"`
-	Phase              string                      `json:"phase"`
+	Authority                string                                 `json:"authority"`
+	OperationID              string                                 `json:"operationId"`
+	ClusterID                string                                 `json:"clusterId"`
+	TaskFenceToken           int64                                  `json:"taskFenceToken"`
+	Action                   daprruntime.LifecycleAction            `json:"action"`
+	ConfirmedSuccess         bool                                   `json:"confirmedSuccess"`
+	Installed                bool                                   `json:"installed"`
+	ObservedLockDigest       string                                 `json:"observedLockDigest,omitempty"`
+	Version                  string                                 `json:"version,omitempty"`
+	UpstreamCommit           string                                 `json:"upstreamCommit,omitempty"`
+	MirrorPullEvidence       *daprruntime.TargetMirrorPullEvidence `json:"mirrorPullEvidence,omitempty"`
+	MirrorPullEvidenceDigest string                                 `json:"mirrorPullEvidenceDigest,omitempty"`
+	Phase                    string                                 `json:"phase"`
 }
 
 func daprLifecycleTarget(clusterID string, action daprruntime.LifecycleAction) string {
@@ -193,6 +200,8 @@ func (s *Server) latestDaprObserved(ctx context.Context, projectID, clusterID st
 					RuntimeLockDigest: recovered.ObservedLockDigest,
 					Version: recovered.Version,
 					UpstreamCommit: recovered.UpstreamCommit,
+					MirrorPullEvidence: recovered.MirrorPullEvidence,
+					MirrorPullEvidenceDigest: recovered.MirrorPullEvidenceDigest,
 					ObservedAt: op.UpdatedAt.UTC().Format(time.RFC3339Nano),
 					Phase: "RecoveredConfirmedSuccess",
 				}, nil
@@ -732,6 +741,31 @@ func (s *Server) reportDaprLifecycleTask(w http.ResponseWriter, r *http.Request)
 			writeError(w, http.StatusUnprocessableEntity, "DAPR_OBSERVED_LOCK_MISMATCH", "observed target Dapr runtime does not match sealed lifecycle authority")
 			return
 		}
+		if !s.daprRuntimeReady || s.daprRuntimeDigest != req.RuntimeLockDigest {
+			writeError(w, http.StatusConflict, "DAPR_RUNTIME_LOCK_FENCE_CHANGED", "configured exact Dapr runtime lock changed before target mirror-pull evidence admission")
+			return
+		}
+		if result.MirrorPullEvidence == nil || strings.TrimSpace(result.MirrorPullEvidenceDigest) == "" {
+			writeError(w, http.StatusUnprocessableEntity, "DAPR_TARGET_MIRROR_PULL_EVIDENCE_REQUIRED", "installed Dapr runtime must include exact target mirror-pull readback")
+			return
+		}
+		if evidenceErr := daprruntime.ValidateTargetMirrorPullEvidence(
+			*result.MirrorPullEvidence, s.daprRuntimeLock, clusterID, op.ID, result.TaskFenceToken, req.RuntimeLockDigest,
+		); evidenceErr != nil {
+			writeError(w, http.StatusUnprocessableEntity, "DAPR_TARGET_MIRROR_PULL_EVIDENCE_INVALID", evidenceErr.Error())
+			return
+		}
+		evidenceDigest, evidenceErr := daprruntime.TargetMirrorPullEvidenceDigest(
+			*result.MirrorPullEvidence, s.daprRuntimeLock, clusterID, op.ID, result.TaskFenceToken, req.RuntimeLockDigest,
+		)
+		if evidenceErr != nil || evidenceDigest != strings.ToLower(strings.TrimSpace(result.MirrorPullEvidenceDigest)) {
+			writeError(w, http.StatusUnprocessableEntity, "DAPR_TARGET_MIRROR_PULL_EVIDENCE_DIGEST_MISMATCH", "target mirror-pull evidence digest does not match canonical readback")
+			return
+		}
+		result.MirrorPullEvidenceDigest = evidenceDigest
+	} else if result.MirrorPullEvidence != nil || strings.TrimSpace(result.MirrorPullEvidenceDigest) != "" {
+		writeError(w, http.StatusUnprocessableEntity, "DAPR_REMOVED_MIRROR_PULL_EVIDENCE_INVALID", "removed Dapr result must not retain installed mirror-pull evidence")
+		return
 	}
 	observed := daprruntime.ObservedState{
 		Authority: daprruntime.LifecycleAuthority,
@@ -742,6 +776,8 @@ func (s *Server) reportDaprLifecycleTask(w http.ResponseWriter, r *http.Request)
 		RuntimeLockDigest: result.ObservedLockDigest,
 		Version: result.Version,
 		UpstreamCommit: result.UpstreamCommit,
+		MirrorPullEvidence: result.MirrorPullEvidence,
+		MirrorPullEvidenceDigest: result.MirrorPullEvidenceDigest,
 		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		Phase: strings.TrimSpace(result.Phase),
 	}
@@ -800,12 +836,19 @@ func (s *Server) nextDaprRecoveryTask(w http.ResponseWriter, r *http.Request) {
 		if parseErr != nil || req.ClusterID != clusterID {
 			continue
 		}
+		if !s.daprRuntimeReady || req.RuntimeLockDigest != s.daprRuntimeDigest {
+			// Unknown-outcome recovery may only re-attest the exact runtime lock
+			// originally dispatched. A later product lock must never reinterpret
+			// older target state as a confirmed success.
+			continue
+		}
 		setRevisionETag(w, op.Revision)
 		writeJSON(w, http.StatusOK, daprRecoveryTask{
 			OperationID: op.ID,
 			OperationRevision: op.Revision,
 			TaskFenceToken: op.FenceToken,
 			Request: req,
+			RuntimeLock: s.daprRuntimeLock,
 		})
 		return
 	}
@@ -830,7 +873,26 @@ func canonicalDaprRecoveryReadback(task daprRecoveryTask, result daprRecoveryRes
 	if wantInstalled && (lockDigest != task.Request.RuntimeLockDigest || version != task.Request.RuntimeVersion || commit != task.Request.UpstreamCommit) {
 		return daprRecoveryReadback{}, nil, "", fmt.Errorf("DAPR_RECOVERY_RUNTIME_IDENTITY_MISMATCH")
 	}
-	if !wantInstalled && (lockDigest != "" || version != "" || commit != "") {
+	if wantInstalled {
+		if result.MirrorPullEvidence == nil || strings.TrimSpace(result.MirrorPullEvidenceDigest) == "" {
+			return daprRecoveryReadback{}, nil, "", fmt.Errorf("DAPR_RECOVERY_TARGET_MIRROR_PULL_EVIDENCE_REQUIRED")
+		}
+		if err := daprruntime.ValidateTargetMirrorPullEvidence(
+			*result.MirrorPullEvidence, task.RuntimeLock, task.Request.ClusterID, task.OperationID,
+			task.TaskFenceToken, task.Request.RuntimeLockDigest,
+		); err != nil {
+			return daprRecoveryReadback{}, nil, "", fmt.Errorf("DAPR_RECOVERY_TARGET_MIRROR_PULL_EVIDENCE_INVALID: %w", err)
+		}
+		digest, err := daprruntime.TargetMirrorPullEvidenceDigest(
+			*result.MirrorPullEvidence, task.RuntimeLock, task.Request.ClusterID, task.OperationID,
+			task.TaskFenceToken, task.Request.RuntimeLockDigest,
+		)
+		if err != nil || digest != strings.ToLower(strings.TrimSpace(result.MirrorPullEvidenceDigest)) {
+			return daprRecoveryReadback{}, nil, "", fmt.Errorf("DAPR_RECOVERY_TARGET_MIRROR_PULL_EVIDENCE_DIGEST_MISMATCH")
+		}
+		result.MirrorPullEvidenceDigest = digest
+	}
+	if !wantInstalled && (lockDigest != "" || version != "" || commit != "" || result.MirrorPullEvidence != nil || strings.TrimSpace(result.MirrorPullEvidenceDigest) != "") {
 		return daprRecoveryReadback{}, nil, "", fmt.Errorf("DAPR_RECOVERY_REMOVED_IDENTITY_INVALID")
 	}
 	readback := daprRecoveryReadback{
@@ -844,6 +906,8 @@ func canonicalDaprRecoveryReadback(task daprRecoveryTask, result daprRecoveryRes
 		ObservedLockDigest: lockDigest,
 		Version: version,
 		UpstreamCommit: commit,
+		MirrorPullEvidence: result.MirrorPullEvidence,
+		MirrorPullEvidenceDigest: result.MirrorPullEvidenceDigest,
 		Phase: phase,
 	}
 	raw, err := json.Marshal(readback)
@@ -894,7 +958,11 @@ func (s *Server) reportDaprRecoveryTask(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusConflict, "DAPR_RECOVERY_REQUEST_INVALID", "sealed Dapr lifecycle request is invalid")
 		return
 	}
-	task := daprRecoveryTask{OperationID: op.ID, OperationRevision: op.Revision, TaskFenceToken: op.FenceToken, Request: req}
+	if result.ConfirmedSuccess && (!s.daprRuntimeReady || req.RuntimeLockDigest != s.daprRuntimeDigest) {
+		writeError(w, http.StatusConflict, "DAPR_RECOVERY_RUNTIME_LOCK_FENCE_CHANGED", "automatic Dapr recovery requires the exact originally dispatched runtime lock")
+		return
+	}
+	task := daprRecoveryTask{OperationID: op.ID, OperationRevision: op.Revision, TaskFenceToken: op.FenceToken, Request: req, RuntimeLock: s.daprRuntimeLock}
 	if !result.ConfirmedSuccess {
 		if op.Revision != expected || op.State != controlplane.OperationFailed || op.LastFailureClass != controlplane.OperationFailureUnknown {
 			writeError(w, http.StatusConflict, "DAPR_RECOVERY_STATE_CHANGED", "operation is no longer the expected FAILED/UNKNOWN revision")
