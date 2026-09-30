@@ -29,6 +29,7 @@ type WorkloadAdmissionRequest struct {
 	RuntimeMode       string                             `json:"runtimeMode"`
 	RuntimeLockDigest string                             `json:"runtimeLockDigest,omitempty"`
 	ExpectedSidecarImage string                          `json:"expectedSidecarImage,omitempty"`
+	ExecutorImageReference string                       `json:"executorImageReference"`
 	WorkloadImage     string                             `json:"workloadImage"`
 	Plan              targetmodel.DaprWorkloadRuntimePlan `json:"plan"`
 	PlanDigest        string                             `json:"planDigest"`
@@ -105,6 +106,7 @@ func CanonicalWorkloadAdmissionRequest(value WorkloadAdmissionRequest) (Workload
 	value.RuntimeMode = strings.ToUpper(strings.TrimSpace(value.RuntimeMode))
 	value.RuntimeLockDigest = strings.ToLower(strings.TrimSpace(value.RuntimeLockDigest))
 	value.ExpectedSidecarImage = strings.TrimSpace(value.ExpectedSidecarImage)
+	value.ExecutorImageReference = strings.TrimSpace(value.ExecutorImageReference)
 	value.WorkloadImage = strings.TrimSpace(value.WorkloadImage)
 	value.PlanDigest = strings.ToLower(strings.TrimSpace(value.PlanDigest))
 	if value.Authority != WorkloadAdmissionAuthority || value.ProjectID == "" || value.ClusterID == "" || value.TraitID == "" {
@@ -117,6 +119,9 @@ func CanonicalWorkloadAdmissionRequest(value WorkloadAdmissionRequest) (Workload
 	}
 	if value.RuntimeMode != "USE_NATIVE" && value.RuntimeMode != "PRODUCT_MANAGED" {
 		return WorkloadAdmissionRequest{}, fmt.Errorf("DAPR_WORKLOAD_ADMISSION_RUNTIME_MODE_INVALID")
+	}
+	if !digestPinnedImage(value.ExecutorImageReference) {
+		return WorkloadAdmissionRequest{}, fmt.Errorf("DAPR_WORKLOAD_ADMISSION_EXECUTOR_IMAGE_INVALID")
 	}
 	if value.RuntimeMode == "PRODUCT_MANAGED" {
 		if !lifecycleDigest(value.RuntimeLockDigest) || !digestPinnedImage(value.ExpectedSidecarImage) {
@@ -250,4 +255,144 @@ func WorkloadAdmissionEvidenceDigest(value WorkloadAdmissionEvidence, request Wo
 	}
 	sort.Strings(canonical.DroppedCapabilities)
 	return workloadAdmissionDigest(canonical)
+}
+
+
+func AdmissionObjectName(operationID string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(operationID)))
+	return "4so-dapr-admission-" + hex.EncodeToString(sum[:6])
+}
+
+func BuildWorkloadAdmissionDeployment(request WorkloadAdmissionRequest, operationID string) (map[string]any, error) {
+	request, err := CanonicalWorkloadAdmissionRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(operationID) == "" {
+		return nil, fmt.Errorf("DAPR_WORKLOAD_ADMISSION_OPERATION_REQUIRED")
+	}
+	labels := map[string]any{"platform.4so.io/dapr-admission": AdmissionObjectName(operationID)}
+	annotations := map[string]any{}
+	for _, item := range request.Plan.Annotations {
+		annotations[item.Key] = item.Value
+	}
+	return map[string]any{
+		"apiVersion": "apps/v1", "kind": "Deployment",
+		"metadata": map[string]any{
+			"name": AdmissionObjectName(operationID), "namespace": request.Plan.Namespace,
+			"labels": map[string]any{"platform.4so.io/managed": "true", "platform.4so.io/admission-only": "true"},
+		},
+		"spec": map[string]any{
+			"replicas": 1,
+			"selector": map[string]any{"matchLabels": labels},
+			"template": map[string]any{
+				"metadata": map[string]any{"labels": labels, "annotations": annotations},
+				"spec": map[string]any{
+					"automountServiceAccountToken": false,
+					"containers": []any{map[string]any{
+						"name": "app", "image": request.WorkloadImage, "imagePullPolicy": "IfNotPresent",
+						"securityContext": map[string]any{
+							"allowPrivilegeEscalation": false, "readOnlyRootFilesystem": true, "runAsNonRoot": true,
+							"capabilities": map[string]any{"drop": []any{"ALL"}},
+						},
+					}},
+				},
+			},
+		},
+	}, nil
+}
+
+func admissionNestedMap(value map[string]any, keys ...string) map[string]any {
+	current := value
+	for _, key := range keys {
+		next, _ := current[key].(map[string]any)
+		if next == nil {
+			return nil
+		}
+		current = next
+	}
+	return current
+}
+
+func admissionBoolField(value map[string]any, key string) bool {
+	v, ok := value[key].(bool)
+	return ok && v
+}
+
+func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, operationID string, response map[string]any, status int, observedAt time.Time) (WorkloadAdmissionEvidence, error) {
+	request, err := CanonicalWorkloadAdmissionRequest(request)
+	if err != nil {
+		return WorkloadAdmissionEvidence{}, err
+	}
+	templateMeta := admissionNestedMap(response, "spec", "template", "metadata")
+	templateSpec := admissionNestedMap(response, "spec", "template", "spec")
+	if templateMeta == nil || templateSpec == nil {
+		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_DEPLOYMENT_SHAPE_INVALID")
+	}
+	actualAnnotations, _ := templateMeta["annotations"].(map[string]any)
+	annotationsVerified := len(actualAnnotations) >= len(request.Plan.Annotations)
+	for _, wanted := range request.Plan.Annotations {
+		if strings.TrimSpace(fmt.Sprint(actualAnnotations[wanted.Key])) != wanted.Value {
+			annotationsVerified = false
+			break
+		}
+	}
+	containers, _ := templateSpec["containers"].([]any)
+	appPreserved := false
+	var sidecar map[string]any
+	for _, raw := range containers {
+		container, _ := raw.(map[string]any)
+		name := strings.TrimSpace(fmt.Sprint(container["name"]))
+		switch name {
+		case "app":
+			appPreserved = strings.TrimSpace(fmt.Sprint(container["image"])) == request.WorkloadImage
+		case "daprd":
+			if sidecar != nil {
+				return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_DUPLICATE_SIDECAR")
+			}
+			sidecar = container
+		}
+	}
+	if sidecar == nil {
+		return WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_SIDECAR_NOT_INJECTED")
+	}
+	security, _ := sidecar["securityContext"].(map[string]any)
+	capabilities, _ := security["capabilities"].(map[string]any)
+	rawDrops, _ := capabilities["drop"].([]any)
+	drops := make([]string, 0, len(rawDrops))
+	for _, raw := range rawDrops {
+		value := strings.ToUpper(strings.TrimSpace(fmt.Sprint(raw)))
+		if value != "" {
+			drops = append(drops, value)
+		}
+	}
+	sort.Strings(drops)
+	dropAll := false
+	for _, value := range drops {
+		if value == "ALL" {
+			dropAll = true
+			break
+		}
+	}
+	sidecarImage := strings.TrimSpace(fmt.Sprint(sidecar["image"]))
+	expectedMatched := request.RuntimeMode == "PRODUCT_MANAGED" && sidecarImage == request.ExpectedSidecarImage
+	evidence := WorkloadAdmissionEvidence{
+		Authority: WorkloadAdmissionEvidenceAuthority, OperationID: strings.TrimSpace(operationID),
+		ProjectID: request.ProjectID, ClusterID: request.ClusterID, TraitDigest: request.TraitDigest,
+		InventoryDigest: request.InventoryDigest, RuntimeMode: request.RuntimeMode, RuntimeLockDigest: request.RuntimeLockDigest,
+		PlanDigest: request.PlanDigest, Namespace: request.Plan.Namespace, AppID: request.Plan.AppID,
+		DryRunHTTPStatus: status, InjectedSidecarObserved: true, SidecarContainerName: "daprd",
+		SidecarImageReference: sidecarImage, ExpectedSidecarImageMatched: expectedMatched,
+		RunAsNonRoot: admissionBoolField(security, "runAsNonRoot"),
+		ReadOnlyRootFilesystem: admissionBoolField(security, "readOnlyRootFilesystem"),
+		AllowPrivilegeEscalation: admissionBoolField(security, "allowPrivilegeEscalation"),
+		DroppedCapabilities: drops, DropAllCapabilities: dropAll,
+		AppContainerPreserved: appPreserved, AnnotationsVerified: annotationsVerified,
+		ServerSideDryRun: true, StrictFieldValidation: true, SidecarPullObserved: false,
+		PhysicalCertificationInferred: false, ObservedAt: observedAt.UTC().Format(time.RFC3339Nano),
+	}
+	if err := ValidateWorkloadAdmissionEvidence(evidence, request, operationID); err != nil {
+		return WorkloadAdmissionEvidence{}, err
+	}
+	return evidence, nil
 }
