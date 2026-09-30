@@ -422,6 +422,17 @@ def release(root,run_id,pid,start,override=None):
     if lk and lk.get("runId")==run_id and lk.get("pid")==pid and str(lk.get("startTicks"))==str(start):
         p.unlink(missing_ok=True); fsync_dir(p)
 
+def execution_source_status(root,state):
+    wanted=str(state.get("worktreeFingerprint") or "")
+    if not wanted:
+        return {"matched":True,"legacyUnbound":True}
+    try:
+        info=git(root,refresh=False,allow_detached=state.get("branch")=="(detached)")
+    except Exception as exc:
+        return {"matched":False,"error":f"GIT_SOURCE_CHECK_FAILED {exc}"}
+    matched=(state.get("head")==info.get("head") and state.get("branch")==info.get("branch") and wanted==info.get("worktreeFingerprint"))
+    return {"matched":matched,"info":info}
+
 def command_gate_state(root,run_id,pid,start,override=None):
     s=read_state(root,override)
     if not s or s.get("runId")!=run_id:
@@ -451,6 +462,9 @@ def command_wrapper(root,run_id,override=None):
             command=list(gated.get("command") or [])
             if not command:
                 record_command_exec_failure(root,gated,"COMMAND_EMPTY",override); return 125
+            source=execution_source_status(root,gated)
+            if source.get("matched") is not True:
+                record_command_exec_failure(root,gated,"LOCAL_GIT_AUTHORITY_CHANGED_BEFORE_EXECUTION",override); return 125
             try:
                 os.execvpe(command[0],command,os.environ.copy())
             except OSError as exc:
@@ -675,7 +689,17 @@ def worker(root,run_id,override=None):
         if cp.get("latestCompletedCheckpoint"): s["latestCompletedCheckpoint"]=cp["latestCompletedCheckpoint"]
         s.update(activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,lastHeartbeat=now(),checkpoint=cp,exitCode=rc)
         task=str(s.get("currentTask") or "")
-        if interrupted: s.update(status="INTERRUPTED",latestError="SUPERVISOR_INTERRUPTED",recoveryRequired=not bool(s.get("replaySafe")))
+        source=execution_source_status(root,s)
+        if source.get("matched") is not True:
+            info=source.get("info") or {}
+            s.update(status="INTERRUPTED" if s.get("replaySafe") else "WAITING",
+                     latestError="LOCAL_GIT_AUTHORITY_CHANGED_DURING_EXECUTION",
+                     recoveryRequired=not bool(s.get("replaySafe")),
+                     currentOriginMain=info.get("originMain",""),
+                     gitSyncStatus=info.get("gitSyncStatus","UNAVAILABLE"),
+                     currentWorktreeFingerprint=info.get("worktreeFingerprint",""),
+                     currentWorktreeDirty=info.get("worktreeDirty"))
+        elif interrupted: s.update(status="INTERRUPTED",latestError="SUPERVISOR_INTERRUPTED",recoveryRequired=not bool(s.get("replaySafe")))
         elif rc==0:
             done=list(s.get("completedTasks") or [])
             if task and task not in done: done.append(task)
