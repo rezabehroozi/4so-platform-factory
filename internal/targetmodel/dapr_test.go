@@ -98,6 +98,63 @@ func TestDaprRuntimeSourcePlanRejectsUpstreamDefaultsThatReenableDuplicateAuthor
 	}
 }
 
+func TestDaprWorkloadPlanIsScopedSizedAndAPIAllowListed(t *testing.T) {
+	plan, err := ResolveDaprWorkloadRuntimePlan(DaprWorkloadPlanInput{
+		Namespace: "payments", AppID: "payments-api", AppPort: 8080, AppProtocol: "http",
+		CPURequest: "100m", CPULimit: "500m", MemoryRequest: "128Mi", MemoryLimit: "256Mi",
+		ComponentNames: []string{"orders-broker", "billing-binding"},
+		EnableInvocation: true, EnablePubSub: true, EnableBindings: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Authority != DaprWorkloadRuntimePlanAuthority || plan.ConfigurationName != "4so-dapr-payments-api" ||
+		!plan.ConfigurationDerived || plan.ConfigurationBecomesSoT || plan.ServiceInvocationDefault != "DENY" ||
+		plan.CrossNamespaceInvocation || plan.SecretMaterialEmbedded || plan.PhysicalCertificationInferred {
+		t.Fatalf("Dapr workload authority drift: %#v", plan)
+	}
+	annotations := map[string]string{}
+	for _, item := range plan.Annotations { annotations[item.Key] = item.Value }
+	for key, want := range map[string]string{
+		"dapr.io/enabled": "true", "dapr.io/app-id": "payments-api", "dapr.io/config": "4so-dapr-payments-api",
+		"dapr.io/app-port": "8080", "dapr.io/sidecar-cpu-request": "100m", "dapr.io/sidecar-cpu-limit": "500m",
+		"dapr.io/sidecar-memory-request": "128Mi", "dapr.io/sidecar-memory-limit": "256Mi",
+	} {
+		if annotations[key] != want { t.Fatalf("Dapr annotation %s=%q want %q", key, annotations[key], want) }
+	}
+	rules := map[string]bool{}
+	for _, rule := range plan.AllowedAPIs { rules[rule.Protocol+"/"+rule.Version+"/"+rule.Name] = true }
+	for _, key := range []string{
+		"http/v1/invoke", "grpc/v1/invoke", "http/v1/publish", "grpc/v1/publish", "http/v1/bindings", "grpc/v1/bindings",
+	} {
+		if !rules[key] { t.Fatalf("required Dapr API rule missing: %s rules=%#v", key, rules) }
+	}
+	for _, scope := range plan.ComponentScopes {
+		if len(scope.Scopes) != 1 || scope.Scopes[0] != "payments-api" {
+			t.Fatalf("Dapr component escaped app scope: %#v", scope)
+		}
+	}
+}
+
+func TestDaprWorkloadPlanRejectsUnsizedDuplicateOrOverlongIdentity(t *testing.T) {
+	base := DaprWorkloadPlanInput{
+		Namespace: "apps", AppID: "api", CPURequest: "100m", CPULimit: "500m",
+		MemoryRequest: "128Mi", MemoryLimit: "256Mi", EnableInvocation: true,
+	}
+	unsized := base; unsized.MemoryLimit = ""
+	if _, err := ResolveDaprWorkloadRuntimePlan(unsized); err == nil || err.Error() != "DAPR_WORKLOAD_RESOURCE_SIZING_INVALID" {
+		t.Fatalf("unsized Dapr sidecar accepted: %v", err)
+	}
+	duplicate := base; duplicate.ComponentNames = []string{"Broker", "broker"}
+	if _, err := ResolveDaprWorkloadRuntimePlan(duplicate); err == nil || err.Error() != "DAPR_COMPONENT_SCOPE_INVALID" {
+		t.Fatalf("duplicate Dapr component scope accepted: %v", err)
+	}
+	long := base; long.AppID = strings.Repeat("a", 55)
+	if _, err := ResolveDaprWorkloadRuntimePlan(long); err == nil || err.Error() != "DAPR_WORKLOAD_IDENTITY_INVALID" {
+		t.Fatalf("overlong Dapr derived configuration identity accepted: %v", err)
+	}
+}
+
 func validDaprSupplyChainLock() DaprRuntimeSupplyChainLock {
 	digest := func(ch string) string { return "sha256:" + strings.Repeat(ch, 64) }
 	plan := DaprRuntimeSourcePlanModel()
