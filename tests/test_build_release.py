@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest import mock
 import sys
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("build_release", ROOT / "scripts" / "build_release.py")
@@ -14,6 +15,23 @@ SPEC.loader.exec_module(BUILD)
 
 
 class ReleaseSourceTreeBoundary(unittest.TestCase):
+    def test_release_zip_is_byte_stable_without_zlib_dependency(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            stage=root/"stage"; stage.mkdir()
+            (stage/"a.txt").write_text("alpha\n",encoding="utf-8")
+            sub=stage/"sub"; sub.mkdir()
+            binary=sub/"tool"; binary.write_bytes(b"\x00\x01\x02")
+            binary.chmod(0o755)
+            first=root/"first.zip"; second=root/"second.zip"
+            BUILD.write_release_zip(stage,first,"fixture")
+            BUILD.write_release_zip(stage,second,"fixture")
+            self.assertEqual(first.read_bytes(),second.read_bytes())
+            with zipfile.ZipFile(first,"r") as archive:
+                self.assertTrue(archive.infolist())
+                self.assertTrue(all(row.compress_type==zipfile.ZIP_STORED for row in archive.infolist()))
+                self.assertEqual(["fixture/a.txt","fixture/sub/tool"],[row.filename for row in archive.infolist()])
+
     def test_source_tree_symlink_is_rejected_instead_of_followed(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
