@@ -19,6 +19,7 @@ const (
 	WorkspaceProfileAuthority       = "WORKSPACE_PROFILE_AUTHORITY_V1"
 	ApplicationReleaseAuthority     = "APPLICATION_RELEASE_AUTHORITY_V1"
 	EnvironmentBindingAuthority     = "ENVIRONMENT_BINDING_AUTHORITY_V1"
+	ApplicationRuntimeDaprCapability = "application-runtime.dapr"
 )
 
 const (
