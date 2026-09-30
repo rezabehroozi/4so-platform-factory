@@ -165,11 +165,15 @@ def reconcile(root,state,override=None,write=True):
     s=dict(state)
     worker=alive(s.get("activePid"),s.get("activePidStartTicks"))
     child=alive(s.get("commandPid"),s.get("commandPidStartTicks"))
-    s["workerAlive"]=worker; s["commandAlive"]=child; s["activeRun"]=worker or child
+    lock=read_lock(root,override)
+    lock_live=bool(lock and lock_owner_live(lock))
+    s["workerAlive"]=worker; s["commandAlive"]=child
+    s["lockAlive"]=lock_live; s["lockRunId"]=str((lock or {}).get("runId") or "")
+    s["activeRun"]=worker or child or lock_live
     transition=False
     status=s.get("status")
     if status=="WAITING" and s.get("orphaned") is True and s.get("latestError")=="ORPHANED_SUPERVISOR_CHILD_STILL_ACTIVE":
-        if child:
+        if child or lock_live:
             pass
         elif s.get("replaySafe") is True:
             s.update(status="INTERRUPTED",recoveryRequired=False,latestError="ORPHANED_CHILD_EXITED_OUTCOME_UNKNOWN_REPLAY_SAFE",
@@ -185,7 +189,7 @@ def reconcile(root,state,override=None,write=True):
         # operator explicitly resolves or resumes it.
         pass
     elif status in ACTIVE:
-        if worker:
+        if worker or lock_live:
             pass
         elif child:
             s.update(status="WAITING",orphaned=True,recoveryRequired=True,latestError="ORPHANED_SUPERVISOR_CHILD_STILL_ACTIVE")
@@ -424,9 +428,21 @@ def resolve_recovery(root,run_id,decision,reason,override=None):
                  latestError="",lastSuccessfulAction="manual-recovery-abandoned")
     s.update(activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,
              recoveryResolution=resolution)
-    write_state(root,s,override)
+    expected=int(s.get("stateRevision") or 0)
+    written,current=write_state(root,s,override,expected_revision=expected)
+    if not written:
+        current=current or read_state(root,override)
+        if not current or current.get("runId")!=run_id:
+            raise RuntimeError("PROJECT_RUNTIME_RECOVERY_STATE_CHANGED")
+        concurrent=current.get("recoveryResolution")
+        if isinstance(concurrent,dict):
+            if concurrent.get("decision")==decision and concurrent.get("reason")==reason:
+                immutable_json(recovery_file(root,run_id,override),concurrent,"PROJECT_RUNTIME_RECOVERY_EVIDENCE")
+                return {"action":"ALREADY_RESOLVED","state":current,"resolution":concurrent}
+            raise RuntimeError("PROJECT_RUNTIME_RECOVERY_RESOLUTION_CONFLICT")
+        raise RuntimeError("PROJECT_RUNTIME_RECOVERY_STATE_CHANGED")
     immutable_json(recovery_file(root,run_id,override),resolution,"PROJECT_RUNTIME_RECOVERY_EVIDENCE")
-    return {"action":"RECOVERY_RESOLVED","state":read_state(root,override),"resolution":resolution}
+    return {"action":"RECOVERY_RESOLVED","state":written,"resolution":resolution}
 
 def resume(root,override=None,allow_detached=False):
     s=read_state(root,override)
