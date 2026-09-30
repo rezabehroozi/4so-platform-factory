@@ -216,10 +216,10 @@ def main()->int:
         if pending=="MCP_EXTERNAL_INTEROP_PENDING":
             status["externalClientProgress"]=external_client_progress(a.root.resolve())
         if a.out:
-            a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(status,indent=2,sort_keys=True)+"\n")
+            mcp_contract.write_json_atomic_replace(a.out,status,"FINAL_EXACT_RELEASE_ADMISSION")
         print(json.dumps(status,sort_keys=True))
         return 3
     if a.out:
-        a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+        mcp_contract.write_json_atomic_replace(a.out,out,"FINAL_EXACT_RELEASE_ADMISSION")
     print(json.dumps(out,sort_keys=True)); return 0
 if __name__=="__main__": raise SystemExit(main())
