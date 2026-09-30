@@ -183,7 +183,7 @@ func validDaprSupplyChainLock() DaprRuntimeSupplyChainLock {
 		HelmPackageDigest: digest("0"), HelmRenderDigest: digest("1"),
 		HelmMirrorReference: "zot.internal.example/dapr-charts/dapr@" + digest("4"), HelmMirrorManifestDigest: digest("4"),
 		AcquisitionReceiptDigest: digest("2"), MirrorEvidenceDigest: digest("3"),
-		RegistryAuthority: "zot", MirrorRegistry: "zot.internal.example",
+		RegistryAuthority: "zot", RegistryScheme: "https", MirrorRegistry: "zot.internal.example",
 		ImageLocks: locks, ZotMirrorVerified: true, OfflineReplayReady: true, Admitted: true,
 	}
 }
@@ -219,6 +219,12 @@ func TestDaprSupplyChainLockRejectsMirrorRegistrySelfInconsistency(t *testing.T)
 	lock.Admitted = false
 	if issues := ValidateDaprRuntimeSupplyChainLock(lock); !contains(issues, "dapr-supply-chain-mirror-reference-invalid") {
 		t.Fatalf("Dapr mirror reference suffix tampering accepted: %#v", issues)
+	}
+	lock = validDaprSupplyChainLock()
+	lock.RegistryScheme = "ftp"
+	lock.Admitted = false
+	if issues := ValidateDaprRuntimeSupplyChainLock(lock); !contains(issues, "dapr-supply-chain-registry-authority-invalid") {
+		t.Fatalf("unsupported Dapr registry scheme accepted: %#v", issues)
 	}
 	lock = validDaprSupplyChainLock()
 	lock.RegistryAuthority = "docker"
