@@ -381,6 +381,11 @@ func (f *FileStore) ReportOperationFailure(ctx context.Context, id string, rev i
 		return f.MemoryStore.ReportOperationFailure(ctx, id, rev, worker, fence, report, actor)
 	})
 }
+func (f *FileStore) ResolveUnknownOperationOutcome(ctx context.Context, id string, rev int64, resolution OperationUnknownOutcomeResolution, evidenceDigest, actor string) (Operation, error) {
+	return mutate(f, ctx, func() (Operation, error) {
+		return f.MemoryStore.ResolveUnknownOperationOutcome(ctx, id, rev, resolution, evidenceDigest, actor)
+	})
+}
 func (f *FileStore) CompleteOperation(ctx context.Context, id string, rev int64, worker string, fence int64, actor string) (Operation, error) {
 	return mutate(f, ctx, func() (Operation, error) { return f.MemoryStore.CompleteOperation(ctx, id, rev, worker, fence, actor) })
 }
