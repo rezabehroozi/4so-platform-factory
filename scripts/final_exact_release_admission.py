@@ -66,6 +66,7 @@ def external_client_progress(root:Path)->dict:
     if progress.get("oauthClientBindingAuthority")!=mcp_contract.OAUTH_BINDING_AUTHORITY or not SHA.fullmatch(str(progress.get("oauthClientBindingsSha256") or "")):
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_OAUTH_BINDING_INVALID")
     bindings=mcp_contract.validate_oauth_client_bindings(bindings,"MCP_EXTERNAL_PROGRESS")
+    trusted_bindings=mcp_contract.validate_trusted_client_bindings(progress.get("trustedClientBindings"),"MCP_EXTERNAL_PROGRESS")
     rows=progress.get("clients")
     if not isinstance(rows,list):
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
@@ -79,6 +80,9 @@ def external_client_progress(root:Path)->dict:
         oauth_client_id=mcp_contract.validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_PROGRESS")
         if oauth_client_id!=bindings[client]:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_OAUTH_CLIENT_DRIFT")
+        trusted=trusted_bindings.get(client) or {}
+        if row.get("trustedClientId")!=trusted.get("trustedClientId") or row.get("trustedClientRevision")!=trusted.get("trustedClientRevision") or row.get("trustedClientProvider")!=trusted.get("trustedClientProvider"):
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_TRUSTED_CLIENT_DRIFT")
         execution_id=str(row.get("executionId") or "").strip()
         provider_ref=str(row.get("providerExecutionRef") or "").strip()
         if not execution_id or len(execution_id)>160 or execution_id in execution_ids:
