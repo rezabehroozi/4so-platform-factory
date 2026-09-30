@@ -170,3 +170,56 @@ func TestDaprAgentTaskRejectsExpiredLeaseAndLockDrift(t *testing.T) {
 		t.Fatalf("Dapr lock-digest drift was accepted: %v", err)
 	}
 }
+
+
+func TestValidateDaprObservedReceiptRequiresExactOperationFenceAndRuntime(t *testing.T) {
+	task := daprAgentTestTask(t)
+	receipt := daprObservedReceipt{
+		Authority: daprReceiptAuthority,
+		Installed: true,
+		RuntimeLockDigest: task.Request.RuntimeLockDigest,
+		OperationID: task.OperationID,
+		FenceToken: task.TaskFenceToken,
+		Version: task.Request.RuntimeVersion,
+		UpstreamCommit: task.Request.UpstreamCommit,
+		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Phase: "Installed",
+	}
+	got := validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	if !got.Success || got.RecoveryRequired {
+		t.Fatalf("exact Dapr receipt rejected: %#v", got)
+	}
+	receipt.FenceToken++
+	got = validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	if got.Success || !got.RecoveryRequired || !strings.Contains(got.Error, "fence mismatch") {
+		t.Fatalf("foreign Dapr fence receipt accepted: %#v", got)
+	}
+	receipt.FenceToken = task.TaskFenceToken
+	receipt.RuntimeLockDigest = daprAgentTestDigest("9")
+	got = validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	if got.Success || !got.RecoveryRequired || !strings.Contains(got.Error, "exact admitted runtime lock") {
+		t.Fatalf("Dapr runtime substitution receipt accepted: %#v", got)
+	}
+}
+
+func TestValidateDaprRemovedReceiptRejectsResidualRuntimeIdentity(t *testing.T) {
+	task := daprAgentTestTask(t)
+	task.Request.Action = daprruntime.ActionRemove
+	task.Request.ExpectedObservedLockDigest = task.Request.RuntimeLockDigest
+	receipt := daprObservedReceipt{
+		Authority: daprReceiptAuthority,
+		Installed: false,
+		OperationID: task.OperationID,
+		FenceToken: task.TaskFenceToken,
+		Phase: "Removed",
+	}
+	got := validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	if !got.Success || got.RecoveryRequired {
+		t.Fatalf("exact removed Dapr receipt rejected: %#v", got)
+	}
+	receipt.RuntimeLockDigest = task.Request.RuntimeLockDigest
+	got = validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	if got.Success || !got.RecoveryRequired || !strings.Contains(got.Error, "retained runtime identity") {
+		t.Fatalf("removed Dapr receipt retained stale identity: %#v", got)
+	}
+}
