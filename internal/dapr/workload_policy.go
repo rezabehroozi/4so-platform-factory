@@ -16,7 +16,10 @@ type WorkloadPolicyObservation struct {
 	ConfigurationName          string `json:"configurationName"`
 	ConfigurationPolicyDigest  string `json:"configurationPolicyDigest"`
 	ComponentScopesVerified    bool   `json:"componentScopesVerified"`
+	ComponentTypesVerified     bool   `json:"componentTypesVerified"`
 	ComponentCount             int    `json:"componentCount"`
+	PubSubComponentCount       int    `json:"pubSubComponentCount"`
+	BindingComponentCount      int    `json:"bindingComponentCount"`
 	ComponentScopeDigest       string `json:"componentScopeDigest"`
 	ConfigurationBecomesSoT    bool   `json:"configurationBecomesSoT"`
 	RuntimeMutationPerformed   bool   `json:"runtimeMutationPerformed"`
@@ -157,6 +160,16 @@ func stringSlicesEqual(a, b []string) bool {
 	return true
 }
 
+func workloadPlanAllowsAPI(plan targetmodel.DaprWorkloadRuntimePlan, name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	for _, rule := range plan.AllowedAPIs {
+		if strings.ToLower(strings.TrimSpace(rule.Name)) == name {
+			return true
+		}
+	}
+	return false
+}
+
 func ValidateWorkloadPolicyReadback(
 	request WorkloadAdmissionRequest,
 	configuration map[string]any,
@@ -223,6 +236,7 @@ func ValidateWorkloadPolicyReadback(
 	if len(components) != len(expectedComponents) {
 		return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_COMPONENT_READBACK_INCOMPLETE")
 	}
+	pubSubCount, bindingCount := 0, 0
 	for name := range expectedComponents {
 		component, ok := components[name]
 		if !ok {
@@ -242,7 +256,40 @@ func ValidateWorkloadPolicyReadback(
 		if !ok || len(rawScopes) != 1 || strings.TrimSpace(fmt.Sprint(rawScopes[0])) != plan.AppID {
 			return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_COMPONENT_SCOPE_MISMATCH")
 		}
-
+		spec, ok := component["spec"].(map[string]any)
+		if !ok {
+			return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_COMPONENT_SPEC_INVALID")
+		}
+		componentType := strings.ToLower(strings.TrimSpace(fmt.Sprint(spec["type"])))
+		switch {
+		case strings.HasPrefix(componentType, "pubsub."):
+			if !workloadPlanAllowsAPI(plan, "publish") {
+				return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_COMPONENT_TYPE_FORBIDDEN")
+			}
+			pubSubCount++
+		case strings.HasPrefix(componentType, "bindings."):
+			if !workloadPlanAllowsAPI(plan, "bindings") {
+				return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_COMPONENT_TYPE_FORBIDDEN")
+			}
+			bindingCount++
+		default:
+			return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_COMPONENT_TYPE_FORBIDDEN")
+		}
+		if auth, exists := component["auth"]; exists {
+			authMap, ok := auth.(map[string]any)
+			if !ok {
+				return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_COMPONENT_AUTH_INVALID")
+			}
+			if strings.TrimSpace(fmt.Sprint(authMap["secretStore"])) != "" {
+				return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_COMPONENT_SECRET_AUTHORITY_FORBIDDEN")
+			}
+		}
+	}
+	if workloadPlanAllowsAPI(plan, "publish") && pubSubCount == 0 {
+		return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_PUBSUB_COMPONENT_REQUIRED")
+	}
+	if workloadPlanAllowsAPI(plan, "bindings") && bindingCount == 0 {
+		return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_BINDING_COMPONENT_REQUIRED")
 	}
 	policyDigest, err := WorkloadConfigurationPolicyDigest(plan)
 	if err != nil {
@@ -258,7 +305,10 @@ func ValidateWorkloadPolicyReadback(
 		ConfigurationName: plan.ConfigurationName,
 		ConfigurationPolicyDigest: policyDigest,
 		ComponentScopesVerified: true,
+		ComponentTypesVerified: true,
 		ComponentCount: len(expectedComponents),
+		PubSubComponentCount: pubSubCount,
+		BindingComponentCount: bindingCount,
 		ComponentScopeDigest: componentScopeDigest,
 		ConfigurationBecomesSoT: false,
 		RuntimeMutationPerformed: false,
@@ -282,11 +332,17 @@ func ValidateWorkloadPolicyObservation(value WorkloadPolicyObservation, request 
 	if err != nil {
 		return err
 	}
+	expectPubSub := workloadPlanAllowsAPI(request.Plan, "publish")
+	expectBindings := workloadPlanAllowsAPI(request.Plan, "bindings")
 	if value.Authority != WorkloadPolicyProjectionAuthority || !value.ConfigurationObserved ||
 		value.ConfigurationName != request.Plan.ConfigurationName ||
 		value.ConfigurationPolicyDigest != expectedDigest ||
-		!value.ComponentScopesVerified ||
+		!value.ComponentScopesVerified || !value.ComponentTypesVerified ||
 		value.ComponentCount != len(request.Plan.ComponentScopes) ||
+		value.PubSubComponentCount < 0 || value.BindingComponentCount < 0 ||
+		value.PubSubComponentCount+value.BindingComponentCount != value.ComponentCount ||
+		(expectPubSub && value.PubSubComponentCount == 0) || (!expectPubSub && value.PubSubComponentCount != 0) ||
+		(expectBindings && value.BindingComponentCount == 0) || (!expectBindings && value.BindingComponentCount != 0) ||
 		value.ComponentScopeDigest != expectedComponentDigest ||
 		value.ConfigurationBecomesSoT || value.RuntimeMutationPerformed {
 		return fmt.Errorf("DAPR_WORKLOAD_POLICY_OBSERVATION_INVALID")
