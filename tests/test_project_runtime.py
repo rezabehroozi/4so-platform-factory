@@ -357,6 +357,33 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertTrue(final["currentWorktreeDirty"])
             self.assertFalse(R.lock_file(root).exists())
 
+    def test_successful_command_cannot_complete_after_source_changes_during_execution(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-q","-b","main"],cwd=root,check=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/".gitignore").write_text("/.project-runtime/\n",encoding="utf-8")
+            tracked=root/"tracked"; tracked.write_text("v1\n",encoding="utf-8")
+            subprocess.run(["git","add",".gitignore","tracked"],cwd=root,check=True)
+            subprocess.run(["git","commit","-qm","initial"],cwd=root,check=True)
+            cmd=[sys.executable,"-c","from pathlib import Path;Path('tracked').write_text('v2\\n')"]
+            started=R.start(root,"validate","source-drift",cmd,heartbeat=1,replay_safe=True)
+            self.assertEqual("STARTED",started["action"])
+            deadline=time.monotonic()+8
+            while time.monotonic()<deadline:
+                current=R.reconcile(root,R.read_state(root))
+                if current["status"] in R.TERMINAL: break
+                time.sleep(.1)
+            final=R.read_state(root)
+            self.assertEqual("INTERRUPTED",final["status"])
+            self.assertEqual("LOCAL_GIT_AUTHORITY_CHANGED_DURING_EXECUTION",final["latestError"])
+            self.assertNotIn("source-drift",final.get("completedTasks") or [])
+            self.assertEqual("v2\n",tracked.read_text())
+            deadline=time.monotonic()+2
+            while R.lock_file(root).exists() and time.monotonic()<deadline: time.sleep(.05)
+            self.assertFalse(R.lock_file(root).exists())
+
     def test_manual_waiting_state_is_stable_under_observation(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
