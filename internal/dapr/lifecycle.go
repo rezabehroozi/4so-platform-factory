@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 )
 
@@ -36,16 +37,106 @@ type LifecycleRequest struct {
 }
 
 type ObservedState struct {
-	Authority         string          `json:"authority"`
-	OperationID       string          `json:"operationId"`
-	ClusterID         string          `json:"clusterId"`
-	Action            LifecycleAction `json:"action"`
-	Installed         bool            `json:"installed"`
-	RuntimeLockDigest string          `json:"runtimeLockDigest,omitempty"`
-	Version           string          `json:"version,omitempty"`
-	UpstreamCommit    string          `json:"upstreamCommit,omitempty"`
-	ObservedAt        string          `json:"observedAt"`
-	Phase             string          `json:"phase"`
+	Authority                string                    `json:"authority"`
+	OperationID              string                    `json:"operationId"`
+	ClusterID                string                    `json:"clusterId"`
+	Action                   LifecycleAction           `json:"action"`
+	Installed                bool                      `json:"installed"`
+	RuntimeLockDigest        string                    `json:"runtimeLockDigest,omitempty"`
+	Version                  string                    `json:"version,omitempty"`
+	UpstreamCommit           string                    `json:"upstreamCommit,omitempty"`
+	MirrorPullEvidence       *TargetMirrorPullEvidence `json:"mirrorPullEvidence,omitempty"`
+	MirrorPullEvidenceDigest string                    `json:"mirrorPullEvidenceDigest,omitempty"`
+	ObservedAt               string                    `json:"observedAt"`
+	Phase                    string                    `json:"phase"`
+}
+
+const TargetMirrorPullEvidenceAuthority = "DAPR_TARGET_MIRROR_PULL_EVIDENCE_V1"
+
+type TargetMirrorPullObservation struct {
+	Role           string `json:"role"`
+	WorkloadKind   string `json:"workloadKind"`
+	Namespace      string `json:"namespace"`
+	WorkloadName   string `json:"workloadName"`
+	Container      string `json:"container"`
+	ImageReference string `json:"imageReference"`
+	Ready          bool   `json:"ready"`
+}
+
+type TargetMirrorPullEvidence struct {
+	Authority                           string                        `json:"authority"`
+	ClusterID                           string                        `json:"clusterId"`
+	OperationID                         string                        `json:"operationId"`
+	FenceToken                          int64                         `json:"fenceToken"`
+	RuntimeLockDigest                   string                        `json:"runtimeLockDigest"`
+	MirrorRegistry                      string                        `json:"mirrorRegistry"`
+	RuntimeImages                       []TargetMirrorPullObservation `json:"runtimeImages"`
+	SidecarImageReference               string                        `json:"sidecarImageReference"`
+	SidecarPullInferred                 bool                          `json:"sidecarPullInferred"`
+	WorkloadSidecarPullEvidenceRequired bool                          `json:"workloadSidecarPullEvidenceRequired"`
+	ObservedAt                          string                        `json:"observedAt"`
+}
+
+func ValidateTargetMirrorPullEvidence(value TargetMirrorPullEvidence, lock RuntimeLock, clusterID, operationID string, fenceToken int64, runtimeLockDigest string) error {
+	if err := ValidateRuntimeLock(lock); err != nil {
+		return err
+	}
+	clusterID = strings.TrimSpace(clusterID)
+	operationID = strings.TrimSpace(operationID)
+	runtimeLockDigest = strings.ToLower(strings.TrimSpace(runtimeLockDigest))
+	if value.Authority != TargetMirrorPullEvidenceAuthority || strings.TrimSpace(value.ClusterID) != clusterID ||
+		strings.TrimSpace(value.OperationID) != operationID || value.FenceToken != fenceToken || fenceToken <= 0 ||
+		strings.ToLower(strings.TrimSpace(value.RuntimeLockDigest)) != runtimeLockDigest {
+		return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_EVIDENCE_BINDING_INVALID")
+	}
+	if strings.ToLower(strings.TrimSpace(value.MirrorRegistry)) != strings.ToLower(strings.TrimSpace(lock.MirrorRegistry)) ||
+		strings.TrimSpace(value.ObservedAt) == "" || value.SidecarPullInferred || !value.WorkloadSidecarPullEvidenceRequired {
+		return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_EVIDENCE_SCOPE_INVALID")
+	}
+	expected := map[string]string{}
+	for _, image := range lock.ImageLocks {
+		expected[strings.ToLower(strings.TrimSpace(image.Role))] = strings.TrimSpace(image.MirrorReference)
+	}
+	if strings.TrimSpace(value.SidecarImageReference) == "" || strings.TrimSpace(value.SidecarImageReference) != expected["sidecar"] {
+		return fmt.Errorf("DAPR_TARGET_SIDECAR_REFERENCE_INVALID")
+	}
+	seen := map[string]bool{}
+	for _, observation := range value.RuntimeImages {
+		role := strings.ToLower(strings.TrimSpace(observation.Role))
+		if role != "operator" && role != "injector" && role != "sentry" {
+			return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_ROLE_INVALID")
+		}
+		if seen[role] || !observation.Ready || strings.TrimSpace(observation.WorkloadKind) != "Deployment" ||
+			strings.TrimSpace(observation.Namespace) != "dapr-system" ||
+			strings.TrimSpace(observation.ImageReference) != expected[role] ||
+			strings.TrimSpace(observation.WorkloadName) == "" || strings.TrimSpace(observation.Container) == "" {
+			return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_OBSERVATION_INVALID")
+		}
+		seen[role] = true
+	}
+	for _, role := range []string{"operator", "injector", "sentry"} {
+		if !seen[role] {
+			return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_EVIDENCE_INCOMPLETE")
+		}
+	}
+	return nil
+}
+
+func TargetMirrorPullEvidenceDigest(value TargetMirrorPullEvidence, lock RuntimeLock, clusterID, operationID string, fenceToken int64, runtimeLockDigest string) (string, error) {
+	if err := ValidateTargetMirrorPullEvidence(value, lock, clusterID, operationID, fenceToken, runtimeLockDigest); err != nil {
+		return "", err
+	}
+	canonical := value
+	canonical.RuntimeImages = append([]TargetMirrorPullObservation(nil), value.RuntimeImages...)
+	sort.Slice(canonical.RuntimeImages, func(i, j int) bool {
+		return canonical.RuntimeImages[i].Role < canonical.RuntimeImages[j].Role
+	})
+	raw, err := json.Marshal(canonical)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
 func lifecycleDigest(value string) bool {
