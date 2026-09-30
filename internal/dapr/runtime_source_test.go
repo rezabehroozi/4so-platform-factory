@@ -28,6 +28,7 @@ func validRuntimeLock() RuntimeLock {
 		Authority: targetmodel.DaprRuntimeSupplyChainAuthority, SourcePlanAuthority: plan.Authority,
 		Version: plan.Version, UpstreamRepository: plan.UpstreamRepository, UpstreamRef: plan.UpstreamRef,
 		UpstreamCommit: plan.UpstreamCommit, SourceArchiveDigest: testDigest("e"), HelmChartDigest: testDigest("f"),
+		RegistryAuthority: "zot", MirrorRegistry: "zot.internal.example",
 		ImageLocks: images, ZotMirrorVerified: true, OfflineReplayReady: true, Admitted: true,
 	}
 }
@@ -44,6 +45,16 @@ func TestRuntimeLockDigestIsCanonicalAcrossImageOrdering(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	if a != b {
 		t.Fatalf("Dapr runtime lock digest depends on image ordering: %s != %s", a, b)
+	}
+}
+
+func TestRuntimeLockRequiresConfiguredProductZotRegistry(t *testing.T) {
+	lock := validRuntimeLock()
+	if err := ValidateRuntimeLockForRegistry(lock, "https://zot.internal.example"); err != nil {
+		t.Fatalf("matching product zot registry rejected: %v", err)
+	}
+	if err := ValidateRuntimeLockForRegistry(lock, "http://platform-zot:5000"); err == nil || !strings.Contains(err.Error(), "MIRROR_REGISTRY_MISMATCH") {
+		t.Fatalf("foreign Dapr mirror registry accepted: %v", err)
 	}
 }
 
