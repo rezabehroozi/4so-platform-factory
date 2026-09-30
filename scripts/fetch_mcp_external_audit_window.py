@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import ssl
 import time
+import tempfile
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
@@ -51,16 +52,13 @@ def _existing_witness(path: Path, raw: bytes, receipt: dict, client: str) -> dic
     return core.verify_server_audit(path,receipt,client)
 
 def atomic_write(path: Path, raw: bytes, receipt: dict, client: str) -> dict:
+    path=core._prepare_output_parent(path,"MCP_EXTERNAL_AUDIT")
     if path.exists() or path.is_symlink():
         return _existing_witness(path,raw,receipt,client)
-    path.parent.mkdir(parents=True,exist_ok=True)
-    temp=path.with_name("."+path.name+".tmp")
-    if temp.exists() or temp.is_symlink():
-        if temp.is_symlink() or not temp.is_file():
-            raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_TEMP_INVALID")
-        temp.unlink()
+    fd,temp_name=tempfile.mkstemp(prefix="."+path.name+".tmp.",dir=path.parent)
+    temp=Path(temp_name)
     try:
-        with temp.open("xb") as fh:
+        with os.fdopen(fd,"wb") as fh:
             fh.write(raw)
             fh.flush()
             os.fsync(fh.fileno())
