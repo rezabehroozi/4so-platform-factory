@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, datetime, fcntl, hashlib, json, os, secrets, signal, socket, subprocess, sys, tempfile, time
+import argparse, datetime, fcntl, hashlib, json, os, secrets, signal, socket, stat, subprocess, sys, tempfile, time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -125,6 +125,40 @@ def write_state(root,state,override=None,expected_revision=None):
         atomic_json(state_file(root,override),body)
         return True,body
 
+def git_worktree_fingerprint(root,head):
+    indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+    status=subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+    unstaged=subprocess.run(["git","diff","--binary","--no-ext-diff","HEAD","--"],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+    staged=subprocess.run(["git","diff","--binary","--cached","--no-ext-diff","HEAD","--"],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+    untracked=subprocess.run(["git","ls-files","--others","--exclude-standard","-z"],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+    if any(p.returncode!=0 for p in (indexed,status,unstaged,staged,untracked)):
+        raise RuntimeError("GIT_WORKTREE_FINGERPRINT_FAILED")
+    for raw in indexed.stdout.split(b"\x00"):
+        if raw and not raw.startswith(b"H "):
+            raise RuntimeError("GIT_INDEX_FLAGS_FORBIDDEN")
+    digest=hashlib.sha256()
+    digest.update(b"PROJECT_RUNTIME_GIT_WORKTREE_V1\x00")
+    digest.update(str(head).encode("ascii","strict")+b"\x00")
+    for label,payload in ((b"status",status.stdout),(b"unstaged",unstaged.stdout),(b"staged",staged.stdout)):
+        digest.update(label+b"\x00"+len(payload).to_bytes(8,"big")+payload)
+    untracked_rows=[raw for raw in untracked.stdout.split(b"\x00") if raw]
+    for raw in sorted(untracked_rows):
+        path=root/Path(os.fsdecode(raw))
+        try: info=path.lstat()
+        except OSError as exc: raise RuntimeError("GIT_UNTRACKED_SOURCE_UNREADABLE") from exc
+        digest.update(b"untracked\x00"+len(raw).to_bytes(8,"big")+raw)
+        digest.update(str(stat.S_IFMT(info.st_mode)).encode()+b":"+str(stat.S_IMODE(info.st_mode)).encode()+b"\x00")
+        if path.is_symlink():
+            target=os.readlink(path).encode(sys.getfilesystemencoding(),"surrogateescape")
+            digest.update(len(target).to_bytes(8,"big")+target)
+        elif path.is_file():
+            digest.update(info.st_size.to_bytes(8,"big"))
+            with path.open("rb") as fh:
+                for block in iter(lambda:fh.read(1024*1024),b""): digest.update(block)
+        else:
+            raise RuntimeError("GIT_UNTRACKED_SOURCE_TYPE_INVALID")
+    return "sha256:"+digest.hexdigest(),bool(status.stdout)
+
 def git(root,refresh=False,allow_detached=False,require_origin_sync=False):
     def run(*args,check=True,timeout=30):
         p=subprocess.run(["git",*args],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=timeout)
@@ -144,8 +178,10 @@ def git(root,refresh=False,allow_detached=False,require_origin_sync=False):
     if require_origin_sync and sync!="MATCHED":
         raise RuntimeError(f"GIT_ORIGIN_SYNC_REQUIRED head={head} originMain={origin or 'unavailable'}")
     remote=run("config","--get","remote.origin.url",check=False)
+    worktree_fingerprint,worktree_dirty=git_worktree_fingerprint(root,head)
     return {"repository":remote.stdout.strip(),"branch":branch,"head":head,"originMain":origin,
-            "gitSyncStatus":sync,"originRefreshAttempted":bool(refresh),"originRefreshError":refresh_error}
+            "gitSyncStatus":sync,"originRefreshAttempted":bool(refresh),"originRefreshError":refresh_error,
+            "worktreeFingerprint":worktree_fingerprint,"worktreeDirty":worktree_dirty}
 
 def lock_owner_live(lock):
     return alive(lock.get("pid"),lock.get("startTicks"))
@@ -385,7 +421,7 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
             return {"action":"RECOVERY_REQUIRED","state":prev}
     info={"repository":"self-test","branch":"main","head":"self-test","originMain":"self-test","gitSyncStatus":"UNAVAILABLE"} if skip_git else git(root,allow_detached=allow_detached)
     if prev:
-        same_job=(prev.get("head")==info["head"] and prev.get("branch")==info["branch"] and prev.get("phase")==phase and prev.get("currentTask")==task and prev.get("command")==command)
+        same_job=(prev.get("head")==info["head"] and prev.get("branch")==info["branch"] and prev.get("worktreeFingerprint")==info.get("worktreeFingerprint") and prev.get("phase")==phase and prev.get("currentTask")==task and prev.get("command")==command)
         if prev.get("status")=="COMPLETED" and same_job:
             return {"action":"CACHED_COMPLETED","state":prev}
     run_id="run-"+datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")+"-"+secrets.token_hex(4)
@@ -480,13 +516,16 @@ def resume(root,override=None,allow_detached=False):
         write_state(root,s,override)
         return {"action":"RECOVERY_REQUIRED","state":s}
     info=git(root,refresh=False,allow_detached=allow_detached)
-    if s.get("head")!=info["head"] or s.get("branch")!=info["branch"]:
+    if s.get("head")!=info["head"] or s.get("branch")!=info["branch"] or s.get("worktreeFingerprint")!=info.get("worktreeFingerprint"):
         s.update(status="WAITING",recoveryRequired=True,latestError="LOCAL_GIT_AUTHORITY_CHANGED_REPLAN_REQUIRED",
-                 currentOriginMain=info.get("originMain",""),gitSyncStatus=info.get("gitSyncStatus","UNAVAILABLE"))
+                 currentOriginMain=info.get("originMain",""),gitSyncStatus=info.get("gitSyncStatus","UNAVAILABLE"),
+                 currentWorktreeFingerprint=info.get("worktreeFingerprint",""),currentWorktreeDirty=info.get("worktreeDirty"))
         write_state(root,s,override)
         return {"action":"REPLAN_REQUIRED","state":s}
     s["currentOriginMain"]=info.get("originMain","")
     s["gitSyncStatus"]=info.get("gitSyncStatus","UNAVAILABLE")
+    s["currentWorktreeFingerprint"]=info.get("worktreeFingerprint","")
+    s["currentWorktreeDirty"]=info.get("worktreeDirty")
     run_id=str(s.get("runId") or "")
     if not run_id: raise RuntimeError("PROJECT_RUNTIME_RUN_ID_MISSING")
     acquire(root,run_id,override)
