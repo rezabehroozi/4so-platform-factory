@@ -377,6 +377,7 @@ def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
         if oauth_client_id in oauth_client_ids:
             raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_OAUTH_CLIENT_REUSE")
         challenge_values.add(challenge); challenge_digests.add(expected); oauth_client_ids.add(oauth_client_id)
+    campaign_trusted_client_bindings(campaign)
     return campaign
 
 def build_interop_evidence(matrix_sha256:str,campaign_id:str,campaign_sha256:str,oauth_binding_sha256:str,protocol:str,transport:str,endpoint_value:str,rows:list[dict])->dict:
@@ -393,7 +394,7 @@ def build_interop_evidence(matrix_sha256:str,campaign_id:str,campaign_sha256:str
       "campaignAuthority":CAMPAIGN_AUTHORITY,"campaignId":campaign_id,"campaignSha256":campaign_sha256,
       "oauthClientBindingAuthority":OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":oauth_binding_sha256,
       "oauthClientBindings":validate_oauth_client_bindings({row["clientId"]:row.get("oauthClientId") for row in rows},"MCP_EXTERNAL_EVIDENCE"),
-      "trustedClientBindings":{row["clientId"]:{"trustedClientId":row.get("trustedClientId"),"trustedClientRevision":row.get("trustedClientRevision"),"trustedClientProvider":row.get("trustedClientProvider")} for row in rows},
+      "trustedClientBindings":validate_trusted_client_bindings({row["clientId"]:{"trustedClientId":row.get("trustedClientId"),"trustedClientRevision":row.get("trustedClientRevision"),"trustedClientProvider":row.get("trustedClientProvider")} for row in rows},"MCP_EXTERNAL_EVIDENCE"),
       "protocol":protocol,"transport":transport,"endpoint":ep,
       "clients":rows,"certifiedClientCount":len(CLIENTS),"allRequiredChecksPass":True,
       "serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":len(AUDITED_CHECKS)*len(CLIENTS),
