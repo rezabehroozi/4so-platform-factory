@@ -509,10 +509,13 @@ type DaprRuntimeSupplyChainLock struct {
 	UpstreamRepository  string                 `json:"upstreamRepository"`
 	UpstreamRef         string                 `json:"upstreamRef"`
 	UpstreamCommit      string                 `json:"upstreamCommit"`
-	SourceArchiveDigest string                 `json:"sourceArchiveDigest"`
-	HelmChartDigest     string                 `json:"helmChartDigest"`
-	RegistryAuthority   string                 `json:"registryAuthority"`
-	MirrorRegistry      string                 `json:"mirrorRegistry"`
+	SourceArchiveDigest       string                 `json:"sourceArchiveDigest"`
+	HelmChartDigest           string                 `json:"helmChartDigest"`
+	HelmRenderDigest          string                 `json:"helmRenderDigest"`
+	AcquisitionReceiptDigest string                 `json:"acquisitionReceiptDigest"`
+	MirrorEvidenceDigest     string                 `json:"mirrorEvidenceDigest"`
+	RegistryAuthority         string                 `json:"registryAuthority"`
+	MirrorRegistry            string                 `json:"mirrorRegistry"`
 	ImageLocks          []DaprRuntimeImageLock `json:"imageLocks"`
 	ZotMirrorVerified   bool                   `json:"zotMirrorVerified"`
 	OfflineReplayReady  bool                   `json:"offlineReplayReady"`
@@ -540,7 +543,9 @@ func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []strin
 		lock.UpstreamRef != plan.UpstreamRef || lock.UpstreamCommit != plan.UpstreamCommit {
 		issues = append(issues, "dapr-supply-chain-source-identity-invalid")
 	}
-	if !daprSHA256Digest(lock.SourceArchiveDigest) || !daprSHA256Digest(lock.HelmChartDigest) {
+	if !daprSHA256Digest(lock.SourceArchiveDigest) || !daprSHA256Digest(lock.HelmChartDigest) ||
+		!daprSHA256Digest(lock.HelmRenderDigest) || !daprSHA256Digest(lock.AcquisitionReceiptDigest) ||
+		!daprSHA256Digest(lock.MirrorEvidenceDigest) {
 		issues = append(issues, "dapr-supply-chain-source-digest-invalid")
 	}
 	mirrorRegistry := strings.TrimSpace(lock.MirrorRegistry)
