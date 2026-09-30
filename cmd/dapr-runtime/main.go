@@ -839,13 +839,100 @@ func runLifecycle(args []string) error {
 	return nil
 }
 
+
+type workloadAdmissionExecutorResult struct {
+	Authority      string                                   `json:"authority"`
+	OperationID    string                                   `json:"operationId"`
+	Evidence       daprruntime.WorkloadAdmissionEvidence   `json:"evidence"`
+	EvidenceDigest string                                   `json:"evidenceDigest"`
+}
+
+func writeTerminationResult(value workloadAdmissionExecutorResult) error {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	if len(raw) == 0 || len(raw) > 3900 {
+		return errors.New("DAPR_WORKLOAD_ADMISSION_TERMINATION_RESULT_TOO_LARGE")
+	}
+	if err = os.WriteFile("/dev/termination-log", raw, 0o600); err != nil {
+		return err
+	}
+	fmt.Println(string(raw))
+	return nil
+}
+
+func runWorkloadAdmission() error {
+	operationID := strings.TrimSpace(os.Getenv("FOURSO_DAPR_WORKLOAD_OPERATION_ID"))
+	rawRequest := []byte(strings.TrimSpace(os.Getenv("FOURSO_DAPR_WORKLOAD_ADMISSION_JSON")))
+	requestDigest := strings.ToLower(strings.TrimSpace(os.Getenv("FOURSO_DAPR_WORKLOAD_ADMISSION_DIGEST")))
+	if operationID == "" || len(rawRequest) == 0 || requestDigest == "" {
+		return errors.New("DAPR_WORKLOAD_ADMISSION_ENVIRONMENT_INVALID")
+	}
+	request, err := daprruntime.ParseWorkloadAdmissionRequest(rawRequest, requestDigest)
+	if err != nil {
+		return err
+	}
+	deployment, err := daprruntime.BuildWorkloadAdmissionDeployment(request, operationID)
+	if err != nil {
+		return err
+	}
+	body, err := json.Marshal(deployment)
+	if err != nil {
+		return err
+	}
+	kube, err := newKubeClient()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	path := "/apis/apps/v1/namespaces/" + url.PathEscape(request.Plan.Namespace) + "/deployments?dryRun=All&fieldValidation=Strict"
+	res, response, err := kube.request(ctx, http.MethodPost, path, body, "application/json")
+	if err != nil {
+		return err
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return fmt.Errorf("DAPR_WORKLOAD_ADMISSION_DRY_RUN_HTTP_%d %s", res.StatusCode, strings.TrimSpace(string(response)))
+	}
+	var observed map[string]any
+	if err = json.Unmarshal(response, &observed); err != nil {
+		return errors.New("DAPR_WORKLOAD_ADMISSION_RESPONSE_INVALID")
+	}
+	evidence, err := daprruntime.WorkloadAdmissionEvidenceFromDryRun(request, operationID, observed, res.StatusCode, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	digest, err := daprruntime.WorkloadAdmissionEvidenceDigest(evidence, request, operationID)
+	if err != nil {
+		return err
+	}
+	return writeTerminationResult(workloadAdmissionExecutorResult{
+		Authority: daprruntime.WorkloadAdmissionEvidenceAuthority,
+		OperationID: operationID,
+		Evidence: evidence,
+		EvidenceDigest: digest,
+	})
+}
+
 func main() {
 	if len(os.Args) == 2 && (os.Args[1] == "version" || os.Args[1] == "--version") {
 		fmt.Println(buildinfo.Version)
 		return
 	}
+	if len(os.Args) >= 2 && os.Args[1] == "workload-admission" {
+		if len(os.Args) != 2 {
+			fmt.Fprintf(os.Stderr, "%s_BLOCKED workload-admission does not accept arguments\n", executorAuthority)
+			os.Exit(2)
+		}
+		if err := runWorkloadAdmission(); err != nil {
+			fmt.Fprintf(os.Stderr, "%s_BLOCKED %v\n", executorAuthority, err)
+			os.Exit(2)
+		}
+		return
+	}
 	if len(os.Args) < 2 || os.Args[1] != "lifecycle" {
-		fmt.Fprintf(os.Stderr, "%s_BLOCKED usage: dapr-runtime lifecycle --action install|upgrade|remove\n", executorAuthority)
+		fmt.Fprintf(os.Stderr, "%s_BLOCKED usage: dapr-runtime lifecycle --action install|upgrade|remove | workload-admission\n", executorAuthority)
 		os.Exit(2)
 	}
 	if err := runLifecycle(os.Args[2:]); err != nil {
