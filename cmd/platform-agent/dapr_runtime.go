@@ -352,6 +352,39 @@ func (a *agent) dispatchDaprExecutor(ctx context.Context, task daprAgentTask) da
 	return result
 }
 
+func validateDaprObservedReceipt(receipt daprObservedReceipt, operationID string, fenceToken int64, request daprruntime.LifecycleRequest) daprAgentResult {
+	result := daprAgentResult{TaskFenceToken: fenceToken, Phase: "ReceiptReadback"}
+	if receipt.Authority != daprReceiptAuthority || receipt.OperationID != operationID || receipt.FenceToken != fenceToken {
+		result.RecoveryRequired = true
+		result.Error = "Dapr observed receipt authority/operation/fence mismatch"
+		return result
+	}
+	wantInstalled := request.Action != daprruntime.ActionRemove
+	if receipt.Installed != wantInstalled || strings.TrimSpace(receipt.Phase) == "" {
+		result.RecoveryRequired = true
+		result.Error = "Dapr observed receipt installed state does not match lifecycle action"
+		return result
+	}
+	result.Installed = receipt.Installed
+	result.ObservedLockDigest = strings.TrimSpace(receipt.RuntimeLockDigest)
+	result.Version = strings.TrimSpace(receipt.Version)
+	result.UpstreamCommit = strings.ToLower(strings.TrimSpace(receipt.UpstreamCommit))
+	result.Phase = strings.TrimSpace(receipt.Phase)
+	if wantInstalled && (result.ObservedLockDigest != request.RuntimeLockDigest ||
+		result.Version != request.RuntimeVersion || result.UpstreamCommit != request.UpstreamCommit) {
+		result.RecoveryRequired = true
+		result.Error = "Dapr observed receipt does not match exact admitted runtime lock"
+		return result
+	}
+	if !wantInstalled && (result.ObservedLockDigest != "" || result.Version != "" || result.UpstreamCommit != "") {
+		result.RecoveryRequired = true
+		result.Error = "removed Dapr receipt retained runtime identity"
+		return result
+	}
+	result.Success = true
+	return result
+}
+
 func (a *agent) readDaprReceipt(ctx context.Context, task daprAgentTask) daprAgentResult {
 	result := daprAgentResult{TaskFenceToken: task.TaskFenceToken, Phase: "ReceiptReadback"}
 	path := "/api/v1/namespaces/" + url.PathEscape(daprReceiptNamespace) + "/configmaps/" + url.PathEscape(daprReceiptName)
@@ -379,30 +412,8 @@ func (a *agent) readDaprReceipt(ctx context.Context, task daprAgentTask) daprAge
 		result.Error = "Dapr observed receipt is invalid: " + err.Error()
 		return result
 	}
-	if receipt.Authority != daprReceiptAuthority || receipt.OperationID != task.OperationID || receipt.FenceToken != task.TaskFenceToken {
-		result.RecoveryRequired = true
-		result.Error = "Dapr observed receipt authority/operation/fence mismatch"
-		return result
-	}
-	wantInstalled := task.Request.Action != daprruntime.ActionRemove
-	if receipt.Installed != wantInstalled || strings.TrimSpace(receipt.Phase) == "" {
-		result.RecoveryRequired = true
-		result.Error = "Dapr observed receipt installed state does not match lifecycle action"
-		return result
-	}
-	result.Installed = receipt.Installed
-	result.ObservedLockDigest = strings.TrimSpace(receipt.RuntimeLockDigest)
-	result.Version = strings.TrimSpace(receipt.Version)
-	result.UpstreamCommit = strings.TrimSpace(receipt.UpstreamCommit)
-	result.Phase = strings.TrimSpace(receipt.Phase)
-	if wantInstalled && (result.ObservedLockDigest != task.Request.RuntimeLockDigest ||
-		result.Version != task.Request.RuntimeVersion || result.UpstreamCommit != task.Request.UpstreamCommit) {
-		result.RecoveryRequired = true
-		result.Error = "Dapr observed receipt does not match exact admitted runtime lock"
-		return result
-	}
-	result.Success = true
-	return result
+	validated := validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
+	return validated
 }
 
 func (a *agent) reportDaprLifecycleTask(ctx context.Context, task daprAgentTask, result daprAgentResult) error {
