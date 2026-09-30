@@ -110,6 +110,44 @@ func TestDaprLifecycleCreateIsApprovalGatedAndIdempotent(t *testing.T) {
 		replay.Operation.State != controlplane.OperationAwaitingApproval {
 		t.Fatalf("Dapr lifecycle idempotency drift: first=%#v replay=%#v", first.Operation, replay.Operation)
 	}
+
+	w = applicationPlatformRequest(t, srv, http.MethodPost, "/api/v1/application-platform/dapr/lifecycle", body, "owner",
+		map[string]string{"Idempotency-Key": "dapr-install-2", "X-Request-ID": "req-dapr-install-2"})
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "DAPR_LIFECYCLE_RECOVERY_OR_OPERATION_PENDING") {
+		t.Fatalf("parallel Dapr lifecycle mutation was admitted: %d %s", w.Code, w.Body.String())
+	}
+	ops, err := store.ListOperations(ctx, project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ops) != 1 || ops[0].ID != first.Operation.ID {
+		t.Fatalf("parallel Dapr lifecycle request created extra operation: %#v", ops)
+	}
+}
+
+func TestDaprLifecycleStateBlocksUnknownRecoveryAndInFlightMutation(t *testing.T) {
+	for _, state := range []controlplane.OperationState{
+		controlplane.OperationAwaitingApproval, controlplane.OperationQueued, controlplane.OperationRunning,
+		controlplane.OperationRetryWait, controlplane.OperationVerifying, controlplane.OperationNeedsOperator,
+		controlplane.OperationRollbackFailed,
+	} {
+		if !daprLifecycleStateBlocksNewMutation(controlplane.Operation{State: state}) {
+			t.Fatalf("Dapr state %s did not fence a new mutation", state)
+		}
+	}
+	if !daprLifecycleStateBlocksNewMutation(controlplane.Operation{State: controlplane.OperationFailed, LastFailureClass: controlplane.OperationFailureUnknown}) {
+		t.Fatal("unknown Dapr failure did not fence a new mutation")
+	}
+	for _, op := range []controlplane.Operation{
+		{State: controlplane.OperationSucceeded},
+		{State: controlplane.OperationCancelled},
+		{State: controlplane.OperationRolledBack},
+		{State: controlplane.OperationFailed, LastFailureClass: controlplane.OperationFailurePermanent},
+	} {
+		if daprLifecycleStateBlocksNewMutation(op) {
+			t.Fatalf("terminal/converged Dapr state unexpectedly fenced a new mutation: %#v", op)
+		}
+	}
 }
 
 func TestDaprLifecycleNeverMutatesTargetNativeRuntime(t *testing.T) {
