@@ -442,7 +442,7 @@ def resolve_recovery(root,run_id,decision,reason,override=None):
             raise RuntimeError("PROJECT_RUNTIME_RECOVERY_RESOLUTION_CONFLICT")
         raise RuntimeError("PROJECT_RUNTIME_RECOVERY_STATE_CHANGED")
     immutable_json(recovery_file(root,run_id,override),resolution,"PROJECT_RUNTIME_RECOVERY_EVIDENCE")
-    return {"action":"RECOVERY_RESOLVED","state":written,"resolution":resolution}
+    return {"action":"RECOVERY_RESOLVED","state":current,"resolution":resolution}
 
 def resume(root,override=None,allow_detached=False):
     s=read_state(root,override)
