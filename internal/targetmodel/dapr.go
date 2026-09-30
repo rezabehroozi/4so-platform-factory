@@ -613,6 +613,7 @@ const (
 	DaprSidecarSecurityCapability      = "application-runtime.dapr-sidecar-security-compatible"
 	DaprComponentScopeCapability       = "application-runtime.dapr-component-scope-enforced"
 	DaprResourceSizingCapability       = "application-runtime.dapr-resource-sizing-ready"
+	DaprMirrorPullCapability           = "application-runtime.dapr-mirror-pull-ready"
 )
 
 type DaprTargetAdmissionInput struct {
@@ -674,6 +675,9 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 		}
 		if in.Disconnected && !in.DisconnectedMirrorAdmitted {
 			out.Blockers = append(out.Blockers, "DAPR_DISCONNECTED_MIRROR_PENDING")
+		}
+		if !capabilities[DaprMirrorPullCapability] {
+			out.Blockers = append(out.Blockers, "DAPR_TARGET_MIRROR_PULL_PENDING")
 		}
 	}
 	if !capabilities[DaprSidecarSecurityCapability] {
