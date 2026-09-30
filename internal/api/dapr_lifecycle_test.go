@@ -64,6 +64,32 @@ func daprAPITestRuntimeLock(t *testing.T) daprruntime.RuntimeLock {
 	return lock
 }
 
+func daprAPITestMirrorEvidence(t *testing.T, lock daprruntime.RuntimeLock, clusterID, operationID string, fence int64) (*daprruntime.TargetMirrorPullEvidence, string) {
+	t.Helper()
+	lockDigest, err := daprruntime.RuntimeLockDigest(lock)
+	if err != nil { t.Fatal(err) }
+	refs := map[string]string{}
+	for _, image := range lock.ImageLocks {
+		refs[image.Role] = image.MirrorReference
+	}
+	evidence := daprruntime.TargetMirrorPullEvidence{
+		Authority: daprruntime.TargetMirrorPullEvidenceAuthority,
+		ClusterID: clusterID, OperationID: operationID, FenceToken: fence,
+		RuntimeLockDigest: lockDigest, MirrorRegistry: lock.MirrorRegistry,
+		RuntimeImages: []daprruntime.TargetMirrorPullObservation{
+			{Role: "operator", WorkloadKind: "Deployment", Namespace: "dapr-system", WorkloadName: "dapr-operator", Container: "dapr-operator", ImageReference: refs["operator"], Ready: true},
+			{Role: "injector", WorkloadKind: "Deployment", Namespace: "dapr-system", WorkloadName: "dapr-sidecar-injector", Container: "dapr-sidecar-injector", ImageReference: refs["injector"], Ready: true},
+			{Role: "sentry", WorkloadKind: "Deployment", Namespace: "dapr-system", WorkloadName: "dapr-sentry", Container: "dapr-sentry", ImageReference: refs["sentry"], Ready: true},
+		},
+		SidecarImageReference: refs["sidecar"],
+		WorkloadSidecarPullEvidenceRequired: true,
+		ObservedAt: "2026-09-30T12:00:00Z",
+	}
+	digest, err := daprruntime.TargetMirrorPullEvidenceDigest(evidence, lock, clusterID, operationID, fence, lockDigest)
+	if err != nil { t.Fatal(err) }
+	return &evidence, digest
+}
+
 type daprLifecycleCreateResponse struct {
 	Authority        string                       `json:"authority"`
 	Operation        controlplane.Operation       `json:"operation"`
@@ -254,12 +280,15 @@ func TestDaprUnknownOutcomeRecoveryRestoresObservedAuthorityFromSealedPayload(t 
 		t.Fatalf("unknown failure fixture drift op=%+v err=%v", op, err)
 	}
 
-	task := daprRecoveryTask{OperationID: op.ID, OperationRevision: op.Revision, TaskFenceToken: op.FenceToken, Request: created.Request}
+	evidenceValue, evidenceDigest := daprAPITestMirrorEvidence(t, lock, cluster.ID, op.ID, op.FenceToken)
+	task := daprRecoveryTask{OperationID: op.ID, OperationRevision: op.Revision, TaskFenceToken: op.FenceToken, Request: created.Request, RuntimeLock: lock}
 	result := daprRecoveryResult{
 		ConfirmedSuccess: true, Installed: true,
 		ObservedLockDigest: created.Request.RuntimeLockDigest,
 		Version: created.Request.RuntimeVersion,
 		UpstreamCommit: created.Request.UpstreamCommit,
+		MirrorPullEvidence: evidenceValue,
+		MirrorPullEvidenceDigest: evidenceDigest,
 		Phase: "Installed",
 	}
 	_, raw, digest, err := canonicalDaprRecoveryReadback(task, result)
@@ -277,23 +306,30 @@ func TestDaprUnknownOutcomeRecoveryRestoresObservedAuthorityFromSealedPayload(t 
 	if observed == nil || !observed.Installed || observed.OperationID != op.ID ||
 		observed.RuntimeLockDigest != created.Request.RuntimeLockDigest ||
 		observed.Version != created.Request.RuntimeVersion || observed.UpstreamCommit != created.Request.UpstreamCommit ||
+		observed.MirrorPullEvidence == nil || observed.MirrorPullEvidenceDigest != evidenceDigest ||
 		observed.Phase != "RecoveredConfirmedSuccess" {
 		t.Fatalf("recovered observed authority drift: %#v", observed)
 	}
 }
 
 func TestCanonicalDaprRecoveryReadbackRejectsRuntimeSubstitution(t *testing.T) {
+	lock := daprAPITestRuntimeLock(t)
+	lockDigest, err := daprruntime.RuntimeLockDigest(lock)
+	if err != nil { t.Fatal(err) }
 	task := daprRecoveryTask{
 		OperationID: "op_recovery", OperationRevision: 9, TaskFenceToken: 12,
 		Request: daprruntime.LifecycleRequest{
 			ProjectID: "prj", ClusterID: "clu", Action: daprruntime.ActionUpgrade,
-			RuntimeLockDigest: daprAPITestDigest("a"), RuntimeVersion: "v1.18.4",
-			UpstreamCommit: targetmodel.DaprUpstreamCommit,
+			RuntimeLockDigest: lockDigest, RuntimeVersion: lock.Version,
+			UpstreamCommit: lock.UpstreamCommit,
 		},
+		RuntimeLock: lock,
 	}
+	evidenceValue, evidenceDigest := daprAPITestMirrorEvidence(t, lock, task.Request.ClusterID, task.OperationID, task.TaskFenceToken)
 	good := daprRecoveryResult{
 		ConfirmedSuccess: true, Installed: true, ObservedLockDigest: task.Request.RuntimeLockDigest,
-		Version: task.Request.RuntimeVersion, UpstreamCommit: task.Request.UpstreamCommit, Phase: "Upgraded",
+		Version: task.Request.RuntimeVersion, UpstreamCommit: task.Request.UpstreamCommit,
+		MirrorPullEvidence: evidenceValue, MirrorPullEvidenceDigest: evidenceDigest, Phase: "Upgraded",
 	}
 	if _, raw, digest, err := canonicalDaprRecoveryReadback(task, good); err != nil || len(raw) == 0 || !strings.HasPrefix(digest, "sha256:") {
 		t.Fatalf("exact recovery readback rejected digest=%q err=%v", digest, err)
@@ -302,5 +338,11 @@ func TestCanonicalDaprRecoveryReadbackRejectsRuntimeSubstitution(t *testing.T) {
 	bad.ObservedLockDigest = daprAPITestDigest("b")
 	if _, _, _, err := canonicalDaprRecoveryReadback(task, bad); err == nil || !strings.Contains(err.Error(), "RUNTIME_IDENTITY_MISMATCH") {
 		t.Fatalf("recovery runtime substitution accepted: %v", err)
+	}
+	missing := good
+	missing.MirrorPullEvidence = nil
+	missing.MirrorPullEvidenceDigest = ""
+	if _, _, _, err := canonicalDaprRecoveryReadback(task, missing); err == nil || !strings.Contains(err.Error(), "MIRROR_PULL_EVIDENCE_REQUIRED") {
+		t.Fatalf("recovery without target mirror-pull evidence accepted: %v", err)
 	}
 }
