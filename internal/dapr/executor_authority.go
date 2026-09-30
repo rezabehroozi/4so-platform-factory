@@ -36,9 +36,10 @@ type ExecutorImageEvidence struct {
 }
 
 type ExecutorAuthority struct {
-	Authority         string `json:"authority"`
-	EvidenceDigest    string `json:"evidenceDigest"`
-	ImageReference    string `json:"imageReference"`
+	Authority           string `json:"authority"`
+	EvidenceDigest      string `json:"evidenceDigest"`
+	SourceReleaseDigest string `json:"sourceReleaseDigest"`
+	ImageReference      string `json:"imageReference"`
 	ImageDigest       string `json:"imageDigest"`
 	RegistryAuthority string `json:"registryAuthority"`
 	RegistryScheme    string `json:"registryScheme"`
@@ -103,13 +104,14 @@ func ValidateExecutorImageEvidence(value ExecutorImageEvidence, expectedRegistry
 func ValidateExecutorAuthority(value ExecutorAuthority) error {
 	value.Authority = strings.TrimSpace(value.Authority)
 	value.EvidenceDigest = strings.ToLower(strings.TrimSpace(value.EvidenceDigest))
+	value.SourceReleaseDigest = strings.ToLower(strings.TrimSpace(value.SourceReleaseDigest))
 	value.ImageReference = strings.TrimSpace(value.ImageReference)
 	value.ImageDigest = strings.ToLower(strings.TrimSpace(value.ImageDigest))
 	value.RegistryAuthority = strings.ToLower(strings.TrimSpace(value.RegistryAuthority))
 	value.RegistryScheme = strings.ToLower(strings.TrimSpace(value.RegistryScheme))
 	value.RegistryIdentity = strings.ToLower(strings.TrimSpace(value.RegistryIdentity))
 	if value.Authority != ExecutorImageEvidenceAuthority || !lifecycleDigest(value.EvidenceDigest) ||
-		!lifecycleDigest(value.ImageDigest) || value.RegistryAuthority != "zot" {
+		!lifecycleDigest(value.SourceReleaseDigest) || !lifecycleDigest(value.ImageDigest) || value.RegistryAuthority != "zot" {
 		return fmt.Errorf("DAPR_EXECUTOR_AUTHORITY_INVALID")
 	}
 	scheme, host, err := expectedRegistryIdentity(value.RegistryScheme + "://" + value.RegistryIdentity)
@@ -137,6 +139,20 @@ func ValidateExecutorAuthorityForRegistry(value ExecutorAuthority, expectedRegis
 	return nil
 }
 
+func ValidateExecutorAuthorityForRelease(value ExecutorAuthority, expectedSourceReleaseDigest string) error {
+	if err := ValidateExecutorAuthority(value); err != nil {
+		return err
+	}
+	expectedSourceReleaseDigest = strings.ToLower(strings.TrimSpace(expectedSourceReleaseDigest))
+	if !lifecycleDigest(expectedSourceReleaseDigest) {
+		return fmt.Errorf("DAPR_EXECUTOR_SOURCE_RELEASE_AUTHORITY_REQUIRED")
+	}
+	if !strings.EqualFold(strings.TrimSpace(value.SourceReleaseDigest), expectedSourceReleaseDigest) {
+		return fmt.Errorf("DAPR_EXECUTOR_SOURCE_RELEASE_MISMATCH")
+	}
+	return nil
+}
+
 func ExecutorAuthorityFromEvidence(value ExecutorImageEvidence, evidenceDigest string) (ExecutorAuthority, error) {
 	value = normalizeExecutorEvidence(value)
 	evidenceDigest = strings.ToLower(strings.TrimSpace(evidenceDigest))
@@ -149,6 +165,7 @@ func ExecutorAuthorityFromEvidence(value ExecutorImageEvidence, evidenceDigest s
 	out := ExecutorAuthority{
 		Authority: ExecutorImageEvidenceAuthority,
 		EvidenceDigest: evidenceDigest,
+		SourceReleaseDigest: value.SourceReleaseDigest,
 		ImageReference: value.ImageReference,
 		ImageDigest: value.ImageDigest,
 		RegistryAuthority: value.RegistryAuthority,
@@ -169,6 +186,7 @@ func ExecutorAuthorityFromRuntimeLock(lock RuntimeLock) (ExecutorAuthority, erro
 	out := ExecutorAuthority{
 		Authority: ExecutorImageEvidenceAuthority,
 		EvidenceDigest: lock.ExecutorEvidenceDigest,
+		SourceReleaseDigest: lock.ExecutorSourceReleaseDigest,
 		ImageReference: lock.ExecutorImageReference,
 		ImageDigest: lock.ExecutorImageDigest,
 		RegistryAuthority: lock.RegistryAuthority,
@@ -184,6 +202,7 @@ func ExecutorAuthorityFromRuntimeLock(lock RuntimeLock) (ExecutorAuthority, erro
 func ExecutorAuthoritiesEqual(a, b ExecutorAuthority) bool {
 	return strings.TrimSpace(a.Authority) == strings.TrimSpace(b.Authority) &&
 		strings.EqualFold(strings.TrimSpace(a.EvidenceDigest), strings.TrimSpace(b.EvidenceDigest)) &&
+		strings.EqualFold(strings.TrimSpace(a.SourceReleaseDigest), strings.TrimSpace(b.SourceReleaseDigest)) &&
 		strings.TrimSpace(a.ImageReference) == strings.TrimSpace(b.ImageReference) &&
 		strings.EqualFold(strings.TrimSpace(a.ImageDigest), strings.TrimSpace(b.ImageDigest)) &&
 		strings.EqualFold(strings.TrimSpace(a.RegistryAuthority), strings.TrimSpace(b.RegistryAuthority)) &&
