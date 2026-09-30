@@ -132,6 +132,41 @@ func (s *Server) latestDaprObserved(ctx context.Context, projectID, clusterID st
 	return nil, nil
 }
 
+func daprLifecycleStateBlocksNewMutation(op controlplane.Operation) bool {
+	switch op.State {
+	case controlplane.OperationDraft, controlplane.OperationPlanning, controlplane.OperationAwaitingApproval,
+		controlplane.OperationApproved, controlplane.OperationQueued, controlplane.OperationRunning,
+		controlplane.OperationRetryWait, controlplane.OperationCancelRequested, controlplane.OperationVerifying,
+		controlplane.OperationRollingBack, controlplane.OperationNeedsOperator, controlplane.OperationRollbackFailed:
+		return true
+	case controlplane.OperationFailed:
+		return op.LastFailureClass == controlplane.OperationFailureUnknown
+	default:
+		return false
+	}
+}
+
+func (s *Server) daprLifecycleClusterBlocker(ctx context.Context, projectID, clusterID, idempotencyKey string) (*controlplane.Operation, error) {
+	operations, err := s.store.ListOperations(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range operations {
+		op := operations[i]
+		if op.Kind != daprLifecycleOperationKind || strings.TrimSpace(op.IdempotencyKey) == strings.TrimSpace(idempotencyKey) {
+			continue
+		}
+		targetCluster, _, parseErr := parseDaprLifecycleTarget(op.TargetRef)
+		if parseErr != nil || targetCluster != clusterID {
+			continue
+		}
+		if daprLifecycleStateBlocksNewMutation(op) {
+			return &op, nil
+		}
+	}
+	return nil, nil
+}
+
 func (s *Server) createDaprLifecycle(w http.ResponseWriter, r *http.Request) {
 	if !s.daprRuntimeReady {
 		writeError(w, http.StatusServiceUnavailable, "DAPR_RUNTIME_SOURCE_NOT_READY", "exact Dapr runtime lock is not configured")
@@ -194,6 +229,23 @@ func (s *Server) createDaprLifecycle(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
 			"error": map[string]any{"code": "DAPR_TARGET_NOT_ADMITTED", "message": "target is not eligible for product-managed Dapr lifecycle"},
 			"admission": admission,
+		})
+		return
+	}
+	blocker, err := s.daprLifecycleClusterBlocker(r.Context(), input.ProjectID, input.ClusterID, key)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if blocker != nil {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error": map[string]any{
+				"code": "DAPR_LIFECYCLE_RECOVERY_OR_OPERATION_PENDING",
+				"message": "an existing Dapr lifecycle operation must converge or be operator-resolved before another mutation",
+			},
+			"blockingOperationId": blocker.ID,
+			"blockingOperationState": blocker.State,
+			"physicalCertificationInferred": false,
 		})
 		return
 	}
