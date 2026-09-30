@@ -204,7 +204,7 @@ def reconcile(root,state,override=None,write=True):
             if current and current.get("runId")==state.get("runId"):
                 return reconcile(root,current,override,write=False)
             return current or s
-        return current if False else (read_state(root,override) or s)
+        return read_state(root,override) or s
     return s
 
 def reclaim_stale_lock(root,state,override=None):
