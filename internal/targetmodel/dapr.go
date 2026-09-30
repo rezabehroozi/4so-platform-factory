@@ -177,6 +177,152 @@ func ValidateDaprApplicationRuntimeModel(model DaprApplicationRuntimeDescriptor)
 }
 
 const (
+	DaprRuntimeSourcePlanAuthority = "DAPR_RUNTIME_SOURCE_PLAN_V1"
+	DaprUpstreamRepository         = "https://github.com/dapr/dapr"
+	DaprUpstreamRef                = "v1.18.4"
+	DaprUpstreamCommit             = "6d1c53f430205c0c0f3bc3589ce5a3ec3f6f1647"
+	DaprHelmChartPath              = "charts/dapr"
+)
+
+type DaprHelmOverride struct {
+	Path  string `json:"path"`
+	Value string `json:"value"`
+}
+
+type DaprRuntimeImageRole struct {
+	Role       string `json:"role"`
+	Repository string `json:"repository"`
+}
+
+type DaprRuntimeSourcePlan struct {
+	Authority                  string                 `json:"authority"`
+	Version                    string                 `json:"version"`
+	UpstreamRepository         string                 `json:"upstreamRepository"`
+	UpstreamRef                string                 `json:"upstreamRef"`
+	UpstreamCommit             string                 `json:"upstreamCommit"`
+	HelmChartPath              string                 `json:"helmChartPath"`
+	HelmOverrides              []DaprHelmOverride     `json:"helmOverrides"`
+	RequiredImages             []DaprRuntimeImageRole `json:"requiredImages"`
+	ForbiddenImageRepositories []string               `json:"forbiddenImageRepositories"`
+	RequireExactSourceLock     bool                   `json:"requireExactSourceLock"`
+	RequireDigestPinnedImages  bool                   `json:"requireDigestPinnedImages"`
+	RequireProductZotMirror    bool                   `json:"requireProductZotMirror"`
+	NetworkFetchAtRuntime      bool                   `json:"networkFetchAtRuntime"`
+}
+
+func DaprRuntimeSourcePlanModel() DaprRuntimeSourcePlan {
+	return DaprRuntimeSourcePlan{
+		Authority:          DaprRuntimeSourcePlanAuthority,
+		Version:            DaprReviewedRuntimeVersion,
+		UpstreamRepository: DaprUpstreamRepository,
+		UpstreamRef:        DaprUpstreamRef,
+		UpstreamCommit:     DaprUpstreamCommit,
+		HelmChartPath:      DaprHelmChartPath,
+		HelmOverrides: []DaprHelmOverride{
+			{Path: "global.actors.enabled", Value: "false"},
+			{Path: "global.scheduler.enabled", Value: "false"},
+			{Path: "global.mtls.enabled", Value: "true"},
+			{Path: "global.prometheus.enabled", Value: "true"},
+			{Path: "dapr_config.dapr_config_chart_included", Value: "false"},
+			{Path: "dapr_sidecar_injector.sidecarRunAsNonRoot", Value: "true"},
+			{Path: "dapr_sidecar_injector.sidecarReadOnlyRootFilesystem", Value: "true"},
+			{Path: "dapr_sidecar_injector.sidecarDropALLCapabilities", Value: "true"},
+		},
+		RequiredImages: []DaprRuntimeImageRole{
+			{Role: "sidecar", Repository: "ghcr.io/dapr/daprd"},
+			{Role: "operator", Repository: "ghcr.io/dapr/operator"},
+			{Role: "injector", Repository: "ghcr.io/dapr/injector"},
+			{Role: "sentry", Repository: "ghcr.io/dapr/sentry"},
+		},
+		ForbiddenImageRepositories: []string{
+			"ghcr.io/dapr/placement",
+			"ghcr.io/dapr/scheduler",
+		},
+		RequireExactSourceLock:    true,
+		RequireDigestPinnedImages: true,
+		RequireProductZotMirror:   true,
+		NetworkFetchAtRuntime:     false,
+	}
+}
+
+func ValidateDaprRuntimeSourcePlan(plan DaprRuntimeSourcePlan) []string {
+	issues := []string{}
+	if plan.Authority != DaprRuntimeSourcePlanAuthority || plan.Version != DaprReviewedRuntimeVersion ||
+		plan.UpstreamRepository != DaprUpstreamRepository || plan.UpstreamRef != DaprUpstreamRef ||
+		plan.UpstreamCommit != DaprUpstreamCommit || plan.HelmChartPath != DaprHelmChartPath {
+		issues = append(issues, "dapr-source-identity-invalid")
+	}
+	if len(plan.UpstreamCommit) != 40 {
+		issues = append(issues, "dapr-source-commit-invalid")
+	} else {
+		for _, ch := range plan.UpstreamCommit {
+			if !strings.ContainsRune("0123456789abcdef", ch) {
+				issues = append(issues, "dapr-source-commit-invalid")
+				break
+			}
+		}
+	}
+	overrides := map[string]string{}
+	for _, item := range plan.HelmOverrides {
+		if item.Path == "" || item.Value == "" || overrides[item.Path] != "" {
+			issues = append(issues, "dapr-helm-overrides-invalid")
+			continue
+		}
+		overrides[item.Path] = item.Value
+	}
+	requiredOverrides := map[string]string{
+		"global.actors.enabled": "false",
+		"global.scheduler.enabled": "false",
+		"global.mtls.enabled": "true",
+		"dapr_config.dapr_config_chart_included": "false",
+		"dapr_sidecar_injector.sidecarRunAsNonRoot": "true",
+		"dapr_sidecar_injector.sidecarReadOnlyRootFilesystem": "true",
+		"dapr_sidecar_injector.sidecarDropALLCapabilities": "true",
+	}
+	for path, value := range requiredOverrides {
+		if overrides[path] != value {
+			issues = append(issues, "dapr-required-helm-override-missing")
+			break
+		}
+	}
+	images := map[string]string{}
+	repositories := map[string]bool{}
+	for _, image := range plan.RequiredImages {
+		role, repository := strings.TrimSpace(image.Role), strings.TrimSpace(image.Repository)
+		if role == "" || repository == "" || images[role] != "" || repositories[repository] {
+			issues = append(issues, "dapr-required-images-invalid")
+			continue
+		}
+		images[role], repositories[repository] = repository, true
+	}
+	for role, repository := range map[string]string{
+		"sidecar": "ghcr.io/dapr/daprd",
+		"operator": "ghcr.io/dapr/operator",
+		"injector": "ghcr.io/dapr/injector",
+		"sentry": "ghcr.io/dapr/sentry",
+	} {
+		if images[role] != repository {
+			issues = append(issues, "dapr-required-images-incomplete")
+			break
+		}
+	}
+	forbidden := map[string]bool{}
+	for _, repository := range plan.ForbiddenImageRepositories {
+		forbidden[strings.TrimSpace(repository)] = true
+	}
+	for _, repository := range []string{"ghcr.io/dapr/placement", "ghcr.io/dapr/scheduler"} {
+		if !forbidden[repository] || repositories[repository] {
+			issues = append(issues, "dapr-forbidden-images-invalid")
+			break
+		}
+	}
+	if !plan.RequireExactSourceLock || !plan.RequireDigestPinnedImages || !plan.RequireProductZotMirror || plan.NetworkFetchAtRuntime {
+		issues = append(issues, "dapr-supply-chain-boundary-invalid")
+	}
+	return issues
+}
+
+const (
 	DaprTargetAdmissionAuthority       = "DAPR_TARGET_ADMISSION_V1"
 	DaprSidecarSecurityCapability      = "application-runtime.dapr-sidecar-security-compatible"
 	DaprComponentScopeCapability       = "application-runtime.dapr-component-scope-enforced"
