@@ -15,7 +15,7 @@ import stat
 import subprocess
 
 from upstream_acquisition_toolchain import require_toolchain
-from acquire_dapr_runtime import VERSION, UPSTREAM_COMMIT
+from acquire_dapr_runtime import VERSION, IMAGE_TAG, UPSTREAM_COMMIT, sha256_bytes
 from seal_dapr_runtime import (
     MIRROR_AUTHORITY,
     load_json,
@@ -55,12 +55,63 @@ def crane_digest(crane: str, ref: str) -> str:
     return digest
 
 
-def mirror(acquisition_path: Path, registry: str, out: Path) -> dict:
+def chart_path_admission(path: Path, acquisition: dict) -> tuple[Path, str]:
+    candidate = Path(os.path.abspath(os.fspath(path.expanduser())))
+    info = candidate.lstat()
+    if candidate.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_size <= 0 or info.st_size > 64 * 1024 * 1024:
+        raise RuntimeError("DAPR_MIRROR_HELM_PACKAGE_FILE_INVALID")
+    if candidate.name != acquisition.get("helmPackageName"):
+        raise RuntimeError("DAPR_MIRROR_HELM_PACKAGE_NAME_MISMATCH")
+    raw = candidate.read_bytes()
+    if len(raw) != info.st_size:
+        raise RuntimeError("DAPR_MIRROR_HELM_PACKAGE_FILE_CHANGED")
+    digest = sha256_bytes(raw)
+    if digest != acquisition.get("helmPackageDigest"):
+        raise RuntimeError("DAPR_MIRROR_HELM_PACKAGE_DIGEST_MISMATCH")
+    return candidate, digest
+
+
+def mirror_chart(helm: str, crane: str, chart: Path, package_digest: str, registry: str) -> dict:
+    destination = f"oci://{registry}/dapr-charts"
+    run([helm, "push", str(chart), destination], timeout=900)
+    tagged = f"{registry}/dapr-charts/dapr:{IMAGE_TAG}"
+    manifest_digest = crane_digest(crane, tagged)
+    manifest_raw = run([crane, "manifest", tagged], timeout=180)
+    try:
+        manifest = json.loads(manifest_raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("DAPR_MIRROR_HELM_MANIFEST_INVALID") from exc
+    layers = manifest.get("layers") if isinstance(manifest, dict) else None
+    content_layers = [
+        row for row in (layers or [])
+        if isinstance(row, dict) and "helm.chart.content" in str(row.get("mediaType") or "")
+    ]
+    if len(content_layers) != 1:
+        raise RuntimeError("DAPR_MIRROR_HELM_CONTENT_LAYER_INVALID")
+    content_digest = str(content_layers[0].get("digest") or "").strip().lower()
+    if content_digest != package_digest:
+        raise RuntimeError("DAPR_MIRROR_HELM_CONTENT_DIGEST_MISMATCH")
+    exact = f"{registry}/dapr-charts/dapr@{manifest_digest}"
+    if crane_digest(crane, exact) != manifest_digest:
+        raise RuntimeError("DAPR_MIRROR_HELM_MANIFEST_READBACK_MISMATCH")
+    return {
+        "helmPackageDigest": package_digest,
+        "helmMirrorTagReference": tagged,
+        "helmMirrorReference": exact,
+        "helmMirrorManifestDigest": manifest_digest,
+        "helmMirrorContentDigest": content_digest,
+    }
+
+
+def mirror(acquisition_path: Path, chart_path: Path, registry: str, out: Path) -> dict:
     registry = validate_registry(registry)
     acquisition, acquisition_digest = load_json(acquisition_path, "DAPR_ACQUISITION")
     acquired = validate_acquisition(acquisition)
     pinned = require_toolchain()
+    helm = str(pinned["helm"][0])
     crane = str(pinned["crane"][0])
+    chart, package_digest = chart_path_admission(chart_path, acquisition)
+    chart_evidence = mirror_chart(helm, crane, chart, package_digest, registry)
 
     rows = []
     for role in sorted(acquired):
@@ -93,6 +144,7 @@ def mirror(acquisition_path: Path, registry: str, out: Path) -> dict:
         "version": VERSION,
         "upstreamCommit": UPSTREAM_COMMIT,
         "acquisitionReceiptDigest": acquisition_digest,
+        **chart_evidence,
         "images": rows,
         "mirrorReady": True,
         "registryReadback": True,
@@ -130,6 +182,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--acquisition", type=Path)
+    parser.add_argument("--chart", type=Path)
     parser.add_argument("--registry")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
@@ -137,9 +190,9 @@ def main() -> int:
     try:
         if args.self_test:
             return self_test()
-        if not all((args.acquisition, args.registry, args.out)):
-            parser.error("--acquisition, --registry and --out are required")
-        evidence = mirror(args.acquisition, args.registry, args.out)
+        if not all((args.acquisition, args.chart, args.registry, args.out)):
+            parser.error("--acquisition, --chart, --registry and --out are required")
+        evidence = mirror(args.acquisition, args.chart, args.registry, args.out)
     except (OSError, ValueError, json.JSONDecodeError, RuntimeError, subprocess.TimeoutExpired) as exc:
         print(f"DAPR_RUNTIME_MIRROR_BLOCKED {exc}", file=__import__("sys").stderr)
         return 3
