@@ -873,11 +873,11 @@ func runWorkloadAdmission() error {
 	if err != nil {
 		return err
 	}
-	deployment, err := daprruntime.BuildWorkloadAdmissionDeployment(request, operationID)
+	pod, err := daprruntime.BuildWorkloadAdmissionPod(request, operationID)
 	if err != nil {
 		return err
 	}
-	body, err := json.Marshal(deployment)
+	body, err := json.Marshal(pod)
 	if err != nil {
 		return err
 	}
@@ -887,7 +887,7 @@ func runWorkloadAdmission() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	path := "/apis/apps/v1/namespaces/" + url.PathEscape(request.Plan.Namespace) + "/deployments?dryRun=All&fieldValidation=Strict"
+	path := "/api/v1/namespaces/" + url.PathEscape(request.Plan.Namespace) + "/pods?dryRun=All&fieldValidation=Strict"
 	res, response, err := kube.request(ctx, http.MethodPost, path, body, "application/json")
 	if err != nil {
 		return err
