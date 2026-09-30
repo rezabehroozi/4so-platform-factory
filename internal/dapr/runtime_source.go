@@ -16,6 +16,8 @@ import (
 
 const RuntimeLockAuthority = targetmodel.DaprRuntimeSupplyChainAuthority
 
+type RuntimeLock = targetmodel.DaprRuntimeSupplyChainLock
+
 func normalize(lock targetmodel.DaprRuntimeSupplyChainLock) targetmodel.DaprRuntimeSupplyChainLock {
 	lock.Authority = strings.TrimSpace(lock.Authority)
 	lock.SourcePlanAuthority = strings.TrimSpace(lock.SourcePlanAuthority)
