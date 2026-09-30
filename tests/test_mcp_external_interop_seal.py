@@ -68,9 +68,10 @@ class MCPExternalSealTests(unittest.TestCase):
             "actorId":"actor&<>\u2028\u2029","authentication":"oidc","method":"POST","path":"/mcp",
             "statusCode":403,"reasonCode":"CAPABILITY_PERMISSION_REQUIRED","requestId":"request-12345",
             "effectiveRole":"operator","mappingDigest":"sha256:"+"a"*64,
+            "oauthClientId":"chatgpt-c7w-client",
             "mcpInteropBindingDigest":"sha256:"+"b"*64,"previousDigest":"sha256:"+"c"*64,
         }
-        self.assertEqual("sha256:948eadc1f4c1d16dbe6e34cb6859e0e7cb4498655054ea7720a95e1001717619",mod.audit_event_digest(row))
+        self.assertEqual("sha256:3a1000439b4083afeccfae99c17e4e44843949c94e3d27158d9d2ad932d16b56",mod.audit_event_digest(row))
 
     def test_four_named_clients_are_campaign_and_server_audit_bound(self):
         with tempfile.TemporaryDirectory() as td:
