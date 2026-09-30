@@ -32,11 +32,13 @@ class IncrementalMCPInteropTests(unittest.TestCase):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); campaign=self.campaign(matrix); cp=root/"campaign.json"; cp.write_text(json.dumps(campaign)); progress=root/"progress.json"
+            receipts=root/"receipts"; receipts.mkdir(); audits=root/"audits"; audits.mkdir()
             for idx,client in enumerate(seal.CLIENTS,1):
-                row=self.receipt(client,checks,campaign); rp=root/(client+".json"); ap=root/(client+"-audit.json"); rp.write_text(json.dumps(row)); ap.write_text(json.dumps(self.audit(row)))
+                row=self.receipt(client,checks,campaign); rp=receipts/(client+".json"); ap=audits/(client+".json"); rp.write_text(json.dumps(row)); ap.write_text(json.dumps(self.audit(row)))
                 out=mod.merge(matrix,cp,rp,ap,client,progress if progress.exists() else None); progress.write_text(json.dumps(out))
                 self.assertEqual(idx,out["certifiedClientCount"]); self.assertEqual(idx==4,out["complete"])
             evidence=mod.final_evidence(out,progress); self.assertEqual(4,evidence["certifiedClientCount"]); self.assertTrue(evidence["serverAuditWitnessPass"]); self.assertEqual(24,evidence["serverAuditWitnessedCheckCount"]); self.assertFalse(evidence["physicalCertified"])
+            self.assertEqual(seal.seal(matrix,cp,receipts,audits),evidence)
     def test_existing_progress_rejects_interop_binding_or_witness_binding_drift(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
         with tempfile.TemporaryDirectory() as td:
