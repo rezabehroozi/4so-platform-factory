@@ -13,6 +13,8 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import tempfile
+import urllib.parse
 
 from upstream_acquisition_toolchain import require_toolchain
 from acquire_dapr_runtime import VERSION, IMAGE_TAG, UPSTREAM_COMMIT, sha256_bytes
@@ -41,15 +43,30 @@ def run(cmd: list[str], timeout: int = 600) -> str:
     return result.stdout
 
 
-def validate_registry(value: str) -> str:
-    registry = str(value or "").strip().lower()
+def validate_registry_url(value: str) -> tuple[str, str]:
+    raw = str(value or "").strip()
+    parsed = urllib.parse.urlsplit(raw)
+    scheme = parsed.scheme.lower()
+    if (
+        scheme not in {"http", "https"} or not parsed.hostname or parsed.username is not None
+        or parsed.password is not None or parsed.path not in {"", "/"} or parsed.query or parsed.fragment
+    ):
+        raise RuntimeError("DAPR_MIRROR_REGISTRY_URL_INVALID")
+    registry = parsed.netloc.lower()
     if not REGISTRY_RE.fullmatch(registry):
         raise RuntimeError("DAPR_MIRROR_REGISTRY_INVALID")
-    return registry
+    return scheme, registry
 
 
-def crane_digest(crane: str, ref: str) -> str:
-    digest = run([crane, "digest", ref], timeout=180).strip().splitlines()[-1].lower()
+def crane_args(crane: str, scheme: str, *args: str) -> list[str]:
+    prefix = [crane]
+    if scheme == "http":
+        prefix.append("--insecure")
+    return [*prefix, *args]
+
+
+def crane_digest(crane: str, ref: str, scheme: str = "https") -> str:
+    digest = run(crane_args(crane, scheme, "digest", ref), timeout=180).strip().splitlines()[-1].lower()
     if not DIGEST_RE.fullmatch(digest):
         raise RuntimeError(f"DAPR_MIRROR_READBACK_DIGEST_INVALID {ref}:{digest}")
     return digest
@@ -71,12 +88,15 @@ def chart_path_admission(path: Path, acquisition: dict) -> tuple[Path, str]:
     return candidate, digest
 
 
-def mirror_chart(helm: str, crane: str, chart: Path, package_digest: str, registry: str) -> dict:
+def mirror_chart(helm: str, crane: str, chart: Path, package_digest: str, scheme: str, registry: str) -> dict:
     destination = f"oci://{registry}/dapr-charts"
-    run([helm, "push", str(chart), destination], timeout=900)
+    command = [helm, "push", str(chart), destination]
+    if scheme == "http":
+        command.append("--plain-http")
+    run(command, timeout=900)
     tagged = f"{registry}/dapr-charts/dapr:{IMAGE_TAG}"
-    manifest_digest = crane_digest(crane, tagged)
-    manifest_raw = run([crane, "manifest", tagged], timeout=180)
+    manifest_digest = crane_digest(crane, tagged, scheme)
+    manifest_raw = run(crane_args(crane, scheme, "manifest", tagged), timeout=180)
     try:
         manifest = json.loads(manifest_raw)
     except json.JSONDecodeError as exc:
@@ -92,7 +112,7 @@ def mirror_chart(helm: str, crane: str, chart: Path, package_digest: str, regist
     if content_digest != package_digest:
         raise RuntimeError("DAPR_MIRROR_HELM_CONTENT_DIGEST_MISMATCH")
     exact = f"{registry}/dapr-charts/dapr@{manifest_digest}"
-    if crane_digest(crane, exact) != manifest_digest:
+    if crane_digest(crane, exact, scheme) != manifest_digest:
         raise RuntimeError("DAPR_MIRROR_HELM_MANIFEST_READBACK_MISMATCH")
     return {
         "helmPackageDigest": package_digest,
@@ -103,15 +123,15 @@ def mirror_chart(helm: str, crane: str, chart: Path, package_digest: str, regist
     }
 
 
-def mirror(acquisition_path: Path, chart_path: Path, registry: str, out: Path) -> dict:
-    registry = validate_registry(registry)
+def mirror(acquisition_path: Path, chart_path: Path, registry_url: str, out: Path) -> dict:
+    scheme, registry = validate_registry_url(registry_url)
     acquisition, acquisition_digest = load_json(acquisition_path, "DAPR_ACQUISITION")
     acquired = validate_acquisition(acquisition)
     pinned = require_toolchain()
     helm = str(pinned["helm"][0])
     crane = str(pinned["crane"][0])
     chart, package_digest = chart_path_admission(chart_path, acquisition)
-    chart_evidence = mirror_chart(helm, crane, chart, package_digest, registry)
+    chart_evidence = mirror_chart(helm, crane, chart, package_digest, scheme, registry)
 
     rows = []
     for role in sorted(acquired):
@@ -119,12 +139,18 @@ def mirror(acquisition_path: Path, chart_path: Path, registry: str, out: Path) -
         source_ref = item["sourceReference"]
         source_digest = item["sourceDigest"]
         destination_tag = f"{registry}/dapr/{role}:{VERSION.removeprefix('v')}"
-        run([crane, "copy", source_ref, destination_tag], timeout=900)
-        mirror_digest = crane_digest(crane, destination_tag)
+        if scheme == "https":
+            run([crane, "copy", source_ref, destination_tag], timeout=900)
+        else:
+            with tempfile.TemporaryDirectory(prefix=f"4so-dapr-{role}-oci-") as td:
+                layout = Path(td) / "layout"
+                run([crane, "pull", source_ref, str(layout), "--format=oci"], timeout=900)
+                run(crane_args(crane, scheme, "push", str(layout), destination_tag), timeout=900)
+        mirror_digest = crane_digest(crane, destination_tag, scheme)
         if mirror_digest != source_digest:
             raise RuntimeError(f"DAPR_MIRROR_DIGEST_MISMATCH role={role} source={source_digest} mirror={mirror_digest}")
         mirror_ref = f"{registry}/dapr/{role}@{mirror_digest}"
-        digest_readback = crane_digest(crane, mirror_ref)
+        digest_readback = crane_digest(crane, mirror_ref, scheme)
         if digest_readback != source_digest:
             raise RuntimeError(f"DAPR_MIRROR_DIGEST_READBACK_MISMATCH role={role}")
         rows.append({
@@ -140,6 +166,7 @@ def mirror(acquisition_path: Path, chart_path: Path, registry: str, out: Path) -
     evidence = {
         "authority": MIRROR_AUTHORITY,
         "registryAuthority": "zot",
+        "registryScheme": scheme,
         "registryIdentity": registry,
         "version": VERSION,
         "upstreamCommit": UPSTREAM_COMMIT,
@@ -166,11 +193,13 @@ def mirror(acquisition_path: Path, chart_path: Path, registry: str, out: Path) -
 
 
 def self_test() -> int:
-    if validate_registry("platform-zot:5000") != "platform-zot:5000":
+    if validate_registry_url("http://platform-zot:5000") != ("http", "platform-zot:5000"):
         raise RuntimeError("DAPR_MIRROR_REGISTRY_SELF_TEST_FAILED")
-    for invalid in ("https://platform-zot:5000", "platform-zot:5000/dapr", "PLATFORM ZOT"):
+    if validate_registry_url("https://registry.example") != ("https", "registry.example"):
+        raise RuntimeError("DAPR_MIRROR_REGISTRY_SELF_TEST_FAILED")
+    for invalid in ("platform-zot:5000", "http://platform-zot:5000/dapr", "ftp://platform-zot:5000", "http://user:pass@platform-zot:5000"):
         try:
-            validate_registry(invalid)
+            validate_registry_url(invalid)
         except RuntimeError:
             continue
         raise RuntimeError(f"DAPR_MIRROR_REGISTRY_NEGATIVE_CONTROL_FAILED {invalid}")
@@ -183,16 +212,16 @@ def main() -> int:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--acquisition", type=Path)
     parser.add_argument("--chart", type=Path)
-    parser.add_argument("--registry")
+    parser.add_argument("--registry-url")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
     try:
         if args.self_test:
             return self_test()
-        if not all((args.acquisition, args.chart, args.registry, args.out)):
-            parser.error("--acquisition, --chart, --registry and --out are required")
-        evidence = mirror(args.acquisition, args.chart, args.registry, args.out)
+        if not all((args.acquisition, args.chart, args.registry_url, args.out)):
+            parser.error("--acquisition, --chart, --registry-url and --out are required")
+        evidence = mirror(args.acquisition, args.chart, args.registry_url, args.out)
     except (OSError, ValueError, json.JSONDecodeError, RuntimeError, subprocess.TimeoutExpired) as exc:
         print(f"DAPR_RUNTIME_MIRROR_BLOCKED {exc}", file=__import__("sys").stderr)
         return 3
