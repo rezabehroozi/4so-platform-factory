@@ -1,0 +1,493 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"time"
+
+	"platform.4so.io/factory/internal/buildinfo"
+	daprruntime "platform.4so.io/factory/internal/dapr"
+)
+
+const (
+	executorAuthority  = "DAPR_TARGET_EXECUTOR_RUNTIME_V1"
+	receiptAuthority   = "DAPR_TARGET_OBSERVED_RECEIPT_V1"
+	ownerName          = "4so-dapr-runtime-owner"
+	receiptName        = "4so-dapr-runtime-observed"
+	runtimeNamespace   = "dapr-system"
+	chartPath          = "/runtime/dapr-1.18.4.tgz"
+	helmPath           = "/usr/local/bin/helm"
+	serviceAccountRoot = "/var/run/secrets/kubernetes.io/serviceaccount"
+)
+
+type lifecycleConfig struct {
+	Action                     daprruntime.LifecycleAction
+	Lock                       daprruntime.RuntimeLock
+	LockDigest                 string
+	OperationID                string
+	FenceToken                 int64
+	ExpectedObservedLockDigest string
+}
+
+type ownerState struct {
+	Authority         string `json:"authority"`
+	Installed         bool   `json:"installed"`
+	RuntimeLockDigest string `json:"runtimeLockDigest,omitempty"`
+	OperationID       string `json:"operationId"`
+	FenceToken        int64  `json:"fenceToken"`
+	Version           string `json:"version,omitempty"`
+	UpstreamCommit    string `json:"upstreamCommit,omitempty"`
+	ObservedAt        string `json:"observedAt"`
+	Phase             string `json:"phase"`
+}
+
+type kubeConfigMap struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Metadata   struct {
+		Name            string `json:"name"`
+		Namespace       string `json:"namespace"`
+		ResourceVersion string `json:"resourceVersion,omitempty"`
+	} `json:"metadata"`
+	Data map[string]string `json:"data"`
+}
+
+type kubeClient struct {
+	base  string
+	token string
+	http  *http.Client
+}
+
+func sha256File(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err = io.Copy(hash, file); err != nil {
+		return "", err
+	}
+	return "sha256:" + hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+func strictRuntimeLock(raw string) (daprruntime.RuntimeLock, string, error) {
+	var lock daprruntime.RuntimeLock
+	decoder := json.NewDecoder(strings.NewReader(strings.TrimSpace(raw)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&lock); err != nil {
+		return lock, "", fmt.Errorf("decode Dapr runtime lock: %w", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return lock, "", errors.New("Dapr runtime lock contains trailing JSON")
+	}
+	if err := daprruntime.ValidateRuntimeLock(lock); err != nil {
+		return lock, "", err
+	}
+	digest, err := daprruntime.RuntimeLockDigest(lock)
+	return lock, digest, err
+}
+
+func loadConfig(args []string) (lifecycleConfig, error) {
+	var cfg lifecycleConfig
+	set := flag.NewFlagSet("lifecycle", flag.ContinueOnError)
+	set.SetOutput(io.Discard)
+	action := set.String("action", "", "install, upgrade, or remove")
+	if err := set.Parse(args); err != nil || len(set.Args()) != 0 {
+		return cfg, errors.New("Dapr lifecycle arguments are invalid")
+	}
+	var err error
+	cfg.Action, err = daprruntime.NormalizeLifecycleAction(daprruntime.LifecycleAction(*action))
+	if err != nil {
+		return cfg, err
+	}
+	cfg.OperationID = strings.TrimSpace(os.Getenv("FOURSO_DAPR_OPERATION_ID"))
+	cfg.ExpectedObservedLockDigest = strings.ToLower(strings.TrimSpace(os.Getenv("FOURSO_DAPR_EXPECTED_OBSERVED_LOCK_DIGEST")))
+	fence, fenceErr := strconv.ParseInt(strings.TrimSpace(os.Getenv("FOURSO_DAPR_TASK_FENCE_TOKEN")), 10, 64)
+	if cfg.OperationID == "" || fenceErr != nil || fence <= 0 {
+		return cfg, errors.New("Dapr operation identity/fence environment is invalid")
+	}
+	cfg.FenceToken = fence
+	cfg.Lock, cfg.LockDigest, err = strictRuntimeLock(os.Getenv("FOURSO_DAPR_RUNTIME_LOCK_JSON"))
+	if err != nil {
+		return cfg, err
+	}
+	if expected := strings.ToLower(strings.TrimSpace(os.Getenv("FOURSO_DAPR_RUNTIME_LOCK_DIGEST"))); expected == "" || expected != cfg.LockDigest {
+		return cfg, errors.New("Dapr runtime lock digest does not match task authority")
+	}
+	if cfg.ExpectedObservedLockDigest != "" && !strings.HasPrefix(cfg.ExpectedObservedLockDigest, "sha256:") {
+		return cfg, errors.New("Dapr expected observed lock digest is invalid")
+	}
+	return cfg, nil
+}
+
+func imageByRole(lock daprruntime.RuntimeLock, role string) (string, error) {
+	for _, image := range lock.ImageLocks {
+		if image.Role == role {
+			return image.MirrorReference, nil
+		}
+	}
+	return "", fmt.Errorf("Dapr runtime image role %q is missing", role)
+}
+
+func helmProfileArgs(lock daprruntime.RuntimeLock) ([]string, error) {
+	operator, err := imageByRole(lock, "operator")
+	if err != nil {
+		return nil, err
+	}
+	injector, err := imageByRole(lock, "injector")
+	if err != nil {
+		return nil, err
+	}
+	sidecar, err := imageByRole(lock, "sidecar")
+	if err != nil {
+		return nil, err
+	}
+	sentry, err := imageByRole(lock, "sentry")
+	if err != nil {
+		return nil, err
+	}
+	return []string{
+		"--set-string", "global.registry=" + lock.MirrorRegistry,
+		"--set-string", "global.tag=1.18.4",
+		"--set", "global.actors.enabled=false",
+		"--set", "global.scheduler.enabled=false",
+		"--set", "global.mtls.enabled=true",
+		"--set", "global.prometheus.enabled=true",
+		"--set", "dapr_config.dapr_config_chart_included=false",
+		"--set", "dapr_rbac.secretReader.enabled=false",
+		"--set", "dapr_sidecar_injector.sidecarRunAsNonRoot=true",
+		"--set", "dapr_sidecar_injector.sidecarReadOnlyRootFilesystem=true",
+		"--set", "dapr_sidecar_injector.sidecarDropALLCapabilities=true",
+		"--set-string", "dapr_operator.image.name=" + operator,
+		"--set-string", "dapr_sidecar_injector.injectorImage.name=" + injector,
+		"--set-string", "dapr_sidecar_injector.image.name=" + sidecar,
+		"--set-string", "dapr_sentry.image.name=" + sentry,
+		"--set", "global.imagePullPolicy=IfNotPresent",
+		"--set", "dapr_sidecar_injector.sidecarImagePullPolicy=IfNotPresent",
+	}, nil
+}
+
+func prepareKubeconfig() (string, error) {
+	tokenRaw, err := os.ReadFile(serviceAccountRoot + "/token")
+	if err != nil || strings.TrimSpace(string(tokenRaw)) == "" {
+		return "", errors.New("Dapr executor service-account token is unavailable")
+	}
+	caPath := serviceAccountRoot + "/ca.crt"
+	if info, statErr := os.Stat(caPath); statErr != nil || !info.Mode().IsRegular() || info.Size() <= 0 {
+		return "", errors.New("Dapr executor service-account CA is unavailable")
+	}
+	host := strings.TrimSpace(os.Getenv("KUBERNETES_SERVICE_HOST"))
+	port := strings.TrimSpace(os.Getenv("KUBERNETES_SERVICE_PORT_HTTPS"))
+	if port == "" {
+		port = strings.TrimSpace(os.Getenv("KUBERNETES_SERVICE_PORT"))
+	}
+	if host == "" || port == "" {
+		return "", errors.New("Dapr executor Kubernetes service endpoint is unavailable")
+	}
+	serverHost := host
+	if ip := net.ParseIP(host); ip != nil && strings.Contains(host, ":") {
+		serverHost = "[" + host + "]"
+	}
+	server := "https://" + serverHost + ":" + port
+	raw := fmt.Sprintf("apiVersion: v1\nkind: Config\nclusters:\n- name: target\n  cluster:\n    certificate-authority: %s\n    server: %s\nusers:\n- name: executor\n  user:\n    token: %s\ncontexts:\n- name: target\n  context:\n    cluster: target\n    user: executor\ncurrent-context: target\n", caPath, server, strings.TrimSpace(string(tokenRaw)))
+	file, err := os.CreateTemp("", "4so-dapr-kubeconfig-*")
+	if err != nil {
+		return "", err
+	}
+	path := file.Name()
+	if err = file.Chmod(0o600); err == nil {
+		_, err = file.WriteString(raw)
+	}
+	closeErr := file.Close()
+	if err != nil {
+		os.Remove(path)
+		return "", err
+	}
+	if closeErr != nil {
+		os.Remove(path)
+		return "", closeErr
+	}
+	return path, nil
+}
+
+func newKubeClient() (*kubeClient, error) {
+	tokenRaw, err := os.ReadFile(serviceAccountRoot + "/token")
+	if err != nil {
+		return nil, err
+	}
+	caRaw, err := os.ReadFile(serviceAccountRoot + "/ca.crt")
+	if err != nil {
+		return nil, err
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caRaw) {
+		return nil, errors.New("Dapr executor Kubernetes CA is invalid")
+	}
+	host := strings.TrimSpace(os.Getenv("KUBERNETES_SERVICE_HOST"))
+	port := strings.TrimSpace(os.Getenv("KUBERNETES_SERVICE_PORT_HTTPS"))
+	if port == "" {
+		port = strings.TrimSpace(os.Getenv("KUBERNETES_SERVICE_PORT"))
+	}
+	if host == "" || port == "" {
+		return nil, errors.New("Dapr executor Kubernetes endpoint is unavailable")
+	}
+	if ip := net.ParseIP(host); ip != nil && strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	return &kubeClient{
+		base:  "https://" + host + ":" + port,
+		token: strings.TrimSpace(string(tokenRaw)),
+		http: &http.Client{
+			Timeout: 20 * time.Second,
+			Transport: &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}},
+		},
+	}, nil
+}
+
+func (k *kubeClient) request(ctx context.Context, method, path string, body []byte, contentType string) (*http.Response, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, method, k.base+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+k.token)
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	res, err := k.http.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer res.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(res.Body, 2<<20))
+	return res, raw, err
+}
+
+func (k *kubeClient) getState(ctx context.Context, name string) (*ownerState, string, error) {
+	path := "/api/v1/namespaces/" + runtimeNamespace + "/configmaps/" + name
+	res, raw, err := k.request(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return nil, "", err
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return nil, "", nil
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("Dapr ConfigMap read failed: %s", res.Status)
+	}
+	var cm kubeConfigMap
+	if err = json.Unmarshal(raw, &cm); err != nil {
+		return nil, "", err
+	}
+	stateRaw := cm.Data["state.json"]
+	if strings.TrimSpace(stateRaw) == "" {
+		return nil, "", errors.New("Dapr observed ConfigMap state is missing")
+	}
+	var state ownerState
+	decoder := json.NewDecoder(strings.NewReader(stateRaw))
+	decoder.DisallowUnknownFields()
+	if err = decoder.Decode(&state); err != nil {
+		return nil, "", err
+	}
+	if state.Authority != receiptAuthority {
+		return nil, "", errors.New("Dapr observed ConfigMap authority is invalid")
+	}
+	return &state, cm.Metadata.ResourceVersion, nil
+}
+
+func (k *kubeClient) putState(ctx context.Context, name string, state ownerState) error {
+	_, rv, err := k.getState(ctx, name)
+	if err != nil {
+		return err
+	}
+	stateRaw, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	var cm kubeConfigMap
+	cm.APIVersion = "v1"
+	cm.Kind = "ConfigMap"
+	cm.Metadata.Name = name
+	cm.Metadata.Namespace = runtimeNamespace
+	cm.Metadata.ResourceVersion = rv
+	cm.Data = map[string]string{"state.json": string(stateRaw)}
+	raw, err := json.Marshal(cm)
+	if err != nil {
+		return err
+	}
+	method := http.MethodPost
+	path := "/api/v1/namespaces/" + runtimeNamespace + "/configmaps"
+	if rv != "" {
+		method = http.MethodPut
+		path += "/" + name
+	}
+	res, response, err := k.request(ctx, method, path, raw, "application/json")
+	if err != nil {
+		return err
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return fmt.Errorf("Dapr ConfigMap write failed: %s %s", res.Status, strings.TrimSpace(string(response)))
+	}
+	return nil
+}
+
+func helmStatus(ctx context.Context, env []string) (bool, error) {
+	cmd := exec.CommandContext(ctx, helmPath, "status", "dapr", "--namespace", runtimeNamespace)
+	cmd.Env = env
+	raw, err := cmd.CombinedOutput()
+	if err == nil {
+		return true, nil
+	}
+	text := strings.ToLower(string(raw))
+	if strings.Contains(text, "release: not found") || strings.Contains(text, "release not found") {
+		return false, nil
+	}
+	return false, fmt.Errorf("Dapr Helm status failed: %w: %s", err, strings.TrimSpace(string(raw)))
+}
+
+func runHelm(ctx context.Context, env []string, args ...string) error {
+	cmd := exec.CommandContext(ctx, helmPath, args...)
+	cmd.Env = env
+	raw, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Dapr Helm command failed: %w: %s", err, strings.TrimSpace(string(raw)))
+	}
+	return nil
+}
+
+func verifyRuntimeArtifacts(lock daprruntime.RuntimeLock) error {
+	got, err := sha256File(chartPath)
+	if err != nil {
+		return err
+	}
+	if got != lock.HelmPackageDigest {
+		return errors.New("Dapr embedded Helm package digest mismatch")
+	}
+	if info, err := os.Stat(helmPath); err != nil || !info.Mode().IsRegular() || info.Mode()&0o111 == 0 {
+		return errors.New("Dapr executor Helm binary is unavailable")
+	}
+	return nil
+}
+
+func runLifecycle(args []string) error {
+	cfg, err := loadConfig(args)
+	if err != nil {
+		return err
+	}
+	if err = verifyRuntimeArtifacts(cfg.Lock); err != nil {
+		return err
+	}
+	kubeconfig, err := prepareKubeconfig()
+	if err != nil {
+		return err
+	}
+	defer os.Remove(kubeconfig)
+	env := append(os.Environ(), "KUBECONFIG="+kubeconfig)
+	kube, err := newKubeClient()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
+	defer cancel()
+	owner, _, err := kube.getState(ctx, ownerName)
+	if err != nil {
+		return err
+	}
+	var observed *daprruntime.ObservedState
+	if owner != nil {
+		observed = &daprruntime.ObservedState{Installed: owner.Installed, RuntimeLockDigest: owner.RuntimeLockDigest}
+	}
+	if err = daprruntime.ValidateLifecycleDispatchFence(cfg.Action, observed, cfg.LockDigest, cfg.ExpectedObservedLockDigest); err != nil {
+		return err
+	}
+	releaseExists, err := helmStatus(ctx, env)
+	if err != nil {
+		return err
+	}
+	if cfg.Action == daprruntime.ActionInstall && releaseExists && (owner == nil || !owner.Installed) {
+		return errors.New("DAPR_UNOWNED_EXISTING_RELEASE_RECOVERY_REQUIRED")
+	}
+	if (cfg.Action == daprruntime.ActionUpgrade || cfg.Action == daprruntime.ActionRemove) && !releaseExists {
+		return errors.New("DAPR_OWNED_RELEASE_MISSING_RECOVERY_REQUIRED")
+	}
+
+	switch cfg.Action {
+	case daprruntime.ActionInstall, daprruntime.ActionUpgrade:
+		profile, profileErr := helmProfileArgs(cfg.Lock)
+		if profileErr != nil {
+			return profileErr
+		}
+		helmArgs := []string{"upgrade", "--install", "dapr", chartPath, "--namespace", runtimeNamespace, "--create-namespace", "--wait", "--timeout", "15m"}
+		helmArgs = append(helmArgs, profile...)
+		if err = runHelm(ctx, env, helmArgs...); err != nil {
+			return err
+		}
+	case daprruntime.ActionRemove:
+		if err = runHelm(ctx, env, "uninstall", "dapr", "--namespace", runtimeNamespace, "--wait", "--timeout", "10m"); err != nil {
+			return err
+		}
+	default:
+		return errors.New("Dapr lifecycle action unsupported")
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	installed := cfg.Action != daprruntime.ActionRemove
+	phase := "Installed"
+	if cfg.Action == daprruntime.ActionUpgrade {
+		phase = "Upgraded"
+	}
+	if cfg.Action == daprruntime.ActionRemove {
+		phase = "Removed"
+	}
+	state := ownerState{
+		Authority: receiptAuthority,
+		Installed: installed,
+		OperationID: cfg.OperationID,
+		FenceToken: cfg.FenceToken,
+		ObservedAt: now,
+		Phase: phase,
+	}
+	if installed {
+		state.RuntimeLockDigest = cfg.LockDigest
+		state.Version = cfg.Lock.Version
+		state.UpstreamCommit = cfg.Lock.UpstreamCommit
+	}
+	if err = kube.putState(ctx, ownerName, state); err != nil {
+		return err
+	}
+	if err = kube.putState(ctx, receiptName, state); err != nil {
+		return err
+	}
+	return nil
+}
+
+func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "version" || os.Args[1] == "--version") {
+		fmt.Println(buildinfo.Version)
+		return
+	}
+	if len(os.Args) < 2 || os.Args[1] != "lifecycle" {
+		fmt.Fprintf(os.Stderr, "%s_BLOCKED usage: dapr-runtime lifecycle --action install|upgrade|remove\n", executorAuthority)
+		os.Exit(2)
+	}
+	if err := runLifecycle(os.Args[2:]); err != nil {
+		fmt.Fprintf(os.Stderr, "%s_BLOCKED %v\n", executorAuthority, err)
+		os.Exit(2)
+	}
+}
