@@ -150,6 +150,17 @@ def transfer(root,run_id,to_pid,to_ticks,override=None):
         raise RuntimeError("PROJECT_RUNTIME_LOCK_TRANSFER_OWNER_MISMATCH")
     lk.update(pid=to_pid,startTicks=to_ticks,transferredAt=now()); atomic_json(p,lk)
 
+def activate_worker(root,state,run_id,worker_pid,worker_ticks,override=None):
+    # Persist worker identity before transferring the execution lock.  The
+    # worker cannot leave its handoff wait until transfer() succeeds, so this
+    # ordering prevents the parent from overwriting a newer commandPid written
+    # by the worker after it starts the child process.
+    s=dict(state)
+    s.update(status="RUNNING",activePid=worker_pid,activePidStartTicks=worker_ticks,lastHeartbeat=now())
+    write_state(root,s,override)
+    transfer(root,run_id,worker_pid,worker_ticks,override)
+    return s
+
 def release(root,run_id,pid,start,override=None):
     p=lock_file(root,override)
     if not p.exists(): return
@@ -196,9 +207,7 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
         if wt: break
         time.sleep(.01)
     if not wt: raise RuntimeError("PROJECT_RUNTIME_WORKER_IDENTITY_UNAVAILABLE")
-    transfer(root,run_id,worker.pid,wt,override)
-    s.update(status="RUNNING",activePid=worker.pid,activePidStartTicks=wt,lastHeartbeat=now())
-    write_state(root,s,override)
+    s=activate_worker(root,s,run_id,worker.pid,wt,override)
     return {"action":"STARTED","runId":run_id,"pid":worker.pid,"log":str(lp),"state":s}
 
 def resume(root,override=None,allow_detached=False):
@@ -236,9 +245,7 @@ def resume(root,override=None,allow_detached=False):
         if wt: break
         time.sleep(.01)
     if not wt: raise RuntimeError("PROJECT_RUNTIME_RESUME_WORKER_IDENTITY_UNAVAILABLE")
-    transfer(root,run_id,worker.pid,wt,override)
-    s.update(status="RUNNING",activePid=worker.pid,activePidStartTicks=wt,lastHeartbeat=now())
-    write_state(root,s,override)
+    s=activate_worker(root,s,run_id,worker.pid,wt,override)
     return {"action":"RESUMED","runId":run_id,"pid":worker.pid,"attempt":s["attempt"],"state":s}
 
 def worker(root,run_id,override=None):
