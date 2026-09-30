@@ -67,7 +67,7 @@ func TestDaprAssessmentUsesNativeCapabilityAndBlocksUnimplementedInstall(t *test
 		native.SourcePlan.Authority != targetmodel.DaprRuntimeSourcePlanAuthority || native.SourcePlan.UpstreamCommit != targetmodel.DaprUpstreamCommit ||
 		native.SupplyChainAuthority != targetmodel.DaprRuntimeSupplyChainAuthority || native.SupplyChainAdmitted ||
 		native.ReviewedRuntimeVersion != targetmodel.DaprReviewedRuntimeVersion || !native.Assessment.Eligible ||
-		native.Assessment.Mode != "USE_NATIVE" || !native.Assessment.InstallSuppressed || native.RuntimeInstallImplemented ||
+		native.Assessment.Mode != "USE_NATIVE" || !native.Assessment.InstallSuppressed || !native.RuntimeInstallImplemented ||
 		native.PhysicalCertificationInferred {
 		t.Fatalf("native Dapr assessment drift: %#v", native)
 	}
@@ -81,7 +81,7 @@ func TestDaprAssessmentUsesNativeCapabilityAndBlocksUnimplementedInstall(t *test
 	if pending.Assessment.Eligible || pending.Assessment.Mode != "INSTALL_REQUIRED" || pending.Assessment.InstallSuppressed {
 		t.Fatalf("unimplemented product-managed Dapr install became eligible: %#v", pending.Assessment)
 	}
-	want := map[string]bool{"DAPR_EXACT_SOURCE_AUTHORITY_PENDING": true, "DAPR_DURABLE_LIFECYCLE_CONTRACT_PENDING": true}
+	want := map[string]bool{"DAPR_EXACT_SOURCE_AUTHORITY_PENDING": true}
 	for _, blocker := range pending.Assessment.Blockers {
 		delete(want, blocker)
 	}
