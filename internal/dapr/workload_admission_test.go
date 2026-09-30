@@ -146,6 +146,21 @@ func TestWorkloadAdmissionRejectsInjectorSecurityAndImageSubstitution(t *testing
 	}
 }
 
+func TestWorkloadAdmissionRejectsDuplicateAppContainerIdentity(t *testing.T) {
+	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
+	pod, err := BuildWorkloadAdmissionPod(request, "op_duplicate_app")
+	if err != nil { t.Fatal(err) }
+	response := injectTestDaprSidecar(t, pod, request.ExpectedSidecarImage)
+	spec := response["spec"].(map[string]any)
+	containers := spec["containers"].([]any)
+	containers = append(containers, map[string]any{"name": "app", "image": request.WorkloadImage})
+	spec["containers"] = containers
+	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_duplicate_app", response, 201, time.Now().UTC()); err == nil ||
+		!strings.Contains(err.Error(), "DUPLICATE_APP_CONTAINER") {
+		t.Fatalf("duplicate app identity entered Dapr admission evidence: %v", err)
+	}
+}
+
 func TestWorkloadAdmissionRejectsMissingExplicitPrivilegeEscalationField(t *testing.T) {
 	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
 	pod, err := BuildWorkloadAdmissionPod(request, "op_missing_security")
