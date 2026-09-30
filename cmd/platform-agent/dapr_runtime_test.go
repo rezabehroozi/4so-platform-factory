@@ -78,6 +78,8 @@ func daprAgentTestTask(t *testing.T) daprAgentTask {
 			ClusterID: "clu_test",
 			Action: daprruntime.ActionInstall,
 			RuntimeLockDigest: digest,
+			RuntimeVersion: lock.Version,
+			UpstreamCommit: lock.UpstreamCommit,
 		},
 		RuntimeLock: lock,
 	}
@@ -140,6 +142,19 @@ func TestDaprExecutorJobOwnershipRejectsImageAndFenceDrift(t *testing.T) {
 	annotations["platform.4so.io/task-fence-token"] = "12"
 	if err = daprExecutorJobOwnership(job, task, "4so-platform-agent"); err == nil || !strings.Contains(err.Error(), "task-fence-token") {
 		t.Fatalf("Dapr executor fence substitution accepted: %v", err)
+	}
+}
+
+func TestDaprAgentTaskRejectsSealedRuntimeIdentityDrift(t *testing.T) {
+	task := daprAgentTestTask(t)
+	task.Request.RuntimeVersion = "v1.18.3"
+	if err := validateDaprAgentTask(task, "clu_test"); err == nil || !strings.Contains(err.Error(), "runtime identity") {
+		t.Fatalf("Dapr runtime version drift accepted: %v", err)
+	}
+	task = daprAgentTestTask(t)
+	task.Request.UpstreamCommit = strings.Repeat("f", 40)
+	if err := validateDaprAgentTask(task, "clu_test"); err == nil || !strings.Contains(err.Error(), "runtime identity") {
+		t.Fatalf("Dapr upstream commit drift accepted: %v", err)
 	}
 }
 
