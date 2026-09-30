@@ -85,6 +85,7 @@ func (s *MemoryStore) ResolveOIDCGroups(_ context.Context, groups []string) (OID
 func (s *MemoryStore) AppendSecurityAudit(_ context.Context, in SecurityAuditInput) (SecurityAuditEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	in.OAuthClientID = strings.TrimSpace(in.OAuthClientID)
 	in.MCPInteropBindingDigest = strings.TrimSpace(in.MCPInteropBindingDigest)
 	if err := ValidateSecurityAuditInput(in); err != nil {
 		return SecurityAuditEvent{}, err
