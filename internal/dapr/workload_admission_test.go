@@ -44,6 +44,24 @@ func workloadAdmissionTestRequest(t *testing.T, mode string) WorkloadAdmissionRe
 	return request
 }
 
+func workloadAdmissionTestPolicyObservation(t *testing.T, request WorkloadAdmissionRequest) WorkloadPolicyObservation {
+	t.Helper()
+	configuration, err := BuildWorkloadConfigurationProjection(request.Plan)
+	if err != nil { t.Fatal(err) }
+	components := map[string]map[string]any{}
+	for _, scope := range request.Plan.ComponentScopes {
+		components[scope.ComponentName] = map[string]any{
+			"apiVersion": "dapr.io/v1alpha1",
+			"kind": "Component",
+			"metadata": map[string]any{"name": scope.ComponentName, "namespace": request.Plan.Namespace},
+			"scopes": []any{request.Plan.AppID},
+		}
+	}
+	observation, err := ValidateWorkloadPolicyReadback(request, configuration, components)
+	if err != nil { t.Fatal(err) }
+	return observation
+}
+
 func injectTestDaprSidecar(t *testing.T, pod map[string]any, image string) map[string]any {
 	t.Helper()
 	meta, ok := pod["metadata"].(map[string]any)
@@ -113,7 +131,7 @@ func TestWorkloadAdmissionDryRunProvesInjectedSidecarSecurityWithoutPullOrPhysic
 	pod, err := BuildWorkloadAdmissionPod(request, "op_test")
 	if err != nil { t.Fatal(err) }
 	response := injectTestDaprSidecar(t, pod, request.ExpectedSidecarImage)
-	evidence, err := WorkloadAdmissionEvidenceFromDryRun(request, "op_test", response, 201, time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC))
+	evidence, err := WorkloadAdmissionEvidenceFromDryRun(request, "op_test", workloadAdmissionTestPolicyObservation(t, request), response, 201, time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC))
 	if err != nil { t.Fatal(err) }
 	if !evidence.InjectedSidecarObserved || !evidence.RunAsNonRoot || !evidence.ReadOnlyRootFilesystem ||
 		evidence.AllowPrivilegeEscalation || !evidence.DropAllCapabilities || !evidence.ExpectedSidecarImageMatched ||
@@ -136,6 +154,48 @@ func TestWorkloadAdmissionDryRunProvesInjectedSidecarSecurityWithoutPullOrPhysic
 	}
 }
 
+func TestWorkloadAdmissionRejectsPolicyProjectionDrift(t *testing.T) {
+	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
+	configuration, err := BuildWorkloadConfigurationProjection(request.Plan)
+	if err != nil { t.Fatal(err) }
+	spec := configuration["spec"].(map[string]any)
+	access := spec["accessControl"].(map[string]any)
+	access["defaultAction"] = "allow"
+	components := map[string]map[string]any{
+		"orders-broker": {
+			"apiVersion": "dapr.io/v1alpha1",
+			"kind": "Component",
+			"metadata": map[string]any{"name": "orders-broker", "namespace": request.Plan.Namespace},
+			"scopes": []any{request.Plan.AppID},
+		},
+	}
+	if _, err = ValidateWorkloadPolicyReadback(request, configuration, components); err == nil ||
+		!strings.Contains(err.Error(), "ACCESS_CONTROL_INVALID") {
+		t.Fatalf("Dapr workload Configuration default-allow drift passed policy admission: %v", err)
+	}
+
+	configuration, err = BuildWorkloadConfigurationProjection(request.Plan)
+	if err != nil { t.Fatal(err) }
+	components["orders-broker"]["scopes"] = []any{"other-app"}
+	if _, err = ValidateWorkloadPolicyReadback(request, configuration, components); err == nil ||
+		!strings.Contains(err.Error(), "COMPONENT_SCOPE_MISMATCH") {
+		t.Fatalf("cross-app Dapr Component scope passed policy admission: %v", err)
+	}
+}
+
+func TestWorkloadAdmissionEvidenceRejectsForeignPolicyObservation(t *testing.T) {
+	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
+	pod, err := BuildWorkloadAdmissionPod(request, "op_policy_drift")
+	if err != nil { t.Fatal(err) }
+	response := injectTestDaprSidecar(t, pod, request.ExpectedSidecarImage)
+	policy := workloadAdmissionTestPolicyObservation(t, request)
+	policy.ConfigurationPolicyDigest = workloadAdmissionTestDigest("9")
+	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_policy_drift", policy, response, 201, time.Now().UTC()); err == nil ||
+		!strings.Contains(err.Error(), "POLICY_OBSERVATION_INVALID") {
+		t.Fatalf("foreign Dapr workload policy observation entered admission evidence: %v", err)
+	}
+}
+
 func TestWorkloadAdmissionRejectsDeploymentDryRunShape(t *testing.T) {
 	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
 	response := map[string]any{
@@ -143,7 +203,7 @@ func TestWorkloadAdmissionRejectsDeploymentDryRunShape(t *testing.T) {
 		"metadata": map[string]any{"name": AdmissionObjectName("op_wrong"), "namespace": request.Plan.Namespace},
 		"spec": map[string]any{"template": map[string]any{"metadata": map[string]any{}, "spec": map[string]any{}}},
 	}
-	if _, err := WorkloadAdmissionEvidenceFromDryRun(request, "op_wrong", response, 201, time.Now().UTC()); err == nil ||
+	if _, err := WorkloadAdmissionEvidenceFromDryRun(request, "op_wrong", workloadAdmissionTestPolicyObservation(t, request), response, 201, time.Now().UTC()); err == nil ||
 		!strings.Contains(err.Error(), "POD_SHAPE_INVALID") {
 		t.Fatalf("Deployment dry-run was treated as Dapr Pod injection evidence: %v", err)
 	}
@@ -154,7 +214,7 @@ func TestWorkloadAdmissionRejectsInjectorSecurityAndImageSubstitution(t *testing
 	pod, err := BuildWorkloadAdmissionPod(request, "op_test")
 	if err != nil { t.Fatal(err) }
 	response := injectTestDaprSidecar(t, pod, "zot.internal.example/dapr/sidecar@"+workloadAdmissionTestDigest("9"))
-	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_test", response, 201, time.Now().UTC()); err == nil {
+	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_test", workloadAdmissionTestPolicyObservation(t, request), response, 201, time.Now().UTC()); err == nil {
 		t.Fatal("substituted Dapr sidecar image passed product-managed dry-run evidence")
 	}
 
@@ -166,7 +226,7 @@ func TestWorkloadAdmissionRejectsInjectorSecurityAndImageSubstitution(t *testing
 	sidecar := containers[len(containers)-1].(map[string]any)
 	security := sidecar["securityContext"].(map[string]any)
 	security["readOnlyRootFilesystem"] = false
-	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_test", response, 201, time.Now().UTC()); err == nil {
+	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_test", workloadAdmissionTestPolicyObservation(t, request), response, 201, time.Now().UTC()); err == nil {
 		t.Fatal("Dapr sidecar without read-only root filesystem passed workload admission")
 	}
 }
@@ -182,7 +242,7 @@ func TestWorkloadAdmissionRejectsInjectedSidecarResourceSizingDrift(t *testing.T
 	resources := sidecar["resources"].(map[string]any)
 	requests := resources["requests"].(map[string]any)
 	requests["cpu"] = "250m"
-	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_resource_drift", response, 201, time.Now().UTC()); err == nil ||
+	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_resource_drift", workloadAdmissionTestPolicyObservation(t, request), response, 201, time.Now().UTC()); err == nil ||
 		!strings.Contains(err.Error(), "RESOURCE_SIZING_INVALID") {
 		t.Fatalf("Dapr sidecar resource drift passed workload admission: %v", err)
 	}
@@ -197,7 +257,7 @@ func TestWorkloadAdmissionRejectsDuplicateAppContainerIdentity(t *testing.T) {
 	containers := spec["containers"].([]any)
 	containers = append(containers, map[string]any{"name": "app", "image": request.WorkloadImage})
 	spec["containers"] = containers
-	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_duplicate_app", response, 201, time.Now().UTC()); err == nil ||
+	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_duplicate_app", workloadAdmissionTestPolicyObservation(t, request), response, 201, time.Now().UTC()); err == nil ||
 		!strings.Contains(err.Error(), "DUPLICATE_APP_CONTAINER") {
 		t.Fatalf("duplicate app identity entered Dapr admission evidence: %v", err)
 	}
@@ -213,7 +273,7 @@ func TestWorkloadAdmissionRejectsMissingExplicitPrivilegeEscalationField(t *test
 	sidecar := containers[len(containers)-1].(map[string]any)
 	security := sidecar["securityContext"].(map[string]any)
 	delete(security, "allowPrivilegeEscalation")
-	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_missing_security", response, 201, time.Now().UTC()); err == nil ||
+	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_missing_security", workloadAdmissionTestPolicyObservation(t, request), response, 201, time.Now().UTC()); err == nil ||
 		!strings.Contains(err.Error(), "SECURITY_FIELDS_MISSING") {
 		t.Fatalf("missing explicit allowPrivilegeEscalation=false was treated as proof: %v", err)
 	}
@@ -225,7 +285,7 @@ func TestNativeDaprAdmissionObservesSecurityButNeverClaimsProductImageFence(t *t
 	if err != nil { t.Fatal(err) }
 	nativeImage := "registry.native.example/dapr/daprd:v1.18.4"
 	response := injectTestDaprSidecar(t, pod, nativeImage)
-	evidence, err := WorkloadAdmissionEvidenceFromDryRun(request, "op_native", response, 200, time.Now().UTC())
+	evidence, err := WorkloadAdmissionEvidenceFromDryRun(request, "op_native", workloadAdmissionTestPolicyObservation(t, request), response, 200, time.Now().UTC())
 	if err != nil { t.Fatal(err) }
 	if evidence.ExpectedSidecarImageMatched || evidence.SidecarImageReference != nativeImage {
 		t.Fatalf("native Dapr admission was incorrectly product-image fenced: %#v", evidence)
