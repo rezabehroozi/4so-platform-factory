@@ -39,7 +39,7 @@ ACQUISITION_IMAGE_KEYS = {
     "role", "sourceRepository", "sourceTagReference", "sourceDigest", "sourceReference",
 }
 MIRROR_KEYS = {
-    "authority", "registryAuthority", "registryIdentity", "version", "upstreamCommit",
+    "authority", "registryAuthority", "registryScheme", "registryIdentity", "version", "upstreamCommit",
     "acquisitionReceiptDigest", "helmPackageDigest", "helmMirrorTagReference",
     "helmMirrorReference", "helmMirrorManifestDigest", "helmMirrorContentDigest",
     "images", "mirrorReady", "registryReadback", "offlineReplayReady",
@@ -102,6 +102,13 @@ def valid_registry(value: object) -> str:
     if not REGISTRY_RE.fullmatch(registry):
         raise RuntimeError("DAPR_MIRROR_REGISTRY_INVALID")
     return registry
+
+
+def valid_registry_scheme(value: object) -> str:
+    scheme = str(value or "").strip().lower()
+    if scheme not in {"http", "https"}:
+        raise RuntimeError("DAPR_MIRROR_REGISTRY_SCHEME_INVALID")
+    return scheme
 
 
 def validate_source_ref(repository: str, digest: str, ref: str) -> None:
@@ -244,6 +251,7 @@ def seal(acquisition_path: Path, mirror_path: Path, out: Path) -> dict:
         or mirror.get("physicalCertificationInferred") is not False
     ):
         raise RuntimeError("DAPR_MIRROR_EVIDENCE_AUTHORITY_INVALID")
+    scheme = valid_registry_scheme(mirror.get("registryScheme"))
     registry = valid_registry(mirror.get("registryIdentity"))
     package_digest = valid_digest(acquisition.get("helmPackageDigest"))
     manifest_digest = valid_digest(mirror.get("helmMirrorManifestDigest"))
@@ -274,6 +282,7 @@ def seal(acquisition_path: Path, mirror_path: Path, out: Path) -> dict:
         "acquisitionReceiptDigest": acquisition_digest,
         "mirrorEvidenceDigest": mirror_digest,
         "registryAuthority": "zot",
+        "registryScheme": scheme,
         "mirrorRegistry": registry,
         "imageLocks": images,
         "zotMirrorVerified": True,
