@@ -8,15 +8,21 @@ class PacketTests(unittest.TestCase):
         matrix=ROOT/"lab/mcp-external-client-interop-matrix.json"
         rows=[]
         for c in core.CLIENTS:
-            challenge=("packet-"+c+"-")*4; rows.append({"clientId":c,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest()})
+            challenge=("packet-"+c+"-")*4; rows.append({"clientId":c,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest(),
+                "oauthClientId":c+"-oauth-client","trustedClientId":"mcpcli-"+c,"trustedClientRevision":1,"trustedClientProvider":c})
         ep="https://mcp.example.test/mcp"; metadata="https://mcp.example.test/.well-known/oauth-protected-resource"
         preflight={"authority":core.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":ep,"protectedResourceMetadata":metadata,"resource":ep,"authorizationServers":["https://identity.example.test/realms/4so"],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":f'Bearer resource_metadata="{metadata}"',"protocol":"2026-07-28"}
-        campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-packettest","matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),"protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
+        campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-packettest","matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
+                  "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"packet-oauth-bindings").hexdigest(),
+                  "protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
         with tempfile.TemporaryDirectory() as td:
             cp=Path(td)/"campaign.json"; cp.write_text(json.dumps(campaign))
             out=mod.packet(matrix,cp,"chatgpt")
             self.assertEqual(core.CLIENTS[0],out["clientId"]); self.assertEqual(core.CLIENT_SURFACES["chatgpt"],out["clientSurface"]); self.assertEqual(set(json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]),{x["id"] for x in out["checks"]})
             self.assertFalse(out["secretsIncluded"]); self.assertFalse(out["runtimeCertified"]); self.assertFalse(out["physicalCertified"])
+            self.assertEqual("chatgpt-oauth-client",out["oauthClientId"])
+            self.assertEqual("chatgpt-oauth-client",out["receiptRequirements"]["oauthClientId"])
+            self.assertEqual(list(core.OAUTH_CLIENT_AUDITED_CHECKS),out["receiptRequirements"]["oauthClientWitnessedChecks"])
             self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",out["receiptRequirements"]["captureAuthority"])
             self.assertIn("finalize_mcp_external_client_receipt.py",out["receiptRequirements"]["finalizer"])
             audited=[x for x in out["checks"] if x.get("serverAudit")]
