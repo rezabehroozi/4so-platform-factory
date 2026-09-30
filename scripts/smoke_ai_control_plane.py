@@ -204,8 +204,16 @@ def main() -> int:
                 expected_counts = registry["counts"]
                 expected_route_count = registry["routeCount"]
                 expected_ai_callable = expected_route_count - expected_counts["security-excluded"]
-                expected_durable_mutations = sum(
+                expected_durable_controls = sum(
                     1 for route in registry["routes"] if route.get("durableJob") is True
+                )
+                expected_durable_mutations = sum(
+                    1 for route in registry["routes"]
+                    if route.get("disposition") in {"tool-operate", "tool-admin"}
+                )
+                expected_durable_reads = sum(
+                    1 for route in registry["routes"]
+                    if route.get("disposition") == "tool-read" and route.get("durableJob") is True
                 )
 
                 status, capabilities, _ = request(base + "/api/v1/ai/capabilities")
@@ -217,6 +225,8 @@ def main() -> int:
                 assert capabilities["aiCallableRoutes"] == expected_ai_callable
                 assert capabilities["durableMutationAuthority"] == "MCP_DURABLE_CONTROL_JOB_AUTHORITY_V1"
                 assert capabilities["durableMutationRoutes"] == expected_durable_mutations
+                assert capabilities["durableControlJobRoutes"] == expected_durable_controls
+                assert capabilities["durableReadRoutes"] == expected_durable_reads
                 assert capabilities["durableMutationCoveragePercent"] == 100
                 assert capabilities["idempotencyRequired"] is True and capabilities["terminalReplay"] is True
                 assert capabilities["expiredInFlightPolicy"] == "RECOVERY_REQUIRED_NO_AUTOMATIC_REDISPATCH"
