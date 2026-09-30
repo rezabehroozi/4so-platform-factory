@@ -253,7 +253,7 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 	if !capabilities[DaprResourceSizingCapability] {
 		out.Blockers = append(out.Blockers, "DAPR_RESOURCE_SIZING_PENDING")
 	}
-	if !in.DurableLifecycleReady {
+	if out.Mode == "INSTALL_REQUIRED" && !in.DurableLifecycleReady {
 		out.Blockers = append(out.Blockers, "DAPR_DURABLE_LIFECYCLE_CONTRACT_PENDING")
 	}
 	sort.Strings(out.Blockers)
