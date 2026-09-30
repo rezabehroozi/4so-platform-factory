@@ -47,6 +47,23 @@ type daprAgentResult struct {
 	Error              string `json:"error,omitempty"`
 }
 
+type daprRecoveryTask struct {
+	OperationID       string                       `json:"operationId"`
+	OperationRevision int64                        `json:"operationRevision"`
+	TaskFenceToken    int64                        `json:"taskFenceToken"`
+	Request           daprruntime.LifecycleRequest `json:"request"`
+}
+
+type daprRecoveryResult struct {
+	ConfirmedSuccess   bool   `json:"confirmedSuccess"`
+	Installed          bool   `json:"installed"`
+	ObservedLockDigest string `json:"observedLockDigest,omitempty"`
+	Version            string `json:"version,omitempty"`
+	UpstreamCommit     string `json:"upstreamCommit,omitempty"`
+	Phase              string `json:"phase,omitempty"`
+	Error              string `json:"error,omitempty"`
+}
+
 type daprObservedReceipt struct {
 	Authority         string `json:"authority"`
 	Installed         bool   `json:"installed"`
@@ -379,7 +396,7 @@ func (a *agent) readDaprReceipt(ctx context.Context, task daprAgentTask) daprAge
 	result.UpstreamCommit = strings.TrimSpace(receipt.UpstreamCommit)
 	result.Phase = strings.TrimSpace(receipt.Phase)
 	if wantInstalled && (result.ObservedLockDigest != task.Request.RuntimeLockDigest ||
-		result.Version != task.RuntimeLock.Version || result.UpstreamCommit != task.RuntimeLock.UpstreamCommit) {
+		result.Version != task.Request.RuntimeVersion || result.UpstreamCommit != task.Request.UpstreamCommit) {
 		result.RecoveryRequired = true
 		result.Error = "Dapr observed receipt does not match exact admitted runtime lock"
 		return result
@@ -410,6 +427,78 @@ func (a *agent) reportDaprLifecycleTask(ctx context.Context, task daprAgentTask,
 		return fmt.Errorf("Dapr task result API %s: %s", res.Status, string(body))
 	}
 	return nil
+}
+
+func (a *agent) nextDaprRecoveryTask(ctx context.Context) (daprRecoveryTask, bool, error) {
+	var task daprRecoveryTask
+	endpoint := a.cfg.Hub + "/agent/v1/clusters/" + a.clusterID + "/dapr-recovery/next"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil { return task, false, err }
+	res, err := a.hub.Do(req)
+	if err != nil { return task, false, err }
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNoContent { return task, false, nil }
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		return task, false, fmt.Errorf("Dapr recovery task API %s: %s", res.Status, string(body))
+	}
+	decoder := json.NewDecoder(io.LimitReader(res.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err = decoder.Decode(&task); err != nil { return task, false, err }
+	if strings.TrimSpace(task.OperationID) == "" || task.OperationRevision <= 0 || task.TaskFenceToken <= 0 {
+		return task, false, fmt.Errorf("Dapr recovery task identity is invalid")
+	}
+	reqValue, err := daprruntime.CanonicalLifecycleRequest(task.Request)
+	if err != nil { return task, false, err }
+	task.Request = reqValue
+	if task.Request.ClusterID != a.clusterID {
+		return task, false, fmt.Errorf("Dapr recovery task cluster does not match this agent")
+	}
+	return task, true, nil
+}
+
+func (a *agent) readDaprRecoveryReceipt(ctx context.Context, task daprRecoveryTask) daprRecoveryResult {
+	lifecycleTask := daprAgentTask{
+		OperationID: task.OperationID,
+		OperationRevision: task.OperationRevision,
+		TaskFenceToken: task.TaskFenceToken,
+		Request: task.Request,
+	}
+	readback := a.readDaprReceipt(ctx, lifecycleTask)
+	return daprRecoveryResult{
+		ConfirmedSuccess: readback.Success && !readback.RecoveryRequired,
+		Installed: readback.Installed,
+		ObservedLockDigest: readback.ObservedLockDigest,
+		Version: readback.Version,
+		UpstreamCommit: readback.UpstreamCommit,
+		Phase: readback.Phase,
+		Error: readback.Error,
+	}
+}
+
+func (a *agent) reportDaprRecoveryTask(ctx context.Context, task daprRecoveryTask, result daprRecoveryResult) error {
+	raw, err := json.Marshal(result)
+	if err != nil { return err }
+	endpoint := a.cfg.Hub + "/agent/v1/clusters/" + a.clusterID + "/dapr-recovery/" + url.PathEscape(task.OperationID) + "/result"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
+	if err != nil { return err }
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("If-Match", fmt.Sprintf("%q", strconv.FormatInt(task.OperationRevision, 10)))
+	res, err := a.hub.Do(req)
+	if err != nil { return err }
+	defer res.Body.Close()
+	if res.StatusCode/100 != 2 {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		return fmt.Errorf("Dapr recovery result API %s: %s", res.Status, string(body))
+	}
+	return nil
+}
+
+func (a *agent) processDaprRecoveryTask(ctx context.Context) error {
+	task, ok, err := a.nextDaprRecoveryTask(ctx)
+	if err != nil || !ok { return err }
+	result := a.readDaprRecoveryReceipt(ctx, task)
+	return a.reportDaprRecoveryTask(ctx, task, result)
 }
 
 func (a *agent) processDaprLifecycleTask(ctx context.Context) error {
