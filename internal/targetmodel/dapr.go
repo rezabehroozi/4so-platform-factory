@@ -705,7 +705,7 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 	// masquerade as proof. The executor must emit exact target readback after the
 	// product-managed runtime actually converges instead.
 	out.WorkloadSidecarAdmissionIndependent = true
-	out.TargetMirrorPullEvidenceRequired = out.Mode == "INSTALL_REQUIRED" && in.Disconnected
+	out.TargetMirrorPullEvidenceRequired = out.Mode == "INSTALL_REQUIRED"
 	if out.Mode == "INSTALL_REQUIRED" && !in.ExecutorRBACReady {
 		out.Blockers = append(out.Blockers, "DAPR_EXECUTOR_RBAC_PENDING")
 	}
