@@ -335,6 +335,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/application-platform/capability-traits/{id}", s.getCapabilityTrait)
 	s.mux.HandleFunc("POST /api/v1/application-platform/resolve", s.resolveApplicationPlatformComposition)
 	s.mux.HandleFunc("POST /api/v1/application-platform/dapr/assessment", s.assessDaprApplicationRuntime)
+	s.mux.HandleFunc("POST /api/v1/application-platform/dapr/workload-plan", s.resolveDaprWorkloadPlan)
 	s.mux.HandleFunc("POST /api/v1/application-platform/openchoreo/assessment", s.assessOpenChoreoTargetAdapter)
 	s.mux.HandleFunc("POST /api/v1/application-platform/openchoreo/lifecycle", s.createOpenChoreoLifecycle)
 	s.mux.HandleFunc("GET /api/v1/application-platform/openchoreo/lifecycle/{id}", s.getOpenChoreoLifecycle)
