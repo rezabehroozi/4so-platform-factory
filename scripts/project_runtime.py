@@ -312,7 +312,7 @@ def reconcile(root,state,override=None,write=True):
         return read_state(root,override) or s
     return s
 
-def reclaim_stale_lock(root,state,override=None):
+def _reclaim_stale_lock_unlocked(root,state,override=None):
     p=lock_file(root,override); lk=read_lock(root,override)
     if not lk: return True
     if lock_owner_live(lk): return False
@@ -324,6 +324,10 @@ def reclaim_stale_lock(root,state,override=None):
         if state.get("runId")!=lk.get("runId") and state.get("status") in ACTIVE:
             return False
     p.unlink(missing_ok=True); fsync_dir(p); return True
+
+def reclaim_stale_lock(root,state,override=None):
+    with state_guard(root,override):
+        return _reclaim_stale_lock_unlocked(root,state,override)
 
 def acquire(root,run_id,override=None):
     run_id=str(run_id or "").strip()
@@ -341,7 +345,7 @@ def acquire(root,run_id,override=None):
             except FileExistsError:
                 lk=read_lock(root,override)
                 if lk and lock_owner_live(lk): raise RuntimeError(f"PROJECT_RUNTIME_ALREADY_ACTIVE runId={lk.get('runId')} pid={lk.get('pid')}")
-                if not reclaim_stale_lock(root,read_state(root,override),override): raise RuntimeError("PROJECT_RUNTIME_STALE_LOCK_REQUIRES_OBSERVATION")
+                if not _reclaim_stale_lock_unlocked(root,read_state(root,override),override): raise RuntimeError("PROJECT_RUNTIME_STALE_LOCK_REQUIRES_OBSERVATION")
                 continue
             with os.fdopen(fd,"w") as f:
                 json.dump(payload,f,sort_keys=True,indent=2); f.write("\n"); f.flush(); os.fsync(f.fileno())
