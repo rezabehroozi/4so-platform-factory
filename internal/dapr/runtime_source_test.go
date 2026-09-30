@@ -53,6 +53,15 @@ func TestRuntimeLockDigestIsCanonicalAcrossImageOrdering(t *testing.T) {
 	}
 }
 
+func TestRuntimeLockRequiresExecutorSourceReleaseDigest(t *testing.T) {
+	lock := validRuntimeLock()
+	lock.ExecutorSourceReleaseDigest = ""
+	if err := ValidateRuntimeLock(lock); err == nil ||
+		!strings.Contains(err.Error(), "source-digest-invalid") {
+		t.Fatalf("Dapr runtime lock without executor source release binding was admitted: %v", err)
+	}
+}
+
 func TestRuntimeLockRequiresConfiguredProductZotRegistry(t *testing.T) {
 	lock := validRuntimeLock()
 	if err := ValidateRuntimeLockForRegistry(lock, "https://zot.internal.example"); err != nil {
