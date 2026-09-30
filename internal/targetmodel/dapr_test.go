@@ -45,6 +45,56 @@ func TestDaprInitialProfileExcludesSchedulerPlacementAndDuplicateAuthorities(t *
 	}
 }
 
+func TestDaprRuntimeSourcePlanPinsMinimalUpstreamProfile(t *testing.T) {
+	plan := DaprRuntimeSourcePlanModel()
+	if issues := ValidateDaprRuntimeSourcePlan(plan); len(issues) != 0 {
+		t.Fatalf("Dapr source plan invalid: %#v", issues)
+	}
+	if plan.UpstreamCommit != "6d1c53f430205c0c0f3bc3589ce5a3ec3f6f1647" || plan.UpstreamRef != "v1.18.4" {
+		t.Fatalf("Dapr upstream identity drift: %#v", plan)
+	}
+	overrides := map[string]string{}
+	for _, item := range plan.HelmOverrides {
+		overrides[item.Path] = item.Value
+	}
+	for path, want := range map[string]string{
+		"global.actors.enabled": "false",
+		"global.scheduler.enabled": "false",
+		"global.mtls.enabled": "true",
+		"dapr_config.dapr_config_chart_included": "false",
+		"dapr_sidecar_injector.sidecarDropALLCapabilities": "true",
+	} {
+		if overrides[path] != want {
+			t.Fatalf("required Dapr Helm override %s=%q want %q", path, overrides[path], want)
+		}
+	}
+	roles := map[string]string{}
+	for _, image := range plan.RequiredImages {
+		roles[image.Role] = image.Repository
+	}
+	if len(roles) != 4 || roles["sidecar"] != "ghcr.io/dapr/daprd" || roles["operator"] != "ghcr.io/dapr/operator" ||
+		roles["injector"] != "ghcr.io/dapr/injector" || roles["sentry"] != "ghcr.io/dapr/sentry" {
+		t.Fatalf("Dapr minimal image inventory drift: %#v", roles)
+	}
+}
+
+func TestDaprRuntimeSourcePlanRejectsUpstreamDefaultsThatReenableDuplicateAuthorities(t *testing.T) {
+	plan := DaprRuntimeSourcePlanModel()
+	for i := range plan.HelmOverrides {
+		if plan.HelmOverrides[i].Path == "global.scheduler.enabled" {
+			plan.HelmOverrides[i].Value = "true"
+		}
+	}
+	if issues := ValidateDaprRuntimeSourcePlan(plan); !contains(issues, "dapr-required-helm-override-missing") {
+		t.Fatalf("scheduler re-enable was not rejected: %#v", issues)
+	}
+	plan = DaprRuntimeSourcePlanModel()
+	plan.RequiredImages = append(plan.RequiredImages, DaprRuntimeImageRole{Role: "placement", Repository: "ghcr.io/dapr/placement"})
+	if issues := ValidateDaprRuntimeSourcePlan(plan); !contains(issues, "dapr-forbidden-images-invalid") {
+		t.Fatalf("placement image entered minimal profile: %#v", issues)
+	}
+}
+
 func TestDaprTargetAdmissionSuppressesDuplicateNativeRuntime(t *testing.T) {
 	out := EvaluateDaprTargetAdmission(DaprTargetAdmissionInput{
 		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true,
