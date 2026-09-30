@@ -125,6 +125,49 @@ func TestDaprLifecycleCreateIsApprovalGatedAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestDaprLifecycleApprovalRevalidatesNativeCapabilityDrift(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	ctx := context.Background()
+	org, _ := store.CreateOrganization(ctx, controlplane.Organization{Name: "dapr-approval-drift", DisplayName: "Dapr Approval Drift"}, "owner")
+	project, _ := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "apps", DisplayName: "Apps"}, "owner")
+	if _, err := store.UpsertOrganizationMembership(ctx, controlplane.OrganizationMembership{
+		OrganizationID: org.ID, Subject: "approver", Role: controlplane.OrganizationAdmin,
+	}, 0, "owner"); err != nil {
+		t.Fatal(err)
+	}
+	cluster := workspaceAPICluster(t, store, project.ID, "dapr-approval-target", "uid-dapr-approval-target")
+	seedDaprAssessmentInventory(t, store, cluster, nil, 30)
+
+	srv := scopedServer(t, store)
+	if err := srv.ConfigureDaprRuntimeLock(daprAPITestRuntimeLock(t), "https://zot.internal.example"); err != nil {
+		t.Fatal(err)
+	}
+	body := fmt.Sprintf(`{"projectId":%q,"clusterId":%q,"action":"INSTALL"}`, project.ID, cluster.ID)
+	w := applicationPlatformRequest(t, srv, http.MethodPost, "/api/v1/application-platform/dapr/lifecycle", body, "owner",
+		map[string]string{"Idempotency-Key": "dapr-approval-drift"})
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("Dapr lifecycle create=%d %s", w.Code, w.Body.String())
+	}
+	created := decodeApplicationResponse[daprLifecycleCreateResponse](t, w)
+
+	// A current inventory update says Dapr is now native. The previously prepared
+	// product-managed install must not pass approval against stale admission.
+	seedDaprAssessmentInventory(t, store, cluster, []string{targetmodel.DaprApplicationRuntimeCapability}, 31)
+	w = applicationPlatformRequest(t, srv, http.MethodPost,
+		"/api/v1/application-platform/dapr/lifecycle/"+created.Operation.ID+"/approve", "", "approver",
+		map[string]string{"If-Match": fmt.Sprintf("%d", created.Operation.Revision)})
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "DAPR_NATIVE_RUNTIME_NOT_PRODUCT_MANAGED") {
+		t.Fatalf("Dapr approval ignored native-capability drift: %d %s", w.Code, w.Body.String())
+	}
+	current, err := store.GetOperation(ctx, created.Operation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.State != controlplane.OperationAwaitingApproval {
+		t.Fatalf("Dapr operation mutated despite approval-time admission drift: %#v", current)
+	}
+}
+
 func TestDaprLifecycleStateBlocksUnknownRecoveryAndInFlightMutation(t *testing.T) {
 	for _, state := range []controlplane.OperationState{
 		controlplane.OperationAwaitingApproval, controlplane.OperationQueued, controlplane.OperationRunning,
