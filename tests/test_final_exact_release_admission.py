@@ -271,6 +271,33 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"TRUSTED_CLIENT_DRIFT"):
                 mod.verify(root)
 
+    def test_progress_and_final_evidence_reject_extra_scope_claims(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            progress=root/"lab/mcp-external-client-interop-progress.json"
+            rows=[self.progress_row("chatgpt")]
+            doc={"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropProgress",
+                 "authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","matrixAuthority":mod.mcp_contract.MATRIX_AUTHORITY,
+                 "matrixSha256":"sha256:"+hashlib.sha256(b"matrix").hexdigest(),
+                 "campaignAuthority":mod.mcp_contract.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign",
+                 "campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),
+                 "oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,
+                 "oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),
+                 "oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),
+                 "protocol":"2026-07-28","transport":"streamable-http","endpoint":"https://mcp.example.test/mcp",
+                 "clients":rows,"certifiedClientCount":1,"complete":False,"allAdmittedReceiptsPass":True,
+                 "serverAuditWitnessPass":False,"externalCertificationPass":False,"runtimeCertified":False,"physicalCertified":False,
+                 "physicalPass":True}
+            progress.write_text(json.dumps(doc))
+            with self.assertRaisesRegex(RuntimeError,"FIELDS_INVALID"):
+                mod.external_client_progress(root)
+
+            evidence_path=root/"lab/mcp-external-client-interoperability-evidence.json"
+            evidence=json.loads(evidence_path.read_text()); evidence["physicalPass"]=True
+            evidence_path.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(RuntimeError,"FIELDS_INVALID"):
+                mod.verify(root)
+
     def test_wrong_client_surface_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root)
