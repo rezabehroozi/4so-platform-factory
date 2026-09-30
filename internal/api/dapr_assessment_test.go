@@ -89,3 +89,50 @@ func TestDaprAssessmentUsesNativeCapabilityAndBlocksUnimplementedInstall(t *test
 		t.Fatalf("missing product-managed Dapr blockers: %v assessment=%#v", want, pending.Assessment)
 	}
 }
+
+
+type daprWorkloadPlanResponse struct {
+	Authority                     string                          `json:"authority"`
+	TraitID                       string                          `json:"traitId"`
+	TraitDigest                   string                          `json:"traitDigest"`
+	Plan                          targetmodel.DaprWorkloadRuntimePlan `json:"plan"`
+	RuntimeMutationPerformed      bool                            `json:"runtimeMutationPerformed"`
+	PhysicalCertificationInferred bool                            `json:"physicalCertificationInferred"`
+}
+
+func TestDaprWorkloadPlanRequiresPersistedDaprSidecarTrait(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	ctx := context.Background()
+	org, _ := store.CreateOrganization(ctx, controlplane.Organization{Name: "dapr-plan", DisplayName: "Dapr Plan"}, "owner")
+	project, _ := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "apps", DisplayName: "Apps"}, "owner")
+	digest := "sha256:" + strings.Repeat("a", 64)
+	trait, err := store.CreateCapabilityTrait(ctx, controlplane.CapabilityTrait{
+		ProjectID: project.ID, Name: "dapr-runtime", Version: "1.0.0", Kind: "sidecar",
+		Capability: controlplane.ApplicationRuntimeDaprCapability, InputSchemaDigest: digest, NativeSuppression: true,
+	}, "owner")
+	if err != nil { t.Fatal(err) }
+	other, err := store.CreateCapabilityTrait(ctx, controlplane.CapabilityTrait{
+		ProjectID: project.ID, Name: "other-sidecar", Version: "1.0.0", Kind: "sidecar",
+		Capability: "application-runtime.other", InputSchemaDigest: digest, NativeSuppression: true,
+	}, "owner")
+	if err != nil { t.Fatal(err) }
+	srv := scopedServer(t, store)
+	body := fmt.Sprintf(`{"projectId":%q,"traitId":%q,"namespace":"payments","appId":"payments-api","appPort":8080,"appProtocol":"http","cpuRequest":"100m","cpuLimit":"500m","memoryRequest":"128Mi","memoryLimit":"256Mi","componentNames":["orders-broker"],"enableInvocation":true,"enablePubSub":true}`, project.ID, trait.ID)
+	w := applicationPlatformRequest(t, srv, http.MethodPost, "/api/v1/application-platform/dapr/workload-plan", body, "owner", nil)
+	if w.Code != http.StatusOK { t.Fatalf("Dapr workload plan=%d %s", w.Code, w.Body.String()) }
+	out := decodeApplicationResponse[daprWorkloadPlanResponse](t, w)
+	if out.Authority != targetmodel.DaprWorkloadRuntimePlanAuthority || out.TraitID != trait.ID || out.TraitDigest != trait.Digest ||
+		out.Plan.AppID != "payments-api" || out.Plan.ConfigurationName != "4so-dapr-payments-api" ||
+		out.RuntimeMutationPerformed || out.PhysicalCertificationInferred {
+		t.Fatalf("Dapr workload plan response drift: %#v", out)
+	}
+	if len(out.Plan.ComponentScopes) != 1 || len(out.Plan.ComponentScopes[0].Scopes) != 1 || out.Plan.ComponentScopes[0].Scopes[0] != "payments-api" {
+		t.Fatalf("Dapr component scope escaped app identity: %#v", out.Plan.ComponentScopes)
+	}
+
+	body = fmt.Sprintf(`{"projectId":%q,"traitId":%q,"namespace":"payments","appId":"payments-api","cpuRequest":"100m","cpuLimit":"500m","memoryRequest":"128Mi","memoryLimit":"256Mi","enableInvocation":true}`, project.ID, other.ID)
+	w = applicationPlatformRequest(t, srv, http.MethodPost, "/api/v1/application-platform/dapr/workload-plan", body, "owner", nil)
+	if w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "DAPR_TRAIT_REQUIRED") {
+		t.Fatalf("non-Dapr sidecar trait rendered a Dapr plan: %d %s", w.Code, w.Body.String())
+	}
+}
