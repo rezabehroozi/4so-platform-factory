@@ -144,6 +144,8 @@ func TestMutationActivationIncludesBoundedDaprExecutorAuthority(t *testing.T) {
 		`resources: ["customresourcedefinitions"]`,
 		`resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]`,
 		`resources: ["deployments", "replicasets"]`,
+		`resources: ["statefulsets"]`,
+		`verbs: ["get", "list"]`,
 	} {
 		if !strings.Contains(manifest, want) { t.Fatalf("Dapr executor RBAC missing %q", want) }
 	}
