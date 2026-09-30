@@ -668,9 +668,6 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 	if !in.TargetMutationReady {
 		out.Blockers = append(out.Blockers, "TARGET_MUTATION_RBAC_NOT_READY")
 	}
-	if !in.ExecutorRBACReady {
-		out.Blockers = append(out.Blockers, "DAPR_EXECUTOR_RBAC_PENDING")
-	}
 	if !in.CapabilityDiscoveryComplete {
 		out.Blockers = append(out.Blockers, "CAPABILITY_DISCOVERY_INCOMPLETE")
 	}
@@ -703,6 +700,9 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 	}
 	if !capabilities[DaprResourceSizingCapability] {
 		out.Blockers = append(out.Blockers, "DAPR_RESOURCE_SIZING_PENDING")
+	}
+	if out.Mode == "INSTALL_REQUIRED" && !in.ExecutorRBACReady {
+		out.Blockers = append(out.Blockers, "DAPR_EXECUTOR_RBAC_PENDING")
 	}
 	if out.Mode == "INSTALL_REQUIRED" && !in.DurableLifecycleReady {
 		out.Blockers = append(out.Blockers, "DAPR_DURABLE_LIFECYCLE_CONTRACT_PENDING")
