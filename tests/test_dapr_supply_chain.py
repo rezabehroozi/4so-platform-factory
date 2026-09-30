@@ -64,6 +64,8 @@ class DaprSupplyChainTests(unittest.TestCase):
             "sourceArchiveDigest": digest("a"),
             "helmChartPath": acquire.CHART_PATH,
             "helmChartDigest": digest("b"),
+            "helmPackageName": f"dapr-{acquire.IMAGE_TAG}.tgz",
+            "helmPackageDigest": digest("d"),
             "helmOverrides": [{"path": k, "value": v} for k, v in sorted(acquire.HELM_OVERRIDES.items())],
             "helmRenderDigest": digest("c"),
             "requiredImages": images,
@@ -100,6 +102,11 @@ class DaprSupplyChainTests(unittest.TestCase):
             "version": acquire.VERSION,
             "upstreamCommit": acquire.UPSTREAM_COMMIT,
             "acquisitionReceiptDigest": acquisition_digest,
+            "helmPackageDigest": acquisition["helmPackageDigest"],
+            "helmMirrorTagReference": f"{registry}/dapr-charts/dapr:{acquire.IMAGE_TAG}",
+            "helmMirrorReference": f"{registry}/dapr-charts/dapr@" + ("sha256:" + "e" * 64),
+            "helmMirrorManifestDigest": "sha256:" + "e" * 64,
+            "helmMirrorContentDigest": acquisition["helmPackageDigest"],
             "images": rows,
             "mirrorReady": True,
             "registryReadback": True,
@@ -125,6 +132,8 @@ class DaprSupplyChainTests(unittest.TestCase):
             self.assertEqual("zot", lock["registryAuthority"])
             self.assertEqual("platform-zot:5000", lock["mirrorRegistry"])
             self.assertEqual(4, len(lock["imageLocks"]))
+            self.assertEqual(acquisition["helmPackageDigest"], lock["helmPackageDigest"])
+            self.assertEqual(mirror_doc["helmMirrorReference"], lock["helmMirrorReference"])
             self.assertRegex(lock["acquisitionReceiptDigest"], r"^sha256:[0-9a-f]{64}$")
             self.assertRegex(lock["mirrorEvidenceDigest"], r"^sha256:[0-9a-f]{64}$")
 
