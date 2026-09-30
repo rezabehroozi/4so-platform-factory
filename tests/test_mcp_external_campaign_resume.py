@@ -15,12 +15,16 @@ class CampaignResumeTests(unittest.TestCase):
         rows=[]
         for client in core.CLIENTS:
             challenge=("resume-"+client+"-")*4
-            rows.append({"clientId":client,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest()})
+            rows.append({"clientId":client,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest(),
+                         "oauthClientId":client+"-oauth-client","trustedClientId":"mcpcli-"+client,
+                         "trustedClientRevision":1,"trustedClientProvider":client})
         return {
             "apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropCampaign",
             "authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-resume-test",
             "createdAt":"2026-09-30T00:00:00+00:00",
             "matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
+            "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,
+            "oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"resume-oauth-bindings").hexdigest(),
             "endpoint":endpoint,"protocol":"2026-07-28","transport":"streamable-http",
             "livePreflight":{"authority":core.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":endpoint,
                 "protectedResourceMetadata":metadata,"resource":endpoint,
