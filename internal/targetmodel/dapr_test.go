@@ -258,8 +258,6 @@ func TestDaprTargetAdmissionSuppressesDuplicateNativeRuntime(t *testing.T) {
 		ObservedCapabilities: []string{
 			DaprApplicationRuntimeCapability,
 			DaprSidecarSecurityCapability,
-			DaprComponentScopeCapability,
-			DaprResourceSizingCapability,
 		},
 	})
 	if !out.Eligible || out.Mode != "USE_NATIVE" || !out.InstallSuppressed || len(out.Blockers) != 0 {
@@ -281,8 +279,6 @@ func TestDaprTargetAdmissionFailsClosedUntilInstallProfileIsActuallyReady(t *tes
 	want := map[string]bool{
 		"DAPR_EXACT_SOURCE_AUTHORITY_PENDING": true,
 		"DAPR_SIDECAR_SECURITY_COMPATIBILITY_PENDING": true,
-		"DAPR_COMPONENT_SCOPE_ENFORCEMENT_PENDING": true,
-		"DAPR_RESOURCE_SIZING_PENDING": true,
 	}
 	for _, blocker := range out.Blockers {
 		delete(want, blocker)
@@ -298,8 +294,6 @@ func TestDaprDisconnectedInstallRequiresMirrorButNativeRuntimeDoesNot(t *testing
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true, Disconnected: true,
 		ObservedCapabilities: []string{
 			DaprSidecarSecurityCapability,
-			DaprComponentScopeCapability,
-			DaprResourceSizingCapability,
 		},
 		ExactSourceAdmitted: true,
 	}
