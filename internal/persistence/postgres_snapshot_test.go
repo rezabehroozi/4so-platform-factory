@@ -90,9 +90,9 @@ func TestSnapshotSecurityAuditPreservesCanonicalFullChainOrder(t *testing.T) {
 	first.Digest = controlplane.SecurityAuditEventDigest(first)
 	second := controlplane.SecurityAuditEvent{ID: "sau-2", Sequence: 2, OccurredAt: now.Add(time.Second), MethodVersion: controlplane.SecurityAuditMethod, SecurityAuditInput: controlplane.SecurityAuditInput{Category: "AUTHORIZATION", Decision: "ALLOW", ActorID: "a"}, PreviousDigest: first.Digest}
 	second.Digest = controlplane.SecurityAuditEventDigest(second)
-	cols := []string{"sequence", "id", "occurred_at", "method_version", "category", "decision", "actor_id", "authentication", "request_method", "request_path", "status_code", "reason_code", "request_id", "scope_type", "scope_id", "effective_role", "mapping_digest", "mcp_interop_binding_digest", "previous_digest", "event_digest"}
+	cols := []string{"sequence", "id", "occurred_at", "method_version", "category", "decision", "actor_id", "authentication", "request_method", "request_path", "status_code", "reason_code", "request_id", "scope_type", "scope_id", "effective_role", "mapping_digest", "oauth_client_id", "mcp_interop_binding_digest", "previous_digest", "event_digest"}
 	row := func(v controlplane.SecurityAuditEvent) []driver.Value {
-		return []driver.Value{v.Sequence, v.ID, v.OccurredAt, v.MethodVersion, v.Category, v.Decision, v.ActorID, v.Authentication, v.Method, v.Path, int64(v.StatusCode), v.ReasonCode, v.RequestID, v.ScopeType, v.ScopeID, v.EffectiveRole, v.MappingDigest, v.MCPInteropBindingDigest, v.PreviousDigest, v.Digest}
+		return []driver.Value{v.Sequence, v.ID, v.OccurredAt, v.MethodVersion, v.Category, v.Decision, v.ActorID, v.Authentication, v.Method, v.Path, int64(v.StatusCode), v.ReasonCode, v.RequestID, v.ScopeType, v.ScopeID, v.EffectiveRole, v.MappingDigest, v.OAuthClientID, v.MCPInteropBindingDigest, v.PreviousDigest, v.Digest}
 	}
 	db, script := openScriptDB(t, scriptStep{kind: "query", contains: "FROM security_audit_events ORDER BY sequence ASC", columns: cols, rows: [][]driver.Value{row(first), row(second)}})
 	store, _ := NewPostgresStoreWith(db, func() time.Time { return now }, fixedPGID)
