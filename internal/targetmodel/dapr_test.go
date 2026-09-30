@@ -172,6 +172,7 @@ func validDaprSupplyChainLock() DaprRuntimeSupplyChainLock {
 		Authority: DaprRuntimeSupplyChainAuthority, SourcePlanAuthority: plan.Authority,
 		Version: plan.Version, UpstreamRepository: plan.UpstreamRepository, UpstreamRef: plan.UpstreamRef,
 		UpstreamCommit: plan.UpstreamCommit, SourceArchiveDigest: digest("e"), HelmChartDigest: digest("f"),
+		RegistryAuthority: "zot", MirrorRegistry: "zot.internal.example",
 		ImageLocks: locks, ZotMirrorVerified: true, OfflineReplayReady: true, Admitted: true,
 	}
 }
@@ -192,6 +193,21 @@ func TestDaprSupplyChainLockRequiresExactFourImageMirrorSet(t *testing.T) {
 	lock.Admitted = false
 	if issues := ValidateDaprRuntimeSupplyChainLock(lock); !contains(issues, "dapr-supply-chain-image-digest-invalid") {
 		t.Fatalf("source/mirror digest substitution accepted: %#v", issues)
+	}
+}
+
+func TestDaprSupplyChainLockRejectsMirrorRegistrySelfInconsistency(t *testing.T) {
+	lock := validDaprSupplyChainLock()
+	lock.ImageLocks[0].MirrorReference = strings.Replace(lock.ImageLocks[0].MirrorReference, "zot.internal.example", "other.example", 1)
+	lock.Admitted = false
+	if issues := ValidateDaprRuntimeSupplyChainLock(lock); !contains(issues, "dapr-supply-chain-mirror-reference-invalid") {
+		t.Fatalf("Dapr mirror escaped declared zot registry: %#v", issues)
+	}
+	lock = validDaprSupplyChainLock()
+	lock.RegistryAuthority = "docker"
+	lock.Admitted = false
+	if issues := ValidateDaprRuntimeSupplyChainLock(lock); !contains(issues, "dapr-supply-chain-registry-authority-invalid") {
+		t.Fatalf("non-zot Dapr registry authority accepted: %#v", issues)
 	}
 }
 
