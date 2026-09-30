@@ -32,7 +32,7 @@ func seedDaprAssessmentInventory(t *testing.T, store *controlplane.MemoryStore, 
 		Distribution: "rke2", KubernetesVersion: "v1.34.1",
 		APIDiscoveryComplete: true, CRDDiscoveryComplete: true, SchemaDiscoveryComplete: true,
 		SchemaDiscoveryVersion: "OPENAPI_V3", SchemaDiscoveryDigest: fmt.Sprintf("sha256:%064x", 7000+n),
-		Capabilities: append([]string{controlplane.TargetMutationRBACActiveCapability}, capabilities...),
+		Capabilities: append([]string{controlplane.TargetMutationRBACActiveCapability, controlplane.DaprExecutorRBACCapability}, capabilities...),
 		Digest: fmt.Sprintf("sha256:%064x", 8000+n),
 	})
 	if err != nil {
