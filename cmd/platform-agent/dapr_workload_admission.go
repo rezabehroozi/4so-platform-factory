@@ -115,6 +115,7 @@ func daprWorkloadAdmissionJob(task agentDaprWorkloadAdmissionTask, namespace str
 		"platform.4so.io/task-fence-token": strconv.FormatInt(task.TaskFenceToken, 10),
 		"platform.4so.io/workload-admission-digest": requestDigest,
 		"platform.4so.io/executor-evidence-digest": task.Request.ExecutorEvidenceDigest,
+		"platform.4so.io/executor-source-release-digest": task.Request.ExecutorSourceReleaseDigest,
 	}
 	labels := map[string]any{
 		"platform.4so.io/dapr-workload-admission": "true",
@@ -176,6 +177,7 @@ func daprWorkloadAdmissionJobOwnership(job map[string]any, task agentDaprWorkloa
 		"platform.4so.io/task-fence-token": strconv.FormatInt(task.TaskFenceToken, 10),
 		"platform.4so.io/workload-admission-digest": requestDigest,
 		"platform.4so.io/executor-evidence-digest": task.Request.ExecutorEvidenceDigest,
+		"platform.4so.io/executor-source-release-digest": task.Request.ExecutorSourceReleaseDigest,
 	}
 	for key, value := range want {
 		if strings.TrimSpace(fmt.Sprint(annotations[key])) != value {
@@ -361,6 +363,7 @@ func (a *agent) nextDaprWorkloadAdmissionTaskValidation(task agentDaprWorkloadAd
 		return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload executor authority invalid: %w", err)
 	}
 	if !strings.EqualFold(strings.TrimSpace(task.ExecutorAuthority.EvidenceDigest), request.ExecutorEvidenceDigest) ||
+		!strings.EqualFold(strings.TrimSpace(task.ExecutorAuthority.SourceReleaseDigest), request.ExecutorSourceReleaseDigest) ||
 		strings.TrimSpace(task.ExecutorAuthority.ImageReference) != request.ExecutorImageReference {
 		return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload executor authority does not match sealed request")
 	}
