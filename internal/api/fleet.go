@@ -597,6 +597,15 @@ metadata:
     platform.4so.io/managed: "true"
     platform.4so.io/runtime-role: dapr-executor
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: 4so-dapr-workload-admitter
+  namespace: 4so-platform-agent
+  labels:
+    platform.4so.io/managed: "true"
+    platform.4so.io/runtime-role: dapr-workload-admission
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -615,7 +624,7 @@ rules:
   verbs: ["get"]
 - apiGroups: [""]
   resources: ["serviceaccounts"]
-  resourceNames: ["4so-openchoreo-executor", "4so-dapr-executor"]
+  resourceNames: ["4so-openchoreo-executor", "4so-dapr-executor", "4so-dapr-workload-admitter"]
   verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -644,6 +653,16 @@ rules:
   resources: ["configmaps"]
   resourceNames: ["4so-dapr-runtime-owner", "4so-dapr-runtime-observed"]
   verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: 4so-dapr-workload-admission-prober
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: 4so-dapr-workload-admission-prober
+subjects: []
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -708,6 +727,28 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: 4so-openchoreo-executor
+  namespace: 4so-platform-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: 4so-dapr-workload-admission-prober
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: 4so-dapr-workload-admission-prober
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: 4so-dapr-workload-admission-prober
+subjects:
+- kind: ServiceAccount
+  name: 4so-dapr-workload-admitter
   namespace: 4so-platform-agent
 ---
 apiVersion: rbac.authorization.k8s.io/v1
