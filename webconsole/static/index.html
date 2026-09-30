@@ -306,6 +306,28 @@
 </form>
 </div>
 <div aria-live="polite" id="dapr-runtime-result"></div>
+<h3>Dapr workload policy &amp; admission</h3>
+<p>Render the exact read-only policy projection first, materialize that projection through the application/GitOps path, then verify live Configuration, Component scopes and sidecar injection on the selected target. Admission never deploys the application or claims Runtime/Physical PASS.</p>
+<form class="form-grid" id="dapr-workload-form" novalidate="">
+<label><span>Dapr capability trait</span><select id="dapr-workload-trait" required=""></select></label>
+<label><span>Namespace</span><input class="technical" dir="ltr" id="dapr-workload-namespace" maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="payments" required=""/></label>
+<label><span>Application ID</span><input class="technical" dir="ltr" id="dapr-workload-app-id" maxlength="54" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="payments-api" required=""/></label>
+<label><span>Application port</span><input id="dapr-workload-app-port" min="0" max="65535" type="number" value="8080"/></label>
+<label><span>Application protocol</span><select id="dapr-workload-protocol"><option value="http">HTTP</option><option value="https">HTTPS</option><option value="grpc">gRPC</option><option value="grpcs">gRPC TLS</option></select></label>
+<label><span>Workload image for target admission</span><input class="technical" dir="ltr" id="dapr-workload-image" placeholder="zot.internal.example/apps/payments@sha256:..." /></label>
+<label><span>CPU request</span><input class="technical" dir="ltr" id="dapr-workload-cpu-request" value="100m" required=""/></label>
+<label><span>CPU limit</span><input class="technical" dir="ltr" id="dapr-workload-cpu-limit" value="500m" required=""/></label>
+<label><span>Memory request</span><input class="technical" dir="ltr" id="dapr-workload-memory-request" value="128Mi" required=""/></label>
+<label><span>Memory limit</span><input class="technical" dir="ltr" id="dapr-workload-memory-limit" value="256Mi" required=""/></label>
+<label class="span-full"><span>Referenced Dapr Components</span><input class="technical" dir="ltr" id="dapr-workload-components" placeholder="orders-broker,billing-binding"/><small>Comma-separated existing Component names. Admission requires each live Component to be scoped only to this app ID.</small></label>
+<label class="check-row"><input id="dapr-workload-invocation" type="checkbox" checked=""/><span>Service invocation API</span></label>
+<label class="check-row"><input id="dapr-workload-pubsub" type="checkbox"/><span>Pub/sub API</span></label>
+<label class="check-row"><input id="dapr-workload-bindings" type="checkbox"/><span>Bindings API</span></label>
+<label><span>Current admission operation</span><input class="technical" dir="ltr" id="dapr-workload-operation" placeholder="No admission run" readonly=""/></label>
+<div class="form-actions span-full"><button class="secondary" type="submit">Preview workload policy</button><button class="primary" id="dapr-workload-admit" type="button" disabled="">Run target admission</button><button class="secondary" id="dapr-workload-refresh" type="button" disabled="">Refresh admission</button></div>
+<small class="span-full">The preview is desired/rendered policy only. Target admission is a durable READ_ONLY verification job and succeeds only after live Configuration/Component readback and server-side Pod dry-run evidence.</small>
+</form>
+<div aria-live="polite" id="dapr-workload-result"></div>
 </div></details>
 <div id="application-composition-result"></div>
 <h3>Workload shapes &amp; capabilities</h3><div class="resource-grid record-list" id="application-workload-grid"></div>
