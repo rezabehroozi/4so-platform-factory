@@ -329,6 +329,23 @@ func (f *FileStore) CreateOperation(ctx context.Context, r OperationRequest, k, 
 	}
 	return v, replay, nil
 }
+func (f *FileStore) CreateOperationQueuedWithPayload(ctx context.Context, r OperationRequest, k, a, q, mediaType string, payload []byte) (Operation, bool, error) {
+	f.writeMu.Lock()
+	defer f.writeMu.Unlock()
+	before, err := f.MemoryStore.Snapshot(ctx)
+	if err != nil {
+		return Operation{}, false, err
+	}
+	v, replay, err := f.MemoryStore.CreateOperationQueuedWithPayload(ctx, r, k, a, q, mediaType, payload)
+	if err != nil {
+		return Operation{}, false, err
+	}
+	if err = f.saveLocked(ctx); err != nil {
+		_ = f.MemoryStore.RestoreSnapshot(ctx, before)
+		return Operation{}, false, err
+	}
+	return v, replay, nil
+}
 func (f *FileStore) CreateOperationAwaitingApprovalWithPayload(ctx context.Context, r OperationRequest, k, a, q, mediaType string, payload []byte) (Operation, bool, error) {
 	f.writeMu.Lock()
 	defer f.writeMu.Unlock()
