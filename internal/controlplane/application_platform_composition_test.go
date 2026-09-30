@@ -53,6 +53,31 @@ func TestWorkloadCompositionRejectsDuplicateOrUnownedCapabilities(t *testing.T) 
 	}
 }
 
+func TestDaprApplicationRuntimeTraitUsesExistingDuplicateSuppressionBoundary(t *testing.T) {
+	workload := WorkloadType{
+		ProjectID: "prj-1", Name: "payments-api", Version: "1.0.0", InputSchemaDigest: appDigest('a'),
+		AllowedTraitKinds: []string{"sidecar"},
+	}
+	trait := CapabilityTrait{
+		ProjectID: "prj-1", Name: "dapr-runtime", Version: "1.0.0", Kind: "sidecar",
+		Capability: ApplicationRuntimeDaprCapability, InputSchemaDigest: appDigest('b'), NativeSuppression: true,
+	}
+	applied, err := ResolveWorkloadComposition(workload, []CapabilityTrait{trait}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(applied.Decisions) != 1 || applied.Decisions[0].Action != TraitDecisionApply || applied.Decisions[0].Capability != ApplicationRuntimeDaprCapability {
+		t.Fatalf("Dapr sidecar capability was not applied through composition authority: %#v", applied.Decisions)
+	}
+	suppressed, err := ResolveWorkloadComposition(workload, []CapabilityTrait{trait}, []string{ApplicationRuntimeDaprCapability})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(suppressed.Decisions) != 1 || suppressed.Decisions[0].Action != TraitDecisionSuppressNative {
+		t.Fatalf("pre-existing Dapr target capability was not duplicate-suppressed: %#v", suppressed.Decisions)
+	}
+}
+
 func TestManagedResourceTypeRequiresSecretReferencesForSensitiveOutputs(t *testing.T) {
 	base := ManagedResourceType{
 		ProjectID: "prj-1", Name: "postgres", Version: "1.0.0", Category: "database", Provisioner: "product-api",
