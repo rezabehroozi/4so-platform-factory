@@ -186,7 +186,7 @@ func validDaprSupplyChainLock() DaprRuntimeSupplyChainLock {
 		HelmPackageDigest: digest("0"), HelmRenderDigest: digest("1"),
 		HelmMirrorReference: "zot.internal.example/dapr-charts/dapr@" + digest("4"), HelmMirrorManifestDigest: digest("4"),
 		AcquisitionReceiptDigest: digest("2"), MirrorEvidenceDigest: digest("3"),
-		ExecutorEvidenceDigest: digest("5"), ExecutorImageDigest: digest("6"),
+		ExecutorEvidenceDigest: digest("5"), ExecutorSourceReleaseDigest: digest("7"), ExecutorImageDigest: digest("6"),
 		ExecutorImageReference: "zot.internal.example/4so/dapr-runtime@" + digest("6"),
 		RegistryAuthority: "zot", RegistryScheme: "https", MirrorRegistry: "zot.internal.example",
 		ImageLocks: locks, ZotMirrorVerified: true, OfflineReplayReady: true, Admitted: true,
