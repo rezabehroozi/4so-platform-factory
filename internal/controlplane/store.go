@@ -123,6 +123,7 @@ type Store interface {
 	StartOperationAttempt(context.Context, string, int64, string, int64, string) (Operation, error)
 	BeginOperationVerification(context.Context, string, int64, string, int64, string) (Operation, error)
 	ReportOperationFailure(context.Context, string, int64, string, int64, OperationFailureReport, string) (Operation, error)
+	ResolveUnknownOperationOutcome(context.Context, string, int64, OperationUnknownOutcomeResolution, string, string) (Operation, error)
 	CompleteOperation(context.Context, string, int64, string, int64, string) (Operation, error)
 	RequestOperationCancellation(context.Context, string, int64, string, string) (Operation, error)
 	AcknowledgeOperationCancellation(context.Context, string, int64, string, int64, string) (Operation, error)
