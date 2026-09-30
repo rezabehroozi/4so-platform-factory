@@ -580,7 +580,11 @@ func main() {
 			logger.Error("Dapr executor image authority configuration failed", "error", executorErr)
 			os.Exit(1)
 		}
-		if executorErr = apiServer.ConfigureDaprExecutorAuthority(executorAuthority, os.Getenv("PLATFORM_FACTORY_INTERNAL_REGISTRY_URL")); executorErr != nil {
+		if executorErr = apiServer.ConfigureDaprExecutorAuthority(
+			executorAuthority,
+			os.Getenv("PLATFORM_FACTORY_INTERNAL_REGISTRY_URL"),
+			os.Getenv("PLATFORM_FACTORY_SOURCE_RELEASE_DIGEST"),
+		); executorErr != nil {
 			logger.Error("Dapr executor image authority admission failed", "error", executorErr)
 			os.Exit(1)
 		}
@@ -596,7 +600,11 @@ func main() {
 			logger.Error("Dapr runtime supply-chain configuration failed", "error", lockErr)
 			os.Exit(1)
 		}
-		if lockErr = apiServer.ConfigureDaprRuntimeLock(lock, os.Getenv("PLATFORM_FACTORY_INTERNAL_REGISTRY_URL")); lockErr != nil {
+		if lockErr = apiServer.ConfigureDaprRuntimeLock(
+			lock,
+			os.Getenv("PLATFORM_FACTORY_INTERNAL_REGISTRY_URL"),
+			os.Getenv("PLATFORM_FACTORY_SOURCE_RELEASE_DIGEST"),
+		); lockErr != nil {
 			logger.Error("Dapr runtime supply-chain admission failed", "error", lockErr)
 			os.Exit(1)
 		}
