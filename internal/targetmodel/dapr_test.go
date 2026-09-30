@@ -61,9 +61,12 @@ func TestDaprRuntimeSourcePlanPinsMinimalUpstreamProfile(t *testing.T) {
 		overrides[item.Path] = item.Value
 	}
 	for path, want := range map[string]string{
+		"global.registry": "ghcr.io/dapr",
+		"global.tag": "1.18.4",
 		"global.actors.enabled": "false",
 		"global.scheduler.enabled": "false",
 		"global.mtls.enabled": "true",
+		"global.prometheus.enabled": "true",
 		"dapr_config.dapr_config_chart_included": "false",
 		"dapr_sidecar_injector.sidecarDropALLCapabilities": "true",
 	} {
@@ -90,6 +93,11 @@ func TestDaprRuntimeSourcePlanRejectsUpstreamDefaultsThatReenableDuplicateAuthor
 	}
 	if issues := ValidateDaprRuntimeSourcePlan(plan); !contains(issues, "dapr-required-helm-override-missing") {
 		t.Fatalf("scheduler re-enable was not rejected: %#v", issues)
+	}
+	plan = DaprRuntimeSourcePlanModel()
+	plan.HelmOverrides = append(plan.HelmOverrides, DaprHelmOverride{Path: "global.scheduler.placement.enabled", Value: "true"})
+	if issues := ValidateDaprRuntimeSourcePlan(plan); !contains(issues, "dapr-helm-overrides-not-exact") {
+		t.Fatalf("unreviewed Dapr Helm override was accepted: %#v", issues)
 	}
 	plan = DaprRuntimeSourcePlanModel()
 	plan.RequiredImages = append(plan.RequiredImages, DaprRuntimeImageRole{Role: "placement", Repository: "ghcr.io/dapr/placement"})
@@ -203,6 +211,12 @@ func TestDaprSupplyChainLockRejectsMirrorRegistrySelfInconsistency(t *testing.T)
 	lock.Admitted = false
 	if issues := ValidateDaprRuntimeSupplyChainLock(lock); !contains(issues, "dapr-supply-chain-mirror-reference-invalid") {
 		t.Fatalf("Dapr mirror escaped declared zot registry: %#v", issues)
+	}
+	lock = validDaprSupplyChainLock()
+	lock.ImageLocks[0].MirrorReference = lock.ImageLocks[0].MirrorReference + ".tampered"
+	lock.Admitted = false
+	if issues := ValidateDaprRuntimeSupplyChainLock(lock); !contains(issues, "dapr-supply-chain-mirror-reference-invalid") {
+		t.Fatalf("Dapr mirror reference suffix tampering accepted: %#v", issues)
 	}
 	lock = validDaprSupplyChainLock()
 	lock.RegistryAuthority = "docker"
