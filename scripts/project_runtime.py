@@ -102,19 +102,41 @@ def ensure_runtime_dir(root,override=None):
         raise RuntimeError("PROJECT_RUNTIME_ROOT_INVALID")
     return target
 
+def runtime_subdir(root,name,override=None):
+    if not name or "/" in name or "\\" in name or name in {".",".."}:
+        raise RuntimeError("PROJECT_RUNTIME_SUBDIR_INVALID")
+    base=ensure_runtime_dir(root,override)
+    target=base/name
+    if target.exists() or target.is_symlink():
+        if target.is_symlink() or not target.is_dir():
+            raise RuntimeError(f"PROJECT_RUNTIME_SUBDIR_INVALID {target}")
+    else:
+        target.mkdir(mode=0o700)
+    if target.is_symlink() or not target.is_dir():
+        raise RuntimeError(f"PROJECT_RUNTIME_SUBDIR_INVALID {target}")
+    return target
+
 def state_file(root,override=None): return runtime_dir(root,override)/"state.json"
 def state_mutex_file(root,override=None): return runtime_dir(root,override)/"state.mutex"
 def lock_file(root,override=None): return runtime_dir(root,override)/"mutation.lock"
-def log_file(root,run_id,override=None): return runtime_dir(root,override)/"logs"/f"{canonical_run_id(run_id)}.log"
+def log_file(root,run_id,override=None): return runtime_subdir(root,"logs",override)/f"{canonical_run_id(run_id)}.log"
 def recovery_file(root,run_id,override=None):
     run_id=canonical_run_id(run_id)
     digest=hashlib.sha256(run_id.encode("utf-8")).hexdigest()
-    return runtime_dir(root,override)/"recovery"/f"{digest}.json"
+    return runtime_subdir(root,"recovery",override)/f"{digest}.json"
 def command_exec_failure_file(root,run_id,attempt,override=None):
     run_id=canonical_run_id(run_id)
     identity=f"{run_id}:{int(attempt or 0)}"
     digest=hashlib.sha256(identity.encode("utf-8")).hexdigest()
-    return runtime_dir(root,override)/"command-exec-failures"/f"{digest}.json"
+    return runtime_subdir(root,"command-exec-failures",override)/f"{digest}.json"
+
+def state_log_file(root,state,override=None):
+    run_id=canonical_run_id(state.get("runId"))
+    expected=log_file(root,run_id,override)
+    stored=str(state.get("latestLogPath") or "").strip()
+    if not stored or Path(os.path.abspath(stored))!=expected:
+        raise RuntimeError("PROJECT_RUNTIME_LOG_PATH_DRIFT")
+    return expected
 
 def load(path):
     if path.is_symlink() or not path.is_file() or path.stat().st_size<=0 or path.stat().st_size>4*1024*1024:
@@ -573,7 +595,7 @@ def resume(root,override=None,allow_detached=False):
              manualReplayAuthorized=False,safeToRetry=False,executionStarted=False,
              activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,lastHeartbeat=now())
     write_state(root,s,override)
-    lp=Path(s["latestLogPath"]); lp.parent.mkdir(parents=True,exist_ok=True)
+    lp=state_log_file(root,s,override)
     worker,wt=spawn_waiting_worker(root,run_id,s,lp,override,resume_attempt=s["attempt"])
     s=activate_worker(root,s,run_id,worker.pid,wt,override)
     return {"action":"RESUMED","runId":run_id,"pid":worker.pid,"attempt":s["attempt"],"state":s}
@@ -588,7 +610,7 @@ def worker(root,run_id,override=None):
     s=read_state(root,override)
     if not s or s.get("runId")!=run_id: raise RuntimeError("PROJECT_RUNTIME_WORKER_STATE_MISMATCH")
     command=list(s.get("command") or [])
-    log=Path(s["latestLogPath"]); hb=max(1,min(60,int(s.get("heartbeatSeconds") or 30)))
+    log=state_log_file(root,s,override); hb=max(1,min(60,int(s.get("heartbeatSeconds") or 30)))
     interrupted=False; child=None
     def stop(_sig,_frame):
         nonlocal interrupted
