@@ -155,6 +155,9 @@ def read_lock(root,override=None):
     if not p.exists(): return None
     d=load(p)
     if d.get("authority")!=LOCK_AUTHORITY: raise RuntimeError("PROJECT_RUNTIME_LOCK_AUTHORITY_INVALID")
+    run_id=str(d.get("runId") or "").strip(); pid=d.get("pid"); start=str(d.get("startTicks") or "").strip()
+    if not run_id or type(pid) is not int or pid<=0 or not start.isdigit():
+        raise RuntimeError("PROJECT_RUNTIME_LOCK_IDENTITY_INVALID")
     return d
 
 def reconcile(root,state,override=None,write=True):
@@ -221,18 +224,26 @@ def reclaim_stale_lock(root,state,override=None):
     p.unlink(missing_ok=True); fsync_dir(p); return True
 
 def acquire(root,run_id,override=None):
+    run_id=str(run_id or "").strip()
+    if not run_id: raise RuntimeError("PROJECT_RUNTIME_LOCK_RUN_ID_INVALID")
+    owner_pid=os.getpid(); owner_ticks=ticks(owner_pid)
+    if not owner_ticks: raise RuntimeError("PROJECT_RUNTIME_LOCK_OWNER_IDENTITY_UNAVAILABLE")
     p=lock_file(root,override); p.parent.mkdir(parents=True,exist_ok=True)
-    for _ in range(2):
-        payload={"authority":LOCK_AUTHORITY,"runId":run_id,"pid":os.getpid(),"startTicks":ticks(os.getpid()),"hostname":socket.gethostname(),"acquiredAt":now()}
-        try: fd=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-        except FileExistsError:
-            lk=read_lock(root,override)
-            if lk and lock_owner_live(lk): raise RuntimeError(f"PROJECT_RUNTIME_ALREADY_ACTIVE runId={lk.get('runId')} pid={lk.get('pid')}")
-            if not reclaim_stale_lock(root,read_state(root,override),override): raise RuntimeError("PROJECT_RUNTIME_STALE_LOCK_REQUIRES_OBSERVATION")
-            continue
-        with os.fdopen(fd,"w") as f:
-            json.dump(payload,f,sort_keys=True,indent=2); f.write("\n"); f.flush(); os.fsync(f.fileno())
-        fsync_dir(p); return payload
+    # Serialize stale-lock observation, unlink and replacement. Without this
+    # mutex two reclaimers can both observe the same stale inode and one can
+    # unlink the other's freshly-created live lock.
+    with state_guard(root,override):
+        for _ in range(2):
+            payload={"authority":LOCK_AUTHORITY,"runId":run_id,"pid":owner_pid,"startTicks":owner_ticks,"hostname":socket.gethostname(),"acquiredAt":now()}
+            try: fd=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+            except FileExistsError:
+                lk=read_lock(root,override)
+                if lk and lock_owner_live(lk): raise RuntimeError(f"PROJECT_RUNTIME_ALREADY_ACTIVE runId={lk.get('runId')} pid={lk.get('pid')}")
+                if not reclaim_stale_lock(root,read_state(root,override),override): raise RuntimeError("PROJECT_RUNTIME_STALE_LOCK_REQUIRES_OBSERVATION")
+                continue
+            with os.fdopen(fd,"w") as f:
+                json.dump(payload,f,sort_keys=True,indent=2); f.write("\n"); f.flush(); os.fsync(f.fileno())
+            fsync_dir(p); return payload
     raise RuntimeError("PROJECT_RUNTIME_LOCK_ACQUIRE_FAILED")
 
 def transfer(root,run_id,to_pid,to_ticks,override=None):
