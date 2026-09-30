@@ -154,3 +154,29 @@ func (s *MemoryStore) ListClaimableOperationsByKindTargetPrefix(_ context.Contex
 	}
 	return out, nil
 }
+
+
+func (s *MemoryStore) ListUnknownRecoveryOperationsByKindTargetPrefix(_ context.Context, kind, targetPrefix string, limit int) ([]Operation, error) {
+	kind, targetPrefix = strings.TrimSpace(kind), strings.TrimSpace(targetPrefix)
+	if kind == "" || targetPrefix == "" || limit <= 0 || limit > 200 {
+		return nil, fmt.Errorf("%w: operation kind, target prefix and limit 1..200 are required", ErrValidation)
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Operation, 0, min(limit, len(s.operations)))
+	for _, op := range s.operations {
+		if op.Kind != kind || !strings.HasPrefix(op.TargetRef, targetPrefix) ||
+			op.State != OperationFailed || op.LastFailureClass != OperationFailureUnknown {
+			continue
+		}
+		out = append(out, op)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].UpdatedAt.Equal(out[j].UpdatedAt) {
+			return out[i].UpdatedAt.Before(out[j].UpdatedAt)
+		}
+		return out[i].ID < out[j].ID
+	})
+	if len(out) > limit { out = out[:limit] }
+	return out, nil
+}
