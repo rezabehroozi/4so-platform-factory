@@ -6,7 +6,7 @@ const state = {
   locale: localStorage.getItem('platformLocale') || 'fa',
   session: null,
   currentPage: 'overview',
-  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
+  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], daprAssessment: null, daprLifecycle: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
   baselines: [], baselineDeployments: [], verifications: [], closures: [], runtimeCertifications: [],
   fleetGroups: [], driftScans: [], upgradeCampaigns: [], recoveryCheckpoints: [], backupPolicies: [], dataProtectionRuns: [], fleetHealth: null, day2CampaignEngine: null, tenants: [], tenantPlans: [],
   clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], targetNodeLifecycleAuthority: null, currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], virtualClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
@@ -1679,6 +1679,7 @@ const operationalMutationPathRules=[
   [/\/managed-okd-installs(?:\/|$)/,'clusters'],[/\/maintenance-runs(?:\/|$)/,'clusters'],[/\/provider-clusters(?:\/|$)/,'providers'],[/\/marketplace\/installations(?:\/|$)/,'marketplace'],
   [/\/baseline-deployments(?:\/|$)/,'baselines'],[/\/runtime-verifications(?:\/|$)/,'verification'],[/\/runtime-closure-campaigns(?:\/|$)/,'verification'],
   [/\/runtime-certifications(?:\/|$)/,'verification'],[/\/upgrade-campaigns(?:\/|$)/,'fleet'],[/\/tenants(?:\/|$)/,'tenants'],
+  [/\/application-platform\/dapr\/lifecycle(?:\/|$)/,'operations'],
   [/\/drift-scans\/.+\/remediate(?:\/|$)/,'fleet'],[/\/operations(?:\/|$)/,'operations']
 ];
 function mutationOutcomeCandidate(path,body) {
@@ -1735,7 +1736,8 @@ async function api(path, options = {}) {
   const mutation = ['POST','PUT','PATCH','DELETE'].includes(method);
   const submittedForm = mutation && state.lastSubmittedForm && (Date.now()-state.lastSubmittedAt)<500 ? state.lastSubmittedForm : null;
   if (mutation) { state.lastSubmittedForm = null; state.lastSubmittedAt = 0; }
-  const viewerSafePost = ['/api/v1/blueprints/validate','/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/compatibility/evaluate','/api/v1/installations/plans','/api/v1/blueprint-releases/compare','/api/v1/runtime-closure-reports/verify','/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate','/api/v1/edge/local-authority/policies/compile','/api/v1/edge/local-authority/mutations/admit','/api/v1/edge/local-authority/reconnect/resolve','/api/v1/support-bundles','/api/v1/support-bundle-jobs','/api/v1/workload-log-queries'].includes(path);
+  const viewerSafePostPath=scopeURL(path).pathname;
+  const viewerSafePost = ['/api/v1/blueprints/validate','/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/compatibility/evaluate','/api/v1/installations/plans','/api/v1/blueprint-releases/compare','/api/v1/runtime-closure-reports/verify','/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate','/api/v1/edge/local-authority/policies/compile','/api/v1/edge/local-authority/mutations/admit','/api/v1/edge/local-authority/reconnect/resolve','/api/v1/application-platform/dapr/assessment','/api/v1/application-platform/dapr/workload-plan','/api/v1/support-bundles','/api/v1/support-bundle-jobs','/api/v1/workload-log-queries'].includes(viewerSafePostPath);
   if (state.session && ['POST','PUT','PATCH','DELETE'].includes(method) && !viewerSafePost && !canOperate()) {
     // A viewer may have been promoted after this tab loaded. Refresh session
     // authority before blocking a mutation purely from stale client state.
@@ -4204,6 +4206,66 @@ function renderPlatformTemplateAuthorities(){
 }
 function applicationProjectName(id){return state.projects.find(item=>item.id===id)?.displayName||id||'—';}
 function applicationListOptions(select,items,label){if(!select)return;select.innerHTML='<option value="">Select</option>'+items.map(item=>`<option value="${esc(item.id)}">${esc(label(item))}</option>`).join('');}
+function daprClusterRecords(projectId){
+  return (state.clusters||[]).map(row=>row?.cluster||row).filter(item=>item&&item.id&&(!projectId||item.projectId===projectId)&&item.connectionState!=='REVOKED');
+}
+function resetDaprRuntimeWorkflow(){
+  state.daprAssessment=null;state.daprLifecycle=null;
+  const result=$('#dapr-runtime-result');if(result)result.innerHTML='';
+  const operation=$('#dapr-lifecycle-operation');if(operation)operation.value='';
+  renderDaprRuntimeControls();
+}
+function renderDaprRuntimeOptions(){
+  const project=$('#dapr-project'),cluster=$('#dapr-cluster');
+  if(!project||!cluster)return;
+  setProjectOptions(project,state.projects,item=>item.displayName||item.name||item.id,'Create a project first');
+  const projectId=project.value;
+  setOptions(cluster,daprClusterRecords(projectId),item=>item.id,item=>`${item.displayName||item.name||item.id} · ${item.distribution||'distribution pending'}`,'Connect a cluster in this project first');
+  renderDaprRuntimeControls();
+}
+function daprLifecycleActions(observed){
+  return observed?.installed?[
+    {value:'UPGRADE',label:'Upgrade exact Dapr runtime'},
+    {value:'REMOVE',label:'Remove product-managed Dapr runtime'}
+  ]:[{value:'INSTALL',label:'Install exact Dapr runtime'}];
+}
+function renderDaprRuntimeControls(){
+  const assessment=state.daprAssessment;
+  const lifecycle=state.daprLifecycle;
+  const action=$('#dapr-lifecycle-action'),submit=$('#dapr-lifecycle-submit'),refresh=$('#dapr-lifecycle-refresh'),approve=$('#dapr-lifecycle-approve'),operation=$('#dapr-lifecycle-operation');
+  if(!action||!submit||!refresh||!approve||!operation)return;
+  const actions=daprLifecycleActions(assessment?.observed);
+  setOptions(action,actions,item=>item.value,item=>item.label,'No valid lifecycle action');
+  const managed=assessment?.assessment?.mode==='INSTALL_REQUIRED'&&assessment?.assessment?.eligible===true;
+  submit.disabled=!managed||!canOperate();
+  const op=lifecycle?.operation;
+  operation.value=op?.id||'';
+  refresh.disabled=!op?.id;
+  approve.disabled=!op?.id||op.state!=='AWAITING_APPROVAL'||!canAdminister();
+}
+function renderDaprRuntimeResult(){
+  const host=$('#dapr-runtime-result');if(!host)return;
+  const result=state.daprAssessment,lifecycle=state.daprLifecycle;
+  if(!result){host.innerHTML='<div class="inline-summary">Assess the selected cluster before requesting any Dapr lifecycle change.</div>';return;}
+  const assessment=result.assessment||{},blockers=assessment.blockers||[],observed=result.observed;
+  const mode=assessment.mode||'UNKNOWN';
+  const readiness=assessment.eligible?'ELIGIBLE':'BLOCKED';
+  const observedText=observed?(observed.installed?`installed · ${observed.version||'version unknown'} · ${shortDigest(observed.runtimeLockDigest)}`:'not installed'):'no product-managed runtime evidence';
+  let html=`<div class="${assessment.eligible?'success-banner':'warning-banner'}"><strong>Dapr assessment</strong> · ${badge(mode)} ${badge(readiness)} · reviewed ${esc(result.reviewedRuntimeVersion||'—')}<br><span>Observed: ${esc(observedText)}</span><br><span>Supply chain: ${result.supplyChainAdmitted?'admitted':'not admitted'} ${result.supplyChainDigest?`· <span class="technical">${esc(shortDigest(result.supplyChainDigest))}</span>`:''}</span>${blockers.length?`<br><span>Blockers: ${esc(blockers.join(', '))}</span>`:''}<br><small>Assessment and source admission do not imply runtime or Physical certification.</small></div>`;
+  const op=lifecycle?.operation;
+  if(op){
+    html+=`<div class="inline-summary"><strong>Lifecycle request</strong> · ${badge(op.state||'UNKNOWN')} · <span class="technical">${esc(op.id||'')}</span> · revision ${esc(op.revision||'—')}<br><small>${op.state==='AWAITING_APPROVAL'?'Waiting for an independently authorized approval.':'Authoritative state is read from the durable operation.'}</small><div class="button-row"><button type="button" class="secondary small-button" data-dapr-open-operations>Open Operations</button></div></div>`;
+  }
+  host.innerHTML=html;
+  host.querySelector('[data-dapr-open-operations]')?.addEventListener('click',()=>navigate('operations'));
+}
+async function refreshDaprLifecycle(){
+  const id=state.daprLifecycle?.operation?.id;if(!id)return;
+  const result=await api(`/api/v1/application-platform/dapr/lifecycle/${encodeURIComponent(id)}`);
+  state.daprLifecycle=result;
+  if(result.observed&&state.daprAssessment)state.daprAssessment={...state.daprAssessment,observed:result.observed};
+  renderDaprRuntimeControls();renderDaprRuntimeResult();
+}
 function renderApplicationPlatformComposition(){
   const workloadGrid=$('#application-workload-grid'),resourceGrid=$('#application-resource-grid'),releaseGrid=$('#application-release-grid'),bindingGrid=$('#application-binding-grid');
   if(!workloadGrid||!resourceGrid||!releaseGrid||!bindingGrid)return;
@@ -4228,11 +4290,13 @@ function renderApplicationPlatformComposition(){
   applicationListOptions($('#application-promotion-binding'),state.applicationEnvironmentBindings,item=>`${item.environment} · ${item.namespace} · r${item.revision}`);
   const selectedBinding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-promotion-binding')?.value)||state.applicationEnvironmentBindings[0];
   applicationListOptions($('#application-promotion-release'),state.applicationReleases.filter(item=>!selectedBinding||item.projectId===selectedBinding.projectId),item=>`${item.name} · ${item.version}`);
+  renderDaprRuntimeOptions();
+  renderDaprRuntimeResult();
 }
 async function loadPlatformTemplates(){
   try{
-    const [projects,releases,schemas,policies,templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings]=await Promise.all([softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/blueprint-releases',[],'blueprint releases'),softApi('/api/v1/variable-schemas',[],'variable schemas'),softApi('/api/v1/platform-policy-sets',[],'platform policy sets'),softApi('/api/v1/platform-templates',[],'platform templates'),softApi('/api/v1/application-platform/workload-types',[],'application workload shapes'),softApi('/api/v1/application-platform/capability-traits',[],'application capability traits'),softApi('/api/v1/application-platform/resource-types',[],'managed dependency types'),softApi('/api/v1/application-platform/workspace-profiles',[],'workspace profiles'),softApi('/api/v1/application-platform/releases',[],'application releases'),softApi('/api/v1/application-platform/environment-bindings',[],'environment bindings')]);
-    Object.assign(state,{projects,blueprintReleases:releases,variableSchemas:schemas,platformPolicySets:policies,platformTemplates:templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings});
+    const [projects,releases,schemas,policies,templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters]=await Promise.all([softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/blueprint-releases',[],'blueprint releases'),softApi('/api/v1/variable-schemas',[],'variable schemas'),softApi('/api/v1/platform-policy-sets',[],'platform policy sets'),softApi('/api/v1/platform-templates',[],'platform templates'),softApi('/api/v1/application-platform/workload-types',[],'application workload shapes'),softApi('/api/v1/application-platform/capability-traits',[],'application capability traits'),softApi('/api/v1/application-platform/resource-types',[],'managed dependency types'),softApi('/api/v1/application-platform/workspace-profiles',[],'workspace profiles'),softApi('/api/v1/application-platform/releases',[],'application releases'),softApi('/api/v1/application-platform/environment-bindings',[],'environment bindings'),softApi('/api/v1/clusters',[],'connected clusters')]);
+    Object.assign(state,{projects,blueprintReleases:releases,variableSchemas:schemas,platformPolicySets:policies,platformTemplates:templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters});
     renderPlatformTemplateAuthorities();
   }catch(error){$('#platform-template-grid').innerHTML=errorState(error.message);toast(error.message,'error');}
 }
@@ -4241,6 +4305,40 @@ $('#template-schema-form').onsubmit=async event=>{event.preventDefault();const f
 $('#template-policy-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;try{const required=$('#template-policy-backup-required').checked;await api('/api/v1/platform-policy-sets',{method:'POST',body:{projectId:$('#template-policy-project').value,name:$('#template-policy-name').value.trim(),version:$('#template-policy-version').value.trim(),maintenance:{riskClass:$('#template-policy-risk').value,requireApproval:$('#template-policy-approval').checked,maxUnavailable:Number($('#template-policy-max-unavailable').value),requireRecoveryCheckpoint:$('#template-policy-checkpoint').checked},backup:{required,provider:required?$('#template-policy-backup-provider').value.trim():'',schedule:required?$('#template-policy-backup-schedule').value.trim():'',retention:required?$('#template-policy-backup-retention').value.trim():''},security:{podSecurityLevel:$('#template-policy-security').value,defaultDenyIngress:$('#template-policy-deny-ingress').checked,defaultDenyEgress:$('#template-policy-deny-egress').checked,allowDNS:$('#template-policy-allow-dns').checked}}});toast('Immutable policy set created.');form.reset();await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
 $('#platform-template-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;try{const targets=$('#platform-template-targets').value.split(',').map(v=>v.trim()).filter(Boolean),certificationRequirements=$$('[data-template-cert]:checked').map(el=>el.value);if(!certificationRequirements.length)throw new Error('Select at least one certification requirement.');await api('/api/v1/platform-templates',{method:'POST',body:{projectId:$('#platform-template-project').value,name:$('#platform-template-name').value.trim(),version:$('#platform-template-version').value.trim(),blueprintReleaseId:$('#platform-template-blueprint').value,variableSchemaId:$('#platform-template-schema').value,policySetId:$('#platform-template-policy').value,allowedTargetClasses:targets,certificationRequirements}});toast('Immutable Platform Template created.');form.reset();$$('[data-template-cert]').forEach(el=>el.checked=true);await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
 $('#platform-template-project').addEventListener('change',renderPlatformTemplateOptions);
+$('#dapr-project').addEventListener('change',()=>{resetDaprRuntimeWorkflow();renderDaprRuntimeOptions();});
+$('#dapr-cluster').addEventListener('change',resetDaprRuntimeWorkflow);
+$('#dapr-disconnected').addEventListener('change',resetDaprRuntimeWorkflow);
+$('#dapr-assessment-form').onsubmit=async event=>{
+  event.preventDefault();if(!event.currentTarget.reportValidity())return;
+  const projectId=$('#dapr-project').value,clusterId=$('#dapr-cluster').value,disconnected=$('#dapr-disconnected').checked;
+  try{
+    const result=await api('/api/v1/application-platform/dapr/assessment',{method:'POST',body:{projectId,clusterId,disconnected}});
+    state.daprAssessment={...result,context:{projectId,clusterId,disconnected}};state.daprLifecycle=null;
+    renderDaprRuntimeControls();renderDaprRuntimeResult();
+    toast(result.assessment?.mode==='USE_NATIVE'?'Target-native Dapr detected; duplicate installation is suppressed.':(result.assessment?.eligible?'Dapr target is eligible for an approval-gated lifecycle request.':'Dapr target assessment has blockers.'),result.assessment?.eligible?'success':'warning');
+  }catch(error){state.daprAssessment=null;state.daprLifecycle=null;renderDaprRuntimeControls();$('#dapr-runtime-result').innerHTML=errorState(error.message);toast(error.message,'error');}
+};
+$('#dapr-lifecycle-form').onsubmit=async event=>{
+  event.preventDefault();if(!event.currentTarget.reportValidity())return;
+  const assessment=state.daprAssessment,ctx=assessment?.context;
+  if(!ctx||assessment?.assessment?.mode!=='INSTALL_REQUIRED'||assessment?.assessment?.eligible!==true){toast('Run a current eligible Dapr assessment first.','warning');return;}
+  const action=$('#dapr-lifecycle-action').value;
+  if(!await confirmAction(`${action[0]}${action.slice(1).toLowerCase()} Dapr runtime`,`Create an approval-gated ${action.toLowerCase()} request for the selected cluster? Runtime success will require executor readback and is not implied by request creation.`,action==='REMOVE'))return;
+  try{
+    const result=await api('/api/v1/application-platform/dapr/lifecycle',{method:'POST',headers:{'Idempotency-Key':idempotency('dapr-lifecycle')},body:{projectId:ctx.projectId,clusterId:ctx.clusterId,action,disconnected:ctx.disconnected}});
+    state.daprLifecycle=result;renderDaprRuntimeControls();renderDaprRuntimeResult();
+    toast('Dapr lifecycle request created; terminal runtime success is not implied.');
+  }catch(error){toast(error.message,'error');}
+};
+$('#dapr-lifecycle-refresh').onclick=async()=>{try{await refreshDaprLifecycle();}catch(error){toast(error.message,'error');}};
+$('#dapr-lifecycle-approve').onclick=async()=>{
+  const current=state.daprLifecycle?.operation;if(!current?.id||current.state!=='AWAITING_APPROVAL')return;
+  if(!await confirmAction('Approve Dapr lifecycle request','Approve this exact revision for execution? Requester/approver separation remains enforced by the server.',false))return;
+  try{
+    const result=await api(`/api/v1/application-platform/dapr/lifecycle/${encodeURIComponent(current.id)}/approve`,{method:'POST',headers:{'If-Match':`"${current.revision}"`}});
+    state.daprLifecycle=result;renderDaprRuntimeControls();renderDaprRuntimeResult();toast('Dapr lifecycle request approved and queued; runtime success is not implied.');
+  }catch(error){toast(error.message,'error');}
+};
 $('#application-resolution-workload').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-promotion-binding').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-resolution-form').onsubmit=async event=>{event.preventDefault();const workloadId=$('#application-resolution-workload').value;if(!workloadId)return;const workload=state.applicationWorkloadTypes.find(item=>item.id===workloadId);const traitIds=[...$('#application-resolution-traits').selectedOptions].map(option=>option.value);const observedNativeCapabilities=$('#application-resolution-native').value.split(',').map(v=>v.trim()).filter(Boolean);try{const result=await api('/api/v1/application-platform/resolve',{method:'POST',body:{projectId:workload.projectId,workloadTypeId:workloadId,traitIds,observedNativeCapabilities}});$('#application-composition-result').innerHTML=`<div class="inline-summary"><strong>Capability resolution preview</strong> · ${esc(shortDigest(result.resolutionDigest))}<br>${(result.decisions||[]).map(row=>`${badge(row.action)} ${esc(row.capability)} — ${esc(row.reason)}`).join('<br>')||'No traits selected.'}<br><small>Preview only. No target or desired binding was mutated.</small></div>`;}catch(error){toast(error.message,'error');}};
