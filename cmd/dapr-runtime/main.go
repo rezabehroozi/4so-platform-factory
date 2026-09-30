@@ -67,6 +67,34 @@ type kubeConfigMap struct {
 	Data map[string]string `json:"data"`
 }
 
+type kubeDeployment struct {
+	Metadata struct {
+		Name       string `json:"name"`
+		Generation int64  `json:"generation"`
+	} `json:"metadata"`
+	Spec struct {
+		Replicas *int32 `json:"replicas,omitempty"`
+		Template struct {
+			Spec struct {
+				Containers []struct {
+					Name  string `json:"name"`
+					Image string `json:"image"`
+					Env   []struct {
+						Name  string `json:"name"`
+						Value string `json:"value,omitempty"`
+					} `json:"env,omitempty"`
+				} `json:"containers"`
+			} `json:"spec"`
+		} `json:"template"`
+	} `json:"spec"`
+	Status struct {
+		ObservedGeneration int64 `json:"observedGeneration"`
+		Replicas           int32 `json:"replicas"`
+		UpdatedReplicas    int32 `json:"updatedReplicas"`
+		AvailableReplicas  int32 `json:"availableReplicas"`
+	} `json:"status"`
+}
+
 type kubeClient struct {
 	base  string
 	token string
@@ -302,6 +330,145 @@ func (k *kubeClient) ensureRuntimeNamespace(ctx context.Context) error {
 	return nil
 }
 
+func (k *kubeClient) getDeployment(ctx context.Context, name string) (*kubeDeployment, bool, error) {
+	path := "/apis/apps/v1/namespaces/" + runtimeNamespace + "/deployments/" + name
+	res, raw, err := k.request(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return nil, false, err
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return nil, false, nil
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, false, fmt.Errorf("Dapr Deployment read failed for %s: %s %s", name, res.Status, strings.TrimSpace(string(raw)))
+	}
+	var deployment kubeDeployment
+	if err = json.Unmarshal(raw, &deployment); err != nil {
+		return nil, false, err
+	}
+	return &deployment, true, nil
+}
+
+func (k *kubeClient) statefulSetExists(ctx context.Context, name string) (bool, error) {
+	path := "/apis/apps/v1/namespaces/" + runtimeNamespace + "/statefulsets/" + name
+	res, raw, err := k.request(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return false, err
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	if res.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("Dapr StatefulSet read failed for %s: %s %s", name, res.Status, strings.TrimSpace(string(raw)))
+	}
+	return true, nil
+}
+
+func deploymentContainer(deployment *kubeDeployment, name string) (image string, env map[string]string, err error) {
+	if deployment == nil {
+		return "", nil, errors.New("DAPR_OBSERVED_DEPLOYMENT_MISSING")
+	}
+	matches := 0
+	env = map[string]string{}
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name != name {
+			continue
+		}
+		matches++
+		image = strings.TrimSpace(container.Image)
+		for _, item := range container.Env {
+			key := strings.TrimSpace(item.Name)
+			if key != "" {
+				env[key] = strings.TrimSpace(item.Value)
+			}
+		}
+	}
+	if matches != 1 || image == "" {
+		return "", nil, fmt.Errorf("DAPR_OBSERVED_CONTAINER_IDENTITY_INVALID %s", name)
+	}
+	return image, env, nil
+}
+
+func verifyDeploymentReadyExact(deployment *kubeDeployment, name, containerName, expectedImage string) (map[string]string, error) {
+	if deployment == nil || deployment.Metadata.Name != name {
+		return nil, fmt.Errorf("DAPR_OBSERVED_DEPLOYMENT_IDENTITY_INVALID %s", name)
+	}
+	replicas := int32(1)
+	if deployment.Spec.Replicas != nil {
+		replicas = *deployment.Spec.Replicas
+	}
+	if replicas <= 0 || deployment.Status.ObservedGeneration < deployment.Metadata.Generation ||
+		deployment.Status.UpdatedReplicas != replicas || deployment.Status.AvailableReplicas != replicas {
+		return nil, fmt.Errorf("DAPR_OBSERVED_DEPLOYMENT_NOT_READY %s desired=%d updated=%d available=%d generation=%d observedGeneration=%d",
+			name, replicas, deployment.Status.UpdatedReplicas, deployment.Status.AvailableReplicas,
+			deployment.Metadata.Generation, deployment.Status.ObservedGeneration)
+	}
+	image, env, err := deploymentContainer(deployment, containerName)
+	if err != nil {
+		return nil, err
+	}
+	if image != expectedImage {
+		return nil, fmt.Errorf("DAPR_OBSERVED_IMAGE_MISMATCH %s got=%s want=%s", name, image, expectedImage)
+	}
+	return env, nil
+}
+
+func (k *kubeClient) verifyInstalledRuntime(ctx context.Context, lock daprruntime.RuntimeLock) error {
+	operatorImage, err := imageByRole(lock, "operator")
+	if err != nil { return err }
+	injectorImage, err := imageByRole(lock, "injector")
+	if err != nil { return err }
+	sidecarImage, err := imageByRole(lock, "sidecar")
+	if err != nil { return err }
+	sentryImage, err := imageByRole(lock, "sentry")
+	if err != nil { return err }
+
+	checks := []struct {
+		name, container, image string
+	}{
+		{"dapr-operator", "dapr-operator", operatorImage},
+		{"dapr-sidecar-injector", "dapr-sidecar-injector", injectorImage},
+		{"dapr-sentry", "dapr-sentry", sentryImage},
+	}
+	var injectorEnv map[string]string
+	for _, check := range checks {
+		deployment, found, getErr := k.getDeployment(ctx, check.name)
+		if getErr != nil {
+			return getErr
+		}
+		if !found {
+			return fmt.Errorf("DAPR_OBSERVED_DEPLOYMENT_MISSING %s", check.name)
+		}
+		env, verifyErr := verifyDeploymentReadyExact(deployment, check.name, check.container, check.image)
+		if verifyErr != nil {
+			return verifyErr
+		}
+		if check.name == "dapr-sidecar-injector" {
+			injectorEnv = env
+		}
+	}
+	for key, want := range map[string]string{
+		"SIDECAR_IMAGE": sidecarImage,
+		"SIDECAR_RUN_AS_NON_ROOT": "true",
+		"SIDECAR_DROP_ALL_CAPABILITIES": "true",
+		"SIDECAR_READ_ONLY_ROOT_FILESYSTEM": "true",
+	} {
+		if injectorEnv[key] != want {
+			return fmt.Errorf("DAPR_OBSERVED_INJECTOR_POLICY_MISMATCH %s got=%q want=%q", key, injectorEnv[key], want)
+		}
+	}
+	for _, forbidden := range []string{"dapr-placement-server", "dapr-scheduler-server"} {
+		exists, getErr := k.statefulSetExists(ctx, forbidden)
+		if getErr != nil {
+			return getErr
+		}
+		if exists {
+			return fmt.Errorf("DAPR_FORBIDDEN_RUNTIME_AUTHORITY_PRESENT %s", forbidden)
+		}
+	}
+	return nil
+}
+
 func (k *kubeClient) getState(ctx context.Context, name string) (*ownerState, string, error) {
 	path := "/api/v1/namespaces/" + runtimeNamespace + "/configmaps/" + name
 	res, raw, err := k.request(ctx, http.MethodGet, path, nil, "")
@@ -445,6 +612,9 @@ func runLifecycle(args []string) error {
 		switch cfg.Action {
 		case daprruntime.ActionInstall, daprruntime.ActionUpgrade:
 			if owner.Installed && owner.RuntimeLockDigest == cfg.LockDigest && releaseExists {
+				if err = kube.verifyInstalledRuntime(ctx, cfg.Lock); err != nil {
+					return err
+				}
 				return kube.putState(ctx, receiptName, *owner)
 			}
 		case daprruntime.ActionRemove:
@@ -505,6 +675,9 @@ func runLifecycle(args []string) error {
 		helmArgs := []string{"upgrade", "--install", "dapr", chartPath, "--namespace", runtimeNamespace, "--create-namespace", "--wait", "--timeout", "15m"}
 		helmArgs = append(helmArgs, profile...)
 		if err = runHelm(ctx, env, helmArgs...); err != nil {
+			return err
+		}
+		if err = kube.verifyInstalledRuntime(ctx, cfg.Lock); err != nil {
 			return err
 		}
 	case daprruntime.ActionRemove:
