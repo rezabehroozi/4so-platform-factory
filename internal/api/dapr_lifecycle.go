@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,6 +54,43 @@ type daprLifecycleResult struct {
 
 type daprLifecycleOperationPager interface {
 	ListClaimableOperationsByKindTargetPrefix(context.Context, string, string, time.Time, int) ([]controlplane.Operation, error)
+}
+
+type daprRecoveryOperationPager interface {
+	ListUnknownRecoveryOperationsByKindTargetPrefix(context.Context, string, string, int) ([]controlplane.Operation, error)
+}
+
+const daprRecoveryReadbackAuthority = "DAPR_TARGET_RECOVERY_READBACK_V1"
+
+type daprRecoveryTask struct {
+	OperationID       string                       `json:"operationId"`
+	OperationRevision int64                        `json:"operationRevision"`
+	TaskFenceToken    int64                        `json:"taskFenceToken"`
+	Request           daprruntime.LifecycleRequest `json:"request"`
+}
+
+type daprRecoveryResult struct {
+	ConfirmedSuccess   bool   `json:"confirmedSuccess"`
+	Installed          bool   `json:"installed"`
+	ObservedLockDigest string `json:"observedLockDigest,omitempty"`
+	Version            string `json:"version,omitempty"`
+	UpstreamCommit     string `json:"upstreamCommit,omitempty"`
+	Phase              string `json:"phase,omitempty"`
+	Error              string `json:"error,omitempty"`
+}
+
+type daprRecoveryReadback struct {
+	Authority          string                      `json:"authority"`
+	OperationID        string                      `json:"operationId"`
+	ClusterID          string                      `json:"clusterId"`
+	TaskFenceToken     int64                       `json:"taskFenceToken"`
+	Action             daprruntime.LifecycleAction `json:"action"`
+	ConfirmedSuccess   bool                        `json:"confirmedSuccess"`
+	Installed          bool                        `json:"installed"`
+	ObservedLockDigest string                      `json:"observedLockDigest,omitempty"`
+	Version            string                      `json:"version,omitempty"`
+	UpstreamCommit     string                      `json:"upstreamCommit,omitempty"`
+	Phase              string                      `json:"phase"`
 }
 
 func daprLifecycleTarget(clusterID string, action daprruntime.LifecycleAction) string {
@@ -125,6 +164,32 @@ func (s *Server) latestDaprObserved(ctx context.Context, projectID, clusterID st
 			var observed daprruntime.ObservedState
 			if json.Unmarshal(payload, &observed) != nil || observed.Authority != daprruntime.LifecycleAuthority || observed.ClusterID != clusterID {
 				return nil, fmt.Errorf("%w: invalid Dapr observed evidence", controlplane.ErrConflict)
+			}
+			return &observed, nil
+		}
+		if strings.TrimSpace(op.RecoveryEvidenceDigest) != "" {
+			sealed, payloadErr := s.store.GetOperationRequestPayload(ctx, op.ID)
+			if payloadErr != nil {
+				return nil, payloadErr
+			}
+			req, parseErr := daprruntime.ParseLifecycleRequest(sealed.Payload, sealed.PayloadDigest)
+			if parseErr != nil || req.ClusterID != clusterID {
+				return nil, fmt.Errorf("%w: invalid recovered Dapr lifecycle authority", controlplane.ErrConflict)
+			}
+			installed := req.Action != daprruntime.ActionRemove
+			observed := daprruntime.ObservedState{
+				Authority: daprruntime.LifecycleAuthority,
+				OperationID: op.ID,
+				ClusterID: clusterID,
+				Action: req.Action,
+				Installed: installed,
+				ObservedAt: op.UpdatedAt.UTC().Format(time.RFC3339Nano),
+				Phase: "RecoveredConfirmedSuccess",
+			}
+			if installed {
+				observed.RuntimeLockDigest = req.RuntimeLockDigest
+				observed.Version = req.RuntimeVersion
+				observed.UpstreamCommit = req.UpstreamCommit
 			}
 			return &observed, nil
 		}
@@ -698,6 +763,183 @@ func (s *Server) reportDaprLifecycleTask(w http.ResponseWriter, r *http.Request)
 		"operation": op,
 		"observed": observed,
 		"automaticRollback": false,
+		"physicalCertificationInferred": false,
+	})
+}
+
+
+func (s *Server) nextDaprRecoveryTask(w http.ResponseWriter, r *http.Request) {
+	clusterID := strings.TrimSpace(r.PathValue("id"))
+	if _, err := s.agentCredentialDigest(r, clusterID); err != nil {
+		writeError(w, http.StatusUnauthorized, "AGENT_TOKEN_REQUIRED", err.Error())
+		return
+	}
+	pager, ok := s.store.(daprRecoveryOperationPager)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "DAPR_RECOVERY_QUEUE_UNAVAILABLE", "bounded Dapr recovery queue is unavailable")
+		return
+	}
+	operations, err := pager.ListUnknownRecoveryOperationsByKindTargetPrefix(r.Context(), daprLifecycleOperationKind, daprLifecycleTargetPrefix+clusterID+":", 8)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	for _, op := range operations {
+		sealed, getErr := s.store.GetOperationRequestPayload(r.Context(), op.ID)
+		if getErr != nil {
+			writeStoreError(w, getErr)
+			return
+		}
+		req, parseErr := daprruntime.ParseLifecycleRequest(sealed.Payload, sealed.PayloadDigest)
+		if parseErr != nil || req.ClusterID != clusterID {
+			continue
+		}
+		setRevisionETag(w, op.Revision)
+		writeJSON(w, http.StatusOK, daprRecoveryTask{
+			OperationID: op.ID,
+			OperationRevision: op.Revision,
+			TaskFenceToken: op.FenceToken,
+			Request: req,
+		})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func canonicalDaprRecoveryReadback(task daprRecoveryTask, result daprRecoveryResult) (daprRecoveryReadback, []byte, string, error) {
+	if task.OperationID == "" || task.TaskFenceToken <= 0 || task.Request.ClusterID == "" {
+		return daprRecoveryReadback{}, nil, "", fmt.Errorf("DAPR_RECOVERY_TASK_INVALID")
+	}
+	if !result.ConfirmedSuccess {
+		return daprRecoveryReadback{}, nil, "", fmt.Errorf("DAPR_RECOVERY_NOT_CONFIRMED")
+	}
+	wantInstalled := task.Request.Action != daprruntime.ActionRemove
+	phase := strings.TrimSpace(result.Phase)
+	if result.Installed != wantInstalled || phase == "" {
+		return daprRecoveryReadback{}, nil, "", fmt.Errorf("DAPR_RECOVERY_READBACK_INVALID")
+	}
+	lockDigest := strings.ToLower(strings.TrimSpace(result.ObservedLockDigest))
+	version := strings.TrimSpace(result.Version)
+	commit := strings.ToLower(strings.TrimSpace(result.UpstreamCommit))
+	if wantInstalled && (lockDigest != task.Request.RuntimeLockDigest || version != task.Request.RuntimeVersion || commit != task.Request.UpstreamCommit) {
+		return daprRecoveryReadback{}, nil, "", fmt.Errorf("DAPR_RECOVERY_RUNTIME_IDENTITY_MISMATCH")
+	}
+	if !wantInstalled && (lockDigest != "" || version != "" || commit != "") {
+		return daprRecoveryReadback{}, nil, "", fmt.Errorf("DAPR_RECOVERY_REMOVED_IDENTITY_INVALID")
+	}
+	readback := daprRecoveryReadback{
+		Authority: daprRecoveryReadbackAuthority,
+		OperationID: task.OperationID,
+		ClusterID: task.Request.ClusterID,
+		TaskFenceToken: task.TaskFenceToken,
+		Action: task.Request.Action,
+		ConfirmedSuccess: true,
+		Installed: result.Installed,
+		ObservedLockDigest: lockDigest,
+		Version: version,
+		UpstreamCommit: commit,
+		Phase: phase,
+	}
+	raw, err := json.Marshal(readback)
+	if err != nil {
+		return daprRecoveryReadback{}, nil, "", err
+	}
+	sum := sha256.Sum256(raw)
+	return readback, raw, "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func (s *Server) reportDaprRecoveryTask(w http.ResponseWriter, r *http.Request) {
+	clusterID := strings.TrimSpace(r.PathValue("id"))
+	if _, err := s.agentCredentialDigest(r, clusterID); err != nil {
+		writeError(w, http.StatusUnauthorized, "AGENT_TOKEN_REQUIRED", err.Error())
+		return
+	}
+	expected, err := parseExpectedRevision(r)
+	if err != nil {
+		writeError(w, http.StatusPreconditionRequired, "EXPECTED_REVISION_REQUIRED", err.Error())
+		return
+	}
+	var result daprRecoveryResult
+	if err = decodeJSON(w, r, &result); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	op, err := s.store.GetOperation(r.Context(), strings.TrimSpace(r.PathValue("operationId")))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if op.Kind != daprLifecycleOperationKind || op.Revision != expected {
+		writeStoreError(w, controlplane.ErrConflict)
+		return
+	}
+	targetCluster, _, parseTargetErr := parseDaprLifecycleTarget(op.TargetRef)
+	if parseTargetErr != nil || targetCluster != clusterID {
+		writeError(w, http.StatusForbidden, "AGENT_SCOPE_MISMATCH", "Dapr recovery belongs to another cluster")
+		return
+	}
+	sealed, err := s.store.GetOperationRequestPayload(r.Context(), op.ID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	req, err := daprruntime.ParseLifecycleRequest(sealed.Payload, sealed.PayloadDigest)
+	if err != nil || req.ClusterID != clusterID {
+		writeError(w, http.StatusConflict, "DAPR_RECOVERY_REQUEST_INVALID", "sealed Dapr lifecycle request is invalid")
+		return
+	}
+	task := daprRecoveryTask{OperationID: op.ID, OperationRevision: op.Revision, TaskFenceToken: op.FenceToken, Request: req}
+	if !result.ConfirmedSuccess {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"authority": daprRecoveryReadbackAuthority,
+			"operation": op,
+			"stillAmbiguous": true,
+			"automaticReplay": false,
+			"physicalCertificationInferred": false,
+		})
+		return
+	}
+	readback, raw, digest, validateErr := canonicalDaprRecoveryReadback(task, result)
+	if validateErr != nil {
+		writeError(w, http.StatusUnprocessableEntity, "DAPR_RECOVERY_READBACK_INVALID", validateErr.Error())
+		return
+	}
+	if op.State == controlplane.OperationSucceeded && op.RecoveryEvidenceDigest == digest {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"authority": daprRecoveryReadbackAuthority,
+			"operation": op,
+			"readback": readback,
+			"idempotentReplay": true,
+			"physicalCertificationInferred": false,
+		})
+		return
+	}
+	if op.State != controlplane.OperationFailed || op.LastFailureClass != controlplane.OperationFailureUnknown {
+		writeError(w, http.StatusConflict, "DAPR_RECOVERY_STATE_CHANGED", "operation is no longer FAILED/UNKNOWN")
+		return
+	}
+	actor := "agent:" + clusterID
+	if _, err = s.store.AppendEvidence(r.Context(), controlplane.EvidenceMetadata{
+		OperationID: op.ID,
+		Kind: "dapr-runtime-recovery-confirmed",
+		Digest: digest,
+		MediaType: "application/json",
+		Location: "authority://dapr/recovery/" + op.ID + "/" + strings.TrimPrefix(digest, "sha256:"),
+		Size: int64(len(raw)),
+	}, actor); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	op, err = s.store.ResolveUnknownOperationOutcome(r.Context(), op.ID, op.Revision, controlplane.OperationUnknownOutcomeConfirmedSuccess, digest, actor)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"authority": daprRecoveryReadbackAuthority,
+		"operation": op,
+		"readback": readback,
+		"automaticReplay": false,
 		"physicalCertificationInferred": false,
 	})
 }
