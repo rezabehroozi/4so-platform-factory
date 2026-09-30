@@ -8,6 +8,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -94,8 +95,11 @@ func ValidateTargetMirrorPullEvidence(value TargetMirrorPullEvidence, lock Runti
 		return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_EVIDENCE_BINDING_INVALID")
 	}
 	if strings.ToLower(strings.TrimSpace(value.MirrorRegistry)) != strings.ToLower(strings.TrimSpace(lock.MirrorRegistry)) ||
-		strings.TrimSpace(value.ObservedAt) == "" || value.SidecarPullInferred || !value.WorkloadSidecarPullEvidenceRequired {
+		value.SidecarPullInferred || !value.WorkloadSidecarPullEvidenceRequired {
 		return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_EVIDENCE_SCOPE_INVALID")
+	}
+	if _, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value.ObservedAt)); err != nil {
+		return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_EVIDENCE_TIME_INVALID")
 	}
 	expected := map[string]string{}
 	for _, image := range lock.ImageLocks {
@@ -104,16 +108,23 @@ func ValidateTargetMirrorPullEvidence(value TargetMirrorPullEvidence, lock Runti
 	if strings.TrimSpace(value.SidecarImageReference) == "" || strings.TrimSpace(value.SidecarImageReference) != expected["sidecar"] {
 		return fmt.Errorf("DAPR_TARGET_SIDECAR_REFERENCE_INVALID")
 	}
+	expectedWorkload := map[string][2]string{
+		"operator": {"dapr-operator", "dapr-operator"},
+		"injector": {"dapr-sidecar-injector", "dapr-sidecar-injector"},
+		"sentry":   {"dapr-sentry", "dapr-sentry"},
+	}
 	seen := map[string]bool{}
 	for _, observation := range value.RuntimeImages {
 		role := strings.ToLower(strings.TrimSpace(observation.Role))
-		if role != "operator" && role != "injector" && role != "sentry" {
+		identity, roleKnown := expectedWorkload[role]
+		if !roleKnown {
 			return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_ROLE_INVALID")
 		}
 		if seen[role] || !observation.Ready || strings.TrimSpace(observation.WorkloadKind) != "Deployment" ||
 			strings.TrimSpace(observation.Namespace) != "dapr-system" ||
 			strings.TrimSpace(observation.ImageReference) != expected[role] ||
-			strings.TrimSpace(observation.WorkloadName) == "" || strings.TrimSpace(observation.Container) == "" {
+			strings.TrimSpace(observation.WorkloadName) != identity[0] ||
+			strings.TrimSpace(observation.Container) != identity[1] {
 			return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_OBSERVATION_INVALID")
 		}
 		seen[role] = true
