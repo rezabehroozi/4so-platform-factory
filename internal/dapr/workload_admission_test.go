@@ -151,7 +151,7 @@ func TestWorkloadAdmissionRejectsMissingExplicitPrivilegeEscalationField(t *test
 	pod, err := BuildWorkloadAdmissionPod(request, "op_missing_security")
 	if err != nil { t.Fatal(err) }
 	response := injectTestDaprSidecar(t, pod, request.ExpectedSidecarImage)
-	spec := response["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
+	spec := response["spec"].(map[string]any)
 	containers := spec["containers"].([]any)
 	sidecar := containers[len(containers)-1].(map[string]any)
 	security := sidecar["securityContext"].(map[string]any)
