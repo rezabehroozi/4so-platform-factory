@@ -35,6 +35,7 @@ func normalize(lock targetmodel.DaprRuntimeSupplyChainLock) targetmodel.DaprRunt
 	lock.AcquisitionReceiptDigest = strings.ToLower(strings.TrimSpace(lock.AcquisitionReceiptDigest))
 	lock.MirrorEvidenceDigest = strings.ToLower(strings.TrimSpace(lock.MirrorEvidenceDigest))
 	lock.ExecutorEvidenceDigest = strings.ToLower(strings.TrimSpace(lock.ExecutorEvidenceDigest))
+	lock.ExecutorSourceReleaseDigest = strings.ToLower(strings.TrimSpace(lock.ExecutorSourceReleaseDigest))
 	lock.ExecutorImageReference = strings.TrimSpace(lock.ExecutorImageReference)
 	lock.ExecutorImageDigest = strings.ToLower(strings.TrimSpace(lock.ExecutorImageDigest))
 	lock.RegistryAuthority = strings.ToLower(strings.TrimSpace(lock.RegistryAuthority))
