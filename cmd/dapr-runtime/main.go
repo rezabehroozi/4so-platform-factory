@@ -623,6 +623,15 @@ func verifyRuntimeArtifacts(lock daprruntime.RuntimeLock) error {
 	return nil
 }
 
+func validateMutationOwner(owner *ownerState, cfg lifecycleConfig) (sameOperation, samePending bool, err error) {
+	sameOperation = owner != nil && owner.OperationID == cfg.OperationID && owner.FenceToken == cfg.FenceToken
+	samePending = sameOperation && owner.Phase == "Mutating"
+	if owner != nil && owner.Phase == "Mutating" && !samePending {
+		return sameOperation, samePending, errors.New("DAPR_RUNTIME_MUTATION_ALREADY_OWNED_RECOVERY_REQUIRED")
+	}
+	return sameOperation, samePending, nil
+}
+
 func runLifecycle(args []string) error {
 	cfg, err := loadConfig(args)
 	if err != nil {
@@ -652,10 +661,9 @@ func runLifecycle(args []string) error {
 	if err != nil {
 		return err
 	}
-	sameOperation := owner != nil && owner.OperationID == cfg.OperationID && owner.FenceToken == cfg.FenceToken
-	samePending := sameOperation && owner.Phase == "Mutating"
-	if owner != nil && owner.Phase == "Mutating" && !samePending {
-		return errors.New("DAPR_RUNTIME_MUTATION_ALREADY_OWNED_RECOVERY_REQUIRED")
+	sameOperation, samePending, err := validateMutationOwner(owner, cfg)
+	if err != nil {
+		return err
 	}
 
 	if sameOperation && !samePending {
