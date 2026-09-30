@@ -33,5 +33,5 @@ def packet(matrix_path:Path,campaign_path:Path,client:str)->dict:
 
 def main()->int:
     p=argparse.ArgumentParser(); p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json")); p.add_argument("--campaign",type=Path,required=True); p.add_argument("--client",choices=core.CLIENTS,required=True); p.add_argument("--out",type=Path,required=True)
-    a=p.parse_args(); out=packet(a.matrix,a.campaign,a.client); a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n"); print(json.dumps({"authority":AUTHORITY,"clientId":a.client,"campaignId":out["campaignId"]},sort_keys=True)); return 0
+    a=p.parse_args(); out=packet(a.matrix,a.campaign,a.client); core.write_json_once_or_identical(a.out,out,"MCP_EXTERNAL_EXECUTION_PACKET"); print(json.dumps({"authority":AUTHORITY,"clientId":a.client,"campaignId":out["campaignId"]},sort_keys=True)); return 0
 if __name__=="__main__": raise SystemExit(main())
