@@ -147,28 +147,38 @@ def campaign_oauth_client_bindings(campaign:dict)->dict[str,str]:
         "MCP_EXTERNAL_CAMPAIGN",
     )
 
+def validate_trusted_client_bindings(value:object,label:str)->dict[str,dict]:
+    if not isinstance(value,dict) or set(value)!=set(CLIENTS):
+        raise RuntimeError(f"{label}_TRUSTED_CLIENT_BINDINGS_INVALID")
+    out={}; trusted_ids=set()
+    for client in CLIENTS:
+        row=value.get(client)
+        if not isinstance(row,dict) or set(row)!={"trustedClientId","trustedClientRevision","trustedClientProvider"}:
+            raise RuntimeError(f"{label}_TRUSTED_CLIENT_BINDINGS_INVALID")
+        trusted_id=str(row.get("trustedClientId") or "").strip()
+        revision=row.get("trustedClientRevision")
+        provider=str(row.get("trustedClientProvider") or "").strip().lower()
+        if not trusted_id or len(trusted_id)>200 or any(ch in trusted_id for ch in "\r\n\t") or type(revision) is not int or revision<=0 or provider!=client:
+            raise RuntimeError(f"{label}_TRUSTED_CLIENT_BINDINGS_INVALID")
+        if trusted_id in trusted_ids:
+            raise RuntimeError(f"{label}_TRUSTED_CLIENT_ID_REUSE")
+        trusted_ids.add(trusted_id)
+        out[client]={"trustedClientId":trusted_id,"trustedClientRevision":revision,"trustedClientProvider":provider}
+    return out
+
 def campaign_trusted_client_bindings(campaign:dict)->dict[str,dict]:
     rows=campaign.get("clients") if isinstance(campaign,dict) else None
     if not isinstance(rows,list):
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_BINDINGS_INVALID")
-    out={}
-    trusted_ids=set()
+    raw={}
     for row in rows:
         if not isinstance(row,dict):
             raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_BINDINGS_INVALID")
         client=str(row.get("clientId") or "")
-        trusted_id=str(row.get("trustedClientId") or "").strip()
-        revision=row.get("trustedClientRevision")
-        provider=str(row.get("trustedClientProvider") or "").strip().lower()
-        if client not in CLIENTS or client in out or not trusted_id or len(trusted_id)>200 or any(ch in trusted_id for ch in "\r\n\t") or type(revision) is not int or revision<=0 or provider!=client:
+        if client in raw:
             raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_BINDINGS_INVALID")
-        if trusted_id in trusted_ids:
-            raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_ID_REUSE")
-        trusted_ids.add(trusted_id)
-        out[client]={"trustedClientId":trusted_id,"trustedClientRevision":revision,"trustedClientProvider":provider}
-    if set(out)!=set(CLIENTS):
-        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_BINDINGS_INVALID")
-    return out
+        raw[client]={"trustedClientId":row.get("trustedClientId"),"trustedClientRevision":row.get("trustedClientRevision"),"trustedClientProvider":row.get("trustedClientProvider")}
+    return validate_trusted_client_bindings(raw,"MCP_EXTERNAL_CAMPAIGN")
 
 def validate_interop_binding(row:dict,campaign_id:str,client:str,label:str)->str:
     if not isinstance(row,dict) or row.get("campaignId")!=campaign_id or row.get("clientId")!=client:
