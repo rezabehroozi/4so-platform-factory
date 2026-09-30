@@ -30,7 +30,8 @@ ACQUISITION_KEYS = {
     "authority", "sourcePlanAuthority", "version", "runtimeImageTag",
     "upstreamRepository", "upstreamRef", "upstreamCommit", "sourceArchiveUrl",
     "sourceArchiveFinalUrl", "sourceArchiveDigest", "helmChartPath",
-    "helmChartDigest", "helmOverrides", "helmRenderDigest", "requiredImages",
+    "helmChartDigest", "helmPackageName", "helmPackageDigest", "helmOverrides",
+    "helmRenderDigest", "requiredImages",
     "resolved", "mirrorReady", "runtimeMutationPerformed",
     "physicalCertificationInferred",
 }
@@ -39,8 +40,10 @@ ACQUISITION_IMAGE_KEYS = {
 }
 MIRROR_KEYS = {
     "authority", "registryAuthority", "registryIdentity", "version", "upstreamCommit",
-    "acquisitionReceiptDigest", "images", "mirrorReady", "registryReadback",
-    "offlineReplayReady", "credentialsEmbedded", "runtimeMutationPerformed",
+    "acquisitionReceiptDigest", "helmPackageDigest", "helmMirrorTagReference",
+    "helmMirrorReference", "helmMirrorManifestDigest", "helmMirrorContentDigest",
+    "images", "mirrorReady", "registryReadback", "offlineReplayReady",
+    "credentialsEmbedded", "runtimeMutationPerformed",
     "physicalCertificationInferred",
 }
 MIRROR_IMAGE_KEYS = {
@@ -161,6 +164,9 @@ def validate_acquisition(acquisition: dict) -> dict[str, dict]:
         raise RuntimeError("DAPR_ACQUISITION_FINAL_SOURCE_URL_INVALID")
     valid_digest(acquisition.get("sourceArchiveDigest"))
     valid_digest(acquisition.get("helmChartDigest"))
+    package_digest = valid_digest(acquisition.get("helmPackageDigest"))
+    if acquisition.get("helmPackageName") != f"dapr-{IMAGE_TAG}.tgz":
+        raise RuntimeError("DAPR_ACQUISITION_HELM_PACKAGE_IDENTITY_INVALID")
     valid_digest(acquisition.get("helmRenderDigest"))
     overrides = acquisition.get("helmOverrides")
     if not isinstance(overrides, list):
@@ -239,6 +245,18 @@ def seal(acquisition_path: Path, mirror_path: Path, out: Path) -> dict:
     ):
         raise RuntimeError("DAPR_MIRROR_EVIDENCE_AUTHORITY_INVALID")
     registry = valid_registry(mirror.get("registryIdentity"))
+    package_digest = valid_digest(acquisition.get("helmPackageDigest"))
+    manifest_digest = valid_digest(mirror.get("helmMirrorManifestDigest"))
+    content_digest = valid_digest(mirror.get("helmMirrorContentDigest"))
+    chart_tag = f"{registry}/dapr-charts/dapr:{IMAGE_TAG}"
+    chart_ref = f"{registry}/dapr-charts/dapr@{manifest_digest}"
+    if (
+        mirror.get("helmPackageDigest") != package_digest
+        or content_digest != package_digest
+        or str(mirror.get("helmMirrorTagReference") or "").strip() != chart_tag
+        or str(mirror.get("helmMirrorReference") or "").strip() != chart_ref
+    ):
+        raise RuntimeError("DAPR_MIRROR_HELM_CHART_EVIDENCE_INVALID")
     images = mirror_images(mirror, acquired, registry)
     lock = {
         "authority": LOCK_AUTHORITY,
@@ -249,7 +267,10 @@ def seal(acquisition_path: Path, mirror_path: Path, out: Path) -> dict:
         "upstreamCommit": UPSTREAM_COMMIT,
         "sourceArchiveDigest": valid_digest(acquisition.get("sourceArchiveDigest")),
         "helmChartDigest": valid_digest(acquisition.get("helmChartDigest")),
+        "helmPackageDigest": package_digest,
         "helmRenderDigest": valid_digest(acquisition.get("helmRenderDigest")),
+        "helmMirrorReference": chart_ref,
+        "helmMirrorManifestDigest": manifest_digest,
         "acquisitionReceiptDigest": acquisition_digest,
         "mirrorEvidenceDigest": mirror_digest,
         "registryAuthority": "zot",
