@@ -158,6 +158,7 @@ type SecurityAuditInput struct {
 	ScopeID        string `json:"scopeId,omitempty"`
 	EffectiveRole  string `json:"effectiveRole,omitempty"`
 	MappingDigest            string `json:"mappingDigest,omitempty"`
+	OAuthClientID            string `json:"oauthClientId,omitempty"`
 	MCPInteropBindingDigest string `json:"mcpInteropBindingDigest,omitempty"`
 }
 
@@ -165,12 +166,16 @@ func ValidateSecurityAuditInput(v SecurityAuditInput) error {
 	v.Category = strings.TrimSpace(v.Category)
 	v.Decision = strings.TrimSpace(v.Decision)
 	switch v.Category {
-	case "AUTHENTICATION", "AUTHORIZATION", "SCOPE_AUTHORIZATION", "CAPABILITY_AUTHORIZATION", "DELEGATION_AUTHORIZATION", "APPROVAL_AUTHORIZATION":
+	case "AUTHENTICATION", "AUTHORIZATION", "SCOPE_AUTHORIZATION", "CAPABILITY_AUTHORIZATION", "DELEGATION_AUTHORIZATION", "APPROVAL_AUTHORIZATION", "OPERATION_EXECUTOR_AUTHORIZATION":
 	default:
 		return fmt.Errorf("%w: security audit category is invalid", ErrValidation)
 	}
 	if v.Decision != "ALLOW" && v.Decision != "DENY" {
 		return fmt.Errorf("%w: security audit decision is invalid", ErrValidation)
+	}
+	clientID := strings.TrimSpace(v.OAuthClientID)
+	if len(clientID) > 512 || strings.ContainsAny(clientID, "\r\n\t") {
+		return fmt.Errorf("%w: OAuth client id is invalid", ErrValidation)
 	}
 	binding := strings.TrimSpace(v.MCPInteropBindingDigest)
 	if binding != "" && !validSHA256(binding) {
