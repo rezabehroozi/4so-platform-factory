@@ -11,14 +11,15 @@ import (
 const WorkloadPolicyProjectionAuthority = "DAPR_WORKLOAD_POLICY_PROJECTION_V1"
 
 type WorkloadPolicyObservation struct {
-	Authority                  string   `json:"authority"`
-	ConfigurationObserved      bool     `json:"configurationObserved"`
-	ConfigurationName          string   `json:"configurationName"`
-	ConfigurationPolicyDigest  string   `json:"configurationPolicyDigest"`
-	ComponentScopesVerified    bool     `json:"componentScopesVerified"`
-	ObservedComponents         []string `json:"observedComponents,omitempty"`
-	ConfigurationBecomesSoT    bool     `json:"configurationBecomesSoT"`
-	RuntimeMutationPerformed   bool     `json:"runtimeMutationPerformed"`
+	Authority                  string `json:"authority"`
+	ConfigurationObserved      bool   `json:"configurationObserved"`
+	ConfigurationName          string `json:"configurationName"`
+	ConfigurationPolicyDigest  string `json:"configurationPolicyDigest"`
+	ComponentScopesVerified    bool   `json:"componentScopesVerified"`
+	ComponentCount             int    `json:"componentCount"`
+	ComponentScopeDigest       string `json:"componentScopeDigest"`
+	ConfigurationBecomesSoT    bool   `json:"configurationBecomesSoT"`
+	RuntimeMutationPerformed   bool   `json:"runtimeMutationPerformed"`
 }
 
 func expectedWorkloadAPIRules(plan targetmodel.DaprWorkloadRuntimePlan) []map[string]any {
@@ -85,6 +86,25 @@ func WorkloadConfigurationPolicyDigest(plan targetmodel.DaprWorkloadRuntimePlan)
 		return "", err
 	}
 	return workloadAdmissionDigest(projection)
+}
+
+func WorkloadComponentScopeDigest(plan targetmodel.DaprWorkloadRuntimePlan) (string, error) {
+	type scopeRow struct {
+		ComponentName string   `json:"componentName"`
+		Scopes        []string `json:"scopes"`
+	}
+	rows := make([]scopeRow, 0, len(plan.ComponentScopes))
+	seen := map[string]bool{}
+	for _, scope := range plan.ComponentScopes {
+		name := strings.TrimSpace(scope.ComponentName)
+		if name == "" || seen[name] || len(scope.Scopes) != 1 || strings.TrimSpace(scope.Scopes[0]) != plan.AppID {
+			return "", fmt.Errorf("DAPR_WORKLOAD_COMPONENT_SCOPE_PLAN_INVALID")
+		}
+		seen[name] = true
+		rows = append(rows, scopeRow{ComponentName: name, Scopes: []string{plan.AppID}})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].ComponentName < rows[j].ComponentName })
+	return workloadAdmissionDigest(rows)
 }
 
 func canonicalObservedAPIRules(value any) ([]string, error) {
@@ -203,7 +223,6 @@ func ValidateWorkloadPolicyReadback(
 	if len(components) != len(expectedComponents) {
 		return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_COMPONENT_READBACK_INCOMPLETE")
 	}
-	observedComponents := make([]string, 0, len(expectedComponents))
 	for name := range expectedComponents {
 		component, ok := components[name]
 		if !ok {
@@ -223,10 +242,13 @@ func ValidateWorkloadPolicyReadback(
 		if !ok || len(rawScopes) != 1 || strings.TrimSpace(fmt.Sprint(rawScopes[0])) != plan.AppID {
 			return WorkloadPolicyObservation{}, fmt.Errorf("DAPR_WORKLOAD_COMPONENT_SCOPE_MISMATCH")
 		}
-		observedComponents = append(observedComponents, name)
+
 	}
-	sort.Strings(observedComponents)
 	policyDigest, err := WorkloadConfigurationPolicyDigest(plan)
+	if err != nil {
+		return WorkloadPolicyObservation{}, err
+	}
+	componentScopeDigest, err := WorkloadComponentScopeDigest(plan)
 	if err != nil {
 		return WorkloadPolicyObservation{}, err
 	}
@@ -236,7 +258,8 @@ func ValidateWorkloadPolicyReadback(
 		ConfigurationName: plan.ConfigurationName,
 		ConfigurationPolicyDigest: policyDigest,
 		ComponentScopesVerified: true,
-		ObservedComponents: observedComponents,
+		ComponentCount: len(expectedComponents),
+		ComponentScopeDigest: componentScopeDigest,
 		ConfigurationBecomesSoT: false,
 		RuntimeMutationPerformed: false,
 	}, nil
@@ -250,25 +273,21 @@ func ValidateWorkloadPolicyObservation(value WorkloadPolicyObservation, request 
 	value.Authority = strings.TrimSpace(value.Authority)
 	value.ConfigurationName = strings.TrimSpace(value.ConfigurationName)
 	value.ConfigurationPolicyDigest = strings.ToLower(strings.TrimSpace(value.ConfigurationPolicyDigest))
-	value.ObservedComponents = append([]string(nil), value.ObservedComponents...)
-	for i := range value.ObservedComponents {
-		value.ObservedComponents[i] = strings.TrimSpace(value.ObservedComponents[i])
-	}
-	sort.Strings(value.ObservedComponents)
+	value.ComponentScopeDigest = strings.ToLower(strings.TrimSpace(value.ComponentScopeDigest))
 	expectedDigest, err := WorkloadConfigurationPolicyDigest(request.Plan)
 	if err != nil {
 		return err
 	}
-	expectedComponents := make([]string, 0, len(request.Plan.ComponentScopes))
-	for _, scope := range request.Plan.ComponentScopes {
-		expectedComponents = append(expectedComponents, strings.TrimSpace(scope.ComponentName))
+	expectedComponentDigest, err := WorkloadComponentScopeDigest(request.Plan)
+	if err != nil {
+		return err
 	}
-	sort.Strings(expectedComponents)
 	if value.Authority != WorkloadPolicyProjectionAuthority || !value.ConfigurationObserved ||
 		value.ConfigurationName != request.Plan.ConfigurationName ||
 		value.ConfigurationPolicyDigest != expectedDigest ||
 		!value.ComponentScopesVerified ||
-		!stringSlicesEqual(value.ObservedComponents, expectedComponents) ||
+		value.ComponentCount != len(request.Plan.ComponentScopes) ||
+		value.ComponentScopeDigest != expectedComponentDigest ||
 		value.ConfigurationBecomesSoT || value.RuntimeMutationPerformed {
 		return fmt.Errorf("DAPR_WORKLOAD_POLICY_OBSERVATION_INVALID")
 	}
