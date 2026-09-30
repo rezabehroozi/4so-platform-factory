@@ -141,13 +141,10 @@ def final_evidence(progress:dict,progress_path:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_FILE_BINDING_INVALID")
     by_id=validate_existing(progress,progress)
     if list(by_id)!=list(core.CLIENTS) or progress.get("complete") is not True: raise RuntimeError("MCP_EXTERNAL_PROGRESS_NOT_COMPLETE")
-    return {"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteroperabilityEvidence","authority":core.AUTHORITY,
-      "matrixAuthority":progress["matrixAuthority"],"matrixSha256":progress["matrixSha256"],"campaignAuthority":progress["campaignAuthority"],
-      "campaignId":progress["campaignId"],"campaignSha256":progress["campaignSha256"],
-      "protocol":progress["protocol"],"transport":progress["transport"],"endpoint":progress["endpoint"],"clients":progress["clients"],
-      "certifiedClientCount":4,"allRequiredChecksPass":True,"serverAuditWitnessPass":True,
-      "serverAuditWitnessedCheckCount":len(core.AUDITED_CHECKS)*len(core.CLIENTS),
-      "externalCertificationPass":True,"runtimeCertified":False,"physicalCertified":False}
+    return core.build_interop_evidence(
+        progress["matrixSha256"],progress["campaignId"],progress["campaignSha256"],
+        progress["protocol"],progress["transport"],progress["endpoint"],progress["clients"],
+    )
 
 def main()->int:
     p=argparse.ArgumentParser()
