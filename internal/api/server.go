@@ -59,6 +59,8 @@ type Server struct {
 	daprRuntimeLock              daprruntime.RuntimeLock
 	daprRuntimeDigest            string
 	daprRuntimeReady             bool
+	daprExecutorAuthority        daprruntime.ExecutorAuthority
+	daprExecutorReady            bool
 	openChoreoRuntimeSource      openchoreo.RuntimeSource
 	openChoreoRuntimeDigest      string
 	openChoreoRuntimeReady       bool
@@ -182,6 +184,27 @@ func (s *Server) ConfigureVirtualClusterRuntimeSource(source virtualcluster.Runt
 	return nil
 }
 
+func (s *Server) ConfigureDaprExecutorAuthority(authority daprruntime.ExecutorAuthority, expectedRegistry string) error {
+	if err := daprruntime.ValidateExecutorAuthorityForRegistry(authority, expectedRegistry); err != nil {
+		return err
+	}
+	if s.daprExecutorReady && !daprruntime.ExecutorAuthoritiesEqual(s.daprExecutorAuthority, authority) {
+		return fmt.Errorf("DAPR_EXECUTOR_AUTHORITY_CONFLICT")
+	}
+	if s.daprRuntimeReady {
+		fromRuntime, err := daprruntime.ExecutorAuthorityFromRuntimeLock(s.daprRuntimeLock)
+		if err != nil {
+			return err
+		}
+		if !daprruntime.ExecutorAuthoritiesEqual(fromRuntime, authority) {
+			return fmt.Errorf("DAPR_EXECUTOR_RUNTIME_LOCK_MISMATCH")
+		}
+	}
+	s.daprExecutorAuthority = authority
+	s.daprExecutorReady = true
+	return nil
+}
+
 func (s *Server) ConfigureDaprRuntimeLock(lock daprruntime.RuntimeLock, expectedRegistry string) error {
 	if err := daprruntime.ValidateRuntimeLockForRegistry(lock, expectedRegistry); err != nil {
 		return err
@@ -190,9 +213,23 @@ func (s *Server) ConfigureDaprRuntimeLock(lock daprruntime.RuntimeLock, expected
 	if err != nil {
 		return err
 	}
+	executorAuthority, err := daprruntime.ExecutorAuthorityFromRuntimeLock(lock)
+	if err != nil {
+		return err
+	}
+	if err = daprruntime.ValidateExecutorAuthorityForRegistry(executorAuthority, expectedRegistry); err != nil {
+		return err
+	}
+	if s.daprExecutorReady && !daprruntime.ExecutorAuthoritiesEqual(s.daprExecutorAuthority, executorAuthority) {
+		return fmt.Errorf("DAPR_EXECUTOR_RUNTIME_LOCK_MISMATCH")
+	}
 	s.daprRuntimeLock = lock
 	s.daprRuntimeDigest = digest
 	s.daprRuntimeReady = true
+	if !s.daprExecutorReady {
+		s.daprExecutorAuthority = executorAuthority
+		s.daprExecutorReady = true
+	}
 	return nil
 }
 
