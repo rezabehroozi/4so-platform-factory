@@ -641,7 +641,7 @@ type DaprTargetAdmissionInput struct {
 	ObservedCapabilities        []string `json:"observedCapabilities,omitempty"`
 	ExactSourceAdmitted         bool     `json:"exactSourceAdmitted"`
 	Disconnected                bool     `json:"disconnected"`
-	DisconnectedMirrorAdmitted  bool     `json:"disconnectedMirrorAdmitted"`
+	DisconnectedProductMirrorAdmitted  bool     `json:"disconnectedProductMirrorAdmitted"`
 	DurableLifecycleReady       bool     `json:"durableLifecycleReady"`
 }
 
@@ -692,7 +692,7 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 		if !in.ExactSourceAdmitted {
 			out.Blockers = append(out.Blockers, "DAPR_EXACT_SOURCE_AUTHORITY_PENDING")
 		}
-		if in.Disconnected && !in.DisconnectedMirrorAdmitted {
+		if in.Disconnected && !in.DisconnectedProductMirrorAdmitted {
 			out.Blockers = append(out.Blockers, "DAPR_DISCONNECTED_MIRROR_PENDING")
 		}
 	}
