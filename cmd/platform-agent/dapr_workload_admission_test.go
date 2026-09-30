@@ -36,6 +36,7 @@ func daprWorkloadAdmissionAgentTask(t *testing.T) agentDaprWorkloadAdmissionTask
 		RuntimeMode: "PRODUCT_MANAGED", RuntimeLockDigest: lockDigest,
 		ExpectedSidecarImage: sidecar,
 		ExecutorEvidenceDigest: executorAuthority.EvidenceDigest,
+		ExecutorSourceReleaseDigest: executorAuthority.SourceReleaseDigest,
 		ExecutorImageReference: executorAuthority.ImageReference,
 		WorkloadImage: "zot.internal.example/apps/payments@" + daprAgentTestDigest("9"),
 		Plan: plan, PlanDigest: planDigest,
@@ -68,6 +69,7 @@ func TestDaprWorkloadAdmissionJobUsesExactExecutorAndDedicatedPrincipal(t *testi
 		`"image":"` + task.Request.ExecutorImageReference + `"`,
 		`"args":["workload-admission"]`,
 		`"name":"FOURSO_DAPR_WORKLOAD_OPERATION_ID","value":"` + task.OperationID + `"`,
+		`"platform.4so.io/executor-source-release-digest":"` + task.Request.ExecutorSourceReleaseDigest + `"`,
 		`"allowPrivilegeEscalation":false`,
 		`"readOnlyRootFilesystem":true`,
 	} {
@@ -135,5 +137,11 @@ func TestDaprWorkloadAdmissionTaskRejectsRuntimeAndExecutorSubstitution(t *testi
 	task.Request.RuntimeLockDigest = daprAgentTestDigest("0")
 	if _, ok, err := a.nextDaprWorkloadAdmissionTaskValidation(task); err == nil || ok {
 		t.Fatalf("foreign Dapr runtime lock entered product-managed admission task: ok=%v err=%v", ok, err)
+	}
+	task = daprWorkloadAdmissionAgentTask(t)
+	task.Request.ExecutorSourceReleaseDigest = daprAgentTestDigest("0")
+	if _, ok, err := a.nextDaprWorkloadAdmissionTaskValidation(task); err == nil || ok ||
+		!strings.Contains(err.Error(), "executor authority") {
+		t.Fatalf("cross-release Dapr executor entered workload admission task: ok=%v err=%v", ok, err)
 	}
 }
