@@ -180,7 +180,9 @@ func validDaprSupplyChainLock() DaprRuntimeSupplyChainLock {
 		Authority: DaprRuntimeSupplyChainAuthority, SourcePlanAuthority: plan.Authority,
 		Version: plan.Version, UpstreamRepository: plan.UpstreamRepository, UpstreamRef: plan.UpstreamRef,
 		UpstreamCommit: plan.UpstreamCommit, SourceArchiveDigest: digest("e"), HelmChartDigest: digest("f"),
-		HelmRenderDigest: digest("1"), AcquisitionReceiptDigest: digest("2"), MirrorEvidenceDigest: digest("3"),
+		HelmPackageDigest: digest("0"), HelmRenderDigest: digest("1"),
+		HelmMirrorReference: "zot.internal.example/dapr-charts/dapr@" + digest("4"), HelmMirrorManifestDigest: digest("4"),
+		AcquisitionReceiptDigest: digest("2"), MirrorEvidenceDigest: digest("3"),
 		RegistryAuthority: "zot", MirrorRegistry: "zot.internal.example",
 		ImageLocks: locks, ZotMirrorVerified: true, OfflineReplayReady: true, Admitted: true,
 	}
