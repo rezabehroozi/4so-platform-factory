@@ -62,6 +62,10 @@ def external_client_progress(root:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_AUTHORITY_INVALID")
     if progress.get("runtimeCertified") is not False or progress.get("physicalCertified") is not False:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_SCOPE_INFLATED")
+    bindings=progress.get("oauthClientBindings")
+    if progress.get("oauthClientBindingAuthority")!=mcp_contract.OAUTH_BINDING_AUTHORITY or not SHA.fullmatch(str(progress.get("oauthClientBindingsSha256") or "")):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_OAUTH_BINDING_INVALID")
+    bindings=mcp_contract.validate_oauth_client_bindings(bindings,"MCP_EXTERNAL_PROGRESS")
     rows=progress.get("clients")
     if not isinstance(rows,list):
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
@@ -72,6 +76,9 @@ def external_client_progress(root:Path)->dict:
         client=str(row.get("clientId") or "")
         if client not in CLIENTS or client in seen or row.get("clientSurface")!=CLIENT_SURFACES[client]:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_IDENTITY_INVALID")
+        oauth_client_id=mcp_contract.validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_PROGRESS")
+        if oauth_client_id!=bindings[client]:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_OAUTH_CLIENT_DRIFT")
         execution_id=str(row.get("executionId") or "").strip()
         provider_ref=str(row.get("providerExecutionRef") or "").strip()
         if not execution_id or len(execution_id)>160 or execution_id in execution_ids:
@@ -98,7 +105,7 @@ def external_client_progress(root:Path)->dict:
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
-        mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS")
+        mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS",oauth_client_id)
         seen.add(client); provider_refs.add(provider_ref); execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest); challenge_digests.add(challenge_digest)
     certified=[c for c in CLIENTS if c in seen]
     missing=[c for c in CLIENTS if c not in seen]
@@ -154,6 +161,9 @@ def verify(root:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_SCOPE_INFLATED")
     if mcp.get("campaignAuthority")!="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1" or not SHA.fullmatch(str(mcp.get("campaignSha256") or "")):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_CAMPAIGN_INVALID")
+    if mcp.get("oauthClientBindingAuthority")!=mcp_contract.OAUTH_BINDING_AUTHORITY or not SHA.fullmatch(str(mcp.get("oauthClientBindingsSha256") or "")):
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_OAUTH_BINDING_INVALID")
+    oauth_bindings=mcp_contract.validate_oauth_client_bindings(mcp.get("oauthClientBindings"),"MCP_EXTERNAL_INTEROP")
     clients=mcp.get("clients")
     if not isinstance(clients,list) or [x.get("clientId") for x in clients if isinstance(x,dict)]!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_SET_INVALID")
@@ -162,6 +172,9 @@ def verify(root:Path)->dict:
         client=str(row.get("clientId") or "")
         if row.get("clientSurface")!=CLIENT_SURFACES.get(client):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_SURFACE_INVALID")
+        oauth_client_id=mcp_contract.validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_INTEROP")
+        if oauth_client_id!=oauth_bindings.get(client):
+            raise RuntimeError("MCP_EXTERNAL_INTEROP_OAUTH_CLIENT_DRIFT")
         execution_id=str(row.get("executionId") or "").strip()
         provider_ref=str(row.get("providerExecutionRef") or "").strip()
         if not execution_id or len(execution_id)>160 or execution_id in execution_ids:
@@ -193,7 +206,7 @@ def verify(root:Path)->dict:
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_INTEROP_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
-        mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_INTEROP_SERVER_WITNESS")
+        mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_INTEROP_SERVER_WITNESS",oauth_client_id)
         execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest); challenge_digests.add(challenge_digest)
 
     return {
