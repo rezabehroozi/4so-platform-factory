@@ -200,7 +200,7 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
         same_job=(prev.get("head")==info["head"] and prev.get("branch")==info["branch"] and prev.get("phase")==phase and prev.get("currentTask")==task and prev.get("command")==command)
         if prev.get("status")=="COMPLETED" and same_job:
             return {"action":"CACHED_COMPLETED","state":prev}
-        if same_job and prev.get("status") in {"FAILED","INTERRUPTED","WAITING"} and not prev.get("activeRun"):
+        if prev.get("status") in {"FAILED","INTERRUPTED","WAITING"} and not prev.get("activeRun"):
             if prev.get("replaySafe") is True:
                 return {"action":"RESUME_REQUIRED","state":prev}
             prev.update(status="WAITING",recoveryRequired=True,latestError=prev.get("latestError") or "MANUAL_READBACK_REQUIRED_BEFORE_REPLAY")
