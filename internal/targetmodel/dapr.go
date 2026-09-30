@@ -689,9 +689,8 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 			out.Blockers = append(out.Blockers, "DAPR_DISCONNECTED_MIRROR_PENDING")
 		}
 	}
-	if !capabilities[DaprSidecarSecurityCapability] {
-		out.Blockers = append(out.Blockers, "DAPR_SIDECAR_SECURITY_COMPATIBILITY_PENDING")
-	}
+	// Sidecar security compatibility is workload-namespace-specific and belongs
+	// to deployment dry-run/admission, not cluster-wide runtime installation.
 	// Component scoping and sidecar resource sizing are product-owned invariants
 	// enforced by ResolveDaprWorkloadRuntimePlan. They are not target-discovered
 	// capabilities and must never be accepted as self-asserted inventory proof.
