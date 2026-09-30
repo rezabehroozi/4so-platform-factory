@@ -528,6 +528,7 @@ type DaprRuntimeSupplyChainLock struct {
 	AcquisitionReceiptDigest string                 `json:"acquisitionReceiptDigest"`
 	MirrorEvidenceDigest     string                 `json:"mirrorEvidenceDigest"`
 	ExecutorEvidenceDigest   string                 `json:"executorEvidenceDigest"`
+	ExecutorSourceReleaseDigest string              `json:"executorSourceReleaseDigest"`
 	ExecutorImageReference   string                 `json:"executorImageReference"`
 	ExecutorImageDigest      string                 `json:"executorImageDigest"`
 	RegistryAuthority         string                 `json:"registryAuthority"`
@@ -564,7 +565,7 @@ func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []strin
 		!daprSHA256Digest(lock.HelmPackageDigest) || !daprSHA256Digest(lock.HelmRenderDigest) ||
 		!daprSHA256Digest(lock.HelmMirrorManifestDigest) || !daprSHA256Digest(lock.AcquisitionReceiptDigest) ||
 		!daprSHA256Digest(lock.MirrorEvidenceDigest) || !daprSHA256Digest(lock.ExecutorEvidenceDigest) ||
-		!daprSHA256Digest(lock.ExecutorImageDigest) {
+		!daprSHA256Digest(lock.ExecutorSourceReleaseDigest) || !daprSHA256Digest(lock.ExecutorImageDigest) {
 		issues = append(issues, "dapr-supply-chain-source-digest-invalid")
 	}
 	mirrorRegistry := strings.TrimSpace(lock.MirrorRegistry)
