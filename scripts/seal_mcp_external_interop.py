@@ -147,6 +147,29 @@ def campaign_oauth_client_bindings(campaign:dict)->dict[str,str]:
         "MCP_EXTERNAL_CAMPAIGN",
     )
 
+def campaign_trusted_client_bindings(campaign:dict)->dict[str,dict]:
+    rows=campaign.get("clients") if isinstance(campaign,dict) else None
+    if not isinstance(rows,list):
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_BINDINGS_INVALID")
+    out={}
+    trusted_ids=set()
+    for row in rows:
+        if not isinstance(row,dict):
+            raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_BINDINGS_INVALID")
+        client=str(row.get("clientId") or "")
+        trusted_id=str(row.get("trustedClientId") or "").strip()
+        revision=row.get("trustedClientRevision")
+        provider=str(row.get("trustedClientProvider") or "").strip().lower()
+        if client not in CLIENTS or client in out or not trusted_id or len(trusted_id)>200 or any(ch in trusted_id for ch in "\r\n\t") or type(revision) is not int or revision<=0 or provider!=client:
+            raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_BINDINGS_INVALID")
+        if trusted_id in trusted_ids:
+            raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_ID_REUSE")
+        trusted_ids.add(trusted_id)
+        out[client]={"trustedClientId":trusted_id,"trustedClientRevision":revision,"trustedClientProvider":provider}
+    if set(out)!=set(CLIENTS):
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TRUSTED_CLIENT_BINDINGS_INVALID")
+    return out
+
 def validate_interop_binding(row:dict,campaign_id:str,client:str,label:str)->str:
     if not isinstance(row,dict) or row.get("campaignId")!=campaign_id or row.get("clientId")!=client:
         raise RuntimeError(f"{label}_INTEROP_BINDING_INVALID {client}")
@@ -240,7 +263,8 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     if not SHA.fullmatch(evidence):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
     request_ids=validate_request_ids(row,client)
-    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"providerExecutionRef":provider_ref,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids}
+    trusted=campaign_trusted_client_bindings(campaign)[client]
+    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"providerExecutionRef":provider_ref,"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids}
 
 def validate_audit_export(path:Path)->list[dict]:
     value=load(path,"SECURITY_AUDIT")
@@ -359,6 +383,7 @@ def build_interop_evidence(matrix_sha256:str,campaign_id:str,campaign_sha256:str
       "campaignAuthority":CAMPAIGN_AUTHORITY,"campaignId":campaign_id,"campaignSha256":campaign_sha256,
       "oauthClientBindingAuthority":OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":oauth_binding_sha256,
       "oauthClientBindings":validate_oauth_client_bindings({row["clientId"]:row.get("oauthClientId") for row in rows},"MCP_EXTERNAL_EVIDENCE"),
+      "trustedClientBindings":{row["clientId"]:{"trustedClientId":row.get("trustedClientId"),"trustedClientRevision":row.get("trustedClientRevision"),"trustedClientProvider":row.get("trustedClientProvider")} for row in rows},
       "protocol":protocol,"transport":transport,"endpoint":ep,
       "clients":rows,"certifiedClientCount":len(CLIENTS),"allRequiredChecksPass":True,
       "serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":len(AUDITED_CHECKS)*len(CLIENTS),
