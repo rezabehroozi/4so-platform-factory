@@ -279,6 +279,29 @@ func (k *kubeClient) request(ctx context.Context, method, path string, body []by
 	return res, raw, err
 }
 
+func (k *kubeClient) ensureRuntimeNamespace(ctx context.Context) error {
+	path := "/api/v1/namespaces/" + runtimeNamespace
+	res, raw, err := k.request(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return err
+	}
+	if res.StatusCode == http.StatusOK {
+		return nil
+	}
+	if res.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("Dapr runtime namespace read failed: %s %s", res.Status, strings.TrimSpace(string(raw)))
+	}
+	body := []byte(`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"dapr-system","labels":{"app.kubernetes.io/managed-by":"4so-platform-factory"}}}`)
+	res, raw, err = k.request(ctx, http.MethodPost, "/api/v1/namespaces", body, "application/json")
+	if err != nil {
+		return err
+	}
+	if (res.StatusCode < 200 || res.StatusCode >= 300) && res.StatusCode != http.StatusConflict {
+		return fmt.Errorf("Dapr runtime namespace create failed: %s %s", res.Status, strings.TrimSpace(string(raw)))
+	}
+	return nil
+}
+
 func (k *kubeClient) getState(ctx context.Context, name string) (*ownerState, string, error) {
 	path := "/api/v1/namespaces/" + runtimeNamespace + "/configmaps/" + name
 	res, raw, err := k.request(ctx, http.MethodGet, path, nil, "")
@@ -355,7 +378,8 @@ func helmStatus(ctx context.Context, env []string) (bool, error) {
 		return true, nil
 	}
 	text := strings.ToLower(string(raw))
-	if strings.Contains(text, "release: not found") || strings.Contains(text, "release not found") {
+	if strings.Contains(text, "release: not found") || strings.Contains(text, "release not found") ||
+		(strings.Contains(text, "not found") && strings.Contains(text, runtimeNamespace)) {
 		return false, nil
 	}
 	return false, fmt.Errorf("Dapr Helm status failed: %w: %s", err, strings.TrimSpace(string(raw)))
@@ -410,6 +434,27 @@ func runLifecycle(args []string) error {
 	if err != nil {
 		return err
 	}
+	releaseExists, err := helmStatus(ctx, env)
+	if err != nil {
+		return err
+	}
+	sameOperation := owner != nil && owner.OperationID == cfg.OperationID && owner.FenceToken == cfg.FenceToken
+	samePending := sameOperation && owner.Phase == "Mutating"
+
+	if sameOperation && !samePending {
+		switch cfg.Action {
+		case daprruntime.ActionInstall, daprruntime.ActionUpgrade:
+			if owner.Installed && owner.RuntimeLockDigest == cfg.LockDigest && releaseExists {
+				return kube.putState(ctx, receiptName, *owner)
+			}
+		case daprruntime.ActionRemove:
+			if !owner.Installed && !releaseExists {
+				return kube.putState(ctx, receiptName, *owner)
+			}
+		}
+		return errors.New("DAPR_SAME_OPERATION_OBSERVED_STATE_AMBIGUOUS")
+	}
+
 	var observed *daprruntime.ObservedState
 	if owner != nil {
 		observed = &daprruntime.ObservedState{Installed: owner.Installed, RuntimeLockDigest: owner.RuntimeLockDigest}
@@ -417,15 +462,38 @@ func runLifecycle(args []string) error {
 	if err = daprruntime.ValidateLifecycleDispatchFence(cfg.Action, observed, cfg.LockDigest, cfg.ExpectedObservedLockDigest); err != nil {
 		return err
 	}
-	releaseExists, err := helmStatus(ctx, env)
-	if err != nil {
-		return err
-	}
-	if cfg.Action == daprruntime.ActionInstall && releaseExists && (owner == nil || !owner.Installed) {
+	if cfg.Action == daprruntime.ActionInstall && releaseExists && (owner == nil || !owner.Installed) && !samePending {
 		return errors.New("DAPR_UNOWNED_EXISTING_RELEASE_RECOVERY_REQUIRED")
 	}
 	if (cfg.Action == daprruntime.ActionUpgrade || cfg.Action == daprruntime.ActionRemove) && !releaseExists {
+		if cfg.Action == daprruntime.ActionRemove && samePending {
+			now := time.Now().UTC().Format(time.RFC3339Nano)
+			final := ownerState{Authority: receiptAuthority, Installed: false, OperationID: cfg.OperationID, FenceToken: cfg.FenceToken, ObservedAt: now, Phase: "Removed"}
+			if err = kube.putState(ctx, ownerName, final); err != nil { return err }
+			return kube.putState(ctx, receiptName, final)
+		}
 		return errors.New("DAPR_OWNED_RELEASE_MISSING_RECOVERY_REQUIRED")
+	}
+	if err = kube.ensureRuntimeNamespace(ctx); err != nil {
+		return err
+	}
+	if !samePending {
+		pending := ownerState{
+			Authority: receiptAuthority,
+			OperationID: cfg.OperationID,
+			FenceToken: cfg.FenceToken,
+			ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+			Phase: "Mutating",
+		}
+		if owner != nil && owner.Installed {
+			pending.Installed = true
+			pending.RuntimeLockDigest = owner.RuntimeLockDigest
+			pending.Version = owner.Version
+			pending.UpstreamCommit = owner.UpstreamCommit
+		}
+		if err = kube.putState(ctx, ownerName, pending); err != nil {
+			return err
+		}
 	}
 
 	switch cfg.Action {
