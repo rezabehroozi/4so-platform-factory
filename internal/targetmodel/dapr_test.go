@@ -1,6 +1,9 @@
 package targetmodel
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDaprApplicationRuntimeModelPreserves4SOAuthorityBoundaries(t *testing.T) {
 	model := DaprApplicationRuntimeModel()
@@ -92,6 +95,59 @@ func TestDaprRuntimeSourcePlanRejectsUpstreamDefaultsThatReenableDuplicateAuthor
 	plan.RequiredImages = append(plan.RequiredImages, DaprRuntimeImageRole{Role: "placement", Repository: "ghcr.io/dapr/placement"})
 	if issues := ValidateDaprRuntimeSourcePlan(plan); !contains(issues, "dapr-forbidden-images-invalid") {
 		t.Fatalf("placement image entered minimal profile: %#v", issues)
+	}
+}
+
+func validDaprSupplyChainLock() DaprRuntimeSupplyChainLock {
+	digest := func(ch string) string { return "sha256:" + strings.Repeat(ch, 64) }
+	plan := DaprRuntimeSourcePlanModel()
+	locks := make([]DaprRuntimeImageLock, 0, len(plan.RequiredImages))
+	chars := []string{"a", "b", "c", "d"}
+	for i, image := range plan.RequiredImages {
+		d := digest(chars[i])
+		locks = append(locks, DaprRuntimeImageLock{
+			Role: image.Role, SourceRepository: image.Repository, SourceDigest: d,
+			MirrorReference: "zot.internal.example/dapr/" + image.Role + "@" + d,
+			MirrorDigest: d,
+		})
+	}
+	return DaprRuntimeSupplyChainLock{
+		Authority: DaprRuntimeSupplyChainAuthority, SourcePlanAuthority: plan.Authority,
+		Version: plan.Version, UpstreamRepository: plan.UpstreamRepository, UpstreamRef: plan.UpstreamRef,
+		UpstreamCommit: plan.UpstreamCommit, SourceArchiveDigest: digest("e"), HelmChartDigest: digest("f"),
+		ImageLocks: locks, ZotMirrorVerified: true, OfflineReplayReady: true, Admitted: true,
+	}
+}
+
+func TestDaprSupplyChainLockRequiresExactFourImageMirrorSet(t *testing.T) {
+	lock := validDaprSupplyChainLock()
+	if issues := ValidateDaprRuntimeSupplyChainLock(lock); len(issues) != 0 || !DaprRuntimeSupplyChainAdmitted(lock) {
+		t.Fatalf("valid Dapr supply-chain lock rejected: %#v", issues)
+	}
+	lock = validDaprSupplyChainLock()
+	lock.ImageLocks = lock.ImageLocks[:3]
+	lock.Admitted = false
+	if issues := ValidateDaprRuntimeSupplyChainLock(lock); !contains(issues, "dapr-supply-chain-image-set-incomplete") {
+		t.Fatalf("incomplete Dapr image set accepted: %#v", issues)
+	}
+	lock = validDaprSupplyChainLock()
+	lock.ImageLocks[0].MirrorDigest = "sha256:" + strings.Repeat("9", 64)
+	lock.Admitted = false
+	if issues := ValidateDaprRuntimeSupplyChainLock(lock); !contains(issues, "dapr-supply-chain-image-digest-invalid") {
+		t.Fatalf("source/mirror digest substitution accepted: %#v", issues)
+	}
+}
+
+func TestDaprSupplyChainLockRejectsForbiddenSchedulerImage(t *testing.T) {
+	lock := validDaprSupplyChainLock()
+	d := "sha256:" + strings.Repeat("7", 64)
+	lock.ImageLocks = append(lock.ImageLocks, DaprRuntimeImageLock{
+		Role: "scheduler", SourceRepository: "ghcr.io/dapr/scheduler", SourceDigest: d,
+		MirrorReference: "zot.internal.example/dapr/scheduler@" + d, MirrorDigest: d,
+	})
+	lock.Admitted = false
+	if issues := ValidateDaprRuntimeSupplyChainLock(lock); !contains(issues, "dapr-supply-chain-image-identity-invalid") {
+		t.Fatalf("scheduler image entered initial Dapr lock: %#v", issues)
 	}
 }
 
