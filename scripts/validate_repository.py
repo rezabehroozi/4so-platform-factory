@@ -477,7 +477,10 @@ def validate_mcp_route_parity(root: Path, errors: list[tuple[str,str]]) -> int:
             if row.get('durableJob') is not True or row.get('idempotencyRequired') is not True:
                 errors.append(('MCP_ROUTE_PARITY_DURABLE_MUTATION_MISSING', f'{key[0]} {key[1]}'))
         elif row.get('durableJob') is True:
-            errors.append(('MCP_ROUTE_PARITY_READ_DURABLE_JOB_UNEXPECTED', f'{key[0]} {key[1]}'))
+            if disposition != 'tool-read' or key[0] != 'POST' or row.get('idempotencyRequired') is not True:
+                errors.append(('MCP_ROUTE_PARITY_DURABLE_READ_INVALID', f'{key[0]} {key[1]}'))
+        elif row.get('idempotencyRequired') is True:
+            errors.append(('MCP_ROUTE_PARITY_IDEMPOTENCY_WITHOUT_DURABILITY', f'{key[0]} {key[1]}'))
     for key in sorted(runtime_set-seen):
         errors.append(('MCP_ROUTE_PARITY_COVERAGE_MISSING', f'{key[0]} {key[1]}'))
     # MCP self-management may be readable, but every mutation that changes MCP
