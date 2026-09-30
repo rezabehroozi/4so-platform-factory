@@ -253,7 +253,7 @@ func TestDaprSupplyChainLockRejectsForbiddenSchedulerImage(t *testing.T) {
 
 func TestDaprTargetAdmissionSuppressesDuplicateNativeRuntime(t *testing.T) {
 	out := EvaluateDaprTargetAdmission(DaprTargetAdmissionInput{
-		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true,
+		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true, ExecutorRBACReady: true,
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true,
 		ObservedCapabilities: []string{
 			DaprApplicationRuntimeCapability,
@@ -272,7 +272,7 @@ func TestDaprTargetAdmissionSuppressesDuplicateNativeRuntime(t *testing.T) {
 
 func TestDaprTargetAdmissionFailsClosedUntilInstallProfileIsActuallyReady(t *testing.T) {
 	out := EvaluateDaprTargetAdmission(DaprTargetAdmissionInput{
-		DistributionIdentity: "rke2", TargetAdmitted: true, TargetMutationReady: true,
+		DistributionIdentity: "rke2", TargetAdmitted: true, TargetMutationReady: true, ExecutorRBACReady: true,
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true,
 	})
 	if out.Eligible || out.Mode != "INSTALL_REQUIRED" || out.InstallSuppressed {
@@ -294,7 +294,7 @@ func TestDaprTargetAdmissionFailsClosedUntilInstallProfileIsActuallyReady(t *tes
 
 func TestDaprDisconnectedInstallRequiresMirrorButNativeRuntimeDoesNot(t *testing.T) {
 	base := DaprTargetAdmissionInput{
-		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true,
+		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true, ExecutorRBACReady: true,
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true, Disconnected: true,
 		ObservedCapabilities: []string{DaprSidecarSecurityCapability, DaprComponentScopeCapability, DaprResourceSizingCapability},
 		ExactSourceAdmitted: true,
