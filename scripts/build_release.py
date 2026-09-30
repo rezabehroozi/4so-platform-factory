@@ -17,7 +17,7 @@ EXCLUDE = {".git", "bin", "dist", "release", "__pycache__", ".pytest_cache", ".s
 FIXED_DATE = (2026, 1, 1, 0, 0, 0)
 FIXED_CREATED = "2026-01-01T00:00:00Z"
 TARGETS = ("linux-amd64",)
-BINARIES = ("platform-api", "platformctl", "platform-installer", "platform-agent", "platform-probe", "virtual-cluster-renderer", "openchoreo-runtime")
+BINARIES = ("platform-api", "platformctl", "platform-installer", "platform-agent", "platform-probe", "virtual-cluster-renderer", "openchoreo-runtime", "dapr-runtime")
 GENERATED_METADATA = {"ARTIFACT-MANIFEST.json", "BUILD-PROVENANCE.json", "SBOM.spdx.json", "DERIVED-AGENT-KNOWLEDGE.json"}
 
 
