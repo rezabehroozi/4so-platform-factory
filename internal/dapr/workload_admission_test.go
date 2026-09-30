@@ -28,6 +28,7 @@ func workloadAdmissionTestRequest(t *testing.T, mode string) WorkloadAdmissionRe
 		ProjectID: "prj_test", ClusterID: "clu_test", TraitID: "trait_dapr",
 		TraitDigest: workloadAdmissionTestDigest("1"), InventoryDigest: workloadAdmissionTestDigest("2"),
 		RuntimeMode: mode,
+		ExecutorEvidenceDigest: workloadAdmissionTestDigest("7"),
 		ExecutorImageReference: "zot.internal.example/4so/dapr-runtime@" + workloadAdmissionTestDigest("3"),
 		WorkloadImage: "zot.internal.example/apps/payments@" + workloadAdmissionTestDigest("4"),
 		Plan: plan, PlanDigest: planDigest,
@@ -41,13 +42,9 @@ func workloadAdmissionTestRequest(t *testing.T, mode string) WorkloadAdmissionRe
 	return request
 }
 
-func injectTestDaprSidecar(t *testing.T, deployment map[string]any, image string) map[string]any {
+func injectTestDaprSidecar(t *testing.T, pod map[string]any, image string) map[string]any {
 	t.Helper()
-	spec, ok := deployment["spec"].(map[string]any)
-	if !ok { t.Fatal("deployment spec missing") }
-	template, ok := spec["template"].(map[string]any)
-	if !ok { t.Fatal("deployment template missing") }
-	podSpec, ok := template["spec"].(map[string]any)
+	podSpec, ok := pod["spec"].(map[string]any)
 	if !ok { t.Fatal("pod spec missing") }
 	containers, ok := podSpec["containers"].([]any)
 	if !ok { t.Fatal("containers missing") }
@@ -60,7 +57,7 @@ func injectTestDaprSidecar(t *testing.T, deployment map[string]any, image string
 			"capabilities": map[string]any{"drop": []any{"ALL"}},
 		},
 	})
-	return deployment
+	return pod
 }
 
 func TestWorkloadAdmissionRequestIsDigestBoundAndRequiresExactImages(t *testing.T) {
@@ -91,9 +88,9 @@ func TestWorkloadAdmissionRequestIsDigestBoundAndRequiresExactImages(t *testing.
 
 func TestWorkloadAdmissionDryRunProvesInjectedSidecarSecurityWithoutPullOrPhysicalClaims(t *testing.T) {
 	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
-	deployment, err := BuildWorkloadAdmissionDeployment(request, "op_test")
+	pod, err := BuildWorkloadAdmissionPod(request, "op_test")
 	if err != nil { t.Fatal(err) }
-	response := injectTestDaprSidecar(t, deployment, request.ExpectedSidecarImage)
+	response := injectTestDaprSidecar(t, pod, request.ExpectedSidecarImage)
 	evidence, err := WorkloadAdmissionEvidenceFromDryRun(request, "op_test", response, 201, time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC))
 	if err != nil { t.Fatal(err) }
 	if !evidence.InjectedSidecarObserved || !evidence.RunAsNonRoot || !evidence.ReadOnlyRootFilesystem ||
@@ -114,19 +111,32 @@ func TestWorkloadAdmissionDryRunProvesInjectedSidecarSecurityWithoutPullOrPhysic
 	}
 }
 
+func TestWorkloadAdmissionRejectsDeploymentDryRunShape(t *testing.T) {
+	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
+	response := map[string]any{
+		"apiVersion": "apps/v1", "kind": "Deployment",
+		"metadata": map[string]any{"name": AdmissionObjectName("op_wrong"), "namespace": request.Plan.Namespace},
+		"spec": map[string]any{"template": map[string]any{"metadata": map[string]any{}, "spec": map[string]any{}}},
+	}
+	if _, err := WorkloadAdmissionEvidenceFromDryRun(request, "op_wrong", response, 201, time.Now().UTC()); err == nil ||
+		!strings.Contains(err.Error(), "POD_SHAPE_INVALID") {
+		t.Fatalf("Deployment dry-run was treated as Dapr Pod injection evidence: %v", err)
+	}
+}
+
 func TestWorkloadAdmissionRejectsInjectorSecurityAndImageSubstitution(t *testing.T) {
 	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
-	deployment, err := BuildWorkloadAdmissionDeployment(request, "op_test")
+	pod, err := BuildWorkloadAdmissionPod(request, "op_test")
 	if err != nil { t.Fatal(err) }
-	response := injectTestDaprSidecar(t, deployment, "zot.internal.example/dapr/sidecar@"+workloadAdmissionTestDigest("9"))
+	response := injectTestDaprSidecar(t, pod, "zot.internal.example/dapr/sidecar@"+workloadAdmissionTestDigest("9"))
 	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_test", response, 201, time.Now().UTC()); err == nil {
 		t.Fatal("substituted Dapr sidecar image passed product-managed dry-run evidence")
 	}
 
-	deployment, err = BuildWorkloadAdmissionDeployment(request, "op_test")
+	pod, err = BuildWorkloadAdmissionPod(request, "op_test")
 	if err != nil { t.Fatal(err) }
-	response = injectTestDaprSidecar(t, deployment, request.ExpectedSidecarImage)
-	spec := response["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
+	response = injectTestDaprSidecar(t, pod, request.ExpectedSidecarImage)
+	spec := response["spec"].(map[string]any)
 	containers := spec["containers"].([]any)
 	sidecar := containers[len(containers)-1].(map[string]any)
 	security := sidecar["securityContext"].(map[string]any)
@@ -138,9 +148,9 @@ func TestWorkloadAdmissionRejectsInjectorSecurityAndImageSubstitution(t *testing
 
 func TestWorkloadAdmissionRejectsMissingExplicitPrivilegeEscalationField(t *testing.T) {
 	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
-	deployment, err := BuildWorkloadAdmissionDeployment(request, "op_missing_security")
+	pod, err := BuildWorkloadAdmissionPod(request, "op_missing_security")
 	if err != nil { t.Fatal(err) }
-	response := injectTestDaprSidecar(t, deployment, request.ExpectedSidecarImage)
+	response := injectTestDaprSidecar(t, pod, request.ExpectedSidecarImage)
 	spec := response["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
 	containers := spec["containers"].([]any)
 	sidecar := containers[len(containers)-1].(map[string]any)
@@ -154,10 +164,10 @@ func TestWorkloadAdmissionRejectsMissingExplicitPrivilegeEscalationField(t *test
 
 func TestNativeDaprAdmissionObservesSecurityButNeverClaimsProductImageFence(t *testing.T) {
 	request := workloadAdmissionTestRequest(t, "USE_NATIVE")
-	deployment, err := BuildWorkloadAdmissionDeployment(request, "op_native")
+	pod, err := BuildWorkloadAdmissionPod(request, "op_native")
 	if err != nil { t.Fatal(err) }
 	nativeImage := "registry.native.example/dapr/daprd:v1.18.4"
-	response := injectTestDaprSidecar(t, deployment, nativeImage)
+	response := injectTestDaprSidecar(t, pod, nativeImage)
 	evidence, err := WorkloadAdmissionEvidenceFromDryRun(request, "op_native", response, 200, time.Now().UTC())
 	if err != nil { t.Fatal(err) }
 	if evidence.ExpectedSidecarImageMatched || evidence.SidecarImageReference != nativeImage {
