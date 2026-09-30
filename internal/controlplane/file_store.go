@@ -386,6 +386,19 @@ func (f *FileStore) ResolveUnknownOperationOutcome(ctx context.Context, id strin
 		return f.MemoryStore.ResolveUnknownOperationOutcome(ctx, id, rev, resolution, evidenceDigest, actor)
 	})
 }
+func (f *FileStore) ResolveUnknownOperationOutcomeWithEvidence(ctx context.Context, id string, rev int64, resolution OperationUnknownOutcomeResolution, evidence EvidenceMetadata, payload []byte, actor string) (Operation, EvidenceMetadata, error) {
+	f.writeMu.Lock()
+	defer f.writeMu.Unlock()
+	before, err := f.MemoryStore.Snapshot(ctx)
+	if err != nil { return Operation{}, EvidenceMetadata{}, err }
+	op, sealed, err := f.MemoryStore.ResolveUnknownOperationOutcomeWithEvidence(ctx, id, rev, resolution, evidence, payload, actor)
+	if err != nil { return op, sealed, err }
+	if err = f.persist(ctx); err != nil {
+		_ = f.MemoryStore.Restore(before)
+		return op, sealed, fmt.Errorf("persist authoritative snapshot: %w", err)
+	}
+	return op, sealed, nil
+}
 func (f *FileStore) CompleteOperation(ctx context.Context, id string, rev int64, worker string, fence int64, actor string) (Operation, error) {
 	return mutate(f, ctx, func() (Operation, error) { return f.MemoryStore.CompleteOperation(ctx, id, rev, worker, fence, actor) })
 }
