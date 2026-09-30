@@ -68,17 +68,27 @@ def write_state(root,state,override=None):
     body=dict(state); body["authority"]=AUTHORITY; body["schemaVersion"]=SCHEMA; body["updatedAt"]=now()
     atomic_json(state_file(root,override),body)
 
-def git(root,refresh=True,allow_detached=False):
+def git(root,refresh=False,allow_detached=False,require_origin_sync=False):
     def run(*args,check=True,timeout=30):
         p=subprocess.run(["git",*args],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=timeout)
         if check and p.returncode: raise RuntimeError("GIT_COMMAND_FAILED "+" ".join(args)+" "+p.stdout.strip())
-        return p.stdout.strip()
-    if refresh: run("fetch","--quiet","origin","main",timeout=120)
-    head=run("rev-parse","HEAD"); origin=run("rev-parse","origin/main"); branch=run("branch","--show-current")
-    if not branch: branch="(detached)"
+        return p
+    refresh_error=""
+    if refresh:
+        fetched=run("fetch","--quiet","origin","main",check=False,timeout=120)
+        if fetched.returncode:
+            refresh_error=(fetched.stdout or "").strip() or f"exit-{fetched.returncode}"
+    head_proc=run("rev-parse","HEAD"); head=head_proc.stdout.strip()
+    branch_proc=run("branch","--show-current"); branch=branch_proc.stdout.strip() or "(detached)"
     if branch!="main" and not allow_detached: raise RuntimeError(f"GIT_BRANCH_NOT_MAIN {branch}")
-    if head!=origin: raise RuntimeError(f"GIT_MAIN_DIVERGED head={head} originMain={origin}")
-    return {"repository":run("config","--get","remote.origin.url",check=False),"branch":branch,"head":head,"originMain":origin}
+    origin_proc=run("rev-parse","--verify","origin/main",check=False)
+    origin=origin_proc.stdout.strip() if origin_proc.returncode==0 else ""
+    sync="UNAVAILABLE" if not origin else ("MATCHED" if origin==head else "DIFFERENT")
+    if require_origin_sync and sync!="MATCHED":
+        raise RuntimeError(f"GIT_ORIGIN_SYNC_REQUIRED head={head} originMain={origin or 'unavailable'}")
+    remote=run("config","--get","remote.origin.url",check=False)
+    return {"repository":remote.stdout.strip(),"branch":branch,"head":head,"originMain":origin,
+            "gitSyncStatus":sync,"originRefreshAttempted":bool(refresh),"originRefreshError":refresh_error}
 
 def lock_owner_live(lock):
     return alive(lock.get("pid"),lock.get("startTicks"))
@@ -222,11 +232,14 @@ def resume(root,override=None,allow_detached=False):
         s.update(status="WAITING",recoveryRequired=True,latestError="MANUAL_READBACK_REQUIRED_BEFORE_REPLAY")
         write_state(root,s,override)
         return {"action":"RECOVERY_REQUIRED","state":s}
-    info=git(root,allow_detached=allow_detached)
-    if s.get("head")!=info["head"] or s.get("originMain")!=info["originMain"]:
-        s.update(status="WAITING",recoveryRequired=True,latestError="GIT_AUTHORITY_CHANGED_REPLAN_REQUIRED")
+    info=git(root,refresh=False,allow_detached=allow_detached)
+    if s.get("head")!=info["head"] or s.get("branch")!=info["branch"]:
+        s.update(status="WAITING",recoveryRequired=True,latestError="LOCAL_GIT_AUTHORITY_CHANGED_REPLAN_REQUIRED",
+                 currentOriginMain=info.get("originMain",""),gitSyncStatus=info.get("gitSyncStatus","UNAVAILABLE"))
         write_state(root,s,override)
         return {"action":"REPLAN_REQUIRED","state":s}
+    s["currentOriginMain"]=info.get("originMain","")
+    s["gitSyncStatus"]=info.get("gitSyncStatus","UNAVAILABLE")
     run_id=str(s.get("runId") or "")
     if not run_id: raise RuntimeError("PROJECT_RUNTIME_RUN_ID_MISSING")
     acquire(root,run_id,override)
