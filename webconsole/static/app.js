@@ -6,7 +6,7 @@ const state = {
   locale: localStorage.getItem('platformLocale') || 'fa',
   session: null,
   currentPage: 'overview',
-  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], daprAssessment: null, daprLifecycle: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
+  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], daprAssessment: null, daprLifecycle: null, daprWorkloadPlan: null, daprWorkloadAdmission: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
   baselines: [], baselineDeployments: [], verifications: [], closures: [], runtimeCertifications: [],
   fleetGroups: [], driftScans: [], upgradeCampaigns: [], recoveryCheckpoints: [], backupPolicies: [], dataProtectionRuns: [], fleetHealth: null, day2CampaignEngine: null, tenants: [], tenantPlans: [],
   clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], targetNodeLifecycleAuthority: null, currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], virtualClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
@@ -1737,7 +1737,7 @@ async function api(path, options = {}) {
   const submittedForm = mutation && state.lastSubmittedForm && (Date.now()-state.lastSubmittedAt)<500 ? state.lastSubmittedForm : null;
   if (mutation) { state.lastSubmittedForm = null; state.lastSubmittedAt = 0; }
   const viewerSafePostPath=scopeURL(path).pathname;
-  const viewerSafePost = ['/api/v1/blueprints/validate','/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/compatibility/evaluate','/api/v1/installations/plans','/api/v1/blueprint-releases/compare','/api/v1/runtime-closure-reports/verify','/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate','/api/v1/edge/local-authority/policies/compile','/api/v1/edge/local-authority/mutations/admit','/api/v1/edge/local-authority/reconnect/resolve','/api/v1/application-platform/dapr/assessment','/api/v1/application-platform/dapr/workload-plan','/api/v1/support-bundles','/api/v1/support-bundle-jobs','/api/v1/workload-log-queries'].includes(viewerSafePostPath);
+  const viewerSafePost = ['/api/v1/blueprints/validate','/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/compatibility/evaluate','/api/v1/installations/plans','/api/v1/blueprint-releases/compare','/api/v1/runtime-closure-reports/verify','/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate','/api/v1/edge/local-authority/policies/compile','/api/v1/edge/local-authority/mutations/admit','/api/v1/edge/local-authority/reconnect/resolve','/api/v1/application-platform/dapr/assessment','/api/v1/application-platform/dapr/workload-plan','/api/v1/application-platform/dapr/workload-admissions','/api/v1/support-bundles','/api/v1/support-bundle-jobs','/api/v1/workload-log-queries'].includes(viewerSafePostPath);
   if (state.session && ['POST','PUT','PATCH','DELETE'].includes(method) && !viewerSafePost && !canOperate()) {
     // A viewer may have been promoted after this tab loaded. Refresh session
     // authority before blocking a mutation purely from stale client state.
@@ -4209,10 +4209,17 @@ function applicationListOptions(select,items,label){if(!select)return;select.inn
 function daprClusterRecords(projectId){
   return (state.clusters||[]).map(row=>row?.cluster||row).filter(item=>item&&item.id&&(!projectId||item.projectId===projectId)&&item.connectionState!=='REVOKED');
 }
+function resetDaprWorkloadWorkflow(){
+  state.daprWorkloadPlan=null;state.daprWorkloadAdmission=null;
+  const result=$('#dapr-workload-result');if(result)result.innerHTML='';
+  const operation=$('#dapr-workload-operation');if(operation)operation.value='';
+  renderDaprWorkloadControls();renderDaprWorkloadResult();
+}
 function resetDaprRuntimeWorkflow(){
   state.daprAssessment=null;state.daprLifecycle=null;
   const result=$('#dapr-runtime-result');if(result)result.innerHTML='';
   const operation=$('#dapr-lifecycle-operation');if(operation)operation.value='';
+  resetDaprWorkloadWorkflow();
   renderDaprRuntimeControls();
 }
 function renderDaprRuntimeOptions(){
@@ -4221,7 +4228,11 @@ function renderDaprRuntimeOptions(){
   setProjectOptions(project,state.projects,item=>item.displayName||item.name||item.id,'Create a project first');
   const projectId=project.value;
   setOptions(cluster,daprClusterRecords(projectId),item=>item.id,item=>`${item.displayName||item.name||item.id} · ${item.distribution||'distribution pending'}`,'Connect a cluster in this project first');
-  renderDaprRuntimeControls();
+  const workloadTrait=$('#dapr-workload-trait');
+  if(workloadTrait){
+    setOptions(workloadTrait,(state.applicationCapabilityTraits||[]).filter(item=>item.projectId===projectId&&item.kind==='sidecar'&&item.capability==='application-runtime.dapr'),item=>item.id,item=>`${item.name} · ${item.version}`,'Create a Dapr sidecar capability trait first');
+  }
+  renderDaprRuntimeControls();renderDaprWorkloadControls();
 }
 function daprLifecycleActions(observed){
   return observed?.installed?[
@@ -4259,6 +4270,62 @@ function renderDaprRuntimeResult(){
   host.innerHTML=html;
   host.querySelector('[data-dapr-open-operations]')?.addEventListener('click',()=>navigate('operations'));
 }
+function daprWorkloadBody(includeTarget=false){
+  const body={
+    projectId:$('#dapr-project').value,
+    traitId:$('#dapr-workload-trait').value,
+    namespace:$('#dapr-workload-namespace').value.trim(),
+    appId:$('#dapr-workload-app-id').value.trim(),
+    appPort:Number($('#dapr-workload-app-port').value||0),
+    appProtocol:$('#dapr-workload-protocol').value,
+    cpuRequest:$('#dapr-workload-cpu-request').value.trim(),
+    cpuLimit:$('#dapr-workload-cpu-limit').value.trim(),
+    memoryRequest:$('#dapr-workload-memory-request').value.trim(),
+    memoryLimit:$('#dapr-workload-memory-limit').value.trim(),
+    componentNames:$('#dapr-workload-components').value.split(',').map(v=>v.trim()).filter(Boolean),
+    enableInvocation:$('#dapr-workload-invocation').checked,
+    enablePubSub:$('#dapr-workload-pubsub').checked,
+    enableBindings:$('#dapr-workload-bindings').checked
+  };
+  if(includeTarget){
+    body.clusterId=$('#dapr-cluster').value;
+    body.workloadImage=$('#dapr-workload-image').value.trim();
+  }
+  return body;
+}
+function renderDaprWorkloadControls(){
+  const admit=$('#dapr-workload-admit'),refresh=$('#dapr-workload-refresh'),operation=$('#dapr-workload-operation');
+  if(!admit||!refresh||!operation)return;
+  const plan=state.daprWorkloadPlan,admission=state.daprWorkloadAdmission;
+  const ctx=plan?.context;
+  const current=!!ctx&&ctx.projectId===$('#dapr-project').value&&ctx.clusterId===$('#dapr-cluster').value;
+  const image=$('#dapr-workload-image')?.value.trim()||'';
+  const exactImage=/^[^\s@]+@sha256:[0-9a-f]{64}$/.test(image);
+  admit.disabled=!current||!exactImage;
+  const op=admission?.operation;
+  operation.value=op?.id||'';
+  refresh.disabled=!op?.id;
+}
+function renderDaprWorkloadResult(){
+  const host=$('#dapr-workload-result');if(!host)return;
+  const plan=state.daprWorkloadPlan,admission=state.daprWorkloadAdmission;
+  if(!plan){host.innerHTML='<div class="inline-summary">Preview a Dapr workload policy to obtain the exact Configuration projection and component-scope digest before target admission.</div>';return;}
+  const apiRules=(plan.plan?.allowedApis||[]).map(rule=>`${rule.protocol}/${rule.version}/${rule.name}`).join(', ')||'—';
+  const componentScopes=(plan.plan?.componentScopes||[]).map(scope=>`${scope.componentName} → ${(scope.scopes||[]).join(',')}`).join('; ')||'none';
+  let html=`<div class="inline-summary"><strong>Dapr workload policy</strong> · <span class="technical">${esc(shortDigest(plan.configurationPolicyDigest||''))}</span><br><span>API allowlist: ${esc(apiRules)}</span><br><span>Component scopes: ${esc(componentScopes)}</span><br><span>Scope digest: <span class="technical">${esc(shortDigest(plan.componentScopeDigest||''))}</span></span><br><small>Projection only. Materialize this exact Configuration through the application/GitOps path before admission.</small><details><summary>Exact Configuration projection</summary><pre class="technical">${esc(JSON.stringify(plan.configurationProjection||{},null,2))}</pre></details></div>`;
+  if(admission?.operation){
+    const op=admission.operation,evidence=admission.evidence||{},policy=evidence.policyObservation||{};
+    const status=admission.ready?'READY':(admission.stale?'STALE':(op.state||'PENDING'));
+    html+=`<div class="${admission.ready?'success-banner':'inline-summary'}"><strong>Target admission</strong> · ${badge(status)} · <span class="technical">${esc(op.id||'')}</span><br><span>Operation: ${esc(op.state||'UNKNOWN')} · current authority: ${admission.currentAuthority===false?'no':'yes'}</span>${admission.evidenceDigest?`<br><span>Evidence: <span class="technical">${esc(shortDigest(admission.evidenceDigest))}</span></span>`:''}${evidence.sidecarImageReference?`<br><span>Injected sidecar: <span class="technical">${esc(evidence.sidecarImageReference)}</span></span>`:''}${policy.configurationPolicyDigest?`<br><span>Observed policy: <span class="technical">${esc(shortDigest(policy.configurationPolicyDigest))}</span> · components ${esc(policy.componentCount||0)}</span>`:''}<br><small>Admission proves current policy/scopes and server-side injection only; it does not prove image pull, application deployment, Runtime or Physical certification.</small></div>`;
+  }
+  host.innerHTML=html;
+}
+async function refreshDaprWorkloadAdmission(){
+  const id=state.daprWorkloadAdmission?.operation?.id;if(!id)return;
+  state.daprWorkloadAdmission=await api(`/api/v1/application-platform/dapr/workload-admissions/${encodeURIComponent(id)}`);
+  renderDaprWorkloadControls();renderDaprWorkloadResult();
+}
+
 async function refreshDaprLifecycle(){
   const id=state.daprLifecycle?.operation?.id;if(!id)return;
   const result=await api(`/api/v1/application-platform/dapr/lifecycle/${encodeURIComponent(id)}`);
@@ -4292,6 +4359,7 @@ function renderApplicationPlatformComposition(){
   applicationListOptions($('#application-promotion-release'),state.applicationReleases.filter(item=>!selectedBinding||item.projectId===selectedBinding.projectId),item=>`${item.name} · ${item.version}`);
   renderDaprRuntimeOptions();
   renderDaprRuntimeResult();
+  renderDaprWorkloadResult();
 }
 async function loadPlatformTemplates(){
   try{
@@ -4318,6 +4386,29 @@ $('#dapr-assessment-form').onsubmit=async event=>{
     toast(result.assessment?.mode==='USE_NATIVE'?'Target-native Dapr detected; duplicate installation is suppressed.':(result.assessment?.eligible?'Dapr target is eligible for an approval-gated lifecycle request.':'Dapr target assessment has blockers.'),result.assessment?.eligible?'success':'warning');
   }catch(error){state.daprAssessment=null;state.daprLifecycle=null;renderDaprRuntimeControls();$('#dapr-runtime-result').innerHTML=errorState(error.message);toast(error.message,'error');}
 };
+$('#dapr-workload-form').addEventListener('input',event=>{if(event.target.id!=='dapr-workload-operation')resetDaprWorkloadWorkflow();});
+$('#dapr-workload-form').addEventListener('change',event=>{if(event.target.id!=='dapr-workload-operation')resetDaprWorkloadWorkflow();});
+$('#dapr-workload-form').onsubmit=async event=>{
+  event.preventDefault();if(!event.currentTarget.reportValidity())return;
+  const body=daprWorkloadBody(false),clusterId=$('#dapr-cluster').value;
+  try{
+    const result=await api('/api/v1/application-platform/dapr/workload-plan',{method:'POST',body});
+    state.daprWorkloadPlan={...result,context:{projectId:body.projectId,clusterId,traitId:body.traitId,namespace:body.namespace,appId:body.appId}};state.daprWorkloadAdmission=null;
+    renderDaprWorkloadControls();renderDaprWorkloadResult();toast('Dapr workload policy projection generated. Materialize the exact projection before target admission.');
+  }catch(error){state.daprWorkloadPlan=null;state.daprWorkloadAdmission=null;renderDaprWorkloadControls();$('#dapr-workload-result').innerHTML=errorState(error.message);toast(error.message,'error');}
+};
+$('#dapr-workload-admit').onclick=async()=>{
+  const plan=state.daprWorkloadPlan,ctx=plan?.context;if(!ctx){toast('Preview the current Dapr workload policy first.','warning');return;}
+  const body=daprWorkloadBody(true);
+  if(body.projectId!==ctx.projectId||body.clusterId!==ctx.clusterId||body.traitId!==ctx.traitId||body.namespace!==ctx.namespace||body.appId!==ctx.appId){resetDaprWorkloadWorkflow();toast('Workload context changed. Preview the policy again before admission.','warning');return;}
+  if(!/^[^\s@]+@sha256:[0-9a-f]{64}$/.test(body.workloadImage)){toast('Target admission requires an exact digest-pinned workload image.','warning');return;}
+  try{
+    const result=await api('/api/v1/application-platform/dapr/workload-admissions',{method:'POST',headers:{'Idempotency-Key':idempotency('dapr-workload-admission')},body});
+    state.daprWorkloadAdmission=result;renderDaprWorkloadControls();renderDaprWorkloadResult();toast('Dapr target admission queued as a read-only durable verification.');
+  }catch(error){toast(error.message,'error');}
+};
+$('#dapr-workload-refresh').onclick=async()=>{try{await refreshDaprWorkloadAdmission();}catch(error){toast(error.message,'error');}};
+
 $('#dapr-lifecycle-form').onsubmit=async event=>{
   event.preventDefault();if(!event.currentTarget.reportValidity())return;
   const assessment=state.daprAssessment,ctx=assessment?.context;
