@@ -267,14 +267,16 @@ def reconcile(root,state,override=None,write=True):
     worker=alive(s.get("activePid"),s.get("activePidStartTicks"))
     child=alive(s.get("commandPid"),s.get("commandPidStartTicks"))
     lock=read_lock(root,override)
+    lock_run_id=str((lock or {}).get("runId") or "")
     lock_live=bool(lock and lock_owner_live(lock))
+    lock_matches=bool(lock_live and lock_run_id==str(s.get("runId") or ""))
     s["workerAlive"]=worker; s["commandAlive"]=child
-    s["lockAlive"]=lock_live; s["lockRunId"]=str((lock or {}).get("runId") or "")
-    s["activeRun"]=worker or child or lock_live
+    s["lockAlive"]=lock_live; s["lockRunId"]=lock_run_id; s["lockMatchesRun"]=lock_matches
+    s["activeRun"]=worker or child or lock_matches
     transition=False
     status=s.get("status")
     if status=="WAITING" and s.get("orphaned") is True and s.get("latestError")=="ORPHANED_SUPERVISOR_CHILD_STILL_ACTIVE":
-        if child or lock_live:
+        if child or lock_matches:
             pass
         elif s.get("replaySafe") is True:
             s.update(status="INTERRUPTED",recoveryRequired=False,latestError="ORPHANED_CHILD_EXITED_OUTCOME_UNKNOWN_REPLAY_SAFE",
@@ -290,7 +292,7 @@ def reconcile(root,state,override=None,write=True):
         # operator explicitly resolves or resumes it.
         pass
     elif status in ACTIVE:
-        if worker or lock_live:
+        if worker or lock_matches:
             pass
         elif child:
             s.update(status="WAITING",orphaned=True,recoveryRequired=True,latestError="ORPHANED_SUPERVISOR_CHILD_STILL_ACTIVE")
