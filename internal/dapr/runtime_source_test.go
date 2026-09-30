@@ -28,6 +28,7 @@ func validRuntimeLock() RuntimeLock {
 		Authority: targetmodel.DaprRuntimeSupplyChainAuthority, SourcePlanAuthority: plan.Authority,
 		Version: plan.Version, UpstreamRepository: plan.UpstreamRepository, UpstreamRef: plan.UpstreamRef,
 		UpstreamCommit: plan.UpstreamCommit, SourceArchiveDigest: testDigest("e"), HelmChartDigest: testDigest("f"),
+		HelmRenderDigest: testDigest("1"), AcquisitionReceiptDigest: testDigest("2"), MirrorEvidenceDigest: testDigest("3"),
 		RegistryAuthority: "zot", MirrorRegistry: "zot.internal.example",
 		ImageLocks: images, ZotMirrorVerified: true, OfflineReplayReady: true, Admitted: true,
 	}
