@@ -206,7 +206,6 @@ def checkpoint(root,path):
             "latestCompletedCheckpoint":str(d.get("latestCompletedCheckpoint") or ""),"nextIndex":d.get("nextIndex") if isinstance(d.get("nextIndex"),int) else None}
 
 def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=False,override=None,skip_git=False,allow_detached=False):
-    info={"repository":"self-test","branch":"main","head":"self-test","originMain":"self-test"} if skip_git else git(root,allow_detached=allow_detached)
     prev=read_state(root,override)
     if prev:
         prev=reconcile(root,prev,override)
@@ -214,15 +213,17 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
             return {"action":"REJOIN","state":prev}
         if prev.get("recoveryRequired") is True and not prev.get("activeRun"):
             return {"action":"RECOVERY_REQUIRED","state":prev}
-        same_job=(prev.get("head")==info["head"] and prev.get("branch")==info["branch"] and prev.get("phase")==phase and prev.get("currentTask")==task and prev.get("command")==command)
-        if prev.get("status")=="COMPLETED" and same_job:
-            return {"action":"CACHED_COMPLETED","state":prev}
         if prev.get("status") in {"FAILED","INTERRUPTED","WAITING"} and not prev.get("activeRun"):
-            if prev.get("replaySafe") is True:
+            if prev.get("replaySafe") is True or prev.get("manualReplayAuthorized") is True:
                 return {"action":"RESUME_REQUIRED","state":prev}
             prev.update(status="WAITING",recoveryRequired=True,latestError=prev.get("latestError") or "MANUAL_READBACK_REQUIRED_BEFORE_REPLAY")
             write_state(root,prev,override)
             return {"action":"RECOVERY_REQUIRED","state":prev}
+    info={"repository":"self-test","branch":"main","head":"self-test","originMain":"self-test","gitSyncStatus":"UNAVAILABLE"} if skip_git else git(root,allow_detached=allow_detached)
+    if prev:
+        same_job=(prev.get("head")==info["head"] and prev.get("branch")==info["branch"] and prev.get("phase")==phase and prev.get("currentTask")==task and prev.get("command")==command)
+        if prev.get("status")=="COMPLETED" and same_job:
+            return {"action":"CACHED_COMPLETED","state":prev}
     run_id="run-"+datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")+"-"+secrets.token_hex(4)
     acquire(root,run_id,override)
     lp=log_file(root,run_id,override); lp.parent.mkdir(parents=True,exist_ok=True)
