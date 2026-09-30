@@ -44,7 +44,7 @@ func (s *Server) operationExecutorIdentity(r *http.Request, requestedWorker stri
 		Category: "OPERATION_EXECUTOR_AUTHORIZATION", Decision: decision, ActorID: principal.Subject,
 		Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, StatusCode: status,
 		ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), EffectiveRole: auth.CanonicalRole(principal.Roles),
-		MappingDigest: principal.MappingDigest,
+		MappingDigest: principal.MappingDigest, OAuthClientID: principal.AuthorizedClientID,
 	}); err != nil {
 		return "", err
 	}
