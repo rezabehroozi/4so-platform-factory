@@ -497,6 +497,18 @@ Cost Insights, Delivery/DORA Insights and audit separation are pattern inputs to
 A future `application-platform.openchoreo` adapter is optional, disabled by default and target-only. It may run only after target capability discovery and exact supply-chain/disconnected admission. It cannot migrate the management plane, replace PostgreSQL/Forgejo/zot/Keycloak/Operator Horizon, make Argo Workflows or Buildpacks mandatory, or install duplicate OKD networking/monitoring/tenancy stacks.
 
 
+## Dapr v1.18.4 application-runtime extension boundary
+
+`DAPR_APPLICATION_RUNTIME_EXTENSION_V1` adopts Dapr only as an optional **application runtime extension** under J8. The reviewed upstream baseline is Dapr runtime `v1.18.4`; it is not a 4SO management-plane dependency and is not installed by default. The product capability is `application-runtime.dapr`, represented through the existing `CapabilityTrait(kind=sidecar)` composition path so the same target capability resolver can suppress a duplicate Dapr stack when the target already provides it.
+
+The first admitted profile is deliberately narrow: **service invocation, pub/sub, bindings, resiliency and observability**. Dapr state management, Workflows, Jobs, Actors, distributed locks, Secrets, Configuration, Cryptography and Conversation remain deferred. They may be useful for application-owned scenarios later, but they must not replace PostgreSQL control-plane truth, revision/lease/fence-token mutation authority, product Durable Operations, secret-reference ownership, GitOps desired state or 4SO AI/MCP policy. In particular, the initial profile disables Dapr Scheduler, Placement and Dashboard; Scheduler/Workflow/Jobs would otherwise introduce a second durable scheduling/state authority.
+
+Kubernetes target deployment uses the sidecar model only in the initial profile. Required target services are `dapr-operator`, `dapr-sidecar-injector` and `dapr-sentry`; Dapr Shared is not enabled. Sentry-backed mTLS is mandatory. Sidecar APIs are allow-listed to the selected building blocks, service invocation defaults to deny, cross-namespace invocation is opt-in rather than default, and every Dapr Component must be namespace-scoped plus application-scoped.
+
+Dapr never installs an implicit Redis, Kafka, RabbitMQ, database or secret store. Pub/sub and binding components may reference only an already-provisioned same-project `ManagedResourceType` output or another explicitly approved external endpoint. Dapr telemetry feeds the existing 4SO observability plane as derived telemetry; no duplicate Prometheus/dashboard authority is added.
+
+Runtime admission remains separate from this source decision. A target must have fresh capability discovery, compatible admission-webhook and sidecar security policy, OKD SCC/PSA compatibility where applicable, explicit sidecar resource sizing, exact Dapr source/chart/image identities admitted through the existing supply-chain authority, and product-zot mirrored images for disconnected targets. Installation/removal must execute through the existing revision-fenced durable 4SO operation path with authoritative observed readback. No Runtime, Lab or Physical PASS is inferred from this reference-adoption contract.
+
 ## J8 application-platform convergence checkpoint
 
 `migrations/0082_application_platform_authority.sql` makes WorkloadType, CapabilityTrait, ManagedResourceType, WorkspaceProfile, immutable ApplicationRelease and revision-fenced EnvironmentBinding first-class PostgreSQL authorities. Product API, generated SDK contract and MCP route parity expose those same authorities; target CRDs remain executor/runtime state only.
