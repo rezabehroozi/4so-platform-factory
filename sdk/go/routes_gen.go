@@ -2,8 +2,8 @@
 package factorysdk
 
 const ProductAPIContractAuthority = "PRODUCT_API_CONTRACT_AUTHORITY_V1"
-const ProductAPIContractDigest = "sha256:6bcb383be7beff0b4003e8a7b6c5c2517d97e7ee809d6266ccad07b61905f8e9"
-const ProductAPIRouteCount = 384
+const ProductAPIContractDigest = "sha256:21ca1baa906acea268d6b22563e7c33bc5bc82d2211b63952f31e9d978b8d9c4"
+const ProductAPIRouteCount = 385
 
 var Routes = []Route{
 	{Method: "GET", Path: "/api/v1/version", Family: "version", PathParams: nil, Mutation: false, ResourceScope: "PLATFORM_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
@@ -112,6 +112,7 @@ var Routes = []Route{
 	{Method: "GET", Path: "/api/v1/application-platform/capability-traits/{id}", Family: "application-platform", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/resolve", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/dapr/assessment", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/application-platform/dapr/workload-plan", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/openchoreo/assessment", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/openchoreo/lifecycle", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/application-platform/openchoreo/lifecycle/{id}", Family: "application-platform", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
