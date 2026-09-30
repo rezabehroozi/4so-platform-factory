@@ -74,6 +74,25 @@ def safe_output(path: Path) -> Path:
     return candidate
 
 
+def atomic_write(path: Path, raw: bytes, mode: int = 0o600) -> None:
+    candidate = safe_output(path)
+    candidate.parent.mkdir(parents=True, exist_ok=True)
+    tmp = candidate.parent / ("." + candidate.name + f".tmp-{os.getpid()}")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(tmp, flags, mode)
+    try:
+        view = memoryview(raw)
+        while view:
+            written = os.write(fd, view)
+            view = view[written:]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp, candidate)
+
+
 def https_download(url: str, timeout: int) -> tuple[bytes, str]:
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme != "https" or not parsed.hostname:
@@ -217,6 +236,30 @@ def render_chart(helm: str, chart: Path, env: dict[str, str]) -> tuple[list[dict
     return docs, sha256_bytes(canonical_json(docs))
 
 
+def package_chart(helm: str, chart: Path, destination: Path, env: dict[str, str]) -> Path:
+    destination.mkdir(parents=True, exist_ok=True)
+    run([
+        helm, "package", str(chart),
+        "--version", IMAGE_TAG,
+        "--app-version", IMAGE_TAG,
+        "--destination", str(destination),
+    ], env=env, timeout=180)
+    package = destination / f"dapr-{IMAGE_TAG}.tgz"
+    if package.is_symlink() or not package.is_file() or package.stat().st_size <= 0 or package.stat().st_size > MAX_CHART_BYTES:
+        raise RuntimeError("DAPR_HELM_PACKAGE_INVALID")
+    with tarfile.open(package, "r:gz") as tf:
+        matches = [m for m in tf.getmembers() if m.isfile() and m.name == "dapr/Chart.yaml"]
+        if len(matches) != 1 or matches[0].size > 256 * 1024:
+            raise RuntimeError("DAPR_HELM_PACKAGE_METADATA_INVALID")
+        stream = tf.extractfile(matches[0])
+        if stream is None:
+            raise RuntimeError("DAPR_HELM_PACKAGE_METADATA_INVALID")
+        meta = yaml.safe_load(stream.read(matches[0].size + 1))
+    if not isinstance(meta, dict) or meta.get("apiVersion") != "v2" or meta.get("name") != "dapr" or str(meta.get("version")) != IMAGE_TAG or str(meta.get("appVersion")) != IMAGE_TAG:
+        raise RuntimeError("DAPR_HELM_PACKAGE_IDENTITY_INVALID")
+    return package
+
+
 def resolve_images(crane: str) -> list[dict]:
     rows = []
     for role, repository in sorted(REQUIRED_IMAGES.items()):
@@ -234,7 +277,7 @@ def resolve_images(crane: str) -> list[dict]:
     return rows
 
 
-def acquire(out: Path, timeout: int) -> dict:
+def acquire(out: Path, chart_out: Path, timeout: int) -> dict:
     pinned = require_toolchain()
     helm = str(pinned["helm"][0])
     crane = str(pinned["crane"][0])
@@ -249,7 +292,10 @@ def acquire(out: Path, timeout: int) -> dict:
         meta = yaml.safe_load((chart / "Chart.yaml").read_text())
         if not isinstance(meta, dict) or meta.get("apiVersion") != "v2" or meta.get("name") != "dapr":
             raise RuntimeError("DAPR_CHART_IDENTITY_INVALID")
-        docs, render_digest = render_chart(helm, chart, helm_env(tmp / "helm"))
+        env = helm_env(tmp / "helm")
+        docs, render_digest = render_chart(helm, chart, env)
+        package = package_chart(helm, chart, tmp / "package", env)
+        package_digest = sha256_bytes(package.read_bytes())
         images = resolve_images(crane)
         receipt = {
             "authority": AUTHORITY,
@@ -264,6 +310,8 @@ def acquire(out: Path, timeout: int) -> dict:
             "sourceArchiveDigest": source_digest,
             "helmChartPath": CHART_PATH,
             "helmChartDigest": tree_digest,
+            "helmPackageName": package.name,
+            "helmPackageDigest": package_digest,
             "helmOverrides": [{"path": k, "value": v} for k, v in sorted(HELM_OVERRIDES.items())],
             "helmRenderDigest": render_digest,
             "requiredImages": images,
@@ -272,12 +320,9 @@ def acquire(out: Path, timeout: int) -> dict:
             "runtimeMutationPerformed": False,
             "physicalCertificationInferred": False,
         }
-    out = safe_output(out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    tmp_out = out.with_suffix(out.suffix + ".tmp")
-    tmp_out.write_bytes(json.dumps(receipt, indent=2, sort_keys=True).encode() + b"\n")
-    os.chmod(tmp_out, stat.S_IRUSR | stat.S_IWUSR)
-    tmp_out.replace(out)
+        package_raw = package.read_bytes()
+    atomic_write(chart_out, package_raw, 0o600)
+    atomic_write(out, json.dumps(receipt, indent=2, sort_keys=True).encode() + b"\n", 0o600)
     return receipt
 
 
@@ -299,11 +344,12 @@ def main() -> int:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--network-timeout", type=int, default=60)
     parser.add_argument("--out", type=Path, default=ROOT / "dist" / "dapr" / "dapr-runtime-acquisition.json")
+    parser.add_argument("--chart-out", type=Path, default=ROOT / "dist" / "dapr" / f"dapr-{IMAGE_TAG}.tgz")
     args = parser.parse_args()
     try:
         if args.self_test:
             return self_test()
-        result = acquire(args.out, args.network_timeout)
+        result = acquire(args.out, args.chart_out, args.network_timeout)
     except (OSError, RuntimeError, ValueError, tarfile.TarError, yaml.YAMLError) as exc:
         print(f"DAPR_RUNTIME_ACQUISITION_BLOCKED {exc}", file=__import__("sys").stderr)
         return 3
