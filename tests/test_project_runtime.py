@@ -39,6 +39,25 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("COMPLETED",R.read_state(root)["status"])
             self.assertEqual("validate",R.read_state(root)["latestCompletedCheckpoint"])
 
+    def test_worker_handoff_persists_identity_before_transfer_without_clobbering_worker_state(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state={"status":"REQUESTED","runId":"handoff-race","commandPid":None,"commandPidStartTicks":None}
+            def transfer_observer(_root,_run_id,_pid,_ticks,_override=None):
+                persisted=R.read_state(root)
+                self.assertEqual("RUNNING",persisted["status"])
+                self.assertEqual(12345,persisted["activePid"])
+                self.assertEqual("67890",str(persisted["activePidStartTicks"]))
+                persisted["commandPid"]=22222
+                persisted["commandPidStartTicks"]="33333"
+                R.write_state(root,persisted)
+            with mock.patch.object(R,"transfer",side_effect=transfer_observer):
+                out=R.activate_worker(root,state,"handoff-race",12345,"67890")
+            self.assertEqual(12345,out["activePid"])
+            final=R.read_state(root)
+            self.assertEqual(22222,final["commandPid"])
+            self.assertEqual("33333",str(final["commandPidStartTicks"]))
+
     def test_resume_reuses_run_id_only_for_replay_safe_work(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
