@@ -84,6 +84,10 @@ func ValidateTargetMirrorPullEvidence(value TargetMirrorPullEvidence, lock Runti
 	clusterID = strings.TrimSpace(clusterID)
 	operationID = strings.TrimSpace(operationID)
 	runtimeLockDigest = strings.ToLower(strings.TrimSpace(runtimeLockDigest))
+	lockDigest, err := RuntimeLockDigest(lock)
+	if err != nil || lockDigest != runtimeLockDigest {
+		return fmt.Errorf("DAPR_TARGET_MIRROR_PULL_RUNTIME_LOCK_MISMATCH")
+	}
 	if value.Authority != TargetMirrorPullEvidenceAuthority || strings.TrimSpace(value.ClusterID) != clusterID ||
 		strings.TrimSpace(value.OperationID) != operationID || value.FenceToken != fenceToken || fenceToken <= 0 ||
 		strings.ToLower(strings.TrimSpace(value.RuntimeLockDigest)) != runtimeLockDigest {
