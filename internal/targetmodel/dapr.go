@@ -688,12 +688,6 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 		if in.Disconnected && !in.DisconnectedMirrorAdmitted {
 			out.Blockers = append(out.Blockers, "DAPR_DISCONNECTED_MIRROR_PENDING")
 		}
-		if !capabilities[DaprMirrorPullCapability] {
-			out.Blockers = append(out.Blockers, "DAPR_TARGET_MIRROR_PULL_PENDING")
-		}
-	}
-	if !capabilities[DaprSidecarSecurityCapability] {
-		out.Blockers = append(out.Blockers, "DAPR_SIDECAR_SECURITY_COMPATIBILITY_PENDING")
 	}
 	if out.Mode == "INSTALL_REQUIRED" && !in.ExecutorRBACReady {
 		out.Blockers = append(out.Blockers, "DAPR_EXECUTOR_RBAC_PENDING")
