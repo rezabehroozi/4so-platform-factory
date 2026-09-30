@@ -77,6 +77,24 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("worker-terminal",out["latestCompletedCheckpoint"])
             self.assertEqual("COMPLETED",R.read_state(root)["status"])
 
+    def test_lock_acquire_fails_closed_without_process_start_identity(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            with mock.patch.object(R,"ticks",return_value=None):
+                with self.assertRaisesRegex(RuntimeError,"LOCK_OWNER_IDENTITY_UNAVAILABLE"):
+                    R.acquire(root,"identity-missing")
+            self.assertFalse(R.lock_file(root).exists())
+
+    def test_malformed_lock_identity_is_never_reclaimed_as_stale(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); path=R.lock_file(root); path.parent.mkdir(parents=True)
+            malformed={"authority":R.LOCK_AUTHORITY,"runId":"existing","pid":12345,"startTicks":"","hostname":"fixture","acquiredAt":R.now()}
+            path.write_text(json.dumps(malformed))
+            before=path.read_bytes()
+            with self.assertRaisesRegex(RuntimeError,"LOCK_IDENTITY_INVALID"):
+                R.acquire(root,"new-run")
+            self.assertEqual(before,path.read_bytes())
+
     def test_live_lock_fences_requested_handoff_before_worker_pid_persistence(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
