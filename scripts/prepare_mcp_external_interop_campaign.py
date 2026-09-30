@@ -6,7 +6,7 @@ external execution receipt is admissible only for the exact matrix, endpoint,
 campaign and per-client challenge that were prepared for that run.
 """
 from __future__ import annotations
-import argparse, hashlib, json, secrets, ssl
+import argparse, hashlib, json, os, secrets, ssl
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -18,6 +18,7 @@ AUTHORITY=core.CAMPAIGN_AUTHORITY
 MATRIX_AUTHORITY=core.MATRIX_AUTHORITY
 CLIENTS=core.CLIENTS
 PREFLIGHT_AUTHORITY=core.CAMPAIGN_PREFLIGHT_AUTHORITY
+OAUTH_BINDING_AUTHORITY=core.OAUTH_BINDING_AUTHORITY
 
 
 class RejectRedirects(HTTPRedirectHandler):
@@ -40,6 +41,64 @@ def endpoint(raw:str)->str:
         raise RuntimeError("MCP_EXTERNAL_ENDPOINT_INVALID")
     return p.geturl()
 
+
+def load_oauth_bindings(path:Path)->tuple[dict[str,str],str]:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size<=0 or path.stat().st_size>64*1024:
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_FILE_INVALID")
+    try:
+        value=json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_JSON_INVALID") from exc
+    if not isinstance(value,dict) or set(value)!={"authority","clients"} or value.get("authority")!=OAUTH_BINDING_AUTHORITY:
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_AUTHORITY_INVALID")
+    clients=value.get("clients")
+    if not isinstance(clients,dict) or set(clients)!=set(CLIENTS):
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_CLIENT_SET_INVALID")
+    out={}
+    for client in CLIENTS:
+        client_id=str(clients.get(client) or "").strip()
+        if not client_id or len(client_id.encode("utf-8"))>512 or any(ch in client_id for ch in "\r\n\t"):
+            raise RuntimeError(f"MCP_EXTERNAL_OAUTH_BINDINGS_CLIENT_ID_INVALID {client}")
+        out[client]=client_id
+    if len(set(out.values()))!=len(CLIENTS):
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_CLIENT_ID_REUSE")
+    return out,file_sha(path)
+
+def trusted_client_readback(endpoint_url:str,bindings:dict[str,str],token_env:str)->dict[str,dict]:
+    token_env=str(token_env or "").strip()
+    token=str(os.getenv(token_env) or "").strip() if token_env else ""
+    if not token or any(ch in token for ch in "\r\n"):
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_TOKEN_UNAVAILABLE")
+    ep=endpoint(endpoint_url); parsed=urlsplit(ep); url=f"{parsed.scheme}://{parsed.netloc}/api/v1/mcp/trusted-clients"
+    opener=exact_https_opener(ssl.create_default_context())
+    req=Request(url,headers={"Accept":"application/json","Authorization":"Bearer "+token,"User-Agent":"4so-c7w-campaign/1"},method="GET")
+    try:
+        with opener.open(req,timeout=20) as response:
+            if response.status!=200 or response.geturl()!=url:
+                raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_HTTP_INVALID")
+            raw=response.read(2*1024*1024+1)
+    except (HTTPError,URLError) as exc:
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_UNAVAILABLE") from exc
+    if len(raw)>2*1024*1024:
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_TOO_LARGE")
+    try:
+        rows=json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_JSON_INVALID") from exc
+    if not isinstance(rows,list):
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_CONTRACT_INVALID")
+    resolved={}
+    for client in CLIENTS:
+        wanted=bindings[client]
+        matches=[row for row in rows if isinstance(row,dict) and str(row.get("clientId") or "").strip()==wanted]
+        if len(matches)!=1:
+            raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_IDENTITY_INVALID {client}")
+        row=matches[0]
+        trusted_id=str(row.get("id") or "").strip(); revision=row.get("revision")
+        if row.get("state")!="ACTIVE" or str(row.get("provider") or "").strip().lower()!=client or not trusted_id or type(revision) is not int or revision<=0:
+            raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_IDENTITY_INVALID {client}")
+        resolved[client]={"oauthClientId":wanted,"trustedClientId":trusted_id,"trustedClientRevision":revision,"trustedClientProvider":client}
+    return resolved
 
 def live_preflight(endpoint_url:str)->dict:
     ep=endpoint(endpoint_url); parsed=urlsplit(ep); base=f"{parsed.scheme}://{parsed.netloc}"
@@ -88,7 +147,7 @@ def live_preflight(endpoint_url:str)->dict:
     return {"authority":PREFLIGHT_AUTHORITY,"endpoint":ep,"protectedResourceMetadata":metadata_url,"resource":ep,"authorizationServers":[str(x) for x in servers],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":expected,"protocol":"2026-07-28"}
 
 
-def prepare(matrix_path:Path, endpoint_url:str, preflight:dict)->dict:
+def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sha256:str, trusted_clients:dict[str,dict])->dict:
     if matrix_path.is_symlink() or not matrix_path.is_file():
         raise RuntimeError("MCP_EXTERNAL_MATRIX_FILE_INVALID")
     matrix=json.loads(matrix_path.read_text(encoding="utf-8"))
@@ -98,15 +157,21 @@ def prepare(matrix_path:Path, endpoint_url:str, preflight:dict)->dict:
     ids=[x.get("id") for x in spec.get("clients") or [] if isinstance(x,dict)]
     if ids!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_MATRIX_CLIENT_SET_INVALID")
+    if not core.SHA.fullmatch(str(oauth_binding_sha256 or "")) or not isinstance(trusted_clients,dict) or set(trusted_clients)!=set(CLIENTS):
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_READBACK_INVALID")
     campaign_id="mcp-interop-"+secrets.token_hex(16)
     rows=[]
     for client in CLIENTS:
+        trusted=trusted_clients[client]
         challenge=secrets.token_urlsafe(32)
-        rows.append({"clientId":client,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest()})
+        rows.append({"clientId":client,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest(),
+                     "oauthClientId":trusted["oauthClientId"],"trustedClientId":trusted["trustedClientId"],
+                     "trustedClientRevision":trusted["trustedClientRevision"],"trustedClientProvider":trusted["trustedClientProvider"]})
     return {
       "apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropCampaign",
       "authority":AUTHORITY,"campaignId":campaign_id,"createdAt":datetime.now(timezone.utc).isoformat(),
       "matrixAuthority":MATRIX_AUTHORITY,"matrixSha256":file_sha(matrix_path),
+      "oauthClientBindingAuthority":OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":oauth_binding_sha256,
       "endpoint":endpoint(endpoint_url),"protocol":spec.get("protocol"),"transport":spec.get("transport"),
       "livePreflight":preflight,"clients":rows,"externalExecutionRequired":True
     }
@@ -121,11 +186,16 @@ def resume_existing(matrix_path:Path,endpoint_url:str,out_path:Path)->dict:
 
 def main()->int:
     p=argparse.ArgumentParser(); p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json")); p.add_argument("--endpoint",required=True); p.add_argument("--out",type=Path,required=True)
+    p.add_argument("--oauth-client-map",type=Path); p.add_argument("--registry-token-env",default="C7W_PLATFORM_ADMIN_TOKEN")
     a=p.parse_args(); resumed=False
     if a.out.exists() or a.out.is_symlink():
         out=resume_existing(a.matrix,a.endpoint,a.out); resumed=True
     else:
-        preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight)
+        if a.oauth_client_map is None:
+            raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_REQUIRED")
+        bindings,binding_sha=load_oauth_bindings(a.oauth_client_map)
+        trusted=trusted_client_readback(a.endpoint,bindings,a.registry_token_env)
+        preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight,binding_sha,trusted)
         core.write_json_once_or_identical(a.out,out,"MCP_EXTERNAL_CAMPAIGN")
     print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"matrixSha256":out["matrixSha256"],"endpoint":out["endpoint"],"clients":[x["clientId"] for x in out["clients"]],"resumed":resumed},sort_keys=True))
     return 0
