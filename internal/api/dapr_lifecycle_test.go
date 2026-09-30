@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"platform.4so.io/factory/internal/controlplane"
 	daprruntime "platform.4so.io/factory/internal/dapr"
@@ -217,5 +218,89 @@ func TestDaprLifecycleNeverMutatesTargetNativeRuntime(t *testing.T) {
 	}
 	if len(ops) != 0 {
 		t.Fatalf("native Dapr lifecycle created durable mutation despite suppression: %#v", ops)
+	}
+}
+
+
+func TestDaprUnknownOutcomeRecoveryRestoresObservedAuthorityFromSealedPayload(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	ctx := context.Background()
+	org, _ := store.CreateOrganization(ctx, controlplane.Organization{Name: "dapr-recovery", DisplayName: "Dapr Recovery"}, "owner")
+	project, _ := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "apps", DisplayName: "Apps"}, "owner")
+	cluster := workspaceAPICluster(t, store, project.ID, "dapr-recovery-target", "uid-dapr-recovery")
+	seedDaprAssessmentInventory(t, store, cluster, nil, 60)
+	srv := scopedServer(t, store)
+	lock := daprAPITestRuntimeLock(t)
+	if err := srv.ConfigureDaprRuntimeLock(lock, "https://zot.internal.example"); err != nil { t.Fatal(err) }
+
+	body := fmt.Sprintf(`{"projectId":%q,"clusterId":%q,"action":"INSTALL"}`, project.ID, cluster.ID)
+	w := applicationPlatformRequest(t, srv, http.MethodPost, "/api/v1/application-platform/dapr/lifecycle", body, "owner",
+		map[string]string{"Idempotency-Key": "dapr-recovery-install"})
+	if w.Code != http.StatusAccepted { t.Fatalf("create=%d %s", w.Code, w.Body.String()) }
+	created := decodeApplicationResponse[daprLifecycleCreateResponse](t, w)
+
+	op, err := store.ApproveOperationAndQueue(ctx, created.Operation.ID, created.Operation.Revision, "approver")
+	if err != nil { t.Fatal(err) }
+	claim, err := store.ClaimOperation(ctx, op.ID, "agent:"+cluster.ID, time.Hour, time.Now().UTC())
+	if err != nil { t.Fatal(err) }
+	op, err = store.GetOperation(ctx, op.ID)
+	if err != nil { t.Fatal(err) }
+	op, err = store.StartOperationAttempt(ctx, op.ID, op.Revision, "agent:"+cluster.ID, claim.FenceToken, "agent:"+cluster.ID)
+	if err != nil { t.Fatal(err) }
+	op, err = store.ReportOperationFailure(ctx, op.ID, op.Revision, "agent:"+cluster.ID, claim.FenceToken, controlplane.OperationFailureReport{
+		Class: controlplane.OperationFailureUnknown, Code: "DAPR_RECOVERY_REQUIRED", Message: "response lost after dispatch",
+	}, "agent:"+cluster.ID)
+	if err != nil || op.State != controlplane.OperationFailed || op.LastFailureClass != controlplane.OperationFailureUnknown {
+		t.Fatalf("unknown failure fixture drift op=%+v err=%v", op, err)
+	}
+
+	task := daprRecoveryTask{OperationID: op.ID, OperationRevision: op.Revision, TaskFenceToken: op.FenceToken, Request: created.Request}
+	result := daprRecoveryResult{
+		ConfirmedSuccess: true, Installed: true,
+		ObservedLockDigest: created.Request.RuntimeLockDigest,
+		Version: created.Request.RuntimeVersion,
+		UpstreamCommit: created.Request.UpstreamCommit,
+		Phase: "Installed",
+	}
+	_, raw, digest, err := canonicalDaprRecoveryReadback(task, result)
+	if err != nil { t.Fatal(err) }
+	resolved, evidence, err := store.ResolveUnknownOperationOutcomeWithEvidence(ctx, op.ID, op.Revision,
+		controlplane.OperationUnknownOutcomeConfirmedSuccess,
+		controlplane.EvidenceMetadata{OperationID: op.ID, Kind: daprRecoveryEvidenceKind, MediaType: "application/json", Digest: digest},
+		raw, "agent:"+cluster.ID)
+	if err != nil { t.Fatal(err) }
+	if resolved.State != controlplane.OperationSucceeded || resolved.RecoveryEvidenceDigest != evidence.Digest || !evidence.HasPayload {
+		t.Fatalf("recovered operation/evidence drift op=%+v evidence=%+v", resolved, evidence)
+	}
+	observed, err := srv.latestDaprObserved(ctx, project.ID, cluster.ID)
+	if err != nil { t.Fatal(err) }
+	if observed == nil || !observed.Installed || observed.OperationID != op.ID ||
+		observed.RuntimeLockDigest != created.Request.RuntimeLockDigest ||
+		observed.Version != created.Request.RuntimeVersion || observed.UpstreamCommit != created.Request.UpstreamCommit ||
+		observed.Phase != "RecoveredConfirmedSuccess" {
+		t.Fatalf("recovered observed authority drift: %#v", observed)
+	}
+}
+
+func TestCanonicalDaprRecoveryReadbackRejectsRuntimeSubstitution(t *testing.T) {
+	task := daprRecoveryTask{
+		OperationID: "op_recovery", OperationRevision: 9, TaskFenceToken: 12,
+		Request: daprruntime.LifecycleRequest{
+			ProjectID: "prj", ClusterID: "clu", Action: daprruntime.ActionUpgrade,
+			RuntimeLockDigest: daprAPITestDigest("a"), RuntimeVersion: "v1.18.4",
+			UpstreamCommit: targetmodel.DaprUpstreamCommit,
+		},
+	}
+	good := daprRecoveryResult{
+		ConfirmedSuccess: true, Installed: true, ObservedLockDigest: task.Request.RuntimeLockDigest,
+		Version: task.Request.RuntimeVersion, UpstreamCommit: task.Request.UpstreamCommit, Phase: "Upgraded",
+	}
+	if _, raw, digest, err := canonicalDaprRecoveryReadback(task, good); err != nil || len(raw) == 0 || !strings.HasPrefix(digest, "sha256:") {
+		t.Fatalf("exact recovery readback rejected digest=%q err=%v", digest, err)
+	}
+	bad := good
+	bad.ObservedLockDigest = daprAPITestDigest("b")
+	if _, _, _, err := canonicalDaprRecoveryReadback(task, bad); err == nil || !strings.Contains(err.Error(), "RUNTIME_IDENTITY_MISMATCH") {
+		t.Fatalf("recovery runtime substitution accepted: %v", err)
 	}
 }
