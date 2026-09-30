@@ -48,9 +48,9 @@
       },
       {
         "family": "application-platform",
-        "routeCount": 29,
-        "mutationCount": 15,
-        "callableRouteCount": 29,
+        "routeCount": 31,
+        "mutationCount": 16,
+        "callableRouteCount": 31,
         "securityExcludedRouteCount": 0,
         "disposition": "typed-tool-complete",
         "toolNames": [
@@ -63,6 +63,8 @@
           "api_post_application_platform_resolve",
           "api_post_application_platform_dapr_assessment",
           "api_post_application_platform_dapr_workload_plan",
+          "api_post_application_platform_dapr_workload_admissions",
+          "api_get_application_platform_dapr_workload_admissions_by_id",
           "api_post_application_platform_dapr_lifecycle",
           "api_get_application_platform_dapr_lifecycle_by_id",
           "api_post_application_platform_dapr_lifecycle_by_id_approve",
@@ -84,7 +86,7 @@
           "api_get_application_platform_environment_bindings_by_id",
           "api_post_application_platform_environment_bindings_by_id_promote"
         ],
-        "rationale": "All 29 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
+        "rationale": "All 31 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
       },
       {
         "family": "audit-events",
