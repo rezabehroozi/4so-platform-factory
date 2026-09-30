@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 383,
-  "routeDigest": "sha256:fcbf710bf79ebb567c2682a6ca41ce425af225c1574b692e87835ead5011254c",
+  "routeCount": 384,
+  "routeDigest": "sha256:6bcb383be7beff0b4003e8a7b6c5c2517d97e7ee809d6266ccad07b61905f8e9",
   "routes": [
     {
       "family": "version",
@@ -1022,6 +1022,15 @@
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/application-platform/resolve",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/application-platform/dapr/assessment",
       "pathParams": [],
       "resourceScope": "PROJECT_SCOPED",
       "resourceScopeStatus": "OWNER_CLASSIFIED"
