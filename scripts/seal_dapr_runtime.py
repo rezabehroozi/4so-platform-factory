@@ -313,6 +313,7 @@ def seal(acquisition_path: Path, mirror_path: Path, executor_path: Path, out: Pa
         "acquisitionReceiptDigest": acquisition_digest,
         "mirrorEvidenceDigest": mirror_digest,
         "executorEvidenceDigest": executor_evidence_digest,
+        "executorSourceReleaseDigest": valid_digest(executor.get("sourceReleaseDigest")),
         "executorImageReference": executor["imageReference"],
         "executorImageDigest": executor_digest,
         "registryAuthority": "zot",
