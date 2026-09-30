@@ -38,6 +38,7 @@ def base_progress(matrix_path:Path,campaign_path:Path,campaign:dict,spec:dict)->
       "campaignAuthority":core.CAMPAIGN_AUTHORITY,"campaignId":campaign["campaignId"],"campaignSha256":core.sha256(campaign_path),
       "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":campaign["oauthClientBindingsSha256"],
       "oauthClientBindings":core.campaign_oauth_client_bindings(campaign),
+      "trustedClientBindings":core.campaign_trusted_client_bindings(campaign),
       "protocol":spec["protocol"],"transport":spec["transport"],"endpoint":campaign["endpoint"],"clients":[],
       "certifiedClientCount":0,"complete":False,"allAdmittedReceiptsPass":True,"serverAuditWitnessPass":False,
       "externalCertificationPass":False,"runtimeCertified":False,"physicalCertified":False}
@@ -45,7 +46,7 @@ def base_progress(matrix_path:Path,campaign_path:Path,campaign:dict,spec:dict)->
 def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
     if existing.get("authority")!=AUTHORITY or existing.get("kind")!="MCPExternalClientInteropProgress":
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_AUTHORITY_INVALID")
-    for key in ("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","protocol","transport","endpoint"):
+    for key in ("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","trustedClientBindings","protocol","transport","endpoint"):
         if existing.get(key)!=expected.get(key): raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_CAMPAIGN_DRIFT {key}")
     if existing.get("runtimeCertified") is not False or existing.get("physicalCertified") is not False:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_SCOPE_INFLATED")
@@ -63,6 +64,9 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         oauth_client_id=core.validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_PROGRESS")
         if oauth_client_id!=expected["oauthClientBindings"][row_client]:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_OAUTH_CLIENT_DRIFT")
+        trusted=expected["trustedClientBindings"][row_client]
+        if row.get("trustedClientId")!=trusted["trustedClientId"] or row.get("trustedClientRevision")!=trusted["trustedClientRevision"] or row.get("trustedClientProvider")!=trusted["trustedClientProvider"]:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_TRUSTED_CLIENT_DRIFT")
         execution_id=str(row.get("executionId") or "").strip()
         if not execution_id or len(execution_id)>160 or execution_id in execution_ids: raise RuntimeError("MCP_EXTERNAL_PROGRESS_EXECUTION_ID_INVALID")
         execution_ids[execution_id]=row_client
