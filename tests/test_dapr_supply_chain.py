@@ -164,7 +164,9 @@ class DaprSupplyChainTests(unittest.TestCase):
             self.assertRegex(lock["mirrorEvidenceDigest"], r"^sha256:[0-9a-f]{64}$")
             self.assertEqual(executor_doc["imageReference"], lock["executorImageReference"])
             self.assertEqual(executor_doc["imageDigest"], lock["executorImageDigest"])
+            self.assertEqual(executor_doc["sourceReleaseDigest"], lock["executorSourceReleaseDigest"])
             self.assertRegex(lock["executorEvidenceDigest"], r"^sha256:[0-9a-f]{64}$")
+            self.assertRegex(lock["executorSourceReleaseDigest"], r"^sha256:[0-9a-f]{64}$")
 
             acquisition["untrustedClaim"] = True
             self.write_json(acquisition_path, acquisition)
