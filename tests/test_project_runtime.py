@@ -63,9 +63,10 @@ class ProjectRuntimeTests(unittest.TestCase):
             root=Path(td)
             runtime=root/".project-runtime"
             log=runtime/"logs"/"resume-1.log"
-            info={"repository":"fixture","branch":"main","head":"abc","originMain":"remote-advanced","gitSyncStatus":"DIFFERENT"}
+            persisted_info={"repository":"fixture","branch":"main","head":"abc","originMain":"abc"}
+            current_info={"repository":"fixture","branch":"main","head":"abc","originMain":"remote-advanced","gitSyncStatus":"DIFFERENT"}
             state={
-                "status":"INTERRUPTED","runId":"resume-1",**info,
+                "status":"INTERRUPTED","runId":"resume-1",**persisted_info,
                 "phase":"validate","currentTask":"resume-fixture",
                 "completedTasks":["prepare"],"failedTasks":[],
                 "activePid":None,"activePidStartTicks":None,
@@ -79,11 +80,13 @@ class ProjectRuntimeTests(unittest.TestCase):
                 "recoveryRequired":False,"orphaned":True,"attempt":1,
             }
             R.write_state(root,state)
-            with mock.patch.object(R,"git",return_value=info):
+            with mock.patch.object(R,"git",return_value=current_info):
                 result=R.resume(root)
             self.assertEqual("RESUMED",result["action"])
             self.assertEqual("resume-1",result["runId"])
             self.assertEqual(2,result["attempt"])
+            self.assertEqual("DIFFERENT",result["state"]["gitSyncStatus"])
+            self.assertEqual("remote-advanced",result["state"]["currentOriginMain"])
             deadline=time.monotonic()+5
             while time.monotonic()<deadline:
                 current=R.reconcile(root,R.read_state(root))
