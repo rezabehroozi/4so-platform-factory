@@ -124,6 +124,7 @@ func (s *Server) validateDaprWorkloadAdmissionCurrentAuthority(ctx context.Conte
 	}
 	if !s.daprExecutorReady ||
 		!strings.EqualFold(strings.TrimSpace(s.daprExecutorAuthority.EvidenceDigest), request.ExecutorEvidenceDigest) ||
+		!strings.EqualFold(strings.TrimSpace(s.daprExecutorAuthority.SourceReleaseDigest), request.ExecutorSourceReleaseDigest) ||
 		strings.TrimSpace(s.daprExecutorAuthority.ImageReference) != request.ExecutorImageReference {
 		return fmt.Errorf("%w: Dapr workload executor authority changed", controlplane.ErrPrerequisite)
 	}
@@ -223,6 +224,7 @@ func (s *Server) buildDaprWorkloadAdmissionRequest(ctx context.Context, input da
 		TraitID: trait.ID, TraitDigest: trait.Digest,
 		InventoryDigest: inventory.Digest,
 		ExecutorEvidenceDigest: s.daprExecutorAuthority.EvidenceDigest,
+		ExecutorSourceReleaseDigest: s.daprExecutorAuthority.SourceReleaseDigest,
 		ExecutorImageReference: s.daprExecutorAuthority.ImageReference,
 		WorkloadImage: input.WorkloadImage,
 		Plan: plan, PlanDigest: planDigest,
