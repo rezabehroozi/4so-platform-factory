@@ -35,6 +35,18 @@ AUDITED_CHECKS=(
 )
 REQUIRED_CHECKS=("oauth-protected-resource-discovery",)+AUDITED_CHECKS
 OAUTH_CLIENT_AUDITED_CHECKS=tuple(x for x in AUDITED_CHECKS if x!="dedicated-audience-validation")
+INTEROP_EVIDENCE_KEYS=frozenset({
+    "apiVersion","kind","authority","matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256",
+    "oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","trustedClientBindings",
+    "protocol","transport","endpoint","clients","certifiedClientCount","allRequiredChecksPass",
+    "serverAuditWitnessPass","serverAuditWitnessedCheckCount","externalCertificationPass","runtimeCertified","physicalCertified",
+})
+PROGRESS_EVIDENCE_KEYS=frozenset({
+    "apiVersion","kind","authority","matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256",
+    "oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","trustedClientBindings",
+    "protocol","transport","endpoint","clients","certifiedClientCount","complete","allAdmittedReceiptsPass",
+    "serverAuditWitnessPass","externalCertificationPass","runtimeCertified","physicalCertified",
+})
 AUDIT_REQUIREMENTS={
     "dedicated-audience-validation":("AUTHENTICATION","DENY","OIDC_AUTHENTICATION_REJECTED"),
     "authorization-filtered-tools-list":("CAPABILITY_AUTHORIZATION","ALLOW","CAPABILITY_AUTHORIZED"),
