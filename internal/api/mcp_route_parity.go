@@ -405,7 +405,17 @@ func publicMCPControlJob(v controlplane.MCPControlJob) controlplane.MCPControlJo
 func (s *Server) aiCapabilities(w http.ResponseWriter, r *http.Request) {
 	registry := loadMCPRouteParityRegistry()
 	mutations := registry.Counts["tool-operate"] + registry.Counts["tool-admin"]
-	writeJSON(w, http.StatusOK, map[string]any{"authority": mcpRouteParityAuthority, "routeCount": registry.RouteCount, "routeDispositionCoveragePercent": 100, "counts": registry.Counts, "aiCallableRoutes": registry.RouteCount - registry.Counts["security-excluded"], "durableMutationAuthority": controlplane.MCPDurableControlJobAuthority, "durableMutationRoutes": mutations, "durableMutationCoveragePercent": 100, "idempotencyRequired": true, "terminalReplay": true, "expiredInFlightPolicy": "RECOVERY_REQUIRED_NO_AUTOMATIC_REDISPATCH", "arbitraryRouteAllowed": false, "rawCredentialAccess": false, "canDecidePass": false, "canDecidePhysicalPass": false, "persianWritingAuthority": "PERSIAN_WRITING_GATE_V1", "persianWritingUpstream": "ali2000hos/persian-writing@1.3.5", "persianWritingRegister": "formal-but-human"})
+	durableControls := 0
+	durableReads := 0
+	for _, route := range registry.Routes {
+		if route.DurableJob {
+			durableControls++
+			if route.Disposition == "tool-read" {
+				durableReads++
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"authority": mcpRouteParityAuthority, "routeCount": registry.RouteCount, "routeDispositionCoveragePercent": 100, "counts": registry.Counts, "aiCallableRoutes": registry.RouteCount - registry.Counts["security-excluded"], "durableMutationAuthority": controlplane.MCPDurableControlJobAuthority, "durableMutationRoutes": mutations, "durableControlJobRoutes": durableControls, "durableReadRoutes": durableReads, "durableMutationCoveragePercent": 100, "idempotencyRequired": true, "terminalReplay": true, "expiredInFlightPolicy": "RECOVERY_REQUIRED_NO_AUTOMATIC_REDISPATCH", "arbitraryRouteAllowed": false, "rawCredentialAccess": false, "canDecidePass": false, "canDecidePhysicalPass": false, "persianWritingAuthority": "PERSIAN_WRITING_GATE_V1", "persianWritingUpstream": "ali2000hos/persian-writing@1.3.5", "persianWritingRegister": "formal-but-human"})
 }
 
 func (s *Server) aiPersianWriting(w http.ResponseWriter, r *http.Request) {
