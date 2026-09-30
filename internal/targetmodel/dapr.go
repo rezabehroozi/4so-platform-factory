@@ -281,10 +281,14 @@ func ValidateDaprRuntimeSourcePlan(plan DaprRuntimeSourcePlan) []string {
 		"global.actors.enabled": "false",
 		"global.scheduler.enabled": "false",
 		"global.mtls.enabled": "true",
+		"global.prometheus.enabled": "true",
 		"dapr_config.dapr_config_chart_included": "false",
 		"dapr_sidecar_injector.sidecarRunAsNonRoot": "true",
 		"dapr_sidecar_injector.sidecarReadOnlyRootFilesystem": "true",
 		"dapr_sidecar_injector.sidecarDropALLCapabilities": "true",
+	}
+	if len(overrides) != len(requiredOverrides) {
+		issues = append(issues, "dapr-helm-overrides-not-exact")
 	}
 	for path, value := range requiredOverrides {
 		if overrides[path] != value {
@@ -570,7 +574,8 @@ func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []strin
 			issues = append(issues, "dapr-supply-chain-image-digest-invalid")
 		}
 		mirror := strings.TrimSpace(image.MirrorReference)
-		if mirror == "" || !strings.HasPrefix(mirror, mirrorRegistry+"/dapr/") || !strings.Contains(mirror, "@"+image.MirrorDigest) {
+		expectedMirror := mirrorRegistry + "/dapr/" + role + "@" + image.MirrorDigest
+		if mirror == "" || mirror != expectedMirror {
 			issues = append(issues, "dapr-supply-chain-mirror-reference-invalid")
 		}
 		seenRoles[role], seenSources[repository] = true, true
