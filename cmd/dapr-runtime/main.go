@@ -862,6 +862,45 @@ func writeTerminationResult(value workloadAdmissionExecutorResult) error {
 	return nil
 }
 
+func readWorkloadPolicyObservation(ctx context.Context, kube *kubeClient, request daprruntime.WorkloadAdmissionRequest) (daprruntime.WorkloadPolicyObservation, error) {
+	getObject := func(path, failureCode string) (map[string]any, error) {
+		res, raw, err := kube.request(ctx, http.MethodGet, path, nil, "application/json")
+		if err != nil {
+			return nil, err
+		}
+		if res.StatusCode < 200 || res.StatusCode >= 300 {
+			return nil, fmt.Errorf("%s_HTTP_%d", failureCode, res.StatusCode)
+		}
+		var value map[string]any
+		if err = json.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("%s_RESPONSE_INVALID", failureCode)
+		}
+		return value, nil
+	}
+
+	namespace := url.PathEscape(request.Plan.Namespace)
+	configuration, err := getObject(
+		"/apis/dapr.io/v1alpha1/namespaces/"+namespace+"/configurations/"+url.PathEscape(request.Plan.ConfigurationName),
+		"DAPR_WORKLOAD_CONFIGURATION_READBACK",
+	)
+	if err != nil {
+		return daprruntime.WorkloadPolicyObservation{}, err
+	}
+	components := make(map[string]map[string]any, len(request.Plan.ComponentScopes))
+	for _, scope := range request.Plan.ComponentScopes {
+		name := strings.TrimSpace(scope.ComponentName)
+		component, readErr := getObject(
+			"/apis/dapr.io/v1alpha1/namespaces/"+namespace+"/components/"+url.PathEscape(name),
+			"DAPR_WORKLOAD_COMPONENT_READBACK",
+		)
+		if readErr != nil {
+			return daprruntime.WorkloadPolicyObservation{}, readErr
+		}
+		components[name] = component
+	}
+	return daprruntime.ValidateWorkloadPolicyReadback(request, configuration, components)
+}
+
 func runWorkloadAdmission() error {
 	operationID := strings.TrimSpace(os.Getenv("FOURSO_DAPR_WORKLOAD_OPERATION_ID"))
 	rawRequest := []byte(strings.TrimSpace(os.Getenv("FOURSO_DAPR_WORKLOAD_ADMISSION_JSON")))
@@ -887,6 +926,10 @@ func runWorkloadAdmission() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
+	policyObservation, err := readWorkloadPolicyObservation(ctx, kube, request)
+	if err != nil {
+		return err
+	}
 	path := "/api/v1/namespaces/" + url.PathEscape(request.Plan.Namespace) + "/pods?dryRun=All&fieldValidation=Strict"
 	res, response, err := kube.request(ctx, http.MethodPost, path, body, "application/json")
 	if err != nil {
@@ -899,7 +942,7 @@ func runWorkloadAdmission() error {
 	if err = json.Unmarshal(response, &observed); err != nil {
 		return errors.New("DAPR_WORKLOAD_ADMISSION_RESPONSE_INVALID")
 	}
-	evidence, err := daprruntime.WorkloadAdmissionEvidenceFromDryRun(request, operationID, observed, res.StatusCode, time.Now().UTC())
+	evidence, err := daprruntime.WorkloadAdmissionEvidenceFromDryRun(request, operationID, policyObservation, observed, res.StatusCode, time.Now().UTC())
 	if err != nil {
 		return err
 	}
