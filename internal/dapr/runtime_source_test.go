@@ -31,7 +31,7 @@ func validRuntimeLock() RuntimeLock {
 		HelmPackageDigest: testDigest("0"), HelmRenderDigest: testDigest("1"),
 		HelmMirrorReference: "zot.internal.example/dapr-charts/dapr@" + testDigest("4"), HelmMirrorManifestDigest: testDigest("4"),
 		AcquisitionReceiptDigest: testDigest("2"), MirrorEvidenceDigest: testDigest("3"),
-		RegistryAuthority: "zot", MirrorRegistry: "zot.internal.example",
+		RegistryAuthority: "zot", RegistryScheme: "https", MirrorRegistry: "zot.internal.example",
 		ImageLocks: images, ZotMirrorVerified: true, OfflineReplayReady: true, Admitted: true,
 	}
 }
@@ -56,8 +56,20 @@ func TestRuntimeLockRequiresConfiguredProductZotRegistry(t *testing.T) {
 	if err := ValidateRuntimeLockForRegistry(lock, "https://zot.internal.example"); err != nil {
 		t.Fatalf("matching product zot registry rejected: %v", err)
 	}
+	if err := ValidateRuntimeLockForRegistry(lock, "http://zot.internal.example"); err == nil || !strings.Contains(err.Error(), "MIRROR_REGISTRY_MISMATCH") {
+		t.Fatalf("Dapr registry transport mismatch accepted: %v", err)
+	}
 	if err := ValidateRuntimeLockForRegistry(lock, "http://platform-zot:5000"); err == nil || !strings.Contains(err.Error(), "MIRROR_REGISTRY_MISMATCH") {
 		t.Fatalf("foreign Dapr mirror registry accepted: %v", err)
+	}
+	lock.RegistryScheme = "http"
+	lock.MirrorRegistry = "platform-zot:5000"
+	for i := range lock.ImageLocks {
+		lock.ImageLocks[i].MirrorReference = "platform-zot:5000/dapr/" + lock.ImageLocks[i].Role + "@" + lock.ImageLocks[i].MirrorDigest
+	}
+	lock.HelmMirrorReference = "platform-zot:5000/dapr-charts/dapr@" + lock.HelmMirrorManifestDigest
+	if err := ValidateRuntimeLockForRegistry(lock, "http://platform-zot:5000"); err != nil {
+		t.Fatalf("matching plain-HTTP product zot registry rejected: %v", err)
 	}
 }
 
