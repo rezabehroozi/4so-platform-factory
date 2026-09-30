@@ -3,19 +3,19 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	daprruntime "platform.4so.io/factory/internal/dapr"
 )
+
+const daprWorkloadAdmissionJobAuthority = "DAPR_WORKLOAD_ADMISSION_EXECUTOR_JOB_V1"
 
 type agentDaprWorkloadAdmissionTask struct {
 	OperationID       string                               `json:"operationId"`
@@ -23,6 +23,7 @@ type agentDaprWorkloadAdmissionTask struct {
 	TaskFenceToken    int64                                `json:"taskFenceToken"`
 	LeaseExpiresAt    time.Time                            `json:"leaseExpiresAt"`
 	Request           daprruntime.WorkloadAdmissionRequest `json:"request"`
+	RuntimeLock       daprruntime.RuntimeLock              `json:"runtimeLock"`
 }
 
 type agentDaprWorkloadAdmissionResult struct {
@@ -31,6 +32,13 @@ type agentDaprWorkloadAdmissionResult struct {
 	Error          string                                 `json:"error,omitempty"`
 	Evidence       *daprruntime.WorkloadAdmissionEvidence `json:"evidence,omitempty"`
 	EvidenceDigest string                                 `json:"evidenceDigest,omitempty"`
+}
+
+type daprWorkloadAdmissionExecutorResult struct {
+	Authority      string                                  `json:"authority"`
+	OperationID    string                                  `json:"operationId"`
+	Evidence       daprruntime.WorkloadAdmissionEvidence   `json:"evidence"`
+	EvidenceDigest string                                  `json:"evidenceDigest"`
 }
 
 func (a *agent) processDaprWorkloadAdmissionTask(ctx context.Context) error {
@@ -76,228 +84,293 @@ func (a *agent) nextDaprWorkloadAdmissionTask(ctx context.Context) (agentDaprWor
 		!task.LeaseExpiresAt.After(time.Now().UTC()) || task.Request.ClusterID != a.clusterID {
 		return task, false, fmt.Errorf("Dapr workload admission task identity/lease is invalid")
 	}
-	if _, err = daprruntime.CanonicalWorkloadAdmissionRequest(task.Request); err != nil {
+	request, err := daprruntime.CanonicalWorkloadAdmissionRequest(task.Request)
+	if err != nil {
 		return task, false, err
+	}
+	task.Request = request
+	if err = daprruntime.ValidateRuntimeLock(task.RuntimeLock); err != nil {
+		return task, false, fmt.Errorf("Dapr workload admission executor lock invalid: %w", err)
+	}
+	lockDigest, err := daprruntime.RuntimeLockDigest(task.RuntimeLock)
+	if err != nil || task.RuntimeLock.ExecutorImageReference != task.Request.ExecutorImageReference {
+		return task, false, fmt.Errorf("Dapr workload admission executor image authority mismatch")
+	}
+	if task.Request.RuntimeMode == "PRODUCT_MANAGED" && lockDigest != task.Request.RuntimeLockDigest {
+		return task, false, fmt.Errorf("Dapr workload admission runtime lock mismatch")
 	}
 	return task, true, nil
 }
 
-func daprAdmissionObjectName(operationID string) string {
-	sum := sha256.Sum256([]byte(strings.TrimSpace(operationID)))
-	return "4so-dapr-admission-" + hex.EncodeToString(sum[:6])
+func daprWorkloadAdmissionJobName(task agentDaprWorkloadAdmissionTask) string {
+	return daprObjectName("dapr-admit-", task.OperationID, task.TaskFenceToken)
 }
 
-func daprAdmissionDeployment(task agentDaprWorkloadAdmissionTask) map[string]any {
-	labels := map[string]any{
-		"platform.4so.io/dapr-admission": daprAdmissionObjectName(task.OperationID),
+func daprWorkloadAdmissionJobPath(namespace string, task agentDaprWorkloadAdmissionTask) string {
+	return "/apis/batch/v1/namespaces/" + url.PathEscape(namespace) + "/jobs/" + url.PathEscape(daprWorkloadAdmissionJobName(task))
+}
+
+func daprWorkloadAdmissionJob(task agentDaprWorkloadAdmissionTask, namespace string) (map[string]any, error) {
+	requestRaw, requestDigest, err := daprruntime.MarshalWorkloadAdmissionRequest(task.Request)
+	if err != nil {
+		return nil, err
 	}
-	annotations := map[string]any{}
-	for _, item := range task.Request.Plan.Annotations {
-		annotations[item.Key] = item.Value
+	annotations := map[string]any{
+		"platform.4so.io/authority": daprWorkloadAdmissionJobAuthority,
+		"platform.4so.io/cluster-id": task.Request.ClusterID,
+		"platform.4so.io/operation-id": task.OperationID,
+		"platform.4so.io/task-fence-token": strconv.FormatInt(task.TaskFenceToken, 10),
+		"platform.4so.io/workload-admission-digest": requestDigest,
+	}
+	labels := map[string]any{
+		"platform.4so.io/dapr-workload-admission": "true",
+		"platform.4so.io/managed": "true",
 	}
 	return map[string]any{
-		"apiVersion": "apps/v1",
-		"kind": "Deployment",
+		"apiVersion": "batch/v1", "kind": "Job",
 		"metadata": map[string]any{
-			"name": daprAdmissionObjectName(task.OperationID),
-			"namespace": task.Request.Plan.Namespace,
-			"labels": map[string]any{"platform.4so.io/managed": "true", "platform.4so.io/admission-only": "true"},
+			"name": daprWorkloadAdmissionJobName(task), "namespace": namespace,
+			"labels": labels, "annotations": annotations,
 		},
 		"spec": map[string]any{
-			"replicas": 1,
-			"selector": map[string]any{"matchLabels": labels},
+			"backoffLimit": 0, "ttlSecondsAfterFinished": 3600,
 			"template": map[string]any{
 				"metadata": map[string]any{"labels": labels, "annotations": annotations},
 				"spec": map[string]any{
-					"automountServiceAccountToken": false,
-					"containers": []any{
-						map[string]any{
-							"name": "app",
-							"image": task.Request.WorkloadImage,
-							"imagePullPolicy": "IfNotPresent",
-							"securityContext": map[string]any{
-								"allowPrivilegeEscalation": false,
-								"readOnlyRootFilesystem": true,
-								"runAsNonRoot": true,
-								"capabilities": map[string]any{"drop": []any{"ALL"}},
-							},
+					"serviceAccountName": daprExecutorServiceAccount,
+					"restartPolicy": "Never",
+					"securityContext": map[string]any{"runAsNonRoot": true, "seccompProfile": map[string]any{"type": "RuntimeDefault"}},
+					"containers": []any{map[string]any{
+						"name": "executor",
+						"image": task.Request.ExecutorImageReference,
+						"imagePullPolicy": "IfNotPresent",
+						"args": []any{"workload-admission"},
+						"env": []any{
+							map[string]any{"name": "FOURSO_DAPR_WORKLOAD_OPERATION_ID", "value": task.OperationID},
+							map[string]any{"name": "FOURSO_DAPR_WORKLOAD_ADMISSION_JSON", "value": string(requestRaw)},
+							map[string]any{"name": "FOURSO_DAPR_WORKLOAD_ADMISSION_DIGEST", "value": requestDigest},
 						},
-					},
+						"securityContext": map[string]any{
+							"allowPrivilegeEscalation": false, "readOnlyRootFilesystem": true,
+							"capabilities": map[string]any{"drop": []any{"ALL"}},
+						},
+					}},
 				},
 			},
 		},
-	}
+	}, nil
 }
 
-func nestedMap(value map[string]any, keys ...string) map[string]any {
-	current := value
-	for _, key := range keys {
-		next, _ := current[key].(map[string]any)
-		if next == nil {
-			return nil
-		}
-		current = next
+func daprWorkloadAdmissionJobOwnership(job map[string]any, task agentDaprWorkloadAdmissionTask, namespace string) error {
+	if job["apiVersion"] != "batch/v1" || job["kind"] != "Job" {
+		return fmt.Errorf("Dapr workload admission executor object identity is invalid")
 	}
-	return current
+	meta, _ := job["metadata"].(map[string]any)
+	if strings.TrimSpace(fmt.Sprint(meta["name"])) != daprWorkloadAdmissionJobName(task) ||
+		strings.TrimSpace(fmt.Sprint(meta["namespace"])) != strings.TrimSpace(namespace) {
+		return fmt.Errorf("Dapr workload admission Job metadata does not match task fence")
+	}
+	annotations, _ := meta["annotations"].(map[string]any)
+	_, requestDigest, err := daprruntime.MarshalWorkloadAdmissionRequest(task.Request)
+	if err != nil {
+		return err
+	}
+	want := map[string]string{
+		"platform.4so.io/authority": daprWorkloadAdmissionJobAuthority,
+		"platform.4so.io/cluster-id": task.Request.ClusterID,
+		"platform.4so.io/operation-id": task.OperationID,
+		"platform.4so.io/task-fence-token": strconv.FormatInt(task.TaskFenceToken, 10),
+		"platform.4so.io/workload-admission-digest": requestDigest,
+	}
+	for key, value := range want {
+		if strings.TrimSpace(fmt.Sprint(annotations[key])) != value {
+			return fmt.Errorf("Dapr workload admission Job ownership mismatch for %s", key)
+		}
+	}
+	spec, _ := job["spec"].(map[string]any)
+	template, _ := spec["template"].(map[string]any)
+	podSpec, _ := template["spec"].(map[string]any)
+	if strings.TrimSpace(fmt.Sprint(podSpec["serviceAccountName"])) != daprExecutorServiceAccount {
+		return fmt.Errorf("Dapr workload admission Job service account mismatch")
+	}
+	containers, _ := podSpec["containers"].([]any)
+	if len(containers) != 1 {
+		return fmt.Errorf("Dapr workload admission Job container identity invalid")
+	}
+	container, _ := containers[0].(map[string]any)
+	if strings.TrimSpace(fmt.Sprint(container["image"])) != task.Request.ExecutorImageReference {
+		return fmt.Errorf("Dapr workload admission executor image mismatch")
+	}
+	return nil
 }
 
-func boolField(value map[string]any, key string) bool {
-	v, ok := value[key].(bool)
-	return ok && v
-}
-
-func daprAdmissionEvidence(task agentDaprWorkloadAdmissionTask, response map[string]any, status int) (daprruntime.WorkloadAdmissionEvidence, error) {
-	templateMeta := nestedMap(response, "spec", "template", "metadata")
-	templateSpec := nestedMap(response, "spec", "template", "spec")
-	if templateMeta == nil || templateSpec == nil {
-		return daprruntime.WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_DEPLOYMENT_SHAPE_INVALID")
+func (a *agent) readDaprWorkloadAdmissionExecutorResult(ctx context.Context, task agentDaprWorkloadAdmissionTask) (agentDaprWorkloadAdmissionResult, error) {
+	var pods struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Status struct {
+				ContainerStatuses []struct {
+					Name  string `json:"name"`
+					State struct {
+						Terminated *struct {
+							ExitCode int    `json:"exitCode"`
+							Message  string `json:"message"`
+						} `json:"terminated,omitempty"`
+					} `json:"state"`
+				} `json:"containerStatuses"`
+			} `json:"status"`
+		} `json:"items"`
 	}
-	actualAnnotations, _ := templateMeta["annotations"].(map[string]any)
-	annotationsVerified := len(actualAnnotations) >= len(task.Request.Plan.Annotations)
-	for _, wanted := range task.Request.Plan.Annotations {
-		if strings.TrimSpace(fmt.Sprint(actualAnnotations[wanted.Key])) != wanted.Value {
-			annotationsVerified = false
-			break
+	path := "/api/v1/namespaces/" + url.PathEscape(a.cfg.Namespace) + "/pods?labelSelector=" +
+		url.QueryEscape("job-name="+daprWorkloadAdmissionJobName(task)) + "&limit=2"
+	if err := a.kubeJSON(ctx, http.MethodGet, path, nil, &pods); err != nil {
+		return agentDaprWorkloadAdmissionResult{}, err
+	}
+	if len(pods.Items) != 1 {
+		return agentDaprWorkloadAdmissionResult{}, fmt.Errorf("Dapr workload admission executor pod identity is ambiguous")
+	}
+	for _, status := range pods.Items[0].Status.ContainerStatuses {
+		if status.Name != "executor" || status.State.Terminated == nil {
+			continue
 		}
-	}
-	containers, _ := templateSpec["containers"].([]any)
-	appPreserved := false
-	var sidecar map[string]any
-	for _, raw := range containers {
-		container, _ := raw.(map[string]any)
-		name := strings.TrimSpace(fmt.Sprint(container["name"]))
-		switch name {
-		case "app":
-			if strings.TrimSpace(fmt.Sprint(container["image"])) == task.Request.WorkloadImage {
-				appPreserved = true
-			}
-		case "daprd":
-			if sidecar != nil {
-				return daprruntime.WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_DUPLICATE_SIDECAR")
-			}
-			sidecar = container
+		if status.State.Terminated.ExitCode != 0 {
+			return agentDaprWorkloadAdmissionResult{}, fmt.Errorf("Dapr workload admission executor exited with code %d", status.State.Terminated.ExitCode)
 		}
-	}
-	if sidecar == nil {
-		return daprruntime.WorkloadAdmissionEvidence{}, fmt.Errorf("DAPR_DRY_RUN_SIDECAR_NOT_INJECTED")
-	}
-	security, _ := sidecar["securityContext"].(map[string]any)
-	capabilities, _ := security["capabilities"].(map[string]any)
-	rawDrops, _ := capabilities["drop"].([]any)
-	drops := make([]string, 0, len(rawDrops))
-	for _, raw := range rawDrops {
-		value := strings.ToUpper(strings.TrimSpace(fmt.Sprint(raw)))
-		if value != "" {
-			drops = append(drops, value)
+		message := strings.TrimSpace(status.State.Terminated.Message)
+		if message == "" || len(message) > 4096 {
+			return agentDaprWorkloadAdmissionResult{}, fmt.Errorf("Dapr workload admission executor termination evidence is unavailable")
 		}
-	}
-	sort.Strings(drops)
-	dropAll := false
-	for _, value := range drops {
-		if value == "ALL" {
-			dropAll = true
-			break
+		var sealed daprWorkloadAdmissionExecutorResult
+		decoder := json.NewDecoder(strings.NewReader(message))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&sealed); err != nil {
+			return agentDaprWorkloadAdmissionResult{}, fmt.Errorf("decode Dapr workload admission executor result: %w", err)
 		}
+		if sealed.Authority != daprruntime.WorkloadAdmissionEvidenceAuthority || sealed.OperationID != task.OperationID {
+			return agentDaprWorkloadAdmissionResult{}, fmt.Errorf("Dapr workload admission executor result authority mismatch")
+		}
+		if err := daprruntime.ValidateWorkloadAdmissionEvidence(sealed.Evidence, task.Request, task.OperationID); err != nil {
+			return agentDaprWorkloadAdmissionResult{}, err
+		}
+		digest, err := daprruntime.WorkloadAdmissionEvidenceDigest(sealed.Evidence, task.Request, task.OperationID)
+		if err != nil || digest != strings.ToLower(strings.TrimSpace(sealed.EvidenceDigest)) {
+			return agentDaprWorkloadAdmissionResult{}, fmt.Errorf("Dapr workload admission executor evidence digest mismatch")
+		}
+		return agentDaprWorkloadAdmissionResult{
+			Success: true, TaskFenceToken: task.TaskFenceToken,
+			Evidence: &sealed.Evidence, EvidenceDigest: digest,
+		}, nil
 	}
-	sidecarImage := strings.TrimSpace(fmt.Sprint(sidecar["image"]))
-	expectedMatched := false
-	if task.Request.RuntimeMode == "PRODUCT_MANAGED" {
-		expectedMatched = sidecarImage == task.Request.ExpectedSidecarImage
-	}
-	evidence := daprruntime.WorkloadAdmissionEvidence{
-		Authority: daprruntime.WorkloadAdmissionEvidenceAuthority,
-		OperationID: task.OperationID,
-		ProjectID: task.Request.ProjectID,
-		ClusterID: task.Request.ClusterID,
-		TraitDigest: task.Request.TraitDigest,
-		InventoryDigest: task.Request.InventoryDigest,
-		RuntimeMode: task.Request.RuntimeMode,
-		RuntimeLockDigest: task.Request.RuntimeLockDigest,
-		PlanDigest: task.Request.PlanDigest,
-		Namespace: task.Request.Plan.Namespace,
-		AppID: task.Request.Plan.AppID,
-		DryRunHTTPStatus: status,
-		InjectedSidecarObserved: true,
-		SidecarContainerName: "daprd",
-		SidecarImageReference: sidecarImage,
-		ExpectedSidecarImageMatched: expectedMatched,
-		RunAsNonRoot: boolField(security, "runAsNonRoot"),
-		ReadOnlyRootFilesystem: boolField(security, "readOnlyRootFilesystem"),
-		AllowPrivilegeEscalation: boolField(security, "allowPrivilegeEscalation"),
-		DroppedCapabilities: drops,
-		DropAllCapabilities: dropAll,
-		AppContainerPreserved: appPreserved,
-		AnnotationsVerified: annotationsVerified,
-		ServerSideDryRun: true,
-		StrictFieldValidation: true,
-		SidecarPullObserved: false,
-		PhysicalCertificationInferred: false,
-		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
-	}
-	if err := daprruntime.ValidateWorkloadAdmissionEvidence(evidence, task.Request, task.OperationID); err != nil {
-		return daprruntime.WorkloadAdmissionEvidence{}, err
-	}
-	return evidence, nil
+	return agentDaprWorkloadAdmissionResult{}, fmt.Errorf("Dapr workload admission executor has no terminal result")
 }
 
 func (a *agent) runDaprWorkloadAdmission(ctx context.Context, task agentDaprWorkloadAdmissionTask) agentDaprWorkloadAdmissionResult {
-	result := agentDaprWorkloadAdmissionResult{}
+	result := agentDaprWorkloadAdmissionResult{TaskFenceToken: task.TaskFenceToken}
+	if strings.TrimSpace(a.cfg.ServiceAccount) == "" {
+		result.Error = "Dapr workload admission executor requires import-scoped agent service account"
+		return result
+	}
+	if _, ok, err := a.nextDaprWorkloadAdmissionTaskValidation(task); err != nil || !ok {
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			result.Error = "Dapr workload admission task is invalid"
+		}
+		return result
+	}
+	path := daprWorkloadAdmissionJobPath(a.cfg.Namespace, task)
+	current, found, err := a.getKubeObject(ctx, path)
+	if err != nil {
+		result.Error = "Dapr workload admission pre-dispatch readback failed: " + err.Error()
+		return result
+	}
+	if found {
+		if err = daprWorkloadAdmissionJobOwnership(current, task, a.cfg.Namespace); err != nil {
+			result.Error = err.Error()
+			return result
+		}
+	} else {
+		job, buildErr := daprWorkloadAdmissionJob(task, a.cfg.Namespace)
+		if buildErr != nil {
+			result.Error = buildErr.Error()
+			return result
+		}
+		collection := "/apis/batch/v1/namespaces/" + url.PathEscape(a.cfg.Namespace) + "/jobs"
+		_, conflict, createErr := a.createKubeObject(ctx, collection, job)
+		if createErr != nil && !conflict {
+			result.Error = "Dapr workload admission executor dispatch failed: " + createErr.Error()
+			return result
+		}
+		current, found, err = a.getKubeObject(ctx, path)
+		if err != nil || !found {
+			result.Error = "Dapr workload admission executor dispatch lacks authoritative readback"
+			return result
+		}
+		if err = daprWorkloadAdmissionJobOwnership(current, task, a.cfg.Namespace); err != nil {
+			result.Error = err.Error()
+			return result
+		}
+	}
+	deadline := task.LeaseExpiresAt.Add(-5 * time.Second)
+	for time.Now().UTC().Before(deadline) {
+		current, found, err = a.getKubeObject(ctx, path)
+		if err != nil || !found {
+			result.Error = "Dapr workload admission executor Job readback failed"
+			if err != nil {
+				result.Error += ": " + err.Error()
+			}
+			return result
+		}
+		if err = daprWorkloadAdmissionJobOwnership(current, task, a.cfg.Namespace); err != nil {
+			result.Error = err.Error()
+			return result
+		}
+		done, failed, _ := daprJobTerminal(current)
+		if done {
+			if failed {
+				result.Error = "Dapr workload admission executor Job failed"
+				return result
+			}
+			final, readErr := a.readDaprWorkloadAdmissionExecutorResult(ctx, task)
+			if readErr != nil {
+				result.Error = readErr.Error()
+				return result
+			}
+			return final
+		}
+		select {
+		case <-ctx.Done():
+			result.Error = "Dapr workload admission executor interrupted"
+			return result
+		case <-time.After(2 * time.Second):
+		}
+	}
+	result.Error = "Dapr workload admission executor lease deadline reached"
+	return result
+}
+
+func (a *agent) nextDaprWorkloadAdmissionTaskValidation(task agentDaprWorkloadAdmissionTask) (daprruntime.WorkloadAdmissionRequest, bool, error) {
 	if task.OperationID == "" || task.OperationRevision <= 0 || task.TaskFenceToken <= 0 ||
 		!task.LeaseExpiresAt.After(time.Now().UTC()) || task.Request.ClusterID != a.clusterID {
-		result.Error = "Dapr workload admission task identity/lease is invalid"
-		return result
+		return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload admission task identity/lease is invalid")
 	}
 	request, err := daprruntime.CanonicalWorkloadAdmissionRequest(task.Request)
 	if err != nil {
-		result.Error = err.Error()
-		return result
+		return daprruntime.WorkloadAdmissionRequest{}, false, err
 	}
-	task.Request = request
-	body, err := json.Marshal(daprAdmissionDeployment(task))
-	if err != nil {
-		result.Error = err.Error()
-		return result
+	if err = daprruntime.ValidateRuntimeLock(task.RuntimeLock); err != nil {
+		return daprruntime.WorkloadAdmissionRequest{}, false, err
 	}
-	path := "/apis/apps/v1/namespaces/" + url.PathEscape(request.Plan.Namespace) + "/deployments?dryRun=All&fieldValidation=Strict"
-	req, err := a.kubeRequest(ctx, http.MethodPost, path, bytes.NewReader(body), "application/json")
-	if err != nil {
-		result.Error = err.Error()
-		return result
+	lockDigest, err := daprruntime.RuntimeLockDigest(task.RuntimeLock)
+	if err != nil || task.RuntimeLock.ExecutorImageReference != request.ExecutorImageReference {
+		return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload admission executor image authority mismatch")
 	}
-	res, err := a.kube.Do(req)
-	if err != nil {
-		result.Error = err.Error()
-		return result
+	if request.RuntimeMode == "PRODUCT_MANAGED" && lockDigest != request.RuntimeLockDigest {
+		return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload admission runtime lock mismatch")
 	}
-	defer res.Body.Close()
-	raw, readErr := io.ReadAll(io.LimitReader(res.Body, 2<<20))
-	if readErr != nil {
-		result.Error = readErr.Error()
-		return result
-	}
-	if res.StatusCode/100 != 2 {
-		result.Error = fmt.Sprintf("Dapr workload server-side dry-run returned HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(raw)))
-		return result
-	}
-	var response map[string]any
-	if err = json.Unmarshal(raw, &response); err != nil {
-		result.Error = "Dapr workload dry-run response is invalid JSON"
-		return result
-	}
-	evidence, err := daprAdmissionEvidence(task, response, res.StatusCode)
-	if err != nil {
-		result.Error = err.Error()
-		return result
-	}
-	digest, err := daprruntime.WorkloadAdmissionEvidenceDigest(evidence, request, task.OperationID)
-	if err != nil {
-		result.Error = err.Error()
-		return result
-	}
-	result.Success = true
-	result.Evidence = &evidence
-	result.EvidenceDigest = digest
-	return result
+	return request, true, nil
 }
 
 func (a *agent) reportDaprWorkloadAdmissionTask(ctx context.Context, task agentDaprWorkloadAdmissionTask, result agentDaprWorkloadAdmissionResult) error {
