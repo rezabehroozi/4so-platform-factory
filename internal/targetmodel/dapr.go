@@ -455,6 +455,12 @@ func ResolveDaprWorkloadRuntimePlan(in DaprWorkloadPlanInput) (DaprWorkloadRunti
 	if !in.EnableInvocation && !in.EnablePubSub && !in.EnableBindings {
 		return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_WORKLOAD_API_PROFILE_EMPTY")
 	}
+	if len(components) > 0 && !in.EnablePubSub && !in.EnableBindings {
+		return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_COMPONENT_PROFILE_UNUSED")
+	}
+	if len(components) == 0 && (in.EnablePubSub || in.EnableBindings) {
+		return DaprWorkloadRuntimePlan{}, fmt.Errorf("DAPR_COMPONENT_SCOPE_REQUIRED")
+	}
 	configurationName := "4so-dapr-" + appID
 	annotations := []DaprWorkloadAnnotation{
 		{Key: "dapr.io/enabled", Value: "true"},
