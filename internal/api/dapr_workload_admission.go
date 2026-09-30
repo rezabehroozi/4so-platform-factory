@@ -46,7 +46,8 @@ type daprWorkloadAdmissionTask struct {
 	TaskFenceToken    int64                                `json:"taskFenceToken"`
 	LeaseExpiresAt    time.Time                            `json:"leaseExpiresAt"`
 	Request           daprruntime.WorkloadAdmissionRequest `json:"request"`
-	RuntimeLock       daprruntime.RuntimeLock              `json:"runtimeLock"`
+	ExecutorAuthority daprruntime.ExecutorAuthority         `json:"executorAuthority"`
+	RuntimeLock       daprruntime.RuntimeLock               `json:"runtimeLock,omitempty"`
 }
 
 type daprWorkloadAdmissionResult struct {
@@ -112,7 +113,7 @@ func (s *Server) buildDaprWorkloadAdmissionRequest(ctx context.Context, input da
 	if trait.ProjectID != input.ProjectID || trait.Kind != "sidecar" || trait.Capability != controlplane.ApplicationRuntimeDaprCapability {
 		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: trait is not the project Dapr sidecar capability", controlplane.ErrValidation)
 	}
-	if !s.daprRuntimeReady {
+	if !s.daprExecutorReady {
 		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: exact Dapr executor image authority is unavailable", controlplane.ErrPrerequisite)
 	}
 	cluster, err := s.store.GetManagedCluster(ctx, input.ClusterID)
@@ -129,8 +130,16 @@ func (s *Server) buildDaprWorkloadAdmissionRequest(ctx context.Context, input da
 	if !controlplane.ClusterInventoryAuthorityFreshAt(cluster, time.Now().UTC()) {
 		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: fresh target inventory is required", controlplane.ErrPrerequisite)
 	}
-	if !openChoreoInventoryCapability(inventory, "strict-schema-dry-run") || !inventory.SchemaDiscoveryComplete {
-		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: target strict schema dry-run capability is required", controlplane.ErrPrerequisite)
+	if !controlplane.ClusterTaskAdmitted(cluster) {
+		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: target is not admitted for Agent tasks", controlplane.ErrPrerequisite)
+	}
+	if !inventory.APIDiscoveryComplete || !inventory.CRDDiscoveryComplete || !inventory.SchemaDiscoveryComplete ||
+		!openChoreoInventoryCapability(inventory, "strict-schema-dry-run") {
+		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: complete target discovery and strict schema dry-run capability are required", controlplane.ErrPrerequisite)
+	}
+	if !openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability) ||
+		!openChoreoInventoryCapability(inventory, controlplane.DaprExecutorRBACCapability) {
+		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: target Dapr workload executor RBAC is not active", controlplane.ErrPrerequisite)
 	}
 	admission := s.daprAdmissionForCluster(cluster, inventory, false)
 	plan, err := targetmodel.ResolveDaprWorkloadRuntimePlan(targetmodel.DaprWorkloadPlanInput{
@@ -151,18 +160,22 @@ func (s *Server) buildDaprWorkloadAdmissionRequest(ctx context.Context, input da
 		ProjectID: input.ProjectID, ClusterID: input.ClusterID,
 		TraitID: trait.ID, TraitDigest: trait.Digest,
 		InventoryDigest: inventory.Digest,
-		ExecutorImageReference: s.daprRuntimeLock.ExecutorImageReference,
+		ExecutorEvidenceDigest: s.daprExecutorAuthority.EvidenceDigest,
+		ExecutorImageReference: s.daprExecutorAuthority.ImageReference,
 		WorkloadImage: input.WorkloadImage,
 		Plan: plan, PlanDigest: planDigest,
 	}
 	if admission.Mode == "USE_NATIVE" && admission.Eligible {
 		request.RuntimeMode = "USE_NATIVE"
 	} else {
+		if !s.daprRuntimeReady {
+			return daprruntime.WorkloadAdmissionRequest{}, admission, fmt.Errorf("%w: product-managed Dapr runtime authority is unavailable", controlplane.ErrPrerequisite)
+		}
 		observed, observedErr := s.latestDaprObserved(ctx, input.ProjectID, input.ClusterID)
 		if observedErr != nil {
 			return daprruntime.WorkloadAdmissionRequest{}, admission, observedErr
 		}
-		if observed == nil || !observed.Installed || !s.daprRuntimeReady || observed.RuntimeLockDigest != s.daprRuntimeDigest {
+		if observed == nil || !observed.Installed || observed.RuntimeLockDigest != s.daprRuntimeDigest {
 			return daprruntime.WorkloadAdmissionRequest{}, admission, fmt.Errorf("%w: Dapr runtime is not currently installed with admitted authority", controlplane.ErrPrerequisite)
 		}
 		request.RuntimeMode = "PRODUCT_MANAGED"
@@ -327,16 +340,24 @@ func (s *Server) nextDaprWorkloadAdmissionTask(w http.ResponseWriter, r *http.Re
 			request.ClusterID != clusterID || cluster.ProjectID != request.ProjectID ||
 			cluster.InventoryDigest != request.InventoryDigest || inventory.Digest != request.InventoryDigest ||
 			!controlplane.ClusterInventoryAuthorityFreshAt(cluster, time.Now().UTC()) ||
+			!controlplane.ClusterTaskAdmitted(cluster) ||
+			!inventory.APIDiscoveryComplete || !inventory.CRDDiscoveryComplete || !inventory.SchemaDiscoveryComplete ||
 			!openChoreoInventoryCapability(inventory, "strict-schema-dry-run") ||
-			!s.daprRuntimeReady || s.daprRuntimeLock.ExecutorImageReference != request.ExecutorImageReference
+			!openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability) ||
+			!openChoreoInventoryCapability(inventory, controlplane.DaprExecutorRBACCapability) ||
+			!s.daprExecutorReady ||
+			s.daprExecutorAuthority.EvidenceDigest != request.ExecutorEvidenceDigest ||
+			s.daprExecutorAuthority.ImageReference != request.ExecutorImageReference
 		if !blocked && request.RuntimeMode == "USE_NATIVE" {
 			blocked = !openChoreoInventoryCapability(inventory, targetmodel.DaprApplicationRuntimeCapability)
 		}
 		if !blocked && request.RuntimeMode == "PRODUCT_MANAGED" {
 			observed, observedErr := s.latestDaprObserved(r.Context(), request.ProjectID, clusterID)
+			runtimeExecutor, runtimeExecutorErr := daprruntime.ExecutorAuthorityFromRuntimeLock(s.daprRuntimeLock)
 			blocked = observedErr != nil || observed == nil || !observed.Installed ||
 				observed.RuntimeLockDigest != request.RuntimeLockDigest || !s.daprRuntimeReady ||
-				s.daprRuntimeDigest != request.RuntimeLockDigest ||
+				s.daprRuntimeDigest != request.RuntimeLockDigest || runtimeExecutorErr != nil ||
+				!daprruntime.ExecutorAuthoritiesEqual(runtimeExecutor, s.daprExecutorAuthority) ||
 				daprRuntimeImageByRole(s.daprRuntimeLock, "sidecar") != request.ExpectedSidecarImage
 		}
 		if blocked {
@@ -359,9 +380,14 @@ func (s *Server) nextDaprWorkloadAdmissionTask(w http.ResponseWriter, r *http.Re
 			return
 		}
 		setRevisionETag(w, op.Revision)
+		runtimeLock := daprruntime.RuntimeLock{}
+		if request.RuntimeMode == "PRODUCT_MANAGED" {
+			runtimeLock = s.daprRuntimeLock
+		}
 		writeJSON(w, http.StatusOK, daprWorkloadAdmissionTask{
 			OperationID: op.ID, OperationRevision: op.Revision, TaskFenceToken: claim.FenceToken,
-			LeaseExpiresAt: claim.LeaseExpiresAt, Request: request, RuntimeLock: s.daprRuntimeLock,
+			LeaseExpiresAt: claim.LeaseExpiresAt, Request: request,
+			ExecutorAuthority: s.daprExecutorAuthority, RuntimeLock: runtimeLock,
 		})
 		return
 	}
