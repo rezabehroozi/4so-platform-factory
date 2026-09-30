@@ -1,5 +1,10 @@
 package targetmodel
 
+import (
+	"sort"
+	"strings"
+)
+
 const (
 	DaprApplicationRuntimeAuthority  = "DAPR_APPLICATION_RUNTIME_EXTENSION_V1"
 	DaprApplicationRuntimeCapability = "application-runtime.dapr"
