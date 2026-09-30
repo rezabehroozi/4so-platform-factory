@@ -304,7 +304,7 @@ func TestDaprDisconnectedInstallRequiresProductMirrorAndDefersTargetPullProofToE
 			t.Fatalf("self-asserted target capability was treated as mirror-pull evidence: %#v", blocked)
 		}
 	}
-	base.DisconnectedMirrorAdmitted = true
+	base.DisconnectedProductMirrorAdmitted = true
 	admitted := EvaluateDaprTargetAdmission(base)
 	if !admitted.Eligible || !admitted.TargetMirrorPullEvidenceRequired {
 		t.Fatalf("disconnected install did not defer target pull proof to executor readback: %#v", admitted)
