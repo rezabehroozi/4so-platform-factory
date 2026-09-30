@@ -2,11 +2,11 @@
   "authority": "MCP_ROUTE_PARITY_AUTHORITY_V1",
   "counts": {
     "security-excluded": 40,
-    "tool-admin": 74,
-    "tool-operate": 80,
-    "tool-read": 191
+    "tool-admin": 75,
+    "tool-operate": 81,
+    "tool-read": 192
   },
-  "routeCount": 385,
+  "routeCount": 388,
   "routes": [
     {
       "action": "version",
@@ -1896,6 +1896,61 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_application_platform_dapr_workload_plan"
+    },
+    {
+      "action": "dapr_lifecycle",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-operate",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/application-platform/dapr/lifecycle",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "medium",
+      "toolName": "api_post_application_platform_dapr_lifecycle"
+    },
+    {
+      "action": "dapr_lifecycle",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/application-platform/dapr/lifecycle/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_application_platform_dapr_lifecycle_by_id"
+    },
+    {
+      "action": "dapr_lifecycle_approve",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-admin",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/application-platform/dapr/lifecycle/{id}/approve",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "high",
+      "toolName": "api_post_application_platform_dapr_lifecycle_by_id_approve"
     },
     {
       "action": "openchoreo_assessment",
