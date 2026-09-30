@@ -384,8 +384,10 @@ type DaprWorkloadRuntimePlan struct {
 	ComponentScopes           []DaprComponentScope     `json:"componentScopes,omitempty"`
 	ServiceInvocationDefault  string                   `json:"serviceInvocationDefault"`
 	CrossNamespaceInvocation  bool                     `json:"crossNamespaceInvocation"`
-	SecretMaterialEmbedded    bool                     `json:"secretMaterialEmbedded"`
-	PhysicalCertificationInferred bool                 `json:"physicalCertificationInferred"`
+	SecretMaterialEmbedded          bool                     `json:"secretMaterialEmbedded"`
+	DeploymentDryRunRequired        bool                     `json:"deploymentDryRunRequired"`
+	SidecarSecurityCompatibilityInferred bool               `json:"sidecarSecurityCompatibilityInferred"`
+	PhysicalCertificationInferred   bool                     `json:"physicalCertificationInferred"`
 }
 
 func daprDNSLabel(value string) bool {
@@ -495,7 +497,8 @@ func ResolveDaprWorkloadRuntimePlan(in DaprWorkloadPlanInput) (DaprWorkloadRunti
 		ConfigurationDerived: true, ConfigurationBecomesSoT: false,
 		Annotations: annotations, AllowedAPIs: rules, ComponentScopes: scopes,
 		ServiceInvocationDefault: "DENY", CrossNamespaceInvocation: false,
-		SecretMaterialEmbedded: false, PhysicalCertificationInferred: false,
+		SecretMaterialEmbedded: false, DeploymentDryRunRequired: true,
+		SidecarSecurityCompatibilityInferred: false, PhysicalCertificationInferred: false,
 	}, nil
 }
 
