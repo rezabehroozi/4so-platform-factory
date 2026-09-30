@@ -588,6 +588,15 @@ metadata:
     platform.4so.io/managed: "true"
     platform.4so.io/runtime-role: openchoreo-executor
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: 4so-dapr-executor
+  namespace: 4so-platform-agent
+  labels:
+    platform.4so.io/managed: "true"
+    platform.4so.io/runtime-role: dapr-executor
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -599,11 +608,11 @@ rules:
   verbs: ["get", "list", "create", "delete"]
 - apiGroups: [""]
   resources: ["configmaps"]
-  resourceNames: ["4so-openchoreo-runtime", "4so-openchoreo-runtime-ownership"]
+  resourceNames: ["4so-openchoreo-runtime", "4so-openchoreo-runtime-ownership", "4so-dapr-runtime-owner", "4so-dapr-runtime-observed"]
   verbs: ["get"]
 - apiGroups: [""]
   resources: ["serviceaccounts"]
-  resourceNames: ["4so-openchoreo-executor"]
+  resourceNames: ["4so-openchoreo-executor", "4so-dapr-executor"]
   verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -692,6 +701,49 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: 4so-openchoreo-executor
+  namespace: 4so-platform-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: 4so-dapr-runtime-manager
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "create"]
+- apiGroups: [""]
+  resources: ["configmaps", "secrets", "serviceaccounts", "services"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: 4so-dapr-runtime-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: 4so-dapr-runtime-manager
+subjects:
+- kind: ServiceAccount
+  name: 4so-dapr-executor
   namespace: 4so-platform-agent
 `, clusterID, clusterID, clusterID, clusterID, clusterID, externalUID, inventoryDigest, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, serviceAccountName, serviceAccountName)
 }
@@ -850,6 +902,16 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: 4so-openchoreo-runtime-manager
+subjects: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: 4so-dapr-runtime-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: 4so-dapr-runtime-manager
 subjects: []
 `
 }
