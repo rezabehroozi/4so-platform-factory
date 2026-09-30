@@ -665,6 +665,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/virtual-cluster-tasks/{virtualClusterId}/result", s.reportVirtualClusterTask)
 	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/openchoreo-tasks/next", s.nextOpenChoreoLifecycleTask)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/openchoreo-tasks/{operationId}/result", s.reportOpenChoreoLifecycleTask)
+	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/dapr-recovery/next", s.nextDaprRecoveryTask)
+	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/dapr-recovery/{operationId}/result", s.reportDaprRecoveryTask)
 	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/dapr-tasks/next", s.nextDaprLifecycleTask)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/dapr-tasks/{operationId}/result", s.reportDaprLifecycleTask)
 	s.mux.HandleFunc("GET /api/v1/marketplace/offers", s.listMarketplaceOffers)
