@@ -143,7 +143,8 @@ def main()->int:
     p.add_argument("--evidence-out",type=Path,default=Path("lab/mcp-external-client-interoperability-evidence.json"))
     p.add_argument("--allow-campaign-supersede",action="store_true")
     a=p.parse_args(); out=merge(a.matrix,a.campaign,a.receipt,a.audit,a.client,a.progress,allow_campaign_supersede=a.allow_campaign_supersede)
-    a.progress.parent.mkdir(parents=True,exist_ok=True); a.progress.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-    if out["complete"]: a.evidence_out.write_text(json.dumps(final_evidence(out,a.progress),indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    core.write_json_atomic_replace(a.progress,out,"MCP_EXTERNAL_INTEROP_PROGRESS")
+    if out["complete"]:
+        core.write_json_once_or_identical(a.evidence_out,final_evidence(out,a.progress),"MCP_EXTERNAL_INTEROP_EVIDENCE")
     print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"client":a.client,"certifiedClientCount":out["certifiedClientCount"],"complete":out["complete"],"serverAuditWitnessed":True},sort_keys=True)); return 0
 if __name__=="__main__": raise SystemExit(main())
