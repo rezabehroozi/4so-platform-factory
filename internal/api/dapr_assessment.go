@@ -38,7 +38,7 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 
 	admissionInput := targetmodel.DaprTargetAdmissionInput{
 		DistributionIdentity: cluster.Distribution,
-		TargetAdmitted:       cluster.ConnectionState != "REVOKED",
+		TargetAdmitted:       controlplane.ClusterTaskAdmitted(cluster),
 		Disconnected:         input.Disconnected,
 		// Exact source/mirror readiness remains external evidence, while the
 		// product-owned durable lifecycle path is now source-implemented.
