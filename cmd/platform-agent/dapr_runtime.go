@@ -416,12 +416,10 @@ func (a *agent) readDaprStateConfigMap(ctx context.Context, name string, task da
 	return validateDaprObservedReceipt(receipt, task.OperationID, task.TaskFenceToken, task.Request)
 }
 
-func (a *agent) readDaprReceipt(ctx context.Context, task daprAgentTask) daprAgentResult {
-	receipt := a.readDaprStateConfigMap(ctx, daprReceiptName, task)
+func chooseDaprObservedReadback(receipt, owner daprAgentResult) daprAgentResult {
 	if receipt.Success && !receipt.RecoveryRequired {
 		return receipt
 	}
-	owner := a.readDaprStateConfigMap(ctx, daprOwnerName, task)
 	if owner.Success && !owner.RecoveryRequired {
 		owner.Phase = "OwnerStateReadback:" + owner.Phase
 		return owner
@@ -436,6 +434,15 @@ func (a *agent) readDaprReceipt(ctx context.Context, task daprAgentTask) daprAge
 		result.Error += "; owner readback: " + owner.Error
 	}
 	return result
+}
+
+func (a *agent) readDaprReceipt(ctx context.Context, task daprAgentTask) daprAgentResult {
+	receipt := a.readDaprStateConfigMap(ctx, daprReceiptName, task)
+	if receipt.Success && !receipt.RecoveryRequired {
+		return receipt
+	}
+	owner := a.readDaprStateConfigMap(ctx, daprOwnerName, task)
+	return chooseDaprObservedReadback(receipt, owner)
 }
 
 func (a *agent) reportDaprLifecycleTask(ctx context.Context, task daprAgentTask, result daprAgentResult) error {
