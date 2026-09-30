@@ -1,11 +1,25 @@
 #!/usr/bin/env python3
 """Incrementally admit one server-audit-witnessed named MCP client receipt."""
 from __future__ import annotations
-import argparse, json
+import argparse, fcntl, hashlib, json, os, tempfile
+from contextlib import contextmanager
 from pathlib import Path
 import seal_mcp_external_interop as core
 
 AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1"
+
+@contextmanager
+def progress_lock(progress_path:Path):
+    absolute=Path(os.path.abspath(progress_path))
+    key=hashlib.sha256(os.fsencode(str(absolute))).hexdigest()
+    lock_path=Path(tempfile.gettempdir())/f"4so-c7w-progress-{key}.lock"
+    fd=os.open(lock_path,os.O_CREAT|os.O_RDWR|os.O_CLOEXEC,0o600)
+    try:
+        fcntl.flock(fd,fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd,fcntl.LOCK_UN)
+        os.close(fd)
 
 def matrix_contract(matrix_path:Path,campaign_path:Path):
     matrix=core.load(matrix_path,"MATRIX"); spec=matrix.get("spec") or {}
@@ -142,9 +156,11 @@ def main()->int:
     p.add_argument("--client",choices=core.CLIENTS,required=True); p.add_argument("--progress",type=Path,default=Path("lab/mcp-external-client-interop-progress.json"))
     p.add_argument("--evidence-out",type=Path,default=Path("lab/mcp-external-client-interoperability-evidence.json"))
     p.add_argument("--allow-campaign-supersede",action="store_true")
-    a=p.parse_args(); out=merge(a.matrix,a.campaign,a.receipt,a.audit,a.client,a.progress,allow_campaign_supersede=a.allow_campaign_supersede)
-    core.write_json_atomic_replace(a.progress,out,"MCP_EXTERNAL_INTEROP_PROGRESS")
-    if out["complete"]:
-        core.write_json_once_or_identical(a.evidence_out,final_evidence(out,a.progress),"MCP_EXTERNAL_INTEROP_EVIDENCE")
+    a=p.parse_args()
+    with progress_lock(a.progress):
+        out=merge(a.matrix,a.campaign,a.receipt,a.audit,a.client,a.progress,allow_campaign_supersede=a.allow_campaign_supersede)
+        core.write_json_atomic_replace(a.progress,out,"MCP_EXTERNAL_INTEROP_PROGRESS")
+        if out["complete"]:
+            core.write_json_once_or_identical(a.evidence_out,final_evidence(out,a.progress),"MCP_EXTERNAL_INTEROP_EVIDENCE")
     print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"client":a.client,"certifiedClientCount":out["certifiedClientCount"],"complete":out["complete"],"serverAuditWitnessed":True},sort_keys=True)); return 0
 if __name__=="__main__": raise SystemExit(main())
