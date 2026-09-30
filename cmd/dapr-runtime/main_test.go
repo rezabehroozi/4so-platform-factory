@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	daprruntime "platform.4so.io/factory/internal/dapr"
 )
 
 func readyDaprDeployment(name, container, image string) *kubeDeployment {
@@ -76,5 +78,29 @@ func TestVerifyInjectorObservedPolicyPinsSidecarAndHardening(t *testing.T) {
 		if err := verifyInjectorObservedPolicy(drifted, sidecar); err == nil || !strings.Contains(err.Error(), "DAPR_OBSERVED_INJECTOR_POLICY_MISMATCH") {
 			t.Fatalf("injector policy drift %s accepted: %v", key, err)
 		}
+	}
+}
+
+
+func TestValidateMutationOwnerRejectsFenceTakeoverWhileMutating(t *testing.T) {
+	cfg := lifecycleConfig{Action: daprruntime.ActionUpgrade, OperationID: "op-new", FenceToken: 12}
+	owner := &ownerState{Authority: receiptAuthority, OperationID: "op-old", FenceToken: 11, Phase: "Mutating"}
+	sameOperation, samePending, err := validateMutationOwner(owner, cfg)
+	if sameOperation || samePending || err == nil || !strings.Contains(err.Error(), "MUTATION_ALREADY_OWNED_RECOVERY_REQUIRED") {
+		t.Fatalf("Dapr mutation owner takeover was not rejected: sameOperation=%v samePending=%v err=%v", sameOperation, samePending, err)
+	}
+}
+
+func TestValidateMutationOwnerAllowsOnlyExactPendingResume(t *testing.T) {
+	cfg := lifecycleConfig{Action: daprruntime.ActionInstall, OperationID: "op-same", FenceToken: 17}
+	owner := &ownerState{Authority: receiptAuthority, OperationID: "op-same", FenceToken: 17, Phase: "Mutating"}
+	sameOperation, samePending, err := validateMutationOwner(owner, cfg)
+	if err != nil || !sameOperation || !samePending {
+		t.Fatalf("exact Dapr fenced resume rejected: sameOperation=%v samePending=%v err=%v", sameOperation, samePending, err)
+	}
+	owner.Phase = "Installed"
+	sameOperation, samePending, err = validateMutationOwner(owner, cfg)
+	if err != nil || !sameOperation || samePending {
+		t.Fatalf("terminal Dapr owner identity drift: sameOperation=%v samePending=%v err=%v", sameOperation, samePending, err)
 	}
 }
