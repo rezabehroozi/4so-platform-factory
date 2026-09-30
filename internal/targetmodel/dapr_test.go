@@ -255,7 +255,12 @@ func TestDaprTargetAdmissionSuppressesDuplicateNativeRuntime(t *testing.T) {
 	out := EvaluateDaprTargetAdmission(DaprTargetAdmissionInput{
 		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true,
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true,
-		ObservedCapabilities: []string{DaprApplicationRuntimeCapability},
+		ObservedCapabilities: []string{
+			DaprApplicationRuntimeCapability,
+			DaprSidecarSecurityCapability,
+			DaprComponentScopeCapability,
+			DaprResourceSizingCapability,
+		},
 	})
 	if !out.Eligible || out.Mode != "USE_NATIVE" || !out.InstallSuppressed || len(out.Blockers) != 0 {
 		t.Fatalf("native Dapr capability must suppress duplicate install without source acquisition: %#v", out)
@@ -275,7 +280,9 @@ func TestDaprTargetAdmissionFailsClosedUntilInstallProfileIsActuallyReady(t *tes
 	}
 	want := map[string]bool{
 		"DAPR_EXACT_SOURCE_AUTHORITY_PENDING": true,
-		"DAPR_EXECUTOR_RBAC_PENDING": true,
+		"DAPR_SIDECAR_SECURITY_COMPATIBILITY_PENDING": true,
+		"DAPR_COMPONENT_SCOPE_ENFORCEMENT_PENDING": true,
+		"DAPR_RESOURCE_SIZING_PENDING": true,
 	}
 	for _, blocker := range out.Blockers {
 		delete(want, blocker)
@@ -289,11 +296,15 @@ func TestDaprDisconnectedInstallRequiresMirrorButNativeRuntimeDoesNot(t *testing
 	base := DaprTargetAdmissionInput{
 		DistributionIdentity: "okd", TargetAdmitted: true, TargetMutationReady: true, ExecutorRBACReady: true,
 		CapabilityDiscoveryComplete: true, DurableLifecycleReady: true, Disconnected: true,
-		ObservedCapabilities: nil,
+		ObservedCapabilities: []string{
+			DaprSidecarSecurityCapability,
+			DaprComponentScopeCapability,
+			DaprResourceSizingCapability,
+		},
 		ExactSourceAdmitted: true,
 	}
 	blocked := EvaluateDaprTargetAdmission(base)
-	if blocked.Eligible || !contains(blocked.Blockers, "DAPR_DISCONNECTED_MIRROR_PENDING") {
+	if blocked.Eligible || !contains(blocked.Blockers, "DAPR_DISCONNECTED_MIRROR_PENDING") || !contains(blocked.Blockers, "DAPR_MIRROR_PULL_CAPABILITY_PENDING") {
 		t.Fatalf("disconnected Dapr install bypassed mirror admission: %#v", blocked)
 	}
 	base.ObservedCapabilities = append(base.ObservedCapabilities, DaprApplicationRuntimeCapability)
