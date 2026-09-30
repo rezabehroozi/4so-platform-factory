@@ -23,7 +23,8 @@ type agentDaprWorkloadAdmissionTask struct {
 	TaskFenceToken    int64                                `json:"taskFenceToken"`
 	LeaseExpiresAt    time.Time                            `json:"leaseExpiresAt"`
 	Request           daprruntime.WorkloadAdmissionRequest `json:"request"`
-	RuntimeLock       daprruntime.RuntimeLock              `json:"runtimeLock"`
+	ExecutorAuthority daprruntime.ExecutorAuthority         `json:"executorAuthority"`
+	RuntimeLock       *daprruntime.RuntimeLock              `json:"runtimeLock,omitempty"`
 }
 
 type agentDaprWorkloadAdmissionResult struct {
@@ -80,25 +81,14 @@ func (a *agent) nextDaprWorkloadAdmissionTask(ctx context.Context) (agentDaprWor
 	if err = decoder.Decode(&task); err != nil {
 		return task, false, err
 	}
-	if task.OperationID == "" || task.OperationRevision <= 0 || task.TaskFenceToken <= 0 ||
-		!task.LeaseExpiresAt.After(time.Now().UTC()) || task.Request.ClusterID != a.clusterID {
-		return task, false, fmt.Errorf("Dapr workload admission task identity/lease is invalid")
-	}
-	request, err := daprruntime.CanonicalWorkloadAdmissionRequest(task.Request)
-	if err != nil {
-		return task, false, err
+	request, valid, validateErr := a.nextDaprWorkloadAdmissionTaskValidation(task)
+	if validateErr != nil || !valid {
+		if validateErr != nil {
+			return task, false, validateErr
+		}
+		return task, false, fmt.Errorf("Dapr workload admission task is invalid")
 	}
 	task.Request = request
-	if err = daprruntime.ValidateRuntimeLock(task.RuntimeLock); err != nil {
-		return task, false, fmt.Errorf("Dapr workload admission executor lock invalid: %w", err)
-	}
-	lockDigest, err := daprruntime.RuntimeLockDigest(task.RuntimeLock)
-	if err != nil || task.RuntimeLock.ExecutorImageReference != task.Request.ExecutorImageReference {
-		return task, false, fmt.Errorf("Dapr workload admission executor image authority mismatch")
-	}
-	if task.Request.RuntimeMode == "PRODUCT_MANAGED" && lockDigest != task.Request.RuntimeLockDigest {
-		return task, false, fmt.Errorf("Dapr workload admission runtime lock mismatch")
-	}
 	return task, true, nil
 }
 
@@ -121,6 +111,7 @@ func daprWorkloadAdmissionJob(task agentDaprWorkloadAdmissionTask, namespace str
 		"platform.4so.io/operation-id": task.OperationID,
 		"platform.4so.io/task-fence-token": strconv.FormatInt(task.TaskFenceToken, 10),
 		"platform.4so.io/workload-admission-digest": requestDigest,
+		"platform.4so.io/executor-evidence-digest": task.Request.ExecutorEvidenceDigest,
 	}
 	labels := map[string]any{
 		"platform.4so.io/dapr-workload-admission": "true",
@@ -181,6 +172,7 @@ func daprWorkloadAdmissionJobOwnership(job map[string]any, task agentDaprWorkloa
 		"platform.4so.io/operation-id": task.OperationID,
 		"platform.4so.io/task-fence-token": strconv.FormatInt(task.TaskFenceToken, 10),
 		"platform.4so.io/workload-admission-digest": requestDigest,
+		"platform.4so.io/executor-evidence-digest": task.Request.ExecutorEvidenceDigest,
 	}
 	for key, value := range want {
 		if strings.TrimSpace(fmt.Sprint(annotations[key])) != value {
@@ -272,7 +264,8 @@ func (a *agent) runDaprWorkloadAdmission(ctx context.Context, task agentDaprWork
 		result.Error = "Dapr workload admission executor requires import-scoped agent service account"
 		return result
 	}
-	if _, ok, err := a.nextDaprWorkloadAdmissionTaskValidation(task); err != nil || !ok {
+	request, ok, err := a.nextDaprWorkloadAdmissionTaskValidation(task)
+	if err != nil || !ok {
 		if err != nil {
 			result.Error = err.Error()
 		} else {
@@ -280,6 +273,7 @@ func (a *agent) runDaprWorkloadAdmission(ctx context.Context, task agentDaprWork
 		}
 		return result
 	}
+	task.Request = request
 	path := daprWorkloadAdmissionJobPath(a.cfg.Namespace, task)
 	current, found, err := a.getKubeObject(ctx, path)
 	if err != nil {
@@ -360,15 +354,35 @@ func (a *agent) nextDaprWorkloadAdmissionTaskValidation(task agentDaprWorkloadAd
 	if err != nil {
 		return daprruntime.WorkloadAdmissionRequest{}, false, err
 	}
-	if err = daprruntime.ValidateRuntimeLock(task.RuntimeLock); err != nil {
-		return daprruntime.WorkloadAdmissionRequest{}, false, err
+	if err = daprruntime.ValidateExecutorAuthority(task.ExecutorAuthority); err != nil {
+		return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload executor authority invalid: %w", err)
 	}
-	lockDigest, err := daprruntime.RuntimeLockDigest(task.RuntimeLock)
-	if err != nil || task.RuntimeLock.ExecutorImageReference != request.ExecutorImageReference {
-		return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload admission executor image authority mismatch")
+	if !strings.EqualFold(strings.TrimSpace(task.ExecutorAuthority.EvidenceDigest), request.ExecutorEvidenceDigest) ||
+		strings.TrimSpace(task.ExecutorAuthority.ImageReference) != request.ExecutorImageReference {
+		return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload executor authority does not match sealed request")
 	}
-	if request.RuntimeMode == "PRODUCT_MANAGED" && lockDigest != request.RuntimeLockDigest {
-		return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload admission runtime lock mismatch")
+	switch request.RuntimeMode {
+	case "USE_NATIVE":
+		if task.RuntimeLock != nil {
+			return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("native Dapr workload admission must not receive product runtime lock")
+		}
+	case "PRODUCT_MANAGED":
+		if task.RuntimeLock == nil {
+			return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("product-managed Dapr workload admission requires runtime lock")
+		}
+		if err = daprruntime.ValidateRuntimeLock(*task.RuntimeLock); err != nil {
+			return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload admission runtime lock invalid: %w", err)
+		}
+		lockDigest, digestErr := daprruntime.RuntimeLockDigest(*task.RuntimeLock)
+		if digestErr != nil || lockDigest != request.RuntimeLockDigest {
+			return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload admission runtime lock mismatch")
+		}
+		runtimeExecutor, executorErr := daprruntime.ExecutorAuthorityFromRuntimeLock(*task.RuntimeLock)
+		if executorErr != nil || !daprruntime.ExecutorAuthoritiesEqual(runtimeExecutor, task.ExecutorAuthority) {
+			return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload executor authority diverges from product runtime lock")
+		}
+	default:
+		return daprruntime.WorkloadAdmissionRequest{}, false, fmt.Errorf("Dapr workload runtime mode invalid")
 	}
 	return request, true, nil
 }
