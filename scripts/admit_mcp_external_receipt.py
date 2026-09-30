@@ -129,7 +129,7 @@ def final_evidence(progress:dict,progress_path:Path)->dict:
     if list(by_id)!=list(core.CLIENTS) or progress.get("complete") is not True: raise RuntimeError("MCP_EXTERNAL_PROGRESS_NOT_COMPLETE")
     return {"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteroperabilityEvidence","authority":core.AUTHORITY,
       "matrixAuthority":progress["matrixAuthority"],"matrixSha256":progress["matrixSha256"],"campaignAuthority":progress["campaignAuthority"],
-      "campaignId":progress["campaignId"],"campaignSha256":progress["campaignSha256"],"progressAuthority":AUTHORITY,"progressSha256":core.sha256(progress_path),
+      "campaignId":progress["campaignId"],"campaignSha256":progress["campaignSha256"],
       "protocol":progress["protocol"],"transport":progress["transport"],"endpoint":progress["endpoint"],"clients":progress["clients"],
       "certifiedClientCount":4,"allRequiredChecksPass":True,"serverAuditWitnessPass":True,
       "serverAuditWitnessedCheckCount":len(core.AUDITED_CHECKS)*len(core.CLIENTS),
