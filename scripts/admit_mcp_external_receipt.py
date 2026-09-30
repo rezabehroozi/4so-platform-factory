@@ -36,6 +36,8 @@ def base_progress(matrix_path:Path,campaign_path:Path,campaign:dict,spec:dict)->
     return {"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropProgress","authority":AUTHORITY,
       "matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix_path),
       "campaignAuthority":core.CAMPAIGN_AUTHORITY,"campaignId":campaign["campaignId"],"campaignSha256":core.sha256(campaign_path),
+      "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":campaign["oauthClientBindingsSha256"],
+      "oauthClientBindings":core.campaign_oauth_client_bindings(campaign),
       "protocol":spec["protocol"],"transport":spec["transport"],"endpoint":campaign["endpoint"],"clients":[],
       "certifiedClientCount":0,"complete":False,"allAdmittedReceiptsPass":True,"serverAuditWitnessPass":False,
       "externalCertificationPass":False,"runtimeCertified":False,"physicalCertified":False}
@@ -43,7 +45,7 @@ def base_progress(matrix_path:Path,campaign_path:Path,campaign:dict,spec:dict)->
 def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
     if existing.get("authority")!=AUTHORITY or existing.get("kind")!="MCPExternalClientInteropProgress":
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_AUTHORITY_INVALID")
-    for key in ("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","protocol","transport","endpoint"):
+    for key in ("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","protocol","transport","endpoint"):
         if existing.get(key)!=expected.get(key): raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_CAMPAIGN_DRIFT {key}")
     if existing.get("runtimeCertified") is not False or existing.get("physicalCertified") is not False:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_SCOPE_INFLATED")
@@ -58,6 +60,9 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         if idx<=last: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_ORDER_INVALID")
         last=idx
         row_client=row["clientId"]
+        oauth_client_id=core.validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_PROGRESS")
+        if oauth_client_id!=expected["oauthClientBindings"][row_client]:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_OAUTH_CLIENT_DRIFT")
         execution_id=str(row.get("executionId") or "").strip()
         if not execution_id or len(execution_id)>160 or execution_id in execution_ids: raise RuntimeError("MCP_EXTERNAL_PROGRESS_EXECUTION_ID_INVALID")
         execution_ids[execution_id]=row_client
@@ -89,7 +94,7 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         evidence_digests[evidence_digest]=row_client; receipt_digests[receipt_digest]=row_client; challenge_digests[challenge_digest]=row_client
         witness=row.get("serverAuditWitness") or {}
-        core.validate_server_audit_witness(witness,binding,row_client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS")
+        core.validate_server_audit_witness(witness,binding,row_client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS",oauth_client_id)
         by_id[row["clientId"]]=row
     complete=len(rows)==len(core.CLIENTS)
     if existing.get("allAdmittedReceiptsPass") is not True or existing.get("certifiedClientCount")!=len(rows) or existing.get("complete") is not complete or existing.get("externalCertificationPass") is not complete or existing.get("serverAuditWitnessPass") is not complete:
@@ -103,7 +108,7 @@ def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,
     expected=base_progress(matrix_path,campaign_path,campaign,spec); by_id={}
     if progress_path is not None and progress_path.exists():
         existing=core.load(progress_path,"PROGRESS")
-        binding_keys=("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","protocol","transport","endpoint")
+        binding_keys=("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","protocol","transport","endpoint")
         same_campaign=all(existing.get(k)==expected.get(k) for k in binding_keys)
         if not same_campaign:
             if not allow_campaign_supersede or existing.get("complete") is True:
@@ -142,7 +147,7 @@ def final_evidence(progress:dict,progress_path:Path)->dict:
     by_id=validate_existing(progress,progress)
     if list(by_id)!=list(core.CLIENTS) or progress.get("complete") is not True: raise RuntimeError("MCP_EXTERNAL_PROGRESS_NOT_COMPLETE")
     return core.build_interop_evidence(
-        progress["matrixSha256"],progress["campaignId"],progress["campaignSha256"],
+        progress["matrixSha256"],progress["campaignId"],progress["campaignSha256"],progress["oauthClientBindingsSha256"],
         progress["protocol"],progress["transport"],progress["endpoint"],progress["clients"],
     )
 
