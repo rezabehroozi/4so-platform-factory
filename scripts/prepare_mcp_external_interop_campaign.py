@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
+import seal_mcp_external_interop as core
 
 AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1"
 MATRIX_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_MATRIX_V2"
@@ -105,8 +106,11 @@ def prepare(matrix_path:Path, endpoint_url:str, preflight:dict)->dict:
 
 def main()->int:
     p=argparse.ArgumentParser(); p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json")); p.add_argument("--endpoint",required=True); p.add_argument("--out",type=Path,required=True)
-    a=p.parse_args(); preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight)
-    a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    a=p.parse_args()
+    if a.out.exists() or a.out.is_symlink():
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_OUTPUT_ALREADY_EXISTS")
+    preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight)
+    core.write_json_once_or_identical(a.out,out,"MCP_EXTERNAL_CAMPAIGN")
     print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"matrixSha256":out["matrixSha256"],"endpoint":out["endpoint"],"clients":[x["clientId"] for x in out["clients"]]},sort_keys=True))
     return 0
 if __name__=="__main__": raise SystemExit(main())
