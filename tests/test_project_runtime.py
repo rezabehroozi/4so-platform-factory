@@ -192,6 +192,76 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("replay-1",R.read_state(root)["runId"])
             self.assertEqual("owner-tests",R.read_state(root)["currentTask"])
 
+    def test_manual_resolution_can_authorize_one_non_replay_safe_resume(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state={
+                "status":"WAITING","runId":"manual-replay-1",
+                "repository":"fixture","branch":"main","head":"abc","originMain":"",
+                "phase":"installer","currentTask":"apply","command":[sys.executable,"-c","print('apply')"],
+                "completedTasks":[],"failedTasks":["apply"],
+                "activePid":None,"activePidStartTicks":None,"commandPid":None,"commandPidStartTicks":None,
+                "replaySafe":False,"recoveryRequired":True,"orphaned":True,
+                "latestError":"MANUAL_READBACK_REQUIRED_BEFORE_REPLAY","attempt":1,
+                "latestLogPath":str(root/".project-runtime/logs/manual-replay-1.log"),
+                "heartbeatSeconds":1,"checkpointFile":"",
+            }
+            R.write_state(root,state)
+            resolved=R.resolve_recovery(root,"manual-replay-1","allow-replay","authoritative readback confirms side effect did not occur")
+            self.assertEqual("RECOVERY_RESOLVED",resolved["action"])
+            self.assertTrue(resolved["state"]["manualReplayAuthorized"])
+            self.assertFalse(resolved["state"]["recoveryRequired"])
+            evidence=R.recovery_file(root,"manual-replay-1")
+            self.assertTrue(evidence.is_file())
+            self.assertEqual(R.RESOLUTION_AUTHORITY,json.loads(evidence.read_text())["authority"])
+            current_info={"repository":"fixture","branch":"main","head":"abc","originMain":"","gitSyncStatus":"UNAVAILABLE"}
+            with mock.patch.object(R,"git",return_value=current_info), mock.patch.object(R,"acquire"), mock.patch.object(R,"activate_worker",side_effect=RuntimeError("stop-before-launch")):
+                with self.assertRaisesRegex(RuntimeError,"stop-before-launch"):
+                    R.resume(root)
+            consumed=R.read_state(root)
+            self.assertFalse(consumed["manualReplayAuthorized"])
+            self.assertEqual("REQUESTED",consumed["status"])
+
+    def test_recovery_abandon_unblocks_a_new_job_without_losing_resolution_evidence(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state={
+                "status":"WAITING","runId":"old-run",
+                "repository":"fixture","branch":"main","head":"abc","originMain":"",
+                "phase":"old","currentTask":"old-task","command":["old"],
+                "activePid":None,"activePidStartTicks":None,"commandPid":None,"commandPidStartTicks":None,
+                "replaySafe":True,"recoveryRequired":True,"orphaned":True,"latestError":"LOCAL_GIT_AUTHORITY_CHANGED_REPLAN_REQUIRED",
+            }
+            R.write_state(root,state)
+            out=R.resolve_recovery(root,"old-run","abandon","source authority changed; old attempt intentionally superseded")
+            self.assertEqual("ABANDONED",out["state"]["status"])
+            evidence=R.recovery_file(root,"old-run")
+            self.assertEqual("abandon",json.loads(evidence.read_text())["decision"])
+            info={"repository":"fixture","branch":"main","head":"def","originMain":"","gitSyncStatus":"UNAVAILABLE"}
+            with mock.patch.object(R,"git",return_value=info), mock.patch.object(R,"acquire",side_effect=RuntimeError("new-start-reached")):
+                with self.assertRaisesRegex(RuntimeError,"new-start-reached"):
+                    R.start(root,"new","new-task",["new"],replay_safe=True)
+            self.assertTrue(evidence.is_file())
+
+    def test_recovery_resolution_is_run_id_fenced_and_immutable(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state={
+                "status":"WAITING","runId":"fenced-run",
+                "activePid":None,"activePidStartTicks":None,"commandPid":None,"commandPidStartTicks":None,
+                "replaySafe":False,"recoveryRequired":True,"latestError":"MANUAL_READBACK_REQUIRED_BEFORE_REPLAY",
+                "phase":"install","currentTask":"apply",
+            }
+            R.write_state(root,state)
+            with self.assertRaisesRegex(RuntimeError,"RUN_ID_MISMATCH"):
+                R.resolve_recovery(root,"wrong-run","abandon","operator selected a new plan")
+            first=R.resolve_recovery(root,"fenced-run","abandon","operator selected a new plan")
+            second=R.resolve_recovery(root,"fenced-run","abandon","operator selected a new plan")
+            self.assertEqual("RECOVERY_RESOLVED",first["action"])
+            self.assertEqual("ALREADY_RESOLVED",second["action"])
+            with self.assertRaisesRegex(RuntimeError,"RESOLUTION_CONFLICT"):
+                R.resolve_recovery(root,"fenced-run","mark-completed","different outcome after sealed resolution")
+
     def test_non_replay_safe_resume_requires_authoritative_readback(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
