@@ -585,6 +585,58 @@ class ProjectRuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"RESOLUTION_CONFLICT"):
                 R.resolve_recovery(root,"fenced-run","mark-completed","different outcome after sealed resolution")
 
+    def test_matching_live_lock_protects_handoff_but_foreign_lock_does_not(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            pid=R.os.getpid(); start=R.ticks(pid)
+            state={"status":"REQUESTED","runId":"handoff-live","activePid":None,"activePidStartTicks":None,
+                   "commandPid":None,"commandPidStartTicks":None,"replaySafe":True}
+            R.write_state(root,state)
+            R.atomic_json(R.lock_file(root),{"authority":R.LOCK_AUTHORITY,"runId":"handoff-live",
+                                            "pid":pid,"startTicks":start,"hostname":"test","acquiredAt":R.now()})
+            observed=R.reconcile(root,R.read_state(root))
+            self.assertEqual("REQUESTED",observed["status"])
+            self.assertTrue(observed["activeRun"])
+            self.assertTrue(observed["lockMatchesRun"])
+
+            foreign=dict(R.read_state(root))
+            foreign.update(status="RUNNING",runId="stale-run",activePid=99999991,activePidStartTicks="1",
+                           commandPid=None,commandPidStartTicks=None)
+            R.write_state(root,foreign)
+            observed=R.reconcile(root,R.read_state(root))
+            self.assertEqual("INTERRUPTED",observed["status"])
+            self.assertFalse(observed["lockMatchesRun"])
+            self.assertFalse(observed["activeRun"])
+
+    def test_concurrent_recovery_decisions_are_revision_fenced(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state={"status":"WAITING","runId":"recovery-race","activePid":None,"activePidStartTicks":None,
+                   "commandPid":None,"commandPidStartTicks":None,"replaySafe":False,
+                   "recoveryRequired":True,"latestError":"MANUAL_READBACK_REQUIRED_BEFORE_REPLAY",
+                   "phase":"install","currentTask":"apply"}
+            R.write_state(root,state)
+            original=R.write_state
+            raced={"done":False}
+            def racing_write(_root,new_state,override=None,expected_revision=None):
+                if expected_revision is not None and not raced["done"]:
+                    raced["done"]=True
+                    current=R.read_state(root)
+                    resolution={"authority":R.RESOLUTION_AUTHORITY,"runId":"recovery-race",
+                                "decision":"mark-completed","reason":"concurrent authoritative readback",
+                                "resolvedAt":R.now(),"previousStatus":current["status"],
+                                "previousError":current.get("latestError",""),"phase":"install","task":"apply",
+                                "latestCompletedCheckpoint":current.get("latestCompletedCheckpoint","")}
+                    current.update(status="COMPLETED",recoveryRequired=False,recoveryResolution=resolution)
+                    original(root,current,override)
+                return original(_root,new_state,override,expected_revision=expected_revision)
+            with mock.patch.object(R,"write_state",side_effect=racing_write):
+                with self.assertRaisesRegex(RuntimeError,"RESOLUTION_CONFLICT"):
+                    R.resolve_recovery(root,"recovery-race","abandon","different concurrent decision")
+            final=R.read_state(root)
+            self.assertEqual("COMPLETED",final["status"])
+            self.assertEqual("mark-completed",final["recoveryResolution"]["decision"])
+
     def test_non_replay_safe_resume_requires_authoritative_readback(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
