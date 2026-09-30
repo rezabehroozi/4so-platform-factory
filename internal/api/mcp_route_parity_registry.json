@@ -4,9 +4,9 @@
     "security-excluded": 40,
     "tool-admin": 75,
     "tool-operate": 81,
-    "tool-read": 192
+    "tool-read": 194
   },
-  "routeCount": 388,
+  "routeCount": 390,
   "routes": [
     {
       "action": "version",
@@ -1881,7 +1881,7 @@
       "toolName": "api_post_application_platform_dapr_assessment"
     },
     {
-      "action": "dapr_workload_plan",
+      "action": "dapr_workload-plan",
       "confirmationHeader": "",
       "confirmationValue": "",
       "disposition": "tool-read",
@@ -1896,6 +1896,42 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_application_platform_dapr_workload_plan"
+    },
+    {
+      "action": "dapr_workload-admissions",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/application-platform/dapr/workload-admissions",
+      "pathParams": [],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_post_application_platform_dapr_workload_admissions"
+    },
+    {
+      "action": "dapr_workload-admissions",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/application-platform/dapr/workload-admissions/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_application_platform_dapr_workload_admissions_by_id"
     },
     {
       "action": "dapr_lifecycle",
