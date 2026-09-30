@@ -15,7 +15,10 @@ import (
 	daprruntime "platform.4so.io/factory/internal/dapr"
 )
 
-const daprWorkloadAdmissionJobAuthority = "DAPR_WORKLOAD_ADMISSION_EXECUTOR_JOB_V1"
+const (
+	daprWorkloadAdmissionJobAuthority = "DAPR_WORKLOAD_ADMISSION_EXECUTOR_JOB_V1"
+	daprWorkloadAdmissionServiceAccount = "4so-dapr-workload-admitter"
+)
 
 type agentDaprWorkloadAdmissionTask struct {
 	OperationID       string                               `json:"operationId"`
@@ -128,7 +131,7 @@ func daprWorkloadAdmissionJob(task agentDaprWorkloadAdmissionTask, namespace str
 			"template": map[string]any{
 				"metadata": map[string]any{"labels": labels, "annotations": annotations},
 				"spec": map[string]any{
-					"serviceAccountName": daprExecutorServiceAccount,
+					"serviceAccountName": daprWorkloadAdmissionServiceAccount,
 					"restartPolicy": "Never",
 					"securityContext": map[string]any{"runAsNonRoot": true, "seccompProfile": map[string]any{"type": "RuntimeDefault"}},
 					"containers": []any{map[string]any{
@@ -182,7 +185,7 @@ func daprWorkloadAdmissionJobOwnership(job map[string]any, task agentDaprWorkloa
 	spec, _ := job["spec"].(map[string]any)
 	template, _ := spec["template"].(map[string]any)
 	podSpec, _ := template["spec"].(map[string]any)
-	if strings.TrimSpace(fmt.Sprint(podSpec["serviceAccountName"])) != daprExecutorServiceAccount {
+	if strings.TrimSpace(fmt.Sprint(podSpec["serviceAccountName"])) != daprWorkloadAdmissionServiceAccount {
 		return fmt.Errorf("Dapr workload admission Job service account mismatch")
 	}
 	containers, _ := podSpec["containers"].([]any)
