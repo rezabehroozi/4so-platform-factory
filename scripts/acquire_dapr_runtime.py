@@ -49,6 +49,7 @@ HELM_OVERRIDES = {
     "global.mtls.enabled": "true",
     "global.prometheus.enabled": "true",
     "dapr_config.dapr_config_chart_included": "false",
+    "dapr_rbac.secretReader.enabled": "false",
     "dapr_sidecar_injector.sidecarRunAsNonRoot": "true",
     "dapr_sidecar_injector.sidecarReadOnlyRootFilesystem": "true",
     "dapr_sidecar_injector.sidecarDropALLCapabilities": "true",
