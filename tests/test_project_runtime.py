@@ -68,7 +68,7 @@ class ProjectRuntimeTests(unittest.TestCase):
             state={
                 "status":"INTERRUPTED","runId":"resume-1",**persisted_info,
                 "phase":"validate","currentTask":"resume-fixture",
-                "completedTasks":["prepare"],"failedTasks":[],
+                "completedTasks":["prepare"],"failedTasks":["resume-fixture"],
                 "activePid":None,"activePidStartTicks":None,
                 "commandPid":None,"commandPidStartTicks":None,
                 "startTime":R.now(),"lastHeartbeat":R.now(),
@@ -97,6 +97,7 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("resume-1",final["runId"])
             self.assertEqual(2,final["attempt"])
             self.assertEqual("ok",(root/"resumed").read_text())
+            self.assertNotIn("resume-fixture",final["failedTasks"])
 
     def test_local_git_authority_does_not_require_remote_or_fetch(self):
         with tempfile.TemporaryDirectory() as td:
@@ -113,6 +114,42 @@ class ProjectRuntimeTests(unittest.TestCase):
             self.assertEqual("UNAVAILABLE",info["gitSyncStatus"])
             self.assertFalse(info["originRefreshAttempted"])
             self.assertEqual("",info["originRefreshError"])
+
+    def test_start_cannot_bypass_non_replay_safe_recovery(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            info={"repository":"fixture","branch":"main","head":"abc","originMain":"","gitSyncStatus":"UNAVAILABLE"}
+            command=[sys.executable,"-c","print('must-not-run')"]
+            state={
+                "status":"WAITING","runId":"unsafe-1",**info,
+                "phase":"physical-install","currentTask":"installer","command":command,
+                "activePid":None,"activePidStartTicks":None,"commandPid":None,"commandPidStartTicks":None,
+                "replaySafe":False,"recoveryRequired":True,"latestError":"MANUAL_READBACK_REQUIRED_BEFORE_REPLAY",
+            }
+            R.write_state(root,state)
+            with mock.patch.object(R,"git",return_value=info), mock.patch.object(R,"acquire") as acquire:
+                result=R.start(root,"other-phase","other-task",[sys.executable,"-c","print('new')"])
+            self.assertEqual("RECOVERY_REQUIRED",result["action"])
+            acquire.assert_not_called()
+            self.assertEqual("unsafe-1",R.read_state(root)["runId"])
+
+    def test_start_same_replay_safe_job_requires_resume_instead_of_new_run(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            info={"repository":"fixture","branch":"main","head":"abc","originMain":"","gitSyncStatus":"UNAVAILABLE"}
+            command=[sys.executable,"-c","print('replay-safe')"]
+            state={
+                "status":"FAILED","runId":"replay-1",**info,
+                "phase":"validate","currentTask":"owner-tests","command":command,
+                "activePid":None,"activePidStartTicks":None,"commandPid":None,"commandPidStartTicks":None,
+                "replaySafe":True,"recoveryRequired":False,"latestError":"COMMAND_EXIT_1",
+            }
+            R.write_state(root,state)
+            with mock.patch.object(R,"git",return_value=info), mock.patch.object(R,"acquire") as acquire:
+                result=R.start(root,"validate","owner-tests",command,replay_safe=True)
+            self.assertEqual("RESUME_REQUIRED",result["action"])
+            acquire.assert_not_called()
+            self.assertEqual("replay-1",R.read_state(root)["runId"])
 
     def test_non_replay_safe_resume_requires_authoritative_readback(self):
         with tempfile.TemporaryDirectory() as td:
