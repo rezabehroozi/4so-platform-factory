@@ -165,7 +165,7 @@ func (s *Server) recordAuthorizationDecision(r *http.Request, category, decision
 	if err != nil {
 		return err
 	}
-	_, err = s.store.AppendSecurityAudit(r.Context(), controlplane.SecurityAuditInput{Category: category, Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, StatusCode: status, ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), EffectiveRole: auth.CanonicalRole(principal.Roles), MappingDigest: principal.MappingDigest, MCPInteropBindingDigest: binding})
+	_, err = s.store.AppendSecurityAudit(r.Context(), controlplane.SecurityAuditInput{Category: category, Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, StatusCode: status, ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), EffectiveRole: auth.CanonicalRole(principal.Roles), MappingDigest: principal.MappingDigest, OAuthClientID: principal.AuthorizedClientID, MCPInteropBindingDigest: binding})
 	return err
 }
 
@@ -178,7 +178,7 @@ func (s *Server) recordScopeAuthorization(r *http.Request, decision, reason, sco
 	if err != nil {
 		return err
 	}
-	_, err = s.store.AppendSecurityAudit(r.Context(), controlplane.SecurityAuditInput{Category: "SCOPE_AUTHORIZATION", Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, StatusCode: map[bool]int{true: http.StatusOK, false: http.StatusForbidden}[decision == "ALLOW"], ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), ScopeType: scopeType, ScopeID: scopeID, EffectiveRole: effectiveRole, MappingDigest: principal.MappingDigest, MCPInteropBindingDigest: binding})
+	_, err = s.store.AppendSecurityAudit(r.Context(), controlplane.SecurityAuditInput{Category: "SCOPE_AUTHORIZATION", Decision: decision, ActorID: principal.Subject, Authentication: principal.Authentication, Method: r.Method, Path: r.URL.Path, StatusCode: map[bool]int{true: http.StatusOK, false: http.StatusForbidden}[decision == "ALLOW"], ReasonCode: reason, RequestID: r.Header.Get("X-Request-ID"), ScopeType: scopeType, ScopeID: scopeID, EffectiveRole: effectiveRole, MappingDigest: principal.MappingDigest, OAuthClientID: principal.AuthorizedClientID, MCPInteropBindingDigest: binding})
 	return err
 }
 
