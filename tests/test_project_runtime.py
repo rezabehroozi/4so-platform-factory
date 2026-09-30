@@ -95,6 +95,21 @@ class ProjectRuntimeTests(unittest.TestCase):
                 R.acquire(root,"new-run")
             self.assertEqual(before,path.read_bytes())
 
+    def test_stale_lock_from_other_run_cannot_be_reclaimed_over_live_state(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); path=R.lock_file(root); path.parent.mkdir(parents=True)
+            stale={"authority":R.LOCK_AUTHORITY,"runId":"old-run","pid":99999991,"startTicks":"1","hostname":"fixture","acquiredAt":R.now()}
+            path.write_text(json.dumps(stale))
+            pid=R.os.getpid(); start=R.ticks(pid)
+            state={"status":"RUNNING","runId":"current-run","activePid":pid,"activePidStartTicks":start,
+                   "commandPid":None,"commandPidStartTicks":None,"replaySafe":True}
+            R.write_state(root,state)
+            before=path.read_bytes()
+            with self.assertRaisesRegex(RuntimeError,"STALE_LOCK_REQUIRES_OBSERVATION"):
+                R.acquire(root,"candidate-run")
+            self.assertEqual(before,path.read_bytes())
+            self.assertTrue(R.alive(pid,start))
+
     def test_live_lock_fences_requested_handoff_before_worker_pid_persistence(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
