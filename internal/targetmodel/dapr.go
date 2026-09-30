@@ -521,6 +521,9 @@ type DaprRuntimeSupplyChainLock struct {
 	HelmMirrorManifestDigest  string                 `json:"helmMirrorManifestDigest"`
 	AcquisitionReceiptDigest string                 `json:"acquisitionReceiptDigest"`
 	MirrorEvidenceDigest     string                 `json:"mirrorEvidenceDigest"`
+	ExecutorEvidenceDigest   string                 `json:"executorEvidenceDigest"`
+	ExecutorImageReference   string                 `json:"executorImageReference"`
+	ExecutorImageDigest      string                 `json:"executorImageDigest"`
 	RegistryAuthority         string                 `json:"registryAuthority"`
 	RegistryScheme            string                 `json:"registryScheme"`
 	MirrorRegistry            string                 `json:"mirrorRegistry"`
@@ -554,7 +557,8 @@ func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []strin
 	if !daprSHA256Digest(lock.SourceArchiveDigest) || !daprSHA256Digest(lock.HelmChartDigest) ||
 		!daprSHA256Digest(lock.HelmPackageDigest) || !daprSHA256Digest(lock.HelmRenderDigest) ||
 		!daprSHA256Digest(lock.HelmMirrorManifestDigest) || !daprSHA256Digest(lock.AcquisitionReceiptDigest) ||
-		!daprSHA256Digest(lock.MirrorEvidenceDigest) {
+		!daprSHA256Digest(lock.MirrorEvidenceDigest) || !daprSHA256Digest(lock.ExecutorEvidenceDigest) ||
+		!daprSHA256Digest(lock.ExecutorImageDigest) {
 		issues = append(issues, "dapr-supply-chain-source-digest-invalid")
 	}
 	mirrorRegistry := strings.TrimSpace(lock.MirrorRegistry)
@@ -567,6 +571,10 @@ func ValidateDaprRuntimeSupplyChainLock(lock DaprRuntimeSupplyChainLock) []strin
 	expectedChartMirror := mirrorRegistry + "/dapr-charts/dapr@" + lock.HelmMirrorManifestDigest
 	if strings.TrimSpace(lock.HelmMirrorReference) != expectedChartMirror {
 		issues = append(issues, "dapr-supply-chain-chart-mirror-reference-invalid")
+	}
+	expectedExecutor := mirrorRegistry + "/4so/dapr-runtime@" + lock.ExecutorImageDigest
+	if strings.TrimSpace(lock.ExecutorImageReference) != expectedExecutor {
+		issues = append(issues, "dapr-supply-chain-executor-reference-invalid")
 	}
 	expected := map[string]string{}
 	for _, image := range plan.RequiredImages {
