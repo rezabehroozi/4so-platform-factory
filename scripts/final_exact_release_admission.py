@@ -164,6 +164,7 @@ def verify(root:Path)->dict:
     if mcp.get("oauthClientBindingAuthority")!=mcp_contract.OAUTH_BINDING_AUTHORITY or not SHA.fullmatch(str(mcp.get("oauthClientBindingsSha256") or "")):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_OAUTH_BINDING_INVALID")
     oauth_bindings=mcp_contract.validate_oauth_client_bindings(mcp.get("oauthClientBindings"),"MCP_EXTERNAL_INTEROP")
+    trusted_bindings=mcp_contract.validate_trusted_client_bindings(mcp.get("trustedClientBindings"),"MCP_EXTERNAL_INTEROP")
     clients=mcp.get("clients")
     if not isinstance(clients,list) or [x.get("clientId") for x in clients if isinstance(x,dict)]!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_SET_INVALID")
@@ -175,6 +176,9 @@ def verify(root:Path)->dict:
         oauth_client_id=mcp_contract.validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_INTEROP")
         if oauth_client_id!=oauth_bindings.get(client):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_OAUTH_CLIENT_DRIFT")
+        trusted=trusted_bindings.get(client) or {}
+        if row.get("trustedClientId")!=trusted.get("trustedClientId") or row.get("trustedClientRevision")!=trusted.get("trustedClientRevision") or row.get("trustedClientProvider")!=trusted.get("trustedClientProvider"):
+            raise RuntimeError("MCP_EXTERNAL_INTEROP_TRUSTED_CLIENT_DRIFT")
         execution_id=str(row.get("executionId") or "").strip()
         provider_ref=str(row.get("providerExecutionRef") or "").strip()
         if not execution_id or len(execution_id)>160 or execution_id in execution_ids:
