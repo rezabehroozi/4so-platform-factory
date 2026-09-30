@@ -92,6 +92,68 @@ func parseDaprWorkloadAdmissionTarget(target string) (clusterID, namespace, appI
 	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), strings.TrimSpace(parts[2]), nil
 }
 
+func (s *Server) validateDaprWorkloadAdmissionCurrentAuthority(ctx context.Context, request daprruntime.WorkloadAdmissionRequest) error {
+	request, err := daprruntime.CanonicalWorkloadAdmissionRequest(request)
+	if err != nil {
+		return err
+	}
+	cluster, err := s.store.GetManagedCluster(ctx, request.ClusterID)
+	if err != nil {
+		return err
+	}
+	if cluster.ProjectID != request.ProjectID {
+		return fmt.Errorf("%w: Dapr workload admission project scope changed", controlplane.ErrPrerequisite)
+	}
+	inventory, err := s.store.GetLatestClusterInventory(ctx, request.ClusterID)
+	if err != nil {
+		return err
+	}
+	if cluster.InventoryDigest != request.InventoryDigest || inventory.Digest != request.InventoryDigest {
+		return fmt.Errorf("%w: Dapr workload admission inventory fence changed", controlplane.ErrPrerequisite)
+	}
+	if !controlplane.ClusterInventoryAuthorityFreshAt(cluster, time.Now().UTC()) || !controlplane.ClusterTaskAdmitted(cluster) {
+		return fmt.Errorf("%w: Dapr workload admission target authority is stale or not task-admitted", controlplane.ErrPrerequisite)
+	}
+	if !inventory.APIDiscoveryComplete || !inventory.CRDDiscoveryComplete || !inventory.SchemaDiscoveryComplete ||
+		!openChoreoInventoryCapability(inventory, "strict-schema-dry-run") {
+		return fmt.Errorf("%w: Dapr workload admission target discovery is incomplete", controlplane.ErrPrerequisite)
+	}
+	if !openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability) ||
+		!openChoreoInventoryCapability(inventory, controlplane.DaprWorkloadAdmissionRBACCapability) {
+		return fmt.Errorf("%w: Dapr workload admission executor RBAC is not active", controlplane.ErrPrerequisite)
+	}
+	if !s.daprExecutorReady ||
+		!strings.EqualFold(strings.TrimSpace(s.daprExecutorAuthority.EvidenceDigest), request.ExecutorEvidenceDigest) ||
+		strings.TrimSpace(s.daprExecutorAuthority.ImageReference) != request.ExecutorImageReference {
+		return fmt.Errorf("%w: Dapr workload executor authority changed", controlplane.ErrPrerequisite)
+	}
+	switch request.RuntimeMode {
+	case "USE_NATIVE":
+		if !openChoreoInventoryCapability(inventory, targetmodel.DaprApplicationRuntimeCapability) {
+			return fmt.Errorf("%w: native Dapr capability is no longer observed", controlplane.ErrPrerequisite)
+		}
+	case "PRODUCT_MANAGED":
+		if !s.daprRuntimeReady || s.daprRuntimeDigest != request.RuntimeLockDigest ||
+			daprRuntimeImageByRole(s.daprRuntimeLock, "sidecar") != request.ExpectedSidecarImage {
+			return fmt.Errorf("%w: product-managed Dapr runtime authority changed", controlplane.ErrPrerequisite)
+		}
+		runtimeExecutor, executorErr := daprruntime.ExecutorAuthorityFromRuntimeLock(s.daprRuntimeLock)
+		if executorErr != nil || !daprruntime.ExecutorAuthoritiesEqual(runtimeExecutor, s.daprExecutorAuthority) {
+			return fmt.Errorf("%w: Dapr runtime executor authority diverged", controlplane.ErrPrerequisite)
+		}
+		observed, observedErr := s.latestDaprObserved(ctx, request.ProjectID, request.ClusterID)
+		if observedErr != nil {
+			return observedErr
+		}
+		if observed == nil || !observed.Installed || observed.RuntimeLockDigest != request.RuntimeLockDigest {
+			return fmt.Errorf("%w: product-managed Dapr runtime observation changed", controlplane.ErrPrerequisite)
+		}
+	default:
+		return fmt.Errorf("%w: invalid Dapr workload runtime mode", controlplane.ErrValidation)
+	}
+	return nil
+}
+
 func (s *Server) buildDaprWorkloadAdmissionRequest(ctx context.Context, input daprWorkloadAdmissionInput) (daprruntime.WorkloadAdmissionRequest, targetmodel.DaprTargetAdmission, error) {
 	input.ProjectID = strings.TrimSpace(input.ProjectID)
 	input.ClusterID = strings.TrimSpace(input.ClusterID)
@@ -292,7 +354,12 @@ func (s *Server) getDaprWorkloadAdmission(w http.ResponseWriter, r *http.Request
 		}
 		out["evidence"] = value
 		out["evidenceDigest"] = item.Digest
-		out["ready"] = true
+		currentErr := s.validateDaprWorkloadAdmissionCurrentAuthority(r.Context(), request)
+		out["currentAuthority"] = currentErr == nil
+		out["ready"] = currentErr == nil && op.State == controlplane.OperationSucceeded
+		if currentErr != nil {
+			out["stale"] = true
+		}
 		break
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -334,33 +401,14 @@ func (s *Server) nextDaprWorkloadAdmissionTask(w http.ResponseWriter, r *http.Re
 			return
 		}
 		request, parseErr := daprruntime.ParseWorkloadAdmissionRequest(sealed.Payload, sealed.PayloadDigest)
-		cluster, clusterErr := s.store.GetManagedCluster(r.Context(), clusterID)
-		inventory, inventoryErr := s.store.GetLatestClusterInventory(r.Context(), clusterID)
-		blocked := parseErr != nil || clusterErr != nil || inventoryErr != nil ||
-			request.ClusterID != clusterID || cluster.ProjectID != request.ProjectID ||
-			cluster.InventoryDigest != request.InventoryDigest || inventory.Digest != request.InventoryDigest ||
-			!controlplane.ClusterInventoryAuthorityFreshAt(cluster, time.Now().UTC()) ||
-			!controlplane.ClusterTaskAdmitted(cluster) ||
-			!inventory.APIDiscoveryComplete || !inventory.CRDDiscoveryComplete || !inventory.SchemaDiscoveryComplete ||
-			!openChoreoInventoryCapability(inventory, "strict-schema-dry-run") ||
-			!openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability) ||
-			!openChoreoInventoryCapability(inventory, controlplane.DaprWorkloadAdmissionRBACCapability) ||
-			!s.daprExecutorReady ||
-			s.daprExecutorAuthority.EvidenceDigest != request.ExecutorEvidenceDigest ||
-			s.daprExecutorAuthority.ImageReference != request.ExecutorImageReference
-		if !blocked && request.RuntimeMode == "USE_NATIVE" {
-			blocked = !openChoreoInventoryCapability(inventory, targetmodel.DaprApplicationRuntimeCapability)
+		fenceErr := parseErr
+		if fenceErr == nil && request.ClusterID != clusterID {
+			fenceErr = fmt.Errorf("%w: Dapr workload admission cluster scope changed", controlplane.ErrPrerequisite)
 		}
-		if !blocked && request.RuntimeMode == "PRODUCT_MANAGED" {
-			observed, observedErr := s.latestDaprObserved(r.Context(), request.ProjectID, clusterID)
-			runtimeExecutor, runtimeExecutorErr := daprruntime.ExecutorAuthorityFromRuntimeLock(s.daprRuntimeLock)
-			blocked = observedErr != nil || observed == nil || !observed.Installed ||
-				observed.RuntimeLockDigest != request.RuntimeLockDigest || !s.daprRuntimeReady ||
-				s.daprRuntimeDigest != request.RuntimeLockDigest || runtimeExecutorErr != nil ||
-				!daprruntime.ExecutorAuthoritiesEqual(runtimeExecutor, s.daprExecutorAuthority) ||
-				daprRuntimeImageByRole(s.daprRuntimeLock, "sidecar") != request.ExpectedSidecarImage
+		if fenceErr == nil {
+			fenceErr = s.validateDaprWorkloadAdmissionCurrentAuthority(r.Context(), request)
 		}
-		if blocked {
+		if fenceErr != nil {
 			op, startErr := s.store.StartOperationAttempt(r.Context(), op.ID, op.Revision, "agent:"+clusterID, claim.FenceToken, "agent:"+clusterID)
 			if startErr == nil {
 				_, startErr = s.store.ReportOperationFailure(r.Context(), op.ID, op.Revision, "agent:"+clusterID, claim.FenceToken, controlplane.OperationFailureReport{
@@ -448,6 +496,22 @@ func (s *Server) reportDaprWorkloadAdmissionTask(w http.ResponseWriter, r *http.
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"operation": op, "admitted": false})
+		return
+	}
+	if fenceErr := s.validateDaprWorkloadAdmissionCurrentAuthority(r.Context(), request); fenceErr != nil {
+		updated, reportErr := s.store.ReportOperationFailure(r.Context(), op.ID, op.Revision, worker, result.TaskFenceToken, controlplane.OperationFailureReport{
+			Class: controlplane.OperationFailurePermanent,
+			Code: "DAPR_WORKLOAD_ADMISSION_RESULT_FENCE_CHANGED",
+			Message: "target inventory, RBAC, executor or runtime authority changed before workload admission result commit",
+		}, worker)
+		if reportErr != nil {
+			writeStoreError(w, reportErr)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"operation": updated, "admitted": false, "staleResultRejected": true,
+			"runtimeMutationPerformed": false, "sidecarPullObserved": false, "physicalCertificationInferred": false,
+		})
 		return
 	}
 	if result.Evidence == nil {
