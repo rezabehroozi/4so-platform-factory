@@ -55,6 +55,7 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 	if invErr == nil {
 		admissionInput.DistributionIdentity = inventory.Distribution
 		admissionInput.TargetMutationReady = openChoreoInventoryCapability(inventory, controlplane.TargetMutationRBACActiveCapability)
+		admissionInput.ExecutorRBACReady = openChoreoInventoryCapability(inventory, controlplane.DaprExecutorRBACCapability)
 		admissionInput.CapabilityDiscoveryComplete = inventory.APIDiscoveryComplete && inventory.CRDDiscoveryComplete && inventory.SchemaDiscoveryComplete
 		admissionInput.ObservedCapabilities = append([]string(nil), inventory.Capabilities...)
 	}
