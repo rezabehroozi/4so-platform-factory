@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 import seal_mcp_external_interop as core
 
 AUTHORITY=core.CAMPAIGN_AUTHORITY
@@ -19,6 +19,13 @@ MATRIX_AUTHORITY=core.MATRIX_AUTHORITY
 CLIENTS=core.CLIENTS
 PREFLIGHT_AUTHORITY=core.CAMPAIGN_PREFLIGHT_AUTHORITY
 
+
+class RejectRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+def exact_https_opener(context):
+    return build_opener(HTTPSHandler(context=context),RejectRedirects())
 
 def file_sha(path:Path)->str:
     h=hashlib.sha256()
@@ -38,9 +45,10 @@ def live_preflight(endpoint_url:str)->dict:
     ep=endpoint(endpoint_url); parsed=urlsplit(ep); base=f"{parsed.scheme}://{parsed.netloc}"
     metadata_url=base+"/.well-known/oauth-protected-resource"
     context=ssl.create_default_context()
+    opener=exact_https_opener(context)
     req=Request(metadata_url,headers={"Accept":"application/json","User-Agent":"4so-c7w-campaign/1"},method="GET")
     try:
-        with urlopen(req,timeout=20,context=context) as response:
+        with opener.open(req,timeout=20) as response:
             if response.status!=200 or response.geturl()!=metadata_url:
                 raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_METADATA_HTTP_INVALID")
             raw=response.read(1024*1024+1)
@@ -65,7 +73,7 @@ def live_preflight(endpoint_url:str)->dict:
     body=json.dumps({"jsonrpc":"2.0","id":"c7w-preflight","method":"tools/list","params":{"_meta":{}}},separators=(",",":")).encode("utf-8")
     challenge=Request(ep,data=body,headers={"Content-Type":"application/json","Accept":"application/json","MCP-Protocol-Version":"2026-07-28","User-Agent":"4so-c7w-campaign/1"},method="POST")
     try:
-        with urlopen(challenge,timeout=20,context=context) as response:
+        with opener.open(challenge,timeout=20) as response:
             raise RuntimeError(f"MCP_EXTERNAL_PREFLIGHT_UNAUTHENTICATED_ACCEPTED status={response.status}")
     except HTTPError as exc:
         if exc.code!=401:
