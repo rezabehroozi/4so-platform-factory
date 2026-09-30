@@ -30,6 +30,7 @@ type WorkloadAdmissionRequest struct {
 	RuntimeLockDigest string                             `json:"runtimeLockDigest,omitempty"`
 	ExpectedSidecarImage string                          `json:"expectedSidecarImage,omitempty"`
 	ExecutorEvidenceDigest string                        `json:"executorEvidenceDigest"`
+	ExecutorSourceReleaseDigest string                   `json:"executorSourceReleaseDigest"`
 	ExecutorImageReference string                        `json:"executorImageReference"`
 	WorkloadImage     string                             `json:"workloadImage"`
 	Plan              targetmodel.DaprWorkloadRuntimePlan `json:"plan"`
@@ -46,6 +47,7 @@ type WorkloadAdmissionEvidence struct {
 	RuntimeMode                string   `json:"runtimeMode"`
 	RuntimeLockDigest          string   `json:"runtimeLockDigest,omitempty"`
 	ExecutorEvidenceDigest     string   `json:"executorEvidenceDigest"`
+	ExecutorSourceReleaseDigest string  `json:"executorSourceReleaseDigest"`
 	PlanDigest                 string   `json:"planDigest"`
 	Namespace                  string   `json:"namespace"`
 	AppID                      string   `json:"appId"`
@@ -117,13 +119,14 @@ func CanonicalWorkloadAdmissionRequest(value WorkloadAdmissionRequest) (Workload
 	value.RuntimeLockDigest = strings.ToLower(strings.TrimSpace(value.RuntimeLockDigest))
 	value.ExpectedSidecarImage = strings.TrimSpace(value.ExpectedSidecarImage)
 	value.ExecutorEvidenceDigest = strings.ToLower(strings.TrimSpace(value.ExecutorEvidenceDigest))
+	value.ExecutorSourceReleaseDigest = strings.ToLower(strings.TrimSpace(value.ExecutorSourceReleaseDigest))
 	value.ExecutorImageReference = strings.TrimSpace(value.ExecutorImageReference)
 	value.WorkloadImage = strings.TrimSpace(value.WorkloadImage)
 	value.PlanDigest = strings.ToLower(strings.TrimSpace(value.PlanDigest))
 	if value.Authority != WorkloadAdmissionAuthority || value.ProjectID == "" || value.ClusterID == "" || value.TraitID == "" {
 		return WorkloadAdmissionRequest{}, fmt.Errorf("DAPR_WORKLOAD_ADMISSION_SCOPE_INVALID")
 	}
-	for _, digest := range []string{value.TraitDigest, value.InventoryDigest, value.PlanDigest, value.ExecutorEvidenceDigest} {
+	for _, digest := range []string{value.TraitDigest, value.InventoryDigest, value.PlanDigest, value.ExecutorEvidenceDigest, value.ExecutorSourceReleaseDigest} {
 		if !lifecycleDigest(digest) {
 			return WorkloadAdmissionRequest{}, fmt.Errorf("DAPR_WORKLOAD_ADMISSION_DIGEST_INVALID")
 		}
@@ -212,6 +215,7 @@ func ValidateWorkloadAdmissionEvidence(value WorkloadAdmissionEvidence, request 
 	value.RuntimeMode = strings.ToUpper(strings.TrimSpace(value.RuntimeMode))
 	value.RuntimeLockDigest = strings.ToLower(strings.TrimSpace(value.RuntimeLockDigest))
 	value.ExecutorEvidenceDigest = strings.ToLower(strings.TrimSpace(value.ExecutorEvidenceDigest))
+	value.ExecutorSourceReleaseDigest = strings.ToLower(strings.TrimSpace(value.ExecutorSourceReleaseDigest))
 	value.PlanDigest = strings.ToLower(strings.TrimSpace(value.PlanDigest))
 	value.Namespace = strings.TrimSpace(value.Namespace)
 	value.AppID = strings.TrimSpace(value.AppID)
@@ -227,7 +231,8 @@ func ValidateWorkloadAdmissionEvidence(value WorkloadAdmissionEvidence, request 
 	if value.Authority != WorkloadAdmissionEvidenceAuthority || value.OperationID != strings.TrimSpace(operationID) ||
 		value.ProjectID != request.ProjectID || value.ClusterID != request.ClusterID || value.TraitDigest != request.TraitDigest ||
 		value.InventoryDigest != request.InventoryDigest || value.RuntimeMode != request.RuntimeMode ||
-		value.RuntimeLockDigest != request.RuntimeLockDigest || value.ExecutorEvidenceDigest != request.ExecutorEvidenceDigest || value.PlanDigest != request.PlanDigest ||
+		value.RuntimeLockDigest != request.RuntimeLockDigest || value.ExecutorEvidenceDigest != request.ExecutorEvidenceDigest ||
+		value.ExecutorSourceReleaseDigest != request.ExecutorSourceReleaseDigest || value.PlanDigest != request.PlanDigest ||
 		value.Namespace != request.Plan.Namespace || value.AppID != request.Plan.AppID ||
 		value.AdmissionObjectKind != "Pod" || value.AdmissionResource != "pods" ||
 		value.AdmissionObjectName != AdmissionObjectName(operationID) {
@@ -467,6 +472,7 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 		ProjectID: request.ProjectID, ClusterID: request.ClusterID, TraitDigest: request.TraitDigest,
 		InventoryDigest: request.InventoryDigest, RuntimeMode: request.RuntimeMode, RuntimeLockDigest: request.RuntimeLockDigest,
 		ExecutorEvidenceDigest: request.ExecutorEvidenceDigest,
+		ExecutorSourceReleaseDigest: request.ExecutorSourceReleaseDigest,
 		PlanDigest: request.PlanDigest, Namespace: request.Plan.Namespace, AppID: request.Plan.AppID,
 		AdmissionObjectKind: "Pod", AdmissionResource: "pods", AdmissionObjectName: AdmissionObjectName(operationID),
 		DryRunHTTPStatus: status, InjectedSidecarObserved: true, SidecarContainerName: "daprd",
