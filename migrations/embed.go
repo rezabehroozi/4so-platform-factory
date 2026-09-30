@@ -122,6 +122,8 @@ func compatibilityForVersion(version int64) (Compatibility, string, error) {
 		return CompatibilityRollingSafe, "v83 adds an independent durable fleet gateway session journal; old agents ignore the new endpoint while new gateways fence one active target-initiated mTLS session per cluster by certificate and monotonically increasing epoch", nil
 	case version == 84:
 		return CompatibilityRollingSafe, "v84 widens immutable security-audit authorization categories already emitted by current API code and adds a default-empty MCP interoperability binding digest; old writers remain schema-compatible while new writers cryptographically bind named-client campaign requests", nil
+	case version == 85:
+		return CompatibilityRollingSafe, "v85 admits the operation-executor authorization category already emitted by the API and adds a default-empty OAuth client identity to immutable security audit events; old writers remain valid while new writers bind trusted MCP client identity into the audit digest", nil
 	default:
 		return "", "", fmt.Errorf("migration %d is missing an explicit mixed-version compatibility classification", version)
 	}
