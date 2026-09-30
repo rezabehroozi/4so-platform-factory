@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import urllib.parse
 
 from acquire_dapr_runtime import (
     AUTHORITY as ACQUISITION_AUTHORITY,
@@ -25,6 +26,36 @@ LOCK_AUTHORITY = "DAPR_RUNTIME_SUPPLY_CHAIN_LOCK_V1"
 MIRROR_AUTHORITY = "DAPR_ZOT_MIRROR_EVIDENCE_V1"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 REGISTRY_RE = re.compile(r"^[a-z0-9.-]+(?::[0-9]+)?$")
+ACQUISITION_KEYS = {
+    "authority", "sourcePlanAuthority", "version", "runtimeImageTag",
+    "upstreamRepository", "upstreamRef", "upstreamCommit", "sourceArchiveUrl",
+    "sourceArchiveFinalUrl", "sourceArchiveDigest", "helmChartPath",
+    "helmChartDigest", "helmOverrides", "helmRenderDigest", "requiredImages",
+    "resolved", "mirrorReady", "runtimeMutationPerformed",
+    "physicalCertificationInferred",
+}
+ACQUISITION_IMAGE_KEYS = {
+    "role", "sourceRepository", "sourceTagReference", "sourceDigest", "sourceReference",
+}
+MIRROR_KEYS = {
+    "authority", "registryAuthority", "registryIdentity", "version", "upstreamCommit",
+    "acquisitionReceiptDigest", "images", "mirrorReady", "registryReadback",
+    "offlineReplayReady", "credentialsEmbedded", "runtimeMutationPerformed",
+    "physicalCertificationInferred",
+}
+MIRROR_IMAGE_KEYS = {
+    "role", "sourceRepository", "sourceReference", "sourceDigest",
+    "mirrorTagReference", "mirrorReference", "mirrorDigest",
+}
+
+
+def exact_keys(value: dict, expected: set[str], label: str) -> None:
+    got = set(value)
+    if got != expected:
+        extra = sorted(got - expected)
+        missing = sorted(expected - got)
+        raise RuntimeError(f"{label}_SCHEMA_INVALID extra={extra} missing={missing}")
+
 
 
 def sha256_bytes(raw: bytes) -> str:
@@ -83,6 +114,7 @@ def acquisition_images(acquisition: dict) -> dict[str, dict]:
     for row in rows:
         if not isinstance(row, dict):
             raise RuntimeError("DAPR_ACQUIRED_IMAGE_ROW_INVALID")
+        exact_keys(row, ACQUISITION_IMAGE_KEYS, "DAPR_ACQUIRED_IMAGE")
         role = str(row.get("role") or "").strip()
         repository = str(row.get("sourceRepository") or "").strip()
         digest = valid_digest(row.get("sourceDigest"))
@@ -106,6 +138,7 @@ def acquisition_images(acquisition: dict) -> dict[str, dict]:
 
 
 def validate_acquisition(acquisition: dict) -> dict[str, dict]:
+    exact_keys(acquisition, ACQUISITION_KEYS, "DAPR_ACQUISITION")
     if (
         acquisition.get("authority") != ACQUISITION_AUTHORITY
         or acquisition.get("sourcePlanAuthority") != SOURCE_PLAN_AUTHORITY
@@ -120,6 +153,12 @@ def validate_acquisition(acquisition: dict) -> dict[str, dict]:
         raise RuntimeError("DAPR_ACQUISITION_STATE_INVALID")
     if acquisition.get("runtimeMutationPerformed") is not False or acquisition.get("physicalCertificationInferred") is not False:
         raise RuntimeError("DAPR_ACQUISITION_RUNTIME_CLAIM_INVALID")
+    expected_source_url = f"{UPSTREAM_REPOSITORY}/archive/{UPSTREAM_COMMIT}.tar.gz"
+    if acquisition.get("sourceArchiveUrl") != expected_source_url or acquisition.get("helmChartPath") != "charts/dapr":
+        raise RuntimeError("DAPR_ACQUISITION_SOURCE_PATH_INVALID")
+    final_url = urllib.parse.urlsplit(str(acquisition.get("sourceArchiveFinalUrl") or ""))
+    if final_url.scheme != "https" or final_url.hostname not in {"github.com", "codeload.github.com"} or UPSTREAM_COMMIT not in final_url.path:
+        raise RuntimeError("DAPR_ACQUISITION_FINAL_SOURCE_URL_INVALID")
     valid_digest(acquisition.get("sourceArchiveDigest"))
     valid_digest(acquisition.get("helmChartDigest"))
     valid_digest(acquisition.get("helmRenderDigest"))
@@ -149,6 +188,7 @@ def mirror_images(mirror: dict, acquired: dict[str, dict], registry: str) -> lis
     for row in rows:
         if not isinstance(row, dict):
             raise RuntimeError("DAPR_MIRROR_IMAGE_ROW_INVALID")
+        exact_keys(row, MIRROR_IMAGE_KEYS, "DAPR_MIRROR_IMAGE")
         role = str(row.get("role") or "").strip()
         if role in seen or role not in acquired:
             raise RuntimeError("DAPR_MIRROR_IMAGE_IDENTITY_INVALID")
@@ -162,7 +202,9 @@ def mirror_images(mirror: dict, acquired: dict[str, dict], registry: str) -> lis
             raise RuntimeError("DAPR_MIRROR_SOURCE_MISMATCH")
         if mirror_digest != source_digest:
             raise RuntimeError("DAPR_MIRROR_DIGEST_MISMATCH")
-        if not mirror_ref.startswith(f"{registry}/dapr/") or mirror_ref.rsplit("@", 1)[-1] != mirror_digest:
+        expected_tag = f"{registry}/dapr/{role}:{VERSION.removeprefix('v')}"
+        expected_ref = f"{registry}/dapr/{role}@{mirror_digest}"
+        if str(row.get("mirrorTagReference") or "").strip() != expected_tag or mirror_ref != expected_ref:
             raise RuntimeError("DAPR_MIRROR_REFERENCE_INVALID")
         out.append({
             "role": role,
@@ -181,6 +223,7 @@ def seal(acquisition_path: Path, mirror_path: Path, out: Path) -> dict:
     acquisition, acquisition_digest = load_json(acquisition_path, "DAPR_ACQUISITION")
     acquired = validate_acquisition(acquisition)
     mirror, mirror_digest = load_json(mirror_path, "DAPR_MIRROR_EVIDENCE")
+    exact_keys(mirror, MIRROR_KEYS, "DAPR_MIRROR_EVIDENCE")
     if (
         mirror.get("authority") != MIRROR_AUTHORITY
         or str(mirror.get("registryAuthority") or "").strip().lower() != "zot"
@@ -190,6 +233,9 @@ def seal(acquisition_path: Path, mirror_path: Path, out: Path) -> dict:
         or mirror.get("mirrorReady") is not True
         or mirror.get("registryReadback") is not True
         or mirror.get("offlineReplayReady") is not True
+        or mirror.get("credentialsEmbedded") is not False
+        or mirror.get("runtimeMutationPerformed") is not False
+        or mirror.get("physicalCertificationInferred") is not False
     ):
         raise RuntimeError("DAPR_MIRROR_EVIDENCE_AUTHORITY_INVALID")
     registry = valid_registry(mirror.get("registryIdentity"))
