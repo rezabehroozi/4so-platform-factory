@@ -49,6 +49,7 @@ type WorkloadAdmissionEvidence struct {
 	ExecutorEvidenceDigest     string   `json:"executorEvidenceDigest"`
 	ExecutorSourceReleaseDigest string  `json:"executorSourceReleaseDigest"`
 	PlanDigest                 string   `json:"planDigest"`
+	PolicyObservation          WorkloadPolicyObservation `json:"policyObservation"`
 	Namespace                  string   `json:"namespace"`
 	AppID                      string   `json:"appId"`
 	AdmissionObjectKind        string   `json:"admissionObjectKind"`
@@ -241,6 +242,9 @@ func ValidateWorkloadAdmissionEvidence(value WorkloadAdmissionEvidence, request 
 	if value.DryRunHTTPStatus < 200 || value.DryRunHTTPStatus >= 300 || !value.ServerSideDryRun || !value.StrictFieldValidation {
 		return fmt.Errorf("DAPR_WORKLOAD_ADMISSION_DRY_RUN_INVALID")
 	}
+	if err := ValidateWorkloadPolicyObservation(value.PolicyObservation, request); err != nil {
+		return err
+	}
 	if !value.InjectedSidecarObserved || value.SidecarContainerName != "daprd" || value.SidecarImageReference == "" ||
 		!value.RunAsNonRoot || !value.ReadOnlyRootFilesystem || value.AllowPrivilegeEscalation ||
 		!value.DropAllCapabilities || !value.AppContainerPreserved || !value.AnnotationsVerified {
@@ -375,7 +379,7 @@ func admissionResourceQuantity(value map[string]any, section, resource string) (
 	return out, out != ""
 }
 
-func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, operationID string, response map[string]any, status int, observedAt time.Time) (WorkloadAdmissionEvidence, error) {
+func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, operationID string, policyObservation WorkloadPolicyObservation, response map[string]any, status int, observedAt time.Time) (WorkloadAdmissionEvidence, error) {
 	request, err := CanonicalWorkloadAdmissionRequest(request)
 	if err != nil {
 		return WorkloadAdmissionEvidence{}, err
@@ -473,7 +477,8 @@ func WorkloadAdmissionEvidenceFromDryRun(request WorkloadAdmissionRequest, opera
 		InventoryDigest: request.InventoryDigest, RuntimeMode: request.RuntimeMode, RuntimeLockDigest: request.RuntimeLockDigest,
 		ExecutorEvidenceDigest: request.ExecutorEvidenceDigest,
 		ExecutorSourceReleaseDigest: request.ExecutorSourceReleaseDigest,
-		PlanDigest: request.PlanDigest, Namespace: request.Plan.Namespace, AppID: request.Plan.AppID,
+		PlanDigest: request.PlanDigest, PolicyObservation: policyObservation,
+		Namespace: request.Plan.Namespace, AppID: request.Plan.AppID,
 		AdmissionObjectKind: "Pod", AdmissionResource: "pods", AdmissionObjectName: AdmissionObjectName(operationID),
 		DryRunHTTPStatus: status, InjectedSidecarObserved: true, SidecarContainerName: "daprd",
 		SidecarImageReference: sidecarImage, ExpectedSidecarImageMatched: expectedMatched,
