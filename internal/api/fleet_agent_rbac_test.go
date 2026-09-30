@@ -160,10 +160,13 @@ func TestMutationActivationIncludesBoundedDaprExecutorAuthority(t *testing.T) {
 	if end := strings.Index(proberTail, "\n---\n"); end >= 0 {
 		proberTail = proberTail[:end]
 	}
-	if !strings.Contains(proberTail, `resources: ["pods"]`) || !strings.Contains(proberTail, `verbs: ["create"]`) {
-		t.Fatalf("Dapr workload admission prober lost Pod-create-only authority:\n%s", proberTail)
+	if !strings.Contains(proberTail, `resources: ["pods"]`) || !strings.Contains(proberTail, `verbs: ["create"]`) ||
+		!strings.Contains(proberTail, `apiGroups: ["dapr.io"]`) ||
+		!strings.Contains(proberTail, `resources: ["configurations", "components"]`) ||
+		!strings.Contains(proberTail, `verbs: ["get"]`) {
+		t.Fatalf("Dapr workload admission prober lost Pod dry-run or bounded policy-read authority:\n%s", proberTail)
 	}
-	for _, forbidden := range []string{"deployments", "secrets", "configmaps", "clusterroles", "delete", "patch", "update"} {
+	for _, forbidden := range []string{"deployments", "secrets", "configmaps", "clusterroles", "delete", "patch", "update", `verbs: ["list"]`} {
 		if strings.Contains(proberTail, forbidden) {
 			t.Fatalf("Dapr workload admission prober gained forbidden authority %q:\n%s", forbidden, proberTail)
 		}
