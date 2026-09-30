@@ -692,12 +692,9 @@ func EvaluateDaprTargetAdmission(in DaprTargetAdmissionInput) DaprTargetAdmissio
 	if !capabilities[DaprSidecarSecurityCapability] {
 		out.Blockers = append(out.Blockers, "DAPR_SIDECAR_SECURITY_COMPATIBILITY_PENDING")
 	}
-	if !capabilities[DaprComponentScopeCapability] {
-		out.Blockers = append(out.Blockers, "DAPR_COMPONENT_SCOPE_ENFORCEMENT_PENDING")
-	}
-	if !capabilities[DaprResourceSizingCapability] {
-		out.Blockers = append(out.Blockers, "DAPR_RESOURCE_SIZING_PENDING")
-	}
+	// Component scoping and sidecar resource sizing are product-owned invariants
+	// enforced by ResolveDaprWorkloadRuntimePlan. They are not target-discovered
+	// capabilities and must never be accepted as self-asserted inventory proof.
 	if out.Mode == "INSTALL_REQUIRED" && in.Disconnected && !capabilities[DaprMirrorPullCapability] {
 		out.Blockers = append(out.Blockers, "DAPR_MIRROR_PULL_CAPABILITY_PENDING")
 	}
