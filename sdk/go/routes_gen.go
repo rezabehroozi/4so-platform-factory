@@ -2,8 +2,8 @@
 package factorysdk
 
 const ProductAPIContractAuthority = "PRODUCT_API_CONTRACT_AUTHORITY_V1"
-const ProductAPIContractDigest = "sha256:21ca1baa906acea268d6b22563e7c33bc5bc82d2211b63952f31e9d978b8d9c4"
-const ProductAPIRouteCount = 385
+const ProductAPIContractDigest = "sha256:754cc95db17dadefb75e7d55e8c16d91a272d8afffe0fcd97acf37d5ba5518ac"
+const ProductAPIRouteCount = 388
 
 var Routes = []Route{
 	{Method: "GET", Path: "/api/v1/version", Family: "version", PathParams: nil, Mutation: false, ResourceScope: "PLATFORM_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
@@ -113,6 +113,9 @@ var Routes = []Route{
 	{Method: "POST", Path: "/api/v1/application-platform/resolve", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/dapr/assessment", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/dapr/workload-plan", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/application-platform/dapr/lifecycle", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "GET", Path: "/api/v1/application-platform/dapr/lifecycle/{id}", Family: "application-platform", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
+	{Method: "POST", Path: "/api/v1/application-platform/dapr/lifecycle/{id}/approve", Family: "application-platform", PathParams: []string{"id"}, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/openchoreo/assessment", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "POST", Path: "/api/v1/application-platform/openchoreo/lifecycle", Family: "application-platform", PathParams: nil, Mutation: true, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
 	{Method: "GET", Path: "/api/v1/application-platform/openchoreo/lifecycle/{id}", Family: "application-platform", PathParams: []string{"id"}, Mutation: false, ResourceScope: "PROJECT_SCOPED", ResourceScopeStatus: "OWNER_CLASSIFIED"},
