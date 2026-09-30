@@ -217,6 +217,104 @@ func (s *PostgresStore) ResolveUnknownOperationOutcome(ctx context.Context, id s
 	return out, err
 }
 
+func (s *PostgresStore) ResolveUnknownOperationOutcomeWithEvidence(ctx context.Context, id string, expected int64, resolution controlplane.OperationUnknownOutcomeResolution, in controlplane.EvidenceMetadata, payload []byte, actor string) (controlplane.Operation, controlplane.EvidenceMetadata, error) {
+	id = strings.TrimSpace(id)
+	actor = strings.TrimSpace(actor)
+	in.OperationID = strings.TrimSpace(in.OperationID)
+	in.Kind = strings.TrimSpace(in.Kind)
+	in.MediaType = strings.TrimSpace(in.MediaType)
+	in.Location = strings.TrimSpace(in.Location)
+	if id == "" || in.OperationID != id || in.Kind == "" || in.MediaType == "" || actor == "" || len(payload) == 0 || len(payload) > 16<<20 {
+		return controlplane.Operation{}, controlplane.EvidenceMetadata{}, fmt.Errorf("%w: operation, kind, mediaType, actor and bounded payload are required", controlplane.ErrValidation)
+	}
+	digest := tracePayloadDigest(payload)
+	if in.Digest != "" && strings.TrimSpace(strings.ToLower(in.Digest)) != digest {
+		return controlplane.Operation{}, controlplane.EvidenceMetadata{}, fmt.Errorf("%w: recovery evidence payload digest mismatch", controlplane.ErrValidation)
+	}
+	if in.Size != 0 && in.Size != int64(len(payload)) {
+		return controlplane.Operation{}, controlplane.EvidenceMetadata{}, fmt.Errorf("%w: recovery evidence payload size mismatch", controlplane.ErrValidation)
+	}
+	resolution, err := controlplane.NormalizeUnknownOutcomeResolution(resolution)
+	if err != nil {
+		return controlplane.Operation{}, controlplane.EvidenceMetadata{}, err
+	}
+	var out controlplane.Operation
+	var sealed controlplane.EvidenceMetadata
+	err = s.serializable(ctx, func(tx *sql.Tx) error {
+		op, txErr := scanOperation(tx.QueryRowContext(ctx, `SELECT `+operationColumns+` FROM operations WHERE id=$1 FOR UPDATE`, id))
+		if txErr != nil {
+			return mapDBError(txErr)
+		}
+		existing, evidenceErr := scanEvidence(tx.QueryRowContext(ctx, `SELECT `+evidenceColumns+` FROM evidence_metadata WHERE operation_id=$1 AND digest=$2 AND step_phase='' AND step_key='' LIMIT 1`, id, digest))
+		if evidenceErr == nil {
+			var stored []byte
+			var storedDigest string
+			var storedSize int64
+			if txErr = tx.QueryRowContext(ctx, `SELECT payload,digest,size_bytes FROM operation_evidence_payloads WHERE evidence_id=$1`, existing.ID).Scan(&stored, &storedDigest, &storedSize); txErr != nil {
+				return mapDBError(txErr)
+			}
+			if !existing.HasPayload || !existing.Sealed || storedDigest != digest || storedSize != int64(len(stored)) || tracePayloadDigest(stored) != digest {
+				return fmt.Errorf("%w: existing recovery evidence payload integrity mismatch", controlplane.ErrConflict)
+			}
+			successReplay := resolution == controlplane.OperationUnknownOutcomeConfirmedSuccess && op.State == controlplane.OperationSucceeded
+			noEffectReplay := resolution == controlplane.OperationUnknownOutcomeConfirmedNoEffect && op.State == controlplane.OperationFailed && op.LastFailureClass == controlplane.OperationFailurePermanent
+			if op.RecoveryEvidenceDigest == digest && (successReplay || noEffectReplay) {
+				out, sealed = op, existing
+				return nil
+			}
+			return fmt.Errorf("%w: recovery evidence already exists without matching operation resolution", controlplane.ErrConflict)
+		}
+		if !errors.Is(evidenceErr, sql.ErrNoRows) {
+			return evidenceErr
+		}
+		next, applyErr := controlplane.ApplyUnknownOutcomeResolution(op, expected, resolution, digest, actor)
+		if applyErr != nil {
+			return applyErr
+		}
+		now := utcNow(s.now)
+		evidenceID := s.id("evd")
+		location := in.Location
+		if location == "" {
+			location = fmt.Sprintf("authority://operations/%s/recovery/%s", id, evidenceID)
+		}
+		sealed = controlplane.EvidenceMetadata{
+			ResourceMeta: controlplane.ResourceMeta{ID: evidenceID, Revision: 1, CreatedAt: now, UpdatedAt: now},
+			OperationID: id, Kind: in.Kind, Digest: digest, MediaType: in.MediaType,
+			Location: location, Size: int64(len(payload)), HasPayload: true, Sealed: true,
+		}
+		if _, txErr = tx.ExecContext(ctx, `INSERT INTO evidence_metadata(id,operation_id,revision,kind,digest,media_type,location,size_bytes,has_payload,sealed,created_at,updated_at) VALUES($1,$2,1,$3,$4,$5,$6,$7,true,true,$8,$8)`, sealed.ID, id, sealed.Kind, digest, sealed.MediaType, sealed.Location, sealed.Size, now); txErr != nil {
+			return mapDBError(txErr)
+		}
+		if _, txErr = tx.ExecContext(ctx, `INSERT INTO operation_evidence_payloads(evidence_id,payload,digest,size_bytes,created_at) VALUES($1,$2,$3,$4,$5)`, sealed.ID, payload, digest, sealed.Size, now); txErr != nil {
+			return mapDBError(txErr)
+		}
+		next.UpdatedAt = now
+		if _, txErr = tx.ExecContext(ctx, `
+			UPDATE operations
+			SET revision=$2,state=$3,last_error=$4,last_failure_class=$5,retry_exhausted=$6,
+			    recovery_evidence_digest=$7,next_attempt_at=NULL,lease_owner=NULL,lease_expires_at=NULL,updated_at=$8
+			WHERE id=$1
+		`, id, next.Revision, string(next.State), next.LastError, string(next.LastFailureClass), next.RetryExhausted, digest, now); txErr != nil {
+			return txErr
+		}
+		if txErr = s.appendAuditTx(ctx, tx, actor, "evidence.payload_sealed", "evidence", sealed.ID, 1, "", map[string]any{"operationId": id, "digest": digest, "kind": sealed.Kind, "recovery": true}); txErr != nil {
+			return txErr
+		}
+		if txErr = s.appendOutboxTx(ctx, tx, "evidence", sealed.ID, "evidence.payload_sealed", sealed); txErr != nil {
+			return txErr
+		}
+		if txErr = s.appendAuditTx(ctx, tx, actor, "operation.unknown_outcome_resolved", "operation", id, next.Revision, "", map[string]any{"authority": controlplane.OperationUnknownOutcomeRecoveryAuthority, "resolution": resolution, "recoveryEvidenceDigest": digest, "evidenceId": sealed.ID}); txErr != nil {
+			return txErr
+		}
+		if txErr = s.appendOutboxTx(ctx, tx, "operation", id, "operation.unknown_outcome_resolved", next); txErr != nil {
+			return txErr
+		}
+		out = next
+		return nil
+	})
+	return out, sealed, err
+}
+
 func (s *PostgresStore) CompleteOperation(ctx context.Context, id string, expected int64, worker string, fence int64, actor string) (controlplane.Operation, error) {
 	var out controlplane.Operation
 	err := s.serializable(ctx, func(tx *sql.Tx) error {
