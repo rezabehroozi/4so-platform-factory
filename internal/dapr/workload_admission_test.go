@@ -2,6 +2,7 @@ package daprruntime
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -44,12 +45,26 @@ func workloadAdmissionTestRequest(t *testing.T, mode string) WorkloadAdmissionRe
 
 func injectTestDaprSidecar(t *testing.T, pod map[string]any, image string) map[string]any {
 	t.Helper()
+	meta, ok := pod["metadata"].(map[string]any)
+	if !ok { t.Fatal("pod metadata missing") }
+	annotations, ok := meta["annotations"].(map[string]any)
+	if !ok { t.Fatal("pod annotations missing") }
 	podSpec, ok := pod["spec"].(map[string]any)
 	if !ok { t.Fatal("pod spec missing") }
 	containers, ok := podSpec["containers"].([]any)
 	if !ok { t.Fatal("containers missing") }
 	podSpec["containers"] = append(containers, map[string]any{
 		"name": "daprd", "image": image,
+		"resources": map[string]any{
+			"requests": map[string]any{
+				"cpu": fmt.Sprint(annotations["dapr.io/sidecar-cpu-request"]),
+				"memory": fmt.Sprint(annotations["dapr.io/sidecar-memory-request"]),
+			},
+			"limits": map[string]any{
+				"cpu": fmt.Sprint(annotations["dapr.io/sidecar-cpu-limit"]),
+				"memory": fmt.Sprint(annotations["dapr.io/sidecar-memory-limit"]),
+			},
+		},
 		"securityContext": map[string]any{
 			"runAsNonRoot": true,
 			"readOnlyRootFilesystem": true,
@@ -95,6 +110,8 @@ func TestWorkloadAdmissionDryRunProvesInjectedSidecarSecurityWithoutPullOrPhysic
 	if err != nil { t.Fatal(err) }
 	if !evidence.InjectedSidecarObserved || !evidence.RunAsNonRoot || !evidence.ReadOnlyRootFilesystem ||
 		evidence.AllowPrivilegeEscalation || !evidence.DropAllCapabilities || !evidence.ExpectedSidecarImageMatched ||
+		!evidence.SidecarResourcesVerified || evidence.SidecarCPURequest != "100m" || evidence.SidecarCPULimit != "500m" ||
+		evidence.SidecarMemoryRequest != "128Mi" || evidence.SidecarMemoryLimit != "256Mi" ||
 		!evidence.AppContainerPreserved || !evidence.AnnotationsVerified || !evidence.ServerSideDryRun || !evidence.StrictFieldValidation {
 		t.Fatalf("Dapr workload dry-run evidence missing security proof: %#v", evidence)
 	}
@@ -143,6 +160,23 @@ func TestWorkloadAdmissionRejectsInjectorSecurityAndImageSubstitution(t *testing
 	security["readOnlyRootFilesystem"] = false
 	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_test", response, 201, time.Now().UTC()); err == nil {
 		t.Fatal("Dapr sidecar without read-only root filesystem passed workload admission")
+	}
+}
+
+func TestWorkloadAdmissionRejectsInjectedSidecarResourceSizingDrift(t *testing.T) {
+	request := workloadAdmissionTestRequest(t, "PRODUCT_MANAGED")
+	pod, err := BuildWorkloadAdmissionPod(request, "op_resource_drift")
+	if err != nil { t.Fatal(err) }
+	response := injectTestDaprSidecar(t, pod, request.ExpectedSidecarImage)
+	spec := response["spec"].(map[string]any)
+	containers := spec["containers"].([]any)
+	sidecar := containers[len(containers)-1].(map[string]any)
+	resources := sidecar["resources"].(map[string]any)
+	requests := resources["requests"].(map[string]any)
+	requests["cpu"] = "250m"
+	if _, err = WorkloadAdmissionEvidenceFromDryRun(request, "op_resource_drift", response, 201, time.Now().UTC()); err == nil ||
+		!strings.Contains(err.Error(), "RESOURCE_SIZING_INVALID") {
+		t.Fatalf("Dapr sidecar resource drift passed workload admission: %v", err)
 	}
 }
 
