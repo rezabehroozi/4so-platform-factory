@@ -25,7 +25,7 @@ smoke_ui = importlib.util.module_from_spec(SMOKE_SPEC)
 SMOKE_SPEC.loader.exec_module(smoke_ui)
 
 CONSOLE_PAGES = [
-    "overview", "workspace", "installation", "clusters", "providers", "blueprints", "templates", "marketplace", "baselines",
+    "overview", "workspace", "installation", "clusters", "providers", "blueprints", "templates", "applications", "marketplace", "baselines",
     "verification", "edge", "fleet", "workspaces", "finops", "tenants", "operations", "ai", "notifications", "services",
     "catalog", "lab", "validator",
 ]
@@ -177,6 +177,10 @@ def static_quality_failures(root: Path) -> list[str]:
             failures.append(f"{rel}:rtl-physical-reversal-forbidden")
         for match in physical_layout.finditer(css):
             failures.append(f"{rel}:rtl-physical-layout-property:{match.group(0).strip()}")
+        for rule in re.finditer(r"([^{}]+)\{([^{}]*)\}", css, flags=re.S):
+            selector, body = rule.group(1).lower(), rule.group(2).lower()
+            if "rtl" in selector and re.search(r"text-align\s*:\s*(?:left|right)\b", body):
+                failures.append(f"{rel}:rtl-physical-text-align:{rule.group(1).strip()}")
     return failures
 
 
@@ -413,6 +417,28 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
             failures.append(f"console:{theme}:toast-durability:{feedback}")
         context.close()
 
+    # Persistent validation must survive RTL/LTR direction changes and expose
+    # field-level + form-level accessible feedback rather than native bubbles only.
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
+    validation = page.evaluate("""() => {
+      document.querySelectorAll('.page').forEach(node=>node.classList.toggle('active',node.id==='applications'));
+      const library=document.querySelector('#application-composition-library'); if(library)library.open=true;
+      if(document.documentElement.dir!=='ltr')document.querySelector('#language-toggle')?.click();
+      const form=document.querySelector('#application-workload-create-form');
+      const field=document.querySelector('#application-workload-name');
+      form?.reportValidity();
+      const before=field?.id ? document.querySelector('#'+CSS.escape(field.id)+'-error')?.textContent || '' : '';
+      const described=String(field?.getAttribute('aria-describedby')||'');
+      const summary=String(form?.querySelector('.form-validation-summary')?.textContent||'');
+      document.querySelector('#language-toggle')?.click();
+      const after=field?.id ? document.querySelector('#'+CSS.escape(field.id)+'-error')?.textContent || '' : '';
+      return {invalid:field?.getAttribute('aria-invalid'),before,after,described,summary,dir:document.documentElement.dir};
+    }""")
+    if validation.get("invalid") != "true" or not validation.get("before") or not validation.get("after") or validation.get("before") == validation.get("after") or not validation.get("described") or not validation.get("summary") or validation.get("dir") != "rtl":
+        failures.append(f"console:persistent-localized-validation:{validation}")
+    context.close()
+
     # Explicit console theme preference must override the opposite OS preference.
     # This prevents system-dark selectors from contaminating an explicit light
     # preference (and vice versa).
@@ -502,6 +528,25 @@ def audit_installer(browser, root: Path, failures: list[str], *, routes: list[st
         if feedback.get("errorScheduled") or not feedback.get("successScheduled"):
             failures.append(f"installer:{theme}:toast-durability:{feedback}")
         context.close()
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page(); prepare_quality_page(page, document, installer=True, root=root)
+    validation = page.evaluate("""() => {
+      document.querySelectorAll('.page').forEach(node=>node.classList.toggle('active',node.id==='installation'));
+      if(document.documentElement.dir!=='ltr')document.querySelector('#language-toggle')?.click();
+      const form=document.querySelector('#installation-form'),field=document.querySelector('#endpoint');
+      if(field)field.value='';
+      form?.reportValidity();
+      const before=field?.id ? document.querySelector('#'+CSS.escape(field.id)+'-error')?.textContent || '' : '';
+      const described=String(field?.getAttribute('aria-describedby')||'');
+      const summary=String(form?.querySelector('.form-validation-summary')?.textContent||'');
+      document.querySelector('#language-toggle')?.click();
+      const after=field?.id ? document.querySelector('#'+CSS.escape(field.id)+'-error')?.textContent || '' : '';
+      return {invalid:field?.getAttribute('aria-invalid'),before,after,described,summary,dir:document.documentElement.dir};
+    }""")
+    if validation.get("invalid") != "true" or not validation.get("before") or not validation.get("after") or validation.get("before") == validation.get("after") or not validation.get("described") or not validation.get("summary") or validation.get("dir") != "rtl":
+        failures.append(f"installer:persistent-localized-validation:{validation}")
+    context.close()
 
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = context.new_page(); prepare_quality_page(page, document, installer=True, root=root)
