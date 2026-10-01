@@ -221,7 +221,7 @@ def static_quality_failures(root: Path) -> list[str]:
                 failures.append(f"{rel}:rtl-physical-text-align:{rule.group(1).strip()}")
     if "Create WorkloadType authority through Product API or MCP" in console_js:
         failures.append("webconsole/static/app.js:application-composition-api-only-empty-state")
-    for marker in ("emptyDisclosureState", "emptyFocusState", "application-composition-library", "application-binding-workflow", "renderDaprRuntimePrerequisite"):
+    for marker in ("emptyDisclosureState", "emptyFocusState", "application-composition-library", "application-binding-workflow", "renderDaprRuntimePrerequisite", "assessAndResumeDaprRuntime", "latestOperation"):
         if marker not in console_js:
             failures.append(f"webconsole/static/app.js:actionable-empty-state-direct-action-missing:{marker}")
     actionable_empty_state_owners = {
