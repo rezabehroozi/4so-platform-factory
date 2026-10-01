@@ -72,6 +72,12 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         execution_id=str(row.get("executionId") or "").strip()
         if not execution_id or len(execution_id)>160 or execution_id in execution_ids: raise RuntimeError("MCP_EXTERNAL_PROGRESS_EXECUTION_ID_INVALID")
         execution_ids[execution_id]=row_client
+        executed=core.parse_utc_timestamp(row.get("executedAt"),"MCP_EXTERNAL_PROGRESS_EXECUTED_AT")
+        created=core.parse_utc_timestamp(row.get("campaignCreatedAt"),"MCP_EXTERNAL_PROGRESS_CAMPAIGN_CREATED_AT")
+        expires=core.parse_utc_timestamp(row.get("campaignExpiresAt"),"MCP_EXTERNAL_PROGRESS_CAMPAIGN_EXPIRES_AT")
+        audit_window=row.get("executionAuditWindowSeconds")
+        if executed<created or executed>expires or type(audit_window) is not int or audit_window<60 or audit_window>24*3600:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_TIME_BINDING_INVALID")
         provider_ref=str(row.get("providerExecutionRef") or "").strip()
         if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref): raise RuntimeError("MCP_EXTERNAL_PROGRESS_PROVIDER_EXECUTION_REF_INVALID")
         owner=provider_refs.get(provider_ref)
@@ -101,6 +107,8 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         evidence_digests[evidence_digest]=row_client; receipt_digests[receipt_digest]=row_client; challenge_digests[challenge_digest]=row_client
         witness=row.get("serverAuditWitness") or {}
         core.validate_server_audit_witness(witness,binding,row_client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS",oauth_client_id)
+        if witness.get("executionObservedAt")!=core.utc_timestamp(executed) or witness.get("executionAuditWindowSeconds")!=audit_window:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_SERVER_WITNESS_TIME_DRIFT")
         by_id[row["clientId"]]=row
     complete=len(rows)==len(core.CLIENTS)
     if existing.get("allAdmittedReceiptsPass") is not True or existing.get("certifiedClientCount")!=len(rows) or existing.get("complete") is not complete or existing.get("externalCertificationPass") is not complete or existing.get("serverAuditWitnessPass") is not complete:
