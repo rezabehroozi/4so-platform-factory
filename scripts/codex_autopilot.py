@@ -1459,6 +1459,16 @@ def _write_checkpoint(root: Path, payload: dict) -> None:
     path = _checkpoint_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     body = dict(payload)
+    current_stage = str(body.get("currentStage") or "")
+    if current_stage and path.is_file() and not path.is_symlink():
+        try:
+            previous = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            previous = {}
+        if str(previous.get("lastFailureStage") or "") == current_stage:
+            for key in ("lastFailureClassification", "lastFailureStage", "lastFailureFingerprint"):
+                if previous.get(key) not in (None, ""):
+                    body[key] = previous[key]
     body["schemaVersion"] = _AUTOPILOT_STATE_SCHEMA
     body["workspaceFingerprint"] = _workspace_fingerprint(root)
     body["gitHead"] = _git_head(root)
