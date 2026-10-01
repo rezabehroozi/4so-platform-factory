@@ -1113,6 +1113,7 @@ const statusClass = value => {
 const badge = value => `<span class="badge ${statusClass(value)}">${esc(value || 'unknown')}</span>`;
 const detailRow = (label, value, raw = false) => `<div class="detail-row"><span>${esc(label)}</span><span${raw ? ' class="technical" dir="ltr"' : ''}>${raw ? esc(value || '—') : (value ?? '—')}</span></div>`;
 const emptyState = (title, message, page = '', action = '') => `<div class="empty-state"><h3>${esc(localizeDynamicText(title))}</h3><p>${esc(localizeDynamicText(message))}</p>${page ? `<button class="primary" type="button" data-navigate="${esc(page)}">${esc(localizeDynamicText(action || 'Continue'))}</button>` : ''}</div>`;
+const disclosureEmptyState=(title,message,disclosureId,action)=>`<div class="empty-state"><h3>${esc(localizeDynamicText(title))}</h3><p>${esc(localizeDynamicText(message))}</p><button class="primary" type="button" data-open-disclosure="${esc(disclosureId)}">${esc(localizeDynamicText(action))}</button></div>`;
 const errorState = message => `<div class="empty-state error-state"><h3>${esc(localizeDynamicText('Unable to load'))}</h3><p>${esc(message)}</p><button class="secondary" type="button" data-retry-current>${esc(t('action.refresh','Refresh'))}</button></div>`;
 const sourceUnavailable = labels => {
   const wanted = new Set((Array.isArray(labels) ? labels : [labels]).filter(Boolean));
@@ -2195,6 +2196,17 @@ async function navigate(page) {
   return true;
 }
 document.addEventListener('click', event => {
+  const disclosureButton=event.target.closest('[data-open-disclosure]');
+  if(disclosureButton){
+    const details=document.getElementById(disclosureButton.dataset.openDisclosure);
+    if(details?.matches('details')){
+      details.open=true;
+      const behavior=window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
+      details.scrollIntoView({behavior,block:'start'});
+      details.querySelector('summary')?.focus({preventScroll:true});
+    }
+    return;
+  }
   const target = event.target.closest('[data-navigate]');
   if (target) navigate(target.dataset.navigate);
 });
@@ -3119,12 +3131,14 @@ async function loadWorkspaces(){
     $('#workspace-authority-grid').innerHTML=workspaces.length?workspaces.map(item=>{
       const selected=selectedWorkspace?.id===item.id;
       return `<article class="resource-card${selected?' selected':''}"><div class="resource-header"><div><h3>${esc(item.displayName||item.name)}</h3><div class="resource-meta">${badge('REFERENCE_ONLY')}${selected?badge('SELECTED'):''}</div></div></div><p>${esc(item.description||'Project-scoped cross-cluster namespace boundary')}</p><div class="resource-details">${detailRow('Project',projectById.get(item.projectId)?.displayName||item.projectId)}${detailRow('Machine name',item.name,true)}${detailRow('Authority','WORKSPACE_AUTHORITY_V1',true)}${detailRow('Digest',shortDigest(item.digest))}${detailRow('Revision',item.revision)}</div><div class="resource-actions"><button class="secondary small-button" type="button" data-workspace-select="${esc(item.id)}">View namespace bindings</button></div></article>`;
-    }).join(''):emptyState('No Workspaces','Create a reference-only project boundary before binding namespaces.');
+    }).join(''):disclosureEmptyState('No Workspaces','Create a reference-only project boundary before binding namespaces.','workspace-create-console','Create Workspace');
 
     $('#workspace-binding-grid').innerHTML=bindings.length?bindings.map(item=>{
       const cluster=clusterById.get(item.clusterId);
       return `<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.namespace)}</h3><div class="resource-meta">${badge(item.state)}</div></div></div><p>${esc(cluster?.displayName||cluster?.name||item.clusterId)}</p><div class="resource-details">${detailRow('Cluster',item.clusterId,true)}${detailRow('Namespace',item.namespace,true)}${detailRow('Runtime state','Derived from referenced cluster')}${detailRow('Revision',item.revision)}</div><div class="resource-actions">${item.state==='ACTIVE'?`<button class="danger small-button" type="button" data-workspace-binding-action="revoke" data-id="${esc(item.id)}">Revoke binding</button>`:''}<button class="secondary small-button" type="button" data-workspace-binding-action="inspect" data-id="${esc(item.id)}">Inspect reference</button></div></article>`;
-    }).join(''):emptyState(selectedWorkspace?'No namespace bindings':'No Workspace selected',selectedWorkspace?'Bind an existing managed-cluster namespace. Runtime data stays on the cluster.':'Create a Workspace first.');
+    }).join(''):selectedWorkspace
+      ? disclosureEmptyState('No namespace bindings','Bind an existing managed-cluster namespace. Runtime data stays on the cluster.','workspace-create-console','Bind namespace')
+      : disclosureEmptyState('No Workspace selected','Create a Workspace first.','workspace-create-console','Create Workspace');
 
     $('#virtual-cluster-grid').innerHTML=virtualClusters.length?virtualClusters.map(item=>{
       const runtimePending=['REQUESTED','PROVISIONING','SUSPENDING','RESUMING','DELETING'].includes(item.state);
@@ -3141,7 +3155,9 @@ async function loadWorkspaces(){
       if(['REQUESTED','ACTIVE','SUSPENDED','FAILED'].includes(item.state))actions.push(`<button class="danger small-button" type="button" data-virtual-cluster-action="delete" data-id="${esc(item.id)}">Delete runtime</button>`);
       actions.push(`<button class="quiet small-button" type="button" data-virtual-cluster-finops="${esc(item.id)}">FinOps scope</button>`);
       return `<article class="resource-card" data-project-scope="${esc(item.projectId)}" data-scope-access="write"><div class="resource-header"><div><h3>${esc(item.name)}</h3><div class="resource-meta">${badge(item.state)}${item.developerMode?badge('DEVELOPER'):badge('TEAM')}</div></div></div><p>${esc(runtimeTruth)}</p><div class="resource-details">${detailRow('Profile',item.profile)}${detailRow('Host cluster',item.hostClusterId,true)}${detailRow('Host namespace',item.hostNamespace,true)}${detailRow('Kubernetes',item.kubernetesVersion,true)}${detailRow('CPU',String(item.cpuMilli)+'m')}${detailRow('Memory',String(item.memoryMiB)+' MiB')}${detailRow('Storage',String(item.storageGiB)+' GiB')}${detailRow('Max namespaces',item.maxNamespaces)}${detailRow('Phase',item.phase||'—')}${detailRow('Pending action',item.pendingAction||'—')}${detailRow('Task action',item.taskAction||'—')}${detailRow('Task fence',item.taskFenceToken||'—')}${detailRow('Desired digest',shortDigest(item.desiredDigest))}${detailRow('Observed digest',item.observedDigest?shortDigest(item.observedDigest):'Not converged')}${detailRow('FinOps attribution',`${item.projectId} · ${item.hostClusterId} · ${item.hostNamespace}`,true)}${detailRow('Revision',item.revision)}</div><div class="resource-actions">${actions.join('')}</div></article>`;
-    }).join(''):emptyState(selectedWorkspace?'No virtual cluster requests':'No Workspace selected',selectedWorkspace?'Create a bounded desired-state request from an active namespace binding.':'Create a Workspace first.');
+    }).join(''):selectedWorkspace
+      ? disclosureEmptyState('No virtual cluster requests','Create a bounded desired-state request from an active namespace binding.','virtual-cluster-create-console','Create desired state')
+      : disclosureEmptyState('No Workspace selected','Create a Workspace first.','workspace-create-console','Create Workspace');
 
     $('#workspace-authority-project').onchange=()=>queueMicrotask(()=>applyAccessMode());
     $('#workspace-binding-workspace').onchange=async()=>{const id=$('#workspace-binding-workspace').value;$('#virtual-cluster-workspace').value=id;await loadWorkspaces();};
