@@ -302,6 +302,73 @@ localizationObserver.observe(document.body, {subtree:true,childList:true,charact
 function esc(value) {
   return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 }
+let installerGeneratedValidationId=0;
+function installerValidationMessage(control){
+  const validity=control?.validity;if(!validity)return '';
+  const faLocale=state.locale==='fa';
+  if(validity.valueMissing)return faLocale?'این فیلد الزامی است.':'This field is required.';
+  if(validity.typeMismatch)return faLocale?'مقدار واردشده با نوع مورد انتظار سازگار نیست.':'Enter a value in the expected format.';
+  if(validity.patternMismatch)return faLocale?'فرمت مقدار با الگوی مورد انتظار سازگار نیست.':'Use the required format shown for this field.';
+  if(validity.rangeUnderflow)return faLocale?`مقدار باید حداقل ${control.min} باشد.`:`Value must be at least ${control.min}.`;
+  if(validity.rangeOverflow)return faLocale?`مقدار باید حداکثر ${control.max} باشد.`:`Value must be at most ${control.max}.`;
+  if(validity.tooShort)return faLocale?`حداقل ${control.minLength} کاراکتر وارد کنید.`:`Enter at least ${control.minLength} characters.`;
+  if(validity.tooLong)return faLocale?`حداکثر ${control.maxLength} کاراکتر مجاز است.`:`Use no more than ${control.maxLength} characters.`;
+  if(validity.badInput)return faLocale?'مقدار واردشده قابل‌خواندن نیست.':'Enter a valid value.';
+  if(validity.customError&&control.validationMessage)return control.validationMessage;
+  return faLocale?'این مقدار معتبر نیست.':'Check this value.';
+}
+function installerValidationId(control){
+  if(!control.id)control.id=`installer-field-${++installerGeneratedValidationId}`;
+  return `${control.id}-error`;
+}
+function installerDescribedBy(control){return new Set(String(control.getAttribute('aria-describedby')||'').split(/\s+/).filter(Boolean));}
+function installerFieldVisible(control){
+  const label=control.closest('label');if(label?.hidden)return false;
+  const style=getComputedStyle(control);return !control.disabled&&style.display!=='none'&&style.visibility!=='hidden';
+}
+function updateInstallerValidationSummary(form){
+  if(!form||form.getAttribute('method')==='dialog')return;
+  const invalid=$$('input[aria-invalid="true"],select[aria-invalid="true"],textarea[aria-invalid="true"]').filter(control=>control.form===form&&installerFieldVisible(control));
+  let summary=form.querySelector('.form-validation-summary');
+  if(!invalid.length){summary?.remove();return;}
+  if(!summary){summary=document.createElement('div');summary.className='form-validation-summary';summary.setAttribute('role','alert');summary.setAttribute('aria-live','polite');form.prepend(summary);}
+  const faLocale=state.locale==='fa';
+  summary.innerHTML=`<strong>${faLocale?'فرم نیاز به اصلاح دارد':'Review the highlighted fields'}</strong><span>${faLocale?`${invalid.length} فیلد را بررسی کنید؛ خطا کنار همان فیلد توضیح داده شده است.`:`${invalid.length} field${invalid.length===1?'':'s'} need attention. Each error is explained next to its field.`}</span>`;
+}
+function markInstallerFieldInvalid(control){
+  if(!control?.matches?.('input,select,textarea')||!installerFieldVisible(control))return;
+  control.setAttribute('aria-invalid','true');
+  const label=control.closest('label');label?.classList.add('field-invalid');
+  const id=installerValidationId(control);let error=document.getElementById(id);
+  if(!error){error=document.createElement('small');error.id=id;error.className='field-error';error.setAttribute('aria-live','polite');if(label)label.append(error);else control.insertAdjacentElement('afterend',error);}
+  error.textContent=installerValidationMessage(control);
+  const described=installerDescribedBy(control);described.add(id);control.setAttribute('aria-describedby',[...described].join(' '));
+  queueMicrotask(()=>updateInstallerValidationSummary(control.form));
+}
+function clearInstallerFieldInvalid(control,force=false){
+  if(!control?.matches?.('input,select,textarea'))return;
+  if(!force&&control.validity?.valid===false){markInstallerFieldInvalid(control);return;}
+  control.removeAttribute('aria-invalid');control.closest('label')?.classList.remove('field-invalid');
+  const id=control.id?`${control.id}-error`:'',error=id?document.getElementById(id):null;error?.remove();
+  if(id){const described=installerDescribedBy(control);described.delete(id);if(described.size)control.setAttribute('aria-describedby',[...described].join(' '));else control.removeAttribute('aria-describedby');}
+  queueMicrotask(()=>updateInstallerValidationSummary(control.form));
+}
+function clearInstallerFormValidation(form){if(!form)return;[...form.querySelectorAll('input,select,textarea')].forEach(control=>clearInstallerFieldInvalid(control,true));form.querySelector('.form-validation-summary')?.remove();}
+function refreshInstallerValidationFeedback(){
+  $$('[aria-invalid="true"]').forEach(control=>{if(control.validity?.valid===false)markInstallerFieldInvalid(control);else clearInstallerFieldInvalid(control,true);});
+  $$('form').forEach(updateInstallerValidationSummary);
+}
+document.addEventListener('invalid',event=>markInstallerFieldInvalid(event.target),true);
+document.addEventListener('input',event=>clearInstallerFieldInvalid(event.target));
+document.addEventListener('change',event=>clearInstallerFieldInvalid(event.target));
+document.addEventListener('reset',event=>setTimeout(()=>clearInstallerFormValidation(event.target),0));
+document.addEventListener('submit',event=>{
+  const form=event.target;
+  if(!(form instanceof HTMLFormElement)||form.getAttribute('method')==='dialog')return;
+  if(form.checkValidity())return;
+  event.preventDefault();form.reportValidity();updateInstallerValidationSummary(form);form.querySelector(':invalid')?.focus();
+},true);
+
 function formatDate(value) {
   if (!value) return '—';
   const date = new Date(value);
@@ -370,6 +437,7 @@ function applyLocale() {
   $$('#nav button b').forEach((node,index) => node.textContent = (state.locale === 'fa' ? faNav : enNav)[index]);
   updatePageHeader();
   localizeTree(document.body);
+  refreshInstallerValidationFeedback();
 }
 function updatePageHeader() {
   const copy = (state.locale === 'fa' ? faPageCopy : pageCopy)[state.page];
