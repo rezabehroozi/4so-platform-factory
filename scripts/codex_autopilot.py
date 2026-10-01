@@ -377,6 +377,9 @@ def _triage_prompt(stage: Stage, result: StageResult, iteration: int) -> str:
         Iteration: {iteration}
         Fingerprint: {result.fingerprint}
         Command: {' '.join(stage.command)}
+        Start with these owner paths before broad repository search:
+        {', '.join(_owner_context_paths(stage)) or '(owner mapping unavailable; stay on the failing command and its direct imports)'}
+
         Compact redacted failure capsule:
         {_failure_capsule(result.output_tail)}
     """).strip()
@@ -425,6 +428,20 @@ INSTALLER_OWNER_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_STAGE_V1"
 AGENT_OWNER_PROOF_AUTHORITY = "AUTOPILOT_AGENT_OWNER_PROOF_V1"
 ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY = "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1"
 AGENT_FAILURE_CAPSULE_MAX_CHARS = 3200
+
+_OWNER_CONTEXT_PATHS: dict[str, tuple[str, ...]] = {
+    "operator-console": ("webconsole/", "scripts/smoke_ui", "scripts/persian_", "tests/test_smoke_ui"),
+    "installer-runtime": ("install.sh", "cmd/platform-installer/", "cmd/platformctl/installer_", "internal/bootstrap/", "internal/hostdeployment/", "internal/remotebootstrap/", "scripts/smoke_installer", "tests/test_install", "tests/test_installer"),
+    "developer-agent-experience": ("AGENTS.md", "DERIVED-AGENT-KNOWLEDGE.json", "scripts/generate_agent_knowledge.py", "scripts/browser_triage_", "tests/test_browser_"),
+    "lab-certification": ("lab/", "scripts/lab_runner.py", "scripts/test_lab_runner.py", "scripts/postgresql_runtime_certify.py", "internal/fieldcampaign/"),
+    "supply-chain-release": ("catalog/", "scripts/build_release.py", "scripts/verify_release", "scripts/acquire_upstream_", "internal/bundlebuilder/", "internal/releaseartifact/", "ARTIFACT-MANIFEST.json", "SBOM.spdx.json"),
+    "product-runtime": ("internal/api/", "internal/domain/", "internal/persistence/", "cmd/platform-api/", "cmd/platform-agent/", "scripts/smoke_"),
+    "backend-correctness": ("internal/", "cmd/", "sdk/", "tests/", "scripts/run_go_", "scripts/run_smoke_shard.py"),
+}
+
+def _owner_context_paths(stage: Stage) -> tuple[str, ...]:
+    return _OWNER_CONTEXT_PATHS.get(_stage_specialist(stage), ())
+
 
 _FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
 
@@ -793,16 +810,7 @@ def _repair_path_in_owner_scope(stage: Stage, relative_path: str) -> bool:
     )
     if path in common:
         return True
-    prefixes: dict[str, tuple[str, ...]] = {
-        "operator-console": ("webconsole/", "scripts/smoke_ui", "scripts/persian_", "tests/test_smoke_ui"),
-        "installer-runtime": ("cmd/platform-installer/", "cmd/platformctl/installer_", "internal/bootstrap/", "internal/hostdeployment/", "internal/remotebootstrap/", "scripts/smoke_installer", "tests/test_installer"),
-        "developer-agent-experience": ("AGENTS.md", "DERIVED-AGENT-KNOWLEDGE.json", "scripts/generate_agent_knowledge.py", "scripts/browser_triage_", "tests/test_browser_"),
-        "lab-certification": ("lab/", "scripts/lab_runner.py", "scripts/test_lab_runner.py", "scripts/postgresql_runtime_certify.py", "internal/fieldcampaign/"),
-        "supply-chain-release": ("catalog/", "scripts/build_release.py", "scripts/verify_release", "scripts/acquire_upstream_", "internal/bundlebuilder/", "internal/releaseartifact/", "ARTIFACT-MANIFEST.json", "SBOM.spdx.json"),
-        "product-runtime": ("internal/api/", "internal/domain/", "internal/persistence/", "cmd/platform-api/", "cmd/platform-agent/", "scripts/smoke_"),
-        "backend-correctness": ("internal/", "cmd/", "sdk/", "tests/", "scripts/run_go_", "scripts/run_smoke_shard.py"),
-    }
-    return any(path.startswith(prefix) for prefix in prefixes.get(specialist, ()))
+    return any(path.startswith(prefix) for prefix in _OWNER_CONTEXT_PATHS.get(specialist, ()))
 
 
 def _repair_requires_full_convergence(stage: Stage, changed_paths: list[str]) -> bool:
