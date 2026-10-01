@@ -223,7 +223,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"Dapr assessment and workload-plan remain viewer-safe project reads while lifecycle mutation and independent approval remain project-scoped and fail-closed",
 		"Dapr keeps assessment as the primary visible task while lifecycle mutation and workload admission are separate disclosures; resumed durable lifecycle/admission state automatically opens its owner disclosure without redispatch",
 		"Dapr route reload or scope change rediscovers the latest durable lifecycle operation from bounded owner history and resumes it read-only without redispatch",
-		"disabled mutation controls expose visible page-level role/scope/state reasons while remaining fail-closed",
+		"disabled mutation controls expose visible page-level role/scope/prerequisite/state reasons while remaining fail-closed, including intrinsically disabled controls whose owner supplies a blocker title",
 		"empty and prerequisite states expose a direct in-product next action when an owner UI exists and runtime-generated guidance is re-rendered correctly after locale changes",
 		"durable application deployment progress is refreshed read-only without requiring mutation replay or a manual page refresh",
 		"live status pages keep refreshing while read-only disclosures are open, but focused or dirty form input still fences background refresh; Workspace virtual-cluster and Platform maintenance RUNNING/RESTORING lifecycles are included",
