@@ -154,6 +154,14 @@ func ResolveApplicationDeploymentPlan(release ApplicationRelease, binding Enviro
 						"image": release.WorkloadImageReference,
 						"imagePullPolicy": "IfNotPresent",
 						"ports": []any{map[string]any{"name": "app", "containerPort": runtime.ContainerPort, "protocol": "TCP"}},
+						"readinessProbe": map[string]any{
+							"tcpSocket": map[string]any{"port": "app"},
+							"initialDelaySeconds": 1,
+							"periodSeconds": 5,
+							"timeoutSeconds": 2,
+							"failureThreshold": 3,
+							"successThreshold": 1,
+						},
 						"resources": map[string]any{
 							"requests": map[string]any{"cpu": runtime.CPURequest, "memory": runtime.MemoryRequest},
 							"limits": map[string]any{"cpu": runtime.CPULimit, "memory": runtime.MemoryLimit},
