@@ -861,8 +861,8 @@ func haPeerStoragePrerequisiteProbeCommand() string {
 
 func haPeerStoragePreparationCommand() string {
 	return `set -eu; ` + haPeerStoragePrerequisiteProbeCommand() + `; ` +
-		`if systemctl cat iscsid.service >/dev/null 2>&1; then systemctl enable --now iscsid.service; ` +
-		`else systemctl enable --now iscsid.socket; fi`
+		`if systemctl cat iscsid.service >/dev/null 2>&1; then unit=iscsid.service; else unit=iscsid.socket; fi; ` +
+		`systemctl enable --now "$unit"; systemctl is-active --quiet "$unit" || { echo "management storage iSCSI prerequisite did not become active: $unit" >&2; exit 19; }`
 }
 
 func (r *Runner) prepareHAStorageHostPrerequisites(ctx context.Context, request installation.InstallRequest) error {
@@ -875,6 +875,9 @@ func (r *Runner) prepareHAStorageHostPrerequisites(ctx context.Context, request 
 	}
 	if err = r.system.Run(ctx, "systemctl", []string{"enable", "--now", unit}, nil); err != nil {
 		return fmt.Errorf("enable local iSCSI prerequisite %s: %w", unit, err)
+	}
+	if err = r.system.Run(ctx, "systemctl", []string{"is-active", "--quiet", unit}, nil); err != nil {
+		return fmt.Errorf("local iSCSI prerequisite %s did not become active after enable/start: %w", unit, err)
 	}
 	peers := request.Infrastructure.NodeAddresses[1:]
 	if err = r.validateSSHIdentity(request.Infrastructure.CredentialRef, request.Infrastructure.SSHUser); err != nil {
