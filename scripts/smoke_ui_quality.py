@@ -108,6 +108,19 @@ def prepare_quality_page(page, document: str, *, installer: bool, root: Path = R
 
 def static_quality_failures(root: Path) -> list[str]:
     failures: list[str] = []
+    route_contracts = (
+        ("webconsole/static/index.html", CONSOLE_PAGES),
+        ("cmd/platform-installer/static/index.html", INSTALLER_PAGES),
+    )
+    for rel, expected_routes in route_contracts:
+        html = (root / rel).read_text(encoding="utf-8")
+        rendered_routes = re.findall(r'<section\\s+class="page(?: active)?"[^>]*\\bid="([^"]+)"', html)
+        if len(rendered_routes) != len(set(rendered_routes)):
+            failures.append(f"{rel}:duplicate-page-route:{rendered_routes}")
+        missing = sorted(set(rendered_routes) - set(expected_routes))
+        stale = sorted(set(expected_routes) - set(rendered_routes))
+        if missing or stale:
+            failures.append(f"{rel}:route-matrix-drift:missing-from-matrix={missing}:stale-in-matrix={stale}")
     for rel in ("webconsole/static/styles.css", "cmd/platform-installer/static/styles.css"):
         failures.extend(f"{rel}:{item}" for item in css_theme_reference_failures(root / rel))
     for rel in ("webconsole/static/index.html", "cmd/platform-installer/static/index.html"):
@@ -523,8 +536,9 @@ def main(argv: list[str] | None = None) -> int:
         browser.close()
 
     result = {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "authority": "OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1",
+        "disclosureAuthority": "OPERATOR_EXPERIENCE_DISCLOSURE_EXPANDED_MATRIX_V1",
         "status": "PASS" if not failures else "FAIL",
         "checkpoint": {
             "scope": args.scope,
