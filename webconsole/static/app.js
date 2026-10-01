@@ -4975,6 +4975,30 @@ function renderApplicationDeliveryJourney(){
   guidance.className=`inline-summary application-delivery-guidance${tone==='warning'?' warning-banner':tone==='success'?' success-banner':''}`;
   guidance.textContent=text;
 }
+function syncApplicationDeliveryDisclosure(){
+  const library=document.getElementById('application-composition-library');
+  const workflows=['application-release-workflow','application-binding-workflow','application-deployment-workflow'].map(id=>document.getElementById(id)).filter(Boolean);
+  const artifactReleases=(state.applicationReleases||[]).filter(item=>!!item.workloadImageReference);
+  const deployableBindings=(state.applicationEnvironmentBindings||[]).filter(item=>artifactReleases.some(release=>release.id===item.releaseId));
+  const activeWorkspaceBindings=(state.applicationWorkspaceBindings||[]).filter(item=>item.state==='ACTIVE');
+  const closePrimary=()=>workflows.forEach(node=>{node.open=false;});
+  if(!state.projects.length){if(library)library.open=false;closePrimary();return 'prerequisite';}
+  if(!state.applicationWorkloadTypes.length){
+    closePrimary();if(library){library.open=true;selectApplicationLibraryTask('workload');}return 'library-workload';
+  }
+  if(!state.applicationWorkspaceProfiles.length){
+    closePrimary();
+    if(state.platformPolicySets.length&&library){library.open=true;selectApplicationLibraryTask('profile');return 'library-profile';}
+    if(library)library.open=false;
+    return 'prerequisite';
+  }
+  if(library)library.open=false;
+  if(!artifactReleases.length){closePrimary();document.getElementById('application-release-workflow')?.setAttribute('open','');return 'release';}
+  if(!state.workspaces.length||!activeWorkspaceBindings.length){closePrimary();return 'prerequisite';}
+  if(!deployableBindings.length){closePrimary();document.getElementById('application-binding-workflow')?.setAttribute('open','');return 'binding';}
+  closePrimary();document.getElementById('application-deployment-workflow')?.setAttribute('open','');
+  return state.applicationDeploymentRun?.operation?.id?'observed':'deployment';
+}
 function openApplicationDeliveryStep(step,{focus=true}={}){
   const button=$(`[data-application-step="${step}"]`);
   if(button?.getAttribute('aria-disabled')==='true'){
@@ -5253,17 +5277,20 @@ function renderApplicationDeliveryPrerequisite(){
   const host=$('#application-delivery-prerequisite');if(!host)return;
   const faLocale=state.locale==='fa';
   const missing=[];
+  const artifactReleases=(state.applicationReleases||[]).filter(item=>!!item.workloadImageReference);
+  const activeWorkspaceBindings=(state.applicationWorkspaceBindings||[]).filter(item=>item.state==='ACTIVE');
   if(!state.projects.length)missing.push({label:faLocale?'پروژه':'Project',page:'workspace',action:faLocale?'ساخت پروژه':'Create a project'});
-  if(!state.workspaces.length)missing.push({label:faLocale?'فضای کاری':'Workspace',page:'workspaces',action:faLocale?'ساخت Workspace':'Create a Workspace'});
   if(!state.applicationWorkloadTypes.length)missing.push({label:faLocale?'قالب Workload':'Workload shape',page:'applications',action:faLocale?'ساخت قالب Workload':'Create a workload shape',focusTarget:'application-workload-name',libraryTask:'workload'});
   if(!state.applicationWorkspaceProfiles.length){
     if(!state.platformPolicySets.length)missing.push({label:faLocale?'سیاست عملیاتی':'Operating policy set',page:'templates',action:faLocale?'ساخت سیاست پلتفرم':'Create platform policy'});
     missing.push({label:'WorkspaceProfile',page:'applications',action:faLocale?'ساخت WorkspaceProfile':'Create a workspace profile',focusTarget:'application-profile-name',libraryTask:'profile'});
   }
+  if(artifactReleases.length&&!state.workspaces.length)missing.push({label:faLocale?'فضای کاری':'Workspace',page:'workspaces',action:faLocale?'ساخت Workspace':'Create a Workspace'});
+  if(artifactReleases.length&&state.workspaces.length&&!activeWorkspaceBindings.length)missing.push({label:faLocale?'اتصال فعال namespace':'Active namespace binding',page:'workspaces',action:faLocale?'اتصال namespace':'Bind namespace'});
   if(!missing.length){host.hidden=true;host.innerHTML='';return;}
   host.hidden=false;
   host.innerHTML=`<strong>${esc(faLocale?'پیش‌نیازهای تحویل کامل نیست':'Application delivery prerequisites are incomplete')}</strong><br><span>${esc(faLocale?'برای جلوگیری از انتخاب خالی یا مسیر بن‌بست، ابتدا موارد زیر را کامل کنید: ':'Complete these authorities before continuing so the workflow never ends in an empty selector: ')}${missing.map(item=>esc(item.label)).join(' · ')}</span><div class="button-row">${missing.filter((item,index,rows)=>rows.findIndex(row=>row.page===item.page&&row.action===item.action)===index).map(item=>`<button type="button" class="secondary small-button" data-application-prerequisite-page="${esc(item.page)}"${item.focusTarget?` data-focus-target="${esc(item.focusTarget)}"`:''}${item.libraryTask?` data-library-task="${esc(item.libraryTask)}"`:''}>${esc(item.action)}</button>`).join('')}</div>`;
-  $$('[data-application-prerequisite-page]',host).forEach(button=>button.onclick=()=>{
+  $('[data-application-prerequisite-page]',host).forEach(button=>button.onclick=()=>{
     if(button.dataset.applicationPrerequisitePage==='applications'){
       const details=document.getElementById('application-composition-library');
       if(details?.matches('details')){
@@ -5293,9 +5320,10 @@ async function loadApplicationDelivery(){
     ]);
     Object.assign(state,{projects,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,workspaces,platformPolicySets});
     renderApplicationPlatformComposition();
-    renderApplicationDeliveryPrerequisite();
     await loadApplicationBindingWorkspaceBindings();
+    renderApplicationDeliveryPrerequisite();
     await resumeApplicationDeploymentForBinding();
+    syncApplicationDeliveryDisclosure();
   }catch(error){
     const host=$('#application-composition-result');if(host)host.innerHTML=errorState(error.message);
     toast(error.message,'error');
