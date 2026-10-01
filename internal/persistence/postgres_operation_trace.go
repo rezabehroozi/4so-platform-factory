@@ -255,6 +255,141 @@ func (s *PostgresStore) AppendOperationEvidencePayload(ctx context.Context, in c
 	return out, err
 }
 
+
+// CompleteOperationWithEvidencePayload atomically seals terminal evidence and
+// commits RUNNING -> VERIFYING -> SUCCEEDED in one serializable transaction.
+// Exact terminal-report replays return the already-sealed evidence without
+// reacquiring execution authority.
+func (s *PostgresStore) CompleteOperationWithEvidencePayload(ctx context.Context, id string, expected int64, in controlplane.EvidenceMetadata, payload []byte, worker string, fence int64, actor string) (controlplane.Operation, controlplane.EvidenceMetadata, error) {
+	id = strings.TrimSpace(id)
+	worker = strings.TrimSpace(worker)
+	actor = strings.TrimSpace(actor)
+	in.OperationID = strings.TrimSpace(in.OperationID)
+	in.Kind = strings.TrimSpace(in.Kind)
+	in.MediaType = strings.TrimSpace(in.MediaType)
+	in.Location = strings.TrimSpace(in.Location)
+	if id == "" || in.OperationID != id || worker == "" || actor == "" || fence <= 0 || in.Kind == "" || in.MediaType == "" {
+		return controlplane.Operation{}, controlplane.EvidenceMetadata{}, fmt.Errorf("%w: operationId, kind, mediaType, worker, actor and positive fence are required", controlplane.ErrValidation)
+	}
+	if len(payload) == 0 || len(payload) > 16<<20 {
+		return controlplane.Operation{}, controlplane.EvidenceMetadata{}, fmt.Errorf("%w: evidence payload must be between 1 byte and 16 MiB", controlplane.ErrValidation)
+	}
+	digest := tracePayloadDigest(payload)
+	if in.Digest != "" && strings.TrimSpace(in.Digest) != digest {
+		return controlplane.Operation{}, controlplane.EvidenceMetadata{}, fmt.Errorf("%w: evidence payload digest mismatch", controlplane.ErrValidation)
+	}
+	if in.Size != 0 && in.Size != int64(len(payload)) {
+		return controlplane.Operation{}, controlplane.EvidenceMetadata{}, fmt.Errorf("%w: evidence payload size mismatch", controlplane.ErrValidation)
+	}
+
+	var out controlplane.Operation
+	var sealed controlplane.EvidenceMetadata
+	err := s.serializable(ctx, func(tx *sql.Tx) error {
+		op, err := scanOperation(tx.QueryRowContext(ctx, `SELECT `+operationColumns+` FROM operations WHERE id=$1 FOR UPDATE`, id))
+		if err != nil {
+			return mapDBError(err)
+		}
+
+		existing, evidenceErr := scanEvidence(tx.QueryRowContext(ctx, `SELECT `+evidenceColumns+` FROM evidence_metadata WHERE operation_id=$1 AND digest=$2 AND step_phase='' AND step_key='' LIMIT 1`, id, digest))
+		if evidenceErr == nil {
+			var stored []byte
+			var storedDigest string
+			var storedSize int64
+			if err = tx.QueryRowContext(ctx, `SELECT payload,digest,size_bytes FROM operation_evidence_payloads WHERE evidence_id=$1`, existing.ID).Scan(&stored, &storedDigest, &storedSize); err != nil {
+				return mapDBError(err)
+			}
+			if !existing.HasPayload || !existing.Sealed || storedDigest != digest || storedSize != int64(len(stored)) || tracePayloadDigest(stored) != digest {
+				return fmt.Errorf("%w: existing evidence payload integrity mismatch", controlplane.ErrConflict)
+			}
+			if existing.Kind != in.Kind || existing.MediaType != in.MediaType {
+				return fmt.Errorf("%w: existing evidence metadata does not match completion payload", controlplane.ErrConflict)
+			}
+			sealed = existing
+		} else if !errors.Is(evidenceErr, sql.ErrNoRows) {
+			return evidenceErr
+		}
+
+		if op.State == controlplane.OperationSucceeded && sealed.ID != "" {
+			out = op
+			return nil
+		}
+		if op.State == controlplane.OperationRunning {
+			if op.Revision != expected {
+				return controlplane.ErrConflict
+			}
+		} else if op.State == controlplane.OperationVerifying {
+			if op.Revision != expected && op.Revision != expected+1 {
+				return controlplane.ErrConflict
+			}
+			if sealed.ID == "" {
+				return fmt.Errorf("%w: VERIFYING completion requires previously sealed evidence", controlplane.ErrPrerequisite)
+			}
+		} else {
+			return fmt.Errorf("%w: evidence-backed success requires RUNNING or VERIFYING", controlplane.ErrPrerequisite)
+		}
+
+		now := utcNow(s.now)
+		if !controlplane.OperationLeaseActive(op, worker, fence, now) {
+			return controlplane.ErrStaleFence
+		}
+		if sealed.ID == "" {
+			evidenceID := s.id("evd")
+			location := in.Location
+			if location == "" {
+				location = fmt.Sprintf("authority://operations/%s/evidence/%s", id, evidenceID)
+			}
+			sealed = controlplane.EvidenceMetadata{
+				ResourceMeta: controlplane.ResourceMeta{ID: evidenceID, Revision: 1, CreatedAt: now, UpdatedAt: now},
+				OperationID: id, Kind: in.Kind, Digest: digest, MediaType: in.MediaType,
+				Location: location, Size: int64(len(payload)), HasPayload: true, Sealed: true,
+			}
+			if _, err = tx.ExecContext(ctx, `INSERT INTO evidence_metadata(id,operation_id,revision,kind,digest,media_type,location,size_bytes,has_payload,sealed,created_at,updated_at) VALUES($1,$2,1,$3,$4,$5,$6,$7,true,true,$8,$8)`, sealed.ID, id, sealed.Kind, digest, sealed.MediaType, sealed.Location, sealed.Size, now); err != nil {
+				return mapDBError(err)
+			}
+			if _, err = tx.ExecContext(ctx, `INSERT INTO operation_evidence_payloads(evidence_id,payload,digest,size_bytes,created_at) VALUES($1,$2,$3,$4,$5)`, sealed.ID, payload, digest, sealed.Size, now); err != nil {
+				return mapDBError(err)
+			}
+			if err = s.appendAuditTx(ctx, tx, actor, "evidence.payload_sealed", "evidence", sealed.ID, 1, "", map[string]any{"operationId": id, "digest": digest, "kind": sealed.Kind, "fenceToken": fence, "terminalCommit": true}); err != nil {
+				return err
+			}
+			if err = s.appendOutboxTx(ctx, tx, "evidence", sealed.ID, "evidence.payload_sealed", sealed); err != nil {
+				return err
+			}
+		}
+
+		if op.State == controlplane.OperationRunning {
+			op.State = controlplane.OperationVerifying
+			op.Revision++
+			op.UpdatedAt = now
+			verifySnapshot := op
+			if err = s.appendAuditTx(ctx, tx, actor, "operation.verification_started", "operation", id, op.Revision, "", map[string]any{"attempt": op.Attempt, "evidenceDigest": digest, "atomicTerminalCommit": true}); err != nil {
+				return err
+			}
+			if err = s.appendOutboxTx(ctx, tx, "operation", id, "operation.verification_started", verifySnapshot); err != nil {
+				return err
+			}
+		}
+		op.State = controlplane.OperationSucceeded
+		op.LeaseOwner = ""
+		op.LeaseExpiresAt = nil
+		op.NextAttemptAt = nil
+		op.Revision++
+		op.UpdatedAt = now
+		if _, err = tx.ExecContext(ctx, `UPDATE operations SET revision=$2,state=$3,lease_owner=NULL,lease_expires_at=NULL,next_attempt_at=NULL,updated_at=$4 WHERE id=$1`, id, op.Revision, string(op.State), now); err != nil {
+			return err
+		}
+		if err = s.appendAuditTx(ctx, tx, actor, "operation.succeeded", "operation", id, op.Revision, "", map[string]any{"attempt": op.Attempt, "evidenceDigest": digest, "atomicTerminalCommit": true}); err != nil {
+			return err
+		}
+		if err = s.appendOutboxTx(ctx, tx, "operation", id, "operation.succeeded", op); err != nil {
+			return err
+		}
+		out = op
+		return nil
+	})
+	return out, sealed, err
+}
+
 func (s *PostgresStore) GetEvidencePayload(ctx context.Context, evidenceID string) (controlplane.EvidenceMetadata, []byte, error) {
 	evidence, err := scanEvidence(s.db.QueryRowContext(ctx, `SELECT `+evidenceColumns+` FROM evidence_metadata WHERE id=$1`, strings.TrimSpace(evidenceID)))
 	if err != nil {
