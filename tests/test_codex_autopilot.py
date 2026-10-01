@@ -648,11 +648,11 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
         self.assertTrue(AUTOPILOT._repair_requires_full_convergence(stage, ["internal/persistence/postgres.go"]))
         self.assertTrue(AUTOPILOT._repair_requires_full_convergence(stage, []))
 
-    def test_structured_triage_parser_fails_unknown_on_malformed_first_line(self):
+    def test_structured_triage_parser_accepts_wrapper_lines_but_rejects_ambiguity(self):
         self.assertEqual(AUTOPILOT._parse_triage_classification("CLASSIFICATION=CODE_DEFECT\nowner=api"), "CODE_DEFECT")
-        self.assertEqual(AUTOPILOT._parse_triage_classification("  CLASSIFICATION=TEST_DEFECT  \nproof=x"), "TEST_DEFECT")
-        self.assertEqual(AUTOPILOT._parse_triage_classification("I think this is code\nCLASSIFICATION=CODE_DEFECT"), "UNKNOWN")
-        self.assertEqual(AUTOPILOT._parse_triage_classification(""), "UNKNOWN")
+        self.assertEqual(AUTOPILOT._parse_triage_classification("codex progress...\n  CLASSIFICATION=TEST_DEFECT  \nproof=x"), "TEST_DEFECT")
+        self.assertEqual(AUTOPILOT._parse_triage_classification("CLASSIFICATION=CODE_DEFECT\nCLASSIFICATION=ENVIRONMENT"), "UNKNOWN")
+        self.assertEqual(AUTOPILOT._parse_triage_classification("no structured classification"), "UNKNOWN")
 
     def test_environment_triage_never_opens_repair_writer(self):
         stage = AUTOPILOT.Stage("smoke-4", ("true",), 10)
