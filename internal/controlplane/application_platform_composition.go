@@ -28,68 +28,9 @@ const (
 )
 
 var (
-	applicationPlatformDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}package controlplane
-
-import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"regexp"
-	"sort"
-	"strings"
-	"time"
+	applicationPlatformDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	applicationWorkloadImagePattern  = regexp.MustCompile(`^[^\\s@]+@sha256:[0-9a-f]{64}$`)
 )
-
-const (
-	WorkloadTypeAuthority           = "WORKLOAD_TYPE_AUTHORITY_V1"
-	CapabilityTraitAuthority        = "CAPABILITY_TRAIT_AUTHORITY_V1"
-	WorkloadCompositionAuthority    = "WORKLOAD_COMPOSITION_AUTHORITY_V1"
-	ManagedResourceTypeAuthority    = "MANAGED_RESOURCE_TYPE_AUTHORITY_V1"
-	WorkspaceProfileAuthority       = "WORKSPACE_PROFILE_AUTHORITY_V1"
-	ApplicationReleaseAuthority     = "APPLICATION_RELEASE_AUTHORITY_V1"
-	EnvironmentBindingAuthority     = "ENVIRONMENT_BINDING_AUTHORITY_V1"
-	ApplicationRuntimeDaprCapability = "application-runtime.dapr"
-)
-
-const (
-	TraitDecisionApply          = "APPLY"
-	TraitDecisionSuppressNative = "SUPPRESS_NATIVE"
-)
-
-)
-	applicationWorkloadImagePattern  = regexp.MustCompile(`^[^\\s@]+@sha256:[0-9a-f]{64}package controlplane
-
-import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"regexp"
-	"sort"
-	"strings"
-	"time"
-)
-
-const (
-	WorkloadTypeAuthority           = "WORKLOAD_TYPE_AUTHORITY_V1"
-	CapabilityTraitAuthority        = "CAPABILITY_TRAIT_AUTHORITY_V1"
-	WorkloadCompositionAuthority    = "WORKLOAD_COMPOSITION_AUTHORITY_V1"
-	ManagedResourceTypeAuthority    = "MANAGED_RESOURCE_TYPE_AUTHORITY_V1"
-	WorkspaceProfileAuthority       = "WORKSPACE_PROFILE_AUTHORITY_V1"
-	ApplicationReleaseAuthority     = "APPLICATION_RELEASE_AUTHORITY_V1"
-	EnvironmentBindingAuthority     = "ENVIRONMENT_BINDING_AUTHORITY_V1"
-	ApplicationRuntimeDaprCapability = "application-runtime.dapr"
-)
-
-const (
-	TraitDecisionApply          = "APPLY"
-	TraitDecisionSuppressNative = "SUPPRESS_NATIVE"
-)
-
-)
-)
-
 type WorkloadType struct {
 	ResourceMeta
 	ProjectID         string   `json:"projectId"`
