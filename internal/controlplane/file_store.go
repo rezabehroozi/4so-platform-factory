@@ -365,6 +365,25 @@ func (f *FileStore) CreateOperationAwaitingApprovalWithPayload(ctx context.Conte
 	}
 	return v, replay, nil
 }
+func (f *FileStore) CreateExclusiveOperationAwaitingApprovalWithPayload(ctx context.Context, r OperationRequest, k, a, q, mediaType string, payload []byte) (Operation, bool, *Operation, error) {
+	f.writeMu.Lock()
+	defer f.writeMu.Unlock()
+	before, err := f.MemoryStore.Snapshot(ctx)
+	if err != nil {
+		return Operation{}, false, nil, err
+	}
+	v, replay, blocker, err := f.MemoryStore.CreateExclusiveOperationAwaitingApprovalWithPayload(ctx, r, k, a, q, mediaType, payload)
+	if err != nil || blocker != nil {
+		return v, replay, blocker, err
+	}
+	if !replay {
+		if err = f.persist(ctx); err != nil {
+			_ = f.MemoryStore.Restore(before)
+			return v, replay, nil, fmt.Errorf("persist authoritative snapshot: %w", err)
+		}
+	}
+	return v, replay, nil, nil
+}
 func (f *FileStore) GetOperationRequestPayload(ctx context.Context, id string) (OperationRequestPayload, error) {
 	return f.MemoryStore.GetOperationRequestPayload(ctx, id)
 }
@@ -562,6 +581,23 @@ func (f *FileStore) AppendOperationEvidencePayload(ctx context.Context, v Eviden
 		return EvidenceMetadata{}, fmt.Errorf("persist authoritative snapshot: %w", err)
 	}
 	return out, nil
+}
+func (f *FileStore) CompleteOperationWithEvidencePayload(ctx context.Context, id string, rev int64, v EvidenceMetadata, payload []byte, worker string, fence int64, actor string) (Operation, EvidenceMetadata, error) {
+	f.writeMu.Lock()
+	defer f.writeMu.Unlock()
+	before, err := f.MemoryStore.Snapshot(ctx)
+	if err != nil {
+		return Operation{}, EvidenceMetadata{}, err
+	}
+	op, sealed, err := f.MemoryStore.CompleteOperationWithEvidencePayload(ctx, id, rev, v, payload, worker, fence, actor)
+	if err != nil {
+		return op, sealed, err
+	}
+	if err = f.persist(ctx); err != nil {
+		_ = f.MemoryStore.Restore(before)
+		return op, sealed, fmt.Errorf("persist authoritative snapshot: %w", err)
+	}
+	return op, sealed, nil
 }
 func (f *FileStore) ClaimOutbox(ctx context.Context, w string, l int, ttl time.Duration, at time.Time) ([]OutboxEvent, error) {
 	return mutate(f, ctx, func() ([]OutboxEvent, error) { return f.MemoryStore.ClaimOutbox(ctx, w, l, ttl, at) })
