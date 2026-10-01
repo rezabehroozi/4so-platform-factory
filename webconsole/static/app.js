@@ -6,7 +6,7 @@ const state = {
   locale: localStorage.getItem('platformLocale') || 'fa',
   session: null,
   currentPage: 'overview',
-  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], applicationWorkspaceBindings: [], daprAssessment: null, daprLifecycle: null, daprWorkloadPlan: null, daprWorkloadAdmission: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
+  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], applicationWorkspaceBindings: [], applicationDeploymentPlan: null, daprAssessment: null, daprLifecycle: null, daprWorkloadPlan: null, daprWorkloadAdmission: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
   baselines: [], baselineDeployments: [], verifications: [], closures: [], runtimeCertifications: [],
   fleetGroups: [], driftScans: [], upgradeCampaigns: [], recoveryCheckpoints: [], backupPolicies: [], dataProtectionRuns: [], fleetHealth: null, day2CampaignEngine: null, tenants: [], tenantPlans: [],
   clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], targetNodeLifecycleAuthority: null, currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], virtualClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
@@ -1740,7 +1740,8 @@ async function api(path, options = {}) {
   const submittedForm = mutation && state.lastSubmittedForm && (Date.now()-state.lastSubmittedAt)<500 ? state.lastSubmittedForm : null;
   if (mutation) { state.lastSubmittedForm = null; state.lastSubmittedAt = 0; }
   const viewerSafePostPath=scopeURL(path).pathname;
-  const viewerSafePost = ['/api/v1/blueprints/validate','/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/compatibility/evaluate','/api/v1/installations/plans','/api/v1/blueprint-releases/compare','/api/v1/runtime-closure-reports/verify','/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate','/api/v1/edge/local-authority/policies/compile','/api/v1/edge/local-authority/mutations/admit','/api/v1/edge/local-authority/reconnect/resolve','/api/v1/application-platform/dapr/assessment','/api/v1/application-platform/dapr/workload-plan','/api/v1/application-platform/dapr/workload-admissions','/api/v1/support-bundles','/api/v1/support-bundle-jobs','/api/v1/workload-log-queries'].includes(viewerSafePostPath);
+  const viewerSafePost = ['/api/v1/blueprints/validate','/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/compatibility/evaluate','/api/v1/installations/plans','/api/v1/blueprint-releases/compare','/api/v1/runtime-closure-reports/verify','/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate','/api/v1/edge/local-authority/policies/compile','/api/v1/edge/local-authority/mutations/admit','/api/v1/edge/local-authority/reconnect/resolve','/api/v1/application-platform/dapr/assessment','/api/v1/application-platform/dapr/workload-plan','/api/v1/application-platform/dapr/workload-admissions','/api/v1/support-bundles','/api/v1/support-bundle-jobs','/api/v1/workload-log-queries'].includes(viewerSafePostPath) ||
+    (viewerSafePostPath.startsWith('/api/v1/application-platform/environment-bindings/') && viewerSafePostPath.endsWith('/deployment-plan'));
   if (state.session && ['POST','PUT','PATCH','DELETE'].includes(method) && !viewerSafePost && !canOperate()) {
     // A viewer may have been promoted after this tab loaded. Refresh session
     // authority before blocking a mutation purely from stale client state.
@@ -4372,6 +4373,20 @@ function renderApplicationAuthoringOptions(){
     const cluster=(state.clusters||[]).map(row=>row?.cluster||row).find(row=>row.id===item.clusterId);
     return `${cluster?.displayName||cluster?.name||item.clusterId} · ${item.namespace} · r${item.revision}`;
   });
+
+  const deployableBindings=state.applicationEnvironmentBindings.filter(item=>{
+    const release=state.applicationReleases.find(row=>row.id===item.releaseId);
+    return !!release?.workloadImageReference;
+  });
+  const deploymentSelect=$('#application-deployment-binding');
+  const previousDeploymentBinding=deploymentSelect?.value||'';
+  applicationListOptions(deploymentSelect,deployableBindings,item=>{
+    const release=state.applicationReleases.find(row=>row.id===item.releaseId);
+    return `${item.environment} · ${item.namespace} · ${release?.name||item.releaseId} ${release?.version||''} · r${item.revision}`;
+  });
+  if(previousDeploymentBinding&&deployableBindings.some(item=>item.id===previousDeploymentBinding)&&deploymentSelect)deploymentSelect.value=previousDeploymentBinding;
+  if(state.applicationDeploymentPlan&&!deployableBindings.some(item=>item.id===state.applicationDeploymentPlan.environmentBindingId))state.applicationDeploymentPlan=null;
+  renderApplicationDeploymentPlan();
 }
 async function loadApplicationBindingWorkspaceBindings(){
   const workspaceId=$('#application-binding-workspace')?.value||'';
@@ -4379,6 +4394,16 @@ async function loadApplicationBindingWorkspaceBindings(){
   state.applicationWorkspaceBindings=await softApi(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/bindings`,[],'application workspace bindings');
   renderApplicationAuthoringOptions();
   applyAccessMode();
+}
+function renderApplicationDeploymentPlan(){
+  const host=$('#application-deployment-plan-result');if(!host)return;
+  const plan=state.applicationDeploymentPlan;
+  if(!plan){
+    host.innerHTML='<div class="inline-summary">Select an artifact-bound environment binding and preview deterministic rendered resources. Nothing is applied to the target.</div>';
+    return;
+  }
+  const resources=Array.isArray(plan.renderedResources)?plan.renderedResources:[];
+  host.innerHTML=`<div class="inline-summary"><strong>Application deployment plan</strong> · ${badge(plan.authority||'APPLICATION_DEPLOYMENT_PLAN_V1')}<br><span>Target: <span class="technical">${esc(plan.clusterId||'—')} / ${esc(plan.namespace||'—')}</span> · ${esc(plan.environment||'—')}</span><br><span>Release: <span class="technical">${esc(shortDigest(plan.releaseDigest||''))}</span> · binding r${esc(plan.environmentBindingRevision||'—')} · WorkspaceBinding r${esc(plan.workspaceBindingRevision||'—')}</span><br><span>Artifact: <span class="technical">${esc(plan.workloadImageReference||'—')}</span></span><br><span>Runtime spec: <span class="technical">${esc(shortDigest(plan.runtimeSpecDigest||''))}</span> · rendered: <span class="technical">${esc(shortDigest(plan.renderedDigest||''))}</span></span><br><span>Resources: ${esc(resources.map(row=>`${row.kind||'Resource'}/${row.metadata?.name||'unnamed'}`).join(', ')||'none')}</span><br><small>Deterministic desired state only. runtimeMutationPerformed=${esc(plan.runtimeMutationPerformed===true)}; Physical certification remains independent.</small><details><summary>Rendered Kubernetes resources</summary><pre class="technical">${esc(JSON.stringify(resources,null,2))}</pre></details></div>`;
 }
 function renderApplicationPlatformComposition(){
   const workloadGrid=$('#application-workload-grid'),resourceGrid=$('#application-resource-grid'),releaseGrid=$('#application-release-grid'),bindingGrid=$('#application-binding-grid');
@@ -4482,6 +4507,8 @@ $('#dapr-lifecycle-approve').onclick=async()=>{
 $('#application-release-project').addEventListener('change',()=>{renderApplicationAuthoringOptions();applyAccessMode();});
 $('#application-binding-release').addEventListener('change',async()=>{state.applicationWorkspaceBindings=[];renderApplicationAuthoringOptions();await loadApplicationBindingWorkspaceBindings();});
 $('#application-binding-workspace').addEventListener('change',loadApplicationBindingWorkspaceBindings);
+$('#application-deployment-binding').addEventListener('change',()=>{state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();});
+$('#application-deployment-plan-form').addEventListener('input',event=>{if(event.target.id!=='application-deployment-binding'){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();}});
 $('#application-resolution-workload').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-promotion-binding').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-release-create-form').onsubmit=async event=>{
@@ -4520,6 +4547,26 @@ $('#application-binding-create-form').onsubmit=async event=>{
     toast('Desired environment binding created. No runtime deployment has been inferred.');
     form.reset();state.applicationWorkspaceBindings=[];await loadPlatformTemplates();
   }catch(error){toast(error.message,'error');}
+};
+$('#application-deployment-plan-form').onsubmit=async event=>{
+  event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;
+  const bindingId=$('#application-deployment-binding').value;
+  const binding=state.applicationEnvironmentBindings.find(item=>item.id===bindingId);
+  const release=state.applicationReleases.find(item=>item.id===binding?.releaseId);
+  if(!binding||!release?.workloadImageReference){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();toast('Select an environment binding backed by an exact workload artifact.','warning');return;}
+  const body={
+    replicas:Number($('#application-deployment-replicas').value),
+    containerPort:Number($('#application-deployment-container-port').value),
+    servicePort:Number($('#application-deployment-service-port').value||0),
+    cpuRequest:$('#application-deployment-cpu-request').value.trim(),
+    cpuLimit:$('#application-deployment-cpu-limit').value.trim(),
+    memoryRequest:$('#application-deployment-memory-request').value.trim(),
+    memoryLimit:$('#application-deployment-memory-limit').value.trim()
+  };
+  try{
+    state.applicationDeploymentPlan=await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/deployment-plan`,{method:'POST',body});
+    renderApplicationDeploymentPlan();toast('Deterministic application deployment plan rendered; no target mutation occurred.');
+  }catch(error){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();toast(error.message,'error');}
 };
 $('#application-resolution-form').onsubmit=async event=>{event.preventDefault();const workloadId=$('#application-resolution-workload').value;if(!workloadId)return;const workload=state.applicationWorkloadTypes.find(item=>item.id===workloadId);const traitIds=[...$('#application-resolution-traits').selectedOptions].map(option=>option.value);const observedNativeCapabilities=$('#application-resolution-native').value.split(',').map(v=>v.trim()).filter(Boolean);try{const result=await api('/api/v1/application-platform/resolve',{method:'POST',body:{projectId:workload.projectId,workloadTypeId:workloadId,traitIds,observedNativeCapabilities}});$('#application-composition-result').innerHTML=`<div class="inline-summary"><strong>Capability resolution preview</strong> · ${esc(shortDigest(result.resolutionDigest))}<br>${(result.decisions||[]).map(row=>`${badge(row.action)} ${esc(row.capability)} — ${esc(row.reason)}`).join('<br>')||'No traits selected.'}<br><small>Preview only. No target or desired binding was mutated.</small></div>`;}catch(error){toast(error.message,'error');}};
 $('#application-promotion-form').onsubmit=async event=>{event.preventDefault();const binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-promotion-binding').value),release=state.applicationReleases.find(item=>item.id===$('#application-promotion-release').value);if(!binding||!release)return;if(binding.projectId!==release.projectId){toast('Release and environment binding must belong to the same project.','error');return;}const observedNativeCapabilities=$('#application-promotion-native').value.split(',').map(v=>v.trim()).filter(Boolean);if(!await confirmAction('Promote environment release',`Advance ${binding.environment} / ${binding.namespace} from its current immutable release to ${release.name} ${release.version}? The WorkspaceBinding scope cannot change and will be revalidated before commit.`,false))return;try{await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/promote`,{method:'POST',headers:{'If-Match':`"${binding.revision}"`},body:{releaseId:release.id,observedNativeCapabilities}});toast('Environment binding promoted. Runtime convergence and Physical certification remain separate.');await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
