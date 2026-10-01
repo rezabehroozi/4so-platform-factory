@@ -446,7 +446,7 @@ async function api(path, options = {}) {
   const type = response.headers.get('content-type') || '';
   const payload = type.includes('json') ? await response.json().catch(() => null) : await response.text();
   if (!response.ok) {
-    if (response.status === 401) disconnect(false);
+    if (response.status === 401) disconnect(true);
     throw new Error(errorMessage(payload, `${response.status} ${response.statusText}`));
   }
   return payload;
@@ -1068,7 +1068,7 @@ $('#confirm-connect').onclick=async()=>{
     const [health,bundle,accessSecurity]=await Promise.all([fetch('/healthz').then(r=>r.json()),loadBundleStatus(),loadAccessSecurity()]); renderStatus(status,health); renderBundle(bundle); renderAccessSecurity(accessSecurity); await Promise.all([loadConfiguration(),refreshSSHTrust()]);
     toast('Connected to installer.');
     if(state.page==='health')refreshHealth(); if(state.page==='recovery')refreshDR(); if(state.page==='lifecycle')refreshLifecycle();
-  }catch(error){state.token='';$('#connect-error').textContent=error.message;$('#connect-error').hidden=false;}
+  }catch(error){disconnect(true);$('#connect-error').textContent=error.message;$('#connect-error').hidden=false;}
 };
 $('#open-ssh-key').onclick=()=>{$('#ssh-private-key').value='';$('#ssh-dialog').showModal();};
 $('#store-ssh-key').onclick=async()=>{const key=$('#ssh-private-key').value.trim();if(!key){toast('Paste a valid OpenSSH private key.','error');return;}try{await api('/api/v1/secrets/ssh-private-key',{method:'POST',body:{privateKey:key}});$('#ssh-private-key').value='';$('#ssh-dialog').close();$('#credential-ref').value='secret://installer/ssh-private-key';toast('SSH private key stored securely.');await refreshSSHTrust();}catch(error){toast(error.message,'error');}};
