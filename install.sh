@@ -70,6 +70,10 @@ esac
 
 case "${mode}" in
   status|verify|recover|rollback)
+    if [[ "${EUID}" -ne 0 ]]; then
+      echo "ERROR ${AUTHORITY}: installer continuation must run as root; rerun with sudo" >&2
+      exit 2
+    fi
     if [[ ! -f "${PLATFORMCTL}" || -L "${PLATFORMCTL}" || ! -x "${PLATFORMCTL}" ]]; then
       echo "ERROR ${AUTHORITY}: continuation requires packaged platformctl: ${PLATFORMCTL}" >&2
       exit 2
@@ -155,7 +159,7 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 if [[ -z "${bundle_dir}" ]]; then
-  echo "ERROR ${AUTHORITY}: --bundle-dir is required" >&2
+  echo "ERROR ${AUTHORITY}: no verified bundle directory discovered; pass --bundle-dir or set PLATFORM_INSTALLER_BUNDLE_DIR" >&2
   exit 2
 fi
 if [[ ! -d "${bundle_dir}" || -L "${bundle_dir}" ]]; then
