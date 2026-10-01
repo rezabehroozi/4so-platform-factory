@@ -48,12 +48,14 @@ func projectApplicationDeliveryEvidence(projectID string, releases []controlplan
 			return nil, fmt.Errorf("duplicate or empty application deployment operation identity")
 		}
 		seenOperation[operation.ID] = true
-		target := strings.TrimSpace(operation.TargetRef)
-		if !strings.HasPrefix(target, applicationDeploymentTargetPrefix) {
+		clusterID, bindingID, targetErr := parseApplicationDeploymentTarget(operation.TargetRef)
+		if targetErr != nil {
 			return nil, fmt.Errorf("application deployment %s has an invalid environment binding target", operation.ID)
 		}
-		bindingID := strings.TrimSpace(strings.TrimPrefix(target, applicationDeploymentTargetPrefix))
 		binding, ok := bindingsByID[bindingID]
+		if ok && clusterID != "" && binding.ClusterID != clusterID {
+			return nil, fmt.Errorf("application deployment %s target cluster does not match environment binding", operation.ID)
+		}
 		if !ok {
 			return nil, fmt.Errorf("application deployment %s references an unknown project environment binding", operation.ID)
 		}
