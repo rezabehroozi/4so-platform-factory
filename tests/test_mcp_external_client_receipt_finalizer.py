@@ -16,7 +16,10 @@ class ReceiptFinalizerTests(unittest.TestCase):
                          "trustedClientRevision":1,"trustedClientProvider":c})
         ep="https://mcp.example.test/mcp"; metadata="https://mcp.example.test/.well-known/oauth-protected-resource"
         preflight={"authority":core.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":ep,"protectedResourceMetadata":metadata,"resource":ep,"authorizationServers":["https://identity.example.test/realms/4so"],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":f'Bearer resource_metadata="{metadata}"',"protocol":"2026-07-28"}
-        campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-capturetest","matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
+        spec=json.loads(matrix.read_text())["spec"]
+        created=core.datetime.now(core.timezone.utc)-core.timedelta(minutes=1)
+        expires=created+core.timedelta(seconds=spec["campaignMaxAgeSeconds"])
+        campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-capturetest","createdAt":core.utc_timestamp(created),"expiresAt":core.utc_timestamp(expires),"matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
                   "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"capture-oauth-bindings").hexdigest(),
                   "protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
         cp=td/"campaign.json"; cp.write_text(json.dumps(campaign))
@@ -29,7 +32,8 @@ class ReceiptFinalizerTests(unittest.TestCase):
                 n+=1; checks[cid]={"passed":True,"requestId":f"req-chatgpt-{n:02d}"}
             else:
                 checks[cid]={"passed":True}
-        capture={"authority":mod.AUTHORITY,"clientId":"chatgpt","clientSurface":packet["clientSurface"],"campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"executionId":"provider-run-chatgpt-001","externalExecution":True,"credentialedExecution":True,"checks":checks,"providerExecutionRef":"opaque-provider-execution-001"}
+        executed=core.parse_utc_timestamp(packet["campaignCreatedAt"],"TEST_CREATED")+core.timedelta(minutes=1)
+        capture={"authority":mod.AUTHORITY,"clientId":"chatgpt","clientSurface":packet["clientSurface"],"campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"executionId":"provider-run-chatgpt-001","executedAt":core.utc_timestamp(executed),"externalExecution":True,"credentialedExecution":True,"checks":checks,"providerExecutionRef":"opaque-provider-execution-001"}
         cap=td/"capture.json"; cap.write_text(json.dumps(capture))
         return pp,cap,capture
     def test_capture_finalizes_to_digest_bound_receipt(self):
@@ -38,6 +42,7 @@ class ReceiptFinalizerTests(unittest.TestCase):
             self.assertEqual(core.RECEIPT_AUTHORITY,out["authority"]); self.assertEqual("chatgpt",out["clientId"]); self.assertEqual(core.CLIENT_SURFACES["chatgpt"],out["clientSurface"])
             self.assertEqual(core.sha256(cap),out["evidenceDigest"]); self.assertEqual("opaque-provider-execution-001",out["providerExecutionRef"]); self.assertEqual(set(core.AUDITED_CHECKS),set(out["requestIds"]))
             self.assertEqual("chatgpt-oauth-client",out["oauthClientId"])
+            self.assertEqual(capture_time:=json.loads(cap.read_text())["executedAt"],out["executedAt"])
             self.assertTrue(all(out["checks"].values())); self.assertFalse(out["scopeLeakObserved"]); self.assertFalse(out["revokedGrantAccepted"]); self.assertFalse(out["selfApprovalAccepted"])
     def test_false_check_missing_request_id_and_binding_drift_fail_closed(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -57,6 +62,19 @@ class ReceiptFinalizerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"PROVIDER_EXECUTION_REF_INVALID"): mod.finalize(pp,cap)
             bad=copy.deepcopy(capture); bad["checks"]["oauth-protected-resource-discovery"]["requestId"]="req-public-01"; cap.write_text(json.dumps(bad))
             with self.assertRaisesRegex(RuntimeError,"CHECK_FIELDS_INVALID"): mod.finalize(pp,cap)
+
+    def test_capture_execution_time_outside_campaign_is_rejected(self):
+        with tempfile.TemporaryDirectory() as raw:
+            pp,cap,capture=self.fixture(Path(raw))
+            packet=json.loads(pp.read_text())
+            capture["executedAt"]=packet["campaignExpiresAt"]
+            cap.write_text(json.dumps(capture))
+            # Exactly-at-expiry is structurally bound but finalization must reject
+            # executions that are no longer inside an active campaign window.
+            expired=core.parse_utc_timestamp(packet["campaignExpiresAt"],"TEST_EXPIRES")+core.timedelta(seconds=1)
+            capture["executedAt"]=core.utc_timestamp(expired); cap.write_text(json.dumps(capture))
+            with self.assertRaisesRegex(RuntimeError,"EXECUTION_TIME_INVALID"):
+                mod.finalize(pp,cap)
 
     def test_capture_symlink_is_rejected(self):
         with tempfile.TemporaryDirectory() as raw:
