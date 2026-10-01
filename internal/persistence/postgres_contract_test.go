@@ -104,6 +104,7 @@ func TestPostgresApplicationDesiredStateMutationsHonorDeploymentFence(t *testing
 	checks := map[string][]string{
 		"postgres_application_platform.go": {
 			"applicationDeploymentDesiredMutationBlockedTx",
+			"ValidateApplicationReleasePromotion(currentRelease,release)",
 			"ApplicationDeploymentOperationKind",
 			"ApplicationDeploymentTargetPrefix",
 			"last_failure_class='UNKNOWN'",
