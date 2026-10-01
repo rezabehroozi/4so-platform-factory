@@ -482,6 +482,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["ownerProofAuthority"], "AUTOPILOT_AGENT_OWNER_PROOF_V1")
             self.assertEqual(context["installerOwnerStageAuthority"], "AUTOPILOT_INSTALLER_OWNER_STAGE_V1")
             self.assertEqual(context["agentRepairBudgetAuthority"], "AUTOPILOT_AGENT_REPAIR_BUDGET_V1")
+            self.assertEqual(context["failurePathHintsAuthority"], "AUTOPILOT_FAILURE_PATH_HINTS_V1")
             self.assertEqual(context["defaultAgentRepairBudget"], 8)
             self.assertEqual(context["failureCapsuleMaxChars"], 3200)
             self.assertEqual(context["failureCapsule"], "ERROR owner mismatch token=[REDACTED]")
@@ -916,6 +917,23 @@ class AgentEntrypointContractTests(unittest.TestCase):
         self.assertEqual(context["authority"], "AUTOPILOT_AGENT_CONTEXT_V1")
         self.assertIn("make autopilot-agent", context["nextAction"])
         self.assertTrue(any("owner-scoped convergence" in rule for rule in context["continuationRules"]))
+
+    def test_failure_path_hints_are_bounded_existing_and_owner_scoped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "install.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            (root / "internal" / "hostdeployment").mkdir(parents=True)
+            (root / "internal" / "hostdeployment" / "deploy.go").write_text("package hostdeployment\n", encoding="utf-8")
+            (root / "internal" / "persistence").mkdir(parents=True)
+            (root / "internal" / "persistence" / "postgres.go").write_text("package persistence\n", encoding="utf-8")
+            stage = AUTOPILOT.Stage("installer-host-smoke", ("python3", "scripts/smoke_installer_host.py"), 30)
+            hints = AUTOPILOT._failure_path_hints(
+                root,
+                stage,
+                "install.sh:12 failed\ninternal/hostdeployment/deploy.go:44 mismatch\ninternal/persistence/postgres.go:8 unrelated\nmissing/file.go:9 absent",
+            )
+        self.assertEqual(hints, ["install.sh", "internal/hostdeployment/deploy.go"])
+        self.assertEqual(AUTOPILOT.FAILURE_PATH_HINTS_AUTHORITY, "AUTOPILOT_FAILURE_PATH_HINTS_V1")
 
     def test_owner_context_is_shared_by_prompt_scope_and_report(self):
         stage = AUTOPILOT.Stage("installer-host-smoke", ("python3", "scripts/smoke_installer_host.py"), 30)
