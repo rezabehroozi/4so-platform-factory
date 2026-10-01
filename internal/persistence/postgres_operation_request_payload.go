@@ -18,29 +18,46 @@ func scanOperationRequestPayload(row interface{ Scan(...any) error }) (controlpl
 }
 
 func (s *PostgresStore) CreateOperationAwaitingApprovalWithPayload(ctx context.Context, request controlplane.OperationRequest, key, actor, requestID, mediaType string, payload []byte) (controlplane.Operation, bool, error) {
+	result, replay, _, err := s.createOperationAwaitingApprovalWithPayload(ctx, request, key, actor, requestID, mediaType, payload, false)
+	return result, replay, err
+}
+
+func (s *PostgresStore) CreateExclusiveOperationAwaitingApprovalWithPayload(ctx context.Context, request controlplane.OperationRequest, key, actor, requestID, mediaType string, payload []byte) (controlplane.Operation, bool, *controlplane.Operation, error) {
+	return s.createOperationAwaitingApprovalWithPayload(ctx, request, key, actor, requestID, mediaType, payload, true)
+}
+
+func (s *PostgresStore) createOperationAwaitingApprovalWithPayload(ctx context.Context, request controlplane.OperationRequest, key, actor, requestID, mediaType string, payload []byte, exclusiveTarget bool) (controlplane.Operation, bool, *controlplane.Operation, error) {
 	key = strings.TrimSpace(key)
 	actor = strings.TrimSpace(actor)
 	mediaType = strings.TrimSpace(mediaType)
 	if key == "" || len(key) > 200 || actor == "" || mediaType == "" || len(mediaType) > 160 || len(payload) == 0 || len(payload) > 1024*1024 {
-		return controlplane.Operation{}, false, fmt.Errorf("%w: bounded idempotency key, actor, media type and payload are required", controlplane.ErrValidation)
+		return controlplane.Operation{}, false, nil, fmt.Errorf("%w: bounded idempotency key, actor, media type and payload are required", controlplane.ErrValidation)
 	}
 	if request.Risk != "low" && request.Risk != "medium" && request.Risk != "high" && request.Risk != "critical" {
-		return controlplane.Operation{}, false, fmt.Errorf("%w: invalid operation risk", controlplane.ErrValidation)
+		return controlplane.Operation{}, false, nil, fmt.Errorf("%w: invalid operation risk", controlplane.ErrValidation)
 	}
 	class, classErr := controlplane.NormalizeOperationClass(request.Class)
 	if classErr != nil {
-		return controlplane.Operation{}, false, classErr
+		return controlplane.Operation{}, false, nil, classErr
 	}
 	request.Class = class
 	if request.ProjectID == "" || request.Kind == "" || request.TargetRef == "" || request.DesiredRevision == "" {
-		return controlplane.Operation{}, false, fmt.Errorf("%w: projectId, kind, targetRef and desiredRevision are required", controlplane.ErrValidation)
+		return controlplane.Operation{}, false, nil, fmt.Errorf("%w: projectId, kind, targetRef and desiredRevision are required", controlplane.ErrValidation)
 	}
 	requestDigest := operationDigest(request)
 	payloadDigest := controlplane.OperationRequestPayloadDigest(payload)
 	var result controlplane.Operation
+	var blocker *controlplane.Operation
 	var replay bool
 	err := s.serializable(ctx, func(tx *sql.Tx) error {
 		replay = false
+		blocker = nil
+		if exclusiveTarget {
+			lockKey := request.ProjectID + "\x00" + request.Kind + "\x00" + request.TargetRef
+			if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, lockKey); err != nil {
+				return err
+			}
+		}
 		existing, err := scanOperation(tx.QueryRowContext(ctx, `SELECT `+operationColumns+` FROM operations WHERE project_id=$1 AND idempotency_key=$2 FOR UPDATE`, request.ProjectID, key))
 		if err == nil {
 			if existing.RequestDigest != requestDigest {
@@ -59,10 +76,32 @@ func (s *PostgresStore) CreateOperationAwaitingApprovalWithPayload(ctx context.C
 		if !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
+		if exclusiveTarget {
+			candidate, blockerErr := scanOperation(tx.QueryRowContext(ctx, `
+				SELECT `+operationColumns+`
+				FROM operations
+				WHERE project_id=$1 AND kind=$2 AND target_ref=$3
+				  AND (
+				    state NOT IN ('SUCCEEDED','ROLLED_BACK','CANCELLED','FAILED')
+				    OR (state='FAILED' AND last_failure_class='UNKNOWN')
+				  )
+				ORDER BY created_at DESC,id DESC
+				LIMIT 1
+				FOR UPDATE
+			`, request.ProjectID, request.Kind, request.TargetRef))
+			if blockerErr == nil {
+				blocked := candidate
+				blocker = &blocked
+				return nil
+			}
+			if !errors.Is(blockerErr, sql.ErrNoRows) {
+				return blockerErr
+			}
+		}
 		now := utcNow(s.now)
 		result = controlplane.Operation{
 			ResourceMeta: controlplane.ResourceMeta{ID: s.id("op"), Revision: 3, CreatedAt: now, UpdatedAt: now},
-			ProjectID:    request.ProjectID, Kind: request.Kind, TargetRef: request.TargetRef, DesiredRevision: request.DesiredRevision,
+			ProjectID: request.ProjectID, Kind: request.Kind, TargetRef: request.TargetRef, DesiredRevision: request.DesiredRevision,
 			State: controlplane.OperationAwaitingApproval, Risk: request.Risk, Class: class,
 			RetryPolicy: controlplane.RetryPolicyForOperationClass(class), RecoveryCheckpointID: strings.TrimSpace(request.RecoveryCheckpointID),
 			IdempotencyKey: key, RequestDigest: requestDigest, ActorID: actor,
@@ -88,12 +127,12 @@ func (s *PostgresStore) CreateOperationAwaitingApprovalWithPayload(ctx context.C
 		if err := s.appendAuditTx(ctx, tx, actor, "operation.approval_required", "operation", result.ID, 3, requestID, map[string]any{"state": controlplane.OperationAwaitingApproval}); err != nil {
 			return err
 		}
-		if err := s.appendAuditTx(ctx, tx, actor, "operation.request_payload.sealed", "operation", result.ID, 3, requestID, map[string]any{"authority": controlplane.OperationRequestPayloadAuthority, "payloadDigest": payloadDigest, "mediaType": mediaType}); err != nil {
+		if err := s.appendAuditTx(ctx, tx, actor, "operation.request_payload.sealed", "operation", result.ID, 3, requestID, map[string]any{"authority": controlplane.OperationRequestPayloadAuthority, "payloadDigest": payloadDigest, "mediaType": mediaType, "exclusiveTarget": exclusiveTarget}); err != nil {
 			return err
 		}
 		return s.appendOutboxTx(ctx, tx, "operation", result.ID, "operation.approval_required", result)
 	})
-	return result, replay, err
+	return result, replay, blocker, err
 }
 
 func (s *PostgresStore) CreateOperationQueuedWithPayload(ctx context.Context, request controlplane.OperationRequest, key, actor, requestID, mediaType string, payload []byte) (controlplane.Operation, bool, error) {
