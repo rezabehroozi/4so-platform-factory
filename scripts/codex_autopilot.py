@@ -1047,6 +1047,7 @@ def _agent_context(root: Path) -> dict:
         "agentRepairBudgetAuthority": AGENT_REPAIR_BUDGET_AUTHORITY,
         "failurePathHintsAuthority": FAILURE_PATH_HINTS_AUTHORITY,
         "failurePathHints": failure_path_hints,
+        "externalOwnerFixAdoptionAuthority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
         "promptBudgetChars": report.get("promptBudgetChars") if isinstance(report.get("promptBudgetChars"), dict) else {
@@ -1171,6 +1172,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "promptBudgetAuthority": PROMPT_BUDGET_AUTHORITY,
         "agentRepairBudgetAuthority": AGENT_REPAIR_BUDGET_AUTHORITY,
         "failurePathHintsAuthority": FAILURE_PATH_HINTS_AUTHORITY,
+        "externalOwnerFixAdoptionAuthority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
         "defaultRepairBudget": DEFAULT_REPAIR_BUDGET,
         "defaultAgentRepairBudget": DEFAULT_AGENT_REPAIR_BUDGET,
         "promptBudgetChars": {
@@ -1580,10 +1582,10 @@ def _decode_seen_failures(state: dict) -> dict[tuple[str, str], int]:
     return result
 
 
-def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repairs: int, codex_timeout: int, enforce_supply_chain: bool = True, emit_ready_result: bool = True) -> int:
+def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repairs: int, codex_timeout: int, enforce_supply_chain: bool = True, emit_ready_result: bool = True, allow_owner_fix_adoption: bool = False) -> int:
     results: list[StageResult] = []
     graph_signature = _stage_graph_signature(stages, repair=repair)
-    state = _load_checkpoint(root, graph_signature=graph_signature, repair=repair)
+    state = _load_checkpoint(root, graph_signature=graph_signature, repair=repair, allow_owner_fix_adoption=allow_owner_fix_adoption, stages=stages)
     if state and state.pop("_activeProcessLive", False):
         active = state.get("activeProcess") or {}
         print(
@@ -1729,7 +1731,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
             phase = "done"
 
     if phase == "convergence":
-        convergence_state = _load_checkpoint(root, graph_signature=graph_signature, repair=repair) or {}
+        convergence_state = _load_checkpoint(root, graph_signature=graph_signature, repair=repair, allow_owner_fix_adoption=allow_owner_fix_adoption, stages=stages) or {}
         configured_names = convergence_state.get("convergenceStages")
         if isinstance(configured_names, list) and configured_names:
             by_name = {stage.name: stage for stage in stages}
@@ -2173,7 +2175,7 @@ def _feature_freeze_closed(readiness: dict) -> bool:
     return False
 
 
-def run_autopilot(root: Path, *, repair: bool, max_repairs: int, codex_timeout: int, start_stage: str | None = None, stop_stage: str | None = None, real_test: bool = False, real_test_timeout: int = 7200, release_ready: bool = False) -> int:
+def run_autopilot(root: Path, *, repair: bool, max_repairs: int, codex_timeout: int, start_stage: str | None = None, stop_stage: str | None = None, real_test: bool = False, real_test_timeout: int = 7200, release_ready: bool = False, adopt_owner_fix: bool = False) -> int:
     lock = _AutopilotRunLock(root)
     try:
         lock.acquire()
@@ -2191,6 +2193,7 @@ def run_autopilot(root: Path, *, repair: bool, max_repairs: int, codex_timeout: 
             real_test=real_test,
             real_test_timeout=real_test_timeout,
             release_ready=release_ready,
+            adopt_owner_fix=adopt_owner_fix,
         )
     finally:
         lock.release()
@@ -2211,7 +2214,7 @@ def _select_stages(root: Path, start_stage: str | None, stop_stage: str | None) 
     return stages
 
 
-def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_timeout: int, start_stage: str | None = None, stop_stage: str | None = None, real_test: bool = False, real_test_timeout: int = 7200, release_ready: bool = False) -> int:
+def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_timeout: int, start_stage: str | None = None, stop_stage: str | None = None, real_test: bool = False, real_test_timeout: int = 7200, release_ready: bool = False, adopt_owner_fix: bool = False) -> int:
     stages = _select_stages(root, start_stage, stop_stage)
 
     # Preflight only what the selected stage slice actually executes. Full runs
@@ -2251,7 +2254,7 @@ def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_t
     # Local correctness and external supply-chain closure are distinct states.
     # Codex repair owns deterministic repository defects; unresolved third-party
     # acquisition must not turn a clean codebase into a fake CODE_DEFECT result.
-    rc = _execute_stages(root, stages, repair=repair, max_repairs=max_repairs, codex_timeout=codex_timeout, enforce_supply_chain=False, emit_ready_result=False)
+    rc = _execute_stages(root, stages, repair=repair, max_repairs=max_repairs, codex_timeout=codex_timeout, enforce_supply_chain=False, emit_ready_result=False, allow_owner_fix_adoption=adopt_owner_fix)
     if rc != 0:
         return rc
 
@@ -2530,6 +2533,7 @@ def main() -> int:
     ap.add_argument("--event-summary", action="store_true", help="print the latest structured autopilot event-log summary and exit")
     ap.add_argument("--agent-context", action="store_true", help="print a compact continuation capsule for the next coding/test agent and exit")
     ap.add_argument("--agent-run", action="store_true", help="single-entry agent mode: durable resume/checkpoint + bounded owner repair with compact failure context")
+    ap.add_argument("--adopt-owner-fix", action="store_true", help="resume after an external CODE_DEFECT fix only when Git HEAD is unchanged and every changed path remains inside the failing owner scope")
     ap.add_argument("--preflight", action="store_true", help="check deterministic test/repair host prerequisites without running the suite")
     ap.add_argument("--repair", action="store_true", help="invoke Codex on deterministic failures")
     ap.add_argument("--max-repairs", type=int, default=None, help="bounded campaign repair budget; defaults to 8 in --agent-run and 3 otherwise")
@@ -2544,6 +2548,7 @@ def main() -> int:
         if args.self_test or args.event_summary or args.agent_context or args.preflight:
             raise SystemExit("--agent-run cannot be combined with reporting/self-test/preflight-only modes")
         args.repair = True
+        args.adopt_owner_fix = True
     if args.max_repairs is None:
         args.max_repairs = DEFAULT_AGENT_REPAIR_BUDGET if args.agent_run else DEFAULT_REPAIR_BUDGET
     if args.agent_run:
@@ -2570,7 +2575,7 @@ def main() -> int:
         raise SystemExit("--max-repairs must be between 0 and 10")
     if args.real_test_timeout < 300 or args.real_test_timeout > 86400:
         raise SystemExit("--real-test-timeout must be between 300 and 86400 seconds")
-    return run_autopilot(ROOT, repair=args.repair, max_repairs=args.max_repairs, codex_timeout=args.codex_timeout, start_stage=args.start_stage, stop_stage=args.stop_stage, real_test=args.real_test, real_test_timeout=args.real_test_timeout, release_ready=args.release_ready)
+    return run_autopilot(ROOT, repair=args.repair, max_repairs=args.max_repairs, codex_timeout=args.codex_timeout, start_stage=args.start_stage, stop_stage=args.stop_stage, real_test=args.real_test, real_test_timeout=args.real_test_timeout, release_ready=args.release_ready, adopt_owner_fix=args.adopt_owner_fix)
 
 
 if __name__ == "__main__":
