@@ -514,6 +514,31 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
         failures.append(f"console:persistent-localized-validation:{validation}")
     context.close()
 
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
+    availability = page.evaluate("""() => {
+      const active=document.querySelector('.page.active');
+      const probe=document.createElement('button');
+      probe.type='button';probe.disabled=true;probe.dataset.accessDisabled='true';probe.dataset.accessReason='Read-only session';
+      probe.hidden=true;active.append(probe);
+      const read=()=>({
+        dir:document.documentElement.dir,
+        text:String(document.querySelector('#page-action-availability')?.textContent||'').replace(/\s+/g,' ').trim()
+      });
+      state.locale='en';applyLocale();const en=read();
+      state.locale='fa';applyLocale();const fa=read();
+      state.locale='en';applyLocale();const enAgain=read();
+      probe.remove();renderActionAvailability();
+      return {en,fa,enAgain};
+    }""")
+    if availability.get("en",{}).get("dir") != "ltr" or "Some actions are unavailable in the current context" not in availability.get("en",{}).get("text","") or "Read-only session" not in availability.get("en",{}).get("text",""):
+        failures.append(f"console:action-availability-localization-en:{availability}")
+    if availability.get("fa",{}).get("dir") != "rtl" or "برخی اقدام‌ها در وضعیت فعلی در دسترس نیستند" not in availability.get("fa",{}).get("text","") or "نشست فقط‌خواندنی است" not in availability.get("fa",{}).get("text",""):
+        failures.append(f"console:action-availability-localization-fa:{availability}")
+    if availability.get("enAgain") != availability.get("en"):
+        failures.append(f"console:action-availability-localization-roundtrip:{availability}")
+    context.close()
+
     # Explicit console theme preference must override the opposite OS preference.
     # This prevents system-dark selectors from contaminating an explicit light
     # preference (and vice versa).
