@@ -25,7 +25,7 @@ smoke_ui = importlib.util.module_from_spec(SMOKE_SPEC)
 SMOKE_SPEC.loader.exec_module(smoke_ui)
 
 CONSOLE_PAGES = [
-    "overview", "workspace", "installation", "clusters", "providers", "blueprints", "templates", "applications", "marketplace", "baselines",
+    "overview", "workspace", "installation", "clusters", "providers", "blueprints", "templates", "applications", "dapr", "marketplace", "baselines",
     "verification", "edge", "fleet", "workspaces", "finops", "tenants", "operations", "ai", "notifications", "services",
     "catalog", "lab", "validator",
 ]
@@ -118,6 +118,19 @@ def static_quality_failures(root: Path) -> list[str]:
     )
     for rel, expected_routes in route_contracts:
         html = (root / rel).read_text(encoding="utf-8")
+        if rel == "webconsole/static/index.html":
+            app_start = html.find('id="applications"')
+            dapr_start = html.find('id="dapr"')
+            blueprint_start = html.find('id="blueprints"')
+            if min(app_start, dapr_start, blueprint_start) < 0 or not (app_start < dapr_start < blueprint_start):
+                failures.append(f"{rel}:application-dapr-route-order-drift")
+            else:
+                application_slice = html[app_start:dapr_start]
+                dapr_slice = html[dapr_start:blueprint_start]
+                if 'id="dapr-runtime-workflow"' in application_slice:
+                    failures.append(f"{rel}:dapr-workflow-leaked-into-application-delivery")
+                if 'data-viewer-safe="true" id="dapr-assessment-form"' not in dapr_slice or 'data-viewer-safe="true" id="dapr-workload-form"' not in dapr_slice:
+                    failures.append(f"{rel}:dapr-readonly-workflows-not-viewer-safe")
         rendered_routes = []
         for tag in re.findall(r"<section\\b[^>]*>", html, flags=re.I):
             class_match = re.search(r'\\bclass="([^"]*)"', tag, flags=re.I)
