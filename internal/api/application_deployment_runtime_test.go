@@ -238,6 +238,20 @@ func TestApplicationDeploymentDurableAuthorityProducesDeliveryEvidence(t *testin
 	}
 
 	w = applicationDeploymentPrincipalRequest(t, srv, http.MethodPost,
+		"/api/v1/application-platform/environment-bindings/"+binding.ID+"/promote",
+		fmt.Sprintf(`{"releaseId":%q}`, release.ID), "requester", []string{"platform-operator"},
+		map[string]string{"If-Match": fmt.Sprintf("%q", binding.Revision)})
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "ENVIRONMENT_BINDING_DEPLOYMENT_PENDING") {
+		t.Fatalf("environment binding promotion escaped ambiguous deployment fence: %d %s", w.Code, w.Body.String())
+	}
+	w = applicationDeploymentPrincipalRequest(t, srv, http.MethodPost,
+		"/api/v1/workspaces/"+workspace.ID+"/bindings/"+workspaceBinding.ID+"/revoke",
+		fmt.Sprintf(`{"expectedRevision":%d}`, workspaceBinding.Revision), "requester", []string{"platform-operator"}, nil)
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "WORKSPACE_BINDING_APPLICATION_DEPLOYMENT_PENDING") {
+		t.Fatalf("WorkspaceBinding revoke escaped ambiguous deployment fence: %d %s", w.Code, w.Body.String())
+	}
+
+	w = applicationDeploymentPrincipalRequest(t, srv, http.MethodPost,
 		"/api/v1/application-platform/environment-bindings/"+binding.ID+"/deployments",
 		runtimeBody, "requester", []string{"platform-operator"},
 		map[string]string{"Idempotency-Key": "application-deploy-blocked-while-unknown"})
@@ -297,5 +311,39 @@ func TestApplicationDeploymentDurableAuthorityProducesDeliveryEvidence(t *testin
 		map[string]string{"Idempotency-Key": "application-deploy-after-recovery"})
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("recovered deployment continued to fence a new explicit request: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestApplicationDeploymentStateBlocksInFlightAndUnknownOnly(t *testing.T) {
+	for _, state := range []controlplane.OperationState{
+		controlplane.OperationDraft,
+		controlplane.OperationPlanning,
+		controlplane.OperationAwaitingApproval,
+		controlplane.OperationApproved,
+		controlplane.OperationQueued,
+		controlplane.OperationRunning,
+		controlplane.OperationRetryWait,
+		controlplane.OperationCancelRequested,
+		controlplane.OperationVerifying,
+		controlplane.OperationRollingBack,
+		controlplane.OperationNeedsOperator,
+		controlplane.OperationRollbackFailed,
+	} {
+		if !applicationDeploymentStateBlocksNewMutation(controlplane.Operation{State: state}) {
+			t.Fatalf("application deployment state %s did not fence a sibling mutation", state)
+		}
+	}
+	if !applicationDeploymentStateBlocksNewMutation(controlplane.Operation{State: controlplane.OperationFailed, LastFailureClass: controlplane.OperationFailureUnknown}) {
+		t.Fatal("FAILED/UNKNOWN application deployment did not fence a sibling mutation")
+	}
+	for _, op := range []controlplane.Operation{
+		{State: controlplane.OperationSucceeded},
+		{State: controlplane.OperationCancelled},
+		{State: controlplane.OperationRolledBack},
+		{State: controlplane.OperationFailed, LastFailureClass: controlplane.OperationFailurePermanent},
+	} {
+		if applicationDeploymentStateBlocksNewMutation(op) {
+			t.Fatalf("terminal application deployment unexpectedly fenced a new mutation: %#v", op)
+		}
 	}
 }
