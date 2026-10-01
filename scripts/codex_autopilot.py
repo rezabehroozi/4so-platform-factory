@@ -423,6 +423,7 @@ AGENT_CONTEXT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_V1"
 AGENT_FAILURE_CAPSULE_AUTHORITY = "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2"
 INSTALLER_OWNER_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_STAGE_V1"
 AGENT_OWNER_PROOF_AUTHORITY = "AUTOPILOT_AGENT_OWNER_PROOF_V1"
+ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY = "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1"
 AGENT_FAILURE_CAPSULE_MAX_CHARS = 3200
 
 _FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
@@ -498,13 +499,22 @@ def environment_preflight(*, require_codex: bool, stages: list[Stage] | None = N
             candidate = Path(executable).expanduser()
             executable_path = str(candidate) if candidate.is_file() and os.access(candidate, os.X_OK) else None
         if executable_path:
-            details["codex-command"] = shlex.join(codex)
+            details["codex-command-source"] = "override" if os.environ.get("PLATFORM_FACTORY_CODEX_COMMAND") else "default"
+            details["codex-command-argv-count"] = str(len(codex))
             details["codex-executable"] = executable_path
         elif require_codex:
             missing.append("codex-command-executable")
     elif require_codex:
         missing.append("codex-cli-or-PLATFORM_FACTORY_CODEX_COMMAND")
     return missing, details
+
+def _environment_preflight_handoff(missing: list[str], stages: list[Stage] | None) -> dict:
+    requirements = sorted(_environment_requirements(stages))
+    normalized_missing = sorted({str(item) for item in missing if str(item).strip()})
+    payload = {"missing": normalized_missing, "requirements": requirements}
+    fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return {**payload, "fingerprint": fingerprint}
+
 
 def print_environment_preflight(*, require_codex: bool, stages: list[Stage] | None = None) -> int:
     missing, details = environment_preflight(require_codex=require_codex, stages=stages)
@@ -953,6 +963,7 @@ def _agent_context(root: Path) -> dict:
         "proofCommand": report.get("currentCommand") if isinstance(report.get("currentCommand"), list) else [],
         "proofTimeoutSeconds": int(report.get("currentTimeoutSeconds") or 0),
         "resumeInvocation": resume_invocation,
+        "environmentPreflight": report.get("environmentPreflight") if isinstance(report.get("environmentPreflight"), dict) else {},
         "sourceContext": {
             "agentInstructions": "AGENTS.md",
             "derivedKnowledge": "DERIVED-AGENT-KNOWLEDGE.json",
@@ -966,7 +977,9 @@ def _agent_context(root: Path) -> dict:
             "never convert source/local success into Runtime/Lab/Exact-SHA Physical PASS",
         ],
     }
-    if status in {"ENVIRONMENT_BLOCKED", "CODE_DEFECT", "FAIL", "TIMEOUT"}:
+    if status == "ENVIRONMENT_BLOCKED" and context["environmentPreflight"]:
+        context["nextAction"] = "install/fix only the missing environment prerequisites, then rerun resumeInvocation; do not edit product source for an environment blocker"
+    elif status in {"ENVIRONMENT_BLOCKED", "CODE_DEFECT", "FAIL", "TIMEOUT"}:
         context["nextAction"] = "inspect lastFailure and rerun the recorded invocation after fixing only the owning cause"
     elif status in {"RUNNING", "REPAIRING"} and context["resumeEligible"]:
         context["nextAction"] = "rerun resumeInvocation; the durable checkpoint will rejoin/resume the exact graph cursor"
@@ -1030,7 +1043,7 @@ def _autopilot_invocation() -> list[str]:
     return [str(Path(sys.executable).resolve()), *sys.argv]
 
 
-def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature: str, repair: bool, phase: str, next_index: int, repair_count: int, status: str, current_stage: str | None, stage_results: list[dict], last_failure: dict | None = None, run_id: str | None = None) -> None:
+def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature: str, repair: bool, phase: str, next_index: int, repair_count: int, status: str, current_stage: str | None, stage_results: list[dict], last_failure: dict | None = None, run_id: str | None = None, environment_preflight: dict | None = None) -> None:
     stage = next((item for item in stages if item.name == current_stage), None)
     resolved_run_id = str(run_id or "").strip()
     if not resolved_run_id:
@@ -1054,6 +1067,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "workspaceFingerprintAuthority": WORKSPACE_FINGERPRINT_AUTHORITY,
         "installerOwnerStageAuthority": INSTALLER_OWNER_STAGE_AUTHORITY,
         "agentOwnerProofAuthority": AGENT_OWNER_PROOF_AUTHORITY,
+        "environmentPreflightHandoffAuthority": ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY,
         "derived": True,
         "notProductAuthority": True,
         "runId": resolved_run_id,
@@ -1082,6 +1096,13 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
     }
     if last_failure:
         body["lastFailure"] = {key: last_failure.get(key) for key in ("stage", "specialist", "status", "fingerprint", "reason") if last_failure.get(key) not in (None, "")}
+    if isinstance(environment_preflight, dict):
+        body["environmentPreflight"] = {
+            "authority": ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY,
+            "missing": sorted({str(item) for item in environment_preflight.get("missing", []) if str(item).strip()}),
+            "requirements": sorted({str(item) for item in environment_preflight.get("requirements", []) if str(item).strip()}),
+            "fingerprint": str(environment_preflight.get("fingerprint") or ""),
+        }
     _write_state_raw(_report_path(root), body)
 
 
@@ -1996,8 +2017,35 @@ def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_t
     # preserve the strict all-toolchain contract, while scoped resumes avoid
     # unrelated browser/build prerequisites. Repair still requires Codex.
     selected_for_preflight = None if start_stage is None and stop_stage is None else stages
-    if print_environment_preflight(require_codex=repair, stages=selected_for_preflight) != 0:
+    missing, preflight_details = environment_preflight(require_codex=repair, stages=selected_for_preflight)
+    print("AUTOPILOT_PREFLIGHT_DETAILS=" + json.dumps(preflight_details, sort_keys=True), flush=True)
+    if missing:
+        handoff = _environment_preflight_handoff(missing, selected_for_preflight)
+        print("AUTOPILOT_PREFLIGHT=BLOCKED missing=" + ",".join(handoff["missing"]), flush=True)
+        graph_signature = _stage_graph_signature(stages, repair=repair)
+        _write_autopilot_report(
+            root,
+            stages=stages,
+            graph_signature=graph_signature,
+            repair=repair,
+            phase="preflight",
+            next_index=0,
+            repair_count=0,
+            status="ENVIRONMENT_BLOCKED",
+            current_stage=None,
+            stage_results=[],
+            last_failure={
+                "stage": "environment-preflight",
+                "specialist": "environment",
+                "status": "BLOCKED",
+                "fingerprint": handoff["fingerprint"],
+                "reason": "MISSING_PREREQUISITES:" + ",".join(handoff["missing"]),
+            },
+            environment_preflight=handoff,
+        )
+        print("AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED reason=ENVIRONMENT_PREFLIGHT fingerprint=" + handoff["fingerprint"], flush=True)
         return 3
+    print("AUTOPILOT_PREFLIGHT=PASS requireCodex=" + str(repair).lower(), flush=True)
 
     # Local correctness and external supply-chain closure are distinct states.
     # Codex repair owns deterministic repository defects; unresolved third-party
