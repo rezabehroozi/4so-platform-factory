@@ -184,7 +184,9 @@ Stage("go-vet-1", ("python3", "scripts/run_go_package_shard.py", "--vet", "--sha
         Stage("smoke-1", ("python3", "scripts/run_smoke_shard.py", "--shard", "1"), 900),
         Stage("smoke-2", ("python3", "scripts/run_smoke_shard.py", "--shard", "2"), 900),
         Stage("smoke-3", ("python3", "scripts/run_smoke_shard.py", "--shard", "3"), 900),
-        Stage("smoke-4", ("python3", "scripts/run_smoke_shard.py", "--shard", "4"), 900),
+        Stage("installer-core-smoke", ("python3", "scripts/smoke_installer.py", "./bin/platform-installer", "./bin/platformctl"), 900),
+        Stage("installer-host-smoke", ("python3", "scripts/smoke_installer_host.py", "./bin/platformctl", "./bin/platform-installer"), 900),
+        Stage("installer-remote-smoke", ("python3", "scripts/smoke_installer_remote.py", "./bin/platformctl", "./bin/platform-installer"), 900),
         Stage("binary-version", ("python3", "-c", _version_check_program(version)), 120),
         Stage("smoke-ui-rendered", ("python3", "scripts/smoke_ui.py", "."), 900),
         Stage("smoke-ui-quality", ("python3", "scripts/smoke_ui_quality.py"), 900),
@@ -329,7 +331,7 @@ def _select_convergence_stages(stages: list[Stage], repaired_stage_names: set[st
         if specialist == "operator-console":
             wanted.update({"build-for-smoke", "smoke-ui-rendered", "smoke-ui-quality", "persian-ui-lint", "smoke-ui-live", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
         elif specialist == "installer-runtime":
-            wanted.update({"build-for-smoke", "smoke-4", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
+            wanted.update({"build-for-smoke", "installer-core-smoke", "installer-host-smoke", "installer-remote-smoke", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
         elif specialist == "developer-agent-experience":
             wanted.update({"python-tests", "derived-agent-knowledge", "browser-triage-profile", "browser-triage-prerequisites-policy"})
         elif specialist == "lab-certification":
@@ -337,10 +339,10 @@ def _select_convergence_stages(stages: list[Stage], repaired_stage_names: set[st
         elif specialist == "supply-chain-release":
             wanted.update({"upstream-acquisition-self-test", "build-release", "package", "artifact-quick-verify"})
         elif specialist == "product-runtime":
-            wanted.update({"build-for-smoke", "smoke-1", "smoke-2", "smoke-3", "smoke-4", "binary-version", "smoke-ui-live", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
+            wanted.update({"build-for-smoke", "smoke-1", "smoke-2", "smoke-3", "installer-core-smoke", "installer-host-smoke", "installer-remote-smoke", "binary-version", "smoke-ui-live", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
         elif specialist == "backend-correctness":
             wanted.update({stage.name for stage in stages if stage.name.startswith(("go-unit-", "go-vet-", "go-race-"))})
-            wanted.update({"python-tests", "build-for-smoke", "smoke-1", "smoke-2", "smoke-3", "smoke-4", "binary-version", "build-release", "package", "artifact-quick-verify"})
+            wanted.update({"python-tests", "build-for-smoke", "smoke-1", "smoke-2", "smoke-3", "installer-core-smoke", "installer-host-smoke", "installer-remote-smoke", "binary-version", "build-release", "package", "artifact-quick-verify"})
         else:
             return list(stages)
     selected = [stage for stage in stages if stage.name in wanted]
@@ -910,6 +912,16 @@ def _agent_context(root: Path) -> dict:
     last_failure = report.get("lastFailure") if isinstance(report.get("lastFailure"), dict) else events.get("lastFailure", {})
     status = str(report.get("status") or events.get("status") or "IDLE")
     resume_invocation = report.get("invocation") if isinstance(report.get("invocation"), list) else []
+    checkpoint_state: dict = {}
+    checkpoint = _checkpoint_path(root)
+    if checkpoint.is_file() and not checkpoint.is_symlink():
+        try:
+            loaded_checkpoint = json.loads(checkpoint.read_text(encoding="utf-8"))
+            if isinstance(loaded_checkpoint, dict):
+                checkpoint_state = loaded_checkpoint
+        except (OSError, json.JSONDecodeError):
+            checkpoint_state = {}
+    failure_capsule = str(checkpoint_state.get("lastFailureCapsule") or "")[:3200]
     context = {
         "schemaVersion": 1,
         "authority": "AUTOPILOT_AGENT_CONTEXT_V1",
@@ -929,6 +941,7 @@ def _agent_context(root: Path) -> dict:
             for key in ("stage", "specialist", "status", "fingerprint", "reason")
             if isinstance(last_failure, dict) and last_failure.get(key) not in (None, "")
         },
+        "failureCapsule": failure_capsule,
         "resumeInvocation": resume_invocation,
         "sourceContext": {
             "agentInstructions": "AGENTS.md",
@@ -1296,6 +1309,18 @@ def _checkpoint_forward(root: Path, *, graph_signature: str, repair: bool, next_
     })
 
 
+def _record_failure_capsule(root: Path, result: StageResult) -> None:
+    path = _checkpoint_path(root)
+    if not path.is_file():
+        return
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    state["lastFailureCapsule"] = _failure_capsule(result.output_tail, max_lines=24, max_chars=3200)
+    _write_state_raw(path, state)
+
+
 def _checkpoint_convergence(root: Path, *, graph_signature: str, repair: bool, next_index: int, repair_count: int, seen_failures: dict[tuple[str, str], int], convergence_stages: list[Stage] | None = None, run_id: str | None = None) -> None:
     _write_checkpoint(root, {
         "graphSignature": graph_signature,
@@ -1384,6 +1409,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 key = (stage.name, result.fingerprint)
                 seen_failures[key] = seen_failures.get(key, 0) + 1
                 _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, full_convergence_required=full_convergence_required, run_id=run_id)
+                _record_failure_capsule(root, result)
                 if result.status == "TIMEOUT" and not repair:
                     print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason=TIMEOUT_UNTRIAGED fingerprint={result.fingerprint}", flush=True)
                     return terminal(3, "ENVIRONMENT_BLOCKED", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "TIMEOUT_UNTRIAGED"})
