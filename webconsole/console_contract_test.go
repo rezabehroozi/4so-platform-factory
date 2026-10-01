@@ -223,7 +223,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("Workspace truthful-console runtime contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{`data-page="templates"`, `id="templates"`, `data-page="applications"`, `id="applications"`, `TARGET PREVIEW REQUIRED`, `No direct deploy from a template.`} {
+	for _, contract := range []string{`data-page="templates"`, `id="templates"`, `data-page="applications"`, `id="applications"`, `data-page="dapr"`, `id="dapr"`, `TARGET PREVIEW REQUIRED`, `No direct deploy from a template.`} {
 		if !strings.Contains(html, contract) {
 			t.Fatalf("PlatformTemplate truthful-console contract missing %q", contract)
 		}
@@ -238,7 +238,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("J8 application composition console contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{`id="dapr-workload-form"`, `id="dapr-workload-trait"`, `id="dapr-workload-image"`, `id="dapr-workload-admit"`, `id="dapr-workload-refresh"`, "Dapr workload policy &amp; admission", "durable READ_ONLY verification job"} {
+	for _, contract := range []string{`id="dapr-runtime-workflow"`, `data-viewer-safe="true" id="dapr-assessment-form"`, `data-viewer-safe="true" id="dapr-workload-form"`, `id="dapr-lifecycle-form"`, `id="dapr-workload-trait"`, `id="dapr-workload-image"`, `id="dapr-workload-admit"`, `id="dapr-workload-refresh"`, "Dapr workload policy &amp; admission", "target-native Dapr is consumed rather than duplicated", "durable READ_ONLY verification job"} {
 		if !strings.Contains(html, contract) {
 			t.Fatalf("J8 Dapr workload admission console contract missing %q", contract)
 		}
@@ -248,7 +248,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("J8 application composition runtime contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{"daprWorkloadPlan", "daprWorkloadAdmission", "/api/v1/application-platform/dapr/workload-plan", "/api/v1/application-platform/dapr/workload-admissions", "configurationProjection", "componentScopeDigest", "Target admission requires an exact digest-pinned workload image", "Admission proves current policy/scopes and server-side injection only"} {
+	for _, contract := range []string{"loadDaprRuntimePage", "dapr:loadDaprRuntimePage", "daprWorkloadPlan", "daprWorkloadAdmission", "setScopedAccess($('#dapr-lifecycle-form')", "setScopedAccess($('#dapr-lifecycle-approve')", "/api/v1/application-platform/dapr/assessment", "/api/v1/application-platform/dapr/workload-plan", "/api/v1/application-platform/dapr/workload-admissions", "configurationProjection", "componentScopeDigest", "Target admission requires an exact digest-pinned workload image", "Admission proves current policy/scopes and server-side injection only"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("J8 Dapr workload admission runtime contract missing %q", contract)
 		}
