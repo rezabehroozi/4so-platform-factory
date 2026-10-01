@@ -54,8 +54,15 @@
 
       <section id="installation" class="page">
         <div class="section-intro"><div><h2>Installation request</h2><p>All values are explicit. Credentials are accepted only as secret references, except the dedicated SSH-key vault action.</p></div></div>
+        <nav class="installation-step-nav" id="installation-step-nav" aria-label="Installation request steps">
+          <button class="current" type="button" data-install-section-target="install-step-profile" aria-current="step"><span>01</span><b>Deployment profile</b></button>
+          <button type="button" data-install-section-target="install-step-infrastructure"><span>02</span><b>Infrastructure and access</b></button>
+          <button type="button" data-install-section-target="install-step-endpoint"><span>03</span><b>Endpoint and TLS</b></button>
+          <button type="button" data-install-section-target="install-step-services"><span>04</span><b>Platform services</b></button>
+          <button type="button" data-install-section-target="install-step-review"><span>05</span><b>Review and plan</b></button>
+        </nav>
         <form id="installation-form" novalidate>
-          <article class="panel">
+          <article class="panel install-step-panel" id="install-step-profile" tabindex="-1">
             <div class="panel-heading"><div><h2>1. Deployment profile</h2><p id="profile-help">Load the product-supported profiles after connecting.</p></div></div>
             <div class="form-grid three">
               <label><span>Profile</span><select id="profile" required><option value="">Connect to load profiles</option></select></label>
@@ -65,7 +72,7 @@
             <div id="profile-summary" class="inline-summary">No profile selected.</div>
           </article>
 
-          <article class="panel">
+          <article class="panel install-step-panel" id="install-step-infrastructure" tabindex="-1">
             <div class="panel-heading"><div><h2>2. Infrastructure and access</h2><p>The selected profile controls the required node count and HA topology.</p></div></div>
             <div class="form-grid three">
               <label id="nodes-field" class="span-2"><span>Management access nodes</span><textarea id="nodes" class="technical compact" placeholder="SSH/public IP or hostname, one per line" dir="ltr"></textarea><small>Use exactly three access addresses for Production Standard HA.</small></label>
@@ -81,7 +88,7 @@
             <div class="form-actions"><button id="open-ssh-key" type="button" class="secondary">Store SSH private key securely</button><button id="open-ssh-known-hosts" type="button" class="secondary">Pin HA host keys</button><button id="open-ssh-host-rotation" type="button" class="secondary">Rotate pinned host key</button></div><div id="ssh-trust-status" class="inline-summary">HA SSH trust has not been checked.</div>
           </article>
 
-          <article class="panel">
+          <article class="panel install-step-panel" id="install-step-endpoint" tabindex="-1">
             <div class="panel-heading"><div><h2>3. Endpoint and TLS</h2><p>The final product endpoint must use HTTPS.</p></div></div>
             <div class="form-grid three">
               <label><span>Public endpoint</span><input id="endpoint" type="url" class="technical" required placeholder="https://platform.company.tld" dir="ltr"></label>
@@ -91,12 +98,13 @@
             </div>
           </article>
 
-          <article class="panel">
+          <article class="panel install-step-panel" id="install-step-services" tabindex="-1">
             <div class="panel-heading"><div><h2>4. Platform services</h2><p>Managed services are the safe default. External modes expose only the fields required by the selected adapter.</p></div></div>
             <div id="service-editor" class="service-grid"></div>
           </article>
 
-          <article class="panel">
+          <article class="panel install-step-panel" id="install-step-review" tabindex="-1">
+            <div class="panel-heading"><div><h2>5. Review and plan</h2><p>Validate the full request, then review blockers, warnings, execution sequence and customer actions before host mutation becomes available.</p></div></div>
             <label class="check-row"><input id="accept-risk" type="checkbox"><span>I reviewed the generated warnings, blockers and rollback boundaries and accept the declared installation risk when required by the profile.</span></label>
             <div class="form-actions"><button id="create-plan" class="primary" type="submit">Validate and create plan</button><button id="clear-request" class="secondary" type="reset">Clear request</button></div>
           </article>
