@@ -981,6 +981,10 @@ html[data-theme="dark"] .operator-briefing::after,html[data-theme="dark"] .topba
 .application-delivery-journey button>span:last-child{display:grid;gap:2px;min-width:0}
 .application-delivery-journey strong{color:var(--text-strong);font-size:12.5px;overflow-wrap:anywhere}
 .application-delivery-journey small{color:var(--muted);font-size:10.5px;line-height:1.4;overflow-wrap:anywhere}
+.application-library-picker{margin-block-end:18px}
+.application-library-picker button[aria-current="true"]{border-color:var(--accent-border);background:var(--accent-soft)}
+.application-library-picker button[aria-current="true"]>span{background:var(--accent);color:#fff}
+.application-library-task[hidden]{display:none!important}
 .application-delivery-journey button[data-state="current"]{border-color:var(--accent-border);background:var(--accent-soft)}
 .application-delivery-journey button[data-state="current"] .workflow-step-index{background:var(--accent);color:#fff}
 .application-delivery-journey button[data-state="done"] .workflow-step-index{background:var(--success);color:#fff}
