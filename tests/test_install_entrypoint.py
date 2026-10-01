@@ -20,7 +20,9 @@ class GuidedInstallEntrypointTests(unittest.TestCase):
             timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("INSTALLER_MANUAL_ENTRYPOINT_V1", SCRIPT.read_text(encoding="utf-8"))
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("INSTALLER_MANUAL_ENTRYPOINT_V1", source)
+        self.assertIn("INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", source)
         self.assertIn("installer-manual", result.stdout)
         self.assertIn("--confirmation DEPLOY", result.stdout)
         self.assertIn("install.sh status", result.stdout)
@@ -41,6 +43,7 @@ class GuidedInstallEntrypointTests(unittest.TestCase):
         self.assertIn('exec "${PLATFORMCTL}" installer-manual', source)
         self.assertIn('bin/linux-amd64/platform-installer', source)
         self.assertIn('PLATFORM_FACTORY_RELEASE_ARTIFACT', source)
+        self.assertIn('PLATFORM_INSTALLER_BUNDLE_DIR', source)
         for forbidden in ("curl ", "wget ", "systemctl ", "apt-get ", "dnf ", "yum "):
             self.assertNotIn(forbidden, source)
         self.assertNotIn("PLATFORM_INSTALLER_ALLOW_EXECUTION=", source)
