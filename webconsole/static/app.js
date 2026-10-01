@@ -4414,33 +4414,54 @@ function applicationDeploymentRuntimeBody(){
 }
 function renderApplicationDeploymentPlan(){
   const host=$('#application-deployment-plan-result');if(!host)return;
-  const plan=state.applicationDeploymentPlan,run=state.applicationDeploymentRun;
+  const preview=state.applicationDeploymentPlan,run=state.applicationDeploymentRun;
+  const plan=preview||run?.request?.plan||null;
   const requestButton=$('#application-deployment-request'),refreshButton=$('#application-deployment-refresh'),approveButton=$('#application-deployment-approve'),operationField=$('#application-deployment-operation');
   const binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-deployment-binding')?.value);
   const op=run?.operation;
+  const ambiguous=op?.state==='NEEDS_OPERATOR'||(op?.state==='FAILED'&&op?.lastFailureClass==='UNKNOWN');
+  const active=!!op&&(['DRAFT','PLANNING','PLAN_FAILED','AWAITING_APPROVAL','APPROVED','QUEUED','RUNNING','RETRY_WAIT','CANCEL_REQUESTED','VERIFYING','ROLLING_BACK','ROLLBACK_FAILED','NEEDS_OPERATOR'].includes(op.state)||ambiguous);
   if(operationField)operationField.value=op?.id||'';
-  if(requestButton)requestButton.disabled=!plan||plan.environmentBindingId!==binding?.id;
+  if(requestButton)requestButton.disabled=!preview||preview.environmentBindingId!==binding?.id||active;
   if(refreshButton)refreshButton.disabled=!op?.id;
   if(approveButton)approveButton.disabled=!op?.id||op.state!=='AWAITING_APPROVAL';
   if(requestButton)setScopedAccess(requestButton,{projectId:binding?.projectId||''});
   if(approveButton)setScopedAccess(approveButton,{projectId:binding?.projectId||'',access:'admin'});
   if(!plan){
-    host.innerHTML='<div class="inline-summary">Select an artifact-bound environment binding and preview deterministic rendered resources. Nothing is applied to the target.</div>';
+    host.innerHTML='<div class="inline-summary">Select an artifact-bound environment binding and preview deterministic rendered resources. Existing durable deployment status is resumed automatically for the selected binding.</div>';
     return;
   }
   const resources=Array.isArray(plan.renderedResources)?plan.renderedResources:[];
-  let html=`<div class="inline-summary"><strong>Application deployment plan</strong> · ${badge(plan.authority||'APPLICATION_DEPLOYMENT_PLAN_V1')}<br><span>Target: <span class="technical">${esc(plan.clusterId||'—')} / ${esc(plan.namespace||'—')}</span> · ${esc(plan.environment||'—')}</span><br><span>Release: <span class="technical">${esc(shortDigest(plan.releaseDigest||''))}</span> · binding r${esc(plan.environmentBindingRevision||'—')} · WorkspaceBinding r${esc(plan.workspaceBindingRevision||'—')}</span><br><span>Artifact: <span class="technical">${esc(plan.workloadImageReference||'—')}</span></span><br><span>Runtime spec: <span class="technical">${esc(shortDigest(plan.runtimeSpecDigest||''))}</span> · rendered: <span class="technical">${esc(shortDigest(plan.renderedDigest||''))}</span></span><br><span>Resources: ${esc(resources.map(row=>`${row.kind||'Resource'}/${row.metadata?.name||'unnamed'}`).join(', ')||'none')}</span><br><small>Deterministic desired state only. runtimeMutationPerformed=${esc(plan.runtimeMutationPerformed===true)}; Physical certification remains independent.</small><details><summary>Rendered Kubernetes resources</summary><pre class="technical">${esc(JSON.stringify(resources,null,2))}</pre></details></div>`;
+  let html=`<div class="inline-summary"><strong>Application deployment plan</strong> · ${badge(plan.authority||'APPLICATION_DEPLOYMENT_PLAN_V1')}<br><span>Target: <span class="technical">${esc(plan.clusterId||'—')} / ${esc(plan.namespace||'—')}</span> · ${esc(plan.environment||'—')}</span><br><span>Release: <span class="technical">${esc(shortDigest(plan.releaseDigest||''))}</span> · binding r${esc(plan.environmentBindingRevision||'—')} · WorkspaceBinding r${esc(plan.workspaceBindingRevision||'—')}</span><br><span>Artifact: <span class="technical">${esc(plan.workloadImageReference||'—')}</span></span><br><span>Runtime spec: <span class="technical">${esc(shortDigest(plan.runtimeSpecDigest||''))}</span> · rendered: <span class="technical">${esc(shortDigest(plan.renderedDigest||''))}</span></span><br><span>Resources: ${esc(resources.map(row=>`${row.kind||'Resource'}/${row.metadata?.name||'unnamed'}`).join(', ')||'none')}</span><br><small>${preview?'Current deterministic desired-state preview.':'Desired state recovered from the sealed durable deployment request.'} No Kubernetes mutation or Physical certification is inferred by this view.</small><details><summary>Rendered Kubernetes resources</summary><pre class="technical">${esc(JSON.stringify(resources,null,2))}</pre></details></div>`;
   if(op){
-    const ambiguous=op.state==='NEEDS_OPERATOR'||(op.state==='FAILED'&&op.lastFailureClass==='UNKNOWN');
-    const status=run?.ready?'READY':(run?.stale?'STALE':(ambiguous?'RECOVERY_REQUIRED':(op.state||'UNKNOWN')));
+    const evidenceMissing=op.state==='SUCCEEDED'&&run?.evidencePresent===false;
+    const recovered=run?.ready===true&&!!op.recoveryEvidenceDigest;
+    const status=evidenceMissing?'EVIDENCE_MISSING':(recovered?'RECOVERED_READY':(run?.ready?'READY':(run?.stale?'STALE':(ambiguous?'RECOVERY_REQUIRED':(op.state||'UNKNOWN')))));
     const evidence=run?.evidence||{};
-    html+=`<div class="${run?.ready?'success-banner':ambiguous?'warning-banner':'inline-summary'}"><strong>Durable deployment</strong> · ${badge(status)} · <span class="technical">${esc(op.id)}</span><br><span>Operation: ${esc(op.state||'UNKNOWN')} · revision ${esc(op.revision||'—')} · current authority: ${run?.currentAuthority===false?'no':'yes'}</span>${op.lastFailureClass?` · failure class: ${esc(op.lastFailureClass)}`:''}${run?.evidenceDigest?`<br><span>Observed evidence: <span class="technical">${esc(shortDigest(run.evidenceDigest))}</span></span>`:''}${evidence?.readback?.deploymentUid?`<br><span>Deployment UID: <span class="technical">${esc(evidence.readback.deploymentUid)}</span> · updated ${esc(evidence.readback.updatedReplicas)}/${esc(evidence.readback.desiredReplicas)} · ready ${esc(evidence.readback.readyReplicas)}/${esc(evidence.readback.desiredReplicas)} · available ${esc(evidence.readback.availableReplicas)}/${esc(evidence.readback.desiredReplicas)}</span>`:''}<br><small>${ambiguous?'Mutation outcome is ambiguous; automatic replay is blocked while the target agent performs read-only recovery readback.':'Terminal success requires target readback of the exact release artifact, resource limits, authority digests and requested Service.'} Physical certification remains separate.</small></div>`;
+    const warning=ambiguous||evidenceMissing||run?.stale;
+    const guidance=evidenceMissing
+      ?'Operation state says SUCCEEDED but canonical observed evidence is missing. Readiness is withheld; inspect durable evidence before any follow-on action.'
+      :(ambiguous
+        ?'Mutation outcome is ambiguous. Automatic replay is blocked; the target agent recovery lane performs read-only readback and can resolve only exact observed state.'
+        :(recovered
+          ?'Recovered from exact read-only target evidence after an ambiguous mutation; no application mutation was replayed.'
+          :'Terminal readiness requires exact target readback of the release artifact, resources, authority digests and requested Service.'));
+    html+=`<div class="${run?.ready?'success-banner':warning?'warning-banner':'inline-summary'}"><strong>Durable deployment</strong> · ${badge(status)} · <span class="technical">${esc(op.id)}</span><br><span>Operation: ${esc(op.state||'UNKNOWN')} · revision ${esc(op.revision||'—')} · current authority: ${run?.currentAuthority===false?'no':'yes'}</span>${op.lastFailureClass?` · failure class: ${esc(op.lastFailureClass)}`:''}${run?.evidenceDigest?`<br><span>Observed evidence: <span class="technical">${esc(shortDigest(run.evidenceDigest))}</span></span>`:''}${op.recoveryEvidenceDigest?`<br><span>Recovery evidence: <span class="technical">${esc(shortDigest(op.recoveryEvidenceDigest))}</span> · read-only recovery resolution</span>`:''}${evidence?.readback?.deploymentUid?`<br><span>Deployment UID: <span class="technical">${esc(evidence.readback.deploymentUid)}</span> · updated ${esc(evidence.readback.updatedReplicas)}/${esc(evidence.readback.desiredReplicas)} · ready ${esc(evidence.readback.readyReplicas)}/${esc(evidence.readback.desiredReplicas)} · available ${esc(evidence.readback.availableReplicas)}/${esc(evidence.readback.desiredReplicas)}</span>`:''}<br><small>${guidance} Physical certification remains separate.</small></div>`;
   }
   host.innerHTML=html;
 }
 async function refreshApplicationDeployment(){
   const id=state.applicationDeploymentRun?.operation?.id;if(!id)return;
   state.applicationDeploymentRun=await api(`/api/v1/application-platform/deployments/${encodeURIComponent(id)}`);
+  renderApplicationDeploymentPlan();
+}
+async function resumeApplicationDeploymentForBinding(){
+  const binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-deployment-binding')?.value);
+  if(!binding){state.applicationDeploymentRun=null;renderApplicationDeploymentPlan();return;}
+  const history=await softApi(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/deployments`,{items:[]},'application deployment history');
+  const current=latest(Array.isArray(history?.items)?history.items:[])[0];
+  if(!current?.id){state.applicationDeploymentRun=null;renderApplicationDeploymentPlan();return;}
+  state.applicationDeploymentRun=await api(`/api/v1/application-platform/deployments/${encodeURIComponent(current.id)}`);
   renderApplicationDeploymentPlan();
 }
 function renderApplicationPlatformComposition(){
@@ -4485,6 +4506,7 @@ async function loadPlatformTemplates(){
     Object.assign(state,{projects,blueprintReleases:releases,variableSchemas:schemas,platformPolicySets:policies,platformTemplates:templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters,workspaces});
     renderPlatformTemplateAuthorities();
     await loadApplicationBindingWorkspaceBindings();
+    await resumeApplicationDeploymentForBinding();
   }catch(error){$('#platform-template-grid').innerHTML=errorState(error.message);toast(error.message,'error');}
 }
 function parseTemplateJSON(id,label){try{const value=JSON.parse($(id).value.trim());if(!Array.isArray(value))throw new Error(`${label} must be a JSON array.`);return value;}catch(error){throw new Error(`${label}: ${error.message}`);}}
@@ -4552,8 +4574,8 @@ $('#dapr-lifecycle-approve').onclick=async()=>{
 $('#application-release-project').addEventListener('change',()=>{renderApplicationAuthoringOptions();applyAccessMode();});
 $('#application-binding-release').addEventListener('change',async()=>{state.applicationWorkspaceBindings=[];renderApplicationAuthoringOptions();await loadApplicationBindingWorkspaceBindings();});
 $('#application-binding-workspace').addEventListener('change',loadApplicationBindingWorkspaceBindings);
-$('#application-deployment-binding').addEventListener('change',()=>{state.applicationDeploymentPlan=null;state.applicationDeploymentRun=null;renderApplicationDeploymentPlan();});
-$('#application-deployment-plan-form').addEventListener('input',event=>{if(event.target.id!=='application-deployment-binding'){state.applicationDeploymentPlan=null;state.applicationDeploymentRun=null;renderApplicationDeploymentPlan();}});
+$('#application-deployment-binding').addEventListener('change',async()=>{state.applicationDeploymentPlan=null;state.applicationDeploymentRun=null;renderApplicationDeploymentPlan();try{await resumeApplicationDeploymentForBinding();}catch(error){toast(error.message,'error');}});
+$('#application-deployment-plan-form').addEventListener('input',event=>{if(event.target.id!=='application-deployment-binding'){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();}});
 $('#application-resolution-workload').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-promotion-binding').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-release-create-form').onsubmit=async event=>{
@@ -4602,8 +4624,7 @@ $('#application-deployment-plan-form').onsubmit=async event=>{
   const body=applicationDeploymentRuntimeBody();
   try{
     state.applicationDeploymentPlan=await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/deployment-plan`,{method:'POST',body});
-    state.applicationDeploymentRun=null;
-    renderApplicationDeploymentPlan();toast('Deterministic application deployment plan rendered; no target mutation occurred.');
+    renderApplicationDeploymentPlan();toast('Deterministic application deployment plan rendered; durable deployment status remains visible and no target mutation occurred.');
   }catch(error){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();toast(error.message,'error');}
 };
 $('#application-deployment-request').onclick=async()=>{
