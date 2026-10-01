@@ -259,6 +259,59 @@ func containerResourceValue(container map[string]any, section, name string) stri
 	return strings.TrimSpace(fmt.Sprint(values[name]))
 }
 
+func applicationDeploymentIdentityMapMatches(value map[string]any, plan controlplane.ApplicationDeploymentPlan, requireManagedBy bool) bool {
+	if value == nil ||
+		strings.TrimSpace(fmt.Sprint(value["app.kubernetes.io/name"])) != plan.WorkloadName ||
+		strings.TrimSpace(fmt.Sprint(value["platform.4so.io/environment-binding"])) != plan.EnvironmentBindingID {
+		return false
+	}
+	return !requireManagedBy || strings.TrimSpace(fmt.Sprint(value["app.kubernetes.io/managed-by"])) == "4so-platform-factory"
+}
+
+func applicationDeploymentAnnotationMapMatches(value map[string]any, plan controlplane.ApplicationDeploymentPlan) bool {
+	return value != nil &&
+		strings.TrimSpace(fmt.Sprint(value["platform.4so.io/application-release-digest"])) == plan.ReleaseDigest &&
+		strings.TrimSpace(fmt.Sprint(value["platform.4so.io/environment-binding-digest"])) == plan.EnvironmentBindingDigest &&
+		strings.TrimSpace(fmt.Sprint(value["platform.4so.io/runtime-spec-digest"])) == plan.RuntimeSpecDigest
+}
+
+func applicationDeploymentPodRuntimeContract(object map[string]any, plan controlplane.ApplicationDeploymentPlan, container map[string]any) (authorityMatch, readinessMatch, automountDisabled bool) {
+	spec, _ := object["spec"].(map[string]any)
+	selector, _ := spec["selector"].(map[string]any)
+	matchLabels, _ := selector["matchLabels"].(map[string]any)
+	template, _ := spec["template"].(map[string]any)
+	templateMetadata, _ := template["metadata"].(map[string]any)
+	templateLabels, _ := templateMetadata["labels"].(map[string]any)
+	templateAnnotations, _ := templateMetadata["annotations"].(map[string]any)
+	templateSpec, _ := template["spec"].(map[string]any)
+	automount, automountPresent := templateSpec["automountServiceAccountToken"].(bool)
+	automountDisabled = automountPresent && !automount
+	authorityMatch = applicationDeploymentIdentityMapMatches(matchLabels, plan, false) &&
+		applicationDeploymentIdentityMapMatches(templateLabels, plan, true) &&
+		applicationDeploymentAnnotationMapMatches(templateAnnotations, plan)
+
+	ports, _ := container["ports"].([]any)
+	portMatch := len(ports) == 1
+	if portMatch {
+		port, _ := ports[0].(map[string]any)
+		portMatch = port != nil &&
+			strings.TrimSpace(fmt.Sprint(port["name"])) == "app" &&
+			numericInt(port["containerPort"]) == plan.RuntimeSpec.ContainerPort &&
+			strings.EqualFold(strings.TrimSpace(fmt.Sprint(port["protocol"])), "TCP")
+	}
+	probe, _ := container["readinessProbe"].(map[string]any)
+	tcp, _ := probe["tcpSocket"].(map[string]any)
+	readinessMatch = probe != nil && tcp != nil &&
+		strings.TrimSpace(fmt.Sprint(tcp["port"])) == "app" &&
+		numericInt(probe["initialDelaySeconds"]) == 1 &&
+		numericInt(probe["periodSeconds"]) == 5 &&
+		numericInt(probe["timeoutSeconds"]) == 2 &&
+		numericInt(probe["failureThreshold"]) == 3 &&
+		numericInt(probe["successThreshold"]) == 1 &&
+		portMatch
+	return authorityMatch, readinessMatch, automountDisabled
+}
+
 func deploymentReadback(object map[string]any, request controlplane.ApplicationDeploymentRequest) (controlplane.ApplicationDeploymentReadback, bool, error) {
 	plan := request.Plan
 	if !applicationDeploymentOwnedByBinding(object, plan) {
@@ -277,6 +330,7 @@ func deploymentReadback(object map[string]any, request controlplane.ApplicationD
 	updated := numericInt(status["updatedReplicas"])
 	ready := numericInt(status["readyReplicas"])
 	available := numericInt(status["availableReplicas"])
+	podAuthorityMatch, readinessMatch, automountDisabled := applicationDeploymentPodRuntimeContract(object, plan, container)
 	readback := controlplane.ApplicationDeploymentReadback{
 		DeploymentName: plan.WorkloadName,
 		DeploymentUID: strings.TrimSpace(fmt.Sprint(metadata["uid"])),
@@ -291,6 +345,9 @@ func deploymentReadback(object map[string]any, request controlplane.ApplicationD
 		CPULimit: containerResourceValue(container, "limits", "cpu"),
 		MemoryRequest: containerResourceValue(container, "requests", "memory"),
 		MemoryLimit: containerResourceValue(container, "limits", "memory"),
+		PodTemplateAuthorityMatch: podAuthorityMatch,
+		ReadinessProbeMatch: readinessMatch,
+		AutomountServiceAccountTokenDisabled: automountDisabled,
 		AuthorityLabelsMatch: true,
 		AuthorityDigestsMatch: applicationDeploymentAuthorityDigestsMatch(object, plan),
 	}
@@ -300,7 +357,8 @@ func deploymentReadback(object map[string]any, request controlplane.ApplicationD
 		readback.WorkloadImage == plan.WorkloadImageReference &&
 		readback.CPURequest == plan.RuntimeSpec.CPURequest && readback.CPULimit == plan.RuntimeSpec.CPULimit &&
 		readback.MemoryRequest == plan.RuntimeSpec.MemoryRequest && readback.MemoryLimit == plan.RuntimeSpec.MemoryLimit &&
-		readback.AuthorityDigestsMatch
+		readback.PodTemplateAuthorityMatch && readback.ReadinessProbeMatch &&
+		readback.AutomountServiceAccountTokenDisabled && readback.AuthorityDigestsMatch
 	return readback, converged, nil
 }
 
@@ -322,10 +380,16 @@ func serviceReadback(object map[string]any, request controlplane.ApplicationDepl
 		targetPort = numericInt(fmt.Sprint(port["targetPort"]))
 	}
 	clusterIP := strings.TrimSpace(fmt.Sprint(spec["clusterIP"]))
-	if servicePort != plan.RuntimeSpec.ServicePort || targetPort != plan.RuntimeSpec.ContainerPort || clusterIP == "" || clusterIP == "None" {
-		return fmt.Errorf("application Service port/clusterIP readback mismatch")
+	selector, _ := spec["selector"].(map[string]any)
+	selectorMatch := applicationDeploymentIdentityMapMatches(selector, plan, false)
+	if strings.TrimSpace(fmt.Sprint(spec["type"])) != "ClusterIP" || !selectorMatch ||
+		servicePort != plan.RuntimeSpec.ServicePort || targetPort != plan.RuntimeSpec.ContainerPort ||
+		!strings.EqualFold(strings.TrimSpace(fmt.Sprint(port["protocol"])), "TCP") ||
+		clusterIP == "" || clusterIP == "None" {
+		return fmt.Errorf("application Service selector/port/clusterIP readback mismatch")
 	}
 	readback.ServiceObserved = true
+	readback.ServiceSelectorMatch = true
 	readback.ServiceName = strings.TrimSpace(fmt.Sprint(metadata["name"]))
 	readback.ServiceClusterIP = clusterIP
 	readback.ServicePort = servicePort
