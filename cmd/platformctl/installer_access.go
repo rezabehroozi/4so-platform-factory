@@ -85,6 +85,32 @@ type installerBootstrapRuntimeStatus struct {
 	ResetRuns       []installerRuntimeRunStatus `json:"resetRuns"`
 }
 
+func installerBootstrapNextAction(status installerBootstrapRuntimeStatus) string {
+	if !status.ExecutionEnabled {
+		return "redeploy the reviewed Bootstrap Installer with execution enabled before attempting install/resume/reset"
+	}
+	if status.ResetActive {
+		return "monitor bootstrap-status until the active reset is terminal; do not replay reset or reset-resume"
+	}
+	if reset := latestIncompleteInstallerReset(status); reset != nil {
+		return "review the interrupted reset, then run reset-resume --confirmation RESUME-RESET; do not start another reset"
+	}
+	if status.BootstrapActive {
+		return "monitor bootstrap-status until the active installation is terminal; do not submit another resume"
+	}
+	if status.Run == nil {
+		return "open the Browser Installer, complete request/preflight review, and start installation explicitly"
+	}
+	switch strings.ToUpper(strings.TrimSpace(status.Run.State)) {
+	case "SUCCEEDED":
+		return "installation succeeded; verify evidence/status and continue platform onboarding instead of resuming"
+	case "FAILED", "PENDING", "RUNNING":
+		return "review the durable run/error, then run resume --confirmation RESUME if recovery is intended"
+	default:
+		return "review the durable bootstrap state before selecting any mutation; automatic replay is forbidden"
+	}
+}
+
 func installerAccessRunStatusCommand(args []string) {
 	fs := flag.NewFlagSet("installer-access run-status", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -106,6 +132,8 @@ func installerAccessRunStatusCommand(args []string) {
 		"resetActive": status.ResetActive,
 		"run": status.Run,
 		"resetRuns": status.ResetRuns,
+		"automaticReplay": false,
+		"nextAction": installerBootstrapNextAction(status),
 	})
 }
 
