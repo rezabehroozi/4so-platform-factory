@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c5 := byID["C5-installer-production-lifecycle-closure"]
-	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", "INSTALLER_MANUAL_DOCTOR_V1", "INSTALLER_MANUAL_INPUT_DISCOVERY_V1", "INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1", "INSTALLER_MANUAL_PREFLIGHT_GUIDANCE_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1", "INSTALLER_RECOVERY_STATUS_FIRST_UI_V1", "INSTALLER_RECOVERY_POLL_BOUNDED_V1", "INSTALLER_BROWSER_TOKEN_STALE_CLEAR_V1"} {
+	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", "INSTALLER_MANUAL_DOCTOR_V1", "INSTALLER_MANUAL_INPUT_DISCOVERY_V1", "INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1", "INSTALLER_MANUAL_PREFLIGHT_GUIDANCE_V1", "INSTALLER_MANUAL_BOOTSTRAP_RESUME_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1", "INSTALLER_RECOVERY_STATUS_FIRST_UI_V1", "INSTALLER_RECOVERY_POLL_BOUNDED_V1", "INSTALLER_BROWSER_TOKEN_STALE_CLEAR_V1"} {
 		if !containsString(c5.Evidence, evidence) {
 			t.Fatalf("C5 guided manual installer evidence %q missing: %#v", evidence, c5)
 		}
@@ -217,12 +217,13 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"bash install.sh doctor is non-mutating and non-root: it reports packaged binary, bundle and exact-release input readiness before installation without claiming bundle admission",
 		"the normal install.sh install path fails before host mutation unless --enable-execution and explicit --confirmation DEPLOY are present, preventing a successful host deployment that leaves the Browser Installer unexpectedly non-actionable",
 		"manual preflight preserves top-level host admission fields while adding exact-release binding and an explicit nextAction to plan, so human operators and existing automation share one truthful first step",
-		"the same install.sh entrypoint owns status, verify, recover and rollback after deployment without requiring the original bundle/release ZIP again, while recover/rollback preserve their canonical explicit confirmation fences",
+		"the same install.sh entrypoint owns status, verify, bootstrap resume, host recovery and rollback after deployment without requiring the original bundle/release ZIP again; resume requires explicit RESUME while recover/rollback preserve their canonical confirmation fences",
 		"advanced installer-host examples are pinned to the current VERSION by repository validation so documented copy/paste paths cannot silently become version-rejected stale examples",
 		"browser Installer owns supported profile selection, infrastructure/HA access and pinned host trust, dedicated HA storage, endpoint/TLS, managed/external service inputs, plan, host preflight and explicit INSTALL confirmation",
 		"production-standard-ha preflight verifies iscsiadm/iscsid plus an iscsid service/socket on the local node and every peer before runtime mutation; explicit INSTALL/RESUME enables the existing service locally/remotely without package download",
 		"loopback remains the safe default; the guided result exposes a workstation URL plus an explicit SSH local-forward command for remote operators instead of requiring them to expose the Installer service",
 		"failed/interrupted bootstrap runs resume from durable owner-classified state; clean reinstall uses journaled reset; host-deployment interruption requires explicit recovery and never overwrites unrelated host state",
+		"manual bootstrap resume reads authenticated durable Installer status before mutation, defaults to the local loopback/token-file handoff, supports explicit URL/token/CA for custom transport, and resolves a lost resume response by readback without automatic replay",
 		"the browser recovery surface renders durable installer status and Resume/Reset authority before ancillary health, preflight or access-security enrichment so partial endpoint failure cannot hide recovery controls",
 		"Installer status polling has a bounded request deadline and resumes scheduling after timeout/visibility changes without overlapping mutation requests",
 		"HTTP 401 clears the tab-scoped bootstrap token from memory and sessionStorage so a rejected credential cannot survive reload into a reconnect loop",
@@ -232,7 +233,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c6 := byID["C6-multi-agent-test-autopilot"]
-	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2", "AUTOPILOT_AGENT_OWNER_PROOF_V1", "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1", "AUTOPILOT_AGENT_ENTRYPOINT_V1", "AUTOPILOT_OWNER_CONTEXT_PATHS_V1", "AUTOPILOT_PROMPT_BUDGET_V1"} {
+	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2", "AUTOPILOT_AGENT_OWNER_PROOF_V1", "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1", "AUTOPILOT_AGENT_ENTRYPOINT_V1", "AUTOPILOT_OWNER_CONTEXT_PATHS_V1", "AUTOPILOT_PROMPT_BUDGET_V1", "AUTOPILOT_AGENT_REPAIR_BUDGET_V1"} {
 		if !containsString(c6.Evidence, evidence) {
 			t.Fatalf("C6 token-efficient autopilot evidence %q missing: %#v", evidence, c6)
 		}
@@ -252,7 +253,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"make autopilot-context emits a compact non-authoritative continuation capsule containing run/stage/failure fingerprint/resume metadata, source-context pointers and at most one bounded secret-redacted failure capsule, never raw stage logs or unredacted secrets",
 		"the continuation capsule includes the exact current owner proof command and bounded stage timeout so a new agent can reproduce the smallest failing proof without rereading the full orchestration source or replaying earlier green stages",
 		"Installer core, host-deployment and remote-bootstrap smoke tests are independent checkpoint stages so a late remote failure never replays already-green Installer owner tests and each repair is attributed to the exact failing owner stage",
-		"same-stage same-fingerprint repetition stops as NO_PROGRESS and global repair count is bounded so agents cannot enter token-burning repair loops",
+		"same-stage same-fingerprint repetition stops as NO_PROGRESS before another repair is spent; normal repair keeps a conservative three-repair campaign budget while make autopilot-agent defaults to eight independent repairs so distinct defects can converge without turning the campaign into an unbounded token loop",
 	} {
 		if !containsString(c6.ExitCriteria, criterion) {
 			t.Fatalf("C6 autopilot criterion %q missing: %#v", criterion, c6.ExitCriteria)
