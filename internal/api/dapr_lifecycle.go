@@ -115,9 +115,9 @@ func (s *Server) daprLifecycleOperationsForCluster(ctx context.Context, projectI
 		return nil, fmt.Errorf("%w: Dapr lifecycle project and cluster are required", controlplane.ErrValidation)
 	}
 	if pager, ok := s.store.(daprLifecycleHistoryPager); ok {
-		operations := make([]controlplane.Operation, 0, 12)
+		operations := make([]controlplane.Operation, 0, 600)
 		for _, action := range []daprruntime.LifecycleAction{daprruntime.ActionInstall, daprruntime.ActionUpgrade, daprruntime.ActionRemove} {
-			rows, err := pager.ListOperationsByKindTargetPage(ctx, projectID, daprLifecycleOperationKind, daprLifecycleTarget(clusterID, action), 4)
+			rows, err := pager.ListOperationsByKindTargetPage(ctx, projectID, daprLifecycleOperationKind, daprLifecycleTarget(clusterID, action), 200)
 			if err != nil {
 				return nil, err
 			}
