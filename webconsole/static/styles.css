@@ -316,6 +316,8 @@ details summary { min-height: 44px; display: flex; align-items: center; cursor: 
 details summary::-webkit-details-marker { display: none; }
 details summary::before { content: "›"; display: inline-block; margin-inline-end: 7px; color: var(--muted); transition: transform .12s ease; }
 details[open] summary::before { transform: rotate(90deg); }
+html[dir="rtl"] details:not(.action-console) > summary::before { content:"‹"; }
+html[dir="rtl"] details:not(.action-console)[open] > summary::before { transform:rotate(-90deg); }
 .detail-section { margin: 16px 0; }
 .detail-section h3 { font-size: 13px; margin: 0 0 9px; }
 .key-value { display: grid; grid-template-columns: 180px minmax(0,1fr); gap: 8px 14px; font-size: 12.5px; }
@@ -731,7 +733,7 @@ dialog { border-radius:12px; }
 .action-console > summary .summary-title { grid-column:1; grid-row:1; padding-inline-start:24px; font-size:12.5px; }
 .action-console > summary .summary-help { grid-column:2; grid-row:1; font-size:11.5px; color:var(--muted); }
 .action-console[open] > summary { border-bottom:1px solid var(--border); background:var(--surface-2); }
-.action-console[open] > summary::before { content:"−"; }
+.action-console[open] > summary::before { content:"−"; transform:none; }
 .action-console-body { padding:16px; }
 .action-console-body > .two-column { gap:22px; }
 .action-console-body > article.panel,
