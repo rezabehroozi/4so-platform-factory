@@ -461,6 +461,27 @@ func TestOperatorConsoleHiddenOwnerEmptyStateRecoveryContract(t *testing.T) {
 	}
 }
 
+func TestOperatorConsoleFleetIncidentProgressiveDisclosureContract(t *testing.T) {
+	htmlBytes, err := fs.ReadFile(content, "static/index.html")
+	if err != nil { t.Fatal(err) }
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	html, js := string(htmlBytes), string(jsBytes)
+	workflow := strings.Index(html, `id="reliability-incident-workflow"`)
+	form := strings.Index(html, `id="reliability-incident-form"`)
+	grid := strings.Index(html, `id="reliability-incident-grid"`)
+	if workflow < 0 || form < 0 || grid < 0 || !(workflow < form && form < grid) {
+		t.Fatalf("Fleet incident creation must be progressively disclosed before visible incident results: workflow=%d form=%d grid=%d", workflow, form, grid)
+	}
+	for _, marker := range []string{
+		"workflow.open=false",
+		"grid.scrollIntoView({behavior:motionSafeBehavior(),block:'nearest'})",
+		"grid.focus({preventScroll:true})",
+	} {
+		if !strings.Contains(js, marker) { t.Fatalf("Fleet incident completion handoff missing %q", marker) }
+	}
+}
+
 func TestOperatorConsoleOperationsSearchIAContract(t *testing.T) {
 	htmlBytes, err := fs.ReadFile(content, "static/index.html")
 	if err != nil { t.Fatal(err) }
