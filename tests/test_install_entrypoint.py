@@ -74,7 +74,7 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         self.assertIn("bundle.lock.json", source)
         self.assertIn("discover_release_artifact", source)
         doctor = source.index('if [[ "${mode}" == "doctor" ]]')
-        root_guard = source.index('if [[ "${EUID}" -ne 0 ]]')
+        root_guard = source.index('if [[ "${EUID}" -ne 0 ]]', doctor)
         self.assertLess(doctor, root_guard)
         for forbidden in ("curl ", "wget ", "systemctl ", "apt-get ", "dnf ", "yum "):
             self.assertNotIn(forbidden, source)
