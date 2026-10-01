@@ -248,7 +248,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("J8 application composition runtime contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{"loadDaprRuntimePage", "renderDaprRuntimePrerequisite", "data-dapr-prerequisite-kind", "application-runtime.dapr", "dapr:loadDaprRuntimePage", "daprWorkloadPlan", "daprWorkloadAdmission", "setScopedAccess($('#dapr-lifecycle-form')", "setScopedAccess($('#dapr-lifecycle-approve')", "/api/v1/application-platform/dapr/assessment", "/api/v1/application-platform/dapr/workload-plan", "/api/v1/application-platform/dapr/workload-admissions", "configurationProjection", "componentScopeDigest", "Target admission requires an exact digest-pinned workload image", "Admission proves current policy/scopes and server-side injection only"} {
+	for _, contract := range []string{"loadDaprRuntimePage", "renderDaprRuntimePrerequisite", "assessAndResumeDaprRuntime", "latestOperation", "data-dapr-prerequisite-kind", "application-runtime.dapr", "dapr:loadDaprRuntimePage", "daprWorkloadPlan", "daprWorkloadAdmission", "setScopedAccess($('#dapr-lifecycle-form')", "setScopedAccess($('#dapr-lifecycle-approve')", "/api/v1/application-platform/dapr/assessment", "/api/v1/application-platform/dapr/workload-plan", "/api/v1/application-platform/dapr/workload-admissions", "configurationProjection", "componentScopeDigest", "Target admission requires an exact digest-pinned workload image", "Admission proves current policy/scopes and server-side injection only"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("J8 Dapr workload admission runtime contract missing %q", contract)
 		}
