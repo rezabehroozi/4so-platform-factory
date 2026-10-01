@@ -402,6 +402,28 @@ func TestOperatorConsolePositionIndependentCopyContract(t *testing.T) {
 	}
 }
 
+func TestOperatorConsoleHiddenOwnerEmptyStateRecoveryContract(t *testing.T) {
+	htmlBytes, err := fs.ReadFile(content, "static/index.html")
+	if err != nil { t.Fatal(err) }
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	html, js := string(htmlBytes), string(jsBytes)
+	for _, id := range []string{"baseline-deploy-console", "catalog-governance-console", "service-provider-setup"} {
+		if !strings.Contains(html, `id="`+id+`"`) { t.Fatalf("hidden owner workflow recovery anchor missing %q", id) }
+	}
+	for _, marker := range []string{
+		"emptyDisclosureState('No baseline deployments'",
+		"emptyDisclosureState('No trust keys'",
+		"emptyDisclosureState('No governed catalog releases'",
+		"emptyDisclosureState('No Git providers'",
+		"sourceUnavailable('baseline deployments')?unavailableState",
+		"sourceUnavailable('catalog releases')",
+		"canAdminister()?emptyDisclosureState('No Git providers'",
+	} {
+		if !strings.Contains(js, marker) { t.Fatalf("hidden owner empty-state recovery missing %q", marker) }
+	}
+}
+
 func TestOperatorConsoleApplicationEmptyStateJourneyContract(t *testing.T) {
 	jsBytes, err := fs.ReadFile(content, "static/app.js")
 	if err != nil { t.Fatal(err) }
