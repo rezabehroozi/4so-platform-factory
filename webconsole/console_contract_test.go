@@ -344,6 +344,8 @@ func TestOperatorConsoleLiveProgressRefreshContract(t *testing.T) {
 	for _, marker := range []string{
 		"const livePages=new Set(['overview','clusters','providers','marketplace','baselines','verification','fleet','workspaces'",
 		"workspaces:[state.virtualClusters]",
+		"clusters:[state.imports,state.clusterMaintenanceRuns]",
+		"RESTORING|RECONCILING|RECOVERING",
 		"focused||hasUnsavedChanges()||recentInteraction",
 	} {
 		if !strings.Contains(js, marker) { t.Fatalf("live progress refresh contract missing %q", marker) }
