@@ -645,6 +645,34 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
         failures.append(f"console:application-step-enabled-admission:{step_admission}")
     context.close()
 
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
+    critical_locale = page.evaluate("""() => {
+      const samples=[
+        'Approve managed OKD install',
+        'Approve the sealed Compact-3 install request cluster-01? The requester cannot approve their own request and execution remains evidence-tracked.',
+        'Begin the bound compensation plan for application.deploy? Completed forward steps will be reversed in safe order and evidence remains attached to the same operation.',
+        'Request cancellation for managed.okd.install? In-flight work is drained to a safe boundary before final cancellation.',
+        'Approve this exact application deployment revision for target execution? Requester/approver separation and current authority fences are revalidated by the server.',
+        'Select at least one architecture.'
+      ];
+      state.locale='en';const en=samples.map(localizeDynamicText);
+      state.locale='fa';const fa=samples.map(localizeDynamicText);
+      state.locale='en';applyLocale();
+      return {en,fa};
+    }""")
+    expected_critical_fa=[
+        "تأیید نصب مدیریت‌شدهٔ OKD",
+        "درخواست مهرشدهٔ نصب Compact-3 برای cluster-01 تأیید شود؟ درخواست‌دهنده نمی‌تواند درخواست خودش را تأیید کند و اجرا با شواهد قابل پیگیری باقی می‌ماند.",
+        "برنامهٔ جبرانی مقید برای application.deploy شروع شود؟ مراحل تکمیل‌شده با ترتیب امن برگردانده می‌شوند و شواهد به همان عملیات متصل می‌مانند.",
+        "لغو managed.okd.install درخواست شود؟ کار در حال اجرا پیش از لغو نهایی تا مرز امن تخلیه می‌شود.",
+        "این revision دقیق استقرار اپلیکیشن برای اجرای مقصد تأیید شود؟ سرور جداسازی درخواست‌دهنده/تأییدکننده و fenceهای اختیار فعلی را دوباره اعتبارسنجی می‌کند.",
+        "حداقل یک معماری را انتخاب کنید.",
+    ]
+    if critical_locale.get("fa") != expected_critical_fa or critical_locale.get("en") is None or len(critical_locale.get("en") or []) != len(expected_critical_fa):
+        failures.append(f"console:critical-interaction-localization:{critical_locale}")
+    context.close()
+
     # Explicit console theme preference must override the opposite OS preference.
     # This prevents system-dark selectors from contaminating an explicit light
     # preference (and vice versa).
