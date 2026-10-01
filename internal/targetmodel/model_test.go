@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c8 := byID["C8-console-operational-completion"]
-	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1"} {
+	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1", "ACTIONABLE_EMPTY_STATE_RECOVERY_V1"} {
 		if !containsString(c8.Evidence, evidence) {
 			t.Fatalf("C8 task-first journey evidence %q missing: %#v", evidence, c8)
 		}
