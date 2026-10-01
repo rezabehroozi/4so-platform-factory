@@ -131,6 +131,24 @@ def static_quality_failures(root: Path) -> list[str]:
         stale = sorted(set(expected_routes) - set(rendered_routes))
         if missing or stale:
             failures.append(f"{rel}:route-matrix-drift:missing-from-matrix={missing}:stale-in-matrix={stale}")
+    console_html = (root / "webconsole/static/index.html").read_text(encoding="utf-8")
+    contextual_routes = re.findall(r'<button\b[^>]*\bdata-page="([^"]+)"[^>]*>', console_html, flags=re.I)
+    contextual_expected = [route for route in CONSOLE_PAGES if route != "overview"]
+    duplicate_contextual = sorted({route for route in contextual_routes if contextual_routes.count(route) > 1})
+    missing_contextual = sorted(set(contextual_expected) - set(contextual_routes))
+    stale_contextual = sorted(set(contextual_routes) - set(contextual_expected))
+    if duplicate_contextual or missing_contextual or stale_contextual:
+        failures.append(
+            "webconsole/static/index.html:contextual-navigation-parity:"
+            f"duplicate={duplicate_contextual}:missing={missing_contextual}:stale={stale_contextual}"
+        )
+    primary_sections = re.findall(r'<button\b[^>]*\bdata-section="([^"]+)"[^>]*\bdata-section-home="([^"]+)"[^>]*>', console_html, flags=re.I)
+    if len(primary_sections) != 7 or len({section for section, _ in primary_sections}) != 7:
+        failures.append(f"webconsole/static/index.html:primary-navigation-domain-count:{primary_sections}")
+    for section, home in primary_sections:
+        if home not in CONSOLE_PAGES:
+            failures.append(f"webconsole/static/index.html:primary-navigation-home-missing:{section}:{home}")
+
     for rel in ("webconsole/static/styles.css", "cmd/platform-installer/static/styles.css"):
         failures.extend(f"{rel}:{item}" for item in css_theme_reference_failures(root / rel))
     for rel in ("webconsole/static/index.html", "cmd/platform-installer/static/index.html"):
@@ -188,6 +206,11 @@ def static_quality_failures(root: Path) -> list[str]:
             selector, body = rule.group(1).lower(), rule.group(2).lower()
             if "rtl" in selector and re.search(r"text-align\s*:\s*(?:left|right)\b", body):
                 failures.append(f"{rel}:rtl-physical-text-align:{rule.group(1).strip()}")
+    if "Create WorkloadType authority through Product API or MCP" in console_js:
+        failures.append("webconsole/static/app.js:application-composition-api-only-empty-state")
+    for marker in ("emptyDisclosureState", "application-composition-library", "application-binding-workflow"):
+        if marker not in console_js:
+            failures.append(f"webconsole/static/app.js:application-empty-state-direct-action-missing:{marker}")
     return failures
 
 
@@ -339,6 +362,34 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
                 label = f"{app}:{width}:accessibility:{direction}:{route}"
                 if page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 2"):
                     failures.append(f"{label}:horizontal-overflow")
+                if not installer:
+                    navigation = page.evaluate("""route => {
+                      const primary=[...document.querySelectorAll('#primary-nav button.active')];
+                      const secondary=[...document.querySelectorAll('#section-nav button.active')];
+                      const sectionNav=document.querySelector('#section-nav');
+                      const activeSecondary=secondary[0] || null;
+                      const navRect=sectionNav && !sectionNav.hidden ? sectionNav.getBoundingClientRect() : null;
+                      const activeRect=activeSecondary ? activeSecondary.getBoundingClientRect() : null;
+                      return {
+                        primaryCount: primary.length,
+                        secondaryCount: secondary.length,
+                        primaryCurrent: primary.map(node=>node.getAttribute('aria-current')),
+                        secondaryCurrent: secondary.map(node=>node.getAttribute('aria-current')),
+                        activeSecondaryPage: activeSecondary?.dataset?.page || '',
+                        sectionHidden: Boolean(sectionNav?.hidden),
+                        activeSecondaryVisible: !activeRect || !navRect || (
+                          activeRect.left >= navRect.left - 2 && activeRect.right <= navRect.right + 2
+                        )
+                      };
+                    }""", route)
+                    expected_secondary = route != "overview"
+                    if navigation.get("primaryCount") != 1:
+                        failures.append(f"{label}:primary-nav-active-count:{navigation}")
+                    if expected_secondary:
+                        if navigation.get("secondaryCount") != 1 or navigation.get("activeSecondaryPage") != route or navigation.get("sectionHidden") or not navigation.get("activeSecondaryVisible") or navigation.get("secondaryCurrent") != ["page"]:
+                            failures.append(f"{label}:secondary-nav-route-state:{navigation}")
+                    elif navigation.get("secondaryCount") != 0 or not navigation.get("sectionHidden"):
+                        failures.append(f"{label}:overview-secondary-nav-state:{navigation}")
                 if not installer and route in TASK_FIRST_DISCLOSURE_ROUTES:
                     undisclosed = page.evaluate("""() => {
                       const active=document.querySelector('.page.active');
