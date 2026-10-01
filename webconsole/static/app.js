@@ -6,7 +6,7 @@ const state = {
   locale: localStorage.getItem('platformLocale') || 'fa',
   session: null,
   currentPage: 'overview',
-  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], applicationWorkspaceBindings: [], applicationDeploymentPlan: null, daprAssessment: null, daprLifecycle: null, daprWorkloadPlan: null, daprWorkloadAdmission: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
+  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], applicationWorkspaceBindings: [], applicationDeploymentPlan: null, applicationDeploymentRun: null, daprAssessment: null, daprLifecycle: null, daprWorkloadPlan: null, daprWorkloadAdmission: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
   baselines: [], baselineDeployments: [], verifications: [], closures: [], runtimeCertifications: [],
   fleetGroups: [], driftScans: [], upgradeCampaigns: [], recoveryCheckpoints: [], backupPolicies: [], dataProtectionRuns: [], fleetHealth: null, day2CampaignEngine: null, tenants: [], tenantPlans: [],
   clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], targetNodeLifecycleAuthority: null, currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], virtualClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
@@ -1381,6 +1381,9 @@ function applyKnownMutationScopes() {
   setScopedAccess($('#application-release-create-form'),{projectId:$('#application-release-project')?.value||''});
   const applicationBindingRelease=state.applicationReleases.find(item=>item.id===$('#application-binding-release')?.value);
   setScopedAccess($('#application-binding-create-form'),{projectId:applicationBindingRelease?.projectId||''});
+  const applicationDeploymentBinding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-deployment-binding')?.value);
+  setScopedAccess($('#application-deployment-request'),{projectId:applicationDeploymentBinding?.projectId||''});
+  setScopedAccess($('#application-deployment-approve'),{projectId:applicationDeploymentBinding?.projectId||'',access:'admin'});
   setScopedAccess($('#workspace-authority-form'),{projectId:$('#workspace-authority-project')?.value||''});
   const selectedWorkspace=state.workspaces.find(item=>item.id===$('#workspace-binding-workspace')?.value);
   setScopedAccess($('#workspace-binding-form'),{projectId:selectedWorkspace?.projectId||''});
@@ -4385,7 +4388,10 @@ function renderApplicationAuthoringOptions(){
     return `${item.environment} · ${item.namespace} · ${release?.name||item.releaseId} ${release?.version||''} · r${item.revision}`;
   });
   if(previousDeploymentBinding&&deployableBindings.some(item=>item.id===previousDeploymentBinding)&&deploymentSelect)deploymentSelect.value=previousDeploymentBinding;
-  if(state.applicationDeploymentPlan&&!deployableBindings.some(item=>item.id===state.applicationDeploymentPlan.environmentBindingId))state.applicationDeploymentPlan=null;
+  if(state.applicationDeploymentPlan&&!deployableBindings.some(item=>item.id===state.applicationDeploymentPlan.environmentBindingId)){
+    state.applicationDeploymentPlan=null;
+    state.applicationDeploymentRun=null;
+  }
   renderApplicationDeploymentPlan();
 }
 async function loadApplicationBindingWorkspaceBindings(){
@@ -4395,15 +4401,46 @@ async function loadApplicationBindingWorkspaceBindings(){
   renderApplicationAuthoringOptions();
   applyAccessMode();
 }
+function applicationDeploymentRuntimeBody(){
+  return {
+    replicas:Number($('#application-deployment-replicas').value),
+    containerPort:Number($('#application-deployment-container-port').value),
+    servicePort:Number($('#application-deployment-service-port').value||0),
+    cpuRequest:$('#application-deployment-cpu-request').value.trim(),
+    cpuLimit:$('#application-deployment-cpu-limit').value.trim(),
+    memoryRequest:$('#application-deployment-memory-request').value.trim(),
+    memoryLimit:$('#application-deployment-memory-limit').value.trim()
+  };
+}
 function renderApplicationDeploymentPlan(){
   const host=$('#application-deployment-plan-result');if(!host)return;
-  const plan=state.applicationDeploymentPlan;
+  const plan=state.applicationDeploymentPlan,run=state.applicationDeploymentRun;
+  const requestButton=$('#application-deployment-request'),refreshButton=$('#application-deployment-refresh'),approveButton=$('#application-deployment-approve'),operationField=$('#application-deployment-operation');
+  const binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-deployment-binding')?.value);
+  const op=run?.operation;
+  if(operationField)operationField.value=op?.id||'';
+  if(requestButton)requestButton.disabled=!plan||plan.environmentBindingId!==binding?.id;
+  if(refreshButton)refreshButton.disabled=!op?.id;
+  if(approveButton)approveButton.disabled=!op?.id||op.state!=='AWAITING_APPROVAL';
+  if(requestButton)setScopedAccess(requestButton,{projectId:binding?.projectId||''});
+  if(approveButton)setScopedAccess(approveButton,{projectId:binding?.projectId||'',access:'admin'});
   if(!plan){
     host.innerHTML='<div class="inline-summary">Select an artifact-bound environment binding and preview deterministic rendered resources. Nothing is applied to the target.</div>';
     return;
   }
   const resources=Array.isArray(plan.renderedResources)?plan.renderedResources:[];
-  host.innerHTML=`<div class="inline-summary"><strong>Application deployment plan</strong> · ${badge(plan.authority||'APPLICATION_DEPLOYMENT_PLAN_V1')}<br><span>Target: <span class="technical">${esc(plan.clusterId||'—')} / ${esc(plan.namespace||'—')}</span> · ${esc(plan.environment||'—')}</span><br><span>Release: <span class="technical">${esc(shortDigest(plan.releaseDigest||''))}</span> · binding r${esc(plan.environmentBindingRevision||'—')} · WorkspaceBinding r${esc(plan.workspaceBindingRevision||'—')}</span><br><span>Artifact: <span class="technical">${esc(plan.workloadImageReference||'—')}</span></span><br><span>Runtime spec: <span class="technical">${esc(shortDigest(plan.runtimeSpecDigest||''))}</span> · rendered: <span class="technical">${esc(shortDigest(plan.renderedDigest||''))}</span></span><br><span>Resources: ${esc(resources.map(row=>`${row.kind||'Resource'}/${row.metadata?.name||'unnamed'}`).join(', ')||'none')}</span><br><small>Deterministic desired state only. runtimeMutationPerformed=${esc(plan.runtimeMutationPerformed===true)}; Physical certification remains independent.</small><details><summary>Rendered Kubernetes resources</summary><pre class="technical">${esc(JSON.stringify(resources,null,2))}</pre></details></div>`;
+  let html=`<div class="inline-summary"><strong>Application deployment plan</strong> · ${badge(plan.authority||'APPLICATION_DEPLOYMENT_PLAN_V1')}<br><span>Target: <span class="technical">${esc(plan.clusterId||'—')} / ${esc(plan.namespace||'—')}</span> · ${esc(plan.environment||'—')}</span><br><span>Release: <span class="technical">${esc(shortDigest(plan.releaseDigest||''))}</span> · binding r${esc(plan.environmentBindingRevision||'—')} · WorkspaceBinding r${esc(plan.workspaceBindingRevision||'—')}</span><br><span>Artifact: <span class="technical">${esc(plan.workloadImageReference||'—')}</span></span><br><span>Runtime spec: <span class="technical">${esc(shortDigest(plan.runtimeSpecDigest||''))}</span> · rendered: <span class="technical">${esc(shortDigest(plan.renderedDigest||''))}</span></span><br><span>Resources: ${esc(resources.map(row=>`${row.kind||'Resource'}/${row.metadata?.name||'unnamed'}`).join(', ')||'none')}</span><br><small>Deterministic desired state only. runtimeMutationPerformed=${esc(plan.runtimeMutationPerformed===true)}; Physical certification remains independent.</small><details><summary>Rendered Kubernetes resources</summary><pre class="technical">${esc(JSON.stringify(resources,null,2))}</pre></details></div>`;
+  if(op){
+    const status=run?.ready?'READY':(run?.stale?'STALE':(op.state||'UNKNOWN'));
+    const evidence=run?.evidence||{};
+    html+=`<div class="${run?.ready?'success-banner':op.state==='NEEDS_OPERATOR'?'warning-banner':'inline-summary'}"><strong>Durable deployment</strong> · ${badge(status)} · <span class="technical">${esc(op.id)}</span><br><span>Operation: ${esc(op.state||'UNKNOWN')} · revision ${esc(op.revision||'—')} · current authority: ${run?.currentAuthority===false?'no':'yes'}</span>${run?.evidenceDigest?`<br><span>Observed evidence: <span class="technical">${esc(shortDigest(run.evidenceDigest))}</span></span>`:''}${evidence?.readback?.deploymentUid?`<br><span>Deployment UID: <span class="technical">${esc(evidence.readback.deploymentUid)}</span> · ready ${esc(evidence.readback.readyReplicas)}/${esc(evidence.readback.desiredReplicas)}</span>`:''}<br><small>${op.state==='NEEDS_OPERATOR'?'Mutation outcome is ambiguous; automatic replay is blocked and operator recovery is required.':'Terminal success requires target readback of the exact release artifact, resource limits, authority digests and requested Service.'} Physical certification remains separate.</small></div>`;
+  }
+  host.innerHTML=html;
+}
+async function refreshApplicationDeployment(){
+  const id=state.applicationDeploymentRun?.operation?.id;if(!id)return;
+  state.applicationDeploymentRun=await api(`/api/v1/application-platform/deployments/${encodeURIComponent(id)}`);
+  renderApplicationDeploymentPlan();
 }
 function renderApplicationPlatformComposition(){
   const workloadGrid=$('#application-workload-grid'),resourceGrid=$('#application-resource-grid'),releaseGrid=$('#application-release-grid'),bindingGrid=$('#application-binding-grid');
@@ -4507,8 +4544,8 @@ $('#dapr-lifecycle-approve').onclick=async()=>{
 $('#application-release-project').addEventListener('change',()=>{renderApplicationAuthoringOptions();applyAccessMode();});
 $('#application-binding-release').addEventListener('change',async()=>{state.applicationWorkspaceBindings=[];renderApplicationAuthoringOptions();await loadApplicationBindingWorkspaceBindings();});
 $('#application-binding-workspace').addEventListener('change',loadApplicationBindingWorkspaceBindings);
-$('#application-deployment-binding').addEventListener('change',()=>{state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();});
-$('#application-deployment-plan-form').addEventListener('input',event=>{if(event.target.id!=='application-deployment-binding'){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();}});
+$('#application-deployment-binding').addEventListener('change',()=>{state.applicationDeploymentPlan=null;state.applicationDeploymentRun=null;renderApplicationDeploymentPlan();});
+$('#application-deployment-plan-form').addEventListener('input',event=>{if(event.target.id!=='application-deployment-binding'){state.applicationDeploymentPlan=null;state.applicationDeploymentRun=null;renderApplicationDeploymentPlan();}});
 $('#application-resolution-workload').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-promotion-binding').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-release-create-form').onsubmit=async event=>{
@@ -4554,19 +4591,30 @@ $('#application-deployment-plan-form').onsubmit=async event=>{
   const binding=state.applicationEnvironmentBindings.find(item=>item.id===bindingId);
   const release=state.applicationReleases.find(item=>item.id===binding?.releaseId);
   if(!binding||!release?.workloadImageReference){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();toast('Select an environment binding backed by an exact workload artifact.','warning');return;}
-  const body={
-    replicas:Number($('#application-deployment-replicas').value),
-    containerPort:Number($('#application-deployment-container-port').value),
-    servicePort:Number($('#application-deployment-service-port').value||0),
-    cpuRequest:$('#application-deployment-cpu-request').value.trim(),
-    cpuLimit:$('#application-deployment-cpu-limit').value.trim(),
-    memoryRequest:$('#application-deployment-memory-request').value.trim(),
-    memoryLimit:$('#application-deployment-memory-limit').value.trim()
-  };
+  const body=applicationDeploymentRuntimeBody();
   try{
     state.applicationDeploymentPlan=await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/deployment-plan`,{method:'POST',body});
+    state.applicationDeploymentRun=null;
     renderApplicationDeploymentPlan();toast('Deterministic application deployment plan rendered; no target mutation occurred.');
   }catch(error){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();toast(error.message,'error');}
+};
+$('#application-deployment-request').onclick=async()=>{
+  const plan=state.applicationDeploymentPlan,binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-deployment-binding').value);
+  if(!plan||!binding||plan.environmentBindingId!==binding.id){toast('Preview the current deployment plan before creating a request.','warning');return;}
+  if(!await confirmAction('Create application deployment request',`Create an approval-gated deployment for ${binding.environment} / ${binding.namespace}? The exact release, WorkspaceBinding, rendered plan and target inventory will be fenced before execution.`,false))return;
+  try{
+    state.applicationDeploymentRun=await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/deployments`,{method:'POST',headers:{'Idempotency-Key':idempotency('application-deploy')},body:applicationDeploymentRuntimeBody()});
+    renderApplicationDeploymentPlan();toast('Application deployment request created; independent approval is required and runtime success is not implied.');
+  }catch(error){toast(error.message,'error');}
+};
+$('#application-deployment-refresh').onclick=async()=>{try{await refreshApplicationDeployment();}catch(error){toast(error.message,'error');}};
+$('#application-deployment-approve').onclick=async()=>{
+  const op=state.applicationDeploymentRun?.operation;if(!op?.id||op.state!=='AWAITING_APPROVAL')return;
+  if(!await confirmAction('Approve application deployment','Approve this exact application deployment revision for target execution? Requester/approver separation and current authority fences are revalidated by the server.',false))return;
+  try{
+    state.applicationDeploymentRun=await api(`/api/v1/application-platform/deployments/${encodeURIComponent(op.id)}/approve`,{method:'POST',headers:{'If-Match':`"${op.revision}"`},body:{}});
+    renderApplicationDeploymentPlan();toast('Application deployment approved and queued; target convergence is still pending.');
+  }catch(error){toast(error.message,'error');}
 };
 $('#application-resolution-form').onsubmit=async event=>{event.preventDefault();const workloadId=$('#application-resolution-workload').value;if(!workloadId)return;const workload=state.applicationWorkloadTypes.find(item=>item.id===workloadId);const traitIds=[...$('#application-resolution-traits').selectedOptions].map(option=>option.value);const observedNativeCapabilities=$('#application-resolution-native').value.split(',').map(v=>v.trim()).filter(Boolean);try{const result=await api('/api/v1/application-platform/resolve',{method:'POST',body:{projectId:workload.projectId,workloadTypeId:workloadId,traitIds,observedNativeCapabilities}});$('#application-composition-result').innerHTML=`<div class="inline-summary"><strong>Capability resolution preview</strong> · ${esc(shortDigest(result.resolutionDigest))}<br>${(result.decisions||[]).map(row=>`${badge(row.action)} ${esc(row.capability)} — ${esc(row.reason)}`).join('<br>')||'No traits selected.'}<br><small>Preview only. No target or desired binding was mutated.</small></div>`;}catch(error){toast(error.message,'error');}};
 $('#application-promotion-form').onsubmit=async event=>{event.preventDefault();const binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-promotion-binding').value),release=state.applicationReleases.find(item=>item.id===$('#application-promotion-release').value);if(!binding||!release)return;if(binding.projectId!==release.projectId){toast('Release and environment binding must belong to the same project.','error');return;}const observedNativeCapabilities=$('#application-promotion-native').value.split(',').map(v=>v.trim()).filter(Boolean);if(!await confirmAction('Promote environment release',`Advance ${binding.environment} / ${binding.namespace} from its current immutable release to ${release.name} ${release.version}? The WorkspaceBinding scope cannot change and will be revalidated before commit.`,false))return;try{await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/promote`,{method:'POST',headers:{'If-Match':`"${binding.revision}"`},body:{releaseId:release.id,observedNativeCapabilities}});toast('Environment binding promoted. Runtime convergence and Physical certification remain separate.');await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
