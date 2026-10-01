@@ -3,6 +3,7 @@ set -euo pipefail
 
 AUTHORITY="INSTALLER_MANUAL_ENTRYPOINT_V1"
 CONTINUATION_AUTHORITY="INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1"
+ACTIONABLE_AUTHORITY="INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
 INSTALLER="${ROOT_DIR}/bin/linux-amd64/platform-installer"
@@ -137,11 +138,11 @@ if [[ "${mode}" == "install" ]]; then
     fi
   done
   if [[ "${execution_requested}" != true ]]; then
-    echo "ERROR ${AUTHORITY}: normal install requires --enable-execution so the Browser Installer is actionable after host deployment" >&2
+    echo "ERROR ${ACTIONABLE_AUTHORITY}: normal install requires --enable-execution so the Browser Installer is actionable after host deployment" >&2
     exit 2
   fi
   if [[ "${deploy_confirmed}" != true ]]; then
-    echo "ERROR ${AUTHORITY}: install requires explicit --confirmation DEPLOY" >&2
+    echo "ERROR ${ACTIONABLE_AUTHORITY}: install requires explicit --confirmation DEPLOY" >&2
     exit 2
   fi
 fi
