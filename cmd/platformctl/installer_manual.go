@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"platform.4so.io/factory/internal/hostdeployment"
+	"platform.4so.io/factory/internal/releaseartifact"
 )
 
 const installerGuidedManualWorkflowAuthority = "INSTALLER_GUIDED_MANUAL_WORKFLOW_V1"
@@ -49,6 +50,7 @@ func installerManualCommand(args []string) {
 type manualInstallerInputs struct {
 	InstallerBinary   string
 	BundleDirectory   string
+	ReleaseArtifact   string
 	Listen            string
 	TLSCertificate    string
 	TLSPrivateKey     string
@@ -67,6 +69,7 @@ func installerManualPrepare(mode string, args []string) {
 	input := manualInstallerInputs{}
 	fs.StringVar(&input.InstallerBinary, "installer-binary", defaultSiblingInstallerBinary(), "platform-installer binary; defaults to the sibling of the running platformctl")
 	fs.StringVar(&input.BundleDirectory, "bundle-dir", "", "verified appliance bundle directory")
+	fs.StringVar(&input.ReleaseArtifact, "release-artifact", strings.TrimSpace(os.Getenv("PLATFORM_FACTORY_RELEASE_ARTIFACT")), "exact release ZIP; required for a live host unless PLATFORM_FACTORY_RELEASE_ARTIFACT is set")
 	fs.StringVar(&input.Listen, "listen", "127.0.0.1:9080", "Bootstrap Installer listen address")
 	fs.StringVar(&input.TLSCertificate, "tls-cert", "", "TLS certificate for non-loopback Installer access")
 	fs.StringVar(&input.TLSPrivateKey, "tls-key", "", "private TLS key for non-loopback Installer access")
@@ -88,6 +91,9 @@ func installerManualPrepare(mode string, args []string) {
 	if fs.NArg() != 0 || strings.TrimSpace(input.BundleDirectory) == "" || input.Timeout <= 0 {
 		fatal(errors.New("installer-manual requires --bundle-dir; use --help for the remaining optional inputs"))
 	}
+	if input.Root == "/" && strings.TrimSpace(input.ReleaseArtifact) == "" {
+		fatal(errors.New("live installer-manual requires --release-artifact or PLATFORM_FACTORY_RELEASE_ARTIFACT for exact-release binding"))
+	}
 	if mode == "install" && input.Confirmation != hostdeployment.ConfirmationDeploy {
 		fatal(errors.New("installer-manual install requires --confirmation DEPLOY"))
 	}
@@ -105,6 +111,13 @@ func installerManualPrepare(mode string, args []string) {
 	if err != nil {
 		fatal(err)
 	}
+	releaseDigest := ""
+	if strings.TrimSpace(input.ReleaseArtifact) != "" {
+		releaseDigest, err = verifyManualInstallerExactRelease(input.ReleaseArtifact, plan)
+		if err != nil {
+			fatal(err)
+		}
+	}
 	if mode == "preflight" {
 		printJSON(plan.Admission)
 		if !plan.Admission.Ready {
@@ -118,6 +131,7 @@ func installerManualPrepare(mode string, args []string) {
 			"manualInstall": true,
 			"plan":          plan,
 			"specPath":      retainedSpecPath(input.OutputSpec),
+			"sourceReleaseDigest": releaseDigest,
 			"nextAction":    "review admission/actions; rerun installer-manual install with --confirmation DEPLOY",
 		})
 		if !plan.Admission.Ready {
@@ -140,25 +154,60 @@ func installerManualPrepare(mode string, args []string) {
 		fatal(fmt.Errorf("post-install verification: %w", err))
 	}
 	tokenFile := filepath.Join(filepath.Dir(state.Plan.Paths.State), "bootstrap-token")
-	printJSON(map[string]any{
-		"authority":          installerGuidedManualWorkflowAuthority,
-		"manualInstall":      true,
-		"status":             "READY",
-		"plan":               plan,
-		"deployment":         state,
-		"verification":       verification,
-		"installerUrl":       manualInstallerConsoleURL(plan.Health.URL),
-		"healthUrl":          plan.Health.URL,
-		"bootstrapTokenFile": tokenFile,
-		"executionEnabled":   input.ExecutionEnabled,
-		"specPath":           retainedSpecPath(input.OutputSpec),
-		"nextActions": []string{
+	live := state.Plan.Root == "/"
+	status := "STAGED"
+	installerURL := ""
+	nextActions := []string{"copy the staged files to the intended live root or rerun installer-manual against --root / before using the browser Installer"}
+	if live {
+		status = "READY"
+		installerURL = manualInstallerConsoleURL(plan.Health.URL)
+		nextActions = []string{
 			"read the private bootstrap token from bootstrapTokenFile",
 			"open installerUrl and authenticate with that token",
 			"create or load the installation request, run preflight, review the plan, then explicitly start installation",
 			"use installer-manual status/verify/recover/rollback for host-deployment recovery",
-		},
+		}
+		if !input.ExecutionEnabled {
+			nextActions = append([]string{"host deployment is ready but Bootstrap mutation is disabled; rerun the reviewed install with --enable-execution before starting appliance installation"}, nextActions...)
+		}
+	}
+	printJSON(map[string]any{
+		"authority":          installerGuidedManualWorkflowAuthority,
+		"manualInstall":      true,
+		"status":             status,
+		"plan":               plan,
+		"deployment":         state,
+		"verification":       verification,
+		"installerUrl":       installerURL,
+		"healthUrl":          plan.Health.URL,
+		"bootstrapTokenFile": func() string { if live { return tokenFile }; return "" }(),
+		"executionEnabled":   input.ExecutionEnabled,
+		"sourceReleaseDigest": releaseDigest,
+		"specPath":           retainedSpecPath(input.OutputSpec),
+		"nextActions":        nextActions,
 	})
+}
+
+func verifyManualInstallerExactRelease(path string, plan hostdeployment.Plan) (string, error) {
+	release, err := releaseartifact.Inspect(path, version)
+	if err != nil {
+		return "", fmt.Errorf("inspect exact release artifact: %w", err)
+	}
+	bindRunningPlatformctlToExactRelease(release)
+	expectedInstallerDigest, err := release.FileDigest(releaseartifact.InstallerBinaryPath)
+	if err != nil {
+		return "", fmt.Errorf("inspect exact release installer binary: %w", err)
+	}
+	if plan.InstallerBinaryDigest != expectedInstallerDigest {
+		return "", errors.New("manual installer binary digest does not match bin/linux-amd64/platform-installer in the exact release")
+	}
+	if strings.TrimSpace(plan.Bundle.SourceReleaseDigest) == "" {
+		return "", errors.New("manual installer bundle is not bound to a source release digest")
+	}
+	if !strings.EqualFold(strings.TrimSpace(plan.Bundle.SourceReleaseDigest), strings.TrimSpace(release.Digest)) {
+		return "", errors.New("manual installer bundle sourceReleaseDigest does not match the exact release ZIP")
+	}
+	return release.Digest, nil
 }
 
 func buildManualInstallerSpec(input manualInstallerInputs) (hostdeployment.Spec, error) {
