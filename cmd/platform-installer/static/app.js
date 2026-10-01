@@ -27,7 +27,7 @@ const state = {
 const pageCopy = {
   overview: ['Overview', 'Connect with the one-time bootstrap token to inspect or operate this appliance.'],
   installation: ['Installation', 'Create a validated request and review every blocker before execution.'],
-  progress: ['Progress', 'Follow health-gated execution and resume only from a failed run.'],
+  progress: ['Progress', 'Follow health-gated execution and resume only from a failed or interrupted durable run.'],
   health: ['Platform health', 'Inspect GitOps, HA and air-gap evidence reported by the installer.'],
   recovery: ['Disaster recovery', 'Create and restore only verified off-node appliance backups.'],
   lifecycle: ['Service lifecycle', 'Back up, restore and digest-upgrade managed platform services.']
@@ -35,7 +35,7 @@ const pageCopy = {
 const faPageCopy = {
   overview: ['نمای کلی', 'با توکن راه‌اندازی به نصب‌کننده متصل شوید و وضعیت واقعی را مشاهده کنید.'],
   installation: ['نصب', 'درخواست معتبر بسازید و پیش از اجرا همهٔ خطاها و هشدارها را بررسی کنید.'],
-  progress: ['پیشرفت اجرا', 'اجرای مرحله‌ای را مشاهده و فقط از مرحلهٔ ناموفق ادامه دهید.'],
+  progress: ['پیشرفت اجرا', 'اجرای مرحله‌ای را مشاهده کنید و فقط اجرای پایدارِ ناموفق یا قطع‌شده را از مرز ذخیره‌شده ادامه دهید.'],
   health: ['سلامت پلتفرم', 'شواهد واقعی GitOps، کلاستر HA و بستهٔ Air-gap را بررسی کنید.'],
   recovery: ['بازیابی بحران', 'فقط نسخه‌های پشتیبان تأییدشده و خارج از نود را ایجاد یا بازیابی کنید.'],
   lifecycle: ['چرخهٔ عمر سرویس‌ها', 'از سرویس‌های مدیریت‌شده نسخهٔ پشتیبان بگیرید، آن‌ها را بازیابی کنید یا ارتقای قفل‌شده به هش انجام دهید.']
@@ -156,8 +156,19 @@ const faLiteral = {
   "Start installation": "شروع نصب",
   "Download bootstrap CA": "دانلود CA راه‌اندازی",
   "Execution progress": "پیشرفت اجرا",
-  "Every step is resumable and health-gated. A failed run resumes from the failed or pending step.": "هر مرحله قابل ادامه است و فقط پس از بررسی سلامت مرحلهٔ قبل جلو می‌رود. در صورت خطا، نصب از همان مرحلهٔ ناموفق یا در انتظار ادامه پیدا می‌کند.",
+  "Every step is resumable and health-gated. A failed or interrupted durable run resumes from its reconciled failed, running or pending step.": "هر مرحله قابل ادامه و وابسته به سلامت مرحلهٔ قبل است. اجرای پایدارِ ناموفق یا قطع‌شده فقط پس از بازخوانی وضعیت واقعی، از مرحلهٔ ناموفق، در حال اجرا یا در انتظار ادامه پیدا می‌کند.",
   "Resume failed run": "ادامه اجرای ناموفق",
+  "Resume interrupted run": "ادامه اجرای قطع‌شده",
+  "Resume installation": "ادامه نصب",
+  "Review the failed step, correct its prerequisite and resume from persisted state.": "مرحلهٔ ناموفق را بررسی کنید، پیش‌نیاز آن را اصلاح کنید و از وضعیت پایدار ذخیره‌شده ادامه دهید.",
+  "The persisted run is RUNNING but no installer worker owns it. Resume from durable state.": "اجرای ذخیره‌شده در وضعیت RUNNING است اما هیچ worker نصب‌کننده‌ای مالک آن نیست؛ از وضعیت پایدار ادامه دهید.",
+  "Monitor execution": "مشاهده اجرای نصب",
+  "The installer is running. Do not start a second run.": "نصب‌کننده در حال اجرا است؛ اجرای دوم شروع نکنید.",
+  "Review health and backups": "بررسی سلامت و پشتیبان‌ها",
+  "Confirm GitOps, HA, air-gap and create the first off-node backup.": "وضعیت GitOps، HA و Air-gap را تأیید کنید و نخستین پشتیبان خارج از نود را بسازید.",
+  "Continue installation": "ادامه مسیر نصب",
+  "Open progress for the current run.": "پیشرفت اجرای فعلی را باز کنید.",
+  "Access-security details are temporarily unavailable. Durable installation status remains available.": "جزئیات امنیت دسترسی موقتاً در دسترس نیست؛ وضعیت پایدار نصب و مسیر بازیابی همچنان قابل مشاهده است.",
   "Reset and clean reinstall": "بازنشانی و نصب پاک",
   "Explicitly uninstall only product-owned RKE2 and generated installer state. Installer access token and pinned HA SSH trust are preserved so a clean reinstall can be planned after reset.": "فقط RKE2 متعلق به محصول و فایل‌های ایجادشده توسط نصب‌کننده حذف می‌شوند. توکن دسترسی نصب‌کننده و کلیدهای SSH تأییدشدهٔ سرورهای HA حفظ می‌شود تا پس از بازنشانی نصب پاک دوباره برنامه‌ریزی شود.",
   "Reset installation": "بازنشانی نصب",
