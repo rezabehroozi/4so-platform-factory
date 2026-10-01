@@ -153,7 +153,7 @@ func TestOperatorConsoleJourneyContract(t *testing.T) {
 			t.Fatalf("target architecture console authority contract missing %q", contract)
 		}
 	}
-	for _, viewerSafe := range []string{"/api/v1/blueprints/authoring-roundtrip", "/api/v1/blueprints/resolve", "/api/v1/compatibility/evaluate"} {
+	for _, viewerSafe := range []string{"/api/v1/blueprints/authoring-roundtrip", "/api/v1/blueprints/resolve", "/api/v1/compatibility/evaluate", "/deployment-plan"} {
 		if !strings.Contains(js, viewerSafe) {
 			t.Fatalf("viewer-safe planning endpoint %q missing from console contract", viewerSafe)
 		}
@@ -215,7 +215,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("PlatformTemplate console runtime contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{`id="application-composition-panel"`, `id="application-resolution-form"`, `id="application-promotion-form"`, `id="application-release-create-form"`, `id="application-release-image"`, `id="application-binding-create-form"`, `id="application-binding-workspace-binding"`, "Authority boundary:", "immutable release", "does not deploy an application"} {
+	for _, contract := range []string{`id="application-composition-panel"`, `id="application-resolution-form"`, `id="application-promotion-form"`, `id="application-release-create-form"`, `id="application-release-image"`, `id="application-binding-create-form"`, `id="application-binding-workspace-binding"`, `data-viewer-safe="true" id="application-deployment-plan-form"`, `id="application-deployment-binding"`, `id="application-deployment-plan-result"`, "Authority boundary:", "immutable release", "does not deploy an application", "Deterministic desired state only"} {
 		if !strings.Contains(html, contract) {
 			t.Fatalf("J8 application composition console contract missing %q", contract)
 		}
@@ -225,7 +225,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("J8 Dapr workload admission console contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{"applicationWorkloadTypes", "applicationCapabilityTraits", "applicationResourceTypes", "applicationWorkspaceProfiles", "applicationReleases", "applicationEnvironmentBindings", "applicationWorkspaceBindings", "/api/v1/application-platform/releases", "/api/v1/application-platform/environment-bindings", "/api/v1/application-platform/resolve", "/application-platform/environment-bindings/", "/api/v1/workspaces/", "workloadImageReference", "Immutable application release requires an exact digest-pinned workload image.", "Desired environment binding created. No runtime deployment has been inferred.", "If-Match", "Preview only. No target", "Runtime convergence and Physical certification remain separate"} {
+	for _, contract := range []string{"applicationWorkloadTypes", "applicationCapabilityTraits", "applicationResourceTypes", "applicationWorkspaceProfiles", "applicationReleases", "applicationEnvironmentBindings", "applicationWorkspaceBindings", "applicationDeploymentPlan", "/api/v1/application-platform/releases", "/api/v1/application-platform/environment-bindings", "/deployment-plan", "/api/v1/application-platform/resolve", "/application-platform/environment-bindings/", "/api/v1/workspaces/", "workloadImageReference", "renderApplicationDeploymentPlan", "Deterministic application deployment plan rendered; no target mutation occurred.", "viewerSafePostPath.startsWith('/api/v1/application-platform/environment-bindings/')", "Immutable application release requires an exact digest-pinned workload image.", "Desired environment binding created. No runtime deployment has been inferred.", "If-Match", "Preview only. No target", "Runtime convergence and Physical certification remain separate"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("J8 application composition runtime contract missing %q", contract)
 		}
