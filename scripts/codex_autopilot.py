@@ -416,6 +416,7 @@ REPAIR_SCOPE_FENCE_AUTHORITY = "AUTOPILOT_REPAIR_SCOPE_FENCE_V1"
 STRUCTURED_TRIAGE_AUTHORITY = "AUTOPILOT_STRUCTURED_TRIAGE_V1"
 REPAIR_GIT_BOUNDARY_AUTHORITY = "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1"
 DIRTY_DELTA_AUTHORITY = "AUTOPILOT_DIRTY_DELTA_V1"
+WORKSPACE_FINGERPRINT_AUTHORITY = "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1"
 
 _FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
 
@@ -630,7 +631,7 @@ _AUTOPILOT_EVENTS_RELATIVE = Path(".state") / "codex-autopilot-events"
 _FINGERPRINT_EXCLUDED_DIRS = {".git", ".state", "bin", "release", "__pycache__", ".pytest_cache"}
 
 
-def _workspace_fingerprint(root: Path) -> str:
+def _full_workspace_fingerprint(root: Path) -> str:
     digest = hashlib.sha256()
     for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
         if not path.is_file():
@@ -638,8 +639,6 @@ def _workspace_fingerprint(root: Path) -> str:
         rel = path.relative_to(root)
         if any(part in _FINGERPRINT_EXCLUDED_DIRS for part in rel.parts):
             continue
-        # Editor/patch backups are not product inputs and must not invalidate an
-        # interrupted-run checkpoint.
         if path.name.endswith((".pyc", ".pyo", "~", ".bak")):
             continue
         digest.update(rel.as_posix().encode())
@@ -650,6 +649,29 @@ def _workspace_fingerprint(root: Path) -> str:
         digest.update(b"\0")
     return digest.hexdigest()
 
+
+def _workspace_fingerprint(root: Path) -> str:
+    """Fingerprint source identity without rehashing every tracked file per stage.
+
+    A Git commit already content-addresses the clean tracked tree. Combine that
+    immutable identity with exact hashes of only dirty/untracked product inputs.
+    If local Git enumeration is unavailable, fall back to the full-tree digest.
+    """
+    head = _git_head(root)
+    dirty = _git_dirty_paths(root)
+    if not head or dirty is None:
+        return _full_workspace_fingerprint(root)
+    manifest = _hash_workspace_paths(root, dirty)
+    digest = hashlib.sha256()
+    digest.update(b"AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1\0")
+    digest.update(head.encode())
+    digest.update(b"\0")
+    for relative in sorted(manifest):
+        digest.update(relative.encode(errors="surrogateescape"))
+        digest.update(b"\0")
+        digest.update(manifest[relative].encode())
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 def _git_dirty_paths(root: Path) -> list[str] | None:
     """Return tracked-dirty + untracked paths without hashing the whole tree.
@@ -946,6 +968,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "structuredTriageAuthority": STRUCTURED_TRIAGE_AUTHORITY,
         "repairGitBoundaryAuthority": REPAIR_GIT_BOUNDARY_AUTHORITY,
         "dirtyDeltaAuthority": DIRTY_DELTA_AUTHORITY,
+        "workspaceFingerprintAuthority": WORKSPACE_FINGERPRINT_AUTHORITY,
         "derived": True,
         "notProductAuthority": True,
         "runId": resolved_run_id,
