@@ -37,7 +37,7 @@ This file is the canonical design language for the Operator Console and Bootstra
 
 **Persian-native UX foundation:** VibeFarsi is a design-research reference for RTL logical layout, Persian typography, formal-but-human microcopy, semantic tokens and compact technical UI. 4SO does not import its React/Tailwind component runtime, MCP availability, source files, fonts or assets. A fresh browser profile starts Persian/RTL; an explicit English choice remains supported and persisted. Persian mode uses the product-owned Vazirmatn stack when available, zero letter-spacing, 1.75 UI line-height, Persian display digits for user-facing quantities, explicit Persian-calendar date formatting, document-level RTL, logical inline/block CSS only, LTR isolation for technical identifiers/protocol fields, a 4px spacing grid and 44px interaction targets. Directional affordances follow reading direction; technical nouns stay Latin only when the product glossary says they improve operator comprehension.
 
-**Rendered certification authority:** `OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1` is enforced by `scripts/smoke_ui_quality.py` and by full extracted-artifact verification. All Console/Installer routes are exercised across supported mobile/tablet/desktop widths, LTR/RTL and light/dark concerns; focus visibility, drawer focus traps, durable error feedback, effective control target sizing, reduced motion, horizontal overflow and WCAG text/control contrast are owner-level release contracts. Explicit theme choice must override the opposite OS preference. These tests certify rendered source/extracted-artifact behavior, not physical deployment or Phase-H performance.
+**Rendered certification authority:** `OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1` is enforced by `scripts/smoke_ui_quality.py` and by full extracted-artifact verification. All 23 Console routes and 6 Installer routes are exercised across supported mobile/tablet/desktop widths, LTR/RTL and light/dark concerns, including progressive disclosures in both collapsed and fully expanded states. Focus visibility, drawer focus traps, active secondary-nav reveal, durable feedback, persistent localized form validation, effective control target sizing, technical LTR isolation, rejection of RTL-scoped physical text alignment, reduced motion, horizontal overflow and WCAG text/control contrast are owner-level release contracts. Explicit theme choice must override the opposite OS preference. These tests certify rendered source/extracted-artifact behavior, not physical deployment or Physical Runtime certification.
 
 
 The visual world comes from rack equipment, network control surfaces, terminal status lamps and engineering drawings: graphite chrome, cool neutral surfaces, blue selection/focus, green verified state, amber intervention, red failure/destructive state.
@@ -56,21 +56,23 @@ The navigation model uses **global operator domains plus contextual destinations
 
 Primary domains:
 
-1. **Home** — platform readiness, blockers and next operator action.
-2. **Infrastructure** — Clusters, Providers, Installation.
-3. **Delivery** — Marketplace, Blueprints, Certified baselines, Catalog releases.
-4. **Fleet** — Fleet overview and Assurance.
-5. **Operations** — Activity & audit, Notifications.
-6. **Administration** — Organizations & projects, Tenants & branding, Integrations & services.
+1. **Overview** — platform readiness, blockers and next operator action.
+2. **Platforms** — Create & manage platforms, Infrastructure profiles, Control-plane install.
+3. **Delivery** — Platform blueprints, Platform templates, Application delivery, Marketplace, Certified baselines and Planning tools.
+4. **Fleet & Workspaces** — Fleet overview, Application workspaces, FinOps & chargeback.
+5. **Operations** — Activity & audit, AI Operator, Notifications.
+6. **Assurance** — Runtime assurance, Edge & sovereign, Supply-chain releases, Physical certification.
+7. **Admin** — Organizations & projects, Tenant environments & branding, Integrations & services.
 
-`Planning tools` is not a primary destination. It remains reachable from Blueprint expert tools and by direct route because it is a planning/debugging surface rather than a daily operator workspace.
+Platform Templates and Application Delivery are intentionally separate destinations. Platform Templates compose reusable platform schema/policy/blueprint authority; Application Delivery owns WorkloadType/CapabilityTrait/ManagedResourceType/WorkspaceProfile, immutable releases, environment bindings and approval-gated runtime delivery. `Planning tools` remains a secondary/expert destination inside Delivery rather than a primary sidebar domain.
 
 ### Placement rules
 
 - Ownership, RBAC, OIDC mapping, service accounts, tenant branding and system integrations belong to **Administration**, not the daily operational path.
-- Catalog release governance belongs to **Delivery** because it governs deployable product supply, not generic system settings.
-- Runtime verification/closure/certification belongs to **Fleet → Assurance** because it is evidence about target runtime state.
-- Installation planning belongs to **Infrastructure** and must not dominate the normal post-install console.
+- Platform blueprint/template/application composition belongs to **Delivery**; application delivery must not be hidden inside the Platform Templates page.
+- Supply-chain release governance and runtime verification/closure/certification belong to **Assurance** because they prove deployable/runtime truth rather than author desired configuration.
+- Installation planning belongs to **Platforms** and must not dominate the normal post-install console.
+- Fleet-wide cost/capacity and cross-cluster Workspace navigation belong to **Fleet & Workspaces**, while Organization/Project ownership remains under **Admin**.
 - A feature must not gain a first-level navigation item merely because it has its own backend package or API family.
 
 ### Roles
