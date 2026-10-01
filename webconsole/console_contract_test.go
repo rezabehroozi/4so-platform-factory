@@ -337,6 +337,22 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 }
 
 
+func TestOperatorConsoleLiveProgressRefreshContract(t *testing.T) {
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	js := string(jsBytes)
+	for _, marker := range []string{
+		"const livePages=new Set(['overview','clusters','providers','marketplace','baselines','verification','fleet','workspaces'",
+		"workspaces:[state.virtualClusters]",
+		"focused||hasUnsavedChanges()||recentInteraction",
+	} {
+		if !strings.Contains(js, marker) { t.Fatalf("live progress refresh contract missing %q", marker) }
+	}
+	if strings.Contains(js, "const expanded=!!$('.page.active details[open]')") {
+		t.Fatal("open read-only disclosures must not freeze live progress refresh")
+	}
+}
+
 func TestOperatorConsoleFormValidationAccessibilityContract(t *testing.T) {
 	jsBytes, err := fs.ReadFile(content, "static/app.js")
 	if err != nil { t.Fatal(err) }
