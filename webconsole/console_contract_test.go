@@ -267,7 +267,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 	if !strings.Contains(js, "aria-current") {
 		t.Fatal("operator navigation must expose aria-current from runtime navigation state")
 	}
-	for _, contract := range []string{"syncMobileNavAccessibility", "sidebar.inert", "pageLoadController", "AbortController", "route-announcer", "aria-busy", "hasActiveWork(state.currentPage)", "applicationDeploymentStatusGeneration", "page-action-availability", "renderActionAvailability", "scrollIntoView({block:'nearest',inline:'nearest'})", "Fleet & Workspaces", "ناوگان و فضاهای کاری", "service-provider-setup", "Release A", "Release B"} {
+	for _, contract := range []string{"syncMobileNavAccessibility", "sidebar.inert", "pageLoadController", "AbortController", "route-announcer", "aria-busy", "hasActiveWork(state.currentPage)", "applicationDeploymentStatusGeneration", "page-action-availability", "renderActionAvailability", "scheduleActionAvailability", "button:disabled[title]", "scrollIntoView({block:'nearest',inline:'nearest'})", "Fleet & Workspaces", "ناوگان و فضاهای کاری", "service-provider-setup", "Release A", "Release B"} {
 		if !strings.Contains(js+html, contract) {
 			t.Fatalf("operator production-hardening contract missing %q", contract)
 		}
