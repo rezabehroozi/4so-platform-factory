@@ -1567,6 +1567,7 @@ function setAccessDisabled(button, disabled, reason='Read-only session') {
     }
     button.disabled=true;
     button.title=reason;
+    button.dataset.accessReason=reason;
     return;
   }
   if(button.dataset.accessDisabled!=='true')return;
@@ -1577,6 +1578,34 @@ function setAccessDisabled(button, disabled, reason='Read-only session') {
   delete button.dataset.accessPriorDisabled;
   delete button.dataset.accessHadTitle;
   delete button.dataset.accessPriorTitle;
+  delete button.dataset.accessReason;
+}
+function localizeActionAvailabilityReason(reason){
+  if(state.locale!=='fa')return reason;
+  const values={
+    'Read-only session':'نشست فقط‌خواندنی است',
+    'Organization/project scope is changing':'محدودهٔ سازمان/پروژه در حال تغییر است',
+    'Organization/project scope is unavailable; retry before mutating':'محدودهٔ سازمان/پروژه در دسترس نیست؛ پیش از تغییر دوباره تلاش کنید',
+    'platform-admin is required':'نقش platform-admin لازم است',
+    'Permission scope is temporarily unavailable':'محدودهٔ مجوز موقتاً در دسترس نیست',
+    'Action belongs to a project outside the selected global scope':'این اقدام خارج از پروژهٔ انتخاب‌شده است',
+    'Project administrator access is required':'دسترسی مدیر پروژه لازم است',
+    'Project write access is required':'دسترسی نوشتن در پروژه لازم است',
+    'Action belongs to an organization outside the selected global scope':'این اقدام خارج از سازمان انتخاب‌شده است',
+    'Organization administrator access is required':'دسترسی مدیر سازمان لازم است',
+    'Organization write access is required':'دسترسی نوشتن در سازمان لازم است'
+  };
+  return values[reason]||localizeDynamicText(reason);
+}
+function renderActionAvailability(){
+  const banner=$('#page-action-availability');if(!banner)return;
+  const active=$('.page.active');
+  const disabled=active?$$('button[data-access-disabled="true"]',active):[];
+  const reasons=[...new Set(disabled.map(button=>button.dataset.accessReason).filter(Boolean))].slice(0,3);
+  if(!reasons.length){banner.hidden=true;banner.innerHTML='';return;}
+  const faLocale=state.locale==='fa';
+  banner.hidden=false;
+  banner.innerHTML=`<strong>${esc(faLocale?'برخی اقدام‌ها در وضعیت فعلی در دسترس نیستند':'Some actions are unavailable in the current context')}</strong><span>${esc(reasons.map(localizeActionAvailabilityReason).join(' · '))}</span><small>${esc(faLocale?'دکمه‌ها عمداً غیرفعال می‌مانند؛ محدوده، نقش یا وضعیت عملیات را تغییر دهید و سپس دوباره بررسی کنید.':'Buttons remain fail-closed. Change scope, role, or operation state and then retry.')}</small>`;
 }
 function applyAccessMode(root = document) {
   applyKnownMutationScopes();
@@ -1588,6 +1617,7 @@ function applyAccessMode(root = document) {
     const reason=scopedMutationReason(button);
     if(reason)setAccessDisabled(button,true,reason);
   });
+  renderActionAvailability();
 }
 const permissionScopeChangeDrivers=new Set([
   'project-organization','membership-organization','service-account-organization','cluster-project','maintenance-cluster-select',
@@ -2122,7 +2152,10 @@ function updateNavigationState(){
     $$('#section-nav button[data-page]').forEach(button=>{
       const page=button.dataset.page, active=page===state.currentPage;
       button.classList.toggle('active',active);
-      if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+      if(active){
+        button.setAttribute('aria-current','page');
+        requestAnimationFrame(()=>button.scrollIntoView({block:'nearest',inline:'nearest'}));
+      }else button.removeAttribute('aria-current');
       const title=pageTitles[page]?.[state.locale==='fa'?'fa':'en']?.[1]; if(title)button.textContent=title;
     });
   }
