@@ -17,6 +17,7 @@ import (
 )
 
 const maxInstallerAccessResponseBytes = 1 << 20
+const installerBootstrapActionGuidanceAuthority = "INSTALLER_BOOTSTRAP_ACTION_GUIDANCE_V1"
 
 func installerAccessCommand(args []string) {
 	if len(args) < 1 {
@@ -127,6 +128,7 @@ func installerAccessRunStatusCommand(args []string) {
 	if err != nil { fatal(err) }
 	printJSON(map[string]any{
 		"authority": "INSTALLER_BOOTSTRAP_RUNTIME_STATUS_V1",
+		"actionGuidanceAuthority": installerBootstrapActionGuidanceAuthority,
 		"executionEnabled": status.ExecutionEnabled,
 		"bootstrapActive": status.BootstrapActive,
 		"resetActive": status.ResetActive,
