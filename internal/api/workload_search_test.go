@@ -71,13 +71,13 @@ func TestWorkloadExplorerAndSearchProjectionAreProjectScopedAndRebuildable(t *te
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/search?projectId="+project.ID+"&q=runtime-report", nil).WithContext(auth.WithPrincipal(context.Background(), principal))
 	w = httptest.NewRecorder()
 	server.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "evidence:") {
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "evidence:") || !strings.Contains(w.Body.String(), `"ownerRef":"operation:`+op.ID+`"`) {
 		t.Fatalf("search status=%d body=%s", w.Code, w.Body.String())
 	}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/search/projection/rebuild?projectId="+project.ID, nil).WithContext(auth.WithPrincipal(context.Background(), principal))
 	w = httptest.NewRecorder()
 	server.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), searchRebuildAuthority) || !strings.Contains(w.Body.String(), "postgresql-bounded") {
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), searchRebuildAuthority) || !strings.Contains(w.Body.String(), "postgresql-bounded") || !strings.Contains(w.Body.String(), `"ownerRef":"cluster:`+cluster.ID+`"`) {
 		t.Fatalf("rebuild status=%d body=%s", w.Code, w.Body.String())
 	}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/search?projectId="+foreignProject.ID+"&q=cluster", nil).WithContext(auth.WithPrincipal(context.Background(), principal))
