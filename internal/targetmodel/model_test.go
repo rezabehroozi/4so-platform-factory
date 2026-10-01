@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c5 := byID["C5-installer-production-lifecycle-closure"]
-	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1"} {
+	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1"} {
 		if !containsString(c5.Evidence, evidence) {
 			t.Fatalf("C5 guided manual installer evidence %q missing: %#v", evidence, c5)
 		}
@@ -214,6 +214,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"platformctl installer-manual preflight/plan/install composes the canonical hostdeployment owner and does not create a second installer engine",
 		"the common manual path never requires an operator to hand-author Installer deployment JSON, edit systemd units, or manually assemble PLATFORM_INSTALLER_* environment files",
 		"browser Installer owns supported profile selection, infrastructure/HA access and pinned host trust, dedicated HA storage, endpoint/TLS, managed/external service inputs, plan, host preflight and explicit INSTALL confirmation",
+		"loopback remains the safe default; the guided result exposes a workstation URL plus an explicit SSH local-forward command for remote operators instead of requiring them to expose the Installer service",
 		"failed/interrupted bootstrap runs resume from durable owner-classified state; clean reinstall uses journaled reset; host-deployment interruption requires explicit recovery and never overwrites unrelated host state",
 	} {
 		if !containsString(c5.ExitCriteria, criterion) {
@@ -221,7 +222,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c6 := byID["C6-multi-agent-test-autopilot"]
-	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1"} {
+	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1"} {
 		if !containsString(c6.Evidence, evidence) {
 			t.Fatalf("C6 token-efficient autopilot evidence %q missing: %#v", evidence, c6)
 		}
@@ -232,6 +233,8 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"a timed-out deterministic stage is process-tree cleaned and, in repair mode, receives the same structured read-only diagnosis so a proven code/test hang may be repaired while an untriaged timeout remains environment-blocked",
 		"repair reruns only the failing owner stage immediately; final convergence is selected from the repaired specialist dependency family instead of automatically replaying the entire graph",
 		"workspace deltas around every repair are digested; no-change, unreadable, unknown or cross-owner modifications force full convergence, and that decision survives crash/resume",
+		"repair agents may edit only the working tree and may not commit/reset/checkout/stash/rebase/merge or mutate Git refs/index/history; any observed HEAD mutation stops automatic repair and requires operator reconciliation",
+		"checkpoint workspace identity combines the immutable Git HEAD with exact hashes of only dirty/untracked product inputs, falling back to the full-tree digest when local Git enumeration is unavailable",
 		"same-stage same-fingerprint repetition stops as NO_PROGRESS and global repair count is bounded so agents cannot enter token-burning repair loops",
 	} {
 		if !containsString(c6.ExitCriteria, criterion) {
