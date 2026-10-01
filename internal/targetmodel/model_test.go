@@ -196,12 +196,12 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c4 := byID["C4-console-e2e-ux-certification"]
-	for _, evidence := range []string{"OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1", "OPERATOR_EXPERIENCE_DISCLOSURE_EXPANDED_MATRIX_V1", "FORM_VALIDATION_FEEDBACK_V1", "RUNTIME_GENERATED_LOCALIZATION_PARITY_V1"} {
+	for _, evidence := range []string{"OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1", "OPERATOR_EXPERIENCE_DISCLOSURE_EXPANDED_MATRIX_V1", "FORM_VALIDATION_FEEDBACK_V1", "RUNTIME_GENERATED_LOCALIZATION_PARITY_V1", "PROGRAMMATIC_REDUCED_MOTION_V1"} {
 		if !containsString(c4.Evidence, evidence) {
 			t.Fatalf("C4 deep RTL/LTR evidence %q missing: %#v", evidence, c4)
 		}
 	}
-	if len(c4.ExitCriteria) < 8 || !containsString(c4.ExitCriteria, "320/390/768/1024/1440 viewport checks cover LTR and RTL with workflow disclosures collapsed and expanded") || !containsString(c4.ExitCriteria, "invalid required/pattern/range inputs expose persistent localized field errors, aria-describedby, a form summary and first-error focus in both Console and Installer") || !containsString(c4.ExitCriteria, "runtime-generated Console/Installer controls round-trip English -> Persian/RTL -> English without hardcoded locale residue") || !containsString(c4.ExitCriteria, "workflow copy and comparison labels remain position-independent across responsive LTR/RTL layouts rather than relying on left/right/above/below instructions") || !containsString(c4.ExitCriteria, "workflow guidance remains input-method independent and never requires mouse/touch assumptions or desktop-only modifier-key instructions for ordinary form completion") {
+	if len(c4.ExitCriteria) < 9 || !containsString(c4.ExitCriteria, "320/390/768/1024/1440 viewport checks cover LTR and RTL with workflow disclosures collapsed and expanded") || !containsString(c4.ExitCriteria, "invalid required/pattern/range inputs expose persistent localized field errors, aria-describedby, a form summary and first-error focus in both Console and Installer") || !containsString(c4.ExitCriteria, "runtime-generated Console/Installer controls round-trip English -> Persian/RTL -> English without hardcoded locale residue") || !containsString(c4.ExitCriteria, "workflow copy and comparison labels remain position-independent across responsive LTR/RTL layouts rather than relying on left/right/above/below instructions") || !containsString(c4.ExitCriteria, "workflow guidance remains input-method independent and never requires mouse/touch assumptions or desktop-only modifier-key instructions for ordinary form completion") || !containsString(c4.ExitCriteria, "programmatic scrolling respects prefers-reduced-motion and cannot bypass the same reduced-motion contract enforced by CSS") {
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c8 := byID["C8-console-operational-completion"]
