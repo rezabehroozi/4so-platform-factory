@@ -202,7 +202,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 		}
 	}
 	for _, contract := range []string{
-		`data-en="Overview">نمای کلی</span>`, `data-en="Platforms">پلتفرم‌ها</span>`, `data-en="Blueprints">طرح‌ها و نسخه‌ها</span>`, `data-en="Assurance">اطمینان و شواهد</span>`, `data-en="Admin">مدیریت</span>`,
+		`data-en="Overview">نمای کلی</span>`, `data-en="Platforms">پلتفرم‌ها</span>`, `data-en="Delivery">تحویل</span>`, `data-en="Fleet &amp; Workspaces">ناوگان و فضاهای کاری</span>`, `data-en="Assurance">اطمینان و شواهد</span>`, `data-en="Admin">مدیریت</span>`,
 		`class="product-flow"`, `data-navigate="blueprints"`, `data-navigate="clusters"`, `data-navigate="fleet"`, `data-navigate="operations"`,
 		`data-section="delivery" data-section-home="blueprints"`, `data-section="assurance" data-section-home="verification"`, `Runtime assurance`, `Supply-chain releases`, `Physical certification`, `Organizations &amp; projects`, `AI Operator`,
 	} {
@@ -223,7 +223,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("Workspace truthful-console runtime contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{`data-page="templates"`, `id="templates"`, `TARGET PREVIEW REQUIRED`, `No direct deploy from a template.`} {
+	for _, contract := range []string{`data-page="templates"`, `id="templates"`, `data-page="applications"`, `id="applications"`, `TARGET PREVIEW REQUIRED`, `No direct deploy from a template.`} {
 		if !strings.Contains(html, contract) {
 			t.Fatalf("PlatformTemplate truthful-console contract missing %q", contract)
 		}
@@ -233,7 +233,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("PlatformTemplate console runtime contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{`id="application-composition-panel"`, `id="application-delivery-journey"`, `data-application-step="release"`, `data-application-step="observed"`, `id="application-release-workflow"`, `id="application-binding-workflow"`, `id="application-deployment-workflow"`, `id="application-advanced-workflow"`, `id="application-resolution-form"`, `id="application-promotion-form"`, `id="application-release-create-form"`, `id="application-release-image"`, `id="application-binding-create-form"`, `id="application-binding-workspace-binding"`, `data-viewer-safe="true" id="application-deployment-plan-form"`, `id="application-deployment-binding"`, `id="application-deployment-plan-result"`, `id="application-deployment-request"`, `data-viewer-safe="true" id="application-deployment-refresh"`, `id="application-deployment-approve"`, "Authority boundary:", "Advanced composition &amp; promotion", "immutable release", "does not deploy an application", "Deterministic desired state only", "ambiguous target mutation becomes Recovery Required"} {
+	for _, contract := range []string{`id="application-composition-library"`, `id="application-workload-create-form"`, `id="application-trait-create-form"`, `id="application-resource-create-form"`, `id="application-profile-create-form"`, `id="application-delivery-prerequisite"`, `id="application-composition-panel"`, `id="application-delivery-journey"`, `data-application-step="release"`, `data-application-step="observed"`, `id="application-release-workflow"`, `id="application-binding-workflow"`, `id="application-deployment-workflow"`, `id="application-advanced-workflow"`, `id="application-resolution-form"`, `id="application-promotion-form"`, `id="application-release-create-form"`, `id="application-release-image"`, `id="application-binding-create-form"`, `id="application-binding-workspace-binding"`, `data-viewer-safe="true" id="application-deployment-plan-form"`, `id="application-deployment-binding"`, `id="application-deployment-plan-result"`, `id="application-deployment-request"`, `data-viewer-safe="true" id="application-deployment-refresh"`, `id="application-deployment-approve"`, "Authority boundary:", "Advanced composition &amp; promotion", "immutable release", "does not deploy an application", "Deterministic desired state only", "ambiguous target mutation becomes Recovery Required"} {
 		if !strings.Contains(html, contract) {
 			t.Fatalf("J8 application composition console contract missing %q", contract)
 		}
@@ -243,7 +243,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("J8 Dapr workload admission console contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{"applicationWorkloadTypes", "applicationCapabilityTraits", "applicationResourceTypes", "applicationWorkspaceProfiles", "applicationReleases", "applicationEnvironmentBindings", "applicationWorkspaceBindings", "applicationDeploymentPlan", "applicationDeploymentRun", "/api/v1/application-platform/releases", "/api/v1/application-platform/environment-bindings", "/deployment-plan", "/deployments", "/approve", "/api/v1/application-platform/resolve", "/application-platform/environment-bindings/", "/api/v1/workspaces/", "workloadImageReference", "renderApplicationDeploymentPlan", "renderApplicationDeliveryJourney", "openApplicationDeliveryStep", "scheduleApplicationDeploymentStatusRefresh", "applicationDeploymentIsActive", "refreshApplicationDeployment", "updatedReplicas", "availableReplicas", "Create an approval-gated deployment", "Application deployment approved and queued; target convergence is still pending.", "lastFailureClass==='UNKNOWN'", "RECOVERY_REQUIRED", "target agent performs read-only recovery readback", "Mutation outcome is ambiguous; automatic replay is blocked", "Deterministic application deployment plan rendered; no target mutation occurred.", "viewerSafePostPath.startsWith('/api/v1/application-platform/environment-bindings/')", "Immutable application release requires an exact digest-pinned workload image.", "Desired environment binding created. No runtime deployment has been inferred.", "createdId=created?.id", "automatic status refresh temporarily failed", "Legacy releases without an artifact remain readable but are not deployable.", "promotionCandidates", "item.name===currentRelease.name", "item.workloadTypeDigest===currentRelease.workloadTypeDigest", "If-Match", "Preview only. No target", "Runtime convergence and Physical certification remain separate"} {
+	for _, contract := range []string{"applicationWorkloadTypes", "applicationCapabilityTraits", "applicationResourceTypes", "applicationWorkspaceProfiles", "renderApplicationLibraryOptions", "parseManagedResourceOutputs", "loadApplicationDelivery", "/api/v1/application-platform/workload-types", "/api/v1/application-platform/capability-traits", "/api/v1/application-platform/resource-types", "/api/v1/application-platform/workspace-profiles", "applicationReleases", "applicationEnvironmentBindings", "applicationWorkspaceBindings", "applicationDeploymentPlan", "applicationDeploymentRun", "/api/v1/application-platform/releases", "/api/v1/application-platform/environment-bindings", "/deployment-plan", "/deployments", "/approve", "/api/v1/application-platform/resolve", "/application-platform/environment-bindings/", "/api/v1/workspaces/", "workloadImageReference", "renderApplicationDeploymentPlan", "renderApplicationDeliveryJourney", "openApplicationDeliveryStep", "scheduleApplicationDeploymentStatusRefresh", "applicationDeploymentIsActive", "refreshApplicationDeployment", "updatedReplicas", "availableReplicas", "Create an approval-gated deployment", "Application deployment approved and queued; target convergence is still pending.", "lastFailureClass==='UNKNOWN'", "RECOVERY_REQUIRED", "target agent performs read-only recovery readback", "Mutation outcome is ambiguous; automatic replay is blocked", "Deterministic application deployment plan rendered; no target mutation occurred.", "viewerSafePostPath.startsWith('/api/v1/application-platform/environment-bindings/')", "Immutable application release requires an exact digest-pinned workload image.", "Desired environment binding created. No runtime deployment has been inferred.", "createdId=created?.id", "automatic status refresh temporarily failed", "Legacy releases without an artifact remain readable but are not deployable.", "promotionCandidates", "item.name===currentRelease.name", "item.workloadTypeDigest===currentRelease.workloadTypeDigest", "If-Match", "Preview only. No target", "Runtime convergence and Physical certification remain separate"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("J8 application composition runtime contract missing %q", contract)
 		}
@@ -267,7 +267,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 	if !strings.Contains(js, "aria-current") {
 		t.Fatal("operator navigation must expose aria-current from runtime navigation state")
 	}
-	for _, contract := range []string{"syncMobileNavAccessibility", "sidebar.inert", "pageLoadController", "AbortController", "route-announcer", "aria-busy", "hasActiveWork(state.currentPage)", "applicationDeploymentStatusGeneration"} {
+	for _, contract := range []string{"syncMobileNavAccessibility", "sidebar.inert", "pageLoadController", "AbortController", "route-announcer", "aria-busy", "hasActiveWork(state.currentPage)", "applicationDeploymentStatusGeneration", "page-action-availability", "renderActionAvailability", "scrollIntoView({block:'nearest',inline:'nearest'})"} {
 		if !strings.Contains(js+html, contract) {
 			t.Fatalf("operator production-hardening contract missing %q", contract)
 		}
@@ -343,10 +343,10 @@ func TestOperatorConsoleFormValidationAccessibilityContract(t *testing.T) {
 	cssBytes, err := fs.ReadFile(content, "static/styles.css")
 	if err != nil { t.Fatal(err) }
 	js, css := string(jsBytes), string(cssBytes)
-	for _, marker := range []string{"function markFieldInvalid", "function clearFieldInvalid", "addEventListener('invalid'", "aria-invalid"} {
+	for _, marker := range []string{"function markFieldInvalid", "function clearFieldInvalid", "function updateFormValidationSummary", "function refreshFormValidationFeedback", "form-validation-summary", "aria-describedby", "addEventListener('invalid'", "aria-invalid"} {
 		if !strings.Contains(js, marker) { t.Fatalf("form validation accessibility runtime missing %q", marker) }
 	}
-	for _, marker := range []string{`[aria-invalid="true"]`, ".field-invalid>span"} {
+	for _, marker := range []string{`[aria-invalid="true"]`, ".field-invalid>span", ".field-error", ".form-validation-summary", `label:has(> :where(input,select,textarea)[required])` } {
 		if !strings.Contains(css, marker) { t.Fatalf("form validation accessibility style missing %q", marker) }
 	}
 }
