@@ -110,6 +110,16 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         self.assertIn("bundleAdmissionVerified=false", source)
         self.assertNotIn("json_escape", source)
 
+    def test_doctor_emits_shell_escaped_exact_preflight_command_with_resolved_inputs(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"', source)
+        self.assertIn('"handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}"', source)
+        self.assertIn("nextAction=copy nextCommand exactly", source)
+        self.assertIn("printf 'nextCommand=sudo bash %q preflight --bundle-dir %q --release-artifact %q", source)
+        doctor = source.index('if [[ "${mode}" == "doctor" ]]')
+        next_command = source.index("nextCommand=sudo bash %q preflight", doctor)
+        self.assertGreater(next_command, doctor)
+
     def test_normal_install_fails_early_without_actionable_browser_flags(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn("INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1", source)
