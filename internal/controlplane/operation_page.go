@@ -21,6 +21,39 @@ func (s *MemoryStore) ListOperationsPage(_ context.Context, projectID string, li
 // ListOperationsPageByProjects applies project authorization before LIMIT so
 // unrelated tenant activity cannot evict an older authorized operation from a
 // scoped page. The returned chronology matches PostgreSQL exactly.
+// ListOperationsByKindTargetPage is the bounded exact-target chronology used
+// by owner workflows that must resume one durable resource without scanning a
+// whole project. Filtering happens before LIMIT and therefore cannot lose an
+// older target behind unrelated project activity.
+func (s *MemoryStore) ListOperationsByKindTargetPage(_ context.Context, projectID, kind, targetRef string, limit int) ([]Operation, error) {
+	projectID, kind, targetRef = strings.TrimSpace(projectID), strings.TrimSpace(kind), strings.TrimSpace(targetRef)
+	if projectID == "" || kind == "" || targetRef == "" || limit <= 0 || limit > 200 {
+		return nil, fmt.Errorf("%w: project, operation kind, exact target and limit 1..200 are required", ErrValidation)
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Operation, 0, min(limit, len(s.operations)))
+	for _, operation := range s.operations {
+		if operation.ProjectID != projectID || operation.Kind != kind || operation.TargetRef != targetRef {
+			continue
+		}
+		out = append(out, operation)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].UpdatedAt.Equal(out[j].UpdatedAt) {
+			return out[i].UpdatedAt.After(out[j].UpdatedAt)
+		}
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
+		return out[i].ID > out[j].ID
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
 func (s *MemoryStore) ListOperationsPageByProjects(_ context.Context, projectIDs []string, limit int) ([]Operation, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
