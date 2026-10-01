@@ -243,7 +243,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("J8 Dapr workload admission console contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{"applicationWorkloadTypes", "applicationCapabilityTraits", "applicationResourceTypes", "applicationWorkspaceProfiles", "renderApplicationLibraryOptions", "parseManagedResourceOutputs", "loadApplicationDelivery", "/api/v1/application-platform/workload-types", "/api/v1/application-platform/capability-traits", "/api/v1/application-platform/resource-types", "/api/v1/application-platform/workspace-profiles", "applicationReleases", "applicationEnvironmentBindings", "applicationWorkspaceBindings", "applicationDeploymentPlan", "applicationDeploymentRun", "/api/v1/application-platform/releases", "/api/v1/application-platform/environment-bindings", "/deployment-plan", "/deployments", "/approve", "/api/v1/application-platform/resolve", "/application-platform/environment-bindings/", "/api/v1/workspaces/", "workloadImageReference", "renderApplicationDeploymentPlan", "renderApplicationDeliveryJourney", "openApplicationDeliveryStep", "scheduleApplicationDeploymentStatusRefresh", "applicationDeploymentIsActive", "refreshApplicationDeployment", "updatedReplicas", "availableReplicas", "Create an approval-gated deployment", "Application deployment approved and queued; target convergence is still pending.", "lastFailureClass==='UNKNOWN'", "RECOVERY_REQUIRED", "target agent performs read-only recovery readback", "Mutation outcome is ambiguous; automatic replay is blocked", "Deterministic application deployment plan rendered; no target mutation occurred.", "viewerSafePostPath.startsWith('/api/v1/application-platform/environment-bindings/')", "Immutable application release requires an exact digest-pinned workload image.", "Desired environment binding created. No runtime deployment has been inferred.", "createdId=created?.id", "automatic status refresh temporarily failed", "Legacy releases without an artifact remain readable but are not deployable.", "promotionCandidates", "item.name===currentRelease.name", "item.workloadTypeDigest===currentRelease.workloadTypeDigest", "If-Match", "Preview only. No target", "Runtime convergence and Physical certification remain separate"} {
+	for _, contract := range []string{"applicationWorkloadTypes", "applicationCapabilityTraits", "applicationResourceTypes", "applicationWorkspaceProfiles", "renderApplicationLibraryOptions", "parseManagedResourceOutputs", "loadApplicationDelivery", "emptyDisclosureState", "application-composition-library", "application-binding-workflow", "/api/v1/application-platform/workload-types", "/api/v1/application-platform/capability-traits", "/api/v1/application-platform/resource-types", "/api/v1/application-platform/workspace-profiles", "applicationReleases", "applicationEnvironmentBindings", "applicationWorkspaceBindings", "applicationDeploymentPlan", "applicationDeploymentRun", "/api/v1/application-platform/releases", "/api/v1/application-platform/environment-bindings", "/deployment-plan", "/deployments", "/approve", "/api/v1/application-platform/resolve", "/application-platform/environment-bindings/", "/api/v1/workspaces/", "workloadImageReference", "renderApplicationDeploymentPlan", "renderApplicationDeliveryJourney", "openApplicationDeliveryStep", "scheduleApplicationDeploymentStatusRefresh", "applicationDeploymentIsActive", "refreshApplicationDeployment", "updatedReplicas", "availableReplicas", "Create an approval-gated deployment", "Application deployment approved and queued; target convergence is still pending.", "lastFailureClass==='UNKNOWN'", "RECOVERY_REQUIRED", "target agent performs read-only recovery readback", "Mutation outcome is ambiguous; automatic replay is blocked", "Deterministic application deployment plan rendered; no target mutation occurred.", "viewerSafePostPath.startsWith('/api/v1/application-platform/environment-bindings/')", "Immutable application release requires an exact digest-pinned workload image.", "Desired environment binding created. No runtime deployment has been inferred.", "createdId=created?.id", "automatic status refresh temporarily failed", "Legacy releases without an artifact remain readable but are not deployable.", "promotionCandidates", "item.name===currentRelease.name", "item.workloadTypeDigest===currentRelease.workloadTypeDigest", "If-Match", "Preview only. No target", "Runtime convergence and Physical certification remain separate"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("J8 application composition runtime contract missing %q", contract)
 		}
@@ -267,7 +267,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 	if !strings.Contains(js, "aria-current") {
 		t.Fatal("operator navigation must expose aria-current from runtime navigation state")
 	}
-	for _, contract := range []string{"syncMobileNavAccessibility", "sidebar.inert", "pageLoadController", "AbortController", "route-announcer", "aria-busy", "hasActiveWork(state.currentPage)", "applicationDeploymentStatusGeneration", "page-action-availability", "renderActionAvailability", "scrollIntoView({block:'nearest',inline:'nearest'})"} {
+	for _, contract := range []string{"syncMobileNavAccessibility", "sidebar.inert", "pageLoadController", "AbortController", "route-announcer", "aria-busy", "hasActiveWork(state.currentPage)", "applicationDeploymentStatusGeneration", "page-action-availability", "renderActionAvailability", "scrollIntoView({block:'nearest',inline:'nearest'})", "Fleet & Workspaces", "ناوگان و فضاهای کاری"} {
 		if !strings.Contains(js+html, contract) {
 			t.Fatalf("operator production-hardening contract missing %q", contract)
 		}
@@ -348,6 +348,24 @@ func TestOperatorConsoleFormValidationAccessibilityContract(t *testing.T) {
 	}
 	for _, marker := range []string{`[aria-invalid="true"]`, ".field-invalid>span", ".field-error", ".form-validation-summary", `label:has(> :where(input,select,textarea)[required])` } {
 		if !strings.Contains(css, marker) { t.Fatalf("form validation accessibility style missing %q", marker) }
+	}
+}
+
+func TestOperatorConsoleApplicationEmptyStateJourneyContract(t *testing.T) {
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	js := string(jsBytes)
+	if strings.Contains(js, "Create WorkloadType authority through Product API or MCP") {
+		t.Fatal("application empty state must not send operators to API/MCP when an owner Console workflow exists")
+	}
+	for _, marker := range []string{
+		"emptyDisclosureState",
+		"Create workload shape",
+		"Create workspace profile",
+		"Create environment binding",
+		"renderApplicationDeliveryPrerequisite();",
+	} {
+		if !strings.Contains(js, marker) { t.Fatalf("application direct empty/prerequisite journey missing %q", marker) }
 	}
 }
 
