@@ -2,11 +2,11 @@
   "authority": "MCP_ROUTE_PARITY_AUTHORITY_V1",
   "counts": {
     "security-excluded": 40,
-    "tool-admin": 75,
-    "tool-operate": 81,
-    "tool-read": 194
+    "tool-admin": 76,
+    "tool-operate": 82,
+    "tool-read": 196
   },
-  "routeCount": 390,
+  "routeCount": 394,
   "routes": [
     {
       "action": "version",
@@ -2273,6 +2273,44 @@
       "toolName": "api_get_application_platform_environment_bindings_by_id"
     },
     {
+      "action": "environment-bindings_deployment-plan",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": false,
+      "method": "POST",
+      "path": "/api/v1/application-platform/environment-bindings/{id}/deployment-plan",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_post_application_platform_environment_bindings_by_id_deployment_plan"
+    },
+    {
+      "action": "environment-bindings_deployments",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-operate",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/application-platform/environment-bindings/{id}/deployments",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "medium",
+      "toolName": "api_post_application_platform_environment_bindings_by_id_deployments"
+    },
+    {
       "action": "environment-bindings_promote",
       "confirmationHeader": "",
       "confirmationValue": "",
@@ -2290,6 +2328,44 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "medium",
       "toolName": "api_post_application_platform_environment_bindings_by_id_promote"
+    },
+    {
+      "action": "deployments",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/application-platform/deployments/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_application_platform_deployments_by_id"
+    },
+    {
+      "action": "deployments_approve",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-admin",
+      "durableJob": true,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": true,
+      "method": "POST",
+      "path": "/api/v1/application-platform/deployments/{id}/approve",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "high",
+      "toolName": "api_post_application_platform_deployments_by_id_approve"
     },
     {
       "action": "workspaces",
