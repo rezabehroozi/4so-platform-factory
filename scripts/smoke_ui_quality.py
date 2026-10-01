@@ -168,6 +168,9 @@ def static_quality_failures(root: Path) -> list[str]:
     for contract in v4_js_contracts:
         if contract not in console_js:
             failures.append(f"webconsole/static/app.js:persian-native-contract:{contract}")
+    single_selector_collection = re.compile(r'(?<!\$)\$\([^\)\n]*\)\.(?:map|filter|forEach)\b')
+    for match in single_selector_collection.finditer(console_js):
+        failures.append(f"webconsole/static/app.js:single-selector-used-as-collection:{match.group(0)}")
     physical_layout = re.compile(r"\b(?:margin|padding|border)-(?:left|right)\b|(?:^|[;{])\s*(?:left|right)\s*:", re.M)
     for rel, css in (
         ("webconsole/static/styles.css", console_css),
