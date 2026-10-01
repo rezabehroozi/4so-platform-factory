@@ -31,6 +31,20 @@ type agentApplicationDeploymentResult struct {
 	EvidenceDigest   string                                      `json:"evidenceDigest,omitempty"`
 }
 
+type agentApplicationDeploymentRecoveryTask struct {
+	OperationID       string                                    `json:"operationId"`
+	OperationRevision int64                                     `json:"operationRevision"`
+	TaskFenceToken    int64                                     `json:"taskFenceToken"`
+	Request           controlplane.ApplicationDeploymentRequest `json:"request"`
+}
+
+type agentApplicationDeploymentRecoveryResult struct {
+	ConfirmedSuccess bool                                        `json:"confirmedSuccess"`
+	Evidence         *controlplane.ApplicationDeploymentEvidence `json:"evidence,omitempty"`
+	EvidenceDigest   string                                      `json:"evidenceDigest,omitempty"`
+	Error            string                                      `json:"error,omitempty"`
+}
+
 func (a *agent) nextApplicationDeploymentTask(ctx context.Context) (agentApplicationDeploymentTask, bool, error) {
 	var task agentApplicationDeploymentTask
 	endpoint := a.cfg.Hub + "/agent/v1/clusters/" + a.clusterID + "/application-deployment-tasks/next"
@@ -438,4 +452,149 @@ func (a *agent) processApplicationDeploymentTask(ctx context.Context) error {
 	}
 	result := a.runApplicationDeployment(ctx, task)
 	return a.reportApplicationDeploymentTask(ctx, task, result)
+}
+
+func (a *agent) nextApplicationDeploymentRecoveryTask(ctx context.Context) (agentApplicationDeploymentRecoveryTask, bool, error) {
+	var task agentApplicationDeploymentRecoveryTask
+	endpoint := a.cfg.Hub + "/agent/v1/clusters/" + a.clusterID + "/application-deployment-recovery/next"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return task, false, err
+	}
+	res, err := a.hub.Do(req)
+	if err != nil {
+		return task, false, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNoContent {
+		return task, false, nil
+	}
+	if res.StatusCode/100 != 2 {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		return task, false, fmt.Errorf("application deployment recovery task API %s: %s", res.Status, string(body))
+	}
+	decoder := json.NewDecoder(io.LimitReader(res.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err = decoder.Decode(&task); err != nil {
+		return task, false, err
+	}
+	if task.OperationID == "" || task.OperationRevision <= 0 || task.TaskFenceToken <= 0 || task.Request.Plan.ClusterID != a.clusterID {
+		return task, false, fmt.Errorf("application deployment recovery task identity is invalid")
+	}
+	raw, _, err := controlplane.MarshalApplicationDeploymentRequest(task.Request)
+	if err != nil {
+		return task, false, err
+	}
+	task.Request, err = controlplane.ParseApplicationDeploymentRequest(raw, "")
+	if err != nil {
+		return task, false, err
+	}
+	return task, true, nil
+}
+
+func (a *agent) reportApplicationDeploymentRecoveryTask(ctx context.Context, task agentApplicationDeploymentRecoveryTask, result agentApplicationDeploymentRecoveryResult) error {
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	endpoint := a.cfg.Hub + "/agent/v1/clusters/" + a.clusterID + "/application-deployment-recovery/" + url.PathEscape(task.OperationID) + "/result"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("If-Match", fmt.Sprintf("%q", task.OperationRevision))
+	res, err := a.hub.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode/100 != 2 {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		return fmt.Errorf("application deployment recovery result API %s: %s", res.Status, string(body))
+	}
+	return nil
+}
+
+func (a *agent) readApplicationDeploymentRecoveryEvidence(ctx context.Context, task agentApplicationDeploymentRecoveryTask) (controlplane.ApplicationDeploymentEvidence, bool, error) {
+	plan := task.Request.Plan
+	deploymentPath := "/apis/apps/v1/namespaces/" + url.PathEscape(plan.Namespace) + "/deployments/" + url.PathEscape(plan.WorkloadName)
+	servicePath := "/api/v1/namespaces/" + url.PathEscape(plan.Namespace) + "/services/" + url.PathEscape(plan.WorkloadName)
+
+	deployment, found, err := a.getKubeObject(ctx, deploymentPath)
+	if err != nil {
+		return controlplane.ApplicationDeploymentEvidence{}, false, err
+	}
+	if !found {
+		return controlplane.ApplicationDeploymentEvidence{}, false, nil
+	}
+	readback, converged, err := deploymentReadback(deployment, task.Request)
+	if err != nil || !converged {
+		return controlplane.ApplicationDeploymentEvidence{}, false, err
+	}
+	if plan.RuntimeSpec.ServicePort > 0 {
+		service, serviceFound, serviceErr := a.getKubeObject(ctx, servicePath)
+		if serviceErr != nil {
+			return controlplane.ApplicationDeploymentEvidence{}, false, serviceErr
+		}
+		if !serviceFound {
+			return controlplane.ApplicationDeploymentEvidence{}, false, nil
+		}
+		if serviceErr = serviceReadback(service, task.Request, &readback); serviceErr != nil {
+			return controlplane.ApplicationDeploymentEvidence{}, false, serviceErr
+		}
+	} else {
+		service, serviceFound, serviceErr := a.getKubeObject(ctx, servicePath)
+		if serviceErr != nil {
+			return controlplane.ApplicationDeploymentEvidence{}, false, serviceErr
+		}
+		if serviceFound {
+			if applicationDeploymentOwnedByBinding(service, plan) {
+				return controlplane.ApplicationDeploymentEvidence{}, false, fmt.Errorf("owned Service remains for deployment-only recovered workload")
+			}
+			return controlplane.ApplicationDeploymentEvidence{}, false, fmt.Errorf("foreign Service collides with recovered deployment-only workload")
+		}
+	}
+	evidence := controlplane.ApplicationDeploymentEvidence{
+		Authority: controlplane.ApplicationDeploymentEvidenceAuthority,
+		OperationID: task.OperationID,
+		ProjectID: plan.ProjectID,
+		ClusterID: plan.ClusterID,
+		Namespace: plan.Namespace,
+		EnvironmentBindingID: plan.EnvironmentBindingID,
+		EnvironmentBindingRevision: plan.EnvironmentBindingRevision,
+		ReleaseDigest: plan.ReleaseDigest,
+		InventoryDigest: task.Request.InventoryDigest,
+		RenderedDigest: plan.RenderedDigest,
+		Readback: readback,
+		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		RuntimeMutationObserved: true,
+		PhysicalCertificationInferred: false,
+	}
+	if err = controlplane.ValidateApplicationDeploymentEvidence(evidence, task.Request, task.OperationID); err != nil {
+		return controlplane.ApplicationDeploymentEvidence{}, false, err
+	}
+	return evidence, true, nil
+}
+
+func (a *agent) processApplicationDeploymentRecoveryTask(ctx context.Context) error {
+	task, ok, err := a.nextApplicationDeploymentRecoveryTask(ctx)
+	if err != nil || !ok {
+		return err
+	}
+	result := agentApplicationDeploymentRecoveryResult{}
+	evidence, confirmed, readErr := a.readApplicationDeploymentRecoveryEvidence(ctx, task)
+	if readErr != nil {
+		result.Error = readErr.Error()
+	} else if confirmed {
+		digest, digestErr := controlplane.ApplicationDeploymentEvidenceDigest(evidence, task.Request, task.OperationID)
+		if digestErr != nil {
+			result.Error = digestErr.Error()
+		} else {
+			result.ConfirmedSuccess = true
+			result.Evidence = &evidence
+			result.EvidenceDigest = digest
+		}
+	}
+	return a.reportApplicationDeploymentRecoveryTask(ctx, task, result)
 }
