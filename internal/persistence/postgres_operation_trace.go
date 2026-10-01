@@ -361,6 +361,9 @@ func (s *PostgresStore) CompleteOperationWithEvidencePayload(ctx context.Context
 			op.State = controlplane.OperationVerifying
 			op.Revision++
 			op.UpdatedAt = now
+			if _, err = tx.ExecContext(ctx, `UPDATE operations SET revision=$2,state=$3,updated_at=$4 WHERE id=$1`, id, op.Revision, string(op.State), now); err != nil {
+				return err
+			}
 			verifySnapshot := op
 			if err = s.appendAuditTx(ctx, tx, actor, "operation.verification_started", "operation", id, op.Revision, "", map[string]any{"attempt": op.Attempt, "evidenceDigest": digest, "atomicTerminalCommit": true}); err != nil {
 				return err
