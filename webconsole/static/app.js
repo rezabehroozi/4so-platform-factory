@@ -4570,14 +4570,14 @@ function renderDaprRuntimeControls(){
   setOptions(action,actions,item=>item.value,item=>item.label,emptyLabel);
   const managed=['INSTALL_REQUIRED','PRODUCT_MANAGED'].includes(assessment?.assessment?.mode)&&assessment?.assessment?.eligible===true;
   const reason=daprLifecycleUnavailableReason(assessment,actions);
-  submit.disabled=!managed||!actions.length||!canOperate();
-  submit.title=submit.disabled?localizeDynamicText(reason):'';
+  setIntrinsicDisabled(submit,!managed||!actions.length);
+  if(submit.dataset.accessDisabled!=='true')submit.title=submit.disabled?localizeDynamicText(reason):'';
   const op=lifecycle?.operation;
   operation.value=op?.id||'';
-  refresh.disabled=!op?.id;
-  refresh.title=refresh.disabled?localizeDynamicText('Create a lifecycle request first.'):'';
-  approve.disabled=!op?.id||op.state!=='AWAITING_APPROVAL'||!canAdminister();
-  approve.title=approve.disabled?localizeDynamicText(!op?.id?'Create a lifecycle request first.':op.state!=='AWAITING_APPROVAL'?'Approval is available only while the request is awaiting approval.':'Project administrator access is required.'):'';
+  setIntrinsicDisabled(refresh,!op?.id);
+  if(refresh.dataset.accessDisabled!=='true')refresh.title=refresh.disabled?localizeDynamicText('Create a lifecycle request first.'):'';
+  setIntrinsicDisabled(approve,!op?.id||op.state!=='AWAITING_APPROVAL');
+  if(approve.dataset.accessDisabled!=='true')approve.title=approve.disabled?localizeDynamicText(!op?.id?'Create a lifecycle request first.':'Approval is available only while the request is awaiting approval.'):'';
 }
 function renderDaprRuntimeResult(){
   const host=$('#dapr-runtime-result');if(!host)return;
@@ -4626,12 +4626,12 @@ function renderDaprWorkloadControls(){
   const current=!!ctx&&ctx.projectId===$('#dapr-project').value&&ctx.clusterId===$('#dapr-cluster').value;
   const image=$('#dapr-workload-image')?.value.trim()||'';
   const exactImage=/^[^\s@]+@sha256:[0-9a-f]{64}$/.test(image);
-  admit.disabled=!current||!exactImage;
-  admit.title=admit.disabled?localizeDynamicText(!current?'Preview the current Dapr workload policy first.':'Target admission requires an exact digest-pinned workload image.'):'';
+  setIntrinsicDisabled(admit,!current||!exactImage);
+  if(admit.dataset.accessDisabled!=='true')admit.title=admit.disabled?localizeDynamicText(!current?'Preview the current Dapr workload policy first.':'Target admission requires an exact digest-pinned workload image.'):'';
   const op=admission?.operation;
   operation.value=op?.id||'';
-  refresh.disabled=!op?.id;
-  refresh.title=refresh.disabled?localizeDynamicText('Run target admission first.'):''
+  setIntrinsicDisabled(refresh,!op?.id);
+  if(refresh.dataset.accessDisabled!=='true')refresh.title=refresh.disabled?localizeDynamicText('Run target admission first.'):''
 ;
 }
 function renderDaprWorkloadResult(){
