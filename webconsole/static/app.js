@@ -79,6 +79,17 @@ const faDynamic = {
   "API VIP and Ingress VIP must be different.": "API VIP و Ingress VIP باید متفاوت باشند.",
   "Current inventory has no Ready nodes.": "در موجودی فعلی هیچ نود Ready وجود ندارد.",
   "No executable node maintenance action is admitted by current inventory.": "موجودی فعلی هیچ اقدام اجرایی مجاز برای نگه‌داری نود ارائه نمی‌کند.",
+  "Assess the selected cluster first.": "ابتدا کلاستر انتخاب‌شده را ارزیابی کنید.",
+  "Target-native Dapr is consumed but never mutated by the product lifecycle.": "Dapr بومی مقصد مصرف می‌شود اما چرخهٔ عمر محصول هرگز آن را تغییر نمی‌دهد.",
+  "Current target admission blocks Dapr lifecycle mutation.": "admission فعلی مقصد، تغییر چرخهٔ عمر Dapr را مسدود می‌کند.",
+  "No product-managed Dapr lifecycle transition is currently required.": "در حال حاضر هیچ گذار چرخهٔ عمر برای Dapr مدیریت‌شده توسط محصول لازم نیست.",
+  "Project write access is required.": "دسترسی نوشتن در پروژه لازم است.",
+  "Create a lifecycle request first.": "ابتدا درخواست چرخهٔ عمر را ایجاد کنید.",
+  "Approval is available only while the request is awaiting approval.": "تأیید فقط زمانی در دسترس است که درخواست در انتظار تأیید باشد.",
+  "Project administrator access is required.": "دسترسی مدیر پروژه لازم است.",
+  "Preview the current Dapr workload policy first.": "ابتدا سیاست فعلی workload مربوط به Dapr را پیش‌نمایش کنید.",
+  "Target admission requires an exact digest-pinned workload image.": "admission مقصد به image دقیق و digest-pinned مربوط به workload نیاز دارد.",
+  "Run target admission first.": "ابتدا admission مقصد را اجرا کنید.",
   "Application delivery workflow": "جریان تحویل اپلیکیشن",
   "Recovery checkpoint": "نقطهٔ بازیابی",
   "Bind recovery & continue": "اتصال نقطهٔ بازیابی و ادامه",
@@ -4524,25 +4535,43 @@ function renderDaprRuntimeOptions(){
   }
   renderDaprRuntimeControls();renderDaprWorkloadControls();
 }
-function daprLifecycleActions(observed){
-  return observed?.installed?[
-    {value:'UPGRADE',label:'Upgrade exact Dapr runtime'},
-    {value:'REMOVE',label:'Remove product-managed Dapr runtime'}
-  ]:[{value:'INSTALL',label:'Install exact Dapr runtime'}];
+function daprLifecycleActions(assessment){
+  const admission=assessment?.assessment||{},observed=assessment?.observed;
+  if(admission.mode==='USE_NATIVE')return [];
+  if(!observed?.installed)return [{value:'INSTALL',label:'Install exact Dapr runtime'}];
+  const actions=[{value:'REMOVE',label:'Remove product-managed Dapr runtime'}];
+  if(observed.runtimeLockDigest&&assessment?.supplyChainDigest&&observed.runtimeLockDigest!==assessment.supplyChainDigest){
+    actions.unshift({value:'UPGRADE',label:'Upgrade exact Dapr runtime'});
+  }
+  return actions;
+}
+function daprLifecycleUnavailableReason(assessment,actions){
+  const admission=assessment?.assessment||{};
+  if(!assessment)return 'Assess the selected cluster first.';
+  if(admission.mode==='USE_NATIVE')return 'Target-native Dapr is consumed but never mutated by the product lifecycle.';
+  if(admission.eligible!==true)return (admission.blockers||[]).join(', ')||'Current target admission blocks Dapr lifecycle mutation.';
+  if(!actions.length)return 'No product-managed Dapr lifecycle transition is currently required.';
+  if(!canOperate())return 'Project write access is required.';
+  return '';
 }
 function renderDaprRuntimeControls(){
   const assessment=state.daprAssessment;
   const lifecycle=state.daprLifecycle;
   const action=$('#dapr-lifecycle-action'),submit=$('#dapr-lifecycle-submit'),refresh=$('#dapr-lifecycle-refresh'),approve=$('#dapr-lifecycle-approve'),operation=$('#dapr-lifecycle-operation');
   if(!action||!submit||!refresh||!approve||!operation)return;
-  const actions=daprLifecycleActions(assessment?.observed);
-  setOptions(action,actions,item=>item.value,item=>item.label,'No valid lifecycle action');
-  const managed=assessment?.assessment?.mode==='INSTALL_REQUIRED'&&assessment?.assessment?.eligible===true;
-  submit.disabled=!managed||!canOperate();
+  const actions=daprLifecycleActions(assessment);
+  const emptyLabel=assessment?.assessment?.mode==='USE_NATIVE'?'Target-native Dapr · lifecycle suppressed':'No valid lifecycle action';
+  setOptions(action,actions,item=>item.value,item=>item.label,emptyLabel);
+  const managed=['INSTALL_REQUIRED','PRODUCT_MANAGED'].includes(assessment?.assessment?.mode)&&assessment?.assessment?.eligible===true;
+  const reason=daprLifecycleUnavailableReason(assessment,actions);
+  submit.disabled=!managed||!actions.length||!canOperate();
+  submit.title=submit.disabled?localizeDynamicText(reason):'';
   const op=lifecycle?.operation;
   operation.value=op?.id||'';
   refresh.disabled=!op?.id;
+  refresh.title=refresh.disabled?localizeDynamicText('Create a lifecycle request first.'):'';
   approve.disabled=!op?.id||op.state!=='AWAITING_APPROVAL'||!canAdminister();
+  approve.title=approve.disabled?localizeDynamicText(!op?.id?'Create a lifecycle request first.':op.state!=='AWAITING_APPROVAL'?'Approval is available only while the request is awaiting approval.':'Project administrator access is required.'):'';
 }
 function renderDaprRuntimeResult(){
   const host=$('#dapr-runtime-result');if(!host)return;
@@ -4592,9 +4621,12 @@ function renderDaprWorkloadControls(){
   const image=$('#dapr-workload-image')?.value.trim()||'';
   const exactImage=/^[^\s@]+@sha256:[0-9a-f]{64}$/.test(image);
   admit.disabled=!current||!exactImage;
+  admit.title=admit.disabled?localizeDynamicText(!current?'Preview the current Dapr workload policy first.':'Target admission requires an exact digest-pinned workload image.'):'';
   const op=admission?.operation;
   operation.value=op?.id||'';
   refresh.disabled=!op?.id;
+  refresh.title=refresh.disabled?localizeDynamicText('Run target admission first.'):''
+;
 }
 function renderDaprWorkloadResult(){
   const host=$('#dapr-workload-result');if(!host)return;
