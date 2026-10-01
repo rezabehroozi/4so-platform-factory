@@ -204,6 +204,36 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if len(c4.ExitCriteria) < 12 || !containsString(c4.ExitCriteria, "320/390/768/1024/1440 viewport checks cover LTR and RTL with workflow disclosures collapsed and expanded") || !containsString(c4.ExitCriteria, "invalid required/pattern/range inputs expose persistent localized field errors, aria-describedby, a form summary and first-error focus in both Console and Installer") || !containsString(c4.ExitCriteria, "runtime-generated Console/Installer controls round-trip English -> Persian/RTL -> English without hardcoded locale residue") || !containsString(c4.ExitCriteria, "workflow copy and comparison labels remain position-independent across responsive LTR/RTL layouts rather than relying on left/right/above/below instructions") || !containsString(c4.ExitCriteria, "workflow guidance remains input-method independent and never requires mouse/touch assumptions or desktop-only modifier-key instructions for ordinary form completion") || !containsString(c4.ExitCriteria, "programmatic scrolling respects prefers-reduced-motion and cannot bypass the same reduced-motion contract enforced by CSS") || !containsString(c4.ExitCriteria, "every Console route exposes one clear page heading, one Outcome/Done framing strip, at least one meaningful operational surface and the correct active navigation context") || !containsString(c4.ExitCriteria, "every rendered route belongs to exactly one runtime navigation domain, every primary domain home belongs to that domain, secondary-navigation DOM order exactly matches runtime sectionNavigation, and English/Persian breadcrumb groups match the same primary domain without orphan, duplicate or cross-domain title drift") || !containsString(c4.ExitCriteria, "semantic directional affordances including CSS pseudo-content reverse with document direction while technical identifiers remain isolated LTR") || !containsString(c4.ExitCriteria, "Application Composition hidden task variants are each activated and audited for overflow, labels, target size, bidi and contrast across the same supported viewport/direction matrix") {
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
+	c5 := byID["C5-installer-production-lifecycle-closure"]
+	if !containsString(c5.Evidence, "INSTALLER_GUIDED_MANUAL_WORKFLOW_V1") {
+		t.Fatalf("C5 guided manual installer authority missing: %#v", c5)
+	}
+	for _, criterion := range []string{
+		"platformctl installer-manual preflight/plan/install composes the canonical hostdeployment owner and does not create a second installer engine",
+		"the common manual path never requires an operator to hand-author Installer deployment JSON, edit systemd units, or manually assemble PLATFORM_INSTALLER_* environment files",
+		"browser Installer owns supported profile selection, infrastructure/HA access and pinned host trust, dedicated HA storage, endpoint/TLS, managed/external service inputs, plan, host preflight and explicit INSTALL confirmation",
+		"failed/interrupted bootstrap runs resume from durable owner-classified state; clean reinstall uses journaled reset; host-deployment interruption requires explicit recovery and never overwrites unrelated host state",
+	} {
+		if !containsString(c5.ExitCriteria, criterion) {
+			t.Fatalf("C5 manual installer criterion %q missing: %#v", criterion, c5.ExitCriteria)
+		}
+	}
+	c6 := byID["C6-multi-agent-test-autopilot"]
+	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1"} {
+		if !containsString(c6.Evidence, evidence) {
+			t.Fatalf("C6 token-efficient autopilot evidence %q missing: %#v", evidence, c6)
+		}
+	}
+	for _, criterion := range []string{
+		"the first failure sends agents a bounded secret-redacted high-signal failure capsule rather than replaying a large raw log; read-only triage runs before the single workspace-write repair",
+		"repair reruns only the failing owner stage immediately; final convergence is selected from the repaired specialist dependency family instead of automatically replaying the entire graph",
+		"workspace deltas around every repair are digested; no-change, unreadable, unknown or cross-owner modifications force full convergence, and that decision survives crash/resume",
+		"same-stage same-fingerprint repetition stops as NO_PROGRESS and global repair count is bounded so agents cannot enter token-burning repair loops",
+	} {
+		if !containsString(c6.ExitCriteria, criterion) {
+			t.Fatalf("C6 autopilot criterion %q missing: %#v", criterion, c6.ExitCriteria)
+		}
+	}
 	c8 := byID["C8-console-operational-completion"]
 	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1", "ACTIONABLE_EMPTY_STATE_RECOVERY_V1", "TRUTHFUL_NON_ACTIONABLE_BLOCKER_V1", "HARD_PAGE_STALE_FAILURE_V1", "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1", "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1", "CRITICAL_INTERACTION_LOCALIZATION_GRAMMAR_V1", "DISCLOSURE_SAFE_LIVE_PROGRESS_REFRESH_V1", "DAPR_RUNTIME_JOURNEY_V1", "DAPR_DURABLE_UI_RESUME_V1", "DAPR_TASK_DISCLOSURE_V1", "APPLICATION_COMPOSITION_TASK_PICKER_V1", "APPLICATION_GUIDED_PREREQUISITE_DISCLOSURE_V1", "OPERATIONS_SEARCH_IA_PLACEMENT_V1", "OPERATIONS_SEARCH_CONTINUATION_V1", "FLEET_INCIDENT_PROGRESSIVE_DISCLOSURE_V1"} {
 		if !containsString(c8.Evidence, evidence) {
