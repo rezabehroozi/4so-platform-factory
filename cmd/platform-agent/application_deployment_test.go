@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -129,6 +130,69 @@ func TestApplicationDeploymentUnknownMutationOutcomeRequiresRecovery(t *testing.
 	unknown, err := a.applyApplicationDeploymentResource(context.Background(), task.Request, task.Request.Plan.RenderedResources[0])
 	if err == nil || !unknown || !kubeMutationOutcomeUnknown(err) {
 		t.Fatalf("ambiguous application Deployment mutation was replay-safe: unknown=%v err=%v", unknown, err)
+	}
+}
+
+func TestApplicationDeploymentRemovesOwnedServiceWhenNoLongerDesired(t *testing.T) {
+	task := applicationDeploymentAgentTask(t)
+	task.Request.Plan.RuntimeSpec.ServicePort = 0
+	service := cloneApplicationResource(t, task.Request.Plan.RenderedResources[1])
+	meta := service["metadata"].(map[string]any)
+	meta["uid"] = "uid-service"
+	meta["resourceVersion"] = "17"
+	servicePath := "/api/v1/namespaces/payments/services/" + task.Request.Plan.WorkloadName
+	deleted := false
+	deleteCalls := 0
+	a := virtualClusterAgentForKubeTest(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == servicePath:
+			if deleted {
+				return jsonResponse(http.StatusNotFound, map[string]any{"kind":"Status"}), nil
+			}
+			return jsonResponse(http.StatusOK, service), nil
+		case r.Method == http.MethodDelete && r.URL.Path == servicePath:
+			deleteCalls++
+			var opts map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&opts); err != nil { t.Fatal(err) }
+			pre, _ := opts["preconditions"].(map[string]any)
+			if fmt.Sprint(pre["uid"]) != "uid-service" || fmt.Sprint(pre["resourceVersion"]) != "17" {
+				t.Fatalf("Service delete lost UID/resourceVersion preconditions: %#v", opts)
+			}
+			deleted = true
+			return jsonResponse(http.StatusOK, map[string]any{"kind":"Status","status":"Success"}), nil
+		default:
+			return jsonResponse(http.StatusMethodNotAllowed, nil), nil
+		}
+	}))
+	a.clusterID = task.Request.Plan.ClusterID
+	unknown, err := a.removeApplicationDeploymentServiceIfNotDesired(context.Background(), task.Request)
+	if err != nil || unknown || !deleted || deleteCalls != 1 {
+		t.Fatalf("owned Service cleanup did not converge: unknown=%v deleted=%v calls=%d err=%v", unknown, deleted, deleteCalls, err)
+	}
+}
+
+func TestApplicationDeploymentServiceDeleteAmbiguityRequiresRecovery(t *testing.T) {
+	task := applicationDeploymentAgentTask(t)
+	task.Request.Plan.RuntimeSpec.ServicePort = 0
+	service := cloneApplicationResource(t, task.Request.Plan.RenderedResources[1])
+	meta := service["metadata"].(map[string]any)
+	meta["uid"] = "uid-service"
+	meta["resourceVersion"] = "21"
+	servicePath := "/api/v1/namespaces/payments/services/" + task.Request.Plan.WorkloadName
+	a := virtualClusterAgentForKubeTest(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == servicePath:
+			return jsonResponse(http.StatusOK, service), nil
+		case r.Method == http.MethodDelete && r.URL.Path == servicePath:
+			return nil, errors.New("connection reset after Service delete request write")
+		default:
+			return jsonResponse(http.StatusMethodNotAllowed, nil), nil
+		}
+	}))
+	a.clusterID = task.Request.Plan.ClusterID
+	unknown, err := a.removeApplicationDeploymentServiceIfNotDesired(context.Background(), task.Request)
+	if err == nil || !unknown || !kubeMutationOutcomeUnknown(err) {
+		t.Fatalf("ambiguous Service delete was treated as replay-safe: unknown=%v err=%v", unknown, err)
 	}
 }
 
