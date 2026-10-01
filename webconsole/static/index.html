@@ -333,7 +333,7 @@
 <div class="form-grid" id="application-deployment-run-controls">
 <label class="span-full"><span>Current deployment operation</span><input class="technical" dir="ltr" id="application-deployment-operation" placeholder="Preview first; no deployment request created" readonly=""/></label>
 <div class="form-actions span-full"><button class="primary" id="application-deployment-request" type="button" disabled="">Create approval-gated deployment</button><button class="secondary" data-viewer-safe="true" id="application-deployment-refresh" type="button" disabled="">Refresh deployment status</button><button class="secondary" id="application-deployment-approve" type="button" disabled="">Approve deployment</button></div>
-<small class="span-full">Request creation is mutating intent and stops at independent approval. Agent execution remains revision/fence-bound; an ambiguous target mutation becomes Recovery Required and is not automatically replayed.</small>
+<small class="span-full">Request creation is mutating intent and stops at independent approval. Durable status is resumed for this binding after reload. Agent execution remains revision/fence-bound; an ambiguous target mutation becomes Recovery Required and is resolved only by read-only target recovery evidence, never automatic replay.</small>
 </div>
 <div aria-live="polite" id="application-deployment-plan-result"></div>
 </div></details>
