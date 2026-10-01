@@ -56,10 +56,12 @@ Continuation:
   bootstrap-status/resume/reset/reset-resume read the live Bootstrap Installer
   durable authority. Resume and journaled reset mutations are status-first and
   require their explicit confirmation tokens. None of these modes require the
-  original bundle or release ZIP again; no lost-response mutation is auto-replayed. For the default loopback Installer,
-  resume auto-uses http://127.0.0.1:9080 and
-  /var/lib/4so-platform-installer/bootstrap-token; custom TLS/listen deployments
-  can pass --installer-url, --token-file and --ca-file explicitly.
+  original bundle or release ZIP again; no lost-response mutation is auto-replayed.
+  The default loopback handoff reads the private
+  /var/lib/4so-platform-installer/bootstrap-token and therefore requires sudo.
+  Remote/custom authenticated continuation does not require local root when
+  --token-file, PLATFORM_INSTALLER_TOKEN_FILE or PLATFORM_INSTALLER_TOKEN is
+  supplied; --installer-url and --ca-file remain explicit transport inputs.
 EOF
 }
 
@@ -81,10 +83,6 @@ esac
 
 case "${mode}" in
   bootstrap-status|resume|reset|reset-resume)
-    if [[ "${EUID}" -ne 0 ]]; then
-      echo "ERROR ${AUTHORITY}: Bootstrap Installer continuation must run as root when using the default private token file; rerun with sudo" >&2
-      exit 2
-    fi
     if [[ ! -f "${PLATFORMCTL}" || -L "${PLATFORMCTL}" || ! -x "${PLATFORMCTL}" ]]; then
       echo "ERROR ${AUTHORITY}: Bootstrap Installer continuation requires packaged platformctl: ${PLATFORMCTL}" >&2
       exit 2
@@ -96,6 +94,14 @@ case "${mode}" in
       [[ "${access_args[i]}" == "--installer-url" ]] && access_has_url=true
       [[ "${access_args[i]}" == "--token-file" ]] && access_has_token_file=true
     done
+    access_uses_default_private_token=false
+    if [[ "${access_has_token_file}" != true && -z "${PLATFORM_INSTALLER_TOKEN:-}" && -z "${PLATFORM_INSTALLER_TOKEN_FILE:-}" ]]; then
+      access_uses_default_private_token=true
+    fi
+    if [[ "${EUID}" -ne 0 && "${access_uses_default_private_token}" == true ]]; then
+      echo "ERROR ${AUTHORITY}: default Bootstrap Installer continuation reads /var/lib/4so-platform-installer/bootstrap-token; rerun with sudo or provide --token-file / PLATFORM_INSTALLER_TOKEN_FILE / PLATFORM_INSTALLER_TOKEN" >&2
+      exit 2
+    fi
     if [[ "${access_has_url}" != true ]]; then
       access_args=(--installer-url "${PLATFORM_INSTALLER_URL:-http://127.0.0.1:9080}" "${access_args[@]}")
     fi
