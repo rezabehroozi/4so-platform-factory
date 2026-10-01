@@ -600,7 +600,17 @@
 <div class="page-heading"><div><span class="eyebrow">Cross-cluster team boundary</span><h1>Workspaces</h1><p>Group project-authorized namespaces across managed clusters without copying workload, quota, health or cost state into a second source of truth.</p></div><span class="badge neutral">WORKSPACE_AUTHORITY_V1</span></div>
 <div class="inline-summary"><strong>Reference-only authority.</strong> A Workspace stores product ownership and exact cluster/namespace bindings. Runtime state remains authoritative on the referenced cluster and is loaded only by downstream read surfaces.</div>
 <div class="prerequisite" hidden="" id="workspaces-prerequisite"></div>
-<div class="two-column">
+
+<div class="two-column workspace-records-first">
+<article class="panel"><div class="panel-heading"><div><h2>Workspace records</h2><p>Product ownership boundaries. No workload state is duplicated here.</p></div></div><div class="resource-grid record-list" id="workspace-authority-grid"></div></article>
+<article class="panel"><div class="panel-heading"><div><h2>Namespace bindings</h2><p>Active and revoked cluster/namespace references for the selected Workspace.</p></div></div><div class="resource-grid record-list" id="workspace-binding-grid"></div></article>
+<article class="panel"><div class="panel-heading"><div><h2>Virtual cluster desired state</h2><p>Workspace-bound requests and lifecycle truth. REQUESTED remains pending until the runtime executor is admitted.</p></div></div><div class="resource-grid record-list" id="virtual-cluster-grid"></div></article>
+</section>
+</div>
+<details class="action-console" id="workspace-create-console">
+<summary><span class="summary-title">Create or bind Workspace authority</span><span class="summary-help">Create the project-scoped Workspace boundary or add an existing managed-cluster namespace only when needed. Existing records remain visible first.</span></summary>
+<div class="action-console-body"><div class="two-column">
+
 <article class="panel"><div class="panel-heading"><div><h2>Create workspace</h2><p>Create the stable project-scoped boundary first; add namespace bindings separately.</p></div></div><form class="form-stack" id="workspace-authority-form" novalidate="">
 <label><span>Project</span><select id="workspace-authority-project" required=""></select></label>
 <label><span>Machine name</span><input dir="ltr" id="workspace-authority-name" maxlength="63" pattern="[a-z]([a-z0-9-]*[a-z0-9])?" placeholder="payments-team" required=""/></label>
@@ -612,7 +622,9 @@
 <label><span>Managed cluster</span><select id="workspace-binding-cluster" required=""></select></label>
 <label><span>Namespace</span><input dir="ltr" id="workspace-binding-namespace" maxlength="63" pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?" placeholder="payments" required=""/></label>
 <button class="primary" type="submit">Bind namespace</button></form></article>
-</div>
+
+</div></div>
+</details>
 <details class="action-console"><summary><span class="summary-title">Create virtual cluster desired state</span><span class="summary-help">Bind a bounded developer or team profile to one active Workspace namespace reference. Runtime lifecycle is executed only by the admitted exact-source virtual-cluster executor and remains independent from Physical certification.</span></summary><div class="action-console-body">
 <article class="panel"><div class="panel-heading"><div><h2>Virtual cluster request</h2><p>The request stores workspace-bound desired state only. REQUESTED is not Running or Ready.</p></div></div>
 <form class="form-grid" id="virtual-cluster-form" novalidate="">
@@ -629,9 +641,6 @@
 <div class="warning-banner span-full">Source/API authority is available. Runtime executor and runtime certification are still pending; this action does not imply that a virtual cluster is running.</div>
 <div class="form-actions span-full"><button class="primary" type="submit">Create desired state</button></div>
 </form></article></div></details>
-<article class="panel"><div class="panel-heading"><div><h2>Workspace records</h2><p>Product ownership boundaries. No workload state is duplicated here.</p></div></div><div class="resource-grid record-list" id="workspace-authority-grid"></div></article>
-<article class="panel"><div class="panel-heading"><div><h2>Namespace bindings</h2><p>Active and revoked cluster/namespace references for the selected Workspace.</p></div></div><div class="resource-grid record-list" id="workspace-binding-grid"></div></article>
-<article class="panel"><div class="panel-heading"><div><h2>Virtual cluster desired state</h2><p>Workspace-bound requests and lifecycle truth. REQUESTED remains pending until the runtime executor is admitted.</p></div></div><div class="resource-grid record-list" id="virtual-cluster-grid"></div></article>
 </section>
 <section class="page" data-title="FinOps &amp; chargeback" id="finops">
 <div class="page-heading"><div><span class="eyebrow">Measured usage · versioned rates</span><h1>FinOps &amp; chargeback</h1><p>Review measured infrastructure usage and derive showback or chargeback from an immutable rate card. Missing telemetry is always shown as unavailable, never as zero cost.</p></div><span class="badge neutral">FINOPS_RATECARD_USAGE_AUTHORITY_V1</span></div>
