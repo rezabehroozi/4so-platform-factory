@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c5 := byID["C5-installer-production-lifecycle-closure"]
-	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1"} {
+	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1"} {
 		if !containsString(c5.Evidence, evidence) {
 			t.Fatalf("C5 guided manual installer evidence %q missing: %#v", evidence, c5)
 		}
@@ -214,6 +214,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"platformctl installer-manual preflight/plan/install composes the canonical hostdeployment owner and does not create a second installer engine",
 		"the common manual path never requires an operator to hand-author Installer deployment JSON, edit systemd units, or manually assemble PLATFORM_INSTALLER_* environment files",
 		"the release ships a thin install.sh entrypoint that delegates to installer-manual, discovers only an exact adjacent/source-specified release ZIP, never downloads moving upstream content and never drives systemd outside the canonical hostdeployment owner",
+		"advanced installer-host examples are pinned to the current VERSION by repository validation so documented copy/paste paths cannot silently become version-rejected stale examples",
 		"browser Installer owns supported profile selection, infrastructure/HA access and pinned host trust, dedicated HA storage, endpoint/TLS, managed/external service inputs, plan, host preflight and explicit INSTALL confirmation",
 		"production-standard-ha preflight verifies iscsiadm/iscsid plus an iscsid service/socket on the local node and every peer before runtime mutation; explicit INSTALL/RESUME enables the existing service locally/remotely without package download",
 		"loopback remains the safe default; the guided result exposes a workstation URL plus an explicit SSH local-forward command for remote operators instead of requiring them to expose the Installer service",
@@ -224,7 +225,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c6 := byID["C6-multi-agent-test-autopilot"]
-	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1"} {
+	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2"} {
 		if !containsString(c6.Evidence, evidence) {
 			t.Fatalf("C6 token-efficient autopilot evidence %q missing: %#v", evidence, c6)
 		}
@@ -237,7 +238,8 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"workspace deltas around every repair are digested; no-change, unreadable, unknown or cross-owner modifications force full convergence, and that decision survives crash/resume",
 		"repair agents may edit only the working tree and may not commit/reset/checkout/stash/rebase/merge or mutate Git refs/index/history; any observed HEAD mutation stops automatic repair and requires operator reconciliation",
 		"checkpoint workspace identity combines the immutable Git HEAD with exact hashes of only dirty/untracked product inputs, falling back to the full-tree digest when local Git enumeration is unavailable",
-		"make autopilot-context emits a compact non-authoritative continuation capsule containing only run/stage/failure fingerprint/resume metadata and source-context pointers, never raw stage logs or secrets",
+		"make autopilot-context emits a compact non-authoritative continuation capsule containing run/stage/failure fingerprint/resume metadata, source-context pointers and at most one bounded secret-redacted failure capsule, never raw stage logs or unredacted secrets",
+		"Installer core, host-deployment and remote-bootstrap smoke tests are independent checkpoint stages so a late remote failure never replays already-green Installer owner tests and each repair is attributed to the exact failing owner stage",
 		"same-stage same-fingerprint repetition stops as NO_PROGRESS and global repair count is bounded so agents cannot enter token-burning repair loops",
 	} {
 		if !containsString(c6.ExitCriteria, criterion) {
