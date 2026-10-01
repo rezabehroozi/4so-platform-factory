@@ -39,28 +39,33 @@ Overview
   Next action
 
 Platforms
-  Clusters
-  Infrastructure providers
-  Install & import
+  Create & manage platforms
+  Infrastructure profiles
+  Control-plane install
 
-Blueprints
+Delivery
   Platform blueprints
   Platform templates
-  Component catalog
+  Application delivery
+  Marketplace
   Certified baselines
-  Release catalog
   Planning tools
 
-Fleet
+Fleet & Workspaces
   Fleet overview
-  Workspaces
-  Assurance
+  Application workspaces
+  FinOps & chargeback
 
 Operations
   Activity & audit
   AI Operator
-  Lab & Certification
   Notifications
+
+Assurance
+  Runtime assurance
+  Edge & sovereign
+  Supply-chain releases
+  Physical certification
 
 Admin
   Organizations & projects
@@ -84,15 +89,15 @@ PROGRAM_PHASE_MODEL_V19 decomposes the console closure into C1 IA/scope, C2 data
 
 The user-facing primary taxonomy is now:
 
-`Overview -> Platforms -> Blueprints -> Fleet -> Operations -> Assurance -> Admin`
+`Overview -> Platforms -> Delivery -> Fleet & Workspaces -> Operations -> Assurance -> Admin`
 
 Compatibility-only internal section IDs such as `delivery` and `administration` remain implementation details and are not a second product taxonomy.
 
 ### Operator Horizon V4 information architecture
 
-The exact-source review plus current Palette benchmark confirms that project/scope selection and reusable profile/template mental models should stay obvious, while 4SO must surface its stronger evidence/supply-chain differentiators rather than burying them in Fleet or Operations. The visible primary navigation is therefore:
+The exact-source review plus current Palette benchmark confirms that project/scope selection and reusable platform/application composition mental models should stay obvious, while 4SO must surface its stronger evidence/supply-chain differentiators rather than burying them in Fleet or Operations. Platform Templates and Application Delivery are separate Delivery destinations so operators do not enter an eleven-form mixed workspace merely to complete one task. The visible primary navigation is therefore:
 
-`Overview -> Platforms -> Blueprints -> Fleet -> Operations -> Assurance -> Admin`
+`Overview -> Platforms -> Delivery -> Fleet & Workspaces -> Operations -> Assurance -> Admin`
 
 `Assurance` owns **Runtime assurance**, **Supply-chain releases** and **Physical certification**. Internal page/route IDs remain compatibility details and must not leak into operator language. This IA change is intentionally separate from the still-blocked global Organization/Project scope selector: a partial scope switcher is forbidden until every scoped read and mutation is audited against the same authority.
 
@@ -219,9 +224,10 @@ The current runtime therefore continues to use:
 - centralized design tokens and responsive breakpoints;
 - existing command palette and route system;
 - server/API-owned authorization;
-- browser smoke validation at 320/390/768/1024/1440 widths;
-- LTR/RTL and explicit light/dark checks;
-- reduced-motion and focus-state negative controls.
+- browser smoke validation at 320/390/768/1024/1440 widths across all 23 Console and 6 Installer routes;
+- LTR/RTL checks with disclosures collapsed and fully expanded, active secondary-nav reveal and technical LTR isolation;
+- persistent localized field/form validation with `aria-describedby` and first-error focus;
+- explicit light/dark checks plus reduced-motion, focus-state, horizontal-overflow and RTL physical-alignment negative controls.
 
 The task-specific UI quality references for implementation are `interface-design` and `frontend-ui-engineering` from UI Skills: strong product hierarchy, non-generic dashboard composition, responsive behavior, keyboard accessibility and truthful loading/error states are mandatory engineering requirements rather than visual polish performed at the end.
 
