@@ -267,7 +267,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 	if !strings.Contains(js, "aria-current") {
 		t.Fatal("operator navigation must expose aria-current from runtime navigation state")
 	}
-	for _, contract := range []string{"syncMobileNavAccessibility", "sidebar.inert", "pageLoadController", "AbortController", "route-announcer", "aria-busy", "hasActiveWork(state.currentPage)", "applicationDeploymentStatusGeneration", "page-action-availability", "renderActionAvailability", "scrollIntoView({block:'nearest',inline:'nearest'})", "Fleet & Workspaces", "ناوگان و فضاهای کاری"} {
+	for _, contract := range []string{"syncMobileNavAccessibility", "sidebar.inert", "pageLoadController", "AbortController", "route-announcer", "aria-busy", "hasActiveWork(state.currentPage)", "applicationDeploymentStatusGeneration", "page-action-availability", "renderActionAvailability", "scrollIntoView({block:'nearest',inline:'nearest'})", "Fleet & Workspaces", "ناوگان و فضاهای کاری", "service-provider-setup", "Release A", "Release B"} {
 		if !strings.Contains(js+html, contract) {
 			t.Fatalf("operator production-hardening contract missing %q", contract)
 		}
@@ -348,6 +348,22 @@ func TestOperatorConsoleFormValidationAccessibilityContract(t *testing.T) {
 	}
 	for _, marker := range []string{`[aria-invalid="true"]`, ".field-invalid>span", ".field-error", ".form-validation-summary", `label:has(> :where(input,select,textarea)[required])` } {
 		if !strings.Contains(css, marker) { t.Fatalf("form validation accessibility style missing %q", marker) }
+	}
+}
+
+func TestOperatorConsolePositionIndependentCopyContract(t *testing.T) {
+	htmlBytes, err := fs.ReadFile(content, "static/index.html")
+	if err != nil { t.Fatal(err) }
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	html, js := string(htmlBytes), string(jsBytes)
+	for _, forbidden := range []string{">Left release<", ">Right release<", "stays above", "form above", "Forgejo below", "evidence below belongs", "operation above"} {
+		if strings.Contains(strings.ToLower(html+"\n"+js), strings.ToLower(forbidden)) {
+			t.Fatalf("responsive/RTL workflow copy must not depend on physical position: %q", forbidden)
+		}
+	}
+	for _, required := range []string{`data-en="Release A"`, `data-en="Release B"`, `id="service-provider-setup"`} {
+		if !strings.Contains(html, required) { t.Fatalf("position-independent workflow contract missing %q", required) }
 	}
 }
 
