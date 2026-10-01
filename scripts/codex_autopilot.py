@@ -420,6 +420,9 @@ REPAIR_GIT_BOUNDARY_AUTHORITY = "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1"
 DIRTY_DELTA_AUTHORITY = "AUTOPILOT_DIRTY_DELTA_V1"
 WORKSPACE_FINGERPRINT_AUTHORITY = "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1"
 AGENT_CONTEXT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_V1"
+AGENT_FAILURE_CAPSULE_AUTHORITY = "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2"
+INSTALLER_OWNER_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_STAGE_V1"
+AGENT_FAILURE_CAPSULE_MAX_CHARS = 3200
 
 _FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
 
@@ -921,7 +924,7 @@ def _agent_context(root: Path) -> dict:
                 checkpoint_state = loaded_checkpoint
         except (OSError, json.JSONDecodeError):
             checkpoint_state = {}
-    failure_capsule = str(checkpoint_state.get("lastFailureCapsule") or "")[:3200]
+    failure_capsule = str(checkpoint_state.get("lastFailureCapsule") or "")[:AGENT_FAILURE_CAPSULE_MAX_CHARS]
     context = {
         "schemaVersion": 1,
         "authority": "AUTOPILOT_AGENT_CONTEXT_V1",
@@ -941,7 +944,11 @@ def _agent_context(root: Path) -> dict:
             for key in ("stage", "specialist", "status", "fingerprint", "reason")
             if isinstance(last_failure, dict) and last_failure.get(key) not in (None, "")
         },
+        "failureCapsuleAuthority": AGENT_FAILURE_CAPSULE_AUTHORITY,
+        "failureCapsuleMaxChars": AGENT_FAILURE_CAPSULE_MAX_CHARS,
         "failureCapsule": failure_capsule,
+        "proofCommand": report.get("currentCommand") if isinstance(report.get("currentCommand"), list) else [],
+        "proofTimeoutSeconds": int(report.get("currentTimeoutSeconds") or 0),
         "resumeInvocation": resume_invocation,
         "sourceContext": {
             "agentInstructions": "AGENTS.md",
@@ -1054,6 +1061,8 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "nextIndex": next_index,
         "currentStage": current_stage or "",
         "currentSpecialist": _stage_specialist(stage) if stage else "",
+        "currentCommand": list(stage.command) if stage else [],
+        "currentTimeoutSeconds": int(stage.timeout) if stage else 0,
         "repairCount": repair_count,
         "resumeEligible": _checkpoint_path(root).is_file(),
         "gitHead": _git_head(root),
