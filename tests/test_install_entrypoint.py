@@ -110,6 +110,20 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         self.assertIn("bundleAdmissionVerified=false", source)
         self.assertNotIn("json_escape", source)
 
+    def test_doctor_rejects_wrong_host_or_unrunnable_release_binaries_before_preflight(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('hostPlatformReady=${host_platform_ready}', source)
+        self.assertIn('platformctlRunnable=${platformctl_runnable}', source)
+        self.assertIn('installerRunnable=${installer_runnable}', source)
+        self.assertIn('host_os="$(uname -s', source)
+        self.assertIn('host_arch="$(uname -m', source)
+        self.assertIn('"Linux"', source)
+        self.assertIn('"x86_64"', source)
+        self.assertIn('"${PLATFORMCTL}" --version', source)
+        self.assertIn('"${INSTALLER}" --version', source)
+        self.assertIn('expectedVersion=${EXPECTED_VERSION}', source)
+        self.assertIn('runtime/version compatibility', source)
+
     def test_doctor_emits_shell_escaped_exact_preflight_command_with_resolved_inputs(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"', source)
