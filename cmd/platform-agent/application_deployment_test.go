@@ -89,7 +89,7 @@ func TestApplicationDeploymentReadbackBindsExactArtifactAndAuthority(t *testing.
 	meta := deployment["metadata"].(map[string]any)
 	meta["uid"] = "uid-payments"
 	meta["generation"] = float64(5)
-	deployment["status"] = map[string]any{"observedGeneration": float64(5), "readyReplicas": float64(2)}
+	deployment["status"] = map[string]any{"observedGeneration": float64(5), "updatedReplicas": float64(2), "readyReplicas": float64(2), "availableReplicas": float64(2)}
 	readback, converged, err := deploymentReadback(deployment, task.Request)
 	if err != nil || !converged {
 		t.Fatalf("valid application Deployment readback rejected: converged=%v err=%v readback=%#v", converged, err, readback)
@@ -242,7 +242,7 @@ func TestApplicationDeploymentRecoveryReadbackIsMutationFreeAndExact(t *testing.
 	deploymentMeta := deployment["metadata"].(map[string]any)
 	deploymentMeta["uid"] = "uid-recovered-deployment"
 	deploymentMeta["generation"] = float64(7)
-	deployment["status"] = map[string]any{"observedGeneration": float64(7), "readyReplicas": float64(2)}
+	deployment["status"] = map[string]any{"observedGeneration": float64(7), "updatedReplicas": float64(2), "readyReplicas": float64(2), "availableReplicas": float64(2)}
 	service := cloneApplicationResource(t, task.Request.Plan.RenderedResources[1])
 	service["spec"].(map[string]any)["clusterIP"] = "10.96.0.88"
 	deploymentPath := "/apis/apps/v1/namespaces/payments/deployments/" + task.Request.Plan.WorkloadName
