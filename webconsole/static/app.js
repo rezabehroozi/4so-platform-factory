@@ -4700,6 +4700,28 @@ async function refreshDaprLifecycle(){
   if(result.observed&&state.daprAssessment)state.daprAssessment={...state.daprAssessment,observed:result.observed};
   renderDaprRuntimeControls();renderDaprRuntimeResult();
 }
+async function assessAndResumeDaprRuntime({notify=false}={}){
+  const projectId=$('#dapr-project')?.value||'',clusterId=$('#dapr-cluster')?.value||'';
+  if(!projectId||!clusterId){
+    state.daprAssessment=null;state.daprLifecycle=null;
+    renderDaprRuntimeControls();renderDaprRuntimeResult();
+    return false;
+  }
+  const disconnected=$('#dapr-disconnected')?.checked===true;
+  const result=await api('/api/v1/application-platform/dapr/assessment',{method:'POST',body:{projectId,clusterId,disconnected}});
+  state.daprAssessment={...result,context:{projectId,clusterId,disconnected}};
+  state.daprLifecycle=null;
+  const latestId=result.latestOperation?.id||'';
+  if(latestId){
+    state.daprLifecycle=await api(`/api/v1/application-platform/dapr/lifecycle/${encodeURIComponent(latestId)}`);
+    if(state.daprLifecycle?.observed)state.daprAssessment={...state.daprAssessment,observed:state.daprLifecycle.observed};
+  }
+  renderDaprRuntimeControls();renderDaprRuntimeResult();
+  if(notify){
+    toast(result.assessment?.mode==='USE_NATIVE'?'Target-native Dapr detected; duplicate installation is suppressed.':(result.assessment?.eligible?'Dapr target is eligible for an approval-gated lifecycle request.':'Dapr target assessment has blockers.'),result.assessment?.eligible?'success':'warning');
+  }
+  return true;
+}
 function applicationMultiSelectOptions(select,items,label){
   if(!select)return;
   const previous=new Set([...select.selectedOptions].map(option=>option.value));
@@ -5095,9 +5117,8 @@ async function loadDaprRuntimePage(){
     Object.assign(state,{projects,clusters,applicationCapabilityTraits});
     renderDaprRuntimeOptions();
     renderDaprRuntimePrerequisite();
-    renderDaprRuntimeResult();
     renderDaprWorkloadResult();
-    if(state.daprLifecycle?.operation?.id)await refreshDaprLifecycle();
+    await assessAndResumeDaprRuntime({notify:false});
     if(state.daprWorkloadAdmission?.operation?.id)await refreshDaprWorkloadAdmission();
   }catch(error){
     const runtime=$('#dapr-runtime-result');if(runtime)runtime.innerHTML=errorState(error.message);
@@ -5109,18 +5130,13 @@ $('#template-schema-form').onsubmit=async event=>{event.preventDefault();const f
 $('#template-policy-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;try{const required=$('#template-policy-backup-required').checked;await api('/api/v1/platform-policy-sets',{method:'POST',body:{projectId:$('#template-policy-project').value,name:$('#template-policy-name').value.trim(),version:$('#template-policy-version').value.trim(),maintenance:{riskClass:$('#template-policy-risk').value,requireApproval:$('#template-policy-approval').checked,maxUnavailable:Number($('#template-policy-max-unavailable').value),requireRecoveryCheckpoint:$('#template-policy-checkpoint').checked},backup:{required,provider:required?$('#template-policy-backup-provider').value.trim():'',schedule:required?$('#template-policy-backup-schedule').value.trim():'',retention:required?$('#template-policy-backup-retention').value.trim():''},security:{podSecurityLevel:$('#template-policy-security').value,defaultDenyIngress:$('#template-policy-deny-ingress').checked,defaultDenyEgress:$('#template-policy-deny-egress').checked,allowDNS:$('#template-policy-allow-dns').checked}}});toast('Immutable policy set created.');form.reset();await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
 $('#platform-template-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;try{const targets=$('#platform-template-targets').value.split(',').map(v=>v.trim()).filter(Boolean),certificationRequirements=$$('[data-template-cert]:checked').map(el=>el.value);if(!certificationRequirements.length)throw new Error('Select at least one certification requirement.');await api('/api/v1/platform-templates',{method:'POST',body:{projectId:$('#platform-template-project').value,name:$('#platform-template-name').value.trim(),version:$('#platform-template-version').value.trim(),blueprintReleaseId:$('#platform-template-blueprint').value,variableSchemaId:$('#platform-template-schema').value,policySetId:$('#platform-template-policy').value,allowedTargetClasses:targets,certificationRequirements}});toast('Immutable Platform Template created.');form.reset();$$('[data-template-cert]').forEach(el=>el.checked=true);await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
 $('#platform-template-project').addEventListener('change',renderPlatformTemplateOptions);
-$('#dapr-project').addEventListener('change',()=>{resetDaprRuntimeWorkflow();renderDaprRuntimeOptions();renderDaprRuntimePrerequisite();});
-$('#dapr-cluster').addEventListener('change',resetDaprRuntimeWorkflow);
-$('#dapr-disconnected').addEventListener('change',resetDaprRuntimeWorkflow);
+$('#dapr-project').addEventListener('change',async()=>{resetDaprRuntimeWorkflow();renderDaprRuntimeOptions();renderDaprRuntimePrerequisite();try{await assessAndResumeDaprRuntime({notify:false});}catch(error){$('#dapr-runtime-result').innerHTML=errorState(error.message);toast(error.message,'error');}});
+$('#dapr-cluster').addEventListener('change',async()=>{resetDaprRuntimeWorkflow();try{await assessAndResumeDaprRuntime({notify:false});}catch(error){$('#dapr-runtime-result').innerHTML=errorState(error.message);toast(error.message,'error');}});
+$('#dapr-disconnected').addEventListener('change',async()=>{resetDaprRuntimeWorkflow();try{await assessAndResumeDaprRuntime({notify:false});}catch(error){$('#dapr-runtime-result').innerHTML=errorState(error.message);toast(error.message,'error');}});
 $('#dapr-assessment-form').onsubmit=async event=>{
   event.preventDefault();if(!event.currentTarget.reportValidity())return;
-  const projectId=$('#dapr-project').value,clusterId=$('#dapr-cluster').value,disconnected=$('#dapr-disconnected').checked;
-  try{
-    const result=await api('/api/v1/application-platform/dapr/assessment',{method:'POST',body:{projectId,clusterId,disconnected}});
-    state.daprAssessment={...result,context:{projectId,clusterId,disconnected}};state.daprLifecycle=null;
-    renderDaprRuntimeControls();renderDaprRuntimeResult();
-    toast(result.assessment?.mode==='USE_NATIVE'?'Target-native Dapr detected; duplicate installation is suppressed.':(result.assessment?.eligible?'Dapr target is eligible for an approval-gated lifecycle request.':'Dapr target assessment has blockers.'),result.assessment?.eligible?'success':'warning');
-  }catch(error){state.daprAssessment=null;state.daprLifecycle=null;renderDaprRuntimeControls();$('#dapr-runtime-result').innerHTML=errorState(error.message);toast(error.message,'error');}
+  try{await assessAndResumeDaprRuntime({notify:true});}
+  catch(error){state.daprAssessment=null;state.daprLifecycle=null;renderDaprRuntimeControls();$('#dapr-runtime-result').innerHTML=errorState(error.message);toast(error.message,'error');}
 };
 $('#dapr-workload-form').addEventListener('input',event=>{if(event.target.id!=='dapr-workload-operation')resetDaprWorkloadWorkflow();});
 $('#dapr-workload-form').addEventListener('change',event=>{if(event.target.id!=='dapr-workload-operation')resetDaprWorkloadWorkflow();});
