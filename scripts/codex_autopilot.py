@@ -723,6 +723,11 @@ def _full_workspace_fingerprint(root: Path) -> str:
             continue
         digest.update(rel.as_posix().encode())
         digest.update(b"\0")
+        try:
+            digest.update(f"mode:{path.stat().st_mode & 0o7777:o}".encode())
+        except OSError:
+            digest.update(b"mode:UNREADABLE")
+        digest.update(b"\0")
         with path.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
@@ -798,6 +803,8 @@ def _hash_workspace_paths(root: Path, paths: list[str]) -> dict[str, str]:
                 manifest[relative] = "MISSING_OR_NONREGULAR"
                 continue
             digest = hashlib.sha256()
+            mode = path.stat().st_mode & 0o7777
+            digest.update(f"mode:{mode:o}\0".encode())
             with path.open("rb") as handle:
                 for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                     digest.update(chunk)
@@ -892,7 +899,7 @@ def _external_adoption_path_in_owner_scope(stage: Stage, relative_path: str) -> 
 
 
 _FAILURE_PATH_RE = re.compile(
-    r"(?<![A-Za-z0-9_.-])((?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.(?:go|py|js|css|html|json|sh|yaml|yml))(?:[:(]\d+)?"
+    r"(?<![A-Za-z0-9_.-])((?:/)?(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.(?:go|py|js|css|html|json|sh|yaml|yml))(?:[:(]\d+)?"
 )
 
 def _failure_path_hints(root: Path, stage: Stage, text: str, limit: int = 8) -> list[str]:
@@ -1513,6 +1520,12 @@ def _try_adopt_external_owner_fix(root: Path, state: dict, *, graph_signature: s
         return False, "FAILURE_STAGE_MISMATCH", []
     if str(failure.get("classification") or "") != "CODE_DEFECT":
         return False, "REPORT_NOT_CODE_DEFECT_CLASSIFICATION", []
+    if (
+        str(state.get("lastFailureClassification") or "") != "CODE_DEFECT"
+        or str(state.get("lastFailureStage") or "") != stage.name
+        or str(state.get("lastFailureFingerprint") or "") != str(failure.get("fingerprint") or "")
+    ):
+        return False, "CHECKPOINT_DIAGNOSIS_MISMATCH", []
     checkpoint_head = str(state.get("gitHead") or "")
     current_head = _git_head(root)
     if not checkpoint_head or not current_head or checkpoint_head != current_head:
