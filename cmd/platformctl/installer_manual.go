@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -48,6 +49,14 @@ func installerManualCommand(args []string) {
 		usage()
 		os.Exit(2)
 	}
+}
+
+type manualInstallerAccess struct {
+	Mode              string `json:"mode"`
+	LoopbackOnly      bool   `json:"loopbackOnly"`
+	WorkstationURL    string `json:"workstationUrl,omitempty"`
+	SSHForwardCommand string `json:"sshForwardCommand,omitempty"`
+	Note              string `json:"note"`
 }
 
 type manualInstallerInputs struct {
@@ -162,11 +171,13 @@ func installerManualPrepare(mode string, args []string) {
 	status := "STAGED"
 	installerURL := ""
 	bootstrapTokenFile := ""
+	access := manualInstallerAccess{Mode: "staged", Note: "No live Installer transport exists for a staged --root deployment."}
 	nextActions := []string{"copy the staged files to the intended live root or rerun installer-manual against --root / before using the browser Installer"}
 	if live {
 		status = "READY"
 		installerURL = manualInstallerConsoleURL(plan.Health.URL)
 		bootstrapTokenFile = tokenFile
+		access = manualInstallerAccessPlan(plan)
 		nextActions = []string{
 			"read the private bootstrap token from bootstrapTokenFile",
 			"open installerUrl and authenticate with that token",
@@ -187,6 +198,7 @@ func installerManualPrepare(mode string, args []string) {
 		"verification":       verification,
 		"installerUrl":       installerURL,
 		"healthUrl":          plan.Health.URL,
+		"access":             access,
 		"bootstrapTokenFile": bootstrapTokenFile,
 		"executionEnabled":   input.ExecutionEnabled,
 		"sourceReleaseDigest": releaseDigest,
@@ -304,6 +316,39 @@ func defaultSiblingInstallerBinary() string {
 		return ""
 	}
 	return candidate
+}
+
+func manualInstallerAccessPlan(plan hostdeployment.Plan) manualInstallerAccess {
+	consoleURL := manualInstallerConsoleURL(plan.Health.URL)
+	access := manualInstallerAccess{
+		Mode:         plan.Transport.Mode,
+		LoopbackOnly: plan.Transport.LoopbackOnly,
+		WorkstationURL: consoleURL,
+		Note:         "Use the verified Installer endpoint and the private bootstrap token file returned by this command.",
+	}
+	if !plan.Transport.LoopbackOnly {
+		if plan.Transport.InsecureOverride {
+			access.Note = "Direct Installer access is using the explicitly admitted insecure HTTP override; migrate to TLS before normal remote operation."
+		}
+		return access
+	}
+	parsed, err := url.Parse(consoleURL)
+	if err != nil {
+		return access
+	}
+	port := parsed.Port()
+	if port == "" {
+		if parsed.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	parsed.Host = net.JoinHostPort("127.0.0.1", port)
+	access.WorkstationURL = strings.TrimRight(parsed.String(), "/")
+	access.SSHForwardCommand = fmt.Sprintf("ssh -N -L %s:127.0.0.1:%s <user>@<installer-host>", port, port)
+	access.Note = "Installer is loopback-only by default. From the operator workstation, keep this SSH tunnel open, then open workstationUrl; the Installer itself remains unexposed on the network."
+	return access
 }
 
 func manualInstallerConsoleURL(healthURL string) string {
