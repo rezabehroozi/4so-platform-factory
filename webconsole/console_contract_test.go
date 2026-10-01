@@ -461,6 +461,33 @@ func TestOperatorConsoleHiddenOwnerEmptyStateRecoveryContract(t *testing.T) {
 	}
 }
 
+func TestOperatorConsoleOperationsSearchIAContract(t *testing.T) {
+	htmlBytes, err := fs.ReadFile(content, "static/index.html")
+	if err != nil { t.Fatal(err) }
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	html, js := string(htmlBytes), string(jsBytes)
+	fleet := strings.Index(html, `<section class="page" data-title="Fleet" id="fleet">`)
+	operations := strings.Index(html, `<section class="page" data-title="Operations &amp; audit" id="operations">`)
+	search := strings.Index(html, `id="operations-search-center"`)
+	ai := strings.Index(html, `<section class="page" data-title="AI Control Plane" id="ai">`)
+	if fleet < 0 || operations < 0 || search < 0 || ai < 0 || !(fleet < operations && operations < search && search < ai) {
+		t.Fatalf("Global Operations Search must live in Operations, not Fleet: fleet=%d operations=%d search=%d ai=%d", fleet, operations, search, ai)
+	}
+	for _, marker := range []string{
+		"async function loadOperations()",
+		"setProjectOptions($('#operations-search-project'),projects);",
+		"$('#operations-search-form').onsubmit",
+	} {
+		if !strings.Contains(js, marker) { t.Fatalf("Operations Search runtime ownership missing %q", marker) }
+	}
+	loadFleet := js[strings.Index(js, "async function loadFleet()"):]
+	if end := strings.Index(loadFleet, "async function loadTenants()"); end > 0 { loadFleet = loadFleet[:end] }
+	if strings.Contains(loadFleet, "setProjectOptions($('#operations-search-project'),projects)") {
+		t.Fatal("Fleet loader must not own Global Operations Search project scope")
+	}
+}
+
 func TestOperatorConsoleApplicationEmptyStateJourneyContract(t *testing.T) {
 	jsBytes, err := fs.ReadFile(content, "static/app.js")
 	if err != nil { t.Fatal(err) }
