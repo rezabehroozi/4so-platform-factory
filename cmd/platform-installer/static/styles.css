@@ -126,7 +126,7 @@ input,select,textarea{width:100%;min-height:44px;border:1px solid var(--line-str
 input:hover,select:hover,textarea:hover{border-color:#9eacbd}
 input:focus,select:focus,textarea:focus{border-color:var(--focus-ring);box-shadow:0 0 0 3px var(--focus-halo)}
 textarea{resize:vertical;min-height:116px;line-height:1.5}.compact{min-height:94px}.key-input{min-height:240px}
-.technical{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;direction:ltr;text-align:left;font-size:.94em}
+.technical{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;direction:ltr;unicode-bidi:isolate;text-align:start;font-size:.94em}
 .inline-summary,.empty-state,.global-alert{border-radius:var(--radius-sm);padding:12px 13px;background:var(--panel-alt);border:1px solid var(--line);color:var(--muted);line-height:1.55;font-size:12.5px}
 .empty-state{text-align:center;padding:24px 18px}
 .global-alert{margin-bottom:16px;background:var(--warning-bg);color:var(--warning-fg);border-color:var(--warning-border);border-inline-start:4px solid #c89427}
