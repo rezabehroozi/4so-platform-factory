@@ -179,7 +179,11 @@ func TestApplicationDeploymentEvidenceRequiresObservedConvergenceAndExactArtifac
 			CPULimit: runtime.CPULimit,
 			MemoryRequest: runtime.MemoryRequest,
 			MemoryLimit: runtime.MemoryLimit,
+			PodTemplateAuthorityMatch: true,
+			ReadinessProbeMatch: true,
+			AutomountServiceAccountTokenDisabled: true,
 			ServiceObserved: true,
+			ServiceSelectorMatch: true,
 			ServiceName: plan.WorkloadName,
 			ServiceClusterIP: "10.96.0.25",
 			ServicePort: runtime.ServicePort,
@@ -214,6 +218,26 @@ func TestApplicationDeploymentEvidenceRequiresObservedConvergenceAndExactArtifac
 	bad.Readback.AvailableReplicas--
 	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
 		t.Fatal("under-available application deployment passed terminal evidence validation")
+	}
+	bad = evidence
+	bad.Readback.ReadinessProbeMatch = false
+	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
+		t.Fatal("application deployment without approved readiness contract passed terminal evidence validation")
+	}
+	bad = evidence
+	bad.Readback.PodTemplateAuthorityMatch = false
+	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
+		t.Fatal("application deployment with pod-template authority drift passed terminal evidence validation")
+	}
+	bad = evidence
+	bad.Readback.AutomountServiceAccountTokenDisabled = false
+	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
+		t.Fatal("application deployment regained default ServiceAccount token mounting")
+	}
+	bad = evidence
+	bad.Readback.ServiceSelectorMatch = false
+	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
+		t.Fatal("application Service selector drift passed terminal evidence validation")
 	}
 	bad = evidence
 	bad.PhysicalCertificationInferred = true
