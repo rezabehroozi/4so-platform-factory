@@ -132,7 +132,21 @@ func installerManualPrepare(mode string, args []string) {
 		}
 	}
 	if mode == "preflight" {
-		printJSON(plan.Admission)
+		printJSON(struct {
+			hostdeployment.HostAdmissionReport
+			Authority             string `json:"authority"`
+			ExactReleaseAuthority string `json:"exactReleaseAuthority"`
+			ManualInstall         bool   `json:"manualInstall"`
+			SourceReleaseDigest   string `json:"sourceReleaseDigest,omitempty"`
+			NextAction            string `json:"nextAction"`
+		}{
+			HostAdmissionReport:  plan.Admission,
+			Authority:             installerGuidedManualWorkflowAuthority,
+			ExactReleaseAuthority: installerManualExactReleaseAuthority,
+			ManualInstall:         true,
+			SourceReleaseDigest:   releaseDigest,
+			NextAction:            "if ready=true, review installer-manual plan next; no host mutation has occurred",
+		})
 		if !plan.Admission.Ready {
 			os.Exit(1)
 		}
