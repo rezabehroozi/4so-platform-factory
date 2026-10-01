@@ -429,6 +429,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/application-platform/environment-bindings", s.listEnvironmentBindings)
 	s.mux.HandleFunc("GET /api/v1/application-platform/environment-bindings/{id}", s.getEnvironmentBinding)
 	s.mux.HandleFunc("POST /api/v1/application-platform/environment-bindings/{id}/deployment-plan", s.previewApplicationDeploymentPlan)
+	s.mux.HandleFunc("GET /api/v1/application-platform/environment-bindings/{id}/deployments", s.listApplicationDeployments)
 	s.mux.HandleFunc("POST /api/v1/application-platform/environment-bindings/{id}/deployments", s.createApplicationDeployment)
 	s.mux.HandleFunc("POST /api/v1/application-platform/environment-bindings/{id}/promote", s.promoteEnvironmentBinding)
 	s.mux.HandleFunc("GET /api/v1/application-platform/deployments/{id}", s.getApplicationDeployment)
