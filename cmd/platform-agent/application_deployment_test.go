@@ -94,8 +94,9 @@ func TestApplicationDeploymentReadbackBindsExactArtifactAndAuthority(t *testing.
 	if err != nil || !converged {
 		t.Fatalf("valid application Deployment readback rejected: converged=%v err=%v readback=%#v", converged, err, readback)
 	}
-	if readback.WorkloadImage != task.Request.Plan.WorkloadImageReference || !readback.AuthorityDigestsMatch {
-		t.Fatalf("application Deployment exact authority lost: %#v", readback)
+	if readback.WorkloadImage != task.Request.Plan.WorkloadImageReference || !readback.AuthorityDigestsMatch ||
+		!readback.PodTemplateAuthorityMatch || !readback.ReadinessProbeMatch || !readback.AutomountServiceAccountTokenDisabled {
+		t.Fatalf("application Deployment exact runtime authority lost: %#v", readback)
 	}
 
 	service := cloneApplicationResource(t, task.Request.Plan.RenderedResources[1])
@@ -103,8 +104,37 @@ func TestApplicationDeploymentReadbackBindsExactArtifactAndAuthority(t *testing.
 	if err = serviceReadback(service, task.Request, &readback); err != nil {
 		t.Fatalf("valid application Service readback rejected: %v", err)
 	}
-	if !readback.ServiceObserved || readback.ServicePort != 80 || readback.ServiceTargetPort != 8080 {
+	if !readback.ServiceObserved || !readback.ServiceSelectorMatch || readback.ServicePort != 80 || readback.ServiceTargetPort != 8080 {
 		t.Fatalf("application Service evidence drift: %#v", readback)
+	}
+
+	probeDrift := cloneApplicationResource(t, task.Request.Plan.RenderedResources[0])
+	probeDriftMeta := probeDrift["metadata"].(map[string]any)
+	probeDriftMeta["uid"] = "uid-probe-drift"
+	probeDriftMeta["generation"] = float64(6)
+	probeDrift["status"] = map[string]any{"observedGeneration": float64(6), "updatedReplicas": float64(2), "readyReplicas": float64(2), "availableReplicas": float64(2)}
+	probeContainer, err := deploymentAppContainer(probeDrift)
+	if err != nil { t.Fatal(err) }
+	probeContainer["readinessProbe"].(map[string]any)["periodSeconds"] = float64(30)
+	probeReadback, probeConverged, err := deploymentReadback(probeDrift, task.Request)
+	if err != nil {
+		t.Fatalf("readiness drift should be represented as non-convergence, got hard error: %v", err)
+	}
+	if probeConverged || probeReadback.ReadinessProbeMatch {
+		t.Fatalf("readiness probe drift passed application convergence: %#v", probeReadback)
+	}
+
+	tokenDrift := cloneApplicationResource(t, task.Request.Plan.RenderedResources[0])
+	tokenMeta := tokenDrift["metadata"].(map[string]any)
+	tokenMeta["uid"] = "uid-token-drift"
+	tokenMeta["generation"] = float64(7)
+	tokenDrift["status"] = map[string]any{"observedGeneration": float64(7), "updatedReplicas": float64(2), "readyReplicas": float64(2), "availableReplicas": float64(2)}
+	tokenSpec := tokenDrift["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
+	tokenSpec["automountServiceAccountToken"] = true
+	tokenReadback, tokenConverged, err := deploymentReadback(tokenDrift, task.Request)
+	if err != nil { t.Fatal(err) }
+	if tokenConverged || tokenReadback.AutomountServiceAccountTokenDisabled {
+		t.Fatalf("ServiceAccount token drift passed application convergence: %#v", tokenReadback)
 	}
 
 	foreign := cloneApplicationResource(t, task.Request.Plan.RenderedResources[0])
