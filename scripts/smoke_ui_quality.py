@@ -772,6 +772,41 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
 
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
+    search_continuation = page.evaluate("""async () => {
+      state.locale='en';
+      const labels={
+        operation:searchOwnerAction({ownerRef:'operation:quality-operation'}),
+        cluster:searchOwnerAction({ownerRef:'cluster:quality-cluster'}),
+        project:searchOwnerAction({ownerRef:'project:quality-project'}),
+        missing:searchOwnerAction({ownerRef:''})
+      };
+      const originalFetch=window.fetch;
+      window.fetch=async input=>{
+        const url=String(input?.url||input||'');
+        if(url.includes('/api/v1/operations/quality-operation')){
+          return new Response(JSON.stringify({
+            operation:{id:'quality-operation',kind:'application.deploy',state:'FAILED',targetRef:'environment-binding:quality',risk:'medium',lastError:'synthetic failure'},
+            steps:[{stepKey:'apply',state:'FAILED',attempt:1,lastError:'synthetic failure'}],
+            evidence:[{id:'quality-evidence',kind:'runtime-report',digest:'sha256:'+'c'.repeat(64),stepKey:'apply',sealed:true}]
+          }),{status:200,headers:{'content-type':'application/json'}});
+        }
+        return originalFetch(input);
+      };
+      try{await inspectSearchOwner('operation:quality-operation','evidence:quality-evidence');}
+      finally{window.fetch=originalFetch;}
+      const dialog=document.querySelector('#detail-dialog');
+      const text=String(dialog?.textContent||'');
+      return {labels,open:Boolean(dialog?.open),matched:text.includes('Matched evidence'),operation:text.includes('quality-operation'),failure:text.includes('synthetic failure')};
+    }""")
+    labels=search_continuation.get("labels") or {}
+    if labels.get("operation") != "Inspect owning operation" or labels.get("cluster") != "Inspect owning platform" or labels.get("project") != "Inspect owning project" or labels.get("missing"):
+        failures.append(f"console:search-owner-continuation-labels:{search_continuation}")
+    if not search_continuation.get("open") or not search_continuation.get("matched") or not search_continuation.get("operation") or not search_continuation.get("failure"):
+        failures.append(f"console:search-owner-exact-readback:{search_continuation}")
+    context.close()
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
     critical_locale = page.evaluate("""() => {
       const samples=[
         'Approve managed OKD install',
