@@ -23,6 +23,7 @@ const state = {
   requests: new Map(),
   connectionFailures: 0
 };
+const INSTALLER_REQUEST_TIMEOUT_MS=15000;
 
 const pageCopy = {
   overview: ['Overview', 'Connect with the one-time bootstrap token to inspect or operate this appliance.'],
@@ -833,12 +834,22 @@ function renderStatus(status, health) {
   $('#resume-installation').textContent=run.state==='FAILED'?'Resume failed run':interrupted?'Resume interrupted run':'Resume installation';
   $('#resume-installation').disabled=!status.executionEnabled || !(run.state==='FAILED' || interrupted);
 }
-async function coordinatedRequest(key, work){
+async function coordinatedRequest(key, work, timeoutMs=INSTALLER_REQUEST_TIMEOUT_MS){
   const previous=state.requests.get(key);if(previous)previous.abort();
   const controller=new AbortController();state.requests.set(key,controller);
+  let timedOut=false;
+  const timeout=setTimeout(()=>{timedOut=true;controller.abort();},timeoutMs);
   try{return await work(controller.signal);}
-  catch(error){if(error?.name==='AbortError')return null;throw error;}
-  finally{if(state.requests.get(key)===controller)state.requests.delete(key);}
+  catch(error){
+    if(error?.name==='AbortError'){
+      if(timedOut)throw new Error(`Installer request timed out after ${Math.ceil(timeoutMs/1000)} seconds; durable state was not changed.`);
+      return null;
+    }
+    throw error;
+  }finally{
+    clearTimeout(timeout);
+    if(state.requests.get(key)===controller)state.requests.delete(key);
+  }
 }
 function renderResetStatus(status) {
   const runs=Array.isArray(status?.resetRuns)?status.resetRuns:[];
