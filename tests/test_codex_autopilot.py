@@ -914,5 +914,18 @@ class AgentEntrypointContractTests(unittest.TestCase):
         self.assertIn("internal/hostdeployment/", prompt)
         self.assertEqual(AUTOPILOT.OWNER_CONTEXT_AUTHORITY, "AUTOPILOT_OWNER_CONTEXT_PATHS_V1")
 
+    def test_prompt_budgets_keep_failure_context_compact(self):
+        stage = AUTOPILOT.Stage("installer-host-smoke", ("false",), 30)
+        noisy = "\n".join(["ERROR owner failure " + ("x" * 200) for _ in range(80)])
+        result = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp-budget", noisy)
+        triage_prompt = AUTOPILOT._triage_prompt(stage, result, 1)
+        repair_prompt = AUTOPILOT._repair_prompt(stage, result, 1, "CLASSIFICATION=CODE_DEFECT\n" + ("triage " * 1000))
+        self.assertLess(len(triage_prompt), 7000)
+        self.assertLess(len(repair_prompt), 9000)
+        self.assertIn("Start with these owner paths", repair_prompt)
+        self.assertEqual(AUTOPILOT.PROMPT_BUDGET_AUTHORITY, "AUTOPILOT_PROMPT_BUDGET_V1")
+        self.assertLessEqual(AUTOPILOT.REPAIR_FAILURE_CAPSULE_MAX_CHARS, 3200)
+        self.assertLessEqual(AUTOPILOT.REPAIR_TRIAGE_MAX_CHARS, 2400)
+
 if __name__ == "__main__":
     unittest.main()
