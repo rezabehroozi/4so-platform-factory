@@ -7,7 +7,7 @@ campaign and per-client challenge that were prepared for that run.
 """
 from __future__ import annotations
 import argparse, hashlib, json, os, secrets, ssl
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -159,6 +159,14 @@ def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sh
         raise RuntimeError("MCP_EXTERNAL_MATRIX_CLIENT_SET_INVALID")
     if not core.SHA.fullmatch(str(oauth_binding_sha256 or "")) or not isinstance(trusted_clients,dict) or set(trusted_clients)!=set(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_READBACK_INVALID")
+    max_age=spec.get("campaignMaxAgeSeconds")
+    audit_window=spec.get("executionAuditWindowSeconds")
+    if type(max_age) is not int or max_age<3600 or max_age>14*24*3600:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_TTL_INVALID")
+    if type(audit_window) is not int or audit_window<60 or audit_window>24*3600 or audit_window>max_age:
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_WINDOW_INVALID")
+    created=datetime.now(timezone.utc)
+    expires=created+timedelta(seconds=max_age)
     campaign_id="mcp-interop-"+secrets.token_hex(16)
     rows=[]
     for client in CLIENTS:
@@ -169,7 +177,8 @@ def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sh
                      "trustedClientRevision":trusted["trustedClientRevision"],"trustedClientProvider":trusted["trustedClientProvider"]})
     return {
       "apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropCampaign",
-      "authority":AUTHORITY,"campaignId":campaign_id,"createdAt":datetime.now(timezone.utc).isoformat(),
+      "authority":AUTHORITY,"campaignId":campaign_id,
+      "createdAt":core.utc_timestamp(created),"expiresAt":core.utc_timestamp(expires),
       "matrixAuthority":MATRIX_AUTHORITY,"matrixSha256":file_sha(matrix_path),
       "oauthClientBindingAuthority":OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":oauth_binding_sha256,
       "endpoint":endpoint(endpoint_url),"protocol":spec.get("protocol"),"transport":spec.get("transport"),
