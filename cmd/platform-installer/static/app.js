@@ -137,6 +137,13 @@ const faLiteral = {
   "Certificate secret reference": "مرجع امن گواهی",
   "Bootstrap administrator email": "ایمیل مدیر راه‌اندازی",
   "4. Platform services": "۴. سرویس‌های پلتفرم",
+  "Deployment profile": "پروفایل استقرار",
+  "Infrastructure and access": "زیرساخت و دسترسی",
+  "Endpoint and TLS": "نشانی سرویس و TLS",
+  "Platform services": "سرویس‌های پلتفرم",
+  "Review and plan": "بازبینی و ساخت برنامه",
+  "5. Review and plan": "۵. بازبینی و ساخت برنامه",
+  "Validate the full request, then review blockers, warnings, execution sequence and customer actions before host mutation becomes available.": "کل درخواست را اعتبارسنجی کنید، سپس پیش از فعال‌شدن تغییر روی میزبان، بلاکرها، هشدارها، ترتیب اجرا و اقدامات لازم را بازبینی کنید.",
   "Managed services are the safe default. External modes expose only the fields required by the selected adapter.": "سرویس‌های مدیریت‌شده انتخاب پیشنهادی و امن هستند. در حالت خارجی فقط تنظیمات لازم برای همان اتصال نمایش داده می‌شود.",
   "I reviewed the generated warnings, blockers and rollback boundaries and accept the declared installation risk when required by the profile.": "هشدارها، موانع و محدودیت‌های بازگشت را بررسی کرده‌ام و در صورت نیاز پروفایل، ریسک‌های اعلام‌شدهٔ نصب را می‌پذیرم.",
   "Validate and create plan": "اعتبارسنجی و ساخت برنامه",
@@ -482,6 +489,26 @@ document.addEventListener('keydown',event=>{
   if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
   else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
 });
+function activateInstallationSection(id,{scroll=true,focus=false}={}){
+  const target=document.getElementById(id);if(!target)return;
+  $('#installation-step-nav [data-install-section-target]').forEach(button=>{
+    const active=button.dataset.installSectionTarget===id;
+    button.classList.toggle('current',active);
+    if(active)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');
+  });
+  if(scroll){
+    target.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+  }
+  if(focus)target.focus({preventScroll:true});
+}
+$('#installation-step-nav')?.addEventListener('click',event=>{
+  const button=event.target.closest('[data-install-section-target]');if(!button)return;
+  activateInstallationSection(button.dataset.installSectionTarget,{scroll:true,focus:true});
+});
+$('#installation-form')?.addEventListener('focusin',event=>{
+  const panel=event.target.closest('.install-step-panel');
+  if(panel)activateInstallationSection(panel.id,{scroll:false,focus:false});
+});
 $('#language-toggle').onclick = () => { state.locale = state.locale === 'fa' ? 'en' : 'fa'; sessionStorage.setItem('platformInstallerLocale',state.locale); applyLocale(); };
 
 function detailsHTML(entries) {
@@ -631,7 +658,10 @@ function renderPlan(result) {
   $('#start-installation').disabled = true;
   if (plan.executable && !result.executionEnabled) $('#global-alert').innerHTML = 'The plan is executable, but mutation is disabled. Set <span class="technical">PLATFORM_INSTALLER_ALLOW_EXECUTION=true</span> only after plan review.';
   $('#global-alert').hidden = plan.executable ? result.executionEnabled : true;
-  $('#plan-panel').scrollIntoView({behavior:'smooth',block:'start'});
+  $('#installation-step-nav [data-install-section-target]').forEach(button=>{button.classList.remove('current');button.removeAttribute('aria-current');});
+  $('#plan-panel').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+  $('#plan-panel').setAttribute('tabindex','-1');
+  $('#plan-panel').focus({preventScroll:true});
 }
 function renderPreflight(report) {
   state.preflight = report;
@@ -687,7 +717,7 @@ $('#installation-form').onsubmit = async event => {
     if (result.plan?.executable) await runPreflight();
   } catch (error) { toast(error.message,'error'); }
 };
-$('#installation-form').onreset = () => setTimeout(() => { state.plan=null; state.plannedRequest=null; state.preflight=null; $('#plan-panel').hidden=true; $('#preflight-panel').hidden=true; renderServices(); syncProfile(); syncTLS(); },0);
+$('#installation-form').onreset = () => setTimeout(() => { state.plan=null; state.plannedRequest=null; state.preflight=null; $('#plan-panel').hidden=true; $('#preflight-panel').hidden=true; renderServices(); syncProfile(); syncTLS(); activateInstallationSection('install-step-profile',{scroll:false,focus:false}); },0);
 
 function confirmAction({title,message,phrase = '',button = 'Confirm'}) {
   return new Promise(resolve => {
