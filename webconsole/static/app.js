@@ -4566,7 +4566,7 @@ function renderDaprRuntimePrerequisite(){
   const hardBlocked=!state.projects.length||!clusters.length;
   host.hidden=false;
   host.innerHTML=`<strong>${esc(faLocale?(hardBlocked?'پیش‌نیاز ارزیابی Dapr کامل نیست':'برای Admission مربوط به Workload یک قابلیت Dapr لازم است'):(hardBlocked?'Dapr assessment prerequisites are incomplete':'Workload admission needs a Dapr capability trait'))}</strong><br><span>${esc(faLocale?(hardBlocked?'ابتدا محدوده پروژه و یک پلتفرم متصل را آماده کنید.':'ارزیابی native-vs-managed همچنان قابل انجام است؛ فقط برای workload policy/admission یک CapabilityTrait از نوع sidecar لازم است.'):(hardBlocked?'Prepare a project scope and one connected platform first.':'Native-vs-managed assessment remains available; only workload policy/admission needs an application-runtime.dapr sidecar CapabilityTrait.'))}</span><div class="button-row">${actions.map(action=>`<button class="secondary small-button" type="button" data-dapr-prerequisite-kind="${esc(action.kind)}"${action.page?` data-dapr-prerequisite-page="${esc(action.page)}"`:''}${action.projectId?` data-project-id="${esc(action.projectId)}"`:''}>${esc(action.label)}</button>`).join('')}</div>`;
-  $('[data-dapr-prerequisite-kind]',host).forEach(button=>button.onclick=async()=>{
+  Array.from(host.querySelectorAll('[data-dapr-prerequisite-kind]')).forEach(button=>button.onclick=async()=>{
     if(button.dataset.daprPrerequisiteKind==='page'){await navigate(button.dataset.daprPrerequisitePage);return;}
     const project=button.dataset.projectId||'';
     if(!await navigate('applications'))return;
@@ -4730,7 +4730,7 @@ function renderApplicationDeliveryJourney(){
     deployment:faLocale?'ابتدا Release را به WorkspaceBinding فعال و namespace دقیق متصل کنید.':'Bind the release to an active WorkspaceBinding and exact namespace first.',
     observed:faLocale?'ابتدا درخواست استقرار durable را از Plan & request ایجاد کنید.':'Create the durable deployment request from Plan & request first.'
   };
-  $('[data-application-step]',host).forEach(button=>{
+  Array.from(host.querySelectorAll('[data-application-step]')).forEach(button=>{
     const step=button.dataset.applicationStep;
     const value=states[step]||'blocked';
     const blocked=value==='blocked';
