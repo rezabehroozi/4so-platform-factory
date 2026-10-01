@@ -116,6 +116,14 @@ main{min-width:0;width:min(100%,1400px);margin:0 auto;padding:0 30px 56px}
 .section-intro h2{font-size:24px}.panel-heading h2{font-size:16px}
 .section-intro p,.panel-heading p{margin:5px 0 0;color:var(--muted);line-height:1.55;max-width:860px}
 .panel-heading{margin-bottom:16px}
+.installation-step-nav{display:flex;gap:8px;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;margin:-6px 0 18px;padding:4px 0 8px}
+.installation-step-nav button{flex:0 0 auto;display:flex;align-items:center;gap:8px;min-height:44px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--panel);color:var(--muted);padding:8px 11px;text-align:start}
+.installation-step-nav button span{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:var(--panel-alt);font-size:10px;font-variant-numeric:tabular-nums}
+.installation-step-nav button b{font-size:12px;white-space:nowrap}
+.installation-step-nav button.current{border-color:#b9c8fb;background:var(--primary-soft);color:#294aa9}
+.installation-step-nav button.current span{background:var(--primary);color:#fff}
+.install-step-panel{scroll-margin-top:96px}
+.install-step-panel:focus-visible,#plan-panel:focus-visible{outline:3px solid var(--focus-ring);outline-offset:3px}
 
 .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .form-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -249,7 +257,7 @@ dialog,.dialog-card{border-radius:10px}
   #health>.health-board>article.panel:nth-child(n+3){border-top:1px solid var(--line)}
 }
 @media(max-width:900px){:root{--page-gutter:18px}.installer-briefing{grid-template-columns:1fr;gap:12px}.installer-briefing .hero-state{text-align:start}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.metric:nth-child(2){border-inline-end:0}.metric:nth-child(-n+2){border-bottom:1px solid var(--line)}}
-@media(max-width:650px){:root{--page-gutter:16px}.installer-briefing{padding-inline-start:12px}.installer-briefing h2{font-size:20px}.health-board{grid-template-columns:1fr}#health>.health-board>article.panel{border-inline-end:0!important;border-top:1px solid var(--line)!important}#health>.health-board>article.panel:first-child{border-top:0!important}.two-column{gap:0}.metric{padding:11px 10px}}
+@media(max-width:650px){.installation-step-nav{margin-inline:0}.installation-step-nav button{min-width:max-content}:root{--page-gutter:16px}.installer-briefing{padding-inline-start:12px}.installer-briefing h2{font-size:20px}.health-board{grid-template-columns:1fr}#health>.health-board>article.panel{border-inline-end:0!important;border-top:1px solid var(--line)!important}#health>.health-board>article.panel:first-child{border-top:0!important}.two-column{gap:0}.metric{padding:11px 10px}}
 @media(max-width:380px){
   .topbar{display:grid;grid-template-columns:44px minmax(0,1fr);column-gap:10px;row-gap:8px;align-items:center;padding-block:9px}
   .topbar>.icon-button{grid-column:1;grid-row:1}
