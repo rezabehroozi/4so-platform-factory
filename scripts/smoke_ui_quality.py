@@ -573,6 +573,38 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
 
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
+    application_locale = page.evaluate("""() => {
+      const read=()=>({
+        dir:document.documentElement.dir,
+        project:String(document.querySelector('#application-workload-create-form label span')?.textContent||'').trim(),
+        schema:String(document.querySelector('#application-workload-schema-digest')?.closest('label')?.querySelector('span')?.textContent||'').trim(),
+        workloadAction:String(document.querySelector('#application-workload-create-form button[type="submit"]')?.textContent||'').trim(),
+        deletePolicy:String(document.querySelector('#application-resource-delete-policy')?.closest('label')?.querySelector('span')?.textContent||'').trim(),
+        releaseAction:String(document.querySelector('#application-release-create-form button[type="submit"]')?.textContent||'').trim(),
+        bindingAction:String(document.querySelector('#application-binding-create-form button[type="submit"]')?.textContent||'').trim(),
+        deploymentAction:String(document.querySelector('#application-deployment-request')?.textContent||'').trim()
+      });
+      state.locale='en';applyLocale();const en=read();
+      state.locale='fa';applyLocale();const fa=read();
+      state.locale='en';applyLocale();const enAgain=read();
+      return {en,fa,enAgain};
+    }""")
+    expected_application_en={
+        "dir":"ltr","project":"Project","schema":"Input schema digest","workloadAction":"Create workload shape",
+        "deletePolicy":"Delete policy","releaseAction":"Create immutable release","bindingAction":"Create desired binding",
+        "deploymentAction":"Create approval-gated deployment"
+    }
+    expected_application_fa={
+        "dir":"rtl","project":"پروژه","schema":"هش schema ورودی","workloadAction":"ساخت قالب Workload",
+        "deletePolicy":"سیاست حذف","releaseAction":"ساخت Release تغییرناپذیر","bindingAction":"ساخت Desired Binding",
+        "deploymentAction":"ساخت استقرار نیازمند تأیید"
+    }
+    if application_locale.get("en") != expected_application_en or application_locale.get("fa") != expected_application_fa or application_locale.get("enAgain") != expected_application_en:
+        failures.append(f"console:application-localization-roundtrip:{application_locale}")
+    context.close()
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
     step_admission = page.evaluate("""async () => {
       await navigate('applications');
       state.applicationReleases=[];
@@ -799,6 +831,7 @@ def main(argv: list[str] | None = None) -> int:
         "actionableEmptyStateAuthority": "ACTIONABLE_EMPTY_STATE_RECOVERY_V1",
         "applicationStepAdmissionAuthority": "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1",
         "programmaticReducedMotionAuthority": "PROGRAMMATIC_REDUCED_MOTION_V1",
+        "applicationLocalizationAuthority": "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1",
         "status": "PASS" if not failures else "FAIL",
         "checkpoint": {
             "scope": args.scope,
