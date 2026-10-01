@@ -205,8 +205,10 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c5 := byID["C5-installer-production-lifecycle-closure"]
-	if !containsString(c5.Evidence, "INSTALLER_GUIDED_MANUAL_WORKFLOW_V1") {
-		t.Fatalf("C5 guided manual installer authority missing: %#v", c5)
+	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1"} {
+		if !containsString(c5.Evidence, evidence) {
+			t.Fatalf("C5 guided manual installer evidence %q missing: %#v", evidence, c5)
+		}
 	}
 	for _, criterion := range []string{
 		"platformctl installer-manual preflight/plan/install composes the canonical hostdeployment owner and does not create a second installer engine",
@@ -219,13 +221,15 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c6 := byID["C6-multi-agent-test-autopilot"]
-	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1"} {
+	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1"} {
 		if !containsString(c6.Evidence, evidence) {
 			t.Fatalf("C6 token-efficient autopilot evidence %q missing: %#v", evidence, c6)
 		}
 	}
 	for _, criterion := range []string{
-		"the first failure sends agents a bounded secret-redacted high-signal failure capsule rather than replaying a large raw log; read-only triage runs before the single workspace-write repair",
+		"the first failure sends agents a bounded secret-redacted high-signal failure capsule rather than replaying a large raw log; read-only triage emits one unambiguous CODE_DEFECT/TEST_DEFECT/ENVIRONMENT/SUPPLY_CHAIN/UNKNOWN classification before the single workspace-write repair",
+		"the repair writer opens only for CODE_DEFECT or TEST_DEFECT; environment, supply-chain, missing/conflicting triage and unavailable-agent outcomes remain mutation-free",
+		"a timed-out deterministic stage is process-tree cleaned and, in repair mode, receives the same structured read-only diagnosis so a proven code/test hang may be repaired while an untriaged timeout remains environment-blocked",
 		"repair reruns only the failing owner stage immediately; final convergence is selected from the repaired specialist dependency family instead of automatically replaying the entire graph",
 		"workspace deltas around every repair are digested; no-change, unreadable, unknown or cross-owner modifications force full convergence, and that decision survives crash/resume",
 		"same-stage same-fingerprint repetition stops as NO_PROGRESS and global repair count is bounded so agents cannot enter token-burning repair loops",
