@@ -65,6 +65,12 @@ function applyLocale() {
 }
 
 const faDynamic = {
+  "Select at least one architecture.": "حداقل یک معماری را انتخاب کنید.",
+  "Select at least one distribution profile.": "حداقل یک پروفایل توزیع را انتخاب کنید.",
+  "Select at least one tenant plan.": "حداقل یک برنامهٔ Tenant را انتخاب کنید.",
+  "API VIP and Ingress VIP must be different.": "API VIP و Ingress VIP باید متفاوت باشند.",
+  "Current inventory has no Ready nodes.": "در موجودی فعلی هیچ نود Ready وجود ندارد.",
+  "No executable node maintenance action is admitted by current inventory.": "موجودی فعلی هیچ اقدام اجرایی مجاز برای نگه‌داری نود ارائه نمی‌کند.",
   "Application delivery workflow": "جریان تحویل اپلیکیشن",
   "Recovery checkpoint": "نقطهٔ بازیابی",
   "Bind recovery & continue": "اتصال نقطهٔ بازیابی و ادامه",
@@ -1189,9 +1195,60 @@ const dynamicOriginalText = new WeakMap();
 const dynamicOriginalAttributes = new WeakMap();
 let dynamicLocalizationBusy = false;
 const localizedAttributeNames = ['aria-label','placeholder','title'];
+const faInteractionNouns = new Map([
+  ['application deployment','استقرار اپلیکیشن'],['baseline apply','اعمال نسخهٔ پایه'],['cluster enrollment','ثبت کلاستر'],
+  ['managed OKD install','نصب مدیریت‌شدهٔ OKD'],['marketplace installation','نصب Marketplace'],['node maintenance','نگه‌داری نود'],
+  ['provider operation','عملیات ارائه‌دهنده'],['restore','بازیابی'],['signed pull request','Pull Request امضاشده'],
+  ['tenant change','تغییر Tenant'],['upgrade campaign','کارزار ارتقا'],['Dapr lifecycle request','درخواست چرخهٔ عمر Dapr'],
+  ['API token','توکن API'],['OIDC group mapping','نگاشت گروه OIDC'],['Workspace binding','اتصال Workspace'],
+  ['agent certificate','گواهی Agent'],['agent identity','هویت Agent'],['agent token','توکن Agent'],
+  ['catalog trust','اعتماد کاتالوگ'],['certification evidence','شواهد تأیید فنی'],['cluster agent access','دسترسی Agent کلاستر'],
+  ['organization access','دسترسی سازمان'],['recovery checkpoint','نقطهٔ بازیابی'],['service account','حساب سرویس'],
+  ['Git credential','مرجع دسترسی Git'],['notification destination','مقصد اعلان'],['maintenance window','پنجرهٔ نگه‌داری'],
+  ['operation recovery','بازیابی عملیات'],['support bundle','بستهٔ پشتیبانی'],['workload shape','قالب Workload'],
+  ['capability trait','ویژگی قابلیت'],['managed dependency type','نوع وابستگی مدیریت‌شده'],['workspace profile','پروفایل Workspace'],
+  ['application release','نسخهٔ اپلیکیشن'],['environment binding','اتصال محیط']
+]);
+function faInteractionNoun(value){
+  const raw=String(value||'').trim();
+  return faInteractionNouns.get(raw)||faInteractionNouns.get(raw.toLowerCase())||raw;
+}
+const faInteractionRules = [
+  [/^Approve (.+)$/i,m=>`تأیید ${faInteractionNoun(m[1])}`],
+  [/^Revoke (.+)$/i,m=>`ابطال ${faInteractionNoun(m[1])}`],
+  [/^Delete (.+)$/i,m=>`حذف ${faInteractionNoun(m[1])}`],
+  [/^Cancel (.+)$/i,m=>`لغو ${faInteractionNoun(m[1])}`],
+  [/^Create (.+)$/i,m=>`ایجاد ${faInteractionNoun(m[1])}`],
+  [/^Retry (.+)$/i,m=>`تلاش دوباره برای ${faInteractionNoun(m[1])}`],
+  [/^Rotate (.+)$/i,m=>`چرخش ${faInteractionNoun(m[1])}`],
+  [/^Issue (.+)$/i,m=>`صدور ${faInteractionNoun(m[1])}`],
+  [/^Review (.+)$/i,m=>`بررسی ${faInteractionNoun(m[1])}`],
+  [/^Request (.+)$/i,m=>`درخواست ${faInteractionNoun(m[1])}`],
+  [/^Publish (.+)$/i,m=>`انتشار ${faInteractionNoun(m[1])}`],
+  [/^Merge (.+)$/i,m=>`ادغام ${faInteractionNoun(m[1])}`],
+  [/^Rollback (.+)$/i,m=>`بازگردانی ${faInteractionNoun(m[1])}`],
+  [/^Discard (.+)$/i,m=>`کنارگذاشتن ${faInteractionNoun(m[1])}`],
+  [/^Preview (.+)$/i,m=>`پیش‌نمایش ${faInteractionNoun(m[1])}`],
+  [/^(.+) created\.$/i,m=>`${faInteractionNoun(m[1])} ایجاد شد.`],
+  [/^(.+) revoked\.$/i,m=>`${faInteractionNoun(m[1])} باطل شد.`],
+  [/^(.+) cancelled\.$/i,m=>`${faInteractionNoun(m[1])} لغو شد.`],
+  [/^(.+) approved\.$/i,m=>`${faInteractionNoun(m[1])} تأیید شد.`],
+  [/^(.+) queued\.$/i,m=>`${faInteractionNoun(m[1])} در صف قرار گرفت.`],
+  [/^(.+) downloaded\.$/i,m=>`${faInteractionNoun(m[1])} دریافت شد.`],
+  [/^(.+) refreshed\.$/i,m=>`${faInteractionNoun(m[1])} بازخوانی شد.`],
+  [/^(.+) unavailable\.$/i,m=>`${faInteractionNoun(m[1])} در دسترس نیست.`]
+];
+function localizeDynamicInteraction(value){
+  for(const [pattern,translate] of faInteractionRules){
+    const match=String(value||'').match(pattern);
+    if(match)return translate(match);
+  }
+  return value;
+}
 function localizeDynamicText(text) {
   const value=String(text??'');
-  return state.locale==='fa'?(faDynamic[value]||value):value;
+  if(state.locale!=='fa')return value;
+  return faDynamic[value]||localizeDynamicInteraction(value);
 }
 
 function localizeDynamicTree(root = document.body) {
