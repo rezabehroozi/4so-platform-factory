@@ -600,3 +600,65 @@ class StageAwarePreflightCLITests(unittest.TestCase):
             self.assertEqual(AUTOPILOT.main(), 0)
         selected = preflight.call_args.kwargs["stages"]
         self.assertEqual([stage.name for stage in selected], ["selected"])
+
+
+
+class TokenEfficientAutopilotTests(unittest.TestCase):
+    def test_failure_capsule_is_bounded_redacted_and_signal_first(self):
+        raw = "\n".join(
+            [f"noise line {i}" for i in range(80)]
+            + ["ERROR owner mismatch password=hunter2", "Traceback: important frame", "token=qwerty"]
+            + [f"tail line {i}" for i in range(20)]
+        )
+        capsule = AUTOPILOT._failure_capsule(raw, max_lines=20, max_chars=1200)
+        self.assertLessEqual(len(capsule), 1240)
+        self.assertNotIn("hunter2", capsule)
+        self.assertNotIn("qwerty", capsule)
+        self.assertIn("ERROR owner mismatch", capsule)
+        self.assertIn("Traceback: important frame", capsule)
+        self.assertIn("tail line 19", capsule)
+
+    def test_operator_console_repair_uses_selective_convergence_family(self):
+        stages = AUTOPILOT.canonical_stages(ROOT)
+        selected = AUTOPILOT._select_convergence_stages(stages, {"smoke-ui-quality"})
+        names = [stage.name for stage in selected]
+        self.assertIn("smoke-ui-quality", names)
+        self.assertIn("smoke-ui-live", names)
+        self.assertIn("build-release", names)
+        self.assertIn("artifact-quick-verify", names)
+        self.assertNotIn("lab-runner-tests", names)
+        self.assertLess(len(selected), len(stages))
+
+    def test_installer_repair_uses_installer_and_package_convergence(self):
+        stages = AUTOPILOT.canonical_stages(ROOT)
+        selected = AUTOPILOT._select_convergence_stages(stages, {"smoke-4"})
+        names = [stage.name for stage in selected]
+        self.assertIn("smoke-4", names)
+        self.assertIn("smoke-ui-workflow-e2e", names)
+        self.assertIn("package", names)
+        self.assertNotIn("lab-runner-tests", names)
+
+    def test_cross_owner_repair_forces_full_convergence(self):
+        stage = AUTOPILOT.Stage("smoke-ui-quality", ("true",), 10)
+        self.assertFalse(AUTOPILOT._repair_requires_full_convergence(stage, ["webconsole/static/app.js"]))
+        self.assertTrue(AUTOPILOT._repair_requires_full_convergence(stage, ["internal/persistence/postgres.go"]))
+        self.assertTrue(AUTOPILOT._repair_requires_full_convergence(stage, []))
+
+    def test_full_convergence_requirement_survives_forward_checkpoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "source.txt").write_text("stable\n", encoding="utf-8")
+            AUTOPILOT._checkpoint_forward(
+                root,
+                graph_signature="graph",
+                repair=True,
+                next_index=3,
+                repair_count=1,
+                seen_failures={("smoke-ui-quality", "fp"): 1},
+                current_stage="smoke-ui-quality",
+                full_convergence_required=True,
+                run_id="run-full",
+            )
+            state = json.loads(AUTOPILOT._checkpoint_path(root).read_text(encoding="utf-8"))
+            self.assertTrue(state["fullConvergenceRequired"])
+            self.assertEqual(state["runId"], "run-full")
