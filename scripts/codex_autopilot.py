@@ -784,6 +784,14 @@ def _hash_workspace_paths(root: Path, paths: list[str]) -> dict[str, str]:
     return manifest
 
 
+def _git_dirty_manifest(root: Path) -> dict[str, str] | None:
+    """Return the exact Git-relative dirty manifest for safe external-fix adoption."""
+    dirty = _git_dirty_paths(root)
+    if dirty is None:
+        return None
+    return _hash_workspace_paths(root, dirty)
+
+
 def _workspace_manifest(root: Path) -> dict[str, str]:
     """Digest only locally changed product inputs when Git can enumerate them.
 
@@ -1390,6 +1398,9 @@ def _write_checkpoint(root: Path, payload: dict) -> None:
     body["schemaVersion"] = _AUTOPILOT_STATE_SCHEMA
     body["workspaceFingerprint"] = _workspace_fingerprint(root)
     body["gitHead"] = _git_head(root)
+    dirty_manifest = _git_dirty_manifest(root)
+    if dirty_manifest is not None:
+        body["workspaceDirtyManifest"] = dirty_manifest
     body["invocation"] = _autopilot_invocation()
     body["updatedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     _write_state_raw(path, body)
@@ -1402,7 +1413,68 @@ def _clear_checkpoint(root: Path) -> None:
     tmp.unlink(missing_ok=True)
 
 
-def _load_checkpoint(root: Path, *, graph_signature: str, repair: bool) -> dict | None:
+def _checkpoint_owner_stage(state: dict, stages: list[Stage] | None) -> Stage | None:
+    if not stages:
+        return None
+    phase = str(state.get("phase") or "forward")
+    by_name = {stage.name: stage for stage in stages}
+    if phase == "forward":
+        name = str(state.get("currentStage") or "")
+        if name and name in by_name:
+            return by_name[name]
+        try:
+            index = int(state.get("nextIndex", 0))
+        except (TypeError, ValueError):
+            return None
+        return stages[index] if 0 <= index < len(stages) else None
+    if phase == "convergence":
+        names = state.get("convergenceStages")
+        try:
+            index = int(state.get("nextIndex", 0))
+        except (TypeError, ValueError):
+            return None
+        if isinstance(names, list) and 0 <= index < len(names):
+            return by_name.get(str(names[index]))
+    return None
+
+
+def _try_adopt_external_owner_fix(root: Path, state: dict, *, graph_signature: str, stages: list[Stage] | None) -> tuple[bool, str, list[str]]:
+    stage = _checkpoint_owner_stage(state, stages)
+    if stage is None:
+        return False, "OWNER_STAGE_UNAVAILABLE", []
+    report_path = _report_path(root)
+    if not report_path.is_file() or report_path.is_symlink():
+        return False, "REPORT_UNAVAILABLE", []
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False, "REPORT_INVALID", []
+    if report.get("authority") != "AUTOPILOT_CAMPAIGN_REPORT_V1" or report.get("graphSignature") != graph_signature:
+        return False, "REPORT_GRAPH_MISMATCH", []
+    if str(report.get("status") or "") != "CODE_DEFECT":
+        return False, "REPORT_NOT_CODE_DEFECT", []
+    failure = report.get("lastFailure") if isinstance(report.get("lastFailure"), dict) else {}
+    if str(failure.get("stage") or "") != stage.name:
+        return False, "FAILURE_STAGE_MISMATCH", []
+    checkpoint_head = str(state.get("gitHead") or "")
+    current_head = _git_head(root)
+    if not checkpoint_head or not current_head or checkpoint_head != current_head:
+        return False, "GIT_HEAD_CHANGED", []
+    before = state.get("workspaceDirtyManifest")
+    after = _git_dirty_manifest(root)
+    if not isinstance(before, dict) or after is None:
+        return False, "DIRTY_MANIFEST_UNAVAILABLE", []
+    before_clean = {str(key): str(value) for key, value in before.items()}
+    delta = _workspace_manifest_delta(before_clean, after)
+    if not delta:
+        return False, "NO_EXTERNAL_DELTA", []
+    outside = [item for item in delta if not _repair_path_in_owner_scope(stage, item)]
+    if outside:
+        return False, "OWNER_SCOPE_VIOLATION:" + ",".join(outside[:8]), delta
+    return True, stage.name, delta
+
+
+def _load_checkpoint(root: Path, *, graph_signature: str, repair: bool, allow_owner_fix_adoption: bool = False, stages: list[Stage] | None = None) -> dict | None:
     path = _checkpoint_path(root)
     if not path.is_file():
         return None
@@ -1426,9 +1498,34 @@ def _load_checkpoint(root: Path, *, graph_signature: str, repair: bool) -> dict 
             return None
     current = _workspace_fingerprint(root)
     if state.get("workspaceFingerprint") != current:
-        print("AUTOPILOT_RESUME=RESET reason=WORKSPACE_CHANGED", flush=True)
-        _clear_checkpoint(root)
-        return None
+        adopted = False
+        adoption_reason = "WORKSPACE_CHANGED"
+        adoption_delta: list[str] = []
+        if allow_owner_fix_adoption:
+            adopted, adoption_reason, adoption_delta = _try_adopt_external_owner_fix(
+                root, state, graph_signature=graph_signature, stages=stages
+            )
+        if not adopted:
+            print(f"AUTOPILOT_RESUME=RESET reason={adoption_reason}", flush=True)
+            _clear_checkpoint(root)
+            return None
+        state["workspaceFingerprint"] = current
+        dirty_manifest = _git_dirty_manifest(root)
+        if dirty_manifest is not None:
+            state["workspaceDirtyManifest"] = dirty_manifest
+        state["externalOwnerFixAdopted"] = {
+            "authority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
+            "stage": adoption_reason,
+            "paths": adoption_delta[:32],
+        }
+        state["updatedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+        _write_state_raw(path, state)
+        print(
+            "AUTOPILOT_RESUME=ADOPT_OWNER_FIX "
+            f"authority={EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY} stage={adoption_reason} "
+            f"changed={len(adoption_delta)} paths={','.join(adoption_delta[:12])}",
+            flush=True,
+        )
     if active_process_live:
         state["_activeProcessLive"] = True
     return state
