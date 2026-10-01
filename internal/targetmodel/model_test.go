@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c8 := byID["C8-console-operational-completion"]
-	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1", "ACTIONABLE_EMPTY_STATE_RECOVERY_V1", "TRUTHFUL_NON_ACTIONABLE_BLOCKER_V1", "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1", "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1", "CRITICAL_INTERACTION_LOCALIZATION_GRAMMAR_V1", "DISCLOSURE_SAFE_LIVE_PROGRESS_REFRESH_V1", "DAPR_RUNTIME_JOURNEY_V1", "DAPR_DURABLE_UI_RESUME_V1", "DAPR_TASK_DISCLOSURE_V1", "APPLICATION_COMPOSITION_TASK_PICKER_V1"} {
+	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1", "ACTIONABLE_EMPTY_STATE_RECOVERY_V1", "TRUTHFUL_NON_ACTIONABLE_BLOCKER_V1", "HARD_PAGE_STALE_FAILURE_V1", "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1", "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1", "CRITICAL_INTERACTION_LOCALIZATION_GRAMMAR_V1", "DISCLOSURE_SAFE_LIVE_PROGRESS_REFRESH_V1", "DAPR_RUNTIME_JOURNEY_V1", "DAPR_DURABLE_UI_RESUME_V1", "DAPR_TASK_DISCLOSURE_V1", "APPLICATION_COMPOSITION_TASK_PICKER_V1"} {
 		if !containsString(c8.Evidence, evidence) {
 			t.Fatalf("C8 task-first journey evidence %q missing: %#v", evidence, c8)
 		}
@@ -224,7 +224,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"Dapr keeps assessment as the primary visible task while lifecycle mutation and workload admission are separate disclosures; resumed durable lifecycle/admission state automatically opens its owner disclosure without redispatch",
 		"Dapr route reload or scope change rediscovers the latest durable lifecycle operation from bounded owner history and resumes it read-only without redispatch",
 		"disabled mutation controls expose visible page-level role/scope/prerequisite/state reasons while remaining fail-closed, including intrinsically disabled controls whose owner supplies a blocker title",
-		"empty and prerequisite states expose a direct in-product next action when an owner UI exists, but do not render a fake CTA for blockers without an operator-owned recovery surface; runtime-generated guidance is re-rendered correctly after locale changes",
+		"empty and prerequisite states expose a direct in-product next action when an owner UI exists, but do not render a fake CTA for blockers without an operator-owned recovery surface; runtime-generated guidance is re-rendered correctly after locale changes, and a hard page refresh failure marks any retained visible data as stale with an explicit retry instead of silently preserving current-looking state",
 		"durable application deployment progress is refreshed read-only without requiring mutation replay or a manual page refresh",
 		"live status pages keep refreshing while read-only disclosures are open, but focused or dirty form input still fences background refresh; Workspace virtual-cluster and Platform maintenance RUNNING/RESTORING lifecycles are included",
 		"LTR and RTL use the same semantic ordering with logical layout properties and isolated technical identifiers",
