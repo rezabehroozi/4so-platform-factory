@@ -35,6 +35,24 @@ type applicationDeploymentOperationPager interface {
 	ListClaimableOperationsByKindTargetPrefix(context.Context, string, string, time.Time, int) ([]controlplane.Operation, error)
 }
 
+type applicationDeploymentRecoveryOperationPager interface {
+	ListUnknownRecoveryOperationsByKindTargetPrefix(context.Context, string, string, int) ([]controlplane.Operation, error)
+}
+
+type applicationDeploymentRecoveryTask struct {
+	OperationID       string                                    `json:"operationId"`
+	OperationRevision int64                                     `json:"operationRevision"`
+	TaskFenceToken    int64                                     `json:"taskFenceToken"`
+	Request           controlplane.ApplicationDeploymentRequest `json:"request"`
+}
+
+type applicationDeploymentRecoveryResult struct {
+	ConfirmedSuccess bool                                        `json:"confirmedSuccess"`
+	Evidence         *controlplane.ApplicationDeploymentEvidence `json:"evidence,omitempty"`
+	EvidenceDigest   string                                      `json:"evidenceDigest,omitempty"`
+	Error            string                                      `json:"error,omitempty"`
+}
+
 func applicationDeploymentTarget(clusterID, bindingID string) string {
 	return applicationDeploymentTargetPrefix + strings.TrimSpace(clusterID) + ":" + strings.TrimSpace(bindingID)
 }
@@ -60,6 +78,44 @@ func parseApplicationDeploymentTarget(target string) (clusterID, bindingID strin
 	default:
 		return "", "", fmt.Errorf("%w: invalid application deployment target", controlplane.ErrValidation)
 	}
+}
+
+func applicationDeploymentStateBlocksNewMutation(op controlplane.Operation) bool {
+	switch op.State {
+	case controlplane.OperationDraft, controlplane.OperationPlanning, controlplane.OperationAwaitingApproval,
+		controlplane.OperationApproved, controlplane.OperationQueued, controlplane.OperationRunning,
+		controlplane.OperationRetryWait, controlplane.OperationCancelRequested, controlplane.OperationVerifying,
+		controlplane.OperationRollingBack, controlplane.OperationNeedsOperator, controlplane.OperationRollbackFailed:
+		return true
+	case controlplane.OperationFailed:
+		return op.LastFailureClass == controlplane.OperationFailureUnknown
+	default:
+		return false
+	}
+}
+
+func (s *Server) applicationDeploymentBindingBlocker(ctx context.Context, projectID, clusterID, bindingID, idempotencyKey string) (*controlplane.Operation, error) {
+	operations, err := s.store.ListOperations(ctx, strings.TrimSpace(projectID))
+	if err != nil {
+		return nil, err
+	}
+	for i := range operations {
+		op := operations[i]
+		if op.Kind != applicationDeploymentOperationKind || strings.TrimSpace(op.IdempotencyKey) == strings.TrimSpace(idempotencyKey) {
+			continue
+		}
+		targetCluster, targetBinding, parseErr := parseApplicationDeploymentTarget(op.TargetRef)
+		if parseErr != nil || targetBinding != strings.TrimSpace(bindingID) {
+			continue
+		}
+		if targetCluster != "" && targetCluster != strings.TrimSpace(clusterID) {
+			continue
+		}
+		if applicationDeploymentStateBlocksNewMutation(op) {
+			return &op, nil
+		}
+	}
+	return nil, nil
 }
 
 func (s *Server) buildApplicationDeploymentRequest(ctx context.Context, bindingID string, runtime controlplane.ApplicationRuntimeSpec) (controlplane.ApplicationDeploymentRequest, error) {
@@ -219,6 +275,24 @@ func (s *Server) createApplicationDeployment(w http.ResponseWriter, r *http.Requ
 	key, err := requiredIdempotencyKey(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "IDEMPOTENCY_KEY_REQUIRED", err.Error())
+		return
+	}
+	blocker, err := s.applicationDeploymentBindingBlocker(r.Context(), request.Plan.ProjectID, request.Plan.ClusterID, request.Plan.EnvironmentBindingID, key)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if blocker != nil {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error": map[string]any{
+				"code": "APPLICATION_DEPLOYMENT_RECOVERY_OR_OPERATION_PENDING",
+				"message": "an existing deployment for this environment binding must converge or be recovery-resolved before another mutation",
+			},
+			"blockingOperationId": blocker.ID,
+			"blockingState": blocker.State,
+			"blockingFailureClass": blocker.LastFailureClass,
+			"automaticReplay": false,
+		})
 		return
 	}
 	actor, err := actorID(r)
@@ -441,6 +515,160 @@ func (s *Server) nextApplicationDeploymentTask(w http.ResponseWriter, r *http.Re
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) nextApplicationDeploymentRecoveryTask(w http.ResponseWriter, r *http.Request) {
+	clusterID := strings.TrimSpace(r.PathValue("id"))
+	if _, err := s.agentCredentialDigest(r, clusterID); err != nil {
+		writeError(w, http.StatusUnauthorized, "AGENT_TOKEN_REQUIRED", err.Error())
+		return
+	}
+	pager, ok := s.store.(applicationDeploymentRecoveryOperationPager)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "APPLICATION_DEPLOYMENT_RECOVERY_QUEUE_UNAVAILABLE", "bounded application deployment recovery queue is unavailable")
+		return
+	}
+	operations, err := pager.ListUnknownRecoveryOperationsByKindTargetPrefix(r.Context(), applicationDeploymentOperationKind, applicationDeploymentTargetPrefix+clusterID+":", 8)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	for _, op := range operations {
+		sealed, getErr := s.store.GetOperationRequestPayload(r.Context(), op.ID)
+		if getErr != nil {
+			writeStoreError(w, getErr)
+			return
+		}
+		req, parseErr := controlplane.ParseApplicationDeploymentRequest(sealed.Payload, sealed.PayloadDigest)
+		if parseErr != nil || req.Plan.ClusterID != clusterID {
+			continue
+		}
+		setRevisionETag(w, op.Revision)
+		writeJSON(w, http.StatusOK, applicationDeploymentRecoveryTask{
+			OperationID: op.ID,
+			OperationRevision: op.Revision,
+			TaskFenceToken: op.FenceToken,
+			Request: req,
+		})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) reportApplicationDeploymentRecoveryTask(w http.ResponseWriter, r *http.Request) {
+	clusterID := strings.TrimSpace(r.PathValue("id"))
+	if _, err := s.agentCredentialDigest(r, clusterID); err != nil {
+		writeError(w, http.StatusUnauthorized, "AGENT_TOKEN_REQUIRED", err.Error())
+		return
+	}
+	expected, err := parseExpectedRevision(r)
+	if err != nil {
+		writeError(w, http.StatusPreconditionRequired, "EXPECTED_REVISION_REQUIRED", err.Error())
+		return
+	}
+	var result applicationDeploymentRecoveryResult
+	if err = decodeJSON(w, r, &result); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	op, err := s.store.GetOperation(r.Context(), strings.TrimSpace(r.PathValue("operationId")))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if op.Kind != applicationDeploymentOperationKind {
+		writeStoreError(w, controlplane.ErrConflict)
+		return
+	}
+	targetCluster, _, parseTargetErr := parseApplicationDeploymentTarget(op.TargetRef)
+	if parseTargetErr != nil || targetCluster != clusterID {
+		writeError(w, http.StatusForbidden, "AGENT_SCOPE_MISMATCH", "application deployment recovery belongs to another cluster")
+		return
+	}
+	sealed, err := s.store.GetOperationRequestPayload(r.Context(), op.ID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	req, err := controlplane.ParseApplicationDeploymentRequest(sealed.Payload, sealed.PayloadDigest)
+	if err != nil || req.Plan.ClusterID != clusterID {
+		writeError(w, http.StatusConflict, "APPLICATION_DEPLOYMENT_RECOVERY_REQUEST_INVALID", "sealed application deployment request is invalid")
+		return
+	}
+	if !result.ConfirmedSuccess {
+		if op.Revision != expected || op.State != controlplane.OperationFailed || op.LastFailureClass != controlplane.OperationFailureUnknown {
+			writeError(w, http.StatusConflict, "APPLICATION_DEPLOYMENT_RECOVERY_STATE_CHANGED", "operation is no longer the expected FAILED/UNKNOWN revision")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"authority": controlplane.ApplicationDeploymentEvidenceAuthority,
+			"operation": op,
+			"stillAmbiguous": true,
+			"automaticReplay": false,
+			"physicalCertificationInferred": false,
+		})
+		return
+	}
+	if result.Evidence == nil {
+		writeError(w, http.StatusUnprocessableEntity, "APPLICATION_DEPLOYMENT_RECOVERY_EVIDENCE_REQUIRED", "confirmed recovery requires canonical observed deployment evidence")
+		return
+	}
+	if err = controlplane.ValidateApplicationDeploymentEvidence(*result.Evidence, req, op.ID); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "APPLICATION_DEPLOYMENT_RECOVERY_EVIDENCE_INVALID", err.Error())
+		return
+	}
+	digest, err := controlplane.ApplicationDeploymentEvidenceDigest(*result.Evidence, req, op.ID)
+	if err != nil || !strings.EqualFold(digest, strings.TrimSpace(result.EvidenceDigest)) {
+		writeError(w, http.StatusUnprocessableEntity, "APPLICATION_DEPLOYMENT_RECOVERY_EVIDENCE_DIGEST_MISMATCH", "canonical application deployment recovery evidence digest mismatch")
+		return
+	}
+	if op.State == controlplane.OperationSucceeded && strings.EqualFold(op.RecoveryEvidenceDigest, digest) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"authority": controlplane.ApplicationDeploymentEvidenceAuthority,
+			"operation": op,
+			"evidence": result.Evidence,
+			"evidenceDigest": digest,
+			"idempotentReplay": true,
+			"automaticReplay": false,
+			"physicalCertificationInferred": false,
+		})
+		return
+	}
+	if op.Revision != expected {
+		writeStoreError(w, controlplane.ErrConflict)
+		return
+	}
+	if op.State != controlplane.OperationFailed || op.LastFailureClass != controlplane.OperationFailureUnknown {
+		writeError(w, http.StatusConflict, "APPLICATION_DEPLOYMENT_RECOVERY_STATE_CHANGED", "operation is no longer FAILED/UNKNOWN")
+		return
+	}
+	payload, _ := json.Marshal(result.Evidence)
+	actor := "agent:" + clusterID
+	var sealedEvidence controlplane.EvidenceMetadata
+	op, sealedEvidence, err = s.store.ResolveUnknownOperationOutcomeWithEvidence(
+		r.Context(), op.ID, op.Revision, controlplane.OperationUnknownOutcomeConfirmedSuccess,
+		controlplane.EvidenceMetadata{
+			OperationID: op.ID,
+			Kind: controlplane.ApplicationDeploymentEvidenceKind,
+			Digest: digest,
+			MediaType: "application/json",
+			Location: "authority://application-deployment/recovery/" + op.ID + "/" + strings.TrimPrefix(digest, "sha256:"),
+			Size: int64(len(payload)),
+		},
+		payload, actor,
+	)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"authority": controlplane.ApplicationDeploymentEvidenceAuthority,
+		"operation": op,
+		"evidence": result.Evidence,
+		"evidenceDigest": sealedEvidence.Digest,
+		"automaticReplay": false,
+		"physicalCertificationInferred": false,
+	})
 }
 
 func (s *Server) reportApplicationDeploymentTask(w http.ResponseWriter, r *http.Request) {
