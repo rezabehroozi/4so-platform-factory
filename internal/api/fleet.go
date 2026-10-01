@@ -374,7 +374,7 @@ spec:
 }
 
 func renderClusterMutationActivationManifest(clusterID, serviceAccountName, externalUID, inventoryDigest string) string {
-	return fmt.Sprintf(`apiVersion: v1
+	base := fmt.Sprintf(`apiVersion: v1
 kind: Namespace
 metadata:
   name: 4so-platform-baseline
@@ -800,6 +800,40 @@ subjects:
   name: 4so-dapr-executor
   namespace: 4so-platform-agent
 `, clusterID, clusterID, clusterID, clusterID, clusterID, externalUID, inventoryDigest, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, inventoryDigest, serviceAccountName, serviceAccountName, serviceAccountName)
+	return base + fmt.Sprintf(`---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: 4so-platform-application-manager
+  annotations:
+    platform.4so.io/inventory-digest: %q
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "create", "update", "patch"]
+- apiGroups: ["apps"]
+  resources: ["replicasets"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: 4so-platform-application-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: 4so-platform-application-manager
+subjects:
+- kind: ServiceAccount
+  name: %s
+  namespace: 4so-platform-agent
+`, inventoryDigest, serviceAccountName)
 }
 
 // renderClusterRevocationRBACManifest is an idempotent target-side authorization
@@ -925,6 +959,16 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: 4so-platform-agent-tenant-manager
+subjects: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: 4so-platform-application-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: 4so-platform-application-manager
 subjects: []
 ---
 apiVersion: rbac.authorization.k8s.io/v1
