@@ -201,7 +201,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 			t.Fatalf("C4 deep RTL/LTR evidence %q missing: %#v", evidence, c4)
 		}
 	}
-	if len(c4.ExitCriteria) < 6 || !containsString(c4.ExitCriteria, "320/390/768/1024/1440 viewport checks cover LTR and RTL with workflow disclosures collapsed and expanded") || !containsString(c4.ExitCriteria, "invalid required/pattern/range inputs expose persistent localized field errors, aria-describedby, a form summary and first-error focus in both Console and Installer") || !containsString(c4.ExitCriteria, "runtime-generated Console/Installer controls round-trip English -> Persian/RTL -> English without hardcoded locale residue") {
+	if len(c4.ExitCriteria) < 7 || !containsString(c4.ExitCriteria, "320/390/768/1024/1440 viewport checks cover LTR and RTL with workflow disclosures collapsed and expanded") || !containsString(c4.ExitCriteria, "invalid required/pattern/range inputs expose persistent localized field errors, aria-describedby, a form summary and first-error focus in both Console and Installer") || !containsString(c4.ExitCriteria, "runtime-generated Console/Installer controls round-trip English -> Persian/RTL -> English without hardcoded locale residue") || !containsString(c4.ExitCriteria, "workflow copy and comparison labels remain position-independent across responsive LTR/RTL layouts rather than relying on left/right/above/below instructions") {
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c8 := byID["C8-console-operational-completion"]
