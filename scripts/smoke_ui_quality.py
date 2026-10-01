@@ -135,6 +135,7 @@ def static_quality_failures(root: Path) -> list[str]:
             failures.append(f"{rel}:generic-admin-hero")
 
     console_css = (root / "webconsole/static/styles.css").read_text(encoding="utf-8")
+    installer_css = (root / "cmd/platform-installer/static/styles.css").read_text(encoding="utf-8")
     console_js = (root / "webconsole/static/app.js").read_text(encoding="utf-8")
     v4_css_contracts = (
         "Operator Horizon V4 — Persian-native technical shell",
@@ -161,11 +162,15 @@ def static_quality_failures(root: Path) -> list[str]:
     for contract in v4_js_contracts:
         if contract not in console_js:
             failures.append(f"webconsole/static/app.js:persian-native-contract:{contract}")
-    if "flex-direction:row-reverse" in console_css.replace(" ", ""):
-        failures.append("webconsole/static/styles.css:rtl-physical-reversal-forbidden")
-    physical_layout = re.compile(r"\\b(?:margin|padding|border)-(?:left|right)\\b|(?:^|[;{])\\s*(?:left|right)\\s*:", re.M)
-    for match in physical_layout.finditer(console_css):
-        failures.append(f"webconsole/static/styles.css:rtl-physical-layout-property:{match.group(0).strip()}")
+    physical_layout = re.compile(r"\b(?:margin|padding|border)-(?:left|right)\b|(?:^|[;{])\s*(?:left|right)\s*:", re.M)
+    for rel, css in (
+        ("webconsole/static/styles.css", console_css),
+        ("cmd/platform-installer/static/styles.css", installer_css),
+    ):
+        if "flex-direction:row-reverse" in css.replace(" ", ""):
+            failures.append(f"{rel}:rtl-physical-reversal-forbidden")
+        for match in physical_layout.finditer(css):
+            failures.append(f"{rel}:rtl-physical-layout-property:{match.group(0).strip()}")
     return failures
 
 
