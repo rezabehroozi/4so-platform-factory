@@ -65,6 +65,50 @@ func TestInstallerAccessStatusAndRotateClient(t *testing.T) {
 	}
 }
 
+func TestInstallerAccessResumeReadsDurableStatusBeforeMutation(t *testing.T) {
+	t.Setenv("PLATFORM_INSTALLER_TOKEN", "resume-bootstrap-token-abcdefghijklmnopqrstuvwxyz")
+	var mu sync.Mutex
+	sequence := []string{}
+	state := "FAILED"
+	active := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer resume-bootstrap-token-abcdefghijklmnopqrstuvwxyz" {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		mu.Lock()
+		sequence = append(sequence, r.Method+" "+r.URL.Path)
+		mu.Unlock()
+		switch r.Method + " " + r.URL.Path {
+		case "GET /api/v1/status":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"executionEnabled": true,
+				"bootstrapActive": active,
+				"resetActive": false,
+				"run": map[string]any{"id": "bootstrap-1", "state": state, "lastError": "interrupted"},
+				"resetRuns": []any{},
+			})
+		case "POST /api/v1/resume":
+			active = true
+			state = "RUNNING"
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "accepted"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	installerAccessResumeCommand([]string{"--installer-url", server.URL, "--confirmation", "RESUME"})
+
+	mu.Lock()
+	defer mu.Unlock()
+	want := []string{"GET /api/v1/status", "POST /api/v1/resume", "GET /api/v1/status"}
+	if strings.Join(sequence, "|") != strings.Join(want, "|") {
+		t.Fatalf("resume sequence=%v want=%v", sequence, want)
+	}
+}
+
 func TestValidateInstallerAccessURL(t *testing.T) {
 	if _, err := validateAPIURL("http://installer.example:9080"); err == nil || !strings.Contains(err.Error(), "HTTPS") {
 		t.Fatalf("non-loopback HTTP should fail: %v", err)
