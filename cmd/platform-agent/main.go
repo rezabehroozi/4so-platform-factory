@@ -1372,6 +1372,9 @@ func (a *agent) report(ctx context.Context) error {
 		if a.providerMachineLifecycleReady(ctx) {
 			capabilities = append(capabilities, controlplane.TargetNodeProviderMachineLifecycleCapability)
 		}
+		if a.applicationDeploymentRBACActive(ctx) {
+			capabilities = append(capabilities, controlplane.ApplicationDeploymentRBACCapability)
+		}
 	}
 	sort.Strings(capabilities)
 	payload := map[string]any{"observedAt": time.Now().UTC(), "externalUid": externalUID, "distribution": distribution, "distributionEvidenceMethod": distributionEvidenceMethod, "distributionEvidenceUid": distributionEvidenceUID, "distributionEvidenceVersion": distributionEvidenceVersion, "kubernetesVersion": kubernetesVersion, "nodes": outNodes, "addOns": addons, "storageClasses": classes, "capacity": capacity, "certificates": certificates, "networking": networking, "workloadExplorer": workloadExplorer, "apiResources": apiResources, "crds": crds, "apiDiscoveryComplete": apiDiscoveryComplete, "crdDiscoveryComplete": crdDiscoveryComplete, "schemaDiscoveryVersion": schemaDiscoveryVersion, "schemaDiscoveryDigest": schemaDiscoveryDigest, "schemaDiscoveryComplete": schemaDiscoveryComplete, "capabilities": capabilities}
@@ -1677,6 +1680,25 @@ func (a *agent) daprWorkloadAdmissionRBACActive(ctx context.Context) bool {
 	}
 	for _, check := range checks {
 		if !a.subjectAccessAllowed(ctx, check.user, check.namespace, check.verb, check.group, check.version, check.resource) {
+			return false
+		}
+	}
+	return true
+}
+
+func (a *agent) applicationDeploymentRBACActive(ctx context.Context) bool {
+	checks := []struct{ group, version, resource, verb, namespace string }{
+		{"apps", "v1", "deployments", "get", "default"},
+		{"apps", "v1", "deployments", "create", "default"},
+		{"apps", "v1", "deployments", "patch", "default"},
+		{"", "v1", "services", "get", "default"},
+		{"", "v1", "services", "create", "default"},
+		{"", "v1", "services", "patch", "default"},
+		{"", "v1", "pods", "list", "default"},
+	}
+	for _, check := range checks {
+		allowed, err := a.selfSubjectAccessAllowed(ctx, check.group, check.version, check.resource, check.verb, check.namespace)
+		if err != nil || !allowed {
 			return false
 		}
 	}
