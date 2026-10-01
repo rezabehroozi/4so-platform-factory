@@ -417,6 +417,7 @@ STRUCTURED_TRIAGE_AUTHORITY = "AUTOPILOT_STRUCTURED_TRIAGE_V1"
 REPAIR_GIT_BOUNDARY_AUTHORITY = "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1"
 DIRTY_DELTA_AUTHORITY = "AUTOPILOT_DIRTY_DELTA_V1"
 WORKSPACE_FINGERPRINT_AUTHORITY = "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1"
+AGENT_CONTEXT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_V1"
 
 _FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
 
@@ -892,6 +893,65 @@ def _summarize_event_log(root: Path) -> dict:
         "lastFailure": last_failure,
         "path": str(path),
     }
+
+
+def _agent_context(root: Path) -> dict:
+    """Return a compact, non-authoritative continuation capsule for the next agent."""
+    report: dict = {}
+    path = _report_path(root)
+    if path.is_file() and not path.is_symlink():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict) and loaded.get("authority") == "AUTOPILOT_CAMPAIGN_REPORT_V1":
+                report = loaded
+        except (OSError, json.JSONDecodeError):
+            report = {}
+    events = _summarize_event_log(root)
+    last_failure = report.get("lastFailure") if isinstance(report.get("lastFailure"), dict) else events.get("lastFailure", {})
+    status = str(report.get("status") or events.get("status") or "IDLE")
+    resume_invocation = report.get("invocation") if isinstance(report.get("invocation"), list) else []
+    context = {
+        "schemaVersion": 1,
+        "authority": "AUTOPILOT_AGENT_CONTEXT_V1",
+        "derived": True,
+        "notProductAuthority": True,
+        "gitHead": _git_head(root),
+        "runId": str(report.get("runId") or events.get("runId") or ""),
+        "status": status,
+        "phase": str(report.get("phase") or ""),
+        "currentStage": str(report.get("currentStage") or ""),
+        "currentSpecialist": str(report.get("currentSpecialist") or ""),
+        "nextStage": str(report.get("nextStage") or ""),
+        "repairCount": int(report.get("repairCount") or 0),
+        "resumeEligible": bool(report.get("resumeEligible", False)),
+        "lastFailure": {
+            key: last_failure.get(key)
+            for key in ("stage", "specialist", "status", "fingerprint", "reason")
+            if isinstance(last_failure, dict) and last_failure.get(key) not in (None, "")
+        },
+        "resumeInvocation": resume_invocation,
+        "sourceContext": {
+            "agentInstructions": "AGENTS.md",
+            "derivedKnowledge": "DERIVED-AGENT-KNOWLEDGE.json",
+            "canonicalPhaseSource": "internal/targetmodel/program.go",
+        },
+        "continuationRules": [
+            "read only the failing owner surface plus AGENTS.md/derived knowledge needed for that owner",
+            "rerun the same invocation when resumeEligible; do not replay already checkpointed green stages manually",
+            "use the compact failure fingerprint/capsule and run the smallest owner proof before broader convergence",
+            "never mutate Git refs/index/history from the repair agent",
+            "never convert source/local success into Runtime/Lab/Exact-SHA Physical PASS",
+        ],
+    }
+    if status in {"ENVIRONMENT_BLOCKED", "CODE_DEFECT", "FAIL", "TIMEOUT"}:
+        context["nextAction"] = "inspect lastFailure and rerun the recorded invocation after fixing only the owning cause"
+    elif status in {"RUNNING", "REPAIRING"} and context["resumeEligible"]:
+        context["nextAction"] = "rerun resumeInvocation; the durable checkpoint will rejoin/resume the exact graph cursor"
+    elif status == "PASS":
+        context["nextAction"] = "local campaign is complete; consult release-readiness before any external/physical campaign"
+    else:
+        context["nextAction"] = "run make autopilot-preflight, then make autopilot"
+    return context
 
 
 def _report_result(stage: Stage, result: StageResult) -> dict:
@@ -2179,6 +2239,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="4SO Platform Factory bounded Codex correctness autopilot")
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--event-summary", action="store_true", help="print the latest structured autopilot event-log summary and exit")
+    ap.add_argument("--agent-context", action="store_true", help="print a compact continuation capsule for the next coding/test agent and exit")
     ap.add_argument("--preflight", action="store_true", help="check deterministic test/repair host prerequisites without running the suite")
     ap.add_argument("--repair", action="store_true", help="invoke Codex on deterministic failures")
     ap.add_argument("--max-repairs", type=int, default=3)
@@ -2193,6 +2254,9 @@ def main() -> int:
         return self_test()
     if args.event_summary:
         print(json.dumps(_summarize_event_log(ROOT), sort_keys=True))
+        return 0
+    if args.agent_context:
+        print(json.dumps(_agent_context(ROOT), sort_keys=True))
         return 0
     if args.preflight:
         selected = None
