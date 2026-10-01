@@ -13,7 +13,7 @@ usage() {
 Usage:
   sudo bash install.sh preflight --bundle-dir DIR [--release-artifact RELEASE.zip] [installer options...]
   sudo bash install.sh plan      --bundle-dir DIR [--release-artifact RELEASE.zip] [installer options...]
-  sudo bash install.sh install   --bundle-dir DIR [--release-artifact RELEASE.zip] --confirmation DEPLOY [installer options...]
+  sudo bash install.sh install   --bundle-dir DIR [--release-artifact RELEASE.zip] --enable-execution --confirmation DEPLOY [installer options...]
 
 The exact release ZIP can be omitted only when PLATFORM_FACTORY_RELEASE_ARTIFACT
 is set or when the ZIP sits beside this extracted release directory with the
