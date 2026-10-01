@@ -3,6 +3,7 @@ package controlplane
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func applicationDeploymentFixture(t *testing.T) (ApplicationRelease, EnvironmentBinding, WorkspaceBinding, ApplicationRuntimeSpec) {
@@ -117,5 +118,94 @@ func TestApplicationDeploymentPlanRejectsUnsafeRuntimeShape(t *testing.T) {
 	bad.ServicePort = 70000
 	if _, err := ResolveApplicationDeploymentPlan(release, binding, workspaceBinding, bad); err == nil {
 		t.Fatal("invalid service port entered application deployment plan")
+	}
+}
+
+func TestApplicationDeploymentRequestSealsPlanAndInventoryAuthority(t *testing.T) {
+	release, binding, workspaceBinding, runtime := applicationDeploymentFixture(t)
+	plan, err := ResolveApplicationDeploymentPlan(release, binding, workspaceBinding, runtime)
+	if err != nil { t.Fatal(err) }
+	request := ApplicationDeploymentRequest{
+		Authority: ApplicationDeploymentRequestAuthority,
+		InventoryDigest: appDigest('8'),
+		Plan: plan,
+	}
+	raw, digest, err := MarshalApplicationDeploymentRequest(request)
+	if err != nil { t.Fatal(err) }
+	parsed, err := ParseApplicationDeploymentRequest(raw, digest)
+	if err != nil { t.Fatal(err) }
+	if parsed.Plan.RenderedDigest != plan.RenderedDigest || parsed.InventoryDigest != request.InventoryDigest {
+		t.Fatalf("application deployment request lost authority: %#v", parsed)
+	}
+
+	tampered := request
+	tampered.Plan.RenderedResources[0]["metadata"].(map[string]any)["namespace"] = "foreign"
+	if _, _, err = MarshalApplicationDeploymentRequest(tampered); err == nil {
+		t.Fatal("tampered rendered deployment entered sealed application deployment request")
+	}
+}
+
+func TestApplicationDeploymentEvidenceRequiresObservedConvergenceAndExactArtifact(t *testing.T) {
+	release, binding, workspaceBinding, runtime := applicationDeploymentFixture(t)
+	plan, err := ResolveApplicationDeploymentPlan(release, binding, workspaceBinding, runtime)
+	if err != nil { t.Fatal(err) }
+	request := ApplicationDeploymentRequest{
+		Authority: ApplicationDeploymentRequestAuthority,
+		InventoryDigest: appDigest('8'),
+		Plan: plan,
+	}
+	evidence := ApplicationDeploymentEvidence{
+		Authority: ApplicationDeploymentEvidenceAuthority,
+		OperationID: "op_app_deploy",
+		ProjectID: plan.ProjectID,
+		ClusterID: plan.ClusterID,
+		Namespace: plan.Namespace,
+		EnvironmentBindingID: plan.EnvironmentBindingID,
+		EnvironmentBindingRevision: plan.EnvironmentBindingRevision,
+		ReleaseDigest: plan.ReleaseDigest,
+		InventoryDigest: request.InventoryDigest,
+		RenderedDigest: plan.RenderedDigest,
+		Readback: ApplicationDeploymentReadback{
+			DeploymentName: plan.WorkloadName,
+			DeploymentUID: "uid-deploy-1",
+			Generation: 4,
+			ObservedGeneration: 4,
+			DesiredReplicas: runtime.Replicas,
+			ReadyReplicas: runtime.Replicas,
+			WorkloadImage: plan.WorkloadImageReference,
+			CPURequest: runtime.CPURequest,
+			CPULimit: runtime.CPULimit,
+			MemoryRequest: runtime.MemoryRequest,
+			MemoryLimit: runtime.MemoryLimit,
+			ServiceObserved: true,
+			ServiceName: plan.WorkloadName,
+			ServiceClusterIP: "10.96.0.25",
+			ServicePort: runtime.ServicePort,
+			ServiceTargetPort: runtime.ContainerPort,
+			AuthorityLabelsMatch: true,
+			AuthorityDigestsMatch: true,
+		},
+		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		RuntimeMutationObserved: true,
+		PhysicalCertificationInferred: false,
+	}
+	digest, err := ApplicationDeploymentEvidenceDigest(evidence, request, evidence.OperationID)
+	if err != nil || !applicationPlatformDigestPattern.MatchString(digest) {
+		t.Fatalf("valid application deployment evidence rejected: digest=%q err=%v", digest, err)
+	}
+	bad := evidence
+	bad.Readback.WorkloadImage = "zot.internal.example/apps/payments@" + appDigest('0')
+	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
+		t.Fatal("foreign workload image passed deployment evidence validation")
+	}
+	bad = evidence
+	bad.Readback.ReadyReplicas--
+	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
+		t.Fatal("under-ready application deployment passed terminal evidence validation")
+	}
+	bad = evidence
+	bad.PhysicalCertificationInferred = true
+	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
+		t.Fatal("application deployment evidence overclaimed Physical certification")
 	}
 }
