@@ -391,7 +391,9 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
     directions = ("ltr", "rtl")
     accessibility_states = 0
     expanded_accessibility_states = 0
+    application_task_accessibility_states = 0
     contrast_states = 0
+    application_task_contrast_states = 0
     app = "installer" if installer else "console"
     for width in widths:
         height = 844 if width == 390 else 900
@@ -476,6 +478,19 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
                     failures.append(f"{expanded_label}:horizontal-overflow")
                 audit_dom(page, expanded_label, failures)
                 expanded_accessibility_states += 1
+                if not installer and route == "applications":
+                    for task in ("workload", "profile", "trait", "resource"):
+                        task_label = f"{expanded_label}:composition:{task}"
+                        page.evaluate("""task => {
+                          const library=document.querySelector('#application-composition-library');
+                          if(library?.matches('details'))library.open=true;
+                          selectApplicationLibraryTask(task);
+                        }""", task)
+                        if page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 2"):
+                            failures.append(f"{task_label}:horizontal-overflow")
+                        audit_dom(page, task_label, failures)
+                        application_task_accessibility_states += 1
+                    page.evaluate("() => selectApplicationLibraryTask('workload')")
                 page.evaluate("""states => {
                   const active=document.querySelector('.page.active') || document.body;
                   [...active.querySelectorAll('details')].forEach((item,index)=>{item.open=Boolean(states[index]);});
@@ -496,12 +511,24 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
                     page.evaluate("route => navigate(route)", route)
                 audit_contrast(page, f"{app}:{width}:contrast:{theme}:{route}", failures)
                 contrast_states += 1
+                if not installer and route == "applications":
+                    page.evaluate("""() => {
+                      const library=document.querySelector('#application-composition-library');
+                      if(library?.matches('details'))library.open=true;
+                    }""")
+                    for task in ("workload", "profile", "trait", "resource"):
+                        page.evaluate("task => selectApplicationLibraryTask(task)", task)
+                        audit_contrast(page, f"{app}:{width}:contrast:{theme}:{route}:composition:{task}", failures)
+                        application_task_contrast_states += 1
+                    page.evaluate("() => selectApplicationLibraryTask('workload')")
         context.close()
     return {
         "widths": len(widths), "themes": len(themes), "directions": len(directions), "routes": len(routes),
         "accessibilityRouteStates": accessibility_states,
         "expandedAccessibilityRouteStates": expanded_accessibility_states,
+        "applicationCompositionTaskAccessibilityStates": application_task_accessibility_states,
         "contrastRouteStates": contrast_states,
+        "applicationCompositionTaskContrastStates": application_task_contrast_states,
     }
 
 def audit_console(browser, root: Path, failures: list[str], *, routes: list[str] | None = None, run_auxiliary: bool = True, run_matrix: bool = True) -> dict[str, int]:
@@ -509,7 +536,8 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
     selected = list(CONSOLE_PAGES if routes is None else routes)
     coverage = _audit_route_matrix(browser, document, installer=False, routes=selected, failures=failures, root=root) if run_matrix else {
         "widths": 0, "themes": 0, "directions": 0, "routes": 0, "accessibilityRouteStates": 0,
-        "expandedAccessibilityRouteStates": 0, "contrastRouteStates": 0
+        "expandedAccessibilityRouteStates": 0, "applicationCompositionTaskAccessibilityStates": 0,
+        "contrastRouteStates": 0, "applicationCompositionTaskContrastStates": 0
     }
     if not run_auxiliary:
         return coverage
