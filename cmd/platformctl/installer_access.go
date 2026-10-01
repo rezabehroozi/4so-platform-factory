@@ -109,6 +109,54 @@ func installerAccessRunStatusCommand(args []string) {
 	})
 }
 
+type installerMutationReadback struct {
+	After         installerBootstrapRuntimeStatus
+	StatusPending bool
+}
+
+func installerStatusChangedForResume(before, after installerBootstrapRuntimeStatus) bool {
+	if after.BootstrapActive { return true }
+	if before.Run == nil || after.Run == nil { return before.Run != after.Run }
+	return after.Run.ID != before.Run.ID || after.Run.State != before.Run.State || after.Run.LastError != before.Run.LastError
+}
+
+func performInstallerMutationWithReadback(
+	client *http.Client,
+	base *url.URL,
+	token string,
+	path string,
+	headers map[string]string,
+	before installerBootstrapRuntimeStatus,
+	changed func(installerBootstrapRuntimeStatus, installerBootstrapRuntimeStatus) bool,
+	label string,
+) (installerMutationReadback, error) {
+	var outcome installerMutationReadback
+	raw, code, requestErr := installerAccessRequestWithHeaders(client, http.MethodPost, base, path, token, nil, headers)
+	if requestErr == nil && code != http.StatusAccepted {
+		return outcome, fmt.Errorf("installer %s returned %d: %s", label, code, strings.TrimSpace(string(raw)))
+	}
+	after, readbackErr := fetchInstallerBootstrapRuntimeStatus(client, base, token)
+	if requestErr != nil {
+		if readbackErr != nil {
+			return outcome, fmt.Errorf("%s response was lost (%v) and authoritative status readback also failed: %w", label, requestErr, readbackErr)
+		}
+		if changed == nil || !changed(before, after) {
+			return outcome, fmt.Errorf("%s response was lost and status readback does not prove acceptance; automatic replay is forbidden: %w", label, requestErr)
+		}
+		outcome.After = after
+		return outcome, nil
+	}
+	if readbackErr != nil {
+		// HTTP 202 proves acceptance but never terminal completion. The caller
+		// must surface status-pending and must not replay the mutation merely
+		// because this immediate readback failed.
+		outcome.StatusPending = true
+		return outcome, nil
+	}
+	outcome.After = after
+	return outcome, nil
+}
+
 func installerAccessResumeCommand(args []string) {
 	fs := flag.NewFlagSet("installer-access resume", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -162,35 +210,19 @@ func installerAccessResumeCommand(args []string) {
 		})
 		return
 	}
-	raw, code, requestErr := installerAccessRequest(client, http.MethodPost, base, "/api/v1/resume", token, nil)
-	if requestErr == nil && code != http.StatusAccepted {
-		fatal(fmt.Errorf("installer resume returned %d: %s", code, strings.TrimSpace(string(raw))))
-	}
-	after, readbackErr := fetchInstallerBootstrapRuntimeStatus(client, base, token)
-	if requestErr != nil {
-		if readbackErr != nil {
-			fatal(fmt.Errorf("resume response was lost (%v) and authoritative status readback also failed: %w", requestErr, readbackErr))
-		}
-		changed := after.BootstrapActive
-		if before.Run != nil && after.Run != nil {
-			changed = changed || after.Run.ID != before.Run.ID || after.Run.State != before.Run.State || after.Run.LastError != before.Run.LastError
-		}
-		if !changed {
-			fatal(fmt.Errorf("resume response was lost and status readback does not prove acceptance; automatic replay is forbidden: %w", requestErr))
-		}
-	}
-	if readbackErr != nil {
-		// A confirmed HTTP 202 proves acceptance but not completion. Do not replay
-		// merely because the immediate status readback failed.
+	outcome, err := performInstallerMutationWithReadback(client, base, token, "/api/v1/resume", nil, before, installerStatusChangedForResume, "resume")
+	if err != nil { fatal(err) }
+	if outcome.StatusPending {
 		printJSON(map[string]any{
 			"authority": "INSTALLER_MANUAL_BOOTSTRAP_RESUME_V1",
 			"status": "ACCEPTED_STATUS_PENDING",
 			"runId": before.Run.ID,
 			"automaticReplay": false,
-			"nextAction": "resume was accepted; retry installer-access status/readback instead of replaying the mutation",
+			"nextAction": "resume was accepted; retry installer-access run-status instead of replaying the mutation",
 		})
 		return
 	}
+	after := outcome.After
 	printJSON(map[string]any{
 		"authority": "INSTALLER_MANUAL_BOOTSTRAP_RESUME_V1",
 		"status": "ACCEPTED",
@@ -254,21 +286,13 @@ func installerAccessResetCommand(args []string) {
 	}
 	if before.Run == nil { fatal(errors.New("no installation authority exists to reset")) }
 	headers := map[string]string{"X-Confirm-Reset": "reset:" + before.Run.ID}
-	raw, code, requestErr := installerAccessRequestWithHeaders(client, http.MethodPost, base, "/api/v1/reset/start", token, nil, headers)
-	if requestErr == nil && code != http.StatusAccepted {
-		fatal(fmt.Errorf("installer reset returned %d: %s", code, strings.TrimSpace(string(raw))))
-	}
-	after, readbackErr := fetchInstallerBootstrapRuntimeStatus(client, base, token)
-	if requestErr != nil {
-		if readbackErr != nil { fatal(fmt.Errorf("reset response was lost (%v) and status readback failed: %w", requestErr, readbackErr)) }
-		if !installerResetReadbackChanged(before, after) {
-			fatal(fmt.Errorf("reset response was lost and readback does not prove acceptance; automatic replay is forbidden: %w", requestErr))
-		}
-	}
-	if readbackErr != nil {
+	outcome, err := performInstallerMutationWithReadback(client, base, token, "/api/v1/reset/start", headers, before, installerResetReadbackChanged, "reset")
+	if err != nil { fatal(err) }
+	if outcome.StatusPending {
 		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED_STATUS_PENDING","sourceRunId":before.Run.ID,"automaticReplay":false,"nextAction":"retry run-status; do not replay reset"})
 		return
 	}
+	after := outcome.After
 	printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED","resetActive":after.ResetActive,"reset":latestIncompleteInstallerReset(after),"automaticReplay":false,"nextAction":"monitor run-status until reset is terminal; use reset-resume only after interruption/failure"})
 }
 
@@ -296,21 +320,13 @@ func installerAccessResetResumeCommand(args []string) {
 		return
 	}
 	headers := map[string]string{"X-Confirm-Reset-Resume": "resume:" + reset.ID}
-	raw, code, requestErr := installerAccessRequestWithHeaders(client, http.MethodPost, base, "/api/v1/reset/resume", token, nil, headers)
-	if requestErr == nil && code != http.StatusAccepted {
-		fatal(fmt.Errorf("installer reset resume returned %d: %s", code, strings.TrimSpace(string(raw))))
-	}
-	after, readbackErr := fetchInstallerBootstrapRuntimeStatus(client, base, token)
-	if requestErr != nil {
-		if readbackErr != nil { fatal(fmt.Errorf("reset-resume response was lost (%v) and status readback failed: %w", requestErr, readbackErr)) }
-		if !installerResetReadbackChanged(before, after) {
-			fatal(fmt.Errorf("reset-resume response was lost and readback does not prove acceptance; automatic replay is forbidden: %w", requestErr))
-		}
-	}
-	if readbackErr != nil {
+	outcome, err := performInstallerMutationWithReadback(client, base, token, "/api/v1/reset/resume", headers, before, installerResetReadbackChanged, "reset-resume")
+	if err != nil { fatal(err) }
+	if outcome.StatusPending {
 		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED_STATUS_PENDING","resetId":reset.ID,"automaticReplay":false,"nextAction":"retry run-status; do not replay reset-resume"})
 		return
 	}
+	after := outcome.After
 	printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED","resetActive":after.ResetActive,"reset":latestIncompleteInstallerReset(after),"automaticReplay":false,"nextAction":"monitor run-status until reset is terminal"})
 }
 
