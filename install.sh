@@ -19,6 +19,7 @@ Usage:
   sudo bash install.sh install   [--bundle-dir DIR] [--release-artifact RELEASE.zip] --enable-execution --confirmation DEPLOY [installer options...]
   sudo bash install.sh status    [--state FILE] [--root /]
   sudo bash install.sh verify    [--state FILE] [--root /]
+  sudo bash install.sh resume    --confirmation RESUME [--installer-url URL] [--token-file FILE] [--ca-file FILE]
   sudo bash install.sh recover   --confirmation RECOVER [--state FILE] [--root /]
   sudo bash install.sh rollback  --confirmation ROLLBACK [--state FILE] [--root /]
 
@@ -49,8 +50,13 @@ Doctor:
 
 Continuation:
   status/verify/recover/rollback read the durable host-deployment authority.
-  They do not require the original bundle or release ZIP again. recover and
-  rollback retain the canonical explicit confirmation fences.
+  resume reads the live Bootstrap Installer durable run first and then requests
+  canonical resume only with --confirmation RESUME. None of these modes require
+  the original bundle or release ZIP again. recover/rollback retain their
+  canonical explicit confirmation fences. For the default loopback Installer,
+  resume auto-uses http://127.0.0.1:9080 and
+  /var/lib/4so-platform-installer/bootstrap-token; custom TLS/listen deployments
+  can pass --installer-url, --token-file and --ca-file explicitly.
 EOF
 }
 
@@ -60,13 +66,41 @@ case "${mode}" in
     usage
     exit 0
     ;;
-  doctor|preflight|plan|install|status|verify|recover|rollback)
+  doctor|preflight|plan|install|status|verify|resume|recover|rollback)
     shift
     ;;
   *)
     echo "ERROR unsupported mode: ${mode}" >&2
     usage >&2
     exit 2
+    ;;
+esac
+
+case "${mode}" in
+  resume)
+    if [[ "${EUID}" -ne 0 ]]; then
+      echo "ERROR ${AUTHORITY}: bootstrap resume must run as root when using the default private token file; rerun with sudo" >&2
+      exit 2
+    fi
+    if [[ ! -f "${PLATFORMCTL}" || -L "${PLATFORMCTL}" || ! -x "${PLATFORMCTL}" ]]; then
+      echo "ERROR ${AUTHORITY}: bootstrap resume requires packaged platformctl: ${PLATFORMCTL}" >&2
+      exit 2
+    fi
+    declare -a resume_args=("$@")
+    resume_has_url=false
+    resume_has_token_file=false
+    for ((i=0; i<${#resume_args[@]}; i++)); do
+      [[ "${resume_args[i]}" == "--installer-url" ]] && resume_has_url=true
+      [[ "${resume_args[i]}" == "--token-file" ]] && resume_has_token_file=true
+    done
+    if [[ "${resume_has_url}" != true ]]; then
+      resume_args=(--installer-url "${PLATFORM_INSTALLER_URL:-http://127.0.0.1:9080}" "${resume_args[@]}")
+    fi
+    if [[ "${resume_has_token_file}" != true && -z "${PLATFORM_INSTALLER_TOKEN:-}" ]]; then
+      resume_args=(--token-file "${PLATFORM_INSTALLER_TOKEN_FILE:-/var/lib/4so-platform-installer/bootstrap-token}" "${resume_args[@]}")
+    fi
+    echo "${AUTHORITY} continuationAuthority=${CONTINUATION_AUTHORITY} mode=resume bootstrapResume=true" >&2
+    exec "${PLATFORMCTL}" installer-access resume "${resume_args[@]}"
     ;;
 esac
 
