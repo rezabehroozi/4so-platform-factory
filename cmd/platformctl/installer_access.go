@@ -177,7 +177,7 @@ func fetchInstallerBootstrapRuntimeStatus(client *http.Client, base *url.URL, to
 	if code != http.StatusOK {
 		return status, fmt.Errorf("installer returned %d: %s", code, strings.TrimSpace(string(raw)))
 	}
-	if err = decodeStrict(raw, &status); err != nil {
+	if err = json.Unmarshal(raw, &status); err != nil {
 		return status, fmt.Errorf("decode bootstrap runtime status: %w", err)
 	}
 	return status, nil
