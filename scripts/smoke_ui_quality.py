@@ -565,6 +565,42 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
         failures.append(f"console:action-availability-localization-roundtrip:{availability}")
     context.close()
 
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
+    step_admission = page.evaluate("""async () => {
+      await navigate('applications');
+      state.applicationReleases=[];
+      state.applicationEnvironmentBindings=[];
+      state.applicationDeploymentRun=null;
+      renderApplicationDeliveryJourney();
+      const binding=document.querySelector('[data-application-step="binding"]');
+      const workflow=document.querySelector('#application-binding-workflow');
+      if(workflow)workflow.open=false;
+      binding?.click();
+      const blocked={
+        ariaDisabled:binding?.getAttribute('aria-disabled')||'',
+        reason:String(binding?.dataset?.blockedReason||''),
+        workflowOpen:Boolean(workflow?.open),
+        focused:document.activeElement===binding,
+        errorToast:Boolean(document.querySelector('#toast-region .toast.error'))
+      };
+      state.applicationReleases=[{id:'quality-release',workloadImageReference:'zot.local/app@sha256:'+'a'.repeat(64)}];
+      renderApplicationDeliveryJourney();
+      const enabled={
+        ariaDisabled:binding?.getAttribute('aria-disabled')||'',
+        state:binding?.dataset?.state||'',
+        reason:String(binding?.dataset?.blockedReason||'')
+      };
+      return {blocked,enabled};
+    }""")
+    blocked=step_admission.get("blocked",{})
+    enabled=step_admission.get("enabled",{})
+    if blocked.get("ariaDisabled") != "true" or not blocked.get("reason") or blocked.get("workflowOpen") or not blocked.get("focused") or not blocked.get("errorToast"):
+        failures.append(f"console:application-step-blocked-admission:{step_admission}")
+    if enabled.get("ariaDisabled") != "false" or enabled.get("state") != "current" or enabled.get("reason"):
+        failures.append(f"console:application-step-enabled-admission:{step_admission}")
+    context.close()
+
     # Explicit console theme preference must override the opposite OS preference.
     # This prevents system-dark selectors from contaminating an explicit light
     # preference (and vice versa).
@@ -752,6 +788,7 @@ def main(argv: list[str] | None = None) -> int:
         "taskFirstDensityAuthority": "TASK_FIRST_PROGRESSIVE_DISCLOSURE_V1",
         "runtimeLocalizationAuthority": "RUNTIME_GENERATED_LOCALIZATION_PARITY_V1",
         "actionableEmptyStateAuthority": "ACTIONABLE_EMPTY_STATE_RECOVERY_V1",
+        "applicationStepAdmissionAuthority": "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1",
         "status": "PASS" if not failures else "FAIL",
         "checkpoint": {
             "scope": args.scope,
