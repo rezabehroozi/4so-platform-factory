@@ -165,6 +165,24 @@ func (s *Server) revokeWorkspaceBinding(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "EXPECTED_REVISION_REQUIRED", "expectedRevision is required")
 		return
 	}
+	blocker, err := s.applicationDeploymentWorkspaceBindingBlocker(r.Context(), workspace.ProjectID, binding.ID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if blocker != nil {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error": map[string]any{
+				"code": "WORKSPACE_BINDING_APPLICATION_DEPLOYMENT_PENDING",
+				"message": "WorkspaceBinding cannot be revoked while an application deployment is in flight or requires recovery",
+			},
+			"blockingOperationId": blocker.ID,
+			"blockingState": blocker.State,
+			"blockingFailureClass": blocker.LastFailureClass,
+			"automaticReplay": false,
+		})
+		return
+	}
 	out, err := s.store.RevokeWorkspaceBinding(r.Context(), binding.ID, input.ExpectedRevision, actor)
 	if err != nil {
 		writeStoreError(w, err)
