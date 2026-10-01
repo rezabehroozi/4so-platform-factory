@@ -26,7 +26,8 @@ SMOKE_SPEC.loader.exec_module(smoke_ui)
 
 CONSOLE_PAGES = [
     "overview", "workspace", "installation", "clusters", "providers", "blueprints", "templates", "marketplace", "baselines",
-    "verification", "fleet", "workspaces", "tenants", "operations", "notifications", "services", "catalog", "validator",
+    "verification", "edge", "fleet", "workspaces", "finops", "tenants", "operations", "ai", "notifications", "services",
+    "catalog", "lab", "validator",
 ]
 INSTALLER_PAGES = ["overview", "installation", "progress", "health", "recovery", "lifecycle"]
 
@@ -149,6 +150,9 @@ def static_quality_failures(root: Path) -> list[str]:
             failures.append(f"webconsole/static/app.js:persian-native-contract:{contract}")
     if "flex-direction:row-reverse" in console_css.replace(" ", ""):
         failures.append("webconsole/static/styles.css:rtl-physical-reversal-forbidden")
+    physical_layout = re.compile(r"\\b(?:margin|padding|border)-(?:left|right)\\b|(?:^|[;{])\\s*(?:left|right)\\s*:", re.M)
+    for match in physical_layout.finditer(console_css):
+        failures.append(f"webconsole/static/styles.css:rtl-physical-layout-property:{match.group(0).strip()}")
     return failures
 
 
@@ -184,7 +188,13 @@ DOM_AUDIT_JS = r"""() => {
     const r=target.getBoundingClientRect();
     return {tag:el.tagName,id:el.id,width:Math.round(r.width),height:Math.round(r.height)};
   });
-  return {duplicateIds, unnamedActions, unlabeledFields, unnamedDialogs, undersizedTargets};
+  const bidiDirectionErrors = document.documentElement.dir === 'rtl'
+    ? [...document.querySelectorAll('.technical,code,pre,kbd,[data-ltr="true"],input[type="email"],input[type="url"],input[type="tel"],[dir="ltr"]')]
+        .filter(visible)
+        .filter(el => getComputedStyle(el).direction !== 'ltr')
+        .map(el => ({tag:el.tagName,id:el.id || '',direction:getComputedStyle(el).direction,text:String(el.textContent || el.value || '').trim().slice(0,80)}))
+    : [];
+  return {duplicateIds, unnamedActions, unlabeledFields, unnamedDialogs, undersizedTargets, bidiDirectionErrors};
 }"""
 
 CONTRAST_AUDIT_JS = r"""() => {
@@ -260,6 +270,7 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
     themes = ("light", "dark")
     directions = ("ltr", "rtl")
     accessibility_states = 0
+    expanded_accessibility_states = 0
     contrast_states = 0
     app = "installer" if installer else "console"
     for width in widths:
@@ -269,8 +280,10 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
         prepare_quality_page(page, document, installer=installer, root=root)
         page.add_style_tag(content="*,*::before,*::after{transition:none!important;animation:none!important}")
 
-        # DOM semantics, target sizing and overflow do not change with theme.
-        # Exercise every route at every supported viewport in both LTR and RTL.
+        # DOM semantics, target sizing, bidi isolation and overflow must hold in
+        # both the normal progressive-disclosure state and with every workflow
+        # disclosure expanded. This keeps hidden form stages from escaping the
+        # E2E RTL/LTR gate.
         page.emulate_media(color_scheme="light")
         if not installer:
             page.evaluate("theme => applyConsoleTheme(theme)", "light")
@@ -278,7 +291,7 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
             _set_direction(page, direction)
             for route in routes:
                 if installer:
-                    page.evaluate("route => document.querySelector(`#nav [data-page='${route}']`).click()", route)
+                    page.evaluate("route => document.querySelector(\`#nav [data-page='\${route}']\`).click()", route)
                 else:
                     page.evaluate("route => navigate(route)", route)
                 label = f"{app}:{width}:accessibility:{direction}:{route}"
@@ -286,6 +299,23 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
                     failures.append(f"{label}:horizontal-overflow")
                 audit_dom(page, label, failures)
                 accessibility_states += 1
+
+                open_states = page.evaluate("""() => {
+                  const active=document.querySelector('.page.active') || document.body;
+                  const details=[...active.querySelectorAll('details')];
+                  const states=details.map(item=>item.open);
+                  details.forEach(item=>{item.open=true;});
+                  return states;
+                }""")
+                expanded_label = f"{label}:expanded"
+                if page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 2"):
+                    failures.append(f"{expanded_label}:horizontal-overflow")
+                audit_dom(page, expanded_label, failures)
+                expanded_accessibility_states += 1
+                page.evaluate("""states => {
+                  const active=document.querySelector('.page.active') || document.body;
+                  [...active.querySelectorAll('details')].forEach((item,index)=>{item.open=Boolean(states[index]);});
+                }""", open_states)
 
         # Contrast is direction-independent, but it can vary by viewport, route
         # visibility and explicit/system theme. Exercise every route at every
@@ -297,7 +327,7 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
                 page.evaluate("theme => applyConsoleTheme(theme)", theme)
             for route in routes:
                 if installer:
-                    page.evaluate("route => document.querySelector(`#nav [data-page='${route}']`).click()", route)
+                    page.evaluate("route => document.querySelector(\`#nav [data-page='\${route}']\`).click()", route)
                 else:
                     page.evaluate("route => navigate(route)", route)
                 audit_contrast(page, f"{app}:{width}:contrast:{theme}:{route}", failures)
@@ -305,14 +335,17 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
         context.close()
     return {
         "widths": len(widths), "themes": len(themes), "directions": len(directions), "routes": len(routes),
-        "accessibilityRouteStates": accessibility_states, "contrastRouteStates": contrast_states,
+        "accessibilityRouteStates": accessibility_states,
+        "expandedAccessibilityRouteStates": expanded_accessibility_states,
+        "contrastRouteStates": contrast_states,
     }
 
 def audit_console(browser, root: Path, failures: list[str], *, routes: list[str] | None = None, run_auxiliary: bool = True, run_matrix: bool = True) -> dict[str, int]:
     document = smoke_ui.inline_document(root / "webconsole/static")
     selected = list(CONSOLE_PAGES if routes is None else routes)
     coverage = _audit_route_matrix(browser, document, installer=False, routes=selected, failures=failures, root=root) if run_matrix else {
-        "widths": 0, "themes": 0, "directions": 0, "routes": 0, "accessibilityRouteStates": 0, "contrastRouteStates": 0
+        "widths": 0, "themes": 0, "directions": 0, "routes": 0, "accessibilityRouteStates": 0,
+        "expandedAccessibilityRouteStates": 0, "contrastRouteStates": 0
     }
     if not run_auxiliary:
         return coverage
