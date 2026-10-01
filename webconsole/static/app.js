@@ -4415,10 +4415,12 @@ function applicationDeploymentRuntimeBody(){
 function renderApplicationDeploymentPlan(){
   const host=$('#application-deployment-plan-result');if(!host)return;
   const preview=state.applicationDeploymentPlan,run=state.applicationDeploymentRun;
-  const plan=preview||run?.request?.plan||null;
+  const runPlan=run?.request?.plan||null;
+  const plan=preview||runPlan||null;
   const requestButton=$('#application-deployment-request'),refreshButton=$('#application-deployment-refresh'),approveButton=$('#application-deployment-approve'),operationField=$('#application-deployment-operation');
   const binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-deployment-binding')?.value);
   const op=run?.operation;
+  const previewMatchesRun=!preview||!runPlan||preview.renderedDigest===runPlan.renderedDigest;
   const ambiguous=op?.state==='NEEDS_OPERATOR'||(op?.state==='FAILED'&&op?.lastFailureClass==='UNKNOWN');
   const active=!!op&&(['DRAFT','PLANNING','PLAN_FAILED','AWAITING_APPROVAL','APPROVED','QUEUED','RUNNING','RETRY_WAIT','CANCEL_REQUESTED','VERIFYING','ROLLING_BACK','ROLLBACK_FAILED','NEEDS_OPERATOR'].includes(op.state)||ambiguous);
   if(operationField)operationField.value=op?.id||'';
@@ -4438,7 +4440,7 @@ function renderApplicationDeploymentPlan(){
     const recovered=run?.ready===true&&!!op.recoveryEvidenceDigest;
     const status=evidenceMissing?'EVIDENCE_MISSING':(recovered?'RECOVERED_READY':(run?.ready?'READY':(run?.stale?'STALE':(ambiguous?'RECOVERY_REQUIRED':(op.state||'UNKNOWN')))));
     const evidence=run?.evidence||{};
-    const warning=ambiguous||evidenceMissing||run?.stale;
+    const warning=ambiguous||evidenceMissing||run?.stale||!previewMatchesRun;
     const guidance=evidenceMissing
       ?'Operation state says SUCCEEDED but canonical observed evidence is missing. Readiness is withheld; inspect durable evidence before any follow-on action.'
       :(ambiguous
@@ -4446,7 +4448,7 @@ function renderApplicationDeploymentPlan(){
         :(recovered
           ?'Recovered from exact read-only target evidence after an ambiguous mutation; no application mutation was replayed.'
           :'Terminal readiness requires exact target readback of the release artifact, resources, authority digests and requested Service.'));
-    html+=`<div class="${run?.ready?'success-banner':warning?'warning-banner':'inline-summary'}"><strong>Durable deployment</strong> · ${badge(status)} · <span class="technical">${esc(op.id)}</span><br><span>Operation: ${esc(op.state||'UNKNOWN')} · revision ${esc(op.revision||'—')} · current authority: ${run?.currentAuthority===false?'no':'yes'}</span>${op.lastFailureClass?` · failure class: ${esc(op.lastFailureClass)}`:''}${run?.evidenceDigest?`<br><span>Observed evidence: <span class="technical">${esc(shortDigest(run.evidenceDigest))}</span></span>`:''}${op.recoveryEvidenceDigest?`<br><span>Recovery evidence: <span class="technical">${esc(shortDigest(op.recoveryEvidenceDigest))}</span> · read-only recovery resolution</span>`:''}${evidence?.readback?.deploymentUid?`<br><span>Deployment UID: <span class="technical">${esc(evidence.readback.deploymentUid)}</span> · updated ${esc(evidence.readback.updatedReplicas)}/${esc(evidence.readback.desiredReplicas)} · ready ${esc(evidence.readback.readyReplicas)}/${esc(evidence.readback.desiredReplicas)} · available ${esc(evidence.readback.availableReplicas)}/${esc(evidence.readback.desiredReplicas)}</span>`:''}<br><small>${guidance} Physical certification remains separate.</small></div>`;
+    html+=`<div class="${run?.ready&&previewMatchesRun?'success-banner':warning?'warning-banner':'inline-summary'}"><strong>Durable deployment</strong> · ${badge(status)} · <span class="technical">${esc(op.id)}</span><br><span>Operation: ${esc(op.state||'UNKNOWN')} · revision ${esc(op.revision||'—')} · current authority: ${run?.currentAuthority===false?'no':'yes'}</span>${op.lastFailureClass?` · failure class: ${esc(op.lastFailureClass)}`:''}${runPlan?`<br><span>Sealed desired/rendered authority: release <span class="technical">${esc(shortDigest(runPlan.releaseDigest||''))}</span> · runtime <span class="technical">${esc(shortDigest(runPlan.runtimeSpecDigest||''))}</span> · rendered <span class="technical">${esc(shortDigest(runPlan.renderedDigest||''))}</span></span>`:''}${!previewMatchesRun?`<br><span><strong>Current preview differs:</strong> rendered <span class="technical">${esc(shortDigest(preview?.renderedDigest||''))}</span>. The durable status/evidence below belongs to the sealed operation above, not this preview.</span>`:''}${run?.evidenceDigest?`<br><span>Observed evidence for sealed operation: <span class="technical">${esc(shortDigest(run.evidenceDigest))}</span></span>`:''}${op.recoveryEvidenceDigest?`<br><span>Recovery evidence: <span class="technical">${esc(shortDigest(op.recoveryEvidenceDigest))}</span> · read-only recovery resolution</span>`:''}${evidence?.readback?.deploymentUid?`<br><span>Deployment UID: <span class="technical">${esc(evidence.readback.deploymentUid)}</span> · updated ${esc(evidence.readback.updatedReplicas)}/${esc(evidence.readback.desiredReplicas)} · ready ${esc(evidence.readback.readyReplicas)}/${esc(evidence.readback.desiredReplicas)} · available ${esc(evidence.readback.availableReplicas)}/${esc(evidence.readback.desiredReplicas)}</span>`:''}<br><small>${guidance} ${!previewMatchesRun?'Preview and observed truth are intentionally not merged. ':''}Physical certification remains separate.</small></div>`;
   }
   host.innerHTML=html;
 }
