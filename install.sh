@@ -12,16 +12,19 @@ usage() {
 4SO Platform Factory guided manual installation
 
 Usage:
-  sudo bash install.sh preflight --bundle-dir DIR [--release-artifact RELEASE.zip] [installer options...]
-  sudo bash install.sh plan      --bundle-dir DIR [--release-artifact RELEASE.zip] [installer options...]
-  sudo bash install.sh install   --bundle-dir DIR [--release-artifact RELEASE.zip] --enable-execution --confirmation DEPLOY [installer options...]
+  bash install.sh doctor    [--bundle-dir DIR] [--release-artifact RELEASE.zip]
+  sudo bash install.sh preflight [--bundle-dir DIR] [--release-artifact RELEASE.zip] [installer options...]
+  sudo bash install.sh plan      [--bundle-dir DIR] [--release-artifact RELEASE.zip] [installer options...]
+  sudo bash install.sh install   [--bundle-dir DIR] [--release-artifact RELEASE.zip] --enable-execution --confirmation DEPLOY [installer options...]
   sudo bash install.sh status    [--state FILE] [--root /]
   sudo bash install.sh verify    [--state FILE] [--root /]
   sudo bash install.sh recover   --confirmation RECOVER [--state FILE] [--root /]
   sudo bash install.sh rollback  --confirmation ROLLBACK [--state FILE] [--root /]
 
 The bundle directory can be supplied with --bundle-dir or PLATFORM_INSTALLER_BUNDLE_DIR.
-The exact release ZIP can be omitted only when PLATFORM_FACTORY_RELEASE_ARTIFACT
+When omitted, the entrypoint safely checks the extracted release's bundle/,
+appliance-bundle/, its parent bundle/, then /opt/4so-platform-factory/bundle.
+The exact release ZIP can be omitted when PLATFORM_FACTORY_RELEASE_ARTIFACT
 is set or when the ZIP sits beside this extracted release directory with the
 same basename. The script never downloads moving upstream content and never
 creates a second installation engine; it delegates to platformctl
@@ -38,6 +41,10 @@ Safe default:
   Installer listens on 127.0.0.1:9080. The result prints an SSH local-forward
   command for remote browser access without exposing Installer on the network.
 
+Doctor:
+  doctor is read-only and does not require root. It reports whether packaged
+  binaries, a real appliance bundle and the exact release ZIP can be resolved.
+
 Continuation:
   status/verify/recover/rollback read the durable host-deployment authority.
   They do not require the original bundle or release ZIP again. recover and
@@ -51,7 +58,7 @@ case "${mode}" in
     usage
     exit 0
     ;;
-  preflight|plan|install|status|verify|recover|rollback)
+  doctor|preflight|plan|install|status|verify|recover|rollback)
     shift
     ;;
   *)
@@ -60,11 +67,6 @@ case "${mode}" in
     exit 2
     ;;
 esac
-
-if [[ "${EUID}" -ne 0 ]]; then
-  echo "ERROR ${AUTHORITY}: live manual installation must run as root; rerun with sudo" >&2
-  exit 2
-fi
 
 if [[ ! -f "${PLATFORMCTL}" || -L "${PLATFORMCTL}" || ! -x "${PLATFORMCTL}" ]]; then
   echo "ERROR ${AUTHORITY}: required packaged executable is missing/non-regular/non-executable: ${PLATFORMCTL}" >&2
@@ -85,6 +87,27 @@ fi
 
 bundle_dir="${PLATFORM_INSTALLER_BUNDLE_DIR:-}"
 release_artifact="${PLATFORM_FACTORY_RELEASE_ARTIFACT:-}"
+
+discover_bundle_dir() {
+  local candidate
+  for candidate in     "${ROOT_DIR}/bundle"     "${ROOT_DIR}/appliance-bundle"     "$(dirname -- "${ROOT_DIR}")/bundle"     "/opt/4so-platform-factory/bundle"; do
+    if [[ -d "${candidate}" && ! -L "${candidate}" && -f "${candidate}/bundle.json" && -f "${candidate}/bundle.lock.json" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+discover_release_artifact() {
+  local adjacent
+  adjacent="$(dirname -- "${ROOT_DIR}")/$(basename -- "${ROOT_DIR}").zip"
+  if [[ -f "${adjacent}" && ! -L "${adjacent}" ]]; then
+    printf '%s\n' "${adjacent}"
+    return 0
+  fi
+  return 1
+}
 declare -a passthrough=()
 while (($#)); do
   case "$1" in
@@ -106,6 +129,29 @@ while (($#)); do
 done
 
 if [[ -z "${bundle_dir}" ]]; then
+  bundle_dir="$(discover_bundle_dir || true)"
+fi
+if [[ -z "${release_artifact}" ]]; then
+  release_artifact="$(discover_release_artifact || true)"
+fi
+
+if [[ "${mode}" == "doctor" ]]; then
+  ready=true
+  [[ -f "${PLATFORMCTL}" && ! -L "${PLATFORMCTL}" && -x "${PLATFORMCTL}" ]] || ready=false
+  [[ -f "${INSTALLER}" && ! -L "${INSTALLER}" && -x "${INSTALLER}" ]] || ready=false
+  [[ -n "${bundle_dir}" && -d "${bundle_dir}" && ! -L "${bundle_dir}" && -f "${bundle_dir}/bundle.json" && -f "${bundle_dir}/bundle.lock.json" ]] || ready=false
+  [[ -n "${release_artifact}" && -f "${release_artifact}" && ! -L "${release_artifact}" ]] || ready=false
+  printf '{"authority":"INSTALLER_MANUAL_DOCTOR_V1","ready":%s,"platformctl":"%s","installer":"%s","bundleDirectory":"%s","releaseArtifact":"%s"}\n'     "${ready}" "${PLATFORMCTL}" "${INSTALLER}" "${bundle_dir}" "${release_artifact}"
+  [[ "${ready}" == true ]]
+  exit
+fi
+
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "ERROR ${AUTHORITY}: live manual installation must run as root; rerun with sudo" >&2
+  exit 2
+fi
+
+if [[ -z "${bundle_dir}" ]]; then
   echo "ERROR ${AUTHORITY}: --bundle-dir is required" >&2
   exit 2
 fi
@@ -114,12 +160,6 @@ if [[ ! -d "${bundle_dir}" || -L "${bundle_dir}" ]]; then
   exit 2
 fi
 
-if [[ -z "${release_artifact}" ]]; then
-  adjacent="$(dirname -- "${ROOT_DIR}")/$(basename -- "${ROOT_DIR}").zip"
-  if [[ -f "${adjacent}" && ! -L "${adjacent}" ]]; then
-    release_artifact="${adjacent}"
-  fi
-fi
 if [[ -z "${release_artifact}" ]]; then
   echo "ERROR ${AUTHORITY}: exact release ZIP is required; pass --release-artifact or set PLATFORM_FACTORY_RELEASE_ARTIFACT" >&2
   exit 2
