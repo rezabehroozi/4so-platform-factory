@@ -94,6 +94,8 @@ func TestInstallerConsoleJourneyContract(t *testing.T) {
 		"renderStatus(status,null)",
 		"Promise.allSettled",
 		"Access-security details are temporarily unavailable. Durable installation status remains available.",
+		"if (response.status === 401) disconnect(true)",
+		"sessionStorage.removeItem('platformInstallerToken')",
 	} {
 		if !strings.Contains(js, statusFirstContract) {
 			t.Fatalf("installer recovery status must remain visible when ancillary endpoints fail: missing %q", statusFirstContract)
@@ -127,7 +129,7 @@ func TestInstallerConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("installer action-icon contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{"setInstallerMenu", "installerNavFocusable", "aria-current", "event.key==='Escape'", "syncInstallerMenuAccessibility", "sidebar.inert", "coordinatedRequest", "scheduleInstallerPoll", "AbortController"} {
+	for _, contract := range []string{"setInstallerMenu", "installerNavFocusable", "aria-current", "event.key==='Escape'", "syncInstallerMenuAccessibility", "sidebar.inert", "coordinatedRequest", "scheduleInstallerPoll", "AbortController", "INSTALLER_REQUEST_TIMEOUT_MS=15000", "Installer request timed out after"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("installer mobile-navigation contract missing %q", contract)
 		}
