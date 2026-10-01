@@ -501,6 +501,30 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	if issues := ValidateFeatureCertificationRegistry(roadmap); len(issues) != 0 {
 		t.Fatalf("feature certification registry validation issues: %#v", issues)
 	}
+	installerControls := map[string]bool{
+		"bootstrap-resume-lost-response-does-not-replay-mutation": false,
+		"bootstrap-reset-lost-response-does-not-replay-mutation": false,
+		"reset-confirmation-run-id-mismatch-rejected": false,
+	}
+	autopilotControls := map[string]bool{
+		"same-fingerprint-token-loop-rejected": false,
+		"distinct-defect-agent-budget-premature-exhaustion-detected": false,
+		"agent-manual-full-graph-replay-regression-detected": false,
+	}
+	for _, requirement := range roadmap.CertificationRegistry {
+		switch requirement.Feature {
+		case "management-appliance-installer":
+			for control := range installerControls { installerControls[control] = containsString(requirement.NegativeControls, control) }
+		case "multi-agent-test-autopilot":
+			for control := range autopilotControls { autopilotControls[control] = containsString(requirement.NegativeControls, control) }
+		}
+	}
+	for control, present := range installerControls {
+		if !present { t.Fatalf("installer certification negative control %q missing", control) }
+	}
+	for control, present := range autopilotControls {
+		if !present { t.Fatalf("autopilot certification negative control %q missing", control) }
+	}
 	foundManagedOKD := false
 	foundChaos := false
 	for _, requirement := range roadmap.CertificationRegistry {
