@@ -4,9 +4,9 @@
     "security-excluded": 40,
     "tool-admin": 76,
     "tool-operate": 82,
-    "tool-read": 196
+    "tool-read": 197
   },
-  "routeCount": 394,
+  "routeCount": 395,
   "routes": [
     {
       "action": "version",
@@ -2290,6 +2290,25 @@
       "resourceScopeStatus": "OWNER_CLASSIFIED",
       "risk": "low",
       "toolName": "api_post_application_platform_environment_bindings_by_id_deployment_plan"
+    },
+    {
+      "action": "environment-bindings_deployments",
+      "confirmationHeader": "",
+      "confirmationValue": "",
+      "disposition": "tool-read",
+      "durableJob": false,
+      "exclusionReason": "",
+      "family": "application-platform",
+      "idempotencyRequired": false,
+      "method": "GET",
+      "path": "/api/v1/application-platform/environment-bindings/{id}/deployments",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED",
+      "risk": "low",
+      "toolName": "api_get_application_platform_environment_bindings_by_id_deployments"
     },
     {
       "action": "environment-bindings_deployments",
