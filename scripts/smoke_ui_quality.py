@@ -882,6 +882,17 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
     }""")
     if any(navigation_parity.get(key) for key in ("duplicates","missingFromRuntime","staleRuntime","groupMismatches","missingPrimary","stalePrimary","badHomes","missingTitles")):
         failures.append(f"console:navigation-route-ownership-parity:{navigation_parity}")
+    directional = page.evaluate("""() => {
+      const second=document.querySelector('#workspace .ownership-model-strip span + span');
+      state.locale='en';applyLocale();
+      const en={dir:document.documentElement.dir,content:getComputedStyle(second,'::before').content};
+      state.locale='fa';applyLocale();
+      const fa={dir:document.documentElement.dir,content:getComputedStyle(second,'::before').content};
+      state.locale='en';applyLocale();
+      return {en,fa};
+    }""")
+    if directional.get("en",{}).get("dir") != "ltr" or "→" not in directional.get("en",{}).get("content","") or directional.get("fa",{}).get("dir") != "rtl" or "←" not in directional.get("fa",{}).get("content",""):
+        failures.append(f"console:rtl-directional-pseudo-affordance:{directional}")
     context.close()
 
     # Keyboard mobile-navigation trap and return-focus contract.
