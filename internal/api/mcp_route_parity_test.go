@@ -158,6 +158,39 @@ func TestMCPDaprWorkloadAdmissionIsDurableReadOnly(t *testing.T) {
 	}
 }
 
+func TestMCPApplicationDeploymentRoutesKeepPlanningExecutionAndApprovalSemantics(t *testing.T) {
+	registry := loadMCPRouteParityRegistry()
+	want := map[string]struct {
+		method      string
+		disposition string
+		durable     bool
+		risk        string
+	}{
+		"/api/v1/application-platform/environment-bindings/{id}/deployment-plan": {method: http.MethodPost, disposition: "tool-read", durable: false, risk: "low"},
+		"/api/v1/application-platform/environment-bindings/{id}/deployments":     {method: http.MethodPost, disposition: "tool-operate", durable: true, risk: "medium"},
+		"/api/v1/application-platform/deployments/{id}":                          {method: http.MethodGet, disposition: "tool-read", durable: false, risk: "low"},
+		"/api/v1/application-platform/deployments/{id}/approve":                  {method: http.MethodPost, disposition: "tool-admin", durable: true, risk: "high"},
+	}
+	seen := map[string]bool{}
+	for _, route := range registry.Routes {
+		expected, ok := want[route.Path]
+		if !ok {
+			continue
+		}
+		seen[route.Path] = true
+		if route.Method != expected.method || route.Disposition != expected.disposition ||
+			route.DurableJob != expected.durable || route.IdempotencyRequired != expected.durable ||
+			route.Risk != expected.risk {
+			t.Fatalf("application deployment MCP semantics drifted: %+v", route)
+		}
+	}
+	for path := range want {
+		if !seen[path] {
+			t.Fatalf("application deployment route missing from MCP parity: %s", path)
+		}
+	}
+}
+
 func TestMCPOpenChoreoLifecycleRoutesKeepDurableAndApprovalSemantics(t *testing.T) {
 	registry := loadMCPRouteParityRegistry()
 	want := map[string]struct {
