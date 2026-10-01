@@ -22,7 +22,7 @@ const fa = {
   'overview.contextLoadingTitle':'نمای عملیاتی',
   'overview.contextLoadingState':'در حال دریافت وضعیت…',
   'overview.contextLoadingHelp':'داده‌ها مستقیماً از API معتبر خوانده می‌شوند.',
-  'nav.overviewTop':'نمای کلی','nav.platformsTop':'پلتفرم‌ها','nav.blueprintsTop':'تحویل','nav.fleetTop':'ناوگان و فضاهای کاری','nav.operationsTop':'عملیات','nav.assuranceTop':'اطمینان و شواهد','nav.adminTop':'مدیریت','application.stepRelease':'نسخه','application.stepReleaseHelp':'اتصال artifact دقیق OCI','application.stepBinding':'محیط','application.stepBindingHelp':'انتخاب namespace فضای کاری','application.stepDeployment':'برنامه و درخواست','application.stepDeploymentHelp':'پیش‌نمایش پیش از تغییر','application.stepObserved':'مشاهده نتیجه','application.stepObservedHelp':'تأیید، پیشرفت و شواهد','application.advancedTitle':'ترکیب و ارتقای پیشرفته','application.advancedHelp':'پس از روشن‌شدن مسیر اصلی نسخه ← محیط ← برنامه ← مشاهده، capability resolution یا ارتقای محیط موجود را بررسی کنید.','applications.eyebrow':'پلتفرم اپلیکیشن','applications.heading':'تحویل اپلیکیشن','applications.description':'یک نسخهٔ تغییرناپذیر اپلیکیشن را در مسیر روشن محیط، استقرار و شواهد مشاهده‌شده جلو ببرید. تغییر محیط اجرا همچنان نیازمند تأیید است و مالکیت قابلیت مقصد مرجع باقی می‌ماند.','applications.workflowHeading':'نسخه ← محیط ← استقرار ← شواهد','applications.workflowHelp':'قالب‌های workload، قابلیت‌ها و وابستگی‌های مدیریت‌شده را ترکیب کنید و در استقرار و ارتقا، desired، rendered و observed را صریحاً از هم جدا نگه دارید.','shell.skip':'رفتن به محتوای اصلی','shell.searchTitle':'جست‌وجوی مقصدهای کنسول','shell.search':'جست‌وجوی کنسول','shell.searchHelp':'فقط برای جابه‌جایی؛ تغییرات فقط در جریان کاری معتبر انجام می‌شوند.','shell.organization':'سازمان','shell.project':'پروژه','shell.loading':'در حال بارگذاری…','shell.loadingScope':'در حال دریافت محدوده…','shell.sessionChecking':'در حال بررسی نشست…','shell.nextAction':'اقدام بعدی','shell.reviewNextAction':'بررسی اقدام بعدی','shell.discardTitle':'رهاکردن تغییرات ذخیره‌نشده؟','shell.languageDiscard':'تغییر زبان، صفحه را دوباره بارگذاری می‌کند و تغییرات ذخیره‌نشده از بین می‌روند.','shell.refreshDiscard':'بازخوانی از API معتبر، تغییرات ذخیره‌نشده را از بین می‌برد.','shell.leaveDiscard':'این صفحه تغییرات ذخیره‌نشده دارد. با خروج از صفحه، این تغییرات از بین می‌روند.','shell.lightTheme':'استفاده از پوسته روشن','shell.darkTheme':'استفاده از پوسته تیره',
+  'nav.overviewTop':'نمای کلی','nav.platformsTop':'پلتفرم‌ها','nav.blueprintsTop':'تحویل','nav.fleetTop':'ناوگان و فضاهای کاری','nav.operationsTop':'عملیات','nav.assuranceTop':'اطمینان و شواهد','nav.adminTop':'مدیریت','application.stepRelease':'نسخه','application.stepReleaseHelp':'اتصال artifact دقیق OCI','application.stepBinding':'محیط','application.stepBindingHelp':'انتخاب namespace فضای کاری','application.stepDeployment':'برنامه و درخواست','application.stepDeploymentHelp':'پیش‌نمایش پیش از تغییر','application.stepObserved':'مشاهده نتیجه','application.stepObservedHelp':'تأیید، پیشرفت و شواهد','application.advancedTitle':'ترکیب و ارتقای پیشرفته','application.advancedHelp':'پس از روشن‌شدن مسیر اصلی نسخه ← محیط ← برنامه ← مشاهده، capability resolution یا ارتقای محیط موجود را بررسی کنید.','applications.eyebrow':'پلتفرم اپلیکیشن','applications.heading':'تحویل اپلیکیشن','applications.description':'یک نسخهٔ تغییرناپذیر اپلیکیشن را در مسیر روشن محیط، استقرار و شواهد مشاهده‌شده جلو ببرید. تغییر محیط اجرا همچنان نیازمند تأیید است و مالکیت قابلیت مقصد مرجع باقی می‌ماند.','applications.workflowHeading':'نسخه ← محیط ← استقرار ← شواهد','applications.workflowHelp':'قالب‌های workload، قابلیت‌ها و وابستگی‌های مدیریت‌شده را ترکیب کنید و در استقرار و ارتقا، desired، rendered و observed را صریحاً از هم جدا نگه دارید.','dapr.eyebrow':'افزونهٔ اختیاری runtime','dapr.heading':'Runtime اختیاری Dapr','dapr.description':'ابتدا مالکیت native مقصد را ارزیابی کنید و فقط وقتی Dapr صریحاً انتخاب شده است از چرخهٔ عمر مدیریت‌شده یا admission مربوط به workload استفاده کنید. Dapr هرگز Management Plane یا مرجع state محصول نمی‌شود.','shell.skip':'رفتن به محتوای اصلی','shell.searchTitle':'جست‌وجوی مقصدهای کنسول','shell.search':'جست‌وجوی کنسول','shell.searchHelp':'فقط برای جابه‌جایی؛ تغییرات فقط در جریان کاری معتبر انجام می‌شوند.','shell.organization':'سازمان','shell.project':'پروژه','shell.loading':'در حال بارگذاری…','shell.loadingScope':'در حال دریافت محدوده…','shell.sessionChecking':'در حال بررسی نشست…','shell.nextAction':'اقدام بعدی','shell.reviewNextAction':'بررسی اقدام بعدی','shell.discardTitle':'رهاکردن تغییرات ذخیره‌نشده؟','shell.languageDiscard':'تغییر زبان، صفحه را دوباره بارگذاری می‌کند و تغییرات ذخیره‌نشده از بین می‌روند.','shell.refreshDiscard':'بازخوانی از API معتبر، تغییرات ذخیره‌نشده را از بین می‌برد.','shell.leaveDiscard':'این صفحه تغییرات ذخیره‌نشده دارد. با خروج از صفحه، این تغییرات از بین می‌روند.','shell.lightTheme':'استفاده از پوسته روشن','shell.darkTheme':'استفاده از پوسته تیره',
   'nav.platform':'پلتفرم','nav.operate':'عملیات','nav.system':'سیستم','nav.start':'شروع','nav.overview':'نمای کلی','nav.workspace':'سازمان‌ها و پروژه‌ها','nav.infrastructure':'زیرساخت','nav.installation':'برنامه‌ریزی نصب','nav.clusters':'کلاسترهای متصل','nav.providers':'چرخه عمر زیرساخت','nav.delivery':'تحویل پلتفرم','nav.blueprints':'نسخه‌های Blueprint','nav.marketplace':'مارکت‌پلیس','nav.baselines':'استقرار Baseline تأییدشده','nav.verification':'تأیید سلامت و بستن شواهد','nav.fleet':'مدیریت ناوگان و ارتقا','nav.commercial':'تجاری','nav.tenants':'Tenantها و برندینگ','nav.operations':'عملیات','nav.activity':'عملیات و ممیزی','nav.notifications':'اعلان‌ها و مسیریابی','nav.services':'سرویس‌های سیستم','nav.advanced':'پیشرفته','nav.catalog':'کاتالوگ','nav.validator':'ابزار برنامه‌ریزی Blueprint',
   'action.createServiceAccount':'ساخت حساب سرویس','action.grantAccess':'اعطا یا به‌روزرسانی دسترسی','action.revokeAccess':'لغو دسترسی','action.signout':'خروج','action.refresh':'بازخوانی','action.viewAll':'مشاهده همه','action.createOrg':'ایجاد سازمان','action.createProject':'ایجاد پروژه','action.createPlan':'ساخت برنامه','action.clear':'پاک‌کردن','action.createImport':'ساخت درخواست اتصال','action.copy':'کپی','action.verifyProfile':'تأیید پروفایل','action.createCluster':'ساخت درخواست کلاستر','action.getAdvisory':'دریافت پیشنهاد','action.createInstallPlan':'ساخت برنامه نصب','action.createLivePlan':'ساخت برنامه از وضعیت فعلی','action.runVerification':'اجرای بررسی سلامت','action.createClosure':'تکمیل شواهد تأیید','action.createFleet':'ایجاد Fleet','action.applyEntitlement':'اعمال مجوز تجاری','action.saveOEM':'ذخیره تنظیمات برند','action.createTenant':'ایجاد Tenant','action.validate':'اعتبارسنجی','action.cancel':'انصراف','action.confirm':'تأیید','action.saveDraft':'ایجاد پیش‌نویس','action.resetDraft':'پاک‌کردن فرم','action.compare':'مقایسه',
   'overview.authority':'مرکز کنترل پلتفرم خصوصی','flow.configure':'پیکربندی','flow.configureHelp':'Blueprintها، Baselineها و کاتالوگ','flow.build':'ایجاد یا واردکردن','flow.buildHelp':'پلتفرم‌ها و زیرساخت مقصد','flow.operate':'مدیریت Fleet','flow.operateHelp':'سلامت، مغایرت‌ها، نگه‌داری و ارتقا','flow.prove':'تأیید و بازیابی','flow.proveHelp':'عملیات، شواهد، ممیزی و گواهی‌های فنی','overview.heading':'وضعیت پلتفرم و کار بعدی','overview.description':'پیش از هر تغییر، وضعیت فعلی پلتفرم، موانع و عملیات در حال اجرا را بررسی کنید.','reliability.deliveryInsights':'بینش تحویل','reliability.deliveryInsightsHelp':'جریان استقرار مبتنی بر شواهد در ۳۰ روز گذشته. اگر شواهد استقرار یا زمان Commit منبع موجود نباشد، وضعیت ناشناخته باقی می‌ماند.','overview.readiness':'آمادگی مراحل راه‌اندازی','overview.readinessHelp':'وضعیت هر مرحله مستقیماً از دادهٔ واقعی API محاسبه می‌شود.','overview.attention':'نیازمند توجه','overview.attentionHelp':'خطاها و پیش‌نیازهایی که برای ادامه نیاز به رسیدگی دارند.','overview.recent':'فعالیت‌های اخیر','overview.recentHelp':'آخرین عملیات ثبت‌شده و رویدادهای ممیزی.',
@@ -1626,6 +1626,11 @@ function applyKnownMutationScopes() {
   const applicationDeploymentBinding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-deployment-binding')?.value);
   setScopedAccess($('#application-deployment-request'),{projectId:applicationDeploymentBinding?.projectId||''});
   setScopedAccess($('#application-deployment-approve'),{projectId:applicationDeploymentBinding?.projectId||'',access:'admin'});
+  const daprProject=$('#dapr-project')?.value||'';
+  setScopedAccess($('#dapr-assessment-form'),{projectId:daprProject,access:'read'});
+  setScopedAccess($('#dapr-workload-form'),{projectId:daprProject,access:'read'});
+  setScopedAccess($('#dapr-lifecycle-form'),{projectId:daprProject});
+  setScopedAccess($('#dapr-lifecycle-approve'),{projectId:daprProject,access:'admin'});
   setScopedAccess($('#workspace-authority-form'),{projectId:$('#workspace-authority-project')?.value||''});
   const selectedWorkspace=state.workspaces.find(item=>item.id===$('#workspace-binding-workspace')?.value);
   setScopedAccess($('#workspace-binding-form'),{projectId:selectedWorkspace?.projectId||''});
@@ -1856,7 +1861,7 @@ function applyAccessMode(root = document) {
 const permissionScopeChangeDrivers=new Set([
   'project-organization','membership-organization','service-account-organization','cluster-project','maintenance-cluster-select',
   'provider-project','blueprint-project','blueprint-overlay-project','marketplace-cluster','baseline-cluster','verification-baseline',
-  'closure-baseline','runtime-certification-project','ai-project','template-schema-project','template-policy-project','platform-template-project','application-workload-project','application-trait-project','application-resource-project','application-profile-project','recovery-cluster','fleet-project','workspace-authority-project','workspace-binding-workspace','workspace-binding-cluster','tenant-organization','tenant-project',
+  'closure-baseline','runtime-certification-project','ai-project','template-schema-project','template-policy-project','platform-template-project','application-workload-project','application-trait-project','application-resource-project','application-profile-project','dapr-project','recovery-cluster','fleet-project','workspace-authority-project','workspace-binding-workspace','workspace-binding-cluster','tenant-organization','tenant-project',
   'notification-destination-organization','notification-route-organization','notification-route-project','catalog-trust-organization',
   'catalog-release-visibility','catalog-release-organization'
 ]);
@@ -2324,6 +2329,7 @@ const pageGuidance = {
   providers:{en:['Outcome','Verify reusable infrastructure capability and provision a dedicated target.','Done when','The profile is READY and the requested platform has an authoritative lifecycle state.'],fa:['خروجی این صفحه','قابلیت زیرساخت را تأیید کنید و یک مقصد اختصاصی بسازید.','پایان کار','پروفایل آماده است و پلتفرم درخواستی وضعیت معتبر چرخهٔ عمر دارد.']},
   templates:{en:['Outcome','Compose reusable schema, operating policy and certified platform template authority.','Done when','A versioned platform template references a published Blueprint, typed variables and one explicit policy set.'],fa:['خروجی این صفحه','طرح داده، سیاست عملیاتی و قالب تأییدشدهٔ پلتفرم را بسازید.','پایان کار','قالب نسخه‌دار به Blueprint منتشرشده، متغیرهای نوع‌دار و یک مجموعه سیاست صریح متصل است.']},
   applications:{en:['Outcome','Move one immutable application release from composition to a target-bound desired state and verified observed evidence.','Done when','Release, environment binding, rendered plan, approval, durable execution and observed evidence remain traceable without merging desired and observed truth.'],fa:['خروجی این صفحه','یک نسخهٔ تغییرناپذیر اپلیکیشن را از ترکیب تا desired state مقید به مقصد و شواهد observed قابل‌تأیید جلو ببرید.','پایان کار','نسخه، اتصال محیط، برنامهٔ rendered، تأیید، اجرای پایدار و شواهد observed بدون ادغام حقیقت desired و observed قابل پیگیری هستند.']},
+  dapr:{en:['Outcome','Use Dapr only as an optional target runtime extension with explicit native-vs-product ownership.','Done when','Assessment, lifecycle request or read-only workload admission remains project-scoped, evidence-backed and separate from application deployment truth.'],fa:['خروجی این صفحه','Dapr را فقط به‌عنوان افزونهٔ اختیاری runtime مقصد و با مالکیت native یا product صریح استفاده کنید.','پایان کار','ارزیابی، درخواست چرخهٔ عمر یا admission فقط‌خواندنی Workload در محدودهٔ پروژه، مبتنی بر شواهد و جدا از حقیقت استقرار اپلیکیشن باقی مانده است.']},
   blueprints:{en:['Outcome','Publish an immutable platform standard with compatibility and upgrade intent.','Done when','A reviewed release is publishable and its supported upgrade edges are explicit.'],fa:['خروجی این صفحه','استاندارد تغییرناپذیر پلتفرم را همراه با سازگاری و مسیر ارتقا بسازید.','پایان کار','انتشار بررسی‌شده آماده است و مسیرهای ارتقای مجاز صریح هستند.']},
   marketplace:{en:['Outcome','Install a published offer on an eligible connected platform.','Done when','Plan, approval, execution and uninstall/recovery state remain traceable.'],fa:['خروجی این صفحه','یک بسته منتشرشده را روی پلتفرم واجد شرایط نصب کنید.','پایان کار','برنامه، تأیید، اجرا و وضعیت حذف یا بازیابی قابل پیگیری است.']},
   baselines:{en:['Outcome','Apply a certified baseline with a truthful impact preview.','Done when','Only admitted resources changed and completion evidence is sealed.'],fa:['خروجی این صفحه','نسخهٔ پایهٔ تأییدشده را با پیش‌نمایش واقعی اثر تغییر اعمال کنید.','پایان کار','فقط منابع مجاز تغییر کرده‌اند و شواهد پایان کار مهرشده است.']},
@@ -2353,7 +2359,7 @@ function renderPageGuidance(){
 const pageTitles = {
   overview:{en:['Overview','Platform readiness'],fa:['نمای کلی','آمادگی پلتفرم']},
   installation:{en:['Platforms','Control-plane install'],fa:['پلتفرم‌ها','نصب کنترل‌پلین']},clusters:{en:['Platforms','Create & manage platforms'],fa:['پلتفرم‌ها','ایجاد و مدیریت پلتفرم']},providers:{en:['Platforms','Infrastructure profiles'],fa:['پلتفرم‌ها','پروفایل‌های زیرساخت']},
-  marketplace:{en:['Delivery','Marketplace'],fa:['تحویل','بسته‌های آماده']},blueprints:{en:['Delivery','Platform blueprints'],fa:['تحویل','طرح‌های پلتفرم']},templates:{en:['Delivery','Platform templates'],fa:['تحویل','قالب‌های پلتفرم']},applications:{en:['Delivery','Application delivery'],fa:['تحویل','تحویل اپلیکیشن']},baselines:{en:['Delivery','Certified baselines'],fa:['تحویل','نسخه‌های پایهٔ تأییدشده']},catalog:{en:['Assurance','Supply-chain releases'],fa:['اطمینان و شواهد','انتشارهای زنجیرهٔ تأمین']},validator:{en:['Delivery','Planning tools'],fa:['تحویل','ابزارهای برنامه‌ریزی']},
+  marketplace:{en:['Delivery','Marketplace'],fa:['تحویل','بسته‌های آماده']},blueprints:{en:['Delivery','Platform blueprints'],fa:['تحویل','طرح‌های پلتفرم']},templates:{en:['Delivery','Platform templates'],fa:['تحویل','قالب‌های پلتفرم']},applications:{en:['Delivery','Application delivery'],fa:['تحویل','تحویل اپلیکیشن']},dapr:{en:['Delivery','Dapr runtime'],fa:['تحویل','Runtime اختیاری Dapr']},baselines:{en:['Delivery','Certified baselines'],fa:['تحویل','نسخه‌های پایهٔ تأییدشده']},catalog:{en:['Assurance','Supply-chain releases'],fa:['اطمینان و شواهد','انتشارهای زنجیرهٔ تأمین']},validator:{en:['Delivery','Planning tools'],fa:['تحویل','ابزارهای برنامه‌ریزی']},
   fleet:{en:['Fleet & Workspaces','Fleet overview'],fa:['ناوگان و فضاهای کاری','نمای کلی ناوگان']},workspaces:{en:['Fleet & Workspaces','Application workspaces'],fa:['ناوگان و فضاهای کاری','فضاهای کاری برنامه‌ها']},finops:{en:['Fleet & Workspaces','FinOps & chargeback'],fa:['ناوگان و فضاهای کاری','هزینه و مصرف']},verification:{en:['Assurance','Runtime assurance'],fa:['اطمینان و شواهد','اطمینان از محیط اجرا']},edge:{en:['Assurance','Edge & sovereign'],fa:['اطمینان و شواهد','لبه و حاکمیت محلی']},
   operations:{en:['Operations','Activity & audit'],fa:['عملیات','فعالیت و ممیزی']},ai:{en:['Operations','AI Operator'],fa:['عملیات','اپراتور هوش مصنوعی']},lab:{en:['Assurance','Physical certification'],fa:['اطمینان و شواهد','گواهی اجرای فیزیکی']},notifications:{en:['Operations','Notifications'],fa:['عملیات','اعلان‌ها']},
   workspace:{en:['Admin','Organizations & projects'],fa:['مدیریت','سازمان‌ها و پروژه‌ها']},tenants:{en:['Admin','Tenant environments & branding'],fa:['مدیریت','محیط‌های Tenantها و برندینگ']},services:{en:['Admin','Integrations & services'],fa:['مدیریت','یکپارچه‌سازی و سرویس‌ها']}
@@ -2361,7 +2367,7 @@ const pageTitles = {
 const sectionNavigation = {
   home:['overview'],
   infrastructure:['clusters','providers','installation'],
-  delivery:['blueprints','templates','applications','marketplace','baselines','validator'],
+  delivery:['blueprints','templates','applications','dapr','marketplace','baselines','validator'],
   fleet:['fleet','workspaces','finops'],
   operations:['operations','ai','notifications'],
   assurance:['verification','edge','catalog','lab'],
@@ -4980,9 +4986,6 @@ function renderApplicationPlatformComposition(){
   applicationListOptions($('#application-promotion-release'),promotionCandidates,item=>`${item.name} · ${item.version}`);
   renderApplicationLibraryOptions();
   renderApplicationAuthoringOptions();
-  renderDaprRuntimeOptions();
-  renderDaprRuntimeResult();
-  renderDaprWorkloadResult();
 }
 async function loadPlatformTemplates(){
   try{
@@ -5022,7 +5025,7 @@ function renderApplicationDeliveryPrerequisite(){
 }
 async function loadApplicationDelivery(){
   try{
-    const [projects,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters,workspaces,platformPolicySets]=await Promise.all([
+    const [projects,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,workspaces,platformPolicySets]=await Promise.all([
       softApi('/api/v1/projects',[],'projects'),
       softApi('/api/v1/application-platform/workload-types',[],'application workload shapes'),
       softApi('/api/v1/application-platform/capability-traits',[],'application capability traits'),
@@ -5030,17 +5033,34 @@ async function loadApplicationDelivery(){
       softApi('/api/v1/application-platform/workspace-profiles',[],'workspace profiles'),
       softApi('/api/v1/application-platform/releases',[],'application releases'),
       softApi('/api/v1/application-platform/environment-bindings',[],'environment bindings'),
-      softApi('/api/v1/clusters',[],'connected clusters'),
       softApi('/api/v1/workspaces',[],'application workspaces'),
       softApi('/api/v1/platform-policy-sets',[],'platform policy sets')
     ]);
-    Object.assign(state,{projects,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters,workspaces,platformPolicySets});
+    Object.assign(state,{projects,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,workspaces,platformPolicySets});
     renderApplicationPlatformComposition();
     renderApplicationDeliveryPrerequisite();
     await loadApplicationBindingWorkspaceBindings();
     await resumeApplicationDeploymentForBinding();
   }catch(error){
     const host=$('#application-composition-result');if(host)host.innerHTML=errorState(error.message);
+    toast(error.message,'error');
+  }
+}
+async function loadDaprRuntimePage(){
+  try{
+    const [projects,clusters,applicationCapabilityTraits]=await Promise.all([
+      softApi('/api/v1/projects',[],'projects'),
+      softApi('/api/v1/clusters',[],'connected clusters'),
+      softApi('/api/v1/application-platform/capability-traits',[],'application capability traits')
+    ]);
+    Object.assign(state,{projects,clusters,applicationCapabilityTraits});
+    renderDaprRuntimeOptions();
+    renderDaprRuntimeResult();
+    renderDaprWorkloadResult();
+    if(state.daprLifecycle?.operation?.id)await refreshDaprLifecycle();
+    if(state.daprWorkloadAdmission?.operation?.id)await refreshDaprWorkloadAdmission();
+  }catch(error){
+    const runtime=$('#dapr-runtime-result');if(runtime)runtime.innerHTML=errorState(error.message);
     toast(error.message,'error');
   }
 }
@@ -5475,13 +5495,13 @@ $('#edge-ai-form').onsubmit=async event=>{
   catch(error){renderEdgeAssessment($('#edge-ai-result'),{admitted:false,error:error.message,code:error.code||''});toast(error.message,'error');}
 };
 
-const loaders={overview:loadOverview,workspace:loadWorkspace,installation:loadInstallation,clusters:loadClusters,providers:loadProviders,blueprints:loadBlueprints,templates:loadPlatformTemplates,applications:loadApplicationDelivery,marketplace:loadMarketplace,baselines:loadBaselines,verification:loadVerification,fleet:loadFleet,workspaces:loadWorkspaces,finops:loadFinOps,edge:loadEdgeSovereign,tenants:loadTenants,operations:loadOperations,ai:loadAI,lab:loadLab,notifications:loadNotifications,services:loadServices,catalog:loadCatalog,validator:async()=>{}};
-const livePages=new Set(['overview','clusters','providers','marketplace','baselines','verification','fleet','workspaces','tenants','operations','ai','notifications','services']);
+const loaders={overview:loadOverview,workspace:loadWorkspace,installation:loadInstallation,clusters:loadClusters,providers:loadProviders,blueprints:loadBlueprints,templates:loadPlatformTemplates,applications:loadApplicationDelivery,dapr:loadDaprRuntimePage,marketplace:loadMarketplace,baselines:loadBaselines,verification:loadVerification,fleet:loadFleet,workspaces:loadWorkspaces,finops:loadFinOps,edge:loadEdgeSovereign,tenants:loadTenants,operations:loadOperations,ai:loadAI,lab:loadLab,notifications:loadNotifications,services:loadServices,catalog:loadCatalog,validator:async()=>{}};
+const livePages=new Set(['overview','clusters','providers','marketplace','baselines','verification','fleet','workspaces','tenants','operations','ai','dapr','notifications','services']);
 function hasActiveWork(page = state.currentPage){
   const pageCollections={
     overview:[state.operations,state.baselineDeployments,state.verifications,state.closures,state.runtimeCertifications,state.providerClusters,state.marketplaceInstallations,state.tenants,state.driftScans,state.upgradeCampaigns,state.notificationDeliveries],
     clusters:[state.imports,state.clusterMaintenanceRuns], providers:[state.providerClusters], marketplace:[state.marketplaceInstallations], baselines:[state.baselineDeployments],
-    verification:[state.verifications,state.closures,state.runtimeCertifications], fleet:[state.driftScans,state.upgradeCampaigns], workspaces:[state.virtualClusters],
+    verification:[state.verifications,state.closures,state.runtimeCertifications], fleet:[state.driftScans,state.upgradeCampaigns], workspaces:[state.virtualClusters], dapr:[state.daprLifecycle?.operation?[state.daprLifecycle.operation]:[],state.daprWorkloadAdmission?.operation?[state.daprWorkloadAdmission.operation]:[]],
     tenants:[state.tenants], operations:[state.operations], notifications:[state.notificationDeliveries]
   };
   return (pageCollections[page]||[]).some(items=>(items||[]).some(item=>/REQUESTED|PENDING|QUEUED|RUNNING|PLANNING|APPLYING|VERIFYING|UPGRADING|DELIVERING|PROVISIONING|RESIZING|SUSPENDING|RESUMING|DELETING|AWAITING_APPROVAL|PAUSE_REQUESTED|ROLLING|RESTORING|RECONCILING|RECOVERING/i.test(String(item.state||item.status||''))));
