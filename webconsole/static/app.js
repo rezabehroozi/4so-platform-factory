@@ -1379,6 +1379,12 @@ function applyKnownMutationScopes() {
   setScopedAccess($('#template-schema-form'),{projectId:$('#template-schema-project')?.value||''});
   setScopedAccess($('#template-policy-form'),{projectId:$('#template-policy-project')?.value||''});
   setScopedAccess($('#platform-template-form'),{projectId:$('#platform-template-project')?.value||''});
+  for(const [formId,projectId] of [
+    ['application-workload-create-form',$('#application-workload-project')?.value||''],
+    ['application-trait-create-form',$('#application-trait-project')?.value||''],
+    ['application-resource-create-form',$('#application-resource-project')?.value||''],
+    ['application-profile-create-form',$('#application-profile-project')?.value||''],
+  ])setScopedAccess($(`#${formId}`),{projectId});
   setScopedAccess($('#application-release-create-form'),{projectId:$('#application-release-project')?.value||''});
   const applicationBindingRelease=state.applicationReleases.find(item=>item.id===$('#application-binding-release')?.value);
   setScopedAccess($('#application-binding-create-form'),{projectId:applicationBindingRelease?.projectId||''});
@@ -1585,7 +1591,7 @@ function applyAccessMode(root = document) {
 const permissionScopeChangeDrivers=new Set([
   'project-organization','membership-organization','service-account-organization','cluster-project','maintenance-cluster-select',
   'provider-project','blueprint-project','blueprint-overlay-project','marketplace-cluster','baseline-cluster','verification-baseline',
-  'closure-baseline','runtime-certification-project','ai-project','template-schema-project','template-policy-project','platform-template-project','recovery-cluster','fleet-project','workspace-authority-project','workspace-binding-workspace','workspace-binding-cluster','tenant-organization','tenant-project',
+  'closure-baseline','runtime-certification-project','ai-project','template-schema-project','template-policy-project','platform-template-project','application-workload-project','application-trait-project','application-resource-project','application-profile-project','recovery-cluster','fleet-project','workspace-authority-project','workspace-binding-workspace','workspace-binding-cluster','tenant-organization','tenant-project',
   'notification-destination-organization','notification-route-organization','notification-route-project','catalog-trust-organization',
   'catalog-release-visibility','catalog-release-organization'
 ]);
@@ -4443,6 +4449,46 @@ function scheduleApplicationDeploymentStatusRefresh(delay=5000){
     }
   },delay);
 }
+function renderApplicationLibraryOptions(){
+  const projectControls=['application-workload-project','application-trait-project','application-resource-project','application-profile-project'];
+  for(const id of projectControls){
+    const select=$(`#${id}`);if(!select)continue;
+    const previous=select.value;
+    setProjectOptions(select,state.projects,item=>item.displayName||item.name||item.id,'Create a project first');
+    if(previous&&state.projects.some(item=>item.id===previous))select.value=previous;
+  }
+  const profileProject=$('#application-profile-project')?.value||'';
+  const policySelect=$('#application-profile-policy');
+  if(policySelect){
+    const previous=policySelect.value;
+    const policies=(state.platformPolicySets||[]).filter(item=>item.projectId===profileProject);
+    setOptions(policySelect,policies,item=>item.id,item=>`${item.name} · ${item.version} · ${shortDigest(item.digest)}`,'Create a policy set in Platform templates first');
+    if(previous&&policies.some(item=>item.id===previous))policySelect.value=previous;
+  }
+  syncApplicationResourceDeletePolicy();
+}
+function syncApplicationResourceDeletePolicy(){
+  const policy=$('#application-resource-delete-policy'),retention=$('#application-resource-retention');
+  if(!policy||!retention)return;
+  const retained=policy.value==='retain';
+  retention.disabled=!retained;
+  retention.required=retained;
+  if(retained&&!retention.value.trim())retention.value='customer-data';
+  if(!retained)retention.value='';
+}
+function parseManagedResourceOutputs(raw){
+  const rows=String(raw||'').split(/\r?\n/).map(row=>row.trim()).filter(Boolean);
+  if(!rows.length)throw new Error('Add at least one managed dependency output.');
+  return rows.map((row,index)=>{
+    const parts=row.split(':').map(value=>value.trim()).filter(Boolean);
+    if(parts.length<2||parts.length>3)throw new Error(`Output line ${index+1} must use name:type[:sensitive].`);
+    const [name,type,flag='']=parts;
+    const sensitive=flag.toLowerCase()==='sensitive';
+    if(flag&&!sensitive)throw new Error(`Output line ${index+1} has unsupported flag ${flag}.`);
+    if(sensitive&&type!=='secret-reference')throw new Error(`Sensitive output ${name} must use secret-reference type.`);
+    return {name,type,...(sensitive?{sensitive:true,secretReference:true}:{})};
+  });
+}
 function renderApplicationAuthoringOptions(){
   const projectSelect=$('#application-release-project');
   if(!projectSelect)return;
@@ -4601,6 +4647,7 @@ function renderApplicationPlatformComposition(){
     item.workloadTypeDigest===currentRelease.workloadTypeDigest
   ));
   applicationListOptions($('#application-promotion-release'),promotionCandidates,item=>`${item.name} · ${item.version}`);
+  renderApplicationLibraryOptions();
   renderApplicationAuthoringOptions();
   renderDaprRuntimeOptions();
   renderDaprRuntimeResult();
@@ -4625,7 +4672,10 @@ function renderApplicationDeliveryPrerequisite(){
   if(!state.projects.length)missing.push({label:'project',page:'workspace',action:'Create a project'});
   if(!state.workspaces.length)missing.push({label:'Workspace',page:'workspaces',action:'Create a Workspace'});
   if(!state.applicationWorkloadTypes.length)missing.push({label:'WorkloadType',page:'applications',action:'Create a workload shape'});
-  if(!state.applicationWorkspaceProfiles.length)missing.push({label:'WorkspaceProfile',page:'applications',action:'Create a workspace profile'});
+  if(!state.applicationWorkspaceProfiles.length){
+    if(!state.platformPolicySets.length)missing.push({label:'Operating Policy Set',page:'templates',action:'Create platform policy'});
+    missing.push({label:'WorkspaceProfile',page:'applications',action:'Create a workspace profile'});
+  }
   if(!missing.length){host.hidden=true;host.innerHTML='';return;}
   const faLocale=state.locale==='fa';
   host.hidden=false;
@@ -4726,6 +4776,10 @@ $('#dapr-lifecycle-approve').onclick=async()=>{
   }catch(error){toast(error.message,'error');}
 };
 $('[data-application-step]').forEach(button=>button.addEventListener('click',()=>openApplicationDeliveryStep(button.dataset.applicationStep)));
+for(const id of ['application-workload-project','application-trait-project','application-resource-project','application-profile-project']){
+  $(`#${id}`)?.addEventListener('change',()=>{renderApplicationLibraryOptions();applyAccessMode();});
+}
+$('#application-resource-delete-policy')?.addEventListener('change',syncApplicationResourceDeletePolicy);
 $('#application-release-project').addEventListener('change',()=>{renderApplicationAuthoringOptions();applyAccessMode();});
 $('#application-binding-release').addEventListener('change',async()=>{state.applicationWorkspaceBindings=[];renderApplicationAuthoringOptions();await loadApplicationBindingWorkspaceBindings();});
 $('#application-binding-workspace').addEventListener('change',loadApplicationBindingWorkspaceBindings);
@@ -4733,6 +4787,76 @@ $('#application-deployment-binding').addEventListener('change',async()=>{state.a
 $('#application-deployment-plan-form').addEventListener('input',event=>{if(event.target.id!=='application-deployment-binding'){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();}});
 $('#application-resolution-workload').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-promotion-binding').addEventListener('change',renderApplicationPlatformComposition);
+$('#application-workload-create-form').onsubmit=async event=>{
+  event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;
+  const body={
+    projectId:$('#application-workload-project').value,
+    name:$('#application-workload-name').value.trim(),
+    version:$('#application-workload-version').value.trim(),
+    inputSchemaDigest:$('#application-workload-schema-digest').value.trim(),
+    allowedTraitKinds:[...$('#application-workload-trait-kinds').selectedOptions].map(option=>option.value)
+  };
+  try{
+    await api('/api/v1/application-platform/workload-types',{method:'POST',body});
+    toast('Workload shape created.');form.reset();await loadApplicationDelivery();
+    document.getElementById('application-composition-library')?.setAttribute('open','');
+  }catch(error){toast(error.message,'error');}
+};
+$('#application-trait-create-form').onsubmit=async event=>{
+  event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;
+  const body={
+    projectId:$('#application-trait-project').value,
+    name:$('#application-trait-name').value.trim(),
+    version:$('#application-trait-version').value.trim(),
+    kind:$('#application-trait-kind').value,
+    capability:$('#application-trait-capability').value.trim(),
+    inputSchemaDigest:$('#application-trait-schema-digest').value.trim(),
+    nativeSuppression:$('#application-trait-native-suppression').checked
+  };
+  try{
+    await api('/api/v1/application-platform/capability-traits',{method:'POST',body});
+    toast('Capability trait created.');form.reset();await loadApplicationDelivery();
+    document.getElementById('application-composition-library')?.setAttribute('open','');
+  }catch(error){toast(error.message,'error');}
+};
+$('#application-resource-create-form').onsubmit=async event=>{
+  event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;
+  try{
+    const deletePolicy=$('#application-resource-delete-policy').value;
+    const body={
+      projectId:$('#application-resource-project').value,
+      name:$('#application-resource-name').value.trim(),
+      version:$('#application-resource-version').value.trim(),
+      category:$('#application-resource-category').value,
+      provisioner:$('#application-resource-provisioner').value,
+      inputSchemaDigest:$('#application-resource-schema-digest').value.trim(),
+      outputs:parseManagedResourceOutputs($('#application-resource-outputs').value),
+      deletePolicy,
+      retentionPolicy:deletePolicy==='retain'?$('#application-resource-retention').value.trim():'',
+      readinessConditions:$('#application-resource-readiness').value.split(',').map(value=>value.trim()).filter(Boolean)
+    };
+    await api('/api/v1/application-platform/resource-types',{method:'POST',body});
+    toast('Managed dependency type created.');form.reset();syncApplicationResourceDeletePolicy();await loadApplicationDelivery();
+    document.getElementById('application-composition-library')?.setAttribute('open','');
+  }catch(error){toast(error.message,'error');}
+};
+$('#application-profile-create-form').onsubmit=async event=>{
+  event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;
+  const projectId=$('#application-profile-project').value;
+  const policy=state.platformPolicySets.find(item=>item.id===$('#application-profile-policy').value);
+  if(!policy||policy.projectId!==projectId){toast('Select an operating policy set from the same project.','error');return;}
+  const body={
+    projectId,
+    name:$('#application-profile-name').value.trim(),
+    version:$('#application-profile-version').value.trim(),
+    authorityRefs:[{kind:'policy-set',id:policy.id,digest:policy.digest}]
+  };
+  try{
+    await api('/api/v1/application-platform/workspace-profiles',{method:'POST',body});
+    toast('Workspace profile created.');form.reset();await loadApplicationDelivery();
+    document.getElementById('application-composition-library')?.setAttribute('open','');
+  }catch(error){toast(error.message,'error');}
+};
 $('#application-release-create-form').onsubmit=async event=>{
   event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;
   const workloadImageReference=$('#application-release-image').value.trim();
