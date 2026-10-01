@@ -238,7 +238,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("J8 application composition console contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{`id="dapr-runtime-workflow"`, `data-viewer-safe="true" id="dapr-assessment-form"`, `data-viewer-safe="true" id="dapr-workload-form"`, `id="dapr-lifecycle-form"`, `id="dapr-workload-trait"`, `id="dapr-workload-image"`, `id="dapr-workload-admit"`, `id="dapr-workload-refresh"`, "Dapr workload policy &amp; admission", "target-native Dapr is consumed rather than duplicated", "durable READ_ONLY verification job"} {
+	for _, contract := range []string{`id="dapr-prerequisite"`, `id="dapr-runtime-workflow"`, `data-viewer-safe="true" id="dapr-assessment-form"`, `data-viewer-safe="true" id="dapr-workload-form"`, `id="dapr-lifecycle-form"`, `id="dapr-workload-trait"`, `id="dapr-workload-image"`, `id="dapr-workload-admit"`, `id="dapr-workload-refresh"`, "Dapr workload policy &amp; admission", "target-native Dapr is consumed rather than duplicated", "durable READ_ONLY verification job"} {
 		if !strings.Contains(html, contract) {
 			t.Fatalf("J8 Dapr workload admission console contract missing %q", contract)
 		}
@@ -248,7 +248,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("J8 application composition runtime contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{"loadDaprRuntimePage", "dapr:loadDaprRuntimePage", "daprWorkloadPlan", "daprWorkloadAdmission", "setScopedAccess($('#dapr-lifecycle-form')", "setScopedAccess($('#dapr-lifecycle-approve')", "/api/v1/application-platform/dapr/assessment", "/api/v1/application-platform/dapr/workload-plan", "/api/v1/application-platform/dapr/workload-admissions", "configurationProjection", "componentScopeDigest", "Target admission requires an exact digest-pinned workload image", "Admission proves current policy/scopes and server-side injection only"} {
+	for _, contract := range []string{"loadDaprRuntimePage", "renderDaprRuntimePrerequisite", "data-dapr-prerequisite-kind", "application-runtime.dapr", "dapr:loadDaprRuntimePage", "daprWorkloadPlan", "daprWorkloadAdmission", "setScopedAccess($('#dapr-lifecycle-form')", "setScopedAccess($('#dapr-lifecycle-approve')", "/api/v1/application-platform/dapr/assessment", "/api/v1/application-platform/dapr/workload-plan", "/api/v1/application-platform/dapr/workload-admissions", "configurationProjection", "componentScopeDigest", "Target admission requires an exact digest-pinned workload image", "Admission proves current policy/scopes and server-side injection only"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("J8 Dapr workload admission runtime contract missing %q", contract)
 		}
@@ -352,6 +352,28 @@ func TestOperatorConsoleLiveProgressRefreshContract(t *testing.T) {
 	}
 	if strings.Contains(js, "const expanded=!!$('.page.active details[open]')") {
 		t.Fatal("open read-only disclosures must not freeze live progress refresh")
+	}
+}
+
+func TestOperatorConsoleActionableEmptyStateContract(t *testing.T) {
+	htmlBytes, err := fs.ReadFile(content, "static/index.html")
+	if err != nil { t.Fatal(err) }
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	html, js := string(htmlBytes), string(jsBytes)
+	for _, marker := range []string{
+		"emptyFocusState",
+		"emptyDisclosureState('No maintenance windows'",
+		"'maintenance-window-name'",
+		"'blueprint-project'",
+		"'global-organization-scope'",
+		"Manage agent identities",
+		"renderDaprRuntimePrerequisite",
+	} {
+		if !strings.Contains(js, marker) { t.Fatalf("actionable empty-state runtime missing %q", marker) }
+	}
+	for _, id := range []string{"cluster-import-console", "cluster-project", "maintenance-window-name", "blueprint-project", "global-organization-scope", "dapr-prerequisite"} {
+		if !strings.Contains(html, `id="`+id+`"`) { t.Fatalf("actionable empty-state owner target missing %q", id) }
 	}
 }
 
