@@ -2,6 +2,7 @@
 set -euo pipefail
 
 AUTHORITY="INSTALLER_MANUAL_ENTRYPOINT_V1"
+CONTINUATION_AUTHORITY="INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
 INSTALLER="${ROOT_DIR}/bin/linux-amd64/platform-installer"
@@ -71,7 +72,7 @@ fi
 
 case "${mode}" in
   status|verify|recover|rollback)
-    echo "${AUTHORITY} mode=${mode} continuation=true" >&2
+    echo "${AUTHORITY} continuationAuthority=${CONTINUATION_AUTHORITY} mode=${mode} continuation=true" >&2
     exec "${PLATFORMCTL}" installer-manual "${mode}" "$@"
     ;;
 esac
