@@ -78,6 +78,13 @@ func usage() {
   platformctl field-campaign status --state campaign.json
   platformctl installer-access status --installer-url https://installer.example [--token-file FILE] [--ca-file FILE]
   platformctl installer-access rotate-token --installer-url https://installer.example --out-token-file FILE --confirmation ROTATE [--token-file FILE] [--ca-file FILE]
+  platformctl installer-manual preflight --bundle-dir DIR [--installer-binary FILE] [--listen 127.0.0.1:9080] [--tls-cert FILE --tls-key FILE] [--enable-execution]
+  platformctl installer-manual plan --bundle-dir DIR [--installer-binary FILE] [--out-spec FILE]
+  platformctl installer-manual install --bundle-dir DIR --confirmation DEPLOY [--installer-binary FILE] [--enable-execution] [--tls-cert FILE --tls-key FILE]
+  platformctl installer-manual status [--state FILE] [--root /]
+  platformctl installer-manual verify [--state FILE] [--root /]
+  platformctl installer-manual recover --confirmation RECOVER [--state FILE] [--root /]
+  platformctl installer-manual rollback --confirmation ROLLBACK [--state FILE] [--root /]
   platformctl installer-host preflight --spec deployment.json [--root /]
   platformctl installer-host plan --spec deployment.json [--root /]
   platformctl installer-host apply --spec deployment.json --confirmation DEPLOY [--root /]
@@ -141,6 +148,8 @@ func main() {
 		installerAccessCommand(os.Args[2:])
 	case "lab-storage":
 		labStorageCommand(os.Args[2:])
+	case "installer-manual":
+		installerManualCommand(os.Args[2:])
 	case "installer-host":
 		installerHostCommand(os.Args[2:])
 	case "installer-remote":
