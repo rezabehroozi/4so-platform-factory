@@ -430,6 +430,7 @@ ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY = "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDO
 OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_OWNER_CONTEXT_PATHS_V1"
 PROMPT_BUDGET_AUTHORITY = "AUTOPILOT_PROMPT_BUDGET_V1"
 AGENT_REPAIR_BUDGET_AUTHORITY = "AUTOPILOT_AGENT_REPAIR_BUDGET_V1"
+FAILURE_PATH_HINTS_AUTHORITY = "AUTOPILOT_FAILURE_PATH_HINTS_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -833,6 +834,45 @@ def _repair_requires_full_convergence(stage: Stage, changed_paths: list[str]) ->
     return any(not _repair_path_in_owner_scope(stage, path) for path in changed_paths)
 
 
+_FAILURE_PATH_RE = re.compile(
+    r"(?<![A-Za-z0-9_.-])((?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.(?:go|py|js|css|html|json|sh|yaml|yml))(?:[:(]\d+)?"
+)
+
+def _failure_path_hints(root: Path, stage: Stage, text: str, limit: int = 8) -> list[str]:
+    """Return bounded owner-scoped source paths mentioned by a redacted failure.
+
+    Hints are convenience context only. They never widen repair authority and
+    never replace the deterministic failing command or owner scope.
+    """
+    root_resolved = root.resolve()
+    hints: list[str] = []
+    seen: set[str] = set()
+    for raw in _FAILURE_PATH_RE.findall(str(text or "")):
+        candidate = Path(raw)
+        try:
+            if candidate.is_absolute():
+                relative = candidate.resolve().relative_to(root_resolved).as_posix()
+            else:
+                relative = candidate.as_posix().lstrip("./")
+        except (OSError, ValueError):
+            continue
+        if not relative or relative in seen or ".." in Path(relative).parts:
+            continue
+        path = root / relative
+        try:
+            if not path.is_file() or path.is_symlink():
+                continue
+        except OSError:
+            continue
+        if not _repair_path_in_owner_scope(stage, relative):
+            continue
+        seen.add(relative)
+        hints.append(relative)
+        if len(hints) >= max(1, min(int(limit), 8)):
+            break
+    return hints
+
+
 def _stage_graph_signature(stages: list[Stage], *, repair: bool) -> str:
     payload = {
         "repair": repair,
@@ -956,6 +996,10 @@ def _agent_context(root: Path) -> dict:
         except (OSError, json.JSONDecodeError):
             checkpoint_state = {}
     failure_capsule = str(checkpoint_state.get("lastFailureCapsule") or "")[:AGENT_FAILURE_CAPSULE_MAX_CHARS]
+    current_stage_name = str(report.get("currentStage") or "")
+    current_command = tuple(str(item) for item in report.get("currentCommand", []) if isinstance(item, str)) if isinstance(report.get("currentCommand"), list) else ()
+    current_stage = Stage(current_stage_name, current_command, int(report.get("currentTimeoutSeconds") or 0)) if current_stage_name else None
+    failure_path_hints = _failure_path_hints(root, current_stage, failure_capsule) if current_stage else []
     context = {
         "schemaVersion": 1,
         "authority": "AUTOPILOT_AGENT_CONTEXT_V1",
@@ -982,6 +1026,8 @@ def _agent_context(root: Path) -> dict:
         "ownerContextPaths": [str(item) for item in report.get("currentOwnerPaths", [])[:12]] if isinstance(report.get("currentOwnerPaths"), list) else [],
         "promptBudgetAuthority": PROMPT_BUDGET_AUTHORITY,
         "agentRepairBudgetAuthority": AGENT_REPAIR_BUDGET_AUTHORITY,
+        "failurePathHintsAuthority": FAILURE_PATH_HINTS_AUTHORITY,
+        "failurePathHints": failure_path_hints,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
         "promptBudgetChars": report.get("promptBudgetChars") if isinstance(report.get("promptBudgetChars"), dict) else {
@@ -1002,7 +1048,7 @@ def _agent_context(root: Path) -> dict:
             "canonicalPhaseSource": "internal/targetmodel/program.go",
         },
         "continuationRules": [
-            "read only the failing owner surface plus AGENTS.md/derived knowledge needed for that owner",
+            "read failurePathHints first when present, then only the failing owner surface plus AGENTS.md/derived knowledge needed for that owner",
             "rerun the same invocation when resumeEligible; do not replay already checkpointed green stages manually",
             "use the compact failure fingerprint/capsule and run the smallest owner proof before broader convergence",
             "never mutate Git refs/index/history from the repair agent",
@@ -1104,6 +1150,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "ownerContextAuthority": OWNER_CONTEXT_AUTHORITY,
         "promptBudgetAuthority": PROMPT_BUDGET_AUTHORITY,
         "agentRepairBudgetAuthority": AGENT_REPAIR_BUDGET_AUTHORITY,
+        "failurePathHintsAuthority": FAILURE_PATH_HINTS_AUTHORITY,
         "defaultRepairBudget": DEFAULT_REPAIR_BUDGET,
         "defaultAgentRepairBudget": DEFAULT_AGENT_REPAIR_BUDGET,
         "promptBudgetChars": {
