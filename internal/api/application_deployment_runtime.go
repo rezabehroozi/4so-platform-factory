@@ -81,17 +81,7 @@ func parseApplicationDeploymentTarget(target string) (clusterID, bindingID strin
 }
 
 func applicationDeploymentStateBlocksNewMutation(op controlplane.Operation) bool {
-	switch op.State {
-	case controlplane.OperationDraft, controlplane.OperationPlanning, controlplane.OperationAwaitingApproval,
-		controlplane.OperationApproved, controlplane.OperationQueued, controlplane.OperationRunning,
-		controlplane.OperationRetryWait, controlplane.OperationCancelRequested, controlplane.OperationVerifying,
-		controlplane.OperationRollingBack, controlplane.OperationNeedsOperator, controlplane.OperationRollbackFailed:
-		return true
-	case controlplane.OperationFailed:
-		return op.LastFailureClass == controlplane.OperationFailureUnknown
-	default:
-		return false
-	}
+	return controlplane.ApplicationDeploymentOperationBlocksDesiredMutation(op)
 }
 
 func (s *Server) applicationDeploymentBindingBlocker(ctx context.Context, projectID, clusterID, bindingID, idempotencyKey string) (*controlplane.Operation, error) {
