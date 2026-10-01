@@ -211,6 +211,9 @@ def static_quality_failures(root: Path) -> list[str]:
     for marker in ("emptyDisclosureState", "application-composition-library", "application-binding-workflow"):
         if marker not in console_js:
             failures.append(f"webconsole/static/app.js:application-empty-state-direct-action-missing:{marker}")
+    for phrase in (">Left release<", ">Right release<", "stays above", "form above", "connect Forgejo below"):
+        if phrase.lower() in console_html.lower() or phrase.lower() in console_js.lower():
+            failures.append(f"webconsole:physical-position-copy:{phrase}")
     return failures
 
 
