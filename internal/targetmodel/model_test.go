@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c8 := byID["C8-console-operational-completion"]
-	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1", "ACTIONABLE_EMPTY_STATE_RECOVERY_V1", "TRUTHFUL_NON_ACTIONABLE_BLOCKER_V1", "HARD_PAGE_STALE_FAILURE_V1", "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1", "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1", "CRITICAL_INTERACTION_LOCALIZATION_GRAMMAR_V1", "DISCLOSURE_SAFE_LIVE_PROGRESS_REFRESH_V1", "DAPR_RUNTIME_JOURNEY_V1", "DAPR_DURABLE_UI_RESUME_V1", "DAPR_TASK_DISCLOSURE_V1", "APPLICATION_COMPOSITION_TASK_PICKER_V1"} {
+	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1", "ACTIONABLE_EMPTY_STATE_RECOVERY_V1", "TRUTHFUL_NON_ACTIONABLE_BLOCKER_V1", "HARD_PAGE_STALE_FAILURE_V1", "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1", "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1", "CRITICAL_INTERACTION_LOCALIZATION_GRAMMAR_V1", "DISCLOSURE_SAFE_LIVE_PROGRESS_REFRESH_V1", "DAPR_RUNTIME_JOURNEY_V1", "DAPR_DURABLE_UI_RESUME_V1", "DAPR_TASK_DISCLOSURE_V1", "APPLICATION_COMPOSITION_TASK_PICKER_V1", "APPLICATION_GUIDED_PREREQUISITE_DISCLOSURE_V1"} {
 		if !containsString(c8.Evidence, evidence) {
 			t.Fatalf("C8 task-first journey evidence %q missing: %#v", evidence, c8)
 		}
@@ -217,6 +217,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"Application Delivery exposes UI creation paths for WorkloadType, CapabilityTrait, ManagedResourceType and WorkspaceProfile before Release -> EnvironmentBinding -> Plan/Request -> Observed Evidence",
 		"Application Composition presents one authority-creation task at a time and prerequisite actions open the exact Workload/Profile/Trait/Resource owner task instead of exposing all forms together",
 		"Application Delivery keeps downstream journey steps focusable but aria-disabled with a localized prerequisite reason until the previous authoritative step exists",
+		"Application Delivery opens the actionable owner disclosure on load and closes release/binding/deployment forms when Project, WorkloadType, WorkspaceProfile, Workspace or the selected Workspace active namespace binding is missing so empty selectors are never the primary task",
 		"Application Delivery critical form labels, help and actions round-trip English -> Persian/RTL -> English without leaving mixed-language workflow controls",
 		"critical toast/confirm/detail action grammar localizes approval, revoke, delete, cancel, retry and recovery flows including dynamic resource identifiers instead of falling back to English interaction sentences",
 		"application collection reads and mutation forms follow the selected global project scope and backend RBAC instead of cross-project dropdown aggregation",
