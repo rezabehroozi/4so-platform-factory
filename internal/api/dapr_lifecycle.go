@@ -137,6 +137,36 @@ func (s *Server) daprAdmissionForCluster(cluster controlplane.ManagedCluster, in
 	})
 }
 
+func (s *Server) daprEffectiveRuntimeAdmission(cluster controlplane.ManagedCluster, inventory controlplane.ClusterInventory, disconnected bool, observed *daprruntime.ObservedState) targetmodel.DaprTargetAdmission {
+	if observed == nil || !observed.Installed {
+		return s.daprAdmissionForCluster(cluster, inventory, disconnected)
+	}
+	// A generic application-runtime.dapr inventory capability cannot by itself
+	// erase product ownership established by sealed successful lifecycle evidence.
+	// Preserve that provenance so upgrade/remove and workload admission retain the
+	// exact product runtime lock/image fence. Native suppression remains the
+	// default only when no current product-managed observed install exists.
+	filtered := inventory
+	filtered.Capabilities = make([]string, 0, len(inventory.Capabilities))
+	productCapabilityObserved := false
+	for _, capability := range inventory.Capabilities {
+		if strings.EqualFold(strings.TrimSpace(capability), targetmodel.DaprApplicationRuntimeCapability) {
+			productCapabilityObserved = true
+			continue
+		}
+		filtered.Capabilities = append(filtered.Capabilities, capability)
+	}
+	admission := s.daprAdmissionForCluster(cluster, filtered, disconnected)
+	admission.Mode = "PRODUCT_MANAGED"
+	admission.InstallSuppressed = false
+	if !productCapabilityObserved {
+		admission.Eligible = false
+		admission.Blockers = append(admission.Blockers, "DAPR_PRODUCT_RUNTIME_CAPABILITY_NOT_OBSERVED")
+		sort.Strings(admission.Blockers)
+	}
+	return admission
+}
+
 func (s *Server) latestDaprObserved(ctx context.Context, projectID, clusterID string) (*daprruntime.ObservedState, error) {
 	operations, err := s.store.ListOperations(ctx, projectID)
 	if err != nil {
@@ -297,7 +327,12 @@ func (s *Server) createDaprLifecycle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "INVENTORY_STALE", "fresh target capability discovery is required")
 		return
 	}
-	admission := s.daprAdmissionForCluster(cluster, inventory, input.Disconnected)
+	observed, err := s.latestDaprObserved(r.Context(), input.ProjectID, input.ClusterID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	admission := s.daprEffectiveRuntimeAdmission(cluster, inventory, input.Disconnected, observed)
 	if admission.Mode == "USE_NATIVE" {
 		writeJSON(w, http.StatusConflict, map[string]any{
 			"error": map[string]any{"code": "DAPR_NATIVE_RUNTIME_NOT_PRODUCT_MANAGED", "message": "target-native Dapr is consumed but not mutated by the product lifecycle"},
@@ -330,11 +365,6 @@ func (s *Server) createDaprLifecycle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lockDigest := s.daprRuntimeDigest
-	observed, err := s.latestDaprObserved(r.Context(), input.ProjectID, input.ClusterID)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
 	if input.ExpectedObservedLockDigest != "" && (observed == nil || !strings.EqualFold(observed.RuntimeLockDigest, input.ExpectedObservedLockDigest)) {
 		writeError(w, http.StatusConflict, "DAPR_OBSERVED_FENCE_CHANGED", "observed Dapr runtime lock changed after request preparation")
 		return
@@ -477,7 +507,12 @@ func (s *Server) approveDaprLifecycle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "INVENTORY_STALE", "fresh target capability discovery is required before Dapr approval")
 		return
 	}
-	admission := s.daprAdmissionForCluster(cluster, inventory, req.Disconnected)
+	observed, err := s.latestDaprObserved(r.Context(), req.ProjectID, req.ClusterID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	admission := s.daprEffectiveRuntimeAdmission(cluster, inventory, req.Disconnected, observed)
 	if admission.Mode == "USE_NATIVE" {
 		writeJSON(w, http.StatusConflict, map[string]any{
 			"error": map[string]any{"code": "DAPR_NATIVE_RUNTIME_NOT_PRODUCT_MANAGED", "message": "target-native Dapr appeared before approval; product lifecycle mutation is suppressed"},
@@ -490,11 +525,6 @@ func (s *Server) approveDaprLifecycle(w http.ResponseWriter, r *http.Request) {
 			"error": map[string]any{"code": "DAPR_TARGET_NOT_ADMITTED", "message": "current target admission changed before Dapr approval"},
 			"admission": admission,
 		})
-		return
-	}
-	observed, err := s.latestDaprObserved(r.Context(), req.ProjectID, req.ClusterID)
-	if err != nil {
-		writeStoreError(w, err)
 		return
 	}
 	if err = daprruntime.ValidateLifecycleTransition(req.Action, observed, req.RuntimeLockDigest); err != nil {
@@ -566,8 +596,15 @@ func (s *Server) nextDaprLifecycleTask(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		req, parseErr := daprruntime.ParseLifecycleRequest(sealed.Payload, sealed.PayloadDigest)
+		var observed *daprruntime.ObservedState
+		var observedErr error
 		if parseErr == nil && req.ClusterID == clusterID && req.RuntimeLockDigest == s.daprRuntimeDigest {
-			admission := s.daprAdmissionForCluster(cluster, inventory, req.Disconnected)
+			observed, observedErr = s.latestDaprObserved(r.Context(), req.ProjectID, req.ClusterID)
+			if observedErr != nil {
+				writeStoreError(w, observedErr)
+				return
+			}
+			admission := s.daprEffectiveRuntimeAdmission(cluster, inventory, req.Disconnected, observed)
 			if cluster.ProjectID != req.ProjectID || admission.Mode == "USE_NATIVE" || !admission.Eligible {
 				if op.State == controlplane.OperationQueued {
 					op, _ = s.store.StartOperationAttempt(r.Context(), op.ID, op.Revision, "agent:"+clusterID, claim.FenceToken, "agent:"+clusterID)
@@ -600,11 +637,6 @@ func (s *Server) nextDaprLifecycleTask(w http.ResponseWriter, r *http.Request) {
 				}, "agent:"+clusterID)
 			}
 			continue
-		}
-		observed, observedErr := s.latestDaprObserved(r.Context(), req.ProjectID, req.ClusterID)
-		if observedErr != nil {
-			writeStoreError(w, observedErr)
-			return
 		}
 		if fenceErr := daprruntime.ValidateLifecycleDispatchFence(req.Action, observed, req.RuntimeLockDigest, req.ExpectedObservedLockDigest); fenceErr != nil {
 			if op.State == controlplane.OperationQueued {
