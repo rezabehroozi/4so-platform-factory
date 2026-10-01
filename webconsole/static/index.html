@@ -287,6 +287,57 @@
 <section class="page" data-title="Application delivery" id="applications">
 <div class="page-heading"><div><span class="eyebrow" data-i18n="applications.eyebrow" data-en="Application platform">پلتفرم اپلیکیشن</span><h1 data-i18n="applications.heading" data-en="Application delivery">تحویل اپلیکیشن</h1><p data-i18n="applications.description" data-en="Move an immutable application release through one clear environment, deployment and observed-evidence journey. Runtime mutation stays approval-gated and target capability ownership remains authoritative.">یک نسخهٔ تغییرناپذیر اپلیکیشن را در مسیر روشن محیط، استقرار و شواهد مشاهده‌شده جلو ببرید. تغییر محیط اجرا همچنان نیازمند تأیید است و مالکیت قابلیت مقصد مرجع باقی می‌ماند.</p></div><span class="badge">J8</span></div>
 <div class="prerequisite" hidden="" id="application-delivery-prerequisite"></div>
+<details class="action-console" id="application-composition-library">
+<summary><span class="summary-title" data-i18n="applications.libraryTitle" data-en="Composition library">کتابخانهٔ ترکیب</span><span class="summary-help" data-i18n="applications.libraryHelp" data-en="Create the reusable workload, capability, managed-dependency and workspace-profile authorities required before an immutable release can exist.">پیش از ساخت نسخهٔ تغییرناپذیر، authorityهای قابل‌استفادهٔ مجدد workload، قابلیت، وابستگی مدیریت‌شده و workspace profile را بسازید.</span></summary>
+<div class="action-console-body">
+<div class="two-column">
+<article class="panel"><div class="panel-heading"><div><h2 data-i18n="applications.workloadTitle" data-en="Workload shape">قالب Workload</h2><p data-i18n="applications.workloadHelp" data-en="Define the stable input schema and which capability-trait kinds this workload may compose.">schema ورودی پایدار و نوع قابلیت‌هایی را که این workload می‌تواند ترکیب کند مشخص کنید.</p></div></div>
+<form class="form-grid" id="application-workload-create-form" novalidate="">
+<label><span>Project</span><select id="application-workload-project" required=""></select></label>
+<label><span>Name</span><input class="technical" dir="ltr" id="application-workload-name" maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="service" required=""/></label>
+<label><span>Version</span><input class="technical" dir="ltr" id="application-workload-version" pattern="[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?" placeholder="1.0.0" required=""/></label>
+<label class="span-full"><span>Input schema digest</span><input class="technical" dir="ltr" id="application-workload-schema-digest" pattern="sha256:[0-9a-f]{64}" placeholder="sha256:..." required=""/><small>Reference the exact immutable input-schema material; the console never stores secret values here.</small></label>
+<label class="span-full"><span>Allowed capability kinds</span><select id="application-workload-trait-kinds" multiple="" size="5"><option value="storage">Storage</option><option value="ingress">Ingress</option><option value="autoscale">Autoscale</option><option value="observability">Observability</option><option value="security">Security</option><option value="backup">Backup</option><option value="network">Network</option><option value="sidecar">Sidecar</option></select><small>Optional. Select only kinds this workload is allowed to compose.</small></label>
+<div class="form-actions span-full"><button class="primary" type="submit">Create workload shape</button></div>
+</form></article>
+<article class="panel"><div class="panel-heading"><div><h2 data-i18n="applications.profileTitle" data-en="Workspace profile">پروفایل فضای کاری</h2><p data-i18n="applications.profileHelp" data-en="Bind reusable project policy into one immutable application workspace profile.">سیاست قابل‌استفادهٔ مجدد پروژه را در یک workspace profile تغییرناپذیر اپلیکیشن مقید کنید.</p></div></div>
+<form class="form-grid" id="application-profile-create-form" novalidate="">
+<label><span>Project</span><select id="application-profile-project" required=""></select></label>
+<label><span>Name</span><input class="technical" dir="ltr" id="application-profile-name" maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="production" required=""/></label>
+<label><span>Version</span><input class="technical" dir="ltr" id="application-profile-version" pattern="[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?" placeholder="1.0.0" required=""/></label>
+<label class="span-full"><span>Operating policy set</span><select id="application-profile-policy" required=""></select><small>The selected policy-set digest is captured exactly. Other authority kinds remain explicit Product API/MCP objects until their dedicated owner UI exists.</small></label>
+<div class="form-actions span-full"><button class="primary" type="submit">Create workspace profile</button></div>
+</form></article>
+</div>
+<div class="two-column">
+<article class="panel"><div class="panel-heading"><div><h2 data-i18n="applications.traitTitle" data-en="Capability trait">ویژگی قابلیت</h2><p data-i18n="applications.traitHelp" data-en="Describe one capability overlay and whether native target ownership may suppress it.">یک capability overlay و امکان حذف آن در صورت مالکیت native مقصد را تعریف کنید.</p></div></div>
+<form class="form-grid" id="application-trait-create-form" novalidate="">
+<label><span>Project</span><select id="application-trait-project" required=""></select></label>
+<label><span>Name</span><input class="technical" dir="ltr" id="application-trait-name" maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="ingress" required=""/></label>
+<label><span>Version</span><input class="technical" dir="ltr" id="application-trait-version" pattern="[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?" placeholder="1.0.0" required=""/></label>
+<label><span>Kind</span><select id="application-trait-kind" required=""><option value="ingress">Ingress</option><option value="storage">Storage</option><option value="autoscale">Autoscale</option><option value="observability">Observability</option><option value="security">Security</option><option value="backup">Backup</option><option value="network">Network</option><option value="sidecar">Sidecar</option></select></label>
+<label><span>Capability ID</span><input class="technical" dir="ltr" id="application-trait-capability" maxlength="96" pattern="[a-z0-9]([a-z0-9._\-]*[a-z0-9])?" placeholder="networking.ingress" required=""/></label>
+<label><span>Input schema digest</span><input class="technical" dir="ltr" id="application-trait-schema-digest" pattern="sha256:[0-9a-f]{64}" placeholder="sha256:..." required=""/></label>
+<label class="check-row span-full"><input id="application-trait-native-suppression" type="checkbox"/><span>Allow suppression when the target already owns this capability</span></label>
+<div class="form-actions span-full"><button class="primary" type="submit">Create capability trait</button></div>
+</form></article>
+<article class="panel"><div class="panel-heading"><div><h2 data-i18n="applications.resourceTitle" data-en="Managed dependency type">نوع وابستگی مدیریت‌شده</h2><p data-i18n="applications.resourceHelp" data-en="Describe database, cache, queue, object-storage or external-service intent without embedding credentials.">نیاز database، cache، queue، object-storage یا external-service را بدون قراردادن credential تعریف کنید.</p></div></div>
+<form class="form-grid" id="application-resource-create-form" novalidate="">
+<label><span>Project</span><select id="application-resource-project" required=""></select></label>
+<label><span>Name</span><input class="technical" dir="ltr" id="application-resource-name" maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="postgres" required=""/></label>
+<label><span>Version</span><input class="technical" dir="ltr" id="application-resource-version" pattern="[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?" placeholder="1.0.0" required=""/></label>
+<label><span>Category</span><select id="application-resource-category" required=""><option value="database">Database</option><option value="cache">Cache</option><option value="queue">Queue</option><option value="object-storage">Object storage</option><option value="external-service">External service</option></select></label>
+<label><span>Provisioner</span><select id="application-resource-provisioner" required=""><option value="product-api">Product API</option><option value="crossplane">Crossplane</option><option value="external-adapter">External adapter</option></select></label>
+<label><span>Delete policy</span><select id="application-resource-delete-policy" required=""><option value="retain">Retain</option><option value="delete">Delete</option></select></label>
+<label class="span-full"><span>Input schema digest</span><input class="technical" dir="ltr" id="application-resource-schema-digest" pattern="sha256:[0-9a-f]{64}" placeholder="sha256:..." required=""/></label>
+<label><span>Retention policy</span><input class="technical" dir="ltr" id="application-resource-retention" value="customer-data"/><small>Required only when delete policy is Retain; it is cleared automatically for Delete.</small></label>
+<label class="span-full"><span>Outputs</span><textarea class="technical compact" dir="ltr" id="application-resource-outputs" required="" placeholder="endpoint:endpoint&#10;credentials:secret-reference:sensitive"></textarea><small>One output per line: name:type[:sensitive]. Sensitive output is always encoded as a secret reference; plaintext secrets are never accepted.</small></label>
+<label class="span-full"><span>Readiness conditions</span><input class="technical" dir="ltr" id="application-resource-readiness" value="endpoint-ready" required=""/><small>Comma-separated canonical conditions, for example endpoint-ready,credentials-ready.</small></label>
+<div class="form-actions span-full"><button class="primary" type="submit">Create managed dependency type</button></div>
+</form></article>
+</div>
+</div>
+</details>
 <article class="panel" id="application-composition-panel"><div class="panel-heading"><div><h2 data-i18n="applications.workflowHeading" data-en="Release → environment → deployment → evidence">نسخه ← محیط ← استقرار ← شواهد</h2><p data-i18n="applications.workflowHelp" data-en="Compose reusable application shapes, capabilities and managed dependencies, then keep desired, rendered and observed authority visibly separate through deployment and promotion.">قالب‌های workload، قابلیت‌ها و وابستگی‌های مدیریت‌شده را ترکیب کنید و در استقرار و ارتقا، desired، rendered و observed را صریحاً از هم جدا نگه دارید.</p></div><span class="badge">J8</span></div>
 <div class="inline-summary"><strong>Authority boundary:</strong> releases are immutable. Environment bindings are revisioned promotion pointers fenced to the exact active Workspace namespace binding. A capability already owned by the target is suppressed instead of installing a duplicate stack.</div>
 <nav aria-label="Application delivery workflow" class="application-delivery-journey" id="application-delivery-journey">
