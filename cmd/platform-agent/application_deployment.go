@@ -274,14 +274,18 @@ func deploymentReadback(object map[string]any, request controlplane.ApplicationD
 	generation := numericInt64(metadata["generation"])
 	observedGeneration := numericInt64(status["observedGeneration"])
 	desired := numericInt(spec["replicas"])
+	updated := numericInt(status["updatedReplicas"])
 	ready := numericInt(status["readyReplicas"])
+	available := numericInt(status["availableReplicas"])
 	readback := controlplane.ApplicationDeploymentReadback{
 		DeploymentName: plan.WorkloadName,
 		DeploymentUID: strings.TrimSpace(fmt.Sprint(metadata["uid"])),
 		Generation: generation,
 		ObservedGeneration: observedGeneration,
 		DesiredReplicas: desired,
+		UpdatedReplicas: updated,
 		ReadyReplicas: ready,
+		AvailableReplicas: available,
 		WorkloadImage: strings.TrimSpace(fmt.Sprint(container["image"])),
 		CPURequest: containerResourceValue(container, "requests", "cpu"),
 		CPULimit: containerResourceValue(container, "limits", "cpu"),
@@ -291,7 +295,8 @@ func deploymentReadback(object map[string]any, request controlplane.ApplicationD
 		AuthorityDigestsMatch: applicationDeploymentAuthorityDigestsMatch(object, plan),
 	}
 	converged := readback.DeploymentUID != "" && generation > 0 && observedGeneration >= generation &&
-		desired == plan.RuntimeSpec.Replicas && ready == plan.RuntimeSpec.Replicas &&
+		desired == plan.RuntimeSpec.Replicas && updated == plan.RuntimeSpec.Replicas &&
+		ready == plan.RuntimeSpec.Replicas && available == plan.RuntimeSpec.Replicas &&
 		readback.WorkloadImage == plan.WorkloadImageReference &&
 		readback.CPURequest == plan.RuntimeSpec.CPURequest && readback.CPULimit == plan.RuntimeSpec.CPULimit &&
 		readback.MemoryRequest == plan.RuntimeSpec.MemoryRequest && readback.MemoryLimit == plan.RuntimeSpec.MemoryLimit &&
@@ -417,7 +422,10 @@ func (a *agent) observeApplicationDeployment(ctx context.Context, task agentAppl
 		case <-time.After(2 * time.Second):
 		}
 	}
-	if readback.DeploymentUID == "" || readback.ReadyReplicas != plan.RuntimeSpec.Replicas ||
+	if readback.DeploymentUID == "" ||
+		readback.UpdatedReplicas != plan.RuntimeSpec.Replicas ||
+		readback.ReadyReplicas != plan.RuntimeSpec.Replicas ||
+		readback.AvailableReplicas != plan.RuntimeSpec.Replicas ||
 		(plan.RuntimeSpec.ServicePort > 0 && !readback.ServiceObserved) {
 		return controlplane.ApplicationDeploymentEvidence{}, fmt.Errorf("application Deployment did not converge before task lease deadline")
 	}
