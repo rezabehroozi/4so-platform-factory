@@ -128,6 +128,22 @@ type Options struct {
 	Now       func() time.Time
 }
 
+func resolveRunnerAndSSH(options Options) (Runner, string, error) {
+	runner := options.Runner
+	sshBinary := strings.TrimSpace(options.SSHBinary)
+	if sshBinary == "" {
+		sshBinary = "ssh"
+	}
+	if runner != nil {
+		return runner, sshBinary, nil
+	}
+	resolved, err := exec.LookPath(sshBinary)
+	if err != nil {
+		return nil, "", fmt.Errorf("remote installer bootstrap requires an OpenSSH client (%s): install openssh-client or provide a valid SSH binary: %w", sshBinary, err)
+	}
+	return ExecRunner{}, resolved, nil
+}
+
 type loadedSpec struct {
 	Config             Spec
 	Deployment         hostdeployment.Spec
@@ -200,13 +216,9 @@ func Prepare(ctx context.Context, specPath string, options Options) (prepared Pr
 	if err != nil {
 		return Prepared{}, err
 	}
-	runner := options.Runner
-	if runner == nil {
-		runner = ExecRunner{}
-	}
-	sshBinary := options.SSHBinary
-	if strings.TrimSpace(sshBinary) == "" {
-		sshBinary = "ssh"
+	runner, sshBinary, err := resolveRunnerAndSSH(options)
+	if err != nil {
+		return Prepared{}, err
 	}
 	arch, err := remoteArchitecture(ctx, runner, sshBinary, loaded)
 	if err != nil {
@@ -281,13 +293,9 @@ func Apply(ctx context.Context, specPath, confirmation string, options Options) 
 	if err != nil {
 		return Result{}, err
 	}
-	runner := options.Runner
-	if runner == nil {
-		runner = ExecRunner{}
-	}
-	sshBinary := options.SSHBinary
-	if strings.TrimSpace(sshBinary) == "" {
-		sshBinary = "ssh"
+	runner, sshBinary, err := resolveRunnerAndSSH(options)
+	if err != nil {
+		return Result{}, err
 	}
 	arch, err := remoteArchitecture(ctx, runner, sshBinary, loaded)
 	if err != nil {
@@ -461,13 +469,9 @@ func runControl(ctx context.Context, specPath string, options Options, subcomman
 	if err != nil {
 		return nil, err
 	}
-	runner := options.Runner
-	if runner == nil {
-		runner = ExecRunner{}
-	}
-	sshBinary := options.SSHBinary
-	if strings.TrimSpace(sshBinary) == "" {
-		sshBinary = "ssh"
+	runner, sshBinary, err := resolveRunnerAndSSH(options)
+	if err != nil {
+		return nil, err
 	}
 	arch, err := remoteArchitecture(ctx, runner, sshBinary, loaded)
 	if err != nil {
