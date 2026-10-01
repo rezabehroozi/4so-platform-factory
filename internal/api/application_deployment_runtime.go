@@ -241,6 +241,40 @@ func (s *Server) validateApplicationDeploymentCurrentAuthority(ctx context.Conte
 	return nil
 }
 
+func (s *Server) listApplicationDeployments(w http.ResponseWriter, r *http.Request) {
+	appStore, ok := s.store.(applicationPlatformStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "APPLICATION_PLATFORM_AUTHORITY_UNAVAILABLE", "application platform persistence authority is unavailable")
+		return
+	}
+	binding, err := appStore.GetEnvironmentBinding(r.Context(), strings.TrimSpace(r.PathValue("id")))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if _, err = s.requireProjectAccess(r, binding.ProjectID, organizationRead); err != nil {
+		writeScopeError(w, err)
+		return
+	}
+	operations, err := s.store.ListOperations(r.Context(), binding.ProjectID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	target := applicationDeploymentTarget(binding.ClusterID, binding.ID)
+	items := make([]controlplane.Operation, 0)
+	for _, op := range operations {
+		if op.Kind == applicationDeploymentOperationKind && op.TargetRef == target {
+			items = append(items, op)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"authority": controlplane.ApplicationDeploymentRequestAuthority,
+		"environmentBindingId": binding.ID,
+		"items": items,
+	})
+}
+
 func (s *Server) createApplicationDeployment(w http.ResponseWriter, r *http.Request) {
 	appStore, ok := s.store.(applicationPlatformStore)
 	if !ok {
