@@ -427,6 +427,7 @@ AGENT_FAILURE_CAPSULE_AUTHORITY = "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2"
 INSTALLER_OWNER_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_STAGE_V1"
 AGENT_OWNER_PROOF_AUTHORITY = "AUTOPILOT_AGENT_OWNER_PROOF_V1"
 ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY = "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1"
+OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_OWNER_CONTEXT_PATHS_V1"
 AGENT_FAILURE_CAPSULE_MAX_CHARS = 3200
 
 _OWNER_CONTEXT_PATHS: dict[str, tuple[str, ...]] = {
@@ -966,6 +967,8 @@ def _agent_context(root: Path) -> dict:
         "failureCapsuleAuthority": AGENT_FAILURE_CAPSULE_AUTHORITY,
         "ownerProofAuthority": AGENT_OWNER_PROOF_AUTHORITY,
         "installerOwnerStageAuthority": INSTALLER_OWNER_STAGE_AUTHORITY,
+        "ownerContextAuthority": OWNER_CONTEXT_AUTHORITY,
+        "ownerContextPaths": [str(item) for item in report.get("currentOwnerPaths", [])[:12]] if isinstance(report.get("currentOwnerPaths"), list) else [],
         "failureCapsuleMaxChars": AGENT_FAILURE_CAPSULE_MAX_CHARS,
         "failureCapsule": failure_capsule,
         "proofCommand": report.get("currentCommand") if isinstance(report.get("currentCommand"), list) else [],
@@ -1077,6 +1080,8 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "installerOwnerStageAuthority": INSTALLER_OWNER_STAGE_AUTHORITY,
         "agentOwnerProofAuthority": AGENT_OWNER_PROOF_AUTHORITY,
         "environmentPreflightHandoffAuthority": ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY,
+        "ownerContextAuthority": OWNER_CONTEXT_AUTHORITY,
+        "currentOwnerPaths": list(_owner_context_paths(stage)) if stage else [],
         "derived": True,
         "notProductAuthority": True,
         "runId": resolved_run_id,
