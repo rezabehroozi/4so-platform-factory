@@ -161,6 +161,9 @@ autopilot-preflight:
 autopilot-self-test:
 	$(PYTHON) scripts/codex_autopilot.py --self-test
 
+autopilot-status:
+	$(PYTHON) scripts/codex_autopilot.py --event-summary
+
 autopilot-test:
 	$(PYTHON) scripts/codex_autopilot.py
 
