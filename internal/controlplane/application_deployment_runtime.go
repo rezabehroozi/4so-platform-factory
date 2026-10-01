@@ -83,7 +83,11 @@ type ApplicationDeploymentReadback struct {
 	CPULimit             string `json:"cpuLimit"`
 	MemoryRequest        string `json:"memoryRequest"`
 	MemoryLimit          string `json:"memoryLimit"`
+	PodTemplateAuthorityMatch bool `json:"podTemplateAuthorityMatch"`
+	ReadinessProbeMatch  bool   `json:"readinessProbeMatch"`
+	AutomountServiceAccountTokenDisabled bool `json:"automountServiceAccountTokenDisabled"`
 	ServiceObserved      bool   `json:"serviceObserved"`
+	ServiceSelectorMatch bool   `json:"serviceSelectorMatch"`
 	ServiceName          string `json:"serviceName,omitempty"`
 	ServiceClusterIP     string `json:"serviceClusterIp,omitempty"`
 	ServicePort          int    `json:"servicePort,omitempty"`
@@ -294,15 +298,16 @@ func ValidateApplicationDeploymentEvidence(value ApplicationDeploymentEvidence, 
 		r.AvailableReplicas != plan.RuntimeSpec.Replicas || r.WorkloadImage != plan.WorkloadImageReference ||
 		r.CPURequest != plan.RuntimeSpec.CPURequest || r.CPULimit != plan.RuntimeSpec.CPULimit ||
 		r.MemoryRequest != plan.RuntimeSpec.MemoryRequest || r.MemoryLimit != plan.RuntimeSpec.MemoryLimit ||
+		!r.PodTemplateAuthorityMatch || !r.ReadinessProbeMatch || !r.AutomountServiceAccountTokenDisabled ||
 		!r.AuthorityLabelsMatch || !r.AuthorityDigestsMatch {
 		return fmt.Errorf("%w: application deployment workload readback mismatch", ErrValidation)
 	}
 	if plan.RuntimeSpec.ServicePort > 0 {
-		if !r.ServiceObserved || r.ServiceName != plan.WorkloadName || r.ServicePort != plan.RuntimeSpec.ServicePort ||
+		if !r.ServiceObserved || !r.ServiceSelectorMatch || r.ServiceName != plan.WorkloadName || r.ServicePort != plan.RuntimeSpec.ServicePort ||
 			r.ServiceTargetPort != plan.RuntimeSpec.ContainerPort || r.ServiceClusterIP == "" {
 			return fmt.Errorf("%w: application deployment Service readback mismatch", ErrValidation)
 		}
-	} else if r.ServiceObserved || r.ServiceName != "" || r.ServicePort != 0 || r.ServiceTargetPort != 0 {
+	} else if r.ServiceObserved || r.ServiceSelectorMatch || r.ServiceName != "" || r.ServicePort != 0 || r.ServiceTargetPort != 0 {
 		return fmt.Errorf("%w: application deployment unexpected Service readback", ErrValidation)
 	}
 	if _, err = time.Parse(time.RFC3339Nano, strings.TrimSpace(value.ObservedAt)); err != nil {
