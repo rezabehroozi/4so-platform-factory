@@ -39,13 +39,9 @@ func FetchBootstrapToken(ctx context.Context, specPath string, options Options) 
 	if !verification.Valid || verification.StagedOnly || !verification.Readiness.Ready {
 		return nil, AccessHandoff{}, errors.New("remote installer is not a verified live ready deployment")
 	}
-	runner := options.Runner
-	if runner == nil {
-		runner = ExecRunner{}
-	}
-	sshBinary := options.SSHBinary
-	if strings.TrimSpace(sshBinary) == "" {
-		sshBinary = "ssh"
+	runner, sshBinary, err := resolveRunnerAndSSH(options)
+	if err != nil {
+		return nil, AccessHandoff{}, err
 	}
 	tokenPath := filepath.Join(loaded.Root, bootstrapTokenRelativePath)
 	raw, err := runSSH(ctx, runner, sshBinary, loaded, nil, "cat -- "+shellQuote(tokenPath))
