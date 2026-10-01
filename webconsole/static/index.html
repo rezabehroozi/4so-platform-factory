@@ -330,6 +330,11 @@
 <div class="form-actions span-full"><button class="secondary" type="submit">Preview rendered deployment</button></div>
 <small class="span-full">The result is deterministic desired state only. No Kubernetes mutation, runtime convergence, image pull, or Physical certification is inferred.</small>
 </form>
+<div class="form-grid" id="application-deployment-run-controls">
+<label class="span-full"><span>Current deployment operation</span><input class="technical" dir="ltr" id="application-deployment-operation" placeholder="Preview first; no deployment request created" readonly=""/></label>
+<div class="form-actions span-full"><button class="primary" id="application-deployment-request" type="button" disabled="">Create approval-gated deployment</button><button class="secondary" data-viewer-safe="true" id="application-deployment-refresh" type="button" disabled="">Refresh deployment status</button><button class="secondary" id="application-deployment-approve" type="button" disabled="">Approve deployment</button></div>
+<small class="span-full">Request creation is mutating intent and stops at independent approval. Agent execution remains revision/fence-bound; an ambiguous target mutation becomes Recovery Required and is not automatically replayed.</small>
+</div>
 <div aria-live="polite" id="application-deployment-plan-result"></div>
 </div></details>
 <details class="inline-action-disclosure" id="dapr-runtime-workflow"><summary><span class="summary-title">Dapr application runtime</span><span class="summary-help">Assess native-vs-managed Dapr first. Product-managed install/upgrade/remove always becomes a durable, approval-gated operation.</span></summary><div class="inline-action-body">
