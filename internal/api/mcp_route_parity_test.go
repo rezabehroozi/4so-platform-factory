@@ -162,31 +162,34 @@ func TestMCPApplicationDeploymentRoutesKeepPlanningExecutionAndApprovalSemantics
 	registry := loadMCPRouteParityRegistry()
 	want := map[string]struct {
 		method      string
+		path        string
 		disposition string
 		durable     bool
 		risk        string
 	}{
-		"/api/v1/application-platform/environment-bindings/{id}/deployment-plan": {method: http.MethodPost, disposition: "tool-read", durable: false, risk: "low"},
-		"/api/v1/application-platform/environment-bindings/{id}/deployments":     {method: http.MethodPost, disposition: "tool-operate", durable: true, risk: "medium"},
-		"/api/v1/application-platform/deployments/{id}":                          {method: http.MethodGet, disposition: "tool-read", durable: false, risk: "low"},
-		"/api/v1/application-platform/deployments/{id}/approve":                  {method: http.MethodPost, disposition: "tool-admin", durable: true, risk: "high"},
+		"POST /api/v1/application-platform/environment-bindings/{id}/deployment-plan": {method: http.MethodPost, path: "/api/v1/application-platform/environment-bindings/{id}/deployment-plan", disposition: "tool-read", durable: false, risk: "low"},
+		"GET /api/v1/application-platform/environment-bindings/{id}/deployments":       {method: http.MethodGet, path: "/api/v1/application-platform/environment-bindings/{id}/deployments", disposition: "tool-read", durable: false, risk: "low"},
+		"POST /api/v1/application-platform/environment-bindings/{id}/deployments":      {method: http.MethodPost, path: "/api/v1/application-platform/environment-bindings/{id}/deployments", disposition: "tool-operate", durable: true, risk: "medium"},
+		"GET /api/v1/application-platform/deployments/{id}":                            {method: http.MethodGet, path: "/api/v1/application-platform/deployments/{id}", disposition: "tool-read", durable: false, risk: "low"},
+		"POST /api/v1/application-platform/deployments/{id}/approve":                   {method: http.MethodPost, path: "/api/v1/application-platform/deployments/{id}/approve", disposition: "tool-admin", durable: true, risk: "high"},
 	}
 	seen := map[string]bool{}
 	for _, route := range registry.Routes {
-		expected, ok := want[route.Path]
+		key := route.Method + " " + route.Path
+		expected, ok := want[key]
 		if !ok {
 			continue
 		}
-		seen[route.Path] = true
-		if route.Method != expected.method || route.Disposition != expected.disposition ||
+		seen[key] = true
+		if route.Method != expected.method || route.Path != expected.path || route.Disposition != expected.disposition ||
 			route.DurableJob != expected.durable || route.IdempotencyRequired != expected.durable ||
 			route.Risk != expected.risk {
 			t.Fatalf("application deployment MCP semantics drifted: %+v", route)
 		}
 	}
-	for path := range want {
-		if !seen[path] {
-			t.Fatalf("application deployment route missing from MCP parity: %s", path)
+	for route := range want {
+		if !seen[route] {
+			t.Fatalf("application deployment route missing from MCP parity: %s", route)
 		}
 	}
 }
