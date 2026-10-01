@@ -29,7 +29,7 @@ const (
 
 var (
 	applicationPlatformDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	applicationWorkloadImagePattern  = regexp.MustCompile(`^[^\\s@]+@sha256:[0-9a-f]{64}$`)
+	applicationWorkloadImagePattern  = regexp.MustCompile(`^[^\s@]+@sha256:[0-9a-f]{64}$`)
 )
 type WorkloadType struct {
 	ResourceMeta
