@@ -1916,14 +1916,22 @@ function isMutationButton(button) {
   const action = String(actionEntry?.[1] || '').toLowerCase();
   return explicitMutation || !['inspect','view','timeline','bundle','impact'].includes(action);
 }
+let actionAvailabilityScheduled=false;
+function scheduleActionAvailability(){
+  if(actionAvailabilityScheduled)return;
+  actionAvailabilityScheduled=true;
+  queueMicrotask(()=>{actionAvailabilityScheduled=false;renderActionAvailability();});
+}
 function setIntrinsicDisabled(control, disabled) {
   if(!control)return;
   if(control.dataset?.accessDisabled==='true'){
     control.dataset.accessPriorDisabled=disabled?'true':'false';
     control.disabled=true;
+    scheduleActionAvailability();
     return;
   }
   control.disabled=disabled;
+  scheduleActionAvailability();
 }
 function setAccessDisabled(button, disabled, reason='Read-only session') {
   if(disabled){
@@ -1968,12 +1976,16 @@ function localizeActionAvailabilityReason(reason){
 function renderActionAvailability(){
   const banner=$('#page-action-availability');if(!banner)return;
   const active=$('.page.active');
-  const disabled=active?$$('button[data-access-disabled="true"]',active):[];
-  const reasons=[...new Set(disabled.map(button=>button.dataset.accessReason).filter(Boolean))].slice(0,3);
+  const accessDisabled=active?$('button[data-access-disabled="true"]',active):[];
+  const intrinsicDisabled=active?$('button:disabled[title]',active).filter(button=>button.dataset.accessDisabled!=='true'&&String(button.title||'').trim()):[];
+  const reasons=[...new Set([
+    ...accessDisabled.map(button=>button.dataset.accessReason),
+    ...intrinsicDisabled.map(button=>button.title)
+  ].filter(Boolean).map(reason=>String(reason).trim()))].slice(0,4);
   if(!reasons.length){banner.hidden=true;banner.innerHTML='';return;}
   const faLocale=state.locale==='fa';
   banner.hidden=false;
-  banner.innerHTML=`<strong>${esc(faLocale?'برخی اقدام‌ها در وضعیت فعلی در دسترس نیستند':'Some actions are unavailable in the current context')}</strong><span>${esc(reasons.map(localizeActionAvailabilityReason).join(' · '))}</span><small>${esc(faLocale?'دکمه‌ها عمداً غیرفعال می‌مانند؛ محدوده، نقش یا وضعیت عملیات را تغییر دهید و سپس دوباره بررسی کنید.':'Buttons remain fail-closed. Change scope, role, or operation state and then retry.')}</small>`;
+  banner.innerHTML=`<strong>${esc(faLocale?'برخی اقدام‌ها در وضعیت فعلی در دسترس نیستند':'Some actions are unavailable in the current context')}</strong><span>${esc(reasons.map(localizeActionAvailabilityReason).join(' · '))}</span><small>${esc(faLocale?'دکمه‌ها عمداً غیرفعال می‌مانند؛ محدوده، نقش، پیش‌نیاز یا وضعیت عملیات را اصلاح کنید و سپس دوباره بررسی کنید.':'Buttons remain fail-closed. Resolve the scope, role, prerequisite, or operation-state blocker and then retry.')}</small>`;
 }
 function applyAccessMode(root = document) {
   applyKnownMutationScopes();
