@@ -611,6 +611,73 @@ def _workspace_fingerprint(root: Path) -> str:
     return digest.hexdigest()
 
 
+def _workspace_manifest(root: Path) -> dict[str, str]:
+    """Digest product inputs around one repair boundary.
+
+    The manifest is used only to decide whether selective convergence is safe.
+    Runtime outputs are excluded by the same rules as the durable workspace
+    fingerprint. Any unreadable/churning file forces conservative convergence.
+    """
+    manifest: dict[str, str] = {}
+    for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root)
+        if any(part in _FINGERPRINT_EXCLUDED_DIRS for part in rel.parts):
+            continue
+        if path.name.endswith((".pyc", ".pyo", "~", ".bak")):
+            continue
+        digest = hashlib.sha256()
+        try:
+            with path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        except OSError:
+            manifest[rel.as_posix()] = "UNREADABLE"
+            continue
+        manifest[rel.as_posix()] = digest.hexdigest()
+    return manifest
+
+
+def _workspace_manifest_delta(before: dict[str, str], after: dict[str, str]) -> list[str]:
+    return sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
+
+
+def _repair_path_in_owner_scope(stage: Stage, relative_path: str) -> bool:
+    """Whether a repair stayed inside the failing specialist's normal owner surface.
+
+    This is intentionally conservative and is not an authorization boundary.
+    A false result merely expands the final convergence back to the full graph.
+    """
+    path = relative_path.replace("\\", "/").lstrip("./")
+    specialist = _stage_specialist(stage)
+    common = (
+        "scripts/codex_autopilot.py",
+        "tests/test_codex_autopilot.py",
+        "scripts/validate_repository.py",
+    )
+    if path in common:
+        return True
+    prefixes: dict[str, tuple[str, ...]] = {
+        "operator-console": ("webconsole/", "scripts/smoke_ui", "scripts/persian_", "tests/test_smoke_ui"),
+        "installer-runtime": ("cmd/platform-installer/", "cmd/platformctl/installer_", "internal/bootstrap/", "internal/hostdeployment/", "internal/remotebootstrap/", "scripts/smoke_installer", "tests/test_installer"),
+        "developer-agent-experience": ("AGENTS.md", "DERIVED-AGENT-KNOWLEDGE.json", "scripts/generate_agent_knowledge.py", "scripts/browser_triage_", "tests/test_browser_"),
+        "lab-certification": ("lab/", "scripts/lab_runner.py", "scripts/test_lab_runner.py", "scripts/postgresql_runtime_certify.py", "internal/fieldcampaign/"),
+        "supply-chain-release": ("catalog/", "scripts/build_release.py", "scripts/verify_release", "scripts/acquire_upstream_", "internal/bundlebuilder/", "internal/releaseartifact/", "ARTIFACT-MANIFEST.json", "SBOM.spdx.json"),
+        "product-runtime": ("internal/api/", "internal/domain/", "internal/persistence/", "cmd/platform-api/", "cmd/platform-agent/", "scripts/smoke_"),
+        "backend-correctness": ("internal/", "cmd/", "sdk/", "tests/", "scripts/run_go_", "scripts/run_smoke_shard.py"),
+    }
+    return any(path.startswith(prefix) for prefix in prefixes.get(specialist, ()))
+
+
+def _repair_requires_full_convergence(stage: Stage, changed_paths: list[str]) -> bool:
+    if not changed_paths:
+        # An agent claiming success without changing source is ambiguous; the
+        # repaired owner stage will rerun, but final convergence stays full.
+        return True
+    return any(not _repair_path_in_owner_scope(stage, path) for path in changed_paths)
+
+
 def _stage_graph_signature(stages: list[Stage], *, repair: bool) -> str:
     payload = {
         "repair": repair,
@@ -1030,7 +1097,7 @@ def _load_checkpoint(root: Path, *, graph_signature: str, repair: bool) -> dict 
     return state
 
 
-def _checkpoint_forward(root: Path, *, graph_signature: str, repair: bool, next_index: int, repair_count: int, seen_failures: dict[tuple[str, str], int], current_stage: str | None = None, run_id: str | None = None) -> None:
+def _checkpoint_forward(root: Path, *, graph_signature: str, repair: bool, next_index: int, repair_count: int, seen_failures: dict[tuple[str, str], int], current_stage: str | None = None, full_convergence_required: bool = False, run_id: str | None = None) -> None:
     _write_checkpoint(root, {
         "graphSignature": graph_signature,
         "repair": repair,
@@ -1039,6 +1106,7 @@ def _checkpoint_forward(root: Path, *, graph_signature: str, repair: bool, next_
         "currentStage": current_stage,
         "runId": run_id or "",
         "repairCount": repair_count,
+        "fullConvergenceRequired": bool(full_convergence_required),
         "seenFailures": [{"stage": key[0], "fingerprint": key[1], "count": value} for key, value in sorted(seen_failures.items())],
     })
 
@@ -1080,6 +1148,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
         return 4
     seen_failures: dict[tuple[str, str], int] = _decode_seen_failures(state or {})
     repair_count = int((state or {}).get("repairCount", 0))
+    full_convergence_required = bool((state or {}).get("fullConvergenceRequired", False))
     phase = str((state or {}).get("phase", "forward"))
     next_index = int((state or {}).get("nextIndex", 0))
     if next_index < 0 or next_index > len(stages):
@@ -1088,6 +1157,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
         phase = "forward"
         next_index = 0
         repair_count = 0
+        full_convergence_required = False
         seen_failures = {}
         state = None
     if state:
@@ -1112,7 +1182,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
         for index in range(next_index, len(stages)):
             stage = stages[index]
             while True:
-                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, run_id=run_id)
+                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, full_convergence_required=full_convergence_required, run_id=run_id)
                 _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index, repair_count=repair_count, status="RUNNING", current_stage=stage.name, stage_results=report_rows)
                 event_log.append("stage-start", phase="forward", stage=stage.name, specialist=_stage_specialist(stage), status="RUNNING", nextIndex=index, repairCount=repair_count)
                 print(f"AUTOPILOT_STAGE_START name={stage.name} timeout={stage.timeout}", flush=True)
@@ -1123,12 +1193,12 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index + (1 if result.status == "PASS" else 0), repair_count=repair_count, status="RUNNING" if result.status == "PASS" else result.status, current_stage=stage.name, stage_results=report_rows, last_failure=None if result.status == "PASS" else {"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
                 print(json.dumps(dataclasses.asdict(result), sort_keys=True), flush=True)
                 if result.status == "PASS":
-                    _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index + 1, repair_count=repair_count, seen_failures=seen_failures, run_id=run_id)
+                    _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index + 1, repair_count=repair_count, seen_failures=seen_failures, full_convergence_required=full_convergence_required, run_id=run_id)
                     break
 
                 key = (stage.name, result.fingerprint)
                 seen_failures[key] = seen_failures.get(key, 0) + 1
-                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, run_id=run_id)
+                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, full_convergence_required=full_convergence_required, run_id=run_id)
                 if result.status == "TIMEOUT":
                     print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason=TIMEOUT fingerprint={result.fingerprint}", flush=True)
                     return terminal(3, "ENVIRONMENT_BLOCKED", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "TIMEOUT"})
@@ -1145,7 +1215,27 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 repair_count += 1
                 event_log.append("repair-start", phase="forward", stage=stage.name, specialist=_stage_specialist(stage), status="REPAIRING", fingerprint=result.fingerprint, nextIndex=index, repairCount=repair_count)
                 _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index, repair_count=repair_count, status="REPAIRING", current_stage=stage.name, stage_results=report_rows, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
+                before_repair = _workspace_manifest(root)
                 ok, detail = invoke_codex(root, stage, result, repair_count, codex_timeout)
+                after_repair = _workspace_manifest(root)
+                changed_paths = _workspace_manifest_delta(before_repair, after_repair)
+                repair_requires_full = _repair_requires_full_convergence(stage, changed_paths)
+                full_convergence_required = full_convergence_required or repair_requires_full
+                event_log.append(
+                    "repair-delta",
+                    phase="forward",
+                    stage=stage.name,
+                    specialist=_stage_specialist(stage),
+                    status="FULL_CONVERGENCE" if repair_requires_full else "OWNER_SCOPED",
+                    reason=",".join(changed_paths[:12]),
+                    repairCount=repair_count,
+                )
+                print(
+                    f"AUTOPILOT_REPAIR_DELTA stage={stage.name} changed={len(changed_paths)} "
+                    f"fullConvergence={str(repair_requires_full).lower()} "
+                    f"paths={','.join(changed_paths[:12])}",
+                    flush=True,
+                )
                 print(f"AUTOPILOT_CODEX_REPAIR iteration={repair_count} status={'PASS' if ok else 'BLOCKED'}", flush=True)
                 if detail:
                     print(detail, flush=True)
@@ -1156,7 +1246,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 # fingerprint while keeping the same failing-stage boundary so
                 # a runner crash immediately after repair resumes by proving the
                 # repaired owner stage rather than replaying earlier green work.
-                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, run_id=run_id)
+                _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, full_convergence_required=full_convergence_required, run_id=run_id)
 
         # Repairs are incremental: rerun only the failing owner stage while
         # fixing, then execute one final no-repair convergence pass. Persist the
@@ -1166,9 +1256,10 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
             phase = "convergence"
             next_index = 0
             repaired_stage_names = {stage_name for (stage_name, _fingerprint_value), count in seen_failures.items() if count > 0}
-            convergence_stages = _select_convergence_stages(stages, repaired_stage_names)
-            event_log.append("phase-transition", phase="convergence", status="RUNNING", nextIndex=0, repairCount=repair_count, reason=f"selective:{len(convergence_stages)}/{len(stages)}")
-            print(f"AUTOPILOT_CONVERGENCE_PLAN selected={len(convergence_stages)} total={len(stages)} stages={','.join(stage.name for stage in convergence_stages)}", flush=True)
+            convergence_stages = list(stages) if full_convergence_required else _select_convergence_stages(stages, repaired_stage_names)
+            convergence_mode = "full" if full_convergence_required else "selective"
+            event_log.append("phase-transition", phase="convergence", status="RUNNING", nextIndex=0, repairCount=repair_count, reason=f"{convergence_mode}:{len(convergence_stages)}/{len(stages)}")
+            print(f"AUTOPILOT_CONVERGENCE_PLAN mode={convergence_mode} selected={len(convergence_stages)} total={len(stages)} stages={','.join(stage.name for stage in convergence_stages)}", flush=True)
             _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=0, repair_count=repair_count, seen_failures=seen_failures, convergence_stages=convergence_stages, run_id=run_id)
         else:
             phase = "done"
