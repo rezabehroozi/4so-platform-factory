@@ -329,6 +329,9 @@ class AutopilotReportTests(unittest.TestCase):
             self.assertEqual(data["selectiveConvergenceAuthority"], "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1")
             self.assertEqual(data["repairScopeFenceAuthority"], "AUTOPILOT_REPAIR_SCOPE_FENCE_V1")
             self.assertEqual(data["structuredTriageAuthority"], "AUTOPILOT_STRUCTURED_TRIAGE_V1")
+            self.assertEqual(data["repairGitBoundaryAuthority"], "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1")
+            self.assertEqual(data["dirtyDeltaAuthority"], "AUTOPILOT_DIRTY_DELTA_V1")
+            self.assertEqual(data["workspaceFingerprintAuthority"], "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1")
             self.assertTrue(data["notProductAuthority"])
             self.assertEqual(data["stageResults"][0]["specialist"], "operator-console")
             self.assertNotIn("output_tail", data["stageResults"][0])
@@ -608,6 +611,37 @@ class StageAwarePreflightCLITests(unittest.TestCase):
 
 
 class TokenEfficientAutopilotTests(unittest.TestCase):
+    def test_repair_prompt_forbids_git_history_mutation(self):
+        stage = AUTOPILOT.Stage("smoke-4", ("true",), 10)
+        result = AUTOPILOT.StageResult("smoke-4", "FAIL", 1, 0.1, "fp", "failed")
+        prompt = AUTOPILOT._repair_prompt(stage, result, 1, "CLASSIFICATION=CODE_DEFECT")
+        self.assertIn("Do not commit", prompt)
+        self.assertIn("mutate Git refs/index/history", prompt)
+
+    def test_git_workspace_fingerprint_hashes_only_dirty_paths_when_available(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "clean.txt").write_text("clean\n", encoding="utf-8")
+            (root / "dirty.txt").write_text("dirty\n", encoding="utf-8")
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_git_dirty_paths", return_value=["dirty.txt"]), \
+                 mock.patch.object(AUTOPILOT, "_full_workspace_fingerprint", side_effect=AssertionError("full tree fallback used")):
+                first = AUTOPILOT._workspace_fingerprint(root)
+                (root / "clean.txt").write_text("changed but not declared dirty\n", encoding="utf-8")
+                second = AUTOPILOT._workspace_fingerprint(root)
+                self.assertEqual(first, second)
+                (root / "dirty.txt").write_text("changed dirty\n", encoding="utf-8")
+                third = AUTOPILOT._workspace_fingerprint(root)
+                self.assertNotEqual(second, third)
+
+    def test_workspace_fingerprint_falls_back_when_git_enumeration_unavailable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "source.txt").write_text("source\n", encoding="utf-8")
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value=""), \
+                 mock.patch.object(AUTOPILOT, "_git_dirty_paths", return_value=None):
+                self.assertEqual(AUTOPILOT._workspace_fingerprint(root), AUTOPILOT._full_workspace_fingerprint(root))
+
     def test_failure_capsule_is_bounded_redacted_and_signal_first(self):
         raw = "\n".join(
             [f"noise line {i}" for i in range(80)]
