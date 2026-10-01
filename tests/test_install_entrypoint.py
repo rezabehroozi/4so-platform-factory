@@ -120,6 +120,17 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         next_command = source.index("nextCommand=sudo bash %q preflight", doctor)
         self.assertGreater(next_command, doctor)
 
+    def test_preflight_and_plan_emit_exact_copy_paste_handoffs_without_new_state(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("print_exact_next_command()", source)
+        self.assertIn('if [[ "${mode}" == "preflight" ]]', source)
+        self.assertIn('print_exact_next_command plan "${passthrough[@]}"', source)
+        self.assertIn('if [[ "${mode}" == "plan" ]]', source)
+        self.assertIn("install_passthrough+=(--enable-execution --confirmation DEPLOY)", source)
+        self.assertIn('print_exact_next_command install "${install_passthrough[@]}"', source)
+        self.assertIn('declare -a manual_args=(installer-manual "${mode}"', source)
+        self.assertNotIn("manual-install-handoff.json", source)
+
     def test_normal_install_fails_early_without_actionable_browser_flags(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn("INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1", source)
