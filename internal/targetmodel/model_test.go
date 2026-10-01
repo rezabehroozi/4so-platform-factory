@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c8 := byID["C8-console-operational-completion"]
-	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1", "ACTIONABLE_EMPTY_STATE_RECOVERY_V1", "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1", "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1", "CRITICAL_INTERACTION_LOCALIZATION_GRAMMAR_V1", "DISCLOSURE_SAFE_LIVE_PROGRESS_REFRESH_V1"} {
+	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1", "ACTIONABLE_EMPTY_STATE_RECOVERY_V1", "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1", "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1", "CRITICAL_INTERACTION_LOCALIZATION_GRAMMAR_V1", "DISCLOSURE_SAFE_LIVE_PROGRESS_REFRESH_V1", "DAPR_RUNTIME_JOURNEY_V1"} {
 		if !containsString(c8.Evidence, evidence) {
 			t.Fatalf("C8 task-first journey evidence %q missing: %#v", evidence, c8)
 		}
@@ -213,11 +213,13 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	for _, criterion := range []string{
 		"core workflows expose prerequisite -> input -> preview -> approval -> progress -> evidence/recovery without hidden dead ends",
 		"Platform Templates and Application Delivery are separate navigation destinations rather than one overloaded page",
+		"optional Dapr runtime lifecycle and workload admission live on a separate Delivery route so the primary Application Delivery journey is not overloaded",
 		"Application Delivery exposes UI creation paths for WorkloadType, CapabilityTrait, ManagedResourceType and WorkspaceProfile before Release -> EnvironmentBinding -> Plan/Request -> Observed Evidence",
 		"Application Delivery keeps downstream journey steps focusable but aria-disabled with a localized prerequisite reason until the previous authoritative step exists",
 		"Application Delivery critical form labels, help and actions round-trip English -> Persian/RTL -> English without leaving mixed-language workflow controls",
 		"critical toast/confirm/detail action grammar localizes approval, revoke, delete, cancel, retry and recovery flows including dynamic resource identifiers instead of falling back to English interaction sentences",
 		"application collection reads and mutation forms follow the selected global project scope and backend RBAC instead of cross-project dropdown aggregation",
+		"Dapr assessment and workload-plan remain viewer-safe project reads while lifecycle mutation and independent approval remain project-scoped and fail-closed",
 		"disabled mutation controls expose visible page-level role/scope/state reasons while remaining fail-closed",
 		"empty and prerequisite states expose a direct in-product next action when an owner UI exists and runtime-generated guidance is re-rendered correctly after locale changes",
 		"durable application deployment progress is refreshed read-only without requiring mutation replay or a manual page refresh",
