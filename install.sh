@@ -127,6 +127,25 @@ while (($#)); do
   esac
 done
 
+if [[ "${mode}" == "install" ]]; then
+  execution_requested=false
+  deploy_confirmed=false
+  for ((i=0; i<${#passthrough[@]}; i++)); do
+    [[ "${passthrough[i]}" == "--enable-execution" ]] && execution_requested=true
+    if [[ "${passthrough[i]}" == "--confirmation" && $((i + 1)) -lt ${#passthrough[@]} && "${passthrough[i+1]}" == "DEPLOY" ]]; then
+      deploy_confirmed=true
+    fi
+  done
+  if [[ "${execution_requested}" != true ]]; then
+    echo "ERROR ${AUTHORITY}: normal install requires --enable-execution so the Browser Installer is actionable after host deployment" >&2
+    exit 2
+  fi
+  if [[ "${deploy_confirmed}" != true ]]; then
+    echo "ERROR ${AUTHORITY}: install requires explicit --confirmation DEPLOY" >&2
+    exit 2
+  fi
+fi
+
 if [[ -z "${bundle_dir}" ]]; then
   bundle_dir="$(discover_bundle_dir || true)"
 fi
