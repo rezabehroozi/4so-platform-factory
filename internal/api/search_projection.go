@@ -34,6 +34,7 @@ type searchProjectionDocument struct {
 	Title     string    `json:"title"`
 	Summary   string    `json:"summary"`
 	SourceRef string    `json:"sourceRef"`
+	OwnerRef  string    `json:"ownerRef"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	Digest    string    `json:"digest"`
 }
@@ -100,26 +101,34 @@ func (s *Server) buildSearchProjectionDocuments(r *http.Request, projectID strin
 	docs := make([]searchProjectionDocument, 0, len(clusters)+len(operations)+len(evidence)+len(audit))
 	allowedResources := map[string]bool{projectID: true}
 	operationIDs := map[string]bool{}
+	clusterIDs := map[string]bool{}
 	for _, cluster := range clusters {
 		allowedResources[cluster.ID] = true
-		docs = append(docs, finalizeSearchDocument(searchProjectionDocument{ID: "cluster:" + cluster.ID, ProjectID: projectID, Type: "cluster", Title: cluster.DisplayName, Summary: strings.TrimSpace(strings.Join([]string{cluster.Name, cluster.Distribution, cluster.KubernetesVersion, cluster.ConnectionState, strings.Join(cluster.Capabilities, " ")}, " ")), SourceRef: "managedCluster:" + cluster.ID, UpdatedAt: cluster.UpdatedAt}))
+		clusterIDs[cluster.ID] = true
+		docs = append(docs, finalizeSearchDocument(searchProjectionDocument{ID: "cluster:" + cluster.ID, ProjectID: projectID, Type: "cluster", Title: cluster.DisplayName, Summary: strings.TrimSpace(strings.Join([]string{cluster.Name, cluster.Distribution, cluster.KubernetesVersion, cluster.ConnectionState, strings.Join(cluster.Capabilities, " ")}, " ")), SourceRef: "managedCluster:" + cluster.ID, OwnerRef: "cluster:" + cluster.ID, UpdatedAt: cluster.UpdatedAt}))
 	}
 	for _, operation := range operations {
 		allowedResources[operation.ID] = true
 		operationIDs[operation.ID] = true
-		docs = append(docs, finalizeSearchDocument(searchProjectionDocument{ID: "operation:" + operation.ID, ProjectID: projectID, Type: "operation", Title: operation.Kind, Summary: strings.TrimSpace(strings.Join([]string{string(operation.State), operation.TargetRef, operation.Risk, operation.LastError}, " ")), SourceRef: "operation:" + operation.ID, UpdatedAt: operation.UpdatedAt}))
+		docs = append(docs, finalizeSearchDocument(searchProjectionDocument{ID: "operation:" + operation.ID, ProjectID: projectID, Type: "operation", Title: operation.Kind, Summary: strings.TrimSpace(strings.Join([]string{string(operation.State), operation.TargetRef, operation.Risk, operation.LastError}, " ")), SourceRef: "operation:" + operation.ID, OwnerRef: "operation:" + operation.ID, UpdatedAt: operation.UpdatedAt}))
 	}
 	for _, item := range evidence {
 		if !operationIDs[item.OperationID] {
 			continue
 		}
-		docs = append(docs, finalizeSearchDocument(searchProjectionDocument{ID: "evidence:" + item.ID, ProjectID: projectID, Type: "evidence", Title: item.Kind, Summary: strings.TrimSpace(strings.Join([]string{item.MediaType, item.Digest, item.Location, item.StepKey}, " ")), SourceRef: "evidence:" + item.ID, UpdatedAt: item.UpdatedAt}))
+		docs = append(docs, finalizeSearchDocument(searchProjectionDocument{ID: "evidence:" + item.ID, ProjectID: projectID, Type: "evidence", Title: item.Kind, Summary: strings.TrimSpace(strings.Join([]string{item.MediaType, item.Digest, item.Location, item.StepKey}, " ")), SourceRef: "evidence:" + item.ID, OwnerRef: "operation:" + item.OperationID, UpdatedAt: item.UpdatedAt}))
 	}
 	for _, item := range audit {
 		if !allowedResources[item.ResourceID] {
 			continue
 		}
-		docs = append(docs, finalizeSearchDocument(searchProjectionDocument{ID: "audit:" + item.ID, ProjectID: projectID, Type: "audit", Title: item.Action, Summary: strings.TrimSpace(strings.Join([]string{item.ActorID, item.ResourceType, item.ResourceID, item.RequestID}, " ")), SourceRef: "audit:" + item.ID, UpdatedAt: item.OccurredAt}))
+		ownerRef := "project:" + projectID
+		if operationIDs[item.ResourceID] {
+			ownerRef = "operation:" + item.ResourceID
+		} else if clusterIDs[item.ResourceID] {
+			ownerRef = "cluster:" + item.ResourceID
+		}
+		docs = append(docs, finalizeSearchDocument(searchProjectionDocument{ID: "audit:" + item.ID, ProjectID: projectID, Type: "audit", Title: item.Action, Summary: strings.TrimSpace(strings.Join([]string{item.ActorID, item.ResourceType, item.ResourceID, item.RequestID}, " ")), SourceRef: "audit:" + item.ID, OwnerRef: ownerRef, UpdatedAt: item.OccurredAt}))
 	}
 	sort.Slice(docs, func(i, j int) bool {
 		if docs[i].Type != docs[j].Type {
