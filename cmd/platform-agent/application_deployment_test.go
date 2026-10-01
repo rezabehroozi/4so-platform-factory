@@ -135,8 +135,13 @@ func TestApplicationDeploymentUnknownMutationOutcomeRequiresRecovery(t *testing.
 
 func TestApplicationDeploymentRemovesOwnedServiceWhenNoLongerDesired(t *testing.T) {
 	task := applicationDeploymentAgentTask(t)
-	task.Request.Plan.RuntimeSpec.ServicePort = 0
 	service := cloneApplicationResource(t, task.Request.Plan.RenderedResources[1])
+	oldRuntimeDigest := fmt.Sprint(service["metadata"].(map[string]any)["annotations"].(map[string]any)["platform.4so.io/runtime-spec-digest"])
+	task.Request.Plan.RuntimeSpec.ServicePort = 0
+	task.Request.Plan.RuntimeSpecDigest = "sha256:" + strings.Repeat("9", 64)
+	if oldRuntimeDigest == task.Request.Plan.RuntimeSpecDigest {
+		t.Fatal("Service cleanup regression fixture did not create a stale runtime digest")
+	}
 	meta := service["metadata"].(map[string]any)
 	meta["uid"] = "uid-service"
 	meta["resourceVersion"] = "17"
@@ -171,10 +176,39 @@ func TestApplicationDeploymentRemovesOwnedServiceWhenNoLongerDesired(t *testing.
 	}
 }
 
+func TestApplicationDeploymentNeverDeletesForeignService(t *testing.T) {
+	task := applicationDeploymentAgentTask(t)
+	service := cloneApplicationResource(t, task.Request.Plan.RenderedResources[1])
+	task.Request.Plan.RuntimeSpec.ServicePort = 0
+	service["metadata"].(map[string]any)["labels"].(map[string]any)["platform.4so.io/environment-binding"] = "aeb-foreign"
+	meta := service["metadata"].(map[string]any)
+	meta["uid"] = "uid-foreign-service"
+	meta["resourceVersion"] = "19"
+	servicePath := "/api/v1/namespaces/payments/services/" + task.Request.Plan.WorkloadName
+	deleteCalls := 0
+	a := virtualClusterAgentForKubeTest(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == servicePath:
+			return jsonResponse(http.StatusOK, service), nil
+		case r.Method == http.MethodDelete:
+			deleteCalls++
+			return jsonResponse(http.StatusOK, map[string]any{"kind":"Status"}), nil
+		default:
+			return jsonResponse(http.StatusMethodNotAllowed, nil), nil
+		}
+	}))
+	a.clusterID = task.Request.Plan.ClusterID
+	unknown, err := a.removeApplicationDeploymentServiceIfNotDesired(context.Background(), task.Request)
+	if err == nil || unknown || deleteCalls != 0 || !strings.Contains(err.Error(), "foreign Service") {
+		t.Fatalf("foreign Service cleanup fence failed: unknown=%v deleteCalls=%d err=%v", unknown, deleteCalls, err)
+	}
+}
+
 func TestApplicationDeploymentServiceDeleteAmbiguityRequiresRecovery(t *testing.T) {
 	task := applicationDeploymentAgentTask(t)
-	task.Request.Plan.RuntimeSpec.ServicePort = 0
 	service := cloneApplicationResource(t, task.Request.Plan.RenderedResources[1])
+	task.Request.Plan.RuntimeSpec.ServicePort = 0
+	task.Request.Plan.RuntimeSpecDigest = "sha256:" + strings.Repeat("8", 64)
 	meta := service["metadata"].(map[string]any)
 	meta["uid"] = "uid-service"
 	meta["resourceVersion"] = "21"
