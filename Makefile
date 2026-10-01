@@ -164,6 +164,9 @@ autopilot-self-test:
 autopilot-status:
 	$(PYTHON) scripts/codex_autopilot.py --event-summary
 
+autopilot-context:
+	$(PYTHON) scripts/codex_autopilot.py --agent-context
+
 autopilot-test:
 	$(PYTHON) scripts/codex_autopilot.py
 
