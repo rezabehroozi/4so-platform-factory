@@ -438,6 +438,7 @@ PROMPT_BUDGET_AUTHORITY = "AUTOPILOT_PROMPT_BUDGET_V1"
 AGENT_REPAIR_BUDGET_AUTHORITY = "AUTOPILOT_AGENT_REPAIR_BUDGET_V1"
 FAILURE_PATH_HINTS_AUTHORITY = "AUTOPILOT_FAILURE_PATH_HINTS_V1"
 EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY = "AUTOPILOT_EXTERNAL_OWNER_FIX_ADOPTION_V1"
+DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY = "AUTOPILOT_DURABLE_TRIAGE_CLASSIFICATION_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -1071,7 +1072,7 @@ def _agent_context(root: Path) -> dict:
         "resumeEligible": bool(report.get("resumeEligible", False)),
         "lastFailure": {
             key: last_failure.get(key)
-            for key in ("stage", "specialist", "status", "fingerprint", "reason")
+            for key in ("stage", "specialist", "status", "fingerprint", "reason", "classification")
             if isinstance(last_failure, dict) and last_failure.get(key) not in (None, "")
         },
         "failureCapsuleAuthority": AGENT_FAILURE_CAPSULE_AUTHORITY,
@@ -1085,6 +1086,7 @@ def _agent_context(root: Path) -> dict:
         "failurePathHintsAuthority": FAILURE_PATH_HINTS_AUTHORITY,
         "failurePathHints": failure_path_hints,
         "externalOwnerFixAdoptionAuthority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
+        "durableTriageClassificationAuthority": DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
         "promptBudgetChars": report.get("promptBudgetChars") if isinstance(report.get("promptBudgetChars"), dict) else {
@@ -1210,6 +1212,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "agentRepairBudgetAuthority": AGENT_REPAIR_BUDGET_AUTHORITY,
         "failurePathHintsAuthority": FAILURE_PATH_HINTS_AUTHORITY,
         "externalOwnerFixAdoptionAuthority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
+        "durableTriageClassificationAuthority": DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY,
         "defaultRepairBudget": DEFAULT_REPAIR_BUDGET,
         "defaultAgentRepairBudget": DEFAULT_AGENT_REPAIR_BUDGET,
         "promptBudgetChars": {
