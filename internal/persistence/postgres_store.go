@@ -875,6 +875,33 @@ func (s *PostgresStore) ListOperationsPage(ctx context.Context, projectID string
 	return values, rows.Err()
 }
 
+// ListOperationsByKindTargetPage applies project, kind and exact-target
+// filtering before LIMIT so owner workflow history stays bounded and complete
+// even when the project has high unrelated operation volume.
+func (s *PostgresStore) ListOperationsByKindTargetPage(ctx context.Context, projectID, kind, targetRef string, limit int) ([]controlplane.Operation, error) {
+	projectID, kind, targetRef = strings.TrimSpace(projectID), strings.TrimSpace(kind), strings.TrimSpace(targetRef)
+	if projectID == "" || kind == "" || targetRef == "" || limit <= 0 || limit > 200 {
+		return nil, fmt.Errorf("%w: project, operation kind, exact target and limit 1..200 are required", controlplane.ErrValidation)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT `+operationColumns+` FROM operations
+WHERE project_id=$1 AND kind=$2 AND target_ref=$3
+ORDER BY updated_at DESC,created_at DESC,id DESC
+LIMIT $4`, projectID, kind, targetRef, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	values := make([]controlplane.Operation, 0, limit)
+	for rows.Next() {
+		value, scanErr := scanOperation(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		values = append(values, value)
+	}
+	return values, rows.Err()
+}
+
 // ListOperationsPageByProjects applies project authorization inside the bounded
 // PostgreSQL query. Filtering a global LIMIT result in the API is incorrect for
 // scoped principals because newer foreign rows can evict older authorized rows
