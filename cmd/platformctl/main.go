@@ -78,9 +78,9 @@ func usage() {
   platformctl field-campaign status --state campaign.json
   platformctl installer-access status --installer-url https://installer.example [--token-file FILE] [--ca-file FILE]
   platformctl installer-access rotate-token --installer-url https://installer.example --out-token-file FILE --confirmation ROTATE [--token-file FILE] [--ca-file FILE]
-  platformctl installer-manual preflight --bundle-dir DIR [--installer-binary FILE] [--listen 127.0.0.1:9080] [--tls-cert FILE --tls-key FILE] [--enable-execution]
-  platformctl installer-manual plan --bundle-dir DIR [--installer-binary FILE] [--out-spec FILE]
-  platformctl installer-manual install --bundle-dir DIR --confirmation DEPLOY [--installer-binary FILE] [--enable-execution] [--tls-cert FILE --tls-key FILE]
+  platformctl installer-manual preflight --bundle-dir DIR --release-artifact RELEASE.zip [--installer-binary FILE] [--listen 127.0.0.1:9080] [--tls-cert FILE --tls-key FILE] [--enable-execution]
+  platformctl installer-manual plan --bundle-dir DIR --release-artifact RELEASE.zip [--installer-binary FILE] [--out-spec FILE]
+  platformctl installer-manual install --bundle-dir DIR --release-artifact RELEASE.zip --confirmation DEPLOY [--installer-binary FILE] [--enable-execution] [--tls-cert FILE --tls-key FILE]
   platformctl installer-manual status [--state FILE] [--root /]
   platformctl installer-manual verify [--state FILE] [--root /]
   platformctl installer-manual recover --confirmation RECOVER [--state FILE] [--root /]
