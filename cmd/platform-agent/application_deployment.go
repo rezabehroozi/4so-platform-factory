@@ -344,9 +344,9 @@ func (a *agent) removeApplicationDeploymentServiceIfNotDesired(ctx context.Conte
 	if !applicationDeploymentOwnedByBinding(current, plan) {
 		return false, fmt.Errorf("foreign Service collides with deployment-only workload name")
 	}
-	if !applicationDeploymentAuthorityDigestsMatch(current, plan) {
-		return false, fmt.Errorf("owned Service authority digests do not match current deployment request")
-	}
+	// Runtime/release digests are expected to differ when this Service is stale
+	// relative to the newly approved desired state. The EnvironmentBinding owns
+	// the resource identity; UID/resourceVersion preconditions fence deletion.
 	uid, err := kubeObjectUID(current)
 	if err != nil {
 		return false, err
