@@ -146,7 +146,7 @@ func installerManualPrepare(mode string, args []string) {
 			"plan":          plan,
 			"specPath":      retainedSpecPath(input.OutputSpec),
 			"sourceReleaseDigest": releaseDigest,
-			"nextAction":    "review admission/actions; rerun installer-manual install with --confirmation DEPLOY",
+			"nextAction":    "review admission/actions; rerun installer-manual install with --enable-execution --confirmation DEPLOY to enable browser appliance mutation",
 		})
 		if !plan.Admission.Ready {
 			os.Exit(1)
@@ -183,7 +183,7 @@ func installerManualPrepare(mode string, args []string) {
 			"read the private bootstrap token from bootstrapTokenFile",
 			"open installerUrl and authenticate with that token",
 			"create or load the installation request, run preflight, review the plan, then explicitly start installation",
-			"use installer-manual status/verify/recover/rollback for host-deployment recovery",
+			"from the extracted exact release, use install.sh status/verify/recover/rollback (or platformctl installer-manual directly) for host-deployment continuation",
 		}
 		if !input.ExecutionEnabled {
 			nextActions = append([]string{"host deployment is ready but Bootstrap mutation is disabled; rerun the reviewed install with --enable-execution before starting appliance installation"}, nextActions...)
