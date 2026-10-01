@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -64,6 +65,63 @@ func daprAPITestRuntimeLock(t *testing.T) daprruntime.RuntimeLock {
 	}
 	return lock
 }
+
+func seedProductManagedDaprObserved(t *testing.T, store *controlplane.MemoryStore, projectID, clusterID, runtimeLockDigest string) daprruntime.ObservedState {
+	t.Helper()
+	ctx := context.Background()
+	req := daprruntime.LifecycleRequest{
+		ProjectID: projectID,
+		ClusterID: clusterID,
+		Action: daprruntime.ActionInstall,
+		RuntimeLockDigest: runtimeLockDigest,
+		RuntimeVersion: "v1.17.0",
+		UpstreamCommit: strings.Repeat("9", 40),
+	}
+	payload, requestDigest, err := daprruntime.MarshalLifecycleRequest(req)
+	if err != nil { t.Fatal(err) }
+	op, replay, err := store.CreateOperationAwaitingApprovalWithPayload(ctx, controlplane.OperationRequest{
+		ProjectID: projectID,
+		Kind: daprLifecycleOperationKind,
+		TargetRef: daprLifecycleTarget(clusterID, daprruntime.ActionInstall),
+		DesiredRevision: requestDigest,
+		Risk: "high",
+		Class: controlplane.OperationClassMutating,
+	}, "seed-product-dapr-"+clusterID+"-"+runtimeLockDigest[len(runtimeLockDigest)-8:], "owner", "seed-product-dapr", daprruntime.LifecyclePayloadMediaType, payload)
+	if err != nil || replay { t.Fatalf("seed product Dapr operation create replay=%v err=%v", replay, err) }
+	op, err = store.ApproveOperationAndQueue(ctx, op.ID, op.Revision, "approver")
+	if err != nil { t.Fatal(err) }
+	worker := "agent:" + clusterID
+	claim, err := store.ClaimOperation(ctx, op.ID, worker, time.Hour, time.Now().UTC())
+	if err != nil { t.Fatal(err) }
+	op, err = store.GetOperation(ctx, op.ID)
+	if err != nil { t.Fatal(err) }
+	op, err = store.StartOperationAttempt(ctx, op.ID, op.Revision, worker, claim.FenceToken, worker)
+	if err != nil { t.Fatal(err) }
+	observed := daprruntime.ObservedState{
+		Authority: daprruntime.LifecycleAuthority,
+		OperationID: op.ID,
+		ClusterID: clusterID,
+		Action: daprruntime.ActionInstall,
+		Installed: true,
+		RuntimeLockDigest: runtimeLockDigest,
+		Version: req.RuntimeVersion,
+		UpstreamCommit: req.UpstreamCommit,
+		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Phase: "Installed",
+	}
+	raw, err := json.Marshal(observed)
+	if err != nil { t.Fatal(err) }
+	if _, err = store.AppendOperationEvidencePayload(ctx, controlplane.EvidenceMetadata{
+		OperationID: op.ID, Kind: daprruntime.ObservedEvidenceKind, MediaType: "application/json",
+	}, raw, worker, claim.FenceToken, worker); err != nil { t.Fatal(err) }
+	op, err = store.GetOperation(ctx, op.ID)
+	if err != nil { t.Fatal(err) }
+	op, err = store.BeginOperationVerification(ctx, op.ID, op.Revision, worker, claim.FenceToken, worker)
+	if err != nil { t.Fatal(err) }
+	if _, err = store.CompleteOperation(ctx, op.ID, op.Revision, worker, claim.FenceToken, worker); err != nil { t.Fatal(err) }
+	return observed
+}
+
 
 func daprAPITestMirrorEvidence(t *testing.T, lock daprruntime.RuntimeLock, clusterID, operationID string, fence int64) (*daprruntime.TargetMirrorPullEvidence, string) {
 	t.Helper()
@@ -230,6 +288,37 @@ func TestDaprLifecycleStateBlocksUnknownRecoveryAndInFlightMutation(t *testing.T
 		if daprLifecycleStateBlocksNewMutation(op) {
 			t.Fatalf("terminal/converged Dapr state unexpectedly fenced a new mutation: %#v", op)
 		}
+	}
+}
+
+func TestDaprLifecyclePreservesProductOwnershipAfterCapabilityDiscovery(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	ctx := context.Background()
+	org, _ := store.CreateOrganization(ctx, controlplane.Organization{Name: "dapr-product-owned", DisplayName: "Dapr Product Owned"}, "owner")
+	project, _ := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "apps", DisplayName: "Apps"}, "owner")
+	cluster := workspaceAPICluster(t, store, project.ID, "dapr-product-owned", "uid-dapr-product-owned")
+	seedDaprAssessmentInventory(t, store, cluster, []string{targetmodel.DaprApplicationRuntimeCapability}, 22)
+
+	oldDigest := daprAPITestDigest("9")
+	seedProductManagedDaprObserved(t, store, project.ID, cluster.ID, oldDigest)
+
+	srv := scopedServer(t, store)
+	lock := daprAPITestRuntimeLock(t)
+	if err := srv.ConfigureDaprRuntimeLock(lock, "https://zot.internal.example"); err != nil { t.Fatal(err) }
+	lockDigest, err := daprruntime.RuntimeLockDigest(lock)
+	if err != nil { t.Fatal(err) }
+	if lockDigest == oldDigest { t.Fatal("upgrade fixture requires a changed exact runtime lock") }
+
+	body := fmt.Sprintf(`{"projectId":%q,"clusterId":%q,"action":"UPGRADE"}`, project.ID, cluster.ID)
+	w := applicationPlatformRequest(t, srv, http.MethodPost, "/api/v1/application-platform/dapr/lifecycle", body, "owner",
+		map[string]string{"Idempotency-Key": "dapr-product-upgrade"})
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("product-managed Dapr upgrade self-blocked after capability discovery: %d %s", w.Code, w.Body.String())
+	}
+	created := decodeApplicationResponse[daprLifecycleCreateResponse](t, w)
+	if created.Request.Action != daprruntime.ActionUpgrade || created.Request.ExpectedObservedLockDigest != oldDigest ||
+		!strings.Contains(w.Body.String(), `"mode":"PRODUCT_MANAGED"`) {
+		t.Fatalf("product-managed Dapr ownership/fence drift response=%s request=%+v", w.Body.String(), created.Request)
 	}
 }
 
