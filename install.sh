@@ -271,9 +271,50 @@ if [[ ! -f "${release_artifact}" || -L "${release_artifact}" ]]; then
   exit 2
 fi
 
+print_exact_next_command() {
+  local next_mode="$1"
+  shift
+  local -a command=(sudo bash "${ROOT_DIR}/install.sh" "${next_mode}" --bundle-dir "${bundle_dir}" --release-artifact "${release_artifact}" "$@")
+  printf '%s nextMode=%s nextCommand=' "${DOCTOR_HANDOFF_AUTHORITY}" "${next_mode}" >&2
+  printf '%q ' "${command[@]}" >&2
+  printf '\n' >&2
+}
+
+declare -a manual_args=(installer-manual "${mode}" --installer-binary "${INSTALLER}" --bundle-dir "${bundle_dir}" --release-artifact "${release_artifact}" "${passthrough[@]}")
 echo "${AUTHORITY} mode=${mode} bundle=${bundle_dir} release=${release_artifact}" >&2
-exec "${PLATFORMCTL}" installer-manual "${mode}" \
-  --installer-binary "${INSTALLER}" \
-  --bundle-dir "${bundle_dir}" \
-  --release-artifact "${release_artifact}" \
-  "${passthrough[@]}"
+
+if [[ "${mode}" == "preflight" ]]; then
+  if "${PLATFORMCTL}" "${manual_args[@]}"; then
+    print_exact_next_command plan "${passthrough[@]}"
+    exit 0
+  else
+    rc=$?
+    exit "${rc}"
+  fi
+fi
+
+if [[ "${mode}" == "plan" ]]; then
+  if "${PLATFORMCTL}" "${manual_args[@]}"; then
+    declare -a install_passthrough=()
+    for ((i=0; i<${#passthrough[@]}; i++)); do
+      case "${passthrough[i]}" in
+        --enable-execution)
+          ;;
+        --confirmation)
+          ((i+=1))
+          ;;
+        *)
+          install_passthrough+=("${passthrough[i]}")
+          ;;
+      esac
+    done
+    install_passthrough+=(--enable-execution --confirmation DEPLOY)
+    print_exact_next_command install "${install_passthrough[@]}"
+    exit 0
+  else
+    rc=$?
+    exit "${rc}"
+  fi
+fi
+
+exec "${PLATFORMCTL}" "${manual_args[@]}"
