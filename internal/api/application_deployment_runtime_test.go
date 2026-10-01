@@ -177,6 +177,21 @@ func TestApplicationDeploymentDurableAuthorityProducesDeliveryEvidence(t *testin
 		t.Fatalf("application deployment did not become terminal success: %#v", result.Operation)
 	}
 
+	w = applicationDeploymentAgentRequest(t, srv, http.MethodPost,
+		"/agent/v1/clusters/"+cluster.ID+"/application-deployment-tasks/"+task.OperationID+"/result",
+		string(resultRaw), agentToken, map[string]string{"If-Match": fmt.Sprintf("%q", task.OperationRevision)})
+	if w.Code != http.StatusOK {
+		t.Fatalf("application deployment terminal report replay=%d %s", w.Code, w.Body.String())
+	}
+	var replayResult struct {
+		Operation controlplane.Operation `json:"operation"`
+		IdempotentReplay bool `json:"idempotentReplay"`
+	}
+	if err = json.Unmarshal(w.Body.Bytes(), &replayResult); err != nil { t.Fatal(err) }
+	if !replayResult.IdempotentReplay || replayResult.Operation.Revision != result.Operation.Revision {
+		t.Fatalf("application deployment terminal report replay drift: %#v", replayResult)
+	}
+
 	w = applicationDeploymentPrincipalRequest(t, srv, http.MethodGet,
 		"/api/v1/application-platform/deployments/"+task.OperationID,
 		"", "requester", []string{"platform-viewer"}, nil)
@@ -187,10 +202,12 @@ func TestApplicationDeploymentDurableAuthorityProducesDeliveryEvidence(t *testin
 		Operation controlplane.Operation `json:"operation"`
 		Ready bool `json:"ready"`
 		CurrentAuthority bool `json:"currentAuthority"`
+		EvidencePresent bool `json:"evidencePresent"`
+		EvidenceMissing bool `json:"evidenceMissing"`
 		EvidenceDigest string `json:"evidenceDigest"`
 	}
 	if err = json.Unmarshal(w.Body.Bytes(), &view); err != nil { t.Fatal(err) }
-	if !view.Ready || !view.CurrentAuthority || view.Operation.State != controlplane.OperationSucceeded || view.EvidenceDigest != evidenceDigest {
+	if !view.Ready || !view.CurrentAuthority || !view.EvidencePresent || view.EvidenceMissing || view.Operation.State != controlplane.OperationSucceeded || view.EvidenceDigest != evidenceDigest {
 		t.Fatalf("application deployment terminal view drift: %#v", view)
 	}
 
@@ -320,6 +337,22 @@ func TestApplicationDeploymentDurableAuthorityProducesDeliveryEvidence(t *testin
 		map[string]string{"Idempotency-Key": "application-deploy-after-recovery"})
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("recovered deployment continued to fence a new explicit request: %d %s", w.Code, w.Body.String())
+	}
+
+	w = applicationDeploymentPrincipalRequest(t, srv, http.MethodGet,
+		"/api/v1/application-platform/environment-bindings/"+binding.ID+"/deployments",
+		"", "requester", []string{"platform-viewer"}, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("application deployment history=%d %s", w.Code, w.Body.String())
+	}
+	var history struct {
+		Authority string `json:"authority"`
+		EnvironmentBindingID string `json:"environmentBindingId"`
+		Items []controlplane.Operation `json:"items"`
+	}
+	if err = json.Unmarshal(w.Body.Bytes(), &history); err != nil { t.Fatal(err) }
+	if history.Authority != controlplane.ApplicationDeploymentRequestAuthority || history.EnvironmentBindingID != binding.ID || len(history.Items) != 3 {
+		t.Fatalf("application deployment history authority drift: %#v", history)
 	}
 }
 
