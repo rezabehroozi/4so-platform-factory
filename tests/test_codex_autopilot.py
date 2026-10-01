@@ -481,6 +481,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["failureCapsuleAuthority"], "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2")
             self.assertEqual(context["ownerProofAuthority"], "AUTOPILOT_AGENT_OWNER_PROOF_V1")
             self.assertEqual(context["installerOwnerStageAuthority"], "AUTOPILOT_INSTALLER_OWNER_STAGE_V1")
+            self.assertEqual(context["installerOwnerContractStageAuthority"], "AUTOPILOT_INSTALLER_OWNER_CONTRACT_STAGE_V1")
             self.assertEqual(context["agentRepairBudgetAuthority"], "AUTOPILOT_AGENT_REPAIR_BUDGET_V1")
             self.assertEqual(context["failurePathHintsAuthority"], "AUTOPILOT_FAILURE_PATH_HINTS_V1")
             self.assertEqual(context["defaultAgentRepairBudget"], 8)
@@ -805,6 +806,10 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
         stages = AUTOPILOT.canonical_stages(ROOT)
         names = [stage.name for stage in stages]
         self.assertNotIn("smoke-4", names)
+        self.assertIn("installer-entrypoint-contracts", names)
+        self.assertIn("installer-go-owner-tests", names)
+        self.assertLess(names.index("installer-entrypoint-contracts"), names.index("installer-core-smoke"))
+        self.assertLess(names.index("installer-go-owner-tests"), names.index("installer-core-smoke"))
         self.assertLess(names.index("installer-core-smoke"), names.index("installer-host-smoke"))
         self.assertLess(names.index("installer-host-smoke"), names.index("installer-remote-smoke"))
 
@@ -812,12 +817,21 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
         stages = AUTOPILOT.canonical_stages(ROOT)
         selected = AUTOPILOT._select_convergence_stages(stages, {"installer-remote-smoke"})
         names = [stage.name for stage in selected]
+        self.assertIn("installer-entrypoint-contracts", names)
+        self.assertIn("installer-go-owner-tests", names)
         self.assertIn("installer-core-smoke", names)
         self.assertIn("installer-host-smoke", names)
         self.assertIn("installer-remote-smoke", names)
         self.assertIn("smoke-ui-workflow-e2e", names)
         self.assertIn("package", names)
         self.assertNotIn("lab-runner-tests", names)
+
+    def test_installer_go_owner_contract_stage_declares_go_preflight_only(self):
+        stages = AUTOPILOT.canonical_stages(ROOT)
+        stage = next(item for item in stages if item.name == "installer-go-owner-tests")
+        requirements = AUTOPILOT._environment_requirements([stage])
+        self.assertEqual(requirements, {"go"})
+        self.assertEqual(AUTOPILOT.INSTALLER_OWNER_CONTRACT_STAGE_AUTHORITY, "AUTOPILOT_INSTALLER_OWNER_CONTRACT_STAGE_V1")
 
     def test_cross_owner_repair_forces_full_convergence(self):
         stage = AUTOPILOT.Stage("smoke-ui-quality", ("true",), 10)
