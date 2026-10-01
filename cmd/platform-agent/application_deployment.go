@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -209,6 +210,9 @@ func numericInt(value any) int {
 	case json.Number:
 		n, _ := v.Int64()
 		return int(n)
+	case string:
+		n, _ := strconv.Atoi(strings.TrimSpace(v))
+		return n
 	default:
 		return 0
 	}
