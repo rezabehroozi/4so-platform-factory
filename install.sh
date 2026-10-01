@@ -68,22 +68,12 @@ case "${mode}" in
     ;;
 esac
 
-if [[ ! -f "${PLATFORMCTL}" || -L "${PLATFORMCTL}" || ! -x "${PLATFORMCTL}" ]]; then
-  echo "ERROR ${AUTHORITY}: required packaged executable is missing/non-regular/non-executable: ${PLATFORMCTL}" >&2
-  exit 2
-fi
-
 case "${mode}" in
   status|verify|recover|rollback)
     echo "${AUTHORITY} continuationAuthority=${CONTINUATION_AUTHORITY} mode=${mode} continuation=true" >&2
     exec "${PLATFORMCTL}" installer-manual "${mode}" "$@"
     ;;
 esac
-
-if [[ ! -f "${INSTALLER}" || -L "${INSTALLER}" || ! -x "${INSTALLER}" ]]; then
-  echo "ERROR ${AUTHORITY}: required packaged executable is missing/non-regular/non-executable: ${INSTALLER}" >&2
-  exit 2
-fi
 
 bundle_dir="${PLATFORM_INSTALLER_BUNDLE_DIR:-}"
 release_artifact="${PLATFORM_FACTORY_RELEASE_ARTIFACT:-}"
@@ -144,6 +134,15 @@ if [[ "${mode}" == "doctor" ]]; then
   printf '{"authority":"INSTALLER_MANUAL_DOCTOR_V1","ready":%s,"platformctl":"%s","installer":"%s","bundleDirectory":"%s","releaseArtifact":"%s"}\n'     "${ready}" "${PLATFORMCTL}" "${INSTALLER}" "${bundle_dir}" "${release_artifact}"
   [[ "${ready}" == true ]]
   exit
+fi
+
+if [[ ! -f "${PLATFORMCTL}" || -L "${PLATFORMCTL}" || ! -x "${PLATFORMCTL}" ]]; then
+  echo "ERROR ${AUTHORITY}: required packaged executable is missing/non-regular/non-executable: ${PLATFORMCTL}" >&2
+  exit 2
+fi
+if [[ ! -f "${INSTALLER}" || -L "${INSTALLER}" || ! -x "${INSTALLER}" ]]; then
+  echo "ERROR ${AUTHORITY}: required packaged executable is missing/non-regular/non-executable: ${INSTALLER}" >&2
+  exit 2
 fi
 
 if [[ "${EUID}" -ne 0 ]]; then
