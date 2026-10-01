@@ -114,7 +114,13 @@ def static_quality_failures(root: Path) -> list[str]:
     )
     for rel, expected_routes in route_contracts:
         html = (root / rel).read_text(encoding="utf-8")
-        rendered_routes = re.findall(r'<section\s+class="page(?: active)?"[^>]*\bid="([^"]+)"', html)
+        rendered_routes = []
+        for tag in re.findall(r"<section\\b[^>]*>", html, flags=re.I):
+            class_match = re.search(r'\\bclass="([^"]*)"', tag, flags=re.I)
+            id_match = re.search(r'\\bid="([^"]+)"', tag, flags=re.I)
+            classes = set((class_match.group(1) if class_match else "").split())
+            if "page" in classes and id_match:
+                rendered_routes.append(id_match.group(1))
         if len(rendered_routes) != len(set(rendered_routes)):
             failures.append(f"{rel}:duplicate-page-route:{rendered_routes}")
         missing = sorted(set(rendered_routes) - set(expected_routes))
