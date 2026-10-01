@@ -519,9 +519,10 @@
 <div class="inline-summary"><strong>Central authority remains canonical.</strong> A site may act only inside an exact revision/digest policy and bounded offline window. Reconnect drift requires explicit review; physical certification is never inferred here.</div>
 <div class="prerequisite" hidden="" id="edge-prerequisite"></div>
 <article class="panel"><div class="panel-heading"><div><h2>Scope</h2><p>All assessments are bound to one project. The global project scope, when selected, is enforced automatically.</p></div></div><div class="form-grid"><label><span>Project</span><select id="edge-project" required=""></select></label></div></article>
+<div class="inline-summary"><strong>Core reconnect flow:</strong> Compile policy → assess one offline request → review reconnect against current central authority. Boot security and disconnected AI are independent evidence assessments and can be opened only when needed.</div>
 
 <div class="two-column">
-<article class="panel"><div class="panel-heading"><div><h2>1. Compile site-local policy</h2><p>Create a deterministic policy digest over central revision, desired state, admitted actions, offline window and evidence queue bounds.</p></div></div>
+<details class="action-console edge-workflow" id="edge-step-policy" open=""><summary><span class="summary-title">1. Compile site-local policy</span><span class="summary-help">Create the exact bounded offline policy before assessing any local request.</span></summary><div class="action-console-body">
 <form class="form-grid" data-viewer-safe="true" id="edge-policy-form" novalidate="">
 <label><span>Site ID</span><input class="technical" dir="ltr" id="edge-policy-site" required="" value="edge-site-01"/></label>
 <label><span>Central revision</span><input id="edge-policy-revision" min="1" required="" type="number" value="1"/></label>
@@ -538,9 +539,9 @@
 <label class="check-row"><input data-edge-action="" type="checkbox" value="RECONCILE_APPROVED_DESIRED_STATE"/><span>Reconcile approved desired state</span></label>
 </div></fieldset>
 <div class="form-actions span-full"><button class="secondary" type="submit">Compile policy</button></div>
-</form><div aria-live="polite" id="edge-policy-result"></div></article>
+</form><div aria-live="polite" id="edge-policy-result"></div></div></details>
 
-<article class="panel"><div class="panel-heading"><div><h2>2. Assess offline mutation</h2><p>Assessment only. A positive result means the request fits the sealed policy; execution still requires the normal durable operation and agent path.</p></div></div>
+<details class="action-console edge-workflow" id="edge-step-mutation"><summary><span class="summary-title">2. Assess offline request</span><span class="summary-help">Available after policy compilation. Admission is read-only and never executes the requested mutation.</span></summary><div class="action-console-body">
 <form class="form-grid" data-viewer-safe="true" id="edge-mutation-form" novalidate="">
 <label><span>Action</span><select id="edge-mutation-action"><option>OBSERVE</option><option>COLLECT_DIAGNOSTICS</option><option>RESTART_APPROVED_WORKLOAD</option><option>CORDON_NODE</option><option>UNCORDON_NODE</option><option>RECONCILE_APPROVED_DESIRED_STATE</option></select></label>
 <label><span>Target reference</span><input class="technical" dir="ltr" id="edge-mutation-target" required="" value="site:edge-site-01"/></label>
@@ -548,18 +549,18 @@
 <label class="span-full"><span>Request SHA-256</span><input class="technical" dir="ltr" id="edge-mutation-request-digest" pattern="sha256:[0-9a-f]{64}" required=""/></label>
 <label><span>Disconnected since</span><input id="edge-disconnected-since" required="" type="datetime-local"/></label>
 <div class="form-actions span-full"><button class="secondary" type="submit">Assess request</button></div>
-</form><div aria-live="polite" id="edge-mutation-result"></div></article>
+</form><div aria-live="polite" id="edge-mutation-result"></div></div></details>
 </div>
 
 <div class="two-column">
-<article class="panel"><div class="panel-heading"><div><h2>3. Review reconnect conflict</h2><p>Compare the last assessed offline request with authoritative central revision/digest. Central drift is never silently overwritten.</p></div></div>
+<details class="action-console edge-workflow" id="edge-step-reconnect"><summary><span class="summary-title">3. Review reconnect conflict</span><span class="summary-help">Compare the admitted offline request with current central revision and desired digest before any reconciliation decision.</span></summary><div class="action-console-body">
 <form class="form-grid" data-viewer-safe="true" id="edge-reconnect-form" novalidate="">
 <label><span>Current central revision</span><input id="edge-reconnect-revision" min="1" required="" type="number" value="1"/></label>
 <label class="span-full"><span>Current desired-state SHA-256</span><input class="technical" dir="ltr" id="edge-reconnect-digest" pattern="sha256:[0-9a-f]{64}" required=""/></label>
 <div class="form-actions span-full"><button class="secondary" type="submit">Review reconnect</button></div>
-</form><div aria-live="polite" id="edge-reconnect-result"></div></article>
+</form><div aria-live="polite" id="edge-reconnect-result"></div></div></details>
 
-<article class="panel"><div class="panel-heading"><div><h2>4. Assess boot security</h2><p>Verify the submitted attestation claim requires TPM, Secure Boot, measured boot, disk encryption, quote verification, nonce binding and PCR policy match.</p></div></div>
+<details class="action-console edge-workflow" id="edge-step-boot"><summary><span class="summary-title">Boot security assessment</span><span class="summary-help">Independent assessment: verify TPM, Secure Boot, measured boot, encryption, quote, nonce and PCR policy evidence.</span></summary><div class="action-console-body">
 <form class="form-grid" data-viewer-safe="true" id="edge-boot-form" novalidate="">
 <label><span>Site ID</span><input class="technical" dir="ltr" id="edge-boot-site" required="" value="edge-site-01"/></label>
 <label><span>Node ID</span><input class="technical" dir="ltr" id="edge-boot-node" required="" value="node-01"/></label>
@@ -573,10 +574,10 @@
 <label class="check-row"><input checked="" id="edge-boot-pcr" type="checkbox"/><span>PCR policy matched</span></label>
 </div>
 <div class="form-actions span-full"><button class="secondary" type="submit">Assess boot evidence</button></div>
-</form><div aria-live="polite" id="edge-boot-result"></div></article>
+</form><div aria-live="polite" id="edge-boot-result"></div></div></details>
 </div>
 
-<article class="panel"><div class="panel-heading"><div><h2>5. Validate disconnected local AI</h2><p>Validate an exact model/runtime profile for zero-egress local inference. This does not start a model server and never permits external provider credentials.</p></div></div>
+<details class="action-console edge-workflow" id="edge-step-ai"><summary><span class="summary-title">Disconnected local AI assessment</span><span class="summary-help">Independent assessment: validate an exact zero-egress local model/runtime profile without starting a model server.</span></summary><div class="action-console-body">
 <form class="form-grid" data-viewer-safe="true" id="edge-ai-form" novalidate="">
 <label><span>Runtime</span><input class="technical" dir="ltr" id="edge-ai-runtime" required="" value="local-vllm"/></label>
 <label class="span-full"><span>Model SHA-256</span><input class="technical" dir="ltr" id="edge-ai-model" pattern="sha256:[0-9a-f]{64}" required=""/></label>
@@ -585,7 +586,7 @@
 <label><span>Maximum output bytes</span><input id="edge-ai-output" min="1024" max="4194304" required="" type="number" value="262144"/></label>
 <div class="inline-summary span-full">Network egress, raw credentials and external providers are fixed to <strong>disabled</strong> by this profile.</div>
 <div class="form-actions span-full"><button class="secondary" type="submit">Validate local AI profile</button></div>
-</form><div aria-live="polite" id="edge-ai-result"></div></article>
+</form><div aria-live="polite" id="edge-ai-result"></div></div></details>
 </section>
 <section class="page" data-title="Runtime assurance" id="verification">
 <div class="section-intro"><div><h2 data-i18n="verification.heading">Runtime assurance</h2><p data-i18n="verification.description">Inspect certification evidence first, then start verification or closure workflows when required.</p></div></div>
