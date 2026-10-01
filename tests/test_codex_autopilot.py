@@ -481,6 +481,8 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["failureCapsuleAuthority"], "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2")
             self.assertEqual(context["ownerProofAuthority"], "AUTOPILOT_AGENT_OWNER_PROOF_V1")
             self.assertEqual(context["installerOwnerStageAuthority"], "AUTOPILOT_INSTALLER_OWNER_STAGE_V1")
+            self.assertEqual(context["agentRepairBudgetAuthority"], "AUTOPILOT_AGENT_REPAIR_BUDGET_V1")
+            self.assertEqual(context["defaultAgentRepairBudget"], 8)
             self.assertEqual(context["failureCapsuleMaxChars"], 3200)
             self.assertEqual(context["failureCapsule"], "ERROR owner mismatch token=[REDACTED]")
             self.assertLessEqual(len(context["failureCapsule"]), 3200)
@@ -881,6 +883,21 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
 
 
 class AgentEntrypointContractTests(unittest.TestCase):
+    def test_agent_run_defaults_to_multi_defect_budget_without_unbounded_loop(self):
+        argv = ["codex_autopilot.py", "--agent-run"]
+        with mock.patch.object(sys, "argv", argv), mock.patch.object(AUTOPILOT, "run_autopilot", return_value=0) as run:
+            self.assertEqual(AUTOPILOT.main(), 0)
+        self.assertEqual(run.call_args.kwargs["max_repairs"], AUTOPILOT.DEFAULT_AGENT_REPAIR_BUDGET)
+        self.assertEqual(AUTOPILOT.DEFAULT_AGENT_REPAIR_BUDGET, 8)
+        self.assertEqual(AUTOPILOT.AGENT_REPAIR_BUDGET_AUTHORITY, "AUTOPILOT_AGENT_REPAIR_BUDGET_V1")
+
+    def test_normal_repair_keeps_conservative_default_budget(self):
+        argv = ["codex_autopilot.py", "--repair"]
+        with mock.patch.object(sys, "argv", argv), mock.patch.object(AUTOPILOT, "run_autopilot", return_value=0) as run:
+            self.assertEqual(AUTOPILOT.main(), 0)
+        self.assertEqual(run.call_args.kwargs["max_repairs"], AUTOPILOT.DEFAULT_REPAIR_BUDGET)
+        self.assertEqual(AUTOPILOT.DEFAULT_REPAIR_BUDGET, 3)
+
     def test_agent_run_enables_bounded_repair_without_manual_orchestration_flags(self):
         argv = ["codex_autopilot.py", "--agent-run", "--max-repairs", "2"]
         with mock.patch.object(sys, "argv", argv), mock.patch.object(AUTOPILOT, "run_autopilot", return_value=0) as run:
