@@ -245,8 +245,21 @@ def validate_server_audit_witness(witness:dict,binding:str,client:str,label:str,
     observed_oauth_client_id=validate_oauth_client_id(witness.get("oauthClientId"),label)
     if oauth_client_id is not None and observed_oauth_client_id!=validate_oauth_client_id(oauth_client_id,label):
         raise RuntimeError(f"{label}_OAUTH_CLIENT_MISMATCH")
-    if witness.get("authority")!=AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=len(AUDITED_CHECKS) or witness.get("oauthClientWitnessPass") is not True or witness.get("oauthClientWitnessedCheckCount")!=len(OAUTH_CLIENT_AUDITED_CHECKS) or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")):
+    execution_observed=parse_utc_timestamp(witness.get("executionObservedAt"),label+"_EXECUTION")
+    audit_window=witness.get("executionAuditWindowSeconds")
+    if witness.get("authority")!=AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=len(AUDITED_CHECKS) or witness.get("oauthClientWitnessPass") is not True or witness.get("oauthClientWitnessedCheckCount")!=len(OAUTH_CLIENT_AUDITED_CHECKS) or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")) or type(audit_window) is not int or audit_window<60 or audit_window>24*3600:
         raise RuntimeError(f"{label}_INVALID")
+    matched=witness.get("matchedEvents")
+    if not isinstance(matched,dict) or set(matched)!=set(AUDITED_CHECKS):
+        raise RuntimeError(f"{label}_INVALID")
+    earliest=execution_observed-timedelta(seconds=audit_window)
+    latest=execution_observed+timedelta(minutes=5)
+    for check,event in matched.items():
+        if not isinstance(event,dict):
+            raise RuntimeError(f"{label}_INVALID")
+        occurred=parse_utc_timestamp(event.get("occurredAt"),label+"_OCCURRED_AT")
+        if occurred<earliest or occurred>latest:
+            raise RuntimeError(f"{label}_TIME_WINDOW_INVALID {check}")
     return witness
 
 _AUDIT_REQUIRED=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
@@ -327,7 +340,7 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
     request_ids=validate_request_ids(row,client)
     trusted=campaign_trusted_client_bindings(campaign)[client]
-    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"providerExecutionRef":provider_ref,"executedAt":utc_timestamp(executed),"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids,"campaignCreatedAt":utc_timestamp(created),"campaignExpiresAt":utc_timestamp(expires),"_executionAuditWindowSeconds":audit_window}
+    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"providerExecutionRef":provider_ref,"executedAt":utc_timestamp(executed),"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids,"campaignCreatedAt":utc_timestamp(created),"campaignExpiresAt":utc_timestamp(expires),"executionAuditWindowSeconds":audit_window}
 
 def validate_audit_export(path:Path)->list[dict]:
     value=load(path,"SECURITY_AUDIT")
@@ -357,7 +370,7 @@ def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
     executed=parse_utc_timestamp(receipt.get("executedAt"),"MCP_EXTERNAL_RECEIPT_EXECUTED_AT")
     created=parse_utc_timestamp(receipt.get("campaignCreatedAt"),"MCP_EXTERNAL_CAMPAIGN_CREATED_AT")
     expires=parse_utc_timestamp(receipt.get("campaignExpiresAt"),"MCP_EXTERNAL_CAMPAIGN_EXPIRES_AT")
-    audit_window=receipt.get("_executionAuditWindowSeconds")
+    audit_window=receipt.get("executionAuditWindowSeconds")
     if type(audit_window) is not int or audit_window<60:
         raise RuntimeError(f"MCP_EXTERNAL_AUDIT_WINDOW_INVALID {client}")
     earliest=executed-timedelta(seconds=audit_window)
@@ -499,7 +512,6 @@ def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->d
                 raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_REQUEST_ID_REUSE {client}:{check}:{owner}")
             used_request_ids[rid]=client
         row["serverAuditWitness"]=verify_server_audit(audit_dir/(client+".json"),row,client)
-        row.pop("_executionAuditWindowSeconds",None)
         rows.append(row)
     endpoints={r["endpoint"] for r in rows}
     if len(endpoints)!=1:
