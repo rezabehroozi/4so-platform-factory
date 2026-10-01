@@ -21,6 +21,7 @@ const (
 	OpenChoreoExecutorRBACCapability              = "openchoreo-executor-rbac-active"
 	DaprExecutorRBACCapability                    = "dapr-executor-rbac-active"
 	DaprWorkloadAdmissionRBACCapability           = "dapr-workload-admission-rbac-active"
+	ApplicationDeploymentRBACCapability           = "application-deployment-rbac-active"
 	TargetMutationRBACActivationIssuedCapability = "target-mutation-rbac-activation-issued"
 	TargetMutationRBACEverIssuedCapability       = "target-mutation-rbac-ever-issued"
 	TargetIdentityContinuityCapability           = "target-cluster-uid-attested"
@@ -41,6 +42,7 @@ var previewMutationCapabilities = map[string]struct{}{
 	OpenChoreoExecutorRBACCapability:              {},
 	DaprExecutorRBACCapability:                    {},
 	DaprWorkloadAdmissionRBACCapability:           {},
+	ApplicationDeploymentRBACCapability:           {},
 	TargetMutationRBACActivationIssuedCapability: {},
 	TargetMutationRBACEverIssuedCapability:       {},
 }
