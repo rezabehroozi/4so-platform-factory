@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 390,
-  "routeDigest": "sha256:fc3145c48014e8f07d0a2253c8be7190b6930c9924683a90fdfdc1b4106f57c8",
+  "routeCount": 394,
+  "routeDigest": "sha256:4a796ab2b0ef623cf6dd4bae4ba2d8227b57e4524a0ba87d7a72b95f61068c0b",
   "routes": [
     {
       "family": "version",
@@ -1255,7 +1255,51 @@
       "family": "application-platform",
       "method": "POST",
       "mutation": true,
+      "path": "/api/v1/application-platform/environment-bindings/{id}/deployment-plan",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/application-platform/environment-bindings/{id}/deployments",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "POST",
+      "mutation": true,
       "path": "/api/v1/application-platform/environment-bindings/{id}/promote",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/application-platform/deployments/{id}",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "POST",
+      "mutation": true,
+      "path": "/api/v1/application-platform/deployments/{id}/approve",
       "pathParams": [
         "id"
       ],
