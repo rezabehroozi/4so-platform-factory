@@ -199,4 +199,103 @@ func TestApplicationDeploymentDurableAuthorityProducesDeliveryEvidence(t *testin
 	if len(delivery) != 1 || delivery[0].EventType != "deployment_succeeded" || delivery[0].Revision != release.Digest {
 		t.Fatalf("terminal application deployment did not project into delivery evidence: %#v", delivery)
 	}
+
+	unknownHeaders := map[string]string{"Idempotency-Key": "application-deploy-unknown-1", "X-Request-ID": "req-application-deploy-unknown-1"}
+	w = applicationDeploymentPrincipalRequest(t, srv, http.MethodPost,
+		"/api/v1/application-platform/environment-bindings/"+binding.ID+"/deployments",
+		runtimeBody, "requester", []string{"platform-operator"}, unknownHeaders)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("application deploy unknown fixture create=%d %s", w.Code, w.Body.String())
+	}
+	unknownCreated := decodeApplicationResponse[applicationDeploymentCreateResponse](t, w)
+	w = applicationDeploymentPrincipalRequest(t, srv, http.MethodPost,
+		"/api/v1/application-platform/deployments/"+unknownCreated.Operation.ID+"/approve",
+		"", "approver", []string{"platform-admin"}, map[string]string{"If-Match": fmt.Sprintf("%q", unknownCreated.Operation.Revision)})
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("application deploy unknown fixture approve=%d %s", w.Code, w.Body.String())
+	}
+	w = applicationDeploymentAgentRequest(t, srv, http.MethodGet,
+		"/agent/v1/clusters/"+cluster.ID+"/application-deployment-tasks/next", "", agentToken, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("application deploy unknown fixture claim=%d %s", w.Code, w.Body.String())
+	}
+	var unknownTask applicationDeploymentTask
+	if err = json.Unmarshal(w.Body.Bytes(), &unknownTask); err != nil { t.Fatal(err) }
+	unknownRaw, _ := json.Marshal(applicationDeploymentResult{
+		RecoveryRequired: true, TaskFenceToken: unknownTask.TaskFenceToken,
+		Error: "connection reset after target accepted mutation",
+	})
+	w = applicationDeploymentAgentRequest(t, srv, http.MethodPost,
+		"/agent/v1/clusters/"+cluster.ID+"/application-deployment-tasks/"+unknownTask.OperationID+"/result",
+		string(unknownRaw), agentToken, map[string]string{"If-Match": fmt.Sprintf("%q", unknownTask.OperationRevision)})
+	if w.Code != http.StatusOK {
+		t.Fatalf("application deploy unknown fixture result=%d %s", w.Code, w.Body.String())
+	}
+	var unknownResult struct{ Operation controlplane.Operation `json:"operation"` }
+	if err = json.Unmarshal(w.Body.Bytes(), &unknownResult); err != nil { t.Fatal(err) }
+	if unknownResult.Operation.State != controlplane.OperationFailed || unknownResult.Operation.LastFailureClass != controlplane.OperationFailureUnknown {
+		t.Fatalf("ambiguous deployment did not become FAILED/UNKNOWN: %#v", unknownResult.Operation)
+	}
+
+	w = applicationDeploymentPrincipalRequest(t, srv, http.MethodPost,
+		"/api/v1/application-platform/environment-bindings/"+binding.ID+"/deployments",
+		runtimeBody, "requester", []string{"platform-operator"},
+		map[string]string{"Idempotency-Key": "application-deploy-blocked-while-unknown"})
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "APPLICATION_DEPLOYMENT_RECOVERY_OR_OPERATION_PENDING") {
+		t.Fatalf("new deployment was not fenced by FAILED/UNKNOWN predecessor: %d %s", w.Code, w.Body.String())
+	}
+
+	w = applicationDeploymentAgentRequest(t, srv, http.MethodGet,
+		"/agent/v1/clusters/"+cluster.ID+"/application-deployment-recovery/next", "", agentToken, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("application deployment recovery task=%d %s", w.Code, w.Body.String())
+	}
+	var recoveryTask applicationDeploymentRecoveryTask
+	if err = json.Unmarshal(w.Body.Bytes(), &recoveryTask); err != nil { t.Fatal(err) }
+	if recoveryTask.OperationID != unknownTask.OperationID || recoveryTask.TaskFenceToken != unknownTask.TaskFenceToken {
+		t.Fatalf("application deployment recovery fence drift: %#v", recoveryTask)
+	}
+	recoveryPlan := recoveryTask.Request.Plan
+	recoveryEvidence := controlplane.ApplicationDeploymentEvidence{
+		Authority: controlplane.ApplicationDeploymentEvidenceAuthority,
+		OperationID: recoveryTask.OperationID, ProjectID: recoveryPlan.ProjectID, ClusterID: recoveryPlan.ClusterID, Namespace: recoveryPlan.Namespace,
+		EnvironmentBindingID: recoveryPlan.EnvironmentBindingID, EnvironmentBindingRevision: recoveryPlan.EnvironmentBindingRevision,
+		ReleaseDigest: recoveryPlan.ReleaseDigest, InventoryDigest: recoveryTask.Request.InventoryDigest, RenderedDigest: recoveryPlan.RenderedDigest,
+		Readback: controlplane.ApplicationDeploymentReadback{
+			DeploymentName: recoveryPlan.WorkloadName, DeploymentUID: "uid-payments-deployment-recovered",
+			Generation: 3, ObservedGeneration: 3, DesiredReplicas: recoveryPlan.RuntimeSpec.Replicas, ReadyReplicas: recoveryPlan.RuntimeSpec.Replicas,
+			WorkloadImage: recoveryPlan.WorkloadImageReference,
+			CPURequest: recoveryPlan.RuntimeSpec.CPURequest, CPULimit: recoveryPlan.RuntimeSpec.CPULimit,
+			MemoryRequest: recoveryPlan.RuntimeSpec.MemoryRequest, MemoryLimit: recoveryPlan.RuntimeSpec.MemoryLimit,
+			ServiceObserved: true, ServiceName: recoveryPlan.WorkloadName, ServiceClusterIP: "10.96.0.43",
+			ServicePort: recoveryPlan.RuntimeSpec.ServicePort, ServiceTargetPort: recoveryPlan.RuntimeSpec.ContainerPort,
+			AuthorityLabelsMatch: true, AuthorityDigestsMatch: true,
+		},
+		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		RuntimeMutationObserved: true, PhysicalCertificationInferred: false,
+	}
+	recoveryDigest, err := controlplane.ApplicationDeploymentEvidenceDigest(recoveryEvidence, recoveryTask.Request, recoveryTask.OperationID)
+	if err != nil { t.Fatal(err) }
+	recoveryRaw, _ := json.Marshal(applicationDeploymentRecoveryResult{
+		ConfirmedSuccess: true, Evidence: &recoveryEvidence, EvidenceDigest: recoveryDigest,
+	})
+	w = applicationDeploymentAgentRequest(t, srv, http.MethodPost,
+		"/agent/v1/clusters/"+cluster.ID+"/application-deployment-recovery/"+recoveryTask.OperationID+"/result",
+		string(recoveryRaw), agentToken, map[string]string{"If-Match": fmt.Sprintf("%q", recoveryTask.OperationRevision)})
+	if w.Code != http.StatusOK {
+		t.Fatalf("application deployment recovery result=%d %s", w.Code, w.Body.String())
+	}
+	var recovered struct{ Operation controlplane.Operation `json:"operation"`; EvidenceDigest string `json:"evidenceDigest"` }
+	if err = json.Unmarshal(w.Body.Bytes(), &recovered); err != nil { t.Fatal(err) }
+	if recovered.Operation.State != controlplane.OperationSucceeded || recovered.Operation.RecoveryEvidenceDigest != recoveryDigest || recovered.EvidenceDigest != recoveryDigest {
+		t.Fatalf("application deployment recovery did not seal confirmed success: %#v", recovered)
+	}
+
+	w = applicationDeploymentPrincipalRequest(t, srv, http.MethodPost,
+		"/api/v1/application-platform/environment-bindings/"+binding.ID+"/deployments",
+		runtimeBody, "requester", []string{"platform-operator"},
+		map[string]string{"Idempotency-Key": "application-deploy-after-recovery"})
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("recovered deployment continued to fence a new explicit request: %d %s", w.Code, w.Body.String())
+	}
 }
