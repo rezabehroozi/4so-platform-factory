@@ -21,6 +21,7 @@ type daprAssessmentResponse struct {
 	SupplyChainAdmitted           bool                              `json:"supplyChainAdmitted"`
 	ReviewedRuntimeVersion        string                            `json:"reviewedRuntimeVersion"`
 	Assessment                    targetmodel.DaprTargetAdmission   `json:"assessment"`
+	LatestOperation               *controlplane.Operation           `json:"latestOperation,omitempty"`
 	RuntimeInstallImplemented     bool                              `json:"runtimeInstallImplemented"`
 	PhysicalCertificationInferred bool                              `json:"physicalCertificationInferred"`
 }
