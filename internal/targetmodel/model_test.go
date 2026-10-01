@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c5 := byID["C5-installer-production-lifecycle-closure"]
-	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1", "INSTALLER_RECOVERY_STATUS_FIRST_UI_V1", "INSTALLER_RECOVERY_POLL_BOUNDED_V1", "INSTALLER_BROWSER_TOKEN_STALE_CLEAR_V1"} {
+	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", "INSTALLER_MANUAL_DOCTOR_V1", "INSTALLER_MANUAL_INPUT_DISCOVERY_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1", "INSTALLER_RECOVERY_STATUS_FIRST_UI_V1", "INSTALLER_RECOVERY_POLL_BOUNDED_V1", "INSTALLER_BROWSER_TOKEN_STALE_CLEAR_V1"} {
 		if !containsString(c5.Evidence, evidence) {
 			t.Fatalf("C5 guided manual installer evidence %q missing: %#v", evidence, c5)
 		}
@@ -213,7 +213,8 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 	for _, criterion := range []string{
 		"platformctl installer-manual preflight/plan/install composes the canonical hostdeployment owner and does not create a second installer engine",
 		"the common manual path never requires an operator to hand-author Installer deployment JSON, edit systemd units, or manually assemble PLATFORM_INSTALLER_* environment files",
-		"the release ships a thin install.sh entrypoint that delegates to installer-manual, discovers only an exact adjacent/source-specified release ZIP, never downloads moving upstream content and never drives systemd outside the canonical hostdeployment owner",
+		"the release ships a thin install.sh entrypoint that delegates to installer-manual, safely auto-discovers only explicit/standard real bundle directories plus an exact adjacent/source-specified release ZIP, never downloads moving upstream content and never drives systemd outside the canonical hostdeployment owner",
+		"bash install.sh doctor is non-mutating and non-root: it reports packaged binary, bundle and exact-release readiness before installation instead of making the operator discover missing prerequisites by trial-and-error",
 		"the same install.sh entrypoint owns status, verify, recover and rollback after deployment without requiring the original bundle/release ZIP again, while recover/rollback preserve their canonical explicit confirmation fences",
 		"advanced installer-host examples are pinned to the current VERSION by repository validation so documented copy/paste paths cannot silently become version-rejected stale examples",
 		"browser Installer owns supported profile selection, infrastructure/HA access and pinned host trust, dedicated HA storage, endpoint/TLS, managed/external service inputs, plan, host preflight and explicit INSTALL confirmation",
@@ -229,7 +230,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c6 := byID["C6-multi-agent-test-autopilot"]
-	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2", "AUTOPILOT_AGENT_OWNER_PROOF_V1", "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1"} {
+	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2", "AUTOPILOT_AGENT_OWNER_PROOF_V1", "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1", "AUTOPILOT_AGENT_ENTRYPOINT_V1"} {
 		if !containsString(c6.Evidence, evidence) {
 			t.Fatalf("C6 token-efficient autopilot evidence %q missing: %#v", evidence, c6)
 		}
@@ -243,6 +244,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"workspace deltas around every repair are digested; no-change, unreadable, unknown or cross-owner modifications force full convergence, and that decision survives crash/resume",
 		"repair agents may edit only the working tree and may not commit/reset/checkout/stash/rebase/merge or mutate Git refs/index/history; any observed HEAD mutation stops automatic repair and requires operator reconciliation",
 		"checkpoint workspace identity combines the immutable Git HEAD with exact hashes of only dirty/untracked product inputs, falling back to the full-tree digest when local Git enumeration is unavailable",
+		"make autopilot-agent is the single normal agent entrypoint and composes durable project-runtime execution with prerequisite checking, exact checkpoint/resume, bounded repair and owner-scoped convergence so agents do not need to reconstruct orchestration flags or replay green stages",
 		"make autopilot-context emits a compact non-authoritative continuation capsule containing run/stage/failure fingerprint/resume metadata, source-context pointers and at most one bounded secret-redacted failure capsule, never raw stage logs or unredacted secrets",
 		"the continuation capsule includes the exact current owner proof command and bounded stage timeout so a new agent can reproduce the smallest failing proof without rereading the full orchestration source or replaying earlier green stages",
 		"Installer core, host-deployment and remote-bootstrap smoke tests are independent checkpoint stages so a late remote failure never replays already-green Installer owner tests and each repair is attributed to the exact failing owner stage",
