@@ -368,6 +368,17 @@ class LiveCheckpointProcessResumeTests(unittest.TestCase):
                 self.assertIsNotNone(state)
                 self.assertTrue(state.pop("_activeProcessLive"))
                 self.assertIsNone(proc.poll(), "resume observer killed live stage process")
+
+                # A second observer may select a different graph or see a
+                # modified workspace, but neither condition may erase the live
+                # single-writer checkpoint while the recorded process exists.
+                (root / "source.txt").write_text("changed while live\n")
+                mismatch = AUTOPILOT._load_checkpoint(root, graph_signature="different-graph", repair=True)
+                self.assertIsNotNone(mismatch)
+                self.assertTrue(mismatch.pop("_activeProcessLive"))
+                self.assertTrue(AUTOPILOT._checkpoint_path(root).is_file())
+                self.assertIsNone(proc.poll(), "mismatched observer disrupted live stage process")
+
                 with mock.patch.object(AUTOPILOT, "run_stage") as run:
                     code = AUTOPILOT._execute_stages(
                         root, [stage], repair=False, max_repairs=0,
