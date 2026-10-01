@@ -3279,7 +3279,7 @@ func (a *agent) requestKubeObjectDeletionWithPreconditions(ctx context.Context, 
 	}
 	res, err := a.kube.Do(req)
 	if err != nil {
-		return false, err
+		return false, &kubeMutationOutcomeUnknownError{operation: "delete " + path, err: err}
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusNotFound {
