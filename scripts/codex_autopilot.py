@@ -675,9 +675,15 @@ def _git_dirty_paths(root: Path) -> list[str] | None:
     paths: set[str] = set()
     for raw in (tracked.stdout, untracked.stdout):
         for item in raw.decode(errors="surrogateescape").split("\0"):
-            item = item.strip()
-            if item:
-                paths.add(item.replace("\\", "/"))
+            if not item:
+                continue
+            normalized = item.replace("\\", "/")
+            parts = Path(normalized).parts
+            if any(part in _FINGERPRINT_EXCLUDED_DIRS for part in parts):
+                continue
+            if Path(normalized).name.endswith((".pyc", ".pyo", "~", ".bak")):
+                continue
+            paths.add(normalized)
     return sorted(paths)
 
 
@@ -1348,7 +1354,9 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                     print(detail, flush=True)
                 if not ok:
                     reason = "CODEX_UNAVAILABLE_OR_FAILED"
-                    if detail.startswith("AUTOPILOT_TRIAGE_BLOCKED classification="):
+                    if detail.startswith("AUTOPILOT_REPAIR_GIT_REF_MUTATION"):
+                        reason = "REPAIR_GIT_REF_MUTATION"
+                    elif detail.startswith("AUTOPILOT_TRIAGE_BLOCKED classification="):
                         classification = detail.split("classification=", 1)[1].splitlines()[0].strip()
                         reason = "TRIAGE_" + classification
                     print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason={reason}", flush=True)
