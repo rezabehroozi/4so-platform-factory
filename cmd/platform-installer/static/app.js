@@ -819,6 +819,7 @@ function renderStatus(status, health) {
   $('#next-action').innerHTML=`<strong>${esc(action[0])}</strong><p>${esc(action[1])}</p><button class="primary" type="button" data-go="${action[2]}">Open</button>`;
   $('#run-summary').innerHTML=detailsHTML([['Run ID',run.id],['Spec digest',shortDigest(run.specDigest)],['Bundle digest',shortDigest(run.bundleDigest)],['Preflight digest',shortDigest(run.preflightDigest)],['Created',formatDate(run.createdAt)],['Updated',formatDate(run.updatedAt)],['Last error',run.lastError || 'None']]);
   $('#run-progress').innerHTML=(run.steps||[]).map((step,index)=>`<div class="timeline-item ${String(step.state).toLowerCase()}"><span class="timeline-index">${index+1}</span><div><h4>${esc(step.title)}</h4><p>${esc(step.key)} · attempt ${esc(step.attempt || 0)}${step.startedAt?`<br>Started ${esc(formatDate(step.startedAt))}`:''}${step.error?`<br>${esc(step.error)}`:''}</p></div>${pill(step.state)}</div>`).join('');
+  $('#resume-installation').textContent=run.state==='FAILED'?'Resume failed run':interrupted?'Resume interrupted run':'Resume installation';
   $('#resume-installation').disabled=!status.executionEnabled || !(run.state==='FAILED' || interrupted);
 }
 async function coordinatedRequest(key, work){
@@ -862,11 +863,39 @@ async function refreshStatus() {
   if (!state.token || document.visibilityState==='hidden') return;
   return coordinatedRequest('status', async signal => {
     try {
-      const [status,health,bundle,preflight,accessSecurity] = await Promise.all([api('/api/v1/status',{signal}),fetch('/healthz',{signal}).then(r=>r.json()),loadBundleStatus({signal}),api('/api/v1/preflight',{signal}),loadAccessSecurity({signal})]);
-      if(signal.aborted)return;state.connectionFailures=0;setConnection(true); renderStatus(status,health); renderBundle(bundle);
-      if (preflight?.state && preflight.state !== 'NOT_RUN') renderPreflight(preflight);
-      if (status?.run) await loadDiagnostics(false);
-    } catch (error) { if(error?.name==='AbortError')return;state.connectionFailures++;if(state.connectionFailures>=2)setConnection(false);if (state.token) toast(error.message,'error'); }
+      // Durable installer status is the recovery authority. Render it before
+      // ancillary health/preflight/access reads so a secondary endpoint cannot
+      // hide Resume/Reset controls after a crash or partial installation.
+      const status=await api('/api/v1/status',{signal});
+      if(signal.aborted)return;
+      state.connectionFailures=0;setConnection(true);renderStatus(status,null);
+
+      const [healthResult,bundleResult,preflightResult,accessResult]=await Promise.allSettled([
+        fetch('/healthz',{signal}).then(async response=>{
+          if(!response.ok)throw new Error(`health endpoint returned ${response.status}`);
+          return response.json();
+        }),
+        loadBundleStatus({signal}),
+        api('/api/v1/preflight',{signal}),
+        loadAccessSecurity({signal})
+      ]);
+      if(signal.aborted)return;
+      if(healthResult.status==='fulfilled'){
+        state.health=healthResult.value;
+        renderStatus(status,healthResult.value);
+      }
+      if(bundleResult.status==='fulfilled')renderBundle(bundleResult.value);
+      if(preflightResult.status==='fulfilled'&&preflightResult.value?.state&&preflightResult.value.state!=='NOT_RUN')renderPreflight(preflightResult.value);
+      if(accessResult.status==='rejected'&&$('#access-security-status')){
+        $('#access-security-status').innerHTML=`<div class="empty-state">${esc('Access-security details are temporarily unavailable. Durable installation status remains available.')}</div>`;
+      }
+      if(status?.run)await loadDiagnostics(false);
+    } catch (error) {
+      if(error?.name==='AbortError')return;
+      state.connectionFailures++;
+      if(state.connectionFailures>=2)setConnection(false);
+      if(state.token)toast(error.message,'error');
+    }
   });
 }
 $('#next-action').onclick = event => { const button=event.target.closest('[data-go]'); if(button) navigate(button.dataset.go); };
