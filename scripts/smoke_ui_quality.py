@@ -221,9 +221,9 @@ def static_quality_failures(root: Path) -> list[str]:
                 failures.append(f"{rel}:rtl-physical-text-align:{rule.group(1).strip()}")
     if "Create WorkloadType authority through Product API or MCP" in console_js:
         failures.append("webconsole/static/app.js:application-composition-api-only-empty-state")
-    for marker in ("emptyDisclosureState", "application-composition-library", "application-binding-workflow"):
+    for marker in ("emptyDisclosureState", "emptyFocusState", "application-composition-library", "application-binding-workflow", "renderDaprRuntimePrerequisite"):
         if marker not in console_js:
-            failures.append(f"webconsole/static/app.js:application-empty-state-direct-action-missing:{marker}")
+            failures.append(f"webconsole/static/app.js:actionable-empty-state-direct-action-missing:{marker}")
     actionable_empty_state_owners = {
         "assurance-start-workflow": "runtime-certification-project",
         "fleet-slo-workflow": "reliability-slo-cluster",
@@ -238,12 +238,22 @@ def static_quality_failures(root: Path) -> list[str]:
         "membership-workflow": "membership-organization",
         "oidc-mapping-workflow": "oidc-group-name",
         "service-account-workflow": "service-account-organization",
+        "cluster-import-console": "cluster-project",
     }
     for disclosure, focus_target in actionable_empty_state_owners.items():
         if f'id="{disclosure}"' not in console_html:
             failures.append(f"webconsole/static/index.html:actionable-empty-state-owner-missing:{disclosure}")
         if f"'{disclosure}'" not in console_js or f"'{focus_target}'" not in console_js:
             failures.append(f"webconsole/static/app.js:actionable-empty-state-direct-action-missing:{disclosure}:{focus_target}")
+    for focus_target in ("maintenance-window-name", "blueprint-project", "global-organization-scope"):
+        if f'id="{focus_target}"' not in console_html:
+            failures.append(f"webconsole/static/index.html:focus-empty-state-owner-missing:{focus_target}")
+        if f"'{focus_target}'" not in console_js:
+            failures.append(f"webconsole/static/app.js:focus-empty-state-direct-action-missing:{focus_target}")
+    for marker in ("id=\"dapr-prerequisite\"", "data-dapr-prerequisite-kind", "application-runtime.dapr"):
+        haystack = console_html if marker.startswith("id=") else console_js
+        if marker not in haystack:
+            failures.append(f"webconsole:dapr-actionable-prerequisite-missing:{marker}")
     for phrase in (">Left release<", ">Right release<", "stays above", "form above", "connect Forgejo below"):
         if phrase.lower() in console_html.lower() or phrase.lower() in console_js.lower():
             failures.append(f"webconsole:physical-position-copy:{phrase}")
