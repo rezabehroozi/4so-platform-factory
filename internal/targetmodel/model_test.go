@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c5 := byID["C5-installer-production-lifecycle-closure"]
-	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", "INSTALLER_MANUAL_DOCTOR_V1", "INSTALLER_MANUAL_INPUT_DISCOVERY_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1", "INSTALLER_RECOVERY_STATUS_FIRST_UI_V1", "INSTALLER_RECOVERY_POLL_BOUNDED_V1", "INSTALLER_BROWSER_TOKEN_STALE_CLEAR_V1"} {
+	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", "INSTALLER_MANUAL_DOCTOR_V1", "INSTALLER_MANUAL_INPUT_DISCOVERY_V1", "INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1", "INSTALLER_RECOVERY_STATUS_FIRST_UI_V1", "INSTALLER_RECOVERY_POLL_BOUNDED_V1", "INSTALLER_BROWSER_TOKEN_STALE_CLEAR_V1"} {
 		if !containsString(c5.Evidence, evidence) {
 			t.Fatalf("C5 guided manual installer evidence %q missing: %#v", evidence, c5)
 		}
@@ -214,7 +214,8 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"platformctl installer-manual preflight/plan/install composes the canonical hostdeployment owner and does not create a second installer engine",
 		"the common manual path never requires an operator to hand-author Installer deployment JSON, edit systemd units, or manually assemble PLATFORM_INSTALLER_* environment files",
 		"the release ships a thin install.sh entrypoint that delegates to installer-manual, safely auto-discovers only explicit/standard real bundle directories plus an exact adjacent/source-specified release ZIP, never downloads moving upstream content and never drives systemd outside the canonical hostdeployment owner",
-		"bash install.sh doctor is non-mutating and non-root: it reports packaged binary, bundle and exact-release readiness before installation instead of making the operator discover missing prerequisites by trial-and-error",
+		"bash install.sh doctor is non-mutating and non-root: it reports packaged binary, bundle and exact-release input readiness before installation without claiming bundle admission",
+		"the normal install.sh install path fails before host mutation unless --enable-execution and explicit --confirmation DEPLOY are present, preventing a successful host deployment that leaves the Browser Installer unexpectedly non-actionable",
 		"the same install.sh entrypoint owns status, verify, recover and rollback after deployment without requiring the original bundle/release ZIP again, while recover/rollback preserve their canonical explicit confirmation fences",
 		"advanced installer-host examples are pinned to the current VERSION by repository validation so documented copy/paste paths cannot silently become version-rejected stale examples",
 		"browser Installer owns supported profile selection, infrastructure/HA access and pinned host trust, dedicated HA storage, endpoint/TLS, managed/external service inputs, plan, host preflight and explicit INSTALL confirmation",
