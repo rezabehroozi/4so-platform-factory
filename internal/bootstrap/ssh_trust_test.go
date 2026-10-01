@@ -319,3 +319,24 @@ func TestStoreSSHKnownHostsCannotOverwriteAmbiguousRotationOutcome(t *testing.T)
 		t.Fatalf("ambiguous trust was mutated despite fail-closed fence: %q", observedNormalized)
 	}
 }
+
+
+func TestHAPeerStoragePrerequisiteCommandsAreBoundedAndOffline(t *testing.T) {
+	probe := haPeerStoragePrerequisiteProbeCommand()
+	for _, required := range []string{"command -v iscsiadm", "command -v iscsid", "iscsid.service", "iscsid.socket", "exit 18"} {
+		if !strings.Contains(probe, required) {
+			t.Fatalf("HA storage prerequisite probe missing %q: %s", required, probe)
+		}
+	}
+	prepare := haPeerStoragePreparationCommand()
+	for _, required := range []string{"systemctl enable --now iscsid.service", "systemctl enable --now iscsid.socket"} {
+		if !strings.Contains(prepare, required) {
+			t.Fatalf("HA storage prerequisite preparation missing %q: %s", required, prepare)
+		}
+	}
+	for _, forbidden := range []string{"apt-get", "dnf ", "yum ", "curl ", "wget "} {
+		if strings.Contains(prepare, forbidden) {
+			t.Fatalf("HA storage prerequisite preparation must not acquire packages over the network: %s", prepare)
+		}
+	}
+}
