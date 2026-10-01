@@ -725,7 +725,7 @@
 <label><span>Severity</span><select id="reliability-incident-severity"><option value="CRITICAL">Critical</option><option value="WARNING">Warning</option><option value="INFO">Info</option></select></label>
 <div class="form-actions span-full"><button class="primary" type="submit">Create incident</button></div></form>
 </div></details>
-<div class="resource-grid record-list" id="reliability-incident-grid"></div></div></div>
+<div aria-label="Reliability incidents" class="resource-grid record-list" id="reliability-incident-grid" role="region" tabindex="-1"></div></div></div>
 <details class="action-console" id="fleet-slo-workflow"><summary><span class="summary-title">SLO &amp; error budget</span><span class="summary-help">Immutable cluster-targeted SLO policy and fail-closed coverage.</span></summary><div class="action-console-body">
 <form class="form-grid" id="reliability-slo-form">
 <label><span>Cluster</span><select id="reliability-slo-cluster" required></select></label><label><span>Name</span><input id="reliability-slo-name" maxlength="128" placeholder="api-availability" required></label>
