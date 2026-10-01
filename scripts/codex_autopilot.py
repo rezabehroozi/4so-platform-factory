@@ -414,6 +414,8 @@ FAILURE_CAPSULE_AUTHORITY = "AUTOPILOT_FAILURE_CAPSULE_V1"
 SELECTIVE_CONVERGENCE_AUTHORITY = "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1"
 REPAIR_SCOPE_FENCE_AUTHORITY = "AUTOPILOT_REPAIR_SCOPE_FENCE_V1"
 STRUCTURED_TRIAGE_AUTHORITY = "AUTOPILOT_STRUCTURED_TRIAGE_V1"
+REPAIR_GIT_BOUNDARY_AUTHORITY = "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1"
+DIRTY_DELTA_AUTHORITY = "AUTOPILOT_DIRTY_DELTA_V1"
 
 _FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
 
@@ -516,7 +518,9 @@ def _repair_prompt(stage: Stage, result: StageResult, iteration: int, triage: st
         do not create documentation/handoff/roadmap files, do not create a new validator when
         an existing owner suite is the correct place, and do not weaken a correct test merely
         to make it pass. Prefer the product owner layer for product defects and the test owner
-        layer for stale/broken tests.
+        layer for stale/broken tests. Do not commit, amend, reset, checkout, switch, stash,
+        rebase, merge, clean, or otherwise mutate Git refs/index/history; edit only the working
+        tree files needed for this defect.
 
         After editing, run the smallest owner test that proves the fix. Do not run an endless
         repair loop; return when the defect is fixed or when the failure is environmental.
@@ -647,13 +651,64 @@ def _workspace_fingerprint(root: Path) -> str:
     return digest.hexdigest()
 
 
-def _workspace_manifest(root: Path) -> dict[str, str]:
-    """Digest product inputs around one repair boundary.
+def _git_dirty_paths(root: Path) -> list[str] | None:
+    """Return tracked-dirty + untracked paths without hashing the whole tree.
 
-    The manifest is used only to decide whether selective convergence is safe.
-    Runtime outputs are excluded by the same rules as the durable workspace
-    fingerprint. Any unreadable/churning file forces conservative convergence.
+    Git is used only as a local change-index here, never as execution authority.
+    If it is unavailable or ambiguous, callers fall back to the full safe manifest.
     """
+    try:
+        tracked = subprocess.run(
+            ["git", "diff", "--name-only", "-z", "HEAD", "--"],
+            cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            check=False, timeout=10,
+        )
+        untracked = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            check=False, timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if tracked.returncode != 0 or untracked.returncode != 0:
+        return None
+    paths: set[str] = set()
+    for raw in (tracked.stdout, untracked.stdout):
+        for item in raw.decode(errors="surrogateescape").split("\0"):
+            item = item.strip()
+            if item:
+                paths.add(item.replace("\\", "/"))
+    return sorted(paths)
+
+
+def _hash_workspace_paths(root: Path, paths: list[str]) -> dict[str, str]:
+    manifest: dict[str, str] = {}
+    for relative in sorted(set(paths)):
+        path = root / relative
+        try:
+            if not path.is_file() or path.is_symlink():
+                manifest[relative] = "MISSING_OR_NONREGULAR"
+                continue
+            digest = hashlib.sha256()
+            with path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            manifest[relative] = digest.hexdigest()
+        except OSError:
+            manifest[relative] = "UNREADABLE"
+    return manifest
+
+
+def _workspace_manifest(root: Path) -> dict[str, str]:
+    """Digest only locally changed product inputs when Git can enumerate them.
+
+    This keeps repair-boundary accounting cheap on large repositories. If the
+    local Git index cannot be read, fall back to the prior full-tree manifest so
+    convergence safety never depends on the optimization.
+    """
+    dirty = _git_dirty_paths(root)
+    if dirty is not None:
+        return _hash_workspace_paths(root, dirty)
     manifest: dict[str, str] = {}
     for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
         if not path.is_file():
@@ -673,7 +728,6 @@ def _workspace_manifest(root: Path) -> dict[str, str]:
             continue
         manifest[rel.as_posix()] = digest.hexdigest()
     return manifest
-
 
 def _workspace_manifest_delta(before: dict[str, str], after: dict[str, str]) -> list[str]:
     return sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
@@ -884,6 +938,8 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "selectiveConvergenceAuthority": SELECTIVE_CONVERGENCE_AUTHORITY,
         "repairScopeFenceAuthority": REPAIR_SCOPE_FENCE_AUTHORITY,
         "structuredTriageAuthority": STRUCTURED_TRIAGE_AUTHORITY,
+        "repairGitBoundaryAuthority": REPAIR_GIT_BOUNDARY_AUTHORITY,
+        "dirtyDeltaAuthority": DIRTY_DELTA_AUTHORITY,
         "derived": True,
         "notProductAuthority": True,
         "runId": resolved_run_id,
@@ -1256,10 +1312,21 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 event_log.append("repair-start", phase="forward", stage=stage.name, specialist=_stage_specialist(stage), status="REPAIRING", fingerprint=result.fingerprint, nextIndex=index, repairCount=repair_count)
                 _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index, repair_count=repair_count, status="REPAIRING", current_stage=stage.name, stage_results=report_rows, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
                 before_repair = _workspace_manifest(root)
+                before_repair_head = _git_head(root)
                 ok, detail = invoke_codex(root, stage, result, repair_count, codex_timeout)
+                after_repair_head = _git_head(root)
                 after_repair = _workspace_manifest(root)
                 changed_paths = _workspace_manifest_delta(before_repair, after_repair)
-                repair_requires_full = _repair_requires_full_convergence(stage, changed_paths)
+                git_ref_mutated = bool(before_repair_head and after_repair_head and before_repair_head != after_repair_head)
+                if git_ref_mutated:
+                    ok = False
+                    detail = (
+                        "AUTOPILOT_REPAIR_GIT_REF_MUTATION "
+                        f"before={before_repair_head} after={after_repair_head}; "
+                        "operator reconciliation required"
+                    )
+                    changed_paths = sorted(set(changed_paths + ["__GIT_HEAD__"]))
+                repair_requires_full = git_ref_mutated or _repair_requires_full_convergence(stage, changed_paths)
                 full_convergence_required = full_convergence_required or repair_requires_full
                 event_log.append(
                     "repair-delta",
