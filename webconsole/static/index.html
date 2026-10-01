@@ -317,6 +317,21 @@
 </form>
 </div></details>
 </div>
+<details class="inline-action-disclosure"><summary><span class="summary-title">Preview application deployment plan</span><span class="summary-help">Render the exact Deployment/Service desired state from an artifact-bound environment binding. This is read-only planning and never applies resources.</span></summary><div class="inline-action-body">
+<form class="form-grid" data-viewer-safe="true" id="application-deployment-plan-form" novalidate="">
+<label class="span-full"><span>Environment binding</span><select id="application-deployment-binding" required=""></select><small>Only bindings whose immutable release carries an exact workload image are eligible.</small></label>
+<label><span>Replicas</span><input id="application-deployment-replicas" min="1" max="50" type="number" value="2" required=""/></label>
+<label><span>Container port</span><input id="application-deployment-container-port" min="1" max="65535" type="number" value="8080" required=""/></label>
+<label><span>Service port</span><input id="application-deployment-service-port" min="0" max="65535" type="number" value="80"/><small>Use 0 to render Deployment only.</small></label>
+<label><span>CPU request</span><input class="technical" dir="ltr" id="application-deployment-cpu-request" pattern="[1-9][0-9]*m" value="100m" required=""/></label>
+<label><span>CPU limit</span><input class="technical" dir="ltr" id="application-deployment-cpu-limit" pattern="[1-9][0-9]*m" value="500m" required=""/></label>
+<label><span>Memory request</span><input class="technical" dir="ltr" id="application-deployment-memory-request" pattern="[1-9][0-9]*(Mi|Gi)" value="128Mi" required=""/></label>
+<label><span>Memory limit</span><input class="technical" dir="ltr" id="application-deployment-memory-limit" pattern="[1-9][0-9]*(Mi|Gi)" value="512Mi" required=""/></label>
+<div class="form-actions span-full"><button class="secondary" type="submit">Preview rendered deployment</button></div>
+<small class="span-full">The result is deterministic desired state only. No Kubernetes mutation, runtime convergence, image pull, or Physical certification is inferred.</small>
+</form>
+<div aria-live="polite" id="application-deployment-plan-result"></div>
+</div></details>
 <details class="inline-action-disclosure" id="dapr-runtime-workflow"><summary><span class="summary-title">Dapr application runtime</span><span class="summary-help">Assess native-vs-managed Dapr first. Product-managed install/upgrade/remove always becomes a durable, approval-gated operation.</span></summary><div class="inline-action-body">
 <div class="grid two">
 <form class="form-grid" id="dapr-assessment-form" novalidate="">
