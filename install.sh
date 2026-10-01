@@ -4,6 +4,7 @@ set -euo pipefail
 AUTHORITY="INSTALLER_MANUAL_ENTRYPOINT_V1"
 CONTINUATION_AUTHORITY="INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1"
 ACTIONABLE_AUTHORITY="INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1"
+DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
 INSTALLER="${ROOT_DIR}/bin/linux-amd64/platform-installer"
@@ -217,6 +218,7 @@ if [[ "${mode}" == "doctor" ]]; then
   [[ -n "${release_artifact}" && -f "${release_artifact}" && ! -L "${release_artifact}" ]] && release_artifact_ready=true || ready=false
   printf '%s\n' \
     "authority=INSTALLER_MANUAL_DOCTOR_V1" \
+    "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
     "readyForPreflight=${ready}" \
     "bundleAdmissionVerified=false" \
     "platformctlReady=${platformctl_ready}" \
