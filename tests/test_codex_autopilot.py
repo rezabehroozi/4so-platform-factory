@@ -665,6 +665,51 @@ class StageAwareEnvironmentPreflightTests(unittest.TestCase):
             "go", "make", "c-compiler", "libpq-dev", "chromium-or-chrome",
             "python-module:yaml", "python-module:playwright",
         })
+    def test_custom_codex_command_arguments_are_not_exposed_by_preflight(self):
+        stage = AUTOPILOT.Stage("repository-validation", ("python3", "scripts/validate_repository.py", "."), 180)
+        command = ["codex", "exec", "--token", "super-secret-token", "--sandbox", "workspace-write"]
+        with mock.patch.object(AUTOPILOT.shutil, "which", return_value="/usr/bin/codex"), \
+             mock.patch.object(AUTOPILOT, "_python_module_available", return_value=True), \
+             mock.patch.object(AUTOPILOT, "_codex_command", return_value=command), \
+             mock.patch.dict(os.environ, {"PLATFORM_FACTORY_CODEX_COMMAND": "secret override"}, clear=False):
+            missing, details = AUTOPILOT.environment_preflight(require_codex=True, stages=[stage])
+        self.assertEqual(missing, [])
+        raw = json.dumps(details, sort_keys=True)
+        self.assertNotIn("super-secret-token", raw)
+        self.assertNotIn("secret override", raw)
+        self.assertNotIn("--token", raw)
+        self.assertEqual(details["codex-command-source"], "override")
+        self.assertEqual(details["codex-command-argv-count"], str(len(command)))
+        self.assertEqual(details["codex-executable"], "/usr/bin/codex")
+
+    def test_blocked_environment_preflight_creates_compact_agent_handoff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = AUTOPILOT.Stage("installer-remote-smoke", ("python3", "scripts/smoke_installer_remote.py"), 900)
+            missing = ["python-module:playwright", "chromium-or-chrome"]
+            details = {"optional:node": "unavailable"}
+            with mock.patch.object(AUTOPILOT, "_select_stages", return_value=[stage]), \
+                 mock.patch.object(AUTOPILOT, "environment_preflight", return_value=(missing, details)), \
+                 mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_workspace_fingerprint", return_value="workspace"):
+                code = AUTOPILOT._run_autopilot_locked(
+                    root,
+                    repair=True,
+                    max_repairs=3,
+                    codex_timeout=10,
+                    start_stage="installer-remote-smoke",
+                )
+                context = AUTOPILOT._agent_context(root)
+            self.assertEqual(code, 3)
+            self.assertEqual(context["status"], "ENVIRONMENT_BLOCKED")
+            self.assertEqual(context["environmentPreflight"]["authority"], "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1")
+            self.assertEqual(context["environmentPreflight"]["missing"], sorted(missing))
+            self.assertEqual(context["lastFailure"]["stage"], "environment-preflight")
+            self.assertEqual(context["lastFailure"]["specialist"], "environment")
+            self.assertIn("do not edit product source", context["nextAction"])
+            self.assertNotIn("super-secret", json.dumps(context))
+            self.assertFalse((root / ".state" / "codex-autopilot-run.json").exists())
+
 
 class StageSlicingPreflightOrderTests(unittest.TestCase):
     def test_sliced_run_preflights_only_selected_stages(self):
