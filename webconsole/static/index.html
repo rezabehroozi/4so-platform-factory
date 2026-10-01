@@ -717,11 +717,14 @@
 <div class="panel-subsection" id="reliability-delivery"><div class="subsection-heading"><div><h3 data-i18n="reliability.deliveryInsights">Delivery insights</h3><p data-i18n="reliability.deliveryInsightsHelp">Evidence-derived deployment flow for the last 30 days. Missing deployment or source-commit evidence remains unknown.</p></div></div><div class="metric-grid" id="reliability-delivery-summary"></div><div class="inline-summary" id="reliability-delivery-evidence"></div></div>
 <div class="two-column">
 <div><h3>Service health</h3><div class="resource-grid record-list" id="reliability-cluster-grid"></div></div>
-<div><h3>Incidents</h3><form class="form-grid" id="reliability-incident-form">
+<div><h3>Incidents</h3>
+<details class="inline-action-disclosure" id="reliability-incident-workflow"><summary><span class="summary-title">Create incident</span><span class="summary-help">Record a project or cluster service incident only when operator intervention or reliability tracking is required.</span></summary><div class="inline-action-body">
+<form class="form-grid" id="reliability-incident-form">
 <label><span>Cluster</span><select id="reliability-incident-cluster"><option value="">Project-wide</option></select></label>
 <label><span>Service</span><input id="reliability-incident-service" maxlength="128" placeholder="platform-api" required></label>
 <label><span>Severity</span><select id="reliability-incident-severity"><option value="CRITICAL">Critical</option><option value="WARNING">Warning</option><option value="INFO">Info</option></select></label>
 <div class="form-actions span-full"><button class="primary" type="submit">Create incident</button></div></form>
+</div></details>
 <div class="resource-grid record-list" id="reliability-incident-grid"></div></div></div>
 <details class="action-console" id="fleet-slo-workflow"><summary><span class="summary-title">SLO &amp; error budget</span><span class="summary-help">Immutable cluster-targeted SLO policy and fail-closed coverage.</span></summary><div class="action-console-body">
 <form class="form-grid" id="reliability-slo-form">
