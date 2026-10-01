@@ -63,11 +63,15 @@ func parseApplicationDeploymentTarget(target string) (clusterID, bindingID strin
 }
 
 func (s *Server) buildApplicationDeploymentRequest(ctx context.Context, bindingID string, runtime controlplane.ApplicationRuntimeSpec) (controlplane.ApplicationDeploymentRequest, error) {
-	binding, err := s.store.GetEnvironmentBinding(ctx, strings.TrimSpace(bindingID))
+	appStore, ok := s.store.(applicationPlatformStore)
+	if !ok {
+		return controlplane.ApplicationDeploymentRequest{}, fmt.Errorf("%w: application platform persistence authority is unavailable", controlplane.ErrPrerequisite)
+	}
+	binding, err := appStore.GetEnvironmentBinding(ctx, strings.TrimSpace(bindingID))
 	if err != nil {
 		return controlplane.ApplicationDeploymentRequest{}, err
 	}
-	release, err := s.store.GetApplicationRelease(ctx, binding.ReleaseID)
+	release, err := appStore.GetApplicationRelease(ctx, binding.ReleaseID)
 	if err != nil {
 		return controlplane.ApplicationDeploymentRequest{}, err
 	}
@@ -111,6 +115,10 @@ func (s *Server) buildApplicationDeploymentRequest(ctx context.Context, bindingI
 }
 
 func (s *Server) validateApplicationDeploymentCurrentAuthority(ctx context.Context, request controlplane.ApplicationDeploymentRequest) error {
+	appStore, ok := s.store.(applicationPlatformStore)
+	if !ok {
+		return fmt.Errorf("%w: application platform persistence authority is unavailable", controlplane.ErrPrerequisite)
+	}
 	raw, _, err := controlplane.MarshalApplicationDeploymentRequest(request)
 	if err != nil {
 		return err
@@ -120,11 +128,11 @@ func (s *Server) validateApplicationDeploymentCurrentAuthority(ctx context.Conte
 		return err
 	}
 	plan := request.Plan
-	binding, err := s.store.GetEnvironmentBinding(ctx, plan.EnvironmentBindingID)
+	binding, err := appStore.GetEnvironmentBinding(ctx, plan.EnvironmentBindingID)
 	if err != nil {
 		return err
 	}
-	release, err := s.store.GetApplicationRelease(ctx, plan.ReleaseID)
+	release, err := appStore.GetApplicationRelease(ctx, plan.ReleaseID)
 	if err != nil {
 		return err
 	}
@@ -179,12 +187,17 @@ func (s *Server) validateApplicationDeploymentCurrentAuthority(ctx context.Conte
 }
 
 func (s *Server) createApplicationDeployment(w http.ResponseWriter, r *http.Request) {
+	appStore, ok := s.store.(applicationPlatformStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "APPLICATION_PLATFORM_AUTHORITY_UNAVAILABLE", "application platform persistence authority is unavailable")
+		return
+	}
 	var runtime controlplane.ApplicationRuntimeSpec
 	if err := decodeJSON(w, r, &runtime); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
-	binding, err := s.store.GetEnvironmentBinding(r.Context(), strings.TrimSpace(r.PathValue("id")))
+	binding, err := appStore.GetEnvironmentBinding(r.Context(), strings.TrimSpace(r.PathValue("id")))
 	if err != nil {
 		writeStoreError(w, err)
 		return
