@@ -17,7 +17,10 @@ import (
 	"platform.4so.io/factory/internal/releaseartifact"
 )
 
-const installerGuidedManualWorkflowAuthority = "INSTALLER_GUIDED_MANUAL_WORKFLOW_V1"
+const (
+	installerGuidedManualWorkflowAuthority = "INSTALLER_GUIDED_MANUAL_WORKFLOW_V1"
+	installerManualExactReleaseAuthority   = "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1"
+)
 
 // installer-manual is the human-oriented owner path for placing the Bootstrap
 // Installer on a host. It intentionally composes the same hostdeployment
@@ -128,6 +131,7 @@ func installerManualPrepare(mode string, args []string) {
 	if mode == "plan" {
 		printJSON(map[string]any{
 			"authority":     installerGuidedManualWorkflowAuthority,
+			"exactReleaseAuthority": installerManualExactReleaseAuthority,
 			"manualInstall": true,
 			"plan":          plan,
 			"specPath":      retainedSpecPath(input.OutputSpec),
@@ -140,7 +144,7 @@ func installerManualPrepare(mode string, args []string) {
 		return
 	}
 	if !plan.Admission.Ready {
-		printJSON(map[string]any{"authority": installerGuidedManualWorkflowAuthority, "manualInstall": true, "plan": plan, "status": "BLOCKED", "nextAction": "resolve host admission blockers and rerun preflight"})
+		printJSON(map[string]any{"authority": installerGuidedManualWorkflowAuthority, "exactReleaseAuthority": installerManualExactReleaseAuthority, "manualInstall": true, "plan": plan, "status": "BLOCKED", "nextAction": "resolve host admission blockers and rerun preflight"})
 		os.Exit(1)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), input.Timeout)
@@ -175,6 +179,7 @@ func installerManualPrepare(mode string, args []string) {
 	}
 	printJSON(map[string]any{
 		"authority":          installerGuidedManualWorkflowAuthority,
+		"exactReleaseAuthority": installerManualExactReleaseAuthority,
 		"manualInstall":      true,
 		"status":             status,
 		"plan":               plan,
