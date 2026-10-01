@@ -4466,7 +4466,14 @@ function renderApplicationPlatformComposition(){
   const traitSelect=$('#application-resolution-traits');if(traitSelect)traitSelect.innerHTML=eligibleTraits.map(item=>`<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.capability)}</option>`).join('');
   applicationListOptions($('#application-promotion-binding'),state.applicationEnvironmentBindings,item=>`${item.environment} · ${item.namespace} · r${item.revision}`);
   const selectedBinding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-promotion-binding')?.value)||state.applicationEnvironmentBindings[0];
-  applicationListOptions($('#application-promotion-release'),state.applicationReleases.filter(item=>!selectedBinding||item.projectId===selectedBinding.projectId),item=>`${item.name} · ${item.version}`);
+  const currentRelease=state.applicationReleases.find(item=>item.id===selectedBinding?.releaseId);
+  const promotionCandidates=state.applicationReleases.filter(item=>!selectedBinding||(
+    item.projectId===selectedBinding.projectId &&
+    currentRelease &&
+    item.name===currentRelease.name &&
+    item.workloadTypeDigest===currentRelease.workloadTypeDigest
+  ));
+  applicationListOptions($('#application-promotion-release'),promotionCandidates,item=>`${item.name} · ${item.version}`);
   renderApplicationAuthoringOptions();
   renderDaprRuntimeOptions();
   renderDaprRuntimeResult();
