@@ -75,7 +75,9 @@ type ApplicationDeploymentReadback struct {
 	Generation           int64  `json:"generation"`
 	ObservedGeneration   int64  `json:"observedGeneration"`
 	DesiredReplicas      int    `json:"desiredReplicas"`
+	UpdatedReplicas      int    `json:"updatedReplicas"`
 	ReadyReplicas        int    `json:"readyReplicas"`
+	AvailableReplicas    int    `json:"availableReplicas"`
 	WorkloadImage        string `json:"workloadImage"`
 	CPURequest           string `json:"cpuRequest"`
 	CPULimit             string `json:"cpuLimit"`
@@ -288,7 +290,8 @@ func ValidateApplicationDeploymentEvidence(value ApplicationDeploymentEvidence, 
 	}
 	if r.DeploymentName != plan.WorkloadName || r.DeploymentUID == "" || r.Generation <= 0 ||
 		r.ObservedGeneration < r.Generation || r.DesiredReplicas != plan.RuntimeSpec.Replicas ||
-		r.ReadyReplicas != plan.RuntimeSpec.Replicas || r.WorkloadImage != plan.WorkloadImageReference ||
+		r.UpdatedReplicas != plan.RuntimeSpec.Replicas || r.ReadyReplicas != plan.RuntimeSpec.Replicas ||
+		r.AvailableReplicas != plan.RuntimeSpec.Replicas || r.WorkloadImage != plan.WorkloadImageReference ||
 		r.CPURequest != plan.RuntimeSpec.CPURequest || r.CPULimit != plan.RuntimeSpec.CPULimit ||
 		r.MemoryRequest != plan.RuntimeSpec.MemoryRequest || r.MemoryLimit != plan.RuntimeSpec.MemoryLimit ||
 		!r.AuthorityLabelsMatch || !r.AuthorityDigestsMatch {
