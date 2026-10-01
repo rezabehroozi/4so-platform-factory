@@ -211,6 +211,26 @@ def static_quality_failures(root: Path) -> list[str]:
     for marker in ("emptyDisclosureState", "application-composition-library", "application-binding-workflow"):
         if marker not in console_js:
             failures.append(f"webconsole/static/app.js:application-empty-state-direct-action-missing:{marker}")
+    actionable_empty_state_owners = {
+        "assurance-start-workflow": "runtime-certification-project",
+        "fleet-slo-workflow": "reliability-slo-cluster",
+        "fleet-recovery-workflow": "recovery-cluster",
+        "data-protection-console": "data-protection-cluster",
+        "fleet-configuration-workflow": "fleet-project",
+        "template-schema-workflow": "template-schema-project",
+        "template-policy-workflow": "template-policy-project",
+        "platform-template-workflow": "platform-template-project",
+        "finops-budget-workflow": "finops-budget-organization",
+        "finops-rate-card-workflow": "finops-rate-card-organization",
+        "membership-workflow": "membership-organization",
+        "oidc-mapping-workflow": "oidc-group-name",
+        "service-account-workflow": "service-account-organization",
+    }
+    for disclosure, focus_target in actionable_empty_state_owners.items():
+        if f'id="{disclosure}"' not in console_html:
+            failures.append(f"webconsole/static/index.html:actionable-empty-state-owner-missing:{disclosure}")
+        if f"'{disclosure}'" not in console_js or f"'{focus_target}'" not in console_js:
+            failures.append(f"webconsole/static/app.js:actionable-empty-state-direct-action-missing:{disclosure}:{focus_target}")
     for phrase in (">Left release<", ">Right release<", "stays above", "form above", "connect Forgejo below"):
         if phrase.lower() in console_html.lower() or phrase.lower() in console_js.lower():
             failures.append(f"webconsole:physical-position-copy:{phrase}")
@@ -731,6 +751,7 @@ def main(argv: list[str] | None = None) -> int:
         "directionalAuthority": "RTL_DIRECTIONAL_AFFORDANCE_V1",
         "taskFirstDensityAuthority": "TASK_FIRST_PROGRESSIVE_DISCLOSURE_V1",
         "runtimeLocalizationAuthority": "RUNTIME_GENERATED_LOCALIZATION_PARITY_V1",
+        "actionableEmptyStateAuthority": "ACTIONABLE_EMPTY_STATE_RECOVERY_V1",
         "status": "PASS" if not failures else "FAIL",
         "checkpoint": {
             "scope": args.scope,
