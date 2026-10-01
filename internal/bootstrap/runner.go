@@ -228,6 +228,9 @@ func (r *Runner) Start(ctx context.Context, request installation.InstallRequest)
 	if err := r.prepareHAPeerTimeSynchronization(ctx, request); err != nil {
 		return Run{}, err
 	}
+	if err := r.prepareHAStorageHostPrerequisites(ctx, request); err != nil {
+		return Run{}, err
+	}
 	preflight, err := r.preflightUnlocked(ctx, request)
 	if err != nil {
 		return Run{}, err
@@ -296,6 +299,9 @@ func (r *Runner) Resume(ctx context.Context) (Run, error) {
 			return *run, err
 		}
 		if err = r.prepareHAPeerTimeSynchronization(ctx, run.Request); err != nil {
+			return *run, err
+		}
+		if err = r.prepareHAStorageHostPrerequisites(ctx, run.Request); err != nil {
 			return *run, err
 		}
 		preflight, preflightErr := r.preflightUnlocked(ctx, run.Request)
