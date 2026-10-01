@@ -429,6 +429,9 @@ AGENT_OWNER_PROOF_AUTHORITY = "AUTOPILOT_AGENT_OWNER_PROOF_V1"
 ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY = "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1"
 OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_OWNER_CONTEXT_PATHS_V1"
 PROMPT_BUDGET_AUTHORITY = "AUTOPILOT_PROMPT_BUDGET_V1"
+AGENT_REPAIR_BUDGET_AUTHORITY = "AUTOPILOT_AGENT_REPAIR_BUDGET_V1"
+DEFAULT_REPAIR_BUDGET = 3
+DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
 TRIAGE_RESULT_MAX_CHARS = 2400
 REPAIR_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -978,6 +981,9 @@ def _agent_context(root: Path) -> dict:
         "ownerContextAuthority": OWNER_CONTEXT_AUTHORITY,
         "ownerContextPaths": [str(item) for item in report.get("currentOwnerPaths", [])[:12]] if isinstance(report.get("currentOwnerPaths"), list) else [],
         "promptBudgetAuthority": PROMPT_BUDGET_AUTHORITY,
+        "agentRepairBudgetAuthority": AGENT_REPAIR_BUDGET_AUTHORITY,
+        "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
+        "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
         "promptBudgetChars": report.get("promptBudgetChars") if isinstance(report.get("promptBudgetChars"), dict) else {
             "triageFailure": TRIAGE_FAILURE_CAPSULE_MAX_CHARS,
             "triageResult": TRIAGE_RESULT_MAX_CHARS,
@@ -1097,6 +1103,9 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "environmentPreflightHandoffAuthority": ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY,
         "ownerContextAuthority": OWNER_CONTEXT_AUTHORITY,
         "promptBudgetAuthority": PROMPT_BUDGET_AUTHORITY,
+        "agentRepairBudgetAuthority": AGENT_REPAIR_BUDGET_AUTHORITY,
+        "defaultRepairBudget": DEFAULT_REPAIR_BUDGET,
+        "defaultAgentRepairBudget": DEFAULT_AGENT_REPAIR_BUDGET,
         "promptBudgetChars": {
             "triageFailure": TRIAGE_FAILURE_CAPSULE_MAX_CHARS,
             "triageResult": TRIAGE_RESULT_MAX_CHARS,
@@ -2367,7 +2376,7 @@ def main() -> int:
     ap.add_argument("--agent-run", action="store_true", help="single-entry agent mode: durable resume/checkpoint + bounded owner repair with compact failure context")
     ap.add_argument("--preflight", action="store_true", help="check deterministic test/repair host prerequisites without running the suite")
     ap.add_argument("--repair", action="store_true", help="invoke Codex on deterministic failures")
-    ap.add_argument("--max-repairs", type=int, default=3)
+    ap.add_argument("--max-repairs", type=int, default=None, help="bounded campaign repair budget; defaults to 8 in --agent-run and 3 otherwise")
     ap.add_argument("--codex-timeout", type=int, default=1800)
     ap.add_argument("--start-stage")
     ap.add_argument("--stop-stage")
@@ -2379,7 +2388,15 @@ def main() -> int:
         if args.self_test or args.event_summary or args.agent_context or args.preflight:
             raise SystemExit("--agent-run cannot be combined with reporting/self-test/preflight-only modes")
         args.repair = True
-        print("AUTOPILOT_AGENT_RUN=ENABLED authority=AUTOPILOT_AGENT_ENTRYPOINT_V1 maxRepairs=" + str(args.max_repairs), flush=True)
+    if args.max_repairs is None:
+        args.max_repairs = DEFAULT_AGENT_REPAIR_BUDGET if args.agent_run else DEFAULT_REPAIR_BUDGET
+    if args.agent_run:
+        print(
+            "AUTOPILOT_AGENT_RUN=ENABLED authority=AUTOPILOT_AGENT_ENTRYPOINT_V1 "
+            + "repairBudgetAuthority=" + AGENT_REPAIR_BUDGET_AUTHORITY
+            + " maxRepairs=" + str(args.max_repairs),
+            flush=True,
+        )
     if args.self_test:
         return self_test()
     if args.event_summary:
