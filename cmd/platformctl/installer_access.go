@@ -29,8 +29,14 @@ func installerAccessCommand(args []string) {
 		return
 	case "status":
 		installerAccessStatusCommand(args[1:])
+	case "run-status":
+		installerAccessRunStatusCommand(args[1:])
 	case "resume":
 		installerAccessResumeCommand(args[1:])
+	case "reset":
+		installerAccessResetCommand(args[1:])
+	case "reset-resume":
+		installerAccessResetResumeCommand(args[1:])
 	case "rotate-token":
 		installerAccessRotateCommand(args[1:])
 	default:
@@ -65,15 +71,42 @@ func installerAccessStatusCommand(args []string) {
 	printJSON(status)
 }
 
+type installerRuntimeRunStatus struct {
+	ID        string `json:"id"`
+	State     string `json:"state"`
+	LastError string `json:"lastError,omitempty"`
+}
+
 type installerBootstrapRuntimeStatus struct {
-	ExecutionEnabled bool `json:"executionEnabled"`
-	BootstrapActive bool `json:"bootstrapActive"`
-	ResetActive     bool `json:"resetActive"`
-	Run             *struct {
-		ID        string `json:"id"`
-		State     string `json:"state"`
-		LastError string `json:"lastError,omitempty"`
-	} `json:"run"`
+	ExecutionEnabled bool                        `json:"executionEnabled"`
+	BootstrapActive bool                        `json:"bootstrapActive"`
+	ResetActive     bool                        `json:"resetActive"`
+	Run             *installerRuntimeRunStatus  `json:"run"`
+	ResetRuns       []installerRuntimeRunStatus `json:"resetRuns"`
+}
+
+func installerAccessRunStatusCommand(args []string) {
+	fs := flag.NewFlagSet("installer-access run-status", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	installerURL := fs.String("installer-url", "", "bootstrap installer base URL")
+	tokenFile := fs.String("token-file", "", "file containing bootstrap token; PLATFORM_INSTALLER_TOKEN is used when omitted")
+	caFile := fs.String("ca-file", "", "PEM CA file for a private installer endpoint")
+	if err := fs.Parse(args); err != nil || strings.TrimSpace(*installerURL) == "" || fs.NArg() != 0 {
+		usage()
+		if err != nil && errors.Is(err, flag.ErrHelp) { return }
+		os.Exit(2)
+	}
+	base, token, client := installerAccessClient(*installerURL, *tokenFile, *caFile)
+	status, err := fetchInstallerBootstrapRuntimeStatus(client, base, token)
+	if err != nil { fatal(err) }
+	printJSON(map[string]any{
+		"authority": "INSTALLER_BOOTSTRAP_RUNTIME_STATUS_V1",
+		"executionEnabled": status.ExecutionEnabled,
+		"bootstrapActive": status.BootstrapActive,
+		"resetActive": status.ResetActive,
+		"run": status.Run,
+		"resetRuns": status.ResetRuns,
+	})
 }
 
 func installerAccessResumeCommand(args []string) {
@@ -181,6 +214,104 @@ func fetchInstallerBootstrapRuntimeStatus(client *http.Client, base *url.URL, to
 		return status, fmt.Errorf("decode bootstrap runtime status: %w", err)
 	}
 	return status, nil
+}
+
+func latestIncompleteInstallerReset(status installerBootstrapRuntimeStatus) *installerRuntimeRunStatus {
+	if len(status.ResetRuns) == 0 { return nil }
+	latest := status.ResetRuns[len(status.ResetRuns)-1]
+	if strings.EqualFold(strings.TrimSpace(latest.State), "SUCCEEDED") { return nil }
+	return &latest
+}
+
+func installerResetReadbackChanged(before, after installerBootstrapRuntimeStatus) bool {
+	if after.ResetActive || len(after.ResetRuns) != len(before.ResetRuns) { return true }
+	if len(after.ResetRuns) == 0 { return false }
+	if len(before.ResetRuns) == 0 { return true }
+	a, b := after.ResetRuns[len(after.ResetRuns)-1], before.ResetRuns[len(before.ResetRuns)-1]
+	return a.ID != b.ID || a.State != b.State || a.LastError != b.LastError
+}
+
+func installerAccessResetCommand(args []string) {
+	fs := flag.NewFlagSet("installer-access reset", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	installerURL := fs.String("installer-url", "", "bootstrap installer base URL")
+	tokenFile := fs.String("token-file", "", "file containing bootstrap token; PLATFORM_INSTALLER_TOKEN is used when omitted")
+	caFile := fs.String("ca-file", "", "PEM CA file for a private installer endpoint")
+	confirmation := fs.String("confirmation", "", "must be exactly RESET")
+	if err := fs.Parse(args); err != nil || strings.TrimSpace(*installerURL) == "" || *confirmation != "RESET" || fs.NArg() != 0 {
+		usage()
+		if err != nil && errors.Is(err, flag.ErrHelp) { return }
+		os.Exit(2)
+	}
+	base, token, client := installerAccessClient(*installerURL, *tokenFile, *caFile)
+	before, err := fetchInstallerBootstrapRuntimeStatus(client, base, token)
+	if err != nil { fatal(fmt.Errorf("read bootstrap status before reset: %w", err)) }
+	if !before.ExecutionEnabled { fatal(errors.New("Bootstrap Installer execution is disabled")) }
+	if before.BootstrapActive { fatal(errors.New("bootstrap mutation is active; reset is fenced")) }
+	if before.ResetActive {
+		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ALREADY_RUNNING","reset":latestIncompleteInstallerReset(before),"automaticReplay":false})
+		return
+	}
+	if before.Run == nil { fatal(errors.New("no installation authority exists to reset")) }
+	headers := map[string]string{"X-Confirm-Reset": "reset:" + before.Run.ID}
+	raw, code, requestErr := installerAccessRequestWithHeaders(client, http.MethodPost, base, "/api/v1/reset/start", token, nil, headers)
+	if requestErr == nil && code != http.StatusAccepted {
+		fatal(fmt.Errorf("installer reset returned %d: %s", code, strings.TrimSpace(string(raw))))
+	}
+	after, readbackErr := fetchInstallerBootstrapRuntimeStatus(client, base, token)
+	if requestErr != nil {
+		if readbackErr != nil { fatal(fmt.Errorf("reset response was lost (%v) and status readback failed: %w", requestErr, readbackErr)) }
+		if !installerResetReadbackChanged(before, after) {
+			fatal(fmt.Errorf("reset response was lost and readback does not prove acceptance; automatic replay is forbidden: %w", requestErr))
+		}
+	}
+	if readbackErr != nil {
+		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED_STATUS_PENDING","sourceRunId":before.Run.ID,"automaticReplay":false,"nextAction":"retry run-status; do not replay reset"})
+		return
+	}
+	printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED","resetActive":after.ResetActive,"reset":latestIncompleteInstallerReset(after),"automaticReplay":false,"nextAction":"monitor run-status until reset is terminal; use reset-resume only after interruption/failure"})
+}
+
+func installerAccessResetResumeCommand(args []string) {
+	fs := flag.NewFlagSet("installer-access reset-resume", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	installerURL := fs.String("installer-url", "", "bootstrap installer base URL")
+	tokenFile := fs.String("token-file", "", "file containing bootstrap token; PLATFORM_INSTALLER_TOKEN is used when omitted")
+	caFile := fs.String("ca-file", "", "PEM CA file for a private installer endpoint")
+	confirmation := fs.String("confirmation", "", "must be exactly RESUME-RESET")
+	if err := fs.Parse(args); err != nil || strings.TrimSpace(*installerURL) == "" || *confirmation != "RESUME-RESET" || fs.NArg() != 0 {
+		usage()
+		if err != nil && errors.Is(err, flag.ErrHelp) { return }
+		os.Exit(2)
+	}
+	base, token, client := installerAccessClient(*installerURL, *tokenFile, *caFile)
+	before, err := fetchInstallerBootstrapRuntimeStatus(client, base, token)
+	if err != nil { fatal(fmt.Errorf("read bootstrap status before reset resume: %w", err)) }
+	if !before.ExecutionEnabled { fatal(errors.New("Bootstrap Installer execution is disabled")) }
+	if before.BootstrapActive { fatal(errors.New("bootstrap mutation is active; reset resume is fenced")) }
+	reset := latestIncompleteInstallerReset(before)
+	if reset == nil { fatal(errors.New("no reset run requires resume")) }
+	if before.ResetActive {
+		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ALREADY_RUNNING","reset":reset,"automaticReplay":false})
+		return
+	}
+	headers := map[string]string{"X-Confirm-Reset-Resume": "resume:" + reset.ID}
+	raw, code, requestErr := installerAccessRequestWithHeaders(client, http.MethodPost, base, "/api/v1/reset/resume", token, nil, headers)
+	if requestErr == nil && code != http.StatusAccepted {
+		fatal(fmt.Errorf("installer reset resume returned %d: %s", code, strings.TrimSpace(string(raw))))
+	}
+	after, readbackErr := fetchInstallerBootstrapRuntimeStatus(client, base, token)
+	if requestErr != nil {
+		if readbackErr != nil { fatal(fmt.Errorf("reset-resume response was lost (%v) and status readback failed: %w", requestErr, readbackErr)) }
+		if !installerResetReadbackChanged(before, after) {
+			fatal(fmt.Errorf("reset-resume response was lost and readback does not prove acceptance; automatic replay is forbidden: %w", requestErr))
+		}
+	}
+	if readbackErr != nil {
+		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED_STATUS_PENDING","resetId":reset.ID,"automaticReplay":false,"nextAction":"retry run-status; do not replay reset-resume"})
+		return
+	}
+	printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED","resetActive":after.ResetActive,"reset":latestIncompleteInstallerReset(after),"automaticReplay":false,"nextAction":"monitor run-status until reset is terminal"})
 }
 
 func installerAccessRotateCommand(args []string) {
@@ -294,6 +425,10 @@ func rotateInstallerToken(client *http.Client, base *url.URL, currentToken, newT
 }
 
 func installerAccessRequest(client *http.Client, method string, base *url.URL, path, token string, payload []byte) ([]byte, int, error) {
+	return installerAccessRequestWithHeaders(client, method, base, path, token, payload, nil)
+}
+
+func installerAccessRequestWithHeaders(client *http.Client, method string, base *url.URL, path, token string, payload []byte, headers map[string]string) ([]byte, int, error) {
 	endpoint := strings.TrimRight(base.String(), "/") + path
 	var body io.Reader
 	if payload != nil {
@@ -308,6 +443,9 @@ func installerAccessRequest(client *http.Client, method string, base *url.URL, p
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+	for key, value := range headers {
+		if strings.TrimSpace(key) != "" { req.Header.Set(key, value) }
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("installer access request: %w", err)
