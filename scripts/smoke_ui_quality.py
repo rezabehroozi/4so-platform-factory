@@ -131,9 +131,9 @@ def static_quality_failures(root: Path) -> list[str]:
                     failures.append(f"{rel}:dapr-workflow-leaked-into-application-delivery")
                 if 'data-viewer-safe="true" id="dapr-assessment-form"' not in dapr_slice or 'data-viewer-safe="true" id="dapr-workload-form"' not in dapr_slice:
                     failures.append(f"{rel}:dapr-readonly-workflows-not-viewer-safe")
-            fleet_start = html.find('<section class="page" data-title="Fleet" id="fleet">')
-            operations_start = html.find('<section class="page" data-title="Operations &amp; audit" id="operations">')
-            ai_start = html.find('<section class="page" data-title="AI Control Plane" id="ai">')
+            fleet_start = html.find('id="fleet"')
+            operations_start = html.find('id="operations"')
+            ai_start = html.find('id="ai"')
             search_start = html.find('id="operations-search-center"')
             if min(fleet_start, operations_start, ai_start, search_start) < 0 or not (fleet_start < operations_start < search_start < ai_start):
                 failures.append(f"{rel}:global-operations-search-ia-placement-drift")
