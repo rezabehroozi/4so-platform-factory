@@ -422,6 +422,7 @@ WORKSPACE_FINGERPRINT_AUTHORITY = "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1"
 AGENT_CONTEXT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_V1"
 AGENT_FAILURE_CAPSULE_AUTHORITY = "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2"
 INSTALLER_OWNER_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_STAGE_V1"
+AGENT_OWNER_PROOF_AUTHORITY = "AUTOPILOT_AGENT_OWNER_PROOF_V1"
 AGENT_FAILURE_CAPSULE_MAX_CHARS = 3200
 
 _FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
@@ -945,6 +946,8 @@ def _agent_context(root: Path) -> dict:
             if isinstance(last_failure, dict) and last_failure.get(key) not in (None, "")
         },
         "failureCapsuleAuthority": AGENT_FAILURE_CAPSULE_AUTHORITY,
+        "ownerProofAuthority": AGENT_OWNER_PROOF_AUTHORITY,
+        "installerOwnerStageAuthority": INSTALLER_OWNER_STAGE_AUTHORITY,
         "failureCapsuleMaxChars": AGENT_FAILURE_CAPSULE_MAX_CHARS,
         "failureCapsule": failure_capsule,
         "proofCommand": report.get("currentCommand") if isinstance(report.get("currentCommand"), list) else [],
@@ -1049,6 +1052,8 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "repairGitBoundaryAuthority": REPAIR_GIT_BOUNDARY_AUTHORITY,
         "dirtyDeltaAuthority": DIRTY_DELTA_AUTHORITY,
         "workspaceFingerprintAuthority": WORKSPACE_FINGERPRINT_AUTHORITY,
+        "installerOwnerStageAuthority": INSTALLER_OWNER_STAGE_AUTHORITY,
+        "agentOwnerProofAuthority": AGENT_OWNER_PROOF_AUTHORITY,
         "derived": True,
         "notProductAuthority": True,
         "runId": resolved_run_id,
