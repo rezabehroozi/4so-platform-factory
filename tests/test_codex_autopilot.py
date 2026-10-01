@@ -289,10 +289,6 @@ class ExactSHARealTestPreflight(unittest.TestCase):
             self.assertIn(str(AUTOPILOT._absolute_path_no_symlink_resolution(str(release))), collect)
             self.assertTrue(any(cmd[1:3] == ["field-evidence", "verify-report"] for cmd in commands), commands)
 
-
-if __name__ == "__main__":
-    unittest.main()
-
 class BrowserTriagePrerequisiteTests(unittest.TestCase):
     def test_operator_console_repair_ensures_browser_prerequisites(self):
         stage = AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 10)
@@ -917,3 +913,6 @@ class AgentEntrypointContractTests(unittest.TestCase):
         self.assertIn("Start with these owner paths", prompt)
         self.assertIn("internal/hostdeployment/", prompt)
         self.assertEqual(AUTOPILOT.OWNER_CONTEXT_AUTHORITY, "AUTOPILOT_OWNER_CONTEXT_PATHS_V1")
+
+if __name__ == "__main__":
+    unittest.main()
