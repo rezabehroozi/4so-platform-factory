@@ -781,6 +781,21 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
                 third = AUTOPILOT._workspace_fingerprint(root)
                 self.assertNotEqual(second, third)
 
+    def test_git_workspace_fingerprint_binds_dirty_file_mode(self):
+        if os.name != "posix":
+            self.skipTest("mode-bit identity contract is POSIX-specific")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "install.sh"
+            script.write_text("#!/bin/sh\n", encoding="utf-8")
+            script.chmod(0o644)
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_git_dirty_paths", return_value=["install.sh"]):
+                before = AUTOPILOT._workspace_fingerprint(root)
+                script.chmod(0o755)
+                after = AUTOPILOT._workspace_fingerprint(root)
+            self.assertNotEqual(before, after)
+
     def test_workspace_fingerprint_falls_back_when_git_enumeration_unavailable(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -957,6 +972,9 @@ class AgentEntrypointContractTests(unittest.TestCase):
                 "nextIndex": 0,
                 "gitHead": "a" * 40,
                 "workspaceDirtyManifest": {},
+                "lastFailureClassification": "CODE_DEFECT",
+                "lastFailureStage": stage.name,
+                "lastFailureFingerprint": "fp",
             }
             with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
                  mock.patch.object(AUTOPILOT, "_git_dirty_manifest", return_value={"install.sh": "after"}):
@@ -989,6 +1007,9 @@ class AgentEntrypointContractTests(unittest.TestCase):
                 "nextIndex": 0,
                 "gitHead": "a" * 40,
                 "workspaceDirtyManifest": {},
+                "lastFailureClassification": "CODE_DEFECT",
+                "lastFailureStage": stage.name,
+                "lastFailureFingerprint": "fp",
             }
             with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
                  mock.patch.object(AUTOPILOT, "_git_dirty_manifest", return_value={"internal/persistence/postgres.go": "after"}):
@@ -1042,6 +1063,26 @@ class AgentEntrypointContractTests(unittest.TestCase):
             self.assertFalse(adopted)
             self.assertEqual(reason, "REPORT_NOT_CODE_DEFECT_CLASSIFICATION")
 
+            AUTOPILOT._report_path(root).write_text(json.dumps({
+                "schemaVersion": 1,
+                "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+                "graphSignature": "graph",
+                "status": "ENVIRONMENT_BLOCKED",
+                "lastFailure": {"stage": stage.name, "status": "FAIL", "fingerprint": "fp", "classification": "CODE_DEFECT"},
+            }), encoding="utf-8")
+            state.update({
+                "lastFailureClassification": "ENVIRONMENT",
+                "lastFailureStage": stage.name,
+                "lastFailureFingerprint": "fp",
+            })
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_git_dirty_manifest", return_value={"install.sh": "after"}):
+                adopted, reason, _ = AUTOPILOT._try_adopt_external_owner_fix(
+                    root, state, graph_signature="graph", stages=[stage],
+                )
+            self.assertFalse(adopted)
+            self.assertEqual(reason, "CHECKPOINT_DIAGNOSIS_MISMATCH")
+
     def test_triage_classification_is_persisted_with_failure_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1083,7 +1124,7 @@ class AgentEntrypointContractTests(unittest.TestCase):
             hints = AUTOPILOT._failure_path_hints(
                 root,
                 stage,
-                "install.sh:12 failed\ninternal/hostdeployment/deploy.go:44 mismatch\ninternal/persistence/postgres.go:8 unrelated\nmissing/file.go:9 absent",
+                f"{root}/install.sh:12 failed\ninternal/hostdeployment/deploy.go:44 mismatch\ninternal/persistence/postgres.go:8 unrelated\nmissing/file.go:9 absent",
             )
         self.assertEqual(hints, ["install.sh", "internal/hostdeployment/deploy.go"])
         self.assertEqual(AUTOPILOT.FAILURE_PATH_HINTS_AUTHORITY, "AUTOPILOT_FAILURE_PATH_HINTS_V1")
