@@ -31,21 +31,36 @@ func ApplicationDeploymentOperationBlocksDesiredMutation(op Operation) bool {
 	}
 }
 
+func ParseApplicationDeploymentTarget(target string) (clusterID, bindingID string, ok bool) {
+	target = strings.TrimSpace(target)
+	if !strings.HasPrefix(target, ApplicationDeploymentTargetPrefix) {
+		return "", "", false
+	}
+	rest := strings.TrimSpace(strings.TrimPrefix(target, ApplicationDeploymentTargetPrefix))
+	parts := strings.Split(rest, ":")
+	switch len(parts) {
+	case 1:
+		bindingID = strings.TrimSpace(parts[0])
+		return "", bindingID, bindingID != ""
+	case 2:
+		clusterID, bindingID = strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+		return clusterID, bindingID, clusterID != "" && bindingID != ""
+	default:
+		return "", "", false
+	}
+}
+
 func ApplicationDeploymentOperationTargetsBinding(op Operation, clusterID, bindingID string) bool {
 	if strings.TrimSpace(op.Kind) != ApplicationDeploymentOperationKind {
 		return false
 	}
-	target := strings.TrimSpace(op.TargetRef)
+	targetCluster, targetBinding, ok := ParseApplicationDeploymentTarget(op.TargetRef)
 	bindingID = strings.TrimSpace(bindingID)
 	clusterID = strings.TrimSpace(clusterID)
-	if bindingID == "" || !strings.HasPrefix(target, ApplicationDeploymentTargetPrefix) {
+	if !ok || bindingID == "" || targetBinding != bindingID {
 		return false
 	}
-	rest := strings.TrimSpace(strings.TrimPrefix(target, ApplicationDeploymentTargetPrefix))
-	if rest == bindingID {
-		return true
-	}
-	return clusterID != "" && rest == clusterID+":"+bindingID
+	return targetCluster == "" || (clusterID != "" && targetCluster == clusterID)
 }
 
 type ApplicationDeploymentRequest struct {
