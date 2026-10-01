@@ -298,6 +298,27 @@ func TestInstallerPersianLocalFontContract(t *testing.T) {
 }
 
 
+func TestInstallerGeneratedServiceLocalizationContract(t *testing.T) {
+	jsBytes, err := fs.ReadFile(staticFiles, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	js := string(jsBytes)
+	for _, marker := range []string{
+		"bucket:'S3 bucket'",
+		"prefix:'Object prefix'",
+		"\"Git desired state\": \"وضعیت مطلوب Git\"",
+		"\"Evidence and backup storage\": \"ذخیره‌سازی شواهد و پشتیبان\"",
+		"\"Mode and provider\": \"حالت و ارائه‌دهنده\"",
+		"\"S3 bucket\": \"مخزن S3\"",
+		"\"Object prefix\": \"پیشوند مسیر\"",
+		"trimmed.match(/^Managed (.+)$/)",
+	} {
+		if !strings.Contains(js, marker) { t.Fatalf("generated installer localization contract missing %q", marker) }
+	}
+	if strings.Contains(js, "bucket:'مخزن S3'") || strings.Contains(js, "prefix:'پیشوند مسیر'") {
+		t.Fatal("generated service field canonical labels must remain English so switching back to English is lossless")
+	}
+}
+
 func TestInstallerSSHHostKeyRotationRouteUsesFingerprintFence(t *testing.T) {
 	authValue := "test-bootstrap-token-abcdefghijklmnopqrstuvwxyz"
 	access, _, err := installeraccess.LoadOrCreate(t.TempDir(), authValue, time.Now())
