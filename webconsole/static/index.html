@@ -291,8 +291,14 @@
 <details class="action-console" id="application-composition-library">
 <summary><span class="summary-title" data-i18n="applications.libraryTitle" data-en="Composition library">کتابخانهٔ ترکیب</span><span class="summary-help" data-i18n="applications.libraryHelp" data-en="Create the reusable workload, capability, managed-dependency and workspace-profile authorities required before an immutable release can exist.">پیش از ساخت نسخهٔ تغییرناپذیر، authorityهای قابل‌استفادهٔ مجدد workload، قابلیت، وابستگی مدیریت‌شده و workspace profile را بسازید.</span></summary>
 <div class="action-console-body">
+<nav aria-label="Composition authority type" class="product-flow application-library-picker" id="application-library-picker">
+<button aria-current="true" data-application-library-open="workload" type="button"><span>1</span><strong data-en="Workload shape" data-i18n="applications.workloadTitle">قالب Workload</strong><small data-en="Stable workload input contract" data-i18n="applications.workloadPickerHelp">قرارداد پایدار ورودی workload</small></button>
+<button data-application-library-open="profile" type="button"><span>2</span><strong data-en="Workspace profile" data-i18n="applications.profileTitle">پروفایل فضای کاری</strong><small data-en="Reusable policy bundle" data-i18n="applications.profilePickerHelp">بستهٔ سیاست قابل‌استفادهٔ مجدد</small></button>
+<button data-application-library-open="trait" type="button"><span>3</span><strong data-en="Capability trait" data-i18n="applications.traitTitle">ویژگی قابلیت</strong><small data-en="Optional capability overlay" data-i18n="applications.traitPickerHelp">لایهٔ اختیاری قابلیت</small></button>
+<button data-application-library-open="resource" type="button"><span>4</span><strong data-en="Managed dependency" data-i18n="applications.resourceTitle">وابستگی مدیریت‌شده</strong><small data-en="Database, cache, queue or service intent" data-i18n="applications.resourcePickerHelp">نیاز database، cache، queue یا service</small></button>
+</nav>
 <div class="two-column">
-<article class="panel"><div class="panel-heading"><div><h2 data-i18n="applications.workloadTitle" data-en="Workload shape">قالب Workload</h2><p data-i18n="applications.workloadHelp" data-en="Define the stable input schema and which capability-trait kinds this workload may compose.">schema ورودی پایدار و نوع قابلیت‌هایی را که این workload می‌تواند ترکیب کند مشخص کنید.</p></div></div>
+<article class="panel application-library-task" data-application-library-task="workload"><div class="panel-heading"><div><h2 data-i18n="applications.workloadTitle" data-en="Workload shape">قالب Workload</h2><p data-i18n="applications.workloadHelp" data-en="Define the stable input schema and which capability-trait kinds this workload may compose.">schema ورودی پایدار و نوع قابلیت‌هایی را که این workload می‌تواند ترکیب کند مشخص کنید.</p></div></div>
 <form class="form-grid" id="application-workload-create-form" novalidate="">
 <label><span>Project</span><select id="application-workload-project" required=""></select></label>
 <label><span>Name</span><input class="technical" dir="ltr" id="application-workload-name" maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="service" required=""/></label>
@@ -301,7 +307,7 @@
 <label class="span-full"><span>Allowed capability kinds</span><select id="application-workload-trait-kinds" multiple="" size="5"><option value="storage">Storage</option><option value="ingress">Ingress</option><option value="autoscale">Autoscale</option><option value="observability">Observability</option><option value="security">Security</option><option value="backup">Backup</option><option value="network">Network</option><option value="sidecar">Sidecar</option></select><small>Optional. Select only kinds this workload is allowed to compose.</small></label>
 <div class="form-actions span-full"><button class="primary" type="submit">Create workload shape</button></div>
 </form></article>
-<article class="panel"><div class="panel-heading"><div><h2 data-i18n="applications.profileTitle" data-en="Workspace profile">پروفایل فضای کاری</h2><p data-i18n="applications.profileHelp" data-en="Bind reusable project policy into one immutable application workspace profile.">سیاست قابل‌استفادهٔ مجدد پروژه را در یک workspace profile تغییرناپذیر اپلیکیشن مقید کنید.</p></div></div>
+<article class="panel application-library-task" data-application-library-task="profile" hidden=""><div class="panel-heading"><div><h2 data-i18n="applications.profileTitle" data-en="Workspace profile">پروفایل فضای کاری</h2><p data-i18n="applications.profileHelp" data-en="Bind reusable project policy into one immutable application workspace profile.">سیاست قابل‌استفادهٔ مجدد پروژه را در یک workspace profile تغییرناپذیر اپلیکیشن مقید کنید.</p></div></div>
 <form class="form-grid" id="application-profile-create-form" novalidate="">
 <label><span>Project</span><select id="application-profile-project" required=""></select></label>
 <label><span>Name</span><input class="technical" dir="ltr" id="application-profile-name" maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="production" required=""/></label>
@@ -311,7 +317,7 @@
 </form></article>
 </div>
 <div class="two-column">
-<article class="panel"><div class="panel-heading"><div><h2 data-i18n="applications.traitTitle" data-en="Capability trait">ویژگی قابلیت</h2><p data-i18n="applications.traitHelp" data-en="Describe one capability overlay and whether native target ownership may suppress it.">یک capability overlay و امکان حذف آن در صورت مالکیت native مقصد را تعریف کنید.</p></div></div>
+<article class="panel application-library-task" data-application-library-task="trait" hidden=""><div class="panel-heading"><div><h2 data-i18n="applications.traitTitle" data-en="Capability trait">ویژگی قابلیت</h2><p data-i18n="applications.traitHelp" data-en="Describe one capability overlay and whether native target ownership may suppress it.">یک capability overlay و امکان حذف آن در صورت مالکیت native مقصد را تعریف کنید.</p></div></div>
 <form class="form-grid" id="application-trait-create-form" novalidate="">
 <label><span>Project</span><select id="application-trait-project" required=""></select></label>
 <label><span>Name</span><input class="technical" dir="ltr" id="application-trait-name" maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="ingress" required=""/></label>
@@ -322,7 +328,7 @@
 <label class="check-row span-full"><input id="application-trait-native-suppression" type="checkbox"/><span>Allow suppression when the target already owns this capability</span></label>
 <div class="form-actions span-full"><button class="primary" type="submit">Create capability trait</button></div>
 </form></article>
-<article class="panel"><div class="panel-heading"><div><h2 data-i18n="applications.resourceTitle" data-en="Managed dependency type">نوع وابستگی مدیریت‌شده</h2><p data-i18n="applications.resourceHelp" data-en="Describe database, cache, queue, object-storage or external-service intent without embedding credentials.">نیاز database، cache، queue، object-storage یا external-service را بدون قراردادن credential تعریف کنید.</p></div></div>
+<article class="panel application-library-task" data-application-library-task="resource" hidden=""><div class="panel-heading"><div><h2 data-i18n="applications.resourceTitle" data-en="Managed dependency type">نوع وابستگی مدیریت‌شده</h2><p data-i18n="applications.resourceHelp" data-en="Describe database, cache, queue, object-storage or external-service intent without embedding credentials.">نیاز database، cache، queue، object-storage یا external-service را بدون قراردادن credential تعریف کنید.</p></div></div>
 <form class="form-grid" id="application-resource-create-form" novalidate="">
 <label><span>Project</span><select id="application-resource-project" required=""></select></label>
 <label><span>Name</span><input class="technical" dir="ltr" id="application-resource-name" maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="postgres" required=""/></label>
