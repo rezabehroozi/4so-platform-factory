@@ -133,10 +133,20 @@ func (s *Server) validateDaprWorkloadAdmissionCurrentAuthority(ctx context.Conte
 		if !openChoreoInventoryCapability(inventory, targetmodel.DaprApplicationRuntimeCapability) {
 			return fmt.Errorf("%w: native Dapr capability is no longer observed", controlplane.ErrPrerequisite)
 		}
+		observed, observedErr := s.latestDaprObserved(ctx, request.ProjectID, request.ClusterID)
+		if observedErr != nil {
+			return observedErr
+		}
+		if observed != nil && observed.Installed {
+			return fmt.Errorf("%w: Dapr runtime ownership changed from target-native to product-managed", controlplane.ErrPrerequisite)
+		}
 	case "PRODUCT_MANAGED":
 		if !s.daprRuntimeReady || s.daprRuntimeDigest != request.RuntimeLockDigest ||
 			daprRuntimeImageByRole(s.daprRuntimeLock, "sidecar") != request.ExpectedSidecarImage {
 			return fmt.Errorf("%w: product-managed Dapr runtime authority changed", controlplane.ErrPrerequisite)
+		}
+		if !openChoreoInventoryCapability(inventory, targetmodel.DaprApplicationRuntimeCapability) {
+			return fmt.Errorf("%w: product-managed Dapr runtime capability is no longer observed", controlplane.ErrPrerequisite)
 		}
 		runtimeExecutor, executorErr := daprruntime.ExecutorAuthorityFromRuntimeLock(s.daprRuntimeLock)
 		if executorErr != nil || !daprruntime.ExecutorAuthoritiesEqual(runtimeExecutor, s.daprExecutorAuthority) {
@@ -204,7 +214,11 @@ func (s *Server) buildDaprWorkloadAdmissionRequest(ctx context.Context, input da
 		!openChoreoInventoryCapability(inventory, controlplane.DaprWorkloadAdmissionRBACCapability) {
 		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, fmt.Errorf("%w: target Dapr workload admission prober RBAC is not active", controlplane.ErrPrerequisite)
 	}
-	admission := s.daprAdmissionForCluster(cluster, inventory, false)
+	observed, observedErr := s.latestDaprObserved(ctx, input.ProjectID, input.ClusterID)
+	if observedErr != nil {
+		return daprruntime.WorkloadAdmissionRequest{}, targetmodel.DaprTargetAdmission{}, observedErr
+	}
+	admission := s.daprEffectiveRuntimeAdmission(cluster, inventory, false, observed)
 	plan, err := targetmodel.ResolveDaprWorkloadRuntimePlan(targetmodel.DaprWorkloadPlanInput{
 		Namespace: input.Namespace, AppID: input.AppID, AppPort: input.AppPort, AppProtocol: input.AppProtocol,
 		CPURequest: input.CPURequest, CPULimit: input.CPULimit, MemoryRequest: input.MemoryRequest, MemoryLimit: input.MemoryLimit,
@@ -234,10 +248,6 @@ func (s *Server) buildDaprWorkloadAdmissionRequest(ctx context.Context, input da
 	} else {
 		if !s.daprRuntimeReady {
 			return daprruntime.WorkloadAdmissionRequest{}, admission, fmt.Errorf("%w: product-managed Dapr runtime authority is unavailable", controlplane.ErrPrerequisite)
-		}
-		observed, observedErr := s.latestDaprObserved(ctx, input.ProjectID, input.ClusterID)
-		if observedErr != nil {
-			return daprruntime.WorkloadAdmissionRequest{}, admission, observedErr
 		}
 		if observed == nil || !observed.Installed || observed.RuntimeLockDigest != s.daprRuntimeDigest {
 			return daprruntime.WorkloadAdmissionRequest{}, admission, fmt.Errorf("%w: Dapr runtime is not currently installed with admitted authority", controlplane.ErrPrerequisite)
