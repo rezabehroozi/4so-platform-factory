@@ -357,7 +357,7 @@ func TestOperatorConsolePositionIndependentCopyContract(t *testing.T) {
 	jsBytes, err := fs.ReadFile(content, "static/app.js")
 	if err != nil { t.Fatal(err) }
 	html, js := string(htmlBytes), string(jsBytes)
-	for _, forbidden := range []string{">Left release<", ">Right release<", "stays above", "form above", "Forgejo below", "evidence below belongs", "operation above"} {
+	for _, forbidden := range []string{">Left release<", ">Right release<", "stays above", "form above", "Forgejo below", "evidence below belongs", "operation above", "Use Ctrl/Command to select multiple", "Ctrl/Command to select multiple", "click the button", "tap the button", "hover over"} {
 		if strings.Contains(strings.ToLower(html+"\n"+js), strings.ToLower(forbidden)) {
 			t.Fatalf("responsive/RTL workflow copy must not depend on physical position: %q", forbidden)
 		}
