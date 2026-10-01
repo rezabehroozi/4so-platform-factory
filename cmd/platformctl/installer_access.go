@@ -29,6 +29,8 @@ func installerAccessCommand(args []string) {
 		return
 	case "status":
 		installerAccessStatusCommand(args[1:])
+	case "resume":
+		installerAccessResumeCommand(args[1:])
 	case "rotate-token":
 		installerAccessRotateCommand(args[1:])
 	default:
@@ -61,6 +63,124 @@ func installerAccessStatusCommand(args []string) {
 		fatal(err)
 	}
 	printJSON(status)
+}
+
+type installerBootstrapRuntimeStatus struct {
+	ExecutionEnabled bool `json:"executionEnabled"`
+	BootstrapActive bool `json:"bootstrapActive"`
+	ResetActive     bool `json:"resetActive"`
+	Run             *struct {
+		ID        string `json:"id"`
+		State     string `json:"state"`
+		LastError string `json:"lastError,omitempty"`
+	} `json:"run"`
+}
+
+func installerAccessResumeCommand(args []string) {
+	fs := flag.NewFlagSet("installer-access resume", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	installerURL := fs.String("installer-url", "", "bootstrap installer base URL")
+	tokenFile := fs.String("token-file", "", "file containing bootstrap token; PLATFORM_INSTALLER_TOKEN is used when omitted")
+	caFile := fs.String("ca-file", "", "PEM CA file for a private installer endpoint")
+	confirmation := fs.String("confirmation", "", "must be exactly RESUME")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			usage()
+			return
+		}
+		usage()
+		os.Exit(2)
+	}
+	if strings.TrimSpace(*installerURL) == "" || strings.TrimSpace(*confirmation) != "RESUME" || fs.NArg() != 0 {
+		usage()
+		os.Exit(2)
+	}
+	base, token, client := installerAccessClient(*installerURL, *tokenFile, *caFile)
+	before, err := fetchInstallerBootstrapRuntimeStatus(client, base, token)
+	if err != nil {
+		fatal(fmt.Errorf("read bootstrap status before resume: %w", err))
+	}
+	if !before.ExecutionEnabled {
+		fatal(errors.New("Bootstrap Installer execution is disabled; redeploy the reviewed Installer with execution enabled before resuming"))
+	}
+	if before.ResetActive {
+		fatal(errors.New("installer reset is active; bootstrap resume is fenced until reset completes or is explicitly resumed"))
+	}
+	if before.BootstrapActive {
+		printJSON(map[string]any{
+			"authority": "INSTALLER_MANUAL_BOOTSTRAP_RESUME_V1",
+			"status": "ALREADY_RUNNING",
+			"run": before.Run,
+			"automaticReplay": false,
+			"nextAction": "monitor the existing durable bootstrap run; do not submit another resume",
+		})
+		return
+	}
+	if before.Run == nil {
+		fatal(errors.New("no durable bootstrap run exists to resume"))
+	}
+	if strings.EqualFold(strings.TrimSpace(before.Run.State), "SUCCEEDED") {
+		printJSON(map[string]any{
+			"authority": "INSTALLER_MANUAL_BOOTSTRAP_RESUME_V1",
+			"status": "ALREADY_SUCCEEDED",
+			"run": before.Run,
+			"automaticReplay": false,
+			"nextAction": "installation already succeeded; verify evidence instead of resuming",
+		})
+		return
+	}
+	raw, code, requestErr := installerAccessRequest(client, http.MethodPost, base, "/api/v1/resume", token, nil)
+	if requestErr == nil && code != http.StatusAccepted {
+		fatal(fmt.Errorf("installer resume returned %d: %s", code, strings.TrimSpace(string(raw))))
+	}
+	after, readbackErr := fetchInstallerBootstrapRuntimeStatus(client, base, token)
+	if requestErr != nil {
+		if readbackErr != nil {
+			fatal(fmt.Errorf("resume response was lost (%v) and authoritative status readback also failed: %w", requestErr, readbackErr))
+		}
+		changed := after.BootstrapActive
+		if before.Run != nil && after.Run != nil {
+			changed = changed || after.Run.ID != before.Run.ID || after.Run.State != before.Run.State || after.Run.LastError != before.Run.LastError
+		}
+		if !changed {
+			fatal(fmt.Errorf("resume response was lost and status readback does not prove acceptance; automatic replay is forbidden: %w", requestErr))
+		}
+	}
+	if readbackErr != nil {
+		// A confirmed HTTP 202 proves acceptance but not completion. Do not replay
+		// merely because the immediate status readback failed.
+		printJSON(map[string]any{
+			"authority": "INSTALLER_MANUAL_BOOTSTRAP_RESUME_V1",
+			"status": "ACCEPTED_STATUS_PENDING",
+			"runId": before.Run.ID,
+			"automaticReplay": false,
+			"nextAction": "resume was accepted; retry installer-access status/readback instead of replaying the mutation",
+		})
+		return
+	}
+	printJSON(map[string]any{
+		"authority": "INSTALLER_MANUAL_BOOTSTRAP_RESUME_V1",
+		"status": "ACCEPTED",
+		"run": after.Run,
+		"bootstrapActive": after.BootstrapActive,
+		"automaticReplay": false,
+		"nextAction": "monitor durable status until terminal; if interrupted again, read status before another explicit RESUME",
+	})
+}
+
+func fetchInstallerBootstrapRuntimeStatus(client *http.Client, base *url.URL, token string) (installerBootstrapRuntimeStatus, error) {
+	var status installerBootstrapRuntimeStatus
+	raw, code, err := installerAccessRequest(client, http.MethodGet, base, "/api/v1/status", token, nil)
+	if err != nil {
+		return status, err
+	}
+	if code != http.StatusOK {
+		return status, fmt.Errorf("installer returned %d: %s", code, strings.TrimSpace(string(raw)))
+	}
+	if err = decodeStrict(raw, &status); err != nil {
+		return status, fmt.Errorf("decode bootstrap runtime status: %w", err)
+	}
+	return status, nil
 }
 
 func installerAccessRotateCommand(args []string) {
