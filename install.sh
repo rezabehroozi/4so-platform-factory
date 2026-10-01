@@ -20,6 +20,7 @@ Usage:
   sudo bash install.sh recover   --confirmation RECOVER [--state FILE] [--root /]
   sudo bash install.sh rollback  --confirmation ROLLBACK [--state FILE] [--root /]
 
+The bundle directory can be supplied with --bundle-dir or PLATFORM_INSTALLER_BUNDLE_DIR.
 The exact release ZIP can be omitted only when PLATFORM_FACTORY_RELEASE_ARTIFACT
 is set or when the ZIP sits beside this extracted release directory with the
 same basename. The script never downloads moving upstream content and never
@@ -82,7 +83,7 @@ if [[ ! -f "${INSTALLER}" || -L "${INSTALLER}" || ! -x "${INSTALLER}" ]]; then
   exit 2
 fi
 
-bundle_dir=""
+bundle_dir="${PLATFORM_INSTALLER_BUNDLE_DIR:-}"
 release_artifact="${PLATFORM_FACTORY_RELEASE_ARTIFACT:-}"
 declare -a passthrough=()
 while (($#)); do
