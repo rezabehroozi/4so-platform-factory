@@ -234,7 +234,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c6 := byID["C6-multi-agent-test-autopilot"]
-	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2", "AUTOPILOT_AGENT_OWNER_PROOF_V1", "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1", "AUTOPILOT_AGENT_ENTRYPOINT_V1", "AUTOPILOT_OWNER_CONTEXT_PATHS_V1", "AUTOPILOT_PROMPT_BUDGET_V1", "AUTOPILOT_AGENT_REPAIR_BUDGET_V1", "AUTOPILOT_FAILURE_PATH_HINTS_V1"} {
+	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_INSTALLER_OWNER_CONTRACT_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2", "AUTOPILOT_AGENT_OWNER_PROOF_V1", "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1", "AUTOPILOT_AGENT_ENTRYPOINT_V1", "AUTOPILOT_OWNER_CONTEXT_PATHS_V1", "AUTOPILOT_PROMPT_BUDGET_V1", "AUTOPILOT_AGENT_REPAIR_BUDGET_V1", "AUTOPILOT_FAILURE_PATH_HINTS_V1"} {
 		if !containsString(c6.Evidence, evidence) {
 			t.Fatalf("C6 token-efficient autopilot evidence %q missing: %#v", evidence, c6)
 		}
@@ -254,7 +254,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"make autopilot-context emits a compact non-authoritative continuation capsule containing run/stage/failure fingerprint/resume metadata, source-context pointers and at most one bounded secret-redacted failure capsule, never raw stage logs or unredacted secrets",
 		"the continuation capsule includes the exact current owner proof command and bounded stage timeout so a new agent can reproduce the smallest failing proof without rereading the full orchestration source or replaying earlier green stages",
 		"the continuation capsule extracts at most eight existing repository-relative failure-path hints and keeps only paths inside the failing specialist owner surface so a new agent starts from exact evidence before broad owner-directory reads",
-		"Installer core, host-deployment and remote-bootstrap smoke tests are independent checkpoint stages so a late remote failure never replays already-green Installer owner tests and each repair is attributed to the exact failing owner stage",
+		"Installer entrypoint Python contracts, Installer Go owner packages, core smoke, host-deployment smoke and remote-bootstrap smoke are independent checkpoint stages; Installer repair convergence reruns this narrow owner family before package verification so a late failure never requires replaying the unrelated Python/Go graph",
 		"same-stage same-fingerprint repetition stops as NO_PROGRESS before another repair is spent; normal repair keeps a conservative three-repair campaign budget while make autopilot-agent defaults to eight independent repairs so distinct defects can converge without turning the campaign into an unbounded token loop",
 	} {
 		if !containsString(c6.ExitCriteria, criterion) {
