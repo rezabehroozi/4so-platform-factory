@@ -291,7 +291,7 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
             _set_direction(page, direction)
             for route in routes:
                 if installer:
-                    page.evaluate("route => document.querySelector(\`#nav [data-page='\${route}']\`).click()", route)
+                    page.evaluate("route => document.querySelector(`#nav [data-page='${route}']`).click()", route)
                 else:
                     page.evaluate("route => navigate(route)", route)
                 label = f"{app}:{width}:accessibility:{direction}:{route}"
@@ -327,7 +327,7 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
                 page.evaluate("theme => applyConsoleTheme(theme)", theme)
             for route in routes:
                 if installer:
-                    page.evaluate("route => document.querySelector(\`#nav [data-page='\${route}']\`).click()", route)
+                    page.evaluate("route => document.querySelector(`#nav [data-page='${route}']`).click()", route)
                 else:
                     page.evaluate("route => navigate(route)", route)
                 audit_contrast(page, f"{app}:{width}:contrast:{theme}:{route}", failures)
