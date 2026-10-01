@@ -7,6 +7,7 @@ ACTIONABLE_AUTHORITY="INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
 INSTALLER="${ROOT_DIR}/bin/linux-amd64/platform-installer"
+DEFAULT_BOOTSTRAP_TOKEN_FILE="/var/lib/4so-platform-installer/bootstrap-token"
 
 usage() {
   cat <<'EOF'
@@ -19,10 +20,10 @@ Usage:
   sudo bash install.sh install   [--bundle-dir DIR] [--release-artifact RELEASE.zip] --enable-execution --confirmation DEPLOY [installer options...]
   sudo bash install.sh status           [--state FILE] [--root /]
   sudo bash install.sh verify           [--state FILE] [--root /]
-  sudo bash install.sh bootstrap-status [--installer-url URL] [--token-file FILE] [--ca-file FILE]
-  sudo bash install.sh resume           --confirmation RESUME [--installer-url URL] [--token-file FILE] [--ca-file FILE]
-  sudo bash install.sh reset            --confirmation RESET [--installer-url URL] [--token-file FILE] [--ca-file FILE]
-  sudo bash install.sh reset-resume     --confirmation RESUME-RESET [--installer-url URL] [--token-file FILE] [--ca-file FILE]
+  [sudo] bash install.sh bootstrap-status [--installer-url URL] [--token-file FILE] [--ca-file FILE]
+  [sudo] bash install.sh resume           --confirmation RESUME [--installer-url URL] [--token-file FILE] [--ca-file FILE]
+  [sudo] bash install.sh reset            --confirmation RESET [--installer-url URL] [--token-file FILE] [--ca-file FILE]
+  [sudo] bash install.sh reset-resume     --confirmation RESUME-RESET [--installer-url URL] [--token-file FILE] [--ca-file FILE]
   sudo bash install.sh recover          --confirmation RECOVER [--state FILE] [--root /]
   sudo bash install.sh rollback         --confirmation ROLLBACK [--state FILE] [--root /]
 
@@ -90,23 +91,28 @@ case "${mode}" in
     declare -a access_args=("$@")
     access_has_url=false
     access_has_token_file=false
+    access_token_file=""
     for ((i=0; i<${#access_args[@]}; i++)); do
       [[ "${access_args[i]}" == "--installer-url" ]] && access_has_url=true
-      [[ "${access_args[i]}" == "--token-file" ]] && access_has_token_file=true
+      if [[ "${access_args[i]}" == "--token-file" ]]; then
+        access_has_token_file=true
+        if [[ $((i + 1)) -lt ${#access_args[@]} ]]; then
+          access_token_file="${access_args[i+1]}"
+        fi
+      fi
     done
-    access_uses_default_private_token=false
-    if [[ "${access_has_token_file}" != true && -z "${PLATFORM_INSTALLER_TOKEN:-}" && -z "${PLATFORM_INSTALLER_TOKEN_FILE:-}" ]]; then
-      access_uses_default_private_token=true
+    if [[ "${access_has_token_file}" != true && -z "${PLATFORM_INSTALLER_TOKEN:-}" ]]; then
+      access_token_file="${PLATFORM_INSTALLER_TOKEN_FILE:-${DEFAULT_BOOTSTRAP_TOKEN_FILE}}"
     fi
-    if [[ "${EUID}" -ne 0 && "${access_uses_default_private_token}" == true ]]; then
-      echo "ERROR ${AUTHORITY}: default Bootstrap Installer continuation reads /var/lib/4so-platform-installer/bootstrap-token; rerun with sudo or provide --token-file / PLATFORM_INSTALLER_TOKEN_FILE / PLATFORM_INSTALLER_TOKEN" >&2
+    if [[ "${EUID}" -ne 0 && -z "${PLATFORM_INSTALLER_TOKEN:-}" && "${access_token_file}" == "${DEFAULT_BOOTSTRAP_TOKEN_FILE}" ]]; then
+      echo "ERROR ${AUTHORITY}: default Bootstrap Installer continuation reads ${DEFAULT_BOOTSTRAP_TOKEN_FILE}; rerun with sudo or provide a readable custom --token-file / PLATFORM_INSTALLER_TOKEN_FILE / PLATFORM_INSTALLER_TOKEN" >&2
       exit 2
     fi
     if [[ "${access_has_url}" != true ]]; then
       access_args=(--installer-url "${PLATFORM_INSTALLER_URL:-http://127.0.0.1:9080}" "${access_args[@]}")
     fi
     if [[ "${access_has_token_file}" != true && -z "${PLATFORM_INSTALLER_TOKEN:-}" ]]; then
-      access_args=(--token-file "${PLATFORM_INSTALLER_TOKEN_FILE:-/var/lib/4so-platform-installer/bootstrap-token}" "${access_args[@]}")
+      access_args=(--token-file "${access_token_file}" "${access_args[@]}")
     fi
     access_command="${mode}"
     [[ "${mode}" == "bootstrap-status" ]] && access_command="run-status"
