@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"io"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +15,78 @@ import (
 
 	"platform.4so.io/factory/internal/installeraccess"
 )
+
+type installerRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn installerRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func TestInstallerMutationLostResponseUsesOnePostThenReadback(t *testing.T) {
+	base, err := url.Parse("https://installer.example")
+	if err != nil { t.Fatal(err) }
+	tests := []struct {
+		name    string
+		path    string
+		before  installerBootstrapRuntimeStatus
+		after   installerBootstrapRuntimeStatus
+		changed func(installerBootstrapRuntimeStatus, installerBootstrapRuntimeStatus) bool
+	}{
+		{
+			name: "resume",
+			path: "/api/v1/resume",
+			before: installerBootstrapRuntimeStatus{ExecutionEnabled:true, Run:&installerRuntimeRunStatus{ID:"run-1",State:"FAILED",LastError:"interrupted"}},
+			after: installerBootstrapRuntimeStatus{ExecutionEnabled:true, BootstrapActive:true, Run:&installerRuntimeRunStatus{ID:"run-1",State:"RUNNING"}},
+			changed: installerStatusChangedForResume,
+		},
+		{
+			name: "reset",
+			path: "/api/v1/reset/start",
+			before: installerBootstrapRuntimeStatus{ExecutionEnabled:true, Run:&installerRuntimeRunStatus{ID:"run-1",State:"SUCCEEDED"}},
+			after: installerBootstrapRuntimeStatus{ExecutionEnabled:true, ResetActive:true, Run:&installerRuntimeRunStatus{ID:"run-1",State:"SUCCEEDED"}, ResetRuns:[]installerRuntimeRunStatus{{ID:"reset-1",State:"RUNNING"}}},
+			changed: installerResetReadbackChanged,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			posts, gets := 0, 0
+			client := &http.Client{Transport: installerRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				switch request.Method {
+				case http.MethodPost:
+					posts++
+					if request.URL.Path != test.path { t.Fatalf("POST path=%s want=%s", request.URL.Path, test.path) }
+					// Simulate a remote mutation that committed before the network
+					// response was lost. The client must read back and must not POST again.
+					return nil, errors.New("simulated response loss after remote commit")
+				case http.MethodGet:
+					gets++
+					if request.URL.Path != "/api/v1/status" { t.Fatalf("GET path=%s", request.URL.Path) }
+					raw, marshalErr := json.Marshal(test.after)
+					if marshalErr != nil { t.Fatal(marshalErr) }
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header: make(http.Header),
+						Body: io.NopCloser(strings.NewReader(string(raw))),
+						Request: request,
+					}, nil
+				default:
+					t.Fatalf("unexpected method %s", request.Method)
+					return nil, errors.New("unexpected method")
+				}
+			})}
+			outcome, callErr := performInstallerMutationWithReadback(
+				client, base, "bootstrap-token-abcdefghijklmnopqrstuvwxyz",
+				test.path, nil, test.before, test.changed, test.name,
+			)
+			if callErr != nil { t.Fatal(callErr) }
+			if outcome.StatusPending { t.Fatal("lost-response readback was incorrectly left status-pending") }
+			if posts != 1 { t.Fatalf("POST count=%d want=1; automatic replay is forbidden", posts) }
+			if gets != 1 { t.Fatalf("status readback count=%d want=1", gets) }
+			if test.name == "resume" && !outcome.After.BootstrapActive { t.Fatal("resume readback did not prove active durable run") }
+			if test.name == "reset" && !outcome.After.ResetActive { t.Fatal("reset readback did not prove active durable reset") }
+		})
+	}
+}
 
 func TestInstallerAccessStatusAndRotateClient(t *testing.T) {
 	var mu sync.Mutex
