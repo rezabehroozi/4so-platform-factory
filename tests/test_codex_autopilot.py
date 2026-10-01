@@ -378,6 +378,7 @@ class LiveCheckpointProcessResumeTests(unittest.TestCase):
                 self.assertTrue(mismatch.pop("_activeProcessLive"))
                 self.assertTrue(AUTOPILOT._checkpoint_path(root).is_file())
                 self.assertIsNone(proc.poll(), "mismatched observer disrupted live stage process")
+                self.assertEqual(AUTOPILOT.LIVE_RUN_REJOIN_FENCE_AUTHORITY, "AUTOPILOT_LIVE_RUN_REJOIN_FENCE_V1")
 
                 with mock.patch.object(AUTOPILOT, "run_stage") as run:
                     code = AUTOPILOT._execute_stages(
