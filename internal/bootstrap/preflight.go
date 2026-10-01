@@ -837,6 +837,8 @@ func clusterPeerProbeCommand(clusterAddress, clusterInterface, primaryClusterAdd
 	return probe
 }
 
+const HAStorageHostPrerequisiteAuthority = "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1"
+
 func (r *Runner) verifyHAStorageHostPrerequisites(ctx context.Context) (string, error) {
 	for _, binary := range []string{"iscsiadm", "iscsid"} {
 		if _, err := r.system.Output(ctx, binary, []string{"--version"}, nil); err != nil {
@@ -855,6 +857,39 @@ func haPeerStoragePrerequisiteProbeCommand() string {
 	return `command -v iscsiadm >/dev/null 2>&1 || { echo "management storage prerequisite iscsiadm is missing; install open-iscsi/iscsi-initiator-utils before bootstrap" >&2; exit 18; }; ` +
 		`command -v iscsid >/dev/null 2>&1 || { echo "management storage prerequisite iscsid is missing; install open-iscsi/iscsi-initiator-utils before bootstrap" >&2; exit 18; }; ` +
 		`(systemctl cat iscsid.service >/dev/null 2>&1 || systemctl cat iscsid.socket >/dev/null 2>&1) || { echo "management storage iscsid systemd unit is missing" >&2; exit 18; }`
+}
+
+func haPeerStoragePreparationCommand() string {
+	return `set -eu; ` + haPeerStoragePrerequisiteProbeCommand() + `; ` +
+		`if systemctl cat iscsid.service >/dev/null 2>&1; then systemctl enable --now iscsid.service; ` +
+		`else systemctl enable --now iscsid.socket; fi`
+}
+
+func (r *Runner) prepareHAStorageHostPrerequisites(ctx context.Context, request installation.InstallRequest) error {
+	if r.simulation || request.ProfileID != "production-standard-ha" {
+		return nil
+	}
+	unit, err := r.verifyHAStorageHostPrerequisites(ctx)
+	if err != nil {
+		return err
+	}
+	if err = r.system.Run(ctx, "systemctl", []string{"enable", "--now", unit}, nil); err != nil {
+		return fmt.Errorf("enable local iSCSI prerequisite %s: %w", unit, err)
+	}
+	peers := request.Infrastructure.NodeAddresses[1:]
+	if err = r.validateSSHIdentity(request.Infrastructure.CredentialRef, request.Infrastructure.SSHUser); err != nil {
+		return err
+	}
+	if err = r.validateSSHHostTrust(peers); err != nil {
+		return err
+	}
+	run := Run{Request: request}
+	for _, peer := range peers {
+		if err = r.remoteRun(ctx, run, peer, haPeerStoragePreparationCommand()); err != nil {
+			return fmt.Errorf("prepare HA peer %s iSCSI storage prerequisite: %w", peer, err)
+		}
+	}
+	return nil
 }
 
 func (r *Runner) preflightUnlocked(ctx context.Context, request installation.InstallRequest) (PreflightReport, error) {
