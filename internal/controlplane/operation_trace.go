@@ -251,6 +251,114 @@ func (s *MemoryStore) AppendOperationEvidencePayload(_ context.Context, in Evide
 	return out, nil
 }
 
+
+// CompleteOperationWithEvidencePayload seals terminal success evidence and moves
+// RUNNING -> VERIFYING -> SUCCEEDED under one authority lock. Retried reports
+// with the exact already-sealed payload are idempotent even after the lease was
+// released by the successful commit.
+func (s *MemoryStore) CompleteOperationWithEvidencePayload(_ context.Context, id string, expected int64, in EvidenceMetadata, payload []byte, worker string, fence int64, actor string) (Operation, EvidenceMetadata, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	id = strings.TrimSpace(id)
+	worker = strings.TrimSpace(worker)
+	actor = strings.TrimSpace(actor)
+	in.OperationID = strings.TrimSpace(in.OperationID)
+	in.Kind = strings.TrimSpace(in.Kind)
+	in.MediaType = strings.TrimSpace(in.MediaType)
+	in.Location = strings.TrimSpace(in.Location)
+	if id == "" || in.OperationID != id || worker == "" || actor == "" || fence <= 0 || in.Kind == "" || in.MediaType == "" {
+		return Operation{}, EvidenceMetadata{}, fmt.Errorf("%w: operationId, kind, mediaType, worker, actor and positive fence are required", ErrValidation)
+	}
+	if len(payload) == 0 || len(payload) > 16<<20 {
+		return Operation{}, EvidenceMetadata{}, fmt.Errorf("%w: evidence payload must be between 1 byte and 16 MiB", ErrValidation)
+	}
+	digest := operationStepPayloadDigest(payload)
+	if in.Digest != "" && strings.TrimSpace(in.Digest) != digest {
+		return Operation{}, EvidenceMetadata{}, fmt.Errorf("%w: evidence payload digest mismatch", ErrValidation)
+	}
+	if in.Size != 0 && in.Size != int64(len(payload)) {
+		return Operation{}, EvidenceMetadata{}, fmt.Errorf("%w: evidence payload size mismatch", ErrValidation)
+	}
+
+	op, ok := s.operations[id]
+	if !ok {
+		return Operation{}, EvidenceMetadata{}, ErrNotFound
+	}
+	var sealed EvidenceMetadata
+	for _, existing := range s.evidence {
+		if existing.OperationID != id || existing.Digest != digest || existing.StepKey != "" || existing.Phase != "" {
+			continue
+		}
+		stored, exists := s.evidencePayloads[existing.ID]
+		if !exists || !existing.HasPayload || !existing.Sealed || operationStepPayloadDigest(stored) != digest || int64(len(stored)) != existing.Size {
+			return Operation{}, EvidenceMetadata{}, fmt.Errorf("%w: existing evidence payload integrity mismatch", ErrConflict)
+		}
+		if existing.Kind != in.Kind || existing.MediaType != in.MediaType {
+			return Operation{}, EvidenceMetadata{}, fmt.Errorf("%w: existing evidence metadata does not match completion payload", ErrConflict)
+		}
+		sealed = existing
+		break
+	}
+	if op.State == OperationSucceeded && sealed.ID != "" {
+		return op, sealed, nil
+	}
+
+	if op.State == OperationRunning {
+		if op.Revision != expected {
+			return Operation{}, EvidenceMetadata{}, ErrConflict
+		}
+	} else if op.State == OperationVerifying {
+		if op.Revision != expected && op.Revision != expected+1 {
+			return Operation{}, EvidenceMetadata{}, ErrConflict
+		}
+		if sealed.ID == "" {
+			return Operation{}, EvidenceMetadata{}, fmt.Errorf("%w: VERIFYING completion requires previously sealed evidence", ErrPrerequisite)
+		}
+	} else {
+		return Operation{}, EvidenceMetadata{}, fmt.Errorf("%w: evidence-backed success requires RUNNING or VERIFYING", ErrPrerequisite)
+	}
+	now := nowUTC(s.now)
+	if !OperationLeaseActive(op, worker, fence, now) {
+		return Operation{}, EvidenceMetadata{}, ErrStaleFence
+	}
+
+	if sealed.ID == "" {
+		evidenceID := s.id("evd")
+		location := in.Location
+		if location == "" {
+			location = fmt.Sprintf("authority://operations/%s/evidence/%s", id, evidenceID)
+		}
+		sealed = EvidenceMetadata{
+			ResourceMeta: ResourceMeta{ID: evidenceID, Revision: 1, CreatedAt: now, UpdatedAt: now},
+			OperationID: id, Kind: in.Kind, Digest: digest, MediaType: in.MediaType,
+			Location: location, Size: int64(len(payload)), HasPayload: true, Sealed: true,
+		}
+		s.evidence[evidenceID] = sealed
+		s.evidencePayloads[evidenceID] = append([]byte(nil), payload...)
+		s.appendAuditLocked(actor, "evidence.payload_sealed", "evidence", evidenceID, 1, map[string]any{"operationId": id, "digest": digest, "kind": in.Kind, "fenceToken": fence, "terminalCommit": true})
+		s.appendOutboxLocked("evidence", evidenceID, "evidence.payload_sealed", sealed)
+	}
+
+	if op.State == OperationRunning {
+		op.State = OperationVerifying
+		op.Revision++
+		op.UpdatedAt = now
+		s.appendAuditLocked(actor, "operation.verification_started", "operation", id, op.Revision, map[string]any{"attempt": op.Attempt, "evidenceDigest": digest, "atomicTerminalCommit": true})
+		s.appendOutboxLocked("operation", id, "operation.verification_started", op)
+	}
+	op.State = OperationSucceeded
+	op.LeaseOwner = ""
+	op.LeaseExpiresAt = nil
+	op.NextAttemptAt = nil
+	op.Revision++
+	op.UpdatedAt = now
+	s.operations[id] = op
+	s.appendAuditLocked(actor, "operation.succeeded", "operation", id, op.Revision, map[string]any{"attempt": op.Attempt, "evidenceDigest": digest, "atomicTerminalCommit": true})
+	s.appendOutboxLocked("operation", id, "operation.succeeded", op)
+	return op, sealed, nil
+}
+
 func (s *MemoryStore) GetEvidencePayload(_ context.Context, evidenceID string) (EvidenceMetadata, []byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
