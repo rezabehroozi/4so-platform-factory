@@ -444,6 +444,24 @@ func TestOperatorConsoleApplicationEmptyStateJourneyContract(t *testing.T) {
 	}
 }
 
+func TestOperatorConsoleCriticalInteractionLocalizationGrammarContract(t *testing.T) {
+	jsBytes, err := fs.ReadFile(content, "static/app.js")
+	if err != nil { t.Fatal(err) }
+	js := string(jsBytes)
+	for _, marker := range []string{
+		"faInteractionNouns",
+		"faInteractionRules",
+		"localizeDynamicInteraction",
+		"Approve the sealed Compact-3 install request",
+		"Begin the bound compensation plan for",
+		"Request cancellation for",
+		"Approve this exact application deployment revision for target execution?",
+		"Select at least one architecture.",
+	} {
+		if !strings.Contains(js, marker) { t.Fatalf("critical interaction localization grammar missing %q", marker) }
+	}
+}
+
 func TestOperatorConsolePersianCriticalInteractionContract(t *testing.T) {
 	htmlBytes, err := fs.ReadFile(content, "static/index.html")
 	if err != nil { t.Fatal(err) }
