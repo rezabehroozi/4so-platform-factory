@@ -225,7 +225,14 @@ if [[ "${mode}" == "doctor" ]]; then
     "releaseArtifactReady=${release_artifact_ready}"
   printf 'platformctl=%q\ninstaller=%q\nbundleDirectory=%q\nreleaseArtifact=%q\n' \
     "${PLATFORMCTL}" "${INSTALLER}" "${bundle_dir}" "${release_artifact}"
-  printf '%s\n' "nextAction=when readyForPreflight=true, run sudo bash install.sh preflight; canonical bundle/release admission happens there"
+  if [[ "${ready}" == true ]]; then
+    printf '%s\n' "nextAction=copy nextCommand exactly; canonical bundle/release admission happens during preflight"
+    printf 'nextCommand=sudo bash %q preflight --bundle-dir %q --release-artifact %q\n' \
+      "${ROOT_DIR}/install.sh" "${bundle_dir}" "${release_artifact}"
+  else
+    printf '%s\n' "nextAction=resolve the false readiness fields above, then rerun this doctor command; do not start preflight yet"
+    printf '%s\n' "nextCommand="
+  fi
   [[ "${ready}" == true ]]
   exit
 fi
