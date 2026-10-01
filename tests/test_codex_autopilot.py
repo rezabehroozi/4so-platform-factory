@@ -325,6 +325,10 @@ class AutopilotReportTests(unittest.TestCase):
             self.assertNotIn("super-secret", raw)
             data = json.loads(raw)
             self.assertEqual(data["authority"], "AUTOPILOT_CAMPAIGN_REPORT_V1")
+            self.assertEqual(data["failureCapsuleAuthority"], "AUTOPILOT_FAILURE_CAPSULE_V1")
+            self.assertEqual(data["selectiveConvergenceAuthority"], "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1")
+            self.assertEqual(data["repairScopeFenceAuthority"], "AUTOPILOT_REPAIR_SCOPE_FENCE_V1")
+            self.assertEqual(data["structuredTriageAuthority"], "AUTOPILOT_STRUCTURED_TRIAGE_V1")
             self.assertTrue(data["notProductAuthority"])
             self.assertEqual(data["stageResults"][0]["specialist"], "operator-console")
             self.assertNotIn("output_tail", data["stageResults"][0])
@@ -643,6 +647,44 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
         self.assertFalse(AUTOPILOT._repair_requires_full_convergence(stage, ["webconsole/static/app.js"]))
         self.assertTrue(AUTOPILOT._repair_requires_full_convergence(stage, ["internal/persistence/postgres.go"]))
         self.assertTrue(AUTOPILOT._repair_requires_full_convergence(stage, []))
+
+    def test_structured_triage_parser_fails_unknown_on_malformed_first_line(self):
+        self.assertEqual(AUTOPILOT._parse_triage_classification("CLASSIFICATION=CODE_DEFECT\nowner=api"), "CODE_DEFECT")
+        self.assertEqual(AUTOPILOT._parse_triage_classification("  CLASSIFICATION=TEST_DEFECT  \nproof=x"), "TEST_DEFECT")
+        self.assertEqual(AUTOPILOT._parse_triage_classification("I think this is code\nCLASSIFICATION=CODE_DEFECT"), "UNKNOWN")
+        self.assertEqual(AUTOPILOT._parse_triage_classification(""), "UNKNOWN")
+
+    def test_environment_triage_never_opens_repair_writer(self):
+        stage = AUTOPILOT.Stage("smoke-4", ("true",), 10)
+        result = AUTOPILOT.StageResult("smoke-4", "FAIL", 1, 0.1, "fp", "connection refused")
+        with mock.patch.object(AUTOPILOT, "invoke_codex_triage", return_value=(True, "ENVIRONMENT", "CLASSIFICATION=ENVIRONMENT\nnetwork unavailable")), \
+             mock.patch.object(AUTOPILOT, "_codex_command", side_effect=AssertionError("writer command requested")):
+            ok, detail = AUTOPILOT.invoke_codex(ROOT, stage, result, 1, 10)
+        self.assertFalse(ok)
+        self.assertIn("classification=ENVIRONMENT", detail)
+
+    def test_timeout_in_repair_mode_is_triaged_and_can_be_repaired(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "internal").mkdir()
+            marker = root / "internal" / "installer-fix.go"
+            marker.write_text("before\n", encoding="utf-8")
+            stage = AUTOPILOT.Stage("smoke-4", ("true",), 10)
+            timed_out = AUTOPILOT.StageResult("smoke-4", "TIMEOUT", 124, 10.0, "fp-timeout", "test timeout")
+            passed = AUTOPILOT.StageResult("smoke-4", "PASS", 0, 0.1, "fp-pass", "ok")
+            calls = {"repair": 0}
+            def fake_repair(*_args, **_kwargs):
+                calls["repair"] += 1
+                marker.write_text("after\n", encoding="utf-8")
+                return True, "repaired"
+            with mock.patch.object(AUTOPILOT, "run_stage", side_effect=[timed_out, passed, passed]), \
+                 mock.patch.object(AUTOPILOT, "invoke_codex", side_effect=fake_repair):
+                code = AUTOPILOT._execute_stages(
+                    root, [stage], repair=True, max_repairs=1, codex_timeout=10,
+                    enforce_supply_chain=False, emit_ready_result=False,
+                )
+            self.assertEqual(code, 0)
+            self.assertEqual(calls["repair"], 1)
 
     def test_full_convergence_requirement_survives_forward_checkpoint(self):
         with tempfile.TemporaryDirectory() as directory:
