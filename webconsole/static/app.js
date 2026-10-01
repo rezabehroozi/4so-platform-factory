@@ -4429,12 +4429,27 @@ function renderApplicationDeliveryJourney(){
     deployment:hasRun?'done':hasBinding?'current':'blocked',
     observed:run?.ready?'done':hasRun?'current':'blocked'
   };
-  $$('[data-application-step]',host).forEach(button=>{
-    const value=states[button.dataset.applicationStep]||'blocked';
-    button.dataset.state=value;
-    if(button.dataset.applicationStep===currentStep&&!run?.ready)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');
-  });
   const faLocale=state.locale==='fa';
+  const blockedReasons={
+    binding:faLocale?'ابتدا یک ApplicationRelease قابل استقرار با image دقیق بسازید.':'Create a deployable ApplicationRelease with an exact image first.',
+    deployment:faLocale?'ابتدا Release را به WorkspaceBinding فعال و namespace دقیق متصل کنید.':'Bind the release to an active WorkspaceBinding and exact namespace first.',
+    observed:faLocale?'ابتدا درخواست استقرار durable را از Plan & request ایجاد کنید.':'Create the durable deployment request from Plan & request first.'
+  };
+  $('[data-application-step]',host).forEach(button=>{
+    const step=button.dataset.applicationStep;
+    const value=states[step]||'blocked';
+    const blocked=value==='blocked';
+    button.dataset.state=value;
+    button.setAttribute('aria-disabled',blocked?'true':'false');
+    if(blocked){
+      button.dataset.blockedReason=blockedReasons[step]||'';
+      button.title=blockedReasons[step]||'';
+    }else{
+      delete button.dataset.blockedReason;
+      button.removeAttribute('title');
+    }
+    if(step===currentStep&&!run?.ready)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');
+  });
   let text='';
   let tone='neutral';
   if(!hasRelease){
@@ -4470,8 +4485,15 @@ function renderApplicationDeliveryJourney(){
   guidance.textContent=text;
 }
 function openApplicationDeliveryStep(step,{focus=true}={}){
+  const button=$(`[data-application-step="${step}"]`);
+  if(button?.getAttribute('aria-disabled')==='true'){
+    const reason=button.dataset.blockedReason||button.title||(state.locale==='fa'?'این مرحله هنوز در دسترس نیست.':'This step is not available yet.');
+    toast(reason,'error');
+    if(focus)button.focus();
+    return false;
+  }
   const mapping={release:'application-release-workflow',binding:'application-binding-workflow',deployment:'application-deployment-workflow',observed:'application-deployment-workflow'};
-  const id=mapping[step];if(!id)return;
+  const id=mapping[step];if(!id)return false;
   for(const workflowId of ['application-release-workflow','application-binding-workflow','application-deployment-workflow']){
     const node=document.getElementById(workflowId);if(node)node.open=workflowId===id;
   }
@@ -4481,6 +4503,7 @@ function openApplicationDeliveryStep(step,{focus=true}={}){
   const behavior=window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
   details.scrollIntoView({behavior,block:'start'});
   if(focus&&target){if(!target.matches('summary,button,input,select,textarea,a[href]'))target.setAttribute('tabindex','-1');target.focus({preventScroll:true});}
+  return true;
 }
 function stopApplicationDeploymentStatusRefresh(){
   clearTimeout(state.applicationDeploymentStatusTimer);
