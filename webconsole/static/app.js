@@ -50,8 +50,8 @@ function applyLocale() {
   const description=document.querySelector('meta[name="description"]');
   if(description)description.setAttribute('content',state.locale==='fa'?'کنسول اپراتور 4SO Platform Factory برای مدیریت پلتفرم، عملیات و شواهد':'4SO Platform Factory operator console');
   const themeToggle=$('#theme-toggle');if(themeToggle)themeToggle.title=document.documentElement.dataset.theme==='dark'?t('shell.lightTheme','Use light theme'):t('shell.darkTheme','Use dark theme');
-  $('[data-localized-number]').forEach(el=>{const raw=Number(el.dataset.localizedNumber);el.textContent=state.locale==='fa'?new Intl.NumberFormat('fa-IR-u-nu-arabext').format(raw):String(raw);});
-  $('[data-i18n]').forEach(el => {
+  $$('[data-localized-number]').forEach(el=>{const raw=Number(el.dataset.localizedNumber);el.textContent=state.locale==='fa'?new Intl.NumberFormat('fa-IR-u-nu-arabext').format(raw):String(raw);});
+  $$('[data-i18n]').forEach(el => {
     const key = el.dataset.i18n;
     if (!el.dataset.en) el.dataset.en = el.textContent;
     el.textContent = state.locale === 'fa' ? (fa[key] || el.dataset.en) : el.dataset.en;
@@ -4409,7 +4409,7 @@ function renderApplicationDeliveryJourney(){
     deployment:hasRun?'done':hasBinding?'current':'blocked',
     observed:run?.ready?'done':hasRun?'current':'blocked'
   };
-  $('[data-application-step]',host).forEach(button=>{
+  $$('[data-application-step]',host).forEach(button=>{
     const value=states[button.dataset.applicationStep]||'blocked';
     button.dataset.state=value;
     if(button.dataset.applicationStep===currentStep&&!run?.ready)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');
@@ -4813,7 +4813,7 @@ $('#dapr-lifecycle-approve').onclick=async()=>{
     state.daprLifecycle=result;renderDaprRuntimeControls();renderDaprRuntimeResult();toast('Dapr lifecycle request approved and queued; runtime success is not implied.');
   }catch(error){toast(error.message,'error');}
 };
-$('[data-application-step]').forEach(button=>button.addEventListener('click',()=>openApplicationDeliveryStep(button.dataset.applicationStep)));
+$$('[data-application-step]').forEach(button=>button.addEventListener('click',()=>openApplicationDeliveryStep(button.dataset.applicationStep)));
 for(const id of ['application-workload-project','application-trait-project','application-resource-project','application-profile-project']){
   $(`#${id}`)?.addEventListener('change',()=>{renderApplicationLibraryOptions();applyAccessMode();});
 }
@@ -5121,7 +5121,7 @@ async function loadEdgeSovereign(){
 $('#edge-policy-form').onsubmit=async event=>{
   event.preventDefault();if(!event.currentTarget.reportValidity())return;
   const projectId=edgeProjectID();if(!projectId){toast('Select a project first.','error');return;}
-  const allowedActions=$('[data-edge-action]:checked',event.currentTarget).map(input=>input.value);
+  const allowedActions=$$('[data-edge-action]:checked',event.currentTarget).map(input=>input.value);
   try{
     const result=await api('/api/v1/edge/local-authority/policies/compile',{method:'POST',body:{
       projectId,siteId:$('#edge-policy-site').value.trim(),revision:Number($('#edge-policy-revision').value),
@@ -5206,7 +5206,7 @@ function validationDescriptionTokens(target){
 }
 function updateFormValidationSummary(form){
   if(!form||form.getAttribute('method')==='dialog')return;
-  const invalid=$('input[aria-invalid="true"],select[aria-invalid="true"],textarea[aria-invalid="true"]',form).filter(node=>!node.disabled);
+  const invalid=$$('input[aria-invalid="true"],select[aria-invalid="true"],textarea[aria-invalid="true"]',form).filter(node=>!node.disabled);
   let summary=$('.form-validation-summary',form);
   if(!invalid.length){summary?.remove();return;}
   if(!summary){summary=document.createElement('div');summary.className='form-validation-summary';summary.setAttribute('role','alert');summary.setAttribute('aria-live','polite');form.prepend(summary);}
