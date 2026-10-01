@@ -222,7 +222,14 @@ DOM_AUDIT_JS = r"""() => {
         .filter(el => getComputedStyle(el).direction !== 'ltr')
         .map(el => ({tag:el.tagName,id:el.id || '',direction:getComputedStyle(el).direction,text:String(el.textContent || el.value || '').trim().slice(0,80)}))
     : [];
-  return {duplicateIds, unnamedActions, unlabeledFields, unnamedDialogs, undersizedTargets, bidiDirectionErrors};
+  const rtlForwardArrowErrors = document.documentElement.dir === 'rtl'
+    ? [...document.querySelectorAll('.page.active *')]
+        .filter(visible)
+        .filter(el => el.children.length === 0 && !el.closest('.technical,code,pre,kbd,[data-ltr="true"],[data-no-translate]'))
+        .filter(el => String(el.textContent || '').includes('→'))
+        .map(el => ({tag:el.tagName,id:el.id || '',text:String(el.textContent || '').trim().slice(0,120)}))
+    : [];
+  return {duplicateIds, unnamedActions, unlabeledFields, unnamedDialogs, undersizedTargets, bidiDirectionErrors, rtlForwardArrowErrors};
 }"""
 
 CONTRAST_AUDIT_JS = r"""() => {
@@ -498,7 +505,8 @@ def audit_installer(browser, root: Path, failures: list[str], *, routes: list[st
     document = smoke_ui.inline_document(root / "cmd/platform-installer/static", installer=True)
     selected = list(INSTALLER_PAGES if routes is None else routes)
     coverage = _audit_route_matrix(browser, document, installer=True, routes=selected, failures=failures, root=root) if run_matrix else {
-        "widths": 0, "themes": 0, "directions": 0, "routes": 0, "accessibilityRouteStates": 0, "contrastRouteStates": 0
+        "widths": 0, "themes": 0, "directions": 0, "routes": 0, "accessibilityRouteStates": 0,
+        "expandedAccessibilityRouteStates": 0, "contrastRouteStates": 0
     }
     if not run_auxiliary:
         return coverage
@@ -592,9 +600,11 @@ def main(argv: list[str] | None = None) -> int:
         browser.close()
 
     result = {
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "authority": "OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1",
         "disclosureAuthority": "OPERATOR_EXPERIENCE_DISCLOSURE_EXPANDED_MATRIX_V1",
+        "validationAuthority": "FORM_VALIDATION_FEEDBACK_V1",
+        "directionalAuthority": "RTL_DIRECTIONAL_AFFORDANCE_V1",
         "status": "PASS" if not failures else "FAIL",
         "checkpoint": {
             "scope": args.scope,
