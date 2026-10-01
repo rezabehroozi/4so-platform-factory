@@ -171,7 +171,9 @@ func TestApplicationDeploymentEvidenceRequiresObservedConvergenceAndExactArtifac
 			Generation: 4,
 			ObservedGeneration: 4,
 			DesiredReplicas: runtime.Replicas,
+			UpdatedReplicas: runtime.Replicas,
 			ReadyReplicas: runtime.Replicas,
+			AvailableReplicas: runtime.Replicas,
 			WorkloadImage: plan.WorkloadImageReference,
 			CPURequest: runtime.CPURequest,
 			CPULimit: runtime.CPULimit,
@@ -202,6 +204,16 @@ func TestApplicationDeploymentEvidenceRequiresObservedConvergenceAndExactArtifac
 	bad.Readback.ReadyReplicas--
 	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
 		t.Fatal("under-ready application deployment passed terminal evidence validation")
+	}
+	bad = evidence
+	bad.Readback.UpdatedReplicas--
+	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
+		t.Fatal("application deployment with old ReplicaSet pods still serving passed terminal evidence validation")
+	}
+	bad = evidence
+	bad.Readback.AvailableReplicas--
+	if err = ValidateApplicationDeploymentEvidence(bad, request, evidence.OperationID); err == nil {
+		t.Fatal("under-available application deployment passed terminal evidence validation")
 	}
 	bad = evidence
 	bad.PhysicalCertificationInferred = true
