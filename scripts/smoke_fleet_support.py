@@ -82,8 +82,15 @@ def main():
             assert revoked['hubAgentCredentialRevoked'] is True and revoked['targetRBACRevocationStatus']=='APPLY_REQUIRED',revoked
             fence_digest=revoked['targetRBACRevocationFenceDigest']; assert fence_digest.startswith('sha256:'),revoked
             fence=revoked['targetRBACRevocationManifest']
-            assert fence.count('subjects: []')==7,fence
-            for binding in ('4so-platform-agent-credential','4so-platform-agent-readonly','4so-platform-provider-manager','4so-platform-baseline-manager','4so-platform-node-maintenance-job-manager','4so-platform-agent-maintenance-manager','4so-platform-agent-tenant-manager'):
+            assert fence.count('subjects: []')==13,fence
+            for binding in (
+                '4so-platform-agent-credential','4so-platform-agent-readonly','4so-platform-provider-manager',
+                '4so-platform-baseline-manager','4so-platform-node-maintenance-job-manager',
+                '4so-platform-agent-maintenance-manager','4so-platform-agent-tenant-manager',
+                '4so-platform-application-manager','4so-platform-runtime-job-launcher',
+                '4so-platform-runtime-rbac-observer','4so-openchoreo-runtime-manager',
+                '4so-dapr-workload-admission-prober','4so-dapr-runtime-manager',
+            ):
                 assert f'name: {binding}' in fence,fence
             assert '4so-provider-system' in fence and '4so-platform-baseline' in fence,fence
             st,retrieved,_=req(base+f"/api/v1/clusters/{cluster['id']}/revocation-rbac-manifest",headers={'X-Actor-ID':'support-admin','X-Actor-Role':'platform-admin'}); assert st==200,(st,retrieved)
