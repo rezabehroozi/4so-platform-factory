@@ -414,6 +414,7 @@
 <section class="page" data-title="Dapr runtime" id="dapr">
 <div class="page-heading"><div><span class="eyebrow" data-en="Optional runtime extension" data-i18n="dapr.eyebrow">افزونهٔ اختیاری runtime</span><h1 data-en="Dapr runtime" data-i18n="dapr.heading">Runtime اختیاری Dapr</h1><p data-en="Assess target-native ownership first, then use product-managed lifecycle or workload admission only when Dapr is explicitly selected. Dapr never becomes Management Plane or product state authority." data-i18n="dapr.description">ابتدا مالکیت native مقصد را ارزیابی کنید و فقط وقتی Dapr صریحاً انتخاب شده است از چرخهٔ عمر مدیریت‌شده یا admission مربوط به workload استفاده کنید. Dapr هرگز Management Plane یا مرجع state محصول نمی‌شود.</p></div><span class="badge">J8 · OPTIONAL</span></div>
 <div class="inline-summary"><strong>Boundary:</strong> target-native Dapr is consumed rather than duplicated. Product-managed install/upgrade/remove stays approval-gated; workload admission is read-only verification and never proves application deployment, Runtime PASS, Lab PASS or Physical PASS.</div>
+<div class="prerequisite" hidden="" id="dapr-prerequisite"></div>
 <article class="panel" id="dapr-runtime-workflow"><div class="panel-heading"><div><h2>Dapr application runtime</h2><p>Assess native-vs-managed ownership first, then keep lifecycle mutation and workload admission as two separate tasks.</p></div><span class="badge">application-runtime.dapr</span></div>
 
 <div class="grid two">
