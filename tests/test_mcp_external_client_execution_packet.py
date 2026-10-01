@@ -12,7 +12,10 @@ class PacketTests(unittest.TestCase):
                 "oauthClientId":c+"-oauth-client","trustedClientId":"mcpcli-"+c,"trustedClientRevision":1,"trustedClientProvider":c})
         ep="https://mcp.example.test/mcp"; metadata="https://mcp.example.test/.well-known/oauth-protected-resource"
         preflight={"authority":core.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":ep,"protectedResourceMetadata":metadata,"resource":ep,"authorizationServers":["https://identity.example.test/realms/4so"],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":f'Bearer resource_metadata="{metadata}"',"protocol":"2026-07-28"}
-        campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-packettest","matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
+        spec=json.loads(matrix.read_text())["spec"]
+        created=core.datetime.now(core.timezone.utc)-core.timedelta(minutes=1)
+        expires=created+core.timedelta(seconds=spec["campaignMaxAgeSeconds"])
+        campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-packettest","createdAt":core.utc_timestamp(created),"expiresAt":core.utc_timestamp(expires),"matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
                   "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"packet-oauth-bindings").hexdigest(),
                   "protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
         with tempfile.TemporaryDirectory() as td:
@@ -24,6 +27,10 @@ class PacketTests(unittest.TestCase):
             self.assertEqual("chatgpt-oauth-client",out["receiptRequirements"]["oauthClientId"])
             self.assertEqual(list(core.OAUTH_CLIENT_AUDITED_CHECKS),out["receiptRequirements"]["oauthClientWitnessedChecks"])
             self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",out["receiptRequirements"]["captureAuthority"])
+            self.assertTrue(out["receiptRequirements"]["executedAtRequired"])
+            self.assertEqual(campaign["createdAt"],out["campaignCreatedAt"])
+            self.assertEqual(campaign["expiresAt"],out["campaignExpiresAt"])
+            self.assertEqual(spec["executionAuditWindowSeconds"],out["executionAuditWindowSeconds"])
             self.assertIn("finalize_mcp_external_client_receipt.py",out["receiptRequirements"]["finalizer"])
             audited=[x for x in out["checks"] if x.get("serverAudit")]
             self.assertEqual(set(core.AUDITED_CHECKS),{x["id"] for x in audited})
