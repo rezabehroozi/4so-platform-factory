@@ -216,6 +216,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"Application Delivery exposes UI creation paths for WorkloadType, CapabilityTrait, ManagedResourceType and WorkspaceProfile before Release -> EnvironmentBinding -> Plan/Request -> Observed Evidence",
 		"application collection reads and mutation forms follow the selected global project scope and backend RBAC instead of cross-project dropdown aggregation",
 		"disabled mutation controls expose visible page-level role/scope/state reasons while remaining fail-closed",
+		"empty and prerequisite states expose a direct in-product next action when an owner UI exists and runtime-generated guidance is re-rendered correctly after locale changes",
 		"durable application deployment progress is refreshed read-only without requiring mutation replay or a manual page refresh",
 		"LTR and RTL use the same semantic ordering with logical layout properties and isolated technical identifiers",
 	} {
