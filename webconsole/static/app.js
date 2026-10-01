@@ -5373,11 +5373,11 @@ const livePages=new Set(['overview','clusters','providers','marketplace','baseli
 function hasActiveWork(page = state.currentPage){
   const pageCollections={
     overview:[state.operations,state.baselineDeployments,state.verifications,state.closures,state.runtimeCertifications,state.providerClusters,state.marketplaceInstallations,state.tenants,state.driftScans,state.upgradeCampaigns,state.notificationDeliveries],
-    clusters:[state.imports], providers:[state.providerClusters], marketplace:[state.marketplaceInstallations], baselines:[state.baselineDeployments],
+    clusters:[state.imports,state.clusterMaintenanceRuns], providers:[state.providerClusters], marketplace:[state.marketplaceInstallations], baselines:[state.baselineDeployments],
     verification:[state.verifications,state.closures,state.runtimeCertifications], fleet:[state.driftScans,state.upgradeCampaigns], workspaces:[state.virtualClusters],
     tenants:[state.tenants], operations:[state.operations], notifications:[state.notificationDeliveries]
   };
-  return (pageCollections[page]||[]).some(items=>(items||[]).some(item=>/REQUESTED|PENDING|QUEUED|RUNNING|PLANNING|APPLYING|VERIFYING|UPGRADING|DELIVERING|PROVISIONING|RESIZING|SUSPENDING|RESUMING|DELETING|AWAITING_APPROVAL|PAUSE_REQUESTED|ROLLING/i.test(String(item.state||item.status||''))));
+  return (pageCollections[page]||[]).some(items=>(items||[]).some(item=>/REQUESTED|PENDING|QUEUED|RUNNING|PLANNING|APPLYING|VERIFYING|UPGRADING|DELIVERING|PROVISIONING|RESIZING|SUSPENDING|RESUMING|DELETING|AWAITING_APPROVAL|PAUSE_REQUESTED|ROLLING|RESTORING|RECONCILING|RECOVERING/i.test(String(item.state||item.status||''))));
 }
 let generatedFieldValidationId=0;
 function markFormClean(form){if(form?.dataset)delete form.dataset.dirty;}
