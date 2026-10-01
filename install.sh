@@ -9,6 +9,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
 INSTALLER="${ROOT_DIR}/bin/linux-amd64/platform-installer"
 DEFAULT_BOOTSTRAP_TOKEN_FILE="/var/lib/4so-platform-installer/bootstrap-token"
+EXPECTED_VERSION="$(tr -d '\r\n' < "${ROOT_DIR}/VERSION" 2>/dev/null || true)"
 
 usage() {
   cat <<'EOF'
@@ -210,19 +211,43 @@ if [[ "${mode}" == "doctor" ]]; then
   ready=true
   platformctl_ready=false
   installer_ready=false
+  platformctl_runnable=false
+  installer_runnable=false
+  host_platform_ready=false
   bundle_inputs_ready=false
   release_artifact_ready=false
+  host_os="$(uname -s 2>/dev/null || true)"
+  host_arch="$(uname -m 2>/dev/null || true)"
+  if [[ "${host_os}" == "Linux" && ("${host_arch}" == "x86_64" || "${host_arch}" == "amd64") ]]; then
+    host_platform_ready=true
+  else
+    ready=false
+  fi
   [[ -f "${PLATFORMCTL}" && ! -L "${PLATFORMCTL}" && -x "${PLATFORMCTL}" ]] && platformctl_ready=true || ready=false
   [[ -f "${INSTALLER}" && ! -L "${INSTALLER}" && -x "${INSTALLER}" ]] && installer_ready=true || ready=false
-  [[ -n "${bundle_dir}" && -d "${bundle_dir}" && ! -L "${bundle_dir}" && -f "${bundle_dir}/bundle.json" && -f "${bundle_dir}/bundle.lock.json" ]] && bundle_inputs_ready=true || ready=false
-  [[ -n "${release_artifact}" && -f "${release_artifact}" && ! -L "${release_artifact}" ]] && release_artifact_ready=true || ready=false
+  if [[ "${host_platform_ready}" == true && "${platformctl_ready}" == true ]]; then
+    platformctl_version="$("${PLATFORMCTL}" --version 2>/dev/null | tr -d '\r\n' || true)"
+    [[ -n "${EXPECTED_VERSION}" && "${platformctl_version}" == *"${EXPECTED_VERSION}"* ]] && platformctl_runnable=true || ready=false
+  fi
+  if [[ "${host_platform_ready}" == true && "${installer_ready}" == true ]]; then
+    installer_version="$("${INSTALLER}" --version 2>/dev/null | tr -d '\r\n' || true)"
+    [[ -n "${EXPECTED_VERSION}" && "${installer_version}" == *"${EXPECTED_VERSION}"* ]] && installer_runnable=true || ready=false
+  fi
+  [[ -n "${bundle_dir}" && -d "${bundle_dir}" && ! -L "${bundle_dir}" && -r "${bundle_dir}/bundle.json" && -r "${bundle_dir}/bundle.lock.json" ]] && bundle_inputs_ready=true || ready=false
+  [[ -n "${release_artifact}" && -f "${release_artifact}" && ! -L "${release_artifact}" && -r "${release_artifact}" ]] && release_artifact_ready=true || ready=false
   printf '%s\n' \
     "authority=INSTALLER_MANUAL_DOCTOR_V1" \
     "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
     "readyForPreflight=${ready}" \
     "bundleAdmissionVerified=false" \
+    "hostPlatformReady=${host_platform_ready}" \
+    "hostOS=${host_os}" \
+    "hostArch=${host_arch}" \
+    "expectedVersion=${EXPECTED_VERSION}" \
     "platformctlReady=${platformctl_ready}" \
+    "platformctlRunnable=${platformctl_runnable}" \
     "installerReady=${installer_ready}" \
+    "installerRunnable=${installer_runnable}" \
     "bundleInputsReady=${bundle_inputs_ready}" \
     "releaseArtifactReady=${release_artifact_ready}"
   printf 'platformctl=%q\ninstaller=%q\nbundleDirectory=%q\nreleaseArtifact=%q\n' \
@@ -232,7 +257,7 @@ if [[ "${mode}" == "doctor" ]]; then
     printf 'nextCommand=sudo bash %q preflight --bundle-dir %q --release-artifact %q\n' \
       "${ROOT_DIR}/install.sh" "${bundle_dir}" "${release_artifact}"
   else
-    printf '%s\n' "nextAction=resolve the false readiness fields above, then rerun this doctor command; do not start preflight yet"
+    printf '%s\n' "nextAction=resolve the false readiness fields above (including host platform and binary runtime/version compatibility), then rerun this doctor command; do not start preflight yet"
     printf '%s\n' "nextCommand="
   fi
   [[ "${ready}" == true ]]
