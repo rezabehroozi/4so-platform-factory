@@ -47,6 +47,7 @@ Delivery
   Platform blueprints
   Platform templates
   Application delivery
+  Dapr runtime · optional
   Marketplace
   Certified baselines
   Planning tools
@@ -95,7 +96,7 @@ Compatibility-only internal section IDs such as `delivery` and `administration` 
 
 ### Operator Horizon V4 information architecture
 
-The exact-source review plus current Palette benchmark confirms that project/scope selection and reusable platform/application composition mental models should stay obvious, while 4SO must surface its stronger evidence/supply-chain differentiators rather than burying them in Fleet or Operations. Platform Templates and Application Delivery are separate Delivery destinations so operators do not enter an eleven-form mixed workspace merely to complete one task. The visible primary navigation is therefore:
+The exact-source review plus current Palette benchmark confirms that project/scope selection and reusable platform/application composition mental models should stay obvious, while 4SO must surface its stronger evidence/supply-chain differentiators rather than burying them in Fleet or Operations. Platform Templates, Application Delivery and optional Dapr Runtime are separate Delivery destinations so platform-template authoring, ordinary application delivery and Dapr-specific lifecycle/admission do not collapse into one mixed workspace. The visible primary navigation is therefore:
 
 `Overview -> Platforms -> Delivery -> Fleet & Workspaces -> Operations -> Assurance -> Admin`
 
@@ -224,7 +225,7 @@ The current runtime therefore continues to use:
 - centralized design tokens and responsive breakpoints;
 - existing command palette and route system;
 - server/API-owned authorization;
-- browser smoke validation at 320/390/768/1024/1440 widths across all 23 Console and 6 Installer routes;
+- browser smoke validation at 320/390/768/1024/1440 widths across all 24 Console and 6 Installer routes;
 - LTR/RTL checks with disclosures collapsed and fully expanded, active secondary-nav reveal and technical LTR isolation;
 - persistent localized field/form validation with `aria-describedby` and first-error focus;
 - explicit light/dark checks plus reduced-motion, focus-state, horizontal-overflow and RTL physical-alignment negative controls.
