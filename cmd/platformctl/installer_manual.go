@@ -61,6 +61,28 @@ type manualInstallerAccess struct {
 	Note              string `json:"note"`
 }
 
+type manualInstallerPreflightResult struct {
+	hostdeployment.HostAdmissionReport
+	Authority                  string `json:"authority"`
+	ExactReleaseAuthority      string `json:"exactReleaseAuthority"`
+	PreflightGuidanceAuthority string `json:"preflightGuidanceAuthority"`
+	ManualInstall              bool   `json:"manualInstall"`
+	SourceReleaseDigest        string `json:"sourceReleaseDigest,omitempty"`
+	NextAction                 string `json:"nextAction"`
+}
+
+func newManualInstallerPreflightResult(admission hostdeployment.HostAdmissionReport, releaseDigest string) manualInstallerPreflightResult {
+	return manualInstallerPreflightResult{
+		HostAdmissionReport:        admission,
+		Authority:                  installerGuidedManualWorkflowAuthority,
+		ExactReleaseAuthority:      installerManualExactReleaseAuthority,
+		PreflightGuidanceAuthority: installerManualPreflightGuidanceAuthority,
+		ManualInstall:              true,
+		SourceReleaseDigest:        releaseDigest,
+		NextAction:                 "if ready=true, review installer-manual plan next; no host mutation has occurred",
+	}
+}
+
 type manualInstallerInputs struct {
 	InstallerBinary   string
 	BundleDirectory   string
@@ -133,23 +155,7 @@ func installerManualPrepare(mode string, args []string) {
 		}
 	}
 	if mode == "preflight" {
-		printJSON(struct {
-			hostdeployment.HostAdmissionReport
-			Authority             string `json:"authority"`
-			ExactReleaseAuthority string `json:"exactReleaseAuthority"`
-			PreflightGuidanceAuthority string `json:"preflightGuidanceAuthority"`
-			ManualInstall         bool   `json:"manualInstall"`
-			SourceReleaseDigest   string `json:"sourceReleaseDigest,omitempty"`
-			NextAction            string `json:"nextAction"`
-		}{
-			HostAdmissionReport:  plan.Admission,
-			Authority:             installerGuidedManualWorkflowAuthority,
-			ExactReleaseAuthority: installerManualExactReleaseAuthority,
-			PreflightGuidanceAuthority: installerManualPreflightGuidanceAuthority,
-			ManualInstall:         true,
-			SourceReleaseDigest:   releaseDigest,
-			NextAction:            "if ready=true, review installer-manual plan next; no host mutation has occurred",
-		})
+		printJSON(newManualInstallerPreflightResult(plan.Admission, releaseDigest))
 		if !plan.Admission.Ready {
 			os.Exit(1)
 		}
