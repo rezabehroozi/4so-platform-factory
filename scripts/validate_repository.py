@@ -2089,6 +2089,12 @@ def main() -> int:
         errors.append(('VERSION_FORMAT_INVALID', version))
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', release_name):
         errors.append(('RELEASE_NAME_FORMAT_INVALID', release_name))
+    installer_example = root/'examples'/'installer-host'/'deployment.example.json'
+    if installer_example.is_file():
+        example_doc = load_json(installer_example, errors)
+        example_version = str(((example_doc or {}).get('metadata') or {}).get('version') or '') if isinstance(example_doc, dict) else ''
+        if example_version != version:
+            errors.append(('INSTALLER_EXAMPLE_VERSION_DRIFT', f'{example_version} != {version}'))
     current_program_authority, current_phase_doc = validate_release_documentation_truth(root, version, release_name, errors)
     if (root/'go.mod').exists() and (root/'go.mod').read_text().splitlines()[0].strip() != 'module platform.4so.io/factory':
         errors.append(('GO_MODULE_IDENTITY','go.mod'))
