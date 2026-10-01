@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c8 := byID["C8-console-operational-completion"]
-	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1", "ACTIONABLE_EMPTY_STATE_RECOVERY_V1", "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1", "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1"} {
+	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1", "ACTIONABLE_EMPTY_STATE_RECOVERY_V1", "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1", "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1", "DISCLOSURE_SAFE_LIVE_PROGRESS_REFRESH_V1"} {
 		if !containsString(c8.Evidence, evidence) {
 			t.Fatalf("C8 task-first journey evidence %q missing: %#v", evidence, c8)
 		}
@@ -220,6 +220,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"disabled mutation controls expose visible page-level role/scope/state reasons while remaining fail-closed",
 		"empty and prerequisite states expose a direct in-product next action when an owner UI exists and runtime-generated guidance is re-rendered correctly after locale changes",
 		"durable application deployment progress is refreshed read-only without requiring mutation replay or a manual page refresh",
+		"live status pages keep refreshing while read-only disclosures are open, but focused or dirty form input still fences background refresh; Workspace virtual-cluster lifecycle is included",
 		"LTR and RTL use the same semantic ordering with logical layout properties and isolated technical identifiers",
 	} {
 		if !containsString(c8.ExitCriteria, criterion) {
