@@ -837,6 +837,26 @@ func clusterPeerProbeCommand(clusterAddress, clusterInterface, primaryClusterAdd
 	return probe
 }
 
+func (r *Runner) verifyHAStorageHostPrerequisites(ctx context.Context) (string, error) {
+	for _, binary := range []string{"iscsiadm", "iscsid"} {
+		if _, err := r.system.Output(ctx, binary, []string{"--version"}, nil); err != nil {
+			return "", fmt.Errorf("management replicated storage requires %s before bootstrap; install the host iSCSI initiator package (open-iscsi on Debian/Ubuntu or iscsi-initiator-utils on RHEL-family) and rerun preflight: %w", binary, err)
+		}
+	}
+	for _, unit := range []string{"iscsid.service", "iscsid.socket"} {
+		if err := r.system.Run(ctx, "systemctl", []string{"cat", unit}, nil); err == nil {
+			return unit, nil
+		}
+	}
+	return "", errors.New("management replicated storage requires an iscsid systemd service/socket; install the host iSCSI initiator package and rerun preflight")
+}
+
+func haPeerStoragePrerequisiteProbeCommand() string {
+	return `command -v iscsiadm >/dev/null 2>&1 || { echo "management storage prerequisite iscsiadm is missing; install open-iscsi/iscsi-initiator-utils before bootstrap" >&2; exit 18; }; ` +
+		`command -v iscsid >/dev/null 2>&1 || { echo "management storage prerequisite iscsid is missing; install open-iscsi/iscsi-initiator-utils before bootstrap" >&2; exit 18; }; ` +
+		`(systemctl cat iscsid.service >/dev/null 2>&1 || systemctl cat iscsid.socket >/dev/null 2>&1) || { echo "management storage iscsid systemd unit is missing" >&2; exit 18; }`
+}
+
 func (r *Runner) preflightUnlocked(ctx context.Context, request installation.InstallRequest) (PreflightReport, error) {
 	plan, planErr := installation.CreateBootstrapPlan(request)
 	if planErr == nil {
@@ -960,7 +980,7 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 					if len(clusterAddresses) > 0 {
 						primaryClusterAddress = clusterAddresses[0]
 					}
-					command := haPeerPreflightCommand(sizing) + clusterPeerProbeCommand(clusterAddress, request.Infrastructure.ClusterInterface, primaryClusterAddress)
+					command := haPeerPreflightCommand(sizing) + "; " + haPeerStoragePrerequisiteProbeCommand() + clusterPeerProbeCommand(clusterAddress, request.Infrastructure.ClusterInterface, primaryClusterAddress)
 					if _, err := r.system.Output(ctx, "ssh", r.sshArgs(probeRun, peer, command), nil); err != nil {
 						add(fmt.Sprintf("ha-peer-%d", index+1), "Verify HA peer readiness", CheckBlocked, fmt.Sprintf("%s: %v", peer, err))
 					} else {
@@ -1003,6 +1023,7 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 		add("filesystem", "Verify local runtime filesystem", CheckSkipped, "simulation mode does not inspect the host filesystem type")
 		add("default-route", "Verify management network route and MTU evidence", CheckSkipped, "simulation mode does not inspect the host network route")
 		if request.ProfileID == "production-standard-ha" {
+			add("storage-prerequisites", "Verify replicated-storage host prerequisites", CheckSkipped, "simulation mode does not inspect host iSCSI prerequisites")
 			add("cluster-network", "Verify HA east-west cluster address", CheckSkipped, "simulation mode does not inspect host interface/address assignment")
 			add("storage-devices", "Verify dedicated HA storage devices", CheckSkipped, "simulation mode does not inspect local or remote block devices")
 		}
@@ -1043,6 +1064,11 @@ func (r *Runner) preflightUnlocked(ctx context.Context, request installation.Ins
 			add("time-sync", "Verify host time synchronization", CheckPassed, "host clock is synchronized before certificates, leases and distributed control-plane state are created")
 		}
 		if request.ProfileID == "production-standard-ha" {
+			if unit, err := r.verifyHAStorageHostPrerequisites(ctx); err != nil {
+				add("storage-prerequisites", "Verify replicated-storage host prerequisites", CheckBlocked, err.Error())
+			} else {
+				add("storage-prerequisites", "Verify replicated-storage host prerequisites", CheckPassed, "iscsiadm/iscsid and "+unit+" are installed; execution will enable the existing iSCSI service before storage deployment")
+			}
 			if detail, err := r.verifyLocalClusterNetwork(ctx, request); err != nil {
 				add("cluster-network", "Verify HA east-west cluster address", CheckBlocked, err.Error())
 			} else {
