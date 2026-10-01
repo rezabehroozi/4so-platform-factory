@@ -328,6 +328,42 @@ func serviceReadback(object map[string]any, request controlplane.ApplicationDepl
 	return nil
 }
 
+func (a *agent) removeApplicationDeploymentServiceIfNotDesired(ctx context.Context, request controlplane.ApplicationDeploymentRequest) (bool, error) {
+	plan := request.Plan
+	if plan.RuntimeSpec.ServicePort > 0 {
+		return false, nil
+	}
+	path := "/api/v1/namespaces/" + url.PathEscape(plan.Namespace) + "/services/" + url.PathEscape(plan.WorkloadName)
+	current, found, err := a.getKubeObject(ctx, path)
+	if err != nil {
+		return false, err
+	}
+	if !found {
+		return false, nil
+	}
+	if !applicationDeploymentOwnedByBinding(current, plan) {
+		return false, fmt.Errorf("foreign Service collides with deployment-only workload name")
+	}
+	if !applicationDeploymentAuthorityDigestsMatch(current, plan) {
+		return false, fmt.Errorf("owned Service authority digests do not match current deployment request")
+	}
+	uid, err := kubeObjectUID(current)
+	if err != nil {
+		return false, err
+	}
+	resourceVersion, err := kubeObjectResourceVersion(current)
+	if err != nil {
+		return false, err
+	}
+	if err = a.deleteKubeObjectWithUIDAndResourceVersionAndWait(ctx, path, uid, resourceVersion, 30*time.Second); err != nil {
+		// Once DELETE is attempted, any transport/readback/timeout error can hide
+		// an accepted mutation. Never replay automatically; recovery readback
+		// decides whether the exact Service is absent.
+		return true, err
+	}
+	return false, nil
+}
+
 func (a *agent) observeApplicationDeployment(ctx context.Context, task agentApplicationDeploymentTask) (controlplane.ApplicationDeploymentEvidence, error) {
 	plan := task.Request.Plan
 	deploymentPath := "/apis/apps/v1/namespaces/" + url.PathEscape(plan.Namespace) + "/deployments/" + url.PathEscape(plan.WorkloadName)
@@ -432,6 +468,11 @@ func (a *agent) runApplicationDeployment(ctx context.Context, task agentApplicat
 			result.Error = applyErr.Error()
 			return result
 		}
+	}
+	if unknown, cleanupErr := a.removeApplicationDeploymentServiceIfNotDesired(ctx, request); cleanupErr != nil {
+		result.RecoveryRequired = unknown
+		result.Error = cleanupErr.Error()
+		return result
 	}
 	evidence, err := a.observeApplicationDeployment(ctx, task)
 	if err != nil {
