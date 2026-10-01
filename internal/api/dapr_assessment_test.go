@@ -92,6 +92,31 @@ func TestDaprAssessmentUsesNativeCapabilityAndBlocksUnimplementedInstall(t *test
 }
 
 
+func TestDaprAssessmentKeepsProductManagedOwnershipAfterCapabilityDiscovery(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	ctx := context.Background()
+	org, _ := store.CreateOrganization(ctx, controlplane.Organization{Name: "dapr-owned-assessment", DisplayName: "Dapr Owned Assessment"}, "owner")
+	project, _ := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "apps", DisplayName: "Apps"}, "owner")
+	cluster := workspaceAPICluster(t, store, project.ID, "dapr-owned-assessment", "uid-dapr-owned-assessment")
+	seedDaprAssessmentInventory(t, store, cluster, []string{targetmodel.DaprApplicationRuntimeCapability}, 4)
+
+	srv := scopedServer(t, store)
+	lock := daprAPITestRuntimeLock(t)
+	if err := srv.ConfigureDaprRuntimeLock(lock, "https://zot.internal.example"); err != nil { t.Fatal(err) }
+	lockDigest, err := daprruntime.RuntimeLockDigest(lock)
+	if err != nil { t.Fatal(err) }
+	seedProductManagedDaprObserved(t, store, project.ID, cluster.ID, lockDigest)
+
+	body := fmt.Sprintf(`{"projectId":%q,"clusterId":%q,"disconnected":false}`, project.ID, cluster.ID)
+	w := applicationPlatformRequest(t, srv, http.MethodPost, "/api/v1/application-platform/dapr/assessment", body, "owner", nil)
+	if w.Code != http.StatusOK { t.Fatalf("product-managed assessment=%d %s", w.Code, w.Body.String()) }
+	out := decodeApplicationResponse[daprAssessmentResponse](t, w)
+	if out.Assessment.Mode != "PRODUCT_MANAGED" || out.Assessment.InstallSuppressed || !out.Assessment.Eligible ||
+		!strings.Contains(w.Body.String(), lockDigest) {
+		t.Fatalf("product-managed Dapr collapsed into target-native admission: %#v body=%s", out.Assessment, w.Body.String())
+	}
+}
+
 type daprWorkloadPlanResponse struct {
 	Authority                        string                          `json:"authority"`
 	TraitID                          string                          `json:"traitId"`
