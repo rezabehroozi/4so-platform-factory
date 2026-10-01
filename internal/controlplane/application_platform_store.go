@@ -152,8 +152,21 @@ func(s *MemoryStore)CreateEnvironmentBinding(_ context.Context,req EnvironmentBi
 	now:=nowUTC(s.now);v.ResourceMeta=ResourceMeta{ID:s.id("aeb"),Revision:1,CreatedAt:now,UpdatedAt:now};s.environmentBindings[v.ID]=v
 	s.appendAuditLocked(actor,"application_environment_binding.created","environmentBinding",v.ID,v.Revision,map[string]any{"projectId":v.ProjectID,"releaseId":v.ReleaseID,"workspaceBindingId":v.WorkspaceBindingID,"environment":v.Environment,"digest":v.Digest});s.appendOutboxLocked("environmentBinding",v.ID,"application_environment_binding.created",v);return v,nil
 }
+func applicationDeploymentDesiredMutationBlockedLocked(s *MemoryStore, projectID, clusterID, bindingID string) bool {
+	for _, op := range s.operations {
+		if op.ProjectID != strings.TrimSpace(projectID) ||
+			!ApplicationDeploymentOperationTargetsBinding(op, clusterID, bindingID) ||
+			!ApplicationDeploymentOperationBlocksDesiredMutation(op) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 func(s *MemoryStore)PromoteEnvironmentBinding(_ context.Context,id string,expected int64,req EnvironmentBindingPromotionRequest,actor string)(EnvironmentBinding,error){
 	s.mu.Lock();defer s.mu.Unlock();v,ok:=s.environmentBindings[strings.TrimSpace(id)];if !ok{return EnvironmentBinding{},ErrNotFound};if v.Revision!=expected{return EnvironmentBinding{},ErrConflict}
+	if applicationDeploymentDesiredMutationBlockedLocked(s,v.ProjectID,v.ClusterID,v.ID){return EnvironmentBinding{},fmt.Errorf("%w: environment binding has an in-flight or recovery-required application deployment",ErrPrerequisite)}
 	wsb,ok:=s.workspaceBindings[v.WorkspaceBindingID];if !ok||wsb.State!=WorkspaceBindingActive||wsb.Revision!=v.WorkspaceBindingRevision||wsb.ProjectID!=v.ProjectID||wsb.ClusterID!=v.ClusterID||wsb.Namespace!=v.Namespace{return EnvironmentBinding{},fmt.Errorf("%w: environment binding WorkspaceBinding authority changed; rebind explicitly",ErrPrerequisite)}
 	release,ok:=s.applicationReleases[strings.TrimSpace(req.ReleaseID)];if !ok||release.ProjectID!=v.ProjectID{return EnvironmentBinding{},ErrNotFound}
 	composition,err:=resolveReleaseCompositionLocked(s,release,req.ObservedNativeCapabilities);if err!=nil{return EnvironmentBinding{},err}
