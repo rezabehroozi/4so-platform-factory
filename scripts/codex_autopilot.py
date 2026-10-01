@@ -366,8 +366,10 @@ def _triage_prompt(stage: Stage, result: StageResult, iteration: int) -> str:
         You are the read-only 4SO Platform Factory triage agent for specialist
         `{_stage_specialist(stage)}`. Do not edit files and do not run destructive
         commands. Classify this failure as one of CODE_DEFECT, TEST_DEFECT,
-        ENVIRONMENT, SUPPLY_CHAIN, or UNKNOWN. Identify the narrowest likely owner
-        and the smallest proof command. Never recommend weakening a correct gate.
+        ENVIRONMENT, SUPPLY_CHAIN, or UNKNOWN. Your first non-empty output line
+        MUST be exactly `CLASSIFICATION=<VALUE>`. Then identify the narrowest
+        likely owner and the smallest proof command. Never recommend weakening a
+        correct gate and never request source mutation for ENVIRONMENT or SUPPLY_CHAIN.
 
         Stage: {stage.name}
         Iteration: {iteration}
@@ -411,6 +413,7 @@ def _browser_executable() -> str | None:
 FAILURE_CAPSULE_AUTHORITY = "AUTOPILOT_FAILURE_CAPSULE_V1"
 SELECTIVE_CONVERGENCE_AUTHORITY = "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1"
 REPAIR_SCOPE_FENCE_AUTHORITY = "AUTOPILOT_REPAIR_SCOPE_FENCE_V1"
+STRUCTURED_TRIAGE_AUTHORITY = "AUTOPILOT_STRUCTURED_TRIAGE_V1"
 
 _FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
 
@@ -558,21 +561,46 @@ def _ensure_browser_triage_for_stage(root: Path, stage: Stage) -> tuple[bool, st
     return True, _tail(result.stdout, 20)
 
 
-def invoke_codex(root: Path, stage: Stage, result: StageResult, iteration: int, timeout: int) -> tuple[bool, str]:
+_TRIAGE_CLASSIFICATIONS = frozenset({"CODE_DEFECT", "TEST_DEFECT", "ENVIRONMENT", "SUPPLY_CHAIN", "UNKNOWN"})
+
+
+def _parse_triage_classification(text: str) -> str:
+    for line in text.splitlines():
+        value = line.strip()
+        if not value:
+            continue
+        match = re.fullmatch(r"CLASSIFICATION=(CODE_DEFECT|TEST_DEFECT|ENVIRONMENT|SUPPLY_CHAIN|UNKNOWN)", value)
+        return match.group(1) if match else "UNKNOWN"
+    return "UNKNOWN"
+
+
+def invoke_codex_triage(root: Path, stage: Stage, result: StageResult, iteration: int, timeout: int) -> tuple[bool, str, str]:
     browser_ready, browser_detail = _ensure_browser_triage_for_stage(root, stage)
     if not browser_ready:
-        return False, browser_detail
+        return False, "ENVIRONMENT", browser_detail
     triage_base = _codex_command(sandbox="read-only")
-    repair_base = _codex_command(sandbox="workspace-write")
-    if not triage_base or not repair_base:
-        return False, "CODEX_CLI_UNAVAILABLE"
+    if not triage_base:
+        return False, "ENVIRONMENT", "CODEX_CLI_UNAVAILABLE"
     try:
         triage_run = _run(tuple([*triage_base, _triage_prompt(stage, result, iteration)]), cwd=root, timeout=min(timeout, 300), track_state_root=root, active_label="codex-triage:" + stage.name)
     except subprocess.TimeoutExpired:
-        return False, "CODEX_TRIAGE_TIMEOUT"
+        return False, "ENVIRONMENT", "CODEX_TRIAGE_TIMEOUT"
     triage_tail = _failure_capsule(triage_run.stdout, max_lines=24, max_chars=4000)
     if triage_run.returncode != 0:
-        return False, f"CODEX_TRIAGE_FAILED rc={triage_run.returncode}\n{triage_tail}"
+        return False, "ENVIRONMENT", f"CODEX_TRIAGE_FAILED rc={triage_run.returncode}\n{triage_tail}"
+    classification = _parse_triage_classification(triage_run.stdout)
+    return True, classification, triage_tail
+
+
+def invoke_codex(root: Path, stage: Stage, result: StageResult, iteration: int, timeout: int) -> tuple[bool, str]:
+    triage_ok, classification, triage_tail = invoke_codex_triage(root, stage, result, iteration, timeout)
+    if not triage_ok:
+        return False, triage_tail
+    if classification not in {"CODE_DEFECT", "TEST_DEFECT"}:
+        return False, f"AUTOPILOT_TRIAGE_BLOCKED classification={classification}\n{triage_tail}"
+    repair_base = _codex_command(sandbox="workspace-write")
+    if not repair_base:
+        return False, "CODEX_CLI_UNAVAILABLE"
     prompt = _repair_prompt(stage, result, iteration, triage_tail)
     cmd = [*repair_base, prompt]
     try:
@@ -851,6 +879,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "failureCapsuleAuthority": FAILURE_CAPSULE_AUTHORITY,
         "selectiveConvergenceAuthority": SELECTIVE_CONVERGENCE_AUTHORITY,
         "repairScopeFenceAuthority": REPAIR_SCOPE_FENCE_AUTHORITY,
+        "structuredTriageAuthority": STRUCTURED_TRIAGE_AUTHORITY,
         "derived": True,
         "notProductAuthority": True,
         "runId": resolved_run_id,
@@ -1206,9 +1235,9 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 key = (stage.name, result.fingerprint)
                 seen_failures[key] = seen_failures.get(key, 0) + 1
                 _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, full_convergence_required=full_convergence_required, run_id=run_id)
-                if result.status == "TIMEOUT":
-                    print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason=TIMEOUT fingerprint={result.fingerprint}", flush=True)
-                    return terminal(3, "ENVIRONMENT_BLOCKED", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "TIMEOUT"})
+                if result.status == "TIMEOUT" and not repair:
+                    print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason=TIMEOUT_UNTRIAGED fingerprint={result.fingerprint}", flush=True)
+                    return terminal(3, "ENVIRONMENT_BLOCKED", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "TIMEOUT_UNTRIAGED"})
                 if not repair:
                     print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} fingerprint={result.fingerprint}", flush=True)
                     return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
@@ -1247,8 +1276,12 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 if detail:
                     print(detail, flush=True)
                 if not ok:
-                    print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason=CODEX_UNAVAILABLE_OR_FAILED", flush=True)
-                    return terminal(3, "ENVIRONMENT_BLOCKED", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "CODEX_UNAVAILABLE_OR_FAILED"})
+                    reason = "CODEX_UNAVAILABLE_OR_FAILED"
+                    if detail.startswith("AUTOPILOT_TRIAGE_BLOCKED classification="):
+                        classification = detail.split("classification=", 1)[1].splitlines()[0].strip()
+                        reason = "TRIAGE_" + classification
+                    print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason={reason}", flush=True)
+                    return terminal(3, "ENVIRONMENT_BLOCKED", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": reason})
                 # Codex intentionally changed the workspace. Persist the new
                 # fingerprint while keeping the same failing-stage boundary so
                 # a runner crash immediately after repair resumes by proving the
