@@ -23,6 +23,18 @@ class GuidedInstallEntrypointTests(unittest.TestCase):
         self.assertIn("INSTALLER_MANUAL_ENTRYPOINT_V1", SCRIPT.read_text(encoding="utf-8"))
         self.assertIn("installer-manual", result.stdout)
         self.assertIn("--confirmation DEPLOY", result.stdout)
+        self.assertIn("install.sh status", result.stdout)
+        self.assertIn("--confirmation RECOVER", result.stdout)
+        self.assertIn("--confirmation ROLLBACK", result.stdout)
+
+    def test_continuation_modes_bypass_install_inputs_but_keep_canonical_owner(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("preflight|plan|install|status|verify|recover|rollback", source)
+        continuation = source.index('status|verify|recover|rollback)')
+        bundle_requirement = source.index('if [[ -z "${bundle_dir}" ]]')
+        self.assertLess(continuation, bundle_requirement)
+        self.assertIn('exec "${PLATFORMCTL}" installer-manual "${mode}" "$@"', source)
+        self.assertIn("They do not require the original bundle or release ZIP again.", source)
 
     def test_entrypoint_is_thin_and_never_downloads_or_drives_systemd(self):
         source = SCRIPT.read_text(encoding="utf-8")
