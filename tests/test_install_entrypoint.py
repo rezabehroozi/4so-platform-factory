@@ -51,3 +51,26 @@ class GuidedInstallEntrypointTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GuidedInstallDoctorContractTests(unittest.TestCase):
+    def test_doctor_is_read_only_non_root_and_input_discovery_is_bounded(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("INSTALLER_MANUAL_DOCTOR_V1", source)
+        self.assertIn("discover_bundle_dir", source)
+        self.assertIn('"${ROOT_DIR}/bundle"', source)
+        self.assertIn('"${ROOT_DIR}/appliance-bundle"', source)
+        self.assertIn('"/opt/4so-platform-factory/bundle"', source)
+        self.assertIn("bundle.lock.json", source)
+        self.assertIn("discover_release_artifact", source)
+        doctor = source.index('if [[ "${mode}" == "doctor" ]]')
+        root_guard = source.index('if [[ "${EUID}" -ne 0 ]]')
+        self.assertLess(doctor, root_guard)
+        for forbidden in ("curl ", "wget ", "systemctl ", "apt-get ", "dnf ", "yum "):
+            self.assertNotIn(forbidden, source)
+
+    def test_help_exposes_doctor_and_optional_discovered_inputs(self):
+        result = subprocess.run(["bash", str(SCRIPT), "--help"], cwd=ROOT, text=True, capture_output=True, check=False, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("install.sh doctor", result.stdout)
+        self.assertIn("When omitted, the entrypoint safely checks", result.stdout)
