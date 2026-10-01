@@ -22,6 +22,7 @@ const (
 	installerGuidedManualWorkflowAuthority = "INSTALLER_GUIDED_MANUAL_WORKFLOW_V1"
 	installerManualExactReleaseAuthority   = "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1"
 	installerManualRemoteHandoffAuthority  = "INSTALLER_MANUAL_REMOTE_HANDOFF_V1"
+	installerManualPreflightGuidanceAuthority = "INSTALLER_MANUAL_PREFLIGHT_GUIDANCE_V1"
 )
 
 // installer-manual is the human-oriented owner path for placing the Bootstrap
@@ -136,6 +137,7 @@ func installerManualPrepare(mode string, args []string) {
 			hostdeployment.HostAdmissionReport
 			Authority             string `json:"authority"`
 			ExactReleaseAuthority string `json:"exactReleaseAuthority"`
+			PreflightGuidanceAuthority string `json:"preflightGuidanceAuthority"`
 			ManualInstall         bool   `json:"manualInstall"`
 			SourceReleaseDigest   string `json:"sourceReleaseDigest,omitempty"`
 			NextAction            string `json:"nextAction"`
@@ -143,6 +145,7 @@ func installerManualPrepare(mode string, args []string) {
 			HostAdmissionReport:  plan.Admission,
 			Authority:             installerGuidedManualWorkflowAuthority,
 			ExactReleaseAuthority: installerManualExactReleaseAuthority,
+			PreflightGuidanceAuthority: installerManualPreflightGuidanceAuthority,
 			ManualInstall:         true,
 			SourceReleaseDigest:   releaseDigest,
 			NextAction:            "if ready=true, review installer-manual plan next; no host mutation has occurred",
