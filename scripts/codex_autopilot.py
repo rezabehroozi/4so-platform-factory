@@ -166,6 +166,8 @@ Stage("go-unit-1", ("python3", "scripts/run_go_package_shard.py", "--shard", "1"
         Stage("go-unit-3", ("python3", "scripts/run_go_package_shard.py", "--shard", "3"), 900),
         Stage("go-unit-4", ("python3", "scripts/run_go_package_shard.py", "--shard", "4"), 900),
         Stage("python-tests", ("python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"), 300),
+        Stage("installer-entrypoint-contracts", ("python3", "-m", "unittest", "tests.test_install_entrypoint", "-v"), 120),
+        Stage("installer-go-owner-tests", ("go", "test", "./cmd/platformctl", "./cmd/platform-installer", "./internal/bootstrap", "./internal/hostdeployment", "./internal/remotebootstrap", "-count=1"), 600),
         Stage("lab-runner-tests", ("python3", "scripts/test_lab_runner.py"), 300),
         Stage("lab-runner-self-test", ("python3", "scripts/lab_runner.py", "self-test"), 300),
         Stage("derived-agent-knowledge", ("python3", "scripts/generate_agent_knowledge.py", "--check"), 180),
@@ -331,7 +333,7 @@ def _select_convergence_stages(stages: list[Stage], repaired_stage_names: set[st
         if specialist == "operator-console":
             wanted.update({"build-for-smoke", "smoke-ui-rendered", "smoke-ui-quality", "persian-ui-lint", "smoke-ui-live", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
         elif specialist == "installer-runtime":
-            wanted.update({"build-for-smoke", "installer-core-smoke", "installer-host-smoke", "installer-remote-smoke", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
+            wanted.update({"installer-entrypoint-contracts", "installer-go-owner-tests", "build-for-smoke", "installer-core-smoke", "installer-host-smoke", "installer-remote-smoke", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
         elif specialist == "developer-agent-experience":
             wanted.update({"python-tests", "derived-agent-knowledge", "browser-triage-profile", "browser-triage-prerequisites-policy"})
         elif specialist == "lab-certification":
@@ -425,6 +427,7 @@ WORKSPACE_FINGERPRINT_AUTHORITY = "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1"
 AGENT_CONTEXT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_V1"
 AGENT_FAILURE_CAPSULE_AUTHORITY = "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2"
 INSTALLER_OWNER_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_STAGE_V1"
+INSTALLER_OWNER_CONTRACT_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_CONTRACT_STAGE_V1"
 AGENT_OWNER_PROOF_AUTHORITY = "AUTOPILOT_AGENT_OWNER_PROOF_V1"
 ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY = "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1"
 OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_OWNER_CONTEXT_PATHS_V1"
@@ -461,7 +464,7 @@ def _environment_requirements(stages: list[Stage] | None) -> set[str]:
     required: set[str] = set()
     for stage in stages:
         name = stage.name
-        if name.startswith(("go-unit-", "go-vet-")):
+        if name.startswith(("go-unit-", "go-vet-")) or name == "installer-go-owner-tests":
             required.add("go")
         if name.startswith("go-race-"):
             required.update({"go", "c-compiler", "libpq"})
@@ -1022,6 +1025,7 @@ def _agent_context(root: Path) -> dict:
         "failureCapsuleAuthority": AGENT_FAILURE_CAPSULE_AUTHORITY,
         "ownerProofAuthority": AGENT_OWNER_PROOF_AUTHORITY,
         "installerOwnerStageAuthority": INSTALLER_OWNER_STAGE_AUTHORITY,
+        "installerOwnerContractStageAuthority": INSTALLER_OWNER_CONTRACT_STAGE_AUTHORITY,
         "ownerContextAuthority": OWNER_CONTEXT_AUTHORITY,
         "ownerContextPaths": [str(item) for item in report.get("currentOwnerPaths", [])[:12]] if isinstance(report.get("currentOwnerPaths"), list) else [],
         "promptBudgetAuthority": PROMPT_BUDGET_AUTHORITY,
@@ -1145,6 +1149,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "dirtyDeltaAuthority": DIRTY_DELTA_AUTHORITY,
         "workspaceFingerprintAuthority": WORKSPACE_FINGERPRINT_AUTHORITY,
         "installerOwnerStageAuthority": INSTALLER_OWNER_STAGE_AUTHORITY,
+        "installerOwnerContractStageAuthority": INSTALLER_OWNER_CONTRACT_STAGE_AUTHORITY,
         "agentOwnerProofAuthority": AGENT_OWNER_PROOF_AUTHORITY,
         "environmentPreflightHandoffAuthority": ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY,
         "ownerContextAuthority": OWNER_CONTEXT_AUTHORITY,
