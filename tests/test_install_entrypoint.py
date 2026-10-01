@@ -58,6 +58,18 @@ class GuidedInstallEntrypointTests(unittest.TestCase):
         self.assertNotIn('curl ', source)
         self.assertNotIn('systemctl ', source)
 
+    def test_remote_bootstrap_continuation_only_requires_root_for_default_private_token(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("access_uses_default_private_token=false", source)
+        self.assertIn('[[ "${EUID}" -ne 0 && "${access_uses_default_private_token}" == true ]]', source)
+        self.assertIn("--token-file / PLATFORM_INSTALLER_TOKEN_FILE / PLATFORM_INSTALLER_TOKEN", source)
+        self.assertIn("Remote/custom authenticated continuation does not require local root", source)
+        root_guard = source.index('[[ "${EUID}" -ne 0 && "${access_uses_default_private_token}" == true ]]')
+        token_parse = source.index('access_has_token_file=false')
+        default_token = source.index('PLATFORM_INSTALLER_TOKEN_FILE:-/var/lib/4so-platform-installer/bootstrap-token')
+        self.assertGreater(root_guard, token_parse)
+        self.assertLess(root_guard, default_token)
+
     def test_entrypoint_is_thin_and_never_downloads_or_drives_systemd(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('exec "${PLATFORMCTL}" installer-manual', source)
