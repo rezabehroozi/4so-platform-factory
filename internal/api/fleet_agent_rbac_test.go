@@ -91,8 +91,8 @@ func TestFleetAgentEnrollmentPrincipalIsImportScoped(t *testing.T) {
 
 func TestClusterRevocationRBACManifestNeutersEveryAgentBinding(t *testing.T) {
 	manifest := renderClusterRevocationRBACManifest("clu_revoked", "uid-revoked", "sha256:"+strings.Repeat("d", 64), true)
-	if got := strings.Count(manifest, "subjects: []"); got != 12 {
-		t.Fatalf("revocation fence neutralized %d bindings, want 12\n%s", got, manifest)
+	if got := strings.Count(manifest, "subjects: []"); got != 13 {
+		t.Fatalf("revocation fence neutralized %d bindings, want 13\n%s", got, manifest)
 	}
 	for _, want := range []string{
 		"name: 4so-platform-agent-credential",
@@ -101,6 +101,7 @@ func TestClusterRevocationRBACManifestNeutersEveryAgentBinding(t *testing.T) {
 		"name: 4so-platform-baseline-manager",
 		"name: 4so-platform-agent-maintenance-manager",
 		"name: 4so-platform-agent-tenant-manager",
+		"name: 4so-platform-application-manager",
 		"name: 4so-platform-node-maintenance-job-manager",
 		"name: 4so-platform-runtime-job-launcher",
 		"name: 4so-platform-runtime-rbac-observer",
@@ -132,6 +133,40 @@ func TestClusterRevocationRBACManifestForReadOnlyTargetOmitsMutationNamespaces(t
 	}
 	if !strings.Contains(manifest, `issuedFromInventoryDigest: "sha256:`+strings.Repeat("0", 64)+`"`) {
 		t.Fatalf("read-only revocation fence did not normalize missing inventory digest\n%s", manifest)
+	}
+}
+
+func TestMutationActivationIncludesBoundedApplicationDeploymentAuthority(t *testing.T) {
+	manifest := renderClusterMutationActivationManifest("clu_app", "4so-platform-agent-test", "uid-app", "sha256:"+strings.Repeat("e", 64))
+	roleStart := strings.Index(manifest, "name: 4so-platform-application-manager\n  annotations:")
+	if roleStart < 0 {
+		t.Fatal("application deployment ClusterRole is missing")
+	}
+	roleTail := manifest[roleStart:]
+	if end := strings.Index(roleTail, "\n---\n"); end >= 0 {
+		roleTail = roleTail[:end]
+	}
+	for _, want := range []string{
+		`apiGroups: ["apps"]`,
+		`resources: ["deployments"]`,
+		`resources: ["replicasets"]`,
+		`resources: ["services"]`,
+		`resources: ["pods"]`,
+		`verbs: ["get", "create", "update", "patch"]`,
+		`verbs: ["get", "list"]`,
+	} {
+		if !strings.Contains(roleTail, want) {
+			t.Fatalf("application deployment RBAC missing %q:\n%s", want, roleTail)
+		}
+	}
+	for _, forbidden := range []string{"secrets", "configmaps", "namespaces", "clusterroles", "delete", `resources: ["*"]`, `verbs: ["*"]`} {
+		if strings.Contains(roleTail, forbidden) {
+			t.Fatalf("application deployment RBAC gained forbidden authority %q:\n%s", forbidden, roleTail)
+		}
+	}
+	if !strings.Contains(manifest, "name: 4so-platform-application-manager\nroleRef:") ||
+		!strings.Contains(manifest, "name: 4so-platform-agent-test\n  namespace: 4so-platform-agent") {
+		t.Fatalf("application deployment RBAC binding is not tied to import-scoped agent principal:\n%s", manifest)
 	}
 }
 
