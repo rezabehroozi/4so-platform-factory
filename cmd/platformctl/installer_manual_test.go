@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -75,6 +77,28 @@ func TestMaterializeManualInstallerSpecIsPrivateAndRefusesOverwrite(t *testing.T
 	}
 	if _, _, err = materializeManualInstallerSpec(spec, out); err == nil {
 		t.Fatal("expected overwrite rejection")
+	}
+}
+
+func TestManualInstallerPreflightResultPreservesAdmissionAndGuidance(t *testing.T) {
+	admission := hostdeployment.HostAdmissionReport{SchemaVersion: 1, Ready: true, Mode: "live", TargetVersion: version}
+	result := newManualInstallerPreflightResult(admission, "sha256:"+strings.Repeat("a", 64))
+	raw, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err = json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if ready, ok := decoded["ready"].(bool); !ok || !ready {
+		t.Fatalf("top-level ready field lost: %s", raw)
+	}
+	if decoded["authority"] != installerGuidedManualWorkflowAuthority || decoded["preflightGuidanceAuthority"] != installerManualPreflightGuidanceAuthority {
+		t.Fatalf("guidance authority drift: %s", raw)
+	}
+	if decoded["sourceReleaseDigest"] == "" || decoded["nextAction"] == "" {
+		t.Fatalf("exact release guidance incomplete: %s", raw)
 	}
 }
 
