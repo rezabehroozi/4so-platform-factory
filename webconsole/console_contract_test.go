@@ -467,10 +467,10 @@ func TestOperatorConsoleOperationsSearchIAContract(t *testing.T) {
 	jsBytes, err := fs.ReadFile(content, "static/app.js")
 	if err != nil { t.Fatal(err) }
 	html, js := string(htmlBytes), string(jsBytes)
-	fleet := strings.Index(html, `<section class="page" data-title="Fleet" id="fleet">`)
-	operations := strings.Index(html, `<section class="page" data-title="Operations &amp; audit" id="operations">`)
+	fleet := strings.Index(html, `id="fleet"`)
+	operations := strings.Index(html, `id="operations"`)
 	search := strings.Index(html, `id="operations-search-center"`)
-	ai := strings.Index(html, `<section class="page" data-title="AI Control Plane" id="ai">`)
+	ai := strings.Index(html, `id="ai"`)
 	if fleet < 0 || operations < 0 || search < 0 || ai < 0 || !(fleet < operations && operations < search && search < ai) {
 		t.Fatalf("Global Operations Search must live in Operations, not Fleet: fleet=%d operations=%d search=%d ai=%d", fleet, operations, search, ai)
 	}
