@@ -408,6 +408,10 @@ def _browser_executable() -> str | None:
         or _playwright_browser_executable()
     )
 
+FAILURE_CAPSULE_AUTHORITY = "AUTOPILOT_FAILURE_CAPSULE_V1"
+SELECTIVE_CONVERGENCE_AUTHORITY = "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1"
+REPAIR_SCOPE_FENCE_AUTHORITY = "AUTOPILOT_REPAIR_SCOPE_FENCE_V1"
+
 _FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
 
 def _environment_requirements(stages: list[Stage] | None) -> set[str]:
@@ -844,6 +848,9 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
     body = {
         "schemaVersion": _AUTOPILOT_REPORT_SCHEMA,
         "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+        "failureCapsuleAuthority": FAILURE_CAPSULE_AUTHORITY,
+        "selectiveConvergenceAuthority": SELECTIVE_CONVERGENCE_AUTHORITY,
+        "repairScopeFenceAuthority": REPAIR_SCOPE_FENCE_AUTHORITY,
         "derived": True,
         "notProductAuthority": True,
         "runId": resolved_run_id,
