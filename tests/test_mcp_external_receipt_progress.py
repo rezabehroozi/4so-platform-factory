@@ -16,19 +16,23 @@ class IncrementalMCPInteropTests(unittest.TestCase):
                          "trustedClientRevision":1,"trustedClientProvider":c})
         endpoint="https://mcp.example.test/mcp"; metadata="https://mcp.example.test/.well-known/oauth-protected-resource"
         preflight={"authority":seal.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":endpoint,"protectedResourceMetadata":metadata,"resource":endpoint,"authorizationServers":["https://identity.example.test/realms/4so"],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":f'Bearer resource_metadata="{metadata}"',"protocol":"2026-07-28"}
-        return {"authority":seal.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-incremental","matrixAuthority":seal.MATRIX_AUTHORITY,"matrixSha256":seal.sha256(matrix),
+        spec=json.loads(matrix.read_text())["spec"]
+        created=seal.datetime.now(seal.timezone.utc)-seal.timedelta(minutes=1)
+        expires=created+seal.timedelta(seconds=spec["campaignMaxAgeSeconds"])
+        return {"authority":seal.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-incremental","createdAt":seal.utc_timestamp(created),"expiresAt":seal.utc_timestamp(expires),"matrixAuthority":seal.MATRIX_AUTHORITY,"matrixSha256":seal.sha256(matrix),
                 "oauthClientBindingAuthority":seal.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"incremental-oauth-bindings").hexdigest(),
                 "protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
     def receipt(self,client,checks,campaign,execution=None):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
         binding=seal.interop_binding_digest(campaign["campaignId"],client,challenge["challengeSha256"])
         ids={name:f"{client}-{idx:02d}-request" for idx,name in enumerate(seal.AUDITED_CHECKS,1)}
-        return {"authority":seal.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":seal.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"oauthClientId":challenge["oauthClientId"],"interopBindingAuthority":seal.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":campaign["endpoint"],"executionId":execution or "run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":ids,"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+        executed=seal.parse_utc_timestamp(campaign["createdAt"],"TEST_CREATED")+seal.timedelta(seconds=30)
+        return {"authority":seal.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":seal.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"oauthClientId":challenge["oauthClientId"],"interopBindingAuthority":seal.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":campaign["endpoint"],"executionId":execution or "run-"+client,"providerExecutionRef":"provider-execution-"+client,"executedAt":seal.utc_timestamp(executed),"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":ids,"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
     def audit(self,row):
         out=[]; prev=""
         for seq,check in enumerate(seal.AUDITED_CHECKS,1):
             cat,decision,reason=seal.AUDIT_REQUIREMENTS[check]
-            event={"id":f"sau-{row['clientId']}-{seq}","sequence":seq,"occurredAt":"2026-09-29T00:00:00Z","methodVersion":seal.AUDIT_METHOD_VERSION,"category":cat,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":row["requestIds"][check],"mcpInteropBindingDigest":row["interopBindingDigest"],"previousDigest":prev}
+            event={"id":f"sau-{row['clientId']}-{seq}","sequence":seq,"occurredAt":row["executedAt"],"methodVersion":seal.AUDIT_METHOD_VERSION,"category":cat,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":row["requestIds"][check],"mcpInteropBindingDigest":row["interopBindingDigest"],"previousDigest":prev}
             if check in seal.OAUTH_CLIENT_AUDITED_CHECKS:
                 event["oauthClientId"]=row["oauthClientId"]
             event["digest"]=seal.audit_event_digest(event)
