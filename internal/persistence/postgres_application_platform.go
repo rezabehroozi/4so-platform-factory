@@ -13,6 +13,28 @@ import (
 
 const applicationEnvironmentBindingColumns = `id,project_id,revision,release_id,release_digest,workspace_id,workspace_binding_id,workspace_binding_revision,cluster_id,namespace,environment,capability_resolution_digest,digest,created_at,updated_at`
 
+func applicationDeploymentDesiredMutationBlockedTx(ctx context.Context, tx *sql.Tx, projectID, clusterID, bindingID string) (bool, error) {
+	legacyTarget := controlplane.ApplicationDeploymentTargetPrefix + strings.TrimSpace(bindingID)
+	clusterTarget := controlplane.ApplicationDeploymentTargetPrefix + strings.TrimSpace(clusterID) + ":" + strings.TrimSpace(bindingID)
+	var operationID string
+	err := tx.QueryRowContext(ctx, `SELECT id FROM operations
+WHERE project_id=$1 AND kind=$2 AND (target_ref=$3 OR target_ref=$4)
+  AND (
+    state IN ('DRAFT','PLANNING','AWAITING_APPROVAL','APPROVED','QUEUED','RUNNING','RETRY_WAIT','CANCEL_REQUESTED','VERIFYING','ROLLING_BACK','NEEDS_OPERATOR','ROLLBACK_FAILED')
+    OR (state='FAILED' AND last_failure_class='UNKNOWN')
+  )
+ORDER BY created_at,id
+LIMIT 1
+FOR UPDATE`, strings.TrimSpace(projectID), controlplane.ApplicationDeploymentOperationKind, legacyTarget, clusterTarget).Scan(&operationID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, mapDBError(err)
+	}
+	return strings.TrimSpace(operationID) != "", nil
+}
+
 type applicationPayloadScanner interface{ Scan(...any) error }
 
 func decodeApplicationAuthority[T any](scanner applicationPayloadScanner) (T,error) {
@@ -111,7 +133,9 @@ func(s *PostgresStore)PromoteEnvironmentBinding(ctx context.Context,id string,ex
 	wsb,err:=s.GetWorkspaceBinding(ctx,current.WorkspaceBindingID);if err!=nil{return current,err};if wsb.State!=controlplane.WorkspaceBindingActive||wsb.Revision!=current.WorkspaceBindingRevision||wsb.ProjectID!=current.ProjectID||wsb.ClusterID!=current.ClusterID||wsb.Namespace!=current.Namespace{return current,fmt.Errorf("%w: environment binding WorkspaceBinding authority changed; rebind explicitly",controlplane.ErrPrerequisite)}
 	release,err:=s.GetApplicationRelease(ctx,req.ReleaseID);if err!=nil{return current,err};if release.ProjectID!=current.ProjectID{return current,controlplane.ErrNotFound};comp,err:=s.resolveApplicationRelease(ctx,release,req.ObservedNativeCapabilities);if err!=nil{return current,err}
 	current.ReleaseID=release.ID;current.ReleaseDigest=release.Digest;current.CapabilityResolutionDigest=comp.ResolutionDigest;normalized,err:=controlplane.NormalizeEnvironmentBinding(current);if err!=nil{return current,err};normalized.ResourceMeta=current.ResourceMeta;normalized.Revision=current.Revision+1;normalized.UpdatedAt=utcNow(s.now)
-	err=s.serializable(ctx,func(tx *sql.Tx)error{result,e:=tx.ExecContext(ctx,`UPDATE application_environment_bindings SET revision=$2,release_id=$3,release_digest=$4,capability_resolution_digest=$5,digest=$6,updated_at=$7 WHERE id=$1 AND revision=$8`,normalized.ID,normalized.Revision,normalized.ReleaseID,normalized.ReleaseDigest,normalized.CapabilityResolutionDigest,normalized.Digest,normalized.UpdatedAt,expected);if e!=nil{return mapDBError(e)};n,_:=result.RowsAffected();if n!=1{return controlplane.ErrConflict};if e=s.appendAuditTx(ctx,tx,actor,"application_environment_binding.promoted","environmentBinding",normalized.ID,normalized.Revision,"",map[string]any{"projectId":normalized.ProjectID,"releaseId":normalized.ReleaseID,"digest":normalized.Digest});e!=nil{return e};return s.appendOutboxTx(ctx,tx,"environmentBinding",normalized.ID,"application_environment_binding.promoted",normalized)})
+	err=s.serializable(ctx,func(tx *sql.Tx)error{
+		blocked,e:=applicationDeploymentDesiredMutationBlockedTx(ctx,tx,normalized.ProjectID,normalized.ClusterID,normalized.ID);if e!=nil{return e};if blocked{return fmt.Errorf("%w: environment binding has an in-flight or recovery-required application deployment",controlplane.ErrPrerequisite)}
+		result,e:=tx.ExecContext(ctx,`UPDATE application_environment_bindings SET revision=$2,release_id=$3,release_digest=$4,capability_resolution_digest=$5,digest=$6,updated_at=$7 WHERE id=$1 AND revision=$8`,normalized.ID,normalized.Revision,normalized.ReleaseID,normalized.ReleaseDigest,normalized.CapabilityResolutionDigest,normalized.Digest,normalized.UpdatedAt,expected);if e!=nil{return mapDBError(e)};n,_:=result.RowsAffected();if n!=1{return controlplane.ErrConflict};if e=s.appendAuditTx(ctx,tx,actor,"application_environment_binding.promoted","environmentBinding",normalized.ID,normalized.Revision,"",map[string]any{"projectId":normalized.ProjectID,"releaseId":normalized.ReleaseID,"digest":normalized.Digest});e!=nil{return e};return s.appendOutboxTx(ctx,tx,"environmentBinding",normalized.ID,"application_environment_binding.promoted",normalized)})
 	return normalized,err
 }
 
