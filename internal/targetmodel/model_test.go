@@ -195,6 +195,31 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 			t.Fatalf("source-implemented mandatory phase drift %s: %#v", id, phase)
 		}
 	}
+	c4 := byID["C4-console-e2e-ux-certification"]
+	for _, evidence := range []string{"OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1", "OPERATOR_EXPERIENCE_DISCLOSURE_EXPANDED_MATRIX_V1"} {
+		if !containsString(c4.Evidence, evidence) {
+			t.Fatalf("C4 deep RTL/LTR evidence %q missing: %#v", evidence, c4)
+		}
+	}
+	if len(c4.ExitCriteria) < 4 || !containsString(c4.ExitCriteria, "320/390/768/1024/1440 viewport checks cover LTR and RTL with workflow disclosures collapsed and expanded") {
+		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
+	}
+	c8 := byID["C8-console-operational-completion"]
+	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1"} {
+		if !containsString(c8.Evidence, evidence) {
+			t.Fatalf("C8 task-first journey evidence %q missing: %#v", evidence, c8)
+		}
+	}
+	for _, criterion := range []string{
+		"core workflows expose prerequisite -> input -> preview -> approval -> progress -> evidence/recovery without hidden dead ends",
+		"application delivery presents Release -> EnvironmentBinding -> Plan/Request -> Observed Evidence in semantic DOM order and separates advanced promotion/resolution",
+		"durable application deployment progress is refreshed read-only without requiring mutation replay or a manual page refresh",
+		"LTR and RTL use the same semantic ordering with logical layout properties and isolated technical identifiers",
+	} {
+		if !containsString(c8.ExitCriteria, criterion) {
+			t.Fatalf("C8 user-flow criterion %q missing: %#v", criterion, c8.ExitCriteria)
+		}
+	}
 	r0 := byID["R0-release-authority-certification-rebaseline"]
 	for _, evidence := range []string{"PROGRAM_PHASE_MODEL_V75", "FEATURE_CERTIFICATION_REGISTRY_V2", "LAB_CERTIFICATION_MATRIX_V2", "DOCUMENTATION_AUTHORITY_SYNC_V1"} {
 		if !containsString(r0.Evidence, evidence) {
