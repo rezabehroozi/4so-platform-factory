@@ -252,6 +252,21 @@ const faLiteral = {
   "No additional customer action.": "اقدام دیگری از سمت مشتری لازم نیست.",
   "No blockers remain. Review the sequence and execution policy before starting.": "بلاکِری باقی نمانده است. پیش از شروع، ترتیب اجرا و سیاست اجرایی را بررسی کنید.",
   "BLOCKED": "مسدود",
+  "Git desired state": "وضعیت مطلوب Git",
+  "OCI registry": "رجیستری OCI",
+  "PostgreSQL authority": "مرجع PostgreSQL",
+  "Evidence and backup storage": "ذخیره‌سازی شواهد و پشتیبان",
+  "Identity and SSO": "هویت و SSO",
+  "Mode and provider": "حالت و ارائه‌دهنده",
+  "HTTPS endpoint": "نشانی HTTPS",
+  "Organization": "سازمان",
+  "Repository": "مخزن",
+  "Webhook mode": "حالت Webhook",
+  "S3 bucket": "مخزن S3",
+  "Object prefix": "پیشوند مسیر",
+  "OIDC issuer URL": "نشانی صادرکننده OIDC",
+  "OIDC client ID": "شناسه کلاینت OIDC",
+  "Bootstrap administrator email": "ایمیل مدیر راه‌اندازی",
   "EXECUTION READY": "آماده اجرا"
 };
 const originalLiteralText = new WeakMap();
@@ -263,6 +278,7 @@ function localizedLiteral(value) {
   let match = trimmed.match(/^Version (.+)$/); if (match) return `نسخه ${match[1]}`;
   match = trimmed.match(/^Last updated (.+)$/); if (match) return `آخرین بروزرسانی ${match[1]}`;
   match = trimmed.match(/^(\d+) files$/); if (match) return `${match[1]} فایل`;
+  match = trimmed.match(/^Managed (.+)$/); if (match) return `مدیریت‌شده ${match[1]}`;
   return '';
 }
 function skipLiteralNode(node) {
@@ -534,7 +550,7 @@ const serviceDefinitions = {
   objectStorage: {title:'Evidence and backup storage', managed:'local-evidence', fields:['url','credentialRef','bucket','prefix','region']},
   identity: {title:'Identity and SSO', managed:'keycloak', fields:['issuerUrl','clientId','credentialRef','adminEmail']}
 };
-const fieldLabels = {url:'HTTPS endpoint',credentialRef:'Credential reference',organization:'Organization',repository:'Repository',webhookMode:'Webhook mode',region:'Region',bucket:'مخزن S3',prefix:'پیشوند مسیر',issuerUrl:'OIDC issuer URL',clientId:'OIDC client ID',adminEmail:'Bootstrap administrator email'};
+const fieldLabels = {url:'HTTPS endpoint',credentialRef:'Credential reference',organization:'Organization',repository:'Repository',webhookMode:'Webhook mode',region:'Region',bucket:'S3 bucket',prefix:'Object prefix',issuerUrl:'OIDC issuer URL',clientId:'OIDC client ID',adminEmail:'Bootstrap administrator email'};
 function providerFromIntegration(id) { return String(id || '').replace(/^managed-/,'').replace(/^external-/,''); }
 function renderServices() {
   $('#service-editor').innerHTML = Object.entries(serviceDefinitions).map(([kind,def]) => {
