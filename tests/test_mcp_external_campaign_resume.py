@@ -18,10 +18,13 @@ class CampaignResumeTests(unittest.TestCase):
             rows.append({"clientId":client,"challenge":challenge,"challengeSha256":"sha256:"+hashlib.sha256(challenge.encode()).hexdigest(),
                          "oauthClientId":client+"-oauth-client","trustedClientId":"mcpcli-"+client,
                          "trustedClientRevision":1,"trustedClientProvider":client})
+        spec=json.loads(matrix.read_text())["spec"]
+        created=core.datetime.now(core.timezone.utc)-core.timedelta(minutes=1)
+        expires=created+core.timedelta(seconds=spec["campaignMaxAgeSeconds"])
         return {
             "apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropCampaign",
             "authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-resume-test",
-            "createdAt":"2026-09-30T00:00:00+00:00",
+            "createdAt":core.utc_timestamp(created),"expiresAt":core.utc_timestamp(expires),
             "matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
             "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,
             "oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"resume-oauth-bindings").hexdigest(),
@@ -55,6 +58,20 @@ class CampaignResumeTests(unittest.TestCase):
             emitted=json.loads(buf.getvalue())
             self.assertTrue(emitted["resumed"])
             self.assertEqual(original,core.load(out,"CAMPAIGN"))
+
+    def test_expired_campaign_cannot_resume(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
+        with tempfile.TemporaryDirectory() as td:
+            out=Path(td)/"campaign.json"
+            original=self.campaign(matrix)
+            spec=json.loads(matrix.read_text())["spec"]
+            expired=core.datetime.now(core.timezone.utc)-core.timedelta(seconds=1)
+            created=expired-core.timedelta(seconds=spec["campaignMaxAgeSeconds"])
+            original["createdAt"]=core.utc_timestamp(created)
+            original["expiresAt"]=core.utc_timestamp(expired)
+            core.write_json_once_or_identical(out,original,"TEST_CAMPAIGN")
+            with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_EXPIRED"):
+                mod.resume_existing(matrix,original["endpoint"],out)
 
     def test_existing_campaign_endpoint_drift_fails_closed(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
