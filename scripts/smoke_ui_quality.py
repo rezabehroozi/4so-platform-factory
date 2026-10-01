@@ -626,6 +626,31 @@ def audit_installer(browser, root: Path, failures: list[str], *, routes: list[st
 
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = context.new_page(); prepare_quality_page(page, document, installer=True, root=root)
+    localization = page.evaluate("""async () => {
+      const settle=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      if(document.documentElement.dir!=='ltr'){document.querySelector('#language-toggle')?.click();await settle();}
+      const read=()=>({
+        dir:document.documentElement.dir,
+        bucket:String(document.querySelector('[data-service="objectStorage"] [data-service-field="bucket"] span')?.textContent||'').trim(),
+        prefix:String(document.querySelector('[data-service="objectStorage"] [data-service-field="prefix"] span')?.textContent||'').trim(),
+        service:String(document.querySelector('[data-service="objectStorage"] h3')?.textContent||'').trim(),
+        mode:String(document.querySelector('[data-service="objectStorage"] > label > span')?.textContent||'').trim()
+      });
+      const en=read();
+      document.querySelector('#language-toggle')?.click();await settle();
+      const fa=read();
+      document.querySelector('#language-toggle')?.click();await settle();
+      const enAgain=read();
+      return {en,fa,enAgain};
+    }""")
+    expected_en={"dir":"ltr","bucket":"S3 bucket","prefix":"Object prefix","service":"Evidence and backup storage","mode":"Mode and provider"}
+    expected_fa={"dir":"rtl","bucket":"مخزن S3","prefix":"پیشوند مسیر","service":"ذخیره‌سازی شواهد و پشتیبان","mode":"حالت و ارائه‌دهنده"}
+    if localization.get("en") != expected_en or localization.get("fa") != expected_fa or localization.get("enAgain") != expected_en:
+        failures.append(f"installer:generated-localization-roundtrip:{localization}")
+    context.close()
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page(); prepare_quality_page(page, document, installer=True, root=root)
     page.locator("#menu-toggle").click(); page.keyboard.press("Shift+Tab")
     if page.evaluate("document.activeElement?.dataset?.page") != "lifecycle": failures.append("installer:focus-trap:shift-tab")
     page.keyboard.press("Tab")
@@ -674,6 +699,7 @@ def main(argv: list[str] | None = None) -> int:
         "validationAuthority": "FORM_VALIDATION_FEEDBACK_V1",
         "directionalAuthority": "RTL_DIRECTIONAL_AFFORDANCE_V1",
         "taskFirstDensityAuthority": "TASK_FIRST_PROGRESSIVE_DISCLOSURE_V1",
+        "runtimeLocalizationAuthority": "RUNTIME_GENERATED_LOCALIZATION_PARITY_V1",
         "status": "PASS" if not failures else "FAIL",
         "checkpoint": {
             "scope": args.scope,
