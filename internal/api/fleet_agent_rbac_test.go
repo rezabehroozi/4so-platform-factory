@@ -153,16 +153,27 @@ func TestMutationActivationIncludesBoundedApplicationDeploymentAuthority(t *test
 		`resources: ["services"]`,
 		`resources: ["pods"]`,
 		`verbs: ["get", "create", "update", "patch"]`,
+		`verbs: ["get", "create", "update", "patch", "delete"]`,
 		`verbs: ["get", "list"]`,
 	} {
 		if !strings.Contains(roleTail, want) {
 			t.Fatalf("application deployment RBAC missing %q:\n%s", want, roleTail)
 		}
 	}
-	for _, forbidden := range []string{"secrets", "configmaps", "namespaces", "clusterroles", "delete", `resources: ["*"]`, `verbs: ["*"]`} {
+	for _, forbidden := range []string{"secrets", "configmaps", "namespaces", "clusterroles", `resources: ["*"]`, `verbs: ["*"]`} {
 		if strings.Contains(roleTail, forbidden) {
 			t.Fatalf("application deployment RBAC gained forbidden authority %q:\n%s", forbidden, roleTail)
 		}
+	}
+	deployRule := `resources: ["deployments"]
+  verbs: ["get", "create", "update", "patch"]`
+	if !strings.Contains(roleTail, deployRule) {
+		t.Fatalf("application Deployment RBAC unexpectedly gained delete or lost bounded mutation verbs:\n%s", roleTail)
+	}
+	serviceRule := `resources: ["services"]
+  verbs: ["get", "create", "update", "patch", "delete"]`
+	if !strings.Contains(roleTail, serviceRule) {
+		t.Fatalf("application Service RBAC must allow bounded cleanup delete:\n%s", roleTail)
 	}
 	if !strings.Contains(manifest, "name: 4so-platform-application-manager\nroleRef:") ||
 		!strings.Contains(manifest, "name: 4so-platform-agent-test\n  namespace: 4so-platform-agent") {
