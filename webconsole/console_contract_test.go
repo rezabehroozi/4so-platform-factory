@@ -478,8 +478,15 @@ func TestOperatorConsoleOperationsSearchIAContract(t *testing.T) {
 		"async function loadOperations()",
 		"setProjectOptions($('#operations-search-project'),projects);",
 		"$('#operations-search-form').onsubmit",
+		"function searchOwnerAction(item)",
+		"async function inspectSearchOwner(ownerRef,sourceRef='')",
+		"data-search-owner=",
+		"Inspect owning operation",
+		"Inspect owning platform",
+		"Inspect owning project",
+		"$('#operations-search-results').onclick",
 	} {
-		if !strings.Contains(js, marker) { t.Fatalf("Operations Search runtime ownership missing %q", marker) }
+		if !strings.Contains(js, marker) { t.Fatalf("Operations Search runtime ownership/continuation missing %q", marker) }
 	}
 	loadFleet := js[strings.Index(js, "async function loadFleet()"):]
 	if end := strings.Index(loadFleet, "async function loadTenants()"); end > 0 { loadFleet = loadFleet[:end] }
