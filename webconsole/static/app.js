@@ -6,7 +6,7 @@ const state = {
   locale: localStorage.getItem('platformLocale') || 'fa',
   session: null,
   currentPage: 'overview',
-  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], applicationWorkspaceBindings: [], applicationDeploymentPlan: null, applicationDeploymentRun: null, daprAssessment: null, daprLifecycle: null, daprWorkloadPlan: null, daprWorkloadAdmission: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
+  catalog: [], catalogReleases: [], catalogTrustKeys: [], catalogSigningIdentity: {}, blueprintCatalogComponents: null, blueprintAuthoringContract: null, blueprintComponentDraft: {}, profiles: [], installationIntegrations: {}, organizations: [], projects: [], clusters: [], imports: [], blueprintReleases: [], blueprintOverlays: [], blueprintEditorReleaseId: null, blueprintEditorRevision: 0, variableSchemas: [], platformPolicySets: [], platformTemplates: [], applicationWorkloadTypes: [], applicationCapabilityTraits: [], applicationResourceTypes: [], applicationWorkspaceProfiles: [], applicationReleases: [], applicationEnvironmentBindings: [], applicationWorkspaceBindings: [], applicationDeploymentPlan: null, applicationDeploymentRun: null, applicationDeploymentStatusTimer: null, applicationDeploymentStatusGeneration: 0, daprAssessment: null, daprLifecycle: null, daprWorkloadPlan: null, daprWorkloadAdmission: null, workspaces: [], workspaceBindings: [], finOpsRateCards: [], finOpsUsage: [], finOpsCostSummary: null, finOpsChargeback: null,
   baselines: [], baselineDeployments: [], verifications: [], closures: [], runtimeCertifications: [],
   fleetGroups: [], driftScans: [], upgradeCampaigns: [], recoveryCheckpoints: [], backupPolicies: [], dataProtectionRuns: [], fleetHealth: null, day2CampaignEngine: null, tenants: [], tenantPlans: [],
   clusterMaintenanceProfile: null, clusterMaintenanceWindows: [], clusterMaintenanceRuns: [], targetNodeLifecycleAuthority: null, currentMaintenanceClusterId: '', maintenanceLoadGeneration: 0, providerProfiles: [], providerClusters: [], virtualClusters: [], marketplaceOffers: [], marketplaceInstallations: [], recommendations: [],
@@ -22,7 +22,7 @@ const fa = {
   'overview.contextLoadingTitle':'نمای عملیاتی',
   'overview.contextLoadingState':'در حال دریافت وضعیت…',
   'overview.contextLoadingHelp':'داده‌ها مستقیماً از API معتبر خوانده می‌شوند.',
-  'nav.overviewTop':'نمای کلی','nav.platformsTop':'پلتفرم‌ها','nav.blueprintsTop':'طرح‌ها و نسخه‌ها','nav.fleetTop':'ناوگان','nav.operationsTop':'عملیات','nav.assuranceTop':'اطمینان و شواهد','nav.adminTop':'مدیریت','shell.skip':'رفتن به محتوای اصلی','shell.searchTitle':'جست‌وجوی مقصدهای کنسول','shell.search':'جست‌وجوی کنسول','shell.searchHelp':'فقط برای جابه‌جایی؛ تغییرات فقط در جریان کاری معتبر انجام می‌شوند.','shell.organization':'سازمان','shell.project':'پروژه','shell.loading':'در حال بارگذاری…','shell.loadingScope':'در حال دریافت محدوده…','shell.sessionChecking':'در حال بررسی نشست…','shell.nextAction':'اقدام بعدی','shell.reviewNextAction':'بررسی اقدام بعدی','shell.discardTitle':'رهاکردن تغییرات ذخیره‌نشده؟','shell.languageDiscard':'تغییر زبان، صفحه را دوباره بارگذاری می‌کند و تغییرات ذخیره‌نشده از بین می‌روند.','shell.refreshDiscard':'بازخوانی از API معتبر، تغییرات ذخیره‌نشده را از بین می‌برد.','shell.leaveDiscard':'این صفحه تغییرات ذخیره‌نشده دارد. با خروج از صفحه، این تغییرات از بین می‌روند.','shell.lightTheme':'استفاده از پوسته روشن','shell.darkTheme':'استفاده از پوسته تیره',
+  'nav.overviewTop':'نمای کلی','nav.platformsTop':'پلتفرم‌ها','nav.blueprintsTop':'طرح‌ها و نسخه‌ها','nav.fleetTop':'ناوگان','nav.operationsTop':'عملیات','nav.assuranceTop':'اطمینان و شواهد','nav.adminTop':'مدیریت','application.stepRelease':'نسخه','application.stepReleaseHelp':'اتصال artifact دقیق OCI','application.stepBinding':'محیط','application.stepBindingHelp':'انتخاب namespace فضای کاری','application.stepDeployment':'برنامه و درخواست','application.stepDeploymentHelp':'پیش‌نمایش پیش از تغییر','application.stepObserved':'مشاهده نتیجه','application.stepObservedHelp':'تأیید، پیشرفت و شواهد','shell.skip':'رفتن به محتوای اصلی','shell.searchTitle':'جست‌وجوی مقصدهای کنسول','shell.search':'جست‌وجوی کنسول','shell.searchHelp':'فقط برای جابه‌جایی؛ تغییرات فقط در جریان کاری معتبر انجام می‌شوند.','shell.organization':'سازمان','shell.project':'پروژه','shell.loading':'در حال بارگذاری…','shell.loadingScope':'در حال دریافت محدوده…','shell.sessionChecking':'در حال بررسی نشست…','shell.nextAction':'اقدام بعدی','shell.reviewNextAction':'بررسی اقدام بعدی','shell.discardTitle':'رهاکردن تغییرات ذخیره‌نشده؟','shell.languageDiscard':'تغییر زبان، صفحه را دوباره بارگذاری می‌کند و تغییرات ذخیره‌نشده از بین می‌روند.','shell.refreshDiscard':'بازخوانی از API معتبر، تغییرات ذخیره‌نشده را از بین می‌برد.','shell.leaveDiscard':'این صفحه تغییرات ذخیره‌نشده دارد. با خروج از صفحه، این تغییرات از بین می‌روند.','shell.lightTheme':'استفاده از پوسته روشن','shell.darkTheme':'استفاده از پوسته تیره',
   'nav.platform':'پلتفرم','nav.operate':'عملیات','nav.system':'سیستم','nav.start':'شروع','nav.overview':'نمای کلی','nav.workspace':'سازمان‌ها و پروژه‌ها','nav.infrastructure':'زیرساخت','nav.installation':'برنامه‌ریزی نصب','nav.clusters':'کلاسترهای متصل','nav.providers':'چرخه عمر زیرساخت','nav.delivery':'تحویل پلتفرم','nav.blueprints':'نسخه‌های Blueprint','nav.marketplace':'مارکت‌پلیس','nav.baselines':'استقرار Baseline تأییدشده','nav.verification':'تأیید سلامت و بستن شواهد','nav.fleet':'مدیریت ناوگان و ارتقا','nav.commercial':'تجاری','nav.tenants':'Tenantها و برندینگ','nav.operations':'عملیات','nav.activity':'عملیات و ممیزی','nav.notifications':'اعلان‌ها و مسیریابی','nav.services':'سرویس‌های سیستم','nav.advanced':'پیشرفته','nav.catalog':'کاتالوگ','nav.validator':'ابزار برنامه‌ریزی Blueprint',
   'action.createServiceAccount':'ساخت حساب سرویس','action.grantAccess':'اعطا یا به‌روزرسانی دسترسی','action.revokeAccess':'لغو دسترسی','action.signout':'خروج','action.refresh':'بازخوانی','action.viewAll':'مشاهده همه','action.createOrg':'ایجاد سازمان','action.createProject':'ایجاد پروژه','action.createPlan':'ساخت برنامه','action.clear':'پاک‌کردن','action.createImport':'ساخت درخواست اتصال','action.copy':'کپی','action.verifyProfile':'تأیید پروفایل','action.createCluster':'ساخت درخواست کلاستر','action.getAdvisory':'دریافت پیشنهاد','action.createInstallPlan':'ساخت برنامه نصب','action.createLivePlan':'ساخت برنامه از وضعیت فعلی','action.runVerification':'اجرای بررسی سلامت','action.createClosure':'تکمیل شواهد تأیید','action.createFleet':'ایجاد Fleet','action.applyEntitlement':'اعمال مجوز تجاری','action.saveOEM':'ذخیره تنظیمات برند','action.createTenant':'ایجاد Tenant','action.validate':'اعتبارسنجی','action.cancel':'انصراف','action.confirm':'تأیید','action.saveDraft':'ایجاد پیش‌نویس','action.resetDraft':'پاک‌کردن فرم','action.compare':'مقایسه',
   'overview.authority':'مرکز کنترل پلتفرم خصوصی','flow.configure':'پیکربندی','flow.configureHelp':'Blueprintها، Baselineها و کاتالوگ','flow.build':'ایجاد یا واردکردن','flow.buildHelp':'پلتفرم‌ها و زیرساخت مقصد','flow.operate':'مدیریت Fleet','flow.operateHelp':'سلامت، مغایرت‌ها، نگه‌داری و ارتقا','flow.prove':'تأیید و بازیابی','flow.proveHelp':'عملیات، شواهد، ممیزی و گواهی‌های فنی','overview.heading':'وضعیت پلتفرم و کار بعدی','overview.description':'پیش از هر تغییر، وضعیت فعلی پلتفرم، موانع و عملیات در حال اجرا را بررسی کنید.','reliability.deliveryInsights':'بینش تحویل','reliability.deliveryInsightsHelp':'جریان استقرار مبتنی بر شواهد در ۳۰ روز گذشته. اگر شواهد استقرار یا زمان Commit منبع موجود نباشد، وضعیت ناشناخته باقی می‌ماند.','overview.readiness':'آمادگی مراحل راه‌اندازی','overview.readinessHelp':'وضعیت هر مرحله مستقیماً از دادهٔ واقعی API محاسبه می‌شود.','overview.attention':'نیازمند توجه','overview.attentionHelp':'خطاها و پیش‌نیازهایی که برای ادامه نیاز به رسیدگی دارند.','overview.recent':'فعالیت‌های اخیر','overview.recentHelp':'آخرین عملیات ثبت‌شده و رویدادهای ممیزی.',
@@ -2077,7 +2077,7 @@ function renderPageGuidance(){
 const pageTitles = {
   overview:{en:['Overview','Platform readiness'],fa:['نمای کلی','آمادگی پلتفرم']},
   installation:{en:['Platforms','Control-plane install'],fa:['پلتفرم‌ها','نصب کنترل‌پلین']},clusters:{en:['Platforms','Create & manage platforms'],fa:['پلتفرم‌ها','ایجاد و مدیریت پلتفرم']},providers:{en:['Platforms','Infrastructure profiles'],fa:['پلتفرم‌ها','پروفایل‌های زیرساخت']},
-  marketplace:{en:['Blueprints','Marketplace'],fa:['طرح‌ها و نسخه‌ها','بسته‌های آماده']},blueprints:{en:['Blueprints','Platform blueprints'],fa:['طرح‌ها و نسخه‌ها','طرح‌های پلتفرم']},templates:{en:['Blueprints','Platform templates'],fa:['طرح‌ها و نسخه‌ها','قالب‌های پلتفرم']},baselines:{en:['Blueprints','Certified baselines'],fa:['طرح‌ها و نسخه‌ها','نسخه‌های پایهٔ تأییدشده']},catalog:{en:['Assurance','Supply-chain releases'],fa:['اطمینان و شواهد','انتشارهای زنجیرهٔ تأمین']},validator:{en:['Blueprints','Planning tools'],fa:['طرح‌ها و نسخه‌ها','ابزارهای برنامه‌ریزی']},
+  marketplace:{en:['Blueprints','Marketplace'],fa:['طرح‌ها و نسخه‌ها','بسته‌های آماده']},blueprints:{en:['Blueprints','Platform blueprints'],fa:['طرح‌ها و نسخه‌ها','طرح‌های پلتفرم']},templates:{en:['Blueprints','Templates & application delivery'],fa:['طرح‌ها و نسخه‌ها','قالب‌ها و تحویل اپلیکیشن']},baselines:{en:['Blueprints','Certified baselines'],fa:['طرح‌ها و نسخه‌ها','نسخه‌های پایهٔ تأییدشده']},catalog:{en:['Assurance','Supply-chain releases'],fa:['اطمینان و شواهد','انتشارهای زنجیرهٔ تأمین']},validator:{en:['Blueprints','Planning tools'],fa:['طرح‌ها و نسخه‌ها','ابزارهای برنامه‌ریزی']},
   fleet:{en:['Fleet','Fleet overview'],fa:['ناوگان','نمای کلی ناوگان']},workspaces:{en:['Fleet','Application workspaces'],fa:['ناوگان','فضاهای کاری برنامه‌ها']},finops:{en:['Fleet','FinOps & chargeback'],fa:['ناوگان','هزینه و مصرف']},verification:{en:['Assurance','Runtime assurance'],fa:['اطمینان و شواهد','اطمینان از محیط اجرا']},edge:{en:['Assurance','Edge & sovereign'],fa:['اطمینان و شواهد','لبه و حاکمیت محلی']},
   operations:{en:['Operations','Activity & audit'],fa:['عملیات','فعالیت و ممیزی']},ai:{en:['Operations','AI Operator'],fa:['عملیات','اپراتور هوش مصنوعی']},lab:{en:['Assurance','Physical certification'],fa:['اطمینان و شواهد','گواهی اجرای فیزیکی']},notifications:{en:['Operations','Notifications'],fa:['عملیات','اعلان‌ها']},
   workspace:{en:['Admin','Organizations & projects'],fa:['مدیریت','سازمان‌ها و پروژه‌ها']},tenants:{en:['Admin','Tenant environments & branding'],fa:['مدیریت','محیط‌های Tenantها و برندینگ']},services:{en:['Admin','Integrations & services'],fa:['مدیریت','یکپارچه‌سازی و سرویس‌ها']}
@@ -4345,6 +4345,103 @@ function applicationMultiSelectOptions(select,items,label){
   const previous=new Set([...select.selectedOptions].map(option=>option.value));
   select.innerHTML=items.map(item=>`<option value="${esc(item.id)}"${previous.has(item.id)?' selected':''}>${esc(label(item))}</option>`).join('');
 }
+const applicationDeploymentActiveStates=new Set(['DRAFT','PLANNING','PLAN_FAILED','AWAITING_APPROVAL','APPROVED','QUEUED','RUNNING','RETRY_WAIT','CANCEL_REQUESTED','VERIFYING','ROLLING_BACK','ROLLBACK_FAILED','NEEDS_OPERATOR']);
+function applicationDeploymentIsActive(op){
+  if(!op)return false;
+  return applicationDeploymentActiveStates.has(op.state)||(op.state==='FAILED'&&op.lastFailureClass==='UNKNOWN');
+}
+function renderApplicationDeliveryJourney(){
+  const host=$('#application-delivery-journey'),guidance=$('#application-delivery-guidance');
+  if(!host||!guidance)return;
+  const artifactReleases=(state.applicationReleases||[]).filter(item=>!!item.workloadImageReference);
+  const deployableBindings=(state.applicationEnvironmentBindings||[]).filter(item=>artifactReleases.some(release=>release.id===item.releaseId));
+  const run=state.applicationDeploymentRun,op=run?.operation;
+  const hasRelease=artifactReleases.length>0,hasBinding=deployableBindings.length>0,hasRun=!!op?.id;
+  const currentStep=!hasRelease?'release':!hasBinding?'binding':!hasRun?'deployment':'observed';
+  const states={
+    release:hasRelease?'done':'current',
+    binding:hasBinding?'done':hasRelease?'current':'blocked',
+    deployment:hasRun?'done':hasBinding?'current':'blocked',
+    observed:run?.ready?'done':hasRun?'current':'blocked'
+  };
+  $('[data-application-step]',host).forEach(button=>{
+    const value=states[button.dataset.applicationStep]||'blocked';
+    button.dataset.state=value;
+    if(button.dataset.applicationStep===currentStep&&!run?.ready)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');
+  });
+  const faLocale=state.locale==='fa';
+  let text='';
+  let tone='neutral';
+  if(!hasRelease){
+    const legacy=(state.applicationReleases||[]).length>0;
+    text=faLocale
+      ?(legacy?'نسخه‌های قدیمی بدون artifact فقط قابل مشاهده‌اند. برای استقرار، یک ApplicationRelease با image دقیق و digest-pinned بسازید.':'گام ۱: یک ApplicationRelease تغییرناپذیر با image دقیق و digest-pinned بسازید.')
+      :(legacy?'Legacy releases without an artifact remain readable but are not deployable. Create an ApplicationRelease with an exact digest-pinned image.':'Step 1: create an immutable ApplicationRelease with an exact digest-pinned image.');
+  }else if(!hasBinding){
+    text=faLocale?'گام ۲: نسخه را به یک WorkspaceBinding فعال و namespace دقیق متصل کنید. این مرحله فقط desired authority می‌سازد.':'Step 2: bind the release to an active WorkspaceBinding and exact namespace. This creates desired authority only.';
+  }else if(!hasRun){
+    text=state.applicationDeploymentPlan
+      ?(faLocale?'گام ۳: پیش‌نمایش desired/rendered آماده است. در صورت تأیید، درخواست استقرار approval-gated را ایجاد کنید.':'Step 3: desired/rendered preview is ready. Create the approval-gated deployment request when the impact is understood.')
+      :(faLocale?'گام ۳: EnvironmentBinding را انتخاب و rendered plan قطعی را پیش‌نمایش کنید؛ هنوز هیچ mutation روی target انجام نمی‌شود.':'Step 3: select the EnvironmentBinding and preview the deterministic rendered plan; no target mutation occurs yet.');
+  }else if(op.state==='AWAITING_APPROVAL'){
+    text=faLocale?'گام ۴: درخواست durable در انتظار تأیید مستقل است. پس از تأیید، وضعیت اجرا و شواهد به‌صورت read-only دنبال می‌شود.':'Step 4: the durable request is awaiting independent approval. After approval, execution status and evidence are followed read-only.';
+    tone='warning';
+  }else if(op.state==='FAILED'&&op.lastFailureClass==='UNKNOWN'){
+    text=faLocale?'نتیجه mutation نامعلوم است؛ replay خودکار مسدود است. recovery فقط با readback دقیق و read-only target می‌تواند وضعیت را حل کند.':'Mutation outcome is unknown; automatic replay is blocked. Recovery can resolve it only from exact read-only target readback.';
+    tone='warning';
+  }else if(run?.evidenceMissing){
+    text=faLocale?'Operation با SUCCEEDED ثبت شده اما observed evidence معتبر موجود نیست؛ Ready عمداً نمایش داده نمی‌شود.':'The operation says SUCCEEDED but canonical observed evidence is missing; Ready is intentionally withheld.';
+    tone='warning';
+  }else if(run?.stale){
+    text=faLocale?'authority فعلی با درخواست sealed یکسان نیست. وضعیت قبلی را با desired state جدید یکی نکنید.':'Current authority differs from the sealed request. Do not merge prior observed truth with new desired state.';
+    tone='warning';
+  }else if(run?.ready){
+    text=faLocale?'Observed evidence دقیق، همان release و rendered authority را تأیید می‌کند. این نتیجه Runtime/Physical certification را استنتاج نمی‌کند.':'Exact observed evidence confirms the sealed release and rendered authority. This does not infer Runtime or Physical certification.';
+    tone='success';
+  }else{
+    text=faLocale?'استقرار در حال پیشرفت است. این صفحه operation durable را بدون replay mutation به‌صورت read-only دنبال می‌کند.':'Deployment is in progress. This page follows the durable operation read-only without replaying the mutation.';
+  }
+  guidance.className=`inline-summary application-delivery-guidance${tone==='warning'?' warning-banner':tone==='success'?' success-banner':''}`;
+  guidance.textContent=text;
+}
+function openApplicationDeliveryStep(step,{focus=true}={}){
+  const mapping={release:'application-release-workflow',binding:'application-binding-workflow',deployment:'application-deployment-workflow',observed:'application-deployment-workflow'};
+  const id=mapping[step];if(!id)return;
+  for(const workflowId of ['application-release-workflow','application-binding-workflow','application-deployment-workflow']){
+    const node=document.getElementById(workflowId);if(node)node.open=workflowId===id;
+  }
+  const details=document.getElementById(id);
+  if(!details)return;
+  const target=step==='observed'?$('#application-deployment-plan-result'):details.querySelector('summary');
+  const behavior=window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
+  details.scrollIntoView({behavior,block:'start'});
+  if(focus&&target){if(!target.matches('summary,button,input,select,textarea,a[href]'))target.setAttribute('tabindex','-1');target.focus({preventScroll:true});}
+}
+function stopApplicationDeploymentStatusRefresh(){
+  clearTimeout(state.applicationDeploymentStatusTimer);
+  state.applicationDeploymentStatusTimer=null;
+  state.applicationDeploymentStatusGeneration++;
+}
+function scheduleApplicationDeploymentStatusRefresh(delay=5000){
+  clearTimeout(state.applicationDeploymentStatusTimer);
+  const op=state.applicationDeploymentRun?.operation;
+  if(state.currentPage!=='templates'||!op?.id||!applicationDeploymentIsActive(op)){state.applicationDeploymentStatusTimer=null;return;}
+  const generation=++state.applicationDeploymentStatusGeneration;
+  state.applicationDeploymentStatusTimer=setTimeout(async()=>{
+    if(generation!==state.applicationDeploymentStatusGeneration||state.currentPage!=='templates')return;
+    if(document.visibilityState!=='visible'||state.pageLoading){scheduleApplicationDeploymentStatusRefresh(3000);return;}
+    try{
+      await refreshApplicationDeployment();
+    }catch(error){
+      const guidance=$('#application-delivery-guidance');
+      if(guidance){
+        guidance.className='inline-summary application-delivery-guidance warning-banner';
+        guidance.textContent=state.locale==='fa'?'بازخوانی خودکار وضعیت موقتاً ناموفق بود؛ درخواست دوباره ارسال نشده است. می‌توانید Refresh deployment status را بزنید.':'Automatic status refresh temporarily failed; no request was replayed. You can use Refresh deployment status.';
+      }
+      scheduleApplicationDeploymentStatusRefresh(10000);
+    }
+  },delay);
+}
 function renderApplicationAuthoringOptions(){
   const projectSelect=$('#application-release-project');
   if(!projectSelect)return;
@@ -4422,7 +4519,7 @@ function renderApplicationDeploymentPlan(){
   const op=run?.operation;
   const previewMatchesRun=!preview||!runPlan||preview.renderedDigest===runPlan.renderedDigest;
   const ambiguous=op?.state==='NEEDS_OPERATOR'||(op?.state==='FAILED'&&op?.lastFailureClass==='UNKNOWN');
-  const active=!!op&&(['DRAFT','PLANNING','PLAN_FAILED','AWAITING_APPROVAL','APPROVED','QUEUED','RUNNING','RETRY_WAIT','CANCEL_REQUESTED','VERIFYING','ROLLING_BACK','ROLLBACK_FAILED','NEEDS_OPERATOR'].includes(op.state)||ambiguous);
+  const active=applicationDeploymentIsActive(op);
   if(operationField)operationField.value=op?.id||'';
   if(requestButton)requestButton.disabled=!preview||preview.environmentBindingId!==binding?.id||active;
   if(refreshButton)refreshButton.disabled=!op?.id;
@@ -4431,6 +4528,7 @@ function renderApplicationDeploymentPlan(){
   if(approveButton)setScopedAccess(approveButton,{projectId:binding?.projectId||'',access:'admin'});
   if(!plan){
     host.innerHTML='<div class="inline-summary">Select an artifact-bound environment binding and preview deterministic rendered resources. Existing durable deployment status is resumed automatically for the selected binding.</div>';
+    renderApplicationDeliveryJourney();
     return;
   }
   const resources=Array.isArray(plan.renderedResources)?plan.renderedResources:[];
@@ -4451,20 +4549,25 @@ function renderApplicationDeploymentPlan(){
     html+=`<div class="${run?.ready&&previewMatchesRun?'success-banner':warning?'warning-banner':'inline-summary'}"><strong>Durable deployment</strong> · ${badge(status)} · <span class="technical">${esc(op.id)}</span><br><span>Operation: ${esc(op.state||'UNKNOWN')} · revision ${esc(op.revision||'—')} · current authority: ${run?.currentAuthority===false?'no':'yes'}</span>${op.lastFailureClass?` · failure class: ${esc(op.lastFailureClass)}`:''}${runPlan?`<br><span>Sealed desired/rendered authority: release <span class="technical">${esc(shortDigest(runPlan.releaseDigest||''))}</span> · runtime <span class="technical">${esc(shortDigest(runPlan.runtimeSpecDigest||''))}</span> · rendered <span class="technical">${esc(shortDigest(runPlan.renderedDigest||''))}</span></span>`:''}${!previewMatchesRun?`<br><span><strong>Current preview differs:</strong> rendered <span class="technical">${esc(shortDigest(preview?.renderedDigest||''))}</span>. The durable status/evidence below belongs to the sealed operation above, not this preview.</span>`:''}${run?.evidenceDigest?`<br><span>Observed evidence for sealed operation: <span class="technical">${esc(shortDigest(run.evidenceDigest))}</span></span>`:''}${op.recoveryEvidenceDigest?`<br><span>Recovery evidence: <span class="technical">${esc(shortDigest(op.recoveryEvidenceDigest))}</span> · read-only recovery resolution</span>`:''}${evidence?.readback?.deploymentUid?`<br><span>Deployment UID: <span class="technical">${esc(evidence.readback.deploymentUid)}</span> · updated ${esc(evidence.readback.updatedReplicas)}/${esc(evidence.readback.desiredReplicas)} · ready ${esc(evidence.readback.readyReplicas)}/${esc(evidence.readback.desiredReplicas)} · available ${esc(evidence.readback.availableReplicas)}/${esc(evidence.readback.desiredReplicas)}</span>`:''}<br><small>${guidance} ${!previewMatchesRun?'Preview and observed truth are intentionally not merged. ':''}Physical certification remains separate.</small></div>`;
   }
   host.innerHTML=html;
+  renderApplicationDeliveryJourney();
 }
 async function refreshApplicationDeployment(){
-  const id=state.applicationDeploymentRun?.operation?.id;if(!id)return;
+  const id=state.applicationDeploymentRun?.operation?.id;if(!id){stopApplicationDeploymentStatusRefresh();return;}
   state.applicationDeploymentRun=await api(`/api/v1/application-platform/deployments/${encodeURIComponent(id)}`);
   renderApplicationDeploymentPlan();
+  if(applicationDeploymentIsActive(state.applicationDeploymentRun?.operation))scheduleApplicationDeploymentStatusRefresh();
+  else stopApplicationDeploymentStatusRefresh();
 }
 async function resumeApplicationDeploymentForBinding(){
   const binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-deployment-binding')?.value);
-  if(!binding){state.applicationDeploymentRun=null;renderApplicationDeploymentPlan();return;}
+  if(!binding){state.applicationDeploymentRun=null;stopApplicationDeploymentStatusRefresh();renderApplicationDeploymentPlan();return;}
   const history=await softApi(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/deployments`,{items:[]},'application deployment history');
   const current=latest(Array.isArray(history?.items)?history.items:[])[0];
-  if(!current?.id){state.applicationDeploymentRun=null;renderApplicationDeploymentPlan();return;}
+  if(!current?.id){state.applicationDeploymentRun=null;stopApplicationDeploymentStatusRefresh();renderApplicationDeploymentPlan();return;}
   state.applicationDeploymentRun=await api(`/api/v1/application-platform/deployments/${encodeURIComponent(current.id)}`);
   renderApplicationDeploymentPlan();
+  if(applicationDeploymentIsActive(state.applicationDeploymentRun?.operation))scheduleApplicationDeploymentStatusRefresh();
+  else stopApplicationDeploymentStatusRefresh();
 }
 function renderApplicationPlatformComposition(){
   const workloadGrid=$('#application-workload-grid'),resourceGrid=$('#application-resource-grid'),releaseGrid=$('#application-release-grid'),bindingGrid=$('#application-binding-grid');
@@ -4573,10 +4676,11 @@ $('#dapr-lifecycle-approve').onclick=async()=>{
     state.daprLifecycle=result;renderDaprRuntimeControls();renderDaprRuntimeResult();toast('Dapr lifecycle request approved and queued; runtime success is not implied.');
   }catch(error){toast(error.message,'error');}
 };
+$('[data-application-step]').forEach(button=>button.addEventListener('click',()=>openApplicationDeliveryStep(button.dataset.applicationStep)));
 $('#application-release-project').addEventListener('change',()=>{renderApplicationAuthoringOptions();applyAccessMode();});
 $('#application-binding-release').addEventListener('change',async()=>{state.applicationWorkspaceBindings=[];renderApplicationAuthoringOptions();await loadApplicationBindingWorkspaceBindings();});
 $('#application-binding-workspace').addEventListener('change',loadApplicationBindingWorkspaceBindings);
-$('#application-deployment-binding').addEventListener('change',async()=>{state.applicationDeploymentPlan=null;state.applicationDeploymentRun=null;renderApplicationDeploymentPlan();try{await resumeApplicationDeploymentForBinding();}catch(error){toast(error.message,'error');}});
+$('#application-deployment-binding').addEventListener('change',async()=>{state.applicationDeploymentPlan=null;state.applicationDeploymentRun=null;stopApplicationDeploymentStatusRefresh();renderApplicationDeploymentPlan();try{await resumeApplicationDeploymentForBinding();renderApplicationDeliveryJourney();}catch(error){toast(error.message,'error');}});
 $('#application-deployment-plan-form').addEventListener('input',event=>{if(event.target.id!=='application-deployment-binding'){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();}});
 $('#application-resolution-workload').addEventListener('change',renderApplicationPlatformComposition);
 $('#application-promotion-binding').addEventListener('change',renderApplicationPlatformComposition);
@@ -4601,6 +4705,7 @@ $('#application-release-create-form').onsubmit=async event=>{
     form.reset();await loadPlatformTemplates();
     const release=state.applicationReleases.find(item=>item.id===created.id);
     if(release){$('#application-binding-release').value=release.id;await loadApplicationBindingWorkspaceBindings();}
+    renderApplicationDeliveryJourney();openApplicationDeliveryStep('binding');
   }catch(error){toast(error.message,'error');}
 };
 $('#application-binding-create-form').onsubmit=async event=>{
@@ -4612,9 +4717,15 @@ $('#application-binding-create-form').onsubmit=async event=>{
   if(release.projectId!==workspace.projectId){toast('Release and Workspace must belong to the same project.','error');return;}
   const observedNativeCapabilities=$('#application-binding-native').value.split(',').map(v=>v.trim()).filter(Boolean);
   try{
-    await api('/api/v1/application-platform/environment-bindings',{method:'POST',body:{releaseId:release.id,workspaceBindingId:binding.id,environment:$('#application-binding-environment').value,observedNativeCapabilities}});
+    const created=await api('/api/v1/application-platform/environment-bindings',{method:'POST',body:{releaseId:release.id,workspaceBindingId:binding.id,environment:$('#application-binding-environment').value,observedNativeCapabilities}});
     toast('Desired environment binding created. No runtime deployment has been inferred.');
     form.reset();state.applicationWorkspaceBindings=[];await loadPlatformTemplates();
+    const createdId=created?.id||created?.binding?.id||created?.environmentBinding?.id||'';
+    const deploymentSelect=$('#application-deployment-binding');
+    if(createdId&&deploymentSelect&&state.applicationEnvironmentBindings.some(item=>item.id===createdId)){
+      deploymentSelect.value=createdId;state.applicationDeploymentPlan=null;state.applicationDeploymentRun=null;await resumeApplicationDeploymentForBinding();
+    }
+    renderApplicationDeliveryJourney();openApplicationDeliveryStep('deployment');
   }catch(error){toast(error.message,'error');}
 };
 $('#application-deployment-plan-form').onsubmit=async event=>{
@@ -4626,7 +4737,7 @@ $('#application-deployment-plan-form').onsubmit=async event=>{
   const body=applicationDeploymentRuntimeBody();
   try{
     state.applicationDeploymentPlan=await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/deployment-plan`,{method:'POST',body});
-    renderApplicationDeploymentPlan();toast('Deterministic application deployment plan rendered; durable deployment status remains visible and no target mutation occurred.');
+    renderApplicationDeploymentPlan();openApplicationDeliveryStep('deployment',{focus:false});toast('Deterministic application deployment plan rendered; durable deployment status remains visible and no target mutation occurred.');
   }catch(error){state.applicationDeploymentPlan=null;renderApplicationDeploymentPlan();toast(error.message,'error');}
 };
 $('#application-deployment-request').onclick=async()=>{
@@ -4635,7 +4746,7 @@ $('#application-deployment-request').onclick=async()=>{
   if(!await confirmAction('Create application deployment request',`Create an approval-gated deployment for ${binding.environment} / ${binding.namespace}? The exact release, WorkspaceBinding, rendered plan and target inventory will be fenced before execution.`,false))return;
   try{
     state.applicationDeploymentRun=await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/deployments`,{method:'POST',headers:{'Idempotency-Key':idempotency('application-deploy')},body:applicationDeploymentRuntimeBody()});
-    renderApplicationDeploymentPlan();toast('Application deployment request created; independent approval is required and runtime success is not implied.');
+    renderApplicationDeploymentPlan();openApplicationDeliveryStep('observed',{focus:false});scheduleApplicationDeploymentStatusRefresh();toast('Application deployment request created; independent approval is required and runtime success is not implied.');
   }catch(error){toast(error.message,'error');}
 };
 $('#application-deployment-refresh').onclick=async()=>{try{await refreshApplicationDeployment();}catch(error){toast(error.message,'error');}};
@@ -4644,7 +4755,7 @@ $('#application-deployment-approve').onclick=async()=>{
   if(!await confirmAction('Approve application deployment','Approve this exact application deployment revision for target execution? Requester/approver separation and current authority fences are revalidated by the server.',false))return;
   try{
     state.applicationDeploymentRun=await api(`/api/v1/application-platform/deployments/${encodeURIComponent(op.id)}/approve`,{method:'POST',headers:{'If-Match':`"${op.revision}"`},body:{}});
-    renderApplicationDeploymentPlan();toast('Application deployment approved and queued; target convergence is still pending.');
+    renderApplicationDeploymentPlan();openApplicationDeliveryStep('observed',{focus:false});scheduleApplicationDeploymentStatusRefresh();toast('Application deployment approved and queued; target convergence is still pending.');
   }catch(error){toast(error.message,'error');}
 };
 $('#application-resolution-form').onsubmit=async event=>{event.preventDefault();const workloadId=$('#application-resolution-workload').value;if(!workloadId)return;const workload=state.applicationWorkloadTypes.find(item=>item.id===workloadId);const traitIds=[...$('#application-resolution-traits').selectedOptions].map(option=>option.value);const observedNativeCapabilities=$('#application-resolution-native').value.split(',').map(v=>v.trim()).filter(Boolean);try{const result=await api('/api/v1/application-platform/resolve',{method:'POST',body:{projectId:workload.projectId,workloadTypeId:workloadId,traitIds,observedNativeCapabilities}});$('#application-composition-result').innerHTML=`<div class="inline-summary"><strong>Capability resolution preview</strong> · ${esc(shortDigest(result.resolutionDigest))}<br>${(result.decisions||[]).map(row=>`${badge(row.action)} ${esc(row.capability)} — ${esc(row.reason)}`).join('<br>')||'No traits selected.'}<br><small>Preview only. No target or desired binding was mutated.</small></div>`;}catch(error){toast(error.message,'error');}};
