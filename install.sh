@@ -14,6 +14,10 @@ Usage:
   sudo bash install.sh preflight --bundle-dir DIR [--release-artifact RELEASE.zip] [installer options...]
   sudo bash install.sh plan      --bundle-dir DIR [--release-artifact RELEASE.zip] [installer options...]
   sudo bash install.sh install   --bundle-dir DIR [--release-artifact RELEASE.zip] --enable-execution --confirmation DEPLOY [installer options...]
+  sudo bash install.sh status    [--state FILE] [--root /]
+  sudo bash install.sh verify    [--state FILE] [--root /]
+  sudo bash install.sh recover   --confirmation RECOVER [--state FILE] [--root /]
+  sudo bash install.sh rollback  --confirmation ROLLBACK [--state FILE] [--root /]
 
 The exact release ZIP can be omitted only when PLATFORM_FACTORY_RELEASE_ARTIFACT
 is set or when the ZIP sits beside this extracted release directory with the
@@ -31,6 +35,11 @@ Common install options:
 Safe default:
   Installer listens on 127.0.0.1:9080. The result prints an SSH local-forward
   command for remote browser access without exposing Installer on the network.
+
+Continuation:
+  status/verify/recover/rollback read the durable host-deployment authority.
+  They do not require the original bundle or release ZIP again. recover and
+  rollback retain the canonical explicit confirmation fences.
 EOF
 }
 
@@ -40,7 +49,7 @@ case "${mode}" in
     usage
     exit 0
     ;;
-  preflight|plan|install)
+  preflight|plan|install|status|verify|recover|rollback)
     shift
     ;;
   *)
@@ -55,12 +64,22 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 2
 fi
 
-for binary in "${PLATFORMCTL}" "${INSTALLER}"; do
-  if [[ ! -f "${binary}" || -L "${binary}" || ! -x "${binary}" ]]; then
-    echo "ERROR ${AUTHORITY}: required packaged executable is missing/non-regular/non-executable: ${binary}" >&2
-    exit 2
-  fi
-done
+if [[ ! -f "${PLATFORMCTL}" || -L "${PLATFORMCTL}" || ! -x "${PLATFORMCTL}" ]]; then
+  echo "ERROR ${AUTHORITY}: required packaged executable is missing/non-regular/non-executable: ${PLATFORMCTL}" >&2
+  exit 2
+fi
+
+case "${mode}" in
+  status|verify|recover|rollback)
+    echo "${AUTHORITY} mode=${mode} continuation=true" >&2
+    exec "${PLATFORMCTL}" installer-manual "${mode}" "$@"
+    ;;
+esac
+
+if [[ ! -f "${INSTALLER}" || -L "${INSTALLER}" || ! -x "${INSTALLER}" ]]; then
+  echo "ERROR ${AUTHORITY}: required packaged executable is missing/non-regular/non-executable: ${INSTALLER}" >&2
+  exit 2
+fi
 
 bundle_dir=""
 release_artifact="${PLATFORM_FACTORY_RELEASE_ARTIFACT:-}"
