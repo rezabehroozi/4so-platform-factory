@@ -1641,7 +1641,10 @@ const projectScopedCollectionPaths=new Set([
   '/api/v1/runtime-verifications','/api/v1/runtime-closure-campaigns','/api/v1/runtime-certifications',
   '/api/v1/recovery-checkpoints','/api/v1/fleet-groups','/api/v1/drift-scans','/api/v1/upgrade-campaigns',
   '/api/v1/tenants','/api/v1/ai/runs','/api/v1/workspaces','/api/v1/blueprint-releases',
-  '/api/v1/blueprint-overlays','/api/v1/variable-schemas','/api/v1/platform-policy-sets','/api/v1/platform-templates'
+  '/api/v1/blueprint-overlays','/api/v1/variable-schemas','/api/v1/platform-policy-sets','/api/v1/platform-templates',
+  '/api/v1/application-platform/workload-types','/api/v1/application-platform/capability-traits',
+  '/api/v1/application-platform/resource-types','/api/v1/application-platform/workspace-profiles',
+  '/api/v1/application-platform/releases','/api/v1/application-platform/environment-bindings'
 ]);
 const boundedOperatorCollectionLimit=100;
 const boundedOperatorCollectionPaths=new Set([
