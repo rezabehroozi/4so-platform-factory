@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -153,6 +154,34 @@ func (s *PostgresStore) RevokeWorkspaceBinding(ctx context.Context, id string, e
 		}
 		if current.State != controlplane.WorkspaceBindingActive {
 			return controlplane.ErrInvalidTransition
+		}
+		var blockingOperationID string
+		blockErr := tx.QueryRowContext(ctx, `SELECT o.id
+FROM application_environment_bindings e
+JOIN operations o
+  ON o.project_id=e.project_id
+ AND o.kind=$2
+ AND (
+   o.target_ref=$3||e.id
+   OR o.target_ref=$3||e.cluster_id||':'||e.id
+ )
+WHERE e.workspace_binding_id=$1
+  AND (
+    o.state IN ('DRAFT','PLANNING','AWAITING_APPROVAL','APPROVED','QUEUED','RUNNING','RETRY_WAIT','CANCEL_REQUESTED','VERIFYING','ROLLING_BACK','NEEDS_OPERATOR','ROLLBACK_FAILED')
+    OR (o.state='FAILED' AND o.last_failure_class='UNKNOWN')
+  )
+ORDER BY o.created_at,o.id
+LIMIT 1
+FOR UPDATE OF o`,
+			current.ID,
+			controlplane.ApplicationDeploymentOperationKind,
+			controlplane.ApplicationDeploymentTargetPrefix,
+		).Scan(&blockingOperationID)
+		if blockErr != nil && !errors.Is(blockErr, sql.ErrNoRows) {
+			return mapDBError(blockErr)
+		}
+		if strings.TrimSpace(blockingOperationID) != "" {
+			return fmt.Errorf("%w: WorkspaceBinding has an in-flight or recovery-required application deployment", controlplane.ErrPrerequisite)
 		}
 		now := utcNow(s.now)
 		actor = strings.TrimSpace(actor)
