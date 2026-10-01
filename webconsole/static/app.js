@@ -5109,6 +5109,16 @@ function renderEdgeAssessment(target,data){
 function edgeProjectID(){
   return String($('#edge-project')?.value||'').trim();
 }
+function openEdgeWorkflowStep(id){
+  const target=document.getElementById(id);if(!target)return;
+  for(const step of ['edge-step-policy','edge-step-mutation','edge-step-reconnect']){
+    const node=document.getElementById(step);if(node)node.open=step===id;
+  }
+  target.open=true;
+  const behavior=window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
+  target.scrollIntoView({behavior,block:'start'});
+  target.querySelector('summary')?.focus({preventScroll:true});
+}
 async function loadEdgeSovereign(){
   const projects=await softApi('/api/v1/projects',[],'projects');
   state.projects=projects;
@@ -5133,7 +5143,7 @@ $('#edge-policy-form').onsubmit=async event=>{
     $('#edge-mutation-target').value='site:'+edgeCompiledPolicy.siteId;
     $('#edge-reconnect-revision').value=String(edgeCompiledPolicy.revision);
     $('#edge-reconnect-digest').value=edgeCompiledPolicy.desiredStateDigest;
-    renderEdgeAssessment($('#edge-policy-result'),result);toast('Edge policy compiled. No runtime mutation was executed.');
+    renderEdgeAssessment($('#edge-policy-result'),result);toast('Edge policy compiled. No runtime mutation was executed.');openEdgeWorkflowStep('edge-step-mutation');
   }catch(error){renderEdgeAssessment($('#edge-policy-result'),{admitted:false,error:error.message,code:error.code||''});toast(error.message,'error');}
 };
 $('#edge-mutation-form').onsubmit=async event=>{
@@ -5143,7 +5153,7 @@ $('#edge-mutation-form').onsubmit=async event=>{
   const request={siteId:edgeCompiledPolicy.siteId,projectId,action:$('#edge-mutation-action').value,targetRef:$('#edge-mutation-target').value.trim(),baseRevision:edgeCompiledPolicy.revision,baseDesiredDigest:edgeCompiledPolicy.desiredStateDigest,policyDigest:edgeCompiledPolicy.policyDigest,idempotencyKey:$('#edge-mutation-idempotency').value.trim(),requestDigest:$('#edge-mutation-request-digest').value.trim()};
   try{
     const result=await api('/api/v1/edge/local-authority/mutations/admit',{method:'POST',body:{projectId,policy:edgeCompiledPolicy,request,disconnectedSince:new Date($('#edge-disconnected-since').value).toISOString()}});
-    edgeLastMutationRequest=request;renderEdgeAssessment($('#edge-mutation-result'),result);toast('Offline request fits the policy. Execution still requires a durable operation.');
+    edgeLastMutationRequest=request;renderEdgeAssessment($('#edge-mutation-result'),result);toast('Offline request fits the policy. Execution still requires a durable operation.');openEdgeWorkflowStep('edge-step-reconnect');
   }catch(error){renderEdgeAssessment($('#edge-mutation-result'),{admitted:false,error:error.message,code:error.code||''});toast(error.message,'error');}
 };
 $('#edge-reconnect-form').onsubmit=async event=>{
