@@ -59,11 +59,21 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 		admissionInput.CapabilityDiscoveryComplete = inventory.APIDiscoveryComplete && inventory.CRDDiscoveryComplete && inventory.SchemaDiscoveryComplete
 		admissionInput.ObservedCapabilities = append([]string(nil), inventory.Capabilities...)
 	}
-	out := targetmodel.EvaluateDaprTargetAdmission(admissionInput)
 	observed, observedErr := s.latestDaprObserved(r.Context(), input.ProjectID, input.ClusterID)
 	if observedErr != nil {
 		writeStoreError(w, observedErr)
 		return
+	}
+	out := targetmodel.EvaluateDaprTargetAdmission(admissionInput)
+	if invErr == nil {
+		out = s.daprEffectiveRuntimeAdmission(cluster, inventory, input.Disconnected, observed)
+	} else if observed != nil && observed.Installed {
+		// Keep product ownership visible even while inventory is temporarily
+		// unavailable; eligibility remains false until current target discovery
+		// is restored and re-evaluated.
+		out.Mode = "PRODUCT_MANAGED"
+		out.InstallSuppressed = false
+		out.Eligible = false
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"authority":                     targetmodel.DaprTargetAdmissionAuthority,
