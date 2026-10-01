@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -235,6 +236,12 @@ func TestApplicationDeploymentDurableAuthorityProducesDeliveryEvidence(t *testin
 	if err = json.Unmarshal(w.Body.Bytes(), &unknownResult); err != nil { t.Fatal(err) }
 	if unknownResult.Operation.State != controlplane.OperationFailed || unknownResult.Operation.LastFailureClass != controlplane.OperationFailureUnknown {
 		t.Fatalf("ambiguous deployment did not become FAILED/UNKNOWN: %#v", unknownResult.Operation)
+	}
+	if _, directErr := store.PromoteEnvironmentBinding(ctx, binding.ID, binding.Revision, controlplane.EnvironmentBindingPromotionRequest{ReleaseID: release.ID}, "direct-store-caller"); !errors.Is(directErr, controlplane.ErrPrerequisite) {
+		t.Fatalf("MemoryStore EnvironmentBinding promotion bypassed application deployment fence: %v", directErr)
+	}
+	if _, directErr := store.RevokeWorkspaceBinding(ctx, workspaceBinding.ID, workspaceBinding.Revision, "direct-store-caller"); !errors.Is(directErr, controlplane.ErrPrerequisite) {
+		t.Fatalf("MemoryStore WorkspaceBinding revoke bypassed application deployment fence: %v", directErr)
 	}
 
 	w = applicationDeploymentPrincipalRequest(t, srv, http.MethodPost,
