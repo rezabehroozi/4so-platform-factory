@@ -9,6 +9,7 @@ server request IDs.
 """
 from __future__ import annotations
 import argparse,json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import seal_mcp_external_interop as core
 
@@ -25,12 +26,20 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CLIENT_INVALID")
     if not isinstance(capture,dict) or capture.get("authority")!=AUTHORITY or capture.get("clientId")!=client:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_IDENTITY_INVALID")
-    allowed_capture={"authority","clientId","clientSurface","campaignId","challengeSha256","endpoint","executionId","externalExecution","credentialedExecution","checks","providerExecutionRef"}
+    allowed_capture={"authority","clientId","clientSurface","campaignId","challengeSha256","endpoint","executionId","executedAt","externalExecution","credentialedExecution","checks","providerExecutionRef"}
     if set(capture)!=allowed_capture:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_FIELDS_INVALID")
     provider_ref=str(capture.get("providerExecutionRef") or "").strip()
     if len(provider_ref)<8 or len(provider_ref)>500 or any(ord(ch)<0x21 or ord(ch)>0x7e for ch in provider_ref):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PROVIDER_EXECUTION_REF_INVALID")
+    created=core.parse_utc_timestamp(packet.get("campaignCreatedAt"),"MCP_EXTERNAL_CAPTURE_CAMPAIGN_CREATED_AT")
+    expires=core.parse_utc_timestamp(packet.get("campaignExpiresAt"),"MCP_EXTERNAL_CAPTURE_CAMPAIGN_EXPIRES_AT")
+    audit_window=packet.get("executionAuditWindowSeconds")
+    if type(audit_window) is not int or audit_window<60 or audit_window>24*3600 or created>=expires:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_CAMPAIGN_WINDOW_INVALID")
+    executed=core.parse_utc_timestamp(capture.get("executedAt"),"MCP_EXTERNAL_CAPTURE_EXECUTED_AT")
+    if executed<created or executed>expires or executed>datetime.now(timezone.utc)+timedelta(minutes=5):
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_EXECUTION_TIME_INVALID")
     for key in ("clientSurface","campaignId","challengeSha256","endpoint"):
         if capture.get(key)!=packet.get(key):
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_BINDING_INVALID {key}")
@@ -94,6 +103,7 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
       "endpoint":packet["endpoint"],
       "executionId":execution_id,
       "providerExecutionRef":provider_ref,
+      "executedAt":core.utc_timestamp(executed),
       "externalExecution":True,
       "credentialedExecution":True,
       "checks":{name:True for name in expected_ids},
