@@ -220,7 +220,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"disabled mutation controls expose visible page-level role/scope/state reasons while remaining fail-closed",
 		"empty and prerequisite states expose a direct in-product next action when an owner UI exists and runtime-generated guidance is re-rendered correctly after locale changes",
 		"durable application deployment progress is refreshed read-only without requiring mutation replay or a manual page refresh",
-		"live status pages keep refreshing while read-only disclosures are open, but focused or dirty form input still fences background refresh; Workspace virtual-cluster lifecycle is included",
+		"live status pages keep refreshing while read-only disclosures are open, but focused or dirty form input still fences background refresh; Workspace virtual-cluster and Platform maintenance RUNNING/RESTORING lifecycles are included",
 		"LTR and RTL use the same semantic ordering with logical layout properties and isolated technical identifiers",
 	} {
 		if !containsString(c8.ExitCriteria, criterion) {
