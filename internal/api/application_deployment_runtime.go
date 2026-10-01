@@ -118,6 +118,30 @@ func (s *Server) applicationDeploymentBindingBlocker(ctx context.Context, projec
 	return nil, nil
 }
 
+func (s *Server) applicationDeploymentWorkspaceBindingBlocker(ctx context.Context, projectID, workspaceBindingID string) (*controlplane.Operation, error) {
+	appStore, ok := s.store.(applicationPlatformStore)
+	if !ok {
+		return nil, fmt.Errorf("%w: application platform persistence authority is unavailable", controlplane.ErrPrerequisite)
+	}
+	bindings, err := appStore.ListEnvironmentBindings(ctx, strings.TrimSpace(projectID))
+	if err != nil {
+		return nil, err
+	}
+	for _, binding := range bindings {
+		if binding.WorkspaceBindingID != strings.TrimSpace(workspaceBindingID) {
+			continue
+		}
+		blocker, blockerErr := s.applicationDeploymentBindingBlocker(ctx, projectID, binding.ClusterID, binding.ID, "")
+		if blockerErr != nil {
+			return nil, blockerErr
+		}
+		if blocker != nil {
+			return blocker, nil
+		}
+	}
+	return nil, nil
+}
+
 func (s *Server) buildApplicationDeploymentRequest(ctx context.Context, bindingID string, runtime controlplane.ApplicationRuntimeSpec) (controlplane.ApplicationDeploymentRequest, error) {
 	appStore, ok := s.store.(applicationPlatformStore)
 	if !ok {
