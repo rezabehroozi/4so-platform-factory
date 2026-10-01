@@ -77,6 +77,7 @@ func usage() {
 	  platformctl field-campaign diagnose --state campaign.json --out diagnostic.json [--token-file FILE] [--ca-file FILE]
   platformctl field-campaign status --state campaign.json
   platformctl installer-access status --installer-url https://installer.example [--token-file FILE] [--ca-file FILE]
+  platformctl installer-access resume --installer-url https://installer.example --confirmation RESUME [--token-file FILE] [--ca-file FILE]
   platformctl installer-access rotate-token --installer-url https://installer.example --out-token-file FILE --confirmation ROTATE [--token-file FILE] [--ca-file FILE]
   platformctl installer-manual preflight --bundle-dir DIR --release-artifact RELEASE.zip [--installer-binary FILE] [--listen 127.0.0.1:9080] [--tls-cert FILE --tls-key FILE] [--enable-execution]
   platformctl installer-manual plan --bundle-dir DIR --release-artifact RELEASE.zip [--installer-binary FILE] [--out-spec FILE]
