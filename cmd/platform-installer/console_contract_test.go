@@ -83,9 +83,20 @@ func TestInstallerConsoleJourneyContract(t *testing.T) {
 		"const interrupted = run.state==='RUNNING' && status.bootstrapActive !== true",
 		"run.state==='FAILED' || interrupted",
 		"Resume interrupted run",
+		"failed or interrupted durable run",
 	} {
-		if !strings.Contains(js, interruptedResumeContract) {
+		if !strings.Contains(js+html, interruptedResumeContract) {
 			t.Fatalf("installer console cannot safely resume an orphaned RUNNING journal: missing %q", interruptedResumeContract)
+		}
+	}
+	for _, statusFirstContract := range []string{
+		"const status=await api('/api/v1/status',{signal})",
+		"renderStatus(status,null)",
+		"Promise.allSettled",
+		"Access-security details are temporarily unavailable. Durable installation status remains available.",
+	} {
+		if !strings.Contains(js, statusFirstContract) {
+			t.Fatalf("installer recovery status must remain visible when ancillary endpoints fail: missing %q", statusFirstContract)
 		}
 	}
 	assertInstallerDOMReferencesExist(t, html, js)
