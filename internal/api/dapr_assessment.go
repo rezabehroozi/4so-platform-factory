@@ -64,6 +64,11 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 		writeStoreError(w, observedErr)
 		return
 	}
+	latestOperation, latestOperationErr := s.latestDaprLifecycleOperation(r.Context(), input.ProjectID, input.ClusterID)
+	if latestOperationErr != nil {
+		writeStoreError(w, latestOperationErr)
+		return
+	}
 	out := targetmodel.EvaluateDaprTargetAdmission(admissionInput)
 	if invErr == nil {
 		out = s.daprEffectiveRuntimeAdmission(cluster, inventory, input.Disconnected, observed)
@@ -85,6 +90,7 @@ func (s *Server) assessDaprApplicationRuntime(w http.ResponseWriter, r *http.Req
 		"reviewedRuntimeVersion":        targetmodel.DaprReviewedRuntimeVersion,
 		"assessment":                    out,
 		"observed":                      observed,
+		"latestOperation":               latestOperation,
 		"runtimeInstallImplemented":     true,
 		"physicalCertificationInferred": false,
 	})
