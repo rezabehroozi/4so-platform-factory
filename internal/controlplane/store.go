@@ -112,6 +112,7 @@ type Store interface {
 
 	CreateOperation(context.Context, OperationRequest, string, string, string) (Operation, bool, error)
 	CreateOperationAwaitingApprovalWithPayload(context.Context, OperationRequest, string, string, string, string, []byte) (Operation, bool, error)
+	CreateExclusiveOperationAwaitingApprovalWithPayload(context.Context, OperationRequest, string, string, string, string, []byte) (Operation, bool, *Operation, error)
 	GetOperationRequestPayload(context.Context, string) (OperationRequestPayload, error)
 	ApproveOperationAndQueue(context.Context, string, int64, string) (Operation, error)
 	GetOperation(context.Context, string) (Operation, error)
@@ -142,6 +143,7 @@ type Store interface {
 	ListOperationStepTraces(context.Context, string) ([]OperationStepTrace, error)
 	GetEvidencePayload(context.Context, string) (EvidenceMetadata, []byte, error)
 	AppendOperationEvidencePayload(context.Context, EvidenceMetadata, []byte, string, int64, string) (EvidenceMetadata, error)
+	CompleteOperationWithEvidencePayload(context.Context, string, int64, EvidenceMetadata, []byte, string, int64, string) (Operation, EvidenceMetadata, error)
 
 	ClaimOutbox(context.Context, string, int, time.Duration, time.Time) ([]OutboxEvent, error)
 	MarkOutboxPublished(context.Context, string, string, time.Time) error
