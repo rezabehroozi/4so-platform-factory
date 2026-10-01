@@ -99,3 +99,37 @@ func TestPostgresOperationExecutionAuthorityIncludesLeaseExpiryAndAttemptScopedS
 		}
 	}
 }
+
+func TestPostgresApplicationDesiredStateMutationsHonorDeploymentFence(t *testing.T) {
+	checks := map[string][]string{
+		"postgres_application_platform.go": {
+			"applicationDeploymentDesiredMutationBlockedTx",
+			"ApplicationDeploymentOperationKind",
+			"ApplicationDeploymentTargetPrefix",
+			"last_failure_class='UNKNOWN'",
+			"FOR UPDATE",
+			"environment binding has an in-flight or recovery-required application deployment",
+		},
+		"postgres_workspace.go": {
+			"JOIN operations o",
+			"application_environment_bindings e",
+			"ApplicationDeploymentOperationKind",
+			"ApplicationDeploymentTargetPrefix",
+			"o.last_failure_class='UNKNOWN'",
+			"FOR UPDATE OF o",
+			"WorkspaceBinding has an in-flight or recovery-required application deployment",
+		},
+	}
+	for file, terms := range checks {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := string(raw)
+		for _, term := range terms {
+			if !strings.Contains(source, term) {
+				t.Fatalf("%s missing application deployment desired-state fence %q", file, term)
+			}
+		}
+	}
+}
