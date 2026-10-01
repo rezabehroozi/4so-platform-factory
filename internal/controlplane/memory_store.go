@@ -743,6 +743,14 @@ func (s *MemoryStore) RevokeWorkspaceBinding(_ context.Context, id string, expec
 	if v.State != WorkspaceBindingActive {
 		return WorkspaceBinding{}, ErrInvalidTransition
 	}
+	for _, environmentBinding := range s.environmentBindings {
+		if environmentBinding.ProjectID != v.ProjectID || environmentBinding.WorkspaceBindingID != v.ID {
+			continue
+		}
+		if applicationDeploymentDesiredMutationBlockedLocked(s, v.ProjectID, environmentBinding.ClusterID, environmentBinding.ID) {
+			return WorkspaceBinding{}, fmt.Errorf("%w: WorkspaceBinding has an in-flight or recovery-required application deployment", ErrPrerequisite)
+		}
+	}
 	now := nowUTC(s.now)
 	v.State = WorkspaceBindingRevoked
 	v.RevokedBy = strings.TrimSpace(actor)
