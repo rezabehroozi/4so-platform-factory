@@ -196,23 +196,26 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c4 := byID["C4-console-e2e-ux-certification"]
-	for _, evidence := range []string{"OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1", "OPERATOR_EXPERIENCE_DISCLOSURE_EXPANDED_MATRIX_V1"} {
+	for _, evidence := range []string{"OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1", "OPERATOR_EXPERIENCE_DISCLOSURE_EXPANDED_MATRIX_V1", "FORM_VALIDATION_FEEDBACK_V1"} {
 		if !containsString(c4.Evidence, evidence) {
 			t.Fatalf("C4 deep RTL/LTR evidence %q missing: %#v", evidence, c4)
 		}
 	}
-	if len(c4.ExitCriteria) < 4 || !containsString(c4.ExitCriteria, "320/390/768/1024/1440 viewport checks cover LTR and RTL with workflow disclosures collapsed and expanded") {
+	if len(c4.ExitCriteria) < 5 || !containsString(c4.ExitCriteria, "320/390/768/1024/1440 viewport checks cover LTR and RTL with workflow disclosures collapsed and expanded") || !containsString(c4.ExitCriteria, "invalid required/pattern/range inputs expose persistent localized field errors, aria-describedby, a form summary and first-error focus in both Console and Installer") {
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c8 := byID["C8-console-operational-completion"]
-	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1"} {
+	for _, evidence := range []string{"CONSOLE_JOURNEY_RTL_LTR_HARDENING_V1", "APPLICATION_DELIVERY_JOURNEY_V1", "APPLICATION_COMPOSITION_CONSOLE_PARITY_V1", "ACTION_AVAILABILITY_RAIL_V1"} {
 		if !containsString(c8.Evidence, evidence) {
 			t.Fatalf("C8 task-first journey evidence %q missing: %#v", evidence, c8)
 		}
 	}
 	for _, criterion := range []string{
 		"core workflows expose prerequisite -> input -> preview -> approval -> progress -> evidence/recovery without hidden dead ends",
-		"application delivery presents Release -> EnvironmentBinding -> Plan/Request -> Observed Evidence in semantic DOM order and separates advanced promotion/resolution",
+		"Platform Templates and Application Delivery are separate navigation destinations rather than one overloaded page",
+		"Application Delivery exposes UI creation paths for WorkloadType, CapabilityTrait, ManagedResourceType and WorkspaceProfile before Release -> EnvironmentBinding -> Plan/Request -> Observed Evidence",
+		"application collection reads and mutation forms follow the selected global project scope and backend RBAC instead of cross-project dropdown aggregation",
+		"disabled mutation controls expose visible page-level role/scope/state reasons while remaining fail-closed",
 		"durable application deployment progress is refreshed read-only without requiring mutation replay or a manual page refresh",
 		"LTR and RTL use the same semantic ordering with logical layout properties and isolated technical identifiers",
 	} {
