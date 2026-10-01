@@ -71,9 +71,10 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         self.assertIn("install.sh doctor", result.stdout)
         self.assertIn("When omitted, the entrypoint safely checks", result.stdout)
         source = SCRIPT.read_text(encoding="utf-8")
-        self.assertIn('"readyForPreflight":%s', source)
-        self.assertIn('"bundleAdmissionVerified":false', source)
-        self.assertIn("json_escape", source)
+        self.assertIn('"readyForPreflight=${ready}"', source)
+        self.assertIn('"bundleAdmissionVerified=false"', source)
+        self.assertIn("bundleAdmissionVerified=false", source)
+        self.assertNotIn("json_escape", source)
 
 
 if __name__ == "__main__":
