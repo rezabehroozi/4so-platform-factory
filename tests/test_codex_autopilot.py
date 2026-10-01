@@ -903,3 +903,17 @@ class AgentEntrypointContractTests(unittest.TestCase):
         self.assertEqual(context["authority"], "AUTOPILOT_AGENT_CONTEXT_V1")
         self.assertIn("make autopilot-agent", context["nextAction"])
         self.assertTrue(any("owner-scoped convergence" in rule for rule in context["continuationRules"]))
+
+    def test_owner_context_is_shared_by_prompt_scope_and_report(self):
+        stage = AUTOPILOT.Stage("installer-host-smoke", ("python3", "scripts/smoke_installer_host.py"), 30)
+        owner_paths = AUTOPILOT._owner_context_paths(stage)
+        self.assertIn("install.sh", owner_paths)
+        self.assertIn("internal/hostdeployment/", owner_paths)
+        self.assertTrue(AUTOPILOT._repair_path_in_owner_scope(stage, "install.sh"))
+        self.assertTrue(AUTOPILOT._repair_path_in_owner_scope(stage, "internal/hostdeployment/deploy.go"))
+        self.assertFalse(AUTOPILOT._repair_path_in_owner_scope(stage, "internal/persistence/postgres.go"))
+        failed = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp", "failure")
+        prompt = AUTOPILOT._repair_prompt(stage, failed, 1, "CLASSIFICATION=CODE_DEFECT")
+        self.assertIn("Start with these owner paths", prompt)
+        self.assertIn("internal/hostdeployment/", prompt)
+        self.assertEqual(AUTOPILOT.OWNER_CONTEXT_AUTHORITY, "AUTOPILOT_OWNER_CONTEXT_PATHS_V1")
