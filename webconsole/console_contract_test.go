@@ -364,15 +364,28 @@ func TestOperatorConsoleActionableEmptyStateContract(t *testing.T) {
 	for _, marker := range []string{
 		"emptyFocusState",
 		"emptyDisclosureState('No maintenance windows'",
+		"emptyDisclosureState('No enrollment requests'",
+		"emptyFocusState('No recommendations'",
+		"emptyFocusState('No files added'",
+		"emptyDisclosureState('No overlays'",
+		"emptyDisclosureState('No pull requests'",
+		"emptyDisclosureState('No backup or restore runs'",
+		"emptyState('No fleet health data'",
 		"'maintenance-window-name'",
 		"'blueprint-project'",
 		"'global-organization-scope'",
+		"'cluster-import-console'",
+		"'marketplace-objective'",
+		"'git-file-path'",
+		"'blueprint-expert-tools'",
+		"'service-publishing-console'",
+		"'data-protection-console'",
 		"Manage agent identities",
 		"renderDaprRuntimePrerequisite",
 	} {
 		if !strings.Contains(js, marker) { t.Fatalf("actionable empty-state runtime missing %q", marker) }
 	}
-	for _, id := range []string{"cluster-import-console", "cluster-project", "maintenance-window-name", "blueprint-project", "global-organization-scope", "dapr-prerequisite"} {
+	for _, id := range []string{"cluster-import-console", "cluster-project", "maintenance-window-name", "blueprint-project", "global-organization-scope", "marketplace-objective", "git-file-path", "blueprint-expert-tools", "service-publishing-console", "data-protection-console", "data-protection-cluster", "dapr-prerequisite"} {
 		if !strings.Contains(html, `id="`+id+`"`) { t.Fatalf("actionable empty-state owner target missing %q", id) }
 	}
 }
