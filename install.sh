@@ -5,6 +5,7 @@ AUTHORITY="INSTALLER_MANUAL_ENTRYPOINT_V1"
 CONTINUATION_AUTHORITY="INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1"
 ACTIONABLE_AUTHORITY="INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1"
 DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"
+HOST_RUNTIME_DOCTOR_AUTHORITY="INSTALLER_MANUAL_HOST_RUNTIME_DOCTOR_V1"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
 INSTALLER="${ROOT_DIR}/bin/linux-amd64/platform-installer"
@@ -95,12 +96,18 @@ case "${mode}" in
     access_has_token_file=false
     access_token_file=""
     for ((i=0; i<${#access_args[@]}; i++)); do
+      case "${access_args[i]}" in
+        --installer-url|--token-file|--ca-file|--confirmation)
+          if [[ $((i + 1)) -ge ${#access_args[@]} ]]; then
+            echo "ERROR ${AUTHORITY}: ${access_args[i]} requires a value" >&2
+            exit 2
+          fi
+          ;;
+      esac
       [[ "${access_args[i]}" == "--installer-url" ]] && access_has_url=true
       if [[ "${access_args[i]}" == "--token-file" ]]; then
         access_has_token_file=true
-        if [[ $((i + 1)) -lt ${#access_args[@]} ]]; then
-          access_token_file="${access_args[i+1]}"
-        fi
+        access_token_file="${access_args[i+1]}"
       fi
     done
     if [[ "${access_has_token_file}" != true && -z "${PLATFORM_INSTALLER_TOKEN:-}" ]]; then
@@ -238,6 +245,7 @@ if [[ "${mode}" == "doctor" ]]; then
   printf '%s\n' \
     "authority=INSTALLER_MANUAL_DOCTOR_V1" \
     "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
+    "hostRuntimeAuthority=${HOST_RUNTIME_DOCTOR_AUTHORITY}" \
     "readyForPreflight=${ready}" \
     "bundleAdmissionVerified=false" \
     "hostPlatformReady=${host_platform_ready}" \
