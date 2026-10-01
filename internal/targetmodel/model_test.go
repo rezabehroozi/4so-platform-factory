@@ -582,6 +582,30 @@ func TestCompetitivePrePhysicalRoadmapKeepsSoftwareExpansionRunnable(t *testing.
 	if j8.Status != ProgramStatusBlocked || j8.SourceStatus != ProgramSourceStatusImplemented || j8.RequiredForFeatureFreeze || !containsString(j8.Evidence, OpenChoreoReferenceAuthority) || !containsString(j8.Evidence, DaprApplicationRuntimeAuthority) || !containsString(j8.Evidence, DaprRuntimeSourcePlanAuthority) || !containsString(j8.Evidence, DaprRuntimeSupplyChainAuthority) || !containsString(j8.Evidence, DaprTargetAdmissionAuthority) || !containsString(j8.Evidence, "DAPR_TARGET_LIFECYCLE_AUTHORITY_V1") || !containsString(j8.Evidence, "DAPR_TARGET_EXECUTOR_RUNTIME_V1") || !containsString(j8.Evidence, "DAPR_TARGET_EXECUTOR_JOB_AUTHORITY_V1") || !containsString(j8.Evidence, "DAPR_TARGET_OBSERVED_RECEIPT_V1") || !containsString(j8.Evidence, "DAPR_TARGET_MIRROR_PULL_EVIDENCE_V1") || !containsString(j8.Evidence, "DAPR_WORKLOAD_ADMISSION_AUTHORITY_V1") || !containsString(j8.Evidence, "DAPR_WORKLOAD_ADMISSION_EVIDENCE_V1") || !containsString(j8.Evidence, "DAPR_WORKLOAD_POLICY_PROJECTION_V1") || !containsString(j8.Evidence, "DAPR_WORKLOAD_ADMISSION_EXECUTOR_JOB_V1") || !containsString(j8.Evidence, "DAPR_EXECUTOR_IMAGE_EVIDENCE_V1") || !containsString(j8.Evidence, "dapr-workload-admission-rbac-active") || !containsString(j8.Evidence, "4so-dapr-workload-admitter") || !containsString(j8.Evidence, "application-runtime.dapr") || !containsString(j8.Evidence, "internal/targetmodel/dapr.go") || !containsString(j8.Evidence, "internal/dapr/executor_authority.go") || !containsString(j8.Evidence, "internal/dapr/workload_admission.go") || !containsString(j8.Evidence, "internal/dapr/workload_policy.go") || !containsString(j8.Evidence, "internal/api/dapr_lifecycle.go") || !containsString(j8.Evidence, "internal/api/dapr_workload_admission.go") || !containsString(j8.Evidence, "cmd/platform-agent/dapr_runtime.go") || !containsString(j8.Evidence, "cmd/platform-agent/dapr_workload_admission.go") || !containsString(j8.Evidence, "POST /api/v1/application-platform/dapr/assessment") || !containsString(j8.Evidence, "POST /api/v1/application-platform/dapr/workload-admissions") || !containsString(j8.Evidence, "GET /api/v1/application-platform/dapr/workload-admissions/{id}") || !containsString(j8.Evidence, "POST /api/v1/application-platform/dapr/lifecycle") || !containsString(j8.Evidence, "GET /agent/v1/clusters/{id}/dapr-recovery/next") {
 		t.Fatalf("application-platform composition phase drift: %+v", j8)
 	}
+	for _, evidence := range []string{
+		"APPLICATION_DEPLOYMENT_PLAN_V1",
+		"APPLICATION_DEPLOYMENT_REQUEST_V1",
+		"APPLICATION_DEPLOYMENT_EVIDENCE_V1",
+		"application-deployment-rbac-active",
+		"4so-platform-application-manager",
+		"internal/controlplane/application_deployment.go",
+		"internal/controlplane/application_deployment_runtime.go",
+		"internal/api/application_deployment_runtime.go",
+		"cmd/platform-agent/application_deployment.go",
+		"POST /api/v1/application-platform/environment-bindings/{id}/deployment-plan",
+		"POST /api/v1/application-platform/environment-bindings/{id}/deployments",
+		"GET /api/v1/application-platform/deployments/{id}",
+		"POST /api/v1/application-platform/deployments/{id}/approve",
+		"GET /agent/v1/clusters/{id}/application-deployment-tasks/next",
+		"POST /agent/v1/clusters/{id}/application-deployment-tasks/{operationId}/result",
+		"GET /agent/v1/clusters/{id}/application-deployment-recovery/next",
+		"POST /agent/v1/clusters/{id}/application-deployment-recovery/{operationId}/result",
+		"OPERATION_UNKNOWN_OUTCOME_RECOVERY_V1",
+	} {
+		if !containsString(j8.Evidence, evidence) {
+			t.Fatalf("J8 application deployment authority evidence missing %s: %#v", evidence, j8)
+		}
+	}
 	if len(j8.Blockers) != 1 || !containsString(j8.Blockers, "OPENCHOREO_PRODUCTION_ZOT_SEAL_PENDING") || containsString(j8.Blockers, "DAPR_RUNTIME_PENDING") {
 		t.Fatalf("J8 must retain only the OpenChoreo production zot seal blocker; optional Dapr may not become a release blocker: %+v", j8)
 	}
