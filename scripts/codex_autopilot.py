@@ -365,7 +365,8 @@ def _redact_failure_text(text: str) -> str:
     return redacted
 
 
-def _triage_prompt(stage: Stage, result: StageResult, iteration: int) -> str:
+def _triage_prompt(stage: Stage, result: StageResult, iteration: int, root: Path | None = None) -> str:
+    failure_hints = _failure_path_hints(root, stage, result.output_tail) if root is not None else []
     return textwrap.dedent(f"""
         You are the read-only 4SO Platform Factory triage agent for specialist
         `{_stage_specialist(stage)}`. Do not edit files and do not run destructive
@@ -381,6 +382,8 @@ def _triage_prompt(stage: Stage, result: StageResult, iteration: int) -> str:
         Command: {' '.join(stage.command)}
         Start with these owner paths before broad repository search:
         {', '.join(_owner_context_paths(stage)) or '(owner mapping unavailable; stay on the failing command and its direct imports)'}
+        Exact failure path hints, when present:
+        {', '.join(failure_hints) or '(none extracted; do not broaden search unless the owner proof requires it)'}
 
         Compact redacted failure capsule:
         {_failure_capsule(result.output_tail, max_chars=TRIAGE_FAILURE_CAPSULE_MAX_CHARS)}
@@ -434,6 +437,7 @@ OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_OWNER_CONTEXT_PATHS_V1"
 PROMPT_BUDGET_AUTHORITY = "AUTOPILOT_PROMPT_BUDGET_V1"
 AGENT_REPAIR_BUDGET_AUTHORITY = "AUTOPILOT_AGENT_REPAIR_BUDGET_V1"
 FAILURE_PATH_HINTS_AUTHORITY = "AUTOPILOT_FAILURE_PATH_HINTS_V1"
+EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY = "AUTOPILOT_EXTERNAL_OWNER_FIX_ADOPTION_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -556,7 +560,8 @@ def print_environment_preflight(*, require_codex: bool, stages: list[Stage] | No
     return 0
 
 
-def _repair_prompt(stage: Stage, result: StageResult, iteration: int, triage: str = "") -> str:
+def _repair_prompt(stage: Stage, result: StageResult, iteration: int, triage: str = "", root: Path | None = None) -> str:
+    failure_hints = _failure_path_hints(root, stage, result.output_tail) if root is not None else []
     return textwrap.dedent(f"""
         You are the single-writer 4SO Platform Factory correctness repair worker
         for specialist `{_stage_specialist(stage)}`.
@@ -577,6 +582,8 @@ def _repair_prompt(stage: Stage, result: StageResult, iteration: int, triage: st
         Command: {' '.join(stage.command)}
         Start with these owner paths before broad repository search:
         {', '.join(_owner_context_paths(stage)) or '(owner mapping unavailable; stay on the failing command and its direct imports)'}
+        Exact failure path hints, when present:
+        {', '.join(failure_hints) or '(none extracted; do not broaden search unless the owner proof requires it)'}
 
         Compact redacted failure capsule:
         {_failure_capsule(result.output_tail, max_chars=REPAIR_FAILURE_CAPSULE_MAX_CHARS)}
@@ -641,7 +648,7 @@ def invoke_codex_triage(root: Path, stage: Stage, result: StageResult, iteration
     if not triage_base:
         return False, "ENVIRONMENT", "CODEX_CLI_UNAVAILABLE"
     try:
-        triage_run = _run(tuple([*triage_base, _triage_prompt(stage, result, iteration)]), cwd=root, timeout=min(timeout, 300), track_state_root=root, active_label="codex-triage:" + stage.name)
+        triage_run = _run(tuple([*triage_base, _triage_prompt(stage, result, iteration, root)]), cwd=root, timeout=min(timeout, 300), track_state_root=root, active_label="codex-triage:" + stage.name)
     except subprocess.TimeoutExpired:
         return False, "ENVIRONMENT", "CODEX_TRIAGE_TIMEOUT"
     triage_tail = _failure_capsule(triage_run.stdout, max_lines=20, max_chars=TRIAGE_RESULT_MAX_CHARS)
@@ -660,7 +667,7 @@ def invoke_codex(root: Path, stage: Stage, result: StageResult, iteration: int, 
     repair_base = _codex_command(sandbox="workspace-write")
     if not repair_base:
         return False, "CODEX_CLI_UNAVAILABLE"
-    prompt = _repair_prompt(stage, result, iteration, triage_tail)
+    prompt = _repair_prompt(stage, result, iteration, triage_tail, root)
     cmd = [*repair_base, prompt]
     try:
         p = _run(tuple(cmd), cwd=root, timeout=timeout, track_state_root=root, active_label="codex-repair:" + stage.name)
