@@ -8,8 +8,8 @@
     "durableOperationAuthorityRemainsServerSide": true,
     "rawCredentialEmbeddingAllowed": false
   },
-  "routeCount": 394,
-  "routeDigest": "sha256:4a796ab2b0ef623cf6dd4bae4ba2d8227b57e4524a0ba87d7a72b95f61068c0b",
+  "routeCount": 395,
+  "routeDigest": "sha256:632d67e1adf43c40a85f8ff2651316dfac60aeb62f66d78b5fd99736749a0244",
   "routes": [
     {
       "family": "version",
@@ -1256,6 +1256,17 @@
       "method": "POST",
       "mutation": true,
       "path": "/api/v1/application-platform/environment-bindings/{id}/deployment-plan",
+      "pathParams": [
+        "id"
+      ],
+      "resourceScope": "PROJECT_SCOPED",
+      "resourceScopeStatus": "OWNER_CLASSIFIED"
+    },
+    {
+      "family": "application-platform",
+      "method": "GET",
+      "mutation": false,
+      "path": "/api/v1/application-platform/environment-bindings/{id}/deployments",
       "pathParams": [
         "id"
       ],
