@@ -65,10 +65,21 @@ func cloneApplicationResource(t *testing.T, in map[string]any) map[string]any {
 
 func TestApplicationDeploymentProcessorIsInSingleWriterLane(t *testing.T) {
 	a := &agent{}
-	for _, p := range a.taskProcessors() {
-		if p.name == "application deployment" { return }
+	recoveryIndex, deploymentIndex := -1, -1
+	for index, p := range a.taskProcessors() {
+		switch p.name {
+		case "application deployment recovery readback":
+			recoveryIndex = index
+		case "application deployment":
+			deploymentIndex = index
+		}
 	}
-	t.Fatal("application deployment processor is not part of the single-writer agent task lane")
+	if recoveryIndex < 0 || deploymentIndex < 0 {
+		t.Fatalf("application deployment processors missing: recovery=%d deployment=%d", recoveryIndex, deploymentIndex)
+	}
+	if recoveryIndex >= deploymentIndex {
+		t.Fatalf("application deployment recovery must run before new deployment claims: recovery=%d deployment=%d", recoveryIndex, deploymentIndex)
+	}
 }
 
 func TestApplicationDeploymentReadbackBindsExactArtifactAndAuthority(t *testing.T) {
@@ -118,5 +129,51 @@ func TestApplicationDeploymentUnknownMutationOutcomeRequiresRecovery(t *testing.
 	unknown, err := a.applyApplicationDeploymentResource(context.Background(), task.Request, task.Request.Plan.RenderedResources[0])
 	if err == nil || !unknown || !kubeMutationOutcomeUnknown(err) {
 		t.Fatalf("ambiguous application Deployment mutation was replay-safe: unknown=%v err=%v", unknown, err)
+	}
+}
+
+func TestApplicationDeploymentRecoveryReadbackIsMutationFreeAndExact(t *testing.T) {
+	base := applicationDeploymentAgentTask(t)
+	task := agentApplicationDeploymentRecoveryTask{
+		OperationID: base.OperationID,
+		OperationRevision: base.OperationRevision + 2,
+		TaskFenceToken: base.TaskFenceToken,
+		Request: base.Request,
+	}
+	deployment := cloneApplicationResource(t, task.Request.Plan.RenderedResources[0])
+	deploymentMeta := deployment["metadata"].(map[string]any)
+	deploymentMeta["uid"] = "uid-recovered-deployment"
+	deploymentMeta["generation"] = float64(7)
+	deployment["status"] = map[string]any{"observedGeneration": float64(7), "readyReplicas": float64(2)}
+	service := cloneApplicationResource(t, task.Request.Plan.RenderedResources[1])
+	service["spec"].(map[string]any)["clusterIP"] = "10.96.0.88"
+	deploymentPath := "/apis/apps/v1/namespaces/payments/deployments/" + task.Request.Plan.WorkloadName
+	servicePath := "/api/v1/namespaces/payments/services/" + task.Request.Plan.WorkloadName
+	mutations := 0
+	a := virtualClusterAgentForKubeTest(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method != http.MethodGet {
+			mutations++
+			return jsonResponse(http.StatusMethodNotAllowed, nil), nil
+		}
+		switch r.URL.Path {
+		case deploymentPath:
+			return jsonResponse(http.StatusOK, deployment), nil
+		case servicePath:
+			return jsonResponse(http.StatusOK, service), nil
+		default:
+			return jsonResponse(http.StatusNotFound, nil), nil
+		}
+	}))
+	a.clusterID = task.Request.Plan.ClusterID
+	evidence, confirmed, err := a.readApplicationDeploymentRecoveryEvidence(context.Background(), task)
+	if err != nil || !confirmed {
+		t.Fatalf("exact recovery readback was not confirmed: confirmed=%v err=%v evidence=%#v", confirmed, err, evidence)
+	}
+	if mutations != 0 {
+		t.Fatalf("application deployment recovery performed %d target mutations", mutations)
+	}
+	if evidence.OperationID != task.OperationID || evidence.Readback.WorkloadImage != task.Request.Plan.WorkloadImageReference ||
+		!evidence.Readback.AuthorityDigestsMatch || !evidence.Readback.ServiceObserved || evidence.PhysicalCertificationInferred {
+		t.Fatalf("application deployment recovery evidence drift: %#v", evidence)
 	}
 }
