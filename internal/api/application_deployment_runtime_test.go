@@ -148,7 +148,7 @@ func TestApplicationDeploymentDurableAuthorityProducesDeliveryEvidence(t *testin
 		ReleaseDigest: plan.ReleaseDigest, InventoryDigest: task.Request.InventoryDigest, RenderedDigest: plan.RenderedDigest,
 		Readback: controlplane.ApplicationDeploymentReadback{
 			DeploymentName: plan.WorkloadName, DeploymentUID: "uid-payments-deployment",
-			Generation: 2, ObservedGeneration: 2, DesiredReplicas: 2, ReadyReplicas: 2,
+			Generation: 2, ObservedGeneration: 2, DesiredReplicas: 2, UpdatedReplicas: 2, ReadyReplicas: 2, AvailableReplicas: 2,
 			WorkloadImage: plan.WorkloadImageReference,
 			CPURequest: plan.RuntimeSpec.CPURequest, CPULimit: plan.RuntimeSpec.CPULimit,
 			MemoryRequest: plan.RuntimeSpec.MemoryRequest, MemoryLimit: plan.RuntimeSpec.MemoryLimit,
@@ -284,7 +284,7 @@ func TestApplicationDeploymentDurableAuthorityProducesDeliveryEvidence(t *testin
 		ReleaseDigest: recoveryPlan.ReleaseDigest, InventoryDigest: recoveryTask.Request.InventoryDigest, RenderedDigest: recoveryPlan.RenderedDigest,
 		Readback: controlplane.ApplicationDeploymentReadback{
 			DeploymentName: recoveryPlan.WorkloadName, DeploymentUID: "uid-payments-deployment-recovered",
-			Generation: 3, ObservedGeneration: 3, DesiredReplicas: recoveryPlan.RuntimeSpec.Replicas, ReadyReplicas: recoveryPlan.RuntimeSpec.Replicas,
+			Generation: 3, ObservedGeneration: 3, DesiredReplicas: recoveryPlan.RuntimeSpec.Replicas, UpdatedReplicas: recoveryPlan.RuntimeSpec.Replicas, ReadyReplicas: recoveryPlan.RuntimeSpec.Replicas, AvailableReplicas: recoveryPlan.RuntimeSpec.Replicas,
 			WorkloadImage: recoveryPlan.WorkloadImageReference,
 			CPURequest: recoveryPlan.RuntimeSpec.CPURequest, CPULimit: recoveryPlan.RuntimeSpec.CPULimit,
 			MemoryRequest: recoveryPlan.RuntimeSpec.MemoryRequest, MemoryLimit: recoveryPlan.RuntimeSpec.MemoryLimit,
