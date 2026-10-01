@@ -837,6 +837,8 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
         stage = AUTOPILOT.Stage("smoke-ui-quality", ("true",), 10)
         self.assertFalse(AUTOPILOT._repair_requires_full_convergence(stage, ["webconsole/static/app.js"]))
         self.assertTrue(AUTOPILOT._repair_requires_full_convergence(stage, ["internal/persistence/postgres.go"]))
+        self.assertTrue(AUTOPILOT._repair_requires_full_convergence(stage, ["scripts/codex_autopilot.py"]))
+        self.assertTrue(AUTOPILOT._repair_requires_full_convergence(stage, ["scripts/validate_repository.py"]))
         self.assertTrue(AUTOPILOT._repair_requires_full_convergence(stage, []))
 
     def test_structured_triage_parser_accepts_wrapper_lines_but_rejects_ambiguity(self):
@@ -933,8 +935,8 @@ class AgentEntrypointContractTests(unittest.TestCase):
                 "schemaVersion": 1,
                 "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
                 "graphSignature": "graph",
-                "status": "CODE_DEFECT",
-                "lastFailure": {"stage": stage.name, "status": "FAIL", "fingerprint": "fp"},
+                "status": "ENVIRONMENT_BLOCKED",
+                "lastFailure": {"stage": stage.name, "status": "FAIL", "fingerprint": "fp", "classification": "CODE_DEFECT"},
             }
             AUTOPILOT._report_path(root).write_text(json.dumps(report), encoding="utf-8")
             state = {
@@ -966,8 +968,8 @@ class AgentEntrypointContractTests(unittest.TestCase):
                 "schemaVersion": 1,
                 "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
                 "graphSignature": "graph",
-                "status": "CODE_DEFECT",
-                "lastFailure": {"stage": stage.name, "status": "FAIL", "fingerprint": "fp"},
+                "status": "ENVIRONMENT_BLOCKED",
+                "lastFailure": {"stage": stage.name, "status": "FAIL", "fingerprint": "fp", "classification": "CODE_DEFECT"},
             }), encoding="utf-8")
             state = {
                 "phase": "forward",
@@ -1000,6 +1002,53 @@ class AgentEntrypointContractTests(unittest.TestCase):
             self.assertFalse(adopted)
             self.assertTrue(reason.startswith("OWNER_SCOPE_VIOLATION:"))
             self.assertEqual(delta, ["scripts/codex_autopilot.py"])
+
+    def test_external_owner_fix_adoption_requires_durable_code_defect_classification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".state").mkdir()
+            stage = AUTOPILOT.Stage("installer-host-smoke", ("false",), 30)
+            state = {
+                "phase": "forward",
+                "currentStage": stage.name,
+                "nextIndex": 0,
+                "gitHead": "a" * 40,
+                "workspaceDirtyManifest": {},
+            }
+            AUTOPILOT._report_path(root).write_text(json.dumps({
+                "schemaVersion": 1,
+                "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+                "graphSignature": "graph",
+                "status": "CODE_DEFECT",
+                "lastFailure": {"stage": stage.name, "status": "FAIL", "fingerprint": "fp"},
+            }), encoding="utf-8")
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_git_dirty_manifest", return_value={"install.sh": "after"}):
+                adopted, reason, _ = AUTOPILOT._try_adopt_external_owner_fix(
+                    root, state, graph_signature="graph", stages=[stage],
+                )
+            self.assertFalse(adopted)
+            self.assertEqual(reason, "REPORT_NOT_CODE_DEFECT_CLASSIFICATION")
+
+    def test_triage_classification_is_persisted_with_failure_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = AUTOPILOT.Stage("installer-host-smoke", ("false",), 30)
+            result = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp-classification", "failure")
+            AUTOPILOT._write_checkpoint(root, {
+                "graphSignature": "graph",
+                "repair": True,
+                "phase": "forward",
+                "nextIndex": 0,
+                "currentStage": stage.name,
+                "repairCount": 0,
+                "seenFailures": [],
+            })
+            AUTOPILOT._record_triage_classification(root, stage, result, "CODE_DEFECT")
+            state = json.loads(AUTOPILOT._checkpoint_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(state["lastFailureClassification"], "CODE_DEFECT")
+            self.assertEqual(state["lastFailureStage"], stage.name)
+            self.assertEqual(state["lastFailureFingerprint"], result.fingerprint)
 
     def test_agent_context_recommends_single_durable_entrypoint_when_idle(self):
         with tempfile.TemporaryDirectory() as directory:
