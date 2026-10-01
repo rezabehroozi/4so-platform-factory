@@ -878,9 +878,19 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
       const stalePrimary=primarySections.filter(section=>!Object.prototype.hasOwnProperty.call(sectionNavigation,section));
       const badHomes=primary.filter(item=>!sectionNavigation[item.section]?.includes(item.home));
       const missingTitles=renderedPages.filter(page=>!pageTitles[page]);
-      return {renderedPages,runtimePages,duplicates,missingFromRuntime,staleRuntime,groupMismatches,missingPrimary,stalePrimary,badHomes,missingTitles};
+      const titleGroupMismatches=[];
+      for(const [section,pages] of runtimeEntries){
+        for(const page of pages){
+          const entry=pageTitles[page],labels=sectionLabels[section];
+          if(!entry||!labels)continue;
+          if(entry.en?.[0]!==labels.en||entry.fa?.[0]!==labels.fa){
+            titleGroupMismatches.push({section,page,en:entry.en?.[0],expectedEn:labels.en,fa:entry.fa?.[0],expectedFa:labels.fa});
+          }
+        }
+      }
+      return {renderedPages,runtimePages,duplicates,missingFromRuntime,staleRuntime,groupMismatches,missingPrimary,stalePrimary,badHomes,missingTitles,titleGroupMismatches};
     }""")
-    if any(navigation_parity.get(key) for key in ("duplicates","missingFromRuntime","staleRuntime","groupMismatches","missingPrimary","stalePrimary","badHomes","missingTitles")):
+    if any(navigation_parity.get(key) for key in ("duplicates","missingFromRuntime","staleRuntime","groupMismatches","missingPrimary","stalePrimary","badHomes","missingTitles","titleGroupMismatches")):
         failures.append(f"console:navigation-route-ownership-parity:{navigation_parity}")
     directional = page.evaluate("""() => {
       const second=document.querySelector('#workspace .ownership-model-strip span + span');
