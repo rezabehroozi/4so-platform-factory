@@ -467,6 +467,9 @@ class AutopilotAgentContextTests(unittest.TestCase):
                 },
             }
             AUTOPILOT._report_path(root).write_text(json.dumps(report), encoding="utf-8")
+            AUTOPILOT._checkpoint_path(root).write_text(json.dumps({
+                "lastFailureCapsule": "ERROR owner mismatch token=[REDACTED]"
+            }), encoding="utf-8")
             with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
                 context = AUTOPILOT._agent_context(root)
             raw = json.dumps(context)
@@ -475,6 +478,8 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["lastFailure"]["fingerprint"], "fp-compact")
             self.assertNotIn("output_tail", raw)
             self.assertNotIn("secret raw output", raw)
+            self.assertEqual(context["failureCapsule"], "ERROR owner mismatch token=[REDACTED]")
+            self.assertLessEqual(len(context["failureCapsule"]), 3200)
             self.assertEqual(context["resumeInvocation"][-1], "--repair")
             self.assertIn("AGENTS.md", context["sourceContext"]["agentInstructions"])
 
@@ -717,11 +722,20 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
         self.assertNotIn("lab-runner-tests", names)
         self.assertLess(len(selected), len(stages))
 
+    def test_installer_smokes_are_independent_checkpoint_stages(self):
+        stages = AUTOPILOT.canonical_stages(ROOT)
+        names = [stage.name for stage in stages]
+        self.assertNotIn("smoke-4", names)
+        self.assertLess(names.index("installer-core-smoke"), names.index("installer-host-smoke"))
+        self.assertLess(names.index("installer-host-smoke"), names.index("installer-remote-smoke"))
+
     def test_installer_repair_uses_installer_and_package_convergence(self):
         stages = AUTOPILOT.canonical_stages(ROOT)
-        selected = AUTOPILOT._select_convergence_stages(stages, {"smoke-4"})
+        selected = AUTOPILOT._select_convergence_stages(stages, {"installer-remote-smoke"})
         names = [stage.name for stage in selected]
-        self.assertIn("smoke-4", names)
+        self.assertIn("installer-core-smoke", names)
+        self.assertIn("installer-host-smoke", names)
+        self.assertIn("installer-remote-smoke", names)
         self.assertIn("smoke-ui-workflow-e2e", names)
         self.assertIn("package", names)
         self.assertNotIn("lab-runner-tests", names)
