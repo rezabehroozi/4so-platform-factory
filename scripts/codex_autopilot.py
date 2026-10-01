@@ -852,6 +852,19 @@ def _repair_requires_full_convergence(stage: Stage, changed_paths: list[str]) ->
     return any(not _repair_path_in_owner_scope(stage, path) for path in changed_paths)
 
 
+def _external_adoption_path_in_owner_scope(stage: Stage, relative_path: str) -> bool:
+    """Stricter than repair scope: orchestration/gate edits invalidate resume semantics."""
+    path = relative_path.replace("\\", "/").lstrip("./")
+    cross_cutting = {
+        "scripts/codex_autopilot.py",
+        "tests/test_codex_autopilot.py",
+        "scripts/validate_repository.py",
+    }
+    if path in cross_cutting:
+        return False
+    return any(path.startswith(prefix) for prefix in _OWNER_CONTEXT_PATHS.get(_stage_specialist(stage), ()))
+
+
 _FAILURE_PATH_RE = re.compile(
     r"(?<![A-Za-z0-9_.-])((?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.(?:go|py|js|css|html|json|sh|yaml|yml))(?:[:(]\d+)?"
 )
@@ -1470,7 +1483,7 @@ def _try_adopt_external_owner_fix(root: Path, state: dict, *, graph_signature: s
     delta = _workspace_manifest_delta(before_clean, after)
     if not delta:
         return False, "NO_EXTERNAL_DELTA", []
-    outside = [item for item in delta if not _repair_path_in_owner_scope(stage, item)]
+    outside = [item for item in delta if not _external_adoption_path_in_owner_scope(stage, item)]
     if outside:
         return False, "OWNER_SCOPE_VIOLATION:" + ",".join(outside[:8]), delta
     return True, stage.name, delta
