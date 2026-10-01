@@ -474,6 +474,11 @@ func TestOperatorConsoleApplicationEmptyStateJourneyContract(t *testing.T) {
 		"Create workspace profile",
 		"Create environment binding",
 		"renderApplicationDeliveryPrerequisite();",
+		"syncApplicationDeliveryDisclosure();",
+		"Active namespace binding",
+		"Bind namespace",
+		"library-workload",
+		"library-profile",
 	} {
 		if !strings.Contains(js, marker) { t.Fatalf("application direct empty/prerequisite journey missing %q", marker) }
 	}
