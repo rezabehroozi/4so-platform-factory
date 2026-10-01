@@ -989,11 +989,13 @@ html[data-theme="dark"] .operator-briefing::after,html[data-theme="dark"] .topba
 @media(max-width:560px){.application-delivery-journey{grid-template-columns:1fr}.application-delivery-journey button{min-height:60px}}
 
 /* C3 authoritative mutation outcome rail: accepted state is not terminal success. */
+.page-action-availability{margin:0 20px 12px;padding:10px 14px;border:1px solid var(--warning-border);border-inline-start:4px solid var(--warning-fg);border-radius:var(--radius-md);background:var(--warning-bg);color:var(--warning-fg);display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 10px;align-items:start;overflow-wrap:anywhere}
+.page-action-availability[hidden]{display:none}.page-action-availability strong{color:inherit}.page-action-availability small{grid-column:1/-1;color:inherit;opacity:.86;line-height:1.45}
 .mutation-outcome{margin:0 20px 12px;padding:12px 14px;border:1px solid var(--border);border-inline-start:4px solid var(--accent);border-radius:var(--radius-md);background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow-card)}
 .mutation-outcome[hidden]{display:none}
 .mutation-outcome>div:first-child{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
 .mutation-outcome .button-row{margin-inline-start:auto;flex:0 0 auto}
-@media (max-width:640px){.mutation-outcome{margin-inline:12px;align-items:stretch;flex-direction:column}.mutation-outcome .button-row{margin-inline-start:0;justify-content:flex-start}}
+@media (max-width:640px){.page-action-availability{margin-inline:12px;grid-template-columns:1fr}.mutation-outcome{margin-inline:12px;align-items:stretch;flex-direction:column}.mutation-outcome .button-row{margin-inline-start:0;justify-content:flex-start}}
 /* C8 operational centers: bounded technical identifiers must never widen mobile pages. */
 .empty-state p, #autopilot-campaign-center small, #autopilot-campaign-center .technical, #support-diagnostics-center option, #installer-recovery-center .technical, #ai-agent-access-center .technical { overflow-wrap:anywhere; word-break:break-word; }
 #operations .two-column, #operations .panel, #operations form, #operations .activity-list, #installation #installer-recovery-center, #ai #ai-agent-access-center { min-width:0; max-width:100%; }
