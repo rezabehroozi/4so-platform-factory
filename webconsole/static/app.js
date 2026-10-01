@@ -5141,28 +5141,83 @@ function hasActiveWork(page = state.currentPage){
   };
   return (pageCollections[page]||[]).some(items=>(items||[]).some(item=>/REQUESTED|PENDING|QUEUED|RUNNING|PLANNING|APPLYING|VERIFYING|UPGRADING|DELIVERING|PROVISIONING|RESIZING|SUSPENDING|RESUMING|DELETING|AWAITING_APPROVAL|PAUSE_REQUESTED|ROLLING/i.test(String(item.state||item.status||''))));
 }
+let generatedFieldValidationId=0;
 function markFormClean(form){if(form?.dataset)delete form.dataset.dirty;}
 function markDirtyTarget(target){const form=target.closest?.('form');if(form?.closest('.page'))form.dataset.dirty='true';else if(target.matches?.('[data-dirty-guard]')&&target.closest?.('.page'))target.dataset.dirty='true';}
+function validationMessageFor(target){
+  const v=target?.validity;if(!v)return '';
+  const faLocale=state.locale==='fa';
+  if(v.valueMissing)return faLocale?'این فیلد الزامی است.':'This field is required.';
+  if(v.typeMismatch)return faLocale?'مقدار واردشده با نوع مورد انتظار سازگار نیست.':'Enter a value in the expected format.';
+  if(v.patternMismatch)return faLocale?'فرمت مقدار با الگوی مورد انتظار سازگار نیست.':'Use the required format shown for this field.';
+  if(v.rangeUnderflow)return faLocale?`مقدار باید حداقل ${target.min} باشد.`:`Value must be at least ${target.min}.`;
+  if(v.rangeOverflow)return faLocale?`مقدار باید حداکثر ${target.max} باشد.`:`Value must be at most ${target.max}.`;
+  if(v.tooShort)return faLocale?`حداقل ${target.minLength} کاراکتر وارد کنید.`:`Enter at least ${target.minLength} characters.`;
+  if(v.tooLong)return faLocale?`حداکثر ${target.maxLength} کاراکتر مجاز است.`:`Use no more than ${target.maxLength} characters.`;
+  if(v.stepMismatch)return faLocale?'مقدار با گام مجاز این فیلد سازگار نیست.':'Enter a value that matches the allowed step.';
+  if(v.badInput)return faLocale?'مقدار واردشده قابل‌خواندن نیست.':'Enter a valid value.';
+  if(v.customError&&target.validationMessage)return target.validationMessage;
+  return faLocale?'این مقدار معتبر نیست.':'Check this value.';
+}
+function fieldValidationId(target){
+  if(!target.id)target.id=`validated-field-${++generatedFieldValidationId}`;
+  return `${target.id}-error`;
+}
+function validationDescriptionTokens(target){
+  return new Set(String(target.getAttribute('aria-describedby')||'').split(/\s+/).filter(Boolean));
+}
+function updateFormValidationSummary(form){
+  if(!form||form.getAttribute('method')==='dialog')return;
+  const invalid=$('input[aria-invalid="true"],select[aria-invalid="true"],textarea[aria-invalid="true"]',form).filter(node=>!node.disabled);
+  let summary=$('.form-validation-summary',form);
+  if(!invalid.length){summary?.remove();return;}
+  if(!summary){summary=document.createElement('div');summary.className='form-validation-summary';summary.setAttribute('role','alert');summary.setAttribute('aria-live','polite');form.prepend(summary);}
+  const faLocale=state.locale==='fa';
+  summary.innerHTML=`<strong>${esc(faLocale?'فرم نیاز به اصلاح دارد':'Review the highlighted fields')}</strong><span>${esc(faLocale?`${displayNumber(invalid.length)} فیلد را بررسی کنید؛ خطا کنار همان فیلد توضیح داده شده است.`:`${invalid.length} field${invalid.length===1?'':'s'} need attention. Each error is explained next to its field.`)}</span>`;
+}
 function markFieldInvalid(target){
   if(!target?.matches?.('input,select,textarea'))return;
   target.setAttribute('aria-invalid','true');
-  target.closest('label')?.classList.add('field-invalid');
+  const label=target.closest('label');label?.classList.add('field-invalid');
+  const id=fieldValidationId(target);
+  let error=document.getElementById(id);
+  if(!error){
+    error=document.createElement('small');error.id=id;error.className='field-error';error.setAttribute('aria-live','polite');
+    if(label)label.append(error);else target.insertAdjacentElement('afterend',error);
+  }
+  error.textContent=validationMessageFor(target);
+  const described=validationDescriptionTokens(target);described.add(id);target.setAttribute('aria-describedby',[...described].join(' '));
+  queueMicrotask(()=>updateFormValidationSummary(target.form));
 }
-function clearFieldInvalid(target){
+function clearFieldInvalid(target,force=false){
   if(!target?.matches?.('input,select,textarea'))return;
-  if(target.validity?.valid===false)return;
+  if(!force&&target.validity?.valid===false){markFieldInvalid(target);return;}
   target.removeAttribute('aria-invalid');
   target.closest('label')?.classList.remove('field-invalid');
+  const id=target.id?`${target.id}-error`:'',error=id?document.getElementById(id):null;
+  error?.remove();
+  if(id){
+    const described=validationDescriptionTokens(target);described.delete(id);
+    if(described.size)target.setAttribute('aria-describedby',[...described].join(' '));else target.removeAttribute('aria-describedby');
+  }
+  queueMicrotask(()=>updateFormValidationSummary(target.form));
 }
+function clearFormValidation(form){if(!form)return;$('input,select,textarea',form).forEach(control=>clearFieldInvalid(control,true));$('.form-validation-summary',form)?.remove();}
 function dirtyWithin(root){if(!root)return false;if(root.matches?.('form[data-dirty="true"], [data-dirty-guard][data-dirty="true"]'))return true;return !!root.querySelector?.('form[data-dirty="true"], [data-dirty-guard][data-dirty="true"]');}
-function clearDirtyForms(root=document){if(root.matches?.('form[data-dirty="true"]'))markFormClean(root);if(root.matches?.('[data-dirty-guard][data-dirty="true"]'))delete root.dataset.dirty;$$('form[data-dirty="true"]',root).forEach(markFormClean);$$('[data-dirty-guard][data-dirty="true"]',root).forEach(control=>delete control.dataset.dirty);}
+function clearDirtyForms(root=document){if(root.matches?.('form[data-dirty="true"]'))markFormClean(root);if(root.matches?.('[data-dirty-guard][data-dirty="true"]'))delete root.dataset.dirty;$('form[data-dirty="true"]',root).forEach(markFormClean);$('[data-dirty-guard][data-dirty="true"]',root).forEach(control=>delete control.dataset.dirty);}
 async function confirmDiscardDirty(root,title,message){if(!dirtyWithin(root))return true;if(!await confirmAction(title,message,true))return false;clearDirtyForms(root);return true;}
 function hasUnsavedChanges(){return !!$('.page.active form[data-dirty="true"], .page.active [data-dirty-guard][data-dirty="true"]');}
 document.addEventListener('invalid',event=>markFieldInvalid(event.target),true);
 document.addEventListener('input',event=>{markDirtyTarget(event.target);clearFieldInvalid(event.target);});
 document.addEventListener('change',event=>{markDirtyTarget(event.target);clearFieldInvalid(event.target);});
-document.addEventListener('reset',event=>{const form=event.target;setTimeout(()=>markFormClean(form),0);});
-document.addEventListener('submit',event=>{state.lastSubmittedForm=event.target;state.lastSubmittedAt=Date.now();},true);
+document.addEventListener('reset',event=>{const form=event.target;setTimeout(()=>{markFormClean(form);clearFormValidation(form);},0);});
+document.addEventListener('submit',event=>{
+  const form=event.target;
+  if(form instanceof HTMLFormElement&&form.getAttribute('method')!=='dialog'&&!form.checkValidity()){
+    event.preventDefault();form.reportValidity();updateFormValidationSummary(form);form.querySelector(':invalid')?.focus();return;
+  }
+  state.lastSubmittedForm=form;state.lastSubmittedAt=Date.now();
+},true);
 document.addEventListener('pointerdown',event=>{if(event.target.closest?.('.page.active'))state.interactionHoldUntil=Date.now()+2000;},true);
 document.addEventListener('keydown',event=>{if(event.target.closest?.('.page.active')&&['Enter',' ','Tab'].includes(event.key))state.interactionHoldUntil=Date.now()+1500;},true);
 window.addEventListener('beforeunload',event=>{if(!hasUnsavedChanges())return;event.preventDefault();event.returnValue='';});
