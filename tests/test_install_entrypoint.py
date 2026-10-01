@@ -49,10 +49,6 @@ class GuidedInstallEntrypointTests(unittest.TestCase):
         self.assertNotIn("PLATFORM_INSTALLER_ALLOW_EXECUTION=", source)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class GuidedInstallDoctorContractTests(unittest.TestCase):
     def test_doctor_is_read_only_non_root_and_input_discovery_is_bounded(self):
         source = SCRIPT.read_text(encoding="utf-8")
@@ -74,3 +70,11 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("install.sh doctor", result.stdout)
         self.assertIn("When omitted, the entrypoint safely checks", result.stdout)
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("\\\"readyForPreflight\\\":%s", source)
+        self.assertIn("\\\"bundleAdmissionVerified\\\":false", source)
+        self.assertIn("json_escape", source)
+
+
+if __name__ == "__main__":
+    unittest.main()
