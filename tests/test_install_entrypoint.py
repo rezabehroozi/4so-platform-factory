@@ -76,6 +76,15 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         self.assertIn("bundleAdmissionVerified=false", source)
         self.assertNotIn("json_escape", source)
 
+    def test_normal_install_fails_early_without_actionable_browser_flags(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1", source)
+        self.assertIn('normal install requires --enable-execution', source)
+        self.assertIn('install requires explicit --confirmation DEPLOY', source)
+        validation = source.index('if [[ "${mode}" == "install" ]]')
+        discovery = source.index('if [[ -z "${bundle_dir}" ]]')
+        self.assertLess(validation, discovery)
+
 
 if __name__ == "__main__":
     unittest.main()
