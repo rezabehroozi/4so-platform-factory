@@ -439,6 +439,7 @@ AGENT_REPAIR_BUDGET_AUTHORITY = "AUTOPILOT_AGENT_REPAIR_BUDGET_V1"
 FAILURE_PATH_HINTS_AUTHORITY = "AUTOPILOT_FAILURE_PATH_HINTS_V1"
 EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY = "AUTOPILOT_EXTERNAL_OWNER_FIX_ADOPTION_V1"
 DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY = "AUTOPILOT_DURABLE_TRIAGE_CLASSIFICATION_V1"
+LIVE_RUN_REJOIN_FENCE_AUTHORITY = "AUTOPILOT_LIVE_RUN_REJOIN_FENCE_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -1087,6 +1088,7 @@ def _agent_context(root: Path) -> dict:
         "failurePathHints": failure_path_hints,
         "externalOwnerFixAdoptionAuthority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
         "durableTriageClassificationAuthority": DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY,
+        "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
         "promptBudgetChars": report.get("promptBudgetChars") if isinstance(report.get("promptBudgetChars"), dict) else {
@@ -1213,6 +1215,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "failurePathHintsAuthority": FAILURE_PATH_HINTS_AUTHORITY,
         "externalOwnerFixAdoptionAuthority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
         "durableTriageClassificationAuthority": DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY,
+        "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
         "defaultRepairBudget": DEFAULT_REPAIR_BUDGET,
         "defaultAgentRepairBudget": DEFAULT_AGENT_REPAIR_BUDGET,
         "promptBudgetChars": {
