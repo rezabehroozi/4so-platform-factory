@@ -451,14 +451,16 @@ class AutopilotAgentContextTests(unittest.TestCase):
                 "runId": "run-context",
                 "status": "CODE_DEFECT",
                 "phase": "forward",
-                "currentStage": "smoke-4",
+                "currentStage": "installer-remote-smoke",
                 "currentSpecialist": "installer-runtime",
-                "nextStage": "smoke-4",
+                "currentCommand": ["python3", "scripts/smoke_installer_remote.py", "./bin/platformctl", "./bin/platform-installer"],
+                "currentTimeoutSeconds": 900,
+                "nextStage": "installer-remote-smoke",
                 "repairCount": 1,
                 "resumeEligible": True,
                 "invocation": ["python3", "scripts/codex_autopilot.py", "--repair"],
                 "lastFailure": {
-                    "stage": "smoke-4",
+                    "stage": "installer-remote-smoke",
                     "specialist": "installer-runtime",
                     "status": "FAIL",
                     "fingerprint": "fp-compact",
@@ -478,10 +480,39 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["lastFailure"]["fingerprint"], "fp-compact")
             self.assertNotIn("output_tail", raw)
             self.assertNotIn("secret raw output", raw)
+            self.assertEqual(context["failureCapsuleAuthority"], "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2")
+            self.assertEqual(context["failureCapsuleMaxChars"], 3200)
             self.assertEqual(context["failureCapsule"], "ERROR owner mismatch token=[REDACTED]")
             self.assertLessEqual(len(context["failureCapsule"]), 3200)
+            self.assertEqual(context["proofCommand"][:2], ["python3", "scripts/smoke_installer_remote.py"])
+            self.assertEqual(context["proofTimeoutSeconds"], 900)
             self.assertEqual(context["resumeInvocation"][-1], "--repair")
             self.assertIn("AGENTS.md", context["sourceContext"]["agentInstructions"])
+
+    def test_checkpoint_failure_capsule_is_redacted_before_agent_handoff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".state").mkdir()
+            AUTOPILOT._write_checkpoint(root, {
+                "graphSignature": "graph",
+                "repair": True,
+                "phase": "forward",
+                "nextIndex": 0,
+                "repairCount": 0,
+                "seenFailures": [],
+            })
+            failure = AUTOPILOT.StageResult(
+                "installer-remote-smoke", "FAIL", 1, 0.1, "fp",
+                "ERROR remote bootstrap password=hunter2 token=qwerty\nTraceback: owner failure",
+            )
+            with mock.patch.object(AUTOPILOT, "_workspace_fingerprint", return_value="workspace"), \
+                 mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
+                AUTOPILOT._record_failure_capsule(root, failure)
+                context = AUTOPILOT._agent_context(root)
+            self.assertIn("ERROR remote bootstrap", context["failureCapsule"])
+            self.assertIn("[REDACTED]", context["failureCapsule"])
+            self.assertNotIn("hunter2", context["failureCapsule"])
+            self.assertNotIn("qwerty", context["failureCapsule"])
 
     def test_agent_context_cli_prints_one_json_document(self):
         with tempfile.TemporaryDirectory() as directory:
