@@ -984,7 +984,8 @@ html[data-theme="dark"] .operator-briefing::after,html[data-theme="dark"] .topba
 .application-delivery-journey button[data-state="current"]{border-color:var(--accent-border);background:var(--accent-soft)}
 .application-delivery-journey button[data-state="current"] .workflow-step-index{background:var(--accent);color:#fff}
 .application-delivery-journey button[data-state="done"] .workflow-step-index{background:var(--success);color:#fff}
-.application-delivery-journey button[data-state="blocked"]{opacity:.72}
+.application-delivery-journey button[data-state="blocked"]{opacity:.68;cursor:not-allowed}
+.application-delivery-journey button[data-state="blocked"]:hover{border-color:var(--border);background:var(--surface)}
 .application-delivery-guidance{margin-bottom:14px;border-inline-start:3px solid var(--accent);overflow-wrap:anywhere}
 #application-composition-panel :where(#application-release-workflow,#application-binding-workflow,#application-deployment-workflow,#application-advanced-workflow){scroll-margin-block-start:104px}
 @media(max-width:1024px){.application-delivery-journey{grid-template-columns:repeat(2,minmax(0,1fr))}}
