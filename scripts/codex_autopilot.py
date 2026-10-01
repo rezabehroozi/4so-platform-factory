@@ -123,6 +123,40 @@ def _tail(output: str, lines: int = 100) -> str:
     return "\n".join(output.splitlines()[-lines:])
 
 
+_FAILURE_SIGNAL = re.compile(r"(?i)(error|fail(?:ed|ure)?|panic|fatal|traceback|exception|expected|actual|mismatch|timeout|blocked|undefined|not found|permission denied)")
+_FAILURE_CAPSULE_MAX_LINES = 36
+_FAILURE_CAPSULE_MAX_CHARS = 6000
+
+
+def _failure_capsule(text: str, *, max_lines: int = _FAILURE_CAPSULE_MAX_LINES, max_chars: int = _FAILURE_CAPSULE_MAX_CHARS) -> str:
+    """Return a bounded failure packet for AI triage/repair.
+
+    Raw stage tails are useful for humans but expensive to resend to multiple
+    agents. Keep unique high-signal lines plus a short terminal tail, redact
+    secrets once, and enforce a hard character budget.
+    """
+    redacted = _redact_failure_text(text)
+    lines = [line.rstrip() for line in redacted.splitlines() if line.strip()]
+    signals: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        normalized = line.strip()
+        if _FAILURE_SIGNAL.search(normalized) and normalized not in seen:
+            seen.add(normalized)
+            signals.append(normalized)
+    terminal = lines[-12:]
+    selected: list[str] = []
+    for line in [*signals[-24:], *terminal]:
+        if line not in selected:
+            selected.append(line)
+    selected = selected[-max_lines:]
+    capsule = "\n".join(selected)
+    if len(capsule) > max_chars:
+        capsule = capsule[-max_chars:]
+        capsule = "[...failure capsule truncated...]\n" + capsule
+    return capsule
+
+
 def canonical_stages(root: Path) -> list[Stage]:
     version = (root / "VERSION").read_text().strip()
     return [
@@ -276,6 +310,43 @@ def _stage_specialist(stage: Stage) -> str:
     return "backend-correctness"
 
 
+def _select_convergence_stages(stages: list[Stage], repaired_stage_names: set[str]) -> list[Stage]:
+    """Select the smallest safe post-repair convergence graph.
+
+    The failing owner stage is already rerun immediately after repair. The final
+    convergence proves its dependency family and packaging surfaces without
+    blindly replaying unrelated Lab/browser/docs stages. Any unrecognized stage
+    fails safe to the original full graph.
+    """
+    if not repaired_stage_names:
+        return list(stages)
+    by_name = {stage.name: stage for stage in stages}
+    if any(name not in by_name for name in repaired_stage_names):
+        return list(stages)
+    specialists = {_stage_specialist(by_name[name]) for name in repaired_stage_names}
+    wanted: set[str] = {"repository-validation", *repaired_stage_names}
+    for specialist in specialists:
+        if specialist == "operator-console":
+            wanted.update({"build-for-smoke", "smoke-ui-rendered", "smoke-ui-quality", "persian-ui-lint", "smoke-ui-live", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
+        elif specialist == "installer-runtime":
+            wanted.update({"build-for-smoke", "smoke-4", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
+        elif specialist == "developer-agent-experience":
+            wanted.update({"python-tests", "derived-agent-knowledge", "browser-triage-profile", "browser-triage-prerequisites-policy"})
+        elif specialist == "lab-certification":
+            wanted.update({"python-tests", "lab-runner-tests", "lab-runner-self-test"})
+        elif specialist == "supply-chain-release":
+            wanted.update({"upstream-acquisition-self-test", "build-release", "package", "artifact-quick-verify"})
+        elif specialist == "product-runtime":
+            wanted.update({"build-for-smoke", "smoke-1", "smoke-2", "smoke-3", "smoke-4", "binary-version", "smoke-ui-live", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
+        elif specialist == "backend-correctness":
+            wanted.update({stage.name for stage in stages if stage.name.startswith(("go-unit-", "go-vet-", "go-race-"))})
+            wanted.update({"python-tests", "build-for-smoke", "smoke-1", "smoke-2", "smoke-3", "smoke-4", "binary-version", "build-release", "package", "artifact-quick-verify"})
+        else:
+            return list(stages)
+    selected = [stage for stage in stages if stage.name in wanted]
+    return selected or list(stages)
+
+
 _SECRET_PATTERNS = [
     re.compile(r"(?i)(authorization\s*[:=]\s*bearer\s+)[^\s]+"),
     re.compile(r"(?i)((?:password|passwd|token|secret|api[_-]?key|dsn)\s*[:=]\s*)[^\s,;]+"),
@@ -302,8 +373,8 @@ def _triage_prompt(stage: Stage, result: StageResult, iteration: int) -> str:
         Iteration: {iteration}
         Fingerprint: {result.fingerprint}
         Command: {' '.join(stage.command)}
-        Redacted output tail:
-        {_redact_failure_text(result.output_tail)}
+        Compact redacted failure capsule:
+        {_failure_capsule(result.output_tail)}
     """).strip()
 
 
@@ -445,11 +516,11 @@ def _repair_prompt(stage: Stage, result: StageResult, iteration: int, triage: st
 
         Failure fingerprint: {result.fingerprint}
         Command: {' '.join(stage.command)}
-        Redacted output tail:
-        {_redact_failure_text(result.output_tail)}
+        Compact redacted failure capsule:
+        {_failure_capsule(result.output_tail)}
 
         Read-only triage result:
-        {_redact_failure_text(triage)}
+        {_failure_capsule(triage, max_lines=24, max_chars=4000)}
     """).strip()
 
 
@@ -495,19 +566,19 @@ def invoke_codex(root: Path, stage: Stage, result: StageResult, iteration: int, 
         triage_run = _run(tuple([*triage_base, _triage_prompt(stage, result, iteration)]), cwd=root, timeout=min(timeout, 300), track_state_root=root, active_label="codex-triage:" + stage.name)
     except subprocess.TimeoutExpired:
         return False, "CODEX_TRIAGE_TIMEOUT"
-    triage_tail = _tail(triage_run.stdout, 120)
+    triage_tail = _failure_capsule(triage_run.stdout, max_lines=24, max_chars=4000)
     if triage_run.returncode != 0:
-        return False, f"CODEX_TRIAGE_FAILED rc={triage_run.returncode}\n{_redact_failure_text(triage_tail)}"
+        return False, f"CODEX_TRIAGE_FAILED rc={triage_run.returncode}\n{triage_tail}"
     prompt = _repair_prompt(stage, result, iteration, triage_tail)
     cmd = [*repair_base, prompt]
     try:
         p = _run(tuple(cmd), cwd=root, timeout=timeout, track_state_root=root, active_label="codex-repair:" + stage.name)
     except subprocess.TimeoutExpired:
         return False, "CODEX_REPAIR_TIMEOUT"
-    tail = _tail(p.stdout, 120)
+    tail = _failure_capsule(p.stdout, max_lines=24, max_chars=4000)
     if p.returncode != 0:
-        return False, f"CODEX_REPAIR_FAILED rc={p.returncode}\n{_redact_failure_text(tail)}"
-    return True, _redact_failure_text(tail)
+        return False, f"CODEX_REPAIR_FAILED rc={p.returncode}\n{tail}"
+    return True, tail
 
 
 _AUTOPILOT_STATE_SCHEMA = 1
@@ -972,7 +1043,7 @@ def _checkpoint_forward(root: Path, *, graph_signature: str, repair: bool, next_
     })
 
 
-def _checkpoint_convergence(root: Path, *, graph_signature: str, repair: bool, next_index: int, repair_count: int, seen_failures: dict[tuple[str, str], int], run_id: str | None = None) -> None:
+def _checkpoint_convergence(root: Path, *, graph_signature: str, repair: bool, next_index: int, repair_count: int, seen_failures: dict[tuple[str, str], int], convergence_stages: list[Stage] | None = None, run_id: str | None = None) -> None:
     _write_checkpoint(root, {
         "graphSignature": graph_signature,
         "repair": repair,
@@ -980,6 +1051,7 @@ def _checkpoint_convergence(root: Path, *, graph_signature: str, repair: bool, n
         "nextIndex": next_index,
         "runId": run_id or "",
         "repairCount": repair_count,
+        "convergenceStages": [stage.name for stage in (convergence_stages or [])],
         "seenFailures": [{"stage": key[0], "fingerprint": key[1], "count": value} for key, value in sorted(seen_failures.items())],
     })
 
@@ -1093,27 +1165,42 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
         if repair and repair_count > 0:
             phase = "convergence"
             next_index = 0
-            event_log.append("phase-transition", phase="convergence", status="RUNNING", nextIndex=0, repairCount=repair_count)
-            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=0, repair_count=repair_count, seen_failures=seen_failures, run_id=run_id)
+            repaired_stage_names = {stage_name for (stage_name, _fingerprint_value), count in seen_failures.items() if count > 0}
+            convergence_stages = _select_convergence_stages(stages, repaired_stage_names)
+            event_log.append("phase-transition", phase="convergence", status="RUNNING", nextIndex=0, repairCount=repair_count, reason=f"selective:{len(convergence_stages)}/{len(stages)}")
+            print(f"AUTOPILOT_CONVERGENCE_PLAN selected={len(convergence_stages)} total={len(stages)} stages={','.join(stage.name for stage in convergence_stages)}", flush=True)
+            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=0, repair_count=repair_count, seen_failures=seen_failures, convergence_stages=convergence_stages, run_id=run_id)
         else:
             phase = "done"
 
     if phase == "convergence":
-        print(f"AUTOPILOT_CONVERGENCE_START stages={len(stages)} repairs={repair_count}", flush=True)
-        _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=next_index, repair_count=repair_count, status="RUNNING", current_stage=None, stage_results=report_rows)
         convergence_state = _load_checkpoint(root, graph_signature=graph_signature, repair=repair) or {}
+        configured_names = convergence_state.get("convergenceStages")
+        if isinstance(configured_names, list) and configured_names:
+            by_name = {stage.name: stage for stage in stages}
+            convergence_stages = [by_name[name] for name in configured_names if name in by_name]
+            if len(convergence_stages) != len(configured_names):
+                print("AUTOPILOT_RESUME=RESET reason=CONVERGENCE_STAGE_DRIFT", flush=True)
+                _clear_checkpoint(root)
+                return 3
+        else:
+            # Backward-compatible fail-safe for checkpoints written before
+            # selective convergence existed.
+            convergence_stages = list(stages)
+        print(f"AUTOPILOT_CONVERGENCE_START stages={len(convergence_stages)} fullGraph={len(stages)} repairs={repair_count}", flush=True)
+        _write_autopilot_report(root, stages=convergence_stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=next_index, repair_count=repair_count, status="RUNNING", current_stage=None, stage_results=report_rows)
         convergence_index = int(convergence_state.get("nextIndex", next_index))
-        for index in range(convergence_index, len(stages)):
-            stage = stages[index]
-            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, run_id=run_id)
-            _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=index, repair_count=repair_count, status="RUNNING", current_stage=stage.name, stage_results=report_rows)
+        for index in range(convergence_index, len(convergence_stages)):
+            stage = convergence_stages[index]
+            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, convergence_stages=convergence_stages, run_id=run_id)
+            _write_autopilot_report(root, stages=convergence_stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=index, repair_count=repair_count, status="RUNNING", current_stage=stage.name, stage_results=report_rows)
             event_log.append("stage-start", phase="convergence", stage=stage.name, specialist=_stage_specialist(stage), status="RUNNING", nextIndex=index, repairCount=repair_count)
             print(f"AUTOPILOT_CONVERGENCE_STAGE_START name={stage.name} timeout={stage.timeout}", flush=True)
             result = run_stage(root, stage)
             results.append(result)
             report_rows.append(_report_result(stage, result))
             event_log.append("stage-result", phase="convergence", stage=stage.name, specialist=_stage_specialist(stage), status=result.status, returncode=result.returncode, fingerprint=result.fingerprint, nextIndex=index + (1 if result.status == "PASS" else 0), repairCount=repair_count)
-            _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=index + (1 if result.status == "PASS" else 0), repair_count=repair_count, status="RUNNING" if result.status == "PASS" else result.status, current_stage=stage.name, stage_results=report_rows, last_failure=None if result.status == "PASS" else {"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
+            _write_autopilot_report(root, stages=convergence_stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=index + (1 if result.status == "PASS" else 0), repair_count=repair_count, status="RUNNING" if result.status == "PASS" else result.status, current_stage=stage.name, stage_results=report_rows, last_failure=None if result.status == "PASS" else {"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
             print(json.dumps(dataclasses.asdict(result), sort_keys=True), flush=True)
             if result.status == "TIMEOUT":
                 print(f"AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED stage={stage.name} reason=CONVERGENCE_TIMEOUT fingerprint={result.fingerprint}", flush=True)
@@ -1121,8 +1208,8 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
             if result.status != "PASS":
                 print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} reason=CONVERGENCE_REGRESSION fingerprint={result.fingerprint}", flush=True)
                 return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "CONVERGENCE_REGRESSION"})
-            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=index + 1, repair_count=repair_count, seen_failures=seen_failures, run_id=run_id)
-        print(f"AUTOPILOT_CONVERGENCE_PASS stages={len(stages)} repairs={repair_count}", flush=True)
+            _checkpoint_convergence(root, graph_signature=graph_signature, repair=repair, next_index=index + 1, repair_count=repair_count, seen_failures=seen_failures, convergence_stages=convergence_stages, run_id=run_id)
+        print(f"AUTOPILOT_CONVERGENCE_PASS stages={len(convergence_stages)} fullGraph={len(stages)} repairs={repair_count}", flush=True)
 
     if enforce_supply_chain:
         unresolved = unresolved_components(root)
