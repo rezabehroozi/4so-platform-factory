@@ -565,13 +565,17 @@ _TRIAGE_CLASSIFICATIONS = frozenset({"CODE_DEFECT", "TEST_DEFECT", "ENVIRONMENT"
 
 
 def _parse_triage_classification(text: str) -> str:
-    for line in text.splitlines():
-        value = line.strip()
-        if not value:
-            continue
-        match = re.fullmatch(r"CLASSIFICATION=(CODE_DEFECT|TEST_DEFECT|ENVIRONMENT|SUPPLY_CHAIN|UNKNOWN)", value)
-        return match.group(1) if match else "UNKNOWN"
-    return "UNKNOWN"
+    # codex wrappers may emit progress lines before the model's final response.
+    # Admit exactly one unambiguous classification line anywhere in the bounded
+    # output; missing or conflicting classifications fail closed to UNKNOWN.
+    matches = re.findall(
+        r"(?m)^\s*CLASSIFICATION=(CODE_DEFECT|TEST_DEFECT|ENVIRONMENT|SUPPLY_CHAIN|UNKNOWN)\s*$",
+        text,
+    )
+    unique = set(matches)
+    if len(unique) != 1:
+        return "UNKNOWN"
+    return next(iter(unique))
 
 
 def invoke_codex_triage(root: Path, stage: Stage, result: StageResult, iteration: int, timeout: int) -> tuple[bool, str, str]:
