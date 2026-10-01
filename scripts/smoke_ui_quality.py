@@ -237,6 +237,12 @@ def static_quality_failures(root: Path) -> list[str]:
     for phrase in ("Use Ctrl/Command to select multiple", "Ctrl/Command to select multiple", "click the button", "tap the button", "hover over"):
         if phrase.lower() in console_html.lower() or phrase.lower() in console_js.lower():
             failures.append(f"webconsole:input-method-specific-guidance:{phrase}")
+    if re.search(r"behavior\s*:\s*['\"]smooth['\"]", console_js):
+        failures.append("webconsole/static/app.js:programmatic-scroll-bypasses-reduced-motion")
+    if "const motionSafeBehavior=()=>motionSafeBehavior()" in console_js:
+        failures.append("webconsole/static/app.js:reduced-motion-helper-self-recursion")
+    if "const motionSafeBehavior=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';" not in console_js:
+        failures.append("webconsole/static/app.js:reduced-motion-helper-missing")
     return failures
 
 
@@ -648,6 +654,9 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
         return 999.0
     if duration_seconds(motion["animationDuration"]) > 0.00001 or duration_seconds(motion["transitionDuration"]) > 0.00001:
         failures.append(f"console:reduced-motion-not-respected:{motion}")
+    programmatic_behavior = page.evaluate("() => motionSafeBehavior()")
+    if programmatic_behavior != "auto":
+        failures.append(f"console:programmatic-reduced-motion-not-respected:{programmatic_behavior}")
     context.close()
 
     owner = smoke_ui.check_console(browser, root, {"width": 414, "height": 900})
@@ -789,6 +798,7 @@ def main(argv: list[str] | None = None) -> int:
         "runtimeLocalizationAuthority": "RUNTIME_GENERATED_LOCALIZATION_PARITY_V1",
         "actionableEmptyStateAuthority": "ACTIONABLE_EMPTY_STATE_RECOVERY_V1",
         "applicationStepAdmissionAuthority": "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1",
+        "programmaticReducedMotionAuthority": "PROGRAMMATIC_REDUCED_MOTION_V1",
         "status": "PASS" if not failures else "FAIL",
         "checkpoint": {
             "scope": args.scope,
