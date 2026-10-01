@@ -70,6 +70,10 @@ esac
 
 case "${mode}" in
   status|verify|recover|rollback)
+    if [[ ! -f "${PLATFORMCTL}" || -L "${PLATFORMCTL}" || ! -x "${PLATFORMCTL}" ]]; then
+      echo "ERROR ${AUTHORITY}: continuation requires packaged platformctl: ${PLATFORMCTL}" >&2
+      exit 2
+    fi
     echo "${AUTHORITY} continuationAuthority=${CONTINUATION_AUTHORITY} mode=${mode} continuation=true" >&2
     exec "${PLATFORMCTL}" installer-manual "${mode}" "$@"
     ;;
