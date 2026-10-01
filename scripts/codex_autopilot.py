@@ -975,6 +975,7 @@ def _agent_context(root: Path) -> dict:
             "use the compact failure fingerprint/capsule and run the smallest owner proof before broader convergence",
             "never mutate Git refs/index/history from the repair agent",
             "never convert source/local success into Runtime/Lab/Exact-SHA Physical PASS",
+            "prefer one durable agent-run entrypoint over manually replaying stage ranges; owner-scoped convergence is selected from the actual repaired stage and dirty delta",
         ],
     }
     if status == "ENVIRONMENT_BLOCKED" and context["environmentPreflight"]:
@@ -986,7 +987,7 @@ def _agent_context(root: Path) -> dict:
     elif status == "PASS":
         context["nextAction"] = "local campaign is complete; consult release-readiness before any external/physical campaign"
     else:
-        context["nextAction"] = "run make autopilot-preflight, then make autopilot"
+        context["nextAction"] = "run make autopilot-agent; it performs prerequisite checking and durable checkpoint/resume automatically"
     return context
 
 
@@ -2328,6 +2329,7 @@ def main() -> int:
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--event-summary", action="store_true", help="print the latest structured autopilot event-log summary and exit")
     ap.add_argument("--agent-context", action="store_true", help="print a compact continuation capsule for the next coding/test agent and exit")
+    ap.add_argument("--agent-run", action="store_true", help="single-entry agent mode: durable resume/checkpoint + bounded owner repair with compact failure context")
     ap.add_argument("--preflight", action="store_true", help="check deterministic test/repair host prerequisites without running the suite")
     ap.add_argument("--repair", action="store_true", help="invoke Codex on deterministic failures")
     ap.add_argument("--max-repairs", type=int, default=3)
@@ -2338,6 +2340,11 @@ def main() -> int:
     ap.add_argument("--real-test", action="store_true", help="after deterministic gates and supply-chain closure, run destructive PostgreSQL certification and a prepared live Field Campaign")
     ap.add_argument("--real-test-timeout", type=int, default=7200, help="maximum Field Campaign watch duration in seconds")
     args = ap.parse_args()
+    if args.agent_run:
+        if args.self_test or args.event_summary or args.agent_context or args.preflight:
+            raise SystemExit("--agent-run cannot be combined with reporting/self-test/preflight-only modes")
+        args.repair = True
+        print("AUTOPILOT_AGENT_RUN=ENABLED authority=AUTOPILOT_AGENT_ENTRYPOINT_V1 maxRepairs=" + str(args.max_repairs), flush=True)
     if args.self_test:
         return self_test()
     if args.event_summary:
