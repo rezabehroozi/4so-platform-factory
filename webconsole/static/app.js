@@ -2229,11 +2229,20 @@ function handleSessionExpired() {
 
 function renderDegradedState() {
   const banner=$('#page-degraded-banner'); if(!banner)return;
+  if(state.pageLoadFailure){
+    const faLocale=state.locale==='fa';
+    banner.hidden=false;
+    banner.innerHTML=`<strong>${esc(faLocale?'بازخوانی صفحه ناموفق بود':'Page refresh failed')}</strong> · ${esc(faLocale?'داده‌ای که هنوز روی صفحه می‌بینید ممکن است قدیمی باشد و نباید به‌عنوان وضعیت فعلی تفسیر شود.':'Data still visible on this page may be stale and must not be interpreted as current authority.')} <button class="secondary small-button" type="button" data-retry-current>${esc(faLocale?'تلاش دوباره':'Retry')}</button><details><summary>${esc(faLocale?'جزئیات خطا':'Failure details')}</summary><p>${esc(state.pageLoadFailure.message||'Unknown page load failure')}</p></details>`;
+    return;
+  }
   if(!state.degradedRequests.length){banner.hidden=true;banner.innerHTML='';return;}
   const unique=[]; const seen=new Set();
   for(const item of state.degradedRequests){const key=`${item.path}:${item.status}`;if(seen.has(key))continue;seen.add(key);unique.push(item);}
+  const faLocale=state.locale==='fa';
   banner.hidden=false;
-  banner.innerHTML=`<strong>Partial data:</strong> ${unique.length} source${unique.length===1?' is':'s are'} temporarily unavailable. Healthy widgets remain usable. <details><summary>Show unavailable sources</summary><ul>${unique.map(item=>`<li><span class="technical">${esc(item.label)}</span> — ${esc(item.message)}</li>`).join('')}</ul></details>`;
+  banner.innerHTML=`<strong>${esc(faLocale?'دادهٔ ناقص':'Partial data')}:</strong> ${esc(faLocale
+    ?`${displayNumber(unique.length)} منبع موقتاً در دسترس نیست. بخش‌های سالم همچنان قابل استفاده‌اند.`
+    :`${unique.length} source${unique.length===1?' is':'s are'} temporarily unavailable. Healthy widgets remain usable.`)} <details><summary>${esc(faLocale?'نمایش منابع ناموجود':'Show unavailable sources')}</summary><ul>${unique.map(item=>`<li><span class="technical">${esc(item.label)}</span> — ${esc(item.message)}</li>`).join('')}</ul></details>`;
 }
 
 async function apiBlob(path, options = {}) {
@@ -5878,17 +5887,26 @@ async function loadPage(page,manual=false,automatic=false){
   const loader=loaders[page];if(!loader)return false;if(state.pageLoading&&automatic)return false;
   if(state.pageLoadController)state.pageLoadController.abort();
   const controller=new AbortController(),generation=++state.pageLoadGeneration;state.pageLoadController=controller;
-  state.pageLoading=true;state.degradedRequests=[];$('#refresh-current').disabled=true;
+  state.pageLoading=true;state.degradedRequests=[];state.pageLoadFailure=null;$('#refresh-current').disabled=true;
   const activePage=$(`#${page}.page`);if(activePage)activePage.setAttribute('aria-busy','true');$('#main-content').setAttribute('aria-busy','true');
   try{
     await loader();
     if(generation!==state.pageLoadGeneration||page!==state.currentPage)return false;
+    state.pageLoadFailure=null;
     restoreDataTableSortPreferences(activePage||document);applyAccessMode();renderDegradedState();if(manual)toast('Page refreshed.');
     return true;
   }
   catch(error){
     if(error?.name==='AbortError'||generation!==state.pageLoadGeneration)return false;
-    renderDegradedState();if(error.sessionExpired)handleSessionExpired();else toast(error.message,'error');
+    if(error.sessionExpired){
+      state.pageLoadFailure=null;
+      renderDegradedState();
+      handleSessionExpired();
+    }else{
+      state.pageLoadFailure={page,message:error.message,status:error.status||0,occurredAt:new Date().toISOString()};
+      renderDegradedState();
+      toast(error.message,'error');
+    }
     return false;
   }
   finally{
