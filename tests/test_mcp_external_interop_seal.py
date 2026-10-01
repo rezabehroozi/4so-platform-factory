@@ -14,7 +14,10 @@ class MCPExternalSealTests(unittest.TestCase):
                          "trustedClientRevision":1,"trustedClientProvider":c})
         metadata=endpoint.rsplit("/mcp",1)[0]+"/.well-known/oauth-protected-resource"
         preflight={"authority":mod.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":endpoint,"protectedResourceMetadata":metadata,"resource":endpoint,"authorizationServers":["https://identity.example.test/realms/4so"],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":f'Bearer resource_metadata="{metadata}"',"protocol":"2026-07-28"}
-        return {"authority":mod.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","matrixAuthority":mod.MATRIX_AUTHORITY,"matrixSha256":mod.sha256(matrix_path),
+        spec=json.loads(matrix_path.read_text())["spec"]
+        created=mod.datetime.now(mod.timezone.utc)-mod.timedelta(minutes=1)
+        expires=created+mod.timedelta(seconds=spec["campaignMaxAgeSeconds"])
+        return {"authority":mod.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","createdAt":mod.utc_timestamp(created),"expiresAt":mod.utc_timestamp(expires),"matrixAuthority":mod.MATRIX_AUTHORITY,"matrixSha256":mod.sha256(matrix_path),
                 "oauthClientBindingAuthority":mod.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"seal-oauth-bindings").hexdigest(),
                 "protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
     def request_ids(self,client):
@@ -22,7 +25,8 @@ class MCPExternalSealTests(unittest.TestCase):
     def receipt(self,client,checks,campaign,endpoint="https://mcp.example.test/mcp"):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
         binding=mod.interop_binding_digest(campaign["campaignId"],client,challenge["challengeSha256"])
-        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"oauthClientId":challenge["oauthClientId"],"interopBindingAuthority":mod.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"providerExecutionRef":"provider-execution-"+client,"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+        executed=mod.parse_utc_timestamp(campaign["createdAt"],"TEST_CREATED")+mod.timedelta(seconds=30)
+        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"oauthClientId":challenge["oauthClientId"],"interopBindingAuthority":mod.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"providerExecutionRef":"provider-execution-"+client,"executedAt":mod.utc_timestamp(executed),"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
     def audit_digest(self,row):
         canonical={}
         required=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
@@ -38,7 +42,7 @@ class MCPExternalSealTests(unittest.TestCase):
         rows=[]; prev=""; seq=1
         for check in mod.AUDITED_CHECKS:
             category,decision,reason=mod.AUDIT_REQUIREMENTS[check]
-            row={"id":f"sau-{seq}","sequence":seq,"occurredAt":"2026-09-28T00:00:00Z","methodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","category":category,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":receipt["requestIds"][check],"mcpInteropBindingDigest":receipt["interopBindingDigest"],"previousDigest":prev}
+            row={"id":f"sau-{seq}","sequence":seq,"occurredAt":receipt["executedAt"],"methodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","category":category,"decision":decision,"actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp","statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,"requestId":receipt["requestIds"][check],"mcpInteropBindingDigest":receipt["interopBindingDigest"],"previousDigest":prev}
             if check in mod.OAUTH_CLIENT_AUDITED_CHECKS:
                 row["oauthClientId"]=receipt["oauthClientId"]
             row["digest"]=self.audit_digest(row)
@@ -122,6 +126,35 @@ class MCPExternalSealTests(unittest.TestCase):
             audit_path=audits/"chatgpt.json"
             audit=json.loads(audit_path.read_text()); audit[0]["actorId"]="forged-external-user"; audit_path.write_text(json.dumps(audit))
             with self.assertRaisesRegex(RuntimeError,"AUDIT_DIGEST_INVALID"): mod.seal(matrix,campaign_path,receipts,audits)
+
+    def test_expired_campaign_and_stale_audit_window_reject(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
+            matrix_spec=json.loads(matrix.read_text())["spec"]
+            campaign=self.campaign(matrix)
+            expired=mod.datetime.now(mod.timezone.utc)-mod.timedelta(seconds=1)
+            campaign["expiresAt"]=mod.utc_timestamp(expired)
+            campaign["createdAt"]=mod.utc_timestamp(expired-mod.timedelta(seconds=matrix_spec["campaignMaxAgeSeconds"]))
+            cp=root/"campaign.json"; cp.write_text(json.dumps(campaign))
+            with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_EXPIRED"):
+                mod.verify_campaign(cp,matrix,matrix_spec)
+
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
+            campaign=self.campaign(matrix); cp=root/"campaign.json"; cp.write_text(json.dumps(campaign))
+            receipts=root/"receipts"; receipts.mkdir(); audits=root/"audits"; audits.mkdir()
+            for client in mod.CLIENTS:
+                receipt=self.receipt(client,checks,campaign); (receipts/(client+".json")).write_text(json.dumps(receipt))
+                events=self.audit(receipt)
+                if client=="chatgpt":
+                    stale=mod.parse_utc_timestamp(receipt["executedAt"],"TEST_EXECUTED")-mod.timedelta(seconds=json.loads(matrix.read_text())["spec"]["executionAuditWindowSeconds"]+1)
+                    events[0]["occurredAt"]=mod.utc_timestamp(stale)
+                    previous=""
+                    for event in events:
+                        event["previousDigest"]=previous; event["digest"]=self.audit_digest(event); previous=event["digest"]
+                (audits/(client+".json")).write_text(json.dumps(events))
+            with self.assertRaisesRegex(RuntimeError,"AUDIT_TIME_WINDOW_INVALID"):
+                mod.seal(matrix,cp,receipts,audits)
 
     def test_campaign_live_preflight_is_mandatory_and_endpoint_bound(self):
         with tempfile.TemporaryDirectory() as td:
