@@ -28,7 +28,7 @@ EXCLUDED_EXACT={
 }
 READLIKE_POST={
  '/api/v1/blueprints/authoring-roundtrip','/api/v1/blueprints/validate','/api/v1/compatibility/evaluate','/api/v1/blueprints/resolve','/api/v1/plans','/api/v1/blueprint-releases/compare','/api/v1/installations/plans','/api/v1/notification-routing/preview','/api/v1/external-registry/admission','/api/v1/runtime-closure-reports/verify',
- '/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate','/api/v1/edge/local-authority/policies/compile','/api/v1/edge/local-authority/mutations/admit','/api/v1/edge/local-authority/reconnect/resolve','/api/v1/application-platform/resolve','/api/v1/application-platform/dapr/assessment','/api/v1/application-platform/dapr/workload-plan','/api/v1/application-platform/openchoreo/assessment',
+ '/api/v1/edge/boot-attestations/assess','/api/v1/edge/local-ai/profiles/validate','/api/v1/edge/local-authority/policies/compile','/api/v1/edge/local-authority/mutations/admit','/api/v1/edge/local-authority/reconnect/resolve','/api/v1/application-platform/resolve','/api/v1/application-platform/dapr/assessment','/api/v1/application-platform/dapr/workload-plan','/api/v1/application-platform/openchoreo/assessment','/api/v1/application-platform/environment-bindings/{id}/deployment-plan',
 }
 # Async read operations still create a durable, idempotent product job even
 # though the target-side action is non-mutating. Keep them tool-read for AI
