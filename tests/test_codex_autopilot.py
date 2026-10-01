@@ -992,6 +992,15 @@ class AgentEntrypointContractTests(unittest.TestCase):
             self.assertFalse(adopted)
             self.assertEqual(reason, "GIT_HEAD_CHANGED")
 
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_git_dirty_manifest", return_value={"scripts/codex_autopilot.py": "after"}):
+                adopted, reason, delta = AUTOPILOT._try_adopt_external_owner_fix(
+                    root, state, graph_signature="graph", stages=[stage],
+                )
+            self.assertFalse(adopted)
+            self.assertTrue(reason.startswith("OWNER_SCOPE_VIOLATION:"))
+            self.assertEqual(delta, ["scripts/codex_autopilot.py"])
+
     def test_agent_context_recommends_single_durable_entrypoint_when_idle(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
