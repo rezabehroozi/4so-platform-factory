@@ -544,6 +544,28 @@ func NormalizeApplicationRelease(in ApplicationRelease) (ApplicationRelease, err
 	return out, nil
 }
 
+func ValidateApplicationReleasePromotion(current, next ApplicationRelease) error {
+	var err error
+	current, err = NormalizeApplicationRelease(current)
+	if err != nil {
+		return err
+	}
+	next, err = NormalizeApplicationRelease(next)
+	if err != nil {
+		return err
+	}
+	if current.ProjectID != next.ProjectID {
+		return fmt.Errorf("%w: application release promotion cannot cross project authority", ErrValidation)
+	}
+	if current.Name != next.Name {
+		return fmt.Errorf("%w: application release promotion cannot change application identity; use explicit replace/migration semantics", ErrValidation)
+	}
+	if current.WorkloadTypeDigest != next.WorkloadTypeDigest {
+		return fmt.Errorf("%w: application release promotion cannot change workload type without explicit replace/migration semantics", ErrValidation)
+	}
+	return nil
+}
+
 func NormalizeEnvironmentBinding(in EnvironmentBinding) (EnvironmentBinding, error) {
 	out := in
 	out.ProjectID = strings.TrimSpace(out.ProjectID)
