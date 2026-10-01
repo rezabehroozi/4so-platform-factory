@@ -640,6 +640,26 @@ def _parse_triage_classification(text: str) -> str:
     return next(iter(unique))
 
 
+def _record_triage_classification(root: Path, stage: Stage, result: StageResult, classification: str) -> None:
+    """Persist read-only diagnosis separately from terminal/transport status."""
+    if classification not in _TRIAGE_CLASSIFICATIONS:
+        classification = "UNKNOWN"
+    checkpoint = _checkpoint_path(root)
+    if not checkpoint.is_file() or checkpoint.is_symlink():
+        return
+    try:
+        state = json.loads(checkpoint.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if str(state.get("currentStage") or "") != stage.name:
+        return
+    state["lastFailureClassification"] = classification
+    state["lastFailureStage"] = stage.name
+    state["lastFailureFingerprint"] = result.fingerprint
+    state["updatedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+    _write_state_raw(checkpoint, state)
+
+
 def invoke_codex_triage(root: Path, stage: Stage, result: StageResult, iteration: int, timeout: int) -> tuple[bool, str, str]:
     browser_ready, browser_detail = _ensure_browser_triage_for_stage(root, stage)
     if not browser_ready:
@@ -655,6 +675,7 @@ def invoke_codex_triage(root: Path, stage: Stage, result: StageResult, iteration
     if triage_run.returncode != 0:
         return False, "ENVIRONMENT", f"CODEX_TRIAGE_FAILED rc={triage_run.returncode}\n{triage_tail}"
     classification = _parse_triage_classification(triage_run.stdout)
+    _record_triage_classification(root, stage, result, classification)
     return True, classification, triage_tail
 
 
@@ -826,6 +847,13 @@ def _workspace_manifest_delta(before: dict[str, str], after: dict[str, str]) -> 
     return sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
 
 
+_AUTOPILOT_ORCHESTRATION_PATHS = frozenset({
+    "scripts/codex_autopilot.py",
+    "tests/test_codex_autopilot.py",
+    "scripts/validate_repository.py",
+})
+
+
 def _repair_path_in_owner_scope(stage: Stage, relative_path: str) -> bool:
     """Whether a repair stayed inside the failing specialist's normal owner surface.
 
@@ -834,12 +862,7 @@ def _repair_path_in_owner_scope(stage: Stage, relative_path: str) -> bool:
     """
     path = relative_path.replace("\\", "/").lstrip("./")
     specialist = _stage_specialist(stage)
-    common = (
-        "scripts/codex_autopilot.py",
-        "tests/test_codex_autopilot.py",
-        "scripts/validate_repository.py",
-    )
-    if path in common:
+    if path in _AUTOPILOT_ORCHESTRATION_PATHS:
         return True
     return any(path.startswith(prefix) for prefix in _OWNER_CONTEXT_PATHS.get(specialist, ()))
 
@@ -849,18 +872,19 @@ def _repair_requires_full_convergence(stage: Stage, changed_paths: list[str]) ->
         # An agent claiming success without changing source is ambiguous; the
         # repaired owner stage will rerun, but final convergence stays full.
         return True
-    return any(not _repair_path_in_owner_scope(stage, path) for path in changed_paths)
+    normalized = [path.replace("\\", "/").lstrip("./") for path in changed_paths]
+    if any(path in _AUTOPILOT_ORCHESTRATION_PATHS for path in normalized):
+        # The runner/gate changed underneath the selected graph. It may be a
+        # legitimate owner fix, but selective convergence would reuse proofs
+        # produced by the old orchestration semantics.
+        return True
+    return any(not _repair_path_in_owner_scope(stage, path) for path in normalized)
 
 
 def _external_adoption_path_in_owner_scope(stage: Stage, relative_path: str) -> bool:
     """Stricter than repair scope: orchestration/gate edits invalidate resume semantics."""
     path = relative_path.replace("\\", "/").lstrip("./")
-    cross_cutting = {
-        "scripts/codex_autopilot.py",
-        "tests/test_codex_autopilot.py",
-        "scripts/validate_repository.py",
-    }
-    if path in cross_cutting:
+    if path in _AUTOPILOT_ORCHESTRATION_PATHS:
         return False
     return any(path.startswith(prefix) for prefix in _OWNER_CONTEXT_PATHS.get(_stage_specialist(stage), ()))
 
@@ -1223,6 +1247,18 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
     }
     if last_failure:
         body["lastFailure"] = {key: last_failure.get(key) for key in ("stage", "specialist", "status", "fingerprint", "reason") if last_failure.get(key) not in (None, "")}
+        checkpoint = _checkpoint_path(root)
+        if checkpoint.is_file() and not checkpoint.is_symlink():
+            try:
+                checkpoint_state = json.loads(checkpoint.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                checkpoint_state = {}
+            if (
+                checkpoint_state.get("lastFailureStage") == body["lastFailure"].get("stage")
+                and checkpoint_state.get("lastFailureFingerprint") == body["lastFailure"].get("fingerprint")
+                and checkpoint_state.get("lastFailureClassification") in _TRIAGE_CLASSIFICATIONS
+            ):
+                body["lastFailure"]["classification"] = checkpoint_state["lastFailureClassification"]
     if isinstance(environment_preflight, dict):
         body["environmentPreflight"] = {
             "authority": ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY,
@@ -1466,11 +1502,11 @@ def _try_adopt_external_owner_fix(root: Path, state: dict, *, graph_signature: s
         return False, "REPORT_INVALID", []
     if report.get("authority") != "AUTOPILOT_CAMPAIGN_REPORT_V1" or report.get("graphSignature") != graph_signature:
         return False, "REPORT_GRAPH_MISMATCH", []
-    if str(report.get("status") or "") != "CODE_DEFECT":
-        return False, "REPORT_NOT_CODE_DEFECT", []
     failure = report.get("lastFailure") if isinstance(report.get("lastFailure"), dict) else {}
     if str(failure.get("stage") or "") != stage.name:
         return False, "FAILURE_STAGE_MISMATCH", []
+    if str(failure.get("classification") or "") != "CODE_DEFECT":
+        return False, "REPORT_NOT_CODE_DEFECT_CLASSIFICATION", []
     checkpoint_head = str(state.get("gitHead") or "")
     current_head = _git_head(root)
     if not checkpoint_head or not current_head or checkpoint_head != current_head:
