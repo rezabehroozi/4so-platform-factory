@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c5 := byID["C5-installer-production-lifecycle-closure"]
-	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", "INSTALLER_MANUAL_DOCTOR_V1", "INSTALLER_MANUAL_INPUT_DISCOVERY_V1", "INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1", "INSTALLER_RECOVERY_STATUS_FIRST_UI_V1", "INSTALLER_RECOVERY_POLL_BOUNDED_V1", "INSTALLER_BROWSER_TOKEN_STALE_CLEAR_V1"} {
+	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", "INSTALLER_MANUAL_DOCTOR_V1", "INSTALLER_MANUAL_INPUT_DISCOVERY_V1", "INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1", "INSTALLER_MANUAL_PREFLIGHT_GUIDANCE_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1", "INSTALLER_RECOVERY_STATUS_FIRST_UI_V1", "INSTALLER_RECOVERY_POLL_BOUNDED_V1", "INSTALLER_BROWSER_TOKEN_STALE_CLEAR_V1"} {
 		if !containsString(c5.Evidence, evidence) {
 			t.Fatalf("C5 guided manual installer evidence %q missing: %#v", evidence, c5)
 		}
@@ -216,6 +216,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"the release ships a thin install.sh entrypoint that delegates to installer-manual, safely auto-discovers only explicit/standard real bundle directories plus an exact adjacent/source-specified release ZIP, never downloads moving upstream content and never drives systemd outside the canonical hostdeployment owner",
 		"bash install.sh doctor is non-mutating and non-root: it reports packaged binary, bundle and exact-release input readiness before installation without claiming bundle admission",
 		"the normal install.sh install path fails before host mutation unless --enable-execution and explicit --confirmation DEPLOY are present, preventing a successful host deployment that leaves the Browser Installer unexpectedly non-actionable",
+		"manual preflight preserves top-level host admission fields while adding exact-release binding and an explicit nextAction to plan, so human operators and existing automation share one truthful first step",
 		"the same install.sh entrypoint owns status, verify, recover and rollback after deployment without requiring the original bundle/release ZIP again, while recover/rollback preserve their canonical explicit confirmation fences",
 		"advanced installer-host examples are pinned to the current VERSION by repository validation so documented copy/paste paths cannot silently become version-rejected stale examples",
 		"browser Installer owns supported profile selection, infrastructure/HA access and pinned host trust, dedicated HA storage, endpoint/TLS, managed/external service inputs, plan, host preflight and explicit INSTALL confirmation",
