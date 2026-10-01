@@ -13,7 +13,40 @@ const (
 	ApplicationDeploymentEvidenceAuthority = "APPLICATION_DEPLOYMENT_EVIDENCE_V1"
 	ApplicationDeploymentPayloadMediaType  = "application/vnd.4so.application-deployment+json"
 	ApplicationDeploymentEvidenceKind      = "application-deployment"
+	ApplicationDeploymentOperationKind     = "application.deploy"
+	ApplicationDeploymentTargetPrefix      = "environment-binding:"
 )
+
+func ApplicationDeploymentOperationBlocksDesiredMutation(op Operation) bool {
+	switch op.State {
+	case OperationDraft, OperationPlanning, OperationAwaitingApproval,
+		OperationApproved, OperationQueued, OperationRunning,
+		OperationRetryWait, OperationCancelRequested, OperationVerifying,
+		OperationRollingBack, OperationNeedsOperator, OperationRollbackFailed:
+		return true
+	case OperationFailed:
+		return op.LastFailureClass == OperationFailureUnknown
+	default:
+		return false
+	}
+}
+
+func ApplicationDeploymentOperationTargetsBinding(op Operation, clusterID, bindingID string) bool {
+	if strings.TrimSpace(op.Kind) != ApplicationDeploymentOperationKind {
+		return false
+	}
+	target := strings.TrimSpace(op.TargetRef)
+	bindingID = strings.TrimSpace(bindingID)
+	clusterID = strings.TrimSpace(clusterID)
+	if bindingID == "" || !strings.HasPrefix(target, ApplicationDeploymentTargetPrefix) {
+		return false
+	}
+	rest := strings.TrimSpace(strings.TrimPrefix(target, ApplicationDeploymentTargetPrefix))
+	if rest == bindingID {
+		return true
+	}
+	return clusterID != "" && rest == clusterID+":"+bindingID
+}
 
 type ApplicationDeploymentRequest struct {
 	Authority       string                    `json:"authority"`
