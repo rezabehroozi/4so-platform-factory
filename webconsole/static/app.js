@@ -22,7 +22,7 @@ const fa = {
   'overview.contextLoadingTitle':'نمای عملیاتی',
   'overview.contextLoadingState':'در حال دریافت وضعیت…',
   'overview.contextLoadingHelp':'داده‌ها مستقیماً از API معتبر خوانده می‌شوند.',
-  'nav.overviewTop':'نمای کلی','nav.platformsTop':'پلتفرم‌ها','nav.blueprintsTop':'طرح‌ها و نسخه‌ها','nav.fleetTop':'ناوگان','nav.operationsTop':'عملیات','nav.assuranceTop':'اطمینان و شواهد','nav.adminTop':'مدیریت','application.stepRelease':'نسخه','application.stepReleaseHelp':'اتصال artifact دقیق OCI','application.stepBinding':'محیط','application.stepBindingHelp':'انتخاب namespace فضای کاری','application.stepDeployment':'برنامه و درخواست','application.stepDeploymentHelp':'پیش‌نمایش پیش از تغییر','application.stepObserved':'مشاهده نتیجه','application.stepObservedHelp':'تأیید، پیشرفت و شواهد','application.advancedTitle':'ترکیب و ارتقای پیشرفته','application.advancedHelp':'پس از روشن‌شدن مسیر اصلی نسخه ← محیط ← برنامه ← مشاهده، capability resolution یا ارتقای محیط موجود را بررسی کنید.','shell.skip':'رفتن به محتوای اصلی','shell.searchTitle':'جست‌وجوی مقصدهای کنسول','shell.search':'جست‌وجوی کنسول','shell.searchHelp':'فقط برای جابه‌جایی؛ تغییرات فقط در جریان کاری معتبر انجام می‌شوند.','shell.organization':'سازمان','shell.project':'پروژه','shell.loading':'در حال بارگذاری…','shell.loadingScope':'در حال دریافت محدوده…','shell.sessionChecking':'در حال بررسی نشست…','shell.nextAction':'اقدام بعدی','shell.reviewNextAction':'بررسی اقدام بعدی','shell.discardTitle':'رهاکردن تغییرات ذخیره‌نشده؟','shell.languageDiscard':'تغییر زبان، صفحه را دوباره بارگذاری می‌کند و تغییرات ذخیره‌نشده از بین می‌روند.','shell.refreshDiscard':'بازخوانی از API معتبر، تغییرات ذخیره‌نشده را از بین می‌برد.','shell.leaveDiscard':'این صفحه تغییرات ذخیره‌نشده دارد. با خروج از صفحه، این تغییرات از بین می‌روند.','shell.lightTheme':'استفاده از پوسته روشن','shell.darkTheme':'استفاده از پوسته تیره',
+  'nav.overviewTop':'نمای کلی','nav.platformsTop':'پلتفرم‌ها','nav.blueprintsTop':'تحویل','nav.fleetTop':'ناوگان و فضاهای کاری','nav.operationsTop':'عملیات','nav.assuranceTop':'اطمینان و شواهد','nav.adminTop':'مدیریت','application.stepRelease':'نسخه','application.stepReleaseHelp':'اتصال artifact دقیق OCI','application.stepBinding':'محیط','application.stepBindingHelp':'انتخاب namespace فضای کاری','application.stepDeployment':'برنامه و درخواست','application.stepDeploymentHelp':'پیش‌نمایش پیش از تغییر','application.stepObserved':'مشاهده نتیجه','application.stepObservedHelp':'تأیید، پیشرفت و شواهد','application.advancedTitle':'ترکیب و ارتقای پیشرفته','application.advancedHelp':'پس از روشن‌شدن مسیر اصلی نسخه ← محیط ← برنامه ← مشاهده، capability resolution یا ارتقای محیط موجود را بررسی کنید.','applications.eyebrow':'پلتفرم اپلیکیشن','applications.heading':'تحویل اپلیکیشن','applications.description':'یک نسخهٔ تغییرناپذیر اپلیکیشن را در مسیر روشن محیط، استقرار و شواهد مشاهده‌شده جلو ببرید. تغییر محیط اجرا همچنان نیازمند تأیید است و مالکیت قابلیت مقصد مرجع باقی می‌ماند.','applications.workflowHeading':'نسخه ← محیط ← استقرار ← شواهد','applications.workflowHelp':'قالب‌های workload، قابلیت‌ها و وابستگی‌های مدیریت‌شده را ترکیب کنید و در استقرار و ارتقا، desired، rendered و observed را صریحاً از هم جدا نگه دارید.','shell.skip':'رفتن به محتوای اصلی','shell.searchTitle':'جست‌وجوی مقصدهای کنسول','shell.search':'جست‌وجوی کنسول','shell.searchHelp':'فقط برای جابه‌جایی؛ تغییرات فقط در جریان کاری معتبر انجام می‌شوند.','shell.organization':'سازمان','shell.project':'پروژه','shell.loading':'در حال بارگذاری…','shell.loadingScope':'در حال دریافت محدوده…','shell.sessionChecking':'در حال بررسی نشست…','shell.nextAction':'اقدام بعدی','shell.reviewNextAction':'بررسی اقدام بعدی','shell.discardTitle':'رهاکردن تغییرات ذخیره‌نشده؟','shell.languageDiscard':'تغییر زبان، صفحه را دوباره بارگذاری می‌کند و تغییرات ذخیره‌نشده از بین می‌روند.','shell.refreshDiscard':'بازخوانی از API معتبر، تغییرات ذخیره‌نشده را از بین می‌برد.','shell.leaveDiscard':'این صفحه تغییرات ذخیره‌نشده دارد. با خروج از صفحه، این تغییرات از بین می‌روند.','shell.lightTheme':'استفاده از پوسته روشن','shell.darkTheme':'استفاده از پوسته تیره',
   'nav.platform':'پلتفرم','nav.operate':'عملیات','nav.system':'سیستم','nav.start':'شروع','nav.overview':'نمای کلی','nav.workspace':'سازمان‌ها و پروژه‌ها','nav.infrastructure':'زیرساخت','nav.installation':'برنامه‌ریزی نصب','nav.clusters':'کلاسترهای متصل','nav.providers':'چرخه عمر زیرساخت','nav.delivery':'تحویل پلتفرم','nav.blueprints':'نسخه‌های Blueprint','nav.marketplace':'مارکت‌پلیس','nav.baselines':'استقرار Baseline تأییدشده','nav.verification':'تأیید سلامت و بستن شواهد','nav.fleet':'مدیریت ناوگان و ارتقا','nav.commercial':'تجاری','nav.tenants':'Tenantها و برندینگ','nav.operations':'عملیات','nav.activity':'عملیات و ممیزی','nav.notifications':'اعلان‌ها و مسیریابی','nav.services':'سرویس‌های سیستم','nav.advanced':'پیشرفته','nav.catalog':'کاتالوگ','nav.validator':'ابزار برنامه‌ریزی Blueprint',
   'action.createServiceAccount':'ساخت حساب سرویس','action.grantAccess':'اعطا یا به‌روزرسانی دسترسی','action.revokeAccess':'لغو دسترسی','action.signout':'خروج','action.refresh':'بازخوانی','action.viewAll':'مشاهده همه','action.createOrg':'ایجاد سازمان','action.createProject':'ایجاد پروژه','action.createPlan':'ساخت برنامه','action.clear':'پاک‌کردن','action.createImport':'ساخت درخواست اتصال','action.copy':'کپی','action.verifyProfile':'تأیید پروفایل','action.createCluster':'ساخت درخواست کلاستر','action.getAdvisory':'دریافت پیشنهاد','action.createInstallPlan':'ساخت برنامه نصب','action.createLivePlan':'ساخت برنامه از وضعیت فعلی','action.runVerification':'اجرای بررسی سلامت','action.createClosure':'تکمیل شواهد تأیید','action.createFleet':'ایجاد Fleet','action.applyEntitlement':'اعمال مجوز تجاری','action.saveOEM':'ذخیره تنظیمات برند','action.createTenant':'ایجاد Tenant','action.validate':'اعتبارسنجی','action.cancel':'انصراف','action.confirm':'تأیید','action.saveDraft':'ایجاد پیش‌نویس','action.resetDraft':'پاک‌کردن فرم','action.compare':'مقایسه',
   'overview.authority':'مرکز کنترل پلتفرم خصوصی','flow.configure':'پیکربندی','flow.configureHelp':'Blueprintها، Baselineها و کاتالوگ','flow.build':'ایجاد یا واردکردن','flow.buildHelp':'پلتفرم‌ها و زیرساخت مقصد','flow.operate':'مدیریت Fleet','flow.operateHelp':'سلامت، مغایرت‌ها، نگه‌داری و ارتقا','flow.prove':'تأیید و بازیابی','flow.proveHelp':'عملیات، شواهد، ممیزی و گواهی‌های فنی','overview.heading':'وضعیت پلتفرم و کار بعدی','overview.description':'پیش از هر تغییر، وضعیت فعلی پلتفرم، موانع و عملیات در حال اجرا را بررسی کنید.','reliability.deliveryInsights':'بینش تحویل','reliability.deliveryInsightsHelp':'جریان استقرار مبتنی بر شواهد در ۳۰ روز گذشته. اگر شواهد استقرار یا زمان Commit منبع موجود نباشد، وضعیت ناشناخته باقی می‌ماند.','overview.readiness':'آمادگی مراحل راه‌اندازی','overview.readinessHelp':'وضعیت هر مرحله مستقیماً از دادهٔ واقعی API محاسبه می‌شود.','overview.attention':'نیازمند توجه','overview.attentionHelp':'خطاها و پیش‌نیازهایی که برای ادامه نیاز به رسیدگی دارند.','overview.recent':'فعالیت‌های اخیر','overview.recentHelp':'آخرین عملیات ثبت‌شده و رویدادهای ممیزی.',
@@ -2048,7 +2048,8 @@ const pageGuidance = {
   installation:{en:['Outcome','Produce a validated Platform Factory control-plane install plan.','Done when','Topology, access, integrations, TLS and recovery path are validated before bootstrap.'],fa:['خروجی این صفحه','برای کنترل‌پلین Platform Factory یک برنامه نصب معتبر بسازید.','پایان کار','توپولوژی، دسترسی، سرویس‌ها، TLS و مسیر بازیابی پیش از راه‌اندازی تأیید شده‌اند.']},
   clusters:{en:['Outcome','Create or connect a Kubernetes platform and obtain authoritative inventory.','Done when','The platform is connected and capabilities/inventory are current enough for allowed operations.'],fa:['خروجی این صفحه','یک پلتفرم Kubernetes بسازید یا متصل کنید و موجودی معتبر منابع را بگیرید.','پایان کار','پلتفرم متصل است و موجودی و قابلیت‌های آن برای عملیات مجاز به‌اندازهٔ کافی تازه است.']},
   providers:{en:['Outcome','Verify reusable infrastructure capability and provision a dedicated target.','Done when','The profile is READY and the requested platform has an authoritative lifecycle state.'],fa:['خروجی این صفحه','قابلیت زیرساخت را تأیید کنید و یک مقصد اختصاصی بسازید.','پایان کار','پروفایل آماده است و پلتفرم درخواستی وضعیت معتبر چرخهٔ عمر دارد.']},
-  templates:{en:['Outcome','Compose reusable schema, policy and platform template authority.','Done when','A versioned template can be selected without re-entering low-level policy.'],fa:['خروجی این صفحه','طرح داده، سیاست و قالب قابل‌استفادهٔ مجدد بسازید.','پایان کار','قالب نسخه‌دار بدون ورود دوبارهٔ تنظیمات سطح پایین قابل انتخاب است.']},
+  templates:{en:['Outcome','Compose reusable schema, operating policy and certified platform template authority.','Done when','A versioned platform template references a published Blueprint, typed variables and one explicit policy set.'],fa:['خروجی این صفحه','طرح داده، سیاست عملیاتی و قالب تأییدشدهٔ پلتفرم را بسازید.','پایان کار','قالب نسخه‌دار به Blueprint منتشرشده، متغیرهای نوع‌دار و یک مجموعه سیاست صریح متصل است.']},
+  applications:{en:['Outcome','Move one immutable application release from composition to a target-bound desired state and verified observed evidence.','Done when','Release, environment binding, rendered plan, approval, durable execution and observed evidence remain traceable without merging desired and observed truth.'],fa:['خروجی این صفحه','یک نسخهٔ تغییرناپذیر اپلیکیشن را از ترکیب تا desired state مقید به مقصد و شواهد observed قابل‌تأیید جلو ببرید.','پایان کار','نسخه، اتصال محیط، برنامهٔ rendered، تأیید، اجرای پایدار و شواهد observed بدون ادغام حقیقت desired و observed قابل پیگیری هستند.']},
   blueprints:{en:['Outcome','Publish an immutable platform standard with compatibility and upgrade intent.','Done when','A reviewed release is publishable and its supported upgrade edges are explicit.'],fa:['خروجی این صفحه','استاندارد تغییرناپذیر پلتفرم را همراه با سازگاری و مسیر ارتقا بسازید.','پایان کار','انتشار بررسی‌شده آماده است و مسیرهای ارتقای مجاز صریح هستند.']},
   marketplace:{en:['Outcome','Install a published offer on an eligible connected platform.','Done when','Plan, approval, execution and uninstall/recovery state remain traceable.'],fa:['خروجی این صفحه','یک بسته منتشرشده را روی پلتفرم واجد شرایط نصب کنید.','پایان کار','برنامه، تأیید، اجرا و وضعیت حذف یا بازیابی قابل پیگیری است.']},
   baselines:{en:['Outcome','Apply a certified baseline with a truthful impact preview.','Done when','Only admitted resources changed and completion evidence is sealed.'],fa:['خروجی این صفحه','نسخهٔ پایهٔ تأییدشده را با پیش‌نمایش واقعی اثر تغییر اعمال کنید.','پایان کار','فقط منابع مجاز تغییر کرده‌اند و شواهد پایان کار مهرشده است.']},
@@ -2078,7 +2079,7 @@ function renderPageGuidance(){
 const pageTitles = {
   overview:{en:['Overview','Platform readiness'],fa:['نمای کلی','آمادگی پلتفرم']},
   installation:{en:['Platforms','Control-plane install'],fa:['پلتفرم‌ها','نصب کنترل‌پلین']},clusters:{en:['Platforms','Create & manage platforms'],fa:['پلتفرم‌ها','ایجاد و مدیریت پلتفرم']},providers:{en:['Platforms','Infrastructure profiles'],fa:['پلتفرم‌ها','پروفایل‌های زیرساخت']},
-  marketplace:{en:['Blueprints','Marketplace'],fa:['طرح‌ها و نسخه‌ها','بسته‌های آماده']},blueprints:{en:['Blueprints','Platform blueprints'],fa:['طرح‌ها و نسخه‌ها','طرح‌های پلتفرم']},templates:{en:['Blueprints','Templates & application delivery'],fa:['طرح‌ها و نسخه‌ها','قالب‌ها و تحویل اپلیکیشن']},baselines:{en:['Blueprints','Certified baselines'],fa:['طرح‌ها و نسخه‌ها','نسخه‌های پایهٔ تأییدشده']},catalog:{en:['Assurance','Supply-chain releases'],fa:['اطمینان و شواهد','انتشارهای زنجیرهٔ تأمین']},validator:{en:['Blueprints','Planning tools'],fa:['طرح‌ها و نسخه‌ها','ابزارهای برنامه‌ریزی']},
+  marketplace:{en:['Delivery','Marketplace'],fa:['تحویل','بسته‌های آماده']},blueprints:{en:['Delivery','Platform blueprints'],fa:['تحویل','طرح‌های پلتفرم']},templates:{en:['Delivery','Platform templates'],fa:['تحویل','قالب‌های پلتفرم']},applications:{en:['Delivery','Application delivery'],fa:['تحویل','تحویل اپلیکیشن']},baselines:{en:['Delivery','Certified baselines'],fa:['تحویل','نسخه‌های پایهٔ تأییدشده']},catalog:{en:['Assurance','Supply-chain releases'],fa:['اطمینان و شواهد','انتشارهای زنجیرهٔ تأمین']},validator:{en:['Delivery','Planning tools'],fa:['تحویل','ابزارهای برنامه‌ریزی']},
   fleet:{en:['Fleet','Fleet overview'],fa:['ناوگان','نمای کلی ناوگان']},workspaces:{en:['Fleet','Application workspaces'],fa:['ناوگان','فضاهای کاری برنامه‌ها']},finops:{en:['Fleet','FinOps & chargeback'],fa:['ناوگان','هزینه و مصرف']},verification:{en:['Assurance','Runtime assurance'],fa:['اطمینان و شواهد','اطمینان از محیط اجرا']},edge:{en:['Assurance','Edge & sovereign'],fa:['اطمینان و شواهد','لبه و حاکمیت محلی']},
   operations:{en:['Operations','Activity & audit'],fa:['عملیات','فعالیت و ممیزی']},ai:{en:['Operations','AI Operator'],fa:['عملیات','اپراتور هوش مصنوعی']},lab:{en:['Assurance','Physical certification'],fa:['اطمینان و شواهد','گواهی اجرای فیزیکی']},notifications:{en:['Operations','Notifications'],fa:['عملیات','اعلان‌ها']},
   workspace:{en:['Admin','Organizations & projects'],fa:['مدیریت','سازمان‌ها و پروژه‌ها']},tenants:{en:['Admin','Tenant environments & branding'],fa:['مدیریت','محیط‌های Tenantها و برندینگ']},services:{en:['Admin','Integrations & services'],fa:['مدیریت','یکپارچه‌سازی و سرویس‌ها']}
@@ -2086,14 +2087,14 @@ const pageTitles = {
 const sectionNavigation = {
   home:['overview'],
   infrastructure:['clusters','providers','installation'],
-  delivery:['blueprints','templates','marketplace','baselines','validator'],
+  delivery:['blueprints','templates','applications','marketplace','baselines','validator'],
   fleet:['fleet','workspaces','finops'],
   operations:['operations','ai','notifications'],
   assurance:['verification','edge','catalog','lab'],
   administration:['workspace','tenants','services']
 };
 const sectionLabels = {
-  home:{en:'Overview',fa:'نمای کلی'}, infrastructure:{en:'Platforms',fa:'پلتفرم‌ها'}, delivery:{en:'Blueprints',fa:'طرح‌ها و نسخه‌ها'}, fleet:{en:'Fleet',fa:'ناوگان'}, operations:{en:'Operations',fa:'عملیات'}, assurance:{en:'Assurance',fa:'اطمینان و شواهد'}, administration:{en:'Admin',fa:'مدیریت'}
+  home:{en:'Overview',fa:'نمای کلی'}, infrastructure:{en:'Platforms',fa:'پلتفرم‌ها'}, delivery:{en:'Delivery',fa:'تحویل'}, fleet:{en:'Fleet & Workspaces',fa:'ناوگان و فضاهای کاری'}, operations:{en:'Operations',fa:'عملیات'}, assurance:{en:'Assurance',fa:'اطمینان و شواهد'}, administration:{en:'Admin',fa:'مدیریت'}
 };
 function sectionForPage(page){
   return Object.entries(sectionNavigation).find(([,pages])=>pages.includes(page))?.[0] || 'home';
@@ -4210,7 +4211,6 @@ function renderPlatformTemplateAuthorities(){
   $('#template-policy-grid').innerHTML=state.platformPolicySets.length?state.platformPolicySets.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)} <span class="technical">${esc(item.version)}</span></h3><div class="resource-meta">${badge(item.maintenance?.riskClass||'POLICY')}</div></div></div><p>${esc(projectById.get(item.projectId)?.displayName||item.projectId)}</p><div class="resource-details">${detailRow('Max unavailable',`${item.maintenance?.maxUnavailable||0}%`)}${detailRow('Pod security',item.security?.podSecurityLevel||'—')}${detailRow('Digest',shortDigest(item.digest))}</div></article>`).join(''):emptyState('No policy sets','Create reusable operating policy before composing a platform template.');
   $('#platform-template-grid').innerHTML=state.platformTemplates.length?state.platformTemplates.map(item=>`<article class="resource-card"><div class="resource-header"><div><h3>${esc(item.name)} <span class="technical">${esc(item.version)}</span></h3><div class="resource-meta">${badge(item.impact?.status||'TARGET_PREVIEW_REQUIRED')}</div></div></div><p>${esc(projectById.get(item.projectId)?.displayName||item.projectId)}</p><div class="resource-details">${detailRow('Template digest',shortDigest(item.digest))}${detailRow('Blueprint',shortDigest(item.blueprintDigest))}${detailRow('Variable schema',shortDigest(item.variableSchemaDigest))}${detailRow('Policy set',shortDigest(item.policySetDigest))}${detailRow('Target classes',(item.allowedTargetClasses||[]).join(', ')||'—')}${detailRow('Certification',(item.certificationRequirements||[]).join(', '))}</div><div class="resource-actions"><button class="secondary small-button" type="button" data-template-admission="${esc(item.id)}" data-target-class="${esc((item.allowedTargetClasses||[])[0]||'')}">Check source admission</button></div></article>`).join(''):emptyState('No platform templates','Compose a published Blueprint release, VariableSchema and PolicySet.');
   renderPlatformTemplateOptions();
-  renderApplicationPlatformComposition();
 }
 function applicationProjectName(id){return state.projects.find(item=>item.id===id)?.displayName||id||'—';}
 function applicationListOptions(select,items,label){if(!select)return;select.innerHTML='<option value="">Select</option>'+items.map(item=>`<option value="${esc(item.id)}">${esc(label(item))}</option>`).join('');}
@@ -4426,10 +4426,10 @@ function stopApplicationDeploymentStatusRefresh(){
 function scheduleApplicationDeploymentStatusRefresh(delay=5000){
   clearTimeout(state.applicationDeploymentStatusTimer);
   const op=state.applicationDeploymentRun?.operation;
-  if(state.currentPage!=='templates'||!op?.id||!applicationDeploymentIsActive(op)){state.applicationDeploymentStatusTimer=null;return;}
+  if(state.currentPage!=='applications'||!op?.id||!applicationDeploymentIsActive(op)){state.applicationDeploymentStatusTimer=null;return;}
   const generation=++state.applicationDeploymentStatusGeneration;
   state.applicationDeploymentStatusTimer=setTimeout(async()=>{
-    if(generation!==state.applicationDeploymentStatusGeneration||state.currentPage!=='templates')return;
+    if(generation!==state.applicationDeploymentStatusGeneration||state.currentPage!=='applications')return;
     if(document.visibilityState!=='visible'||state.pageLoading){scheduleApplicationDeploymentStatusRefresh(3000);return;}
     try{
       await refreshApplicationDeployment();
@@ -4608,12 +4608,60 @@ function renderApplicationPlatformComposition(){
 }
 async function loadPlatformTemplates(){
   try{
-    const [projects,releases,schemas,policies,templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters,workspaces]=await Promise.all([softApi('/api/v1/projects',[],'projects'),softApi('/api/v1/blueprint-releases',[],'blueprint releases'),softApi('/api/v1/variable-schemas',[],'variable schemas'),softApi('/api/v1/platform-policy-sets',[],'platform policy sets'),softApi('/api/v1/platform-templates',[],'platform templates'),softApi('/api/v1/application-platform/workload-types',[],'application workload shapes'),softApi('/api/v1/application-platform/capability-traits',[],'application capability traits'),softApi('/api/v1/application-platform/resource-types',[],'managed dependency types'),softApi('/api/v1/application-platform/workspace-profiles',[],'workspace profiles'),softApi('/api/v1/application-platform/releases',[],'application releases'),softApi('/api/v1/application-platform/environment-bindings',[],'environment bindings'),softApi('/api/v1/clusters',[],'connected clusters'),softApi('/api/v1/workspaces',[],'application workspaces')]);
-    Object.assign(state,{projects,blueprintReleases:releases,variableSchemas:schemas,platformPolicySets:policies,platformTemplates:templates,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters,workspaces});
+    const [projects,releases,schemas,policies,templates]=await Promise.all([
+      softApi('/api/v1/projects',[],'projects'),
+      softApi('/api/v1/blueprint-releases',[],'blueprint releases'),
+      softApi('/api/v1/variable-schemas',[],'variable schemas'),
+      softApi('/api/v1/platform-policy-sets',[],'platform policy sets'),
+      softApi('/api/v1/platform-templates',[],'platform templates')
+    ]);
+    Object.assign(state,{projects,blueprintReleases:releases,variableSchemas:schemas,platformPolicySets:policies,platformTemplates:templates});
     renderPlatformTemplateAuthorities();
+  }catch(error){$('#platform-template-grid').innerHTML=errorState(error.message);toast(error.message,'error');}
+}
+function renderApplicationDeliveryPrerequisite(){
+  const host=$('#application-delivery-prerequisite');if(!host)return;
+  const missing=[];
+  if(!state.projects.length)missing.push({label:'project',page:'workspace',action:'Create a project'});
+  if(!state.workspaces.length)missing.push({label:'Workspace',page:'workspaces',action:'Create a Workspace'});
+  if(!state.applicationWorkloadTypes.length)missing.push({label:'WorkloadType',page:'applications',action:'Create a workload shape'});
+  if(!state.applicationWorkspaceProfiles.length)missing.push({label:'WorkspaceProfile',page:'applications',action:'Create a workspace profile'});
+  if(!missing.length){host.hidden=true;host.innerHTML='';return;}
+  const faLocale=state.locale==='fa';
+  host.hidden=false;
+  host.innerHTML=`<strong>${esc(faLocale?'پیش‌نیازهای تحویل کامل نیست':'Application delivery prerequisites are incomplete')}</strong><br><span>${esc(faLocale?'برای جلوگیری از select خالی یا مسیر بن‌بست، ابتدا موارد زیر را کامل کنید: ':'Complete these authorities before continuing so the workflow never ends in an empty selector: ')}${missing.map(item=>esc(item.label)).join(' · ')}</span><div class="button-row">${missing.filter((item,index,rows)=>rows.findIndex(row=>row.page===item.page&&row.action===item.action)===index).map(item=>`<button type="button" class="secondary small-button" data-application-prerequisite-page="${esc(item.page)}" data-application-prerequisite-action="${esc(item.action)}">${esc(item.action)}</button>`).join('')}</div>`;
+  $$('[data-application-prerequisite-page]',host).forEach(button=>button.onclick=()=>{
+    if(button.dataset.applicationPrerequisitePage==='applications'){
+      document.getElementById('application-composition-library')?.setAttribute('open','');
+      document.getElementById('application-composition-library')?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+      return;
+    }
+    navigate(button.dataset.applicationPrerequisitePage);
+  });
+}
+async function loadApplicationDelivery(){
+  try{
+    const [projects,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters,workspaces,platformPolicySets]=await Promise.all([
+      softApi('/api/v1/projects',[],'projects'),
+      softApi('/api/v1/application-platform/workload-types',[],'application workload shapes'),
+      softApi('/api/v1/application-platform/capability-traits',[],'application capability traits'),
+      softApi('/api/v1/application-platform/resource-types',[],'managed dependency types'),
+      softApi('/api/v1/application-platform/workspace-profiles',[],'workspace profiles'),
+      softApi('/api/v1/application-platform/releases',[],'application releases'),
+      softApi('/api/v1/application-platform/environment-bindings',[],'environment bindings'),
+      softApi('/api/v1/clusters',[],'connected clusters'),
+      softApi('/api/v1/workspaces',[],'application workspaces'),
+      softApi('/api/v1/platform-policy-sets',[],'platform policy sets')
+    ]);
+    Object.assign(state,{projects,applicationWorkloadTypes,applicationCapabilityTraits,applicationResourceTypes,applicationWorkspaceProfiles,applicationReleases,applicationEnvironmentBindings,clusters,workspaces,platformPolicySets});
+    renderApplicationPlatformComposition();
+    renderApplicationDeliveryPrerequisite();
     await loadApplicationBindingWorkspaceBindings();
     await resumeApplicationDeploymentForBinding();
-  }catch(error){$('#platform-template-grid').innerHTML=errorState(error.message);toast(error.message,'error');}
+  }catch(error){
+    const host=$('#application-composition-result');if(host)host.innerHTML=errorState(error.message);
+    toast(error.message,'error');
+  }
 }
 function parseTemplateJSON(id,label){try{const value=JSON.parse($(id).value.trim());if(!Array.isArray(value))throw new Error(`${label} must be a JSON array.`);return value;}catch(error){throw new Error(`${label}: ${error.message}`);}}
 $('#template-schema-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;try{await api('/api/v1/variable-schemas',{method:'POST',body:{projectId:$('#template-schema-project').value,name:$('#template-schema-name').value.trim(),version:$('#template-schema-version').value.trim(),variables:parseTemplateJSON('#template-schema-variables','Variable definitions')}});toast('Immutable variable schema created.');form.reset();await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
@@ -4703,7 +4751,7 @@ $('#application-release-create-form').onsubmit=async event=>{
   try{
     const created=await api('/api/v1/application-platform/releases',{method:'POST',body});
     toast('Immutable application release created with exact workload artifact.');
-    form.reset();await loadPlatformTemplates();
+    form.reset();await loadApplicationDelivery();
     const release=state.applicationReleases.find(item=>item.id===created.id);
     if(release){$('#application-binding-release').value=release.id;await loadApplicationBindingWorkspaceBindings();}
     renderApplicationDeliveryJourney();openApplicationDeliveryStep('binding');
@@ -4720,7 +4768,7 @@ $('#application-binding-create-form').onsubmit=async event=>{
   try{
     const created=await api('/api/v1/application-platform/environment-bindings',{method:'POST',body:{releaseId:release.id,workspaceBindingId:binding.id,environment:$('#application-binding-environment').value,observedNativeCapabilities}});
     toast('Desired environment binding created. No runtime deployment has been inferred.');
-    form.reset();state.applicationWorkspaceBindings=[];await loadPlatformTemplates();
+    form.reset();state.applicationWorkspaceBindings=[];await loadApplicationDelivery();
     const createdId=created?.id||created?.binding?.id||created?.environmentBinding?.id||'';
     const deploymentSelect=$('#application-deployment-binding');
     if(createdId&&deploymentSelect&&state.applicationEnvironmentBindings.some(item=>item.id===createdId)){
@@ -4760,8 +4808,25 @@ $('#application-deployment-approve').onclick=async()=>{
   }catch(error){toast(error.message,'error');}
 };
 $('#application-resolution-form').onsubmit=async event=>{event.preventDefault();const workloadId=$('#application-resolution-workload').value;if(!workloadId)return;const workload=state.applicationWorkloadTypes.find(item=>item.id===workloadId);const traitIds=[...$('#application-resolution-traits').selectedOptions].map(option=>option.value);const observedNativeCapabilities=$('#application-resolution-native').value.split(',').map(v=>v.trim()).filter(Boolean);try{const result=await api('/api/v1/application-platform/resolve',{method:'POST',body:{projectId:workload.projectId,workloadTypeId:workloadId,traitIds,observedNativeCapabilities}});$('#application-composition-result').innerHTML=`<div class="inline-summary"><strong>Capability resolution preview</strong> · ${esc(shortDigest(result.resolutionDigest))}<br>${(result.decisions||[]).map(row=>`${badge(row.action)} ${esc(row.capability)} — ${esc(row.reason)}`).join('<br>')||'No traits selected.'}<br><small>Preview only. No target or desired binding was mutated.</small></div>`;}catch(error){toast(error.message,'error');}};
-$('#application-promotion-form').onsubmit=async event=>{event.preventDefault();const binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-promotion-binding').value),release=state.applicationReleases.find(item=>item.id===$('#application-promotion-release').value);if(!binding||!release)return;if(binding.projectId!==release.projectId){toast('Release and environment binding must belong to the same project.','error');return;}const observedNativeCapabilities=$('#application-promotion-native').value.split(',').map(v=>v.trim()).filter(Boolean);if(!await confirmAction('Promote environment release',`Advance ${binding.environment} / ${binding.namespace} from its current immutable release to ${release.name} ${release.version}? The WorkspaceBinding scope cannot change and will be revalidated before commit.`,false))return;try{await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/promote`,{method:'POST',headers:{'If-Match':`"${binding.revision}"`},body:{releaseId:release.id,observedNativeCapabilities}});toast('Environment binding promoted. Runtime convergence and Physical certification remain separate.');await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
-$('#templates').addEventListener('click',async event=>{const inspect=event.target.closest('[data-application-inspect]');if(inspect){const kind=inspect.dataset.applicationInspect;let item=null;if(kind==='workload')item=state.applicationWorkloadTypes.find(row=>row.id===inspect.dataset.id);if(kind==='release')item=state.applicationReleases.find(row=>row.id===inspect.dataset.id);if(kind==='binding')item=state.applicationEnvironmentBindings.find(row=>row.id===inspect.dataset.id);if(item){showDetails('Application composition authority',`<div class="warning-banner">Desired authority only. Rendered/observed runtime and Exact-SHA Physical certification remain independent.</div><dl class="key-value">${Object.entries(item).filter(([key,value])=>value!==null&&value!==undefined&&typeof value!=='object').map(([key,value])=>`<dt>${esc(key)}</dt><dd class="${String(key).toLowerCase().includes('digest')||String(key).toLowerCase().includes('id')?'technical':''}">${esc(value)}</dd>`).join('')}</dl>`);}return;}const button=event.target.closest('[data-template-admission]');if(!button)return;try{const result=await api(`/api/v1/platform-templates/${button.dataset.templateAdmission}/admission?targetClass=${encodeURIComponent(button.dataset.targetClass||'')}`);$('#platform-template-admission-result').innerHTML=`<div class="${result.blockers?.length?'warning-banner':'inline-summary'}"><strong>Source admission</strong> · binding ${result.bindingValid?'valid':'invalid'} · target ${result.targetAllowed?'allowed':'blocked'} · adoption ready <strong>${result.adoptionReady?'YES':'NO'}</strong> · impact ${esc(result.impactStatus)}${result.blockers?.length?`<br>Blockers: ${esc(result.blockers.join(', '))}`:''}<br><small>Even with zero source blockers, adoptionReady remains false until target-specific impact and required certification evidence exist.</small></div>`;}catch(error){toast(error.message,'error');}});
+$('#application-promotion-form').onsubmit=async event=>{event.preventDefault();const binding=state.applicationEnvironmentBindings.find(item=>item.id===$('#application-promotion-binding').value),release=state.applicationReleases.find(item=>item.id===$('#application-promotion-release').value);if(!binding||!release)return;if(binding.projectId!==release.projectId){toast('Release and environment binding must belong to the same project.','error');return;}const observedNativeCapabilities=$('#application-promotion-native').value.split(',').map(v=>v.trim()).filter(Boolean);if(!await confirmAction('Promote environment release',`Advance ${binding.environment} / ${binding.namespace} from its current immutable release to ${release.name} ${release.version}? The WorkspaceBinding scope cannot change and will be revalidated before commit.`,false))return;try{await api(`/api/v1/application-platform/environment-bindings/${encodeURIComponent(binding.id)}/promote`,{method:'POST',headers:{'If-Match':`"${binding.revision}"`},body:{releaseId:release.id,observedNativeCapabilities}});toast('Environment binding promoted. Runtime convergence and Physical certification remain separate.');await loadApplicationDelivery();}catch(error){toast(error.message,'error');}};
+async function handleTemplateApplicationClick(event){
+  const inspect=event.target.closest('[data-application-inspect]');
+  if(inspect){
+    const kind=inspect.dataset.applicationInspect;let item=null;
+    if(kind==='workload')item=state.applicationWorkloadTypes.find(row=>row.id===inspect.dataset.id);
+    if(kind==='release')item=state.applicationReleases.find(row=>row.id===inspect.dataset.id);
+    if(kind==='binding')item=state.applicationEnvironmentBindings.find(row=>row.id===inspect.dataset.id);
+    if(item)showDetails('Application composition authority',`<div class="warning-banner">Desired authority only. Rendered/observed runtime and Exact-SHA Physical certification remain independent.</div><dl class="key-value">${Object.entries(item).filter(([key,value])=>value!==null&&value!==undefined&&typeof value!=='object').map(([key,value])=>`<dt>${esc(key)}</dt><dd class="${String(key).toLowerCase().includes('digest')||String(key).toLowerCase().includes('id')?'technical':''}">${esc(value)}</dd>`).join('')}</dl>`);
+    return;
+  }
+  const button=event.target.closest('[data-template-admission]');if(!button)return;
+  try{
+    const result=await api(`/api/v1/platform-templates/${button.dataset.templateAdmission}/admission?targetClass=${encodeURIComponent(button.dataset.targetClass||'')}`);
+    $('#platform-template-admission-result').innerHTML=`<div class="${result.blockers?.length?'warning-banner':'inline-summary'}"><strong>Source admission</strong> · binding ${result.bindingValid?'valid':'invalid'} · target ${result.targetAllowed?'allowed':'blocked'} · adoption ready <strong>${result.adoptionReady?'YES':'NO'}</strong> · impact ${esc(result.impactStatus)}${result.blockers?.length?`<br>Blockers: ${esc(result.blockers.join(', '))}`:''}<br><small>Even with zero source blockers, adoptionReady remains false until target-specific impact and required certification evidence exist.</small></div>`;
+  }catch(error){toast(error.message,'error');}
+}
+$('#templates').addEventListener('click',handleTemplateApplicationClick);
+$('#applications').addEventListener('click',handleTemplateApplicationClick);
 
 function renderBlueprintReleases(){
   const projectById=new Map(state.projects.map(item=>[item.id,item]));
@@ -4942,7 +5007,7 @@ $('#edge-ai-form').onsubmit=async event=>{
   catch(error){renderEdgeAssessment($('#edge-ai-result'),{admitted:false,error:error.message,code:error.code||''});toast(error.message,'error');}
 };
 
-const loaders={overview:loadOverview,workspace:loadWorkspace,installation:loadInstallation,clusters:loadClusters,providers:loadProviders,blueprints:loadBlueprints,templates:loadPlatformTemplates,marketplace:loadMarketplace,baselines:loadBaselines,verification:loadVerification,fleet:loadFleet,workspaces:loadWorkspaces,finops:loadFinOps,edge:loadEdgeSovereign,tenants:loadTenants,operations:loadOperations,ai:loadAI,lab:loadLab,notifications:loadNotifications,services:loadServices,catalog:loadCatalog,validator:async()=>{}};
+const loaders={overview:loadOverview,workspace:loadWorkspace,installation:loadInstallation,clusters:loadClusters,providers:loadProviders,blueprints:loadBlueprints,templates:loadPlatformTemplates,applications:loadApplicationDelivery,marketplace:loadMarketplace,baselines:loadBaselines,verification:loadVerification,fleet:loadFleet,workspaces:loadWorkspaces,finops:loadFinOps,edge:loadEdgeSovereign,tenants:loadTenants,operations:loadOperations,ai:loadAI,lab:loadLab,notifications:loadNotifications,services:loadServices,catalog:loadCatalog,validator:async()=>{}};
 const livePages=new Set(['overview','clusters','providers','marketplace','baselines','verification','fleet','tenants','operations','ai','notifications','services']);
 function hasActiveWork(page = state.currentPage){
   const pageCollections={
