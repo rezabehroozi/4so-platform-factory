@@ -381,7 +381,7 @@ def _triage_prompt(stage: Stage, result: StageResult, iteration: int) -> str:
         {', '.join(_owner_context_paths(stage)) or '(owner mapping unavailable; stay on the failing command and its direct imports)'}
 
         Compact redacted failure capsule:
-        {_failure_capsule(result.output_tail)}
+        {_failure_capsule(result.output_tail, max_chars=TRIAGE_FAILURE_CAPSULE_MAX_CHARS)}
     """).strip()
 
 
@@ -428,6 +428,11 @@ INSTALLER_OWNER_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_STAGE_V1"
 AGENT_OWNER_PROOF_AUTHORITY = "AUTOPILOT_AGENT_OWNER_PROOF_V1"
 ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY = "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1"
 OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_OWNER_CONTEXT_PATHS_V1"
+PROMPT_BUDGET_AUTHORITY = "AUTOPILOT_PROMPT_BUDGET_V1"
+TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
+TRIAGE_RESULT_MAX_CHARS = 2400
+REPAIR_FAILURE_CAPSULE_MAX_CHARS = 3200
+REPAIR_TRIAGE_MAX_CHARS = 2400
 AGENT_FAILURE_CAPSULE_MAX_CHARS = 3200
 
 _OWNER_CONTEXT_PATHS: dict[str, tuple[str, ...]] = {
@@ -563,11 +568,14 @@ def _repair_prompt(stage: Stage, result: StageResult, iteration: int, triage: st
 
         Failure fingerprint: {result.fingerprint}
         Command: {' '.join(stage.command)}
+        Start with these owner paths before broad repository search:
+        {', '.join(_owner_context_paths(stage)) or '(owner mapping unavailable; stay on the failing command and its direct imports)'}
+
         Compact redacted failure capsule:
-        {_failure_capsule(result.output_tail)}
+        {_failure_capsule(result.output_tail, max_chars=REPAIR_FAILURE_CAPSULE_MAX_CHARS)}
 
         Read-only triage result:
-        {_failure_capsule(triage, max_lines=24, max_chars=4000)}
+        {_failure_capsule(triage, max_lines=20, max_chars=REPAIR_TRIAGE_MAX_CHARS)}
     """).strip()
 
 
@@ -629,7 +637,7 @@ def invoke_codex_triage(root: Path, stage: Stage, result: StageResult, iteration
         triage_run = _run(tuple([*triage_base, _triage_prompt(stage, result, iteration)]), cwd=root, timeout=min(timeout, 300), track_state_root=root, active_label="codex-triage:" + stage.name)
     except subprocess.TimeoutExpired:
         return False, "ENVIRONMENT", "CODEX_TRIAGE_TIMEOUT"
-    triage_tail = _failure_capsule(triage_run.stdout, max_lines=24, max_chars=4000)
+    triage_tail = _failure_capsule(triage_run.stdout, max_lines=20, max_chars=TRIAGE_RESULT_MAX_CHARS)
     if triage_run.returncode != 0:
         return False, "ENVIRONMENT", f"CODEX_TRIAGE_FAILED rc={triage_run.returncode}\n{triage_tail}"
     classification = _parse_triage_classification(triage_run.stdout)
@@ -651,7 +659,7 @@ def invoke_codex(root: Path, stage: Stage, result: StageResult, iteration: int, 
         p = _run(tuple(cmd), cwd=root, timeout=timeout, track_state_root=root, active_label="codex-repair:" + stage.name)
     except subprocess.TimeoutExpired:
         return False, "CODEX_REPAIR_TIMEOUT"
-    tail = _failure_capsule(p.stdout, max_lines=24, max_chars=4000)
+    tail = _failure_capsule(p.stdout, max_lines=20, max_chars=TRIAGE_RESULT_MAX_CHARS)
     if p.returncode != 0:
         return False, f"CODEX_REPAIR_FAILED rc={p.returncode}\n{tail}"
     return True, tail
@@ -969,6 +977,13 @@ def _agent_context(root: Path) -> dict:
         "installerOwnerStageAuthority": INSTALLER_OWNER_STAGE_AUTHORITY,
         "ownerContextAuthority": OWNER_CONTEXT_AUTHORITY,
         "ownerContextPaths": [str(item) for item in report.get("currentOwnerPaths", [])[:12]] if isinstance(report.get("currentOwnerPaths"), list) else [],
+        "promptBudgetAuthority": PROMPT_BUDGET_AUTHORITY,
+        "promptBudgetChars": report.get("promptBudgetChars") if isinstance(report.get("promptBudgetChars"), dict) else {
+            "triageFailure": TRIAGE_FAILURE_CAPSULE_MAX_CHARS,
+            "triageResult": TRIAGE_RESULT_MAX_CHARS,
+            "repairFailure": REPAIR_FAILURE_CAPSULE_MAX_CHARS,
+            "repairTriage": REPAIR_TRIAGE_MAX_CHARS,
+        },
         "failureCapsuleMaxChars": AGENT_FAILURE_CAPSULE_MAX_CHARS,
         "failureCapsule": failure_capsule,
         "proofCommand": report.get("currentCommand") if isinstance(report.get("currentCommand"), list) else [],
@@ -1081,6 +1096,13 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "agentOwnerProofAuthority": AGENT_OWNER_PROOF_AUTHORITY,
         "environmentPreflightHandoffAuthority": ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY,
         "ownerContextAuthority": OWNER_CONTEXT_AUTHORITY,
+        "promptBudgetAuthority": PROMPT_BUDGET_AUTHORITY,
+        "promptBudgetChars": {
+            "triageFailure": TRIAGE_FAILURE_CAPSULE_MAX_CHARS,
+            "triageResult": TRIAGE_RESULT_MAX_CHARS,
+            "repairFailure": REPAIR_FAILURE_CAPSULE_MAX_CHARS,
+            "repairTriage": REPAIR_TRIAGE_MAX_CHARS,
+        },
         "currentOwnerPaths": list(_owner_context_paths(stage)) if stage else [],
         "derived": True,
         "notProductAuthority": True,
