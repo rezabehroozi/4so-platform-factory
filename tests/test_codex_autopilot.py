@@ -882,3 +882,24 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
             state = json.loads(AUTOPILOT._checkpoint_path(root).read_text(encoding="utf-8"))
             self.assertTrue(state["fullConvergenceRequired"])
             self.assertEqual(state["runId"], "run-full")
+
+
+class AgentEntrypointContractTests(unittest.TestCase):
+    def test_agent_run_enables_bounded_repair_without_manual_orchestration_flags(self):
+        argv = ["codex_autopilot.py", "--agent-run", "--max-repairs", "2"]
+        with mock.patch.object(sys, "argv", argv), mock.patch.object(AUTOPILOT, "run_autopilot", return_value=0) as run:
+            self.assertEqual(AUTOPILOT.main(), 0)
+        kwargs = run.call_args.kwargs
+        self.assertTrue(kwargs["repair"])
+        self.assertEqual(kwargs["max_repairs"], 2)
+        self.assertIsNone(kwargs["start_stage"])
+        self.assertIsNone(kwargs["stop_stage"])
+
+    def test_agent_context_recommends_single_durable_entrypoint_when_idle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
+                context = AUTOPILOT._agent_context(root)
+        self.assertEqual(context["authority"], "AUTOPILOT_AGENT_CONTEXT_V1")
+        self.assertIn("make autopilot-agent", context["nextAction"])
+        self.assertTrue(any("owner-scoped convergence" in rule for rule in context["continuationRules"]))
