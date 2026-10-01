@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	applicationDeploymentOperationKind = "application.deploy"
-	applicationDeploymentTargetPrefix  = "environment-binding:"
+	applicationDeploymentOperationKind = controlplane.ApplicationDeploymentOperationKind
+	applicationDeploymentTargetPrefix  = controlplane.ApplicationDeploymentTargetPrefix
 )
 
 func projectApplicationDeliveryEvidence(projectID string, releases []controlplane.ApplicationRelease, bindings []controlplane.EnvironmentBinding, operations []controlplane.Operation) ([]reliability.DeliveryEvidence, error) {
