@@ -1099,7 +1099,7 @@ const displayNumber=value=>{
 const displayCount=(value,enLabel,faLabel='مورد')=>state.locale==='fa'
   ? `${displayNumber(value)} ${faLabel}`
   : `${displayNumber(value)} ${enLabel}`;
-const motionSafeBehavior=()=>motionSafeBehavior();
+const motionSafeBehavior=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
 const flowArrow=()=>state.locale==='fa'?'←':'→';
 const formatDate = value => {
   if (!value) return '—';
