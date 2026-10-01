@@ -816,7 +816,7 @@ rules:
   verbs: ["get", "list"]
 - apiGroups: [""]
   resources: ["services"]
-  verbs: ["get", "create", "update", "patch"]
+  verbs: ["get", "create", "update", "patch", "delete"]
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get", "list"]
