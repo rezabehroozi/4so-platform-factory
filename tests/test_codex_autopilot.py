@@ -440,6 +440,56 @@ class CheckpointSafeStageTests(unittest.TestCase):
         self.assertIn("AUTOPILOT_STAGE_SHARD_AUTHORITY_V2", source)
 
 
+class AutopilotAgentContextTests(unittest.TestCase):
+    def test_agent_context_is_compact_and_omits_raw_stage_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".state").mkdir()
+            report = {
+                "schemaVersion": 1,
+                "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+                "runId": "run-context",
+                "status": "CODE_DEFECT",
+                "phase": "forward",
+                "currentStage": "smoke-4",
+                "currentSpecialist": "installer-runtime",
+                "nextStage": "smoke-4",
+                "repairCount": 1,
+                "resumeEligible": True,
+                "invocation": ["python3", "scripts/codex_autopilot.py", "--repair"],
+                "lastFailure": {
+                    "stage": "smoke-4",
+                    "specialist": "installer-runtime",
+                    "status": "FAIL",
+                    "fingerprint": "fp-compact",
+                    "reason": "NO_PROGRESS",
+                    "output_tail": "secret raw output must not escape",
+                },
+            }
+            AUTOPILOT._report_path(root).write_text(json.dumps(report), encoding="utf-8")
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
+                context = AUTOPILOT._agent_context(root)
+            raw = json.dumps(context)
+            self.assertEqual(context["authority"], "AUTOPILOT_AGENT_CONTEXT_V1")
+            self.assertTrue(context["notProductAuthority"])
+            self.assertEqual(context["lastFailure"]["fingerprint"], "fp-compact")
+            self.assertNotIn("output_tail", raw)
+            self.assertNotIn("secret raw output", raw)
+            self.assertEqual(context["resumeInvocation"][-1], "--repair")
+            self.assertIn("AGENTS.md", context["sourceContext"]["agentInstructions"])
+
+    def test_agent_context_cli_prints_one_json_document(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.object(AUTOPILOT, "ROOT", root), \
+                 mock.patch.object(AUTOPILOT, "_agent_context", return_value={"authority": "AUTOPILOT_AGENT_CONTEXT_V1", "status": "IDLE"}), \
+                 mock.patch.object(sys, "argv", ["codex_autopilot.py", "--agent-context"]), \
+                 mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+                code = AUTOPILOT.main()
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(out.getvalue())["authority"], "AUTOPILOT_AGENT_CONTEXT_V1")
+
+
 class AutopilotEventLogTests(unittest.TestCase):
     def test_event_log_is_append_only_and_summarizes_last_run(self):
         with tempfile.TemporaryDirectory() as directory:
