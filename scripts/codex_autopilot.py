@@ -468,7 +468,7 @@ def _owner_context_paths(stage: Stage) -> tuple[str, ...]:
     return _OWNER_CONTEXT_PATHS.get(_stage_specialist(stage), ())
 
 
-_FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "c-compiler", "libpq", "browser", "yaml", "playwright"})
+_FULL_ENVIRONMENT_REQUIREMENTS = frozenset({"go", "make", "bash", "c-compiler", "libpq", "browser", "yaml", "playwright"})
 
 def _environment_requirements(stages: list[Stage] | None) -> set[str]:
     if stages is None:
@@ -478,6 +478,8 @@ def _environment_requirements(stages: list[Stage] | None) -> set[str]:
         name = stage.name
         if name.startswith(("go-unit-", "go-vet-")) or name == "installer-go-owner-tests":
             required.add("go")
+        if name == "installer-entrypoint-contracts":
+            required.add("bash")
         if name.startswith("go-race-"):
             required.update({"go", "c-compiler", "libpq"})
         if name in {"build-for-smoke", "build-release"}:
@@ -492,7 +494,7 @@ def environment_preflight(*, require_codex: bool, stages: list[Stage] | None = N
     requirements = _environment_requirements(stages)
     missing: list[str] = []
     details: dict[str, str] = {}
-    for tool in ("go", "make"):
+    for tool in ("go", "make", "bash"):
         if tool not in requirements:
             continue
         path = shutil.which(tool)
