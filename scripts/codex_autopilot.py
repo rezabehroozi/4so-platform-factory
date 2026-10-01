@@ -299,6 +299,8 @@ def _codex_command(*, sandbox: str = "workspace-write") -> list[str] | None:
 
 def _stage_specialist(stage: Stage) -> str:
     name = stage.name
+    if name == "smoke-ui-workflow-e2e":
+        return "operator-installer-e2e"
     if name.startswith("smoke-ui") or name == "persian-ui-lint":
         return "operator-console"
     if name in {"derived-agent-knowledge", "browser-triage-profile", "browser-triage-prerequisites-policy"}:
@@ -332,6 +334,8 @@ def _select_convergence_stages(stages: list[Stage], repaired_stage_names: set[st
     for specialist in specialists:
         if specialist == "operator-console":
             wanted.update({"build-for-smoke", "smoke-ui-rendered", "smoke-ui-quality", "persian-ui-lint", "smoke-ui-live", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
+        elif specialist == "operator-installer-e2e":
+            wanted.update({"installer-entrypoint-contracts", "installer-go-owner-tests", "build-for-smoke", "installer-core-smoke", "installer-host-smoke", "installer-remote-smoke", "smoke-ui-rendered", "smoke-ui-quality", "persian-ui-lint", "smoke-ui-live", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
         elif specialist == "installer-runtime":
             wanted.update({"installer-entrypoint-contracts", "installer-go-owner-tests", "build-for-smoke", "installer-core-smoke", "installer-host-smoke", "installer-remote-smoke", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
         elif specialist == "developer-agent-experience":
@@ -440,6 +444,7 @@ FAILURE_PATH_HINTS_AUTHORITY = "AUTOPILOT_FAILURE_PATH_HINTS_V1"
 EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY = "AUTOPILOT_EXTERNAL_OWNER_FIX_ADOPTION_V1"
 DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY = "AUTOPILOT_DURABLE_TRIAGE_CLASSIFICATION_V1"
 LIVE_RUN_REJOIN_FENCE_AUTHORITY = "AUTOPILOT_LIVE_RUN_REJOIN_FENCE_V1"
+CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -450,6 +455,7 @@ AGENT_FAILURE_CAPSULE_MAX_CHARS = 3200
 
 _OWNER_CONTEXT_PATHS: dict[str, tuple[str, ...]] = {
     "operator-console": ("webconsole/", "scripts/smoke_ui", "scripts/persian_", "tests/test_smoke_ui"),
+    "operator-installer-e2e": ("webconsole/", "cmd/platform-installer/", "cmd/platformctl/installer_", "install.sh", "scripts/smoke_ui", "scripts/smoke_installer", "tests/test_smoke_ui", "tests/test_install", "tests/test_installer"),
     "installer-runtime": ("install.sh", "cmd/platform-installer/", "cmd/platformctl/installer_", "internal/bootstrap/", "internal/hostdeployment/", "internal/remotebootstrap/", "scripts/smoke_installer", "tests/test_install", "tests/test_installer"),
     "developer-agent-experience": ("AGENTS.md", "DERIVED-AGENT-KNOWLEDGE.json", "scripts/generate_agent_knowledge.py", "scripts/browser_triage_", "tests/test_browser_"),
     "lab-certification": ("lab/", "scripts/lab_runner.py", "scripts/test_lab_runner.py", "scripts/postgresql_runtime_certify.py", "internal/fieldcampaign/"),
@@ -1096,6 +1102,7 @@ def _agent_context(root: Path) -> dict:
         "externalOwnerFixAdoptionAuthority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
         "durableTriageClassificationAuthority": DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY,
         "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
+        "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
         "promptBudgetChars": report.get("promptBudgetChars") if isinstance(report.get("promptBudgetChars"), dict) else {
@@ -1223,6 +1230,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "externalOwnerFixAdoptionAuthority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
         "durableTriageClassificationAuthority": DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY,
         "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
+        "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
         "defaultRepairBudget": DEFAULT_REPAIR_BUDGET,
         "defaultAgentRepairBudget": DEFAULT_AGENT_REPAIR_BUDGET,
         "promptBudgetChars": {
