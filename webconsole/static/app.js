@@ -61,6 +61,7 @@ function applyLocale() {
   updateBreadcrumb();
   refreshFormValidationFeedback();
   if(document.getElementById('application-delivery-prerequisite'))renderApplicationDeliveryPrerequisite();
+  if(document.getElementById('dapr-prerequisite'))renderDaprRuntimePrerequisite();
   if(document.getElementById('page-action-availability'))renderActionAvailability();
 }
 
@@ -4541,6 +4542,34 @@ function renderDaprRuntimeOptions(){
   }
   renderDaprRuntimeControls();renderDaprWorkloadControls();
 }
+function renderDaprRuntimePrerequisite(){
+  const host=$('#dapr-prerequisite');if(!host)return;
+  const faLocale=state.locale==='fa';
+  const projectId=$('#dapr-project')?.value||state.globalScope.projectId||'';
+  const clusters=daprClusterRecords(projectId);
+  const hasTrait=(state.applicationCapabilityTraits||[]).some(item=>(!projectId||item.projectId===projectId)&&item.kind==='sidecar'&&item.capability==='application-runtime.dapr');
+  const actions=[];
+  if(!state.projects.length)actions.push({kind:'page',page:'workspace',label:faLocale?'ساخت پروژه':'Create project'});
+  if(state.projects.length&&!clusters.length)actions.push({kind:'page',page:'clusters',label:faLocale?'اتصال پلتفرم':'Connect platform'});
+  if(projectId&&!hasTrait)actions.push({kind:'trait',projectId,label:faLocale?'ساخت قابلیت Dapr':'Create Dapr capability'});
+  if(!actions.length){host.hidden=true;host.innerHTML='';return;}
+  const hardBlocked=!state.projects.length||!clusters.length;
+  host.hidden=false;
+  host.innerHTML=`<strong>${esc(faLocale?(hardBlocked?'پیش‌نیاز ارزیابی Dapr کامل نیست':'برای Admission مربوط به Workload یک قابلیت Dapr لازم است'):(hardBlocked?'Dapr assessment prerequisites are incomplete':'Workload admission needs a Dapr capability trait'))}</strong><br><span>${esc(faLocale?(hardBlocked?'ابتدا محدوده پروژه و یک پلتفرم متصل را آماده کنید.':'ارزیابی native-vs-managed همچنان قابل انجام است؛ فقط برای workload policy/admission یک CapabilityTrait از نوع sidecar لازم است.'):(hardBlocked?'Prepare a project scope and one connected platform first.':'Native-vs-managed assessment remains available; only workload policy/admission needs an application-runtime.dapr sidecar CapabilityTrait.'))}</span><div class="button-row">${actions.map(action=>`<button class="secondary small-button" type="button" data-dapr-prerequisite-kind="${esc(action.kind)}"${action.page?` data-dapr-prerequisite-page="${esc(action.page)}"`:''}${action.projectId?` data-project-id="${esc(action.projectId)}"`:''}>${esc(action.label)}</button>`).join('')}</div>`;
+  $('[data-dapr-prerequisite-kind]',host).forEach(button=>button.onclick=async()=>{
+    if(button.dataset.daprPrerequisiteKind==='page'){await navigate(button.dataset.daprPrerequisitePage);return;}
+    const project=button.dataset.projectId||'';
+    if(!await navigate('applications'))return;
+    const details=$('#application-composition-library');if(details?.matches('details'))details.open=true;
+    if(project&&$('#application-trait-project')&&!$('#application-trait-project').disabled)$('#application-trait-project').value=project;
+    renderApplicationLibraryOptions();
+    $('#application-trait-kind').value='sidecar';
+    $('#application-trait-capability').value='application-runtime.dapr';
+    details?.scrollIntoView({behavior:motionSafeBehavior(),block:'start'});
+    $('#application-trait-name')?.focus({preventScroll:true});
+    applyAccessMode();
+  });
+}
 function daprLifecycleActions(assessment){
   const admission=assessment?.assessment||{},observed=assessment?.observed;
   if(admission.mode==='USE_NATIVE')return [];
@@ -5055,6 +5084,7 @@ async function loadDaprRuntimePage(){
     ]);
     Object.assign(state,{projects,clusters,applicationCapabilityTraits});
     renderDaprRuntimeOptions();
+    renderDaprRuntimePrerequisite();
     renderDaprRuntimeResult();
     renderDaprWorkloadResult();
     if(state.daprLifecycle?.operation?.id)await refreshDaprLifecycle();
@@ -5069,7 +5099,7 @@ $('#template-schema-form').onsubmit=async event=>{event.preventDefault();const f
 $('#template-policy-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;try{const required=$('#template-policy-backup-required').checked;await api('/api/v1/platform-policy-sets',{method:'POST',body:{projectId:$('#template-policy-project').value,name:$('#template-policy-name').value.trim(),version:$('#template-policy-version').value.trim(),maintenance:{riskClass:$('#template-policy-risk').value,requireApproval:$('#template-policy-approval').checked,maxUnavailable:Number($('#template-policy-max-unavailable').value),requireRecoveryCheckpoint:$('#template-policy-checkpoint').checked},backup:{required,provider:required?$('#template-policy-backup-provider').value.trim():'',schedule:required?$('#template-policy-backup-schedule').value.trim():'',retention:required?$('#template-policy-backup-retention').value.trim():''},security:{podSecurityLevel:$('#template-policy-security').value,defaultDenyIngress:$('#template-policy-deny-ingress').checked,defaultDenyEgress:$('#template-policy-deny-egress').checked,allowDNS:$('#template-policy-allow-dns').checked}}});toast('Immutable policy set created.');form.reset();await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
 $('#platform-template-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;try{const targets=$('#platform-template-targets').value.split(',').map(v=>v.trim()).filter(Boolean),certificationRequirements=$$('[data-template-cert]:checked').map(el=>el.value);if(!certificationRequirements.length)throw new Error('Select at least one certification requirement.');await api('/api/v1/platform-templates',{method:'POST',body:{projectId:$('#platform-template-project').value,name:$('#platform-template-name').value.trim(),version:$('#platform-template-version').value.trim(),blueprintReleaseId:$('#platform-template-blueprint').value,variableSchemaId:$('#platform-template-schema').value,policySetId:$('#platform-template-policy').value,allowedTargetClasses:targets,certificationRequirements}});toast('Immutable Platform Template created.');form.reset();$$('[data-template-cert]').forEach(el=>el.checked=true);await loadPlatformTemplates();}catch(error){toast(error.message,'error');}};
 $('#platform-template-project').addEventListener('change',renderPlatformTemplateOptions);
-$('#dapr-project').addEventListener('change',()=>{resetDaprRuntimeWorkflow();renderDaprRuntimeOptions();});
+$('#dapr-project').addEventListener('change',()=>{resetDaprRuntimeWorkflow();renderDaprRuntimeOptions();renderDaprRuntimePrerequisite();});
 $('#dapr-cluster').addEventListener('change',resetDaprRuntimeWorkflow);
 $('#dapr-disconnected').addEventListener('change',resetDaprRuntimeWorkflow);
 $('#dapr-assessment-form').onsubmit=async event=>{
