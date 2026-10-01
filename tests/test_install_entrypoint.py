@@ -58,6 +58,11 @@ class GuidedInstallEntrypointTests(unittest.TestCase):
         self.assertNotIn('curl ', source)
         self.assertNotIn('systemctl ', source)
 
+    def test_bootstrap_continuation_rejects_missing_option_values_before_transport(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('--installer-url|--token-file|--ca-file|--confirmation)', source)
+        self.assertIn('requires a value', source)
+
     def test_remote_bootstrap_continuation_only_requires_root_for_effective_private_token(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('DEFAULT_BOOTSTRAP_TOKEN_FILE="/var/lib/4so-platform-installer/bootstrap-token"', source)
@@ -112,6 +117,8 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
 
     def test_doctor_rejects_wrong_host_or_unrunnable_release_binaries_before_preflight(self):
         source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('HOST_RUNTIME_DOCTOR_AUTHORITY="INSTALLER_MANUAL_HOST_RUNTIME_DOCTOR_V1"', source)
+        self.assertIn('hostRuntimeAuthority=${HOST_RUNTIME_DOCTOR_AUTHORITY}', source)
         self.assertIn('hostPlatformReady=${host_platform_ready}', source)
         self.assertIn('platformctlRunnable=${platformctl_runnable}', source)
         self.assertIn('installerRunnable=${installer_runnable}', source)
