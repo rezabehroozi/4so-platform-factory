@@ -158,6 +158,24 @@ func TestOperatorConsoleJourneyContract(t *testing.T) {
 			t.Fatalf("viewer-safe planning endpoint %q missing from console contract", viewerSafe)
 		}
 	}
+	for _, contract := range []string{
+		"resumeApplicationDeploymentForBinding",
+		"/api/v1/application-platform/environment-bindings/",
+		"application deployment history",
+		"RECOVERY_REQUIRED",
+		"RECOVERED_READY",
+		"EVIDENCE_MISSING",
+		"recoveryEvidenceDigest",
+		"evidencePresent",
+		"read-only recovery resolution",
+	} {
+		if !strings.Contains(js, contract) {
+			t.Fatalf("application deployment durable/recovery console contract missing %q", contract)
+		}
+	}
+	if !strings.Contains(html, "Durable status is resumed for this binding after reload.") || !strings.Contains(html, "read-only target recovery evidence") {
+		t.Fatal("application deployment recovery guidance is missing from the operator console")
+	}
 	assertDOMReferencesExist(t, html, js)
 }
 
