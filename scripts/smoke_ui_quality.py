@@ -29,6 +29,10 @@ CONSOLE_PAGES = [
     "verification", "edge", "fleet", "workspaces", "finops", "tenants", "operations", "ai", "notifications", "services",
     "catalog", "lab", "validator",
 ]
+TASK_FIRST_DISCLOSURE_ROUTES = {
+    "workspace", "clusters", "providers", "templates", "applications", "baselines",
+    "verification", "edge", "workspaces", "finops", "tenants", "operations", "catalog",
+}
 INSTALLER_PAGES = ["overview", "installation", "progress", "health", "recovery", "lifecycle"]
 
 
@@ -335,6 +339,16 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
                 label = f"{app}:{width}:accessibility:{direction}:{route}"
                 if page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 2"):
                     failures.append(f"{label}:horizontal-overflow")
+                if not installer and route in TASK_FIRST_DISCLOSURE_ROUTES:
+                    undisclosed = page.evaluate("""() => {
+                      const active=document.querySelector('.page.active');
+                      if(!active)return [];
+                      return [...active.querySelectorAll('form')]
+                        .filter(form => !form.closest('details'))
+                        .map(form => form.id || form.getAttribute('action') || 'anonymous-form');
+                    }""")
+                    if undisclosed:
+                        failures.append(f"{label}:task-first-undisclosed-forms:{undisclosed[:5]}")
                 audit_dom(page, label, failures)
                 accessibility_states += 1
 
@@ -608,6 +622,7 @@ def main(argv: list[str] | None = None) -> int:
         "disclosureAuthority": "OPERATOR_EXPERIENCE_DISCLOSURE_EXPANDED_MATRIX_V1",
         "validationAuthority": "FORM_VALIDATION_FEEDBACK_V1",
         "directionalAuthority": "RTL_DIRECTIONAL_AFFORDANCE_V1",
+        "taskFirstDensityAuthority": "TASK_FIRST_PROGRESSIVE_DISCLOSURE_V1",
         "status": "PASS" if not failures else "FAIL",
         "checkpoint": {
             "scope": args.scope,
