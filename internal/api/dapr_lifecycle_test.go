@@ -199,6 +199,17 @@ func TestDaprLifecycleCreateIsApprovalGatedAndIdempotent(t *testing.T) {
 		t.Fatalf("Dapr lifecycle was not sealed behind independent durable approval: %#v", first)
 	}
 
+	assessmentBody := fmt.Sprintf(`{"projectId":%q,"clusterId":%q,"disconnected":false}`, project.ID, cluster.ID)
+	w = applicationPlatformRequest(t, srv, http.MethodPost, "/api/v1/application-platform/dapr/assessment", assessmentBody, "owner", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("Dapr assessment resume locator=%d %s", w.Code, w.Body.String())
+	}
+	assessment := decodeApplicationResponse[daprAssessmentResponse](t, w)
+	if assessment.LatestOperation == nil || assessment.LatestOperation.ID != first.Operation.ID ||
+		assessment.LatestOperation.State != controlplane.OperationAwaitingApproval {
+		t.Fatalf("Dapr assessment did not expose the durable lifecycle locator: %#v", assessment.LatestOperation)
+	}
+
 	w = applicationPlatformRequest(t, srv, http.MethodPost, "/api/v1/application-platform/dapr/lifecycle", body, "owner", headers)
 	if w.Code != http.StatusOK {
 		t.Fatalf("Dapr lifecycle replay=%d %s", w.Code, w.Body.String())
