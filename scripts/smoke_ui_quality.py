@@ -411,7 +411,11 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
                         sectionHidden: Boolean(sectionNav?.hidden),
                         activeSecondaryVisible: !activeRect || !navRect || (
                           activeRect.left >= navRect.left - 2 && activeRect.right <= navRect.right + 2
-                        )
+                        ),
+                        heading:String((document.querySelector('.page.active .section-intro h2, .page.active .page-heading h1, .page.active .operator-briefing h1, .page.active .operator-briefing h2')?.textContent)||'').trim(),
+                        outcomeCount:document.querySelectorAll('.page.active .page-outcome-strip').length,
+                        outcomeText:String(document.querySelector('.page.active .page-outcome-strip')?.textContent||'').replace(/\s+/g,' ').trim(),
+                        surfaceCount:document.querySelectorAll('.page.active .panel, .page.active .action-console, .page.active .metric-grid, .page.active .operator-briefing, .page.active .product-flow, .page.active .data-table-shell').length
                       };
                     }""", route)
                     expected_secondary = route != "overview"
@@ -422,6 +426,8 @@ def _audit_route_matrix(browser, document: str, *, installer: bool, routes: list
                             failures.append(f"{label}:secondary-nav-route-state:{navigation}")
                     elif navigation.get("secondaryCount") != 0 or not navigation.get("sectionHidden"):
                         failures.append(f"{label}:overview-secondary-nav-state:{navigation}")
+                    if not navigation.get("heading") or navigation.get("outcomeCount") != 1 or not navigation.get("outcomeText") or navigation.get("surfaceCount",0) < 1:
+                        failures.append(f"{label}:route-journey-framing:{navigation}")
                 if not installer and route in TASK_FIRST_DISCLOSURE_ROUTES:
                     undisclosed = page.evaluate("""() => {
                       const active=document.querySelector('.page.active');
@@ -832,6 +838,7 @@ def main(argv: list[str] | None = None) -> int:
         "applicationStepAdmissionAuthority": "APPLICATION_PROGRESSIVE_STEP_ADMISSION_V1",
         "programmaticReducedMotionAuthority": "PROGRAMMATIC_REDUCED_MOTION_V1",
         "applicationLocalizationAuthority": "APPLICATION_DELIVERY_LOCALIZATION_PARITY_V1",
+        "routeJourneyFramingAuthority": "ROUTE_JOURNEY_FRAMING_V1",
         "status": "PASS" if not failures else "FAIL",
         "checkpoint": {
             "scope": args.scope,
