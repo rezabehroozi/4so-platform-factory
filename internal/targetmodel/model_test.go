@@ -196,12 +196,12 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c4 := byID["C4-console-e2e-ux-certification"]
-	for _, evidence := range []string{"OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1", "OPERATOR_EXPERIENCE_DISCLOSURE_EXPANDED_MATRIX_V1", "FORM_VALIDATION_FEEDBACK_V1"} {
+	for _, evidence := range []string{"OPERATOR_EXPERIENCE_VIEWPORT_ACCESSIBILITY_V1", "OPERATOR_EXPERIENCE_DISCLOSURE_EXPANDED_MATRIX_V1", "FORM_VALIDATION_FEEDBACK_V1", "RUNTIME_GENERATED_LOCALIZATION_PARITY_V1"} {
 		if !containsString(c4.Evidence, evidence) {
 			t.Fatalf("C4 deep RTL/LTR evidence %q missing: %#v", evidence, c4)
 		}
 	}
-	if len(c4.ExitCriteria) < 5 || !containsString(c4.ExitCriteria, "320/390/768/1024/1440 viewport checks cover LTR and RTL with workflow disclosures collapsed and expanded") || !containsString(c4.ExitCriteria, "invalid required/pattern/range inputs expose persistent localized field errors, aria-describedby, a form summary and first-error focus in both Console and Installer") {
+	if len(c4.ExitCriteria) < 6 || !containsString(c4.ExitCriteria, "320/390/768/1024/1440 viewport checks cover LTR and RTL with workflow disclosures collapsed and expanded") || !containsString(c4.ExitCriteria, "invalid required/pattern/range inputs expose persistent localized field errors, aria-describedby, a form summary and first-error focus in both Console and Installer") || !containsString(c4.ExitCriteria, "runtime-generated Console/Installer controls round-trip English -> Persian/RTL -> English without hardcoded locale residue") {
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c8 := byID["C8-console-operational-completion"]
