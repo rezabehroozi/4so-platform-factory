@@ -1214,7 +1214,11 @@ html[lang="fa"] .data-table :where(.numeric,.timestamp){font-variant-numeric:tab
 .data-table .row-actions button,.data-table th .data-table-sort,.compact-control select,.compact-button{min-height:var(--ui-control-hit)}
 .data-table .row-actions{align-items:center}
 
-/* Persian-first form validation state. */
+/* Persistent, locale-safe validation feedback. Native bubbles are not the sole error surface. */
+form label:has(> :where(input,select,textarea)[required])>span:first-child::after{content:" *";color:var(--ui-danger);font-weight:850}
 :where(input,select,textarea)[aria-invalid="true"]{border-color:var(--ui-danger)!important;box-shadow:0 0 0 2px color-mix(in srgb,var(--ui-danger) 14%,transparent)!important}
 .field-invalid>span,.field-invalid>.field-label{color:var(--ui-danger-fg)}
+.field-error{display:block;color:var(--ui-danger-fg);font-size:11.5px;font-weight:620;line-height:1.5;overflow-wrap:anywhere}
+.form-validation-summary{grid-column:1/-1;display:grid;gap:3px;margin:0 0 12px;padding:10px 12px;border:1px solid var(--danger-border);border-inline-start:4px solid var(--ui-danger);border-radius:var(--radius-md);background:var(--danger-bg);color:var(--danger-fg)}
+.form-validation-summary strong{color:inherit}.form-validation-summary span{font-size:12px;line-height:1.55}
 :where(input,select,textarea)[aria-invalid="true"]:focus-visible{outline:3px solid color-mix(in srgb,var(--ui-danger) 24%,transparent);outline-offset:1px}
