@@ -59,6 +59,7 @@ function applyLocale() {
   localizeDynamicTree(document.body);
   localizeDynamicAttributes(document.body);
   updateBreadcrumb();
+  refreshFormValidationFeedback();
 }
 
 const faDynamic = {
@@ -5203,6 +5204,10 @@ function clearFieldInvalid(target,force=false){
   queueMicrotask(()=>updateFormValidationSummary(target.form));
 }
 function clearFormValidation(form){if(!form)return;$('input,select,textarea',form).forEach(control=>clearFieldInvalid(control,true));$('.form-validation-summary',form)?.remove();}
+function refreshFormValidationFeedback(){
+  $('[aria-invalid="true"]').forEach(control=>{if(control.validity?.valid===false)markFieldInvalid(control);else clearFieldInvalid(control,true);});
+  $('form').forEach(updateFormValidationSummary);
+}
 function dirtyWithin(root){if(!root)return false;if(root.matches?.('form[data-dirty="true"], [data-dirty-guard][data-dirty="true"]'))return true;return !!root.querySelector?.('form[data-dirty="true"], [data-dirty-guard][data-dirty="true"]');}
 function clearDirtyForms(root=document){if(root.matches?.('form[data-dirty="true"]'))markFormClean(root);if(root.matches?.('[data-dirty-guard][data-dirty="true"]'))delete root.dataset.dirty;$('form[data-dirty="true"]',root).forEach(markFormClean);$('[data-dirty-guard][data-dirty="true"]',root).forEach(control=>delete control.dataset.dirty);}
 async function confirmDiscardDirty(root,title,message){if(!dirtyWithin(root))return true;if(!await confirmAction(title,message,true))return false;clearDirtyForms(root);return true;}
