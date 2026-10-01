@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"platform.4so.io/factory/internal/hostdeployment"
 )
 
 func TestBuildManualInstallerSpecUsesProductDefaults(t *testing.T) {
@@ -82,5 +84,34 @@ func TestManualInstallerConsoleURL(t *testing.T) {
 	}
 	if got := manualInstallerConsoleURL("not-a-url"); got != "" {
 		t.Fatalf("invalid URL should be empty, got %q", got)
+	}
+}
+
+
+func TestManualInstallerAccessPlanExplainsLoopbackSSHForward(t *testing.T) {
+	plan := hostdeployment.Plan{}
+	plan.Transport.Mode = "http-loopback"
+	plan.Transport.LoopbackOnly = true
+	plan.Health.URL = "http://127.0.0.1:9080/healthz"
+	access := manualInstallerAccessPlan(plan)
+	if access.WorkstationURL != "http://127.0.0.1:9080" {
+		t.Fatalf("workstation URL %q", access.WorkstationURL)
+	}
+	if access.SSHForwardCommand != "ssh -N -L 9080:127.0.0.1:9080 <user>@<installer-host>" {
+		t.Fatalf("ssh forward command %q", access.SSHForwardCommand)
+	}
+	if !access.LoopbackOnly || access.Mode != "http-loopback" || access.Note == "" {
+		t.Fatalf("unexpected access plan %#v", access)
+	}
+}
+
+func TestManualInstallerAccessPlanKeepsDirectTLSURL(t *testing.T) {
+	plan := hostdeployment.Plan{}
+	plan.Transport.Mode = "https"
+	plan.Transport.TransportProtected = true
+	plan.Health.URL = "https://installer.example.test:9443/healthz"
+	access := manualInstallerAccessPlan(plan)
+	if access.WorkstationURL != "https://installer.example.test:9443" || access.SSHForwardCommand != "" || access.LoopbackOnly {
+		t.Fatalf("unexpected TLS access plan %#v", access)
 	}
 }
