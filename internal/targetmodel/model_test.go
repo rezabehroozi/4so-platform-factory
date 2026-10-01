@@ -230,7 +230,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c6 := byID["C6-multi-agent-test-autopilot"]
-	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2", "AUTOPILOT_AGENT_OWNER_PROOF_V1", "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1", "AUTOPILOT_AGENT_ENTRYPOINT_V1"} {
+	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2", "AUTOPILOT_AGENT_OWNER_PROOF_V1", "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1", "AUTOPILOT_AGENT_ENTRYPOINT_V1", "AUTOPILOT_OWNER_CONTEXT_PATHS_V1"} {
 		if !containsString(c6.Evidence, evidence) {
 			t.Fatalf("C6 token-efficient autopilot evidence %q missing: %#v", evidence, c6)
 		}
@@ -245,6 +245,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"repair agents may edit only the working tree and may not commit/reset/checkout/stash/rebase/merge or mutate Git refs/index/history; any observed HEAD mutation stops automatic repair and requires operator reconciliation",
 		"checkpoint workspace identity combines the immutable Git HEAD with exact hashes of only dirty/untracked product inputs, falling back to the full-tree digest when local Git enumeration is unavailable",
 		"make autopilot-agent is the single normal agent entrypoint and composes durable project-runtime execution with prerequisite checking, exact checkpoint/resume, bounded repair and owner-scoped convergence so agents do not need to reconstruct orchestration flags or replay green stages",
+		"repair prompts and compact agent handoffs expose the failing specialist owner-path set before broad repository search, and the same owner-path map drives cross-owner convergence escalation",
 		"make autopilot-context emits a compact non-authoritative continuation capsule containing run/stage/failure fingerprint/resume metadata, source-context pointers and at most one bounded secret-redacted failure capsule, never raw stage logs or unredacted secrets",
 		"the continuation capsule includes the exact current owner proof command and bounded stage timeout so a new agent can reproduce the smallest failing proof without rereading the full orchestration source or replaying earlier green stages",
 		"Installer core, host-deployment and remote-bootstrap smoke tests are independent checkpoint stages so a late remote failure never replays already-green Installer owner tests and each repair is attributed to the exact failing owner stage",
