@@ -430,6 +430,9 @@
 <label class="check-row span-full"><input id="dapr-disconnected" type="checkbox"/><span>Target is operating without public registry access</span></label>
 <div class="form-actions span-full"><button class="secondary" type="submit">Assess Dapr runtime</button></div>
 </form>
+<details class="inline-action-disclosure" id="dapr-lifecycle-workflow">
+<summary><span class="summary-title">Manage Dapr lifecycle</span><span class="summary-help">Install, upgrade or remove only after assessment admits product-managed ownership.</span></summary>
+<div class="inline-action-body">
 <form class="form-grid" id="dapr-lifecycle-form" novalidate="">
 <label><span>Lifecycle action</span><select id="dapr-lifecycle-action" required=""><option value="INSTALL">Install</option><option value="UPGRADE">Upgrade</option><option value="REMOVE">Remove</option></select></label>
 <label><span>Current operation</span><input class="technical" dir="ltr" id="dapr-lifecycle-operation" placeholder="No request created" readonly=""/></label>
@@ -437,7 +440,12 @@
 <small class="span-full">Approval is independent and revision-fenced. A request being accepted does not imply runtime success or Physical certification.</small>
 </form>
 </div>
+</details>
+</div>
 <div aria-live="polite" id="dapr-runtime-result"></div>
+<details class="inline-action-disclosure" id="dapr-workload-workflow">
+<summary><span class="summary-title">Verify Dapr workload policy &amp; admission</span><span class="summary-help">Preview desired policy, then run read-only target admission; this never deploys the application.</span></summary>
+<div class="inline-action-body">
 <h3>Dapr workload policy &amp; admission</h3>
 <p>Render the exact read-only policy projection first, materialize that projection through the application/GitOps path, then verify live Configuration, Component scopes and sidecar injection on the selected target. Admission never deploys the application or claims Runtime/Physical PASS.</p>
 <form class="form-grid" data-viewer-safe="true" id="dapr-workload-form" novalidate="">
@@ -460,6 +468,8 @@
 <small class="span-full">The preview is desired/rendered policy only. Target admission is a durable READ_ONLY verification job and succeeds only after live Configuration/Component readback and server-side Pod dry-run evidence.</small>
 </form>
 <div aria-live="polite" id="dapr-workload-result"></div>
+</div>
+</details>
 
 </article>
 </section>
