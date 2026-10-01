@@ -227,12 +227,13 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		}
 	}
 	c6 := byID["C6-multi-agent-test-autopilot"]
-	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2", "AUTOPILOT_AGENT_OWNER_PROOF_V1"} {
+	for _, evidence := range []string{"AUTOPILOT_FAILURE_CAPSULE_V1", "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1", "AUTOPILOT_REPAIR_SCOPE_FENCE_V1", "AUTOPILOT_STRUCTURED_TRIAGE_V1", "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1", "AUTOPILOT_DIRTY_DELTA_V1", "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1", "AUTOPILOT_AGENT_CONTEXT_V1", "AUTOPILOT_INSTALLER_OWNER_STAGE_V1", "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2", "AUTOPILOT_AGENT_OWNER_PROOF_V1", "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1"} {
 		if !containsString(c6.Evidence, evidence) {
 			t.Fatalf("C6 token-efficient autopilot evidence %q missing: %#v", evidence, c6)
 		}
 	}
 	for _, criterion := range []string{
+		"environment preflight never emits raw custom Codex argv or secret-bearing wrapper arguments; a blocked preflight writes a compact fingerprinted handoff naming only missing prerequisites so the next agent fixes environment rather than product source",
 		"the first failure sends agents a bounded secret-redacted high-signal failure capsule rather than replaying a large raw log; read-only triage emits one unambiguous CODE_DEFECT/TEST_DEFECT/ENVIRONMENT/SUPPLY_CHAIN/UNKNOWN classification before the single workspace-write repair",
 		"the repair writer opens only for CODE_DEFECT or TEST_DEFECT; environment, supply-chain, missing/conflicting triage and unavailable-agent outcomes remain mutation-free",
 		"a timed-out deterministic stage is process-tree cleaned and, in repair mode, receives the same structured read-only diagnosis so a proven code/test hang may be repaired while an untriaged timeout remains environment-blocked",
