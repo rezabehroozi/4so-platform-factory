@@ -919,9 +919,78 @@ class AgentEntrypointContractTests(unittest.TestCase):
             self.assertEqual(AUTOPILOT.main(), 0)
         kwargs = run.call_args.kwargs
         self.assertTrue(kwargs["repair"])
+        self.assertTrue(kwargs["adopt_owner_fix"])
         self.assertEqual(kwargs["max_repairs"], 2)
         self.assertIsNone(kwargs["start_stage"])
         self.assertIsNone(kwargs["stop_stage"])
+
+    def test_external_owner_fix_adoption_accepts_only_same_head_code_defect_owner_delta(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".state").mkdir()
+            stage = AUTOPILOT.Stage("installer-host-smoke", ("python3", "scripts/smoke_installer_host.py"), 30)
+            report = {
+                "schemaVersion": 1,
+                "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+                "graphSignature": "graph",
+                "status": "CODE_DEFECT",
+                "lastFailure": {"stage": stage.name, "status": "FAIL", "fingerprint": "fp"},
+            }
+            AUTOPILOT._report_path(root).write_text(json.dumps(report), encoding="utf-8")
+            state = {
+                "phase": "forward",
+                "currentStage": stage.name,
+                "nextIndex": 0,
+                "gitHead": "a" * 40,
+                "workspaceDirtyManifest": {},
+            }
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_git_dirty_manifest", return_value={"install.sh": "after"}):
+                adopted, owner, delta = AUTOPILOT._try_adopt_external_owner_fix(
+                    root, state, graph_signature="graph", stages=[stage],
+                )
+            self.assertTrue(adopted)
+            self.assertEqual(owner, stage.name)
+            self.assertEqual(delta, ["install.sh"])
+            self.assertEqual(
+                AUTOPILOT.EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
+                "AUTOPILOT_EXTERNAL_OWNER_FIX_ADOPTION_V1",
+            )
+
+    def test_external_owner_fix_adoption_rejects_cross_owner_or_head_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".state").mkdir()
+            stage = AUTOPILOT.Stage("installer-host-smoke", ("python3", "scripts/smoke_installer_host.py"), 30)
+            AUTOPILOT._report_path(root).write_text(json.dumps({
+                "schemaVersion": 1,
+                "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+                "graphSignature": "graph",
+                "status": "CODE_DEFECT",
+                "lastFailure": {"stage": stage.name, "status": "FAIL", "fingerprint": "fp"},
+            }), encoding="utf-8")
+            state = {
+                "phase": "forward",
+                "currentStage": stage.name,
+                "nextIndex": 0,
+                "gitHead": "a" * 40,
+                "workspaceDirtyManifest": {},
+            }
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_git_dirty_manifest", return_value={"internal/persistence/postgres.go": "after"}):
+                adopted, reason, delta = AUTOPILOT._try_adopt_external_owner_fix(
+                    root, state, graph_signature="graph", stages=[stage],
+                )
+            self.assertFalse(adopted)
+            self.assertTrue(reason.startswith("OWNER_SCOPE_VIOLATION:"))
+            self.assertEqual(delta, ["internal/persistence/postgres.go"])
+
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="b" * 40):
+                adopted, reason, _ = AUTOPILOT._try_adopt_external_owner_fix(
+                    root, state, graph_signature="graph", stages=[stage],
+                )
+            self.assertFalse(adopted)
+            self.assertEqual(reason, "GIT_HEAD_CHANGED")
 
     def test_agent_context_recommends_single_durable_entrypoint_when_idle(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -962,6 +1031,24 @@ class AgentEntrypointContractTests(unittest.TestCase):
         self.assertIn("Start with these owner paths", prompt)
         self.assertIn("internal/hostdeployment/", prompt)
         self.assertEqual(AUTOPILOT.OWNER_CONTEXT_AUTHORITY, "AUTOPILOT_OWNER_CONTEXT_PATHS_V1")
+
+    def test_agent_prompts_include_exact_owner_scoped_failure_paths_when_available(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "install.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            (root / "internal" / "persistence").mkdir(parents=True)
+            (root / "internal" / "persistence" / "postgres.go").write_text("package persistence\n", encoding="utf-8")
+            stage = AUTOPILOT.Stage("installer-host-smoke", ("false",), 30)
+            result = AUTOPILOT.StageResult(
+                stage.name, "FAIL", 1, 0.1, "fp-hint",
+                "install.sh:12 failed\ninternal/persistence/postgres.go:4 unrelated",
+            )
+            triage_prompt = AUTOPILOT._triage_prompt(stage, result, 1, root)
+            repair_prompt = AUTOPILOT._repair_prompt(stage, result, 1, "CLASSIFICATION=CODE_DEFECT", root)
+        for prompt in (triage_prompt, repair_prompt):
+            self.assertIn("Exact failure path hints", prompt)
+            self.assertIn("install.sh", prompt)
+            self.assertNotIn("internal/persistence/postgres.go", prompt)
 
     def test_prompt_budgets_keep_failure_context_compact(self):
         stage = AUTOPILOT.Stage("installer-host-smoke", ("false",), 30)
