@@ -157,10 +157,12 @@ func installerManualPrepare(mode string, args []string) {
 	live := state.Plan.Root == "/"
 	status := "STAGED"
 	installerURL := ""
+	bootstrapTokenFile := ""
 	nextActions := []string{"copy the staged files to the intended live root or rerun installer-manual against --root / before using the browser Installer"}
 	if live {
 		status = "READY"
 		installerURL = manualInstallerConsoleURL(plan.Health.URL)
+		bootstrapTokenFile = tokenFile
 		nextActions = []string{
 			"read the private bootstrap token from bootstrapTokenFile",
 			"open installerUrl and authenticate with that token",
@@ -180,7 +182,7 @@ func installerManualPrepare(mode string, args []string) {
 		"verification":       verification,
 		"installerUrl":       installerURL,
 		"healthUrl":          plan.Health.URL,
-		"bootstrapTokenFile": func() string { if live { return tokenFile }; return "" }(),
+		"bootstrapTokenFile": bootstrapTokenFile,
 		"executionEnabled":   input.ExecutionEnabled,
 		"sourceReleaseDigest": releaseDigest,
 		"specPath":           retainedSpecPath(input.OutputSpec),
