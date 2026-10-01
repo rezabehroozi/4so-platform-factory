@@ -1540,6 +1540,13 @@ def _load_checkpoint(root: Path, *, graph_signature: str, repair: bool, allow_ow
         return None
     active_process_live = _cleanup_checkpoint_process(root, state)
     _write_state_raw(path, state)
+    if active_process_live:
+        # A live stage is the single execution authority. A second observer must
+        # never clear or rebind its checkpoint merely because it selected a
+        # different graph slice or because the working tree changed underneath
+        # the still-running process. Rejoin first; reconcile after it exits.
+        state["_activeProcessLive"] = True
+        return state
     expected = {
         "schemaVersion": _AUTOPILOT_STATE_SCHEMA,
         "graphSignature": graph_signature,
@@ -1580,8 +1587,6 @@ def _load_checkpoint(root: Path, *, graph_signature: str, repair: bool, allow_ow
             f"changed={len(adoption_delta)} paths={','.join(adoption_delta[:12])}",
             flush=True,
         )
-    if active_process_live:
-        state["_activeProcessLive"] = True
     return state
 
 
