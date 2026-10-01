@@ -431,7 +431,7 @@
 <div class="form-actions span-full"><button class="secondary" type="submit">Assess Dapr runtime</button></div>
 </form>
 <details class="inline-action-disclosure" id="dapr-lifecycle-workflow">
-<summary><span class="summary-title">Manage Dapr lifecycle</span><span class="summary-help">Install, upgrade or remove only after assessment admits product-managed ownership.</span></summary>
+<summary><span class="summary-title" data-en="Manage Dapr lifecycle" data-i18n="dapr.lifecycleTaskTitle">مدیریت چرخهٔ عمر Dapr</span><span class="summary-help" data-en="Install, upgrade or remove only after assessment admits product-managed ownership." data-i18n="dapr.lifecycleTaskHelp">فقط پس از پذیرش مالکیت مدیریت‌شده توسط ارزیابی، نصب، ارتقا یا حذف را انجام دهید.</span></summary>
 <div class="inline-action-body">
 <form class="form-grid" id="dapr-lifecycle-form" novalidate="">
 <label><span>Lifecycle action</span><select id="dapr-lifecycle-action" required=""><option value="INSTALL">Install</option><option value="UPGRADE">Upgrade</option><option value="REMOVE">Remove</option></select></label>
@@ -444,7 +444,7 @@
 </div>
 <div aria-live="polite" id="dapr-runtime-result"></div>
 <details class="inline-action-disclosure" id="dapr-workload-workflow">
-<summary><span class="summary-title">Verify Dapr workload policy &amp; admission</span><span class="summary-help">Preview desired policy, then run read-only target admission; this never deploys the application.</span></summary>
+<summary><span class="summary-title" data-en="Verify Dapr workload policy &amp; admission" data-i18n="dapr.workloadTaskTitle">بررسی سیاست و admission مربوط به workload در Dapr</span><span class="summary-help" data-en="Preview desired policy, then run read-only target admission; this never deploys the application." data-i18n="dapr.workloadTaskHelp">ابتدا سیاست desired را پیش‌نمایش کنید، سپس admission فقط‌خواندنی مقصد را اجرا کنید؛ این مسیر اپلیکیشن را deploy نمی‌کند.</span></summary>
 <div class="inline-action-body">
 <h3>Dapr workload policy &amp; admission</h3>
 <p>Render the exact read-only policy projection first, materialize that projection through the application/GitOps path, then verify live Configuration, Component scopes and sidecar injection on the selected target. Admission never deploys the application or claims Runtime/Physical PASS.</p>
