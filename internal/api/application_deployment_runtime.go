@@ -276,7 +276,23 @@ func (s *Server) createApplicationDeployment(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "IDEMPOTENCY_KEY_REQUIRED", err.Error())
 		return
 	}
-	blocker, err := s.applicationDeploymentBindingBlocker(r.Context(), request.Plan.ProjectID, request.Plan.ClusterID, request.Plan.EnvironmentBindingID, key)
+	actor, err := actorID(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "ACTOR_REQUIRED", err.Error())
+		return
+	}
+	risk := "medium"
+	if request.Plan.Environment == "production" {
+		risk = "high"
+	}
+	op, replay, blocker, err := s.store.CreateExclusiveOperationAwaitingApprovalWithPayload(r.Context(), controlplane.OperationRequest{
+		ProjectID: request.Plan.ProjectID,
+		Kind: applicationDeploymentOperationKind,
+		TargetRef: applicationDeploymentTarget(request.Plan.ClusterID, request.Plan.EnvironmentBindingID),
+		DesiredRevision: request.Plan.ReleaseDigest,
+		Risk: risk,
+		Class: controlplane.OperationClassMutating,
+	}, key, actor, r.Header.Get("X-Request-ID"), controlplane.ApplicationDeploymentPayloadMediaType, payload)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -294,27 +310,6 @@ func (s *Server) createApplicationDeployment(w http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	actor, err := actorID(r)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "ACTOR_REQUIRED", err.Error())
-		return
-	}
-	risk := "medium"
-	if request.Plan.Environment == "production" {
-		risk = "high"
-	}
-	op, replay, err := s.store.CreateOperationAwaitingApprovalWithPayload(r.Context(), controlplane.OperationRequest{
-		ProjectID: request.Plan.ProjectID,
-		Kind: applicationDeploymentOperationKind,
-		TargetRef: applicationDeploymentTarget(request.Plan.ClusterID, request.Plan.EnvironmentBindingID),
-		DesiredRevision: request.Plan.ReleaseDigest,
-		Risk: risk,
-		Class: controlplane.OperationClassMutating,
-	}, key, actor, r.Header.Get("X-Request-ID"), controlplane.ApplicationDeploymentPayloadMediaType, payload)
-	if err != nil {
-		writeStoreError(w, err)
-		return
-	}
 	status := http.StatusAccepted
 	if replay {
 		status = http.StatusOK
@@ -329,7 +324,6 @@ func (s *Server) createApplicationDeployment(w http.ResponseWriter, r *http.Requ
 		"physicalCertificationInferred": false,
 	})
 }
-
 func (s *Server) applicationDeploymentOperation(r *http.Request) (controlplane.Operation, controlplane.ApplicationDeploymentRequest, error) {
 	op, err := s.store.GetOperation(r.Context(), strings.TrimSpace(r.PathValue("id")))
 	if err != nil {
@@ -363,8 +357,10 @@ func (s *Server) getApplicationDeployment(w http.ResponseWriter, r *http.Request
 		"operation": op,
 		"request": req,
 		"ready": false,
+		"evidencePresent": false,
 		"physicalCertificationInferred": false,
 	}
+	evidencePresent := false
 	evidence, err := s.store.ListEvidence(r.Context(), op.ID)
 	if err != nil {
 		writeStoreError(w, err)
@@ -389,18 +385,22 @@ func (s *Server) getApplicationDeployment(w http.ResponseWriter, r *http.Request
 		}
 		out["evidence"] = value
 		out["evidenceDigest"] = item.Digest
+		out["evidencePresent"] = true
+		evidencePresent = true
 		break
 	}
 	currentErr := s.validateApplicationDeploymentCurrentAuthority(r.Context(), req)
 	out["currentAuthority"] = currentErr == nil
-	out["ready"] = currentErr == nil && op.State == controlplane.OperationSucceeded
+	out["ready"] = currentErr == nil && op.State == controlplane.OperationSucceeded && evidencePresent
+	if op.State == controlplane.OperationSucceeded && !evidencePresent {
+		out["evidenceMissing"] = true
+	}
 	if currentErr != nil {
 		out["stale"] = true
 	}
 	setRevisionETag(w, op.Revision)
 	writeJSON(w, http.StatusOK, out)
 }
-
 func (s *Server) approveApplicationDeployment(w http.ResponseWriter, r *http.Request) {
 	op, req, err := s.applicationDeploymentOperation(r)
 	if err != nil {
@@ -695,7 +695,7 @@ func (s *Server) reportApplicationDeploymentTask(w http.ResponseWriter, r *http.
 		writeStoreError(w, err)
 		return
 	}
-	if op.Kind != applicationDeploymentOperationKind || op.Revision != rev {
+	if op.Kind != applicationDeploymentOperationKind {
 		writeStoreError(w, controlplane.ErrConflict)
 		return
 	}
@@ -711,6 +711,10 @@ func (s *Server) reportApplicationDeploymentTask(w http.ResponseWriter, r *http.
 	}
 	worker := "agent:" + clusterID
 	if result.RecoveryRequired {
+		if op.Revision != rev {
+			writeStoreError(w, controlplane.ErrConflict)
+			return
+		}
 		message := strings.TrimSpace(result.Error)
 		if message == "" {
 			message = "application deployment mutation outcome requires authoritative operator recovery"
@@ -728,6 +732,10 @@ func (s *Server) reportApplicationDeploymentTask(w http.ResponseWriter, r *http.
 		return
 	}
 	if !result.Success {
+		if op.Revision != rev {
+			writeStoreError(w, controlplane.ErrConflict)
+			return
+		}
 		message := strings.TrimSpace(result.Error)
 		if message == "" {
 			message = "application deployment executor failed before authoritative convergence"
@@ -744,19 +752,6 @@ func (s *Server) reportApplicationDeploymentTask(w http.ResponseWriter, r *http.
 		writeJSON(w, http.StatusOK, map[string]any{"operation": op, "recoveryRequired": false})
 		return
 	}
-	if fenceErr := s.validateApplicationDeploymentCurrentAuthority(r.Context(), req); fenceErr != nil {
-		op, err = s.store.ReportOperationFailure(r.Context(), op.ID, op.Revision, worker, result.TaskFenceToken, controlplane.OperationFailureReport{
-			Class: controlplane.OperationFailurePermanent,
-			Code: "APPLICATION_DEPLOYMENT_RESULT_FENCE_CHANGED",
-			Message: "release, environment binding, WorkspaceBinding or inventory authority changed before result commit",
-		}, worker)
-		if err != nil {
-			writeStoreError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"operation": op, "staleResultRejected": true})
-		return
-	}
 	if result.Evidence == nil {
 		writeError(w, http.StatusUnprocessableEntity, "APPLICATION_DEPLOYMENT_EVIDENCE_REQUIRED", "successful application deployment requires canonical observed evidence")
 		return
@@ -770,24 +765,34 @@ func (s *Server) reportApplicationDeploymentTask(w http.ResponseWriter, r *http.
 		writeError(w, http.StatusUnprocessableEntity, "APPLICATION_DEPLOYMENT_EVIDENCE_DIGEST_MISMATCH", "canonical application deployment evidence digest mismatch")
 		return
 	}
+	if op.State != controlplane.OperationSucceeded {
+		if op.Revision != rev {
+			writeStoreError(w, controlplane.ErrConflict)
+			return
+		}
+		if fenceErr := s.validateApplicationDeploymentCurrentAuthority(r.Context(), req); fenceErr != nil {
+			op, err = s.store.ReportOperationFailure(r.Context(), op.ID, op.Revision, worker, result.TaskFenceToken, controlplane.OperationFailureReport{
+				Class: controlplane.OperationFailurePermanent,
+				Code: "APPLICATION_DEPLOYMENT_RESULT_FENCE_CHANGED",
+				Message: "release, environment binding, WorkspaceBinding or inventory authority changed before result commit",
+			}, worker)
+			if err != nil {
+				writeStoreError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"operation": op, "staleResultRejected": true})
+			return
+		}
+	}
 	payload, _ := json.Marshal(result.Evidence)
-	if _, err = s.store.AppendOperationEvidencePayload(r.Context(), controlplane.EvidenceMetadata{
+	wasSucceeded := op.State == controlplane.OperationSucceeded
+	op, sealedEvidence, err := s.store.CompleteOperationWithEvidencePayload(r.Context(), op.ID, rev, controlplane.EvidenceMetadata{
 		OperationID: op.ID,
 		Kind: controlplane.ApplicationDeploymentEvidenceKind,
 		Digest: digest,
 		MediaType: "application/json",
 		Size: int64(len(payload)),
-	}, payload, worker, result.TaskFenceToken, worker); err != nil {
-		writeStoreError(w, err)
-		return
-	}
-	op, err = s.store.GetOperation(r.Context(), op.ID)
-	if err == nil {
-		op, err = s.store.BeginOperationVerification(r.Context(), op.ID, op.Revision, worker, result.TaskFenceToken, worker)
-	}
-	if err == nil {
-		op, err = s.store.CompleteOperation(r.Context(), op.ID, op.Revision, worker, result.TaskFenceToken, worker)
-	}
+	}, payload, worker, result.TaskFenceToken, worker)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -795,7 +800,8 @@ func (s *Server) reportApplicationDeploymentTask(w http.ResponseWriter, r *http.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"operation": op,
 		"deployed": true,
-		"evidenceDigest": digest,
+		"evidenceDigest": sealedEvidence.Digest,
+		"idempotentReplay": wasSucceeded,
 		"physicalCertificationInferred": false,
 	})
 }
