@@ -109,6 +109,71 @@ func TestInstallerAccessResumeReadsDurableStatusBeforeMutation(t *testing.T) {
 	}
 }
 
+func TestInstallerAccessResetAndResetResumeUseDurableIDs(t *testing.T) {
+	t.Setenv("PLATFORM_INSTALLER_TOKEN", "reset-bootstrap-token-abcdefghijklmnopqrstuvwxyz")
+	var mu sync.Mutex
+	sequence := []string{}
+	resetActive := false
+	resetRuns := []map[string]any{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer reset-bootstrap-token-abcdefghijklmnopqrstuvwxyz" {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		mu.Lock()
+		sequence = append(sequence, r.Method+" "+r.URL.Path)
+		mu.Unlock()
+		switch r.Method + " " + r.URL.Path {
+		case "GET /api/v1/status":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"executionEnabled": true,
+				"bootstrapActive": false,
+				"resetActive": resetActive,
+				"run": map[string]any{"id": "bootstrap-1", "state": "SUCCEEDED"},
+				"resetRuns": resetRuns,
+			})
+		case "POST /api/v1/reset/start":
+			if r.Header.Get("X-Confirm-Reset") != "reset:bootstrap-1" {
+				t.Fatalf("reset confirmation=%q", r.Header.Get("X-Confirm-Reset"))
+			}
+			resetActive = true
+			resetRuns = []map[string]any{{"id":"reset-1","state":"RUNNING"}}
+			w.WriteHeader(http.StatusAccepted)
+		case "POST /api/v1/reset/resume":
+			if r.Header.Get("X-Confirm-Reset-Resume") != "resume:reset-1" {
+				t.Fatalf("reset-resume confirmation=%q", r.Header.Get("X-Confirm-Reset-Resume"))
+			}
+			resetActive = true
+			resetRuns[len(resetRuns)-1]["state"] = "RUNNING"
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	installerAccessResetCommand([]string{"--installer-url", server.URL, "--confirmation", "RESET"})
+	mu.Lock()
+	gotReset := append([]string(nil), sequence...)
+	sequence = nil
+	mu.Unlock()
+	wantReset := []string{"GET /api/v1/status", "POST /api/v1/reset/start", "GET /api/v1/status"}
+	if strings.Join(gotReset, "|") != strings.Join(wantReset, "|") {
+		t.Fatalf("reset sequence=%v want=%v", gotReset, wantReset)
+	}
+
+	resetActive = false
+	resetRuns[len(resetRuns)-1]["state"] = "FAILED"
+	installerAccessResetResumeCommand([]string{"--installer-url", server.URL, "--confirmation", "RESUME-RESET"})
+	mu.Lock()
+	gotResume := append([]string(nil), sequence...)
+	mu.Unlock()
+	wantResume := []string{"GET /api/v1/status", "POST /api/v1/reset/resume", "GET /api/v1/status"}
+	if strings.Join(gotResume, "|") != strings.Join(wantResume, "|") {
+		t.Fatalf("reset-resume sequence=%v want=%v", gotResume, wantResume)
+	}
+}
+
 func TestValidateInstallerAccessURL(t *testing.T) {
 	if _, err := validateAPIURL("http://installer.example:9080"); err == nil || !strings.Contains(err.Error(), "HTTPS") {
 		t.Fatalf("non-loopback HTTP should fail: %v", err)
