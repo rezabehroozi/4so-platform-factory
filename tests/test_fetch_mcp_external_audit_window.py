@@ -13,6 +13,9 @@ class C7WAuditFetchEvidenceTests(unittest.TestCase):
         client="chatgpt"
         challenge="sha256:"+hashlib.sha256(b"challenge").hexdigest()
         binding=seal.interop_binding_digest("mcp-interop-testcampaign",client,challenge)
+        executed=seal.datetime.now(seal.timezone.utc)-seal.timedelta(seconds=30)
+        created=executed-seal.timedelta(minutes=5)
+        expires=created+seal.timedelta(days=7)
         return {
             "clientId":client,
             "challengeSha256":challenge,
@@ -20,6 +23,10 @@ class C7WAuditFetchEvidenceTests(unittest.TestCase):
             "interopBindingAuthority":seal.INTEROP_BINDING_AUTHORITY,
             "interopBindingDigest":binding,
             "requestIds":{name:f"{client}-{idx:02d}-request" for idx,name in enumerate(seal.AUDITED_CHECKS,1)},
+            "executedAt":seal.utc_timestamp(executed),
+            "campaignCreatedAt":seal.utc_timestamp(created),
+            "campaignExpiresAt":seal.utc_timestamp(expires),
+            "executionAuditWindowSeconds":7200,
         }
 
     def audit(self,receipt):
@@ -27,7 +34,7 @@ class C7WAuditFetchEvidenceTests(unittest.TestCase):
         for seq,check in enumerate(seal.AUDITED_CHECKS,1):
             category,decision,reason=seal.AUDIT_REQUIREMENTS[check]
             row={
-                "id":f"sau-{seq}","sequence":seq,"occurredAt":"2026-09-29T00:00:00Z",
+                "id":f"sau-{seq}","sequence":seq,"occurredAt":receipt["executedAt"],
                 "methodVersion":seal.AUDIT_METHOD_VERSION,"category":category,"decision":decision,
                 "actorId":"external-user","authentication":"oidc","method":"POST","path":"/mcp",
                 "statusCode":200 if decision=="ALLOW" else 403,"reasonCode":reason,
