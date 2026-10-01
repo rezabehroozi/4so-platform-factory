@@ -61,6 +61,7 @@ function applyLocale() {
   updateBreadcrumb();
   refreshFormValidationFeedback();
   if(document.getElementById('application-delivery-prerequisite'))renderApplicationDeliveryPrerequisite();
+  if(document.getElementById('page-action-availability'))renderActionAvailability();
 }
 
 const faDynamic = {
