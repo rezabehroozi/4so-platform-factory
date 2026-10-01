@@ -214,6 +214,9 @@ def static_quality_failures(root: Path) -> list[str]:
     for phrase in (">Left release<", ">Right release<", "stays above", "form above", "connect Forgejo below"):
         if phrase.lower() in console_html.lower() or phrase.lower() in console_js.lower():
             failures.append(f"webconsole:physical-position-copy:{phrase}")
+    for phrase in ("Use Ctrl/Command to select multiple", "Ctrl/Command to select multiple", "click the button", "tap the button", "hover over"):
+        if phrase.lower() in console_html.lower() or phrase.lower() in console_js.lower():
+            failures.append(f"webconsole:input-method-specific-guidance:{phrase}")
     return failures
 
 
