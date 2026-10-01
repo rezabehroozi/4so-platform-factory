@@ -3,7 +3,7 @@
   "kind": "InstallerHostDeployment",
   "metadata": {
     "name": "field-installer",
-    "version": "0.0.125"
+    "version": "0.0.363"
   },
   "spec": {
     "installerBinary": "/srv/4so-release/bin/linux-amd64/platform-installer",
