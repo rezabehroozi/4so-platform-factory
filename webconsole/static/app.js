@@ -5358,12 +5358,13 @@ $('#edge-ai-form').onsubmit=async event=>{
 };
 
 const loaders={overview:loadOverview,workspace:loadWorkspace,installation:loadInstallation,clusters:loadClusters,providers:loadProviders,blueprints:loadBlueprints,templates:loadPlatformTemplates,applications:loadApplicationDelivery,marketplace:loadMarketplace,baselines:loadBaselines,verification:loadVerification,fleet:loadFleet,workspaces:loadWorkspaces,finops:loadFinOps,edge:loadEdgeSovereign,tenants:loadTenants,operations:loadOperations,ai:loadAI,lab:loadLab,notifications:loadNotifications,services:loadServices,catalog:loadCatalog,validator:async()=>{}};
-const livePages=new Set(['overview','clusters','providers','marketplace','baselines','verification','fleet','tenants','operations','ai','notifications','services']);
+const livePages=new Set(['overview','clusters','providers','marketplace','baselines','verification','fleet','workspaces','tenants','operations','ai','notifications','services']);
 function hasActiveWork(page = state.currentPage){
   const pageCollections={
     overview:[state.operations,state.baselineDeployments,state.verifications,state.closures,state.runtimeCertifications,state.providerClusters,state.marketplaceInstallations,state.tenants,state.driftScans,state.upgradeCampaigns,state.notificationDeliveries],
     clusters:[state.imports], providers:[state.providerClusters], marketplace:[state.marketplaceInstallations], baselines:[state.baselineDeployments],
-    verification:[state.verifications,state.closures,state.runtimeCertifications], fleet:[state.driftScans,state.upgradeCampaigns], tenants:[state.tenants], operations:[state.operations], notifications:[state.notificationDeliveries]
+    verification:[state.verifications,state.closures,state.runtimeCertifications], fleet:[state.driftScans,state.upgradeCampaigns], workspaces:[state.virtualClusters],
+    tenants:[state.tenants], operations:[state.operations], notifications:[state.notificationDeliveries]
   };
   return (pageCollections[page]||[]).some(items=>(items||[]).some(item=>/REQUESTED|PENDING|QUEUED|RUNNING|PLANNING|APPLYING|VERIFYING|UPGRADING|DELIVERING|PROVISIONING|RESIZING|SUSPENDING|RESUMING|DELETING|AWAITING_APPROVAL|PAUSE_REQUESTED|ROLLING/i.test(String(item.state||item.status||''))));
 }
@@ -5451,7 +5452,7 @@ document.addEventListener('submit',event=>{
 document.addEventListener('pointerdown',event=>{if(event.target.closest?.('.page.active'))state.interactionHoldUntil=Date.now()+2000;},true);
 document.addEventListener('keydown',event=>{if(event.target.closest?.('.page.active')&&['Enter',' ','Tab'].includes(event.key))state.interactionHoldUntil=Date.now()+1500;},true);
 window.addEventListener('beforeunload',event=>{if(!hasUnsavedChanges())return;event.preventDefault();event.returnValue='';});
-function userIsEditing(){const el=document.activeElement;const focused=!!el&&['INPUT','TEXTAREA','SELECT'].includes(el.tagName)&&!el.readOnly;const expanded=!!$('.page.active details[open]');const recentInteraction=Date.now()<state.interactionHoldUntil;return focused||hasUnsavedChanges()||expanded||recentInteraction;}
+function userIsEditing(){const el=document.activeElement;const focused=!!el&&['INPUT','TEXTAREA','SELECT'].includes(el.tagName)&&!el.readOnly;const recentInteraction=Date.now()<state.interactionHoldUntil;return focused||hasUnsavedChanges()||recentInteraction;}
 function scheduleAutoRefresh(){
   clearTimeout(state.autoRefreshTimer); const generation=++state.autoRefreshGeneration;
   if(!livePages.has(state.currentPage))return;
