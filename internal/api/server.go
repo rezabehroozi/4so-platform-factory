@@ -730,6 +730,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/dapr-tasks/{operationId}/result", s.reportDaprLifecycleTask)
 	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/dapr-workload-admission-tasks/next", s.nextDaprWorkloadAdmissionTask)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/dapr-workload-admission-tasks/{operationId}/result", s.reportDaprWorkloadAdmissionTask)
+	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/application-deployment-recovery/next", s.nextApplicationDeploymentRecoveryTask)
+	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/application-deployment-recovery/{operationId}/result", s.reportApplicationDeploymentRecoveryTask)
 	s.mux.HandleFunc("GET /agent/v1/clusters/{id}/application-deployment-tasks/next", s.nextApplicationDeploymentTask)
 	s.mux.HandleFunc("POST /agent/v1/clusters/{id}/application-deployment-tasks/{operationId}/result", s.reportApplicationDeploymentTask)
 	s.mux.HandleFunc("GET /api/v1/marketplace/offers", s.listMarketplaceOffers)
