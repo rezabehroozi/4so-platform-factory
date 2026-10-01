@@ -205,7 +205,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("C4 expanded workflow viewport criteria drift: %#v", c4.ExitCriteria)
 	}
 	c5 := byID["C5-installer-production-lifecycle-closure"]
-	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1"} {
+	for _, evidence := range []string{"INSTALLER_GUIDED_MANUAL_WORKFLOW_V1", "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1", "INSTALLER_MANUAL_REMOTE_HANDOFF_V1", "INSTALLER_MANUAL_ENTRYPOINT_V1", "INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1", "INSTALLER_HA_STORAGE_HOST_PREREQUISITE_V1", "INSTALLER_EXAMPLE_VERSION_PARITY_V1", "INSTALLER_RECOVERY_STATUS_FIRST_UI_V1"} {
 		if !containsString(c5.Evidence, evidence) {
 			t.Fatalf("C5 guided manual installer evidence %q missing: %#v", evidence, c5)
 		}
@@ -220,6 +220,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		"production-standard-ha preflight verifies iscsiadm/iscsid plus an iscsid service/socket on the local node and every peer before runtime mutation; explicit INSTALL/RESUME enables the existing service locally/remotely without package download",
 		"loopback remains the safe default; the guided result exposes a workstation URL plus an explicit SSH local-forward command for remote operators instead of requiring them to expose the Installer service",
 		"failed/interrupted bootstrap runs resume from durable owner-classified state; clean reinstall uses journaled reset; host-deployment interruption requires explicit recovery and never overwrites unrelated host state",
+		"the browser recovery surface renders durable installer status and Resume/Reset authority before ancillary health, preflight or access-security enrichment so partial endpoint failure cannot hide recovery controls",
 	} {
 		if !containsString(c5.ExitCriteria, criterion) {
 			t.Fatalf("C5 manual installer criterion %q missing: %#v", criterion, c5.ExitCriteria)
