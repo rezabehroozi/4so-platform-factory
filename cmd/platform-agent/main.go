@@ -302,6 +302,7 @@ func (a *agent) taskProcessors() []agentTaskProcessor {
 		{name: "Dapr recovery readback", run: a.processDaprRecoveryTask},
 		{name: "Dapr lifecycle", run: a.processDaprLifecycleTask},
 		{name: "Dapr workload admission", run: a.processDaprWorkloadAdmissionTask},
+		{name: "application deployment recovery readback", run: a.processApplicationDeploymentRecoveryTask},
 		{name: "application deployment", run: a.processApplicationDeploymentTask},
 		{name: "cluster maintenance", run: a.processClusterMaintenanceTask},
 		{name: "workload logs", run: a.processWorkloadLogTask},
