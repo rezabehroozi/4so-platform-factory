@@ -351,3 +351,43 @@ func TestHAClusterNetworkNeverAcceptsUnassignedAddress(t *testing.T) {
 		t.Fatalf("unassigned east-west IP was not fail-closed: %v", err)
 	}
 }
+
+
+type iscsiPrerequisiteTestSystem struct {
+	*SimulatedSystem
+	missing string
+	unit    string
+}
+
+func (s *iscsiPrerequisiteTestSystem) Output(ctx context.Context, name string, args []string, environment map[string]string) ([]byte, error) {
+	if name == "iscsiadm" || name == "iscsid" {
+		if name == s.missing {
+			return nil, errors.New("missing fixture binary")
+		}
+		return []byte(name + " version fixture\n"), nil
+	}
+	return s.SimulatedSystem.Output(ctx, name, args, environment)
+}
+
+func (s *iscsiPrerequisiteTestSystem) Run(ctx context.Context, name string, args []string, environment map[string]string) error {
+	if name == "systemctl" && len(args) == 2 && args[0] == "cat" {
+		if args[1] == s.unit {
+			return nil
+		}
+		return errors.New("unit absent")
+	}
+	return s.SimulatedSystem.Run(ctx, name, args, environment)
+}
+
+func TestHAStorageHostPrerequisitesFailEarlyAndReportInstalledUnit(t *testing.T) {
+	system := &iscsiPrerequisiteTestSystem{SimulatedSystem: &SimulatedSystem{Root: t.TempDir()}, unit: "iscsid.service"}
+	runner := &Runner{system: system}
+	unit, err := runner.verifyHAStorageHostPrerequisites(context.Background())
+	if err != nil || unit != "iscsid.service" {
+		t.Fatalf("installed iSCSI prerequisites rejected: unit=%q err=%v", unit, err)
+	}
+	system.missing = "iscsiadm"
+	if _, err = runner.verifyHAStorageHostPrerequisites(context.Background()); err == nil || !strings.Contains(err.Error(), "open-iscsi") {
+		t.Fatalf("missing iSCSI prerequisite was not actionable: %v", err)
+	}
+}
