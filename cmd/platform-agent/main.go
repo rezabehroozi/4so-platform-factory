@@ -1696,6 +1696,7 @@ func (a *agent) applicationDeploymentRBACActive(ctx context.Context) bool {
 		{"", "v1", "services", "get", "default"},
 		{"", "v1", "services", "create", "default"},
 		{"", "v1", "services", "patch", "default"},
+		{"", "v1", "services", "delete", "default"},
 		{"", "v1", "pods", "list", "default"},
 	}
 	for _, check := range checks {
