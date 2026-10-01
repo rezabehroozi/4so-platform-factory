@@ -59,6 +59,10 @@ type daprLifecycleOperationPager interface {
 	ListClaimableOperationsByKindTargetPrefix(context.Context, string, string, time.Time, int) ([]controlplane.Operation, error)
 }
 
+type daprLifecycleHistoryPager interface {
+	ListOperationsByKindTargetPage(context.Context, string, string, string, int) ([]controlplane.Operation, error)
+}
+
 type daprRecoveryOperationPager interface {
 	ListUnknownRecoveryOperationsByKindTargetPrefix(context.Context, string, string, int) ([]controlplane.Operation, error)
 }
@@ -103,6 +107,66 @@ type daprRecoveryReadback struct {
 
 func daprLifecycleTarget(clusterID string, action daprruntime.LifecycleAction) string {
 	return daprLifecycleTargetPrefix + strings.TrimSpace(clusterID) + ":" + strings.ToLower(string(action))
+}
+
+func (s *Server) daprLifecycleOperationsForCluster(ctx context.Context, projectID, clusterID string) ([]controlplane.Operation, error) {
+	projectID, clusterID = strings.TrimSpace(projectID), strings.TrimSpace(clusterID)
+	if projectID == "" || clusterID == "" {
+		return nil, fmt.Errorf("%w: Dapr lifecycle project and cluster are required", controlplane.ErrValidation)
+	}
+	if pager, ok := s.store.(daprLifecycleHistoryPager); ok {
+		operations := make([]controlplane.Operation, 0, 12)
+		for _, action := range []daprruntime.LifecycleAction{daprruntime.ActionInstall, daprruntime.ActionUpgrade, daprruntime.ActionRemove} {
+			rows, err := pager.ListOperationsByKindTargetPage(ctx, projectID, daprLifecycleOperationKind, daprLifecycleTarget(clusterID, action), 4)
+			if err != nil {
+				return nil, err
+			}
+			operations = append(operations, rows...)
+		}
+		sort.SliceStable(operations, func(i, j int) bool {
+			if operations[i].UpdatedAt.Equal(operations[j].UpdatedAt) {
+				if operations[i].CreatedAt.Equal(operations[j].CreatedAt) {
+					return operations[i].ID > operations[j].ID
+				}
+				return operations[i].CreatedAt.After(operations[j].CreatedAt)
+			}
+			return operations[i].UpdatedAt.After(operations[j].UpdatedAt)
+		})
+		return operations, nil
+	}
+	operations, err := s.store.ListOperations(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]controlplane.Operation, 0, 12)
+	for _, op := range operations {
+		if op.Kind != daprLifecycleOperationKind {
+			continue
+		}
+		targetCluster, _, parseErr := parseDaprLifecycleTarget(op.TargetRef)
+		if parseErr == nil && targetCluster == clusterID {
+			filtered = append(filtered, op)
+		}
+	}
+	sort.SliceStable(filtered, func(i, j int) bool {
+		if filtered[i].UpdatedAt.Equal(filtered[j].UpdatedAt) {
+			return filtered[i].ID > filtered[j].ID
+		}
+		return filtered[i].UpdatedAt.After(filtered[j].UpdatedAt)
+	})
+	return filtered, nil
+}
+
+func (s *Server) latestDaprLifecycleOperation(ctx context.Context, projectID, clusterID string) (*controlplane.Operation, error) {
+	operations, err := s.daprLifecycleOperationsForCluster(ctx, projectID, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	if len(operations) == 0 {
+		return nil, nil
+	}
+	op := operations[0]
+	return &op, nil
 }
 
 func parseDaprLifecycleTarget(target string) (string, daprruntime.LifecycleAction, error) {
@@ -168,22 +232,12 @@ func (s *Server) daprEffectiveRuntimeAdmission(cluster controlplane.ManagedClust
 }
 
 func (s *Server) latestDaprObserved(ctx context.Context, projectID, clusterID string) (*daprruntime.ObservedState, error) {
-	operations, err := s.store.ListOperations(ctx, projectID)
+	operations, err := s.daprLifecycleOperationsForCluster(ctx, projectID, clusterID)
 	if err != nil {
 		return nil, err
 	}
-	sort.SliceStable(operations, func(i, j int) bool {
-		if operations[i].UpdatedAt.Equal(operations[j].UpdatedAt) {
-			return operations[i].ID > operations[j].ID
-		}
-		return operations[i].UpdatedAt.After(operations[j].UpdatedAt)
-	})
 	for _, op := range operations {
-		if op.Kind != daprLifecycleOperationKind || op.State != controlplane.OperationSucceeded {
-			continue
-		}
-		targetCluster, _, parseErr := parseDaprLifecycleTarget(op.TargetRef)
-		if parseErr != nil || targetCluster != clusterID {
+		if op.State != controlplane.OperationSucceeded {
 			continue
 		}
 		evidence, listErr := s.store.ListEvidence(ctx, op.ID)
@@ -257,17 +311,13 @@ func daprLifecycleStateBlocksNewMutation(op controlplane.Operation) bool {
 }
 
 func (s *Server) daprLifecycleClusterBlocker(ctx context.Context, projectID, clusterID, idempotencyKey string) (*controlplane.Operation, error) {
-	operations, err := s.store.ListOperations(ctx, projectID)
+	operations, err := s.daprLifecycleOperationsForCluster(ctx, projectID, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for i := range operations {
 		op := operations[i]
-		if op.Kind != daprLifecycleOperationKind || strings.TrimSpace(op.IdempotencyKey) == strings.TrimSpace(idempotencyKey) {
-			continue
-		}
-		targetCluster, _, parseErr := parseDaprLifecycleTarget(op.TargetRef)
-		if parseErr != nil || targetCluster != clusterID {
+		if strings.TrimSpace(op.IdempotencyKey) == strings.TrimSpace(idempotencyKey) {
 			continue
 		}
 		if daprLifecycleStateBlocksNewMutation(op) {
