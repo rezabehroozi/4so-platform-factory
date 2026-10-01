@@ -496,6 +496,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["installerOwnerContractStageAuthority"], "AUTOPILOT_INSTALLER_OWNER_CONTRACT_STAGE_V1")
             self.assertEqual(context["agentRepairBudgetAuthority"], "AUTOPILOT_AGENT_REPAIR_BUDGET_V1")
             self.assertEqual(context["failurePathHintsAuthority"], "AUTOPILOT_FAILURE_PATH_HINTS_V1")
+            self.assertEqual(context["crossSurfaceOwnerContextAuthority"], "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1")
             self.assertEqual(context["defaultAgentRepairBudget"], 8)
             self.assertEqual(context["failureCapsuleMaxChars"], 3200)
             self.assertEqual(context["failureCapsule"], "ERROR owner mismatch token=[REDACTED]")
@@ -853,12 +854,32 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
         self.assertIn("package", names)
         self.assertNotIn("lab-runner-tests", names)
 
+    def test_installer_entrypoint_stage_preflights_bash_before_agent_spend(self):
+        stages = AUTOPILOT.canonical_stages(ROOT)
+        stage = next(item for item in stages if item.name == "installer-entrypoint-contracts")
+        self.assertEqual(AUTOPILOT._environment_requirements([stage]), {"bash"})
+
     def test_installer_go_owner_contract_stage_declares_go_preflight_only(self):
         stages = AUTOPILOT.canonical_stages(ROOT)
         stage = next(item for item in stages if item.name == "installer-go-owner-tests")
         requirements = AUTOPILOT._environment_requirements([stage])
         self.assertEqual(requirements, {"go"})
         self.assertEqual(AUTOPILOT.INSTALLER_OWNER_CONTRACT_STAGE_AUTHORITY, "AUTOPILOT_INSTALLER_OWNER_CONTRACT_STAGE_V1")
+
+    def test_cross_surface_ui_stage_owns_console_and_installer_context(self):
+        stages = AUTOPILOT.canonical_stages(ROOT)
+        stage = next(item for item in stages if item.name == "smoke-ui-workflow-e2e")
+        self.assertEqual(AUTOPILOT._stage_specialist(stage), "operator-installer-e2e")
+        owner_paths = AUTOPILOT._owner_context_paths(stage)
+        self.assertIn("webconsole/", owner_paths)
+        self.assertIn("cmd/platform-installer/", owner_paths)
+        self.assertIn("install.sh", owner_paths)
+        selected = AUTOPILOT._select_convergence_stages(stages, {stage.name})
+        names = {item.name for item in selected}
+        for required in {"smoke-ui-quality", "smoke-ui-workflow-e2e", "installer-entrypoint-contracts", "installer-go-owner-tests", "installer-core-smoke", "installer-host-smoke", "installer-remote-smoke", "package"}:
+            self.assertIn(required, names)
+        self.assertNotIn("lab-runner-tests", names)
+        self.assertEqual(AUTOPILOT.CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY, "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1")
 
     def test_cross_owner_repair_forces_full_convergence(self):
         stage = AUTOPILOT.Stage("smoke-ui-quality", ("true",), 10)
