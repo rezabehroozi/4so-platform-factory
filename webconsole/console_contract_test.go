@@ -317,7 +317,7 @@ func TestOperatorConsoleDesignSystemContract(t *testing.T) {
 			t.Fatalf("read-only mutation intent contract missing %q", contract)
 		}
 	}
-	for _, contract := range []string{"data-record-row", "tableRecords", "role=\"region\"", "scope=\"col\"", "data-table-sort-index", "aria-sort", "data-sort-value", "data-table-key", "tableSortPreferences", "restoreDataTableSortPreferences", "sourceUnavailable", "data-retry-current"} {
+	for _, contract := range []string{"data-record-row", "tableRecords", "role=\"region\"", "scope=\"col\"", "data-table-sort-index", "aria-sort", "data-sort-value", "data-table-key", "tableSortPreferences", "restoreDataTableSortPreferences", "sourceUnavailable", "pageLoadFailure", "Data still visible on this page may be stale", "data-retry-current"} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("operator data-workspace contract missing %q", contract)
 		}
