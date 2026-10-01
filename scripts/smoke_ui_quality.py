@@ -852,6 +852,38 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
         audit_contrast(page, f"console:theme-override:{system_theme}->{explicit_theme}", failures)
         context.close()
 
+    # Navigation ownership must be one-to-one across runtime route authority,
+    # primary domain homes and rendered secondary navigation.
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
+    navigation_parity = page.evaluate("""() => {
+      const renderedPages=[...document.querySelectorAll('section.page')].map(node=>node.id);
+      const runtimeEntries=Object.entries(sectionNavigation);
+      const runtimePages=runtimeEntries.flatMap(([,pages])=>pages);
+      const duplicates=runtimePages.filter((page,index)=>runtimePages.indexOf(page)!==index);
+      const missingFromRuntime=renderedPages.filter(page=>!runtimePages.includes(page));
+      const staleRuntime=runtimePages.filter(page=>!renderedPages.includes(page));
+      const groupMismatches=[];
+      for(const [section,pages] of runtimeEntries){
+        if(section==='home')continue;
+        const group=document.querySelector(`[data-section-nav="${section}"]`);
+        const domPages=group?[...group.querySelectorAll('[data-page]')].map(button=>button.dataset.page):[];
+        if(JSON.stringify(domPages)!==JSON.stringify(pages))groupMismatches.push({section,pages,domPages});
+      }
+      const primary=[...document.querySelectorAll('#primary-nav [data-section]')].map(button=>({
+        section:button.dataset.section,home:button.dataset.sectionHome||''
+      }));
+      const primarySections=primary.map(item=>item.section);
+      const missingPrimary=runtimeEntries.map(([section])=>section).filter(section=>!primarySections.includes(section));
+      const stalePrimary=primarySections.filter(section=>!Object.prototype.hasOwnProperty.call(sectionNavigation,section));
+      const badHomes=primary.filter(item=>!sectionNavigation[item.section]?.includes(item.home));
+      const missingTitles=renderedPages.filter(page=>!pageTitles[page]);
+      return {renderedPages,runtimePages,duplicates,missingFromRuntime,staleRuntime,groupMismatches,missingPrimary,stalePrimary,badHomes,missingTitles};
+    }""")
+    if any(navigation_parity.get(key) for key in ("duplicates","missingFromRuntime","staleRuntime","groupMismatches","missingPrimary","stalePrimary","badHomes","missingTitles")):
+        failures.append(f"console:navigation-route-ownership-parity:{navigation_parity}")
+    context.close()
+
     # Keyboard mobile-navigation trap and return-focus contract.
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
