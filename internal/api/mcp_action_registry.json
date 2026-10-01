@@ -48,9 +48,9 @@
       },
       {
         "family": "application-platform",
-        "routeCount": 35,
+        "routeCount": 36,
         "mutationCount": 19,
-        "callableRouteCount": 35,
+        "callableRouteCount": 36,
         "securityExcludedRouteCount": 0,
         "disposition": "typed-tool-complete",
         "toolNames": [
@@ -85,12 +85,13 @@
           "api_get_application_platform_environment_bindings",
           "api_get_application_platform_environment_bindings_by_id",
           "api_post_application_platform_environment_bindings_by_id_deployment_plan",
+          "api_get_application_platform_environment_bindings_by_id_deployments",
           "api_post_application_platform_environment_bindings_by_id_deployments",
           "api_post_application_platform_environment_bindings_by_id_promote",
           "api_get_application_platform_deployments_by_id",
           "api_post_application_platform_deployments_by_id_approve"
         ],
-        "rationale": "All 35 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
+        "rationale": "All 36 stable route(s) in this family are represented by fixed-route MCP tools generated from MCP_ROUTE_PARITY_AUTHORITY_V1 and reuse the canonical REST handler."
       },
       {
         "family": "audit-events",
