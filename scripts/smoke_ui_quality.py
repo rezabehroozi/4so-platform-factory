@@ -698,6 +698,74 @@ def audit_console(browser, root: Path, failures: list[str], *, routes: list[str]
 
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
+    guided = page.evaluate("""async () => {
+      await navigate('applications');
+      const project={id:'quality-project',displayName:'Quality project'};
+      const workload={id:'quality-workload',projectId:project.id};
+      const profile={id:'quality-profile',projectId:project.id};
+      const release={id:'quality-release',projectId:project.id,workloadImageReference:'zot.local/app@sha256:'+'a'.repeat(64)};
+      const workspace={id:'quality-workspace',projectId:project.id};
+      const activeBinding={id:'quality-workspace-binding',workspaceId:workspace.id,state:'ACTIVE'};
+
+      const read=()=>({
+        library:Boolean(document.querySelector('#application-composition-library')?.open),
+        release:Boolean(document.querySelector('#application-release-workflow')?.open),
+        binding:Boolean(document.querySelector('#application-binding-workflow')?.open),
+        deployment:Boolean(document.querySelector('#application-deployment-workflow')?.open),
+        workloadTask:!document.querySelector('[data-application-library-task="workload"]')?.hidden,
+        profileTask:!document.querySelector('[data-application-library-task="profile"]')?.hidden,
+        prerequisite:String(document.querySelector('#application-delivery-prerequisite')?.textContent||'').trim()
+      });
+
+      state.projects=[project]; state.workspaces=[]; state.platformPolicySets=[];
+      state.applicationWorkloadTypes=[]; state.applicationWorkspaceProfiles=[];
+      state.applicationReleases=[]; state.applicationEnvironmentBindings=[];
+      state.applicationWorkspaceBindings=[]; state.applicationDeploymentRun=null;
+      renderApplicationDeliveryPrerequisite(); syncApplicationDeliveryDisclosure();
+      const missingWorkload=read();
+
+      state.applicationWorkloadTypes=[workload]; state.applicationWorkspaceProfiles=[];
+      renderApplicationDeliveryPrerequisite(); syncApplicationDeliveryDisclosure();
+      const missingPolicy=read();
+
+      state.platformPolicySets=[{id:'quality-policy',projectId:project.id,digest:'sha256:'+'b'.repeat(64)}];
+      renderApplicationDeliveryPrerequisite(); syncApplicationDeliveryDisclosure();
+      const missingProfile=read();
+
+      state.applicationWorkspaceProfiles=[profile];
+      renderApplicationDeliveryPrerequisite(); syncApplicationDeliveryDisclosure();
+      const readyForRelease=read();
+
+      state.applicationReleases=[release]; state.workspaces=[workspace]; state.applicationWorkspaceBindings=[];
+      renderApplicationDeliveryPrerequisite(); syncApplicationDeliveryDisclosure();
+      const missingNamespaceBinding=read();
+
+      state.applicationWorkspaceBindings=[activeBinding];
+      renderApplicationDeliveryPrerequisite(); syncApplicationDeliveryDisclosure();
+      const readyForBinding=read();
+
+      return {missingWorkload,missingPolicy,missingProfile,readyForRelease,missingNamespaceBinding,readyForBinding};
+    }""")
+    if not (guided.get("missingWorkload",{}).get("library") and guided.get("missingWorkload",{}).get("workloadTask")):
+        failures.append(f"console:application-guided-workload-prerequisite:{guided}")
+    missing_policy=guided.get("missingPolicy",{})
+    if missing_policy.get("library") or missing_policy.get("release") or "Operating policy" not in missing_policy.get("prerequisite",""):
+        failures.append(f"console:application-guided-policy-prerequisite:{guided}")
+    if not (guided.get("missingProfile",{}).get("library") and guided.get("missingProfile",{}).get("profileTask")):
+        failures.append(f"console:application-guided-profile-prerequisite:{guided}")
+    ready_release=guided.get("readyForRelease",{})
+    if not ready_release.get("release") or ready_release.get("library") or ready_release.get("binding") or ready_release.get("deployment"):
+        failures.append(f"console:application-guided-release-step:{guided}")
+    missing_binding=guided.get("missingNamespaceBinding",{})
+    if missing_binding.get("release") or missing_binding.get("binding") or missing_binding.get("deployment") or "Active namespace binding" not in missing_binding.get("prerequisite",""):
+        failures.append(f"console:application-guided-namespace-prerequisite:{guided}")
+    ready_binding=guided.get("readyForBinding",{})
+    if not ready_binding.get("binding") or ready_binding.get("release") or ready_binding.get("deployment"):
+        failures.append(f"console:application-guided-binding-step:{guided}")
+    context.close()
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page(); prepare_quality_page(page, document, installer=False, root=root)
     critical_locale = page.evaluate("""() => {
       const samples=[
         'Approve managed OKD install',
