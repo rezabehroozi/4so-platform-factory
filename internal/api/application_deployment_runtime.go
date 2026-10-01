@@ -58,26 +58,11 @@ func applicationDeploymentTarget(clusterID, bindingID string) string {
 }
 
 func parseApplicationDeploymentTarget(target string) (clusterID, bindingID string, err error) {
-	target = strings.TrimSpace(target)
-	if !strings.HasPrefix(target, applicationDeploymentTargetPrefix) {
+	clusterID, bindingID, ok := controlplane.ParseApplicationDeploymentTarget(target)
+	if !ok {
 		return "", "", fmt.Errorf("%w: invalid application deployment target", controlplane.ErrValidation)
 	}
-	raw := strings.TrimSpace(strings.TrimPrefix(target, applicationDeploymentTargetPrefix))
-	parts := strings.Split(raw, ":")
-	switch len(parts) {
-	case 1:
-		if strings.TrimSpace(parts[0]) == "" {
-			return "", "", fmt.Errorf("%w: invalid application deployment target", controlplane.ErrValidation)
-		}
-		return "", strings.TrimSpace(parts[0]), nil
-	case 2:
-		if strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-			return "", "", fmt.Errorf("%w: invalid application deployment target", controlplane.ErrValidation)
-		}
-		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), nil
-	default:
-		return "", "", fmt.Errorf("%w: invalid application deployment target", controlplane.ErrValidation)
-	}
+	return clusterID, bindingID, nil
 }
 
 func applicationDeploymentStateBlocksNewMutation(op controlplane.Operation) bool {
