@@ -78,6 +78,51 @@ func TestDaprWorkloadAdmissionCreatesReadOnlyDurableNativeDryRun(t *testing.T) {
 	}
 }
 
+func TestDaprWorkloadAdmissionKeepsProductManagedRuntimeFenceAfterCapabilityDiscovery(t *testing.T) {
+	store := controlplane.NewMemoryStore()
+	ctx := context.Background()
+	org, _ := store.CreateOrganization(ctx, controlplane.Organization{Name: "dapr-product-workload", DisplayName: "Dapr Product Workload"}, "owner")
+	project, _ := store.CreateProject(ctx, controlplane.Project{OrganizationID: org.ID, Name: "apps", DisplayName: "Apps"}, "owner")
+	cluster := workspaceAPICluster(t, store, project.ID, "dapr-product-workload", "uid-dapr-product-workload")
+	seedDaprAssessmentInventory(t, store, cluster, []string{
+		targetmodel.DaprApplicationRuntimeCapability,
+		"strict-schema-dry-run",
+	}, 94)
+	trait, err := store.CreateCapabilityTrait(ctx, controlplane.CapabilityTrait{
+		ProjectID: project.ID, Name: "dapr-runtime", Version: "1.0.0", Kind: "sidecar",
+		Capability: controlplane.ApplicationRuntimeDaprCapability,
+		InputSchemaDigest: daprAPITestDigest("d"), NativeSuppression: true,
+	}, "owner")
+	if err != nil { t.Fatal(err) }
+
+	srv := scopedServer(t, store)
+	lock := daprAPITestRuntimeLock(t)
+	if err = srv.ConfigureDaprRuntimeLock(lock, "https://zot.internal.example"); err != nil { t.Fatal(err) }
+	executorAuthority, err := daprruntime.ExecutorAuthorityFromRuntimeLock(lock)
+	if err != nil { t.Fatal(err) }
+	if err = srv.ConfigureDaprExecutorAuthority(executorAuthority, "https://zot.internal.example", executorAuthority.SourceReleaseDigest); err != nil { t.Fatal(err) }
+	lockDigest, err := daprruntime.RuntimeLockDigest(lock)
+	if err != nil { t.Fatal(err) }
+	seedProductManagedDaprObserved(t, store, project.ID, cluster.ID, lockDigest)
+
+	request, admission, err := srv.buildDaprWorkloadAdmissionRequest(ctx, daprWorkloadAdmissionInput{
+		ProjectID: project.ID, ClusterID: cluster.ID, TraitID: trait.ID,
+		WorkloadImage: "zot.internal.example/apps/payments@" + daprAPITestDigest("e"),
+		Namespace: "payments", AppID: "payments-api",
+		CPURequest: "100m", CPULimit: "500m", MemoryRequest: "128Mi", MemoryLimit: "256Mi",
+		EnableInvocation: true,
+	})
+	if err != nil { t.Fatal(err) }
+	if admission.Mode != "PRODUCT_MANAGED" || request.RuntimeMode != "PRODUCT_MANAGED" ||
+		request.RuntimeLockDigest != lockDigest ||
+		request.ExpectedSidecarImage != daprRuntimeImageByRole(lock, "sidecar") {
+		t.Fatalf("product-managed Dapr workload lost exact runtime ownership admission=%#v request=%#v", admission, request)
+	}
+	if err = srv.validateDaprWorkloadAdmissionCurrentAuthority(ctx, request); err != nil {
+		t.Fatalf("current product-managed Dapr workload authority rejected: %v", err)
+	}
+}
+
 func TestDaprStandaloneExecutorAuthorityRejectsForeignRelease(t *testing.T) {
 	store := controlplane.NewMemoryStore()
 	srv := scopedServer(t, store)
