@@ -96,7 +96,8 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("admission.verify(worktree,expected_source_sha=source_sha)", seal)
         self.assertNotIn("admission.verify(root)", seal)
         self.assertIn('(worktree / "lab" / "release-build-toolchain-lock.json")', seal)
-        self.assertIn('"build-release"', seal)
+        self.assertIn('"scripts/build_release_binaries.py"', seal)
+        self.assertNotIn('["make", "build-release"', seal)
         self.assertIn('"scripts/build_release.py"', seal)
         self.assertIn('"scripts/verify_release.py"', seal)
         self.assertIn('"--full"', seal)
@@ -104,6 +105,22 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("atomic_write_json", seal)
         self.assertNotIn("GITHUB_RUN_ID", seal)
         self.assertNotIn("gh run", seal)
+
+    def test_exact_release_binary_builder_and_verifier_share_complete_binary_set(self):
+        builder=self.read("scripts/build_release_binaries.py")
+        packager=self.read("scripts/build_release.py")
+        verifier=self.read("scripts/verify_release.py")
+        makefile=self.read("Makefile")
+        for name in (
+            "platform-api","platformctl","platform-installer","platform-agent",
+            "platform-probe","virtual-cluster-renderer","openchoreo-runtime","dapr-runtime",
+        ):
+            self.assertIn(f'"{name}"',builder)
+            self.assertIn(f'"{name}"',packager)
+            self.assertIn(f'"{name}"',verifier)
+        self.assertIn("scripts/build_release_binaries.py",makefile)
+        self.assertIn('AUTHORITY="NATIVE_RELEASE_BINARY_BUILD_AUTHORITY_V1"',builder)
+        self.assertIn('RELEASE_BINARY_BUILD_LINUX_HOST_REQUIRED',builder)
 
     def test_local_runner_is_canonical_execution_entrypoint(self):
         runner = self.read("scripts/run_mcp_external_interop.py")
