@@ -46,6 +46,35 @@ FINAL_EVIDENCE_KEYS = {
 }
 
 
+def exact_release_environment(go: Path) -> dict[str, str]:
+    env=os.environ.copy()
+    dangerous_exact={
+        "CC","CXX","GCCGO","GOROOT","GOTOOLDIR",
+        "LD_PRELOAD","LD_LIBRARY_PATH","LIBRARY_PATH","COMPILER_PATH",
+        "CPATH","C_INCLUDE_PATH","CPLUS_INCLUDE_PATH",
+        "PKG_CONFIG","PKG_CONFIG_PATH","PKG_CONFIG_LIBDIR","PKG_CONFIG_SYSROOT_DIR",
+        "PYTHONHOME","PYTHONPATH","PYTHONSTARTUP","PYTHONINSPECT",
+        "BASH_ENV","ENV","MAKEFLAGS","MFLAGS","MAKELEVEL",
+    }
+    for key in list(env):
+        if key in dangerous_exact or key.startswith("CGO_") or key.startswith("DYLD_") or key.startswith("GO"):
+            env.pop(key,None)
+    env["GO"]=str(go)
+    env["GOTOOLCHAIN"]="local"
+    env["GOENV"]="off"
+    env["GOWORK"]="off"
+    env["GOFLAGS"]=""
+    env["GOPROXY"]="off"
+    env["GOSUMDB"]="off"
+    env["GOPRIVATE"]=""
+    env["GONOPROXY"]=""
+    env["GONOSUMDB"]=""
+    env["PYTHON"]=sys.executable
+    env["PYTHONDONTWRITEBYTECODE"]="1"
+    env["PYTHONNOUSERSITE"]="1"
+    return env
+
+
 def sha256(path: Path) -> str:
     info = path.lstat()
     if not stat.S_ISREG(info.st_mode) or path.is_symlink() or info.st_size <= 0:
@@ -630,11 +659,7 @@ def verify_existing_release_full(root: Path, source_sha: str, release: Path) -> 
             archive,exact=safe_toolchain_archive(root,lock)
             staged_archive=stage_toolchain_archive(archive,exact,worktree)
             go=extract_toolchain(staged_archive,exact,Path(tool_td))
-            env=os.environ.copy()
-            env["GO"]=str(go)
-            env["GOTOOLCHAIN"]="local"
-            env["PYTHON"]=sys.executable
-            env["PYTHONDONTWRITEBYTECODE"]="1"
+            env=exact_release_environment(go)
             run([sys.executable,"scripts/verify_release_build_toolchain.py","--require-admitted","--archive",str(staged_archive)],root=worktree,env=env)
             run([sys.executable,"scripts/verify_release.py",str(release),"--full"],root=worktree,env=env)
             verify_worktree_source_unchanged(worktree,source_sha,{staged_archive.relative_to(worktree).as_posix()})
@@ -739,11 +764,7 @@ def execute(root: Path, out: Path) -> dict:
             staged_archive = stage_toolchain_archive(archive, exact, worktree)
             go = extract_toolchain(staged_archive, exact, Path(tool_td))
             admitted = admission.verify(worktree,expected_source_sha=source_sha)
-            env = os.environ.copy()
-            env["GO"] = str(go)
-            env["GOTOOLCHAIN"] = "local"
-            env["PYTHON"] = sys.executable
-            env["PYTHONDONTWRITEBYTECODE"] = "1"
+            env = exact_release_environment(go)
 
             run(
                 [sys.executable, "scripts/verify_release_build_toolchain.py", "--require-admitted", "--archive", str(staged_archive)],
