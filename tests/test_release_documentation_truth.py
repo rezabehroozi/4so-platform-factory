@@ -76,6 +76,17 @@ class ReleaseDocumentationTruthTest(unittest.TestCase):
             VALIDATE.validate_core_local_only_workflows(root,errors)
             self.assertIn("CORE_LOCAL_ONLY_WORKFLOW_MUTATION_FORBIDDEN",[code for code,_ in errors])
 
+            drift.write_text(
+                "name: stale-local-only\n\non:\n  workflow_dispatch:\n\npermissions:\n  contents: read\n\njobs:\n  local-only-authority-notice:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo make c7w-status /secure/client.capture.json\n",
+                encoding="utf-8",
+            )
+            errors=[]
+            VALIDATE.validate_core_local_only_workflows(root,errors)
+            stale=[detail for code,detail in errors if code=="CORE_LOCAL_ONLY_WORKFLOW_STALE_HANDOFF"]
+            self.assertEqual(2,len(stale))
+            self.assertTrue(any("make c7w-" in detail for detail in stale))
+            self.assertTrue(any("/secure/" in detail for detail in stale))
+
     def test_remote_ci_repository_mutation_authority_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
