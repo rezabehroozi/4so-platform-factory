@@ -1098,6 +1098,50 @@ class AutopilotAgentContextTests(unittest.TestCase):
         self.assertEqual(command, ["make", "runtime-status"])
         self.assertTrue(preserved)
 
+    def test_compact_agent_context_oversize_preserves_admitted_outer_resume_without_extra_probe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            huge_run_id = "outer-resume-" + ("z" * (AUTOPILOT.AGENT_CONTEXT_COMPACT_MAX_CHARS * 2))
+            report = {
+                "schemaVersion": 1,
+                "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+                "runId": huge_run_id,
+                "status": "CODE_DEFECT",
+                "phase": "forward",
+                "currentStage": "installer-go-owner-tests",
+                "currentSpecialist": "installer-runtime",
+                "currentCommand": ["go", "test", "./cmd/platformctl"],
+                "currentTimeoutSeconds": 600,
+                "resumeEligible": True,
+                "invocation": ["python3", "scripts/codex_autopilot.py", "--agent-run"],
+                "lastFailure": {
+                    "stage": "installer-go-owner-tests",
+                    "specialist": "installer-runtime",
+                    "status": "FAIL",
+                    "fingerprint": "fp-outer-resume-budget",
+                    "reason": "owner failure",
+                    "classification": "CODE_DEFECT",
+                },
+            }
+            AUTOPILOT._report_path(root).parent.mkdir(parents=True, exist_ok=True)
+            AUTOPILOT._report_path(root).write_text(json.dumps(report), encoding="utf-8")
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="c" * 40), \
+                 mock.patch.object(AUTOPILOT, "_outer_runtime_context", return_value={
+                     "authority":"AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1","available":True,
+                     "status":"FAILED","runId":"outer-runtime","activeRun":False,
+                     "recoveryRequired":False,"safeToRetry":False,"replaySafe":True,"action":"RESUME_RUNTIME",
+                 }):
+                context = AUTOPILOT._compact_agent_context(root)
+            raw = json.dumps(context, sort_keys=True, separators=(",", ":"))
+            self.assertLessEqual(len(raw), AUTOPILOT.AGENT_CONTEXT_COMPACT_MAX_CHARS)
+            self.assertEqual(context["serializedChars"], len(raw))
+            self.assertEqual(context["contextFallbackAuthority"], "AUTOPILOT_CONTEXT_BUDGET_FALLBACK_V1")
+            self.assertEqual(context["nextActionCode"], "RESUME_OUTER_RUNTIME")
+            self.assertEqual(context["nextCommand"], ["make", "runtime-resume"])
+            self.assertTrue(context["canonicalOuterCommandPreserved"])
+            self.assertIn("fixed canonical outer-runtime command", " ".join(context["rules"]))
+            self.assertNotIn(huge_run_id[:500], raw)
+
     def test_compact_agent_context_oversize_preserves_outer_recovery_as_inspection_only(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
