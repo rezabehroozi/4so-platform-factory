@@ -45,8 +45,6 @@ def secure_state_dir(path:Path)->Path:
 def paths(state:Path)->dict[str,Path]:
     return {
         "campaign":state/"campaign.json",
-        "progress":state/"progress.json",
-        "evidence":state/"mcp-external-client-interoperability-evidence.json",
         "packets":state/"packets",
         "templates":state/"capture-templates",
         "receipts":state/"receipts",
@@ -122,16 +120,16 @@ def prepare(args:argparse.Namespace)->dict:
     }
 
 
-def progress_status(matrix:Path,state:Path)->dict:
+def progress_status(matrix:Path,state:Path,progress_path:Path)->dict:
     p=paths(state)
     if not p["campaign"].is_file() or p["campaign"].is_symlink():
         return {"certified":[],"missing":list(core.CLIENTS),"complete":False,"nextClient":core.CLIENTS[0],"campaignPrepared":False}
     spec,_,campaign=admission.matrix_contract(matrix,p["campaign"])
     expected=admission.base_progress(matrix,p["campaign"],campaign,spec)
-    if not p["progress"].exists():
+    if not progress_path.exists():
         certified=[]
     else:
-        existing=core.load(p["progress"],"PROGRESS")
+        existing=core.load(progress_path,"PROGRESS")
         by_id=admission.validate_existing(existing,expected)
         admission.validate_existing_campaign_rows(by_id,expected,campaign,spec)
         certified=[name for name in core.CLIENTS if name in by_id]
@@ -167,13 +165,13 @@ def admit(args:argparse.Namespace)->dict:
     else:
         audit_fetch.fetch(args.matrix,p["campaign"],receipt_path,client,args.token_env,audit_path,args.attempts,args.interval_seconds)
 
-    with admission.progress_lock(p["progress"]):
-        merged=admission.merge(args.matrix,p["campaign"],receipt_path,audit_path,client,p["progress"],allow_campaign_supersede=False)
-        core.write_json_atomic_replace(p["progress"],merged,"MCP_EXTERNAL_INTEROP_PROGRESS")
+    with admission.progress_lock(args.progress_out):
+        merged=admission.merge(args.matrix,p["campaign"],receipt_path,audit_path,client,args.progress_out,allow_campaign_supersede=False)
+        core.write_json_atomic_replace(args.progress_out,merged,"MCP_EXTERNAL_INTEROP_PROGRESS")
         if merged["complete"]:
-            evidence=admission.final_evidence(merged,p["progress"])
-            core.write_json_once_or_identical(p["evidence"],evidence,"MCP_EXTERNAL_INTEROP_EVIDENCE")
-    status=progress_status(args.matrix,state)
+            evidence=admission.final_evidence(merged,args.progress_out)
+            core.write_json_once_or_identical(args.evidence_out,evidence,"MCP_EXTERNAL_INTEROP_EVIDENCE")
+    status=progress_status(args.matrix,state,args.progress_out)
     return {
         "authority":AUTHORITY,
         "action":"ADMITTED",
@@ -181,7 +179,7 @@ def admit(args:argparse.Namespace)->dict:
         "certifiedClientCount":len(status["certified"]),
         "complete":status["complete"],
         "nextClient":status["nextClient"],
-        "evidencePath":str(p["evidence"]) if status["complete"] else None,
+        "evidencePath":str(args.evidence_out) if status["complete"] else None,
         "physicalCertified":False,
     }
 
@@ -190,14 +188,14 @@ def seal(args:argparse.Namespace)->dict:
     state=secure_state_dir(args.state_dir)
     p=paths(state)
     value=core.seal(args.matrix,p["campaign"],p["receipts"],p["audits"])
-    core.write_json_once_or_identical(p["evidence"],value,"MCP_EXTERNAL_INTEROP_EVIDENCE")
+    core.write_json_once_or_identical(args.evidence_out,value,"MCP_EXTERNAL_INTEROP_EVIDENCE")
     return {
         "authority":AUTHORITY,
         "action":"SEALED",
         "campaignId":value["campaignId"],
         "sourceCommitSHA":value["sourceCommitSHA"],
         "certifiedClientCount":value["certifiedClientCount"],
-        "evidencePath":str(p["evidence"]),
+        "evidencePath":str(args.evidence_out),
         "externalCertificationPass":value["externalCertificationPass"],
         "physicalCertified":False,
     }
@@ -208,16 +206,16 @@ def status(args:argparse.Namespace)->dict:
     if state.exists() or state.is_symlink():
         if state.is_symlink() or not state.is_dir():
             raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID")
-        value=progress_status(args.matrix,state)
+        value=progress_status(args.matrix,state,args.progress_out)
     else:
         value={"certified":[],"missing":list(core.CLIENTS),"complete":False,"nextClient":core.CLIENTS[0],"campaignPrepared":False}
     value.update({"authority":AUTHORITY,"action":"STATUS","stateDir":str(state),"physicalCertified":False})
     if value["complete"]:
         p=paths(state)
-        if not p["evidence"].is_file() or p["evidence"].is_symlink():
+        if not args.evidence_out.is_file() or args.evidence_out.is_symlink():
             raise RuntimeError("MCP_EXTERNAL_LOCAL_COMPLETE_WITHOUT_EVIDENCE")
         rebuilt=core.seal(args.matrix,p["campaign"],p["receipts"],p["audits"])
-        persisted=core.load(p["evidence"],"EVIDENCE")
+        persisted=core.load(args.evidence_out,"EVIDENCE")
         if rebuilt!=persisted:
             raise RuntimeError("MCP_EXTERNAL_LOCAL_EVIDENCE_DRIFT")
     return value
@@ -227,6 +225,8 @@ def parser()->argparse.ArgumentParser:
     p=argparse.ArgumentParser()
     p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json"))
     p.add_argument("--state-dir",type=Path,default=DEFAULT_STATE)
+    p.add_argument("--progress-out",type=Path,default=Path("lab/mcp-external-client-interop-progress.json"))
+    p.add_argument("--evidence-out",type=Path,default=Path("lab/mcp-external-client-interoperability-evidence.json"))
     sub=p.add_subparsers(dest="command",required=True)
 
     prepare_p=sub.add_parser("prepare")
