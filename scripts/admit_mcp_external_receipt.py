@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Incrementally admit one server-audit-witnessed named MCP client receipt."""
 from __future__ import annotations
-import argparse, fcntl, hashlib, json, os, stat, tempfile
+import argparse, hashlib, json, os, stat, tempfile
 from contextlib import contextmanager
 from pathlib import Path
+if os.name=="nt":
+    import msvcrt
+else:
+    import fcntl
 import seal_mcp_external_interop as core
 
 AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1"
@@ -13,25 +17,51 @@ def progress_lock(progress_path:Path):
     absolute=Path(os.path.abspath(progress_path))
     key=hashlib.sha256(os.fsencode(str(absolute))).hexdigest()
     lock_path=Path(tempfile.gettempdir())/f"4so-c7w-progress-{key}.lock"
+    if lock_path.is_symlink():
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_LOCK_IDENTITY_INVALID")
     flags=os.O_CREAT|os.O_RDWR|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_NOFOLLOW",0)
     try:
         fd=os.open(lock_path,flags,0o600)
     except OSError as exc:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_LOCK_OPEN_FAILED") from exc
+    locked=False
     try:
         info=os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.geteuid() or (stat.S_IMODE(info.st_mode)&0o077):
+        try:
+            named=os.stat(lock_path,follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_LOCK_IDENTITY_INVALID") from exc
+        if not stat.S_ISREG(info.st_mode) or not stat.S_ISREG(named.st_mode) or not os.path.samestat(info,named):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_LOCK_IDENTITY_INVALID")
-        fcntl.flock(fd,fcntl.LOCK_EX)
-        locked=os.fstat(fd)
-        if (locked.st_dev,locked.st_ino)!=(info.st_dev,info.st_ino):
+        if os.name!="nt":
+            if info.st_uid!=os.geteuid() or (stat.S_IMODE(info.st_mode)&0o077):
+                raise RuntimeError("MCP_EXTERNAL_PROGRESS_LOCK_IDENTITY_INVALID")
+            fcntl.flock(fd,fcntl.LOCK_EX)
+        else:
+            if info.st_size==0:
+                os.write(fd,b"\0"); os.fsync(fd)
+            os.lseek(fd,0,os.SEEK_SET)
+            try:
+                msvcrt.locking(fd,msvcrt.LK_LOCK,1)
+            except OSError as exc:
+                raise RuntimeError("MCP_EXTERNAL_PROGRESS_LOCK_ACQUIRE_FAILED") from exc
+        locked=True
+        after=os.fstat(fd)
+        named_after=os.stat(lock_path,follow_symlinks=False)
+        if not os.path.samestat(after,named_after):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_LOCK_IDENTITY_DRIFT")
         yield
     finally:
-        try:
-            fcntl.flock(fd,fcntl.LOCK_UN)
-        finally:
-            os.close(fd)
+        if locked:
+            try:
+                if os.name=="nt":
+                    os.lseek(fd,0,os.SEEK_SET)
+                    msvcrt.locking(fd,msvcrt.LK_UNLCK,1)
+                else:
+                    fcntl.flock(fd,fcntl.LOCK_UN)
+            except OSError:
+                pass
+        os.close(fd)
 
 def matrix_contract(matrix_path:Path,campaign_path:Path):
     matrix=core.load(matrix_path,"MATRIX"); spec=matrix.get("spec") or {}
