@@ -114,7 +114,7 @@ def main() -> int:
         flush=True,
     )
     for script, script_args in selected:
-        command = ["python3", str(Path("scripts") / script), *script_args]
+        command = [sys.executable, str(Path("scripts") / script), *script_args]
         print("+", " ".join(command), flush=True)
         rc = run_bounded(command, env=env, timeout=args.command_timeout)
         if rc:
