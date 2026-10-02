@@ -301,6 +301,18 @@ class BrowserTriagePrerequisiteTests(unittest.TestCase):
         self.assertIn("browser_triage_bootstrap.py", command[1])
         self.assertIn("--ensure", command)
 
+    def test_cross_surface_console_installer_repair_keeps_browser_prerequisites(self):
+        stage = AUTOPILOT.Stage("smoke-ui-workflow-e2e", ("python3", "scripts/smoke_ui_workflow_e2e.py"), 10)
+        fake = type("R", (), {"returncode": 0, "stdout": '{"ready":true,"os":"linux"}\n'})()
+        with mock.patch.object(AUTOPILOT, "_run", return_value=fake) as run:
+            ok, detail = AUTOPILOT._ensure_browser_triage_for_stage(ROOT, stage)
+        self.assertTrue(ok)
+        self.assertEqual(AUTOPILOT._stage_specialist(stage), "operator-installer-e2e")
+        self.assertIn('"ready":true', detail)
+        command = run.call_args.args[0]
+        self.assertIn("browser_triage_bootstrap.py", command[1])
+        self.assertIn("--ensure", command)
+
     def test_non_console_repair_does_not_install_browser_prerequisites(self):
         stage = AUTOPILOT.Stage("go-tests", ("go", "test", "./..."), 10)
         with mock.patch.object(AUTOPILOT, "_run") as run:
