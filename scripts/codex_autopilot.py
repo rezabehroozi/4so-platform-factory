@@ -527,7 +527,7 @@ def _environment_requirements(stages: list[Stage] | None) -> set[str]:
     for stage in stages:
         name = stage.name
         if name.startswith(("go-unit-", "go-vet-")) or name == "installer-go-owner-tests":
-            required.add("go")
+            required.update({"go", "c-compiler", "libpq"})
         if name == "installer-entrypoint-contracts":
             required.add("bash")
         if name.startswith("go-race-"):
