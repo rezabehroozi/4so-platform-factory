@@ -220,6 +220,29 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         next_command = source.index('doctor_next_action_code="RUN_PREFLIGHT"', doctor)
         self.assertGreater(next_command, doctor)
 
+    def test_doctor_scopes_prepare_state_and_privilege_to_bundle_preparation(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn(
+            'if [[ "${mode}" == "prepare-bundle" || "${mode}" == "doctor" ]]; then',
+            source,
+        )
+        self.assertIn(
+            'if [[ "${EUID}" -ne 0 && "${prepare_state_dir}" == /var/lib/* ]]; then',
+            source,
+        )
+        self.assertIn(
+            'doctor_next_argv=(sudo bash "${ROOT_DIR}/install.sh" prepare-bundle',
+            source,
+        )
+        self.assertIn(
+            'doctor_next_argv=(bash "${ROOT_DIR}/install.sh" prepare-bundle',
+            source,
+        )
+        self.assertNotIn(
+            'declare -a doctor_next_argv=(sudo bash "${ROOT_DIR}/install.sh" prepare-bundle',
+            source,
+        )
+
     def test_doctor_compact_mode_is_bounded_machine_handoff_not_a_second_installer(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('DOCTOR_COMPACT_AUTHORITY="INSTALLER_MANUAL_DOCTOR_COMPACT_V1"', source)
