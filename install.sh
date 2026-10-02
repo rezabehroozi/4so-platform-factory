@@ -410,12 +410,23 @@ if [[ "${mode}" == "doctor" ]]; then
   elif [[ "${bundle_prepare_actionable}" == true ]]; then
     doctor_next_action_code="PREPARE_BUNDLE"
     doctor_next_action="prepare the exact-release-bound appliance bundle through the release-shipped immutable acquisition authority; this is preparation only and does not imply Runtime or Physical PASS"
-    declare -a doctor_next_argv=(sudo bash "${ROOT_DIR}/install.sh" prepare-bundle --release-artifact "${release_artifact}" --state-dir "${prepare_state_dir}" "${passthrough[@]}")
+    declare -a doctor_next_argv=(sudo bash "${ROOT_DIR}/install.sh" prepare-bundle --release-artifact "${release_artifact}" --state-dir "${prepare_state_dir}")
+    if [[ "${doctor_compact}" == true ]]; then
+      doctor_next_argv+=(--compact)
+    fi
+    doctor_next_argv+=("${passthrough[@]}")
     printf -v doctor_next_command '%q ' "${doctor_next_argv[@]}"
     doctor_next_command="${doctor_next_command% }"
   fi
 
   if [[ "${doctor_compact}" == true ]]; then
+    doctor_remediation_compact=""
+    for hint in "${doctor_remediation_hints[@]}"; do
+      if [[ -n "${doctor_remediation_compact}" ]]; then
+        doctor_remediation_compact+=" | "
+      fi
+      doctor_remediation_compact+="${hint}"
+    done
     printf '%s\n' \
       "authority=${DOCTOR_COMPACT_AUTHORITY}" \
       "doctorAuthority=INSTALLER_MANUAL_DOCTOR_V1" \
@@ -427,6 +438,7 @@ if [[ "${mode}" == "doctor" ]]; then
     else
       printf '%s\n' "blockerCodes="
     fi
+    printf 'remediationHints=%s\n' "${doctor_remediation_compact}"
     printf 'nextCommand=%s\n' "${doctor_next_command}"
   else
     printf '%s\n' \
