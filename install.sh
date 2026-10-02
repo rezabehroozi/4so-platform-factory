@@ -6,6 +6,7 @@ CONTINUATION_AUTHORITY="INSTALLER_MANUAL_CONTINUATION_ENTRYPOINT_V1"
 ACTIONABLE_AUTHORITY="INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1"
 DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"
 HOST_RUNTIME_DOCTOR_AUTHORITY="INSTALLER_MANUAL_HOST_RUNTIME_DOCTOR_V1"
+MACHINE_NEXT_ACTION_AUTHORITY="INSTALLER_MANUAL_MACHINE_NEXT_ACTION_V1"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
 INSTALLER="${ROOT_DIR}/bin/linux-amd64/platform-installer"
@@ -246,6 +247,7 @@ if [[ "${mode}" == "doctor" ]]; then
     "authority=INSTALLER_MANUAL_DOCTOR_V1" \
     "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
     "hostRuntimeAuthority=${HOST_RUNTIME_DOCTOR_AUTHORITY}" \
+    "machineNextActionAuthority=${MACHINE_NEXT_ACTION_AUTHORITY}" \
     "readyForPreflight=${ready}" \
     "bundleAdmissionVerified=false" \
     "hostPlatformReady=${host_platform_ready}" \
@@ -261,6 +263,7 @@ if [[ "${mode}" == "doctor" ]]; then
   printf 'platformctl=%q\ninstaller=%q\nbundleDirectory=%q\nreleaseArtifact=%q\n' \
     "${PLATFORMCTL}" "${INSTALLER}" "${bundle_dir}" "${release_artifact}"
   if [[ "${ready}" == true ]]; then
+    printf '%s\n' "nextActionCode=RUN_PREFLIGHT"
     printf '%s\n' "nextAction=copy nextCommand exactly; canonical bundle/release admission happens during preflight"
     printf 'nextCommand=sudo bash %q preflight --bundle-dir %q --release-artifact %q' \
       "${ROOT_DIR}/install.sh" "${bundle_dir}" "${release_artifact}"
@@ -269,6 +272,7 @@ if [[ "${mode}" == "doctor" ]]; then
     fi
     printf '\n'
   else
+    printf '%s\n' "nextActionCode=RESOLVE_DOCTOR_BLOCKERS"
     printf '%s\n' "nextAction=resolve the false readiness fields above (including host platform and binary runtime/version compatibility), then rerun this doctor command; do not start preflight yet"
     printf '%s\n' "nextCommand="
   fi
