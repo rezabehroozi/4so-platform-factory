@@ -38,12 +38,24 @@ class GuidedInstallEntrypointTests(unittest.TestCase):
 
     def test_continuation_modes_bypass_install_inputs_but_keep_canonical_owner(self):
         source = SCRIPT.read_text(encoding="utf-8")
-        self.assertIn("preflight|plan|install|status|verify|bootstrap-status|resume|reset|reset-resume|recover|rollback", source)
-        continuation = source.index('status|verify|recover|rollback)')
+        self.assertIn("doctor|prepare-bundle|preflight|plan|install|next|status|verify|bootstrap-status|resume|reset|reset-resume|recover|rollback", source)
+        continuation = source.index('next|status|verify|recover|rollback)')
         bundle_requirement = source.index('if [[ -z "${bundle_dir}" ]]')
         self.assertLess(continuation, bundle_requirement)
         self.assertIn('exec "${PLATFORMCTL}" installer-manual "${mode}" "$@"', source)
         self.assertIn("They do not require the original bundle or release ZIP again.", source)
+
+    def test_start_is_a_read_only_doctor_alias_and_next_uses_durable_owner_state(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('start)', source)
+        self.assertIn('mode="doctor"', source)
+        self.assertIn('next|status|verify|recover|rollback)', source)
+        self.assertIn('exec "${PLATFORMCTL}" installer-manual "${mode}" "$@"'.replace('\\',''), source)
+        start_case = source.index('start)')
+        doctor = source.index('if [[ "${mode}" == "doctor" ]]'.replace('\\',''))
+        root_guard = source.index('if [[ "${EUID}" -ne 0 ]]'.replace('\\',''), doctor)
+        self.assertLess(start_case, doctor)
+        self.assertLess(doctor, root_guard)
 
     def test_bootstrap_continuations_are_status_first_owner_paths_without_bundle_replay(self):
         source = SCRIPT.read_text(encoding="utf-8")
@@ -125,7 +137,10 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
     def test_help_exposes_doctor_and_optional_discovered_inputs(self):
         result = subprocess.run(["bash", str(SCRIPT), "--help"], cwd=ROOT, text=True, capture_output=True, check=False, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("install.sh start", result.stdout)
         self.assertIn("install.sh doctor", result.stdout)
+        self.assertIn("install.sh next", result.stdout)
+        self.assertIn("preferred read-only restart/reconnect entrypoint", result.stdout)
         self.assertIn("When omitted, the entrypoint safely checks", result.stdout)
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('"readyForPreflight=${ready}"', source)
