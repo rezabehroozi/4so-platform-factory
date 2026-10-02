@@ -2,10 +2,11 @@ SHELL := /usr/bin/env bash
 GO ?= go
 PYTHON ?= python3
 VERSION := $(shell cat VERSION)
+SOURCE_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || printf 'unknown')
 PLATFORM_FACTORY_DEVELOPMENT_MODE ?= true
 export PLATFORM_FACTORY_DEVELOPMENT_MODE
 
-BUILD_LDFLAGS := -s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version=$(VERSION)
+BUILD_LDFLAGS := -s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version=$(VERSION) -X platform.4so.io/factory/internal/buildinfo.SourceCommit=$(SOURCE_COMMIT)
 
 .PHONY: runtime-status runtime-resume runtime-watchdog runtime-self-test autopilot-durable autopilot-agent autopilot-context autopilot-context-full validate test test-postgres-integration vet race build build-release run smoke smoke-ui agent-evidence browser-triage-profile persian-ui-lint release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
 
