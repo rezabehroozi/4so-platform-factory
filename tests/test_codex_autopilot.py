@@ -487,6 +487,19 @@ class CheckpointSafeStageTests(unittest.TestCase):
         self.assertIn("test_codex_autopilot", python_stage.command[2])
         self.assertEqual(AUTOPILOT.OWNER_PYTHON_DEDUP_AUTHORITY, "AUTOPILOT_OWNER_PYTHON_DEDUP_V1")
 
+    def test_make_repair_wrappers_opt_into_owned_worktree_mutation_only(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        lines = makefile.splitlines()
+        def command_for(target):
+            index = lines.index(target + ":")
+            return lines[index + 1].strip()
+        for target in ("autopilot-agent", "autopilot", "autopilot-durable"):
+            command = command_for(target)
+            self.assertIn("--allow-owned-worktree-mutation", command)
+            self.assertIn("C6-multi-agent-test-autopilot", command)
+        for target in ("autopilot-release-test", "autopilot-real-test"):
+            self.assertNotIn("--allow-owned-worktree-mutation", command_for(target))
+
 
 class AutopilotAgentContextTests(unittest.TestCase):
     def test_agent_repository_contract_uses_one_context_probe_and_real_field_names(self):
