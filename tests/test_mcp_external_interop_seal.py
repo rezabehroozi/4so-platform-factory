@@ -1,4 +1,4 @@
-import hashlib,importlib.util,json,tempfile,unittest
+import hashlib,importlib.util,json,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 SPEC=importlib.util.spec_from_file_location("mcpseal",ROOT/"scripts"/"seal_mcp_external_interop.py")
@@ -56,6 +56,32 @@ class MCPExternalSealTests(unittest.TestCase):
         for c in mod.CLIENTS:
             row=self.receipt(c,checks,campaign); (receipts/(c+".json")).write_text(json.dumps(row)); (audits/(c+".json")).write_text(json.dumps(self.audit(row)))
         return matrix_path,campaign_path,receipts,audits,campaign,checks
+    def test_source_lineage_allows_only_c7w_evidence_commits(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init"],cwd=root,check=True,capture_output=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/"base.txt").write_text("base\n")
+            subprocess.run(["git","add","base.txt"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","base"],cwd=root,check=True,capture_output=True)
+            base=subprocess.check_output(["git","rev-parse","HEAD"],cwd=root,text=True).strip()
+
+            lab=root/"lab"; lab.mkdir()
+            (lab/"mcp-external-client-interop-progress.json").write_text("{}\n")
+            subprocess.run(["git","add","lab/mcp-external-client-interop-progress.json"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","evidence"],cwd=root,check=True,capture_output=True)
+            evidence=subprocess.check_output(["git","rev-parse","HEAD"],cwd=root,text=True).strip()
+            mod.validate_evidence_only_source_lineage(root,base,evidence,"TEST_C7W")
+
+            scripts=root/"scripts"; scripts.mkdir()
+            (scripts/"runtime.py").write_text("changed=True\n")
+            subprocess.run(["git","add","scripts/runtime.py"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","source"],cwd=root,check=True,capture_output=True)
+            source=subprocess.check_output(["git","rev-parse","HEAD"],cwd=root,text=True).strip()
+            with self.assertRaisesRegex(RuntimeError,"SOURCE_DELTA_NOT_EVIDENCE_ONLY"):
+                mod.validate_evidence_only_source_lineage(root,base,source,"TEST_C7W")
+
     def test_json_persistence_is_atomic_and_immutable_by_authority_type(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
