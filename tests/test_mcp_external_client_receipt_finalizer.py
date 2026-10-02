@@ -82,6 +82,25 @@ class ReceiptFinalizerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"REQUIREMENTS_INVALID"):
                 mod.finalize(pp,cap)
 
+    def test_packet_wire_drift_is_rejected_before_receipt(self):
+        with tempfile.TemporaryDirectory() as raw:
+            pp,cap,_=self.fixture(Path(raw))
+            packet=json.loads(pp.read_text())
+            audited=next(row for row in packet["checks"] if row["id"]=="authorization-filtered-tools-list")
+            audited["request"]["headers"]["MCP-Protocol-Version"]="legacy"
+            pp.write_text(json.dumps(packet))
+            with self.assertRaisesRegex(RuntimeError,"PACKET_WIRE_INVALID"):
+                mod.finalize(pp,cap)
+
+        with tempfile.TemporaryDirectory() as raw:
+            pp,cap,_=self.fixture(Path(raw))
+            packet=json.loads(pp.read_text())
+            audited=next(row for row in packet["checks"] if row["id"]=="project-resource-scope-negative-control")
+            audited["request"]["jsonRpc"]["params"]["_meta"]["io.modelcontextprotocol/clientCapabilities"]="wrong"
+            pp.write_text(json.dumps(packet))
+            with self.assertRaisesRegex(RuntimeError,"PACKET_WIRE_INVALID|PACKET_META_INVALID"):
+                mod.finalize(pp,cap)
+
     def test_capture_execution_time_outside_campaign_is_rejected(self):
         with tempfile.TemporaryDirectory() as raw:
             pp,cap,capture=self.fixture(Path(raw))
