@@ -1104,6 +1104,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
         for code, command in (
             ("RESUME_OUTER_RUNTIME", ["make", "runtime-resume"]),
             ("OBSERVE_OUTER_RUNTIME", ["make", "runtime-status"]),
+            ("INSPECT_OUTER_RUNTIME_STATUS", ["make", "runtime-status"]),
         ):
             with self.subTest(code=code):
                 got_code, got_command, _, preserved = AUTOPILOT._compact_budget_fallback(
