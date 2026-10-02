@@ -114,6 +114,32 @@ class ReceiptFinalizerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"PACKET_WIRE_INVALID|PACKET_META_INVALID"):
                 mod.finalize(pp,cap)
 
+    def test_packet_semantic_weakening_is_rejected(self):
+        with tempfile.TemporaryDirectory() as raw:
+            pp,cap,_=self.fixture(Path(raw))
+            original=json.loads(pp.read_text())
+
+            bad=copy.deepcopy(original)
+            row=next(x for x in bad["checks"] if x["id"]=="project-resource-scope-negative-control")
+            row["expect"]["accepted"]=True
+            pp.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"PACKET_SEMANTICS_INVALID"):
+                mod.finalize(pp,cap)
+
+            bad=copy.deepcopy(original)
+            row=next(x for x in bad["checks"] if x["id"]=="read-only-client-mutation-negative-control")
+            row["request"]["credentialProfile"]="campaign-delegated-user"
+            pp.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"PACKET_SEMANTICS_INVALID"):
+                mod.finalize(pp,cap)
+
+            bad=copy.deepcopy(original)
+            row=next(x for x in bad["checks"] if x["id"]=="administration-approval-self-approval-negative-control")
+            row["request"]["jsonRpc"]["params"]["arguments"]["expectedRevision"]=2
+            pp.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"PACKET_WIRE_INVALID"):
+                mod.finalize(pp,cap)
+
     def test_capture_runtime_identity_drift_fails_closed(self):
         with tempfile.TemporaryDirectory() as raw:
             pp,cap,capture=self.fixture(Path(raw))
