@@ -58,6 +58,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 oauth_client_map=None,
                 token_env="C7W_PLATFORM_ADMIN_TOKEN",
                 source_commit_sha=source_sha,
+                progress_out=Path(td)/"progress.json",
+                evidence_out=Path(td)/"evidence.json",
             )
             def packet(_,__,client):
                 return {
@@ -80,12 +82,22 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 mock.patch.object(mod.campaign_builder,"trusted_client_readback",side_effect=AssertionError("registry readback must not run on resume")),
                 mock.patch.object(mod.campaign_builder,"live_preflight",side_effect=AssertionError("preflight must not run on resume")),
                 mock.patch.object(mod.packet_builder,"packet",side_effect=packet),
+                mock.patch.object(mod,"progress_status",return_value={
+                    "certified":["chatgpt","claude"],
+                    "missing":["gemini","grok"],
+                    "complete":False,
+                    "nextClient":"gemini",
+                    "campaignPrepared":True,
+                }),
             ):
                 out=mod.prepare(args)
             self.assertTrue(out["resumed"])
             self.assertEqual(source_sha,out["sourceCommitSHA"])
+            self.assertEqual(["chatgpt","claude"],out["certified"])
+            self.assertEqual(["gemini","grok"],out["missing"])
             self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
-            self.assertEqual("chatgpt",out["nextClient"])
+            self.assertEqual("gemini",out["nextClient"])
+            self.assertEqual(out["clientHandoff"]["gemini"]["admitCommand"],out["nextCommand"])
             self.assertEqual(set(mod.core.CLIENTS),set(out["clientHandoff"]))
             for client in mod.core.CLIENTS:
                 self.assertTrue((state/"packets"/f"{client}.json").is_file())
@@ -122,10 +134,39 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 mock.patch.object(mod.core,"write_json_atomic_replace"),
                 mock.patch.object(mod,"progress_status",return_value={"certified":[],"complete":False,"nextClient":"chatgpt"}),
             ):
-                mod.admit(args)
+                out=mod.admit(args)
             verify_receipt.assert_called_once()
             verify_audit.assert_called_once_with(audit_path,normalized,client)
             self.assertFalse(merge.call_args.kwargs["allow_campaign_supersede"])
+            self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
+            self.assertEqual("chatgpt",out["nextClientHandoff"]["clientId"])
+            self.assertEqual(out["nextClientHandoff"]["admitCommand"],out["nextCommand"])
+
+    def test_admit_fourth_client_hands_directly_to_independent_seal(self):
+        with tempfile.TemporaryDirectory() as td:
+            state=mod.secure_state_dir(Path(td)/"state")
+            p=mod.paths(state); client="grok"
+            (p["packets"]/(client+".json")).write_text("{}")
+            capture=Path(td)/"capture.json"; capture.write_text("{}")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",client=client,capture=capture,token_env="TOKEN",attempts=1,interval_seconds=0.0,progress_out=Path(td)/"progress.json",evidence_out=Path(td)/"evidence.json",allow_campaign_supersede=False)
+            with (
+                mock.patch.object(mod.core,"load",return_value={"sourceCommitSHA":"a"*40}),
+                mock.patch.object(mod,"require_active_campaign_source",return_value="a"*40),
+                mock.patch.object(mod.finalizer,"finalize",return_value={"authority":mod.core.RECEIPT_AUTHORITY,"clientId":client}),
+                mock.patch.object(mod.core,"write_json_once_or_identical"),
+                mock.patch.object(mod.admission,"matrix_contract",return_value=({"protocol":"2026-07-28"},list(mod.core.REQUIRED_CHECKS),{})),
+                mock.patch.object(mod.core,"verify_receipt",return_value={"clientId":client,"requestIds":{},"executedAt":"2026-10-01T00:00:00Z","campaignCreatedAt":"2026-10-01T00:00:00Z","campaignExpiresAt":"2026-10-02T00:00:00Z","executionAuditWindowSeconds":60}),
+                mock.patch.object(mod.audit_fetch,"fetch",return_value={}),
+                mock.patch.object(mod.admission,"progress_lock"),
+                mock.patch.object(mod.admission,"merge",return_value={"clients":[1,2,3,4],"certifiedClientCount":4,"complete":True}),
+                mock.patch.object(mod.admission,"final_evidence",return_value={"authority":"final"}),
+                mock.patch.object(mod.core,"write_json_atomic_replace"),
+                mock.patch.object(mod,"progress_status",return_value={"certified":list(mod.core.CLIENTS),"complete":True,"nextClient":None}),
+            ):
+                out=mod.admit(args)
+            self.assertEqual("RUN_C7W_SEAL",out["nextActionCode"])
+            self.assertEqual(["make","c7w-seal"],out["nextCommand"])
+            self.assertTrue(out["complete"])
 
     def test_admit_forwards_explicit_partial_campaign_supersede(self):
         parser=mod.parser()
