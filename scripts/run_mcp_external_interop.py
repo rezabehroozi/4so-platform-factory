@@ -134,13 +134,15 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
 
 def capture_template(packet:dict)->dict:
     requirements=packet.get("receiptRequirements") or {}
+    if requirements.get("structuredResponseObservationRequired") is not True:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_PACKET_RESPONSE_OBSERVATION_REQUIRED")
     audited=set(requirements.get("requestIds") or [])
     checks={}
     for row in packet.get("checks") or []:
         check_id=str(row.get("id") or "")
         if not check_id:
             raise RuntimeError("MCP_EXTERNAL_LOCAL_PACKET_CHECK_INVALID")
-        checks[check_id]={"passed":False,**({"requestId":""} if check_id in audited else {})}
+        checks[check_id]={"observed":finalizer.observation_template(row),**({"requestId":""} if check_id in audited else {})}
     if list(checks)!=list(core.REQUIRED_CHECKS):
         raise RuntimeError("MCP_EXTERNAL_LOCAL_PACKET_CHECK_SET_INVALID")
     return {
