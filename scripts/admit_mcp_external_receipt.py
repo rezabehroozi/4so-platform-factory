@@ -154,8 +154,11 @@ def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,
         binding_keys=("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","sourceCommitSHA","runtimeVersion","protocol","transport","endpoint")
         same_campaign=all(existing.get(k)==expected.get(k) for k in binding_keys)
         if not same_campaign:
-            if not allow_campaign_supersede or existing.get("complete") is True:
+            if not allow_campaign_supersede:
                 raise RuntimeError("MCP_EXTERNAL_PROGRESS_CAMPAIGN_DRIFT")
+            prior_rows=validate_existing(existing,existing)
+            if existing.get("complete") is True or len(prior_rows)>=len(core.CLIENTS):
+                raise RuntimeError("MCP_EXTERNAL_PROGRESS_SUPERSEDE_COMPLETE_FORBIDDEN")
         else:
             by_id=validate_existing(existing,expected)
             validate_existing_campaign_rows(by_id,expected,campaign,spec)
