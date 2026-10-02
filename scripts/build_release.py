@@ -192,6 +192,16 @@ def go_toolchain_version() -> str:
     return subprocess.run([go_binary, "version"], capture_output=True, text=True, check=True).stdout.strip()
 
 
+def verify_binary_build_identity(path:Path,version:str,source_commit_sha:str)->None:
+    go_binary=os.environ.get("GO","go").strip() or "go"
+    proc=subprocess.run([go_binary,"version","-m",str(path)],capture_output=True,text=True,check=False)
+    output=(proc.stdout or "")+(proc.stderr or "")
+    version_token="platform.4so.io/factory/internal/buildinfo.Version="+version
+    source_token="platform.4so.io/factory/internal/buildinfo.SourceCommit="+source_commit_sha
+    if proc.returncode!=0 or version_token not in output or source_token not in output:
+        raise SystemExit(f"BINARY_BUILD_IDENTITY_MISMATCH {path}")
+
+
 def command_first_line(command: list[str]) -> str:
     proc = subprocess.run(command, capture_output=True, text=True, check=True)
     lines = [line.strip() for line in (proc.stdout or proc.stderr).splitlines() if line.strip()]
@@ -393,6 +403,7 @@ def main() -> int:
             probe = subprocess.run([str(src), "version"], capture_output=True, text=True, check=False)
             if probe.returncode != 0 or probe.stdout.strip() != version:
                 raise SystemExit(f"BINARY_VERSION_MISMATCH {binary} expected={version} actual={probe.stdout.strip() or probe.stderr.strip()}")
+            verify_binary_build_identity(src,version,source_commit_sha)
             dst = stage / "bin" / target / binary
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
