@@ -22,11 +22,13 @@ usage() {
 4SO Platform Factory guided manual installation
 
 Usage:
+  bash install.sh start     [--bundle-dir DIR] [--release-artifact RELEASE.zip]
   bash install.sh doctor    [--bundle-dir DIR] [--release-artifact RELEASE.zip]
   [sudo] bash install.sh prepare-bundle [--release-artifact RELEASE.zip] [--state-dir DIR] [future installer options...]
   sudo bash install.sh preflight [--bundle-dir DIR] [--release-artifact RELEASE.zip] [installer options...]
   sudo bash install.sh plan      [--bundle-dir DIR] [--release-artifact RELEASE.zip] [installer options...]
   sudo bash install.sh install   [--bundle-dir DIR] [--release-artifact RELEASE.zip] --enable-execution --confirmation DEPLOY [installer options...]
+  sudo bash install.sh next             [--state FILE] [--root /]
   sudo bash install.sh status           [--state FILE] [--root /]
   sudo bash install.sh verify           [--state FILE] [--root /]
   [sudo] bash install.sh bootstrap-status [--installer-url URL] [--token-file FILE] [--ca-file FILE]
@@ -56,8 +58,8 @@ Safe default:
   Installer listens on 127.0.0.1:9080. The result prints an SSH local-forward
   command for remote browser access without exposing Installer on the network.
 
-Doctor:
-  doctor is read-only and does not require root. It reports input readiness for
+Start / Doctor:
+  start is a human-friendly alias for doctor. Both are read-only and do not require root. It reports input readiness for
   packaged binaries, bundle files and the exact release ZIP. It does not claim
   bundle admission; canonical digest/exact-release verification starts at preflight.
   When the exact release is ready but the appliance bundle is missing, Doctor
@@ -68,6 +70,10 @@ Doctor:
   normally uses sudo; a writable custom --state-dir may be used without root.
 
 Continuation:
+  next is the preferred read-only restart/reconnect entrypoint. It reads the
+  durable host-deployment journal and emits one machine-readable nextActionCode
+  plus an exact non-secret nextCommand when a safe command can be determined;
+  it never performs the suggested mutation automatically.
   status/verify/recover/rollback read the durable host-deployment authority.
   bootstrap-status/resume/reset/reset-resume read the live Bootstrap Installer
   durable authority. Resume and journaled reset mutations are status-first and
@@ -87,7 +93,11 @@ case "${mode}" in
     usage
     exit 0
     ;;
-  doctor|prepare-bundle|preflight|plan|install|status|verify|bootstrap-status|resume|reset|reset-resume|recover|rollback)
+  start)
+    mode="doctor"
+    shift
+    ;;
+  doctor|prepare-bundle|preflight|plan|install|next|status|verify|bootstrap-status|resume|reset|reset-resume|recover|rollback)
     shift
     ;;
   *)
@@ -158,7 +168,7 @@ case "${mode}" in
 esac
 
 case "${mode}" in
-  status|verify|recover|rollback)
+  next|status|verify|recover|rollback)
     if [[ "${EUID}" -ne 0 ]]; then
       echo "ERROR ${AUTHORITY}: installer continuation must run as root; rerun with sudo" >&2
       exit 2
