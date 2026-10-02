@@ -67,11 +67,7 @@ def atomic_write(path: Path, raw: bytes, receipt: dict, client: str) -> dict:
             os.link(temp,path,follow_symlinks=False)
         except FileExistsError:
             return _existing_witness(path,raw,receipt,client)
-        directory_fd=os.open(path.parent,os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        core._fsync_directory(path.parent)
         return witness
     finally:
         if temp.exists():
