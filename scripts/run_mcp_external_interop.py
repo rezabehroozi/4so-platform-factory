@@ -123,6 +123,8 @@ def prepare(args:argparse.Namespace)->dict:
 def progress_status(matrix:Path,state:Path,progress_path:Path)->dict:
     p=paths(state)
     if not p["campaign"].is_file() or p["campaign"].is_symlink():
+        if progress_path.exists() or progress_path.is_symlink():
+            raise RuntimeError("MCP_EXTERNAL_LOCAL_CAMPAIGN_MISSING_WITH_CANONICAL_PROGRESS")
         return {"certified":[],"missing":list(core.CLIENTS),"complete":False,"nextClient":core.CLIENTS[0],"campaignPrepared":False}
     spec,_,campaign=admission.matrix_contract(matrix,p["campaign"])
     expected=admission.base_progress(matrix,p["campaign"],campaign,spec)
@@ -208,6 +210,8 @@ def status(args:argparse.Namespace)->dict:
             raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID")
         value=progress_status(args.matrix,state,args.progress_out)
     else:
+        if args.progress_out.exists() or args.progress_out.is_symlink() or args.evidence_out.exists() or args.evidence_out.is_symlink():
+            raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_MISSING_WITH_CANONICAL_EVIDENCE")
         value={"certified":[],"missing":list(core.CLIENTS),"complete":False,"nextClient":core.CLIENTS[0],"campaignPrepared":False}
     value.update({"authority":AUTHORITY,"action":"STATUS","stateDir":str(state),"physicalCertified":False})
     if value["complete"]:
