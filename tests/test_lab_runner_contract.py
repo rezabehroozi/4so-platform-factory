@@ -102,6 +102,35 @@ class LabRunnerContractTests(unittest.TestCase):
             'next_argv = [\n            "sudo",\n            "bash",\n            str(release_root / "install.sh"),\n            "doctor",',
             source,
         )
+        self.assertIn("_handoff_preparation_state_to_sudo_invoker(state)", source)
+
+    def test_sudo_bundle_prepare_returns_private_state_to_invoking_user(self):
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "state"
+            state.mkdir(mode=0o700)
+            snapshot = state / "release-artifact.zip"
+            snapshot.write_bytes(b"exact-release")
+            snapshot.chmod(0o400)
+            release = state / "release"
+            release.mkdir(mode=0o700)
+            install = release / "install.sh"
+            install.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+            install.chmod(0o700)
+
+            with mock.patch.object(lab.os, "geteuid", return_value=0), \
+                 mock.patch.object(lab.os, "chown") as chown, \
+                 mock.patch.dict(lab.os.environ, {"SUDO_UID": "1234", "SUDO_GID": "1234"}, clear=False):
+                self.assertTrue(lab._handoff_preparation_state_to_sudo_invoker(state))
+
+            handed_off = {Path(call.args[0]) for call in chown.call_args_list}
+            self.assertIn(state, handed_off)
+            self.assertIn(snapshot, handed_off)
+            self.assertIn(release, handed_off)
+            self.assertIn(install, handed_off)
+            for call in chown.call_args_list:
+                self.assertEqual(call.args[1:3], (1234, 1234))
+                self.assertFalse(call.kwargs["follow_symlinks"])
+            self.assertEqual(stat.S_IMODE(state.stat().st_mode), 0o700)
 
     def test_production_ha_schema_matches_runtime_topology_contract(self):
         with tempfile.TemporaryDirectory() as td:
