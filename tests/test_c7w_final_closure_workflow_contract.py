@@ -14,6 +14,8 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("Mcp-Interop-Binding", packet)
         self.assertIn("INTEROP_BINDING_AUTHORITY", packet)
         self.assertIn('"secretsIncluded":False', packet)
+        self.assertIn('"sourceCommitSHA"', packet)
+        self.assertIn("serverInfo.sourceCommitSHA", packet)
 
     def test_capture_finalizer_rebuilds_receipt_from_packet_authority(self):
         finalizer = self.read("scripts/finalize_mcp_external_client_receipt.py")
@@ -22,6 +24,8 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("MCP_EXTERNAL_CAPTURE_PACKET_SERVER_BINDING_INVALID", finalizer)
         self.assertIn("MCP_EXTERNAL_CAPTURE_PACKET_SERVER_BINDING_MISSING", finalizer)
         self.assertIn('"evidenceDigest":core.sha256(capture_path)', finalizer)
+        self.assertIn("MCP_EXTERNAL_CAPTURE_PACKET_RUNTIME_IDENTITY_INVALID", finalizer)
+        self.assertIn("observedRuntimeIdentityRequired", finalizer)
 
     def test_sealer_requires_exact_audit_ids_and_server_binding(self):
         seal = self.read("scripts/seal_mcp_external_interop.py")
@@ -57,6 +61,8 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("seal_mcp_external_interop as mcp_contract", final)
         self.assertIn("mcp_contract.validate_interop_binding", final)
         self.assertIn("mcp_contract.validate_server_audit_witness", final)
+        self.assertIn("validate_c7w_source_lineage", final)
+        self.assertIn("C7W_EVIDENCE_ONLY_PATHS", final)
         self.assertNotIn("gh run list", final)
 
     def test_matrix_names_real_external_evidence_blocker(self):
@@ -76,7 +82,7 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("prepare_exact_worktree", seal)
         self.assertIn("verify_worktree_source_unchanged", seal)
         self.assertIn("publish_verified_file", seal)
-        self.assertIn("admission.verify(worktree)", seal)
+        self.assertIn("admission.verify(worktree,expected_source_sha=source_sha)", seal)
         self.assertNotIn("admission.verify(root)", seal)
         self.assertIn('(worktree / "lab" / "release-build-toolchain-lock.json")', seal)
         self.assertIn('"build-release"', seal)
