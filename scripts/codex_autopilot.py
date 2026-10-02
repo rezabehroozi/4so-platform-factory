@@ -1451,6 +1451,7 @@ def _compact_budget_fallback(full: dict, outer: dict) -> tuple[str, list[str], s
         )
     fixed = {
         "OBSERVE_OUTER_RUNTIME": ["make", "runtime-status"],
+        "INSPECT_OUTER_RUNTIME_STATUS": ["make", "runtime-status"],
         "RESUME_OUTER_RUNTIME": ["make", "runtime-resume"],
     }
     expected = fixed.get(code)
