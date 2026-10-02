@@ -18,6 +18,20 @@ SPEC.loader.exec_module(mod)
 
 
 class PostgreSQLCertifierTests(unittest.TestCase):
+    def test_process_group_control_is_cross_platform(self):
+        source=(ROOT/"scripts"/"postgresql_runtime_certify.py").read_text(encoding="utf-8")
+        self.assertIn("CREATE_NEW_PROCESS_GROUP",source)
+        self.assertIn('"taskkill"',source)
+        self.assertIn('"/T"',source)
+        self.assertIn("process_group_kwargs()",source)
+        self.assertNotIn("start_new_session=True",source)
+        kwargs=mod.process_group_kwargs()
+        if os.name=="nt":
+            self.assertIn("creationflags",kwargs)
+            self.assertNotIn("start_new_session",kwargs)
+        else:
+            self.assertEqual({"start_new_session":True},kwargs)
+
     def test_redact_url_dsn(self):
         value = mod.redact_dsn("postgresql://admin:supersecret@db.example:5432/platform?sslmode=verify-full")
         self.assertNotIn("supersecret", value)
