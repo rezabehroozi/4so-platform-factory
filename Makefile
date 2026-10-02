@@ -8,7 +8,7 @@ export PLATFORM_FACTORY_DEVELOPMENT_MODE
 
 BUILD_LDFLAGS := -s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version=$(VERSION) -X platform.4so.io/factory/internal/buildinfo.SourceCommit=$(SOURCE_COMMIT)
 
-.PHONY: runtime-status runtime-resume runtime-watchdog runtime-self-test autopilot-durable autopilot-agent autopilot-context autopilot-context-full validate test test-postgres-integration vet race build build-release run smoke smoke-ui agent-evidence browser-triage-profile persian-ui-lint release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
+.PHONY: runtime-status runtime-resume runtime-watchdog runtime-self-test autopilot-durable autopilot-agent autopilot-context autopilot-context-full c7w-prepare c7w-admit c7w-status c7w-seal validate test test-postgres-integration vet race build build-release run smoke smoke-ui agent-evidence browser-triage-profile persian-ui-lint release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
 
 validate:
 	$(PYTHON) scripts/validate_repository.py .
@@ -156,6 +156,21 @@ upstream-acquisition-preflight:
 	$(PYTHON) scripts/catalog_upstream_admission.py
 	$(PYTHON) scripts/acquire_upstream_helm.py --preflight
 
+c7w-prepare:
+	@test -n "$C7W_MCP_ENDPOINT" || (echo "C7W_MCP_ENDPOINT is required" >&2; exit 2)
+	@test -n "$C7W_OAUTH_CLIENT_MAP" || (echo "C7W_OAUTH_CLIENT_MAP is required" >&2; exit 2)
+	$(PYTHON) scripts/run_mcp_external_interop.py --state-dir "${C7W_STATE_DIR:-.state/c7w-external-interop}" prepare --endpoint "$C7W_MCP_ENDPOINT" --oauth-client-map "$C7W_OAUTH_CLIENT_MAP" --token-env "${C7W_PLATFORM_ADMIN_TOKEN_ENV:-C7W_PLATFORM_ADMIN_TOKEN}"
+
+c7w-admit:
+	@test -n "$C7W_CLIENT" || (echo "C7W_CLIENT is required" >&2; exit 2)
+	@test -n "$C7W_CAPTURE" || (echo "C7W_CAPTURE is required" >&2; exit 2)
+	$(PYTHON) scripts/run_mcp_external_interop.py --state-dir "${C7W_STATE_DIR:-.state/c7w-external-interop}" admit --client "$C7W_CLIENT" --capture "$C7W_CAPTURE" --token-env "${C7W_PLATFORM_ADMIN_TOKEN_ENV:-C7W_PLATFORM_ADMIN_TOKEN}"
+
+c7w-status:
+	$(PYTHON) scripts/run_mcp_external_interop.py --state-dir "${C7W_STATE_DIR:-.state/c7w-external-interop}" status
+
+c7w-seal:
+	$(PYTHON) scripts/run_mcp_external_interop.py --state-dir "${C7W_STATE_DIR:-.state/c7w-external-interop}" seal
 autopilot-preflight:
 	$(PYTHON) scripts/codex_autopilot.py --preflight --repair
 
