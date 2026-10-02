@@ -189,10 +189,13 @@ func TestManualInstallerNextGuidanceRoutesAppliedHostToBootstrapReadback(t *test
 		t.Fatalf("reconnect access handoff missing: %#v", result.Access)
 	}
 	joined := strings.Join(result.NextCommand, " ")
-	for _, want := range []string{"installer-access run-status", "--installer-url http://127.0.0.1:9080", "--token-file /var/lib/4so-platform-installer/bootstrap-token"} {
+	for _, want := range []string{"sudo bash", "install.sh bootstrap-status", "--installer-url http://127.0.0.1:9080", "--token-file /var/lib/4so-platform-installer/bootstrap-token"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("bootstrap readback command missing %q: %#v", want, result.NextCommand)
 		}
+	}
+	if strings.Contains(joined, "installer-access run-status") {
+		t.Fatalf("applied-host handoff bypasses canonical installer entrypoint: %#v", result.NextCommand)
 	}
 }
 
