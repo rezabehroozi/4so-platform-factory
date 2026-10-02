@@ -384,6 +384,151 @@ class ProjectRuntimeTests(unittest.TestCase):
             while R.lock_file(root).exists() and time.monotonic()<deadline: time.sleep(.05)
             self.assertFalse(R.lock_file(root).exists())
 
+    def test_owned_autopilot_repair_can_complete_after_worktree_change_without_head_change(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-q","-b","main"],cwd=root,check=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/".gitignore").write_text("/.project-runtime/\n",encoding="utf-8")
+            (root/"scripts").mkdir()
+            repair=root/"scripts"/"codex_autopilot.py"
+            repair.write_text("from pathlib import Path\nPath('tracked').write_text('v2\\n',encoding='utf-8')\n",encoding="utf-8")
+            tracked=root/"tracked"; tracked.write_text("v1\n",encoding="utf-8")
+            subprocess.run(["git","add",".gitignore","scripts/codex_autopilot.py","tracked"],cwd=root,check=True)
+            subprocess.run(["git","commit","-qm","initial"],cwd=root,check=True)
+            initial=R.git(root)
+            cmd=[sys.executable,"scripts/codex_autopilot.py","--repair"]
+            started=R.start(
+                root,"C6-multi-agent-test-autopilot","codex-autopilot",cmd,
+                heartbeat=1,replay_safe=True,allow_owned_worktree_mutation=True,
+            )
+            self.assertEqual("STARTED",started["action"])
+            deadline=time.monotonic()+8
+            while time.monotonic()<deadline:
+                current=R.reconcile(root,R.read_state(root))
+                if current["status"] in R.TERMINAL: break
+                time.sleep(.1)
+            final=R.read_state(root)
+            self.assertEqual("COMPLETED",final["status"])
+            self.assertTrue(final["ownedWorktreeMutationObserved"])
+            self.assertEqual(R.OWNED_WORKTREE_MUTATION_AUTHORITY,final["ownedWorktreeMutationAuthority"])
+            self.assertEqual(initial["head"],final["head"])
+            self.assertEqual(initial["branch"],final["branch"])
+            self.assertEqual(initial["worktreeFingerprint"],final["initialWorktreeFingerprint"])
+            self.assertNotEqual(initial["worktreeFingerprint"],final["worktreeFingerprint"])
+            self.assertEqual("v2\n",tracked.read_text())
+            deadline=time.monotonic()+2
+            while R.lock_file(root).exists() and time.monotonic()<deadline: time.sleep(.05)
+            self.assertFalse(R.lock_file(root).exists())
+
+    def test_owned_autopilot_repair_still_rejects_git_head_mutation(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-q","-b","main"],cwd=root,check=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/".gitignore").write_text("/.project-runtime/\n",encoding="utf-8")
+            (root/"scripts").mkdir()
+            repair=root/"scripts"/"codex_autopilot.py"
+            repair.write_text(
+                "from pathlib import Path\n"
+                "import subprocess\n"
+                "Path('tracked').write_text('v2\\n',encoding='utf-8')\n"
+                "subprocess.run(['git','add','tracked'],check=True)\n"
+                "subprocess.run(['git','commit','-qm','forbidden-repair-commit'],check=True)\n",
+                encoding="utf-8",
+            )
+            tracked=root/"tracked"; tracked.write_text("v1\n",encoding="utf-8")
+            subprocess.run(["git","add",".gitignore","scripts/codex_autopilot.py","tracked"],cwd=root,check=True)
+            subprocess.run(["git","commit","-qm","initial"],cwd=root,check=True)
+            initial=R.git(root)
+            cmd=[sys.executable,"scripts/codex_autopilot.py","--repair"]
+            started=R.start(
+                root,"C6-multi-agent-test-autopilot","codex-autopilot",cmd,
+                heartbeat=1,replay_safe=True,allow_owned_worktree_mutation=True,
+            )
+            self.assertEqual("STARTED",started["action"])
+            deadline=time.monotonic()+8
+            while time.monotonic()<deadline:
+                current=R.reconcile(root,R.read_state(root))
+                if current["status"] in R.TERMINAL: break
+                time.sleep(.1)
+            final=R.read_state(root)
+            self.assertEqual("INTERRUPTED",final["status"])
+            self.assertEqual("LOCAL_GIT_AUTHORITY_CHANGED_DURING_EXECUTION",final["latestError"])
+            self.assertNotEqual(initial["head"],R.git(root)["head"])
+            self.assertNotIn("codex-autopilot",final.get("completedTasks") or [])
+
+    def test_owned_autopilot_resume_rebinds_worktree_only_under_same_head_and_branch(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-q","-b","main"],cwd=root,check=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/".gitignore").write_text("/.project-runtime/\n",encoding="utf-8")
+            (root/"scripts").mkdir()
+            (root/"scripts"/"codex_autopilot.py").write_text("print('resume')\n",encoding="utf-8")
+            tracked=root/"tracked"; tracked.write_text("v1\n",encoding="utf-8")
+            subprocess.run(["git","add",".gitignore","scripts/codex_autopilot.py","tracked"],cwd=root,check=True)
+            subprocess.run(["git","commit","-qm","initial"],cwd=root,check=True)
+            info=R.git(root)
+            command=[sys.executable,"scripts/codex_autopilot.py","--repair"]
+            state={"status":"INTERRUPTED","runId":"owned-resume",**info,
+                   "phase":"C6-multi-agent-test-autopilot","currentTask":"codex-autopilot","command":command,
+                   "activePid":None,"activePidStartTicks":None,"commandPid":None,"commandPidStartTicks":None,
+                   "replaySafe":True,"recoveryRequired":False,"attempt":1,
+                   "allowOwnedWorktreeMutation":True,
+                   "ownedWorktreeMutationAuthority":R.OWNED_WORKTREE_MUTATION_AUTHORITY,
+                   "initialWorktreeFingerprint":info["worktreeFingerprint"]}
+            R.write_state(root,state)
+            tracked.write_text("v2\n",encoding="utf-8")
+            changed=R.git(root)
+            result=R.resume(root)
+            self.assertEqual("RESUMED",result["action"])
+            rebound=R.read_state(root)
+            self.assertEqual(changed["worktreeFingerprint"],rebound["worktreeFingerprint"])
+            self.assertTrue(rebound["ownedWorktreeMutationObserved"])
+            deadline=time.monotonic()+8
+            while time.monotonic()<deadline:
+                current=R.reconcile(root,R.read_state(root))
+                if current["status"] in R.TERMINAL: break
+                time.sleep(.1)
+            self.assertEqual("COMPLETED",R.read_state(root)["status"])
+
+    def test_owned_worktree_mutation_opt_in_is_restricted_to_c6_repair_entrypoints(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            with self.assertRaisesRegex(RuntimeError,"PROJECT_RUNTIME_OWNED_WORKTREE_MUTATION_SCOPE_INVALID"):
+                R.start(
+                    root,"D-exact-sha-physical-runtime","field-campaign",
+                    [sys.executable,"scripts/codex_autopilot.py","--repair"],
+                    replay_safe=True,skip_git=True,allow_owned_worktree_mutation=True,
+                )
+
+    def test_owned_worktree_mutation_does_not_relax_preexec_source_binding(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-q","-b","main"],cwd=root,check=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            tracked=root/"tracked"; tracked.write_text("v1\n",encoding="utf-8")
+            subprocess.run(["git","add","tracked"],cwd=root,check=True)
+            subprocess.run(["git","commit","-qm","initial"],cwd=root,check=True)
+            info=R.git(root)
+            pid=os.getpid(); pt=R.ticks(pid)
+            state={"status":"RUNNING","runId":"owned-preexec",**info,
+                   "phase":"C6-multi-agent-test-autopilot","currentTask":"codex-autopilot",
+                   "command":[sys.executable,"scripts/codex_autopilot.py","--repair"],
+                   "commandPid":pid,"commandPidStartTicks":pt,"executionStarted":True,"attempt":1,
+                   "allowOwnedWorktreeMutation":True}
+            R.write_state(root,state)
+            tracked.write_text("v2\n",encoding="utf-8")
+            rc=R.command_wrapper(root,"owned-preexec")
+            self.assertEqual(125,rc)
+            evidence=json.loads(R.command_exec_failure_file(root,"owned-preexec",1).read_text())
+            self.assertIn("LOCAL_GIT_AUTHORITY_CHANGED_BEFORE_EXECUTION",evidence["error"])
+
     def test_manual_waiting_state_is_stable_under_observation(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
