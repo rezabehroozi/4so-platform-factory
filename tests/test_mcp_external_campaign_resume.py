@@ -28,6 +28,7 @@ class CampaignResumeTests(unittest.TestCase):
             "matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
             "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,
             "oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"resume-oauth-bindings").hexdigest(),
+            "sourceCommitSHA":"1"*40,"runtimeVersion":"0.0.test",
             "endpoint":endpoint,"protocol":"2026-07-28","transport":"streamable-http",
             "livePreflight":{"authority":core.CAMPAIGN_PREFLIGHT_AUTHORITY,"endpoint":endpoint,
                 "protectedResourceMetadata":metadata,"resource":endpoint,
@@ -50,6 +51,17 @@ class CampaignResumeTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,"MATRIX_PROTOCOL_INVALID"):
                     mod.main()
 
+    def test_runtime_identity_readback_rejects_source_drift(self):
+        response=mock.MagicMock()
+        response.__enter__.return_value=response
+        response.status=200
+        response.geturl.return_value="https://mcp.example.test/api/v1/version"
+        response.read.return_value=json.dumps({"product":"4SO Platform Factory","version":"0.0.test","sourceCommitSHA":"2"*40}).encode()
+        opener=mock.MagicMock(); opener.open.return_value=response
+        with mock.patch.dict(mod.os.environ,{"C7W_PLATFORM_ADMIN_TOKEN":"token"},clear=False), mock.patch.object(mod,"exact_https_opener",return_value=opener):
+            with self.assertRaisesRegex(RuntimeError,"RUNTIME_SOURCE_DRIFT"):
+                mod.runtime_identity_readback("https://mcp.example.test/mcp","C7W_PLATFORM_ADMIN_TOKEN","1"*40)
+
     def test_live_preflight_http_opener_refuses_redirects(self):
         opener=mod.exact_https_opener(mod.ssl.create_default_context())
         self.assertTrue(any(isinstance(handler,mod.RejectRedirects) for handler in opener.handlers))
@@ -63,7 +75,7 @@ class CampaignResumeTests(unittest.TestCase):
             out=Path(td)/"campaign.json"
             original=self.campaign(matrix)
             core.write_json_once_or_identical(out,original,"TEST_CAMPAIGN")
-            argv=["prepare_mcp_external_interop_campaign.py","--matrix",str(matrix),"--endpoint",original["endpoint"],"--out",str(out)]
+            argv=["prepare_mcp_external_interop_campaign.py","--matrix",str(matrix),"--endpoint",original["endpoint"],"--out",str(out),"--source-commit-sha",original["sourceCommitSHA"]]
             with mock.patch.object(sys,"argv",argv), mock.patch.object(mod,"live_preflight",side_effect=AssertionError("network preflight must not run on resume")):
                 buf=io.StringIO()
                 with contextlib.redirect_stdout(buf):
@@ -84,7 +96,7 @@ class CampaignResumeTests(unittest.TestCase):
             original["expiresAt"]=core.utc_timestamp(expired)
             core.write_json_once_or_identical(out,original,"TEST_CAMPAIGN")
             with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_EXPIRED"):
-                mod.resume_existing(matrix,original["endpoint"],out)
+                mod.resume_existing(matrix,original["endpoint"],out,original["sourceCommitSHA"])
 
     def test_existing_campaign_endpoint_drift_fails_closed(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
@@ -93,7 +105,7 @@ class CampaignResumeTests(unittest.TestCase):
             original=self.campaign(matrix)
             core.write_json_once_or_identical(out,original,"TEST_CAMPAIGN")
             with self.assertRaisesRegex(RuntimeError,"RESUME_ENDPOINT_DRIFT"):
-                mod.resume_existing(matrix,"https://other.example.test/mcp",out)
+                mod.resume_existing(matrix,"https://other.example.test/mcp",out,original["sourceCommitSHA"])
 
 if __name__=="__main__":
     unittest.main()
