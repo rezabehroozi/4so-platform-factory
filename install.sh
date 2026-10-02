@@ -349,6 +349,11 @@ if [[ "${mode}" == "doctor" ]]; then
     "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
     "hostRuntimeAuthority=${HOST_RUNTIME_DOCTOR_AUTHORITY}" \
     "machineNextActionAuthority=${MACHINE_NEXT_ACTION_AUTHORITY}" \
+    "readinessScope=input-runtime-only" \
+    "hostDeploymentPreflightRequired=true" \
+    "appliancePreflightRequired=true" \
+    "appliancePreflightOwner=browser-installer" \
+    "runtimeOrPhysicalPassImplied=false" \
     "readyForPreflight=${ready}" \
     "bundleAdmissionVerified=false" \
     "hostPlatformReady=${host_platform_ready}" \
