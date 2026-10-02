@@ -1432,6 +1432,16 @@ def _compact_budget_fallback(full: dict, outer: dict) -> tuple[str, list[str], s
         )
     code = str(full.get("nextActionCode") or "")
     command = full.get("nextCommand") if isinstance(full.get("nextCommand"), list) else []
+    if (
+        code == "REPAIR_ENVIRONMENT_AND_RESUME_OUTER_RUNTIME"
+        and str(outer.get("action") or "") == "RESUME_RUNTIME"
+    ):
+        return (
+            "INSPECT_OUTER_RUNTIME_ENVIRONMENT",
+            ["make", "runtime-status"],
+            "the compact handoff exceeded its safe budget while an inner environment blocker is bound to a resumable outer runtime; inspect canonical outer-runtime status and re-read make autopilot-context after repairing only the reported prerequisite; do not run inner Autopilot directly or reconstruct runtime-resume from memory",
+            False,
+        )
     fixed = {
         "OBSERVE_OUTER_RUNTIME": ["make", "runtime-status"],
         "RESUME_OUTER_RUNTIME": ["make", "runtime-resume"],
