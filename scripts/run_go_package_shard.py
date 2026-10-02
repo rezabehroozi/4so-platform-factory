@@ -73,7 +73,8 @@ def main() -> int:
         raise SystemExit("--race and --vet are mutually exclusive")
     if args.exclude_installer_owner and (args.race or args.vet):
         raise SystemExit("--exclude-installer-owner is unit-mode only; vet/race remain exhaustive")
-    packages = subprocess.check_output(["go", "list", "./..."], text=True).splitlines()
+    go_command = str(os.environ.get("GO") or "go").strip() or "go"
+    packages = subprocess.check_output([go_command, "list", "./..."], text=True).splitlines()
     excluded = INSTALLER_OWNER_PACKAGES if args.exclude_installer_owner else frozenset()
     candidates = [pkg for pkg in packages if pkg not in excluded]
     selected = [pkg for i, pkg in enumerate(candidates) if i % args.shards == args.shard - 1]
@@ -87,10 +88,10 @@ def main() -> int:
     env["CGO_ENABLED"] = "1"
     for pkg in selected:
         if args.vet:
-            command = ["go", "vet", pkg]
+            command = [go_command, "vet", pkg]
         else:
             go_timeout = "180s" if args.race else "120s"
-            command = ["go", "test"] + (["-race"] if args.race else []) + ["-count=1", f"-timeout={go_timeout}", pkg]
+            command = [go_command, "test"] + (["-race"] if args.race else []) + ["-count=1", f"-timeout={go_timeout}", pkg]
         print("+", " ".join(command), flush=True)
         rc = run_bounded(command, env=env, timeout=args.command_timeout)
         if rc:
