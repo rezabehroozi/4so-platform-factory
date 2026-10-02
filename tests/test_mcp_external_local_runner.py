@@ -99,7 +99,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
             audit_path=p["audits"]/(client+".json"); audit_path.write_text("[]")
             raw_receipt={"authority":mod.core.RECEIPT_AUTHORITY,"clientId":client}
             normalized={"clientId":client,"requestIds":{},"executedAt":"2026-10-01T00:00:00Z","campaignCreatedAt":"2026-10-01T00:00:00Z","campaignExpiresAt":"2026-10-02T00:00:00Z","executionAuditWindowSeconds":60}
-            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",client=client,capture=capture,token_env="TOKEN",attempts=1,interval_seconds=0.0)
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",client=client,capture=capture,token_env="TOKEN",attempts=1,interval_seconds=0.0,progress_out=Path(td)/"progress.json",evidence_out=Path(td)/"evidence.json")
             with (
                 mock.patch.object(mod.finalizer,"finalize",return_value=raw_receipt),
                 mock.patch.object(mod.core,"write_json_once_or_identical"),
@@ -118,7 +118,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
     def test_status_without_state_is_explicitly_pending_and_read_only(self):
         with tempfile.TemporaryDirectory() as td:
             state=Path(td)/"missing-state"
-            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=Path(td)/"progress.json",evidence_out=Path(td)/"evidence.json")
             out=mod.status(args)
             self.assertFalse(state.exists())
             self.assertFalse(out["campaignPrepared"])
