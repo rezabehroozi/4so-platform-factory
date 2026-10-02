@@ -16,6 +16,57 @@ import seal_mcp_external_interop as core
 AUTHORITY="MCP_EXTERNAL_CLIENT_CAPTURE_V1"
 PACKET_AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_PACKET_V1"
 
+def observation_template(check:dict)->dict:
+    expect=check.get("expect") or {}
+    if not isinstance(expect,dict) or not expect:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_EXPECT_INVALID")
+    out={}
+    for key,value in expect.items():
+        if key=="scopesContain":
+            out["scopes"]=[]
+        elif type(value) is bool:
+            out[key]=None
+        elif type(value) is int:
+            out[key]=None
+        elif isinstance(value,str):
+            out[key]=""
+        else:
+            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_EXPECT_UNSUPPORTED {key}")
+    return out
+
+
+def validate_observation(check_id:str,check:dict,observed:object)->None:
+    expect=check.get("expect") or {}
+    if not isinstance(expect,dict) or not expect or not isinstance(observed,dict):
+        raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_OBSERVATION_INVALID {check_id}")
+    expected_keys={("scopes" if key=="scopesContain" else key) for key in expect}
+    if set(observed)!=expected_keys:
+        raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_OBSERVATION_FIELDS_INVALID {check_id}")
+    for key,wanted in expect.items():
+        if key=="scopesContain":
+            scopes=observed.get("scopes")
+            if (
+                not isinstance(scopes,list)
+                or any(not isinstance(value,str) or not value for value in scopes)
+                or len(scopes)!=len(set(scopes))
+                or not set(wanted).issubset(set(scopes))
+            ):
+                raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_OBSERVATION_MISMATCH {check_id}:scopes")
+            continue
+        actual=observed.get(key)
+        if type(wanted) is bool:
+            if type(actual) is not bool or actual is not wanted:
+                raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_OBSERVATION_MISMATCH {check_id}:{key}")
+        elif type(wanted) is int:
+            if type(actual) is not int or actual!=wanted:
+                raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_OBSERVATION_MISMATCH {check_id}:{key}")
+        elif isinstance(wanted,str):
+            if actual!=wanted:
+                raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_OBSERVATION_MISMATCH {check_id}:{key}")
+        else:
+            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_EXPECT_UNSUPPORTED {check_id}:{key}")
+
+
 def validate_packet(packet:dict)->tuple[str,str]:
     if not isinstance(packet,dict) or packet.get("authority")!=PACKET_AUTHORITY or packet.get("kind")!="MCPExternalClientExecutionPacket":
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_AUTHORITY_INVALID")
@@ -46,6 +97,7 @@ def validate_packet(packet:dict)->tuple[str,str]:
         "oauthClientWitnessedChecks":list(core.OAUTH_CLIENT_AUDITED_CHECKS),
         "executedAtRequired":True,
         "observedRuntimeIdentityRequired":True,
+        "structuredResponseObservationRequired":True,
         "allSevenChecksMustPass":True,
         "externalExecution":True,
         "credentialedExecution":True,
@@ -171,14 +223,14 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     observed=capture.get("checks")
     if not isinstance(observed,dict) or set(observed)!=set(expected_ids):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_CHECK_COVERAGE_INVALID")
+    packet_by_id={row["id"]:row for row in packet_checks}
     request_ids={}
     for check_id in expected_ids:
         row=observed.get(check_id)
-        expected_fields={"passed","requestId"} if check_id in core.AUDITED_CHECKS else {"passed"}
+        expected_fields={"observed","requestId"} if check_id in core.AUDITED_CHECKS else {"observed"}
         if not isinstance(row,dict) or set(row)!=expected_fields:
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_CHECK_FIELDS_INVALID {check_id}")
-        if row.get("passed") is not True:
-            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_CHECK_NOT_PASS {check_id}")
+        validate_observation(check_id,packet_by_id[check_id],row.get("observed"))
         rid=str(row.get("requestId") or "").strip()
         if check_id in core.AUDITED_CHECKS:
             if not core.REQUEST_ID.fullmatch(rid):
