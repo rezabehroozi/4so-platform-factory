@@ -1,4 +1,5 @@
 import hashlib,importlib.util,json,subprocess,tempfile,unittest
+from unittest import mock
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 SPEC=importlib.util.spec_from_file_location("mcpseal",ROOT/"scripts"/"seal_mcp_external_interop.py")
@@ -81,6 +82,11 @@ class MCPExternalSealTests(unittest.TestCase):
             source=subprocess.check_output(["git","rev-parse","HEAD"],cwd=root,text=True).strip()
             with self.assertRaisesRegex(RuntimeError,"SOURCE_DELTA_NOT_EVIDENCE_ONLY"):
                 mod.validate_evidence_only_source_lineage(root,base,source,"TEST_C7W")
+
+    def test_directory_fsync_is_noop_on_windows(self):
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.object(mod.os,"name","nt"), mock.patch.object(mod.os,"open",side_effect=AssertionError("directory open must not run on Windows")):
+                mod._fsync_directory(Path(td))
 
     def test_json_persistence_is_atomic_and_immutable_by_authority_type(self):
         with tempfile.TemporaryDirectory() as td:
