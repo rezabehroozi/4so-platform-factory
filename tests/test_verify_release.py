@@ -105,6 +105,15 @@ class ReleaseIdentityValidation(unittest.TestCase):
         self.assertEqual(VERIFY.FULL_VERIFIER_AUTHORITY, "CHECKPOINT_SAFE_FULL_VERIFIER_V2")
         self.assertEqual(VERIFY.SHARD_AUTHORITY, "AUTOPILOT_STAGE_SHARD_AUTHORITY_V2")
 
+    def test_full_verifier_timeout_cleanup_is_cross_platform(self):
+        source=(ROOT/"scripts"/"verify_release.py").read_text(encoding="utf-8")
+        self.assertIn("CREATE_NEW_PROCESS_GROUP",source)
+        self.assertIn('"taskkill"',source)
+        self.assertIn('"/T"',source)
+        self.assertIn("_terminate_tree(process,force=False)",source)
+        self.assertIn("_terminate_tree(process,force=True)",source)
+        self.assertIn('return {"start_new_session":True}',source)
+
     def test_manual_install_release_payload_requires_all_exact_release_owners(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
