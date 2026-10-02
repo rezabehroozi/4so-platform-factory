@@ -44,11 +44,31 @@ def base_progress(matrix_path:Path,campaign_path:Path,campaign:dict,spec:dict)->
       "certifiedClientCount":0,"complete":False,"allAdmittedReceiptsPass":True,"serverAuditWitnessPass":False,
       "externalCertificationPass":False,"runtimeCertified":False,"physicalCertified":False}
 
-def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
-    if set(existing)!=set(core.PROGRESS_EVIDENCE_KEYS):
+def validate_progress_projection(existing:dict)->None:
+    if not isinstance(existing,dict) or set(existing)!=set(core.PROGRESS_EVIDENCE_KEYS):
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_FIELDS_INVALID")
     if existing.get("authority")!=AUTHORITY or existing.get("kind")!="MCPExternalClientInteropProgress":
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_AUTHORITY_INVALID")
+    if existing.get("matrixAuthority")!=core.MATRIX_AUTHORITY or not core.SHA.fullmatch(str(existing.get("matrixSha256") or "")):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_MATRIX_BINDING_INVALID")
+    if existing.get("campaignAuthority")!=core.CAMPAIGN_AUTHORITY or not str(existing.get("campaignId") or "").startswith("mcp-interop-") or not core.SHA.fullmatch(str(existing.get("campaignSha256") or "")):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_CAMPAIGN_BINDING_INVALID")
+    if existing.get("oauthClientBindingAuthority")!=core.OAUTH_BINDING_AUTHORITY or not core.SHA.fullmatch(str(existing.get("oauthClientBindingsSha256") or "")):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_OAUTH_BINDING_INVALID")
+    if not core.COMMIT.fullmatch(str(existing.get("sourceCommitSHA") or "").strip().lower()):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_RUNTIME_IDENTITY_INVALID")
+    runtime_version=str(existing.get("runtimeVersion") or "").strip()
+    if not runtime_version or len(runtime_version)>128 or any(ch in runtime_version for ch in "\r\n\t"):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_RUNTIME_IDENTITY_INVALID")
+    if existing.get("protocol")!="2026-07-28" or existing.get("transport")!="streamable-http":
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_PROTOCOL_INVALID")
+    existing["endpoint"]=core.endpoint(existing.get("endpoint",""))
+    core.validate_oauth_client_bindings(existing.get("oauthClientBindings"),"MCP_EXTERNAL_PROGRESS")
+    core.validate_trusted_client_bindings(existing.get("trustedClientBindings"),"MCP_EXTERNAL_PROGRESS")
+
+
+def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
+    validate_progress_projection(existing)
     for key in ("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","trustedClientBindings","sourceCommitSHA","runtimeVersion","protocol","transport","endpoint"):
         if existing.get(key)!=expected.get(key): raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_CAMPAIGN_DRIFT {key}")
     if existing.get("runtimeCertified") is not False or existing.get("physicalCertified") is not False:
