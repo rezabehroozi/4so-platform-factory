@@ -76,7 +76,7 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("make c7w-seal", matrix)
         self.assertIn("scripts/fetch_mcp_external_audit_window.py", matrix)
         self.assertIn("finalReleaseSealCommand", matrix)
-        self.assertIn("scripts/seal_final_exact_release.py", matrix)
+        self.assertIn("make c9-seal", matrix)
         self.assertNotIn("finalReleaseAdmissionCommand", matrix)
 
     def test_c9_is_locally_executable_without_ci_run_identity(self):
@@ -114,6 +114,9 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("c7w-admit:", makefile)
         self.assertIn("c7w-status:", makefile)
         self.assertIn("c7w-seal:", makefile)
+        self.assertIn("c9-admission:", makefile)
+        self.assertIn("c9-seal:", makefile)
+        self.assertIn("scripts/seal_final_exact_release.py", makefile)
         self.assertIn("$(if $(strip $(C7W_OAUTH_CLIENT_MAP)),--oauth-client-map", makefile)
         self.assertIn("MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1", program)
         self.assertIn("scripts/run_mcp_external_interop.py", program)
