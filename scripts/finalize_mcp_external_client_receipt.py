@@ -257,12 +257,14 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_CHECK_COVERAGE_INVALID")
     packet_by_id={row["id"]:row for row in packet_checks}
     request_ids={}
+    response_observations={}
     for check_id in expected_ids:
         row=observed.get(check_id)
         expected_fields={"observed","requestId"} if check_id in core.AUDITED_CHECKS else {"observed"}
         if not isinstance(row,dict) or set(row)!=expected_fields:
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_CHECK_FIELDS_INVALID {check_id}")
         validate_observation(check_id,packet_by_id[check_id],row.get("observed"))
+        response_observations[check_id]=dict(row["observed"])
         rid=str(row.get("requestId") or "").strip()
         if check_id in core.AUDITED_CHECKS:
             if not core.REQUEST_ID.fullmatch(rid):
@@ -290,6 +292,10 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
       "externalExecution":True,
       "credentialedExecution":True,
       "checks":{name:True for name in expected_ids},
+      "responseObservations":core.validate_response_observations(
+          response_observations,packet["sourceCommitSHA"],packet["runtimeVersion"],packet["endpoint"],
+          "MCP_EXTERNAL_CAPTURE",
+      ),
       "requestIds":request_ids,
       "scopeLeakObserved":False,
       "revokedGrantAccepted":False,
