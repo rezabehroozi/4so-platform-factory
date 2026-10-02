@@ -450,6 +450,28 @@ def exact_source_admission(root: Path, source_sha: str) -> dict:
             remove_exact_worktree(root,worktree)
 
 
+def verify_existing_release_full(root: Path, source_sha: str, release: Path) -> None:
+    state_dir=root/".state"
+    if state_dir.is_symlink() or (state_dir.exists() and not state_dir.is_dir()):
+        raise RuntimeError("FINAL_EXACT_RELEASE_STATE_DIR_INVALID")
+    state_dir.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="4so-final-release-resume-toolchain-",dir=state_dir) as tool_td, tempfile.TemporaryDirectory(prefix="4so-final-release-resume-source-",dir=state_dir) as source_td:
+        worktree=prepare_exact_worktree(root,source_sha,Path(source_td))
+        try:
+            lock=json.loads((worktree/"lab"/"release-build-toolchain-lock.json").read_text(encoding="utf-8"))
+            archive,exact=safe_toolchain_archive(root,lock)
+            staged_archive=stage_toolchain_archive(archive,exact,worktree)
+            go=extract_toolchain(staged_archive,exact,Path(tool_td))
+            env=os.environ.copy()
+            env["GO"]=str(go)
+            env["GOTOOLCHAIN"]="local"
+            env["PYTHON"]=sys.executable
+            run([sys.executable,"scripts/verify_release.py",str(release),"--full"],root=worktree,env=env)
+            verify_worktree_source_unchanged(worktree,source_sha)
+        finally:
+            remove_exact_worktree(root,worktree)
+
+
 def resume_existing_evidence(root: Path, out: Path) -> dict:
     if out.is_symlink() or not out.is_file() or out.stat().st_size<=0 or out.stat().st_size>1024*1024:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
@@ -516,6 +538,9 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
                     raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_METADATA_DRIFT")
     except (zipfile.BadZipFile,KeyError,OSError) as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_INVALID") from exc
+    verify_existing_release_full(root,source_sha,release)
+    if git_source_for_resume(root,out)!=source_sha:
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_RESUME")
     return evidence
 
 
