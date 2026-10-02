@@ -199,11 +199,7 @@ def verify(root:Path)->dict:
 
     matrix_path=root/"lab/mcp-external-client-interop-matrix.json"
     matrix=load(matrix_path,"MCP_EXTERNAL_MATRIX")
-    matrix_spec=matrix.get("spec") if isinstance(matrix,dict) else None
-    if matrix.get("authority")!=mcp_contract.MATRIX_AUTHORITY or not isinstance(matrix_spec,dict):
-        raise RuntimeError("MCP_EXTERNAL_MATRIX_AUTHORITY_INVALID")
-    if matrix_spec.get("protocol")!="2026-07-28" or matrix_spec.get("transport")!="streamable-http" or matrix_spec.get("externalCertificationStatus")!="pending":
-        raise RuntimeError("MCP_EXTERNAL_MATRIX_CONTRACT_INVALID")
+    mcp_contract.validate_matrix_contract(matrix,"MCP_EXTERNAL_MATRIX")
 
     mcp_path=root/"lab/mcp-external-client-interoperability-evidence.json"
     mcp=load(mcp_path,"MCP_EXTERNAL_INTEROP")
