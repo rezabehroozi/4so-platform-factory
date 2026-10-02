@@ -23,6 +23,45 @@ class OpenChoreoProductionClosureTests(unittest.TestCase):
             mod.atomic_copy(src,dst,"TEST"); self.assertEqual("new",dst.read_text())
             target=d/"target"; target.write_text("x"); link=d/"link"; link.symlink_to(target)
             with self.assertRaisesRegex(RuntimeError,"SYMLINK"): mod.atomic_copy(src,link,"TEST")
+    def test_recoverable_workdir_preserves_known_checkpoints_and_cleans_staging(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); work=root/"work"
+            outputs=mod.plan(work,"zot.platform.internal:5000/4so/openchoreo")["outputs"]
+            work.mkdir()
+            known=Path(outputs["mirrorEvidence"]); known.write_text("{}\n")
+            tmp=known.with_suffix(known.suffix+".tmp"); tmp.write_text("partial")
+            stage=work/".4so-openchoreo-executor-crash"; stage.mkdir(); (stage/"partial").write_text("x")
+            self.assertEqual(work,mod.recoverable_workdir(work,outputs))
+            self.assertTrue(known.is_file())
+            self.assertFalse(tmp.exists())
+            self.assertFalse(stage.exists())
+            (work/"unknown.bin").write_text("unexpected")
+            with self.assertRaisesRegex(RuntimeError,"UNKNOWN_ENTRY"):
+                mod.recoverable_workdir(work,outputs)
+
+    def test_canonical_evidence_is_write_once_or_identical(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); src=root/"source"; dst=root/"evidence"
+            src.write_text("sealed\n")
+            mod.publish_once_or_identical(src,dst,"TEST")
+            mod.publish_once_or_identical(src,dst,"TEST")
+            self.assertEqual("sealed\n",dst.read_text())
+            src.write_text("different\n")
+            with self.assertRaisesRegex(RuntimeError,"REPLACEMENT_FORBIDDEN"):
+                mod.publish_once_or_identical(src,dst,"TEST")
+
+    def test_selection_promotion_is_compare_and_replace_fenced(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); promoted=root/"promoted"; selection=root/"selection"
+            selection.write_text("pending\n"); promoted.write_text("sealed\n")
+            before=selection.read_bytes()
+            mod.replace_if_unchanged(promoted,selection,before,"TEST")
+            self.assertEqual("sealed\n",selection.read_text())
+            mod.replace_if_unchanged(promoted,selection,before,"TEST")
+            selection.write_text("other-writer\n")
+            with self.assertRaisesRegex(RuntimeError,"CONCURRENT_DRIFT"):
+                mod.replace_if_unchanged(promoted,selection,before,"TEST")
+
     def test_preflight_file_helpers_reject_symlinks(self):
         with tempfile.TemporaryDirectory() as td:
             d=Path(td); real=d/"real"; real.write_text("x"); link=d/"link"; link.symlink_to(real)
