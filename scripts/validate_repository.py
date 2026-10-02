@@ -2129,6 +2129,9 @@ def validate_core_local_only_workflows(root: Path, errors: list[tuple[str, str]]
         for forbidden in ('contents: write', 'git push', 'actions/checkout', 'secrets.', 'gh run', 'workflow_run:', '\n  push:'):
             if forbidden in text:
                 errors.append(('CORE_LOCAL_ONLY_WORKFLOW_MUTATION_FORBIDDEN', f'{rel}:{forbidden.strip()}'))
+        for stale in ('make c7w-', 'make c9-', '/secure/'):
+            if stale in text:
+                errors.append(('CORE_LOCAL_ONLY_WORKFLOW_STALE_HANDOFF', f'{rel}:{stale}'))
 
 
 def validate_no_remote_ci_mutation_authority(root: Path, errors: list[tuple[str, str]]) -> None:
