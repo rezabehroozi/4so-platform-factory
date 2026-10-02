@@ -357,18 +357,25 @@ def build_evidence(
     if admission_row.get("physicalCertified") is not False:
         raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_SCOPE_INFLATED")
     expected_name = f"4so-platform-factory-{version}-{release_name}"
-    allowed_parents = {
-        root / "release",
-        root / "release" / "exact-sha" / source_sha,
-    }
-    if release.parent not in allowed_parents or release.name != expected_name + ".zip" or stage.name != expected_name:
+    expected_parent=root/"release"/"exact-sha"/source_sha
+    if release.parent!=expected_parent or release.name!=expected_name+".zip" or stage.name!=expected_name:
         raise RuntimeError("FINAL_EXACT_RELEASE_PATH_INVALID")
-    for required in (
-        stage / "ARTIFACT-MANIFEST.json",
-        stage / "BUILD-PROVENANCE.json",
-        stage / "SBOM.spdx.json",
-    ):
-        sha256(required)
+    prefix=expected_name+"/"
+    metadata_files=("ARTIFACT-MANIFEST.json","BUILD-PROVENANCE.json","SBOM.spdx.json")
+    stage_digests={name:sha256(stage/name) for name in metadata_files}
+    try:
+        with zipfile.ZipFile(release,"r") as archive:
+            names=archive.namelist()
+            embedded={}
+            for name in metadata_files:
+                member=prefix+name
+                if names.count(member)!=1:
+                    raise RuntimeError(f"FINAL_EXACT_RELEASE_METADATA_MEMBER_INVALID {member}")
+                embedded[name]="sha256:"+hashlib.sha256(archive.read(member)).hexdigest()
+    except (zipfile.BadZipFile,KeyError,OSError) as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_ARCHIVE_METADATA_INVALID") from exc
+    if embedded!=stage_digests:
+        raise RuntimeError("FINAL_EXACT_RELEASE_STAGE_ARCHIVE_METADATA_DRIFT")
     return {
         "apiVersion": "platform.4so.io/v1alpha1",
         "kind": "FinalExactReleaseEvidence",
@@ -382,9 +389,9 @@ def build_evidence(
         "releaseArchivePath": release.relative_to(root).as_posix(),
         "releaseArchiveSha256": sha256(release),
         "releaseArchiveBytes": release.stat().st_size,
-        "artifactManifestSha256": sha256(stage / "ARTIFACT-MANIFEST.json"),
-        "buildProvenanceSha256": sha256(stage / "BUILD-PROVENANCE.json"),
-        "sbomSha256": sha256(stage / "SBOM.spdx.json"),
+        "artifactManifestSha256": embedded["ARTIFACT-MANIFEST.json"],
+        "buildProvenanceSha256": embedded["BUILD-PROVENANCE.json"],
+        "sbomSha256": embedded["SBOM.spdx.json"],
         "admissionAuthority": admission_row["authority"],
         "applianceDistributionSha256": admission_row["applianceDistributionSha256"],
         "mcpExternalInteropSha256": admission_row["mcpExternalInteropSha256"],
