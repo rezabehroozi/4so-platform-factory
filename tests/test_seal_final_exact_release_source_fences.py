@@ -72,7 +72,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
                 mod.exact_release_publication_path(root,"bad",name)
 
     def final_evidence_fixture(self,root):
-        (root/".gitignore").write_text("/release/\n",encoding="utf-8")
+        (root/".gitignore").write_text("/release/\n/.state/\n",encoding="utf-8")
         (root/"VERSION").write_text("0.0.363\n",encoding="utf-8")
         (root/"RELEASE-NAME").write_text("resume-test\n",encoding="utf-8")
         self.git(root,"add",".gitignore","VERSION","RELEASE-NAME")
@@ -114,6 +114,26 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             "applianceDistributionSha256":evidence["applianceDistributionSha256"],
             "mcpExternalInteropSha256":evidence["mcpExternalInteropSha256"],"physicalCertified":False}
         return out,release,evidence,admitted
+
+    def test_exact_source_admission_reads_from_detached_commit_not_mutable_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
+            (root/".gitignore").write_text("/.state/\n",encoding="utf-8")
+            tracked=root/"authority.json"; tracked.write_text('{"value":"exact"}\n',encoding="utf-8")
+            self.git(root,"add",".gitignore","authority.json"); self.git(root,"commit","-m","initial")
+            head=self.git(root,"rev-parse","HEAD")
+            observed={}
+            def verify(worktree):
+                observed["path"]=worktree
+                observed["value"]=(worktree/"authority.json").read_text(encoding="utf-8")
+                return {"authority":mod.admission.AUTHORITY,"admitted":True,"physicalCertified":False}
+            tracked.write_text('{"value":"mutable-root"}\n',encoding="utf-8")
+            with mock.patch.object(mod.admission,"verify",side_effect=verify):
+                out=mod.exact_source_admission(root.resolve(),head)
+            self.assertTrue(out["admitted"])
+            self.assertEqual('{"value":"exact"}\n',observed["value"])
+            self.assertNotEqual(root.resolve(),Path(observed["path"]).resolve())
+            self.assertEqual("mutable-root",json.loads(tracked.read_text())["value"])
 
     def test_completed_c9_seal_resumes_without_rebuild_and_rejects_artifact_tamper(self):
         with tempfile.TemporaryDirectory() as td:
