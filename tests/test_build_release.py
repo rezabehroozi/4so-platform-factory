@@ -114,6 +114,32 @@ class ReleaseSourceTreeBoundary(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "RELEASE_MANIFEST_SOURCE_MISMATCH"):
                 BUILD.release_source_files(root)
 
+    def test_cgo_provenance_rejects_active_toolchain_drift_from_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            stage=Path(directory)
+            (stage/"lab").mkdir()
+            exact={
+                "ccVersion":"gcc exact",
+                "ldVersion":"ld exact",
+                "libcVersion":"ldd exact",
+                "libpqHeaderPath":"/exact/libpq-fe.h",
+                "libpqHeaderSha256":"headerhash",
+                "libpqLibraryPath":"/exact/libpq.so",
+                "libpqLibrarySha256":"libraryhash",
+            }
+            (stage/"lab/release-build-toolchain-lock.json").write_text(
+                __import__("json").dumps({"spec":{"exactCGOToolchain":exact}}),
+                encoding="utf-8",
+            )
+            versions=iter(["gcc exact","ld exact","ldd exact"])
+            with mock.patch.object(BUILD,"command_first_line",side_effect=lambda _:next(versions)), mock.patch.object(BUILD,"sha",side_effect=lambda p:"headerhash" if str(p).endswith("libpq-fe.h") else "libraryhash"):
+                self.assertEqual(exact,BUILD.cgo_toolchain_identity(stage))
+
+            drift=iter(["gcc drift","ld exact","ldd exact"])
+            with mock.patch.object(BUILD,"command_first_line",side_effect=lambda _:next(drift)), mock.patch.object(BUILD,"sha",side_effect=lambda p:"headerhash" if str(p).endswith("libpq-fe.h") else "libraryhash"):
+                with self.assertRaisesRegex(SystemExit,"BUILD_CGO_TOOLCHAIN_IDENTITY_DRIFT ccVersion"):
+                    BUILD.cgo_toolchain_identity(stage)
+
     def test_go_toolchain_version_uses_explicit_go_authority_from_environment(self):
         completed = mock.Mock(stdout="go version go1.27.1 linux/amd64\n")
         with mock.patch.dict(BUILD.os.environ, {"GO": "/opt/4so/go1.27.1/bin/go"}, clear=False):
