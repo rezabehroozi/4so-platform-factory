@@ -446,6 +446,43 @@ class ResumePreflightCursorTests(unittest.TestCase):
             self.assertNotIn("playwright", requirements)
             self.assertEqual(AUTOPILOT.RESUME_PREFLIGHT_CURSOR_AUTHORITY, "AUTOPILOT_RESUME_PREFLIGHT_CURSOR_V1")
 
+    def test_forward_complete_checkpoint_preflights_only_pending_selective_convergence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stages = [
+                AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 10),
+                AUTOPILOT.Stage("go-unit-1", ("python3", "scripts/run_go_package_shard.py", "--shard", "1"), 10),
+                AUTOPILOT.Stage("build-release", ("make", "build-release"), 10),
+            ]
+            self._write_checkpoint(root, stages, next_index=len(stages))
+            state_path = AUTOPILOT._checkpoint_path(root)
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["repairCount"] = 1
+            state["seenFailures"] = [{"stage":"go-unit-1","fingerprint":"fp","count":1}]
+            state["fullConvergenceRequired"] = False
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            with mock.patch.object(AUTOPILOT, "_workspace_fingerprint", return_value="workspace"), \
+                 mock.patch.object(AUTOPILOT, "_select_convergence_stages", return_value=[stages[1], stages[2]]) as select:
+                selected, reason = AUTOPILOT._resume_preflight_stage_scope(root, stages, repair=True)
+            self.assertEqual(reason, "FORWARD_COMPLETE_PENDING_CONVERGENCE")
+            self.assertEqual([stage.name for stage in selected], ["go-unit-1", "build-release"])
+            select.assert_called_once_with(stages, {"go-unit-1"})
+
+    def test_forward_complete_without_repairs_requires_no_toolchain_or_codex(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stages = [AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 10)]
+            self._write_checkpoint(root, stages, next_index=len(stages), repair=True)
+            state_path = AUTOPILOT._checkpoint_path(root)
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["repairCount"] = 0
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            with mock.patch.object(AUTOPILOT, "_workspace_fingerprint", return_value="workspace"):
+                selected, reason = AUTOPILOT._resume_preflight_stage_scope(root, stages, repair=True)
+            self.assertEqual(reason, "FORWARD_COMPLETE")
+            self.assertEqual(selected, [])
+            self.assertEqual(AUTOPILOT._environment_requirements(selected), set())
+
     def test_convergence_resume_preflight_uses_remaining_selective_graph(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
