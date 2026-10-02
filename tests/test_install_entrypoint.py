@@ -134,7 +134,11 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
     def test_doctor_emits_shell_escaped_exact_preflight_command_with_resolved_inputs(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"', source)
+        self.assertIn('MACHINE_NEXT_ACTION_AUTHORITY="INSTALLER_MANUAL_MACHINE_NEXT_ACTION_V1"', source)
         self.assertIn('"handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}"', source)
+        self.assertIn('"machineNextActionAuthority=${MACHINE_NEXT_ACTION_AUTHORITY}"', source)
+        self.assertIn("nextActionCode=RUN_PREFLIGHT", source)
+        self.assertIn("nextActionCode=RESOLVE_DOCTOR_BLOCKERS", source)
         self.assertIn("nextAction=copy nextCommand exactly", source)
         self.assertIn("printf 'nextCommand=sudo bash %q preflight --bundle-dir %q --release-artifact %q'", source)
         self.assertIn("printf ' %q' \"${passthrough[@]}\"", source)
