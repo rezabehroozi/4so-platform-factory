@@ -870,14 +870,17 @@ class AutopilotAgentContextTests(unittest.TestCase):
                 context = AUTOPILOT._compact_agent_context(root)
             raw = json.dumps(context, sort_keys=True, separators=(",", ":"))
             self.assertEqual(context["authority"], "AUTOPILOT_AGENT_CONTEXT_COMPACT_V1")
-            self.assertLessEqual(len(raw), AUTOPILOT.AGENT_CONTEXT_COMPACT_MAX_CHARS)\n            self.assertEqual(context["serializedChars"], len(raw))
+            self.assertLessEqual(len(raw), AUTOPILOT.AGENT_CONTEXT_COMPACT_MAX_CHARS)
+            self.assertEqual(context["serializedChars"], len(raw))
             self.assertLessEqual(len(context["failureCapsule"]), AUTOPILOT.AGENT_CONTEXT_COMPACT_FAILURE_MAX_CHARS)
             self.assertLessEqual(len(context["ownerContextPaths"]), AUTOPILOT.AGENT_CONTEXT_COMPACT_OWNER_PATH_LIMIT)
             self.assertEqual(context["proofCommand"][:2], ["go", "test"])
             self.assertEqual(context["nextActionCode"], "RESUME_OUTER_RUNTIME")
             self.assertEqual(context["nextCommand"], ["make", "runtime-resume"])
             self.assertNotIn("promptBudgetAuthority", raw)
-            self.assertNotIn("continuationRules", raw)\n            self.assertNotIn("super-secret-value", raw)\n            self.assertIn("[REDACTED]", context["lastFailure"]["reason"])
+            self.assertNotIn("continuationRules", raw)
+            self.assertNotIn("super-secret-value", raw)
+            self.assertIn("[REDACTED]", context["lastFailure"]["reason"])
 
     def test_compact_agent_context_cli_prints_one_json_document(self):
         with tempfile.TemporaryDirectory() as directory:
