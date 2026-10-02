@@ -970,6 +970,145 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(calls["repair"], 1)
 
+    def test_convergence_regression_is_repaired_in_place_with_owner_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            owner = root / "webconsole" / "static"
+            owner.mkdir(parents=True)
+            marker = owner / "app.js"
+            marker.write_text("before\n", encoding="utf-8")
+            stage = AUTOPILOT.Stage("smoke-ui-quality", ("true",), 10)
+            forward_fail = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp-forward", "forward defect")
+            convergence_fail = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp-convergence", "late convergence defect")
+            passed = AUTOPILOT.StageResult(stage.name, "PASS", 0, 0.1, "fp-pass", "ok")
+            repairs = {"count": 0}
+
+            def fake_repair(*_args, **_kwargs):
+                repairs["count"] += 1
+                marker.write_text(f"repair-{repairs['count']}\n", encoding="utf-8")
+                return True, "repaired"
+
+            with mock.patch.object(AUTOPILOT, "run_stage", side_effect=[forward_fail, passed, convergence_fail, passed]) as run, \
+                 mock.patch.object(AUTOPILOT, "invoke_codex", side_effect=fake_repair):
+                code = AUTOPILOT._execute_stages(
+                    root, [stage], repair=True, max_repairs=2, codex_timeout=10,
+                    enforce_supply_chain=False, emit_ready_result=False,
+                )
+            self.assertEqual(code, 0)
+            self.assertEqual(repairs["count"], 2)
+            self.assertEqual(run.call_count, 4)
+            self.assertFalse(AUTOPILOT._checkpoint_path(root).exists())
+
+    def test_convergence_checkpoint_persists_current_stage_for_durable_triage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "source.txt").write_text("stable\n", encoding="utf-8")
+            stage = AUTOPILOT.Stage("smoke-ui-quality", ("true",), 10)
+            AUTOPILOT._checkpoint_convergence(
+                root,
+                graph_signature="graph",
+                repair=True,
+                next_index=0,
+                repair_count=1,
+                seen_failures={(stage.name, "fp"): 1},
+                convergence_stages=[stage],
+                current_stage=stage.name,
+                run_id="run-convergence",
+            )
+            failure = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp", "late defect")
+            AUTOPILOT._record_triage_classification(root, stage, failure, "CODE_DEFECT")
+            state = json.loads(AUTOPILOT._checkpoint_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(state["phase"], "convergence")
+            self.assertEqual(state["currentStage"], stage.name)
+            self.assertEqual(state["lastFailureClassification"], "CODE_DEFECT")
+            self.assertEqual(state["lastFailureStage"], stage.name)
+            self.assertEqual(state["lastFailureFingerprint"], "fp")
+
+    def test_convergence_same_fingerprint_stops_before_second_late_repair(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            owner = root / "webconsole" / "static"
+            owner.mkdir(parents=True)
+            marker = owner / "app.js"
+            marker.write_text("before\n", encoding="utf-8")
+            stage = AUTOPILOT.Stage("smoke-ui-quality", ("true",), 10)
+            forward_fail = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp-forward", "forward defect")
+            convergence_fail = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp-convergence", "same late defect")
+            passed = AUTOPILOT.StageResult(stage.name, "PASS", 0, 0.1, "fp-pass", "ok")
+            repairs = {"count": 0}
+
+            def fake_repair(*_args, **_kwargs):
+                repairs["count"] += 1
+                marker.write_text(f"repair-{repairs['count']}\n", encoding="utf-8")
+                return True, "repaired"
+
+            with mock.patch.object(
+                AUTOPILOT, "run_stage",
+                side_effect=[forward_fail, passed, convergence_fail, convergence_fail],
+            ), mock.patch.object(AUTOPILOT, "invoke_codex", side_effect=fake_repair):
+                code = AUTOPILOT._execute_stages(
+                    root, [stage], repair=True, max_repairs=4, codex_timeout=10,
+                    enforce_supply_chain=False, emit_ready_result=False,
+                )
+            self.assertEqual(code, 2)
+            self.assertEqual(repairs["count"], 2, "forward repair plus exactly one convergence repair are allowed")
+            report = json.loads(AUTOPILOT._report_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(report["lastFailure"]["reason"], "CONVERGENCE_NO_PROGRESS")
+
+    def test_cross_owner_convergence_repair_expands_full_graph_from_zero(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "webconsole" / "static").mkdir(parents=True)
+            (root / "internal" / "persistence").mkdir(parents=True)
+            ui_marker = root / "webconsole" / "static" / "app.js"
+            backend_marker = root / "internal" / "persistence" / "postgres.go"
+            ui_marker.write_text("before\n", encoding="utf-8")
+            backend_marker.write_text("before\n", encoding="utf-8")
+            stages = [
+                AUTOPILOT.Stage("repository-validation", ("true",), 10),
+                AUTOPILOT.Stage("smoke-ui-quality", ("true",), 10),
+                AUTOPILOT.Stage("lab-runner-tests", ("true",), 10),
+            ]
+            passed = lambda name: AUTOPILOT.StageResult(name, "PASS", 0, 0.1, "pass-"+name, "ok")
+            failed_forward = AUTOPILOT.StageResult("smoke-ui-quality", "FAIL", 1, 0.1, "fp-forward", "forward defect")
+            failed_convergence = AUTOPILOT.StageResult("smoke-ui-quality", "FAIL", 1, 0.1, "fp-late", "cross-owner late defect")
+            results = [
+                passed("repository-validation"),
+                failed_forward,
+                passed("smoke-ui-quality"),
+                passed("lab-runner-tests"),
+                passed("repository-validation"),
+                failed_convergence,
+                passed("repository-validation"),
+                passed("smoke-ui-quality"),
+                passed("lab-runner-tests"),
+            ]
+            repairs = {"count": 0}
+
+            def fake_repair(*_args, **_kwargs):
+                repairs["count"] += 1
+                if repairs["count"] == 1:
+                    ui_marker.write_text("owner fix\n", encoding="utf-8")
+                else:
+                    backend_marker.write_text("cross owner fix\n", encoding="utf-8")
+                return True, "repaired"
+
+            with mock.patch.object(AUTOPILOT, "run_stage", side_effect=results) as run, \
+                 mock.patch.object(AUTOPILOT, "invoke_codex", side_effect=fake_repair):
+                code = AUTOPILOT._execute_stages(
+                    root, stages, repair=True, max_repairs=2, codex_timeout=10,
+                    enforce_supply_chain=False, emit_ready_result=False,
+                )
+            self.assertEqual(code, 0)
+            self.assertEqual(repairs["count"], 2)
+            names = [call.args[1].name for call in run.call_args_list]
+            self.assertEqual(names, [
+                "repository-validation", "smoke-ui-quality", "smoke-ui-quality", "lab-runner-tests",
+                "repository-validation", "smoke-ui-quality",
+                "repository-validation", "smoke-ui-quality", "lab-runner-tests",
+            ])
+            self.assertEqual(names.count("lab-runner-tests"), 2, "cross-owner convergence repair must expand the full graph")
+
     def test_full_convergence_requirement_survives_forward_checkpoint(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
