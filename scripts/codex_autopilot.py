@@ -491,6 +491,7 @@ CONVERGENCE_REPAIR_AUTHORITY = "AUTOPILOT_CONVERGENCE_REPAIR_V1"
 OUTER_RUNTIME_CONTEXT_AUTHORITY = "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1"
 RESUME_PREFLIGHT_CURSOR_AUTHORITY = "AUTOPILOT_RESUME_PREFLIGHT_CURSOR_V1"
 LAZY_REPAIR_CAPABILITY_AUTHORITY = "AUTOPILOT_LAZY_REPAIR_CAPABILITY_V1"
+REPAIR_BUDGET_ACTUAL_WRITER_AUTHORITY = "AUTOPILOT_REPAIR_BUDGET_ACTUAL_WRITER_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -797,6 +798,16 @@ def invoke_codex(root: Path, stage: Stage, result: StageResult, iteration: int, 
     if p.returncode != 0:
         return False, f"CODEX_REPAIR_FAILED rc={p.returncode}\n{tail}"
     return True, tail
+
+
+def _repair_writer_attempted(ok: bool, detail: str) -> bool:
+    """Count budget/no-progress only after the workspace-write worker was entered.
+
+    Read-only triage, missing repair capability and environment/supply-chain
+    classifications must not consume a repair opportunity or poison the exact
+    fingerprint as NO_PROGRESS on the next durable resume.
+    """
+    return bool(ok or str(detail).startswith("CODEX_REPAIR_"))
 
 
 _AUTOPILOT_STATE_SCHEMA = 1
@@ -2193,7 +2204,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                     break
 
                 key = (stage.name, result.fingerprint)
-                seen_failures[key] = seen_failures.get(key, 0) + 1
+                prior_writer_attempts = seen_failures.get(key, 0)
                 _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, full_convergence_required=full_convergence_required, run_id=run_id)
                 _record_failure_capsule(root, result)
                 if result.status == "TIMEOUT" and not repair:
@@ -2202,23 +2213,25 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 if not repair:
                     print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} fingerprint={result.fingerprint}", flush=True)
                     return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
-                if seen_failures[key] >= 2:
+                if prior_writer_attempts >= 1:
                     print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} reason=NO_PROGRESS fingerprint={result.fingerprint}", flush=True)
                     return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "NO_PROGRESS"})
                 if repair_count >= max_repairs:
                     print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} reason=REPAIR_LIMIT fingerprint={result.fingerprint}", flush=True)
                     return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "REPAIR_LIMIT"})
 
-                repair_count += 1
-                event_log.append("repair-start", phase="forward", stage=stage.name, specialist=_stage_specialist(stage), status="REPAIRING", fingerprint=result.fingerprint, nextIndex=index, repairCount=repair_count)
+                proposed_repair_iteration = repair_count + 1
                 _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index, repair_count=repair_count, status="REPAIRING", current_stage=stage.name, stage_results=report_rows, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
                 before_repair = _workspace_manifest(root)
                 before_repair_head = _git_head(root)
-                ok, detail = invoke_codex(root, stage, result, repair_count, codex_timeout)
+                ok, detail = invoke_codex(root, stage, result, proposed_repair_iteration, codex_timeout)
                 after_repair_head = _git_head(root)
                 after_repair = _workspace_manifest(root)
                 changed_paths = _workspace_manifest_delta(before_repair, after_repair)
+                writer_attempted = _repair_writer_attempted(ok, detail)
                 git_ref_mutated = bool(before_repair_head and after_repair_head and before_repair_head != after_repair_head)
+                if git_ref_mutated:
+                    writer_attempted = True
                 if git_ref_mutated:
                     ok = False
                     detail = (
@@ -2227,24 +2240,35 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                         "operator reconciliation required"
                     )
                     changed_paths = sorted(set(changed_paths + ["__GIT_HEAD__"]))
-                repair_requires_full = git_ref_mutated or _repair_requires_full_convergence(stage, changed_paths)
+                if writer_attempted:
+                    repair_count += 1
+                    seen_failures[key] = prior_writer_attempts + 1
+                    event_log.append("repair-start", phase="forward", stage=stage.name, specialist=_stage_specialist(stage), status="REPAIRING", fingerprint=result.fingerprint, nextIndex=index, repairCount=repair_count)
+                    _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, full_convergence_required=full_convergence_required, run_id=run_id)
+                repair_requires_full = writer_attempted and (git_ref_mutated or _repair_requires_full_convergence(stage, changed_paths))
                 full_convergence_required = full_convergence_required or repair_requires_full
-                event_log.append(
-                    "repair-delta",
-                    phase="forward",
-                    stage=stage.name,
-                    specialist=_stage_specialist(stage),
-                    status="FULL_CONVERGENCE" if repair_requires_full else "OWNER_SCOPED",
-                    reason=",".join(changed_paths[:12]),
-                    repairCount=repair_count,
-                )
+                if writer_attempted:
+                    event_log.append(
+                        "repair-delta",
+                        phase="forward",
+                        stage=stage.name,
+                        specialist=_stage_specialist(stage),
+                        status="FULL_CONVERGENCE" if repair_requires_full else "OWNER_SCOPED",
+                        reason=",".join(changed_paths[:12]),
+                        repairCount=repair_count,
+                    )
+                    print(
+                        f"AUTOPILOT_REPAIR_DELTA stage={stage.name} changed={len(changed_paths)} "
+                        f"fullConvergence={str(repair_requires_full).lower()} "
+                        f"paths={','.join(changed_paths[:12])}",
+                        flush=True,
+                    )
                 print(
-                    f"AUTOPILOT_REPAIR_DELTA stage={stage.name} changed={len(changed_paths)} "
-                    f"fullConvergence={str(repair_requires_full).lower()} "
-                    f"paths={','.join(changed_paths[:12])}",
+                    f"AUTOPILOT_CODEX_REPAIR iteration={proposed_repair_iteration} "
+                    f"writerAttempted={str(writer_attempted).lower()} budgetUsed={repair_count} "
+                    f"status={'PASS' if ok else 'BLOCKED'}",
                     flush=True,
                 )
-                print(f"AUTOPILOT_CODEX_REPAIR iteration={repair_count} status={'PASS' if ok else 'BLOCKED'}", flush=True)
                 if detail:
                     print(detail, flush=True)
                 if not ok:
@@ -2341,7 +2365,7 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 continue
 
             key = (stage.name, result.fingerprint)
-            seen_failures[key] = seen_failures.get(key, 0) + 1
+            prior_writer_attempts = seen_failures.get(key, 0)
             _checkpoint_convergence(
                 root,
                 graph_signature=graph_signature,
@@ -2361,23 +2385,25 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
             if not repair:
                 print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} reason=CONVERGENCE_REGRESSION fingerprint={result.fingerprint}", flush=True)
                 return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "CONVERGENCE_REGRESSION"})
-            if seen_failures[key] >= 2:
+            if prior_writer_attempts >= 1:
                 print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} reason=CONVERGENCE_NO_PROGRESS fingerprint={result.fingerprint}", flush=True)
                 return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "CONVERGENCE_NO_PROGRESS"})
             if repair_count >= max_repairs:
                 print(f"AUTOPILOT_RESULT=CODE_DEFECT stage={stage.name} reason=REPAIR_LIMIT fingerprint={result.fingerprint}", flush=True)
                 return terminal(2, "CODE_DEFECT", current_stage=stage.name, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint, "reason": "REPAIR_LIMIT"})
 
-            repair_count += 1
-            event_log.append("repair-start", phase="convergence", stage=stage.name, specialist=_stage_specialist(stage), status="REPAIRING", fingerprint=result.fingerprint, nextIndex=index, repairCount=repair_count)
+            proposed_repair_iteration = repair_count + 1
             _write_autopilot_report(root, stages=convergence_stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=index, repair_count=repair_count, status="REPAIRING", current_stage=stage.name, stage_results=report_rows, last_failure={"stage": stage.name, "specialist": _stage_specialist(stage), "status": result.status, "fingerprint": result.fingerprint})
             before_repair = _workspace_manifest(root)
             before_repair_head = _git_head(root)
-            ok, detail = invoke_codex(root, stage, result, repair_count, codex_timeout)
+            ok, detail = invoke_codex(root, stage, result, proposed_repair_iteration, codex_timeout)
             after_repair_head = _git_head(root)
             after_repair = _workspace_manifest(root)
             changed_paths = _workspace_manifest_delta(before_repair, after_repair)
+            writer_attempted = _repair_writer_attempted(ok, detail)
             git_ref_mutated = bool(before_repair_head and after_repair_head and before_repair_head != after_repair_head)
+            if git_ref_mutated:
+                writer_attempted = True
             if git_ref_mutated:
                 ok = False
                 detail = (
@@ -2386,23 +2412,45 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                     "operator reconciliation required"
                 )
                 changed_paths = sorted(set(changed_paths + ["__GIT_HEAD__"]))
-            repair_requires_full = git_ref_mutated or _repair_requires_full_convergence(stage, changed_paths)
+            if writer_attempted:
+                repair_count += 1
+                seen_failures[key] = prior_writer_attempts + 1
+                event_log.append("repair-start", phase="convergence", stage=stage.name, specialist=_stage_specialist(stage), status="REPAIRING", fingerprint=result.fingerprint, nextIndex=index, repairCount=repair_count)
+                _checkpoint_convergence(
+                    root,
+                    graph_signature=graph_signature,
+                    repair=repair,
+                    next_index=index,
+                    repair_count=repair_count,
+                    seen_failures=seen_failures,
+                    convergence_stages=convergence_stages,
+                    current_stage=stage.name,
+                    full_convergence_required=full_convergence_required,
+                    run_id=run_id,
+                )
+            repair_requires_full = writer_attempted and (git_ref_mutated or _repair_requires_full_convergence(stage, changed_paths))
             full_convergence_required = full_convergence_required or repair_requires_full
-            event_log.append(
-                "repair-delta",
-                phase="convergence",
-                stage=stage.name,
-                specialist=_stage_specialist(stage),
-                status="FULL_CONVERGENCE" if repair_requires_full else "OWNER_SCOPED",
-                reason=",".join(changed_paths[:12]),
-                repairCount=repair_count,
-            )
+            if writer_attempted:
+                event_log.append(
+                    "repair-delta",
+                    phase="convergence",
+                    stage=stage.name,
+                    specialist=_stage_specialist(stage),
+                    status="FULL_CONVERGENCE" if repair_requires_full else "OWNER_SCOPED",
+                    reason=",".join(changed_paths[:12]),
+                    repairCount=repair_count,
+                )
+                print(
+                    f"AUTOPILOT_CONVERGENCE_REPAIR_DELTA stage={stage.name} changed={len(changed_paths)} "
+                    f"fullConvergence={str(repair_requires_full).lower()} paths={','.join(changed_paths[:12])}",
+                    flush=True,
+                )
             print(
-                f"AUTOPILOT_CONVERGENCE_REPAIR_DELTA stage={stage.name} changed={len(changed_paths)} "
-                f"fullConvergence={str(repair_requires_full).lower()} paths={','.join(changed_paths[:12])}",
+                f"AUTOPILOT_CODEX_REPAIR iteration={proposed_repair_iteration} phase=convergence "
+                f"writerAttempted={str(writer_attempted).lower()} budgetUsed={repair_count} "
+                f"status={'PASS' if ok else 'BLOCKED'}",
                 flush=True,
             )
-            print(f"AUTOPILOT_CODEX_REPAIR iteration={repair_count} phase=convergence status={'PASS' if ok else 'BLOCKED'}", flush=True)
             if detail:
                 print(detail, flush=True)
             if not ok:
