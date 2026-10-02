@@ -335,6 +335,18 @@ def publish_verified_file(source: Path, target: Path) -> Path:
             temp.unlink()
 
 
+def verify_release_checksum(release:Path,checksum:Path,label:str)->None:
+    digest=sha256(release)
+    try:
+        checksum_info=checksum.lstat()
+        checksum_text=checksum.read_text(encoding="utf-8")
+    except (FileNotFoundError,UnicodeDecodeError,OSError) as exc:
+        raise RuntimeError(f"{label}_CHECKSUM_INVALID") from exc
+    wanted=f"{digest.removeprefix('sha256:')}  {release.name}\n"
+    if not stat.S_ISREG(checksum_info.st_mode) or checksum.is_symlink() or checksum_text!=wanted:
+        raise RuntimeError(f"{label}_CHECKSUM_INVALID")
+
+
 def exact_release_publication_path(root: Path, source_sha: str, filename: str) -> Path:
     if len(source_sha) != 40 or any(ch not in "0123456789abcdef" for ch in source_sha):
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
@@ -545,13 +557,9 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_DRIFT")
     checksum=release.with_name(release.name+".sha256")
     try:
-        checksum_info=checksum.lstat()
-        checksum_text=checksum.read_text(encoding="utf-8")
-    except (FileNotFoundError,UnicodeDecodeError,OSError) as exc:
+        verify_release_checksum(release,checksum,"FINAL_EXACT_RELEASE_EXISTING")
+    except RuntimeError as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_CHECKSUM_DRIFT") from exc
-    wanted_checksum=f"{digest.removeprefix('sha256:')}  {release.name}\n"
-    if not stat.S_ISREG(checksum_info.st_mode) or checksum.is_symlink() or checksum_text!=wanted_checksum:
-        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_CHECKSUM_DRIFT")
     prefix=f"4so-platform-factory-{version}-{release_name}/"
     expected_embedded={
         prefix+"ARTIFACT-MANIFEST.json":evidence.get("artifactManifestSha256"),
@@ -631,7 +639,8 @@ def execute(root: Path, out: Path) -> dict:
             published_release_path = exact_release_publication_path(root, source_sha, release.name)
             published_checksum_path = exact_release_publication_path(root, source_sha, release.name + ".sha256")
             published_release = publish_verified_file(release, published_release_path)
-            publish_verified_file(release.with_name(release.name + ".sha256"), published_checksum_path)
+            published_checksum=publish_verified_file(release.with_name(release.name + ".sha256"), published_checksum_path)
+            verify_release_checksum(published_release,published_checksum,"FINAL_EXACT_RELEASE_PUBLISHED")
             evidence = build_evidence(
                 root, published_release, stage, admitted, source_sha, version, release_name
             )
