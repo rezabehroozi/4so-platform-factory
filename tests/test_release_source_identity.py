@@ -13,9 +13,20 @@ build=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(build)
 
 
 class ReleaseSourceIdentityTests(unittest.TestCase):
-    def test_release_source_commit_prefers_valid_explicit_environment(self):
+    def test_release_source_commit_requires_explicit_environment_to_match_git(self):
+        git_sha="a"*40
+        observed=SimpleNamespace(returncode=0,stdout=git_sha+"\n",stderr="")
+        with mock.patch.object(build.subprocess,"run",return_value=observed):
+            with mock.patch.dict(os.environ,{"SOURCE_COMMIT":git_sha},clear=False):
+                self.assertEqual(git_sha,build.release_source_commit(ROOT))
+            with mock.patch.dict(os.environ,{"SOURCE_COMMIT":"b"*40},clear=False):
+                with self.assertRaisesRegex(SystemExit,"ENV_GIT_MISMATCH"):
+                    build.release_source_commit(ROOT)
+
+    def test_release_source_commit_accepts_valid_explicit_environment_without_git(self):
         sha="a"*40
-        with mock.patch.dict(os.environ,{"SOURCE_COMMIT":sha},clear=False):
+        failed=SimpleNamespace(returncode=1,stdout="",stderr="")
+        with mock.patch.object(build.subprocess,"run",return_value=failed), mock.patch.dict(os.environ,{"SOURCE_COMMIT":sha},clear=False):
             self.assertEqual(sha,build.release_source_commit(ROOT))
 
     def test_release_source_commit_rejects_invalid_explicit_environment(self):
@@ -36,6 +47,7 @@ class ReleaseSourceIdentityTests(unittest.TestCase):
         builder=(ROOT/"scripts/build_release.py").read_text()
         verifier=(ROOT/"scripts/verify_release.py").read_text()
         validator=(ROOT/"scripts/validate_repository.py").read_text()
+        self.assertIn("override SOURCE_COMMIT := $(GIT_SOURCE_COMMIT)",make)
         self.assertIn("internal/buildinfo.SourceCommit=$(SOURCE_COMMIT)",make)
         self.assertIn('"sourceCommitSHA": source_commit_sha',builder)
         self.assertIn('verify_environment["SOURCE_COMMIT"] = str(provenance["sourceCommitSHA"])',verifier)
