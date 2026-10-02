@@ -2240,13 +2240,13 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                         "operator reconciliation required"
                     )
                     changed_paths = sorted(set(changed_paths + ["__GIT_HEAD__"]))
+                repair_requires_full = writer_attempted and (git_ref_mutated or _repair_requires_full_convergence(stage, changed_paths))
+                full_convergence_required = full_convergence_required or repair_requires_full
                 if writer_attempted:
                     repair_count += 1
                     seen_failures[key] = prior_writer_attempts + 1
                     event_log.append("repair-start", phase="forward", stage=stage.name, specialist=_stage_specialist(stage), status="REPAIRING", fingerprint=result.fingerprint, nextIndex=index, repairCount=repair_count)
                     _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, full_convergence_required=full_convergence_required, run_id=run_id)
-                repair_requires_full = writer_attempted and (git_ref_mutated or _repair_requires_full_convergence(stage, changed_paths))
-                full_convergence_required = full_convergence_required or repair_requires_full
                 if writer_attempted:
                     event_log.append(
                         "repair-delta",
@@ -2412,6 +2412,8 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                     "operator reconciliation required"
                 )
                 changed_paths = sorted(set(changed_paths + ["__GIT_HEAD__"]))
+            repair_requires_full = writer_attempted and (git_ref_mutated or _repair_requires_full_convergence(stage, changed_paths))
+            full_convergence_required = full_convergence_required or repair_requires_full
             if writer_attempted:
                 repair_count += 1
                 seen_failures[key] = prior_writer_attempts + 1
@@ -2428,8 +2430,6 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                     full_convergence_required=full_convergence_required,
                     run_id=run_id,
                 )
-            repair_requires_full = writer_attempted and (git_ref_mutated or _repair_requires_full_convergence(stage, changed_paths))
-            full_convergence_required = full_convergence_required or repair_requires_full
             if writer_attempted:
                 event_log.append(
                     "repair-delta",
