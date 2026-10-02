@@ -92,7 +92,10 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
         }
         with mock.patch.dict(os.environ,injected,clear=True):
             env=mod.exact_release_environment(Path("/opt/exact-go/bin/go"))
-        self.assertEqual("/usr/bin:/bin",env["PATH"])
+        self.assertEqual("/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",env["PATH"])
+        self.assertEqual("C",env["LANG"])
+        self.assertEqual("C",env["LC_ALL"])
+        self.assertEqual("UTC",env["TZ"])
         self.assertEqual("/opt/exact-go/bin/go",env["GO"])
         self.assertEqual("local",env["GOTOOLCHAIN"])
         self.assertEqual("off",env["GOENV"])
