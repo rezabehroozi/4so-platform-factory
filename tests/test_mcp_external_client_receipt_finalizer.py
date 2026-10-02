@@ -63,6 +63,25 @@ class ReceiptFinalizerTests(unittest.TestCase):
             bad=copy.deepcopy(capture); bad["checks"]["oauth-protected-resource-discovery"]["requestId"]="req-public-01"; cap.write_text(json.dumps(bad))
             with self.assertRaisesRegex(RuntimeError,"CHECK_FIELDS_INVALID"): mod.finalize(pp,cap)
 
+    def test_packet_authority_protocol_endpoint_and_scope_drift_fail_before_capture(self):
+        with tempfile.TemporaryDirectory() as raw:
+            pp,cap,_=self.fixture(Path(raw))
+            original=json.loads(pp.read_text())
+            cases=(
+                ("source-authority",lambda row: row.__setitem__("matrixAuthority","wrong"),"SOURCE_AUTHORITY_INVALID"),
+                ("protocol",lambda row: row.__setitem__("protocol","legacy-http"),"PROTOCOL_INVALID"),
+                ("endpoint",lambda row: row.__setitem__("endpoint","http://mcp.example.test/mcp"),"ENDPOINT_INVALID"),
+                ("scope",lambda row: row.__setitem__("runtimeCertified",True),"SCOPE_INFLATED"),
+            )
+            for _,mutate,error in cases:
+                bad=copy.deepcopy(original); mutate(bad); pp.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(RuntimeError,error):
+                    mod.finalize(pp,cap)
+            pp.write_text(json.dumps(original))
+            bad=copy.deepcopy(original); bad["receiptRequirements"]["requestIds"]=list(reversed(core.AUDITED_CHECKS)); pp.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"REQUIREMENTS_INVALID"):
+                mod.finalize(pp,cap)
+
     def test_capture_execution_time_outside_campaign_is_rejected(self):
         with tempfile.TemporaryDirectory() as raw:
             pp,cap,capture=self.fixture(Path(raw))
