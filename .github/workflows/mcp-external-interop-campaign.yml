@@ -2,79 +2,19 @@ name: mcp-external-interop-campaign
 
 on:
   workflow_dispatch:
-    inputs:
-      endpoint:
-        description: Public protected MCP endpoint, exactly https://<host>/mcp
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 jobs:
-  prepare-campaign:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Preflight public MCP OAuth discovery and challenge
+      - name: C7W execution authority is local-only
         shell: bash
-        env:
-          MCP_ENDPOINT: ${{ inputs.endpoint }}
         run: |
           set -euo pipefail
-          case "$MCP_ENDPOINT" in https://*/mcp) ;; *) echo "endpoint must be exactly https://<host>/mcp"; exit 2;; esac
-          base="${MCP_ENDPOINT%/mcp}"
-          curl -fsS --retry 3 "$base/.well-known/oauth-protected-resource" > /tmp/mcp-resource.json
-          jq -e --arg endpoint "$MCP_ENDPOINT" '
-            .resource == $endpoint and
-            (.authorization_servers | type=="array" and length>=1) and
-            (.scopes_supported | type=="array") and
-            (.scopes_supported | index("mcp.read") != null) and
-            (.scopes_supported | index("mcp.operate") != null)
-          ' /tmp/mcp-resource.json >/dev/null
-          code="$(curl -sS -o /tmp/mcp-unauth.json -D /tmp/mcp-unauth.headers -w '%{http_code}'             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             --data '{"jsonrpc":"2.0","id":"c7w-preflight","method":"tools/list","params":{}}'             "$MCP_ENDPOINT")"
-          test "$code" = "401" || { cat /tmp/mcp-unauth.json; echo "protected MCP endpoint did not challenge unauthenticated access"; exit 2; }
-          grep -qi '^www-authenticate:.*Bearer' /tmp/mcp-unauth.headers
-      - name: Prepare one-shot replay-fenced campaign
-        shell: bash
-        env:
-          MCP_ENDPOINT: ${{ inputs.endpoint }}
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/mcp-interop
-          python3 scripts/prepare_mcp_external_interop_campaign.py             --endpoint "$MCP_ENDPOINT"             --out /tmp/mcp-interop/campaign.json
-          python3 -m unittest tests.test_mcp_external_interop_seal
-          jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1" and .externalExecutionRequired and (.clients|length==4)' /tmp/mcp-interop/campaign.json
-          python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          campaign=json.loads(Path("/tmp/mcp-interop/campaign.json").read_text())
-          ref={"authority":"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_REFERENCE_V1","workflowRunId":os.environ["GITHUB_RUN_ID"],"sourceCommitSHA":os.environ["GITHUB_SHA"],"campaignId":campaign["campaignId"],"matrixSha256":campaign["matrixSha256"],"endpoint":campaign["endpoint"],"clients":[x["clientId"] for x in campaign["clients"]]}
-          Path("/tmp/mcp-interop/campaign-reference.json").write_text(json.dumps(ref,indent=2,sort_keys=True)+"\n")
-          PY
-          for client in chatgpt claude gemini grok; do
-            packet="/tmp/mcp-interop/execution-packets/$client.json"
-            capture="/tmp/mcp-interop/capture-templates/$client.json"
-            python3 scripts/prepare_mcp_external_client_execution.py --campaign /tmp/mcp-interop/campaign.json --client "$client" --out "$packet"
-            mkdir -p "$(dirname "$capture")"
-            python3 - "$packet" "$capture" <<'PY'
-          import json,sys
-          from pathlib import Path
-          packet=json.loads(Path(sys.argv[1]).read_text())
-          checks={}
-          audited=set(packet["receiptRequirements"]["requestIds"])
-          for row in packet["checks"]:
-              checks[row["id"]]={"passed":False,**({"requestId":""} if row["id"] in audited else {})}
-          out={"authority":packet["receiptRequirements"]["captureAuthority"],"clientId":packet["clientId"],"clientSurface":packet["clientSurface"],"campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"executionId":"","externalExecution":False,"credentialedExecution":False,"checks":checks,"providerExecutionRef":""}
-          Path(sys.argv[2]).write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
-          PY
-          done
-          python3 -m unittest tests.test_mcp_external_client_execution_packet tests.test_mcp_external_client_receipt_finalizer
-      - name: Upload campaign packet
-        uses: actions/upload-artifact@v4
-        with:
-          name: mcp-external-interop-campaign
-          path: /tmp/mcp-interop
-          if-no-files-found: error
-          retention-days: 30
+          echo "This workflow is intentionally non-authoritative and performs no C7W execution."
+          echo "Use the canonical local path:"
+          echo "  C7W_MCP_ENDPOINT=https://<api>/mcp C7W_OAUTH_CLIENT_MAP=/secure/oauth-client-bindings.json make c7w-prepare"
+          echo "Then execute the four real named-client packets locally and admit each capture with make c7w-admit."
