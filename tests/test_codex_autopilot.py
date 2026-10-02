@@ -337,6 +337,7 @@ class AutopilotReportTests(unittest.TestCase):
             self.assertEqual(data["selectiveConvergenceAuthority"], "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1")
             self.assertEqual(data["convergenceRepairAuthority"], "AUTOPILOT_CONVERGENCE_REPAIR_V1")
             self.assertEqual(data["outerRuntimeContextAuthority"], "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1")
+            self.assertEqual(data["ownerPythonDedupAuthority"], "AUTOPILOT_OWNER_PYTHON_DEDUP_V1")
             self.assertEqual(data["repairScopeFenceAuthority"], "AUTOPILOT_REPAIR_SCOPE_FENCE_V1")
             self.assertEqual(data["structuredTriageAuthority"], "AUTOPILOT_STRUCTURED_TRIAGE_V1")
             self.assertEqual(data["repairGitBoundaryAuthority"], "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1")
@@ -479,6 +480,12 @@ class CheckpointSafeStageTests(unittest.TestCase):
         self.assertLess(names.index("autopilot-owner-tests"), names.index("python-tests"))
         self.assertEqual(AUTOPILOT.OWNER_FIRST_STAGE_ORDER_AUTHORITY, "AUTOPILOT_OWNER_FIRST_STAGE_ORDER_V1")
         self.assertEqual(AUTOPILOT.OWNER_UNIT_DEDUP_AUTHORITY, "AUTOPILOT_OWNER_UNIT_DEDUP_V1")
+        python_stage = next(stage for stage in stages if stage.name == "python-tests")
+        self.assertEqual(python_stage.command[:2], ("python3", "-c"))
+        self.assertIn("AUTOPILOT_OWNER_PYTHON_DEDUP_V1", python_stage.command[2])
+        self.assertIn("test_install_entrypoint", python_stage.command[2])
+        self.assertIn("test_codex_autopilot", python_stage.command[2])
+        self.assertEqual(AUTOPILOT.OWNER_PYTHON_DEDUP_AUTHORITY, "AUTOPILOT_OWNER_PYTHON_DEDUP_V1")
 
 
 class AutopilotAgentContextTests(unittest.TestCase):
@@ -544,6 +551,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["agentNextActionAuthority"], "AUTOPILOT_AGENT_NEXT_ACTION_V1")
             self.assertEqual(context["ownerFirstStageOrderAuthority"], "AUTOPILOT_OWNER_FIRST_STAGE_ORDER_V1")
             self.assertEqual(context["ownerUnitDedupAuthority"], "AUTOPILOT_OWNER_UNIT_DEDUP_V1")
+            self.assertEqual(context["ownerPythonDedupAuthority"], "AUTOPILOT_OWNER_PYTHON_DEDUP_V1")
             self.assertIn("outerRuntime", context)
             self.assertEqual(context["defaultAgentRepairBudget"], 8)
             self.assertEqual(context["failureCapsuleMaxChars"], 3200)
@@ -733,6 +741,16 @@ class AutopilotRunLockTests(unittest.TestCase):
                     preflight.assert_not_called()
             finally:
                 lock.release()
+
+
+class OwnerStageRuntimeParityTests(unittest.TestCase):
+    def test_installer_go_owner_stage_preserves_cgo_unit_semantics(self):
+        stage = AUTOPILOT.Stage("installer-go-owner-tests", ("go", "test", "./cmd/platformctl"), 10)
+        completed = mock.Mock(returncode=0, stdout="ok")
+        with mock.patch.object(AUTOPILOT, "_run", return_value=completed) as run:
+            result = AUTOPILOT.run_stage(ROOT, stage)
+        self.assertEqual(result.status, "PASS")
+        self.assertEqual(run.call_args.kwargs["env"], {"CGO_ENABLED": "1"})
 
 
 class StageAwareEnvironmentPreflightTests(unittest.TestCase):
