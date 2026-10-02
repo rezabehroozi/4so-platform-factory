@@ -352,7 +352,7 @@ func TestProgramRoadmapDefersPhysicalCertificationUntilFeatureFreeze(t *testing.
 		t.Fatalf("remote OAuth MCP phase drift: %#v", c7r)
 	}
 	c7w := byID["C7W-mcp-user-admin-write-parity"]
-	for _, evidence := range []string{"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1", "scripts/prepare_mcp_external_interop_campaign.py", "MCP_EXTERNAL_CLIENT_INTEROP_BINDING_V1", "MCP_EXTERNAL_CLIENT_OAUTH_BINDINGS_V1", "scripts/prepare_mcp_external_client_execution.py", "scripts/finalize_mcp_external_client_receipt.py", "scripts/fetch_mcp_external_audit_window.py", "migrations/0084_security_audit_mcp_interop_binding.sql", "migrations/0085_security_audit_oauth_client_identity.sql"} {
+	for _, evidence := range []string{"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1", "scripts/prepare_mcp_external_interop_campaign.py", "MCP_EXTERNAL_CLIENT_INTEROP_BINDING_V1", "MCP_EXTERNAL_CLIENT_OAUTH_BINDINGS_V1", "scripts/prepare_mcp_external_client_execution.py", "scripts/finalize_mcp_external_client_receipt.py", "scripts/fetch_mcp_external_audit_window.py", "MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1", "scripts/run_mcp_external_interop.py", "migrations/0084_security_audit_mcp_interop_binding.sql", "migrations/0085_security_audit_oauth_client_identity.sql"} {
 		if !containsString(c7w.Evidence, evidence) {
 			t.Fatalf("C7W Git/source evidence missing %q: %#v", evidence, c7w.Evidence)
 		}
