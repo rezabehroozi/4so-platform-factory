@@ -1415,6 +1415,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "agentNextActionAuthority": AGENT_NEXT_ACTION_AUTHORITY,
         "ownerFirstStageOrderAuthority": OWNER_FIRST_STAGE_ORDER_AUTHORITY,
         "ownerUnitDedupAuthority": OWNER_UNIT_DEDUP_AUTHORITY,
+        "ownerPythonDedupAuthority": OWNER_PYTHON_DEDUP_AUTHORITY,
         "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
         "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
         "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
