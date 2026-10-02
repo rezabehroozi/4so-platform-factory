@@ -19,6 +19,7 @@ class MCPExternalSealTests(unittest.TestCase):
         expires=created+mod.timedelta(seconds=spec["campaignMaxAgeSeconds"])
         return {"authority":mod.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","createdAt":mod.utc_timestamp(created),"expiresAt":mod.utc_timestamp(expires),"matrixAuthority":mod.MATRIX_AUTHORITY,"matrixSha256":mod.sha256(matrix_path),
                 "oauthClientBindingAuthority":mod.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"seal-oauth-bindings").hexdigest(),
+                "sourceCommitSHA":"1"*40,"runtimeVersion":"0.0.test",
                 "protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
     def request_ids(self,client):
         return {name:f"{client}-{idx:02d}-request" for idx,name in enumerate(mod.AUDITED_CHECKS,1)}
@@ -26,7 +27,7 @@ class MCPExternalSealTests(unittest.TestCase):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
         binding=mod.interop_binding_digest(campaign["campaignId"],client,challenge["challengeSha256"])
         executed=mod.parse_utc_timestamp(campaign["createdAt"],"TEST_CREATED")+mod.timedelta(seconds=30)
-        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"oauthClientId":challenge["oauthClientId"],"interopBindingAuthority":mod.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"providerExecutionRef":"provider-execution-"+client,"executedAt":mod.utc_timestamp(executed),"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+        return {"authority":mod.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":mod.CLIENT_SURFACES[client],"sourceCommitSHA":campaign["sourceCommitSHA"],"runtimeVersion":campaign["runtimeVersion"],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"oauthClientId":challenge["oauthClientId"],"interopBindingAuthority":mod.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"executionId":"run-"+client,"providerExecutionRef":"provider-execution-"+client,"executedAt":mod.utc_timestamp(executed),"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":self.request_ids(client),"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
     def audit_digest(self,row):
         canonical={}
         required=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
@@ -87,6 +88,7 @@ class MCPExternalSealTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,campaign,_=self.fixture(Path(td)); out=mod.seal(matrix,campaign_path,receipts,audits)
             self.assertEqual(4,out["certifiedClientCount"]); self.assertEqual(campaign["campaignId"],out["campaignId"]); self.assertTrue(out["serverAuditWitnessPass"]); self.assertEqual(24,out["serverAuditWitnessedCheckCount"]); self.assertFalse(out["physicalCertified"])
+            self.assertEqual(campaign["sourceCommitSHA"],out["sourceCommitSHA"]); self.assertEqual(campaign["runtimeVersion"],out["runtimeVersion"])
             self.assertTrue(all(row["serverAuditWitness"]["auditChainDigestVerified"] for row in out["clients"]))
             self.assertTrue(all(row["serverAuditWitness"]["auditMethodVersion"]==mod.AUDIT_METHOD_VERSION for row in out["clients"]))
     def test_secondary_witness_validator_rechecks_event_semantics_and_request_binding(self):
