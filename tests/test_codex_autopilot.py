@@ -465,6 +465,15 @@ class CheckpointSafeStageTests(unittest.TestCase):
 
 
 class AutopilotAgentContextTests(unittest.TestCase):
+    def test_agent_repository_contract_uses_one_context_probe_and_real_field_names(self):
+        instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("Run `make autopilot-context` first", instructions)
+        for field in ("outerRuntime.action", "environmentPreflight.remediationHints", "failurePathHints", "ownerContextPaths", "proofCommand", "proofTimeoutSeconds", "resumeInvocation", "nextAction"):
+            self.assertIn(field, instructions)
+        self.assertNotIn("ownerProofCommand", instructions)
+        self.assertNotIn("ownerProofTimeoutSeconds", instructions)
+        self.assertIn("outerRuntime.action=OBSERVE_ACTIVE", instructions)
+
     def test_agent_context_is_compact_and_omits_raw_stage_output(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
