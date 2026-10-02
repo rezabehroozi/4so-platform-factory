@@ -19,6 +19,29 @@ FIXED_CREATED = "2026-01-01T00:00:00Z"
 TARGETS = ("linux-amd64",)
 BINARIES = ("platform-api", "platformctl", "platform-installer", "platform-agent", "platform-probe", "virtual-cluster-renderer", "openchoreo-runtime", "dapr-runtime")
 GENERATED_METADATA = {"ARTIFACT-MANIFEST.json", "BUILD-PROVENANCE.json", "SBOM.spdx.json", "DERIVED-AGENT-KNOWLEDGE.json"}
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def release_source_commit(root: Path) -> str:
+    explicit=str(os.environ.get("SOURCE_COMMIT") or "").strip().lower()
+    if explicit:
+        if not COMMIT_RE.fullmatch(explicit):
+            raise SystemExit("RELEASE_SOURCE_COMMIT_ENV_INVALID")
+        return explicit
+    probe=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    observed=probe.stdout.strip().lower() if probe.returncode==0 else ""
+    if COMMIT_RE.fullmatch(observed):
+        return observed
+    provenance_path=root/"BUILD-PROVENANCE.json"
+    if provenance_path.is_file() and not provenance_path.is_symlink():
+        try:
+            provenance=json.loads(provenance_path.read_text(encoding="utf-8"))
+        except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+            raise SystemExit("RELEASE_SOURCE_COMMIT_PROVENANCE_INVALID") from exc
+        observed=str(provenance.get("sourceCommitSHA") or "").strip().lower() if isinstance(provenance,dict) else ""
+        if COMMIT_RE.fullmatch(observed):
+            return observed
+    raise SystemExit("RELEASE_SOURCE_COMMIT_UNAVAILABLE")
 
 
 def checked_regular_file(path: Path, *, label: str) -> os.stat_result:
@@ -190,7 +213,7 @@ def cgo_toolchain_identity(stage: Path) -> dict[str, str]:
     }
 
 
-def build_provenance(stage: Path, version: str, release_name: str) -> None:
+def build_provenance(stage: Path, version: str, release_name: str, source_commit_sha: str) -> None:
     sources = source_rows(stage)
     canonical = json.dumps(sources, separators=(",", ":"), sort_keys=True).encode("utf-8")
     binaries = []
@@ -213,6 +236,7 @@ def build_provenance(stage: Path, version: str, release_name: str) -> None:
         "product": "4SO Platform Factory",
         "version": version,
         "releaseName": release_name,
+        "sourceCommitSHA": source_commit_sha,
         "buildType": "deterministic-local-release",
         "created": FIXED_CREATED,
         "goToolchain": go_version,
@@ -338,6 +362,7 @@ def main() -> int:
     root = Path(args.root).resolve()
     version = (root / "VERSION").read_text(encoding="utf-8").strip()
     release_name = (root / "RELEASE-NAME").read_text(encoding="utf-8").strip()
+    source_commit_sha=release_source_commit(root)
     name = f"4so-platform-factory-{version}-{release_name}"
     release = root / "release"
     release.mkdir(exist_ok=True)
@@ -386,7 +411,7 @@ def main() -> int:
         raise SystemExit(f"DERIVED_AGENT_KNOWLEDGE_BUILD_FAILED {knowledge.stdout}{knowledge.stderr}")
     print(knowledge.stdout.strip())
 
-    build_provenance(stage, version, release_name)
+    build_provenance(stage, version, release_name, source_commit_sha)
     build_sbom(stage, version, release_name)
 
     entries = []
