@@ -99,17 +99,32 @@ case "${mode}" in
     for ((i=0; i<${#access_args[@]}; i++)); do
       case "${access_args[i]}" in
         --installer-url|--token-file|--ca-file|--confirmation)
-          if [[ $((i + 1)) -ge ${#access_args[@]} ]]; then
+          if [[ $((i + 1)) -ge ${#access_args[@]} || -z "${access_args[i+1]}" ]]; then
             echo "ERROR ${AUTHORITY}: ${access_args[i]} requires a value" >&2
             exit 2
           fi
           ;;
+        --installer-url=|--token-file=|--ca-file=|--confirmation=)
+          echo "ERROR ${AUTHORITY}: ${access_args[i]%%=*} requires a value" >&2
+          exit 2
+          ;;
       esac
-      [[ "${access_args[i]}" == "--installer-url" ]] && access_has_url=true
-      if [[ "${access_args[i]}" == "--token-file" ]]; then
-        access_has_token_file=true
-        access_token_file="${access_args[i+1]}"
-      fi
+      case "${access_args[i]}" in
+        --installer-url)
+          access_has_url=true
+          ;;
+        --installer-url=*)
+          access_has_url=true
+          ;;
+        --token-file)
+          access_has_token_file=true
+          access_token_file="${access_args[i+1]}"
+          ;;
+        --token-file=*)
+          access_has_token_file=true
+          access_token_file="${access_args[i]#--token-file=}"
+          ;;
+      esac
     done
     if [[ "${access_has_token_file}" != true && -z "${PLATFORM_INSTALLER_TOKEN:-}" ]]; then
       access_token_file="${PLATFORM_INSTALLER_TOKEN_FILE:-${DEFAULT_BOOTSTRAP_TOKEN_FILE}}"
@@ -173,14 +188,24 @@ declare -a passthrough=()
 while (($#)); do
   case "$1" in
     --bundle-dir)
-      [[ $# -ge 2 ]] || { echo "ERROR --bundle-dir requires a value" >&2; exit 2; }
+      [[ $# -ge 2 && -n "$2" ]] || { echo "ERROR --bundle-dir requires a value" >&2; exit 2; }
       bundle_dir="$2"
       shift 2
       ;;
+    --bundle-dir=*)
+      bundle_dir="${1#--bundle-dir=}"
+      [[ -n "${bundle_dir}" ]] || { echo "ERROR --bundle-dir requires a value" >&2; exit 2; }
+      shift
+      ;;
     --release-artifact)
-      [[ $# -ge 2 ]] || { echo "ERROR --release-artifact requires a value" >&2; exit 2; }
+      [[ $# -ge 2 && -n "$2" ]] || { echo "ERROR --release-artifact requires a value" >&2; exit 2; }
       release_artifact="$2"
       shift 2
+      ;;
+    --release-artifact=*)
+      release_artifact="${1#--release-artifact=}"
+      [[ -n "${release_artifact}" ]] || { echo "ERROR --release-artifact requires a value" >&2; exit 2; }
+      shift
       ;;
     *)
       passthrough+=("$1")
@@ -193,8 +218,14 @@ if [[ "${mode}" == "install" ]]; then
   execution_requested=false
   deploy_confirmed=false
   for ((i=0; i<${#passthrough[@]}; i++)); do
-    [[ "${passthrough[i]}" == "--enable-execution" ]] && execution_requested=true
+    case "${passthrough[i]}" in
+      --enable-execution|--enable-execution=true|--enable-execution=TRUE|--enable-execution=True|--enable-execution=1)
+        execution_requested=true
+        ;;
+    esac
     if [[ "${passthrough[i]}" == "--confirmation" && $((i + 1)) -lt ${#passthrough[@]} && "${passthrough[i+1]}" == "DEPLOY" ]]; then
+      deploy_confirmed=true
+    elif [[ "${passthrough[i]}" == "--confirmation=DEPLOY" ]]; then
       deploy_confirmed=true
     fi
   done
