@@ -205,7 +205,7 @@ def cgo_toolchain_identity(stage: Path) -> dict[str, str]:
     exact = ((lock.get("spec") or {}).get("exactCGOToolchain") or {})
     header = Path(str(exact.get("libpqHeaderPath") or ""))
     library = Path(str(exact.get("libpqLibraryPath") or ""))
-    return {
+    observed = {
         "ccVersion": command_first_line(["gcc", "--version"]),
         "ldVersion": command_first_line(["ld", "--version"]),
         "libcVersion": command_first_line(["ldd", "--version"]),
@@ -214,6 +214,11 @@ def cgo_toolchain_identity(stage: Path) -> dict[str, str]:
         "libpqLibraryPath": str(library),
         "libpqLibrarySha256": sha(library),
     }
+    for key in ("ccVersion","ldVersion","libcVersion","libpqHeaderPath","libpqHeaderSha256","libpqLibraryPath","libpqLibrarySha256"):
+        wanted=str(exact.get(key) or "")
+        if observed[key]!=wanted:
+            raise SystemExit(f"BUILD_CGO_TOOLCHAIN_IDENTITY_DRIFT {key} expected={wanted} actual={observed[key]}")
+    return observed
 
 
 def build_provenance(stage: Path, version: str, release_name: str, source_commit_sha: str) -> None:
