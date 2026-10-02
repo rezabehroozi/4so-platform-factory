@@ -309,6 +309,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
         self.assertEqual([],out["nextCommand"])
         self.assertEqual("linux-amd64-exact-toolchain",out["requiredHost"])
         self.assertEqual(source_sha,out["requiredSourceCommitSHA"])
+        self.assertEqual("<python>",out["preflightCommandTemplate"][0])
+        self.assertEqual("--preflight",out["preflightCommandTemplate"][-1])
         self.assertEqual("<python>",out["nextCommandTemplate"][0])
         self.assertIn("scripts/seal_final_exact_release.py",out["nextCommandTemplate"])
         self.assertNotIn("make",json.dumps(out).lower())
@@ -318,6 +320,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
             out=mod.c9_handoff("b"*40)
         self.assertEqual("RUN_C9_SEAL",out["nextActionCode"])
         self.assertEqual(mod.c9_seal_command(),out["nextCommand"])
+        self.assertEqual(mod.c9_preflight_command(),out["preflightCommand"])
+        self.assertEqual("--preflight",out["preflightCommand"][-1])
         self.assertEqual("linux-amd64-exact-toolchain",out["requiredHost"])
 
     def test_git_handoff_never_recommends_c9_with_unrelated_dirty_source(self):
