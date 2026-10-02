@@ -89,12 +89,13 @@ def endpoint(raw:str)->str:
 
 
 def load_oauth_bindings(path:Path)->tuple[dict[str,str],str]:
-    if path.is_symlink() or not path.is_file() or path.stat().st_size<=0 or path.stat().st_size>64*1024:
-        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_FILE_INVALID")
     try:
-        value=json.loads(path.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
-        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_JSON_INVALID") from exc
+        value,digest=core.load_with_sha256(path,"MCP_EXTERNAL_OAUTH_BINDINGS",max_bytes=64*1024)
+    except RuntimeError as exc:
+        code=str(exc)
+        if "JSON_INVALID" in code:
+            raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_JSON_INVALID") from exc
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_FILE_INVALID") from exc
     if not isinstance(value,dict) or set(value)!={"authority","clients"} or value.get("authority")!=OAUTH_BINDING_AUTHORITY:
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_AUTHORITY_INVALID")
     clients=value.get("clients")
@@ -108,7 +109,7 @@ def load_oauth_bindings(path:Path)->tuple[dict[str,str],str]:
         out[client]=client_id
     if len(set(out.values()))!=len(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_CLIENT_ID_REUSE")
-    return out,file_sha(path)
+    return out,digest
 
 def trusted_client_readback(endpoint_url:str,bindings:dict[str,str],token_env:str)->dict[str,dict]:
     token_env=str(token_env or "").strip()
@@ -196,7 +197,7 @@ def live_preflight(endpoint_url:str)->dict:
 def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sha256:str, trusted_clients:dict[str,dict], runtime_identity:dict)->dict:
     if matrix_path.is_symlink() or not matrix_path.is_file():
         raise RuntimeError("MCP_EXTERNAL_MATRIX_FILE_INVALID")
-    matrix=core.load(matrix_path,"MATRIX")
+    matrix,matrix_sha256=core.load_with_sha256(matrix_path,"MATRIX")
     spec=core.validate_matrix_contract(matrix,"MCP_EXTERNAL_MATRIX")
     if not core.SHA.fullmatch(str(oauth_binding_sha256 or "")) or not isinstance(trusted_clients,dict) or set(trusted_clients)!=set(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_READBACK_INVALID")
@@ -224,7 +225,7 @@ def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sh
       "apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropCampaign",
       "authority":AUTHORITY,"campaignId":campaign_id,
       "createdAt":core.utc_timestamp(created),"expiresAt":core.utc_timestamp(expires),
-      "matrixAuthority":MATRIX_AUTHORITY,"matrixSha256":file_sha(matrix_path),
+      "matrixAuthority":MATRIX_AUTHORITY,"matrixSha256":matrix_sha256,
       "oauthClientBindingAuthority":OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":oauth_binding_sha256,
       "sourceCommitSHA":source_sha,"runtimeVersion":runtime_version,
       "endpoint":endpoint(endpoint_url),"protocol":spec.get("protocol"),"transport":spec.get("transport"),
