@@ -497,7 +497,7 @@ def validate_request_ids(row:dict,client:str)->dict[str,str]:
     return out
 
 def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign:dict)->dict:
-    row=load(path,client.upper()+"_RECEIPT")
+    row,receipt_sha256=load_with_sha256(path,client.upper()+"_RECEIPT")
     if not isinstance(row,dict) or row.get("authority")!=RECEIPT_AUTHORITY or row.get("clientId")!=client:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_IDENTITY_INVALID {client}")
     if row.get("clientSurface")!=CLIENT_SURFACES[client]:
@@ -547,10 +547,10 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
     request_ids=validate_request_ids(row,client)
     trusted=campaign_trusted_client_bindings(campaign)[client]
-    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"sourceCommitSHA":row["sourceCommitSHA"],"runtimeVersion":row["runtimeVersion"],"executionId":run_id,"providerExecutionRef":provider_ref,"executedAt":utc_timestamp(executed),"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"responseObservations":response_observations,"requestIds":request_ids,"campaignCreatedAt":utc_timestamp(created),"campaignExpiresAt":utc_timestamp(expires),"executionAuditWindowSeconds":audit_window}
+    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"sourceCommitSHA":row["sourceCommitSHA"],"runtimeVersion":row["runtimeVersion"],"executionId":run_id,"providerExecutionRef":provider_ref,"executedAt":utc_timestamp(executed),"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":receipt_sha256,"checks":checks,"responseObservations":response_observations,"requestIds":request_ids,"campaignCreatedAt":utc_timestamp(created),"campaignExpiresAt":utc_timestamp(expires),"executionAuditWindowSeconds":audit_window}
 
-def validate_audit_export(path:Path)->list[dict]:
-    value=load(path,"SECURITY_AUDIT")
+def validate_audit_export(path:Path)->tuple[list[dict],str]:
+    value,audit_sha256=load_with_sha256(path,"SECURITY_AUDIT")
     if isinstance(value,dict) and isinstance(value.get("items"),list):
         value=value["items"]
     if not isinstance(value,list) or not value:
@@ -569,11 +569,11 @@ def validate_audit_export(path:Path)->list[dict]:
         if audit_event_digest(raw)!=digest:
             raise RuntimeError("MCP_EXTERNAL_AUDIT_DIGEST_INVALID")
         rows.append(raw); previous=raw
-    return rows
+    return rows,audit_sha256
 
 def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
     request_ids=receipt["requestIds"]
-    rows=validate_audit_export(audit_path)
+    rows,audit_sha256=validate_audit_export(audit_path)
     executed=parse_utc_timestamp(receipt.get("executedAt"),"MCP_EXTERNAL_RECEIPT_EXECUTED_AT")
     created=parse_utc_timestamp(receipt.get("campaignCreatedAt"),"MCP_EXTERNAL_CAMPAIGN_CREATED_AT")
     expires=parse_utc_timestamp(receipt.get("campaignExpiresAt"),"MCP_EXTERNAL_CAMPAIGN_EXPIRES_AT")
@@ -611,7 +611,7 @@ def verify_server_audit(audit_path:Path,receipt:dict,client:str)->dict:
       "authority":AUDIT_WITNESS_AUTHORITY,"clientId":client,"oauthClientId":receipt["oauthClientId"],"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":receipt["interopBindingDigest"],
       "auditMethodVersion":AUDIT_METHOD_VERSION,"auditChainDigestVerified":True,"oauthClientWitnessPass":True,"oauthClientWitnessedCheckCount":len(OAUTH_CLIENT_AUDITED_CHECKS),
       "auditWindowStartSequence":rows[0]["sequence"],"auditWindowPreviousDigest":str(rows[0].get("previousDigest") or ""),
-      "auditExportSha256":sha256(audit_path),"auditHeadSequence":head["sequence"],"auditHeadDigest":head["digest"],
+      "auditExportSha256":audit_sha256,"auditHeadSequence":head["sequence"],"auditHeadDigest":head["digest"],
       "executionObservedAt":receipt["executedAt"],"executionAuditWindowSeconds":audit_window,
       "witnessedCheckCount":len(AUDITED_CHECKS),"serverAuditWitnessPass":True,"matchedEvents":matched
     }
@@ -634,14 +634,14 @@ def validate_campaign_live_preflight(campaign:dict)->None:
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_PREFLIGHT_INVALID")
 
 def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
-    matrix=load(matrix_path,"MATRIX")
+    matrix,matrix_sha256=load_with_sha256(matrix_path,"MATRIX")
     canonical_spec=validate_matrix_contract(matrix)
     if spec!=canonical_spec:
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_MATRIX_SPEC_DRIFT")
-    campaign=load(campaign_path,"CAMPAIGN")
+    campaign,campaign_sha256=load_with_sha256(campaign_path,"CAMPAIGN")
     if not isinstance(campaign,dict) or campaign.get("authority")!=CAMPAIGN_AUTHORITY or campaign.get("matrixAuthority")!=MATRIX_AUTHORITY:
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_AUTHORITY_INVALID")
-    if campaign.get("matrixSha256")!=sha256(matrix_path) or campaign.get("protocol")!=spec.get("protocol") or campaign.get("transport")!=spec.get("transport") or campaign.get("externalExecutionRequired") is not True:
+    if campaign.get("matrixSha256")!=matrix_sha256 or campaign.get("protocol")!=spec.get("protocol") or campaign.get("transport")!=spec.get("transport") or campaign.get("externalExecutionRequired") is not True:
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_MATRIX_BINDING_INVALID")
     source_commit=str(campaign.get("sourceCommitSHA") or "").strip(); runtime_version=str(campaign.get("runtimeVersion") or "").strip()
     if not COMMIT.fullmatch(source_commit) or not runtime_version or len(runtime_version)>128 or any(ch in runtime_version for ch in "\r\n\t"):
@@ -651,6 +651,8 @@ def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
     campaign["endpoint"]=endpoint(campaign.get("endpoint",""))
     campaign_time_window(campaign,spec)
     campaign["_matrixSpec"]=spec
+    campaign["_matrixSha256"]=matrix_sha256
+    campaign["_campaignSha256"]=campaign_sha256
     validate_campaign_live_preflight(campaign)
     rows=campaign.get("clients")
     if not isinstance(rows,list) or [x.get("clientId") for x in rows if isinstance(x,dict)]!=list(CLIENTS):
@@ -727,7 +729,7 @@ def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->d
     if len(endpoints)!=1:
         raise RuntimeError("MCP_EXTERNAL_RECEIPT_ENDPOINT_DRIFT")
     return build_interop_evidence(
-        sha256(matrix_path),campaign["campaignId"],sha256(campaign_path),campaign["oauthClientBindingsSha256"],
+        campaign["_matrixSha256"],campaign["campaignId"],campaign["_campaignSha256"],campaign["oauthClientBindingsSha256"],
         campaign["sourceCommitSHA"],campaign["runtimeVersion"],protocol,"streamable-http",next(iter(endpoints)),rows,
     )
 
