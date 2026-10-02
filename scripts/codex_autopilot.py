@@ -494,6 +494,7 @@ RESUME_PREFLIGHT_CURSOR_AUTHORITY = "AUTOPILOT_RESUME_PREFLIGHT_CURSOR_V1"
 LAZY_REPAIR_CAPABILITY_AUTHORITY = "AUTOPILOT_LAZY_REPAIR_CAPABILITY_V1"
 REPAIR_BUDGET_ACTUAL_WRITER_AUTHORITY = "AUTOPILOT_REPAIR_BUDGET_ACTUAL_WRITER_V1"
 PROGRESSIVE_STAGE_PREFLIGHT_AUTHORITY = "AUTOPILOT_PROGRESSIVE_STAGE_PREFLIGHT_V1"
+OUTER_RUNTIME_ENVIRONMENT_HANDOFF_AUTHORITY = "AUTOPILOT_OUTER_RUNTIME_ENVIRONMENT_HANDOFF_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -1286,6 +1287,7 @@ def _agent_context(root: Path) -> dict:
         "resumePreflightCursorAuthority": RESUME_PREFLIGHT_CURSOR_AUTHORITY,
         "lazyRepairCapabilityAuthority": LAZY_REPAIR_CAPABILITY_AUTHORITY,
         "progressiveStagePreflightAuthority": PROGRESSIVE_STAGE_PREFLIGHT_AUTHORITY,
+        "outerRuntimeEnvironmentHandoffAuthority": OUTER_RUNTIME_ENVIRONMENT_HANDOFF_AUTHORITY,
         "repairBudgetActualWriterAuthority": REPAIR_BUDGET_ACTUAL_WRITER_AUTHORITY,
         "outerRuntime": outer_runtime,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
@@ -1328,6 +1330,10 @@ def _agent_context(root: Path) -> dict:
         context["nextActionCode"] = "RESOLVE_OUTER_RUNTIME_RECOVERY"
         context["nextCommand"] = ["make", "runtime-status"]
         context["nextAction"] = "outer project runtime requires explicit recovery resolution before any new Autopilot execution; inspect make runtime-status and do not replay the command"
+    elif outer_runtime.get("action") == "RESUME_RUNTIME" and status == "ENVIRONMENT_BLOCKED" and context["environmentPreflight"]:
+        context["nextActionCode"] = "REPAIR_ENVIRONMENT_AND_RESUME_OUTER_RUNTIME"
+        context["nextCommand"] = ["make", "runtime-resume"]
+        context["nextAction"] = "apply only environmentPreflight.remediationHints for the missing prerequisites, then run make runtime-resume so the canonical outer project runtime re-enters the same inner Autopilot checkpoint; do not edit product source or replay the inner invocation directly"
     elif outer_runtime.get("action") == "RESUME_RUNTIME":
         context["nextActionCode"] = "RESUME_OUTER_RUNTIME"
         context["nextCommand"] = ["make", "runtime-resume"]
