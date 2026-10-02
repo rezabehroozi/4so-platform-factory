@@ -466,6 +466,7 @@ def verify_existing_release_full(root: Path, source_sha: str, release: Path) -> 
             env["GO"]=str(go)
             env["GOTOOLCHAIN"]="local"
             env["PYTHON"]=sys.executable
+            run([sys.executable,"scripts/verify_release_build_toolchain.py","--require-admitted","--archive",str(staged_archive)],root=worktree,env=env)
             run([sys.executable,"scripts/verify_release.py",str(release),"--full"],root=worktree,env=env)
             verify_worktree_source_unchanged(worktree,source_sha)
         finally:
