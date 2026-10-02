@@ -129,6 +129,24 @@ class LocalC7WRunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_MISSING_WITH_CANONICAL_PROGRESS"):
                 mod.progress_status(ROOT/"lab/mcp-external-client-interop-matrix.json",state,progress)
 
+    def test_status_rejects_evidence_without_complete_progress(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=mod.secure_state_dir(root/"state")
+            evidence=root/"evidence.json"; evidence.write_text("{}")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=root/"progress.json",evidence_out=evidence)
+            with self.assertRaisesRegex(RuntimeError,"EVIDENCE_WITHOUT_PROGRESS"):
+                mod.status(args)
+
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=mod.secure_state_dir(root/"state")
+            (state/"campaign.json").write_text("{}")
+            progress=root/"progress.json"; progress.write_text("{}")
+            evidence=root/"evidence.json"; evidence.write_text("{}")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=progress,evidence_out=evidence)
+            with mock.patch.object(mod,"progress_status",return_value={"complete":False,"certified":["chatgpt"],"missing":["claude","gemini","grok"],"nextClient":"claude","campaignPrepared":True}):
+                with self.assertRaisesRegex(RuntimeError,"EVIDENCE_WITH_INCOMPLETE_PROGRESS"):
+                    mod.status(args)
+
     def test_status_without_state_is_explicitly_pending_and_read_only(self):
         with tempfile.TemporaryDirectory() as td:
             state=Path(td)/"missing-state"
