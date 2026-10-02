@@ -24,14 +24,16 @@ COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 def release_source_commit(root: Path) -> str:
     explicit=str(os.environ.get("SOURCE_COMMIT") or "").strip().lower()
-    if explicit:
-        if not COMMIT_RE.fullmatch(explicit):
-            raise SystemExit("RELEASE_SOURCE_COMMIT_ENV_INVALID")
-        return explicit
+    if explicit and not COMMIT_RE.fullmatch(explicit):
+        raise SystemExit("RELEASE_SOURCE_COMMIT_ENV_INVALID")
     probe=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
     observed=probe.stdout.strip().lower() if probe.returncode==0 else ""
     if COMMIT_RE.fullmatch(observed):
+        if explicit and explicit!=observed:
+            raise SystemExit("RELEASE_SOURCE_COMMIT_ENV_GIT_MISMATCH")
         return observed
+    if explicit:
+        return explicit
     provenance_path=root/"BUILD-PROVENANCE.json"
     if provenance_path.is_file() and not provenance_path.is_symlink():
         try:
