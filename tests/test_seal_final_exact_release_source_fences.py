@@ -73,6 +73,37 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             finally:
                 mod.remove_exact_worktree(root.resolve(),worktree)
 
+    def test_exact_release_environment_strips_build_semantic_overrides(self):
+        injected={
+            "PATH":"/usr/bin:/bin",
+            "GOFLAGS":"-overlay=/tmp/evil.json",
+            "GOWORK":"/tmp/evil.work",
+            "GOENV":"/tmp/evil.goenv",
+            "GOROOT":"/tmp/fake-go",
+            "CGO_CFLAGS":"-include /tmp/evil.h",
+            "CGO_LDFLAGS":"-Wl,--dynamic-linker=/tmp/evil",
+            "CC":"/tmp/fake-gcc",
+            "PYTHONPATH":"/tmp/evil-python",
+            "LD_PRELOAD":"/tmp/evil.so",
+            "GIT_DIR":"/tmp/other.git",
+            "GIT_WORK_TREE":"/tmp/other-tree",
+            "MAKEFILES":"/tmp/evil.mk",
+            "SOURCE_COMMIT":"f"*40,
+        }
+        with mock.patch.dict(os.environ,injected,clear=True):
+            env=mod.exact_release_environment(Path("/opt/exact-go/bin/go"))
+        self.assertEqual("/usr/bin:/bin",env["PATH"])
+        self.assertEqual("/opt/exact-go/bin/go",env["GO"])
+        self.assertEqual("local",env["GOTOOLCHAIN"])
+        self.assertEqual("off",env["GOENV"])
+        self.assertEqual("off",env["GOWORK"])
+        self.assertEqual("",env["GOFLAGS"])
+        self.assertEqual("off",env["GOPROXY"])
+        self.assertEqual("1",env["PYTHONDONTWRITEBYTECODE"])
+        self.assertEqual("1",env["PYTHONNOUSERSITE"])
+        for key in ("GOROOT","CGO_CFLAGS","CGO_LDFLAGS","CC","PYTHONPATH","LD_PRELOAD","GIT_DIR","GIT_WORK_TREE","MAKEFILES","SOURCE_COMMIT"):
+            self.assertNotIn(key,env)
+
     def test_exact_worktree_rejects_untracked_source_but_allows_exact_staged_toolchain(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)/"repo"; root.mkdir()
