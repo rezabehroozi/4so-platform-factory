@@ -36,10 +36,7 @@ class Pending(RuntimeError):
     pass
 
 
-C7W_EVIDENCE_ONLY_PATHS=frozenset({
-    "lab/mcp-external-client-interop-progress.json",
-    "lab/mcp-external-client-interoperability-evidence.json",
-})
+C7W_EVIDENCE_ONLY_PATHS=mcp_contract.C7W_EVIDENCE_ONLY_PATHS
 
 
 def git_head(root:Path)->str|None:
@@ -49,25 +46,7 @@ def git_head(root:Path)->str|None:
 
 
 def validate_c7w_source_lineage(root:Path,certified_sha:str,release_sha:str)->None:
-    certified_sha=str(certified_sha or "").strip().lower()
-    release_sha=str(release_sha or "").strip().lower()
-    if not mcp_contract.COMMIT.fullmatch(certified_sha) or not mcp_contract.COMMIT.fullmatch(release_sha):
-        raise RuntimeError("MCP_EXTERNAL_INTEROP_SOURCE_IDENTITY_INVALID")
-    if certified_sha==release_sha:
-        return
-    ancestor=subprocess.run(["git","merge-base","--is-ancestor",certified_sha,release_sha],cwd=root,capture_output=True,check=False)
-    if ancestor.returncode!=0:
-        raise RuntimeError("MCP_EXTERNAL_INTEROP_SOURCE_NOT_ANCESTOR")
-    diff=subprocess.run(["git","diff","--name-only","-z",certified_sha+".."+release_sha],cwd=root,capture_output=True,check=False)
-    if diff.returncode!=0:
-        raise RuntimeError("MCP_EXTERNAL_INTEROP_SOURCE_DELTA_UNAVAILABLE")
-    try:
-        changed={raw.decode("utf-8",errors="strict") for raw in diff.stdout.split(b"\x00") if raw}
-    except UnicodeDecodeError as exc:
-        raise RuntimeError("MCP_EXTERNAL_INTEROP_SOURCE_DELTA_INVALID") from exc
-    if not changed or not changed.issubset(C7W_EVIDENCE_ONLY_PATHS):
-        raise RuntimeError("MCP_EXTERNAL_INTEROP_SOURCE_DELTA_NOT_EVIDENCE_ONLY")
-
+    mcp_contract.validate_evidence_only_source_lineage(root,certified_sha,release_sha,"MCP_EXTERNAL_INTEROP")
 
 def digest(path:Path)->str:
     h=hashlib.sha256()
