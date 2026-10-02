@@ -8,7 +8,7 @@ OAuth protected-resource discovery remains a public metadata check and is not
 expected to create an authenticated audit event.
 """
 from __future__ import annotations
-import argparse, hashlib, json, os, re, subprocess, tempfile
+import argparse, hashlib, json, os, re, stat, subprocess, tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -139,10 +139,64 @@ AUDIT_REQUIREMENTS={
     "administration-approval-self-approval-negative-control":("APPROVAL_AUTHORIZATION","DENY","SEPARATION_OF_DUTIES_REQUIRED"),
 }
 
+def _stable_file_bytes(path:Path,label:str,max_bytes:int=4*1024*1024)->bytes:
+    absolute=Path(os.path.abspath(path))
+    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_BINARY",0)|getattr(os,"O_NOFOLLOW",0)
+    try:
+        fd=os.open(absolute,flags)
+    except OSError as exc:
+        raise RuntimeError(f"{label}_FILE_INVALID") from exc
+    try:
+        before=os.fstat(fd)
+        try:
+            named=os.stat(absolute,follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError(f"{label}_FILE_INVALID") from exc
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or not stat.S_ISREG(named.st_mode)
+            or before.st_size<=0
+            or before.st_size>max_bytes
+            or (before.st_dev,before.st_ino)!=(named.st_dev,named.st_ino)
+        ):
+            raise RuntimeError(f"{label}_FILE_INVALID")
+        def read_once()->bytes:
+            chunks=[]; total=0
+            while True:
+                chunk=os.read(fd,min(1024*1024,max_bytes+1-total))
+                if not chunk:
+                    break
+                chunks.append(chunk); total+=len(chunk)
+                if total>max_bytes:
+                    raise RuntimeError(f"{label}_FILE_INVALID")
+            return b"".join(chunks)
+        first=read_once()
+        middle=os.fstat(fd)
+        os.lseek(fd,0,os.SEEK_SET)
+        second=read_once()
+        after=os.fstat(fd)
+        try:
+            named_after=os.stat(absolute,follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError(f"{label}_FILE_CHANGED_DURING_READ") from exc
+        stable_identity=(before.st_dev,before.st_ino)==(middle.st_dev,middle.st_ino)==(after.st_dev,after.st_ino)==(named_after.st_dev,named_after.st_ino)
+        stable_meta=(before.st_size,before.st_mtime_ns,before.st_ctime_ns)==(middle.st_size,middle.st_mtime_ns,middle.st_ctime_ns)==(after.st_size,after.st_mtime_ns,after.st_ctime_ns)
+        if not stat.S_ISREG(named_after.st_mode) or not stable_identity or not stable_meta or first!=second or len(first)!=before.st_size:
+            raise RuntimeError(f"{label}_FILE_CHANGED_DURING_READ")
+        return first
+    finally:
+        os.close(fd)
+
+def load_with_sha256(path:Path,label:str)->tuple[object,str]:
+    raw=_stable_file_bytes(path,label)
+    try:
+        value=json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+        raise RuntimeError(f"{label}_JSON_INVALID") from exc
+    return value,"sha256:"+hashlib.sha256(raw).hexdigest()
+
 def load(path:Path,label:str):
-    if path.is_symlink() or not path.is_file() or path.stat().st_size<=0 or path.stat().st_size>4*1024*1024:
-        raise RuntimeError(f"{label}_FILE_INVALID")
-    value=json.loads(path.read_text(encoding="utf-8"))
+    value,_=load_with_sha256(path,label)
     return value
 
 def sha256(path:Path)->str:
