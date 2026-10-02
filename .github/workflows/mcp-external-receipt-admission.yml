@@ -2,150 +2,19 @@ name: mcp-external-receipt-admission
 
 on:
   workflow_dispatch:
-    inputs:
-      campaign_run_id:
-        description: Successful campaign run ID; leave empty to auto-discover latest successful main campaign
-        required: false
-        type: string
-      campaign_b64:
-        description: Base64 campaign.json fallback when no campaign run ID is supplied
-        required: false
-        type: string
-      client:
-        description: Named external MCP client
-        required: true
-        type: choice
-        options: [chatgpt, claude, gemini, grok]
-      capture_b64:
-        description: Base64 independently produced raw external-client capture; the workflow finalizes the canonical receipt
-        required: true
-        type: string
-      supersede_incomplete_campaign:
-        description: Explicitly replace a different incomplete campaign with this campaign
-        required: false
-        default: false
-        type: boolean
 
 permissions:
-  contents: write
-  actions: read
-
-concurrency:
-  group: mcp-external-receipt-admission-${{ inputs.campaign_run_id || 'inline' }}
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  admit-one-client:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 15
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-      - name: Resolve exact campaign and finalize external capture
+      - name: C7W receipt admission authority is local-only
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CAMPAIGN_RUN_ID: ${{ inputs.campaign_run_id }}
-          CAMPAIGN_B64: ${{ inputs.campaign_b64 }}
-          CAPTURE_B64: ${{ inputs.capture_b64 }}
-          CLIENT: ${{ inputs.client }}
         run: |
           set -euo pipefail
-          umask 077
-          mkdir -p /tmp/mcp-external
-          if test -z "$CAMPAIGN_RUN_ID" && test -z "$CAMPAIGN_B64"; then
-            CAMPAIGN_RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow mcp-external-interop-campaign.yml --branch main --status success --limit 20 --json databaseId,conclusion,headBranch,createdAt --jq '[.[] | select(.conclusion=="success" and .headBranch=="main")] | sort_by(.createdAt) | reverse | .[0].databaseId // empty')"
-            test -n "$CAMPAIGN_RUN_ID" || { echo "no successful main mcp-external-interop-campaign run exists"; exit 2; }
-            echo "auto-discovered campaign run $CAMPAIGN_RUN_ID"
-          fi
-          if test -n "$CAMPAIGN_RUN_ID"; then
-            [[ "$CAMPAIGN_RUN_ID" =~ ^[0-9]+$ ]] || { echo "campaign_run_id must be numeric"; exit 2; }
-            run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CAMPAIGN_RUN_ID")"
-            test "$(jq -r .name <<<"$run_json")" = "mcp-external-interop-campaign"
-            test "$(jq -r .conclusion <<<"$run_json")" = "success"
-            test "$(jq -r .head_branch <<<"$run_json")" = "main"
-            mkdir -p /tmp/mcp-campaign-artifact
-            gh run download "$CAMPAIGN_RUN_ID" --repo "$GITHUB_REPOSITORY" --name mcp-external-interop-campaign --dir /tmp/mcp-campaign-artifact
-            test -s /tmp/mcp-campaign-artifact/campaign.json
-            cp /tmp/mcp-campaign-artifact/campaign.json /tmp/mcp-external/campaign.json
-          else
-            printf '%s' "$CAMPAIGN_B64" | base64 -d > /tmp/mcp-external/campaign.json
-          fi
-          printf '%s' "$CAPTURE_B64" | base64 -d > "/tmp/mcp-external/$CLIENT.capture.json"
-          python3 scripts/prepare_mcp_external_client_execution.py --campaign /tmp/mcp-external/campaign.json --client "$CLIENT" --out "/tmp/mcp-external/$CLIENT.packet.json"
-          python3 scripts/finalize_mcp_external_client_receipt.py --packet "/tmp/mcp-external/$CLIENT.packet.json" --capture "/tmp/mcp-external/$CLIENT.capture.json" --out "/tmp/mcp-external/$CLIENT.json"
-      - name: Fetch authoritative server security audit
-        shell: bash
-        env:
-          C7W_PLATFORM_ADMIN_TOKEN: ${{ secrets.C7W_PLATFORM_ADMIN_TOKEN }}
-        run: |
-          set -euo pipefail
-          test -n "$C7W_PLATFORM_ADMIN_TOKEN" || { echo "C7W_PLATFORM_ADMIN_TOKEN repository/environment secret is required"; exit 2; }
-          endpoint="$(jq -r .endpoint /tmp/mcp-external/campaign.json)"
-          base="${endpoint%/mcp}"
-          case "$base" in https://*) ;; *) echo "campaign endpoint must be HTTPS"; exit 2;; esac
-          args=()
-          while IFS= read -r rid; do
-            test -n "$rid" || { echo "empty requestId"; exit 2; }
-            args+=(--data-urlencode "requestId=$rid")
-          done < <(jq -r '.requestIds | to_entries[] | .value' "/tmp/mcp-external/$CLIENT.json")
-          test "${#args[@]}" = "6" || { echo "exactly six audited requestIds are required"; exit 2; }
-          ok=false
-          for attempt in $(seq 1 15); do
-            code="$(curl -sS -o /tmp/mcp-external/security-audit.json -w '%{http_code}' -G --retry 2 -H "Authorization: Bearer $C7W_PLATFORM_ADMIN_TOKEN" "${args[@]}" "$base/api/v1/security-audit-events")"
-            if test "$code" = "200"; then ok=true; break; fi
-            test "$code" = "409" || { cat /tmp/mcp-external/security-audit.json; echo "audit witness lookup failed HTTP $code"; exit 2; }
-            sleep 2
-          done
-          test "$ok" = true || { echo "audit witness events did not become visible"; exit 2; }
-          jq -e 'type=="array" and length>=6' /tmp/mcp-external/security-audit.json >/dev/null
-      - name: Verify and merge one independently executed client
-        shell: bash
-        env:
-          CLIENT: ${{ inputs.client }}
-        run: |
-          set -euo pipefail
-          extra=()
-          test "${{ inputs.supersede_incomplete_campaign }}" = "true" && extra+=(--allow-campaign-supersede)
-          python3 scripts/admit_mcp_external_receipt.py --campaign /tmp/mcp-external/campaign.json --receipt "/tmp/mcp-external/$CLIENT.json" --audit /tmp/mcp-external/security-audit.json --client "$CLIENT" "${extra[@]}"
-          jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1" and .certifiedClientCount>=1 and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interop-progress.json
-          if jq -e '.complete' lab/mcp-external-client-interop-progress.json >/dev/null; then
-            jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1" and .certifiedClientCount==4 and .externalCertificationPass and .serverAuditWitnessPass and .serverAuditWitnessedCheckCount==24 and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interoperability-evidence.json
-          fi
-          python3 -m unittest tests.test_mcp_external_interop_seal tests.test_mcp_external_receipt_progress
-          git diff --check
-      - name: Preserve verified admission packet before Git persistence
-        uses: actions/upload-artifact@v4
-        with:
-          name: mcp-external-receipt-${{ inputs.client }}-${{ github.run_id }}
-          path: |
-            /tmp/mcp-external/campaign.json
-            /tmp/mcp-external/${{ inputs.client }}.capture.json
-            /tmp/mcp-external/${{ inputs.client }}.packet.json
-            /tmp/mcp-external/${{ inputs.client }}.json
-            /tmp/mcp-external/security-audit.json
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Reconcile onto latest main and persist progress
-        shell: bash
-        env:
-          CLIENT: ${{ inputs.client }}
-        run: |
-          set -euo pipefail
-          git config user.name "4so-evidence-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git fetch origin main
-          if test "$(git rev-parse origin/main)" != "$(git rev-parse HEAD)"; then
-            git reset --hard origin/main
-            extra=()
-            test "${{ inputs.supersede_incomplete_campaign }}" = "true" && extra+=(--allow-campaign-supersede)
-            python3 scripts/admit_mcp_external_receipt.py --campaign /tmp/mcp-external/campaign.json --receipt "/tmp/mcp-external/$CLIENT.json" --audit /tmp/mcp-external/security-audit.json --client "$CLIENT" "${extra[@]}"
-          fi
-          git add lab/mcp-external-client-interop-progress.json
-          test ! -f lab/mcp-external-client-interoperability-evidence.json || git add lab/mcp-external-client-interoperability-evidence.json
-          git diff --cached --quiet && { echo "no external-client progress delta"; exit 0; }
-          git commit -m "evidence: admit $CLIENT MCP interoperability receipt"
-          git push origin HEAD:main
+          echo "This workflow is intentionally non-authoritative and performs no receipt admission or Git persistence."
+          echo "Use the canonical local runner:"
+          echo "  C7W_CLIENT=<chatgpt|claude|gemini|grok> C7W_CAPTURE=/secure/<client>.capture.json make c7w-admit"
+          echo "Use C7W_ALLOW_CAMPAIGN_SUPERSEDE=true only for an explicitly superseded incomplete campaign."
