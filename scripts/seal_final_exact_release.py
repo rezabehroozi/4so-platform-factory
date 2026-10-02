@@ -54,10 +54,11 @@ def exact_release_environment(go: Path) -> dict[str, str]:
         "CPATH","C_INCLUDE_PATH","CPLUS_INCLUDE_PATH",
         "PKG_CONFIG","PKG_CONFIG_PATH","PKG_CONFIG_LIBDIR","PKG_CONFIG_SYSROOT_DIR",
         "PYTHONHOME","PYTHONPATH","PYTHONSTARTUP","PYTHONINSPECT",
-        "BASH_ENV","ENV","MAKEFLAGS","MFLAGS","MAKELEVEL",
+        "BASH_ENV","ENV","MAKEFLAGS","MFLAGS","MAKELEVEL","MAKEFILES","MAKEOVERRIDES",
+        "SOURCE_COMMIT","AR","NM","RANLIB","STRIP","GCC_EXEC_PREFIX","DEPENDENCIES_OUTPUT",
     }
     for key in list(env):
-        if key in dangerous_exact or key.startswith("CGO_") or key.startswith("DYLD_") or key.startswith("GO"):
+        if key in dangerous_exact or key.startswith("CGO_") or key.startswith("DYLD_") or key.startswith("GO") or key.startswith("GIT_"):
             env.pop(key,None)
     env["GO"]=str(go)
     env["GOTOOLCHAIN"]="local"
