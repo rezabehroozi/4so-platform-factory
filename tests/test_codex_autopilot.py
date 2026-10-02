@@ -1060,6 +1060,44 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertNotIn(huge[:200], raw)
             self.assertIn("do not reconstruct", context["nextAction"])
 
+    def test_compact_budget_fallback_preserves_only_fixed_outer_runtime_commands(self):
+        base_outer = {
+            "recoveryRequired": False,
+            "action": "RESUME_RUNTIME",
+        }
+        for code, command in (
+            ("RESUME_OUTER_RUNTIME", ["make", "runtime-resume"]),
+            ("OBSERVE_OUTER_RUNTIME", ["make", "runtime-status"]),
+        ):
+            with self.subTest(code=code):
+                got_code, got_command, _, preserved = AUTOPILOT._compact_budget_fallback(
+                    {"nextActionCode": code, "nextCommand": command},
+                    base_outer,
+                )
+                self.assertEqual(got_code, code)
+                self.assertEqual(got_command, command)
+                self.assertTrue(preserved)
+
+        code, command, action, preserved = AUTOPILOT._compact_budget_fallback(
+            {
+                "nextActionCode": "REPAIR_ENVIRONMENT_AND_RESUME_OUTER_RUNTIME",
+                "nextCommand": ["make", "runtime-resume"],
+            },
+            base_outer,
+        )
+        self.assertEqual(code, "INSPECT_AUTOPILOT_STATE")
+        self.assertEqual(command, ["make", "autopilot-status"])
+        self.assertFalse(preserved)
+        self.assertIn("do not reconstruct", action)
+
+        code, command, _, preserved = AUTOPILOT._compact_budget_fallback(
+            {"nextActionCode": "RESUME_OUTER_RUNTIME", "nextCommand": ["make", "runtime-resume"]},
+            {"recoveryRequired": True, "action": "RECOVERY_REQUIRED"},
+        )
+        self.assertEqual(code, "INSPECT_OUTER_RUNTIME_RECOVERY")
+        self.assertEqual(command, ["make", "runtime-status"])
+        self.assertTrue(preserved)
+
     def test_compact_agent_context_oversize_preserves_outer_recovery_as_inspection_only(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
