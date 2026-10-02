@@ -153,6 +153,53 @@ func TestManualInstallerContinuationCommandPreservesNonSecretInputsWithoutImmuta
 	}
 }
 
+func TestManualInstallerNextGuidanceRoutesAppliedHostToBootstrapReadback(t *testing.T) {
+	state := hostdeployment.State{Status: "APPLIED", Activated: true}
+	state.Plan.DeploymentID = "deploy-1"
+	state.Plan.Root = "/"
+	state.Plan.Health.URL = "http://127.0.0.1:9080/healthz"
+	state.Plan.Paths.State = "/var/lib/4so-platform-installer/host-deployment.json"
+	result := manualInstallerNextGuidance(state, state.Plan.Paths.State, "/")
+	if result.Authority != installerManualContinuationResolverAuthority || result.AutomaticReplay {
+		t.Fatalf("unexpected resolver authority/replay: %#v", result)
+	}
+	if result.NextActionCode != "CHECK_BOOTSTRAP_STATUS" {
+		t.Fatalf("nextActionCode=%q", result.NextActionCode)
+	}
+	joined := strings.Join(result.NextCommand, " ")
+	for _, want := range []string{"installer-access run-status", "--installer-url http://127.0.0.1:9080", "--token-file /var/lib/4so-platform-installer/bootstrap-token"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("bootstrap readback command missing %q: %#v", want, result.NextCommand)
+		}
+	}
+}
+
+func TestManualInstallerNextGuidanceRequiresExplicitRecoveryForIncompleteHostTransaction(t *testing.T) {
+	state := hostdeployment.State{Status: "RECOVERY_REQUIRED", RecoveryRequired: true, CurrentStep: "bundle-install"}
+	state.Plan.DeploymentID = "deploy-recovery"
+	result := manualInstallerNextGuidance(state, "/var/lib/4so-platform-installer/host-deployment.json", "/")
+	if result.NextActionCode != "RECOVER_HOST_DEPLOYMENT" || result.AutomaticReplay {
+		t.Fatalf("unexpected recovery guidance %#v", result)
+	}
+	joined := strings.Join(result.NextCommand, " ")
+	if !strings.Contains(joined, "installer-manual recover") || !strings.Contains(joined, "--confirmation RECOVER") {
+		t.Fatalf("recovery command must remain explicit: %#v", result.NextCommand)
+	}
+}
+
+func TestManualInstallerNextGuidanceDoesNotInventMutationForRecoveredOrUnknownState(t *testing.T) {
+	for _, status := range []string{"RECOVERED", "ROLLED_BACK", "FUTURE_STATE"} {
+		state := hostdeployment.State{Status: status}
+		result := manualInstallerNextGuidance(state, "/tmp/state.json", "/")
+		if result.AutomaticReplay {
+			t.Fatalf("%s unexpectedly allows replay: %#v", status, result)
+		}
+		if status != "FUTURE_STATE" && len(result.NextCommand) != 0 {
+			t.Fatalf("%s should require a fresh doctor/preflight decision, got %#v", status, result.NextCommand)
+		}
+	}
+}
+
 func TestManualInstallerConsoleURL(t *testing.T) {
 	if got := manualInstallerConsoleURL("https://installer.example:9443/healthz"); got != "https://installer.example:9443" {
 		t.Fatalf("console URL %q", got)
