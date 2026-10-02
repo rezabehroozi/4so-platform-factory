@@ -60,8 +60,8 @@
       "administration-approval-self-approval-negative-control"
     ],
     "campaignAuthority": "MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1",
-    "campaignPreparation": "python3 scripts/prepare_mcp_external_interop_campaign.py --endpoint https://<api>/mcp --oauth-client-map /secure/oauth-client-bindings.json --registry-token-env C7W_PLATFORM_ADMIN_TOKEN --out /secure/campaign.json",
-    "sealCommand": "python3 scripts/seal_mcp_external_interop.py --campaign /secure/campaign.json --receipts /secure/receipts --audits /secure/audits --out /secure/evidence.json",
+    "campaignPreparation": "C7W_MCP_ENDPOINT=https://<api>/mcp C7W_OAUTH_CLIENT_MAP=/secure/oauth-client-bindings.json make c7w-prepare",
+    "sealCommand": "make c7w-seal",
     "serverAuditWitnessAuthority": "MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1",
     "serverAuditWitnessedChecks": [
       "dedicated-audience-validation",
@@ -72,8 +72,8 @@
       "administration-approval-self-approval-negative-control"
     ],
     "auditTokenSource": "environment:C7W_PLATFORM_ADMIN_TOKEN",
-    "auditFetchCommand": "python3 scripts/fetch_mcp_external_audit_window.py --campaign /secure/campaign.json --receipt /secure/receipts/<client>.json --client <client> --out /secure/audits/<client>.json",
-    "receiptAdmissionCommand": "python3 scripts/admit_mcp_external_receipt.py --campaign /secure/campaign.json --receipt /secure/receipts/<client>.json --audit /secure/audits/<client>.json --client <client> --progress lab/mcp-external-client-interop-progress.json",
+    "auditFetchCommand": "integrated: make c7w-admit -> scripts/fetch_mcp_external_audit_window.py",
+    "receiptAdmissionCommand": "C7W_CLIENT=<client> C7W_CAPTURE=/secure/<client>.capture.json make c7w-admit",
     "finalReleaseSealCommand": "python3 scripts/seal_final_exact_release.py --root . --out lab/final-exact-release-evidence.json",
     "oauthClientBindingAuthority": "MCP_EXTERNAL_CLIENT_OAUTH_BINDINGS_V1",
     "oauthClientMapSchema": {
@@ -87,6 +87,8 @@
     },
     "trustedClientRegistryEndpoint": "GET /api/v1/mcp/trusted-clients",
     "campaignMaxAgeSeconds": 604800,
-    "executionAuditWindowSeconds": 7200
+    "executionAuditWindowSeconds": 7200,
+    "executionRunnerAuthority": "MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1",
+    "statusCommand": "make c7w-status"
   }
 }
