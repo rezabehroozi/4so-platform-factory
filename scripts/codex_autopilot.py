@@ -448,6 +448,7 @@ DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY = "AUTOPILOT_DURABLE_TRIAGE_CLASSIFICATI
 LIVE_RUN_REJOIN_FENCE_AUTHORITY = "AUTOPILOT_LIVE_RUN_REJOIN_FENCE_V1"
 CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1"
 AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY = "AUTOPILOT_OWNER_TEST_STAGE_V1"
+CONVERGENCE_REPAIR_AUTHORITY = "AUTOPILOT_CONVERGENCE_REPAIR_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -1123,6 +1124,7 @@ def _agent_context(root: Path) -> dict:
         "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
         "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
         "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
+        "convergenceRepairAuthority": CONVERGENCE_REPAIR_AUTHORITY,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
         "promptBudgetChars": report.get("promptBudgetChars") if isinstance(report.get("promptBudgetChars"), dict) else {
@@ -1150,6 +1152,7 @@ def _agent_context(root: Path) -> dict:
             "never mutate Git refs/index/history from the repair agent",
             "never convert source/local success into Runtime/Lab/Exact-SHA Physical PASS",
             "prefer one durable agent-run entrypoint over manually replaying stage ranges; owner-scoped convergence is selected from the actual repaired stage and dirty delta",
+            "a new defect found only during final convergence receives the same bounded triage/repair budget at that exact cursor; same-fingerprint repetition stops and cross-owner repair expands to full convergence",
         ],
     }
     if status == "ENVIRONMENT_BLOCKED" and context["environmentPreflight"]:
@@ -1253,6 +1256,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
         "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
         "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
+        "convergenceRepairAuthority": CONVERGENCE_REPAIR_AUTHORITY,
         "defaultRepairBudget": DEFAULT_REPAIR_BUDGET,
         "defaultAgentRepairBudget": DEFAULT_AGENT_REPAIR_BUDGET,
         "promptBudgetChars": {
