@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -78,6 +79,27 @@ class ReleaseIdentityValidation(unittest.TestCase):
             )
             self.assertEqual(rc, 124)
             self.assertIn("COMMAND_TIMEOUT", stderr)
+
+    def test_full_verifier_binary_identity_requires_exact_source_ldflag(self):
+        binary=Path("/tmp/platform-api")
+        source="a"*40
+        ok=mock.Mock(
+            returncode=0,
+            stdout=(
+                "/tmp/platform-api: go1.27.1\n"
+                "\tbuild\t-ldflags=\"-X platform.4so.io/factory/internal/buildinfo.Version=0.0.363 "
+                "-X platform.4so.io/factory/internal/buildinfo.SourceCommit="+source+"\"\n"
+            ),
+            stderr="",
+        )
+        with mock.patch.object(VERIFY.subprocess,"run",return_value=ok) as run:
+            VERIFY.verify_go_binary_build_identity("/exact/go",binary,"0.0.363",source)
+        run.assert_called_once_with(["/exact/go","version","-m",str(binary)],capture_output=True,text=True,check=False)
+
+        bad=mock.Mock(returncode=0,stdout=ok.stdout.replace(source,"b"*40),stderr="")
+        with mock.patch.object(VERIFY.subprocess,"run",return_value=bad):
+            with self.assertRaisesRegex(SystemExit,"BINARY_BUILD_IDENTITY_MISMATCH"):
+                VERIFY.verify_go_binary_build_identity("/exact/go",binary,"0.0.363",source)
 
     def test_full_verifier_declares_checkpoint_safe_v2_authority(self):
         self.assertEqual(VERIFY.FULL_VERIFIER_AUTHORITY, "CHECKPOINT_SAFE_FULL_VERIFIER_V2")
