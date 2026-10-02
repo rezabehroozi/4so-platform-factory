@@ -64,6 +64,7 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             with zipfile.ZipFile(release,"w",zipfile.ZIP_STORED) as archive:
                 for name,payload in metadata.items():
                     archive.writestr(stem+"/"+name,payload)
+            release.chmod(0o444); release_dir.chmod(0o555)
             admitted={"authority":mod.AUTHORITY,"admitted":True,"applianceDistributionSha256":"sha256:"+"a"*64,"mcpExternalInteropSha256":"sha256:"+"b"*64,"physicalCertified":False}
             out=local_seal.build_evidence(root,release,stage,admitted,source_sha,version,release_name)
             self.assertEqual(local_seal.AUTHORITY,out["authority"])
