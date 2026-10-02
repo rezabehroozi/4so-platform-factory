@@ -88,11 +88,13 @@ class ReleaseDocumentationTruthTest(unittest.TestCase):
 
             (workflows/'writer.yml').write_text("permissions:\n  contents :   write   # forbidden\njobs:\n  writer:\n    steps:\n      - run: git   push origin HEAD:main\n",encoding='utf-8')
             (workflows/'write-all.yml').write_text("permissions: write-all\n",encoding='utf-8')
+            (workflows/'inline-write.yml').write_text("permissions: { contents: write, issues: read }\n",encoding='utf-8')
             errors=[]
             VALIDATE.validate_no_remote_ci_mutation_authority(root,errors)
             blocked=[detail for code,detail in errors if code=='REMOTE_CI_MUTATION_AUTHORITY_FORBIDDEN']
-            self.assertEqual(3,len(blocked))
+            self.assertEqual(4,len(blocked))
             self.assertTrue(any(detail.endswith(':contents-write') for detail in blocked))
+            self.assertTrue(any(detail.endswith(':inline-contents-write') for detail in blocked))
             self.assertTrue(any(detail.endswith(':git-push') for detail in blocked))
             self.assertTrue(any(detail.endswith(':write-all') for detail in blocked))
 
