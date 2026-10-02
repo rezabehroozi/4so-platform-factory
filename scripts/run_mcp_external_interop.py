@@ -229,7 +229,7 @@ def admit(args:argparse.Namespace)->dict:
         audit_fetch.fetch(args.matrix,p["campaign"],receipt_path,client,args.token_env,audit_path,args.attempts,args.interval_seconds)
 
     with admission.progress_lock(args.progress_out):
-        merged=admission.merge(args.matrix,p["campaign"],receipt_path,audit_path,client,args.progress_out,allow_campaign_supersede=False)
+        merged=admission.merge(args.matrix,p["campaign"],receipt_path,audit_path,client,args.progress_out,allow_campaign_supersede=args.allow_campaign_supersede)
         core.write_json_atomic_replace(args.progress_out,merged,"MCP_EXTERNAL_INTEROP_PROGRESS")
         if merged["complete"]:
             evidence=admission.final_evidence(merged,args.progress_out)
@@ -334,6 +334,7 @@ def parser()->argparse.ArgumentParser:
     admit_p.add_argument("--token-env",default="C7W_PLATFORM_ADMIN_TOKEN")
     admit_p.add_argument("--attempts",type=int,default=15)
     admit_p.add_argument("--interval-seconds",type=float,default=2.0)
+    admit_p.add_argument("--allow-campaign-supersede",action="store_true")
 
     sub.add_parser("status")
     sub.add_parser("seal")
