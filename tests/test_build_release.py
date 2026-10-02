@@ -154,13 +154,20 @@ class ReleaseSourceTreeBoundary(unittest.TestCase):
                 encoding="utf-8",
             )
             versions=iter(["gcc exact","ld exact","ldd exact"])
-            with mock.patch.object(BUILD,"command_first_line",side_effect=lambda _:next(versions)), mock.patch.object(BUILD,"sha",side_effect=lambda p:"headerhash" if str(p).endswith("libpq-fe.h") else "libraryhash"):
+            with mock.patch.object(BUILD,"checked_regular_file"), mock.patch.object(BUILD,"command_first_line",side_effect=lambda _:next(versions)), mock.patch.object(BUILD,"sha",side_effect=lambda p:"headerhash" if str(p).endswith("libpq-fe.h") else "libraryhash"):
                 self.assertEqual(exact,BUILD.cgo_toolchain_identity(stage))
 
             drift=iter(["gcc drift","ld exact","ldd exact"])
-            with mock.patch.object(BUILD,"command_first_line",side_effect=lambda _:next(drift)), mock.patch.object(BUILD,"sha",side_effect=lambda p:"headerhash" if str(p).endswith("libpq-fe.h") else "libraryhash"):
+            with mock.patch.object(BUILD,"checked_regular_file"), mock.patch.object(BUILD,"command_first_line",side_effect=lambda _:next(drift)), mock.patch.object(BUILD,"sha",side_effect=lambda p:"headerhash" if str(p).endswith("libpq-fe.h") else "libraryhash"):
                 with self.assertRaisesRegex(SystemExit,"BUILD_CGO_TOOLCHAIN_IDENTITY_DRIFT ccVersion"):
                     BUILD.cgo_toolchain_identity(stage)
+
+    def test_checked_regular_file_rejects_symlinked_cgo_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); target=root/"libpq.so"; target.write_bytes(b"library")
+            link=root/"libpq-link.so"; link.symlink_to(target.name)
+            with self.assertRaisesRegex(SystemExit,"CGO_INPUT_NON_REGULAR_FILE"):
+                BUILD.checked_regular_file(link,label="CGO_INPUT")
 
     def test_go_toolchain_version_uses_explicit_go_authority_from_environment(self):
         completed = mock.Mock(stdout="go version go1.27.1 linux/amd64\n")
