@@ -111,7 +111,7 @@ def external_client_progress(root:Path)->dict:
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
-        mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS",oauth_client_id)
+        mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS",oauth_client_id,request_ids)
         seen.add(client); provider_refs.add(provider_ref); execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest); challenge_digests.add(challenge_digest)
     certified=[c for c in CLIENTS if c in seen]
     missing=[c for c in CLIENTS if c not in seen]
@@ -218,7 +218,7 @@ def verify(root:Path)->dict:
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_INTEROP_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
-        mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_INTEROP_SERVER_WITNESS",oauth_client_id)
+        mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_INTEROP_SERVER_WITNESS",oauth_client_id,request_ids)
         execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest); challenge_digests.add(challenge_digest)
 
     return {
