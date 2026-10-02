@@ -2,146 +2,19 @@ name: mcp-external-interop-seal
 
 on:
   workflow_dispatch:
-    inputs:
-      campaign_run_id:
-        description: Successful campaign run ID; leave empty to auto-discover latest successful main campaign
-        required: false
-        type: string
-      campaign_b64:
-        description: Base64-encoded campaign.json fallback when no campaign run ID is supplied
-        required: false
-        type: string
-      chatgpt_capture_b64:
-        description: Base64-encoded independently produced ChatGPT external-client capture
-        required: true
-        type: string
-      claude_capture_b64:
-        description: Base64-encoded independently produced Claude external-client capture
-        required: true
-        type: string
-      gemini_capture_b64:
-        description: Base64-encoded independently produced Gemini external-client capture
-        required: true
-        type: string
-      grok_capture_b64:
-        description: Base64-encoded independently produced Grok external-client capture
-        required: true
-        type: string
 
 permissions:
-  contents: write
-  actions: read
+  contents: read
 
 jobs:
-  verify-and-seal:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 15
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-      - name: Decode campaign and independently produced external captures
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CAMPAIGN_RUN_ID: ${{ inputs.campaign_run_id }}
-          CAMPAIGN_B64: ${{ inputs.campaign_b64 }}
-          CHATGPT_CAPTURE_B64: ${{ inputs.chatgpt_capture_b64 }}
-          CLAUDE_CAPTURE_B64: ${{ inputs.claude_capture_b64 }}
-          GEMINI_CAPTURE_B64: ${{ inputs.gemini_capture_b64 }}
-          GROK_CAPTURE_B64: ${{ inputs.grok_capture_b64 }}
-        run: |
-          set -euo pipefail
-          umask 077
-          mkdir -p /tmp/mcp-interop/receipts /tmp/mcp-interop/captures /tmp/mcp-interop/packets
-          if test -z "$CAMPAIGN_RUN_ID" && test -z "$CAMPAIGN_B64"; then
-            CAMPAIGN_RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow mcp-external-interop-campaign.yml --branch main --status success --limit 20 --json databaseId,conclusion,headBranch,createdAt --jq '[.[] | select(.conclusion=="success" and .headBranch=="main")] | sort_by(.createdAt) | reverse | .[0].databaseId // empty')"
-            test -n "$CAMPAIGN_RUN_ID" || { echo "no successful main mcp-external-interop-campaign run exists"; exit 2; }
-            echo "auto-discovered campaign run $CAMPAIGN_RUN_ID"
-          fi
-          if test -n "$CAMPAIGN_RUN_ID"; then
-            [[ "$CAMPAIGN_RUN_ID" =~ ^[0-9]+$ ]] || { echo "campaign_run_id must be numeric"; exit 2; }
-            run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CAMPAIGN_RUN_ID")"
-            test "$(jq -r .name <<<"$run_json")" = "mcp-external-interop-campaign"
-            test "$(jq -r .conclusion <<<"$run_json")" = "success"
-            test "$(jq -r .head_branch <<<"$run_json")" = "main"
-            mkdir -p /tmp/mcp-campaign-artifact
-            gh run download "$CAMPAIGN_RUN_ID" --repo "$GITHUB_REPOSITORY" --name mcp-external-interop-campaign --dir /tmp/mcp-campaign-artifact
-            test -s /tmp/mcp-campaign-artifact/campaign.json
-            cp /tmp/mcp-campaign-artifact/campaign.json /tmp/mcp-interop/campaign.json
-          else
-            printf '%s' "$CAMPAIGN_B64" | base64 -d > /tmp/mcp-interop/campaign.json
-          fi
-          printf '%s' "$CHATGPT_CAPTURE_B64" | base64 -d > /tmp/mcp-interop/captures/chatgpt.json
-          printf '%s' "$CLAUDE_CAPTURE_B64" | base64 -d > /tmp/mcp-interop/captures/claude.json
-          printf '%s' "$GEMINI_CAPTURE_B64" | base64 -d > /tmp/mcp-interop/captures/gemini.json
-          printf '%s' "$GROK_CAPTURE_B64" | base64 -d > /tmp/mcp-interop/captures/grok.json
-          test "$(find /tmp/mcp-interop/captures -type f | wc -l)" = "4"
-          for client in chatgpt claude gemini grok; do
-            python3 scripts/prepare_mcp_external_client_execution.py --campaign /tmp/mcp-interop/campaign.json --client "$client" --out "/tmp/mcp-interop/packets/$client.json"
-            python3 scripts/finalize_mcp_external_client_receipt.py --packet "/tmp/mcp-interop/packets/$client.json" --capture "/tmp/mcp-interop/captures/$client.json" --out "/tmp/mcp-interop/receipts/$client.json"
-          done
-          test "$(find /tmp/mcp-interop/receipts -type f | wc -l)" = "4"
-      - name: Fetch authoritative server security audit
-        shell: bash
-        env:
-          C7W_PLATFORM_ADMIN_TOKEN: ${{ secrets.C7W_PLATFORM_ADMIN_TOKEN }}
-        run: |
-          set -euo pipefail
-          test -n "$C7W_PLATFORM_ADMIN_TOKEN" || { echo "C7W_PLATFORM_ADMIN_TOKEN repository/environment secret is required"; exit 2; }
-          endpoint="$(jq -r .endpoint /tmp/mcp-interop/campaign.json)"
-          base="${endpoint%/mcp}"
-          case "$base" in https://*) ;; *) echo "campaign endpoint must be HTTPS"; exit 2;; esac
-          mkdir -p /tmp/mcp-interop/audits
-          args=()
-          for client in chatgpt claude gemini grok; do
-            while IFS= read -r rid; do args+=(--data-urlencode "requestId=$rid"); done < <(jq -r '.requestIds | to_entries[] | .value' "/tmp/mcp-interop/receipts/$client.json")
-          done
-          test "${#args[@]}" = "24" || { echo "exactly 24 audited requestIds are required"; exit 2; }
-          ok=false
-          for attempt in $(seq 1 15); do
-            code="$(curl -sS -o /tmp/mcp-interop/security-audit.json -w '%{http_code}' -G --retry 2 -H "Authorization: Bearer $C7W_PLATFORM_ADMIN_TOKEN" "${args[@]}" "$base/api/v1/security-audit-events")"
-            if test "$code" = "200"; then ok=true; break; fi
-            test "$code" = "409" || { cat /tmp/mcp-interop/security-audit.json; echo "audit witness lookup failed HTTP $code"; exit 2; }
-            sleep 2
-          done
-          test "$ok" = true || { echo "audit witness events did not become visible"; exit 2; }
-          jq -e 'type=="array" and length>=24' /tmp/mcp-interop/security-audit.json >/dev/null
-          for client in chatgpt claude gemini grok; do cp /tmp/mcp-interop/security-audit.json "/tmp/mcp-interop/audits/$client.json"; done
-      - name: Verify replay fencing, server audit, negative controls and seal C7W evidence
+      - name: C7W seal authority is local-only
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/seal_mcp_external_interop.py \
-            --campaign /tmp/mcp-interop/campaign.json \
-            --receipts /tmp/mcp-interop/receipts \
-            --audits /tmp/mcp-interop/audits \
-            --out lab/mcp-external-client-interoperability-evidence.json
-          jq -e '.authority=="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1" and .certifiedClientCount==4 and .allRequiredChecksPass and .serverAuditWitnessPass and .serverAuditWitnessedCheckCount==24 and .externalCertificationPass and (.runtimeCertified|not) and (.physicalCertified|not)' lab/mcp-external-client-interoperability-evidence.json
-          python3 -m unittest tests.test_mcp_external_interop_seal
-          python3 scripts/final_exact_release_admission.py --allow-pending --out /tmp/final-admission.json || test "$?" = "3"
-          git diff --check
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mcp-external-client-interoperability-evidence
-          path: |
-            lab/mcp-external-client-interoperability-evidence.json
-            /tmp/mcp-interop/campaign.json
-            /tmp/mcp-interop/captures
-            /tmp/mcp-interop/receipts
-            /tmp/mcp-interop/security-audit.json
-          if-no-files-found: error
-          retention-days: 30
-      - name: Persist exact external-client evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "4so-evidence-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing stale external-client evidence"; exit 2; }
-          git add lab/mcp-external-client-interoperability-evidence.json
-          git diff --cached --quiet && { echo "no C7W evidence delta"; exit 0; }
-          git commit -m "evidence: seal external MCP interoperability"
-          git push origin HEAD:main
+          echo "This workflow is intentionally non-authoritative and cannot seal or persist C7W evidence."
+          echo "Use: make c7w-status"
+          echo "After all four real external clients are admitted, use: make c7w-seal"
+          echo "Persist only the canonical progress/evidence files using the machine-actionable handoff returned by the local runner."
