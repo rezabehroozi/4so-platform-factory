@@ -158,8 +158,7 @@ upstream-acquisition-preflight:
 
 c7w-prepare:
 	@test -n "$C7W_MCP_ENDPOINT" || (echo "C7W_MCP_ENDPOINT is required" >&2; exit 2)
-	@test -n "$C7W_OAUTH_CLIENT_MAP" || (echo "C7W_OAUTH_CLIENT_MAP is required" >&2; exit 2)
-	$(PYTHON) scripts/run_mcp_external_interop.py --state-dir "${C7W_STATE_DIR:-.state/c7w-external-interop}" prepare --endpoint "$C7W_MCP_ENDPOINT" --oauth-client-map "$C7W_OAUTH_CLIENT_MAP" --token-env "${C7W_PLATFORM_ADMIN_TOKEN_ENV:-C7W_PLATFORM_ADMIN_TOKEN}"
+	@set -euo pipefail; args=(); test -z "${C7W_OAUTH_CLIENT_MAP:-}" || args+=(--oauth-client-map "$C7W_OAUTH_CLIENT_MAP"); $(PYTHON) scripts/run_mcp_external_interop.py --state-dir "${C7W_STATE_DIR:-.state/c7w-external-interop}" prepare --endpoint "$C7W_MCP_ENDPOINT" --token-env "${C7W_PLATFORM_ADMIN_TOKEN_ENV:-C7W_PLATFORM_ADMIN_TOKEN}" "${args[@]}"
 
 c7w-admit:
 	@test -n "$C7W_CLIENT" || (echo "C7W_CLIENT is required" >&2; exit 2)
