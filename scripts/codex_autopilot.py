@@ -465,9 +465,12 @@ AGENT_CONTEXT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_V1"
 AGENT_CONTEXT_COMPACT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_COMPACT_V1"
 AGENT_CONTEXT_BUDGET_FALLBACK_AUTHORITY = "AUTOPILOT_CONTEXT_BUDGET_FALLBACK_V1"
 AGENT_CONTEXT_COMMAND_DEDUP_AUTHORITY = "AUTOPILOT_COMPACT_COMMAND_DEDUP_V1"
-AGENT_CONTEXT_COMPACT_MAX_CHARS = 7000
-AGENT_CONTEXT_COMPACT_FAILURE_MAX_CHARS = 1600
-AGENT_CONTEXT_COMPACT_OWNER_PATH_LIMIT = 6
+LOW_TOKEN_CONTEXT_AUTHORITY = "AUTOPILOT_LOW_TOKEN_CONTEXT_V2"
+DETERMINISTIC_ENV_TRIAGE_AUTHORITY = "AUTOPILOT_DETERMINISTIC_ENV_TRIAGE_V1"
+REPAIR_PROOF_DEDUP_AUTHORITY = "AUTOPILOT_REPAIR_PROOF_DEDUP_V1"
+AGENT_CONTEXT_COMPACT_MAX_CHARS = 4800
+AGENT_CONTEXT_COMPACT_FAILURE_MAX_CHARS = 1000
+AGENT_CONTEXT_COMPACT_OWNER_PATH_LIMIT = 4
 AGENT_FAILURE_CAPSULE_AUTHORITY = "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2"
 INSTALLER_OWNER_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_STAGE_V1"
 INSTALLER_OWNER_CONTRACT_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_CONTRACT_STAGE_V1"
@@ -497,11 +500,11 @@ PROGRESSIVE_STAGE_PREFLIGHT_AUTHORITY = "AUTOPILOT_PROGRESSIVE_STAGE_PREFLIGHT_V
 OUTER_RUNTIME_ENVIRONMENT_HANDOFF_AUTHORITY = "AUTOPILOT_OUTER_RUNTIME_ENVIRONMENT_HANDOFF_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
-TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
-TRIAGE_RESULT_MAX_CHARS = 2400
-REPAIR_FAILURE_CAPSULE_MAX_CHARS = 3200
-REPAIR_TRIAGE_MAX_CHARS = 2400
-AGENT_FAILURE_CAPSULE_MAX_CHARS = 3200
+TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 1800
+TRIAGE_RESULT_MAX_CHARS = 1200
+REPAIR_FAILURE_CAPSULE_MAX_CHARS = 1800
+REPAIR_TRIAGE_MAX_CHARS = 1200
+AGENT_FAILURE_CAPSULE_MAX_CHARS = 1800
 
 _OWNER_CONTEXT_PATHS: dict[str, tuple[str, ...]] = {
     "operator-console": ("webconsole/", "scripts/smoke_ui", "scripts/persian_", "tests/test_smoke_ui"),
@@ -649,8 +652,11 @@ def _repair_prompt(stage: Stage, result: StageResult, iteration: int, triage: st
         rebase, merge, clean, or otherwise mutate Git refs/index/history; edit only the working
         tree files needed for this defect.
 
-        After editing, run the smallest owner test that proves the fix. Do not run an endless
-        repair loop; return when the defect is fixed or when the failure is environmental.
+        Do not rerun the failing stage, broad test suite, build, or release verifier yourself.
+        The Autopilot controller owns the exact post-repair owner proof and final convergence
+        under AUTOPILOT_REPAIR_PROOF_DEDUP_V1. You may use only a tiny local syntax/format/read
+        check when needed to avoid returning malformed source. Return immediately after the
+        narrow edit, or without editing when the failure is environmental.
 
         Failure fingerprint: {result.fingerprint}
         Command: {' '.join(stage.command)}
@@ -698,6 +704,29 @@ def _ensure_browser_triage_for_stage(root: Path, stage: Stage) -> tuple[bool, st
 
 
 _TRIAGE_CLASSIFICATIONS = frozenset({"CODE_DEFECT", "TEST_DEFECT", "ENVIRONMENT", "SUPPLY_CHAIN", "UNKNOWN"})
+
+
+def _deterministic_failure_classification(stage: Stage, result: StageResult) -> tuple[str, str] | None:
+    """Classify only unambiguous host/tooling failures without spending model tokens."""
+    text = _redact_failure_text(result.output_tail or "")
+    lowered = text.lower()
+    if result.returncode in {126, 127} and (
+        "command not found" in lowered
+        or "not found" in lowered
+        or "permission denied" in lowered
+        or "cannot execute" in lowered
+    ):
+        detail = _failure_capsule(text, max_lines=8, max_chars=900)
+        return "ENVIRONMENT", f"{DETERMINISTIC_ENV_TRIAGE_AUTHORITY}\n{detail}"
+    required = _environment_requirements([stage])
+    missing_module = re.search(r"ModuleNotFoundError:\\s+No module named ['\\\"]([^'\\\"]+)['\\\"]", text)
+    if missing_module:
+        module = missing_module.group(1).split(".", 1)[0]
+        requirement = {"yaml": "yaml", "playwright": "playwright"}.get(module)
+        if requirement and requirement in required:
+            detail = _failure_capsule(text, max_lines=8, max_chars=900)
+            return "ENVIRONMENT", f"{DETERMINISTIC_ENV_TRIAGE_AUTHORITY}\n{detail}"
+    return None
 
 
 def _parse_triage_classification(text: str) -> str:
@@ -758,6 +787,16 @@ def _cached_triage(root: Path, stage: Stage, result: StageResult) -> tuple[str, 
 
 
 def invoke_codex_triage(root: Path, stage: Stage, result: StageResult, iteration: int, timeout: int) -> tuple[bool, str, str]:
+    deterministic = _deterministic_failure_classification(stage, result)
+    if deterministic is not None:
+        classification, detail = deterministic
+        _record_triage_classification(root, stage, result, classification, detail)
+        print(
+            f"AUTOPILOT_TRIAGE=DETERMINISTIC authority={DETERMINISTIC_ENV_TRIAGE_AUTHORITY} "
+            f"stage={stage.name} classification={classification}",
+            flush=True,
+        )
+        return True, classification, detail
     browser_ready, browser_detail = _ensure_browser_triage_for_stage(root, stage)
     if not browser_ready:
         return False, "ENVIRONMENT", browser_detail
@@ -1445,6 +1484,9 @@ def _compact_agent_context(root: Path) -> dict:
         "derived": True,
         "notProductAuthority": True,
         "contextBudgetChars": AGENT_CONTEXT_COMPACT_MAX_CHARS,
+        "lowTokenContextAuthority": LOW_TOKEN_CONTEXT_AUTHORITY,
+        "repairProofDedupAuthority": REPAIR_PROOF_DEDUP_AUTHORITY,
+        "deterministicEnvironmentTriageAuthority": DETERMINISTIC_ENV_TRIAGE_AUTHORITY,
         "gitHead": str(full.get("gitHead") or ""),
         "runId": str(full.get("runId") or ""),
         "status": str(full.get("status") or "IDLE"),
