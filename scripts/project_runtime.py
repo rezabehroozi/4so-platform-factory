@@ -11,6 +11,7 @@ ACTIVE={"REQUESTED","RUNNING","WAITING"}
 TERMINAL={"FAILED","INTERRUPTED","COMPLETED","ABANDONED"}
 RESOLUTION_AUTHORITY="PROJECT_RUNTIME_RECOVERY_RESOLUTION_V1"
 COMMAND_EXEC_FAILURE_AUTHORITY="PROJECT_RUNTIME_COMMAND_EXEC_FAILURE_V1"
+OWNED_WORKTREE_MUTATION_AUTHORITY="PROJECT_RUNTIME_OWNED_WORKTREE_MUTATION_V1"
 RESOLUTION_DECISIONS={"allow-replay","mark-completed","abandon"}
 
 def now():
@@ -424,16 +425,35 @@ def release(root,run_id,pid,start,override=None):
     if lk and lk.get("runId")==run_id and lk.get("pid")==pid and str(lk.get("startTicks"))==str(start):
         p.unlink(missing_ok=True); fsync_dir(p)
 
-def execution_source_status(root,state):
+def owned_worktree_mutation_scope_allowed(phase,task,command):
+    """Only C6 repair entrypoints may let the inner owner mutate the worktree."""
+    command=[str(item) for item in (command or [])]
+    if str(phase or "")!="C6-multi-agent-test-autopilot" or str(task or "") not in {"codex-autopilot","codex-autopilot-agent"}:
+        return False
+    joined=" ".join(command)
+    if "scripts/codex_autopilot.py" not in joined:
+        return False
+    return "--repair" in command or "--agent-run" in command
+
+def execution_source_status(root,state,allow_owned_worktree_mutation=False):
     wanted=str(state.get("worktreeFingerprint") or "")
     if not wanted:
-        return {"matched":True,"legacyUnbound":True}
+        return {"matched":True,"legacyUnbound":True,"ownedWorktreeMutationObserved":False}
     try:
         info=git(root,refresh=False,allow_detached=state.get("branch")=="(detached)")
     except Exception as exc:
         return {"matched":False,"error":f"GIT_SOURCE_CHECK_FAILED {exc}"}
-    matched=(state.get("head")==info.get("head") and state.get("branch")==info.get("branch") and wanted==info.get("worktreeFingerprint"))
-    return {"matched":matched,"info":info}
+    head_matched=state.get("head")==info.get("head")
+    branch_matched=state.get("branch")==info.get("branch")
+    worktree_matched=wanted==info.get("worktreeFingerprint")
+    allow_owned=bool(allow_owned_worktree_mutation)
+    matched=head_matched and branch_matched and (worktree_matched or allow_owned)
+    return {
+        "matched":matched,"info":info,"headMatched":head_matched,"branchMatched":branch_matched,
+        "worktreeMatched":worktree_matched,
+        "ownedWorktreeMutationObserved":bool(allow_owned and head_matched and branch_matched and not worktree_matched),
+        "ownedWorktreeMutationAuthority":OWNED_WORKTREE_MUTATION_AUTHORITY if allow_owned else "",
+    }
 
 def command_gate_state(root,run_id,pid,start,override=None):
     s=read_state(root,override)
@@ -487,7 +507,10 @@ def checkpoint(root,path):
     return {"path":str(p),"currentStage":str(d.get("currentStage") or d.get("stage") or d.get("phase") or ""),
             "latestCompletedCheckpoint":str(d.get("latestCompletedCheckpoint") or ""),"nextIndex":d.get("nextIndex") if isinstance(d.get("nextIndex"),int) else None}
 
-def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=False,override=None,skip_git=False,allow_detached=False):
+def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=False,override=None,skip_git=False,allow_detached=False,allow_owned_worktree_mutation=False):
+    allow_owned_worktree_mutation=bool(allow_owned_worktree_mutation)
+    if allow_owned_worktree_mutation and not owned_worktree_mutation_scope_allowed(phase,task,command):
+        raise RuntimeError("PROJECT_RUNTIME_OWNED_WORKTREE_MUTATION_SCOPE_INVALID")
     prev=read_state(root,override)
     if prev:
         prev=reconcile(root,prev,override)
@@ -503,7 +526,7 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
             return {"action":"RECOVERY_REQUIRED","state":prev}
     info={"repository":"self-test","branch":"main","head":"self-test","originMain":"self-test","gitSyncStatus":"UNAVAILABLE"} if skip_git else git(root,allow_detached=allow_detached)
     if prev:
-        same_job=(prev.get("head")==info["head"] and prev.get("branch")==info["branch"] and prev.get("worktreeFingerprint")==info.get("worktreeFingerprint") and prev.get("phase")==phase and prev.get("currentTask")==task and prev.get("command")==command)
+        same_job=(prev.get("head")==info["head"] and prev.get("branch")==info["branch"] and prev.get("worktreeFingerprint")==info.get("worktreeFingerprint") and prev.get("phase")==phase and prev.get("currentTask")==task and prev.get("command")==command and bool(prev.get("allowOwnedWorktreeMutation"))==allow_owned_worktree_mutation)
         if prev.get("status")=="COMPLETED" and same_job:
             return {"action":"CACHED_COMPLETED","state":prev}
     run_id="run-"+datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")+"-"+secrets.token_hex(4)
@@ -515,6 +538,10 @@ def start(root,phase,task,command,heartbeat=30,checkpoint_file="",replay_safe=Fa
        "heartbeatSeconds":max(1,min(60,int(heartbeat))),"checkpointFile":checkpoint_file,"progress":{"heartbeatCount":0,"stage":"prepare"},
        "lastSuccessfulAction":"git-authority-verified","replaySafe":bool(replay_safe),"recoveryRequired":False,"orphaned":False,
        "safeToRetry":False,"executionStarted":False,
+       "allowOwnedWorktreeMutation":allow_owned_worktree_mutation,
+       "ownedWorktreeMutationAuthority":OWNED_WORKTREE_MUTATION_AUTHORITY if allow_owned_worktree_mutation else "",
+       "initialWorktreeFingerprint":info.get("worktreeFingerprint",""),
+       "ownedWorktreeMutationObserved":False,
        "attempt":1,"backend":"detached-process-supervisor","observerAuthority":False,"executionAuthority":AUTHORITY}
     write_state(root,s,override)
     worker,wt=spawn_waiting_worker(root,run_id,s,lp,override)
@@ -598,12 +625,26 @@ def resume(root,override=None,allow_detached=False):
         write_state(root,s,override)
         return {"action":"RECOVERY_REQUIRED","state":s}
     info=git(root,refresh=False,allow_detached=allow_detached)
-    if s.get("head")!=info["head"] or s.get("branch")!=info["branch"] or s.get("worktreeFingerprint")!=info.get("worktreeFingerprint"):
+    head_branch_match=s.get("head")==info["head"] and s.get("branch")==info["branch"]
+    worktree_match=s.get("worktreeFingerprint")==info.get("worktreeFingerprint")
+    allow_owned=bool(s.get("allowOwnedWorktreeMutation"))
+    if allow_owned and not owned_worktree_mutation_scope_allowed(s.get("phase"),s.get("currentTask"),s.get("command")):
+        s.update(status="WAITING",recoveryRequired=True,latestError="OWNED_WORKTREE_MUTATION_SCOPE_INVALID_REPLAN_REQUIRED")
+        write_state(root,s,override)
+        return {"action":"REPLAN_REQUIRED","state":s}
+    if not head_branch_match or (not worktree_match and not allow_owned):
         s.update(status="WAITING",recoveryRequired=True,latestError="LOCAL_GIT_AUTHORITY_CHANGED_REPLAN_REQUIRED",
                  currentOriginMain=info.get("originMain",""),gitSyncStatus=info.get("gitSyncStatus","UNAVAILABLE"),
                  currentWorktreeFingerprint=info.get("worktreeFingerprint",""),currentWorktreeDirty=info.get("worktreeDirty"))
         write_state(root,s,override)
         return {"action":"REPLAN_REQUIRED","state":s}
+    if allow_owned and not worktree_match:
+        s["ownedWorktreeMutationObserved"]=True
+        s["ownedWorktreeMutationAuthority"]=OWNED_WORKTREE_MUTATION_AUTHORITY
+        # The inner Autopilot checkpoint owns path/delta admission. Rebind only
+        # the outer pre-exec fingerprint after immutable HEAD/branch survive.
+        s["worktreeFingerprint"]=info.get("worktreeFingerprint","")
+        s["worktreeDirty"]=info.get("worktreeDirty")
     s["currentOriginMain"]=info.get("originMain","")
     s["gitSyncStatus"]=info.get("gitSyncStatus","UNAVAILABLE")
     s["currentWorktreeFingerprint"]=info.get("worktreeFingerprint","")
@@ -691,7 +732,7 @@ def worker(root,run_id,override=None):
         if cp.get("latestCompletedCheckpoint"): s["latestCompletedCheckpoint"]=cp["latestCompletedCheckpoint"]
         s.update(activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None,lastHeartbeat=now(),checkpoint=cp,exitCode=rc)
         task=str(s.get("currentTask") or "")
-        source=execution_source_status(root,s)
+        source=execution_source_status(root,s,allow_owned_worktree_mutation=bool(s.get("allowOwnedWorktreeMutation")))
         if source.get("matched") is not True:
             info=source.get("info") or {}
             s.update(status="INTERRUPTED" if s.get("replaySafe") else "WAITING",
@@ -701,6 +742,21 @@ def worker(root,run_id,override=None):
                      gitSyncStatus=info.get("gitSyncStatus","UNAVAILABLE"),
                      currentWorktreeFingerprint=info.get("worktreeFingerprint",""),
                      currentWorktreeDirty=info.get("worktreeDirty"))
+        else:
+            info=source.get("info") or {}
+            s["currentOriginMain"]=info.get("originMain","")
+            s["gitSyncStatus"]=info.get("gitSyncStatus","UNAVAILABLE")
+            s["currentWorktreeFingerprint"]=info.get("worktreeFingerprint","")
+            s["currentWorktreeDirty"]=info.get("worktreeDirty")
+            if source.get("ownedWorktreeMutationObserved"):
+                s["ownedWorktreeMutationObserved"]=True
+                s["ownedWorktreeMutationAuthority"]=OWNED_WORKTREE_MUTATION_AUTHORITY
+                # Persist the accepted final baseline so later same-job cache or
+                # crash resume is bound to the repaired tree, not the pre-repair tree.
+                s["worktreeFingerprint"]=info.get("worktreeFingerprint","")
+                s["worktreeDirty"]=info.get("worktreeDirty")
+        if source.get("matched") is not True:
+            pass
         elif interrupted: s.update(status="INTERRUPTED",latestError="SUPERVISOR_INTERRUPTED",recoveryRequired=not bool(s.get("replaySafe")))
         elif rc==0:
             done=list(s.get("completedTasks") or [])
@@ -750,7 +806,7 @@ def main():
         if name=="resume": p.add_argument("--allow-detached",action="store_true")
     p=sub.add_parser("resolve"); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root")
     p.add_argument("--run-id",required=True); p.add_argument("--decision",choices=sorted(RESOLUTION_DECISIONS),required=True); p.add_argument("--reason",required=True)
-    p=sub.add_parser("start"); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root"); p.add_argument("--phase",required=True); p.add_argument("--task",required=True); p.add_argument("--heartbeat-seconds",type=int,default=30); p.add_argument("--checkpoint-file"); p.add_argument("--replay-safe",action="store_true"); p.add_argument("--allow-detached",action="store_true"); p.add_argument("command",nargs=argparse.REMAINDER)
+    p=sub.add_parser("start"); p.add_argument("--root",default=str(Path(__file__).resolve().parents[1])); p.add_argument("--runtime-root"); p.add_argument("--phase",required=True); p.add_argument("--task",required=True); p.add_argument("--heartbeat-seconds",type=int,default=30); p.add_argument("--checkpoint-file"); p.add_argument("--replay-safe",action="store_true"); p.add_argument("--allow-detached",action="store_true"); p.add_argument("--allow-owned-worktree-mutation",action="store_true"); p.add_argument("command",nargs=argparse.REMAINDER)
     p=sub.add_parser("_worker"); p.add_argument("--root",required=True); p.add_argument("--runtime-root"); p.add_argument("--run-id",required=True)
     p=sub.add_parser("_command"); p.add_argument("--root",required=True); p.add_argument("--runtime-root"); p.add_argument("--run-id",required=True)
     a=ap.parse_args(); root=Path(a.root).resolve()
@@ -775,7 +831,7 @@ def main():
         if a.cmd=="_command": return command_wrapper(root,a.run_id,a.runtime_root)
         command=list(a.command); command=command[1:] if command and command[0]=="--" else command
         if not command: raise RuntimeError("PROJECT_RUNTIME_COMMAND_REQUIRED")
-        result=start(root,a.phase,a.task,command,a.heartbeat_seconds,a.checkpoint_file or "",a.replay_safe,a.runtime_root,allow_detached=a.allow_detached)
+        result=start(root,a.phase,a.task,command,a.heartbeat_seconds,a.checkpoint_file or "",a.replay_safe,a.runtime_root,allow_detached=a.allow_detached,allow_owned_worktree_mutation=a.allow_owned_worktree_mutation)
         print(json.dumps(result,sort_keys=True))
         return 4 if result["action"] in {"RECOVERY_REQUIRED","RESUME_REQUIRED"} else 0
     except Exception as e:
