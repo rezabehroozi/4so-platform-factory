@@ -9,6 +9,7 @@ HOST_RUNTIME_DOCTOR_AUTHORITY="INSTALLER_MANUAL_HOST_RUNTIME_DOCTOR_V1"
 MACHINE_NEXT_ACTION_AUTHORITY="INSTALLER_MANUAL_MACHINE_NEXT_ACTION_V1"
 DOCTOR_OUTCOME_AUTHORITY="INSTALLER_MANUAL_DOCTOR_ACTION_OUTCOME_V1"
 DOCTOR_REMEDIATION_AUTHORITY="INSTALLER_MANUAL_DOCTOR_REMEDIATION_V1"
+DOCTOR_COMPACT_AUTHORITY="INSTALLER_MANUAL_DOCTOR_COMPACT_V1"
 BUNDLE_PREPARATION_AUTHORITY="INSTALLER_MANUAL_BUNDLE_PREPARATION_V1"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
@@ -24,8 +25,8 @@ usage() {
 4SO Platform Factory guided manual installation
 
 Usage:
-  bash install.sh start     [--bundle-dir DIR] [--release-artifact RELEASE.zip]
-  bash install.sh doctor    [--bundle-dir DIR] [--release-artifact RELEASE.zip]
+  bash install.sh start     [--compact] [--bundle-dir DIR] [--release-artifact RELEASE.zip]
+  bash install.sh doctor    [--compact] [--bundle-dir DIR] [--release-artifact RELEASE.zip]
   [sudo] bash install.sh prepare-bundle [--release-artifact RELEASE.zip] [--state-dir DIR] [future installer options...]
   sudo bash install.sh preflight [--bundle-dir DIR] [--release-artifact RELEASE.zip] [installer options...]
   sudo bash install.sh plan      [--bundle-dir DIR] [--release-artifact RELEASE.zip] [installer options...]
@@ -62,7 +63,8 @@ Safe default:
 
 Start / Doctor:
   start is a human-friendly alias for doctor. Both are read-only and do not require root. It reports input readiness for
-  packaged binaries, bundle files and the exact release ZIP. It does not claim
+  packaged binaries, bundle files and the exact release ZIP. Agents should prefer --compact: it emits only the stable
+  Doctor outcome, blocker codes, nextActionCode and exact nextCommand instead of the full human diagnostic surface. It does not claim
   bundle admission; canonical digest/exact-release verification starts at preflight.
   When the exact release is ready but the appliance bundle is missing, Doctor
   emits PREPARE_BUNDLE with one exact command and returns an actionable Doctor
@@ -188,6 +190,7 @@ esac
 bundle_dir="${PLATFORM_INSTALLER_BUNDLE_DIR:-}"
 release_artifact="${PLATFORM_FACTORY_RELEASE_ARTIFACT:-}"
 prepare_state_dir="${PLATFORM_INSTALLER_PREP_STATE_DIR:-${DEFAULT_BUNDLE_PREP_STATE_DIR}}"
+doctor_compact=false
 
 discover_bundle_dir() {
   local candidate
@@ -246,6 +249,14 @@ while (($#)); do
       if [[ "${mode}" == "prepare-bundle" ]]; then
         prepare_state_dir="${1#--state-dir=}"
         [[ -n "${prepare_state_dir}" ]] || { echo "ERROR --state-dir requires a value" >&2; exit 2; }
+      else
+        passthrough+=("$1")
+      fi
+      shift
+      ;;
+    --compact)
+      if [[ "${mode}" == "doctor" ]]; then
+        doctor_compact=true
       else
         passthrough+=("$1")
       fi
@@ -387,66 +398,79 @@ if [[ "${mode}" == "doctor" ]]; then
       doctor_remediation_hints+=("Use this exact release on a connected preparation host with its shipped scripts/lab_runner.py and python3, prepare the immutable bundle there, then rerun Doctor.")
     fi
   fi
-  printf '%s\n' \
-    "authority=INSTALLER_MANUAL_DOCTOR_V1" \
-    "outcomeAuthority=${DOCTOR_OUTCOME_AUTHORITY}" \
-    "remediationAuthority=${DOCTOR_REMEDIATION_AUTHORITY}" \
-    "doctorOutcome=${doctor_outcome}" \
-    "actionable=${doctor_actionable}" \
-    "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
-    "hostRuntimeAuthority=${HOST_RUNTIME_DOCTOR_AUTHORITY}" \
-    "machineNextActionAuthority=${MACHINE_NEXT_ACTION_AUTHORITY}" \
-    "readinessScope=input-runtime-only" \
-    "hostDeploymentPreflightRequired=true" \
-    "appliancePreflightRequired=true" \
-    "appliancePreflightOwner=browser-installer" \
-    "runtimeOrPhysicalPassImplied=false" \
-    "readyForPreflight=${ready}" \
-    "bundleAdmissionVerified=false" \
-    "hostPlatformReady=${host_platform_ready}" \
-    "hostOS=${host_os}" \
-    "hostArch=${host_arch}" \
-    "expectedVersion=${EXPECTED_VERSION}" \
-    "platformctlReady=${platformctl_ready}" \
-    "platformctlRunnable=${platformctl_runnable}" \
-    "installerReady=${installer_ready}" \
-    "installerRunnable=${installer_runnable}" \
-    "bundleInputsReady=${bundle_inputs_ready}" \
-    "releaseArtifactReady=${release_artifact_ready}" \
-    "bundlePreparationAvailable=${bundle_preparation_available}" \
-    "bundlePreparationStateDirectory=${prepare_state_dir}"
-  printf 'platformctl=%q\ninstaller=%q\nbundleDirectory=%q\nreleaseArtifact=%q\n' \
-    "${PLATFORMCTL}" "${INSTALLER}" "${bundle_dir}" "${release_artifact}"
-  if (("${#doctor_blocker_codes[@]}")); then
-    printf 'blockerCodes=%s\n' "$(IFS=,; echo "${doctor_blocker_codes[*]}")"
-    for ((i=0; i<${#doctor_blocker_codes[@]}; i++)); do
-      printf 'remediation.%s=%s\n' "${doctor_blocker_codes[i]}" "${doctor_remediation_hints[i]}"
-    done
-  else
-    printf '%s\n' "blockerCodes="
-  fi
+  doctor_next_action_code="RESOLVE_DOCTOR_BLOCKERS"
+  doctor_next_action="resolve only the blockerCodes using the matching remediation.* hints above, then rerun this exact Doctor command; do not start preflight or edit product source for an input/runtime blocker"
+  doctor_next_command=""
   if [[ "${ready}" == true ]]; then
-    printf '%s\n' "nextActionCode=RUN_PREFLIGHT"
-    printf '%s\n' "nextAction=copy nextCommand exactly; canonical bundle/release admission happens during preflight"
-    printf 'nextCommand=sudo bash %q preflight --bundle-dir %q --release-artifact %q' \
-      "${ROOT_DIR}/install.sh" "${bundle_dir}" "${release_artifact}"
-    if (("${#passthrough[@]}")); then
-      printf ' %q' "${passthrough[@]}"
-    fi
-    printf '\n'
+    doctor_next_action_code="RUN_PREFLIGHT"
+    doctor_next_action="copy nextCommand exactly; canonical bundle/release admission happens during preflight"
+    declare -a doctor_next_argv=(sudo bash "${ROOT_DIR}/install.sh" preflight --bundle-dir "${bundle_dir}" --release-artifact "${release_artifact}" "${passthrough[@]}")
+    printf -v doctor_next_command '%q ' "${doctor_next_argv[@]}"
+    doctor_next_command="${doctor_next_command% }"
   elif [[ "${bundle_prepare_actionable}" == true ]]; then
-    printf '%s\n' "nextActionCode=PREPARE_BUNDLE"
-    printf '%s\n' "nextAction=prepare the exact-release-bound appliance bundle through the release-shipped immutable acquisition authority; this is preparation only and does not imply Runtime or Physical PASS"
-    printf 'nextCommand=sudo bash %q prepare-bundle --release-artifact %q --state-dir %q' \
-      "${ROOT_DIR}/install.sh" "${release_artifact}" "${prepare_state_dir}"
-    if (("${#passthrough[@]}")); then
-      printf ' %q' "${passthrough[@]}"
+    doctor_next_action_code="PREPARE_BUNDLE"
+    doctor_next_action="prepare the exact-release-bound appliance bundle through the release-shipped immutable acquisition authority; this is preparation only and does not imply Runtime or Physical PASS"
+    declare -a doctor_next_argv=(sudo bash "${ROOT_DIR}/install.sh" prepare-bundle --release-artifact "${release_artifact}" --state-dir "${prepare_state_dir}" "${passthrough[@]}")
+    printf -v doctor_next_command '%q ' "${doctor_next_argv[@]}"
+    doctor_next_command="${doctor_next_command% }"
+  fi
+
+  if [[ "${doctor_compact}" == true ]]; then
+    printf '%s\n' \
+      "authority=${DOCTOR_COMPACT_AUTHORITY}" \
+      "doctorAuthority=INSTALLER_MANUAL_DOCTOR_V1" \
+      "doctorOutcome=${doctor_outcome}" \
+      "actionable=${doctor_actionable}" \
+      "nextActionCode=${doctor_next_action_code}"
+    if (("${#doctor_blocker_codes[@]}")); then
+      printf 'blockerCodes=%s\n' "$(IFS=,; echo "${doctor_blocker_codes[*]}")"
+    else
+      printf '%s\n' "blockerCodes="
     fi
-    printf '\n'
+    printf 'nextCommand=%s\n' "${doctor_next_command}"
   else
-    printf '%s\n' "nextActionCode=RESOLVE_DOCTOR_BLOCKERS"
-    printf '%s\n' "nextAction=resolve only the blockerCodes using the matching remediation.* hints above, then rerun this exact Doctor command; do not start preflight or edit product source for an input/runtime blocker"
-    printf '%s\n' "nextCommand="
+    printf '%s\n' \
+      "authority=INSTALLER_MANUAL_DOCTOR_V1" \
+      "outcomeAuthority=${DOCTOR_OUTCOME_AUTHORITY}" \
+      "remediationAuthority=${DOCTOR_REMEDIATION_AUTHORITY}" \
+      "compactAuthority=${DOCTOR_COMPACT_AUTHORITY}" \
+      "doctorOutcome=${doctor_outcome}" \
+      "actionable=${doctor_actionable}" \
+      "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
+      "hostRuntimeAuthority=${HOST_RUNTIME_DOCTOR_AUTHORITY}" \
+      "machineNextActionAuthority=${MACHINE_NEXT_ACTION_AUTHORITY}" \
+      "readinessScope=input-runtime-only" \
+      "hostDeploymentPreflightRequired=true" \
+      "appliancePreflightRequired=true" \
+      "appliancePreflightOwner=browser-installer" \
+      "runtimeOrPhysicalPassImplied=false" \
+      "readyForPreflight=${ready}" \
+      "bundleAdmissionVerified=false" \
+      "hostPlatformReady=${host_platform_ready}" \
+      "hostOS=${host_os}" \
+      "hostArch=${host_arch}" \
+      "expectedVersion=${EXPECTED_VERSION}" \
+      "platformctlReady=${platformctl_ready}" \
+      "platformctlRunnable=${platformctl_runnable}" \
+      "installerReady=${installer_ready}" \
+      "installerRunnable=${installer_runnable}" \
+      "bundleInputsReady=${bundle_inputs_ready}" \
+      "releaseArtifactReady=${release_artifact_ready}" \
+      "bundlePreparationAvailable=${bundle_preparation_available}" \
+      "bundlePreparationStateDirectory=${prepare_state_dir}"
+    printf 'platformctl=%q\ninstaller=%q\nbundleDirectory=%q\nreleaseArtifact=%q\n' \
+      "${PLATFORMCTL}" "${INSTALLER}" "${bundle_dir}" "${release_artifact}"
+    if (("${#doctor_blocker_codes[@]}")); then
+      printf 'blockerCodes=%s\n' "$(IFS=,; echo "${doctor_blocker_codes[*]}")"
+      for ((i=0; i<${#doctor_blocker_codes[@]}; i++)); do
+        printf 'remediation.%s=%s\n' "${doctor_blocker_codes[i]}" "${doctor_remediation_hints[i]}"
+      done
+    else
+      printf '%s\n' "blockerCodes="
+    fi
+    printf '%s\n' "nextActionCode=${doctor_next_action_code}"
+    printf '%s\n' "nextAction=${doctor_next_action}"
+    printf 'nextCommand=%s\n' "${doctor_next_command}"
   fi
   if [[ "${doctor_actionable}" == true ]]; then
     exit 0
