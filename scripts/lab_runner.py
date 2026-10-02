@@ -2520,8 +2520,10 @@ def _manual_bundle_prepare(
                 return result
             bundle = prepared
 
+        # Doctor is intentionally read-only and non-root. Bundle preparation
+        # may itself require root only because its default durable state lives
+        # under /var/lib; do not carry that privilege into the next phase.
         next_argv = [
-            "sudo",
             "bash",
             str(release_root / "install.sh"),
             "doctor",
