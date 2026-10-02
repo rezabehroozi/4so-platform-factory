@@ -869,6 +869,9 @@ class AutopilotAgentContextTests(unittest.TestCase):
             (root / "scripts" / "project_runtime.py").write_text("# stub\n", encoding="utf-8")
             cases = [
                 ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"RUNNING","runId":"run-1","activeRun":True}, "OBSERVE_ACTIVE"),
+                ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"WAITING","runId":"run-wait-active","activeRun":True}, "OBSERVE_ACTIVE"),
+                ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"WAITING","runId":"run-wait-resume","activeRun":False,"replaySafe":True,"safeToRetry":False}, "RESUME_RUNTIME"),
+                ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"WAITING","runId":"run-wait-recovery","activeRun":False,"recoveryRequired":True,"replaySafe":False,"safeToRetry":False}, "RECOVERY_REQUIRED"),
                 ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"INTERRUPTED","runId":"run-2","activeRun":False,"safeToRetry":True}, "RESUME_RUNTIME"),
                 ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"FAILED","runId":"run-2b","activeRun":False,"replaySafe":True,"safeToRetry":False}, "RESUME_RUNTIME"),
                 ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"INTERRUPTED","runId":"run-3","activeRun":False,"recoveryRequired":True,"replaySafe":True,"safeToRetry":False}, "RECOVERY_REQUIRED"),
