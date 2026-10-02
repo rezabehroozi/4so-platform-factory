@@ -150,13 +150,8 @@ def live_preflight(endpoint_url:str)->dict:
 def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sha256:str, trusted_clients:dict[str,dict])->dict:
     if matrix_path.is_symlink() or not matrix_path.is_file():
         raise RuntimeError("MCP_EXTERNAL_MATRIX_FILE_INVALID")
-    matrix=json.loads(matrix_path.read_text(encoding="utf-8"))
-    spec=matrix.get("spec") or {}
-    if matrix.get("authority")!=MATRIX_AUTHORITY or spec.get("externalCertificationStatus")!="pending":
-        raise RuntimeError("MCP_EXTERNAL_MATRIX_STATE_INVALID")
-    ids=[x.get("id") for x in spec.get("clients") or [] if isinstance(x,dict)]
-    if ids!=list(CLIENTS):
-        raise RuntimeError("MCP_EXTERNAL_MATRIX_CLIENT_SET_INVALID")
+    matrix=core.load(matrix_path,"MATRIX")
+    spec=core.validate_matrix_contract(matrix,"MCP_EXTERNAL_MATRIX")
     if not core.SHA.fullmatch(str(oauth_binding_sha256 or "")) or not isinstance(trusted_clients,dict) or set(trusted_clients)!=set(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_READBACK_INVALID")
     max_age=spec.get("campaignMaxAgeSeconds")
@@ -197,6 +192,8 @@ def main()->int:
     p=argparse.ArgumentParser(); p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json")); p.add_argument("--endpoint",required=True); p.add_argument("--out",type=Path,required=True)
     p.add_argument("--oauth-client-map",type=Path); p.add_argument("--registry-token-env",default="C7W_PLATFORM_ADMIN_TOKEN")
     a=p.parse_args(); resumed=False
+    matrix=core.load(a.matrix,"MATRIX")
+    core.validate_matrix_contract(matrix,"MCP_EXTERNAL_MATRIX")
     if a.out.exists() or a.out.is_symlink():
         out=resume_existing(a.matrix,a.endpoint,a.out); resumed=True
     else:
