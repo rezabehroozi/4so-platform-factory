@@ -2102,6 +2102,7 @@ def validate_no_remote_ci_mutation_authority(root: Path, errors: list[tuple[str,
         return
     forbidden_patterns = (
         ('contents-write', re.compile(r'(?mi)^\s*contents\s*:\s*write\s*(?:#.*)?$')),
+        ('inline-contents-write', re.compile(r'(?mi)^\s*permissions\s*:\s*\{[^}\n]*\bcontents\s*:\s*write\b[^}\n]*\}\s*(?:#.*)?$')),
         ('write-all', re.compile(r'(?mi)^\s*permissions\s*:\s*write-all\s*(?:#.*)?$')),
         ('git-push', re.compile(r'(?i)(?<![A-Za-z0-9_-])git\s+push(?=\s|$)')),
     )
