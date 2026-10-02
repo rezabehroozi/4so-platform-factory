@@ -90,11 +90,26 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
             "followupCommand":["git","commit","-m","evidence: seal external MCP interoperability"],
             "detail":"C7W is complete but evidence is not yet part of the exact Git SHA required by C9",
         }
+    current_sha=head.stdout.strip().lower()
+    evidence=core.load(evidence_path,"C7W_EVIDENCE")
+    certified_sha=str(evidence.get("sourceCommitSHA") or "").strip().lower()
+    try:
+        core.validate_evidence_only_source_lineage(root,certified_sha,current_sha,"MCP_EXTERNAL_LOCAL_HANDOFF")
+    except RuntimeError as exc:
+        return {
+            "nextActionCode":"RERUN_C7W_ON_CURRENT_SOURCE",
+            "nextCommand":["env",f"C7W_STATE_DIR=.state/c7w-external-interop-{current_sha[:12]}","make","c7w-prepare"],
+            "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
+            "certifiedSourceCommitSHA":certified_sha,
+            "currentSourceCommitSHA":current_sha,
+            "detail":str(exc)+"; source changed beyond evidence-only C7W files, so C9 must not use the stale external certification",
+        }
     return {
         "nextActionCode":"RUN_C9_SEAL",
         "nextCommand":["make","c9-seal"],
-        "sourceCommitSHA":head.stdout.strip().lower(),
-        "detail":"C7W evidence is committed in the current exact source SHA; C9 may run",
+        "sourceCommitSHA":current_sha,
+        "certifiedSourceCommitSHA":certified_sha,
+        "detail":"C7W evidence is committed and source lineage is evidence-only; C9 may run",
     }
 
 
