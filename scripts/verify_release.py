@@ -336,7 +336,7 @@ def validate_manual_install_release_payload(root: Path) -> None:
     )
 
 
-def validate_generated_metadata(root: Path, version: str, release_name: str) -> None:
+def validate_generated_metadata(root: Path, version: str, release_name: str) -> dict:
     provenance_path = root / "BUILD-PROVENANCE.json"
     sbom_path = root / "SBOM.spdx.json"
     if not provenance_path.is_file():
@@ -350,6 +350,7 @@ def validate_generated_metadata(root: Path, version: str, release_name: str) -> 
         or provenance.get("version") != version
         or provenance.get("releaseName") != release_name
         or provenance.get("module") != "platform.4so.io/factory"
+        or not re.fullmatch(r"[0-9a-f]{40}", str(provenance.get("sourceCommitSHA") or ""))
     ):
         raise SystemExit("PROVENANCE_IDENTITY_INVALID")
     binaries = provenance.get("binaries", [])
@@ -381,6 +382,7 @@ def validate_generated_metadata(root: Path, version: str, release_name: str) -> 
     if len(packages) < 1 + len(runtime_needed):
         raise SystemExit("SBOM_PACKAGE_MATRIX_INVALID")
     print("PROVENANCE_AND_SBOM_GATE_PASS", len(binaries), len(packages), len(sbom.get("files", [])))
+    return provenance
 
 
 def validate_brand_independence(root: Path) -> None:
@@ -497,7 +499,7 @@ def main() -> int:
             raise SystemExit("MANIFEST_FILE_COUNT_INVALID")
         print("ARTIFACT_INTEGRITY_GATE_PASS", len(actual) + 1, archive_digest)
         validate_manual_install_release_payload(root)
-        validate_generated_metadata(root, version, release_name)
+        provenance=validate_generated_metadata(root, version, release_name)
         validate_brand_independence(root)
 
         if args.full:
@@ -507,6 +509,7 @@ def main() -> int:
             )
             verify_environment = os.environ.copy()
             verify_environment["PLATFORM_FACTORY_DEVELOPMENT_MODE"] = "true"
+            verify_environment["SOURCE_COMMIT"] = str(provenance["sourceCommitSHA"])
             try:
                 browser_executable, browser_authority = prepare_full_verifier_browser(verify_environment)
             except ValueError as exc:
