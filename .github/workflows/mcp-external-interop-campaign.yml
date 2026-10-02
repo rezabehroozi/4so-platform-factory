@@ -15,6 +15,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "This workflow is intentionally non-authoritative and performs no C7W execution."
-          echo "Use the canonical local path:"
-          echo "  C7W_MCP_ENDPOINT=https://<api>/mcp C7W_OAUTH_CLIENT_MAP=/secure/oauth-client-bindings.json make c7w-prepare"
-          echo "Then execute the four real named-client packets locally and admit each capture with make c7w-admit."
+          echo "Use the canonical local runner on the control host:"
+          echo "  <python> scripts/run_mcp_external_interop.py --state-dir <state-dir> status"
+          echo "Follow its machine-readable nextCommand. Provide C7W_MCP_ENDPOINT, C7W_OAUTH_CLIENT_MAP and C7W_PLATFORM_ADMIN_TOKEN only when requiredInputs requests them."
+          echo "External clients must execute the exact packetPath and fill the returned captureTemplatePath at expectedCapturePath; never fabricate named-client evidence."
