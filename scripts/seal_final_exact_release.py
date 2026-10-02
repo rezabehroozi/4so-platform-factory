@@ -479,6 +479,61 @@ def git_source_for_resume(root: Path, out: Path) -> str:
     return head.stdout.strip()
 
 
+def validate_final_evidence_lineage(root:Path,sealed_sha:str,current_sha:str,out:Path)->None:
+    sealed_sha=str(sealed_sha or "").strip().lower()
+    current_sha=str(current_sha or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}",sealed_sha) or not re.fullmatch(r"[0-9a-f]{40}",current_sha):
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_IDENTITY_INVALID")
+    if sealed_sha==current_sha:
+        return
+    ancestor=subprocess.run(["git","merge-base","--is-ancestor",sealed_sha,current_sha],cwd=root,capture_output=True,check=False)
+    if ancestor.returncode!=0:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_NOT_ANCESTOR")
+    try:
+        allowed=out.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_PATH_INVALID") from exc
+    diff=subprocess.run(["git","diff","--name-only","-z",sealed_sha+".."+current_sha],cwd=root,capture_output=True,check=False)
+    if diff.returncode!=0:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_DELTA_UNAVAILABLE")
+    try:
+        changed={raw.decode("utf-8",errors="strict") for raw in diff.stdout.split(b"\x00") if raw}
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_DELTA_INVALID") from exc
+    if changed!={allowed}:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_DELTA_NOT_EVIDENCE_ONLY")
+
+
+def final_git_handoff(root:Path,out:Path,evidence:dict)->dict:
+    root=root.resolve()
+    current_sha=git_source_for_resume(root,out)
+    sealed_sha=str(evidence.get("sourceCommitSHA") or "").strip().lower()
+    validate_final_evidence_lineage(root,sealed_sha,current_sha,out)
+    rel=out.resolve().relative_to(root).as_posix()
+    tracked=subprocess.run(["git","ls-files","--error-unmatch",rel],cwd=root,text=True,capture_output=True,check=False)
+    status=subprocess.run(["git","status","--porcelain=v1","--",rel],cwd=root,text=True,capture_output=True,check=False)
+    if status.returncode!=0:
+        return {
+            "nextActionCode":"INSPECT_C9_EVIDENCE_GIT_STATE",
+            "nextCommand":["git","status","--short","--",rel],
+        }
+    if tracked.returncode!=0 or status.stdout.strip():
+        return {
+            "nextActionCode":"COMMIT_C9_EVIDENCE",
+            "nextCommand":["git","add",rel],
+            "followupCommand":["git","commit","-m","evidence: seal final exact pre-certification release"],
+            "releaseSourceCommitSHA":sealed_sha,
+            "detail":"final exact release is sealed; persist only the final evidence file as the post-seal evidence commit",
+        }
+    return {
+        "nextActionCode":"C9_SEALED",
+        "nextCommand":[],
+        "releaseSourceCommitSHA":sealed_sha,
+        "evidenceCommitSHA":current_sha,
+        "detail":"final exact release evidence is committed with evidence-only lineage from the sealed release SHA",
+    }
+
+
 def exact_source_admission(root: Path, source_sha: str) -> dict:
     state_dir=root/".state"
     if state_dir.is_symlink() or (state_dir.exists() and not state_dir.is_dir()):
@@ -518,13 +573,15 @@ def verify_existing_release_full(root: Path, source_sha: str, release: Path) -> 
 def resume_existing_evidence(root: Path, out: Path) -> dict:
     if out.is_symlink() or not out.is_file() or out.stat().st_size<=0 or out.stat().st_size>1024*1024:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
-    source_sha=git_source_for_resume(root,out)
+    current_sha=git_source_for_resume(root,out)
     try:
         evidence=json.loads(out.read_text(encoding="utf-8"))
     except (UnicodeDecodeError,json.JSONDecodeError) as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
     if not isinstance(evidence,dict) or set(evidence)!=FINAL_EVIDENCE_KEYS:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_FIELDS_INVALID")
+    source_sha=str(evidence.get("sourceCommitSHA") or "").strip().lower()
+    validate_final_evidence_lineage(root,source_sha,current_sha,out)
     version=(root/"VERSION").read_text(encoding="utf-8").strip()
     release_name=(root/"RELEASE-NAME").read_text(encoding="utf-8").strip()
     expected_name=f"4so-platform-factory-{version}-{release_name}.zip"
@@ -578,8 +635,9 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
     except (zipfile.BadZipFile,KeyError,OSError) as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_INVALID") from exc
     verify_existing_release_full(root,source_sha,release)
-    if git_source_for_resume(root,out)!=source_sha:
+    if git_source_for_resume(root,out)!=current_sha:
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_RESUME")
+    validate_final_evidence_lineage(root,source_sha,current_sha,out)
     return evidence
 
 
@@ -665,19 +723,16 @@ def main() -> int:
     )
     args = parser.parse_args()
     evidence = execute(args.root, args.out)
-    print(
-        json.dumps(
-            {
-                "authority": evidence["authority"],
-                "sourceCommitSHA": evidence["sourceCommitSHA"],
-                "releaseArchive": evidence["releaseArchive"],
-                "releaseArchiveSha256": evidence["releaseArchiveSha256"],
-                "fullVerifierPass": evidence["fullVerifierPass"],
-                "physicalCertified": evidence["physicalCertified"],
-            },
-            sort_keys=True,
-        )
-    )
+    result={
+        "authority": evidence["authority"],
+        "sourceCommitSHA": evidence["sourceCommitSHA"],
+        "releaseArchive": evidence["releaseArchive"],
+        "releaseArchiveSha256": evidence["releaseArchiveSha256"],
+        "fullVerifierPass": evidence["fullVerifierPass"],
+        "physicalCertified": evidence["physicalCertified"],
+    }
+    result.update(final_git_handoff(args.root.resolve(),admit_output_path(args.root.resolve(),args.out),evidence))
+    print(json.dumps(result,sort_keys=True))
     return 0
 
 
