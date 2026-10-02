@@ -74,7 +74,7 @@
     "auditTokenSource": "environment:C7W_PLATFORM_ADMIN_TOKEN",
     "auditFetchCommand": "integrated: make c7w-admit -> scripts/fetch_mcp_external_audit_window.py",
     "receiptAdmissionCommand": "C7W_CLIENT=<client> C7W_CAPTURE=/secure/<client>.capture.json make c7w-admit",
-    "finalReleaseSealCommand": "python3 scripts/seal_final_exact_release.py --root . --out lab/final-exact-release-evidence.json",
+    "finalReleaseSealCommand": "make c9-seal",
     "oauthClientBindingAuthority": "MCP_EXTERNAL_CLIENT_OAUTH_BINDINGS_V1",
     "oauthClientMapSchema": {
       "authority": "MCP_EXTERNAL_CLIENT_OAUTH_BINDINGS_V1",
