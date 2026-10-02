@@ -60,6 +60,10 @@ def exact_release_environment(go: Path) -> dict[str, str]:
     for key in list(env):
         if key in dangerous_exact or key.startswith("CGO_") or key.startswith("DYLD_") or key.startswith("GO") or key.startswith("GIT_"):
             env.pop(key,None)
+    env["PATH"]="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    env["LANG"]="C"
+    env["LC_ALL"]="C"
+    env["TZ"]="UTC"
     env["GO"]=str(go)
     env["GOTOOLCHAIN"]="local"
     env["GOENV"]="off"
