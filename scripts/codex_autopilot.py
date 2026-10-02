@@ -449,6 +449,7 @@ LIVE_RUN_REJOIN_FENCE_AUTHORITY = "AUTOPILOT_LIVE_RUN_REJOIN_FENCE_V1"
 CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1"
 AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY = "AUTOPILOT_OWNER_TEST_STAGE_V1"
 CONVERGENCE_REPAIR_AUTHORITY = "AUTOPILOT_CONVERGENCE_REPAIR_V1"
+OUTER_RUNTIME_CONTEXT_AUTHORITY = "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -1061,6 +1062,70 @@ def _summarize_event_log(root: Path) -> dict:
     }
 
 
+def _outer_runtime_context(root: Path) -> dict:
+    """Read the canonical durable wrapper status without creating a second runtime authority."""
+    runtime = root / "scripts" / "project_runtime.py"
+    base = {
+        "authority": OUTER_RUNTIME_CONTEXT_AUTHORITY,
+        "derived": True,
+        "notProductAuthority": True,
+        "available": False,
+        "status": "UNKNOWN",
+        "runId": "",
+        "activeRun": False,
+        "recoveryRequired": False,
+        "safeToRetry": False,
+        "action": "STATUS_UNAVAILABLE",
+    }
+    if not runtime.is_file() or runtime.is_symlink():
+        return base
+    try:
+        result = subprocess.run(
+            [sys.executable, str(runtime), "status", "--root", str(root)],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return base
+    if result.returncode != 0:
+        return base
+    try:
+        payload = json.loads(result.stdout)
+    except (json.JSONDecodeError, TypeError):
+        return base
+    if not isinstance(payload, dict) or payload.get("authority") != "PROJECT_RUNTIME_STATE_V1":
+        return base
+    status = str(payload.get("status") or "UNKNOWN").upper()
+    active = bool(payload.get("activeRun")) or status in {"REQUESTED", "RUNNING", "WAITING"}
+    recovery = bool(payload.get("recoveryRequired"))
+    safe = bool(payload.get("safeToRetry"))
+    if active:
+        action = "OBSERVE_ACTIVE"
+    elif recovery:
+        action = "RECOVERY_REQUIRED"
+    elif status == "INTERRUPTED" and safe:
+        action = "RESUME_RUNTIME"
+    else:
+        action = "NO_ACTIVE_RUNTIME"
+    return {
+        **base,
+        "available": True,
+        "projectRuntimeAuthority": "PROJECT_RUNTIME_STATE_V1",
+        "status": status,
+        "runId": str(payload.get("runId") or ""),
+        "phase": str(payload.get("phase") or ""),
+        "task": str(payload.get("task") or ""),
+        "activeRun": active,
+        "recoveryRequired": recovery,
+        "safeToRetry": safe,
+        "latestError": str(payload.get("latestError") or "")[:600],
+        "action": action,
+    }
+
+
 def _agent_context(root: Path) -> dict:
     """Return a compact, non-authoritative continuation capsule for the next agent."""
     report: dict = {}
@@ -1073,6 +1138,7 @@ def _agent_context(root: Path) -> dict:
         except (OSError, json.JSONDecodeError):
             report = {}
     events = _summarize_event_log(root)
+    outer_runtime = _outer_runtime_context(root)
     last_failure = report.get("lastFailure") if isinstance(report.get("lastFailure"), dict) else events.get("lastFailure", {})
     status = str(report.get("status") or events.get("status") or "IDLE")
     resume_invocation = report.get("invocation") if isinstance(report.get("invocation"), list) else []
@@ -1125,6 +1191,8 @@ def _agent_context(root: Path) -> dict:
         "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
         "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
         "convergenceRepairAuthority": CONVERGENCE_REPAIR_AUTHORITY,
+        "outerRuntimeContextAuthority": OUTER_RUNTIME_CONTEXT_AUTHORITY,
+        "outerRuntime": outer_runtime,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
         "promptBudgetChars": report.get("promptBudgetChars") if isinstance(report.get("promptBudgetChars"), dict) else {
@@ -1155,7 +1223,13 @@ def _agent_context(root: Path) -> dict:
             "a new defect found only during final convergence receives the same bounded triage/repair budget at that exact cursor; same-fingerprint repetition stops and cross-owner repair expands to full convergence",
         ],
     }
-    if status == "ENVIRONMENT_BLOCKED" and context["environmentPreflight"]:
+    if outer_runtime.get("action") == "OBSERVE_ACTIVE":
+        context["nextAction"] = "outer project runtime is already active; observe/rejoin it with make runtime-status and do not start a duplicate autopilot-agent"
+    elif outer_runtime.get("action") == "RECOVERY_REQUIRED":
+        context["nextAction"] = "outer project runtime requires explicit recovery resolution before any new Autopilot execution; inspect make runtime-status and do not replay the command"
+    elif outer_runtime.get("action") == "RESUME_RUNTIME":
+        context["nextAction"] = "outer project runtime is safely resumable; run make runtime-resume, then re-read make autopilot-context"
+    elif status == "ENVIRONMENT_BLOCKED" and context["environmentPreflight"]:
         context["nextAction"] = "apply only the environmentPreflight.remediationHints for missing prerequisites, then rerun resumeInvocation; do not edit product source for an environment blocker"
     elif status in {"ENVIRONMENT_BLOCKED", "CODE_DEFECT", "FAIL", "TIMEOUT"}:
         context["nextAction"] = "inspect lastFailure and rerun the recorded invocation after fixing only the owning cause"
@@ -1257,6 +1331,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
         "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
         "convergenceRepairAuthority": CONVERGENCE_REPAIR_AUTHORITY,
+        "outerRuntimeContextAuthority": OUTER_RUNTIME_CONTEXT_AUTHORITY,
         "defaultRepairBudget": DEFAULT_REPAIR_BUDGET,
         "defaultAgentRepairBudget": DEFAULT_AGENT_REPAIR_BUDGET,
         "promptBudgetChars": {
