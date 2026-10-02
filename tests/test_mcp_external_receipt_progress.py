@@ -65,6 +65,8 @@ class IncrementalMCPInteropTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"TRUSTED_CLIENT_DRIFT"): mod.validate_existing(bad,out)
             bad=json.loads(json.dumps(out)); bad["clients"][0]["sourceCommitSHA"]="2"*40
             with self.assertRaisesRegex(RuntimeError,"RUNTIME_IDENTITY_DRIFT"): mod.validate_existing(bad,out)
+            bad=json.loads(json.dumps(out)); bad["clients"][0]["responseObservations"]["project-resource-scope-negative-control"]["foreignProjectDataReturned"]=True
+            with self.assertRaisesRegex(RuntimeError,"RESPONSE_OBSERVATION_MISMATCH"): mod.validate_existing(bad,out)
 
     def test_resumed_progress_rebinds_rows_to_current_campaign_window_and_endpoint(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
