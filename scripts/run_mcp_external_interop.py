@@ -209,6 +209,15 @@ def prepare(args:argparse.Namespace)->dict:
         core.write_json_once_or_identical(packet_path,packet,"MCP_EXTERNAL_EXECUTION_PACKET")
         template_path=p["templates"]/(client+".json")
         core.write_json_once_or_identical(template_path,capture_template(packet),"MCP_EXTERNAL_CAPTURE_TEMPLATE")
+    client_handoff={
+        client:{
+            "packetPath":str(p["packets"]/(client+".json")),
+            "captureTemplatePath":str(p["templates"]/(client+".json")),
+            "expectedCapturePath":f"/secure/{client}.capture.json",
+            "admitCommand":["env",f"C7W_CLIENT={client}",f"C7W_CAPTURE=/secure/{client}.capture.json","make","c7w-admit"],
+        }
+        for client in core.CLIENTS
+    }
     return {
         "authority":AUTHORITY,
         "action":"PREPARED",
@@ -219,6 +228,9 @@ def prepare(args:argparse.Namespace)->dict:
         "stateDir":str(state),
         "externalExecutionRequired":True,
         "clients":list(core.CLIENTS),
+        "clientHandoff":client_handoff,
+        "nextClient":core.CLIENTS[0],
+        "nextActionCode":"RUN_EXTERNAL_CLIENT",
         "physicalCertified":False,
     }
 
@@ -385,15 +397,26 @@ def status(args:argparse.Namespace)->dict:
                 })
                 return value
             next_client=value.get("nextClient")
+            packet_path=p["packets"]/(str(next_client)+".json")
+            template_path=p["templates"]/(str(next_client)+".json")
+            capture_path="/secure/"+str(next_client)+".capture.json"
             value.update({
                 "nextActionCode":"RUN_EXTERNAL_CLIENT",
-                "nextCommand":["env",f"C7W_CLIENT={next_client}","C7W_CAPTURE=/secure/"+str(next_client)+".capture.json","make","c7w-admit"],
-                "detail":"execute the named external client with its prepared packet, then admit the resulting capture",
+                "nextCommand":["env",f"C7W_CLIENT={next_client}",f"C7W_CAPTURE={capture_path}","make","c7w-admit"],
+                "nextClientHandoff":{
+                    "clientId":next_client,
+                    "packetPath":str(packet_path),
+                    "captureTemplatePath":str(template_path),
+                    "expectedCapturePath":capture_path,
+                    "requiredCaptureAuthority":"MCP_EXTERNAL_CLIENT_CAPTURE_V1",
+                },
+                "detail":"execute the named external client with the exact prepared packet and fill the matching capture template; then admit that capture",
             })
         else:
             value.update({
                 "nextActionCode":"PREPARE_C7W_CAMPAIGN",
                 "nextCommand":["make","c7w-prepare"],
+                "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
                 "detail":"prepare a live source-bound C7W campaign before external client execution",
             })
     return value
