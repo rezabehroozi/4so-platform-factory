@@ -29,10 +29,16 @@ class ReceiptFinalizerTests(unittest.TestCase):
         n=0
         for row in packet["checks"]:
             cid=row["id"]
+            observed={}
+            for key,value in row["expect"].items():
+                if key=="scopesContain":
+                    observed["scopes"]=list(value)
+                else:
+                    observed[key]=value
             if cid in core.AUDITED_CHECKS:
-                n+=1; checks[cid]={"passed":True,"requestId":f"req-chatgpt-{n:02d}"}
+                n+=1; checks[cid]={"observed":observed,"requestId":f"req-chatgpt-{n:02d}"}
             else:
-                checks[cid]={"passed":True}
+                checks[cid]={"observed":observed}
         executed=core.parse_utc_timestamp(packet["campaignCreatedAt"],"TEST_CREATED")+core.timedelta(minutes=1)
         capture={"authority":mod.AUTHORITY,"clientId":"chatgpt","clientSurface":packet["clientSurface"],"campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"sourceCommitSHA":packet["sourceCommitSHA"],"runtimeVersion":packet["runtimeVersion"],"executionId":"provider-run-chatgpt-001","executedAt":core.utc_timestamp(executed),"externalExecution":True,"credentialedExecution":True,"checks":checks,"providerExecutionRef":"opaque-provider-execution-001"}
         cap=td/"capture.json"; cap.write_text(json.dumps(capture))
@@ -50,8 +56,8 @@ class ReceiptFinalizerTests(unittest.TestCase):
     def test_false_check_missing_request_id_and_binding_drift_fail_closed(self):
         with tempfile.TemporaryDirectory() as raw:
             pp,cap,capture=self.fixture(Path(raw))
-            bad=copy.deepcopy(capture); bad["checks"]["authorization-filtered-tools-list"]["passed"]=False; cap.write_text(json.dumps(bad))
-            with self.assertRaisesRegex(RuntimeError,"CHECK_NOT_PASS"): mod.finalize(pp,cap)
+            bad=copy.deepcopy(capture); bad["checks"]["authorization-filtered-tools-list"]["observed"]["httpStatus"]=500; cap.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"OBSERVATION_MISMATCH"): mod.finalize(pp,cap)
             bad=copy.deepcopy(capture); bad["checks"]["authorization-filtered-tools-list"]["requestId"]=""; cap.write_text(json.dumps(bad))
             with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_INVALID"): mod.finalize(pp,cap)
             bad=copy.deepcopy(capture); bad["campaignId"]="mcp-interop-other"; cap.write_text(json.dumps(bad))
@@ -65,6 +71,10 @@ class ReceiptFinalizerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"PROVIDER_EXECUTION_REF_INVALID"): mod.finalize(pp,cap)
             bad=copy.deepcopy(capture); bad["checks"]["oauth-protected-resource-discovery"]["requestId"]="req-public-01"; cap.write_text(json.dumps(bad))
             with self.assertRaisesRegex(RuntimeError,"CHECK_FIELDS_INVALID"): mod.finalize(pp,cap)
+            bad=copy.deepcopy(capture); bad["checks"]["oauth-protected-resource-discovery"]={"passed":True}; cap.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"CHECK_FIELDS_INVALID"): mod.finalize(pp,cap)
+            bad=copy.deepcopy(capture); bad["checks"]["oauth-protected-resource-discovery"]["observed"]["scopes"]=["mcp.read"]; cap.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"OBSERVATION_MISMATCH"): mod.finalize(pp,cap)
 
     def test_packet_authority_protocol_endpoint_and_scope_drift_fail_before_capture(self):
         with tempfile.TemporaryDirectory() as raw:
