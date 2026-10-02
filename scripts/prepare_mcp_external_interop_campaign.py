@@ -232,8 +232,10 @@ def resume_existing(matrix_path:Path,endpoint_url:str,out_path:Path,source_sha:s
     existing=core.verify_campaign(out_path,matrix_path,spec)
     if existing.get("endpoint")!=endpoint(endpoint_url):
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_RESUME_ENDPOINT_DRIFT")
-    if existing.get("sourceCommitSHA")!=source_sha:
-        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_RESUME_SOURCE_DRIFT")
+    try:
+        core.validate_evidence_only_source_lineage(ROOT,existing.get("sourceCommitSHA"),source_sha,"MCP_EXTERNAL_CAMPAIGN_RESUME")
+    except RuntimeError as exc:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_RESUME_SOURCE_DRIFT") from exc
     return existing
 
 def main()->int:
