@@ -432,6 +432,19 @@ def git_source_for_resume(root: Path, out: Path) -> str:
     return head.stdout.strip()
 
 
+def exact_source_admission(root: Path, source_sha: str) -> dict:
+    state_dir=root/".state"
+    if state_dir.is_symlink() or (state_dir.exists() and not state_dir.is_dir()):
+        raise RuntimeError("FINAL_EXACT_RELEASE_STATE_DIR_INVALID")
+    state_dir.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="4so-final-release-admission-source-",dir=state_dir) as source_td:
+        worktree=prepare_exact_worktree(root,source_sha,Path(source_td))
+        try:
+            return admission.verify(worktree)
+        finally:
+            remove_exact_worktree(root,worktree)
+
+
 def resume_existing_evidence(root: Path, out: Path) -> dict:
     if out.is_symlink() or not out.is_file() or out.stat().st_size<=0 or out.stat().st_size>1024*1024:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
@@ -456,7 +469,7 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
     }
     if any(evidence.get(k)!=v for k,v in fixed.items()):
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_DRIFT")
-    admitted=admission.verify(root)
+    admitted=exact_source_admission(root,source_sha)
     if admitted.get("admitted") is not True or admitted.get("physicalCertified") is not False:
         raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_INVALID")
     for key in ("applianceDistributionSha256","mcpExternalInteropSha256"):
