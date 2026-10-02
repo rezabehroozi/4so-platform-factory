@@ -22,6 +22,7 @@ AUDIT_METHOD_VERSION="IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1"
 INTEROP_BINDING_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_BINDING_V1"
 OAUTH_BINDING_AUTHORITY="MCP_EXTERNAL_CLIENT_OAUTH_BINDINGS_V1"
 CAMPAIGN_PREFLIGHT_AUTHORITY="MCP_EXTERNAL_CAMPAIGN_LIVE_PREFLIGHT_V1"
+LOCAL_EXECUTION_RUNNER_AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"
 CLIENTS=("chatgpt","claude","gemini","grok")
 CLIENT_SURFACES={"chatgpt":"ChatGPT custom MCP","claude":"Claude remote MCP","gemini":"Gemini remote MCP","grok":"Grok custom MCP"}
 SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -181,6 +182,16 @@ def validate_matrix_contract(matrix:object,label:str="MCP_EXTERNAL_MATRIX")->dic
         raise RuntimeError(f"{label}_STATE_INVALID")
     if spec.get("protocol")!="2026-07-28" or spec.get("transport")!="streamable-http" or spec.get("resourcePath")!="/mcp":
         raise RuntimeError(f"{label}_PROTOCOL_INVALID")
+    execution_contract={
+        "executionRunnerAuthority":LOCAL_EXECUTION_RUNNER_AUTHORITY,
+        "campaignPreparation":"C7W_MCP_ENDPOINT=https://<api>/mcp C7W_OAUTH_CLIENT_MAP=/secure/oauth-client-bindings.json make c7w-prepare",
+        "receiptAdmissionCommand":"C7W_CLIENT=<client> C7W_CAPTURE=/secure/<client>.capture.json make c7w-admit",
+        "statusCommand":"make c7w-status",
+        "sealCommand":"make c7w-seal",
+        "auditFetchCommand":"integrated: make c7w-admit -> scripts/fetch_mcp_external_audit_window.py",
+    }
+    if any(spec.get(key)!=value for key,value in execution_contract.items()):
+        raise RuntimeError(f"{label}_LOCAL_EXECUTION_CONTRACT_INVALID")
     required=list(spec.get("sharedRequiredChecks") or [])
     if required!=list(REQUIRED_CHECKS):
         raise RuntimeError(f"{label}_CHECKS_INVALID")
