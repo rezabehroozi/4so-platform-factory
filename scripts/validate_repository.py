@@ -709,8 +709,7 @@ def validate_release_recipes(root: Path, errors: list[tuple[str,str]]) -> None:
         if dockerfile.name in {'Dockerfile','Dockerfile.agent','Dockerfile.probe'}:
             if 'internal/buildinfo.Version=$VERSION' not in docker:
                 errors.append(('CONTAINER_BINARY_VERSION_INJECTION_MISSING', rel))
-            if 'ARG SOURCE_COMMIT' not in docker or "grep -Eq '^[0-9a-f]{40}        for line in docker.splitlines():
-            row = line.strip()
+            if 'ARG SOURCE_COMMIT' not in docker or "grep -Eq '^[0-9a-f]{40}            row = line.strip()
             if row.startswith('FROM ') and '${' not in row and '@sha256:' not in row:
                 errors.append(('MUTABLE_CONTAINER_BASE', f'{rel}:{row}'))
     release_recipes = {
