@@ -28,14 +28,17 @@ import zipfile
 
 try:
     import final_exact_release_admission as admission
+    import ui_browser_authority as browser_authority
 except ModuleNotFoundError:
     from scripts import final_exact_release_admission as admission
+    from scripts import ui_browser_authority as browser_authority
 
 AUTHORITY = "FINAL_EXACT_RELEASE_SEAL_V1"
 EXECUTION_AUTHORITY = "LOCAL_EXACT_RELEASE_SEAL_V1"
 FULL_VERIFIER_AUTHORITY = "CHECKPOINT_SAFE_FULL_VERIFIER_V2"
 TOOLCHAIN_AUTHORITY = "RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1"
 SOURCE_WORKSPACE_AUTHORITY = "GIT_DETACHED_EXACT_SHA_WORKTREE_V1"
+ENVIRONMENT_PREFLIGHT_AUTHORITY = "FINAL_EXACT_RELEASE_ENVIRONMENT_PREFLIGHT_V1"
 FINAL_EVIDENCE_KEYS = {
     "apiVersion","kind","authority","sourceExecutionAuthority","sourceWorkspaceAuthority",
     "sourceCommitSHA","version","releaseName","releaseArchive","releaseArchivePath",
@@ -195,6 +198,64 @@ def safe_toolchain_archive(root: Path, lock: dict) -> tuple[Path, dict]:
     if info.st_size != wanted_size or got_sha != wanted_sha:
         raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE_MISMATCH")
     return archive, exact
+
+
+def exact_release_environment_preflight(root:Path)->dict:
+    root=root.resolve()
+    blockers=[]
+    required_host="linux-amd64-exact-toolchain"
+    if not sys.platform.startswith("linux"):
+        blockers.append("FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED")
+
+    lock_path=root/"lab"/"release-build-toolchain-lock.json"
+    archive_path=""
+    archive_ready=False
+    try:
+        lock=json.loads(lock_path.read_text(encoding="utf-8"))
+        archive,_=safe_toolchain_archive(root,lock)
+        archive_path=str(archive)
+        archive_ready=True
+    except (OSError,UnicodeDecodeError,json.JSONDecodeError,RuntimeError,ValueError) as exc:
+        blockers.append(str(exc).split()[0] if str(exc).strip() else "FINAL_EXACT_RELEASE_TOOLCHAIN_PREFLIGHT_FAILED")
+
+    browser_manifest=str(os.environ.get(browser_authority.ENV_AUTHORITY) or "").strip()
+    browser_ready=False
+    browser_version=""
+    if not browser_manifest:
+        blockers.append("UI_BROWSER_AUTHORITY_MISSING")
+    else:
+        try:
+            _,browser_doc=browser_authority.validate_ui_browser_authority(Path(browser_manifest))
+            browser_ready=True
+            browser_version=str(browser_doc.get("version") or "")
+        except (OSError,ValueError) as exc:
+            blockers.append(str(exc).split(":")[0].split()[0] if str(exc).strip() else "UI_BROWSER_AUTHORITY_INVALID")
+
+    exact_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    missing_tools=[name for name in ("gcc","ld","ldd","readelf") if shutil.which(name,path=exact_path) is None]
+    for name in missing_tools:
+        blockers.append("FINAL_EXACT_RELEASE_HOST_TOOL_MISSING_"+name.upper().replace("-","_"))
+
+    blockers=list(dict.fromkeys(blockers))
+    return {
+        "authority":ENVIRONMENT_PREFLIGHT_AUTHORITY,
+        "ready":not blockers,
+        "requiredHost":required_host,
+        "toolchainArchiveReady":archive_ready,
+        "toolchainArchivePath":archive_path,
+        "browserAuthorityReady":browser_ready,
+        "browserAuthorityPath":browser_manifest,
+        "browserVersion":browser_version,
+        "missingHostTools":missing_tools,
+        "blockers":blockers,
+        "physicalCertified":False,
+    }
+
+def require_exact_release_environment(root:Path)->dict:
+    result=exact_release_environment_preflight(root)
+    if not result["ready"]:
+        raise RuntimeError("FINAL_EXACT_RELEASE_ENVIRONMENT_BLOCKED "+",".join(result["blockers"]))
+    return result
 
 
 def extract_toolchain(archive: Path, exact: dict, workspace: Path) -> Path:
@@ -792,6 +853,7 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
 def execute(root: Path, out: Path) -> dict:
     require_exact_release_host()
     root = root.resolve()
+    require_exact_release_environment(root)
     out = admit_output_path(root,out)
     if out.exists():
         return resume_existing_evidence(root,out)
@@ -881,7 +943,12 @@ def main() -> int:
         type=Path,
         default=Path("lab/final-exact-release-evidence.json"),
     )
+    parser.add_argument("--preflight",action="store_true")
     args = parser.parse_args()
+    if args.preflight:
+        result=exact_release_environment_preflight(args.root)
+        print(json.dumps(result,sort_keys=True))
+        return 0 if result["ready"] else 2
     evidence = execute(args.root, args.out)
     result={
         "authority": evidence["authority"],
