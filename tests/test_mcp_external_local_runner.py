@@ -301,6 +301,25 @@ class LocalC7WRunnerTests(unittest.TestCase):
             self.assertEqual([sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"],ready["nextCommand"])
             self.assertRegex(ready["sourceCommitSHA"],r"^[0-9a-f]{40}$")
 
+    def test_c9_handoff_requires_exact_linux_host_on_windows(self):
+        source_sha="a"*40
+        with mock.patch.object(mod.sys,"platform","win32"):
+            out=mod.c9_handoff(source_sha)
+        self.assertEqual("RUN_C9_ON_EXACT_LINUX_HOST",out["nextActionCode"])
+        self.assertEqual([],out["nextCommand"])
+        self.assertEqual("linux-amd64-exact-toolchain",out["requiredHost"])
+        self.assertEqual(source_sha,out["requiredSourceCommitSHA"])
+        self.assertEqual("<python>",out["nextCommandTemplate"][0])
+        self.assertIn("scripts/seal_final_exact_release.py",out["nextCommandTemplate"])
+        self.assertNotIn("make",json.dumps(out).lower())
+
+    def test_c9_handoff_is_directly_executable_on_linux(self):
+        with mock.patch.object(mod.sys,"platform","linux"):
+            out=mod.c9_handoff("b"*40)
+        self.assertEqual("RUN_C9_SEAL",out["nextActionCode"])
+        self.assertEqual(mod.c9_seal_command(),out["nextCommand"])
+        self.assertEqual("linux-amd64-exact-toolchain",out["requiredHost"])
+
     def test_git_handoff_never_recommends_c9_with_unrelated_dirty_source(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
