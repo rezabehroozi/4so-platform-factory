@@ -16,14 +16,51 @@ import seal_mcp_external_interop as core
 AUTHORITY="MCP_EXTERNAL_CLIENT_CAPTURE_V1"
 PACKET_AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_PACKET_V1"
 
+def validate_packet(packet:dict)->tuple[str,str]:
+    if not isinstance(packet,dict) or packet.get("authority")!=PACKET_AUTHORITY or packet.get("kind")!="MCPExternalClientExecutionPacket":
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_AUTHORITY_INVALID")
+    if packet.get("matrixAuthority")!=core.MATRIX_AUTHORITY or packet.get("campaignAuthority")!=core.CAMPAIGN_AUTHORITY:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_SOURCE_AUTHORITY_INVALID")
+    if packet.get("protocol")!="2026-07-28" or packet.get("transport")!="streamable-http":
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_PROTOCOL_INVALID")
+    try:
+        endpoint=core.endpoint(packet.get("endpoint",""))
+    except RuntimeError as exc:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_ENDPOINT_INVALID") from exc
+    client=str(packet.get("clientId") or "").strip().lower()
+    if client not in core.CLIENTS or packet.get("clientSurface")!=core.CLIENT_SURFACES[client] or packet.get("secretsIncluded") is not False:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CLIENT_INVALID")
+    if packet.get("runtimeCertified") is not False or packet.get("physicalCertified") is not False:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_SCOPE_INFLATED")
+    requirements=packet.get("receiptRequirements")
+    expected_requirements={
+        "authority":core.RECEIPT_AUTHORITY,
+        "captureAuthority":AUTHORITY,
+        "serverAuditWitnessAuthority":core.AUDIT_WITNESS_AUTHORITY,
+        "interopBindingAuthority":core.INTEROP_BINDING_AUTHORITY,
+        "oauthClientId":packet.get("oauthClientId"),
+        "oauthClientWitnessedChecks":list(core.OAUTH_CLIENT_AUDITED_CHECKS),
+        "executedAtRequired":True,
+        "allSevenChecksMustPass":True,
+        "externalExecution":True,
+        "credentialedExecution":True,
+    }
+    if not isinstance(requirements,dict):
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_REQUIREMENTS_INVALID")
+    for key,value in expected_requirements.items():
+        if requirements.get(key)!=value:
+            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_REQUIREMENTS_INVALID {key}")
+    if requirements.get("requestIds")!=list(core.AUDITED_CHECKS):
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_REQUIREMENTS_INVALID requestIds")
+    finalizer=str(requirements.get("finalizer") or "")
+    if "finalize_mcp_external_client_receipt.py" not in finalizer or "--packet <packet.json>" not in finalizer or "--capture <capture.json>" not in finalizer:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_REQUIREMENTS_INVALID finalizer")
+    return client,endpoint
+
 def finalize(packet_path:Path,capture_path:Path)->dict:
     packet=core.load(packet_path,"EXECUTION_PACKET")
     capture=core.load(capture_path,"EXTERNAL_CAPTURE")
-    if not isinstance(packet,dict) or packet.get("authority")!=PACKET_AUTHORITY:
-        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_AUTHORITY_INVALID")
-    client=str(packet.get("clientId") or "").strip().lower()
-    if client not in core.CLIENTS or packet.get("secretsIncluded") is not False:
-        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CLIENT_INVALID")
+    client,packet_endpoint=validate_packet(packet)
     if not isinstance(capture,dict) or capture.get("authority")!=AUTHORITY or capture.get("clientId")!=client:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_IDENTITY_INVALID")
     allowed_capture={"authority","clientId","clientSurface","campaignId","challengeSha256","endpoint","executionId","executedAt","externalExecution","credentialedExecution","checks","providerExecutionRef"}
@@ -40,9 +77,15 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     executed=core.parse_utc_timestamp(capture.get("executedAt"),"MCP_EXTERNAL_CAPTURE_EXECUTED_AT")
     if executed<created or executed>expires or executed>datetime.now(timezone.utc)+timedelta(minutes=5):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_EXECUTION_TIME_INVALID")
-    for key in ("clientSurface","campaignId","challengeSha256","endpoint"):
+    for key in ("clientSurface","campaignId","challengeSha256"):
         if capture.get(key)!=packet.get(key):
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_BINDING_INVALID {key}")
+    try:
+        capture_endpoint=core.endpoint(capture.get("endpoint",""))
+    except RuntimeError as exc:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_ENDPOINT_INVALID") from exc
+    if capture_endpoint!=packet_endpoint:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_BINDING_INVALID endpoint")
     oauth_client_id=str(packet.get("oauthClientId") or "").strip()
     if not oauth_client_id or len(oauth_client_id.encode("utf-8"))>512 or any(ch in oauth_client_id for ch in "\r\n\t"):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_OAUTH_CLIENT_INVALID")
