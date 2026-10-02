@@ -426,14 +426,17 @@ def release(root,run_id,pid,start,override=None):
         p.unlink(missing_ok=True); fsync_dir(p)
 
 def owned_worktree_mutation_scope_allowed(phase,task,command):
-    """Only C6 repair entrypoints may let the inner owner mutate the worktree."""
+    """Only exact C6 Python Autopilot repair entrypoints may mutate the worktree."""
     command=[str(item) for item in (command or [])]
     if str(phase or "")!="C6-multi-agent-test-autopilot" or str(task or "") not in {"codex-autopilot","codex-autopilot-agent"}:
         return False
-    joined=" ".join(command)
-    if "scripts/codex_autopilot.py" not in joined:
+    if len(command)<3 or not Path(command[0]).name.startswith("python"):
         return False
-    return "--repair" in command or "--agent-run" in command
+    script=Path(command[1]).as_posix()
+    if not (script=="scripts/codex_autopilot.py" or script.endswith("/scripts/codex_autopilot.py")):
+        return False
+    repair_flags={item for item in command[2:] if item in {"--repair","--agent-run"}}
+    return bool(repair_flags)
 
 def execution_source_status(root,state,allow_owned_worktree_mutation=False):
     wanted=str(state.get("worktreeFingerprint") or "")
