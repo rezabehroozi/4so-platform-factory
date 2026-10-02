@@ -145,13 +145,14 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
             "currentSourceCommitSHA":current_sha,
             "detail":str(exc)+"; source changed beyond evidence-only C7W files, so C9 must not use the stale external certification",
         }
-    return {
-        "nextActionCode":"RUN_C9_SEAL",
-        "nextCommand":c9_seal_command(),
+    handoff=c9_handoff(current_sha)
+    handoff.update({
         "sourceCommitSHA":current_sha,
         "certifiedSourceCommitSHA":certified_sha,
-        "detail":"C7W evidence is committed and source lineage is evidence-only; C9 may run",
-    }
+    })
+    if handoff["nextActionCode"]=="RUN_C9_SEAL":
+        handoff["detail"]="C7W evidence is committed and source lineage is evidence-only; C9 may run on this exact Linux build host"
+    return handoff
 
 
 def runner_command(state:Path,command:str,*args:str)->list[str]:
@@ -160,6 +161,23 @@ def runner_command(state:Path,command:str,*args:str)->list[str]:
 
 def c9_seal_command()->list[str]:
     return [sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"]
+
+def c9_handoff(source_sha:str)->dict:
+    command=c9_seal_command()
+    if sys.platform.startswith("linux"):
+        return {
+            "nextActionCode":"RUN_C9_SEAL",
+            "nextCommand":command,
+            "requiredHost":"linux-amd64-exact-toolchain",
+        }
+    return {
+        "nextActionCode":"RUN_C9_ON_EXACT_LINUX_HOST",
+        "nextCommand":[],
+        "nextCommandTemplate":["<python>","scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"],
+        "requiredHost":"linux-amd64-exact-toolchain",
+        "requiredSourceCommitSHA":source_sha,
+        "detail":"C9 is source-ready after C7W, but its admitted Go/CGO lock is Linux/amd64; run the exact committed SHA on a Linux host with the admitted offline toolchain archive rather than weakening the release boundary",
+    }
 
 
 def client_execution_handoff(state:Path,client:str)->dict:
