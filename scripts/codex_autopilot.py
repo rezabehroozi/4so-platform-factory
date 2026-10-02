@@ -462,6 +462,10 @@ REPAIR_GIT_BOUNDARY_AUTHORITY = "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1"
 DIRTY_DELTA_AUTHORITY = "AUTOPILOT_DIRTY_DELTA_V1"
 WORKSPACE_FINGERPRINT_AUTHORITY = "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1"
 AGENT_CONTEXT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_V1"
+AGENT_CONTEXT_COMPACT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_COMPACT_V1"
+AGENT_CONTEXT_COMPACT_MAX_CHARS = 7000
+AGENT_CONTEXT_COMPACT_FAILURE_MAX_CHARS = 1600
+AGENT_CONTEXT_COMPACT_OWNER_PATH_LIMIT = 6
 AGENT_FAILURE_CAPSULE_AUTHORITY = "AUTOPILOT_AGENT_FAILURE_CAPSULE_V2"
 INSTALLER_OWNER_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_STAGE_V1"
 INSTALLER_OWNER_CONTRACT_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_CONTRACT_STAGE_V1"
@@ -1344,6 +1348,78 @@ def _agent_context(root: Path) -> dict:
     else:
         context["nextAction"] = "run make autopilot-agent; it performs prerequisite checking and durable checkpoint/resume automatically"
     return context
+
+
+def _compact_agent_context(root: Path) -> dict:
+    """Return only the actionable continuation packet needed by the next agent.
+
+    Full report/authority diagnostics remain available through --agent-context.
+    The default Make handoff uses this bounded projection so a new coding agent
+    does not spend context on orchestration metadata it is explicitly told not
+    to consume.
+    """
+    full = _agent_context(root)
+    outer = full.get("outerRuntime") if isinstance(full.get("outerRuntime"), dict) else {}
+    environment = full.get("environmentPreflight") if isinstance(full.get("environmentPreflight"), dict) else {}
+    remediation = environment.get("remediationHints") if isinstance(environment.get("remediationHints"), dict) else {}
+    failure = str(full.get("failureCapsule") or "")[:AGENT_CONTEXT_COMPACT_FAILURE_MAX_CHARS]
+    compact = {
+        "schemaVersion": 1,
+        "authority": AGENT_CONTEXT_COMPACT_AUTHORITY,
+        "derived": True,
+        "notProductAuthority": True,
+        "contextBudgetChars": AGENT_CONTEXT_COMPACT_MAX_CHARS,
+        "gitHead": str(full.get("gitHead") or ""),
+        "runId": str(full.get("runId") or ""),
+        "status": str(full.get("status") or "IDLE"),
+        "phase": str(full.get("phase") or ""),
+        "currentStage": str(full.get("currentStage") or ""),
+        "currentSpecialist": str(full.get("currentSpecialist") or ""),
+        "nextStage": str(full.get("nextStage") or ""),
+        "resumeEligible": bool(full.get("resumeEligible", False)),
+        "lastFailure": full.get("lastFailure") if isinstance(full.get("lastFailure"), dict) else {},
+        "failurePathHints": [str(item) for item in (full.get("failurePathHints") or [])[:8]],
+        "ownerContextPaths": [str(item) for item in (full.get("ownerContextPaths") or [])[:AGENT_CONTEXT_COMPACT_OWNER_PATH_LIMIT]],
+        "failureCapsule": failure,
+        "proofCommand": full.get("proofCommand") if isinstance(full.get("proofCommand"), list) else [],
+        "proofTimeoutSeconds": int(full.get("proofTimeoutSeconds") or 0),
+        "resumeInvocation": full.get("resumeInvocation") if isinstance(full.get("resumeInvocation"), list) else [],
+        "environmentPreflight": {
+            "missing": [str(item) for item in (environment.get("missing") or [])],
+            "remediationHints": {str(key): str(value) for key, value in remediation.items()},
+        } if environment else {},
+        "outerRuntime": {
+            key: outer.get(key)
+            for key in ("status", "runId", "activeRun", "recoveryRequired", "safeToRetry", "replaySafe", "action")
+            if key in outer
+        },
+        "nextActionCode": str(full.get("nextActionCode") or ""),
+        "nextCommand": full.get("nextCommand") if isinstance(full.get("nextCommand"), list) else [],
+        "nextAction": str(full.get("nextAction") or ""),
+        "rules": [
+            "read failurePathHints, then ownerContextPaths; do not broad-scan first",
+            "run proofCommand for diagnosis; let Autopilot own final convergence",
+            "execute only nextCommand admitted by nextActionCode",
+            "never infer Runtime/Lab/Exact-SHA Physical PASS from local/source success",
+        ],
+    }
+    raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
+    if len(raw) > AGENT_CONTEXT_COMPACT_MAX_CHARS:
+        compact["failureCapsule"] = failure[-800:]
+        compact["ownerContextPaths"] = compact["ownerContextPaths"][:4]
+        compact["failurePathHints"] = compact["failurePathHints"][:4]
+        compact["contextTruncated"] = True
+        raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
+    if len(raw) > AGENT_CONTEXT_COMPACT_MAX_CHARS:
+        compact["nextAction"] = compact["nextAction"][:480]
+        compact["environmentPreflight"] = {
+            "missing": compact.get("environmentPreflight", {}).get("missing", []),
+        }
+        raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
+    if len(raw) > AGENT_CONTEXT_COMPACT_MAX_CHARS:
+        raise RuntimeError("AUTOPILOT_COMPACT_AGENT_CONTEXT_BUDGET_EXCEEDED")
+    compact["serializedChars"] = len(raw)
+    return compact
 
 
 def _report_result(stage: Stage, result: StageResult) -> dict:
@@ -3077,7 +3153,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="4SO Platform Factory bounded Codex correctness autopilot")
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--event-summary", action="store_true", help="print the latest structured autopilot event-log summary and exit")
-    ap.add_argument("--agent-context", action="store_true", help="print a compact continuation capsule for the next coding/test agent and exit")
+    ap.add_argument("--agent-context", action="store_true", help="print the full bounded continuation/diagnostic capsule and exit")
+    ap.add_argument("--agent-context-compact", action="store_true", help="print the minimal hard-budget continuation capsule intended for the next coding/test agent and exit")
     ap.add_argument("--agent-run", action="store_true", help="single-entry agent mode: durable resume/checkpoint + bounded owner repair with compact failure context")
     ap.add_argument("--adopt-owner-fix", action="store_true", help="resume after an external CODE_DEFECT fix only when Git HEAD is unchanged and every changed path remains inside the failing owner scope")
     ap.add_argument("--preflight", action="store_true", help="check deterministic test/repair host prerequisites without running the suite")
@@ -3091,7 +3168,7 @@ def main() -> int:
     ap.add_argument("--real-test-timeout", type=int, default=7200, help="maximum Field Campaign watch duration in seconds")
     args = ap.parse_args()
     if args.agent_run:
-        if args.self_test or args.event_summary or args.agent_context or args.preflight:
+        if args.self_test or args.event_summary or args.agent_context or args.agent_context_compact or args.preflight:
             raise SystemExit("--agent-run cannot be combined with reporting/self-test/preflight-only modes")
         args.repair = True
         args.adopt_owner_fix = True
@@ -3111,6 +3188,9 @@ def main() -> int:
         return 0
     if args.agent_context:
         print(json.dumps(_agent_context(ROOT), sort_keys=True))
+        return 0
+    if args.agent_context_compact:
+        print(json.dumps(_compact_agent_context(ROOT), sort_keys=True, separators=(",", ":")))
         return 0
     if args.preflight:
         selected = None
