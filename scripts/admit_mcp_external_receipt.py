@@ -33,9 +33,13 @@ def matrix_contract(matrix_path:Path,campaign_path:Path):
     return spec,required,core.verify_campaign(campaign_path,matrix_path,spec)
 
 def base_progress(matrix_path:Path,campaign_path:Path,campaign:dict,spec:dict)->dict:
+    matrix_sha256=str(campaign.get("_matrixSha256") or "")
+    campaign_sha256=str(campaign.get("_campaignSha256") or "")
+    if not core.SHA.fullmatch(matrix_sha256) or not core.SHA.fullmatch(campaign_sha256):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_SNAPSHOT_DIGEST_MISSING")
     return {"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropProgress","authority":AUTHORITY,
-      "matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix_path),
-      "campaignAuthority":core.CAMPAIGN_AUTHORITY,"campaignId":campaign["campaignId"],"campaignSha256":core.sha256(campaign_path),
+      "matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":matrix_sha256,
+      "campaignAuthority":core.CAMPAIGN_AUTHORITY,"campaignId":campaign["campaignId"],"campaignSha256":campaign_sha256,
       "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":campaign["oauthClientBindingsSha256"],
       "oauthClientBindings":core.campaign_oauth_client_bindings(campaign),
       "trustedClientBindings":core.campaign_trusted_client_bindings(campaign),
