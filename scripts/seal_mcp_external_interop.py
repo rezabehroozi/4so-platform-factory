@@ -8,7 +8,7 @@ OAuth protected-resource discovery remains a public metadata check and is not
 expected to create an authenticated audit event.
 """
 from __future__ import annotations
-import argparse, hashlib, json, os, re, tempfile
+import argparse, hashlib, json, os, re, subprocess, tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -37,6 +37,31 @@ AUDITED_CHECKS=(
 )
 REQUIRED_CHECKS=("oauth-protected-resource-discovery",)+AUDITED_CHECKS
 OAUTH_CLIENT_AUDITED_CHECKS=tuple(x for x in AUDITED_CHECKS if x!="dedicated-audience-validation")
+C7W_EVIDENCE_ONLY_PATHS=frozenset({
+    "lab/mcp-external-client-interop-progress.json",
+    "lab/mcp-external-client-interoperability-evidence.json",
+})
+
+def validate_evidence_only_source_lineage(root:Path,certified_sha:str,current_sha:str,label:str="MCP_EXTERNAL_INTEROP")->None:
+    certified_sha=str(certified_sha or "").strip().lower()
+    current_sha=str(current_sha or "").strip().lower()
+    if not COMMIT.fullmatch(certified_sha) or not COMMIT.fullmatch(current_sha):
+        raise RuntimeError(f"{label}_SOURCE_IDENTITY_INVALID")
+    if certified_sha==current_sha:
+        return
+    ancestor=subprocess.run(["git","merge-base","--is-ancestor",certified_sha,current_sha],cwd=root,capture_output=True,check=False)
+    if ancestor.returncode!=0:
+        raise RuntimeError(f"{label}_SOURCE_NOT_ANCESTOR")
+    diff=subprocess.run(["git","diff","--name-only","-z",certified_sha+".."+current_sha],cwd=root,capture_output=True,check=False)
+    if diff.returncode!=0:
+        raise RuntimeError(f"{label}_SOURCE_DELTA_UNAVAILABLE")
+    try:
+        changed={raw.decode("utf-8",errors="strict") for raw in diff.stdout.split(b"\x00") if raw}
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(f"{label}_SOURCE_DELTA_INVALID") from exc
+    if not changed or not changed.issubset(C7W_EVIDENCE_ONLY_PATHS):
+        raise RuntimeError(f"{label}_SOURCE_DELTA_NOT_EVIDENCE_ONLY")
+
 INTEROP_EVIDENCE_KEYS=frozenset({
     "apiVersion","kind","authority","matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256",
     "oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","trustedClientBindings",
