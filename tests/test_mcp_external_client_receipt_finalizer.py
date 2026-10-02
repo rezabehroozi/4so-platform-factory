@@ -21,6 +21,7 @@ class ReceiptFinalizerTests(unittest.TestCase):
         expires=created+core.timedelta(seconds=spec["campaignMaxAgeSeconds"])
         campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-capturetest","createdAt":core.utc_timestamp(created),"expiresAt":core.utc_timestamp(expires),"matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
                   "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"capture-oauth-bindings").hexdigest(),
+                  "sourceCommitSHA":"1"*40,"runtimeVersion":"0.0.test",
                   "protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
         cp=td/"campaign.json"; cp.write_text(json.dumps(campaign))
         packet=packetmod.packet(matrix,cp,"chatgpt"); pp=td/"packet.json"; pp.write_text(json.dumps(packet))
@@ -33,7 +34,7 @@ class ReceiptFinalizerTests(unittest.TestCase):
             else:
                 checks[cid]={"passed":True}
         executed=core.parse_utc_timestamp(packet["campaignCreatedAt"],"TEST_CREATED")+core.timedelta(minutes=1)
-        capture={"authority":mod.AUTHORITY,"clientId":"chatgpt","clientSurface":packet["clientSurface"],"campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"executionId":"provider-run-chatgpt-001","executedAt":core.utc_timestamp(executed),"externalExecution":True,"credentialedExecution":True,"checks":checks,"providerExecutionRef":"opaque-provider-execution-001"}
+        capture={"authority":mod.AUTHORITY,"clientId":"chatgpt","clientSurface":packet["clientSurface"],"campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"endpoint":packet["endpoint"],"sourceCommitSHA":packet["sourceCommitSHA"],"runtimeVersion":packet["runtimeVersion"],"executionId":"provider-run-chatgpt-001","executedAt":core.utc_timestamp(executed),"externalExecution":True,"credentialedExecution":True,"checks":checks,"providerExecutionRef":"opaque-provider-execution-001"}
         cap=td/"capture.json"; cap.write_text(json.dumps(capture))
         return pp,cap,capture
     def test_capture_finalizes_to_digest_bound_receipt(self):
@@ -42,6 +43,8 @@ class ReceiptFinalizerTests(unittest.TestCase):
             self.assertEqual(core.RECEIPT_AUTHORITY,out["authority"]); self.assertEqual("chatgpt",out["clientId"]); self.assertEqual(core.CLIENT_SURFACES["chatgpt"],out["clientSurface"])
             self.assertEqual(core.sha256(cap),out["evidenceDigest"]); self.assertEqual("opaque-provider-execution-001",out["providerExecutionRef"]); self.assertEqual(set(core.AUDITED_CHECKS),set(out["requestIds"]))
             self.assertEqual("chatgpt-oauth-client",out["oauthClientId"])
+            self.assertEqual("1"*40,out["sourceCommitSHA"])
+            self.assertEqual("0.0.test",out["runtimeVersion"])
             self.assertEqual(capture_time:=json.loads(cap.read_text())["executedAt"],out["executedAt"])
             self.assertTrue(all(out["checks"].values())); self.assertFalse(out["scopeLeakObserved"]); self.assertFalse(out["revokedGrantAccepted"]); self.assertFalse(out["selfApprovalAccepted"])
     def test_false_check_missing_request_id_and_binding_drift_fail_closed(self):
@@ -99,6 +102,16 @@ class ReceiptFinalizerTests(unittest.TestCase):
             audited["request"]["jsonRpc"]["params"]["_meta"]["io.modelcontextprotocol/clientCapabilities"]="wrong"
             pp.write_text(json.dumps(packet))
             with self.assertRaisesRegex(RuntimeError,"PACKET_WIRE_INVALID|PACKET_META_INVALID"):
+                mod.finalize(pp,cap)
+
+    def test_capture_runtime_identity_drift_fails_closed(self):
+        with tempfile.TemporaryDirectory() as raw:
+            pp,cap,capture=self.fixture(Path(raw))
+            bad=copy.deepcopy(capture); bad["sourceCommitSHA"]="2"*40; cap.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"BINDING_INVALID sourceCommitSHA"):
+                mod.finalize(pp,cap)
+            bad=copy.deepcopy(capture); bad["runtimeVersion"]="0.0.other"; cap.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"BINDING_INVALID runtimeVersion"):
                 mod.finalize(pp,cap)
 
     def test_capture_execution_time_outside_campaign_is_rejected(self):
