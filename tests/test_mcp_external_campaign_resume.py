@@ -51,6 +51,19 @@ class CampaignResumeTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,"MATRIX_PROTOCOL_INVALID"):
                     mod.main()
 
+    def test_source_commit_override_must_match_git_head(self):
+        observed=mock.MagicMock(returncode=0,stdout="1"*40+"\n")
+        with mock.patch.object(mod.subprocess,"run",return_value=observed):
+            self.assertEqual("1"*40,mod.source_commit_sha(""))
+            self.assertEqual("1"*40,mod.source_commit_sha("1"*40))
+            with self.assertRaisesRegex(RuntimeError,"OVERRIDE_MISMATCH"):
+                mod.source_commit_sha("2"*40)
+
+    def test_source_commit_explicit_fallback_is_allowed_without_git(self):
+        failed=mock.MagicMock(returncode=1,stdout="")
+        with mock.patch.object(mod.subprocess,"run",return_value=failed):
+            self.assertEqual("3"*40,mod.source_commit_sha("3"*40))
+
     def test_runtime_identity_readback_rejects_source_drift(self):
         response=mock.MagicMock()
         response.__enter__.return_value=response
@@ -76,7 +89,7 @@ class CampaignResumeTests(unittest.TestCase):
             original=self.campaign(matrix)
             core.write_json_once_or_identical(out,original,"TEST_CAMPAIGN")
             argv=["prepare_mcp_external_interop_campaign.py","--matrix",str(matrix),"--endpoint",original["endpoint"],"--out",str(out),"--source-commit-sha",original["sourceCommitSHA"]]
-            with mock.patch.object(sys,"argv",argv), mock.patch.object(mod,"live_preflight",side_effect=AssertionError("network preflight must not run on resume")):
+            with mock.patch.object(sys,"argv",argv), mock.patch.object(mod,"source_commit_sha",return_value=original["sourceCommitSHA"]), mock.patch.object(mod,"live_preflight",side_effect=AssertionError("network preflight must not run on resume")):
                 buf=io.StringIO()
                 with contextlib.redirect_stdout(buf):
                     self.assertEqual(0,mod.main())
