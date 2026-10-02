@@ -99,6 +99,9 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_SERVER_BINDING_INVALID")
     meta=packet.get("requestMeta") or {}
     expected_meta={
+      "io.modelcontextprotocol/protocolVersion":"2026-07-28",
+      "io.modelcontextprotocol/clientInfo":{"name":packet["clientSurface"],"version":"external-c7w"},
+      "io.modelcontextprotocol/clientCapabilities":{"tools":{}},
       "io.4so/interopCampaignId":packet.get("campaignId"),
       "io.4so/interopClientId":client,
       "io.4so/interopChallengeSha256":packet.get("challengeSha256"),
@@ -119,14 +122,7 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     if expected_ids!=list(core.REQUIRED_CHECKS):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CHECKS_INVALID")
     packet_meta=packet.get("requestMeta")
-    expected_packet_meta={
-      "io.modelcontextprotocol/protocolVersion":"2026-07-28",
-      "io.modelcontextprotocol/clientInfo":{"name":packet["clientSurface"],"version":"external-c7w"},
-      "io.modelcontextprotocol/clientCapabilities":{"tools":{}},
-      "io.4so/interopCampaignId":packet["campaignId"],
-      "io.4so/interopClientId":client,
-      "io.4so/interopChallengeSha256":packet["challengeSha256"],
-    }
+    expected_packet_meta=expected_meta
     if packet_meta!=expected_packet_meta:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_META_INVALID")
     for row in packet_checks:
