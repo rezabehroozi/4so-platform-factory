@@ -215,6 +215,8 @@ def cgo_toolchain_identity(stage: Path) -> dict[str, str]:
     exact = ((lock.get("spec") or {}).get("exactCGOToolchain") or {})
     header = Path(str(exact.get("libpqHeaderPath") or ""))
     library = Path(str(exact.get("libpqLibraryPath") or ""))
+    checked_regular_file(header,label="BUILD_CGO_LIBPQ_HEADER")
+    checked_regular_file(library,label="BUILD_CGO_LIBPQ_LIBRARY")
     observed = {
         "ccVersion": command_first_line(["gcc", "--version"]),
         "ldVersion": command_first_line(["ld", "--version"]),
