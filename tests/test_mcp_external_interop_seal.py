@@ -89,6 +89,33 @@ class MCPExternalSealTests(unittest.TestCase):
             self.assertEqual(4,out["certifiedClientCount"]); self.assertEqual(campaign["campaignId"],out["campaignId"]); self.assertTrue(out["serverAuditWitnessPass"]); self.assertEqual(24,out["serverAuditWitnessedCheckCount"]); self.assertFalse(out["physicalCertified"])
             self.assertTrue(all(row["serverAuditWitness"]["auditChainDigestVerified"] for row in out["clients"]))
             self.assertTrue(all(row["serverAuditWitness"]["auditMethodVersion"]==mod.AUDIT_METHOD_VERSION for row in out["clients"]))
+    def test_secondary_witness_validator_rechecks_event_semantics_and_request_binding(self):
+        with tempfile.TemporaryDirectory() as td:
+            matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
+            out=mod.seal(matrix,campaign_path,receipts,audits)
+            row=out["clients"][0]
+            witness=row["serverAuditWitness"]
+            mod.validate_server_audit_witness(
+                witness,row["interopBindingDigest"],row["clientId"],"SECONDARY_WITNESS",
+                row["oauthClientId"],row["requestIds"],
+            )
+
+            tampered=json.loads(json.dumps(witness))
+            tampered["matchedEvents"]["authorization-filtered-tools-list"]["category"]="WRONG"
+            with self.assertRaisesRegex(RuntimeError,"MATCHED_EVENT_SEMANTICS_INVALID"):
+                mod.validate_server_audit_witness(
+                    tampered,row["interopBindingDigest"],row["clientId"],"SECONDARY_WITNESS",
+                    row["oauthClientId"],row["requestIds"],
+                )
+
+            tampered=json.loads(json.dumps(witness))
+            tampered["matchedEvents"]["project-resource-scope-negative-control"]["requestId"]="different-request-id"
+            with self.assertRaisesRegex(RuntimeError,"MATCHED_EVENT_REQUEST_ID_MISMATCH"):
+                mod.validate_server_audit_witness(
+                    tampered,row["interopBindingDigest"],row["clientId"],"SECONDARY_WITNESS",
+                    row["oauthClientId"],row["requestIds"],
+                )
+
     def test_receipt_or_server_audit_binding_tamper_rejects(self):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,campaign,checks=self.fixture(Path(td))
