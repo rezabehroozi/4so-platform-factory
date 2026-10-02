@@ -473,7 +473,8 @@ def git_source_for_resume(root: Path, out: Path) -> str:
     for record in status.stdout.split(b"\x00"):
         if not record:
             continue
-        if record==b"?? "+allowed:
+        status_code=record[:2]
+        if len(record)>=4 and record[2:3]==b" " and record[3:]==allowed and b"R" not in status_code and b"C" not in status_code:
             continue
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_NOT_EXACT_HEAD")
     return head.stdout.strip()
