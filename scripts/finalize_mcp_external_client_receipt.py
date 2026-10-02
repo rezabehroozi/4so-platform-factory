@@ -23,6 +23,10 @@ def validate_packet(packet:dict)->tuple[str,str]:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_SOURCE_AUTHORITY_INVALID")
     if packet.get("protocol")!="2026-07-28" or packet.get("transport")!="streamable-http":
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_PROTOCOL_INVALID")
+    source_commit=str(packet.get("sourceCommitSHA") or "").strip().lower()
+    runtime_version=str(packet.get("runtimeVersion") or "").strip()
+    if not core.COMMIT.fullmatch(source_commit) or not runtime_version or len(runtime_version)>128:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_RUNTIME_IDENTITY_INVALID")
     try:
         endpoint=core.endpoint(packet.get("endpoint",""))
     except RuntimeError as exc:
@@ -41,6 +45,7 @@ def validate_packet(packet:dict)->tuple[str,str]:
         "oauthClientId":packet.get("oauthClientId"),
         "oauthClientWitnessedChecks":list(core.OAUTH_CLIENT_AUDITED_CHECKS),
         "executedAtRequired":True,
+        "observedRuntimeIdentityRequired":True,
         "allSevenChecksMustPass":True,
         "externalExecution":True,
         "credentialedExecution":True,
@@ -63,7 +68,7 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     client,packet_endpoint=validate_packet(packet)
     if not isinstance(capture,dict) or capture.get("authority")!=AUTHORITY or capture.get("clientId")!=client:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_IDENTITY_INVALID")
-    allowed_capture={"authority","clientId","clientSurface","campaignId","challengeSha256","endpoint","executionId","executedAt","externalExecution","credentialedExecution","checks","providerExecutionRef"}
+    allowed_capture={"authority","clientId","clientSurface","campaignId","challengeSha256","endpoint","sourceCommitSHA","runtimeVersion","executionId","executedAt","externalExecution","credentialedExecution","checks","providerExecutionRef"}
     if set(capture)!=allowed_capture:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_FIELDS_INVALID")
     provider_ref=str(capture.get("providerExecutionRef") or "").strip()
@@ -77,7 +82,7 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     executed=core.parse_utc_timestamp(capture.get("executedAt"),"MCP_EXTERNAL_CAPTURE_EXECUTED_AT")
     if executed<created or executed>expires or executed>datetime.now(timezone.utc)+timedelta(minutes=5):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_EXECUTION_TIME_INVALID")
-    for key in ("clientSurface","campaignId","challengeSha256"):
+    for key in ("clientSurface","campaignId","challengeSha256","sourceCommitSHA","runtimeVersion"):
         if capture.get(key)!=packet.get(key):
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_BINDING_INVALID {key}")
     try:
@@ -97,6 +102,8 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
       "io.4so/interopCampaignId":packet.get("campaignId"),
       "io.4so/interopClientId":client,
       "io.4so/interopChallengeSha256":packet.get("challengeSha256"),
+      "io.4so/sourceCommitSHA":packet.get("sourceCommitSHA"),
+      "io.4so/runtimeVersion":packet.get("runtimeVersion"),
     }
     if meta!=expected_meta:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_META_INVALID")
@@ -124,6 +131,12 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_META_INVALID")
     for row in packet_checks:
         check_id=row["id"]
+        if check_id=="authorization-filtered-tools-list":
+            capture_runtime=row.get("captureRuntimeIdentityFrom")
+            expected_capture_runtime={"sourceCommitSHA":"success-json:result._meta.io.modelcontextprotocol/serverInfo.sourceCommitSHA","runtimeVersion":"success-json:result._meta.io.modelcontextprotocol/serverInfo.version"}
+            expect=row.get("expect") or {}
+            if capture_runtime!=expected_capture_runtime or expect.get("sourceCommitSHA")!=packet["sourceCommitSHA"] or expect.get("runtimeVersion")!=packet["runtimeVersion"]:
+                raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_RUNTIME_WITNESS_INVALID {check_id}")
         if check_id not in core.AUDITED_CHECKS:
             request=row.get("request") or {}
             if check_id!="oauth-protected-resource-discovery" or request.get("httpMethod")!="GET" or request.get("credentialProfile")!="none":
@@ -181,6 +194,8 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
       "authority":core.RECEIPT_AUTHORITY,
       "clientId":client,
       "clientSurface":packet["clientSurface"],
+      "sourceCommitSHA":packet["sourceCommitSHA"],
+      "runtimeVersion":packet["runtimeVersion"],
       "campaignId":packet["campaignId"],
       "challengeSha256":packet["challengeSha256"],
       "oauthClientId":oauth_client_id,
