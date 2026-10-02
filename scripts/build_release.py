@@ -11,6 +11,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import zipfile
 
 EXCLUDE = {".git", "bin", "dist", "release", "__pycache__", ".pytest_cache", ".state", ".tmpbin"}
@@ -394,7 +395,7 @@ def main() -> int:
 
     knowledge = subprocess.run(
         [
-            "python3",
+            sys.executable,
             str(stage / "scripts" / "generate_agent_knowledge.py"),
             "--root",
             str(stage),
