@@ -98,6 +98,9 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertNotIn("admission.verify(root)", seal)
         self.assertIn('(worktree / "lab" / "release-build-toolchain-lock.json")', seal)
         self.assertIn('"scripts/build_release_binaries.py"', seal)
+        self.assertIn('FINAL_EXACT_RELEASE_ENVIRONMENT_PREFLIGHT_V1',seal)
+        self.assertIn('require_exact_release_environment(root)',seal)
+        self.assertIn('"--preflight"',seal)
         self.assertNotIn('["make", "build-release"', seal)
         self.assertIn('"scripts/build_release.py"', seal)
         self.assertIn('"scripts/verify_release.py"', seal)
@@ -172,6 +175,9 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
             self.assertNotIn("actions/checkout",workflow,rel)
             self.assertNotIn("secrets.",workflow,rel)
             self.assertNotIn("gh run",workflow,rel)
+            self.assertNotIn("make c7w-",workflow,rel)
+            self.assertNotIn("make c9-",workflow,rel)
+            self.assertNotIn("/secure/",workflow,rel)
 
     def test_roadmap_never_treats_github_workflows_as_evidence_authority(self):
         program = self.read("internal/targetmodel/program.go")
