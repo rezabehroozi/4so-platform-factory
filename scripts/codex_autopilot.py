@@ -1363,6 +1363,20 @@ def _compact_agent_context(root: Path) -> dict:
     environment = full.get("environmentPreflight") if isinstance(full.get("environmentPreflight"), dict) else {}
     remediation = environment.get("remediationHints") if isinstance(environment.get("remediationHints"), dict) else {}
     failure = str(full.get("failureCapsule") or "")[:AGENT_CONTEXT_COMPACT_FAILURE_MAX_CHARS]
+    raw_last_failure = full.get("lastFailure") if isinstance(full.get("lastFailure"), dict) else {}
+    safe_last_failure = {}
+    for key in ("stage", "specialist", "status", "fingerprint", "reason", "classification"):
+        value = raw_last_failure.get(key)
+        if value in (None, ""):
+            continue
+        if isinstance(value, str):
+            safe_last_failure[key] = _redact_failure_text(value)[:480]
+        else:
+            safe_last_failure[key] = value
+    safe_remediation = {
+        str(key)[:96]: _redact_failure_text(str(value))[:480]
+        for key, value in list(remediation.items())[:8]
+    }
     compact = {
         "schemaVersion": 1,
         "authority": AGENT_CONTEXT_COMPACT_AUTHORITY,
@@ -1377,7 +1391,7 @@ def _compact_agent_context(root: Path) -> dict:
         "currentSpecialist": str(full.get("currentSpecialist") or ""),
         "nextStage": str(full.get("nextStage") or ""),
         "resumeEligible": bool(full.get("resumeEligible", False)),
-        "lastFailure": full.get("lastFailure") if isinstance(full.get("lastFailure"), dict) else {},
+        "lastFailure": safe_last_failure,
         "failurePathHints": [str(item) for item in (full.get("failurePathHints") or [])[:8]],
         "ownerContextPaths": [str(item) for item in (full.get("ownerContextPaths") or [])[:AGENT_CONTEXT_COMPACT_OWNER_PATH_LIMIT]],
         "failureCapsule": failure,
@@ -1386,7 +1400,7 @@ def _compact_agent_context(root: Path) -> dict:
         "resumeInvocation": full.get("resumeInvocation") if isinstance(full.get("resumeInvocation"), list) else [],
         "environmentPreflight": {
             "missing": [str(item) for item in (environment.get("missing") or [])],
-            "remediationHints": {str(key): str(value) for key, value in remediation.items()},
+            "remediationHints": safe_remediation,
         } if environment else {},
         "outerRuntime": {
             key: outer.get(key)
