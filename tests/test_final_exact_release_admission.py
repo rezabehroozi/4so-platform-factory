@@ -1,4 +1,4 @@
-import hashlib,importlib.util,json,tempfile,unittest
+import hashlib,importlib.util,json,tempfile,unittest,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 SPEC=importlib.util.spec_from_file_location("final_adm",ROOT/"scripts"/"final_exact_release_admission.py")
@@ -53,23 +53,31 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
         return lock,mcp
     def test_local_final_seal_evidence_is_exact_file_bound_and_never_physical(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); release_dir=root/"release"; release_dir.mkdir()
-            version="0.0.test"; release_name="unit"
-            release=release_dir/f"4so-platform-factory-{version}-{release_name}.zip"; release.write_bytes(b"exact-release")
-            stage=release_dir/release.stem; stage.mkdir()
-            for name,payload in (("ARTIFACT-MANIFEST.json",b"manifest"),("BUILD-PROVENANCE.json",b"provenance"),("SBOM.spdx.json",b"sbom")):
+            root=Path(td); source_sha="c"*40; release_dir=root/"release"/"exact-sha"/source_sha; release_dir.mkdir(parents=True)
+            version="0.0.test"; release_name="unit"; stem=f"4so-platform-factory-{version}-{release_name}"
+            release=release_dir/(stem+".zip")
+            stage=root/"build-stage"/stem; stage.mkdir(parents=True)
+            metadata={"ARTIFACT-MANIFEST.json":b"manifest","BUILD-PROVENANCE.json":b"provenance","SBOM.spdx.json":b"sbom"}
+            for name,payload in metadata.items():
                 (stage/name).write_bytes(payload)
+            with zipfile.ZipFile(release,"w",zipfile.ZIP_STORED) as archive:
+                for name,payload in metadata.items():
+                    archive.writestr(stem+"/"+name,payload)
             admitted={"authority":mod.AUTHORITY,"admitted":True,"applianceDistributionSha256":"sha256:"+"a"*64,"mcpExternalInteropSha256":"sha256:"+"b"*64,"physicalCertified":False}
-            out=local_seal.build_evidence(root,release,stage,admitted,"c"*40,version,release_name)
+            out=local_seal.build_evidence(root,release,stage,admitted,source_sha,version,release_name)
             self.assertEqual(local_seal.AUTHORITY,out["authority"])
             self.assertEqual(local_seal.EXECUTION_AUTHORITY,out["sourceExecutionAuthority"])
             self.assertEqual(local_seal.SOURCE_WORKSPACE_AUTHORITY,out["sourceWorkspaceAuthority"])
-            self.assertEqual(f"release/{release.name}",out["releaseArchivePath"])
-            self.assertEqual("sha256:"+hashlib.sha256(b"exact-release").hexdigest(),out["releaseArchiveSha256"])
+            self.assertEqual(f"release/exact-sha/{source_sha}/{release.name}",out["releaseArchivePath"])
+            self.assertEqual(local_seal.sha256(release),out["releaseArchiveSha256"])
+            self.assertEqual("sha256:"+hashlib.sha256(metadata["ARTIFACT-MANIFEST.json"]).hexdigest(),out["artifactManifestSha256"])
             self.assertTrue(out["fullVerifierPass"]); self.assertFalse(out["physicalCertified"])
             inflated=dict(admitted); inflated["physicalCertified"]=True
             with self.assertRaisesRegex(RuntimeError,"SCOPE_INFLATED"):
-                local_seal.build_evidence(root,release,stage,inflated,"c"*40,version,release_name)
+                local_seal.build_evidence(root,release,stage,inflated,source_sha,version,release_name)
+            bad_release=root/"release"/release.name; bad_release.parent.mkdir(exist_ok=True); bad_release.write_bytes(release.read_bytes())
+            with self.assertRaisesRegex(RuntimeError,"PATH_INVALID"):
+                local_seal.build_evidence(root,bad_release,stage,admitted,source_sha,version,release_name)
 
     def test_two_external_authorities_admit_final_release_without_physical_claim(self):
         with tempfile.TemporaryDirectory() as td:
@@ -80,7 +88,7 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root)
             matrix_path=root/"lab/mcp-external-client-interop-matrix.json"
-            matrix=json.loads(matrix_path.read_text()); matrix["spec"]["resourcePath"]="/mcp"; matrix_path.write_text(json.dumps(matrix,sort_keys=True))
+            matrix=json.loads(matrix_path.read_text()); matrix["spec"]["localBlackBoxHarness"]+=" --drift"; matrix_path.write_text(json.dumps(matrix,sort_keys=True))
             with self.assertRaisesRegex(RuntimeError,"MATRIX_DRIFT"):
                 mod.verify(root)
 
