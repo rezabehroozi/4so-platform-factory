@@ -1364,7 +1364,11 @@ def _agent_context(root: Path) -> dict:
     }
     context["nextActionCode"] = "START_AUTOPILOT_AGENT"
     context["nextCommand"] = ["make", "autopilot-agent"]
-    if outer_runtime.get("action") == "OBSERVE_ACTIVE":
+    if not bool(outer_runtime.get("available")):
+        context["nextActionCode"] = "INSPECT_OUTER_RUNTIME_STATUS"
+        context["nextCommand"] = ["make", "runtime-status"]
+        context["nextAction"] = "canonical outer-runtime status is unavailable; inspect make runtime-status and do not start or resume inner Autopilot until outer authority can be read reliably"
+    elif outer_runtime.get("action") == "OBSERVE_ACTIVE":
         context["nextActionCode"] = "OBSERVE_OUTER_RUNTIME"
         context["nextCommand"] = ["make", "runtime-status"]
         context["nextAction"] = "outer project runtime is already active; observe/rejoin it with make runtime-status and do not start a duplicate autopilot-agent"
