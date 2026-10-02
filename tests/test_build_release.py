@@ -114,6 +114,28 @@ class ReleaseSourceTreeBoundary(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "RELEASE_MANIFEST_SOURCE_MISMATCH"):
                 BUILD.release_source_files(root)
 
+    def test_binary_build_identity_requires_exact_version_and_source_commit_ldflags(self):
+        binary=Path("/tmp/platform-api")
+        version="0.0.363"; source="a"*40
+        ok=mock.Mock(
+            returncode=0,
+            stdout=(
+                "/tmp/platform-api: go1.27.1\n"
+                "\tbuild\t-ldflags=\"-s -w -buildid= "
+                "-X platform.4so.io/factory/internal/buildinfo.Version=0.0.363 "
+                "-X platform.4so.io/factory/internal/buildinfo.SourceCommit="+source+"\"\n"
+            ),
+            stderr="",
+        )
+        with mock.patch.dict(BUILD.os.environ,{"GO":"/exact/go"},clear=False), mock.patch.object(BUILD.subprocess,"run",return_value=ok) as run:
+            BUILD.verify_binary_build_identity(binary,version,source)
+        run.assert_called_once_with(["/exact/go","version","-m",str(binary)],capture_output=True,text=True,check=False)
+
+        bad=mock.Mock(returncode=0,stdout=ok.stdout.replace(source,"b"*40),stderr="")
+        with mock.patch.object(BUILD.subprocess,"run",return_value=bad):
+            with self.assertRaisesRegex(SystemExit,"BINARY_BUILD_IDENTITY_MISMATCH"):
+                BUILD.verify_binary_build_identity(binary,version,source)
+
     def test_cgo_provenance_rejects_active_toolchain_drift_from_lock(self):
         with tempfile.TemporaryDirectory() as directory:
             stage=Path(directory)
