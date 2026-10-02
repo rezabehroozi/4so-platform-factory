@@ -3037,32 +3037,14 @@ def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_t
         flush=True,
     )
     if missing:
-        handoff = _environment_preflight_handoff(missing, immediate_preflight_stages)
-        print("AUTOPILOT_PREFLIGHT=BLOCKED missing=" + ",".join(handoff["missing"]), flush=True)
-        graph_signature = _stage_graph_signature(stages, repair=repair)
-        _write_autopilot_report(
-            root,
-            stages=stages,
-            graph_signature=graph_signature,
-            repair=repair,
-            phase="preflight",
-            next_index=0,
-            repair_count=0,
-            status="ENVIRONMENT_BLOCKED",
-            current_stage=None,
-            stage_results=[],
-            last_failure={
-                "stage": "environment-preflight",
-                "specialist": "environment",
-                "status": "BLOCKED",
-                "fingerprint": handoff["fingerprint"],
-                "reason": "MISSING_PREREQUISITES:" + ",".join(handoff["missing"]),
-            },
-            environment_preflight=handoff,
+        preview = _environment_preflight_handoff(missing, immediate_preflight_stages)
+        print(
+            "AUTOPILOT_PREFLIGHT=DEFERRED_TO_STAGE_CURSOR authority=" + PROGRESSIVE_STAGE_PREFLIGHT_AUTHORITY
+            + " missing=" + ",".join(preview["missing"]),
+            flush=True,
         )
-        print("AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED reason=ENVIRONMENT_PREFLIGHT fingerprint=" + handoff["fingerprint"], flush=True)
-        return 3
-    print("AUTOPILOT_PREFLIGHT=PASS requireCodex=" + str(require_codex_preflight).lower(), flush=True)
+    else:
+        print("AUTOPILOT_PREFLIGHT=PASS requireCodex=false scope=immediate-stage", flush=True)
 
     # Local correctness and external supply-chain closure are distinct states.
     # Codex repair owns deterministic repository defects; unresolved third-party
