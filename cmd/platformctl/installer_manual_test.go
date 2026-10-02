@@ -153,6 +153,23 @@ func TestManualInstallerContinuationCommandPreservesNonSecretInputsWithoutImmuta
 	}
 }
 
+func TestManualInstallerLiveNextActionsMakeNextResolverCanonical(t *testing.T) {
+	actions := strings.Join(manualInstallerLiveNextActions(), "\n")
+	for _, want := range []string{
+		"sudo bash install.sh next",
+		"reads durable host state",
+		"status/verify/bootstrap-status/recover/rollback remain lower-level",
+		"do not guess or replay a mutation",
+	} {
+		if !strings.Contains(actions, want) {
+			t.Fatalf("live handoff missing %q: %s", want, actions)
+		}
+	}
+	if strings.Contains(actions, "use install.sh status/verify/recover/rollback") {
+		t.Fatalf("legacy post-install continuation guidance returned: %s", actions)
+	}
+}
+
 func TestManualInstallerNextGuidanceRoutesAppliedHostToBootstrapReadback(t *testing.T) {
 	state := hostdeployment.State{Status: "APPLIED", Activated: true}
 	state.Plan.DeploymentID = "deploy-1"
