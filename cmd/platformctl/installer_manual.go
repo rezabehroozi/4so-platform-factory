@@ -69,9 +69,10 @@ type manualInstallerPreflightResult struct {
 	PreflightGuidanceAuthority string `json:"preflightGuidanceAuthority"`
 	ManualInstall              bool   `json:"manualInstall"`
 	SourceReleaseDigest        string `json:"sourceReleaseDigest,omitempty"`
-	MachineNextActionAuthority string `json:"machineNextActionAuthority"`
-	NextActionCode             string `json:"nextActionCode"`
-	NextAction                 string `json:"nextAction"`
+	MachineNextActionAuthority string   `json:"machineNextActionAuthority"`
+	NextActionCode             string   `json:"nextActionCode"`
+	NextCommand                []string `json:"nextCommand,omitempty"`
+	NextAction                 string   `json:"nextAction"`
 }
 
 func newManualInstallerPreflightResult(admission hostdeployment.HostAdmissionReport, releaseDigest string) manualInstallerPreflightResult {
@@ -108,6 +109,42 @@ type manualInstallerInputs struct {
 	OutputSpec        string
 	Confirmation      string
 	Timeout           time.Duration
+}
+
+func manualInstallerContinuationCommand(input manualInstallerInputs, mode string, forceExecution bool) []string {
+	executable, err := os.Executable()
+	if err != nil || strings.TrimSpace(executable) == "" {
+		executable = "platformctl"
+	}
+	command := []string{executable, "installer-manual", mode,
+		"--installer-binary", strings.TrimSpace(input.InstallerBinary),
+		"--bundle-dir", strings.TrimSpace(input.BundleDirectory),
+		"--listen", strings.TrimSpace(input.Listen),
+		"--root", strings.TrimSpace(input.Root),
+		"--timeout", input.Timeout.String(),
+	}
+	if value := strings.TrimSpace(input.ReleaseArtifact); value != "" {
+		command = append(command, "--release-artifact", value)
+	}
+	if value := strings.TrimSpace(input.TLSCertificate); value != "" {
+		command = append(command, "--tls-cert", value)
+	}
+	if value := strings.TrimSpace(input.TLSPrivateKey); value != "" {
+		command = append(command, "--tls-key", value)
+	}
+	if input.AllowInsecureHTTP {
+		command = append(command, "--allow-insecure-http")
+	}
+	if input.AllowDowngrade {
+		command = append(command, "--allow-downgrade")
+	}
+	if input.ExecutionEnabled || forceExecution {
+		command = append(command, "--enable-execution")
+	}
+	if mode == "install" {
+		command = append(command, "--confirmation", hostdeployment.ConfirmationDeploy)
+	}
+	return command
 }
 
 func installerManualPrepare(mode string, args []string) {
@@ -166,7 +203,13 @@ func installerManualPrepare(mode string, args []string) {
 		}
 	}
 	if mode == "preflight" {
-		printJSON(newManualInstallerPreflightResult(plan.Admission, releaseDigest))
+		result := newManualInstallerPreflightResult(plan.Admission, releaseDigest)
+		if plan.Admission.Ready {
+			result.NextCommand = manualInstallerContinuationCommand(input, "plan", false)
+		} else {
+			result.NextCommand = manualInstallerContinuationCommand(input, "preflight", false)
+		}
+		printJSON(result)
 		if !plan.Admission.Ready {
 			os.Exit(1)
 		}
@@ -174,10 +217,12 @@ func installerManualPrepare(mode string, args []string) {
 	}
 	if mode == "plan" {
 		nextActionCode := "RUN_INSTALL"
-		nextAction := "review admission/actions; rerun installer-manual install with --enable-execution --confirmation DEPLOY to enable browser appliance mutation"
+		nextAction := "review admission/actions; run the exact nextCommand to enable browser appliance mutation"
+		nextCommand := manualInstallerContinuationCommand(input, "install", true)
 		if !plan.Admission.Ready {
 			nextActionCode = "RESOLVE_HOST_ADMISSION"
-			nextAction = "resolve the reported host admission blockers, then rerun preflight before install"
+			nextAction = "resolve the reported host admission blockers, then rerun the exact preflight nextCommand"
+			nextCommand = manualInstallerContinuationCommand(input, "preflight", false)
 		}
 		printJSON(map[string]any{
 			"authority":     installerGuidedManualWorkflowAuthority,
@@ -188,6 +233,7 @@ func installerManualPrepare(mode string, args []string) {
 			"specPath":      retainedSpecPath(input.OutputSpec),
 			"sourceReleaseDigest": releaseDigest,
 			"nextActionCode": nextActionCode,
+			"nextCommand":    nextCommand,
 			"nextAction":    nextAction,
 		})
 		if !plan.Admission.Ready {
@@ -196,7 +242,7 @@ func installerManualPrepare(mode string, args []string) {
 		return
 	}
 	if !plan.Admission.Ready {
-		printJSON(map[string]any{"authority": installerGuidedManualWorkflowAuthority, "exactReleaseAuthority": installerManualExactReleaseAuthority, "remoteHandoffAuthority": installerManualRemoteHandoffAuthority, "machineNextActionAuthority": installerManualMachineNextActionAuthority, "manualInstall": true, "plan": plan, "status": "BLOCKED", "nextActionCode": "RESOLVE_HOST_ADMISSION", "nextAction": "resolve host admission blockers and rerun preflight"})
+		printJSON(map[string]any{"authority": installerGuidedManualWorkflowAuthority, "exactReleaseAuthority": installerManualExactReleaseAuthority, "remoteHandoffAuthority": installerManualRemoteHandoffAuthority, "machineNextActionAuthority": installerManualMachineNextActionAuthority, "manualInstall": true, "plan": plan, "status": "BLOCKED", "nextActionCode": "RESOLVE_HOST_ADMISSION", "nextCommand": manualInstallerContinuationCommand(input, "preflight", false), "nextAction": "resolve host admission blockers and rerun the exact preflight nextCommand"})
 		os.Exit(1)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), input.Timeout)
@@ -217,6 +263,7 @@ func installerManualPrepare(mode string, args []string) {
 	access := manualInstallerAccess{Mode: "staged", Note: "No live Installer transport exists for a staged --root deployment."}
 	nextActions := []string{"copy the staged files to the intended live root or rerun installer-manual against --root / before using the browser Installer"}
 	nextActionCode := "COMPLETE_STAGED_DEPLOYMENT"
+	var nextCommand []string
 	if live {
 		status = "READY"
 		nextActionCode = "OPEN_BROWSER_INSTALLER"
@@ -231,7 +278,8 @@ func installerManualPrepare(mode string, args []string) {
 		}
 		if !input.ExecutionEnabled {
 			nextActionCode = "ENABLE_EXECUTION"
-			nextActions = append([]string{"host deployment is ready but Bootstrap mutation is disabled; rerun the reviewed install with --enable-execution before starting appliance installation"}, nextActions...)
+			nextCommand = manualInstallerContinuationCommand(input, "install", true)
+			nextActions = append([]string{"host deployment is ready but Bootstrap mutation is disabled; rerun the exact nextCommand with execution enabled before starting appliance installation"}, nextActions...)
 		}
 	}
 	printJSON(map[string]any{
@@ -252,6 +300,7 @@ func installerManualPrepare(mode string, args []string) {
 		"sourceReleaseDigest": releaseDigest,
 		"specPath":           retainedSpecPath(input.OutputSpec),
 		"nextActionCode":     nextActionCode,
+		"nextCommand":        nextCommand,
 		"nextActions":        nextActions,
 	})
 }
