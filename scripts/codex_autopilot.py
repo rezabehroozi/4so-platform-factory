@@ -1541,7 +1541,7 @@ def _compact_agent_context(root: Path) -> dict:
         if canonical_outer:
             compact["canonicalOuterCommandPreserved"] = True
         compact["rules"] = [
-            "execute only the emitted read-only inspection command",
+            "execute only the emitted fixed canonical outer-runtime command" if fallback_code == "RESUME_OUTER_RUNTIME" else "execute only the emitted read-only inspection command",
             "never reconstruct omitted argv from prose",
             "never infer Runtime/Lab/Exact-SHA Physical PASS from local/source success",
         ]
@@ -1550,6 +1550,7 @@ def _compact_agent_context(root: Path) -> dict:
         # Pathological report fields must not make the normal agent handoff
         # unusable. Collapse to the smallest safe non-authoritative inspection
         # capsule while preserving enough identity to find the durable state.
+        fallback_code, fallback_command, fallback_action, canonical_outer = _compact_budget_fallback(full, outer)
         compact = {
             "schemaVersion": 1,
             "authority": AGENT_CONTEXT_COMPACT_AUTHORITY,
@@ -1562,11 +1563,15 @@ def _compact_agent_context(root: Path) -> dict:
             "runId": str(full.get("runId") or "")[:160],
             "status": str(full.get("status") or "UNKNOWN")[:64],
             "currentStage": str(full.get("currentStage") or "")[:160],
-            "nextActionCode": _compact_budget_fallback(full, outer)[0],
-            "nextCommand": _compact_budget_fallback(full, outer)[1],
-            "nextAction": _compact_budget_fallback(full, outer)[2],
-            "canonicalOuterCommandPreserved": _compact_budget_fallback(full, outer)[3],
-            "rules": ["inspection only", "do not reconstruct omitted argv", "no Runtime/Lab/Physical inference"],
+            "nextActionCode": fallback_code,
+            "nextCommand": fallback_command,
+            "nextAction": fallback_action,
+            "canonicalOuterCommandPreserved": canonical_outer,
+            "rules": [
+                "execute only the emitted fixed canonical outer-runtime command" if fallback_code == "RESUME_OUTER_RUNTIME" else "inspection only",
+                "do not reconstruct omitted argv",
+                "no Runtime/Lab/Physical inference",
+            ],
         }
 
     # Seal serializedChars to the exact final JSON length rather than the
