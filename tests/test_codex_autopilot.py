@@ -633,6 +633,17 @@ class CheckpointSafeStageTests(unittest.TestCase):
         for target in ("autopilot-release-test", "autopilot-real-test"):
             self.assertNotIn("--allow-owned-worktree-mutation", command_for(target))
 
+    def test_make_agent_context_defaults_to_compact_and_keeps_full_debug_explicit(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        lines = makefile.splitlines()
+        def command_for(target):
+            index = lines.index(target + ":")
+            return lines[index + 1].strip()
+        self.assertIn("--agent-context-compact", command_for("autopilot-context"))
+        self.assertNotIn("--agent-context ", command_for("autopilot-context") + " ")
+        self.assertIn("--agent-context", command_for("autopilot-context-full"))
+        self.assertNotIn("--agent-context-compact", command_for("autopilot-context-full"))
+
 
 class AutopilotAgentContextTests(unittest.TestCase):
     def test_agent_repository_contract_uses_one_context_probe_and_real_field_names(self):
