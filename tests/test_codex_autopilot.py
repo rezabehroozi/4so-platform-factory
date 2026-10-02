@@ -1437,6 +1437,45 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
             self.assertIn("missing host prerequisite", detail)
             self.assertEqual(AUTOPILOT.TRIAGE_CACHE_AUTHORITY, "AUTOPILOT_TRIAGE_CACHE_V1")
 
+    def test_environment_block_before_writer_does_not_consume_budget_or_no_progress_fingerprint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = AUTOPILOT.Stage("installer-host-smoke", ("false",), 10)
+            failed = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp-env", "same deterministic failure")
+            passed = AUTOPILOT.StageResult(stage.name, "PASS", 0, 0.1, "fp-pass", "ok")
+
+            with mock.patch.object(AUTOPILOT, "run_stage", return_value=failed), \
+                 mock.patch.object(AUTOPILOT, "invoke_codex", return_value=(False, "CODEX_CLI_UNAVAILABLE")):
+                first = AUTOPILOT._execute_stages(
+                    root, [stage], repair=True, max_repairs=1, codex_timeout=10,
+                    enforce_supply_chain=False, emit_ready_result=False,
+                )
+            self.assertEqual(first, 3)
+            checkpoint = json.loads(AUTOPILOT._checkpoint_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(checkpoint["repairCount"], 0)
+            self.assertEqual(checkpoint["seenFailures"], [])
+            report = json.loads(AUTOPILOT._report_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(report["repairCount"], 0)
+
+            with mock.patch.object(AUTOPILOT, "run_stage", side_effect=[failed, passed, passed]), \
+                 mock.patch.object(AUTOPILOT, "invoke_codex", return_value=(True, "repaired")) as repair:
+                second = AUTOPILOT._execute_stages(
+                    root, [stage], repair=True, max_repairs=1, codex_timeout=10,
+                    enforce_supply_chain=False, emit_ready_result=False,
+                )
+            self.assertEqual(second, 0)
+            repair.assert_called_once()
+            self.assertFalse(AUTOPILOT._checkpoint_path(root).exists())
+
+    def test_repair_writer_attempt_detection_excludes_read_only_triage_and_missing_capability(self):
+        self.assertFalse(AUTOPILOT._repair_writer_attempted(False, "CODEX_CLI_UNAVAILABLE"))
+        self.assertFalse(AUTOPILOT._repair_writer_attempted(False, "CODEX_TRIAGE_TIMEOUT"))
+        self.assertFalse(AUTOPILOT._repair_writer_attempted(False, "AUTOPILOT_TRIAGE_BLOCKED classification=ENVIRONMENT"))
+        self.assertTrue(AUTOPILOT._repair_writer_attempted(False, "CODEX_REPAIR_TIMEOUT"))
+        self.assertTrue(AUTOPILOT._repair_writer_attempted(False, "CODEX_REPAIR_FAILED rc=1"))
+        self.assertTrue(AUTOPILOT._repair_writer_attempted(True, "repaired"))
+        self.assertEqual(AUTOPILOT.REPAIR_BUDGET_ACTUAL_WRITER_AUTHORITY, "AUTOPILOT_REPAIR_BUDGET_ACTUAL_WRITER_V1")
+
     def test_timeout_in_repair_mode_is_triaged_and_can_be_repaired(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
