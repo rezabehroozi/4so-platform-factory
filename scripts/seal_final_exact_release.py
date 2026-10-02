@@ -487,7 +487,7 @@ def exact_source_admission(root: Path, source_sha: str) -> dict:
     with tempfile.TemporaryDirectory(prefix="4so-final-release-admission-source-",dir=state_dir) as source_td:
         worktree=prepare_exact_worktree(root,source_sha,Path(source_td))
         try:
-            return admission.verify(worktree)
+            return admission.verify(worktree,expected_source_sha=source_sha)
         finally:
             remove_exact_worktree(root,worktree)
 
@@ -608,7 +608,7 @@ def execute(root: Path, out: Path) -> dict:
             archive, exact = safe_toolchain_archive(root, lock)
             staged_archive = stage_toolchain_archive(archive, exact, worktree)
             go = extract_toolchain(staged_archive, exact, Path(tool_td))
-            admitted = admission.verify(worktree)
+            admitted = admission.verify(worktree,expected_source_sha=source_sha)
             env = os.environ.copy()
             env["GO"] = str(go)
             env["GOTOOLCHAIN"] = "local"
