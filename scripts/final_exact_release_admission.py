@@ -8,7 +8,7 @@ This gate consumes only already-sealed external authorities:
 It never infers or records Physical PASS.
 """
 from __future__ import annotations
-import argparse, hashlib, json, re
+import argparse, hashlib, json, re, subprocess
 from pathlib import Path
 from urllib.parse import urlsplit
 try:
@@ -34,6 +34,41 @@ SHA=mcp_contract.SHA
 
 class Pending(RuntimeError):
     pass
+
+
+C7W_EVIDENCE_ONLY_PATHS=frozenset({
+    "lab/mcp-external-client-interop-progress.json",
+    "lab/mcp-external-client-interoperability-evidence.json",
+})
+
+
+def git_head(root:Path)->str:
+    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    value=proc.stdout.strip().lower() if proc.returncode==0 else ""
+    if not mcp_contract.COMMIT.fullmatch(value):
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_AUTHORITY_UNAVAILABLE")
+    return value
+
+
+def validate_c7w_source_lineage(root:Path,certified_sha:str,release_sha:str)->None:
+    certified_sha=str(certified_sha or "").strip().lower()
+    release_sha=str(release_sha or "").strip().lower()
+    if not mcp_contract.COMMIT.fullmatch(certified_sha) or not mcp_contract.COMMIT.fullmatch(release_sha):
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_SOURCE_IDENTITY_INVALID")
+    if certified_sha==release_sha:
+        return
+    ancestor=subprocess.run(["git","merge-base","--is-ancestor",certified_sha,release_sha],cwd=root,capture_output=True,check=False)
+    if ancestor.returncode!=0:
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_SOURCE_NOT_ANCESTOR")
+    diff=subprocess.run(["git","diff","--name-only","-z",certified_sha+".."+release_sha],cwd=root,capture_output=True,check=False)
+    if diff.returncode!=0:
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_SOURCE_DELTA_UNAVAILABLE")
+    try:
+        changed={raw.decode("utf-8",errors="strict") for raw in diff.stdout.split(b"\x00") if raw}
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_SOURCE_DELTA_INVALID") from exc
+    if not changed or not changed.issubset(C7W_EVIDENCE_ONLY_PATHS):
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_SOURCE_DELTA_NOT_EVIDENCE_ONLY")
 
 
 def digest(path:Path)->str:
@@ -170,7 +205,10 @@ def public_content_addressed(url:str,sha:str,label:str)->None:
         raise RuntimeError(f"{label}_CONTENT_ADDRESS_INVALID")
 
 
-def verify(root:Path)->dict:
+def verify(root:Path,expected_source_sha:str|None=None)->dict:
+    release_source_sha=str(expected_source_sha or "").strip().lower() or git_head(root)
+    if not mcp_contract.COMMIT.fullmatch(release_source_sha):
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
     lock_path=root/"lab/appliance-bundle-acquisition-lock.json"
     lock=load(lock_path,"APPLIANCE_DISTRIBUTION")
     if lock.get("authority")!=S1_AUTHORITY or lock.get("schemaVersion")!=8:
@@ -208,6 +246,12 @@ def verify(root:Path)->dict:
     if mcp.get("authority")!=MCP_AUTHORITY or mcp.get("externalCertificationPass") is not True or mcp.get("allRequiredChecksPass") is not True or mcp.get("certifiedClientCount")!=4:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_AUTHORITY_INVALID")
     endpoint_value=validate_mcp_projection_identity(mcp,"MCP_EXTERNAL_INTEROP")
+    certified_source_sha=str(mcp.get("sourceCommitSHA") or "").strip().lower()
+    runtime_version=str(mcp.get("runtimeVersion") or "").strip()
+    expected_version=(root/"VERSION").read_text(encoding="utf-8").strip()
+    if not mcp_contract.COMMIT.fullmatch(certified_source_sha) or runtime_version!=expected_version:
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_RUNTIME_IDENTITY_INVALID")
+    validate_c7w_source_lineage(root,certified_source_sha,release_source_sha)
     if mcp.get("matrixSha256")!=digest(matrix_path):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_MATRIX_DRIFT")
     if mcp.get("serverAuditWitnessPass") is not True or mcp.get("serverAuditWitnessedCheckCount") != 24:
@@ -226,6 +270,8 @@ def verify(root:Path)->dict:
     provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); challenge_digests=set(); request_id_owners={}; campaign_windows=set()
     for row in clients:
         client=str(row.get("clientId") or "")
+        if row.get("sourceCommitSHA")!=certified_source_sha or row.get("runtimeVersion")!=runtime_version:
+            raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_RUNTIME_IDENTITY_DRIFT")
         if row.get("clientSurface")!=CLIENT_SURFACES.get(client):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_SURFACE_INVALID")
         oauth_client_id=mcp_contract.validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_INTEROP")
