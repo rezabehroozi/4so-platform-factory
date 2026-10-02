@@ -268,12 +268,16 @@ def stage_toolchain_archive(archive: Path, exact: dict, worktree: Path) -> Path:
     target = worktree.joinpath(*rel.parts)
     if target.exists() or target.is_symlink():
         raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_TOOLCHAIN_CONFLICT")
+    wanted_size=int(exact.get("archiveSize") or 0)
+    wanted_sha=str(exact.get("archiveSha256") or "")
+    if wanted_size<=0 or not re.fullmatch(r"[0-9a-f]{64}",wanted_sha):
+        raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_INVALID")
     target.parent.mkdir(parents=True, exist_ok=True)
     with archive.open("rb") as source, target.open("xb") as output:
         shutil.copyfileobj(source, output, length=1024 * 1024)
         output.flush()
         os.fsync(output.fileno())
-    if target.stat().st_size != archive.stat().st_size or sha256(target) != sha256(archive):
+    if target.stat().st_size!=wanted_size or sha256(target)!="sha256:"+wanted_sha:
         raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_TOOLCHAIN_MISMATCH")
     return target
 
@@ -537,8 +541,8 @@ def execute(root: Path, out: Path) -> dict:
                 )
             )
             archive, exact = safe_toolchain_archive(root, lock)
-            go = extract_toolchain(archive, exact, Path(tool_td))
             staged_archive = stage_toolchain_archive(archive, exact, worktree)
+            go = extract_toolchain(staged_archive, exact, Path(tool_td))
             admitted = admission.verify(worktree)
             env = os.environ.copy()
             env["GO"] = str(go)
