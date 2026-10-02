@@ -238,13 +238,20 @@ def validate_witness_interop_binding(witness:dict,binding:str,client:str,label:s
     if not isinstance(witness,dict) or witness.get("clientId")!=client or witness.get("interopBindingAuthority")!=INTEROP_BINDING_AUTHORITY or witness.get("interopBindingDigest")!=binding:
         raise RuntimeError(f"{label}_INTEROP_BINDING_INVALID {client}")
 
-def validate_server_audit_witness(witness:dict,binding:str,client:str,label:str,oauth_client_id:str|None=None)->dict:
+def validate_server_audit_witness(witness:dict,binding:str,client:str,label:str,oauth_client_id:str|None=None,request_ids:dict[str,str]|None=None)->dict:
     validate_witness_interop_binding(witness,binding,client,label)
     start_seq=witness.get("auditWindowStartSequence"); start_prev=str(witness.get("auditWindowPreviousDigest") or ""); head_seq=witness.get("auditHeadSequence")
     start_valid=type(start_seq) is int and start_seq>0 and type(head_seq) is int and head_seq>=start_seq and ((start_seq==1 and start_prev=="") or (start_seq>1 and SHA.fullmatch(start_prev)))
     observed_oauth_client_id=validate_oauth_client_id(witness.get("oauthClientId"),label)
     if oauth_client_id is not None and observed_oauth_client_id!=validate_oauth_client_id(oauth_client_id,label):
         raise RuntimeError(f"{label}_OAUTH_CLIENT_MISMATCH")
+    expected_request_ids=None
+    if request_ids is not None:
+        if not isinstance(request_ids,dict) or set(request_ids)!=set(AUDITED_CHECKS):
+            raise RuntimeError(f"{label}_REQUEST_IDS_INVALID")
+        expected_request_ids={check:str(request_ids.get(check) or "").strip() for check in AUDITED_CHECKS}
+        if any(not REQUEST_ID.fullmatch(value) for value in expected_request_ids.values()) or len(set(expected_request_ids.values()))!=len(AUDITED_CHECKS):
+            raise RuntimeError(f"{label}_REQUEST_IDS_INVALID")
     execution_observed=parse_utc_timestamp(witness.get("executionObservedAt"),label+"_EXECUTION")
     audit_window=witness.get("executionAuditWindowSeconds")
     if witness.get("authority")!=AUDIT_WITNESS_AUTHORITY or witness.get("auditMethodVersion")!=AUDIT_METHOD_VERSION or witness.get("auditChainDigestVerified") is not True or not start_valid or witness.get("serverAuditWitnessPass") is not True or witness.get("witnessedCheckCount")!=len(AUDITED_CHECKS) or witness.get("oauthClientWitnessPass") is not True or witness.get("oauthClientWitnessedCheckCount")!=len(OAUTH_CLIENT_AUDITED_CHECKS) or not SHA.fullmatch(str(witness.get("auditHeadDigest") or "")) or not SHA.fullmatch(str(witness.get("auditExportSha256") or "")) or type(audit_window) is not int or audit_window<60 or audit_window>24*3600:
@@ -254,12 +261,25 @@ def validate_server_audit_witness(witness:dict,binding:str,client:str,label:str,
         raise RuntimeError(f"{label}_INVALID")
     earliest=execution_observed-timedelta(seconds=audit_window)
     latest=execution_observed+timedelta(minutes=5)
+    seen_sequences=set(); seen_digests=set(); seen_request_ids=set()
     for check,event in matched.items():
         if not isinstance(event,dict):
             raise RuntimeError(f"{label}_INVALID")
         occurred=parse_utc_timestamp(event.get("occurredAt"),label+"_OCCURRED_AT")
         if occurred<earliest or occurred>latest:
             raise RuntimeError(f"{label}_TIME_WINDOW_INVALID {check}")
+        sequence=event.get("sequence"); digest=str(event.get("digest") or ""); request_id=str(event.get("requestId") or "").strip()
+        category,decision,reason=AUDIT_REQUIREMENTS[check]
+        expected_oauth=observed_oauth_client_id if check in OAUTH_CLIENT_AUDITED_CHECKS else ""
+        if type(sequence) is not int or sequence<start_seq or sequence>head_seq or not SHA.fullmatch(digest) or not REQUEST_ID.fullmatch(request_id):
+            raise RuntimeError(f"{label}_MATCHED_EVENT_INVALID {check}")
+        if sequence in seen_sequences or digest in seen_digests or request_id in seen_request_ids:
+            raise RuntimeError(f"{label}_MATCHED_EVENT_REUSE {check}")
+        if event.get("category")!=category or event.get("decision")!=decision or event.get("reasonCode")!=reason or str(event.get("oauthClientId") or "").strip()!=expected_oauth or event.get("interopBindingDigest")!=binding:
+            raise RuntimeError(f"{label}_MATCHED_EVENT_SEMANTICS_INVALID {check}")
+        if expected_request_ids is not None and request_id!=expected_request_ids[check]:
+            raise RuntimeError(f"{label}_MATCHED_EVENT_REQUEST_ID_MISMATCH {check}")
+        seen_sequences.add(sequence); seen_digests.add(digest); seen_request_ids.add(request_id)
     return witness
 
 _AUDIT_REQUIRED=("id","sequence","occurredAt","methodVersion","category","decision","actorId")
