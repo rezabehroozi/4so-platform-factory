@@ -490,6 +490,7 @@ AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY = "AUTOPILOT_OWNER_TEST_STAGE_V1"
 CONVERGENCE_REPAIR_AUTHORITY = "AUTOPILOT_CONVERGENCE_REPAIR_V1"
 OUTER_RUNTIME_CONTEXT_AUTHORITY = "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1"
 RESUME_PREFLIGHT_CURSOR_AUTHORITY = "AUTOPILOT_RESUME_PREFLIGHT_CURSOR_V1"
+LAZY_REPAIR_CAPABILITY_AUTHORITY = "AUTOPILOT_LAZY_REPAIR_CAPABILITY_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -1270,6 +1271,7 @@ def _agent_context(root: Path) -> dict:
         "convergenceRepairAuthority": CONVERGENCE_REPAIR_AUTHORITY,
         "outerRuntimeContextAuthority": OUTER_RUNTIME_CONTEXT_AUTHORITY,
         "resumePreflightCursorAuthority": RESUME_PREFLIGHT_CURSOR_AUTHORITY,
+        "lazyRepairCapabilityAuthority": LAZY_REPAIR_CAPABILITY_AUTHORITY,
         "outerRuntime": outer_runtime,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
@@ -2908,15 +2910,20 @@ def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_t
     explicit_slice = start_stage is not None or stop_stage is not None
     selected_for_preflight = stages if explicit_slice else None
     preflight_scope = "EXPLICIT_STAGE_SLICE" if explicit_slice else "FULL_INVOCATION"
-    require_codex_preflight = repair
+    # Repair capability is intentionally lazy. Deterministic proofs do not
+    # require a model/repair executable on a clean tree. If a stage actually
+    # fails, invoke_codex_triage/invoke_codex perform the fail-closed repair
+    # capability check at the exact failure cursor. Explicit --preflight
+    # --repair remains available when an operator wants to validate Codex itself.
+    require_codex_preflight = False
     resumed_scope, resume_reason = _resume_preflight_stage_scope(root, stages, repair=repair)
     if resumed_scope is not None:
         selected_for_preflight = resumed_scope
         preflight_scope = resume_reason
-        if resume_reason in {"LIVE_REJOIN", "FORWARD_COMPLETE"}:
-            require_codex_preflight = False
     print(
         "AUTOPILOT_PREFLIGHT_SCOPE authority=" + RESUME_PREFLIGHT_CURSOR_AUTHORITY
+        + " repairCapabilityAuthority=" + LAZY_REPAIR_CAPABILITY_AUTHORITY
+        + " repairCapability=lazy"
         + " mode=" + preflight_scope
         + " stages=" + ",".join(stage.name for stage in (selected_for_preflight or [])),
         flush=True,
