@@ -1,41 +1,19 @@
-name: ceph-csi-driver-image-set-authority
+name: ceph-csi-driver-image-set-authority-local-only-notice
+
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/ceph-csi-driver-image-set-authority.yml
-      - catalog/runtime-dependencies/ceph-csi/1.0.4/driver-image-set-input.json
-      - scripts/ceph_csi_driver_image_set.py
-      - tests/test_ceph_csi_driver_image_set.py
+
 permissions:
-  contents: write
+  contents: read
+
 jobs:
-  resolve-exact-images:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Resolve upstream defaults to immutable digests
+      - name: Local execution authority
+        shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/ceph_csi_driver_image_set.py --resolve
-          python3 scripts/ceph_csi_driver_image_set.py --verify
-          python3 -m unittest tests.test_ceph_csi_driver_image_set
-          git diff --check
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ceph-csi-driver-image-set
-          path: lab/ceph-csi-driver-image-set-evidence.json
-          if-no-files-found: error
-          retention-days: 30
-      - name: Persist exact image authority if owner inputs are unchanged
-        run: |
-          python3 scripts/persist_evidence_if_inputs_unchanged.py \
-            --source-sha "$GITHUB_SHA" --message "evidence: seal Ceph CSI driver image set" \
-            --input catalog/runtime-dependencies/ceph-csi/1.0.4/driver-image-set-input.json \
-            --input scripts/ceph_csi_driver_image_set.py \
-            --input scripts/upstream_acquisition_toolchain.py \
-            --output lab/ceph-csi-driver-image-set-evidence.json
+          echo "This historical workflow is intentionally non-authoritative."
+          echo "Runtime, validation, evidence generation, checkpoint/resume and release execution are local-only."
+          echo "Use repository-local owner commands and .project-runtime state; Git remains version-control/sync only."

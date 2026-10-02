@@ -1,97 +1,19 @@
-name: appliance-distribution-seal
+name: appliance-distribution-seal-local-only-notice
 
 on:
   workflow_dispatch:
-    inputs:
-      archive_url:
-        description: Immutable public HTTPS URL containing the exact management OCI archive SHA-256 in its path
-        required: true
-        type: string
-      input_pack_url:
-        description: Immutable public HTTPS URL containing the exact appliance input-pack SHA-256 in its path
-        required: true
-        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  verify-and-seal:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 120
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Reclaim hosted-runner space
+      - name: Local execution authority
         shell: bash
         run: |
           set -euo pipefail
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
-          df -h /
-
-      - name: Validate immutable content-addressed URLs
-        shell: bash
-        env:
-          ARCHIVE_URL: ${{ inputs.archive_url }}
-          INPUT_PACK_URL: ${{ inputs.input_pack_url }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json, os
-          from pathlib import Path
-          import importlib.util
-          root=Path(".").resolve()
-          spec=importlib.util.spec_from_file_location("seal",root/"scripts/seal_appliance_bundle_distribution.py")
-          mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
-          archive=json.loads((root/"lab/management-workload-oci-archive-receipt.json").read_text())
-          pack=json.loads((root/"lab/appliance-input-pack-receipt.json").read_text())
-          mod.immutable_https_url(os.environ["ARCHIVE_URL"],"ARCHIVE_URL",archive["archiveSha256"])
-          mod.immutable_https_url(os.environ["INPUT_PACK_URL"],"INPUT_PACK_URL",pack["inputPackSha256"])
-          PY
-
-      - name: Download and byte-verify public distribution objects
-        shell: bash
-        env:
-          ARCHIVE_URL: ${{ inputs.archive_url }}
-          INPUT_PACK_URL: ${{ inputs.input_pack_url }}
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 3 --proto '=https' --proto-redir '=https' --output /tmp/platform-workloads.oci.tar "$ARCHIVE_URL"
-          curl --fail --location --retry 3 --proto '=https' --proto-redir '=https' --output /tmp/appliance-input-pack.zip "$INPUT_PACK_URL"
-          archive_sha="$(jq -r '.archiveSha256|sub("^sha256:";"")' lab/management-workload-oci-archive-receipt.json)"
-          archive_size="$(jq -r .archiveBytes lab/management-workload-oci-archive-receipt.json)"
-          pack_sha="$(jq -r '.inputPackSha256|sub("^sha256:";"")' lab/appliance-input-pack-receipt.json)"
-          pack_size="$(jq -r .inputPackBytes lab/appliance-input-pack-receipt.json)"
-          test "$(sha256sum /tmp/platform-workloads.oci.tar | awk '{print $1}')" = "$archive_sha"
-          test "$(stat -c %s /tmp/platform-workloads.oci.tar)" = "$archive_size"
-          test "$(sha256sum /tmp/appliance-input-pack.zip | awk '{print $1}')" = "$pack_sha"
-          test "$(stat -c %s /tmp/appliance-input-pack.zip)" = "$pack_size"
-
-      - name: Seal canonical acquisition lock and derived handoff
-        shell: bash
-        env:
-          ARCHIVE_URL: ${{ inputs.archive_url }}
-          INPUT_PACK_URL: ${{ inputs.input_pack_url }}
-        run: |
-          set -euo pipefail
-          python3 scripts/seal_appliance_bundle_distribution.py             --input-pack /tmp/appliance-input-pack.zip             --archive-url "$ARCHIVE_URL"             --input-pack-url "$INPUT_PACK_URL"             --write
-          python3 scripts/supply_chain_handoff.py --write --plan lab/supply-chain-handoff-plan.json
-          python3 scripts/supply_chain_handoff.py --check --plan lab/supply-chain-handoff-plan.json
-          python3 scripts/validate_repository.py .
-          python3 -m unittest tests.test_appliance_bundle_distribution tests.test_appliance_input_pack tests.test_supply_chain_handoff
-          git diff --check
-
-      - name: Persist exact distribution authority
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "4so-evidence-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add lab/appliance-bundle-acquisition-lock.json lab/supply-chain-handoff-plan.json
-          git diff --cached --quiet && { echo "no distribution authority delta"; exit 0; }
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing stale distribution seal"; exit 1; }
-          git commit -m "evidence: seal immutable appliance distribution"
-          git push origin HEAD:main
+          echo "This historical workflow is intentionally non-authoritative."
+          echo "Runtime, validation, evidence generation, checkpoint/resume and release execution are local-only."
+          echo "Use repository-local owner commands and .project-runtime state; Git remains version-control/sync only."

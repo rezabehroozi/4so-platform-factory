@@ -2096,6 +2096,18 @@ def validate_core_local_only_workflows(root: Path, errors: list[tuple[str, str]]
                 errors.append(('CORE_LOCAL_ONLY_WORKFLOW_MUTATION_FORBIDDEN', f'{rel}:{forbidden.strip()}'))
 
 
+def validate_no_remote_ci_mutation_authority(root: Path, errors: list[tuple[str, str]]) -> None:
+    workflow_root = root / '.github' / 'workflows'
+    if not workflow_root.is_dir():
+        return
+    for path in sorted(list(workflow_root.glob('*.yml')) + list(workflow_root.glob('*.yaml'))):
+        text = path.read_text(encoding='utf-8', errors='strict')
+        rel = path.relative_to(root).as_posix()
+        for forbidden in ('contents: write', 'git push'):
+            if forbidden in text:
+                errors.append(('REMOTE_CI_MUTATION_AUTHORITY_FORBIDDEN', f'{rel}:{forbidden}'))
+
+
 def main() -> int:
     # The canonical control host is Windows. Validation details can contain
     # Persian text, so never let the active legacy console code page hide the
@@ -2115,6 +2127,7 @@ def main() -> int:
 
     validate_repository_hygiene(root, files, errors)
     validate_core_local_only_workflows(root, errors)
+    validate_no_remote_ci_mutation_authority(root, errors)
 
     required_root = ('VERSION','RELEASE-NAME','go.mod','Makefile','Dockerfile','THIRD_PARTY_COMPONENTS.md','LICENSE.txt')
     for rel in required_root:

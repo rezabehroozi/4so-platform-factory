@@ -1,104 +1,19 @@
-name: gateway-api-transition-acquisition
+name: gateway-api-transition-acquisition-local-only-notice
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/gateway-api-transition-acquisition.yml
-      - catalog/tagged-source-recipes/gateway-api/1.6.1.json
-      - scripts/acquire_upstream_tagged_source.py
-      - scripts/validate_repository.py
-      - tests/test_tagged_source_acquisition.py
-      - tests/test_catalog_upstream_admission.py
-      - internal/catalogbundle/bundle.go
-      - internal/catalogbundle/bundle_test.go
-      - internal/api/runtime_certification_test.go
-      - lab/management-workload-product-image-receipt.json
-      - lab/supply-chain-handoff-plan.json
-      - catalog/runtime_certification_registry.go
 
 permissions:
-  contents: write
-
-concurrency:
-  group: gateway-api-transition-acquisition
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  acquire-promote:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 45
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.27.1'
-          cache: false
-      - name: Verify acquisition prerequisites
-        run: |
-          set -euo pipefail
-          python3 -c 'import yaml'
-          python3 scripts/acquire_upstream_tagged_source.py --self-test
-          go test ./catalog ./internal/catalogbundle
-          go build -o /tmp/platformctl ./cmd/platformctl
-      - name: Detect already-applied transition
-        id: transition_state
+      - name: Local execution authority
         shell: bash
         run: |
           set -euo pipefail
-          current="$(jq -r '.spec.release' catalog/components/gateway-api.json)"
-          target="$(jq -r '.spec.gatewayApi.targetRelease' catalog/runtime-dependency-transition.json)"
-          if test "$current" = "$target"; then
-            echo "already_applied=true" >> "$GITHUB_OUTPUT"
-            echo "GATEWAY_TRANSITION_ALREADY_APPLIED current=$current"
-          else
-            echo "already_applied=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Acquire and atomically promote Gateway API 1.6.1
-        if: steps.transition_state.outputs.already_applied != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 scripts/acquire_upstream_tagged_source.py \
-            --component gateway-api \
-            --version 1.6.1 \
-            --transition \
-            --from-runtime-dependency-transition \
-            --install \
-            --platformctl /tmp/platformctl
-          python3 scripts/runtime_dependency_transition_readiness.py --self-test
-          python3 -m unittest tests.test_tagged_source_acquisition tests.test_runtime_dependency_transition_readiness tests.test_supply_chain_handoff tests.test_catalog_upstream_admission
-          go test ./catalog ./internal/catalogbundle ./internal/api
-          python3 scripts/validate_repository.py .
-          git diff --check
-      - name: Persist exact transition authority
-        if: steps.transition_state.outputs.already_applied != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "4so-evidence-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add \
-            catalog/components/gateway-api.json \
-            catalog/runtime/gateway-api/1.6.1 \
-            catalog/component-runtime-certification.json \
-            catalog/component-runtime-upgrade-matrix.json \
-            catalog/component-upgrade-source-admission.json \
-            catalog/runtime-dependency-transition.json \
-            lab/runtime-dependency-transition-readiness.json \
-            lab/supply-chain-handoff-plan.json
-          if git diff --cached --quiet; then
-            echo "transition already applied; nothing to persist"
-            exit 0
-          fi
-          git fetch origin main
-          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then
-            echo "main advanced during transition; refusing stale authority persistence"
-            exit 2
-          fi
-          git commit -m "feat: promote Gateway API 1.6.1 transition authority"
-          git push origin HEAD:main
+          echo "This historical workflow is intentionally non-authoritative."
+          echo "Runtime, validation, evidence generation, checkpoint/resume and release execution are local-only."
+          echo "Use repository-local owner commands and .project-runtime state; Git remains version-control/sync only."

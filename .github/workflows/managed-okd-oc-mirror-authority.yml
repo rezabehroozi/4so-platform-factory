@@ -1,85 +1,19 @@
-name: managed-okd-oc-mirror-authority
+name: managed-okd-oc-mirror-authority-local-only-notice
+
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/managed-okd-oc-mirror-authority.yml
-      - lab/managed-okd-oc-mirror-source-lock.json
-      - scripts/verify_managed_okd_oc_mirror_lock.py
+
 permissions:
-  contents: write
+  contents: read
+
 jobs:
-  exact-v2-build:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 45
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Validate product source lock
-        run: python3 scripts/verify_managed_okd_oc_mirror_lock.py
-      - name: Resolve exact upstream identity
+      - name: Local execution authority
         shell: bash
         run: |
           set -euo pipefail
-          echo "OC_MIRROR_SHA=$(jq -r .upstreamCommitSHA lab/managed-okd-oc-mirror-source-lock.json)" >> "$GITHUB_ENV"
-          echo "OC_MIRROR_GO=$(jq -r .v2GoVersion lab/managed-okd-oc-mirror-source-lock.json)" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
-        with:
-          repository: openshift/oc-mirror
-          ref: ${{ env.OC_MIRROR_SHA }}
-          path: _upstream/oc-mirror
-          fetch-depth: 1
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.OC_MIRROR_GO }}
-          cache: false
-      - name: Build exact oc-mirror v2 binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd _upstream/oc-mirror/v2
-          test "$(git rev-parse HEAD)" = "$OC_MIRROR_SHA"
-          CGO_ENABLED=0 make build
-          test -x build/oc-mirror
-          build/oc-mirror --help >/tmp/oc-mirror-help.txt
-          build/oc-mirror version >/tmp/oc-mirror-version.txt || true
-          grep -qi "mirror" /tmp/oc-mirror-help.txt
-          cp build/oc-mirror /tmp/oc-mirror-v2
-      - id: hash
-        name: Capture binary digest
-        shell: bash
-        run: |
-          echo "sha=$(sha256sum /tmp/oc-mirror-v2 | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-          echo "size=$(stat -c %s /tmp/oc-mirror-v2)" >> "$GITHUB_OUTPUT"
-      - name: Seal exact binary evidence
-        shell: bash
-        env:
-          BIN_SHA: ${{ steps.hash.outputs.sha }}
-          BIN_SIZE: ${{ steps.hash.outputs.size }}
-        run: |
-          python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          out={"apiVersion":"platform.4so.io/v1alpha1","kind":"ManagedOKDOcMirrorBinaryEvidence","authority":"MANAGED_OKD_OC_MIRROR_V2_BINARY_EVIDENCE_V1","sourceCommitSHA":os.environ["OC_MIRROR_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"targetOKDRelease":"4.19.0-okd-scos.19","architecture":"linux-amd64","binarySha256":"sha256:"+os.environ["BIN_SHA"],"binarySizeBytes":int(os.environ["BIN_SIZE"]),"v2HelpVerified":True,"sourcePinned":True,"disconnectedToolchainReady":True,"runtimeCertified":False,"physicalCertified":False}
-          Path("lab/managed-okd-oc-mirror-evidence.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
-          PY
-          jq -e '.disconnectedToolchainReady and .v2HelpVerified and (.runtimeCertified|not) and (.physicalCertified|not)' lab/managed-okd-oc-mirror-evidence.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: managed-okd-oc-mirror-v2
-          path: |
-            /tmp/oc-mirror-v2
-            lab/managed-okd-oc-mirror-evidence.json
-          if-no-files-found: error
-          retention-days: 30
-      - name: Persist exact evidence when main is unchanged
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "4so-evidence-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add lab/managed-okd-oc-mirror-evidence.json
-          git fetch origin main
-          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then echo "main advanced; skip stale oc-mirror evidence persistence"; git reset -- lab/managed-okd-oc-mirror-evidence.json; exit 0; fi
-          git commit -m "evidence: seal exact oc-mirror v2 binary"
-          git push origin HEAD:main
+          echo "This historical workflow is intentionally non-authoritative."
+          echo "Runtime, validation, evidence generation, checkpoint/resume and release execution are local-only."
+          echo "Use repository-local owner commands and .project-runtime state; Git remains version-control/sync only."

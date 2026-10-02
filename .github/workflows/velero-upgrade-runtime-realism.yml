@@ -1,159 +1,19 @@
-name: velero-upgrade-runtime-realism
+name: velero-upgrade-runtime-realism-local-only-notice
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/velero-upgrade-runtime-realism.yml
-      - catalog/runtime/velero/12.0.3/**
-      - catalog/runtime/velero/12.1.0/**
-      - catalog/runtime_normalization.go
-      - cmd/catalog-runtime-normalize/**
-      - catalog/component-runtime-upgrade-matrix.json
-      - internal/runtimeupgrade/**
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  upgrade:
-    strategy:
-      fail-fast: false
-      matrix:
-        kubernetes: ["1.34.11", "1.35.8"]
-    runs-on: ubuntu-26.04
-    timeout-minutes: 45
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Bind exact Velero edge and manifests
+      - name: Local execution authority
         shell: bash
         run: |
           set -euo pipefail
-          jq -e '.components[]|select(.component=="velero" and .targetRelease=="12.1.0" and .status=="admitted-source-pair")|.admittedEdges[]|select(.fromRelease=="12.0.3" and .toRelease=="12.1.0")' catalog/component-runtime-upgrade-matrix.json >/tmp/edge.json
-          go build -o /tmp/catalog-runtime-normalize ./cmd/catalog-runtime-normalize
-          /tmp/catalog-runtime-normalize --component velero --release 12.0.3 --in catalog/runtime/velero/12.0.3/render-manifest.json --out /tmp/velero-12.0.3.json --evidence /tmp/velero-12.0.3-normalization.json
-          /tmp/catalog-runtime-normalize --component velero --release 12.1.0 --in catalog/runtime/velero/12.1.0/render-manifest.json --out /tmp/velero-12.1.0.json --evidence /tmp/velero-12.1.0-normalization.json
-          jq -e '.authority=="VELERO_12_X_EMPTY_LOCATION_NORMALIZATION_V1" and .removedInvalidDefaultLocations==2 and (.removedResources|length)==2' /tmp/velero-12.0.3-normalization.json
-          jq -e '.authority=="VELERO_12_X_EMPTY_LOCATION_NORMALIZATION_V1" and .removedInvalidDefaultLocations==2 and (.removedResources|length)==2' /tmp/velero-12.1.0-normalization.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          expected={"backuprepositories.velero.io","backups.velero.io","backupstoragelocations.velero.io","datadownloads.velero.io","datauploads.velero.io","deletebackuprequests.velero.io","downloadrequests.velero.io","podvolumebackups.velero.io","podvolumerestores.velero.io","restores.velero.io","schedules.velero.io","serverstatusrequests.velero.io","volumesnapshotlocations.velero.io"}
-          for v in ("12.0.3","12.1.0"):
-              items=json.loads(Path(f"/tmp/velero-{v}.json").read_text())["items"]
-              crds={x["metadata"]["name"] for x in items if x.get("kind")=="CustomResourceDefinition"}
-              dep=[x for x in items if x.get("kind")=="Deployment" and x.get("metadata",{}).get("name")=="velero"]
-              jobs=[x for x in items if x.get("kind")=="Job" and x.get("metadata",{}).get("name")=="platform-factory-velero-upgrade-crds"]
-              if crds!=expected or len(dep)!=1 or len(jobs)!=1: raise SystemExit(f"VELERO_PROFILE_DRIFT {v}")
-              images=[]
-              for obj in (dep[0],jobs[0]):
-                  pod=obj["spec"]["template"]["spec"]
-                  images += [c["image"] for c in [*(pod.get("initContainers") or []),*(pod.get("containers") or [])] if c.get("image")]
-              if not images or any("@sha256:" not in x for x in images): raise SystemExit(f"VELERO_IMAGE_NOT_PINNED {v}")
-              Path(f"/tmp/velero-{v}-crds.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":[x for x in items if x.get("kind")=="CustomResourceDefinition"]}))
-              Path(f"/tmp/velero-{v}-resources.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":[x for x in items if x.get("kind")!="CustomResourceDefinition"]}))
-              Path(f"/tmp/velero-{v}-images.json").write_text(json.dumps(images,sort_keys=True))
-          PY
-      - name: Install exact kind runtime
-        shell: bash
-        run: |
-          set -euo pipefail
-          url="$(jq -r '.spec.kind.url' runtime/network-stack-kind-toolchain.json)"
-          sha="$(jq -r '.spec.kind.sha256' runtime/network-stack-kind-toolchain.json)"
-          size="$(jq -r '.spec.kind.sizeBytes' runtime/network-stack-kind-toolchain.json)"
-          curl -fL --retry 3 -o /tmp/kind "$url"
-          test "$(sha256sum /tmp/kind|awk '{print $1}')" = "$sha"
-          test "$(stat -c %s /tmp/kind)" = "$size"
-          chmod +x /tmp/kind
-          image="$(jq -r --arg v "${{ matrix.kubernetes }}" '.spec.kubernetes[]|select(.version==$v)|.nodeImage' runtime/network-stack-kind-toolchain.json)"
-          case "$image" in kindest/node:v${{ matrix.kubernetes }}@sha256:*) ;; *) exit 21;; esac
-          /tmp/kind create cluster --name 4so-velero-upgrade --image "$image"
-      - name: Install historical and upgrade Velero
-        shell: bash
-        run: |
-          set -euo pipefail
-          kubectl create namespace velero
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.0.3-crds.json
-          for crd in $(jq -r '.items[].metadata.name' /tmp/velero-12.0.3-crds.json); do kubectl wait --for=condition=Established "crd/$crd" --timeout=4m; done
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.0.3-resources.json
-          kubectl -n velero rollout status deployment/velero --timeout=12m
-          kubectl -n velero wait --for=condition=Complete job/platform-factory-velero-upgrade-crds --timeout=12m
-          kubectl -n velero get deploy/velero -o jsonpath='{.metadata.uid}' >/tmp/velero-deploy-uid
-          kubectl get crd $(jq -r '.items[]|select(.kind=="CustomResourceDefinition")|.metadata.name' /tmp/velero-12.0.3.json) -o json | jq -c '[.items[]|{name:.metadata.name,uid:.metadata.uid}]|sort_by(.name)' >/tmp/velero-crd-uids
-          kubectl -n velero delete job platform-factory-velero-upgrade-crds --wait=true
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.1.0-crds.json
-          for crd in $(jq -r '.items[].metadata.name' /tmp/velero-12.1.0-crds.json); do
-            kubectl wait --for=condition=Established "crd/$crd" --timeout=4m
-            kubectl get "crd/$crd" -o json | jq -e '[.status.storedVersions[] as $s|.spec.versions[]|select(.name==$s)]|length>0' >/dev/null
-          done
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.1.0-resources.json
-          kubectl -n velero rollout status deployment/velero --timeout=12m
-          kubectl -n velero wait --for=condition=Complete job/platform-factory-velero-upgrade-crds --timeout=12m
-          test "$(kubectl -n velero get deploy/velero -o jsonpath='{.metadata.uid}')" = "$(cat /tmp/velero-deploy-uid)"
-          kubectl get crd $(jq -r '.items[]|select(.kind=="CustomResourceDefinition")|.metadata.name' /tmp/velero-12.1.0.json) -o json | jq -c '[.items[]|{name:.metadata.name,uid:.metadata.uid}]|sort_by(.name)' >/tmp/velero-crd-uids-after
-          cmp /tmp/velero-crd-uids /tmp/velero-crd-uids-after
-          expected="$(jq -c . /tmp/velero-12.1.0-images.json)"
-          actual="$(kubectl -n velero get deploy/velero -o json | jq -c '[.spec.template.spec.initContainers[]?.image,.spec.template.spec.containers[].image]')"
-          test "$actual" = "$(jq -c '[.[0]]' /tmp/velero-12.1.0-images.json)"
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.1.0-crds.json >/tmp/reapply-crds.txt
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/velero-12.1.0-resources.json >/tmp/reapply-resources.txt
-          kubectl -n velero rollout status deployment/velero --timeout=4m
-      - name: Prove reverse edge and seal evidence
-        shell: bash
-        env:
-          MATRIX_KUBERNETES: "${{ matrix.kubernetes }}"
-        run: |
-          set -euo pipefail
-          go test ./internal/runtimeupgrade -run 'TestUpgradeRejectsReverseOrNonCanonicalVersionEdges|TestUpgradeRequiresExactDistinctSourcePair'
-          python3 - <<'PY'
-          import hashlib,json,os
-          from pathlib import Path
-          h=lambda p:"sha256:"+hashlib.sha256(Path(p).read_bytes()).hexdigest()
-          v=os.environ["MATRIX_KUBERNETES"]
-          d={"apiVersion":"platform.4so.io/v1alpha1","kind":"VeleroUpgradeRuntimeEvidence","authority":"VELERO_RUNTIME_UPGRADE_EVIDENCE_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"kubernetesVersion":v,"fromRelease":"12.0.3","toRelease":"12.1.0","fromRenderSha256":h("catalog/runtime/velero/12.0.3/render-manifest.json"),"toRenderSha256":h("catalog/runtime/velero/12.1.0/render-manifest.json"),"historicalReady":True,"upgradeApplyPass":True,"targetReady":True,"deploymentIdentityPreserved":True,"crdIdentityPreserved":True,"storedVersionsValid":True,"upgradeJobReplaced":True,"targetImagesVerified":True,"targetReapplyConverged":True,"reverseEdgeRejected":True,"runtimeNormalizationAuthority":"VELERO_12_X_EMPTY_LOCATION_NORMALIZATION_V1","invalidDefaultLocationsRemoved":True,"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"productTopologyHACertified":False,"physicalCertified":False}
-          Path(f"/tmp/velero-{v}.json").write_text(json.dumps(d,indent=2,sort_keys=True)+"\n")
-          PY
-      - uses: actions/upload-artifact@v4
-        with:
-          name: velero-upgrade-${{ matrix.kubernetes }}
-          path: /tmp/velero-${{ matrix.kubernetes }}.json
-      - name: Diagnostics
-        if: failure()
-        run: |
-          kubectl -n velero get pods,jobs,deployments -o wide || true
-          kubectl -n velero logs deployment/velero --tail=150 || true
-          kubectl -n velero logs job/platform-factory-velero-upgrade-crds --tail=150 || true
-      - if: always()
-        run: /tmp/kind delete cluster --name 4so-velero-upgrade || true
-
-  aggregate:
-    needs: upgrade
-    runs-on: ubuntu-26.04
-    steps:
-      - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: velero-upgrade-*
-          path: /tmp/velero
-          merge-multiple: true
-      - name: Aggregate and persist
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          rows=[json.loads(p.read_text()) for p in sorted(Path("/tmp/velero").glob("velero-*.json"))]
-          req=("historicalReady","upgradeApplyPass","targetReady","deploymentIdentityPreserved","crdIdentityPreserved","storedVersionsValid","upgradeJobReplaced","targetImagesVerified","targetReapplyConverged","reverseEdgeRejected","invalidDefaultLocationsRemoved")
-          if {x["kubernetesVersion"] for x in rows}!={"1.34.11","1.35.8"} or not all(all(x.get(k) is True for k in req) for x in rows): raise SystemExit("VELERO_UPGRADE_MATRIX_INVALID")
-          d={"apiVersion":"platform.4so.io/v1alpha1","kind":"VeleroUpgradeRuntimeMatrixEvidence","authority":"VELERO_RUNTIME_UPGRADE_MATRIX_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"fromRelease":"12.0.3","toRelease":"12.1.0","matrix":rows,"matrixPass":True,"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"productTopologyHACertified":False,"physicalCertified":False}
-          Path("lab/velero-upgrade-runtime-matrix-evidence.json").write_text(json.dumps(d,indent=2,sort_keys=True)+"\n")
-          PY
-          git config user.name 4so-evidence-bot; git config user.email actions@users.noreply.github.com
-          git add lab/velero-upgrade-runtime-matrix-evidence.json
-          git fetch origin main
-          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then git reset -- lab/velero-upgrade-runtime-matrix-evidence.json; exit 0; fi
-          git commit -m "evidence: seal Velero runtime upgrade matrix"
-          git push origin HEAD:main
+          echo "This historical workflow is intentionally non-authoritative."
+          echo "Runtime, validation, evidence generation, checkpoint/resume and release execution are local-only."
+          echo "Use repository-local owner commands and .project-runtime state; Git remains version-control/sync only."

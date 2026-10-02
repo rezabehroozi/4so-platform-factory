@@ -1,170 +1,19 @@
-name: kgateway-upgrade-runtime-realism
+name: kgateway-upgrade-runtime-realism-local-only-notice
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/kgateway-upgrade-runtime-realism.yml
-      - catalog/runtime/kgateway/2.4.0/**
-      - catalog/runtime/kgateway/2.4.1/**
-      - catalog/runtime/gateway-api/1.6.1/**
-      - catalog/component-runtime-upgrade-matrix.json
-      - internal/runtimeupgrade/**
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  upgrade-matrix:
-    strategy:
-      fail-fast: false
-      matrix:
-        kubernetes: ["1.34.11", "1.35.8"]
-    runs-on: ubuntu-26.04
-    timeout-minutes: 35
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Bind exact kgateway upgrade edge and dependency
+      - name: Local execution authority
         shell: bash
         run: |
           set -euo pipefail
-          jq -e '
-            .components[] | select(.component=="kgateway" and .targetRelease=="2.4.1" and .status=="admitted-source-pair")
-            | .admittedEdges[] | select(.fromRelease=="2.4.0" and .toRelease=="2.4.1")
-          ' catalog/component-runtime-upgrade-matrix.json >/tmp/edge.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          gw=[x for x in json.loads(Path("catalog/runtime/gateway-api/1.6.1/render-manifest.json").read_text()) if x.get("kind")=="CustomResourceDefinition"]
-          if not gw: raise SystemExit("KGATEWAY_GATEWAY_API_CRDS_EMPTY")
-          Path("/tmp/gateway-api.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":gw}))
-          for version in ("2.4.0","2.4.1"):
-              items=json.loads(Path(f"catalog/runtime/kgateway/{version}/render-manifest.json").read_text())
-              dep=[x for x in items if x.get("kind")=="Deployment" and (x.get("metadata") or {}).get("name")=="platform-factory-kgateway"]
-              if len(dep)!=1: raise SystemExit(f"KGATEWAY_DEPLOYMENT_IDENTITY_INVALID {version}")
-              images=[c.get("image","") for c in (((dep[0].get("spec") or {}).get("template") or {}).get("spec") or {}).get("containers",[])]
-              if not images or any("@sha256:" not in i for i in images): raise SystemExit(f"KGATEWAY_IMAGE_NOT_PINNED {version}")
-              Path(f"/tmp/kgateway-{version}.json").write_text(json.dumps({"apiVersion":"v1","kind":"List","items":items}))
-              Path(f"/tmp/kgateway-{version}-images.json").write_text(json.dumps(images,sort_keys=True))
-          PY
-
-      - name: Install exact kind runtime
-        shell: bash
-        run: |
-          set -euo pipefail
-          url="$(jq -r '.spec.kind.url' runtime/network-stack-kind-toolchain.json)"
-          expected="$(jq -r '.spec.kind.sha256' runtime/network-stack-kind-toolchain.json)"
-          size="$(jq -r '.spec.kind.sizeBytes' runtime/network-stack-kind-toolchain.json)"
-          curl -fL --retry 3 --connect-timeout 30 -o /tmp/kind "$url"
-          test "$(stat -c %s /tmp/kind)" = "$size"
-          test "$(sha256sum /tmp/kind|awk '{print $1}')" = "$expected"
-          chmod +x /tmp/kind
-          image="$(jq -r --arg v "${{ matrix.kubernetes }}" '.spec.kubernetes[]|select(.version==$v)|.nodeImage' runtime/network-stack-kind-toolchain.json)"
-          case "$image" in kindest/node:v${{ matrix.kubernetes }}@sha256:*) ;; *) exit 21;; esac
-          /tmp/kind create cluster --name 4so-kgateway-upgrade --image "$image"
-          test "$(kubectl version -o json | jq -r .serverVersion.gitVersion)" = "v${{ matrix.kubernetes }}"
-
-      - name: Install Gateway API dependency
-        shell: bash
-        run: |
-          set -euo pipefail
-          kubectl apply --server-side --force-conflicts --field-manager=4so-kgateway-upgrade -f /tmp/gateway-api.json
-          for crd in $(jq -r '.items[].metadata.name' /tmp/gateway-api.json); do
-            kubectl wait --for=condition=Established "crd/$crd" --timeout=3m
-          done
-
-      - name: Install historical kgateway and prove readiness
-        shell: bash
-        run: |
-          set -euo pipefail
-          kubectl create namespace gateway-system
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/kgateway-2.4.0.json
-          kubectl -n gateway-system rollout status deployment/platform-factory-kgateway --timeout=10m
-          uid="$(kubectl -n gateway-system get deployment platform-factory-kgateway -o jsonpath='{.metadata.uid}')"
-          test -n "$uid"; echo "BEFORE_UID=$uid" >> "$GITHUB_ENV"
-
-      - name: Upgrade to exact kgateway 2.4.1
-        shell: bash
-        run: |
-          set -euo pipefail
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/kgateway-2.4.1.json
-          kubectl -n gateway-system rollout status deployment/platform-factory-kgateway --timeout=10m
-          test "$(kubectl -n gateway-system get deployment platform-factory-kgateway -o jsonpath='{.metadata.uid}')" = "$BEFORE_UID"
-          expected="$(jq -c . /tmp/kgateway-2.4.1-images.json)"
-          actual="$(kubectl -n gateway-system get deployment platform-factory-kgateway -o json | jq -c '[.spec.template.spec.containers[].image]')"
-          test "$actual" = "$expected"
-          kubectl apply --server-side --force-conflicts --field-manager=4so-upgrade -f /tmp/kgateway-2.4.1.json >/tmp/reapply.txt
-          kubectl -n gateway-system rollout status deployment/platform-factory-kgateway --timeout=4m
-
-      - name: Prove reverse edge is rejected
-        run: go test ./internal/runtimeupgrade -run 'TestUpgradeRejectsReverseOrNonCanonicalVersionEdges|TestUpgradeRequiresExactDistinctSourcePair'
-
-      - name: Seal kgateway runtime upgrade evidence
-        shell: bash
-        env:
-          MATRIX_KUBERNETES: ${{ matrix.kubernetes }}
-        run: |
-          python3 - <<'PY'
-          import hashlib,json,os
-          from pathlib import Path
-          def h(p): return "sha256:"+hashlib.sha256(Path(p).read_bytes()).hexdigest()
-          v=os.environ["MATRIX_KUBERNETES"]
-          out={"apiVersion":"platform.4so.io/v1alpha1","kind":"KgatewayUpgradeRuntimeEvidence","authority":"KGATEWAY_RUNTIME_UPGRADE_EVIDENCE_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"kubernetesVersion":v,"fromRelease":"2.4.0","toRelease":"2.4.1","fromRenderSha256":h("catalog/runtime/kgateway/2.4.0/render-manifest.json"),"toRenderSha256":h("catalog/runtime/kgateway/2.4.1/render-manifest.json"),"gatewayApiRelease":"1.6.1","historicalReady":True,"upgradeApplyPass":True,"targetReady":True,"workloadIdentityPreserved":True,"targetReapplyConverged":True,"reverseEdgeRejected":True,"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"productTopologyHACertified":False,"physicalCertified":False}
-          Path(f"/tmp/kgateway-upgrade-{v}.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
-          PY
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: kgateway-upgrade-${{ matrix.kubernetes }}
-          path: /tmp/kgateway-upgrade-${{ matrix.kubernetes }}.json
-          retention-days: 30
-
-      - if: always()
-        run: /tmp/kind delete cluster --name 4so-kgateway-upgrade || true
-
-  aggregate:
-    needs: upgrade-matrix
-    runs-on: ubuntu-26.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: kgateway-upgrade-*
-          path: /tmp/kgateway-upgrade
-          merge-multiple: true
-      - name: Aggregate exact kgateway matrix
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          rows=[json.loads(p.read_text()) for p in sorted(Path("/tmp/kgateway-upgrade").glob("kgateway-upgrade-*.json"))]
-          if {r["kubernetesVersion"] for r in rows}!={"1.34.11","1.35.8"}: raise SystemExit("KGATEWAY_UPGRADE_MATRIX_COVERAGE_INVALID")
-          req=("historicalReady","upgradeApplyPass","targetReady","workloadIdentityPreserved","targetReapplyConverged","reverseEdgeRejected")
-          if not all(all(r.get(k) is True for k in req) for r in rows): raise SystemExit("KGATEWAY_UPGRADE_MATRIX_RUNTIME_INVALID")
-          out={"apiVersion":"platform.4so.io/v1alpha1","kind":"KgatewayUpgradeRuntimeMatrixEvidence","authority":"KGATEWAY_RUNTIME_UPGRADE_MATRIX_V1","sourceCommitSHA":os.environ["GITHUB_SHA"],"sourceRunId":os.environ["GITHUB_RUN_ID"],"fromRelease":"2.4.0","toRelease":"2.4.1","gatewayApiRelease":"1.6.1","matrix":rows,"matrixPass":True,"genericKubernetesRuntimeEvidenceOnly":True,"rke2Certified":False,"productTopologyHACertified":False,"physicalCertified":False}
-          Path("lab/kgateway-upgrade-runtime-matrix-evidence.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
-          PY
-      - uses: actions/upload-artifact@v4
-        with:
-          name: kgateway-upgrade-runtime-matrix
-          path: lab/kgateway-upgrade-runtime-matrix-evidence.json
-          retention-days: 30
-      - name: Persist evidence when main is unchanged
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "4so-evidence-bot"; git config user.email "actions@users.noreply.github.com"
-          git add lab/kgateway-upgrade-runtime-matrix-evidence.json
-          git fetch origin main
-          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then echo "main advanced; skip stale kgateway evidence"; git reset -- lab/kgateway-upgrade-runtime-matrix-evidence.json; exit 0; fi
-          git commit -m "evidence: seal kgateway runtime upgrade matrix"
-          if ! git push origin HEAD:main; then
-            git fetch origin main
-            if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then echo "main advanced after kgateway evidence commit; skip stale persistence"; exit 0; fi
-            exit 1
-          fi
+          echo "This historical workflow is intentionally non-authoritative."
+          echo "Runtime, validation, evidence generation, checkpoint/resume and release execution are local-only."
+          echo "Use repository-local owner commands and .project-runtime state; Git remains version-control/sync only."

@@ -76,6 +76,21 @@ class ReleaseDocumentationTruthTest(unittest.TestCase):
             VALIDATE.validate_core_local_only_workflows(root,errors)
             self.assertIn("CORE_LOCAL_ONLY_WORKFLOW_MUTATION_FORBIDDEN",[code for code,_ in errors])
 
+    def test_remote_ci_repository_mutation_authority_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            workflows=root/'.github'/'workflows'
+            workflows.mkdir(parents=True)
+            (workflows/'read-only.yml').write_text("permissions:\n  contents: read\n",encoding='utf-8')
+            errors=[]
+            VALIDATE.validate_no_remote_ci_mutation_authority(root,errors)
+            self.assertEqual([],errors)
+
+            (workflows/'writer.yml').write_text("permissions:\n  contents: write\njobs:\n  writer:\n    steps:\n      - run: git push\n",encoding='utf-8')
+            errors=[]
+            VALIDATE.validate_no_remote_ci_mutation_authority(root,errors)
+            self.assertEqual(2,len([row for row in errors if row[0]=='REMOTE_CI_MUTATION_AUTHORITY_FORBIDDEN']))
+
     def test_program_status_version_mismatch_is_rejected(self):
         temp, root = self.fixture()
         with temp:

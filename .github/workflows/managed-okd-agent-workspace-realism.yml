@@ -1,115 +1,19 @@
-name: managed-okd-agent-workspace-realism
+name: managed-okd-agent-workspace-realism-local-only-notice
+
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/managed-okd-agent-workspace-realism.yml
-      - internal/managedinstall/workspace_preparer.go
-      - internal/managedinstall/workspace_preparer_exact_test.go
-      - lab/managed-okd-upstream-toolchain-lock.json
-      - runtime/managed-okd-agent-workspace-toolchain.json
-permissions:
-  contents: write
-jobs:
-  exact-agent-workspace:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 55
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download exact OKD installer
-        shell: bash
-        run: |
-          set -euo pipefail
-          url="$(jq -r '.artifacts[]|select(.role=="openshift-install")|.url' lab/managed-okd-upstream-toolchain-lock.json)"
-          sha="$(jq -r '.artifacts[]|select(.role=="openshift-install")|.sha256' lab/managed-okd-upstream-toolchain-lock.json)"
-          curl -fL --retry 3 -o /tmp/openshift-install.tar.gz "$url"
-          test "$(sha256sum /tmp/openshift-install.tar.gz|awk '{print $1}')" = "$sha"
-          tar -xzf /tmp/openshift-install.tar.gz -C /tmp openshift-install
-          test -s /tmp/openshift-install
-          chmod +x /tmp/openshift-install
-          binary_sha="$(sha256sum /tmp/openshift-install|awk '{print $1}')"
-          test -n "$binary_sha"
-          oc_url="$(jq -r '.artifacts[]|select(.role=="oc-client")|.url' lab/managed-okd-upstream-toolchain-lock.json)"
-          oc_sha="$(jq -r '.artifacts[]|select(.role=="oc-client")|.sha256' lab/managed-okd-upstream-toolchain-lock.json)"
-          oc_size="$(jq -r '.artifacts[]|select(.role=="oc-client")|.sizeBytes' lab/managed-okd-upstream-toolchain-lock.json)"
-          curl -fL --retry 3 -o /tmp/openshift-client.tar.gz "$oc_url"
-          test "$(stat -c %s /tmp/openshift-client.tar.gz)" = "$oc_size"
-          test "$(sha256sum /tmp/openshift-client.tar.gz|awk '{print $1}')" = "$oc_sha"
-          mkdir -p /tmp/4so-okd-bin
-          tar -xzf /tmp/openshift-client.tar.gz -C /tmp/4so-okd-bin oc
-          test -s /tmp/4so-okd-bin/oc
-          chmod 0755 /tmp/4so-okd-bin/oc
-          echo "/tmp/4so-okd-bin" >> "$GITHUB_PATH"
-          echo "INSTALLER_ARCHIVE_SHA=$sha" >> "$GITHUB_ENV"
-          echo "INSTALLER_SHA=$binary_sha" >> "$GITHUB_ENV"
-          echo "RELEASE_IMAGE=$(jq -r .releasePayload.reference lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
-          echo "RELEASE_SHA=$(jq -r .releasePayload.digest lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
-          echo "MACHINE_URL=$(jq -r .machineOSArtifact.location lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
-          echo "MACHINE_SHA=sha256:$(jq -r .machineOSArtifact.sha256 lab/managed-okd-upstream-toolchain-lock.json)" >> "$GITHUB_ENV"
-      - name: Install exact nmstatectl required by openshift-install
-        shell: bash
-        run: |
-          set -euo pipefail
-          jq -e '.authority=="MANAGED_OKD_AGENT_WORKSPACE_TOOLCHAIN_V1" and .nmstatectl.version=="2.2.55"' runtime/managed-okd-agent-workspace-toolchain.json >/dev/null
-          url="$(jq -r .nmstatectl.url runtime/managed-okd-agent-workspace-toolchain.json)"
-          sha="$(jq -r .nmstatectl.sha256 runtime/managed-okd-agent-workspace-toolchain.json)"
-          size="$(jq -r .nmstatectl.sizeBytes runtime/managed-okd-agent-workspace-toolchain.json)"
-          curl -fL --retry 3 --connect-timeout 30 -o /tmp/nmstatectl.zip "$url"
-          test "$(stat -c %s /tmp/nmstatectl.zip)" = "$size"
-          test "$(sha256sum /tmp/nmstatectl.zip|awk '{print $1}')" = "$sha"
-          rm -rf /tmp/4so-nmstate
-          mkdir -p /tmp/4so-nmstate/unpack /tmp/4so-nmstate/bin
-          unzip -q /tmp/nmstatectl.zip -d /tmp/4so-nmstate/unpack
-          mapfile -t bins < <(find /tmp/4so-nmstate/unpack -type f -name nmstatectl)
-          test "${#bins[@]}" -eq 1
-          cp "${bins[0]}" /tmp/4so-nmstate/bin/nmstatectl
-          chmod 0755 /tmp/4so-nmstate/bin/nmstatectl
-          echo "/tmp/4so-nmstate/bin" >> "$GITHUB_PATH"
-          /tmp/4so-nmstate/bin/nmstatectl --version
 
-      - name: Execute product WorkspacePreparer against exact upstream
-        shell: bash
-        env:
-          OKD_EXACT_INSTALLER: /tmp/openshift-install
-          OKD_EXACT_INSTALLER_SHA: ${{ env.INSTALLER_SHA }}
-          OKD_EXACT_RELEASE_IMAGE: ${{ env.RELEASE_IMAGE }}
-          OKD_EXACT_RELEASE_SHA: ${{ env.RELEASE_SHA }}
-          OKD_EXACT_MACHINE_OS_URL: ${{ env.MACHINE_URL }}
-          OKD_EXACT_MACHINE_OS_SHA: ${{ env.MACHINE_SHA }}
-          # Syntactically valid but intentionally unusable fixture credential.
-          # The selected OKD release payload is public; this exists only because
-          # openshift-install rejects an empty auths object before asset generation.
-          OKD_TEST_PULL_SECRET: '{"auths":{"fixture.invalid":{"auth":"Zml4dHVyZTpmaXh0dXJl"}}}'
-          OKD_AGENT_WORKSPACE_ROOT: /tmp/4so-okd-workspaces
-          OKD_AGENT_MEDIA_ROOT: /tmp/4so-okd-media
-          OKD_AGENT_EVIDENCE_OUT: ${{ github.workspace }}/lab/managed-okd-agent-workspace-execution-evidence.json
-        run: |
-          set -euo pipefail
-          ssh-keygen -q -t ed25519 -N '' -f /tmp/okd_test_key
-          export OKD_TEST_SSH_KEY="$(cat /tmp/okd_test_key.pub)"
-          go test ./internal/managedinstall -run '^TestExactOKDAgentWorkspaceExecution$' -count=1 -v
-          jq --arg archive "sha256:$INSTALLER_ARCHIVE_SHA" --arg binary "sha256:$INSTALLER_SHA" '. + {openShiftInstallArchiveSha256:$archive,openShiftInstallBinarySha256:$binary}' lab/managed-okd-agent-workspace-execution-evidence.json > /tmp/evidence.json
-          mv /tmp/evidence.json lab/managed-okd-agent-workspace-execution-evidence.json
-          jq -e '.authority=="MANAGED_OKD_AGENT_WORKSPACE_EXECUTION_EVIDENCE_V1" and (.openShiftInstallArchiveSha256|startswith("sha256:")) and (.openShiftInstallBinarySha256|startswith("sha256:"))' lab/managed-okd-agent-workspace-execution-evidence.json >/dev/null
-          jq -e '.exactUpstreamExecution and .requestSpecificMedia and (.redfishBootExecuted|not) and (.clusterInstallExecuted|not) and (.runtimeCertified|not) and (.physicalCertified|not) and .preparation.agentIsoBytes>0' lab/managed-okd-agent-workspace-execution-evidence.json
-          digest="$(jq -r .preparation.agentIsoSha256 lab/managed-okd-agent-workspace-execution-evidence.json)"
-          iso="/tmp/4so-okd-media/sha256/${digest#sha256:}/agent.iso"
-          test -s "$iso"
-          test "sha256:$(sha256sum "$iso"|awk '{print $1}')" = "$digest"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: managed-okd-agent-workspace-execution
-          path: lab/managed-okd-agent-workspace-execution-evidence.json
-          retention-days: 30
-      - name: Persist exact execution evidence when main is unchanged
+permissions:
+  contents: read
+
+jobs:
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Local execution authority
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name 4so-evidence-bot
-          git config user.email actions@users.noreply.github.com
-          git add lab/managed-okd-agent-workspace-execution-evidence.json
-          git fetch origin main
-          if test "$(git rev-parse origin/main)" != "$GITHUB_SHA"; then git reset -- lab/managed-okd-agent-workspace-execution-evidence.json; exit 0; fi
-          git commit -m "evidence: seal exact managed OKD Agent workspace"
-          git push origin HEAD:main
+          echo "This historical workflow is intentionally non-authoritative."
+          echo "Runtime, validation, evidence generation, checkpoint/resume and release execution are local-only."
+          echo "Use repository-local owner commands and .project-runtime state; Git remains version-control/sync only."

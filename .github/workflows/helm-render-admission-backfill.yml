@@ -1,58 +1,19 @@
-name: helm-render-admission-backfill
+name: helm-render-admission-backfill-local-only-notice
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/helm-render-admission-backfill.yml
-      - scripts/helm_runtime_render_admission.py
-      - tests/test_helm_runtime_render_admission.py
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  exact-render-admission:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 35
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Seal exact source-bound render admission
+      - name: Local execution authority
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/helm_runtime_render_admission.py --component argocd --release 10.2.3
-          python3 scripts/helm_runtime_render_admission.py --component external-secrets --release 2.8.0
-          python3 scripts/helm_runtime_render_admission.py --component ceph-csi-operator --release 1.0.4
-          python3 scripts/helm_runtime_render_admission.py --component argocd --release 10.2.3 --verify catalog/runtime/argocd/10.2.3/render-admission.json
-          python3 scripts/helm_runtime_render_admission.py --component external-secrets --release 2.8.0 --verify catalog/runtime/external-secrets/2.8.0/render-admission.json
-          python3 scripts/helm_runtime_render_admission.py --component ceph-csi-operator --release 1.0.4 --verify catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json
-          python3 -m unittest tests.test_helm_runtime_render_admission
-          git diff --check
-      - uses: actions/upload-artifact@v4
-        with:
-          name: helm-render-admission
-          path: |
-            catalog/runtime/argocd/10.2.3/render-admission.json
-            catalog/runtime/external-secrets/2.8.0/render-admission.json
-            catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json
-          if-no-files-found: error
-          retention-days: 30
-      - name: Persist admission if owner inputs are unchanged
-        run: |
-          python3 scripts/persist_evidence_if_inputs_unchanged.py \
-            --source-sha "$GITHUB_SHA" --message "evidence: seal legacy Helm render admission" \
-            --input scripts/helm_runtime_render_admission.py \
-            --input scripts/render_exact_helm_runtime.py \
-            --input catalog/runtime/cilium/1.20.0/source-lock.json \
-            --input catalog/runtime/cilium/1.20.0/artifact.bin \
-            --input catalog/runtime/cilium/1.20.1/source-lock.json \
-            --input catalog/runtime/cilium/1.20.1/artifact.bin \
-            --input catalog/runtime/ceph-csi-operator/1.0.4/source-lock.json \
-            --input catalog/runtime/ceph-csi-operator/1.0.4/artifact.bin \
-            --output catalog/runtime/argocd/10.2.3/render-admission.json \
-            --output catalog/runtime/external-secrets/2.8.0/render-admission.json \
-            --output catalog/runtime/ceph-csi-operator/1.0.4/render-admission.json
+          echo "This historical workflow is intentionally non-authoritative."
+          echo "Runtime, validation, evidence generation, checkpoint/resume and release execution are local-only."
+          echo "Use repository-local owner commands and .project-runtime state; Git remains version-control/sync only."

@@ -1,86 +1,19 @@
-name: management-manifest-image-evidence
+name: management-manifest-image-evidence-local-only-notice
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/management-manifest-image-evidence.yml
-      - scripts/resolve_management_manifest_images.py
-      - tests/test_resolve_management_manifest_images.py
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  resolve-and-seal:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 60
-    env:
-      GOTOOLCHAIN: local
-      EXACT_GO: /tmp/4so-exact-go/go/bin/go
+  local-only-authority-notice:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact canonical main
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install exact CGO build prerequisites
+      - name: Local execution authority
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libpq-dev
-
-      - name: Activate admitted exact Go toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 scripts/acquire_release_build_toolchain.py --check
-          rm -rf /tmp/4so-exact-go
-          mkdir -p /tmp/4so-exact-go
-          tar -C /tmp/4so-exact-go -xzf vendor/toolchains/go1.27.1.linux-amd64.tar.gz
-          test "$("$EXACT_GO" version)" = "go version go1.27.1 linux/amd64"
-          echo "/tmp/4so-exact-go/go/bin" >> "$GITHUB_PATH"
-
-      - name: Build exact platformctl
-        shell: bash
-        run: |
-          set -euo pipefail
-          make build-release GO="$EXACT_GO"
-          test -x bin/linux-amd64/platformctl
-
-      - name: Bootstrap exact acquisition toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf /tmp/4so-acquisition-tools
-          python3 scripts/upstream_acquisition_toolchain.py --bootstrap /tmp/4so-acquisition-tools
-          PLATFORM_FACTORY_ACQUISITION_TOOL_DIR=/tmp/4so-acquisition-tools python3 scripts/upstream_acquisition_toolchain.py --check
-          echo "PLATFORM_FACTORY_ACQUISITION_TOOL_DIR=/tmp/4so-acquisition-tools" >> "$GITHUB_ENV"
-
-      - name: Resolve four management manifests to exact image digests
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 scripts/resolve_management_manifest_images.py             --platformctl bin/linux-amd64/platformctl             --receipt lab/management-workload-manifest-image-receipt.json             --run-id "$GITHUB_RUN_ID"
-
-      - name: Validate generated canonical evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 scripts/validate_repository.py .
-          test -s lab/management-workload-manifest-image-receipt.json
-          git diff --check
-
-      - name: Commit exact manifest-image evidence to main
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "4so-evidence-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add manifests runtime-manifests lab/management-workload-manifest-image-receipt.json
-          git diff --cached --quiet && { echo "no evidence delta"; exit 1; }
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo "main advanced; refusing concurrent writer"; exit 2; }
-          git commit -m "evidence: seal exact management manifest image resolutions"
-          git push origin HEAD:main
+          echo "This historical workflow is intentionally non-authoritative."
+          echo "Runtime, validation, evidence generation, checkpoint/resume and release execution are local-only."
+          echo "Use repository-local owner commands and .project-runtime state; Git remains version-control/sync only."
