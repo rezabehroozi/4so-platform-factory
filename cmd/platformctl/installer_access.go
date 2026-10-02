@@ -118,6 +118,34 @@ func installerBootstrapNextAction(status installerBootstrapRuntimeStatus) string
 	return action
 }
 
+func installerAccessContinuationCommand(code, installerURL, tokenFile, caFile string) []string {
+	mode := ""
+	confirmation := ""
+	switch code {
+	case "MONITOR_RESET", "MONITOR_INSTALL", "REVIEW_STATE":
+		mode = "run-status"
+	case "RESUME_RESET":
+		mode = "reset-resume"
+		confirmation = "RESUME-RESET"
+	case "RESUME_INSTALL":
+		mode = "resume"
+		confirmation = "RESUME"
+	default:
+		return nil
+	}
+	command := []string{platformctlExecutable(), "installer-access", mode, "--installer-url", strings.TrimSpace(installerURL)}
+	if value := strings.TrimSpace(tokenFile); value != "" {
+		command = append(command, "--token-file", value)
+	}
+	if value := strings.TrimSpace(caFile); value != "" {
+		command = append(command, "--ca-file", value)
+	}
+	if confirmation != "" {
+		command = append(command, "--confirmation", confirmation)
+	}
+	return command
+}
+
 func installerAccessRunStatusCommand(args []string) {
 	fs := flag.NewFlagSet("installer-access run-status", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -144,6 +172,7 @@ func installerAccessRunStatusCommand(args []string) {
 		"resetRuns": status.ResetRuns,
 		"automaticReplay": false,
 		"nextActionCode": nextActionCode,
+		"nextCommand": installerAccessContinuationCommand(nextActionCode, *installerURL, *tokenFile, *caFile),
 		"nextAction": nextAction,
 	})
 }
