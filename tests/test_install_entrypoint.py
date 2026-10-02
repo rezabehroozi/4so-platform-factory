@@ -173,6 +173,8 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         self.assertIn('--out-spec=*)', source[handoff_filter:preflight])
         self.assertIn('print_exact_next_command plan "${handoff_passthrough[@]}"', source[preflight:plan])
         self.assertIn('for ((i=0; i<${#handoff_passthrough[@]}; i++))', source[plan:])
+        self.assertIn('--enable-execution|--enable-execution=*)', source[plan:])
+        self.assertIn('--confirmation=*)', source[plan:])
         self.assertNotIn('print_exact_next_command plan "${passthrough[@]}"', source)
 
     def test_normal_install_fails_early_without_actionable_browser_flags(self):
