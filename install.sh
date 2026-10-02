@@ -8,6 +8,7 @@ DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"
 HOST_RUNTIME_DOCTOR_AUTHORITY="INSTALLER_MANUAL_HOST_RUNTIME_DOCTOR_V1"
 MACHINE_NEXT_ACTION_AUTHORITY="INSTALLER_MANUAL_MACHINE_NEXT_ACTION_V1"
 DOCTOR_OUTCOME_AUTHORITY="INSTALLER_MANUAL_DOCTOR_ACTION_OUTCOME_V1"
+DOCTOR_REMEDIATION_AUTHORITY="INSTALLER_MANUAL_DOCTOR_REMEDIATION_V1"
 BUNDLE_PREPARATION_AUTHORITY="INSTALLER_MANUAL_BUNDLE_PREPARATION_V1"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
@@ -357,9 +358,39 @@ if [[ "${mode}" == "doctor" ]]; then
     doctor_outcome="ACTION_REQUIRED"
     doctor_actionable=true
   fi
+  declare -a doctor_blocker_codes=()
+  declare -a doctor_remediation_hints=()
+  if [[ "${doctor_outcome}" == "BLOCKED" ]]; then
+    if [[ "${host_platform_ready}" != true ]]; then
+      doctor_blocker_codes+=("UNSUPPORTED_HOST_PLATFORM")
+      doctor_remediation_hints+=("Use a Linux x86_64/amd64 installation host; do not bypass the packaged host-platform gate.")
+    fi
+    if [[ "${platformctl_ready}" != true ]]; then
+      doctor_blocker_codes+=("PACKAGED_PLATFORMCTL_MISSING")
+      doctor_remediation_hints+=("Use the complete extracted exact release; bin/linux-amd64/platformctl must be a regular executable.")
+    elif [[ "${platformctl_runnable}" != true ]]; then
+      doctor_blocker_codes+=("PLATFORMCTL_RUNTIME_OR_VERSION_MISMATCH")
+      doctor_remediation_hints+=("Replace the extracted release with matching exact-version bytes; do not mix platformctl from another release.")
+    fi
+    if [[ "${installer_ready}" != true ]]; then
+      doctor_blocker_codes+=("PACKAGED_INSTALLER_MISSING")
+      doctor_remediation_hints+=("Use the complete extracted exact release; bin/linux-amd64/platform-installer must be a regular executable.")
+    elif [[ "${installer_runnable}" != true ]]; then
+      doctor_blocker_codes+=("INSTALLER_RUNTIME_OR_VERSION_MISMATCH")
+      doctor_remediation_hints+=("Replace the extracted release with matching exact-version bytes; do not mix platform-installer from another release.")
+    fi
+    if [[ "${release_artifact_ready}" != true ]]; then
+      doctor_blocker_codes+=("EXACT_RELEASE_ARTIFACT_REQUIRED")
+      doctor_remediation_hints+=("Provide the exact release ZIP with --release-artifact, PLATFORM_FACTORY_RELEASE_ARTIFACT, or the canonical adjacent release location.")
+    elif [[ "${bundle_inputs_ready}" != true && "${bundle_preparation_available}" != true ]]; then
+      doctor_blocker_codes+=("BUNDLE_PREPARATION_UNAVAILABLE")
+      doctor_remediation_hints+=("Use this exact release on a connected preparation host with its shipped scripts/lab_runner.py and python3, prepare the immutable bundle there, then rerun Doctor.")
+    fi
+  fi
   printf '%s\n' \
     "authority=INSTALLER_MANUAL_DOCTOR_V1" \
     "outcomeAuthority=${DOCTOR_OUTCOME_AUTHORITY}" \
+    "remediationAuthority=${DOCTOR_REMEDIATION_AUTHORITY}" \
     "doctorOutcome=${doctor_outcome}" \
     "actionable=${doctor_actionable}" \
     "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
@@ -386,6 +417,14 @@ if [[ "${mode}" == "doctor" ]]; then
     "bundlePreparationStateDirectory=${prepare_state_dir}"
   printf 'platformctl=%q\ninstaller=%q\nbundleDirectory=%q\nreleaseArtifact=%q\n' \
     "${PLATFORMCTL}" "${INSTALLER}" "${bundle_dir}" "${release_artifact}"
+  if (("${#doctor_blocker_codes[@]}")); then
+    printf 'blockerCodes=%s\n' "$(IFS=,; echo "${doctor_blocker_codes[*]}")"
+    for ((i=0; i<${#doctor_blocker_codes[@]}; i++)); do
+      printf 'remediation.%s=%s\n' "${doctor_blocker_codes[i]}" "${doctor_remediation_hints[i]}"
+    done
+  else
+    printf '%s\n' "blockerCodes="
+  fi
   if [[ "${ready}" == true ]]; then
     printf '%s\n' "nextActionCode=RUN_PREFLIGHT"
     printf '%s\n' "nextAction=copy nextCommand exactly; canonical bundle/release admission happens during preflight"
@@ -406,7 +445,7 @@ if [[ "${mode}" == "doctor" ]]; then
     printf '\n'
   else
     printf '%s\n' "nextActionCode=RESOLVE_DOCTOR_BLOCKERS"
-    printf '%s\n' "nextAction=resolve the false readiness fields above (including host platform, binary runtime/version compatibility, exact release input and bundle-preparation availability), then rerun this doctor command; do not start preflight yet"
+    printf '%s\n' "nextAction=resolve only the blockerCodes using the matching remediation.* hints above, then rerun this exact Doctor command; do not start preflight or edit product source for an input/runtime blocker"
     printf '%s\n' "nextCommand="
   fi
   if [[ "${doctor_actionable}" == true ]]; then
