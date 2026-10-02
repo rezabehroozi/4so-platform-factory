@@ -6,7 +6,7 @@ external execution receipt is admissible only for the exact matrix, endpoint,
 campaign and per-client challenge that were prepared for that run.
 """
 from __future__ import annotations
-import argparse, hashlib, json, os, secrets, ssl
+import argparse, hashlib, json, os, secrets, ssl, subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -19,6 +19,7 @@ MATRIX_AUTHORITY=core.MATRIX_AUTHORITY
 CLIENTS=core.CLIENTS
 PREFLIGHT_AUTHORITY=core.CAMPAIGN_PREFLIGHT_AUTHORITY
 OAUTH_BINDING_AUTHORITY=core.OAUTH_BINDING_AUTHORITY
+ROOT=Path(__file__).resolve().parents[1]
 
 
 class RejectRedirects(HTTPRedirectHandler):
@@ -33,6 +34,46 @@ def file_sha(path:Path)->str:
     with path.open("rb") as f:
         for b in iter(lambda:f.read(1024*1024),b""): h.update(b)
     return "sha256:"+h.hexdigest()
+
+
+def source_commit_sha(explicit:str="")->str:
+    value=str(explicit or "").strip().lower()
+    if not value:
+        proc=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,text=True,capture_output=True,check=False)
+        value=proc.stdout.strip().lower() if proc.returncode==0 else ""
+    if not core.COMMIT.fullmatch(value):
+        raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_UNAVAILABLE")
+    return value
+
+
+def runtime_identity_readback(endpoint_url:str,token_env:str,expected_source_sha:str)->dict:
+    token_env=str(token_env or "").strip()
+    token=str(os.getenv(token_env) or "").strip() if token_env else ""
+    if not token or any(ch in token for ch in "\r\n"):
+        raise RuntimeError("MCP_EXTERNAL_RUNTIME_IDENTITY_TOKEN_UNAVAILABLE")
+    ep=endpoint(endpoint_url); parsed=urlsplit(ep); url=f"{parsed.scheme}://{parsed.netloc}/api/v1/version"
+    opener=exact_https_opener(ssl.create_default_context())
+    req=Request(url,headers={"Accept":"application/json","Authorization":"Bearer "+token,"User-Agent":"4so-c7w-campaign/1"},method="GET")
+    try:
+        with opener.open(req,timeout=20) as response:
+            if response.status!=200 or response.geturl()!=url:
+                raise RuntimeError("MCP_EXTERNAL_RUNTIME_IDENTITY_HTTP_INVALID")
+            raw=response.read(64*1024+1)
+    except (HTTPError,URLError) as exc:
+        raise RuntimeError("MCP_EXTERNAL_RUNTIME_IDENTITY_UNAVAILABLE") from exc
+    if len(raw)>64*1024:
+        raise RuntimeError("MCP_EXTERNAL_RUNTIME_IDENTITY_TOO_LARGE")
+    try:
+        value=json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+        raise RuntimeError("MCP_EXTERNAL_RUNTIME_IDENTITY_JSON_INVALID") from exc
+    version=str(value.get("version") or "").strip() if isinstance(value,dict) else ""
+    observed=str(value.get("sourceCommitSHA") or "").strip().lower() if isinstance(value,dict) else ""
+    if not isinstance(value,dict) or value.get("product")!="4SO Platform Factory" or not version or len(version)>128 or not core.COMMIT.fullmatch(observed):
+        raise RuntimeError("MCP_EXTERNAL_RUNTIME_IDENTITY_CONTRACT_INVALID")
+    if observed!=expected_source_sha:
+        raise RuntimeError(f"MCP_EXTERNAL_RUNTIME_SOURCE_DRIFT expected={expected_source_sha} observed={observed}")
+    return {"authority":"MCP_EXTERNAL_RUNTIME_SOURCE_IDENTITY_V1","product":"4SO Platform Factory","version":version,"sourceCommitSHA":observed}
 
 
 def endpoint(raw:str)->str:
@@ -147,13 +188,17 @@ def live_preflight(endpoint_url:str)->dict:
     return {"authority":PREFLIGHT_AUTHORITY,"endpoint":ep,"protectedResourceMetadata":metadata_url,"resource":ep,"authorizationServers":[str(x) for x in servers],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":expected,"protocol":"2026-07-28"}
 
 
-def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sha256:str, trusted_clients:dict[str,dict])->dict:
+def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sha256:str, trusted_clients:dict[str,dict], runtime_identity:dict)->dict:
     if matrix_path.is_symlink() or not matrix_path.is_file():
         raise RuntimeError("MCP_EXTERNAL_MATRIX_FILE_INVALID")
     matrix=core.load(matrix_path,"MATRIX")
     spec=core.validate_matrix_contract(matrix,"MCP_EXTERNAL_MATRIX")
     if not core.SHA.fullmatch(str(oauth_binding_sha256 or "")) or not isinstance(trusted_clients,dict) or set(trusted_clients)!=set(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_READBACK_INVALID")
+    source_sha=str((runtime_identity or {}).get("sourceCommitSHA") or "").strip().lower()
+    runtime_version=str((runtime_identity or {}).get("version") or "").strip()
+    if (runtime_identity or {}).get("authority")!="MCP_EXTERNAL_RUNTIME_SOURCE_IDENTITY_V1" or (runtime_identity or {}).get("product")!="4SO Platform Factory" or not core.COMMIT.fullmatch(source_sha) or not runtime_version:
+        raise RuntimeError("MCP_EXTERNAL_RUNTIME_IDENTITY_INVALID")
     max_age=spec.get("campaignMaxAgeSeconds")
     audit_window=spec.get("executionAuditWindowSeconds")
     if type(max_age) is not int or max_age<3600 or max_age>14*24*3600:
@@ -176,33 +221,37 @@ def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sh
       "createdAt":core.utc_timestamp(created),"expiresAt":core.utc_timestamp(expires),
       "matrixAuthority":MATRIX_AUTHORITY,"matrixSha256":file_sha(matrix_path),
       "oauthClientBindingAuthority":OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":oauth_binding_sha256,
+      "sourceCommitSHA":source_sha,"runtimeVersion":runtime_version,
       "endpoint":endpoint(endpoint_url),"protocol":spec.get("protocol"),"transport":spec.get("transport"),
       "livePreflight":preflight,"clients":rows,"externalExecutionRequired":True
     }
 
 
-def resume_existing(matrix_path:Path,endpoint_url:str,out_path:Path)->dict:
+def resume_existing(matrix_path:Path,endpoint_url:str,out_path:Path,source_sha:str)->dict:
     matrix=core.load(matrix_path,"MATRIX"); spec=matrix.get("spec") or {}
     existing=core.verify_campaign(out_path,matrix_path,spec)
     if existing.get("endpoint")!=endpoint(endpoint_url):
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_RESUME_ENDPOINT_DRIFT")
+    if existing.get("sourceCommitSHA")!=source_sha:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_RESUME_SOURCE_DRIFT")
     return existing
 
 def main()->int:
     p=argparse.ArgumentParser(); p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json")); p.add_argument("--endpoint",required=True); p.add_argument("--out",type=Path,required=True)
-    p.add_argument("--oauth-client-map",type=Path); p.add_argument("--registry-token-env",default="C7W_PLATFORM_ADMIN_TOKEN")
-    a=p.parse_args(); resumed=False
+    p.add_argument("--oauth-client-map",type=Path); p.add_argument("--registry-token-env",default="C7W_PLATFORM_ADMIN_TOKEN"); p.add_argument("--source-commit-sha",default="")
+    a=p.parse_args(); resumed=False; source_sha=source_commit_sha(a.source_commit_sha)
     matrix=core.load(a.matrix,"MATRIX")
     core.validate_matrix_contract(matrix,"MCP_EXTERNAL_MATRIX")
     if a.out.exists() or a.out.is_symlink():
-        out=resume_existing(a.matrix,a.endpoint,a.out); resumed=True
+        out=resume_existing(a.matrix,a.endpoint,a.out,source_sha); resumed=True
     else:
         if a.oauth_client_map is None:
             raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_REQUIRED")
         bindings,binding_sha=load_oauth_bindings(a.oauth_client_map)
+        runtime_identity=runtime_identity_readback(a.endpoint,a.registry_token_env,source_sha)
         trusted=trusted_client_readback(a.endpoint,bindings,a.registry_token_env)
-        preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight,binding_sha,trusted)
+        preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight,binding_sha,trusted,runtime_identity)
         core.write_json_once_or_identical(a.out,out,"MCP_EXTERNAL_CAMPAIGN")
-    print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"matrixSha256":out["matrixSha256"],"endpoint":out["endpoint"],"clients":[x["clientId"] for x in out["clients"]],"resumed":resumed},sort_keys=True))
+    print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"matrixSha256":out["matrixSha256"],"sourceCommitSHA":out["sourceCommitSHA"],"runtimeVersion":out["runtimeVersion"],"endpoint":out["endpoint"],"clients":[x["clientId"] for x in out["clients"]],"resumed":resumed},sort_keys=True))
     return 0
 if __name__=="__main__": raise SystemExit(main())
