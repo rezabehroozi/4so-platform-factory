@@ -86,6 +86,15 @@ def git_source(root: Path) -> str:
     )
     if top.returncode != 0 or Path(top.stdout.strip()).resolve() != root:
         raise RuntimeError("FINAL_EXACT_RELEASE_GIT_ROOT_INVALID")
+    branch = subprocess.run(
+        ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if branch.returncode != 0 or branch.stdout.strip() != "main":
+        raise RuntimeError("FINAL_EXACT_RELEASE_BRANCH_NOT_MAIN")
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=root,
@@ -462,6 +471,9 @@ def admit_output_path(root: Path, out: Path) -> Path:
 
 def git_source_for_resume(root: Path, out: Path) -> str:
     top = subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,text=True,capture_output=True,check=False)
+    branch = subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    if branch.returncode!=0 or branch.stdout.strip()!="main":
+        raise RuntimeError("FINAL_EXACT_RELEASE_BRANCH_NOT_MAIN")
     head = subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
     indexed = subprocess.run(["git","ls-files","-v","-z"],cwd=root,capture_output=True,check=False)
     status = subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,capture_output=True,check=False)
