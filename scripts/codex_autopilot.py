@@ -1403,22 +1403,30 @@ def _compact_agent_context(root: Path) -> dict:
             "never infer Runtime/Lab/Exact-SHA Physical PASS from local/source success",
         ],
     }
+    # Reserve a small fixed envelope for the serializedChars field itself so
+    # the final emitted JSON, not merely its pre-metadata payload, stays below
+    # the advertised hard handoff budget.
+    payload_budget = AGENT_CONTEXT_COMPACT_MAX_CHARS - 64
     raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
-    if len(raw) > AGENT_CONTEXT_COMPACT_MAX_CHARS:
+    if len(raw) > payload_budget:
         compact["failureCapsule"] = failure[-800:]
         compact["ownerContextPaths"] = compact["ownerContextPaths"][:4]
         compact["failurePathHints"] = compact["failurePathHints"][:4]
         compact["contextTruncated"] = True
         raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
-    if len(raw) > AGENT_CONTEXT_COMPACT_MAX_CHARS:
+    if len(raw) > payload_budget:
         compact["nextAction"] = compact["nextAction"][:480]
         compact["environmentPreflight"] = {
             "missing": compact.get("environmentPreflight", {}).get("missing", []),
         }
         raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
-    if len(raw) > AGENT_CONTEXT_COMPACT_MAX_CHARS:
+    if len(raw) > payload_budget:
         raise RuntimeError("AUTOPILOT_COMPACT_AGENT_CONTEXT_BUDGET_EXCEEDED")
     compact["serializedChars"] = len(raw)
+    final_raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
+    if len(final_raw) > AGENT_CONTEXT_COMPACT_MAX_CHARS:
+        raise RuntimeError("AUTOPILOT_COMPACT_AGENT_CONTEXT_BUDGET_EXCEEDED")
+    compact["serializedChars"] = len(final_raw)
     return compact
 
 
