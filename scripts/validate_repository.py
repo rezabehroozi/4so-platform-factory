@@ -2208,6 +2208,21 @@ WINDOWS_LOCAL_EXECUTION_CONTRACTS = {
         'msvcrt.LK_LOCK',
         'fcntl.LOCK_EX',
     ),
+    'scripts/seal_mcp_external_interop.py': (
+        'def _fsync_directory(path:Path)->None:',
+        'if os.name!="posix":',
+        '_fsync_directory(path.parent)',
+    ),
+    'scripts/fetch_mcp_external_audit_window.py': (
+        'core._fsync_directory(path.parent)',
+    ),
+    'scripts/run_mcp_external_interop.py': (
+        '"captures":state/"captures"',
+        'capture=str(p["captures"]/(client+".capture.json"))',
+        'runner_command(state,"admit"',
+        'def c9_handoff(source_sha:str)->dict:',
+        'RUN_C9_ON_EXACT_LINUX_HOST',
+    ),
     'scripts/run_go_package_shard.py': (
         'CREATE_NEW_PROCESS_GROUP',
         '"taskkill"',
