@@ -129,6 +129,43 @@ func TestInstallerBootstrapNextActionIsStateSpecificAndNeverSuggestsReplay(t *te
 	}
 }
 
+func TestInstallerAccessContinuationCommandIsExactAndNonSecret(t *testing.T) {
+	cases := []struct{
+		code string
+		wantMode string
+		wantConfirmation string
+	}{
+		{"MONITOR_INSTALL", "run-status", ""},
+		{"MONITOR_RESET", "run-status", ""},
+		{"RESUME_INSTALL", "resume", "RESUME"},
+		{"RESUME_RESET", "reset-resume", "RESUME-RESET"},
+		{"REVIEW_STATE", "run-status", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.code, func(t *testing.T) {
+			command := installerAccessContinuationCommand(tc.code, "https://installer.example:9443", "/secure/bootstrap-token", "/secure/ca.pem")
+			joined := strings.Join(command, " ")
+			if !strings.Contains(joined, "installer-access "+tc.wantMode) ||
+				!strings.Contains(joined, "--installer-url https://installer.example:9443") ||
+				!strings.Contains(joined, "--token-file /secure/bootstrap-token") ||
+				!strings.Contains(joined, "--ca-file /secure/ca.pem") {
+				t.Fatalf("continuation command incomplete: %#v", command)
+			}
+			if tc.wantConfirmation != "" && !strings.Contains(joined, "--confirmation "+tc.wantConfirmation) {
+				t.Fatalf("continuation confirmation missing: %#v", command)
+			}
+			if strings.Contains(joined, "Bearer") || strings.Contains(joined, "bootstrap-token-abcdefghijklmnopqrstuvwxyz") {
+				t.Fatalf("continuation command leaked token material: %#v", command)
+			}
+		})
+	}
+	for _, code := range []string{"START_BROWSER_INSTALL","VERIFY_INSTALL","REDEPLOY_EXECUTION_ENABLED"} {
+		if command := installerAccessContinuationCommand(code, "https://installer.example", "/secure/token", ""); len(command) != 0 {
+			t.Fatalf("%s must not invent a CLI mutation: %#v", code, command)
+		}
+	}
+}
+
 func TestInstallerAccessStatusAndRotateClient(t *testing.T) {
 	var mu sync.Mutex
 	current := "current-bootstrap-token-abcdefghijklmnopqrstuvwxyz"
