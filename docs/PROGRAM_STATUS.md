@@ -14,6 +14,15 @@
 
 V75 preserves independent `sourceStatus` and `closureStatus` for every phase. A phase may be `source-implemented` while its closure remains `blocked`; this is intentional and prevents external bytes, client interoperability, runtime evidence or Physical gates from serializing unrelated software development.
 
+## 2026-10-02 — Local-only Core closure authority hardening
+
+- Core source/software closure remains **25/25 (100%)** and Core release closure remains **23/25 (92%)**. The only open Core closure phases are `C7W-mcp-user-admin-write-parity` and `C9-pre-certification-feature-freeze-exact-bundle`.
+- Canonical Git readback at source checkpoint `3e3175de0258f6495207152f34cfc79bf374446d` confirms that `lab/mcp-external-client-interop-progress.json`, `lab/mcp-external-client-interoperability-evidence.json` and `lab/final-exact-release-evidence.json` are absent on `main`. C7W therefore remains **0/4 real named clients** and C9 remains unsealed.
+- C7W and C9 execution authority is local-only. The five historical Core closure GitHub workflows are retained only as manual read-only notices: they have no checkout, secret consumption, external-client execution, exact release execution, evidence persistence or Git mutation authority. `validate_repository.py` fails if those workflows regain write/push/secret/execution authority.
+- The local C7W runner now requires a clean canonical `main` branch before live campaign creation, permits only canonical C7W progress/evidence dirtiness, supports explicit fenced supersede of an incomplete expired/replaced campaign, requires incremental progress and bulk seal convergence, and emits machine-actionable Git/C9 handoff states.
+- C9 now preserves the original sealed release SHA across both staged evidence recovery and a later evidence-only commit. Resume re-runs exact admission/toolchain/full verification against that sealed SHA and rejects any post-seal source delta other than the final evidence file. Initial and resumed C9 execution both require the local canonical `main` branch.
+- These changes are Source Semantics only in this Git-only session. Focused regression tests were added but not executed here; Runtime/Lab/Physical PASS is not inferred.
+
 ## Pre-physical software source closure
 
 All **36/36 (100%)** Core + Expansion pre-physical software phases are now source-implemented. This is a source/software milestone only: external acquisition, integration/runtime evidence, disconnected execution and Exact-SHA Physical certification remain independently gated and may still be blocked.
