@@ -85,6 +85,7 @@ func usage() {
   platformctl installer-manual preflight --bundle-dir DIR --release-artifact RELEASE.zip [--installer-binary FILE] [--listen 127.0.0.1:9080] [--tls-cert FILE --tls-key FILE] [--enable-execution]
   platformctl installer-manual plan --bundle-dir DIR --release-artifact RELEASE.zip [--installer-binary FILE] [--out-spec FILE]
   platformctl installer-manual install --bundle-dir DIR --release-artifact RELEASE.zip --confirmation DEPLOY [--installer-binary FILE] [--enable-execution] [--tls-cert FILE --tls-key FILE]
+  platformctl installer-manual next [--state FILE] [--root /]
   platformctl installer-manual status [--state FILE] [--root /]
   platformctl installer-manual verify [--state FILE] [--root /]
   platformctl installer-manual recover --confirmation RECOVER [--state FILE] [--root /]
