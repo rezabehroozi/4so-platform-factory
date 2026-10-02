@@ -150,6 +150,24 @@ class IncrementalMCPInteropTests(unittest.TestCase):
             reset=mod.merge(matrix,new_path,rp2,ap2,"claude",progress,allow_campaign_supersede=True)
             self.assertEqual(1,reset["certifiedClientCount"]); self.assertEqual("mcp-interop-fresh",reset["campaignId"])
 
+    def test_explicit_supersede_rejects_corrupt_incomplete_progress(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); old_campaign=self.campaign(matrix); old_path=root/"old.json"; old_path.write_text(json.dumps(old_campaign)); progress=root/"progress.json"
+            first=self.receipt("chatgpt",checks,old_campaign); rp=root/"first.json"; ap=root/"first-audit.json"; rp.write_text(json.dumps(first)); ap.write_text(json.dumps(self.audit(first)))
+            partial=mod.merge(matrix,old_path,rp,ap,"chatgpt",None)
+
+            new_campaign=self.campaign(matrix); new_campaign["campaignId"]="mcp-interop-fresh"; new_path=root/"new.json"; new_path.write_text(json.dumps(new_campaign))
+            second=self.receipt("claude",checks,new_campaign); rp2=root/"second.json"; ap2=root/"second-audit.json"; rp2.write_text(json.dumps(second)); ap2.write_text(json.dumps(self.audit(second)))
+
+            bad=json.loads(json.dumps(partial)); bad["runtimeCertified"]=True; progress.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"SCOPE_INFLATED"):
+                mod.merge(matrix,new_path,rp2,ap2,"claude",progress,allow_campaign_supersede=True)
+
+            bad=json.loads(json.dumps(partial)); bad["clients"][0]["responseObservations"]["read-only-client-mutation-negative-control"]["mutationObserved"]=True; progress.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"RESPONSE_OBSERVATION_MISMATCH"):
+                mod.merge(matrix,new_path,rp2,ap2,"claude",progress,allow_campaign_supersede=True)
+
     def test_divergent_replacement_and_campaign_drift_reject(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
         with tempfile.TemporaryDirectory() as td:
