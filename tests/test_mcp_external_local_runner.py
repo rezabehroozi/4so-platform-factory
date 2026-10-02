@@ -244,6 +244,23 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,"SEAL_PROGRESS_BULK_DRIFT"):
                     mod.seal(args)
 
+    def test_status_turns_expired_campaign_into_actionable_recovery(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=mod.secure_state_dir(root/"state")
+            campaign={"campaignId":"mcp-interop-expired-unit"}
+            (state/"campaign.json").write_text(json.dumps(campaign))
+            progress=root/"progress.json"; progress.write_text("{}")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=progress,evidence_out=root/"evidence.json")
+            with mock.patch.object(mod,"progress_status",side_effect=RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXPIRED")):
+                out=mod.status(args)
+            self.assertEqual("PREPARE_REPLACEMENT_C7W_CAMPAIGN",out["nextActionCode"])
+            self.assertTrue(out["recoveryRequired"])
+            self.assertEqual("CAMPAIGN_EXPIRED",out["recoveryReason"])
+            self.assertTrue(out["replacementAdmitRequiresCampaignSupersede"])
+            self.assertEqual({"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"},out["followupAdmitEnvironment"])
+            self.assertEqual("make",out["nextCommand"][-2])
+            self.assertEqual("c7w-prepare",out["nextCommand"][-1])
+
     def test_status_without_state_is_explicitly_pending_and_read_only(self):
         with tempfile.TemporaryDirectory() as td:
             state=Path(td)/"missing-state"
