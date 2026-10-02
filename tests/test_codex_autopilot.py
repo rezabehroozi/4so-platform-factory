@@ -335,6 +335,7 @@ class AutopilotReportTests(unittest.TestCase):
             self.assertEqual(data["authority"], "AUTOPILOT_CAMPAIGN_REPORT_V1")
             self.assertEqual(data["failureCapsuleAuthority"], "AUTOPILOT_FAILURE_CAPSULE_V1")
             self.assertEqual(data["selectiveConvergenceAuthority"], "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1")
+            self.assertEqual(data["convergenceRepairAuthority"], "AUTOPILOT_CONVERGENCE_REPAIR_V1")
             self.assertEqual(data["repairScopeFenceAuthority"], "AUTOPILOT_REPAIR_SCOPE_FENCE_V1")
             self.assertEqual(data["structuredTriageAuthority"], "AUTOPILOT_STRUCTURED_TRIAGE_V1")
             self.assertEqual(data["repairGitBoundaryAuthority"], "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1")
@@ -510,6 +511,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["failurePathHintsAuthority"], "AUTOPILOT_FAILURE_PATH_HINTS_V1")
             self.assertEqual(context["crossSurfaceOwnerContextAuthority"], "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1")
             self.assertEqual(context["autopilotOwnerTestStageAuthority"], "AUTOPILOT_OWNER_TEST_STAGE_V1")
+            self.assertEqual(context["convergenceRepairAuthority"], "AUTOPILOT_CONVERGENCE_REPAIR_V1")
             self.assertEqual(context["defaultAgentRepairBudget"], 8)
             self.assertEqual(context["failureCapsuleMaxChars"], 3200)
             self.assertEqual(context["failureCapsule"], "ERROR owner mismatch token=[REDACTED]")
@@ -1314,6 +1316,7 @@ class AgentEntrypointContractTests(unittest.TestCase):
         self.assertEqual(context["authority"], "AUTOPILOT_AGENT_CONTEXT_V1")
         self.assertIn("make autopilot-agent", context["nextAction"])
         self.assertTrue(any("owner-scoped convergence" in rule for rule in context["continuationRules"]))
+        self.assertTrue(any("final convergence" in rule for rule in context["continuationRules"]))
 
     def test_failure_path_hints_are_bounded_existing_and_owner_scoped(self):
         with tempfile.TemporaryDirectory() as directory:
