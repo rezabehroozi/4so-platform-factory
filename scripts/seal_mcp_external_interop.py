@@ -145,6 +145,40 @@ def parse_utc_timestamp(value:object,label:str)->datetime:
 def utc_timestamp(value:datetime)->str:
     return value.astimezone(timezone.utc).isoformat().replace("+00:00","Z")
 
+def validate_matrix_contract(matrix:object,label:str="MCP_EXTERNAL_MATRIX")->dict:
+    if not isinstance(matrix,dict) or matrix.get("authority")!=MATRIX_AUTHORITY or matrix.get("kind")!="MCPExternalClientInteropMatrix":
+        raise RuntimeError(f"{label}_AUTHORITY_INVALID")
+    spec=matrix.get("spec")
+    if not isinstance(spec,dict):
+        raise RuntimeError(f"{label}_SPEC_INVALID")
+    if spec.get("sourceContractStatus")!="implemented" or spec.get("externalCertificationStatus")!="pending" or spec.get("blocker")!="MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING":
+        raise RuntimeError(f"{label}_STATE_INVALID")
+    if spec.get("protocol")!="2026-07-28" or spec.get("transport")!="streamable-http" or spec.get("resourcePath")!="/mcp":
+        raise RuntimeError(f"{label}_PROTOCOL_INVALID")
+    required=list(spec.get("sharedRequiredChecks") or [])
+    if required!=list(REQUIRED_CHECKS):
+        raise RuntimeError(f"{label}_CHECKS_INVALID")
+    rows=spec.get("clients")
+    if not isinstance(rows,list) or len(rows)!=len(CLIENTS):
+        raise RuntimeError(f"{label}_CLIENT_SET_INVALID")
+    ids=[]; surfaces={}
+    for row in rows:
+        if not isinstance(row,dict):
+            raise RuntimeError(f"{label}_CLIENT_SET_INVALID")
+        client=str(row.get("id") or "")
+        ids.append(client); surfaces[client]=row.get("displayName")
+        if row.get("sourceContract")!="ready" or row.get("externalExecution")!="pending":
+            raise RuntimeError(f"{label}_CLIENT_STATE_INVALID")
+    if ids!=list(CLIENTS) or surfaces!=CLIENT_SURFACES:
+        raise RuntimeError(f"{label}_CLIENT_SET_INVALID")
+    max_age=spec.get("campaignMaxAgeSeconds"); audit_window=spec.get("executionAuditWindowSeconds")
+    if type(max_age) is not int or max_age<3600 or max_age>14*24*3600:
+        raise RuntimeError(f"{label}_CAMPAIGN_TTL_INVALID")
+    if type(audit_window) is not int or audit_window<60 or audit_window>24*3600 or audit_window>max_age:
+        raise RuntimeError(f"{label}_AUDIT_WINDOW_INVALID")
+    return spec
+
+
 def campaign_time_window(campaign:dict,spec:dict,*,now:datetime|None=None)->tuple[datetime,datetime,int]:
     max_age=spec.get("campaignMaxAgeSeconds")
     audit_window=spec.get("executionAuditWindowSeconds")
@@ -447,6 +481,10 @@ def validate_campaign_live_preflight(campaign:dict)->None:
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_PREFLIGHT_INVALID")
 
 def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
+    matrix=load(matrix_path,"MATRIX")
+    canonical_spec=validate_matrix_contract(matrix)
+    if spec!=canonical_spec:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_MATRIX_SPEC_DRIFT")
     campaign=load(campaign_path,"CAMPAIGN")
     if not isinstance(campaign,dict) or campaign.get("authority")!=CAMPAIGN_AUTHORITY or campaign.get("matrixAuthority")!=MATRIX_AUTHORITY:
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_AUTHORITY_INVALID")
@@ -503,17 +541,9 @@ def build_interop_evidence(matrix_sha256:str,campaign_id:str,campaign_sha256:str
 
 def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->dict:
     matrix=load(matrix_path,"MATRIX")
-    spec=matrix.get("spec") or {}
-    if matrix.get("authority")!=MATRIX_AUTHORITY or spec.get("externalCertificationStatus")!="pending":
-        raise RuntimeError("MCP_EXTERNAL_MATRIX_STATE_INVALID")
-    protocol=str(spec.get("protocol") or "")
-    required=list(spec.get("sharedRequiredChecks") or [])
-    if protocol!="2026-07-28" or required!=list(REQUIRED_CHECKS):
-        raise RuntimeError("MCP_EXTERNAL_MATRIX_REQUIRED_CHECKS_INVALID")
-    declared=[r.get("id") for r in spec.get("clients") or [] if isinstance(r,dict)]
-    surfaces={r.get("id"):r.get("displayName") for r in spec.get("clients") or [] if isinstance(r,dict)}
-    if declared!=list(CLIENTS) or surfaces!=CLIENT_SURFACES:
-        raise RuntimeError("MCP_EXTERNAL_MATRIX_CLIENT_SET_INVALID")
+    spec=validate_matrix_contract(matrix)
+    protocol=str(spec["protocol"])
+    required=list(spec["sharedRequiredChecks"])
     campaign=verify_campaign(campaign_path,matrix_path,spec)
     rows=[]; used_request_ids={}; used_execution_ids={}; used_evidence_digests={}; used_provider_execution_refs={}
     for client in CLIENTS:
