@@ -83,6 +83,60 @@ class ReleaseIdentityValidation(unittest.TestCase):
         self.assertEqual(VERIFY.FULL_VERIFIER_AUTHORITY, "CHECKPOINT_SAFE_FULL_VERIFIER_V2")
         self.assertEqual(VERIFY.SHARD_AUTHORITY, "AUTOPILOT_STAGE_SHARD_AUTHORITY_V2")
 
+    def test_manual_install_release_payload_requires_all_exact_release_owners(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            required_regular = (
+                "VERSION",
+                "RELEASE-NAME",
+                "scripts/lab_runner.py",
+                "scripts/distribution_transport.py",
+                "internal/labmodel/certification-matrix.json",
+                "lab/appliance-bundle-acquisition-lock.json",
+            )
+            required_executable = (
+                "install.sh",
+                "bin/linux-amd64/platformctl",
+                "bin/linux-amd64/platform-installer",
+            )
+            for rel in required_regular + required_executable:
+                path = root / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("payload\n", encoding="utf-8")
+            for rel in required_executable:
+                (root / rel).chmod(0o755)
+            VERIFY.validate_manual_install_release_payload(root)
+            self.assertEqual(
+                VERIFY.MANUAL_INSTALL_RELEASE_PAYLOAD_AUTHORITY,
+                "INSTALLER_MANUAL_RELEASE_PAYLOAD_V1",
+            )
+            (root / "scripts" / "lab_runner.py").unlink()
+            with self.assertRaisesRegex(SystemExit, "INSTALLER_MANUAL_RELEASE_PAYLOAD_INVALID"):
+                VERIFY.validate_manual_install_release_payload(root)
+
+    def test_manual_install_release_payload_rejects_non_executable_entrypoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for rel in (
+                "VERSION",
+                "RELEASE-NAME",
+                "scripts/lab_runner.py",
+                "scripts/distribution_transport.py",
+                "internal/labmodel/certification-matrix.json",
+                "lab/appliance-bundle-acquisition-lock.json",
+                "install.sh",
+                "bin/linux-amd64/platformctl",
+                "bin/linux-amd64/platform-installer",
+            ):
+                path = root / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("payload\n", encoding="utf-8")
+                path.chmod(0o644)
+            (root / "bin/linux-amd64/platformctl").chmod(0o755)
+            (root / "bin/linux-amd64/platform-installer").chmod(0o755)
+            with self.assertRaisesRegex(SystemExit, "INSTALLER_MANUAL_RELEASE_PAYLOAD_INVALID.*install.sh"):
+                VERIFY.validate_manual_install_release_payload(root)
+
     def test_full_verifier_keeps_ui_and_smoke_parity_contract(self):
         source = (ROOT / "scripts" / "verify_release.py").read_text(encoding="utf-8")
         for required in (
