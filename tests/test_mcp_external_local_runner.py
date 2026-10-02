@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -146,6 +147,42 @@ class LocalC7WRunnerTests(unittest.TestCase):
             with mock.patch.object(mod,"progress_status",return_value={"complete":False,"certified":["chatgpt"],"missing":["claude","gemini","grok"],"nextClient":"claude","campaignPrepared":True}):
                 with self.assertRaisesRegex(RuntimeError,"EVIDENCE_WITH_INCOMPLETE_PROGRESS"):
                     mod.status(args)
+
+    def test_git_handoff_requires_committed_c7w_evidence_before_c9(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init"],cwd=root,check=True,capture_output=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/"seed.txt").write_text("seed\n")
+            subprocess.run(["git","add","seed.txt"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","seed"],cwd=root,check=True,capture_output=True)
+
+            lab=root/"lab"; lab.mkdir()
+            progress=lab/"mcp-external-client-interop-progress.json"
+            evidence=lab/"mcp-external-client-interoperability-evidence.json"
+            progress.write_text("{}\n"); evidence.write_text("{}\n")
+            pending=mod.git_handoff(root,evidence,progress)
+            self.assertEqual("COMMIT_C7W_EVIDENCE",pending["nextActionCode"])
+            self.assertEqual(["git","add","lab/mcp-external-client-interop-progress.json","lab/mcp-external-client-interoperability-evidence.json"],pending["nextCommand"])
+            self.assertIn("git"," ".join(pending["followupCommand"]))
+
+            subprocess.run(["git","add","lab"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","evidence"],cwd=root,check=True,capture_output=True)
+            ready=mod.git_handoff(root,evidence,progress)
+            self.assertEqual("RUN_C9_SEAL",ready["nextActionCode"])
+            self.assertEqual(["make","c9-seal"],ready["nextCommand"])
+            self.assertRegex(ready["sourceCommitSHA"],r"^[0-9a-f]{40}$")
+
+    def test_incomplete_status_emits_executable_external_client_handoff(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=mod.secure_state_dir(root/"state")
+            (state/"campaign.json").write_text("{}")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=root/"progress.json",evidence_out=root/"evidence.json")
+            with mock.patch.object(mod,"progress_status",return_value={"complete":False,"certified":[],"missing":["chatgpt","claude","gemini","grok"],"nextClient":"chatgpt","campaignPrepared":True}):
+                out=mod.status(args)
+            self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
+            self.assertEqual(["env","C7W_CLIENT=chatgpt","C7W_CAPTURE=/secure/chatgpt.capture.json","make","c7w-admit"],out["nextCommand"])
 
     def test_status_without_state_is_explicitly_pending_and_read_only(self):
         with tempfile.TemporaryDirectory() as td:
