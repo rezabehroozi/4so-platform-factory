@@ -208,6 +208,15 @@ def sha256(path:Path)->str:
 def canonical_json_bytes(value:object)->bytes:
     return (json.dumps(value,indent=2,sort_keys=True)+"\n").encode("utf-8")
 
+def _fsync_directory(path:Path)->None:
+    if os.name!="posix":
+        return
+    directory_fd=os.open(path,os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
 def _prepare_output_parent(path:Path,label:str)->Path:
     absolute=Path(os.path.abspath(path))
     for parent in reversed(absolute.parents):
@@ -237,9 +246,7 @@ def write_json_once_or_identical(path:Path,value:object,label:str)->None:
             os.link(temp,path,follow_symlinks=False)
         except FileExistsError:
             _existing_output_matches(path,raw,label); return
-        directory_fd=os.open(path.parent,os.O_RDONLY)
-        try: os.fsync(directory_fd)
-        finally: os.close(directory_fd)
+        _fsync_directory(path.parent)
     finally:
         if temp.exists(): temp.unlink()
 
@@ -254,9 +261,7 @@ def write_json_atomic_replace(path:Path,value:object,label:str)->None:
         with os.fdopen(fd,"wb") as fh:
             fh.write(raw); fh.flush(); os.fsync(fh.fileno())
         os.replace(temp,path)
-        directory_fd=os.open(path.parent,os.O_RDONLY)
-        try: os.fsync(directory_fd)
-        finally: os.close(directory_fd)
+        _fsync_directory(path.parent)
     finally:
         if temp.exists(): temp.unlink()
 
