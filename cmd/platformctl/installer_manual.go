@@ -189,7 +189,8 @@ func manualInstallerNextGuidance(state hostdeployment.State, statePath, root str
 		result.NextAction = "the host deployment transaction is incomplete; review status, then run the exact RECOVER command to restore the journaled previous state before any fresh install"
 	case "ROLLED_BACK", "RECOVERED":
 		result.NextActionCode = "RESTART_FROM_DOCTOR"
-		result.NextAction = "the prior host transaction is no longer active; return to install.sh doctor with the exact release inputs before starting a new preflight"
+		result.NextCommand = []string{"bash", manualInstallerEntrypointPath(), "start"}
+		result.NextAction = "the prior host transaction is no longer active; run the exact read-only Doctor entrypoint to rediscover/validate release inputs before starting a new preflight"
 	default:
 		result.NextActionCode = "REVIEW_HOST_STATE"
 		result.NextCommand = manualInstallerHostContinuationCommand("status", statePath, root, "")
