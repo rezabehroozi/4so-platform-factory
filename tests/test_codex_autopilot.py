@@ -846,7 +846,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
                 "repairCount": 1,
                 "resumeEligible": True,
                 "invocation": ["python3", "scripts/codex_autopilot.py", "--agent-run"],
-                "lastFailure": {"stage":"installer-go-owner-tests","specialist":"installer-runtime","status":"FAIL","fingerprint":"fp-small","reason":"NO_PROGRESS"},
+                "lastFailure": {"stage":"installer-go-owner-tests","specialist":"installer-runtime","status":"FAIL","fingerprint":"fp-small","reason":"owner failure token=super-secret-value"},
             }
             AUTOPILOT._report_path(root).write_text(json.dumps(report), encoding="utf-8")
             AUTOPILOT._checkpoint_path(root).write_text(json.dumps({"lastFailureCapsule":"ERROR " + ("owner-failure " * 500)}), encoding="utf-8")
@@ -866,7 +866,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["nextActionCode"], "RESUME_OUTER_RUNTIME")
             self.assertEqual(context["nextCommand"], ["make", "runtime-resume"])
             self.assertNotIn("promptBudgetAuthority", raw)
-            self.assertNotIn("continuationRules", raw)
+            self.assertNotIn("continuationRules", raw)\n            self.assertNotIn("super-secret-value", raw)\n            self.assertIn("[REDACTED]", context["lastFailure"]["reason"])
 
     def test_compact_agent_context_cli_prints_one_json_document(self):
         with tempfile.TemporaryDirectory() as directory:
