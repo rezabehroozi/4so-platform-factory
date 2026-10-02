@@ -730,12 +730,31 @@ class StageAwareEnvironmentPreflightTests(unittest.TestCase):
             self.assertEqual(context["status"], "ENVIRONMENT_BLOCKED")
             self.assertEqual(context["environmentPreflight"]["authority"], "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1")
             self.assertEqual(context["environmentPreflight"]["missing"], sorted(missing))
+            self.assertEqual(context["environmentPreflight"]["remediationAuthority"], "AUTOPILOT_ENVIRONMENT_REMEDIATION_HINTS_V1")
+            self.assertEqual(context["environmentRemediationHintsAuthority"], "AUTOPILOT_ENVIRONMENT_REMEDIATION_HINTS_V1")
+            self.assertIn("python-module:playwright", context["environmentPreflight"]["remediationHints"])
+            self.assertIn("chromium-or-chrome", context["environmentPreflight"]["remediationHints"])
+            self.assertIn("Playwright", context["environmentPreflight"]["remediationHints"]["python-module:playwright"])
             self.assertEqual(context["lastFailure"]["stage"], "environment-preflight")
             self.assertEqual(context["lastFailure"]["specialist"], "environment")
+            self.assertIn("environmentPreflight.remediationHints", context["nextAction"])
             self.assertIn("do not edit product source", context["nextAction"])
             self.assertNotIn("super-secret", json.dumps(context))
             self.assertFalse((root / ".state" / "codex-autopilot-run.json").exists())
 
+
+    def test_environment_remediation_hints_are_bounded_to_missing_prerequisites(self):
+        handoff = AUTOPILOT._environment_preflight_handoff(
+            ["bash", "libpq-dev", "unknown-tool"],
+            [AUTOPILOT.Stage("installer-entrypoint-contracts", ("python3", "-m", "unittest"), 10)],
+        )
+        self.assertEqual(handoff["remediationAuthority"], "AUTOPILOT_ENVIRONMENT_REMEDIATION_HINTS_V1")
+        self.assertEqual(set(handoff["remediationHints"]), {"bash", "libpq-dev", "unknown-tool"})
+        self.assertIn("Bash", handoff["remediationHints"]["bash"])
+        self.assertIn("libpq", handoff["remediationHints"]["libpq-dev"])
+        self.assertIn("rerun", handoff["remediationHints"]["unknown-tool"])
+        self.assertNotIn("apt", json.dumps(handoff).lower())
+        self.assertNotIn("sudo", json.dumps(handoff).lower())
 
 class StageSlicingPreflightOrderTests(unittest.TestCase):
     def test_sliced_run_preflights_only_selected_stages(self):
