@@ -115,6 +115,21 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_COUNT_INVALID")
     return by_id
 
+def validate_existing_campaign_rows(by_id:dict[str,dict],expected:dict,campaign:dict,spec:dict)->None:
+    created,expires,audit_window=core.campaign_time_window(campaign,spec)
+    expected_created=core.utc_timestamp(created); expected_expires=core.utc_timestamp(expires)
+    expected_endpoint=core.endpoint(expected.get("endpoint",""))
+    for client,row in by_id.items():
+        try:
+            row_endpoint=core.endpoint(row.get("endpoint",""))
+        except RuntimeError as exc:
+            raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_ENDPOINT_INVALID {client}") from exc
+        if row_endpoint!=expected_endpoint:
+            raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_ENDPOINT_DRIFT {client}")
+        if row.get("campaignCreatedAt")!=expected_created or row.get("campaignExpiresAt")!=expected_expires or row.get("executionAuditWindowSeconds")!=audit_window:
+            raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_CAMPAIGN_WINDOW_DRIFT {client}")
+
+
 def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,client:str,progress_path:Path|None,allow_campaign_supersede:bool=False)->dict:
     client=str(client or "").strip().lower()
     if client not in core.CLIENTS: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_UNSUPPORTED")
@@ -129,6 +144,7 @@ def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,
                 raise RuntimeError("MCP_EXTERNAL_PROGRESS_CAMPAIGN_DRIFT")
         else:
             by_id=validate_existing(existing,expected)
+            validate_existing_campaign_rows(by_id,expected,campaign,spec)
     row=core.verify_receipt(receipt_path,client,required,str(spec["protocol"]),campaign)
     used={}; used_executions={}; used_evidence={}; used_provider_refs={}
     for existing_client,existing in by_id.items():
