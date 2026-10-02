@@ -22,8 +22,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
             "endpoint":"https://mcp.example.test/mcp",
             "sourceCommitSHA":"b"*40,
             "runtimeVersion":"0.0.unit",
-            "receiptRequirements":{"requestIds":list(mod.core.AUDITED_CHECKS)},
-            "checks":[{"id":name} for name in mod.core.REQUIRED_CHECKS],
+            "receiptRequirements":{"requestIds":list(mod.core.AUDITED_CHECKS),"structuredResponseObservationRequired":True},
+            "checks":[{"id":name,"expect":{"accepted":False}} for name in mod.core.REQUIRED_CHECKS],
         }
         out=mod.capture_template(packet)
         self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",out["authority"])
@@ -35,9 +35,9 @@ class LocalC7WRunnerTests(unittest.TestCase):
         self.assertEqual(list(mod.core.REQUIRED_CHECKS),list(out["checks"]))
         for name,row in out["checks"].items():
             if name in mod.core.AUDITED_CHECKS:
-                self.assertEqual({"passed":False,"requestId":""},row)
+                self.assertEqual({"observed":{"accepted":None},"requestId":""},row)
             else:
-                self.assertEqual({"passed":False},row)
+                self.assertEqual({"observed":{"accepted":None}},row)
 
     def test_prepare_resume_avoids_live_registry_and_identity_calls(self):
         with tempfile.TemporaryDirectory() as td:
@@ -68,8 +68,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
                     "endpoint":args.endpoint,
                     "sourceCommitSHA":source_sha,
                     "runtimeVersion":"0.0.unit",
-                    "receiptRequirements":{"requestIds":list(mod.core.AUDITED_CHECKS)},
-                    "checks":[{"id":name} for name in mod.core.REQUIRED_CHECKS],
+                    "receiptRequirements":{"requestIds":list(mod.core.AUDITED_CHECKS),"structuredResponseObservationRequired":True},
+                    "checks":[{"id":name,"expect":{"accepted":False}} for name in mod.core.REQUIRED_CHECKS],
                 }
             with (
                 mock.patch.object(mod.campaign_builder,"source_commit_sha",return_value=source_sha),
