@@ -1220,6 +1220,10 @@ def _agent_context(root: Path) -> dict:
         "failurePathHints": failure_path_hints,
         "externalOwnerFixAdoptionAuthority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
         "durableTriageClassificationAuthority": DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY,
+        "triageCacheAuthority": TRIAGE_CACHE_AUTHORITY,
+        "agentNextActionAuthority": AGENT_NEXT_ACTION_AUTHORITY,
+        "ownerFirstStageOrderAuthority": OWNER_FIRST_STAGE_ORDER_AUTHORITY,
+        "ownerUnitDedupAuthority": OWNER_UNIT_DEDUP_AUTHORITY,
         "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
         "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
         "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
@@ -1256,19 +1260,35 @@ def _agent_context(root: Path) -> dict:
             "a new defect found only during final convergence receives the same bounded triage/repair budget at that exact cursor; same-fingerprint repetition stops and cross-owner repair expands to full convergence",
         ],
     }
+    context["nextActionCode"] = "START_AUTOPILOT_AGENT"
+    context["nextCommand"] = ["make", "autopilot-agent"]
     if outer_runtime.get("action") == "OBSERVE_ACTIVE":
+        context["nextActionCode"] = "OBSERVE_OUTER_RUNTIME"
+        context["nextCommand"] = ["make", "runtime-status"]
         context["nextAction"] = "outer project runtime is already active; observe/rejoin it with make runtime-status and do not start a duplicate autopilot-agent"
     elif outer_runtime.get("action") == "RECOVERY_REQUIRED":
+        context["nextActionCode"] = "RESOLVE_OUTER_RUNTIME_RECOVERY"
+        context["nextCommand"] = ["make", "runtime-status"]
         context["nextAction"] = "outer project runtime requires explicit recovery resolution before any new Autopilot execution; inspect make runtime-status and do not replay the command"
     elif outer_runtime.get("action") == "RESUME_RUNTIME":
+        context["nextActionCode"] = "RESUME_OUTER_RUNTIME"
+        context["nextCommand"] = ["make", "runtime-resume"]
         context["nextAction"] = "outer project runtime is safely resumable; run make runtime-resume, then re-read make autopilot-context"
     elif status == "ENVIRONMENT_BLOCKED" and context["environmentPreflight"]:
+        context["nextActionCode"] = "REPAIR_ENVIRONMENT_AND_RESUME"
+        context["nextCommand"] = resume_invocation
         context["nextAction"] = "apply only the environmentPreflight.remediationHints for missing prerequisites, then rerun resumeInvocation; do not edit product source for an environment blocker"
     elif status in {"ENVIRONMENT_BLOCKED", "CODE_DEFECT", "FAIL", "TIMEOUT"}:
+        context["nextActionCode"] = "FIX_OWNER_AND_RESUME"
+        context["nextCommand"] = resume_invocation
         context["nextAction"] = "inspect lastFailure and rerun the recorded invocation after fixing only the owning cause"
     elif status in {"RUNNING", "REPAIRING"} and context["resumeEligible"]:
+        context["nextActionCode"] = "REJOIN_AUTOPILOT"
+        context["nextCommand"] = resume_invocation
         context["nextAction"] = "rerun resumeInvocation; the durable checkpoint will rejoin/resume the exact graph cursor"
     elif status == "PASS":
+        context["nextActionCode"] = "CHECK_RELEASE_READINESS"
+        context["nextCommand"] = ["make", "release-readiness"]
         context["nextAction"] = "local campaign is complete; consult release-readiness before any external/physical campaign"
     else:
         context["nextAction"] = "run make autopilot-agent; it performs prerequisite checking and durable checkpoint/resume automatically"
@@ -1360,6 +1380,10 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "failurePathHintsAuthority": FAILURE_PATH_HINTS_AUTHORITY,
         "externalOwnerFixAdoptionAuthority": EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY,
         "durableTriageClassificationAuthority": DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY,
+        "triageCacheAuthority": TRIAGE_CACHE_AUTHORITY,
+        "agentNextActionAuthority": AGENT_NEXT_ACTION_AUTHORITY,
+        "ownerFirstStageOrderAuthority": OWNER_FIRST_STAGE_ORDER_AUTHORITY,
+        "ownerUnitDedupAuthority": OWNER_UNIT_DEDUP_AUTHORITY,
         "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
         "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
         "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
