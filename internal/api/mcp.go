@@ -15,6 +15,7 @@ import (
 	"platform.4so.io/factory/catalog"
 	"platform.4so.io/factory/internal/auth"
 	"platform.4so.io/factory/internal/baseline"
+	"platform.4so.io/factory/internal/buildinfo"
 	"platform.4so.io/factory/internal/controlplane"
 	"platform.4so.io/factory/internal/fleethealth"
 	"platform.4so.io/factory/internal/labmodel"
@@ -487,7 +488,7 @@ func decodeMCPHeaderValue(value string) (string, bool) {
 }
 
 func mcpServerMeta(version, requestID string) map[string]any {
-	meta := map[string]any{"io.modelcontextprotocol/serverInfo": map[string]any{"name": "4so-platform-factory", "version": version}}
+	meta := map[string]any{"io.modelcontextprotocol/serverInfo": map[string]any{"name": "4so-platform-factory", "version": version, "sourceCommitSHA": buildinfo.SourceCommit}}
 	if requestID = strings.TrimSpace(requestID); requestID != "" {
 		meta["io.4so/requestId"] = requestID
 	}
@@ -669,7 +670,7 @@ func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
 				writeMCPError(w, req.ID, http.StatusBadRequest, -32602, "platform_version accepts no arguments")
 				return
 			}
-			value = map[string]string{"product": "4SO Platform Factory", "version": s.version}
+			value = map[string]string{"product": "4SO Platform Factory", "version": s.version, "sourceCommitSHA": buildinfo.SourceCommit}
 		case "baselines":
 			if len(req.Params.Arguments) != 0 {
 				writeMCPError(w, req.ID, http.StatusBadRequest, -32602, "baselines accepts no arguments")
