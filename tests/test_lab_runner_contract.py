@@ -92,6 +92,17 @@ class LabRunnerContractTests(unittest.TestCase):
         }
         return spec
 
+    def test_manual_bundle_prepare_handoff_keeps_read_only_doctor_non_root(self):
+        source = (ROOT / "scripts" / "lab_runner.py").read_text(encoding="utf-8")
+        self.assertIn(
+            'next_argv = [\n            "bash",\n            str(release_root / "install.sh"),\n            "doctor",',
+            source,
+        )
+        self.assertNotIn(
+            'next_argv = [\n            "sudo",\n            "bash",\n            str(release_root / "install.sh"),\n            "doctor",',
+            source,
+        )
+
     def test_production_ha_schema_matches_runtime_topology_contract(self):
         with tempfile.TemporaryDirectory() as td:
             spec = self._production_ha_spec(Path(td))
