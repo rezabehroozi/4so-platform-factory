@@ -106,7 +106,7 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         evidence_digests[evidence_digest]=row_client; receipt_digests[receipt_digest]=row_client; challenge_digests[challenge_digest]=row_client
         witness=row.get("serverAuditWitness") or {}
-        core.validate_server_audit_witness(witness,binding,row_client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS",oauth_client_id)
+        core.validate_server_audit_witness(witness,binding,row_client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS",oauth_client_id,request_ids)
         if witness.get("executionObservedAt")!=core.utc_timestamp(executed) or witness.get("executionAuditWindowSeconds")!=audit_window:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_SERVER_WITNESS_TIME_DRIFT")
         by_id[row["clientId"]]=row
