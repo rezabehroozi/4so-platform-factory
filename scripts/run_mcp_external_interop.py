@@ -14,6 +14,7 @@ import os
 import hashlib
 from pathlib import Path
 import subprocess
+import sys
 
 import admit_mcp_external_receipt as admission
 import fetch_mcp_external_audit_window as audit_fetch
@@ -137,7 +138,7 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
     except RuntimeError as exc:
         return {
             "nextActionCode":"RERUN_C7W_ON_CURRENT_SOURCE",
-            "nextCommand":["env",f"C7W_STATE_DIR=.state/c7w-external-interop-{current_sha[:12]}","make","c7w-prepare"],
+            "nextCommand":runner_command(Path(f".state/c7w-external-interop-{current_sha[:12]}"),"prepare"),
             "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
             "certifiedSourceCommitSHA":certified_sha,
             "currentSourceCommitSHA":current_sha,
@@ -145,11 +146,19 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
         }
     return {
         "nextActionCode":"RUN_C9_SEAL",
-        "nextCommand":["make","c9-seal"],
+        "nextCommand":c9_seal_command(),
         "sourceCommitSHA":current_sha,
         "certifiedSourceCommitSHA":certified_sha,
         "detail":"C7W evidence is committed and source lineage is evidence-only; C9 may run",
     }
+
+
+def runner_command(state:Path,command:str,*args:str)->list[str]:
+    return [sys.executable,"scripts/run_mcp_external_interop.py","--state-dir",str(state),command,*args]
+
+
+def c9_seal_command()->list[str]:
+    return [sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"]
 
 
 def client_execution_handoff(state:Path,client:str)->dict:
@@ -164,7 +173,7 @@ def client_execution_handoff(state:Path,client:str)->dict:
         "captureTemplatePath":str(p["templates"]/(client+".json")),
         "expectedCapturePath":capture,
         "requiredCaptureAuthority":"MCP_EXTERNAL_CLIENT_CAPTURE_V1",
-        "admitCommand":["env",f"C7W_CLIENT={client}",f"C7W_CAPTURE={capture}","make","c7w-admit"],
+        "admitCommand":runner_command(state,"admit","--client",client,"--capture",capture),
     }
 
 
@@ -255,7 +264,7 @@ def prepare(args:argparse.Namespace)->dict:
         "physicalCertified":False,
     }
     if complete:
-        result.update({"nextActionCode":"RUN_C7W_SEAL","nextCommand":["make","c7w-seal"]})
+        result.update({"nextActionCode":"RUN_C7W_SEAL","nextCommand":runner_command(state,"seal")})
     else:
         result.update({
             "nextActionCode":"RUN_EXTERNAL_CLIENT",
@@ -334,7 +343,7 @@ def admit(args:argparse.Namespace)->dict:
     if status["complete"]:
         result.update({
             "nextActionCode":"RUN_C7W_SEAL",
-            "nextCommand":["make","c7w-seal"],
+            "nextCommand":runner_command(state,"seal"),
             "detail":"all four named clients are admitted; run the independent bulk seal before Git/C9 handoff",
         })
     else:
@@ -403,7 +412,7 @@ def status(args:argparse.Namespace)->dict:
                 "recoveryRequired":True,
                 "recoveryReason":"CAMPAIGN_EXPIRED",
                 "nextActionCode":"PREPARE_REPLACEMENT_C7W_CAMPAIGN",
-                "nextCommand":["env",f"C7W_STATE_DIR={replacement}","make","c7w-prepare"],
+                "nextCommand":runner_command(Path(replacement),"prepare"),
                 "replacementStateDir":replacement,
                 "replacementAdmitRequiresCampaignSupersede":args.progress_out.exists(),
                 "followupAdmitEnvironment":{"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"} if args.progress_out.exists() else {},
@@ -437,7 +446,7 @@ def status(args:argparse.Namespace)->dict:
                 current_sha=head.stdout.strip().lower() if head.returncode==0 else ""
                 value.update({
                     "nextActionCode":"RERUN_C7W_ON_CURRENT_SOURCE",
-                    "nextCommand":["env",f"C7W_STATE_DIR=.state/c7w-external-interop-{current_sha[:12] or 'current'}","make","c7w-prepare"],
+                    "nextCommand":runner_command(Path(f".state/c7w-external-interop-{current_sha[:12] or 'current'}"),"prepare"),
                     "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
                     "detail":str(exc)+"; active campaign source is stale before the next external client execution",
                 })
@@ -453,7 +462,7 @@ def status(args:argparse.Namespace)->dict:
         else:
             value.update({
                 "nextActionCode":"PREPARE_C7W_CAMPAIGN",
-                "nextCommand":["make","c7w-prepare"],
+                "nextCommand":runner_command(state,"prepare"),
                 "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
                 "detail":"prepare a live source-bound C7W campaign before external client execution",
             })
@@ -463,21 +472,22 @@ def status(args:argparse.Namespace)->dict:
 def parser()->argparse.ArgumentParser:
     p=argparse.ArgumentParser()
     p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json"))
-    p.add_argument("--state-dir",type=Path,default=DEFAULT_STATE)
+    p.add_argument("--state-dir",type=Path,default=Path(os.environ.get("C7W_STATE_DIR",str(DEFAULT_STATE))))
     p.add_argument("--progress-out",type=Path,default=Path("lab/mcp-external-client-interop-progress.json"))
     p.add_argument("--evidence-out",type=Path,default=Path("lab/mcp-external-client-interoperability-evidence.json"))
     sub=p.add_subparsers(dest="command",required=True)
 
     prepare_p=sub.add_parser("prepare")
-    prepare_p.add_argument("--endpoint",required=True)
-    prepare_p.add_argument("--oauth-client-map",type=Path)
-    prepare_p.add_argument("--token-env",default="C7W_PLATFORM_ADMIN_TOKEN")
+    prepare_p.add_argument("--endpoint",default=os.environ.get("C7W_MCP_ENDPOINT",""))
+    _oauth_map=os.environ.get("C7W_OAUTH_CLIENT_MAP","").strip()
+    prepare_p.add_argument("--oauth-client-map",type=Path,default=Path(_oauth_map) if _oauth_map else None)
+    prepare_p.add_argument("--token-env",default=os.environ.get("C7W_PLATFORM_ADMIN_TOKEN_ENV","C7W_PLATFORM_ADMIN_TOKEN"))
     prepare_p.add_argument("--source-commit-sha",default="")
 
     admit_p=sub.add_parser("admit")
     admit_p.add_argument("--client",choices=core.CLIENTS,required=True)
     admit_p.add_argument("--capture",type=Path,required=True)
-    admit_p.add_argument("--token-env",default="C7W_PLATFORM_ADMIN_TOKEN")
+    admit_p.add_argument("--token-env",default=os.environ.get("C7W_PLATFORM_ADMIN_TOKEN_ENV","C7W_PLATFORM_ADMIN_TOKEN"))
     admit_p.add_argument("--attempts",type=int,default=15)
     admit_p.add_argument("--interval-seconds",type=float,default=2.0)
     admit_p.add_argument("--allow-campaign-supersede",action="store_true")
