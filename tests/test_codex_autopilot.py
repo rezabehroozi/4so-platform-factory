@@ -827,6 +827,58 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(json.loads(out.getvalue())["authority"], "AUTOPILOT_AGENT_CONTEXT_V1")
 
+    def test_compact_agent_context_is_hard_bounded_and_action_complete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".state").mkdir()
+            report = {
+                "schemaVersion": 1,
+                "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+                "runId": "run-compact",
+                "status": "CODE_DEFECT",
+                "phase": "forward",
+                "currentStage": "installer-go-owner-tests",
+                "currentSpecialist": "installer-runtime",
+                "currentOwnerPaths": ["install.sh", "cmd/platformctl/installer_", "internal/bootstrap/", "internal/hostdeployment/", "internal/remotebootstrap/", "scripts/smoke_installer", "tests/test_install", "tests/test_installer"],
+                "currentCommand": ["go", "test", "./cmd/platformctl", "./internal/bootstrap"],
+                "currentTimeoutSeconds": 600,
+                "nextStage": "installer-go-owner-tests",
+                "repairCount": 1,
+                "resumeEligible": True,
+                "invocation": ["python3", "scripts/codex_autopilot.py", "--agent-run"],
+                "lastFailure": {"stage":"installer-go-owner-tests","specialist":"installer-runtime","status":"FAIL","fingerprint":"fp-small","reason":"NO_PROGRESS"},
+            }
+            AUTOPILOT._report_path(root).write_text(json.dumps(report), encoding="utf-8")
+            AUTOPILOT._checkpoint_path(root).write_text(json.dumps({"lastFailureCapsule":"ERROR " + ("owner-failure " * 500)}), encoding="utf-8")
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_outer_runtime_context", return_value={
+                    "authority":"AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1","available":True,
+                    "status":"FAILED","runId":"outer","activeRun":False,"recoveryRequired":False,
+                    "safeToRetry":False,"replaySafe":True,"action":"RESUME_RUNTIME",
+                 }):
+                context = AUTOPILOT._compact_agent_context(root)
+            raw = json.dumps(context, sort_keys=True, separators=(",", ":"))
+            self.assertEqual(context["authority"], "AUTOPILOT_AGENT_CONTEXT_COMPACT_V1")
+            self.assertLessEqual(len(raw), AUTOPILOT.AGENT_CONTEXT_COMPACT_MAX_CHARS + 64)
+            self.assertLessEqual(len(context["failureCapsule"]), AUTOPILOT.AGENT_CONTEXT_COMPACT_FAILURE_MAX_CHARS)
+            self.assertLessEqual(len(context["ownerContextPaths"]), AUTOPILOT.AGENT_CONTEXT_COMPACT_OWNER_PATH_LIMIT)
+            self.assertEqual(context["proofCommand"][:2], ["go", "test"])
+            self.assertEqual(context["nextActionCode"], "RESUME_OUTER_RUNTIME")
+            self.assertEqual(context["nextCommand"], ["make", "runtime-resume"])
+            self.assertNotIn("promptBudgetAuthority", raw)
+            self.assertNotIn("continuationRules", raw)
+
+    def test_compact_agent_context_cli_prints_one_json_document(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.object(AUTOPILOT, "ROOT", root), \
+                 mock.patch.object(AUTOPILOT, "_compact_agent_context", return_value={"authority":"AUTOPILOT_AGENT_CONTEXT_COMPACT_V1","status":"IDLE"}), \
+                 mock.patch.object(sys, "argv", ["codex_autopilot.py", "--agent-context-compact"]), \
+                 mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+                code = AUTOPILOT.main()
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(out.getvalue())["authority"], "AUTOPILOT_AGENT_CONTEXT_COMPACT_V1")
+
 
 class AutopilotEventLogTests(unittest.TestCase):
     def test_event_log_is_append_only_and_summarizes_last_run(self):
