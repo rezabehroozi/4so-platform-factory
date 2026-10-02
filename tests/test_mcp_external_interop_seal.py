@@ -117,6 +117,25 @@ class MCPExternalSealTests(unittest.TestCase):
             self.assertEqual(campaign["sourceCommitSHA"],out["sourceCommitSHA"]); self.assertEqual(campaign["runtimeVersion"],out["runtimeVersion"])
             self.assertTrue(all(row["serverAuditWitness"]["auditChainDigestVerified"] for row in out["clients"]))
             self.assertTrue(all(row["serverAuditWitness"]["auditMethodVersion"]==mod.AUDIT_METHOD_VERSION for row in out["clients"]))
+    def test_seal_digests_come_from_validated_file_snapshots(self):
+        with tempfile.TemporaryDirectory() as td:
+            matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
+            expected_matrix="sha256:"+hashlib.sha256(matrix.read_bytes()).hexdigest()
+            expected_campaign="sha256:"+hashlib.sha256(campaign_path.read_bytes()).hexdigest()
+            expected_receipt="sha256:"+hashlib.sha256((receipts/"chatgpt.json").read_bytes()).hexdigest()
+            expected_audit="sha256:"+hashlib.sha256((audits/"chatgpt.json").read_bytes()).hexdigest()
+            original=mod.sha256
+            try:
+                mod.sha256=lambda path:"sha256:"+"f"*64
+                out=mod.seal(matrix,campaign_path,receipts,audits)
+            finally:
+                mod.sha256=original
+            self.assertEqual(expected_matrix,out["matrixSha256"])
+            self.assertEqual(expected_campaign,out["campaignSha256"])
+            row=next(x for x in out["clients"] if x["clientId"]=="chatgpt")
+            self.assertEqual(expected_receipt,row["externalReceiptSha256"])
+            self.assertEqual(expected_audit,row["serverAuditWitness"]["auditExportSha256"])
+
     def test_secondary_witness_validator_rechecks_event_semantics_and_request_binding(self):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
