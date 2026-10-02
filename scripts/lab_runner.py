@@ -2405,6 +2405,46 @@ def _auto_acquire_bundle(body: dict[str, Any], artifact: Path, release_root: Pat
             "acquisitionLockDigest": lock_digest,
         }
 
+
+def _handoff_preparation_state_to_sudo_invoker(state: Path) -> bool:
+    """Make sudo-created private preparation bytes readable by the invoking user.
+
+    The canonical preparation state is mode 0700 and the exact release snapshot
+    is mode 0400. Without this ownership handoff, a successful
+    `sudo install.sh prepare-bundle` emits a non-root Doctor command that
+    cannot traverse/read its own prepared release and bundle inputs.
+    """
+    geteuid = getattr(os, "geteuid", None)
+    if geteuid is None or geteuid() != 0 or not hasattr(os, "chown"):
+        return False
+    raw_uid = str(os.environ.get("SUDO_UID", "")).strip()
+    raw_gid = str(os.environ.get("SUDO_GID", "")).strip()
+    if not raw_uid.isdecimal() or not raw_gid.isdecimal():
+        return False
+    uid = int(raw_uid)
+    gid = int(raw_gid)
+    if uid <= 0 or gid < 0:
+        return False
+
+    descendants: list[Path] = []
+    for base, dirs, files in os.walk(state, topdown=False, followlinks=False):
+        base_path = Path(base)
+        for name in [*files, *dirs]:
+            candidate = base_path / name
+            try:
+                info = candidate.lstat()
+            except FileNotFoundError as exc:
+                raise SystemExit("prepared state changed during non-root ownership handoff") from exc
+            if stat.S_ISREG(info.st_mode) and info.st_nlink != 1:
+                raise SystemExit("prepared state contains a hard-linked file; refusing non-root ownership handoff")
+            descendants.append(candidate)
+
+    for candidate in descendants:
+        os.chown(candidate, uid, gid, follow_symlinks=False)
+    os.chown(state, uid, gid, follow_symlinks=False)
+    state.chmod(0o700)
+    return True
+
 def _manual_bundle_prepare(
     release_artifact: Path,
     state_dir: Path,
@@ -2520,9 +2560,11 @@ def _manual_bundle_prepare(
                 return result
             bundle = prepared
 
-        # Doctor is intentionally read-only and non-root. Bundle preparation
-        # may itself require root only because its default durable state lives
-        # under /var/lib; do not carry that privilege into the next phase.
+        # Doctor is intentionally read-only and non-root. If preparation ran
+        # through sudo, return the private 0700/0400 preparation tree to the
+        # invoking user before emitting that non-root handoff. Exact bundle and
+        # release admission still happens again during preflight.
+        _handoff_preparation_state_to_sudo_invoker(state)
         next_argv = [
             "bash",
             str(release_root / "install.sh"),
