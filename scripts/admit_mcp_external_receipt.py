@@ -88,6 +88,10 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         provider_refs[provider_ref]=row_client
         checks=row.get("checks")
         if not isinstance(checks,dict) or set(checks)!=set(core.REQUIRED_CHECKS) or any(v is not True for v in checks.values()): raise RuntimeError("MCP_EXTERNAL_PROGRESS_CHECKS_INVALID")
+        core.validate_response_observations(
+            row.get("responseObservations"),row.get("sourceCommitSHA"),row.get("runtimeVersion"),row.get("endpoint"),
+            "MCP_EXTERNAL_PROGRESS_"+row_client.upper(),
+        )
         request_ids=row.get("requestIds")
         if not isinstance(request_ids,dict) or set(request_ids)!=set(core.AUDITED_CHECKS):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_REQUEST_IDS_INVALID")
