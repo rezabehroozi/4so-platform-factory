@@ -508,14 +508,6 @@ def execute(root: Path, out: Path) -> dict:
         return resume_existing_evidence(root,out)
 
     source_sha = git_source(root)
-    admitted = admission.verify(root)
-
-    lock = json.loads(
-        (root / "lab" / "release-build-toolchain-lock.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    archive, exact = safe_toolchain_archive(root, lock)
 
     state_dir = root / ".state"
     if state_dir.is_symlink() or (state_dir.exists() and not state_dir.is_dir()):
@@ -524,10 +516,17 @@ def execute(root: Path, out: Path) -> dict:
 
     evidence = None
     with tempfile.TemporaryDirectory(prefix="4so-final-release-toolchain-", dir=state_dir) as tool_td, tempfile.TemporaryDirectory(prefix="4so-final-release-source-", dir=state_dir) as source_td:
-        go = extract_toolchain(archive, exact, Path(tool_td))
         worktree = prepare_exact_worktree(root, source_sha, Path(source_td))
         try:
+            lock = json.loads(
+                (worktree / "lab" / "release-build-toolchain-lock.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            archive, exact = safe_toolchain_archive(root, lock)
+            go = extract_toolchain(archive, exact, Path(tool_td))
             staged_archive = stage_toolchain_archive(archive, exact, worktree)
+            admitted = admission.verify(worktree)
             env = os.environ.copy()
             env["GO"] = str(go)
             env["GOTOOLCHAIN"] = "local"
