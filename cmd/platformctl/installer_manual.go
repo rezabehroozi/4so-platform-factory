@@ -121,6 +121,18 @@ func platformctlExecutable() string {
 	return executable
 }
 
+func manualInstallerEntrypointPath() string {
+	executable, err := os.Executable()
+	if err == nil && strings.TrimSpace(executable) != "" {
+		root := filepath.Dir(filepath.Dir(filepath.Dir(executable)))
+		candidate := filepath.Join(root, "install.sh")
+		if info, statErr := os.Stat(candidate); statErr == nil && info.Mode().IsRegular() {
+			return candidate
+		}
+	}
+	return "install.sh"
+}
+
 func manualInstallerHostContinuationCommand(mode, statePath, root, confirmation string) []string {
 	command := []string{platformctlExecutable(), "installer-manual", mode}
 	if value := strings.TrimSpace(statePath); value != "" {
@@ -204,6 +216,18 @@ func installerManualNext(args []string) {
 		*statePath = filepath.Join(*root, "var/lib/4so-platform-installer/host-deployment.json")
 	}
 	state, err := hostdeployment.LoadState(*statePath)
+	if errors.Is(err, os.ErrNotExist) {
+		printJSON(manualInstallerNextResult{
+			Authority: installerManualContinuationResolverAuthority,
+			MachineNextActionAuthority: installerManualMachineNextActionAuthority,
+			AutomaticReplay: false,
+			HostStatus: "NOT_INSTALLED",
+			NextActionCode: "START_FROM_DOCTOR",
+			NextCommand: []string{"bash", manualInstallerEntrypointPath(), "start"},
+			NextAction: "no durable host deployment journal exists; start with the read-only Doctor path before any host mutation",
+		})
+		return
+	}
 	if err != nil {
 		fatal(err)
 	}
