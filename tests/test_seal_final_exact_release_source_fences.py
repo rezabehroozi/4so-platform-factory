@@ -156,10 +156,19 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
             out,release,evidence,admitted=self.final_evidence_fixture(root)
-            with mock.patch.object(mod.admission,"verify",return_value=admitted):
+            with mock.patch.object(mod.admission,"verify",return_value=admitted), mock.patch.object(mod,"verify_existing_release_full") as full_verify:
                 self.assertEqual(evidence,mod.execute(root,out))
+                full_verify.assert_called_once_with(root.resolve(),evidence["sourceCommitSHA"],release)
                 with release.open("ab") as fh: fh.write(b"tamper")
                 with self.assertRaisesRegex(RuntimeError,"EXISTING_ARCHIVE_DRIFT"):
+                    mod.execute(root,out)
+
+    def test_completed_c9_resume_cannot_trust_self_declared_full_verifier_flag(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
+            out,_,_,admitted=self.final_evidence_fixture(root)
+            with mock.patch.object(mod.admission,"verify",return_value=admitted), mock.patch.object(mod,"verify_existing_release_full",side_effect=RuntimeError("FULL_REVERIFY_REQUIRED")):
+                with self.assertRaisesRegex(RuntimeError,"FULL_REVERIFY_REQUIRED"):
                     mod.execute(root,out)
 
     def test_completed_c9_seal_resume_rejects_extra_fields_and_missing_checksum(self):
