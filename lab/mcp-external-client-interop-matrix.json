@@ -60,8 +60,8 @@
       "administration-approval-self-approval-negative-control"
     ],
     "campaignAuthority": "MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1",
-    "campaignPreparation": "C7W_MCP_ENDPOINT=https://<api>/mcp C7W_OAUTH_CLIENT_MAP=/secure/oauth-client-bindings.json make c7w-prepare",
-    "sealCommand": "make c7w-seal",
+    "campaignPreparation": "<python> scripts/run_mcp_external_interop.py --state-dir <state-dir> prepare --endpoint <https-mcp-endpoint> --oauth-client-map <private-oauth-client-bindings.json>",
+    "sealCommand": "<python> scripts/run_mcp_external_interop.py --state-dir <state-dir> seal",
     "serverAuditWitnessAuthority": "MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1",
     "serverAuditWitnessedChecks": [
       "dedicated-audience-validation",
@@ -72,9 +72,9 @@
       "administration-approval-self-approval-negative-control"
     ],
     "auditTokenSource": "environment:C7W_PLATFORM_ADMIN_TOKEN",
-    "auditFetchCommand": "integrated: make c7w-admit -> scripts/fetch_mcp_external_audit_window.py",
-    "receiptAdmissionCommand": "C7W_CLIENT=<client> C7W_CAPTURE=/secure/<client>.capture.json make c7w-admit",
-    "finalReleaseSealCommand": "make c9-seal",
+    "auditFetchCommand": "integrated: local runner admit -> scripts/fetch_mcp_external_audit_window.py",
+    "receiptAdmissionCommand": "<python> scripts/run_mcp_external_interop.py --state-dir <state-dir> admit --client <client> --capture <state-dir>/captures/<client>.capture.json",
+    "finalReleaseSealCommand": "<python> scripts/seal_final_exact_release.py --root . --out lab/final-exact-release-evidence.json",
     "oauthClientBindingAuthority": "MCP_EXTERNAL_CLIENT_OAUTH_BINDINGS_V1",
     "oauthClientMapSchema": {
       "authority": "MCP_EXTERNAL_CLIENT_OAUTH_BINDINGS_V1",
@@ -89,6 +89,6 @@
     "campaignMaxAgeSeconds": 604800,
     "executionAuditWindowSeconds": 7200,
     "executionRunnerAuthority": "MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1",
-    "statusCommand": "make c7w-status"
+    "statusCommand": "<python> scripts/run_mcp_external_interop.py --state-dir <state-dir> status"
   }
 }
