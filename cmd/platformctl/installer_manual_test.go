@@ -209,16 +209,32 @@ func TestManualInstallerNextGuidanceRequiresExplicitRecoveryForIncompleteHostTra
 	}
 }
 
-func TestManualInstallerNextGuidanceDoesNotInventMutationForRecoveredOrUnknownState(t *testing.T) {
-	for _, status := range []string{"RECOVERED", "ROLLED_BACK", "FUTURE_STATE"} {
+func TestManualInstallerNextGuidanceReturnsReadOnlyDoctorForRecoveredStates(t *testing.T) {
+	for _, status := range []string{"RECOVERED", "ROLLED_BACK"} {
 		state := hostdeployment.State{Status: status}
 		result := manualInstallerNextGuidance(state, "/tmp/state.json", "/")
 		if result.AutomaticReplay {
 			t.Fatalf("%s unexpectedly allows replay: %#v", status, result)
 		}
-		if status != "FUTURE_STATE" && len(result.NextCommand) != 0 {
-			t.Fatalf("%s should require a fresh doctor/preflight decision, got %#v", status, result.NextCommand)
+		if result.NextActionCode != "RESTART_FROM_DOCTOR" {
+			t.Fatalf("%s nextActionCode=%q", status, result.NextActionCode)
 		}
+		joined := strings.Join(result.NextCommand, " ")
+		if !strings.Contains(joined, "install.sh start") {
+			t.Fatalf("%s should return the safe read-only Doctor entrypoint, got %#v", status, result.NextCommand)
+		}
+	}
+}
+
+func TestManualInstallerNextGuidanceDoesNotInventMutationForUnknownState(t *testing.T) {
+	state := hostdeployment.State{Status: "FUTURE_STATE"}
+	result := manualInstallerNextGuidance(state, "/tmp/state.json", "/")
+	if result.AutomaticReplay {
+		t.Fatalf("unknown state unexpectedly allows replay: %#v", result)
+	}
+	joined := strings.Join(result.NextCommand, " ")
+	if !strings.Contains(joined, "installer-manual status") {
+		t.Fatalf("unknown state should remain status-only, got %#v", result.NextCommand)
 	}
 }
 
