@@ -251,6 +251,22 @@ class LocalC7WRunnerTests(unittest.TestCase):
             self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
             self.assertEqual(["env","C7W_CLIENT=chatgpt","C7W_CAPTURE=/secure/chatgpt.capture.json","make","c7w-admit"],out["nextCommand"])
 
+    def test_status_never_sends_next_client_on_stale_campaign_source(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=mod.secure_state_dir(root/"state")
+            (state/"campaign.json").write_text(json.dumps({"sourceCommitSHA":"1"*40}))
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=root/"progress.json",evidence_out=root/"evidence.json")
+            with (
+                mock.patch.object(mod,"progress_status",return_value={"complete":False,"certified":["chatgpt"],"missing":["claude","gemini","grok"],"nextClient":"claude","campaignPrepared":True}),
+                mock.patch.object(mod,"require_active_campaign_source",side_effect=RuntimeError("MCP_EXTERNAL_LOCAL_ACTIVE_CAMPAIGN_SOURCE_DELTA_NOT_EVIDENCE_ONLY")),
+                mock.patch.object(mod.subprocess,"run",return_value=SimpleNamespace(returncode=0,stdout="2"*40+"\n")),
+            ):
+                out=mod.status(args)
+            self.assertEqual("RERUN_C7W_ON_CURRENT_SOURCE",out["nextActionCode"])
+            self.assertNotIn("RUN_EXTERNAL_CLIENT",json.dumps(out))
+            self.assertEqual("STATUS",out["action"])
+            self.assertFalse(out["physicalCertified"])
+
     def test_seal_requires_complete_canonical_progress(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); state=mod.secure_state_dir(root/"state")
