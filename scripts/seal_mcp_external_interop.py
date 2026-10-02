@@ -187,8 +187,8 @@ def _stable_file_bytes(path:Path,label:str,max_bytes:int=4*1024*1024)->bytes:
     finally:
         os.close(fd)
 
-def load_with_sha256(path:Path,label:str)->tuple[object,str]:
-    raw=_stable_file_bytes(path,label)
+def load_with_sha256(path:Path,label:str,max_bytes:int=4*1024*1024)->tuple[object,str]:
+    raw=_stable_file_bytes(path,label,max_bytes=max_bytes)
     try:
         value=json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError,json.JSONDecodeError) as exc:
