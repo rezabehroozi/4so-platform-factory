@@ -89,10 +89,38 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 self.assertEqual(source_sha,capture["sourceCommitSHA"])
                 self.assertEqual("0.0.unit",capture["runtimeVersion"])
 
-    def test_status_without_campaign_is_explicitly_pending(self):
+    def test_admit_revalidates_existing_audit_with_normalized_receipt(self):
         with tempfile.TemporaryDirectory() as td:
             state=mod.secure_state_dir(Path(td)/"state")
-            out=mod.progress_status(ROOT/"lab/mcp-external-client-interop-matrix.json",state)
+            p=mod.paths(state)
+            client="chatgpt"
+            packet_path=p["packets"]/(client+".json"); packet_path.write_text("{}")
+            capture=Path(td)/"capture.json"; capture.write_text("{}")
+            audit_path=p["audits"]/(client+".json"); audit_path.write_text("[]")
+            raw_receipt={"authority":mod.core.RECEIPT_AUTHORITY,"clientId":client}
+            normalized={"clientId":client,"requestIds":{},"executedAt":"2026-10-01T00:00:00Z","campaignCreatedAt":"2026-10-01T00:00:00Z","campaignExpiresAt":"2026-10-02T00:00:00Z","executionAuditWindowSeconds":60}
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",client=client,capture=capture,token_env="TOKEN",attempts=1,interval_seconds=0.0)
+            with (
+                mock.patch.object(mod.finalizer,"finalize",return_value=raw_receipt),
+                mock.patch.object(mod.core,"write_json_once_or_identical"),
+                mock.patch.object(mod.admission,"matrix_contract",return_value=({"protocol":"2026-07-28"},list(mod.core.REQUIRED_CHECKS),{})),
+                mock.patch.object(mod.core,"verify_receipt",return_value=normalized) as verify_receipt,
+                mock.patch.object(mod.core,"verify_server_audit",return_value={}) as verify_audit,
+                mock.patch.object(mod.admission,"progress_lock"),
+                mock.patch.object(mod.admission,"merge",return_value={"clients":[],"certifiedClientCount":0,"complete":False}),
+                mock.patch.object(mod.core,"write_json_atomic_replace"),
+                mock.patch.object(mod,"progress_status",return_value={"certified":[],"complete":False,"nextClient":"chatgpt"}),
+            ):
+                mod.admit(args)
+            verify_receipt.assert_called_once()
+            verify_audit.assert_called_once_with(audit_path,normalized,client)
+
+    def test_status_without_state_is_explicitly_pending_and_read_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            state=Path(td)/"missing-state"
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json")
+            out=mod.status(args)
+            self.assertFalse(state.exists())
             self.assertFalse(out["campaignPrepared"])
             self.assertFalse(out["complete"])
             self.assertEqual("chatgpt",out["nextClient"])
