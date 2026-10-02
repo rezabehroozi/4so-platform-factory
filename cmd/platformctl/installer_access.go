@@ -18,6 +18,7 @@ import (
 
 const maxInstallerAccessResponseBytes = 1 << 20
 const installerBootstrapActionGuidanceAuthority = "INSTALLER_BOOTSTRAP_ACTION_GUIDANCE_V1"
+const installerBootstrapMachineNextActionAuthority = "INSTALLER_BOOTSTRAP_MACHINE_NEXT_ACTION_V1"
 
 func installerAccessCommand(args []string) {
 	if len(args) < 1 {
@@ -135,12 +136,14 @@ func installerAccessRunStatusCommand(args []string) {
 	printJSON(map[string]any{
 		"authority": "INSTALLER_BOOTSTRAP_RUNTIME_STATUS_V1",
 		"actionGuidanceAuthority": installerBootstrapActionGuidanceAuthority,
+		"nextActionAuthority": installerBootstrapMachineNextActionAuthority,
 		"executionEnabled": status.ExecutionEnabled,
 		"bootstrapActive": status.BootstrapActive,
 		"resetActive": status.ResetActive,
 		"run": status.Run,
 		"resetRuns": status.ResetRuns,
 		"automaticReplay": false,
+		"nextActionAuthority": installerBootstrapMachineNextActionAuthority,
 		"nextActionCode": nextActionCode,
 		"nextAction": nextAction,
 	})
@@ -230,7 +233,7 @@ func installerAccessResumeCommand(args []string) {
 			"status": "ALREADY_RUNNING",
 			"run": before.Run,
 			"automaticReplay": false,
-			"nextActionCode": "MONITOR_INSTALL",
+			"nextActionAuthority":installerBootstrapMachineNextActionAuthority,"nextActionCode":"MONITOR_INSTALL",
 			"nextAction": "monitor the existing durable bootstrap run; do not submit another resume",
 		})
 		return
@@ -244,7 +247,7 @@ func installerAccessResumeCommand(args []string) {
 			"status": "ALREADY_SUCCEEDED",
 			"run": before.Run,
 			"automaticReplay": false,
-			"nextActionCode": "VERIFY_INSTALL",
+			"nextActionAuthority":installerBootstrapMachineNextActionAuthority,"nextActionCode":"VERIFY_INSTALL",
 			"nextAction": "installation already succeeded; verify evidence instead of resuming",
 		})
 		return
@@ -257,7 +260,7 @@ func installerAccessResumeCommand(args []string) {
 			"status": "ACCEPTED_STATUS_PENDING",
 			"runId": before.Run.ID,
 			"automaticReplay": false,
-			"nextActionCode": "MONITOR_INSTALL",
+			"nextActionAuthority":installerBootstrapMachineNextActionAuthority,"nextActionCode":"MONITOR_INSTALL",
 			"nextAction": "resume was accepted; retry installer-access run-status instead of replaying the mutation",
 		})
 		return
@@ -269,7 +272,7 @@ func installerAccessResumeCommand(args []string) {
 		"run": after.Run,
 		"bootstrapActive": after.BootstrapActive,
 		"automaticReplay": false,
-		"nextActionCode": "MONITOR_INSTALL",
+		"nextActionAuthority":installerBootstrapMachineNextActionAuthority,"nextActionCode":"MONITOR_INSTALL",
 		"nextAction": "monitor durable status until terminal; if interrupted again, read status before another explicit RESUME",
 	})
 }
