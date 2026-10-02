@@ -614,12 +614,16 @@ class AutopilotAgentContextTests(unittest.TestCase):
                  mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
                 context = AUTOPILOT._agent_context(root)
             self.assertEqual(context["outerRuntime"]["runId"], "run-active")
+            self.assertEqual(context["nextActionCode"], "OBSERVE_OUTER_RUNTIME")
+            self.assertEqual(context["nextCommand"], ["make", "runtime-status"])
             self.assertIn("do not start a duplicate", context["nextAction"])
 
             resumable = {**active, "status":"INTERRUPTED", "activeRun":False, "safeToRetry":True, "action":"RESUME_RUNTIME"}
             with mock.patch.object(AUTOPILOT, "_outer_runtime_context", return_value=resumable), \
                  mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
                 context = AUTOPILOT._agent_context(root)
+            self.assertEqual(context["nextActionCode"], "RESUME_OUTER_RUNTIME")
+            self.assertEqual(context["nextCommand"], ["make", "runtime-resume"])
             self.assertIn("make runtime-resume", context["nextAction"])
             self.assertIn("make autopilot-context", context["nextAction"])
 
@@ -1025,6 +1029,27 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
             ok, detail = AUTOPILOT.invoke_codex(ROOT, stage, result, 1, 10)
         self.assertFalse(ok)
         self.assertIn("classification=ENVIRONMENT", detail)
+
+    def test_cached_exact_triage_avoids_second_model_call(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = AUTOPILOT.Stage("installer-host-smoke", ("false",), 10)
+            result = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp-cache", "connection refused")
+            AUTOPILOT._write_checkpoint(root, {
+                "graphSignature":"graph","repair":True,"phase":"forward","nextIndex":0,
+                "currentStage":stage.name,"repairCount":0,"seenFailures":[],
+            })
+            AUTOPILOT._record_triage_classification(
+                root, stage, result, "ENVIRONMENT",
+                "CLASSIFICATION=ENVIRONMENT\nmissing host prerequisite",
+            )
+            with mock.patch.object(AUTOPILOT, "invoke_codex_triage", side_effect=AssertionError("triage model called twice")), \
+                 mock.patch.object(AUTOPILOT, "_codex_command", side_effect=AssertionError("repair writer requested")):
+                ok, detail = AUTOPILOT.invoke_codex(root, stage, result, 2, 10)
+            self.assertFalse(ok)
+            self.assertIn("classification=ENVIRONMENT", detail)
+            self.assertIn("missing host prerequisite", detail)
+            self.assertEqual(AUTOPILOT.TRIAGE_CACHE_AUTHORITY, "AUTOPILOT_TRIAGE_CACHE_V1")
 
     def test_timeout_in_repair_mode_is_triaged_and_can_be_repaired(self):
         with tempfile.TemporaryDirectory() as directory:
