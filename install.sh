@@ -7,11 +7,15 @@ ACTIONABLE_AUTHORITY="INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1"
 DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"
 HOST_RUNTIME_DOCTOR_AUTHORITY="INSTALLER_MANUAL_HOST_RUNTIME_DOCTOR_V1"
 MACHINE_NEXT_ACTION_AUTHORITY="INSTALLER_MANUAL_MACHINE_NEXT_ACTION_V1"
+BUNDLE_PREPARATION_AUTHORITY="INSTALLER_MANUAL_BUNDLE_PREPARATION_V1"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
 INSTALLER="${ROOT_DIR}/bin/linux-amd64/platform-installer"
+LAB_RUNNER="${ROOT_DIR}/scripts/lab_runner.py"
 DEFAULT_BOOTSTRAP_TOKEN_FILE="/var/lib/4so-platform-installer/bootstrap-token"
 EXPECTED_VERSION="$(tr -d '\r\n' < "${ROOT_DIR}/VERSION" 2>/dev/null || true)"
+EXPECTED_RELEASE_NAME="$(tr -d '\r\n' < "${ROOT_DIR}/RELEASE-NAME" 2>/dev/null || true)"
+DEFAULT_BUNDLE_PREP_STATE_DIR="/var/lib/4so-platform-factory/manual-install/${EXPECTED_VERSION}-${EXPECTED_RELEASE_NAME}"
 
 usage() {
   cat <<'EOF'
@@ -19,6 +23,7 @@ usage() {
 
 Usage:
   bash install.sh doctor    [--bundle-dir DIR] [--release-artifact RELEASE.zip]
+  [sudo] bash install.sh prepare-bundle [--release-artifact RELEASE.zip] [--state-dir DIR] [future installer options...]
   sudo bash install.sh preflight [--bundle-dir DIR] [--release-artifact RELEASE.zip] [installer options...]
   sudo bash install.sh plan      [--bundle-dir DIR] [--release-artifact RELEASE.zip] [installer options...]
   sudo bash install.sh install   [--bundle-dir DIR] [--release-artifact RELEASE.zip] --enable-execution --confirmation DEPLOY [installer options...]
@@ -55,6 +60,12 @@ Doctor:
   doctor is read-only and does not require root. It reports input readiness for
   packaged binaries, bundle files and the exact release ZIP. It does not claim
   bundle admission; canonical digest/exact-release verification starts at preflight.
+  When the exact release is ready but the appliance bundle is missing, Doctor
+  emits PREPARE_BUNDLE with one exact command. prepare-bundle is a thin adapter
+  over the release-shipped immutable acquisition authority; it never downloads
+  moving upstream content and preserves future installer options for the next
+  Doctor/preflight handoff. Its default durable state is under /var/lib and thus
+  normally uses sudo; a writable custom --state-dir may be used without root.
 
 Continuation:
   status/verify/recover/rollback read the durable host-deployment authority.
@@ -76,7 +87,7 @@ case "${mode}" in
     usage
     exit 0
     ;;
-  doctor|preflight|plan|install|status|verify|bootstrap-status|resume|reset|reset-resume|recover|rollback)
+  doctor|prepare-bundle|preflight|plan|install|status|verify|bootstrap-status|resume|reset|reset-resume|recover|rollback)
     shift
     ;;
   *)
@@ -163,6 +174,7 @@ esac
 
 bundle_dir="${PLATFORM_INSTALLER_BUNDLE_DIR:-}"
 release_artifact="${PLATFORM_FACTORY_RELEASE_ARTIFACT:-}"
+prepare_state_dir="${PLATFORM_INSTALLER_PREP_STATE_DIR:-${DEFAULT_BUNDLE_PREP_STATE_DIR}}"
 
 discover_bundle_dir() {
   local candidate
@@ -207,6 +219,24 @@ while (($#)); do
       [[ -n "${release_artifact}" ]] || { echo "ERROR --release-artifact requires a value" >&2; exit 2; }
       shift
       ;;
+    --state-dir)
+      if [[ "${mode}" == "prepare-bundle" ]]; then
+        [[ $# -ge 2 && -n "$2" ]] || { echo "ERROR --state-dir requires a value" >&2; exit 2; }
+        prepare_state_dir="$2"
+      else
+        passthrough+=("$1" "$2")
+      fi
+      shift 2
+      ;;
+    --state-dir=*)
+      if [[ "${mode}" == "prepare-bundle" ]]; then
+        prepare_state_dir="${1#--state-dir=}"
+        [[ -n "${prepare_state_dir}" ]] || { echo "ERROR --state-dir requires a value" >&2; exit 2; }
+      else
+        passthrough+=("$1")
+      fi
+      shift
+      ;;
     *)
       passthrough+=("$1")
       shift
@@ -246,6 +276,31 @@ if [[ -z "${release_artifact}" ]]; then
   release_artifact="$(discover_release_artifact || true)"
 fi
 
+if [[ "${mode}" == "prepare-bundle" ]]; then
+  if [[ -z "${release_artifact}" || ! -f "${release_artifact}" || -L "${release_artifact}" ]]; then
+    echo "ERROR ${BUNDLE_PREPARATION_AUTHORITY}: exact release ZIP is required; pass --release-artifact or place the canonical ZIP beside this extracted release" >&2
+    exit 2
+  fi
+  if [[ ! -f "${LAB_RUNNER}" || -L "${LAB_RUNNER}" || ! -r "${LAB_RUNNER}" ]]; then
+    echo "ERROR ${BUNDLE_PREPARATION_AUTHORITY}: release-shipped bundle acquisition owner is unavailable: ${LAB_RUNNER}" >&2
+    exit 2
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "ERROR ${BUNDLE_PREPARATION_AUTHORITY}: python3 is required only for immutable bundle preparation; prepare the bundle on a connected workstation with this exact release or install python3, then rerun Doctor" >&2
+    exit 2
+  fi
+  if [[ "${EUID}" -ne 0 && "${prepare_state_dir}" == /var/lib/* ]]; then
+    echo "ERROR ${BUNDLE_PREPARATION_AUTHORITY}: default durable preparation state is under /var/lib; rerun with sudo or provide a writable custom --state-dir" >&2
+    exit 2
+  fi
+  declare -a prepare_args=(python3 "${LAB_RUNNER}" prepare-bundle --release-artifact "${release_artifact}" --state-dir "${prepare_state_dir}")
+  for arg in "${passthrough[@]}"; do
+    prepare_args+=("--doctor-arg=${arg}")
+  done
+  echo "${AUTHORITY} preparationAuthority=${BUNDLE_PREPARATION_AUTHORITY} mode=prepare-bundle release=${release_artifact} state=${prepare_state_dir}" >&2
+  exec "${prepare_args[@]}"
+fi
+
 if [[ "${mode}" == "doctor" ]]; then
   ready=true
   platformctl_ready=false
@@ -255,6 +310,7 @@ if [[ "${mode}" == "doctor" ]]; then
   host_platform_ready=false
   bundle_inputs_ready=false
   release_artifact_ready=false
+  bundle_preparation_available=false
   host_os="$(uname -s 2>/dev/null || true)"
   host_arch="$(uname -m 2>/dev/null || true)"
   if [[ "${host_os}" == "Linux" && ("${host_arch}" == "x86_64" || "${host_arch}" == "amd64") ]]; then
@@ -274,6 +330,7 @@ if [[ "${mode}" == "doctor" ]]; then
   fi
   [[ -n "${bundle_dir}" && -d "${bundle_dir}" && ! -L "${bundle_dir}" && -r "${bundle_dir}/bundle.json" && -r "${bundle_dir}/bundle.lock.json" ]] && bundle_inputs_ready=true || ready=false
   [[ -n "${release_artifact}" && -f "${release_artifact}" && ! -L "${release_artifact}" && -r "${release_artifact}" ]] && release_artifact_ready=true || ready=false
+  [[ -f "${LAB_RUNNER}" && ! -L "${LAB_RUNNER}" && -r "${LAB_RUNNER}" ]] && command -v python3 >/dev/null 2>&1 && bundle_preparation_available=true
   printf '%s\n' \
     "authority=INSTALLER_MANUAL_DOCTOR_V1" \
     "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
@@ -290,7 +347,9 @@ if [[ "${mode}" == "doctor" ]]; then
     "installerReady=${installer_ready}" \
     "installerRunnable=${installer_runnable}" \
     "bundleInputsReady=${bundle_inputs_ready}" \
-    "releaseArtifactReady=${release_artifact_ready}"
+    "releaseArtifactReady=${release_artifact_ready}" \
+    "bundlePreparationAvailable=${bundle_preparation_available}" \
+    "bundlePreparationStateDirectory=${prepare_state_dir}"
   printf 'platformctl=%q\ninstaller=%q\nbundleDirectory=%q\nreleaseArtifact=%q\n' \
     "${PLATFORMCTL}" "${INSTALLER}" "${bundle_dir}" "${release_artifact}"
   if [[ "${ready}" == true ]]; then
@@ -302,9 +361,18 @@ if [[ "${mode}" == "doctor" ]]; then
       printf ' %q' "${passthrough[@]}"
     fi
     printf '\n'
+  elif [[ "${host_platform_ready}" == true && "${platformctl_ready}" == true && "${platformctl_runnable}" == true && "${installer_ready}" == true && "${installer_runnable}" == true && "${release_artifact_ready}" == true && "${bundle_inputs_ready}" != true && "${bundle_preparation_available}" == true ]]; then
+    printf '%s\n' "nextActionCode=PREPARE_BUNDLE"
+    printf '%s\n' "nextAction=prepare the exact-release-bound appliance bundle through the release-shipped immutable acquisition authority; this is preparation only and does not imply Runtime or Physical PASS"
+    printf 'nextCommand=sudo bash %q prepare-bundle --release-artifact %q --state-dir %q' \
+      "${ROOT_DIR}/install.sh" "${release_artifact}" "${prepare_state_dir}"
+    if (("${#passthrough[@]}")); then
+      printf ' %q' "${passthrough[@]}"
+    fi
+    printf '\n'
   else
     printf '%s\n' "nextActionCode=RESOLVE_DOCTOR_BLOCKERS"
-    printf '%s\n' "nextAction=resolve the false readiness fields above (including host platform and binary runtime/version compatibility), then rerun this doctor command; do not start preflight yet"
+    printf '%s\n' "nextAction=resolve the false readiness fields above (including host platform, binary runtime/version compatibility, exact release input and bundle-preparation availability), then rerun this doctor command; do not start preflight yet"
     printf '%s\n' "nextCommand="
   fi
   [[ "${ready}" == true ]]
