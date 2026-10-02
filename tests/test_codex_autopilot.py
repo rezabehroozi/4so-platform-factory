@@ -545,6 +545,89 @@ class ResumePreflightCursorTests(unittest.TestCase):
             self.assertEqual(selected, [])
 
 
+class ProgressiveStagePreflightTests(unittest.TestCase):
+    def test_late_missing_dependency_preserves_green_stage_checkpoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            early = AUTOPILOT.Stage("repository-validation", ("true",), 10)
+            late = AUTOPILOT.Stage("smoke-ui-live", ("true",), 10)
+            passed_early = AUTOPILOT.StageResult(early.name, "PASS", 0, 0.01, "fp-early-pass", "ok")
+            with mock.patch.object(
+                AUTOPILOT,
+                "environment_preflight",
+                side_effect=[
+                    ([], {"stage":"repository-validation"}),
+                    (["chromium-or-chrome"], {"chromium-or-chrome":"missing"}),
+                ],
+            ) as preflight, mock.patch.object(AUTOPILOT, "run_stage", return_value=passed_early) as run:
+                rc = AUTOPILOT._execute_stages(
+                    root,
+                    [early, late],
+                    repair=True,
+                    max_repairs=1,
+                    codex_timeout=10,
+                    enforce_supply_chain=False,
+                    emit_ready_result=False,
+                    progressive_environment_preflight=True,
+                )
+            self.assertEqual(rc, 3)
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual([call.kwargs["stages"][0].name for call in preflight.call_args_list], [early.name, late.name])
+            checkpoint = json.loads(AUTOPILOT._checkpoint_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(checkpoint["nextIndex"], 1)
+            self.assertEqual(checkpoint["currentStage"], late.name)
+            report = json.loads(AUTOPILOT._report_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(report["status"], "ENVIRONMENT_BLOCKED")
+            self.assertEqual(report["currentStage"], late.name)
+            self.assertEqual(report["environmentPreflight"]["missing"], ["chromium-or-chrome"])
+            self.assertEqual(AUTOPILOT.PROGRESSIVE_STAGE_PREFLIGHT_AUTHORITY, "AUTOPILOT_PROGRESSIVE_STAGE_PREFLIGHT_V1")
+
+    def test_resume_after_late_dependency_fix_runs_only_blocked_stage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            early = AUTOPILOT.Stage("repository-validation", ("true",), 10)
+            late = AUTOPILOT.Stage("smoke-ui-live", ("true",), 10)
+            passed_early = AUTOPILOT.StageResult(early.name, "PASS", 0, 0.01, "fp-early-pass", "ok")
+            with mock.patch.object(
+                AUTOPILOT,
+                "environment_preflight",
+                side_effect=[
+                    ([], {"stage":"repository-validation"}),
+                    (["chromium-or-chrome"], {"chromium-or-chrome":"missing"}),
+                ],
+            ), mock.patch.object(AUTOPILOT, "run_stage", return_value=passed_early):
+                first = AUTOPILOT._execute_stages(
+                    root,
+                    [early, late],
+                    repair=False,
+                    max_repairs=0,
+                    codex_timeout=10,
+                    enforce_supply_chain=False,
+                    emit_ready_result=False,
+                    progressive_environment_preflight=True,
+                )
+            self.assertEqual(first, 3)
+            passed_late = AUTOPILOT.StageResult(late.name, "PASS", 0, 0.01, "fp-late-pass", "ok")
+            with mock.patch.object(AUTOPILOT, "environment_preflight", return_value=([], {"stage":"smoke-ui-live"})) as preflight, \
+                 mock.patch.object(AUTOPILOT, "run_stage", return_value=passed_late) as run:
+                second = AUTOPILOT._execute_stages(
+                    root,
+                    [early, late],
+                    repair=False,
+                    max_repairs=0,
+                    codex_timeout=10,
+                    enforce_supply_chain=False,
+                    emit_ready_result=False,
+                    progressive_environment_preflight=True,
+                )
+            self.assertEqual(second, 0)
+            run.assert_called_once()
+            self.assertEqual(run.call_args.args[1].name, late.name)
+            self.assertEqual(preflight.call_args.kwargs["stages"][0].name, late.name)
+            self.assertFalse(AUTOPILOT._checkpoint_path(root).exists())
+
+
+
 class ProcessTreeTimeoutTests(unittest.TestCase):
     def test_timeout_terminates_descendant_process_tree(self):
         with tempfile.TemporaryDirectory() as directory:
