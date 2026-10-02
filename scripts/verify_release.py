@@ -44,6 +44,7 @@ RELEASE_BINARIES = (
     "platform-probe",
     "virtual-cluster-renderer",
     "openchoreo-runtime",
+    "dapr-runtime",
 )
 
 
