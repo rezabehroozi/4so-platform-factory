@@ -17,6 +17,7 @@ class PacketTests(unittest.TestCase):
         expires=created+core.timedelta(seconds=spec["campaignMaxAgeSeconds"])
         campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-packettest","createdAt":core.utc_timestamp(created),"expiresAt":core.utc_timestamp(expires),"matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),
                   "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"packet-oauth-bindings").hexdigest(),
+                  "sourceCommitSHA":"1"*40,"runtimeVersion":"0.0.test",
                   "protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
         with tempfile.TemporaryDirectory() as td:
             cp=Path(td)/"campaign.json"; cp.write_text(json.dumps(campaign))
@@ -28,6 +29,13 @@ class PacketTests(unittest.TestCase):
             self.assertEqual(list(core.OAUTH_CLIENT_AUDITED_CHECKS),out["receiptRequirements"]["oauthClientWitnessedChecks"])
             self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",out["receiptRequirements"]["captureAuthority"])
             self.assertTrue(out["receiptRequirements"]["executedAtRequired"])
+            self.assertTrue(out["receiptRequirements"]["observedRuntimeIdentityRequired"])
+            self.assertEqual(campaign["sourceCommitSHA"],out["sourceCommitSHA"])
+            self.assertEqual(campaign["runtimeVersion"],out["runtimeVersion"])
+            self.assertEqual(campaign["sourceCommitSHA"],out["requestMeta"]["io.4so/sourceCommitSHA"])
+            runtime_check=next(x for x in out["checks"] if x["id"]=="authorization-filtered-tools-list")
+            self.assertEqual(campaign["sourceCommitSHA"],runtime_check["expect"]["sourceCommitSHA"])
+            self.assertIn("serverInfo.sourceCommitSHA",runtime_check["captureRuntimeIdentityFrom"]["sourceCommitSHA"])
             self.assertEqual(campaign["createdAt"],out["campaignCreatedAt"])
             self.assertEqual(campaign["expiresAt"],out["campaignExpiresAt"])
             self.assertEqual(spec["executionAuditWindowSeconds"],out["executionAuditWindowSeconds"])
