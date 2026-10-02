@@ -52,11 +52,17 @@ class ReleaseSourceIdentityTests(unittest.TestCase):
         self.assertIn('"sourceCommitSHA": source_commit_sha',builder)
         self.assertIn('verify_environment["SOURCE_COMMIT"] = str(provenance["sourceCommitSHA"])',verifier)
         self.assertIn("CONTAINER_BINARY_SOURCE_COMMIT_INJECTION_MISSING",validator)
+        self.assertEqual(1,validator.count("def main() -> int:"))
+        self.assertEqual(1,validator.count("if __name__ == '__main__':"))
+        self.assertNotIn('raise SystemExit(main())\n" not in docker',validator)
         for rel in ("Dockerfile","deploy/images/Dockerfile.agent","deploy/images/Dockerfile.probe"):
             recipe=(ROOT/rel).read_text()
             self.assertIn("ARG SOURCE_COMMIT",recipe)
             self.assertIn("internal/buildinfo.SourceCommit=$SOURCE_COMMIT",recipe)
             self.assertIn("^[0-9a-f]{40}$",recipe)
+            self.assertEqual(2,sum(1 for line in recipe.splitlines() if line.startswith("FROM ")),rel)
+            self.assertEqual(1,recipe.count("internal/buildinfo.SourceCommit=$SOURCE_COMMIT"),rel)
+            self.assertEqual(1,recipe.count("grep -Eq '^[0-9a-f]{40}$'"),rel)
 
 
 if __name__=="__main__":
