@@ -336,6 +336,7 @@ class AutopilotReportTests(unittest.TestCase):
             self.assertEqual(data["failureCapsuleAuthority"], "AUTOPILOT_FAILURE_CAPSULE_V1")
             self.assertEqual(data["selectiveConvergenceAuthority"], "AUTOPILOT_OWNER_SCOPED_CONVERGENCE_V1")
             self.assertEqual(data["convergenceRepairAuthority"], "AUTOPILOT_CONVERGENCE_REPAIR_V1")
+            self.assertEqual(data["outerRuntimeContextAuthority"], "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1")
             self.assertEqual(data["repairScopeFenceAuthority"], "AUTOPILOT_REPAIR_SCOPE_FENCE_V1")
             self.assertEqual(data["structuredTriageAuthority"], "AUTOPILOT_STRUCTURED_TRIAGE_V1")
             self.assertEqual(data["repairGitBoundaryAuthority"], "AUTOPILOT_REPAIR_GIT_BOUNDARY_V1")
@@ -512,6 +513,8 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["crossSurfaceOwnerContextAuthority"], "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1")
             self.assertEqual(context["autopilotOwnerTestStageAuthority"], "AUTOPILOT_OWNER_TEST_STAGE_V1")
             self.assertEqual(context["convergenceRepairAuthority"], "AUTOPILOT_CONVERGENCE_REPAIR_V1")
+            self.assertEqual(context["outerRuntimeContextAuthority"], "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1")
+            self.assertIn("outerRuntime", context)
             self.assertEqual(context["defaultAgentRepairBudget"], 8)
             self.assertEqual(context["failureCapsuleMaxChars"], 3200)
             self.assertEqual(context["failureCapsule"], "ERROR owner mismatch token=[REDACTED]")
@@ -545,6 +548,50 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertIn("[REDACTED]", context["failureCapsule"])
             self.assertNotIn("hunter2", context["failureCapsule"])
             self.assertNotIn("qwerty", context["failureCapsule"])
+
+    def test_outer_runtime_context_uses_canonical_status_and_maps_actions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "scripts").mkdir()
+            (root / "scripts" / "project_runtime.py").write_text("# stub\n", encoding="utf-8")
+            cases = [
+                ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"RUNNING","runId":"run-1","activeRun":True}, "OBSERVE_ACTIVE"),
+                ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"INTERRUPTED","runId":"run-2","activeRun":False,"safeToRetry":True}, "RESUME_RUNTIME"),
+                ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"INTERRUPTED","runId":"run-3","activeRun":False,"recoveryRequired":True,"safeToRetry":False}, "RECOVERY_REQUIRED"),
+                ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"COMPLETED","runId":"run-4","activeRun":False}, "NO_ACTIVE_RUNTIME"),
+            ]
+            for payload, expected_action in cases:
+                completed = mock.Mock(returncode=0, stdout=json.dumps(payload), stderr="")
+                with mock.patch.object(AUTOPILOT.subprocess, "run", return_value=completed) as run:
+                    context = AUTOPILOT._outer_runtime_context(root)
+                self.assertEqual(context["authority"], "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1")
+                self.assertTrue(context["available"])
+                self.assertEqual(context["action"], expected_action)
+                self.assertEqual(context["runId"], payload["runId"])
+                command = run.call_args.args[0]
+                self.assertIn("project_runtime.py", command[1])
+                self.assertEqual(command[2:4], ["status", "--root"])
+
+    def test_agent_context_prevents_duplicate_outer_runtime_start_and_guides_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            active = {
+                "authority":"AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1","available":True,
+                "status":"RUNNING","runId":"run-active","activeRun":True,
+                "recoveryRequired":False,"safeToRetry":False,"action":"OBSERVE_ACTIVE",
+            }
+            with mock.patch.object(AUTOPILOT, "_outer_runtime_context", return_value=active), \
+                 mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
+                context = AUTOPILOT._agent_context(root)
+            self.assertEqual(context["outerRuntime"]["runId"], "run-active")
+            self.assertIn("do not start a duplicate", context["nextAction"])
+
+            resumable = {**active, "status":"INTERRUPTED", "activeRun":False, "safeToRetry":True, "action":"RESUME_RUNTIME"}
+            with mock.patch.object(AUTOPILOT, "_outer_runtime_context", return_value=resumable), \
+                 mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
+                context = AUTOPILOT._agent_context(root)
+            self.assertIn("make runtime-resume", context["nextAction"])
+            self.assertIn("make autopilot-context", context["nextAction"])
 
     def test_agent_context_cli_prints_one_json_document(self):
         with tempfile.TemporaryDirectory() as directory:
