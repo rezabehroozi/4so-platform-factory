@@ -10,10 +10,23 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
     def git(self,root,*args):
         return subprocess.run(["git",*args],cwd=root,text=True,capture_output=True,check=True).stdout.strip()
 
+    def test_git_source_rejects_non_main_branch(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            self.git(root,"init","-b","main")
+            self.git(root,"config","user.email","test@example.invalid")
+            self.git(root,"config","user.name","Test")
+            (root/"tracked.txt").write_text("tracked\n")
+            self.git(root,"add","tracked.txt")
+            self.git(root,"commit","-m","initial")
+            self.git(root,"checkout","-b","feature")
+            with self.assertRaisesRegex(RuntimeError,"BRANCH_NOT_MAIN"):
+                mod.git_source(root.resolve())
+
     def test_git_source_rejects_untracked_bytes_not_bound_to_head(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
-            self.git(root,"init")
+            self.git(root,"init","-b","main")
             self.git(root,"config","user.email","test@example.invalid")
             self.git(root,"config","user.name","Test")
             (root/"tracked.txt").write_text("tracked\n")
@@ -27,7 +40,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
     def test_git_source_rejects_assume_unchanged_index_masking(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
-            self.git(root,"init")
+            self.git(root,"init","-b","main")
             self.git(root,"config","user.email","test@example.invalid")
             self.git(root,"config","user.name","Test")
             tracked=root/"tracked.txt"; tracked.write_text("tracked\n")
@@ -40,7 +53,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
     def test_detached_worktree_is_pinned_to_exact_head_and_isolated_from_root_drift(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)/"repo"; root.mkdir()
-            self.git(root,"init")
+            self.git(root,"init","-b","main")
             self.git(root,"config","user.email","test@example.invalid")
             self.git(root,"config","user.name","Test")
             tracked=root/"tracked.txt"; tracked.write_text("v1\n")
@@ -162,7 +175,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
 
     def test_exact_source_admission_reads_from_detached_commit_not_mutable_root(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
+            root=Path(td); self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
             (root/".gitignore").write_text("/.state/\n",encoding="utf-8")
             tracked=root/"authority.json"; tracked.write_text('{"value":"exact"}\n',encoding="utf-8")
             self.git(root,"add",".gitignore","authority.json"); self.git(root,"commit","-m","initial")
@@ -182,7 +195,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
 
     def test_completed_c9_seal_resumes_without_rebuild_and_rejects_artifact_tamper(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
+            root=Path(td); self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
             out,release,evidence,admitted=self.final_evidence_fixture(root)
             with mock.patch.object(mod.admission,"verify",return_value=admitted), mock.patch.object(mod,"verify_existing_release_full") as full_verify:
                 self.assertEqual(evidence,mod.execute(root,out))
@@ -193,7 +206,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
 
     def test_completed_c9_resume_cannot_trust_self_declared_full_verifier_flag(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
+            root=Path(td); self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
             out,_,_,admitted=self.final_evidence_fixture(root)
             with mock.patch.object(mod.admission,"verify",return_value=admitted), mock.patch.object(mod,"verify_existing_release_full",side_effect=RuntimeError("FULL_REVERIFY_REQUIRED")):
                 with self.assertRaisesRegex(RuntimeError,"FULL_REVERIFY_REQUIRED"):
@@ -201,7 +214,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
 
     def test_completed_c9_seal_resume_rejects_extra_fields_and_missing_checksum(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
+            root=Path(td); self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
             out,release,evidence,admitted=self.final_evidence_fixture(root)
             extra=dict(evidence); extra["runtimeCertified"]=True
             out.write_text(json.dumps(extra),encoding="utf-8")
@@ -217,7 +230,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
     def test_c9_resume_accepts_staged_final_evidence_only(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
-            self.git(root,"init")
+            self.git(root,"init","-b","main")
             self.git(root,"config","user.email","test@example.invalid")
             self.git(root,"config","user.name","Test")
             out,release,evidence,admitted=self.final_evidence_fixture(root)
@@ -232,7 +245,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
     def test_c9_resume_rejects_staged_unrelated_source_change(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
-            self.git(root,"init")
+            self.git(root,"init","-b","main")
             self.git(root,"config","user.email","test@example.invalid")
             self.git(root,"config","user.name","Test")
             out,_,_,_=self.final_evidence_fixture(root)
@@ -245,7 +258,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
     def test_completed_c9_resume_accepts_committed_evidence_only_descendant(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
-            self.git(root,"init")
+            self.git(root,"init","-b","main")
             self.git(root,"config","user.email","test@example.invalid")
             self.git(root,"config","user.name","Test")
             out,release,evidence,admitted=self.final_evidence_fixture(root)
@@ -266,7 +279,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
     def test_completed_c9_resume_rejects_evidence_commit_plus_source_delta(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
-            self.git(root,"init")
+            self.git(root,"init","-b","main")
             self.git(root,"config","user.email","test@example.invalid")
             self.git(root,"config","user.name","Test")
             out,_,evidence,admitted=self.final_evidence_fixture(root)
@@ -281,7 +294,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
 
     def test_completed_c9_seal_resume_rejects_unrelated_source_drift(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
+            root=Path(td); self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
             out,_,_,admitted=self.final_evidence_fixture(root)
             (root/"unrelated.txt").write_text("drift\n")
             with mock.patch.object(mod.admission,"verify",return_value=admitted):
