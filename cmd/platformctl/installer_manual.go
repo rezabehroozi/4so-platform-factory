@@ -24,6 +24,7 @@ const (
 	installerManualRemoteHandoffAuthority  = "INSTALLER_MANUAL_REMOTE_HANDOFF_V1"
 	installerManualPreflightGuidanceAuthority = "INSTALLER_MANUAL_PREFLIGHT_GUIDANCE_V1"
 	installerManualMachineNextActionAuthority  = "INSTALLER_MANUAL_MACHINE_NEXT_ACTION_V1"
+	installerManualContinuationResolverAuthority = "INSTALLER_MANUAL_CONTINUATION_RESOLVER_V1"
 )
 
 // installer-manual is the human-oriented owner path for placing the Bootstrap
@@ -40,6 +41,8 @@ func installerManualCommand(args []string) {
 		return
 	case "preflight", "plan", "install":
 		installerManualPrepare(args[0], args[1:])
+	case "next":
+		installerManualNext(args[1:])
 	case "status":
 		installerHostStatus(args[1:])
 	case "verify":
@@ -95,6 +98,118 @@ func newManualInstallerPreflightResult(admission hostdeployment.HostAdmissionRep
 	}
 }
 
+type manualInstallerNextResult struct {
+	Authority                  string   `json:"authority"`
+	MachineNextActionAuthority string   `json:"machineNextActionAuthority"`
+	AutomaticReplay            bool     `json:"automaticReplay"`
+	HostStatus                 string   `json:"hostStatus"`
+	DeploymentID               string   `json:"deploymentId,omitempty"`
+	CurrentStep                string   `json:"currentStep,omitempty"`
+	RecoveryRequired           bool     `json:"recoveryRequired,omitempty"`
+	InstallerURL               string   `json:"installerUrl,omitempty"`
+	BootstrapTokenFile         string   `json:"bootstrapTokenFile,omitempty"`
+	NextActionCode             string   `json:"nextActionCode"`
+	NextCommand                []string `json:"nextCommand,omitempty"`
+	NextAction                 string   `json:"nextAction"`
+}
+
+func platformctlExecutable() string {
+	executable, err := os.Executable()
+	if err != nil || strings.TrimSpace(executable) == "" {
+		return "platformctl"
+	}
+	return executable
+}
+
+func manualInstallerHostContinuationCommand(mode, statePath, root, confirmation string) []string {
+	command := []string{platformctlExecutable(), "installer-manual", mode}
+	if value := strings.TrimSpace(statePath); value != "" {
+		command = append(command, "--state", value)
+	} else {
+		command = append(command, "--root", strings.TrimSpace(root))
+	}
+	if value := strings.TrimSpace(confirmation); value != "" {
+		command = append(command, "--confirmation", value)
+	}
+	return command
+}
+
+func manualInstallerBootstrapStatusCommand(state hostdeployment.State) []string {
+	installerURL := manualInstallerConsoleURL(state.Plan.Health.URL)
+	if installerURL == "" {
+		return nil
+	}
+	tokenFile := filepath.Join(filepath.Dir(state.Plan.Paths.State), "bootstrap-token")
+	return []string{
+		platformctlExecutable(), "installer-access", "run-status",
+		"--installer-url", installerURL,
+		"--token-file", tokenFile,
+	}
+}
+
+func manualInstallerNextGuidance(state hostdeployment.State, statePath, root string) manualInstallerNextResult {
+	result := manualInstallerNextResult{
+		Authority:                  installerManualContinuationResolverAuthority,
+		MachineNextActionAuthority: installerManualMachineNextActionAuthority,
+		AutomaticReplay:            false,
+		HostStatus:                 state.Status,
+		DeploymentID:               state.Plan.DeploymentID,
+		CurrentStep:                state.CurrentStep,
+		RecoveryRequired:           state.RecoveryRequired,
+	}
+	switch strings.ToUpper(strings.TrimSpace(state.Status)) {
+	case "APPLIED":
+		result.InstallerURL = manualInstallerConsoleURL(state.Plan.Health.URL)
+		result.BootstrapTokenFile = filepath.Join(filepath.Dir(state.Plan.Paths.State), "bootstrap-token")
+		result.NextActionCode = "CHECK_BOOTSTRAP_STATUS"
+		result.NextCommand = manualInstallerBootstrapStatusCommand(state)
+		result.NextAction = "host deployment is applied; read Bootstrap Installer durable status before selecting install/resume/reset actions"
+	case "STAGED":
+		result.NextActionCode = "COMPLETE_STAGED_DEPLOYMENT"
+		result.NextCommand = manualInstallerHostContinuationCommand("verify", statePath, root, "")
+		result.NextAction = "this is a staged filesystem deployment only; verify the staged files, then deploy the same reviewed inputs to the intended live root before browser installation"
+	case "PREPARED", "APPLYING", "RECOVERY_REQUIRED":
+		result.NextActionCode = "RECOVER_HOST_DEPLOYMENT"
+		result.NextCommand = manualInstallerHostContinuationCommand("recover", statePath, root, hostdeployment.ConfirmationRecover)
+		result.NextAction = "the host deployment transaction is incomplete; review status, then run the exact RECOVER command to restore the journaled previous state before any fresh install"
+	case "ROLLED_BACK", "RECOVERED":
+		result.NextActionCode = "RESTART_FROM_DOCTOR"
+		result.NextAction = "the prior host transaction is no longer active; return to install.sh doctor with the exact release inputs before starting a new preflight"
+	default:
+		result.NextActionCode = "REVIEW_HOST_STATE"
+		result.NextCommand = manualInstallerHostContinuationCommand("status", statePath, root, "")
+		result.NextAction = "review the durable host-deployment state; automatic replay is forbidden for an unrecognized state"
+	}
+	return result
+}
+
+func installerManualNext(args []string) {
+	fs := flag.NewFlagSet("installer-manual next", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	statePath := fs.String("state", "", "installer host deployment state file")
+	root := fs.String("root", "/", "target filesystem root; used only to resolve the default state path")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			usage()
+			return
+		}
+		usage()
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 {
+		usage()
+		os.Exit(2)
+	}
+	if strings.TrimSpace(*statePath) == "" {
+		*statePath = filepath.Join(*root, "var/lib/4so-platform-installer/host-deployment.json")
+	}
+	state, err := hostdeployment.LoadState(*statePath)
+	if err != nil {
+		fatal(err)
+	}
+	printJSON(manualInstallerNextGuidance(state, *statePath, *root))
+}
+
 type manualInstallerInputs struct {
 	InstallerBinary   string
 	BundleDirectory   string
@@ -112,11 +227,7 @@ type manualInstallerInputs struct {
 }
 
 func manualInstallerContinuationCommand(input manualInstallerInputs, mode string, forceExecution bool) []string {
-	executable, err := os.Executable()
-	if err != nil || strings.TrimSpace(executable) == "" {
-		executable = "platformctl"
-	}
-	command := []string{executable, "installer-manual", mode,
+	command := []string{platformctlExecutable(), "installer-manual", mode,
 		"--installer-binary", strings.TrimSpace(input.InstallerBinary),
 		"--bundle-dir", strings.TrimSpace(input.BundleDirectory),
 		"--listen", strings.TrimSpace(input.Listen),
