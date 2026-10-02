@@ -39,13 +39,16 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
 
     def fixture(self,root:Path):
         (root/"lab").mkdir(exist_ok=True)
+        matrix={"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropMatrix","authority":mod.mcp_contract.MATRIX_AUTHORITY,"spec":{"protocol":"2026-07-28","transport":"streamable-http","externalCertificationStatus":"pending"}}
+        matrix_path=root/"lab/mcp-external-client-interop-matrix.json"; matrix_path.write_text(json.dumps(matrix,sort_keys=True))
+        matrix_sha=mod.digest(matrix_path)
         pack="a"*64; archive="b"*64
         lock={"authority":mod.S1_AUTHORITY,"schemaVersion":8,"status":"ready","missingAuthorities":[],"partialAuthorities":[],"inputPack":{"format":"zip","buildSpecPath":"build-spec.json","stagingDirectory":"staging","sha256":pack,"sizeBytes":123,"urls":[f"https://dist.example.test/sha256/{pack}/appliance.zip"]},"resolvedAuthorities":[{"id":"management-workload-oci-archive","artifacts":[{"sha256":archive,"sizeBytes":456,"urls":[f"https://dist.example.test/sha256/{archive}/archive.tar"]}]}]}
         (root/"lab/appliance-bundle-acquisition-lock.json").write_text(json.dumps(lock))
         clients=[self.progress_row(c) for c in mod.CLIENTS]
         oauth_bindings={row["clientId"]:row["oauthClientId"] for row in clients}
         trusted_bindings={row["clientId"]:{"trustedClientId":row["trustedClientId"],"trustedClientRevision":row["trustedClientRevision"],"trustedClientProvider":row["trustedClientProvider"]} for row in clients}
-        mcp={"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteroperabilityEvidence","authority":mod.MCP_AUTHORITY,"matrixAuthority":mod.mcp_contract.MATRIX_AUTHORITY,"matrixSha256":"sha256:"+hashlib.sha256(b"matrix").hexdigest(),"campaignAuthority":"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1","campaignId":"mcp-interop-testcampaign","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"oauth-bindings").hexdigest(),"oauthClientBindings":oauth_bindings,"trustedClientBindings":trusted_bindings,"protocol":"2026-07-28","transport":"streamable-http","endpoint":"https://mcp.example.test/mcp","clients":clients,"certifiedClientCount":4,"allRequiredChecksPass":True,"serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":24,"externalCertificationPass":True,"runtimeCertified":False,"physicalCertified":False}
+        mcp={"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteroperabilityEvidence","authority":mod.MCP_AUTHORITY,"matrixAuthority":mod.mcp_contract.MATRIX_AUTHORITY,"matrixSha256":matrix_sha,"campaignAuthority":"MCP_EXTERNAL_CLIENT_INTEROP_CAMPAIGN_V1","campaignId":"mcp-interop-testcampaign","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"oauth-bindings").hexdigest(),"oauthClientBindings":oauth_bindings,"trustedClientBindings":trusted_bindings,"protocol":"2026-07-28","transport":"streamable-http","endpoint":"https://mcp.example.test/mcp","clients":clients,"certifiedClientCount":4,"allRequiredChecksPass":True,"serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":24,"externalCertificationPass":True,"runtimeCertified":False,"physicalCertified":False}
         (root/"lab/mcp-external-client-interoperability-evidence.json").write_text(json.dumps(mcp))
         return lock,mcp
     def test_local_final_seal_evidence_is_exact_file_bound_and_never_physical(self):
@@ -73,6 +76,14 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             root=Path(td); self.fixture(root); out=mod.verify(root)
             self.assertTrue(out["admitted"]); self.assertFalse(out["physicalCertified"])
             self.assertTrue(out["applianceDistributionSha256"].startswith("sha256:"))
+    def test_final_admission_rejects_stale_c7w_matrix_binding(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            matrix_path=root/"lab/mcp-external-client-interop-matrix.json"
+            matrix=json.loads(matrix_path.read_text()); matrix["spec"]["resourcePath"]="/mcp"; matrix_path.write_text(json.dumps(matrix,sort_keys=True))
+            with self.assertRaisesRegex(RuntimeError,"MATRIX_DRIFT"):
+                mod.verify(root)
+
     def test_multipart_distribution_is_admitted_with_same_full_digest(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); lock,_=self.fixture(root)
