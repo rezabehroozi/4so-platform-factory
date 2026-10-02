@@ -2,7 +2,12 @@ SHELL := /usr/bin/env bash
 GO ?= go
 PYTHON ?= python3
 VERSION := $(shell cat VERSION)
-SOURCE_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || printf 'unknown')
+GIT_SOURCE_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || true)
+ifneq ($(strip $(GIT_SOURCE_COMMIT)),)
+override SOURCE_COMMIT := $(GIT_SOURCE_COMMIT)
+else
+SOURCE_COMMIT ?= unknown
+endif
 PLATFORM_FACTORY_DEVELOPMENT_MODE ?= true
 export PLATFORM_FACTORY_DEVELOPMENT_MODE
 C7W_STATE_DIR ?= .state/c7w-external-interop
