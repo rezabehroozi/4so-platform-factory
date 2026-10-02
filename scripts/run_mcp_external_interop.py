@@ -88,6 +88,14 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
     root=root.resolve()
     def run_git(*args:str)->subprocess.CompletedProcess:
         return subprocess.run(["git",*args],cwd=root,text=True,capture_output=True,check=False)
+    try:
+        require_c7w_source_freeze(root)
+    except RuntimeError as exc:
+        return {
+            "nextActionCode":"RESTORE_C7W_SOURCE_FREEZE",
+            "nextCommand":["git","status","--short"],
+            "detail":str(exc)+"; C9 handoff is forbidden until the worktree returns to the C7W evidence-only source boundary",
+        }
     head=run_git("rev-parse","HEAD")
     if head.returncode!=0 or not core.COMMIT.fullmatch(head.stdout.strip().lower()):
         return {
