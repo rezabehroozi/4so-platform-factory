@@ -189,6 +189,7 @@ def validate_matrix_contract(matrix:object,label:str="MCP_EXTERNAL_MATRIX")->dic
         "statusCommand":"make c7w-status",
         "sealCommand":"make c7w-seal",
         "auditFetchCommand":"integrated: make c7w-admit -> scripts/fetch_mcp_external_audit_window.py",
+        "finalReleaseSealCommand":"make c9-seal",
     }
     if any(spec.get(key)!=value for key,value in execution_contract.items()):
         raise RuntimeError(f"{label}_LOCAL_EXECUTION_CONTRACT_INVALID")
