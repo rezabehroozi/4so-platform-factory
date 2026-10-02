@@ -2113,6 +2113,69 @@ def validate_no_remote_ci_mutation_authority(root: Path, errors: list[tuple[str,
             if pattern.search(text):
                 errors.append(('REMOTE_CI_MUTATION_AUTHORITY_FORBIDDEN', f'{rel}:{label}'))
 
+
+WINDOWS_LOCAL_EXECUTION_CONTRACTS = {
+    'scripts/project_runtime.py': (
+        'if os.name=="nt":',
+        'GetProcessTimes',
+        'msvcrt.locking',
+        'CREATE_NEW_PROCESS_GROUP',
+        '"taskkill"',
+    ),
+    'scripts/admit_mcp_external_receipt.py': (
+        'if os.name=="nt":',
+        'import msvcrt',
+        'import fcntl',
+        'msvcrt.LK_LOCK',
+        'fcntl.LOCK_EX',
+    ),
+    'scripts/run_go_package_shard.py': (
+        'CREATE_NEW_PROCESS_GROUP',
+        '"taskkill"',
+        '"/T"',
+        '_terminate_tree(process,force=False)',
+        '_terminate_tree(process,force=True)',
+    ),
+    'scripts/run_smoke_shard.py': (
+        'CREATE_NEW_PROCESS_GROUP',
+        '"taskkill"',
+        '"/T"',
+        '_terminate_tree(process,force=False)',
+        '_terminate_tree(process,force=True)',
+    ),
+    'scripts/verify_release.py': (
+        'CREATE_NEW_PROCESS_GROUP',
+        '"taskkill"',
+        '"/T"',
+        '_terminate_tree(process,force=False)',
+        '_terminate_tree(process,force=True)',
+    ),
+    'scripts/postgresql_runtime_certify.py': (
+        'CREATE_NEW_PROCESS_GROUP',
+        '"taskkill"',
+        '"/T"',
+        'process_group_kwargs()',
+    ),
+}
+
+
+def validate_windows_local_execution_contract(root: Path, errors: list[tuple[str, str]]) -> None:
+    for rel, required in WINDOWS_LOCAL_EXECUTION_CONTRACTS.items():
+        path=root/rel
+        if not path.is_file():
+            errors.append(('WINDOWS_LOCAL_EXECUTION_CONTRACT_MISSING',rel))
+            continue
+        source=path.read_text(encoding='utf-8',errors='strict')
+        missing=[token for token in required if token not in source]
+        if missing:
+            errors.append(('WINDOWS_LOCAL_EXECUTION_CONTRACT_DRIFT',f"{rel}:{','.join(missing)}"))
+    project=(root/'scripts/project_runtime.py')
+    if project.is_file() and 'import argparse, datetime, fcntl' in project.read_text(encoding='utf-8',errors='strict'):
+        errors.append(('WINDOWS_LOCAL_EXECUTION_POSIX_IMPORT_FORBIDDEN','scripts/project_runtime.py'))
+    pg=(root/'scripts/postgresql_runtime_certify.py')
+    if pg.is_file() and 'start_new_session=True' in pg.read_text(encoding='utf-8',errors='strict'):
+        errors.append(('WINDOWS_LOCAL_EXECUTION_HARDCODED_POSIX_SPAWN','scripts/postgresql_runtime_certify.py'))
+
 def main() -> int:
     # The canonical control host is Windows. Validation details can contain
     # Persian text, so never let the active legacy console code page hide the
@@ -2133,6 +2196,7 @@ def main() -> int:
     validate_repository_hygiene(root, files, errors)
     validate_core_local_only_workflows(root, errors)
     validate_no_remote_ci_mutation_authority(root, errors)
+    validate_windows_local_execution_contract(root, errors)
 
     required_root = ('VERSION','RELEASE-NAME','go.mod','Makefile','Dockerfile','THIRD_PARTY_COMPONENTS.md','LICENSE.txt')
     for rel in required_root:
