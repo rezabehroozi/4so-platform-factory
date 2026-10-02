@@ -623,7 +623,7 @@ def run_stage(root: Path, stage: Stage) -> StageResult:
 
 
 def _ensure_browser_triage_for_stage(root: Path, stage: Stage) -> tuple[bool, str]:
-    if _stage_specialist(stage) != "operator-console":
+    if _stage_specialist(stage) not in {"operator-console", "operator-installer-e2e"}:
         return True, ""
     script = root / "scripts" / "browser_triage_bootstrap.py"
     try:
