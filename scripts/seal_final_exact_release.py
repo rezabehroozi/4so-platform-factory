@@ -293,23 +293,46 @@ def verify_worktree_source_unchanged(worktree: Path, source_sha: str) -> None:
 
 
 def publish_verified_file(source: Path, target: Path) -> Path:
-    wanted = sha256(source)
+    try:
+        source_info=source.lstat()
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_SOURCE_MISSING {source}") from exc
+    if not stat.S_ISREG(source_info.st_mode) or source.is_symlink() or source_info.st_size<=0:
+        raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_SOURCE_INVALID {source}")
+    wanted_size=source_info.st_size
+    wanted=sha256(source)
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists() or target.is_symlink():
-        if target.is_symlink() or not target.is_file() or target.stat().st_size != source.stat().st_size or sha256(target) != wanted:
+        if target.is_symlink() or not target.is_file() or target.stat().st_size!=wanted_size or sha256(target)!=wanted:
             raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_CONFLICT {target}")
         return target
+
+    fd,temp_name=tempfile.mkstemp(prefix="."+target.name+".publish.",dir=target.parent)
+    temp=Path(temp_name)
     try:
-        os.link(source, target, follow_symlinks=False)
-    except FileExistsError:
-        if target.is_symlink() or not target.is_file() or target.stat().st_size != source.stat().st_size or sha256(target) != wanted:
-            raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_CONFLICT {target}")
-    directory_fd = os.open(target.parent, os.O_RDONLY)
-    try:
-        os.fsync(directory_fd)
+        with source.open("rb") as input_fh, os.fdopen(fd,"wb") as output_fh:
+            shutil.copyfileobj(input_fh,output_fh,length=1024*1024)
+            output_fh.flush()
+            os.fsync(output_fh.fileno())
+        if temp.stat().st_size!=wanted_size or sha256(temp)!=wanted:
+            raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_SOURCE_CHANGED {source}")
+        temp.chmod(0o444)
+        try:
+            os.link(temp,target,follow_symlinks=False)
+        except FileExistsError:
+            if target.is_symlink() or not target.is_file() or target.stat().st_size!=wanted_size or sha256(target)!=wanted:
+                raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_CONFLICT {target}")
+        if target.stat().st_size!=wanted_size or sha256(target)!=wanted:
+            raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_PUBLICATION_DRIFT {target}")
+        directory_fd=os.open(target.parent,os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        return target
     finally:
-        os.close(directory_fd)
-    return target
+        if temp.exists():
+            temp.unlink()
 
 
 def exact_release_publication_path(root: Path, source_sha: str, filename: str) -> Path:
