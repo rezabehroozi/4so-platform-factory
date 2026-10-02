@@ -160,6 +160,10 @@ class IncrementalMCPInteropTests(unittest.TestCase):
             new_campaign=self.campaign(matrix); new_campaign["campaignId"]="mcp-interop-fresh"; new_path=root/"new.json"; new_path.write_text(json.dumps(new_campaign))
             second=self.receipt("claude",checks,new_campaign); rp2=root/"second.json"; ap2=root/"second-audit.json"; rp2.write_text(json.dumps(second)); ap2.write_text(json.dumps(self.audit(second)))
 
+            bad=json.loads(json.dumps(partial)); bad["matrixSha256"]="sha256:"+"0"*64; progress.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"MATRIX_BINDING_INVALID"):
+                mod.merge(matrix,new_path,rp2,ap2,"claude",progress,allow_campaign_supersede=True)
+
             bad=json.loads(json.dumps(partial)); bad["runtimeCertified"]=True; progress.write_text(json.dumps(bad))
             with self.assertRaisesRegex(RuntimeError,"SCOPE_INFLATED"):
                 mod.merge(matrix,new_path,rp2,ap2,"claude",progress,allow_campaign_supersede=True)
