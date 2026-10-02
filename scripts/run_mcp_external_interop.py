@@ -280,7 +280,7 @@ def status(args:argparse.Namespace)->dict:
             next_client=value.get("nextClient")
             value.update({
                 "nextActionCode":"RUN_EXTERNAL_CLIENT",
-                "nextCommand":["make","c7w-admit",f"C7W_CLIENT={next_client}","C7W_CAPTURE=/secure/"+str(next_client)+".capture.json"],
+                "nextCommand":["env",f"C7W_CLIENT={next_client}","C7W_CAPTURE=/secure/"+str(next_client)+".capture.json","make","c7w-admit"],
                 "detail":"execute the named external client with its prepared packet, then admit the resulting capture",
             })
         else:
