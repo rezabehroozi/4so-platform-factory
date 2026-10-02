@@ -1231,6 +1231,21 @@ class StageAwareEnvironmentPreflightTests(unittest.TestCase):
             missing, _ = AUTOPILOT.environment_preflight(require_codex=False, stages=[stage])
         self.assertEqual(set(missing), {"go", "c-compiler", "libpq-dev"})
 
+    def test_all_cgo_enabled_go_stage_families_preflight_compiler_and_libpq(self):
+        stages = [
+            AUTOPILOT.Stage("installer-go-owner-tests", ("go", "test", "./cmd/platformctl"), 600),
+            AUTOPILOT.Stage("go-unit-1", ("python3", "scripts/run_go_package_shard.py", "--shard", "1"), 900),
+            AUTOPILOT.Stage("go-vet-1", ("python3", "scripts/run_go_package_shard.py", "--vet", "--shard", "1"), 600),
+        ]
+        for stage in stages:
+            with self.subTest(stage=stage.name), \
+                 mock.patch.object(AUTOPILOT.shutil, "which", side_effect=self.unavailable), \
+                 mock.patch.object(AUTOPILOT, "_python_module_available", return_value=True), \
+                 mock.patch.object(AUTOPILOT, "_codex_command", return_value=None):
+                missing, _ = AUTOPILOT.environment_preflight(require_codex=False, stages=[stage])
+            self.assertEqual(set(missing), {"go", "c-compiler", "libpq-dev"})
+
+
     def test_ui_stage_requires_browser_and_playwright_only(self):
         stage = AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 900)
         with mock.patch.object(AUTOPILOT.shutil, "which", side_effect=self.unavailable), \
