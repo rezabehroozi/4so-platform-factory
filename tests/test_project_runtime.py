@@ -505,6 +505,12 @@ class ProjectRuntimeTests(unittest.TestCase):
                     [sys.executable,"scripts/codex_autopilot.py","--repair"],
                     replay_safe=True,skip_git=True,allow_owned_worktree_mutation=True,
                 )
+            with self.assertRaisesRegex(RuntimeError,"PROJECT_RUNTIME_OWNED_WORKTREE_MUTATION_SCOPE_INVALID"):
+                R.start(
+                    root,"C6-multi-agent-test-autopilot","codex-autopilot",
+                    ["echo","scripts/codex_autopilot.py","--repair"],
+                    replay_safe=True,skip_git=True,allow_owned_worktree_mutation=True,
+                )
 
     def test_owned_worktree_mutation_does_not_relax_preexec_source_binding(self):
         with tempfile.TemporaryDirectory() as td:
@@ -516,7 +522,7 @@ class ProjectRuntimeTests(unittest.TestCase):
             subprocess.run(["git","add","tracked"],cwd=root,check=True)
             subprocess.run(["git","commit","-qm","initial"],cwd=root,check=True)
             info=R.git(root)
-            pid=os.getpid(); pt=R.ticks(pid)
+            pid=R.os.getpid(); pt=R.ticks(pid)
             state={"status":"RUNNING","runId":"owned-preexec",**info,
                    "phase":"C6-multi-agent-test-autopilot","currentTask":"codex-autopilot",
                    "command":[sys.executable,"scripts/codex_autopilot.py","--repair"],
