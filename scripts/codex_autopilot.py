@@ -464,6 +464,7 @@ WORKSPACE_FINGERPRINT_AUTHORITY = "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1"
 AGENT_CONTEXT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_V1"
 AGENT_CONTEXT_COMPACT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_COMPACT_V1"
 AGENT_CONTEXT_BUDGET_FALLBACK_AUTHORITY = "AUTOPILOT_CONTEXT_BUDGET_FALLBACK_V1"
+AGENT_CONTEXT_COMMAND_DEDUP_AUTHORITY = "AUTOPILOT_COMPACT_COMMAND_DEDUP_V1"
 AGENT_CONTEXT_COMPACT_MAX_CHARS = 7000
 AGENT_CONTEXT_COMPACT_FAILURE_MAX_CHARS = 1600
 AGENT_CONTEXT_COMPACT_OWNER_PATH_LIMIT = 6
@@ -1429,11 +1430,39 @@ def _compact_agent_context(root: Path) -> dict:
         "nextAction": str(full.get("nextAction") or ""),
         "rules": [
             "read failurePathHints, then ownerContextPaths; do not broad-scan first",
-            "run proofCommand for diagnosis; let Autopilot own final convergence",
+            "run proofCommand only when present; let Autopilot own final convergence",
             "execute only nextCommand admitted by nextActionCode",
             "never infer Runtime/Lab/Exact-SHA Physical PASS from local/source success",
         ],
     }
+    # nextCommand is the sole executable continuation contract. Avoid paying
+    # context twice for the same argv, and drop proof/resume argv when the
+    # current action explicitly requires status/recovery/readiness instead.
+    compact["commandDedupAuthority"] = AGENT_CONTEXT_COMMAND_DEDUP_AUTHORITY
+    command_omissions: list[str] = []
+    next_command = compact.get("nextCommand") if isinstance(compact.get("nextCommand"), list) else []
+    resume_command = compact.get("resumeInvocation") if isinstance(compact.get("resumeInvocation"), list) else []
+    proof_command = compact.get("proofCommand") if isinstance(compact.get("proofCommand"), list) else []
+    action_code = str(compact.get("nextActionCode") or "")
+    resume_action_codes = {"REPAIR_ENVIRONMENT_AND_RESUME", "FIX_OWNER_AND_RESUME", "REJOIN_AUTOPILOT"}
+    proof_action_codes = {"FIX_OWNER_AND_RESUME"}
+    if resume_command and resume_command == next_command:
+        compact["resumeInvocation"] = []
+        command_omissions.append("resumeInvocation=nextCommand")
+    elif resume_command and action_code not in resume_action_codes:
+        compact["resumeInvocation"] = []
+        command_omissions.append("resumeInvocation=not-current-action")
+    if proof_command and proof_command == next_command:
+        compact["proofCommand"] = []
+        compact["proofTimeoutSeconds"] = 0
+        command_omissions.append("proofCommand=nextCommand")
+    elif proof_command and action_code not in proof_action_codes:
+        compact["proofCommand"] = []
+        compact["proofTimeoutSeconds"] = 0
+        command_omissions.append("proofCommand=not-current-action")
+    if command_omissions:
+        compact["commandOmissions"] = command_omissions
+
     # Keep the common packet rich, but never truncate executable argv. If exact
     # commands themselves make the packet too large, degrade to a tiny read-only
     # status action so the next agent cannot execute a partial/guessed command.
