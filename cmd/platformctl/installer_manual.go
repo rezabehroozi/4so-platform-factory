@@ -23,6 +23,7 @@ const (
 	installerManualExactReleaseAuthority   = "INSTALLER_MANUAL_EXACT_RELEASE_BINDING_V1"
 	installerManualRemoteHandoffAuthority  = "INSTALLER_MANUAL_REMOTE_HANDOFF_V1"
 	installerManualPreflightGuidanceAuthority = "INSTALLER_MANUAL_PREFLIGHT_GUIDANCE_V1"
+	installerManualMachineNextActionAuthority  = "INSTALLER_MANUAL_MACHINE_NEXT_ACTION_V1"
 )
 
 // installer-manual is the human-oriented owner path for placing the Bootstrap
@@ -68,6 +69,8 @@ type manualInstallerPreflightResult struct {
 	PreflightGuidanceAuthority string `json:"preflightGuidanceAuthority"`
 	ManualInstall              bool   `json:"manualInstall"`
 	SourceReleaseDigest        string `json:"sourceReleaseDigest,omitempty"`
+	MachineNextActionAuthority string `json:"machineNextActionAuthority"`
+	NextActionCode             string `json:"nextActionCode"`
 	NextAction                 string `json:"nextAction"`
 }
 
@@ -79,6 +82,8 @@ func newManualInstallerPreflightResult(admission hostdeployment.HostAdmissionRep
 		PreflightGuidanceAuthority: installerManualPreflightGuidanceAuthority,
 		ManualInstall:              true,
 		SourceReleaseDigest:        releaseDigest,
+		MachineNextActionAuthority: installerManualMachineNextActionAuthority,
+		NextActionCode:             map[bool]string{true: "REVIEW_PLAN", false: "RESOLVE_HOST_ADMISSION"}[admission.Ready],
 		NextAction:                 "if ready=true, review installer-manual plan next; no host mutation has occurred",
 	}
 }
@@ -162,13 +167,19 @@ func installerManualPrepare(mode string, args []string) {
 		return
 	}
 	if mode == "plan" {
+		nextActionCode := "RUN_INSTALL"
+		if !plan.Admission.Ready {
+			nextActionCode = "RESOLVE_HOST_ADMISSION"
+		}
 		printJSON(map[string]any{
 			"authority":     installerGuidedManualWorkflowAuthority,
 			"exactReleaseAuthority": installerManualExactReleaseAuthority,
+			"machineNextActionAuthority": installerManualMachineNextActionAuthority,
 			"manualInstall": true,
 			"plan":          plan,
 			"specPath":      retainedSpecPath(input.OutputSpec),
 			"sourceReleaseDigest": releaseDigest,
+			"nextActionCode": nextActionCode,
 			"nextAction":    "review admission/actions; rerun installer-manual install with --enable-execution --confirmation DEPLOY to enable browser appliance mutation",
 		})
 		if !plan.Admission.Ready {
@@ -177,7 +188,7 @@ func installerManualPrepare(mode string, args []string) {
 		return
 	}
 	if !plan.Admission.Ready {
-		printJSON(map[string]any{"authority": installerGuidedManualWorkflowAuthority, "exactReleaseAuthority": installerManualExactReleaseAuthority, "remoteHandoffAuthority": installerManualRemoteHandoffAuthority, "manualInstall": true, "plan": plan, "status": "BLOCKED", "nextAction": "resolve host admission blockers and rerun preflight"})
+		printJSON(map[string]any{"authority": installerGuidedManualWorkflowAuthority, "exactReleaseAuthority": installerManualExactReleaseAuthority, "remoteHandoffAuthority": installerManualRemoteHandoffAuthority, "machineNextActionAuthority": installerManualMachineNextActionAuthority, "manualInstall": true, "plan": plan, "status": "BLOCKED", "nextActionCode": "RUN_PREFLIGHT", "nextAction": "resolve host admission blockers and rerun preflight"})
 		os.Exit(1)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), input.Timeout)
@@ -197,8 +208,10 @@ func installerManualPrepare(mode string, args []string) {
 	bootstrapTokenFile := ""
 	access := manualInstallerAccess{Mode: "staged", Note: "No live Installer transport exists for a staged --root deployment."}
 	nextActions := []string{"copy the staged files to the intended live root or rerun installer-manual against --root / before using the browser Installer"}
+	nextActionCode := "COMPLETE_STAGED_DEPLOYMENT"
 	if live {
 		status = "READY"
+		nextActionCode = "OPEN_BROWSER_INSTALLER"
 		installerURL = manualInstallerConsoleURL(plan.Health.URL)
 		bootstrapTokenFile = tokenFile
 		access = manualInstallerAccessPlan(plan)
@@ -209,6 +222,7 @@ func installerManualPrepare(mode string, args []string) {
 			"from the extracted exact release, use install.sh status/verify/recover/rollback (or platformctl installer-manual directly) for host-deployment continuation",
 		}
 		if !input.ExecutionEnabled {
+			nextActionCode = "ENABLE_EXECUTION"
 			nextActions = append([]string{"host deployment is ready but Bootstrap mutation is disabled; rerun the reviewed install with --enable-execution before starting appliance installation"}, nextActions...)
 		}
 	}
@@ -216,6 +230,7 @@ func installerManualPrepare(mode string, args []string) {
 		"authority":          installerGuidedManualWorkflowAuthority,
 		"exactReleaseAuthority": installerManualExactReleaseAuthority,
 		"remoteHandoffAuthority": installerManualRemoteHandoffAuthority,
+		"machineNextActionAuthority": installerManualMachineNextActionAuthority,
 		"manualInstall":      true,
 		"status":             status,
 		"plan":               plan,
@@ -228,6 +243,7 @@ func installerManualPrepare(mode string, args []string) {
 		"executionEnabled":   input.ExecutionEnabled,
 		"sourceReleaseDigest": releaseDigest,
 		"specPath":           retainedSpecPath(input.OutputSpec),
+		"nextActionCode":     nextActionCode,
 		"nextActions":        nextActions,
 	})
 }
