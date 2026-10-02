@@ -1089,10 +1089,12 @@ class AutopilotAgentContextTests(unittest.TestCase):
             },
             base_outer,
         )
-        self.assertEqual(code, "INSPECT_AUTOPILOT_STATE")
-        self.assertEqual(command, ["make", "autopilot-status"])
+        self.assertEqual(code, "INSPECT_OUTER_RUNTIME_ENVIRONMENT")
+        self.assertEqual(command, ["make", "runtime-status"])
         self.assertFalse(preserved)
-        self.assertIn("do not reconstruct", action)
+        self.assertIn("outer-runtime status", action)
+        self.assertIn("do not run inner Autopilot directly", action)
+        self.assertIn("do not", action)
 
         code, command, _, preserved = AUTOPILOT._compact_budget_fallback(
             {"nextActionCode": "RESUME_OUTER_RUNTIME", "nextCommand": ["make", "runtime-resume"]},
