@@ -39,6 +39,7 @@ def base_progress(matrix_path:Path,campaign_path:Path,campaign:dict,spec:dict)->
       "oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":campaign["oauthClientBindingsSha256"],
       "oauthClientBindings":core.campaign_oauth_client_bindings(campaign),
       "trustedClientBindings":core.campaign_trusted_client_bindings(campaign),
+      "sourceCommitSHA":campaign["sourceCommitSHA"],"runtimeVersion":campaign["runtimeVersion"],
       "protocol":spec["protocol"],"transport":spec["transport"],"endpoint":campaign["endpoint"],"clients":[],
       "certifiedClientCount":0,"complete":False,"allAdmittedReceiptsPass":True,"serverAuditWitnessPass":False,
       "externalCertificationPass":False,"runtimeCertified":False,"physicalCertified":False}
@@ -48,7 +49,7 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_FIELDS_INVALID")
     if existing.get("authority")!=AUTHORITY or existing.get("kind")!="MCPExternalClientInteropProgress":
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_AUTHORITY_INVALID")
-    for key in ("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","trustedClientBindings","protocol","transport","endpoint"):
+    for key in ("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","trustedClientBindings","sourceCommitSHA","runtimeVersion","protocol","transport","endpoint"):
         if existing.get(key)!=expected.get(key): raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_CAMPAIGN_DRIFT {key}")
     if existing.get("runtimeCertified") is not False or existing.get("physicalCertified") is not False:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_SCOPE_INFLATED")
@@ -63,6 +64,8 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         if idx<=last: raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENT_ORDER_INVALID")
         last=idx
         row_client=row["clientId"]
+        if row.get("sourceCommitSHA")!=expected.get("sourceCommitSHA") or row.get("runtimeVersion")!=expected.get("runtimeVersion"):
+            raise RuntimeError("MCP_EXTERNAL_PROGRESS_RUNTIME_IDENTITY_DRIFT")
         oauth_client_id=core.validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_PROGRESS")
         if oauth_client_id!=expected["oauthClientBindings"][row_client]:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_OAUTH_CLIENT_DRIFT")
@@ -137,7 +140,7 @@ def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,
     expected=base_progress(matrix_path,campaign_path,campaign,spec); by_id={}
     if progress_path is not None and progress_path.exists():
         existing=core.load(progress_path,"PROGRESS")
-        binding_keys=("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","protocol","transport","endpoint")
+        binding_keys=("matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256","oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","sourceCommitSHA","runtimeVersion","protocol","transport","endpoint")
         same_campaign=all(existing.get(k)==expected.get(k) for k in binding_keys)
         if not same_campaign:
             if not allow_campaign_supersede or existing.get("complete") is True:
@@ -178,7 +181,7 @@ def final_evidence(progress:dict,progress_path:Path)->dict:
     if list(by_id)!=list(core.CLIENTS) or progress.get("complete") is not True: raise RuntimeError("MCP_EXTERNAL_PROGRESS_NOT_COMPLETE")
     return core.build_interop_evidence(
         progress["matrixSha256"],progress["campaignId"],progress["campaignSha256"],progress["oauthClientBindingsSha256"],
-        progress["protocol"],progress["transport"],progress["endpoint"],progress["clients"],
+        progress["sourceCommitSHA"],progress["runtimeVersion"],progress["protocol"],progress["transport"],progress["endpoint"],progress["clients"],
     )
 
 def main()->int:
