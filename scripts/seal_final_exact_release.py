@@ -46,6 +46,11 @@ FINAL_EVIDENCE_KEYS = {
 }
 
 
+def require_exact_release_host()->None:
+    if not sys.platform.startswith("linux"):
+        raise RuntimeError("FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED")
+
+
 def exact_release_environment(go: Path) -> dict[str, str]:
     env=os.environ.copy()
     dangerous_exact={
@@ -785,6 +790,7 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
 
 
 def execute(root: Path, out: Path) -> dict:
+    require_exact_release_host()
     root = root.resolve()
     out = admit_output_path(root,out)
     if out.exists():
