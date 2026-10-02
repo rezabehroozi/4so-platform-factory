@@ -231,7 +231,10 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         self.assertIn('"authority=${DOCTOR_COMPACT_AUTHORITY}"', source)
         self.assertIn('"doctorOutcome=${doctor_outcome}"', source)
         self.assertIn('"nextActionCode=${doctor_next_action_code}"', source)
+        self.assertIn('printf \'remediationHints=%s\\n\' "${doctor_remediation_compact}"', source)
         self.assertIn('printf \'nextCommand=%s\\n\' "${doctor_next_command}"', source)
+        self.assertIn('doctor_next_argv+=(--compact)', source)
+        self.assertIn('doctor_next_argv+=("${passthrough[@]}")', source)
         self.assertNotIn('exec "${PLATFORMCTL}" installer-manual doctor --compact', source)
 
     def test_preflight_and_plan_emit_exact_copy_paste_handoffs_without_new_state(self):
