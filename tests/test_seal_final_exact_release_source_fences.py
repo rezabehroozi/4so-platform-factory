@@ -183,6 +183,28 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             self.assertEqual(b"verified-release-bytes",published.read_bytes())
             self.assertEqual(0o444,published.stat().st_mode & 0o777)
 
+    def test_verified_publication_rejects_same_bytes_when_existing_target_is_writable(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); source=root/"verified.zip"; source.write_bytes(b"verified-release-bytes")
+            target=root/"release"/"exact.zip"; target.parent.mkdir(); target.write_bytes(source.read_bytes())
+            target.chmod(0o644)
+            with self.assertRaisesRegex(RuntimeError,"ARTIFACT_WRITABLE"):
+                mod.publish_verified_file(source,target)
+
+    def test_resume_rejects_writable_exact_archive_or_checksum(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
+            out,release,evidence,admitted=self.final_evidence_fixture(root)
+            release.chmod(0o644)
+            with mock.patch.object(mod.admission,"verify",return_value=admitted):
+                with self.assertRaisesRegex(RuntimeError,"EXISTING_ARCHIVE_WRITABLE"):
+                    mod.execute(root,out)
+            release.chmod(0o444)
+            checksum=release.with_name(release.name+".sha256"); checksum.chmod(0o644)
+            with mock.patch.object(mod.admission,"verify",return_value=admitted):
+                with self.assertRaisesRegex(RuntimeError,"EXISTING_CHECKSUM_WRITABLE"):
+                    mod.execute(root,out)
+
     def test_verified_publication_rejects_existing_conflicting_bytes(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); source=root/"verified.zip"; source.write_bytes(b"verified-release-bytes")
@@ -233,6 +255,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
         digest=mod.sha256(release)
         checksum=release.with_name(release.name+".sha256")
         checksum.write_text(f"{digest.removeprefix('sha256:')}  {release.name}\n",encoding="utf-8")
+        release.chmod(0o444); checksum.chmod(0o444)
         evidence={
             "apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseEvidence",
             "authority":mod.AUTHORITY,"sourceExecutionAuthority":mod.EXECUTION_AUTHORITY,
@@ -283,8 +306,9 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             with mock.patch.object(mod.admission,"verify",return_value=admitted), mock.patch.object(mod,"verify_existing_release_full") as full_verify:
                 self.assertEqual(evidence,mod.execute(root,out))
                 full_verify.assert_called_once_with(root.resolve(),evidence["sourceCommitSHA"],release)
+                release.chmod(0o644)
                 with release.open("ab") as fh: fh.write(b"tamper")
-                with self.assertRaisesRegex(RuntimeError,"EXISTING_ARCHIVE_DRIFT"):
+                with self.assertRaisesRegex(RuntimeError,"EXISTING_ARCHIVE_WRITABLE|EXISTING_ARCHIVE_DRIFT"):
                     mod.execute(root,out)
 
     def test_completed_c9_resume_cannot_trust_self_declared_full_verifier_flag(self):
