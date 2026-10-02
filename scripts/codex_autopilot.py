@@ -492,6 +492,7 @@ OUTER_RUNTIME_CONTEXT_AUTHORITY = "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1"
 RESUME_PREFLIGHT_CURSOR_AUTHORITY = "AUTOPILOT_RESUME_PREFLIGHT_CURSOR_V1"
 LAZY_REPAIR_CAPABILITY_AUTHORITY = "AUTOPILOT_LAZY_REPAIR_CAPABILITY_V1"
 REPAIR_BUDGET_ACTUAL_WRITER_AUTHORITY = "AUTOPILOT_REPAIR_BUDGET_ACTUAL_WRITER_V1"
+PROGRESSIVE_STAGE_PREFLIGHT_AUTHORITY = "AUTOPILOT_PROGRESSIVE_STAGE_PREFLIGHT_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -1283,6 +1284,8 @@ def _agent_context(root: Path) -> dict:
         "outerRuntimeContextAuthority": OUTER_RUNTIME_CONTEXT_AUTHORITY,
         "resumePreflightCursorAuthority": RESUME_PREFLIGHT_CURSOR_AUTHORITY,
         "lazyRepairCapabilityAuthority": LAZY_REPAIR_CAPABILITY_AUTHORITY,
+        "progressiveStagePreflightAuthority": PROGRESSIVE_STAGE_PREFLIGHT_AUTHORITY,
+        "repairBudgetActualWriterAuthority": REPAIR_BUDGET_ACTUAL_WRITER_AUTHORITY,
         "outerRuntime": outer_runtime,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
@@ -2141,7 +2144,7 @@ def _decode_seen_failures(state: dict) -> dict[tuple[str, str], int]:
     return result
 
 
-def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repairs: int, codex_timeout: int, enforce_supply_chain: bool = True, emit_ready_result: bool = True, allow_owner_fix_adoption: bool = False) -> int:
+def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repairs: int, codex_timeout: int, enforce_supply_chain: bool = True, emit_ready_result: bool = True, allow_owner_fix_adoption: bool = False, progressive_environment_preflight: bool = False) -> int:
     results: list[StageResult] = []
     graph_signature = _stage_graph_signature(stages, repair=repair)
     state = _load_checkpoint(root, graph_signature=graph_signature, repair=repair, allow_owner_fix_adoption=allow_owner_fix_adoption, stages=stages)
@@ -2177,12 +2180,12 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
     report_rows = _read_report_results(root, graph_signature)
     _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase=phase, next_index=next_index, repair_count=repair_count, status="RUNNING", current_stage=(state or {}).get("currentStage"), stage_results=report_rows)
 
-    def terminal(code: int, status: str, *, current_stage: str | None = None, last_failure: dict | None = None) -> int:
+    def terminal(code: int, status: str, *, current_stage: str | None = None, last_failure: dict | None = None, environment_preflight: dict | None = None) -> int:
         failure = last_failure or {}
         event_log.append("terminal", phase=phase, stage=current_stage or failure.get("stage"), specialist=failure.get("specialist"), status=status, code=code, fingerprint=failure.get("fingerprint"), reason=failure.get("reason"), nextIndex=next_index, repairCount=repair_count)
         if code == 0 and status == "PASS":
             _clear_checkpoint(root)
-        _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase=phase, next_index=next_index, repair_count=repair_count, status=status, current_stage=current_stage, stage_results=report_rows, last_failure=last_failure)
+        _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase=phase, next_index=next_index, repair_count=repair_count, status=status, current_stage=current_stage, stage_results=report_rows, last_failure=last_failure, environment_preflight=environment_preflight)
         return code
 
     if phase == "forward":
@@ -2191,6 +2194,30 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
             while True:
                 _checkpoint_forward(root, graph_signature=graph_signature, repair=repair, next_index=index, repair_count=repair_count, seen_failures=seen_failures, current_stage=stage.name, full_convergence_required=full_convergence_required, run_id=run_id)
                 _write_autopilot_report(root, stages=stages, graph_signature=graph_signature, repair=repair, phase="forward", next_index=index, repair_count=repair_count, status="RUNNING", current_stage=stage.name, stage_results=report_rows)
+                if progressive_environment_preflight:
+                    stage_missing, stage_preflight_details = environment_preflight(require_codex=False, stages=[stage])
+                    if stage_missing:
+                        handoff = _environment_preflight_handoff(stage_missing, [stage])
+                        print("AUTOPILOT_STAGE_PREFLIGHT_DETAILS=" + json.dumps(stage_preflight_details, sort_keys=True), flush=True)
+                        print(
+                            "AUTOPILOT_STAGE_PREFLIGHT=BLOCKED authority=" + PROGRESSIVE_STAGE_PREFLIGHT_AUTHORITY
+                            + " stage=" + stage.name + " missing=" + ",".join(handoff["missing"]),
+                            flush=True,
+                        )
+                        event_log.append("environment-blocked", phase="forward", stage=stage.name, specialist="environment", status="ENVIRONMENT_BLOCKED", reason="MISSING_PREREQUISITES:" + ",".join(handoff["missing"]), nextIndex=index, repairCount=repair_count)
+                        return terminal(
+                            3,
+                            "ENVIRONMENT_BLOCKED",
+                            current_stage=stage.name,
+                            last_failure={
+                                "stage": stage.name,
+                                "specialist": "environment",
+                                "status": "BLOCKED",
+                                "fingerprint": handoff["fingerprint"],
+                                "reason": "MISSING_PREREQUISITES:" + ",".join(handoff["missing"]),
+                            },
+                            environment_preflight=handoff,
+                        )
                 event_log.append("stage-start", phase="forward", stage=stage.name, specialist=_stage_specialist(stage), status="RUNNING", nextIndex=index, repairCount=repair_count)
                 print(f"AUTOPILOT_STAGE_START name={stage.name} timeout={stage.timeout}", flush=True)
                 result = run_stage(root, stage)
@@ -2340,6 +2367,30 @@ def _execute_stages(root: Path, stages: list[Stage], *, repair: bool, max_repair
                 run_id=run_id,
             )
             _write_autopilot_report(root, stages=convergence_stages, graph_signature=graph_signature, repair=repair, phase="convergence", next_index=index, repair_count=repair_count, status="RUNNING", current_stage=stage.name, stage_results=report_rows)
+            if progressive_environment_preflight:
+                stage_missing, stage_preflight_details = environment_preflight(require_codex=False, stages=[stage])
+                if stage_missing:
+                    handoff = _environment_preflight_handoff(stage_missing, [stage])
+                    print("AUTOPILOT_STAGE_PREFLIGHT_DETAILS=" + json.dumps(stage_preflight_details, sort_keys=True), flush=True)
+                    print(
+                        "AUTOPILOT_STAGE_PREFLIGHT=BLOCKED authority=" + PROGRESSIVE_STAGE_PREFLIGHT_AUTHORITY
+                        + " phase=convergence stage=" + stage.name + " missing=" + ",".join(handoff["missing"]),
+                        flush=True,
+                    )
+                    event_log.append("environment-blocked", phase="convergence", stage=stage.name, specialist="environment", status="ENVIRONMENT_BLOCKED", reason="MISSING_PREREQUISITES:" + ",".join(handoff["missing"]), nextIndex=index, repairCount=repair_count)
+                    return terminal(
+                        3,
+                        "ENVIRONMENT_BLOCKED",
+                        current_stage=stage.name,
+                        last_failure={
+                            "stage": stage.name,
+                            "specialist": "environment",
+                            "status": "BLOCKED",
+                            "fingerprint": handoff["fingerprint"],
+                            "reason": "MISSING_PREREQUISITES:" + ",".join(handoff["missing"]),
+                        },
+                        environment_preflight=handoff,
+                    )
             event_log.append("stage-start", phase="convergence", stage=stage.name, specialist=_stage_specialist(stage), status="RUNNING", nextIndex=index, repairCount=repair_count)
             print(f"AUTOPILOT_CONVERGENCE_STAGE_START name={stage.name} timeout={stage.timeout}", flush=True)
             result = run_stage(root, stage)
@@ -2976,10 +3027,17 @@ def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_t
         + " stages=" + ",".join(stage.name for stage in (selected_for_preflight or [])),
         flush=True,
     )
-    missing, preflight_details = environment_preflight(require_codex=require_codex_preflight, stages=selected_for_preflight)
-    print("AUTOPILOT_PREFLIGHT_DETAILS=" + json.dumps(preflight_details, sort_keys=True), flush=True)
+    preflight_candidates = selected_for_preflight if selected_for_preflight is not None else stages
+    immediate_preflight_stages = list(preflight_candidates[:1])
+    missing, preflight_details = environment_preflight(require_codex=require_codex_preflight, stages=immediate_preflight_stages)
+    print(
+        "AUTOPILOT_PREFLIGHT_DETAILS=" + json.dumps(preflight_details, sort_keys=True)
+        + " progressiveAuthority=" + PROGRESSIVE_STAGE_PREFLIGHT_AUTHORITY
+        + " immediateStages=" + ",".join(stage.name for stage in immediate_preflight_stages),
+        flush=True,
+    )
     if missing:
-        handoff = _environment_preflight_handoff(missing, selected_for_preflight)
+        handoff = _environment_preflight_handoff(missing, immediate_preflight_stages)
         print("AUTOPILOT_PREFLIGHT=BLOCKED missing=" + ",".join(handoff["missing"]), flush=True)
         graph_signature = _stage_graph_signature(stages, repair=repair)
         _write_autopilot_report(
@@ -3009,7 +3067,7 @@ def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_t
     # Local correctness and external supply-chain closure are distinct states.
     # Codex repair owns deterministic repository defects; unresolved third-party
     # acquisition must not turn a clean codebase into a fake CODE_DEFECT result.
-    rc = _execute_stages(root, stages, repair=repair, max_repairs=max_repairs, codex_timeout=codex_timeout, enforce_supply_chain=False, emit_ready_result=False, allow_owner_fix_adoption=adopt_owner_fix)
+    rc = _execute_stages(root, stages, repair=repair, max_repairs=max_repairs, codex_timeout=codex_timeout, enforce_supply_chain=False, emit_ready_result=False, allow_owner_fix_adoption=adopt_owner_fix, progressive_environment_preflight=True)
     if rc != 0:
         return rc
 
