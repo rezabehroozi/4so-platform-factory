@@ -691,6 +691,16 @@ class CheckpointSafeStageTests(unittest.TestCase):
         vet_race = [stage for stage in stages if stage.name.startswith(("go-vet-", "go-race-"))]
         self.assertTrue(all("--exclude-installer-owner" not in stage.command for stage in vet_race))
 
+    def test_shard_runners_terminate_full_process_trees_cross_platform(self):
+        for rel in ("scripts/run_go_package_shard.py","scripts/run_smoke_shard.py"):
+            source=(ROOT/rel).read_text(encoding="utf-8")
+            self.assertIn("CREATE_NEW_PROCESS_GROUP",source,rel)
+            self.assertIn('"taskkill"',source,rel)
+            self.assertIn('"/T"',source,rel)
+            self.assertIn("_terminate_tree(process,force=False)",source,rel)
+            self.assertIn("_terminate_tree(process,force=True)",source,rel)
+            self.assertIn('return {"start_new_session":True}',source,rel)
+
     def test_owner_proofs_precede_generic_go_and_python_suites(self):
         stages = AUTOPILOT.canonical_stages(ROOT)
         names = [stage.name for stage in stages]
