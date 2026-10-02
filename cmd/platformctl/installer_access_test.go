@@ -92,6 +92,9 @@ func TestInstallerBootstrapNextActionIsStateSpecificAndNeverSuggestsReplay(t *te
 	if installerBootstrapActionGuidanceAuthority != "INSTALLER_BOOTSTRAP_ACTION_GUIDANCE_V1" {
 		t.Fatalf("action guidance authority=%q", installerBootstrapActionGuidanceAuthority)
 	}
+	if installerBootstrapMachineNextActionAuthority != "INSTALLER_BOOTSTRAP_MACHINE_NEXT_ACTION_V1" {
+		t.Fatalf("machine next-action authority=%q", installerBootstrapMachineNextActionAuthority)
+	}
 	tests := []struct {
 		name   string
 		status installerBootstrapRuntimeStatus
