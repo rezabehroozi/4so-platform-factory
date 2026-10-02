@@ -159,19 +159,40 @@ def safe_toolchain_archive(root: Path, lock: dict) -> tuple[Path, dict]:
 
 
 def extract_toolchain(archive: Path, exact: dict, workspace: Path) -> Path:
+    admitted_archive_size=int(exact.get("archiveSize") or 0)
+    if admitted_archive_size<=0:
+        raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_INVALID")
+    max_members=65536
+    max_member_size=256*1024*1024
+    max_total_size=max(512*1024*1024,admitted_archive_size*8)
     with tarfile.open(archive, mode="r:gz") as tf:
-        for member in tf.getmembers():
+        members=tf.getmembers()
+        if not members or len(members)>max_members:
+            raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_COUNT_INVALID")
+        seen=set()
+        total_size=0
+        for member in members:
             pure = PurePosixPath(member.name)
+            canonical=pure.as_posix()
             if (
                 pure.is_absolute()
                 or ".." in pure.parts
                 or not pure.parts
                 or pure.parts[0] != "go"
+                or len(canonical.encode("utf-8"))>1024
                 or not (member.isdir() or member.isreg())
+                or canonical in seen
             ):
                 raise RuntimeError(
                     f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_INVALID {member.name}"
                 )
+            seen.add(canonical)
+            if member.isreg():
+                if member.size<0 or member.size>max_member_size:
+                    raise RuntimeError(f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_SIZE_INVALID {member.name}")
+                total_size+=member.size
+                if total_size>max_total_size:
+                    raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_UNCOMPRESSED_SIZE_INVALID")
             target = workspace.joinpath(*pure.parts)
             if member.isdir():
                 target.mkdir(parents=True, exist_ok=True)
@@ -184,6 +205,10 @@ def extract_toolchain(archive: Path, exact: dict, workspace: Path) -> Path:
                 )
             with source, target.open("xb") as out:
                 shutil.copyfileobj(source, out, length=1024 * 1024)
+                out.flush()
+                os.fsync(out.fileno())
+            if target.stat().st_size!=member.size:
+                raise RuntimeError(f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_SIZE_DRIFT {member.name}")
             target.chmod(member.mode & 0o777)
 
     go = workspace / "go" / "bin" / "go"
