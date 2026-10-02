@@ -1885,8 +1885,23 @@ def _resume_preflight_stage_scope(root: Path, stages: list[Stage], *, repair: bo
         return None, "INDEX_INVALID"
 
     if phase == "forward":
-        if next_index < 0 or next_index >= len(stages):
-            return None, "FORWARD_COMPLETE_OR_INVALID"
+        if next_index < 0 or next_index > len(stages):
+            return None, "FORWARD_INDEX_INVALID"
+        if next_index == len(stages):
+            try:
+                repair_count = int(state.get("repairCount", 0))
+            except (TypeError, ValueError):
+                return None, "REPAIR_COUNT_INVALID"
+            if not repair or repair_count <= 0:
+                return [], "FORWARD_COMPLETE"
+            seen = _decode_seen_failures(state)
+            repaired_stage_names = {stage_name for (stage_name, _fingerprint), count in seen.items() if count > 0}
+            if not repaired_stage_names:
+                return None, "FORWARD_REPAIR_HISTORY_MISSING"
+            if bool(state.get("fullConvergenceRequired")):
+                return list(stages), "FORWARD_COMPLETE_PENDING_FULL_CONVERGENCE"
+            selected = _select_convergence_stages(stages, repaired_stage_names)
+            return selected, "FORWARD_COMPLETE_PENDING_CONVERGENCE"
         return list(stages[next_index:]), "FORWARD_CURSOR"
 
     if phase == "convergence":
@@ -2744,7 +2759,7 @@ def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_t
     if resumed_scope is not None:
         selected_for_preflight = resumed_scope
         preflight_scope = resume_reason
-        if resume_reason == "LIVE_REJOIN":
+        if resume_reason in {"LIVE_REJOIN", "FORWARD_COMPLETE"}:
             require_codex_preflight = False
     print(
         "AUTOPILOT_PREFLIGHT_SCOPE authority=" + RESUME_PREFLIGHT_CURSOR_AUTHORITY
