@@ -53,6 +53,21 @@ def paths(state:Path)->dict[str,Path]:
     }
 
 
+def require_c7w_source_freeze(root:Path)->None:
+    root=root.resolve()
+    allowed=sorted(core.C7W_EVIDENCE_ONLY_PATHS)
+    command=["git","status","--porcelain=v1","-z","--untracked-files=all"]
+    all_status=subprocess.run(command,cwd=root,capture_output=True,check=False)
+    allowed_status=subprocess.run(command+["--",*allowed],cwd=root,capture_output=True,check=False)
+    if all_status.returncode!=0 or allowed_status.returncode!=0:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_GIT_STATUS_UNAVAILABLE")
+    all_records={row for row in all_status.stdout.split(b"\x00") if row}
+    allowed_records={row for row in allowed_status.stdout.split(b"\x00") if row}
+    forbidden=all_records-allowed_records
+    if forbidden:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")
+
+
 def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
     root=root.resolve()
     def run_git(*args:str)->subprocess.CompletedProcess:
@@ -143,6 +158,7 @@ def capture_template(packet:dict)->dict:
 
 
 def prepare(args:argparse.Namespace)->dict:
+    require_c7w_source_freeze(Path.cwd())
     state=secure_state_dir(args.state_dir)
     p=paths(state)
     source_sha=campaign_builder.source_commit_sha(args.source_commit_sha)
