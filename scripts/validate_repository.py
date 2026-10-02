@@ -2061,6 +2061,29 @@ def validate_console_action_state_contract(root: Path, errors: list[tuple[str, s
     return checked
 
 
+CORE_LOCAL_ONLY_WORKFLOWS = (
+    '.github/workflows/mcp-external-interop-campaign.yml',
+    '.github/workflows/mcp-external-interop-seal.yml',
+    '.github/workflows/mcp-external-receipt-admission.yml',
+    '.github/workflows/mcp-external-receipt-recovery.yml',
+    '.github/workflows/final-exact-release-seal.yml',
+)
+
+
+def validate_core_local_only_workflows(root: Path, errors: list[tuple[str, str]]) -> None:
+    for rel in CORE_LOCAL_ONLY_WORKFLOWS:
+        path = root / rel
+        if not path.is_file():
+            errors.append(('CORE_LOCAL_ONLY_WORKFLOW_MISSING', rel))
+            continue
+        text = path.read_text(encoding='utf-8', errors='strict')
+        if 'local-only-authority-notice:' not in text or 'contents: read' not in text:
+            errors.append(('CORE_LOCAL_ONLY_WORKFLOW_AUTHORITY_DRIFT', rel))
+        for forbidden in ('contents: write', 'git push', 'actions/checkout', 'secrets.', 'gh run', 'workflow_run:', '\n  push:'):
+            if forbidden in text:
+                errors.append(('CORE_LOCAL_ONLY_WORKFLOW_MUTATION_FORBIDDEN', f'{rel}:{forbidden.strip()}'))
+
+
 def main() -> int:
     # The canonical control host is Windows. Validation details can contain
     # Persian text, so never let the active legacy console code page hide the
@@ -2079,6 +2102,7 @@ def main() -> int:
     files = repository_source_files(root, errors)
 
     validate_repository_hygiene(root, files, errors)
+    validate_core_local_only_workflows(root, errors)
 
     required_root = ('VERSION','RELEASE-NAME','go.mod','Makefile','Dockerfile','THIRD_PARTY_COMPONENTS.md','LICENSE.txt')
     for rel in required_root:
