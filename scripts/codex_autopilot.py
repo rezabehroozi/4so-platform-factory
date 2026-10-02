@@ -484,6 +484,7 @@ CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V
 AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY = "AUTOPILOT_OWNER_TEST_STAGE_V1"
 CONVERGENCE_REPAIR_AUTHORITY = "AUTOPILOT_CONVERGENCE_REPAIR_V1"
 OUTER_RUNTIME_CONTEXT_AUTHORITY = "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1"
+RESUME_PREFLIGHT_CURSOR_AUTHORITY = "AUTOPILOT_RESUME_PREFLIGHT_CURSOR_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -1263,6 +1264,7 @@ def _agent_context(root: Path) -> dict:
         "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
         "convergenceRepairAuthority": CONVERGENCE_REPAIR_AUTHORITY,
         "outerRuntimeContextAuthority": OUTER_RUNTIME_CONTEXT_AUTHORITY,
+        "resumePreflightCursorAuthority": RESUME_PREFLIGHT_CURSOR_AUTHORITY,
         "outerRuntime": outer_runtime,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
@@ -1439,6 +1441,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
         "convergenceRepairAuthority": CONVERGENCE_REPAIR_AUTHORITY,
         "outerRuntimeContextAuthority": OUTER_RUNTIME_CONTEXT_AUTHORITY,
+        "resumePreflightCursorAuthority": RESUME_PREFLIGHT_CURSOR_AUTHORITY,
         "defaultRepairBudget": DEFAULT_REPAIR_BUDGET,
         "defaultAgentRepairBudget": DEFAULT_AGENT_REPAIR_BUDGET,
         "promptBudgetChars": {
@@ -1836,6 +1839,73 @@ def _load_checkpoint(root: Path, *, graph_signature: str, repair: bool, allow_ow
             flush=True,
         )
     return state
+
+
+def _resume_preflight_stage_scope(root: Path, stages: list[Stage], *, repair: bool) -> tuple[list[Stage] | None, str]:
+    """Derive the smallest safe prerequisite scope from a durable checkpoint.
+
+    This is intentionally read-only. Invalid/stale checkpoints return None so
+    callers fall back to the full invocation preflight. A still-live recorded
+    child returns an empty stage set because the next action is rejoin/observe,
+    not execution; _load_checkpoint remains the authority that performs the
+    actual identity cleanup/rejoin decision.
+    """
+    path = _checkpoint_path(root)
+    if not path.is_file() or path.is_symlink():
+        return None, "NO_CHECKPOINT"
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, "CHECKPOINT_INVALID"
+
+    active = state.get("activeProcess")
+    if isinstance(active, dict):
+        try:
+            pid = int(active.get("pid", 0))
+        except (TypeError, ValueError):
+            pid = 0
+        expected_ticks = str(active.get("startTicks") or "")
+        current_ticks = _process_start_ticks(pid) if pid > 1 else None
+        if current_ticks and expected_ticks and current_ticks == expected_ticks:
+            return [], "LIVE_REJOIN"
+
+    if state.get("schemaVersion") != _AUTOPILOT_STATE_SCHEMA:
+        return None, "SCHEMA_MISMATCH"
+    if state.get("graphSignature") != _stage_graph_signature(stages, repair=repair):
+        return None, "GRAPH_MISMATCH"
+    if state.get("repair") != repair:
+        return None, "REPAIR_MODE_MISMATCH"
+    if state.get("workspaceFingerprint") != _workspace_fingerprint(root):
+        return None, "WORKSPACE_CHANGED"
+
+    phase = str(state.get("phase") or "forward")
+    try:
+        next_index = int(state.get("nextIndex", 0))
+    except (TypeError, ValueError):
+        return None, "INDEX_INVALID"
+
+    if phase == "forward":
+        if next_index < 0 or next_index >= len(stages):
+            return None, "FORWARD_COMPLETE_OR_INVALID"
+        return list(stages[next_index:]), "FORWARD_CURSOR"
+
+    if phase == "convergence":
+        names = state.get("convergenceStages")
+        if not isinstance(names, list) or not names:
+            return None, "CONVERGENCE_GRAPH_MISSING"
+        by_name = {stage.name: stage for stage in stages}
+        selected: list[Stage] = []
+        for raw in names:
+            name = str(raw)
+            stage = by_name.get(name)
+            if stage is None:
+                return None, "CONVERGENCE_GRAPH_MISMATCH"
+            selected.append(stage)
+        if next_index < 0 or next_index >= len(selected):
+            return None, "CONVERGENCE_COMPLETE_OR_INVALID"
+        return selected[next_index:], "CONVERGENCE_CURSOR"
+
+    return None, "PHASE_UNKNOWN"
 
 
 def _checkpoint_forward(root: Path, *, graph_signature: str, repair: bool, next_index: int, repair_count: int, seen_failures: dict[tuple[str, str], int], current_stage: str | None = None, full_convergence_required: bool = False, run_id: str | None = None) -> None:
@@ -2661,11 +2731,28 @@ def _select_stages(root: Path, start_stage: str | None, stop_stage: str | None) 
 def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_timeout: int, start_stage: str | None = None, stop_stage: str | None = None, real_test: bool = False, real_test_timeout: int = 7200, release_ready: bool = False, adopt_owner_fix: bool = False) -> int:
     stages = _select_stages(root, start_stage, stop_stage)
 
-    # Preflight only what the selected stage slice actually executes. Full runs
-    # preserve the strict all-toolchain contract, while scoped resumes avoid
-    # unrelated browser/build prerequisites. Repair still requires Codex.
+    # Preflight only what this invocation can actually execute. Explicit stage
+    # slices are already bounded; a valid durable full-run checkpoint narrows
+    # prerequisites to its remaining forward/convergence cursor. Invalid/stale
+    # checkpoints fail safe to the full toolchain. A still-live child requires
+    # only rejoin/observe, so unrelated toolchains and Codex must not block it.
     selected_for_preflight = None if start_stage is None and stop_stage is None else stages
-    missing, preflight_details = environment_preflight(require_codex=repair, stages=selected_for_preflight)
+    preflight_scope = "FULL_INVOCATION" if selected_for_preflight is None else "EXPLICIT_STAGE_SLICE"
+    require_codex_preflight = repair
+    if selected_for_preflight is None:
+        resumed_scope, resume_reason = _resume_preflight_stage_scope(root, stages, repair=repair)
+        if resumed_scope is not None:
+            selected_for_preflight = resumed_scope
+            preflight_scope = resume_reason
+            if resume_reason == "LIVE_REJOIN":
+                require_codex_preflight = False
+    print(
+        "AUTOPILOT_PREFLIGHT_SCOPE authority=" + RESUME_PREFLIGHT_CURSOR_AUTHORITY
+        + " mode=" + preflight_scope
+        + " stages=" + ",".join(stage.name for stage in (selected_for_preflight or [])),
+        flush=True,
+    )
+    missing, preflight_details = environment_preflight(require_codex=require_codex_preflight, stages=selected_for_preflight)
     print("AUTOPILOT_PREFLIGHT_DETAILS=" + json.dumps(preflight_details, sort_keys=True), flush=True)
     if missing:
         handoff = _environment_preflight_handoff(missing, selected_for_preflight)
@@ -2693,7 +2780,7 @@ def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_t
         )
         print("AUTOPILOT_RESULT=ENVIRONMENT_BLOCKED reason=ENVIRONMENT_PREFLIGHT fingerprint=" + handoff["fingerprint"], flush=True)
         return 3
-    print("AUTOPILOT_PREFLIGHT=PASS requireCodex=" + str(repair).lower(), flush=True)
+    print("AUTOPILOT_PREFLIGHT=PASS requireCodex=" + str(require_codex_preflight).lower(), flush=True)
 
     # Local correctness and external supply-chain closure are distinct states.
     # Codex repair owns deterministic repository defects; unresolved third-party
