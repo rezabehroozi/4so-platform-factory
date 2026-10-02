@@ -165,8 +165,9 @@ Stage("go-unit-1", ("python3", "scripts/run_go_package_shard.py", "--shard", "1"
         Stage("go-unit-2", ("python3", "scripts/run_go_package_shard.py", "--shard", "2"), 900),
         Stage("go-unit-3", ("python3", "scripts/run_go_package_shard.py", "--shard", "3"), 900),
         Stage("go-unit-4", ("python3", "scripts/run_go_package_shard.py", "--shard", "4"), 900),
-        Stage("python-tests", ("python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"), 300),
         Stage("installer-entrypoint-contracts", ("python3", "-m", "unittest", "tests.test_install_entrypoint", "-v"), 120),
+        Stage("autopilot-owner-tests", ("python3", "-m", "unittest", "tests.test_codex_autopilot", "-v"), 240),
+        Stage("python-tests", ("python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"), 300),
         Stage("installer-go-owner-tests", ("go", "test", "./cmd/platformctl", "./cmd/platform-installer", "./internal/bootstrap", "./internal/hostdeployment", "./internal/remotebootstrap", "-count=1"), 600),
         Stage("lab-runner-tests", ("python3", "scripts/test_lab_runner.py"), 300),
         Stage("lab-runner-self-test", ("python3", "scripts/lab_runner.py", "self-test"), 300),
@@ -303,7 +304,7 @@ def _stage_specialist(stage: Stage) -> str:
         return "operator-installer-e2e"
     if name.startswith("smoke-ui") or name == "persian-ui-lint":
         return "operator-console"
-    if name in {"derived-agent-knowledge", "browser-triage-profile", "browser-triage-prerequisites-policy"}:
+    if name in {"autopilot-owner-tests", "derived-agent-knowledge", "browser-triage-profile", "browser-triage-prerequisites-policy"}:
         return "developer-agent-experience"
     if name == "smoke-4" or "installer" in name:
         return "installer-runtime"
@@ -339,7 +340,7 @@ def _select_convergence_stages(stages: list[Stage], repaired_stage_names: set[st
         elif specialist == "installer-runtime":
             wanted.update({"installer-entrypoint-contracts", "installer-go-owner-tests", "build-for-smoke", "installer-core-smoke", "installer-host-smoke", "installer-remote-smoke", "smoke-ui-workflow-e2e", "build-release", "package", "artifact-quick-verify"})
         elif specialist == "developer-agent-experience":
-            wanted.update({"python-tests", "derived-agent-knowledge", "browser-triage-profile", "browser-triage-prerequisites-policy"})
+            wanted.update({"autopilot-owner-tests", "derived-agent-knowledge", "browser-triage-profile", "browser-triage-prerequisites-policy"})
         elif specialist == "lab-certification":
             wanted.update({"python-tests", "lab-runner-tests", "lab-runner-self-test"})
         elif specialist == "supply-chain-release":
@@ -445,6 +446,7 @@ EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY = "AUTOPILOT_EXTERNAL_OWNER_FIX_ADOPTION_V
 DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY = "AUTOPILOT_DURABLE_TRIAGE_CLASSIFICATION_V1"
 LIVE_RUN_REJOIN_FENCE_AUTHORITY = "AUTOPILOT_LIVE_RUN_REJOIN_FENCE_V1"
 CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1"
+AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY = "AUTOPILOT_OWNER_TEST_STAGE_V1"
 DEFAULT_REPAIR_BUDGET = 3
 DEFAULT_AGENT_REPAIR_BUDGET = 8
 TRIAGE_FAILURE_CAPSULE_MAX_CHARS = 3200
@@ -457,7 +459,7 @@ _OWNER_CONTEXT_PATHS: dict[str, tuple[str, ...]] = {
     "operator-console": ("webconsole/", "scripts/smoke_ui", "scripts/persian_", "tests/test_smoke_ui"),
     "operator-installer-e2e": ("webconsole/", "cmd/platform-installer/", "cmd/platformctl/installer_", "install.sh", "scripts/smoke_ui", "scripts/smoke_installer", "tests/test_smoke_ui", "tests/test_install", "tests/test_installer"),
     "installer-runtime": ("install.sh", "cmd/platform-installer/", "cmd/platformctl/installer_", "internal/bootstrap/", "internal/hostdeployment/", "internal/remotebootstrap/", "scripts/smoke_installer", "tests/test_install", "tests/test_installer"),
-    "developer-agent-experience": ("AGENTS.md", "DERIVED-AGENT-KNOWLEDGE.json", "scripts/generate_agent_knowledge.py", "scripts/browser_triage_", "tests/test_browser_"),
+    "developer-agent-experience": ("AGENTS.md", "DERIVED-AGENT-KNOWLEDGE.json", "scripts/codex_autopilot.py", "tests/test_codex_autopilot.py", "scripts/generate_agent_knowledge.py", "scripts/browser_triage_", "tests/test_browser_"),
     "lab-certification": ("lab/", "scripts/lab_runner.py", "scripts/test_lab_runner.py", "scripts/postgresql_runtime_certify.py", "internal/fieldcampaign/"),
     "supply-chain-release": ("catalog/", "scripts/build_release.py", "scripts/verify_release", "scripts/acquire_upstream_", "internal/bundlebuilder/", "internal/releaseartifact/", "ARTIFACT-MANIFEST.json", "SBOM.spdx.json"),
     "product-runtime": ("internal/api/", "internal/domain/", "internal/persistence/", "cmd/platform-api/", "cmd/platform-agent/", "scripts/smoke_"),
@@ -1105,6 +1107,7 @@ def _agent_context(root: Path) -> dict:
         "durableTriageClassificationAuthority": DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY,
         "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
         "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
+        "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
         "defaultRepairBudget": int(report.get("defaultRepairBudget") or DEFAULT_REPAIR_BUDGET),
         "defaultAgentRepairBudget": int(report.get("defaultAgentRepairBudget") or DEFAULT_AGENT_REPAIR_BUDGET),
         "promptBudgetChars": report.get("promptBudgetChars") if isinstance(report.get("promptBudgetChars"), dict) else {
@@ -1233,6 +1236,7 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
         "durableTriageClassificationAuthority": DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY,
         "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
         "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
+        "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
         "defaultRepairBudget": DEFAULT_REPAIR_BUDGET,
         "defaultAgentRepairBudget": DEFAULT_AGENT_REPAIR_BUDGET,
         "promptBudgetChars": {
