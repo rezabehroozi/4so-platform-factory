@@ -197,6 +197,14 @@ def verify(root:Path)->dict:
         raise RuntimeError("MANAGEMENT_ARCHIVE_DIGEST_INVALID")
     transport.validate_locator(ar, expected_sha256=ar["sha256"], expected_size=ar["sizeBytes"], label="MANAGEMENT_ARCHIVE")
 
+    matrix_path=root/"lab/mcp-external-client-interop-matrix.json"
+    matrix=load(matrix_path,"MCP_EXTERNAL_MATRIX")
+    matrix_spec=matrix.get("spec") if isinstance(matrix,dict) else None
+    if matrix.get("authority")!=mcp_contract.MATRIX_AUTHORITY or not isinstance(matrix_spec,dict):
+        raise RuntimeError("MCP_EXTERNAL_MATRIX_AUTHORITY_INVALID")
+    if matrix_spec.get("protocol")!="2026-07-28" or matrix_spec.get("transport")!="streamable-http" or matrix_spec.get("externalCertificationStatus")!="pending":
+        raise RuntimeError("MCP_EXTERNAL_MATRIX_CONTRACT_INVALID")
+
     mcp_path=root/"lab/mcp-external-client-interoperability-evidence.json"
     mcp=load(mcp_path,"MCP_EXTERNAL_INTEROP")
     if set(mcp)!=set(mcp_contract.INTEROP_EVIDENCE_KEYS):
@@ -204,6 +212,8 @@ def verify(root:Path)->dict:
     if mcp.get("authority")!=MCP_AUTHORITY or mcp.get("externalCertificationPass") is not True or mcp.get("allRequiredChecksPass") is not True or mcp.get("certifiedClientCount")!=4:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_AUTHORITY_INVALID")
     endpoint_value=validate_mcp_projection_identity(mcp,"MCP_EXTERNAL_INTEROP")
+    if mcp.get("matrixSha256")!=digest(matrix_path):
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_MATRIX_DRIFT")
     if mcp.get("serverAuditWitnessPass") is not True or mcp.get("serverAuditWitnessedCheckCount") != 24:
         raise Pending("MCP_EXTERNAL_SERVER_AUDIT_WITNESS_PENDING")
     if mcp.get("runtimeCertified") is not False or mcp.get("physicalCertified") is not False:
