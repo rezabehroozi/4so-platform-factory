@@ -102,6 +102,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
             normalized={"clientId":client,"requestIds":{},"executedAt":"2026-10-01T00:00:00Z","campaignCreatedAt":"2026-10-01T00:00:00Z","campaignExpiresAt":"2026-10-02T00:00:00Z","executionAuditWindowSeconds":60}
             args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",client=client,capture=capture,token_env="TOKEN",attempts=1,interval_seconds=0.0,progress_out=Path(td)/"progress.json",evidence_out=Path(td)/"evidence.json",allow_campaign_supersede=False)
             with (
+                mock.patch.object(mod.core,"load",return_value={"sourceCommitSHA":"a"*40}),
+                mock.patch.object(mod,"require_active_campaign_source",return_value="a"*40),
                 mock.patch.object(mod.finalizer,"finalize",return_value=raw_receipt),
                 mock.patch.object(mod.core,"write_json_once_or_identical"),
                 mock.patch.object(mod.admission,"matrix_contract",return_value=({"protocol":"2026-07-28"},list(mod.core.REQUIRED_CHECKS),{})),
@@ -184,6 +186,33 @@ class LocalC7WRunnerTests(unittest.TestCase):
             subprocess.run(["git","checkout","-b","feature"],cwd=root,check=True,capture_output=True)
             with self.assertRaisesRegex(RuntimeError,"BRANCH_NOT_MAIN"):
                 mod.require_c7w_source_freeze(root)
+
+    def test_active_campaign_source_allows_evidence_only_descendant_and_rejects_code_drift(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-b","main"],cwd=root,check=True,capture_output=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/"tracked.txt").write_text("base\n")
+            subprocess.run(["git","add","tracked.txt"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","base"],cwd=root,check=True,capture_output=True)
+            certified=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,check=True,capture_output=True).stdout.strip()
+            campaign={"sourceCommitSHA":certified}
+
+            self.assertEqual(certified,mod.require_active_campaign_source(root,campaign))
+
+            lab=root/"lab"; lab.mkdir()
+            progress=lab/"mcp-external-client-interop-progress.json"; progress.write_text("{}\n")
+            subprocess.run(["git","add",progress.relative_to(root).as_posix()],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","evidence progress"],cwd=root,check=True,capture_output=True)
+            evidence_head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,check=True,capture_output=True).stdout.strip()
+            self.assertEqual(evidence_head,mod.require_active_campaign_source(root,campaign))
+
+            (root/"tracked.txt").write_text("changed\n")
+            subprocess.run(["git","add","tracked.txt"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","code drift"],cwd=root,check=True,capture_output=True)
+            with self.assertRaisesRegex(RuntimeError,"SOURCE_DELTA_NOT_EVIDENCE_ONLY"):
+                mod.require_active_campaign_source(root,campaign)
 
     def test_git_handoff_requires_committed_c7w_evidence_before_c9(self):
         with tempfile.TemporaryDirectory() as td:
