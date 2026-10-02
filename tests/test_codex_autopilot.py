@@ -911,6 +911,51 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertIn("make runtime-resume", context["nextAction"])
             self.assertIn("make autopilot-context", context["nextAction"])
 
+    def test_environment_blocker_is_repaired_before_outer_runtime_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = {
+                "schemaVersion": 1,
+                "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+                "runId": "run-env-outer",
+                "status": "ENVIRONMENT_BLOCKED",
+                "phase": "forward",
+                "currentStage": "smoke-ui-quality",
+                "currentSpecialist": "operator-console",
+                "currentCommand": ["python3", "scripts/smoke_ui_quality.py"],
+                "currentTimeoutSeconds": 900,
+                "resumeEligible": True,
+                "invocation": ["python3", "scripts/codex_autopilot.py", "--agent-run"],
+                "environmentPreflight": {
+                    "missing": ["python-module:playwright"],
+                    "remediationHints": {"python-module:playwright": "install the project test requirements"},
+                },
+            }
+            AUTOPILOT._report_path(root).parent.mkdir(parents=True, exist_ok=True)
+            AUTOPILOT._report_path(root).write_text(json.dumps(report), encoding="utf-8")
+            outer = {
+                "authority":"AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1","available":True,
+                "status":"FAILED","runId":"outer-env","activeRun":False,
+                "recoveryRequired":False,"safeToRetry":False,"replaySafe":True,
+                "action":"RESUME_RUNTIME",
+            }
+            with mock.patch.object(AUTOPILOT, "_outer_runtime_context", return_value=outer), \
+                 mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
+                full = AUTOPILOT._agent_context(root)
+                compact = AUTOPILOT._compact_agent_context(root)
+            self.assertEqual(full["nextActionCode"], "REPAIR_ENVIRONMENT_AND_RESUME_OUTER_RUNTIME")
+            self.assertEqual(full["nextCommand"], ["make", "runtime-resume"])
+            self.assertIn("environmentPreflight.remediationHints", full["nextAction"])
+            self.assertIn("canonical outer project runtime", full["nextAction"])
+            self.assertEqual(compact["nextActionCode"], "REPAIR_ENVIRONMENT_AND_RESUME_OUTER_RUNTIME")
+            self.assertEqual(compact["nextCommand"], ["make", "runtime-resume"])
+            self.assertEqual(compact["resumeInvocation"], [])
+            self.assertIn("resumeInvocation=not-current-action", compact["commandOmissions"])
+            self.assertEqual(
+                full["outerRuntimeEnvironmentHandoffAuthority"],
+                "AUTOPILOT_OUTER_RUNTIME_ENVIRONMENT_HANDOFF_V1",
+            )
+
     def test_agent_context_cli_prints_one_json_document(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
