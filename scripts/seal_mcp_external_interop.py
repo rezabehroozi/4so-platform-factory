@@ -43,6 +43,61 @@ C7W_EVIDENCE_ONLY_PATHS=frozenset({
     "lab/mcp-external-client-interoperability-evidence.json",
 })
 
+
+def expected_response_observations(source_commit_sha:str,runtime_version:str,endpoint_value:str)->dict[str,dict]:
+    source_commit_sha=str(source_commit_sha or "").strip().lower()
+    runtime_version=str(runtime_version or "").strip()
+    ep=endpoint(endpoint_value)
+    if not COMMIT.fullmatch(source_commit_sha) or not runtime_version or len(runtime_version)>128:
+        raise RuntimeError("MCP_EXTERNAL_RESPONSE_OBSERVATION_RUNTIME_IDENTITY_INVALID")
+    return {
+        "oauth-protected-resource-discovery":{"httpStatus":200,"resource":ep,"scopes":["mcp.read","mcp.operate"]},
+        "dedicated-audience-validation":{"httpStatus":401,"accepted":False},
+        "authorization-filtered-tools-list":{"httpStatus":200,"toolListFilteredByDelegation":True,"sourceCommitSHA":source_commit_sha,"runtimeVersion":runtime_version},
+        "project-resource-scope-negative-control":{"accepted":False,"foreignProjectDataReturned":False},
+        "revoked-delegation-negative-control":{"accepted":False},
+        "read-only-client-mutation-negative-control":{"accepted":False,"mutationObserved":False},
+        "administration-approval-self-approval-negative-control":{"accepted":False,"selfApprovalObserved":False},
+    }
+
+
+def validate_response_observations(value:object,source_commit_sha:str,runtime_version:str,endpoint_value:str,label:str)->dict[str,dict]:
+    expected=expected_response_observations(source_commit_sha,runtime_version,endpoint_value)
+    if not isinstance(value,dict) or set(value)!=set(REQUIRED_CHECKS):
+        raise RuntimeError(f"{label}_RESPONSE_OBSERVATIONS_INVALID")
+    out={}
+    for check_id in REQUIRED_CHECKS:
+        observed=value.get(check_id)
+        wanted=expected[check_id]
+        if not isinstance(observed,dict) or set(observed)!=set(wanted):
+            raise RuntimeError(f"{label}_RESPONSE_OBSERVATION_FIELDS_INVALID {check_id}")
+        normalized={}
+        for key,wanted_value in wanted.items():
+            actual=observed.get(key)
+            if check_id=="oauth-protected-resource-discovery" and key=="scopes":
+                if (
+                    not isinstance(actual,list)
+                    or any(not isinstance(scope,str) or not scope for scope in actual)
+                    or len(actual)!=len(set(actual))
+                    or not set(wanted_value).issubset(set(actual))
+                ):
+                    raise RuntimeError(f"{label}_RESPONSE_OBSERVATION_MISMATCH {check_id}:{key}")
+                normalized[key]=sorted(actual)
+            elif type(wanted_value) is bool:
+                if type(actual) is not bool or actual is not wanted_value:
+                    raise RuntimeError(f"{label}_RESPONSE_OBSERVATION_MISMATCH {check_id}:{key}")
+                normalized[key]=actual
+            elif type(wanted_value) is int:
+                if type(actual) is not int or actual!=wanted_value:
+                    raise RuntimeError(f"{label}_RESPONSE_OBSERVATION_MISMATCH {check_id}:{key}")
+                normalized[key]=actual
+            elif actual!=wanted_value:
+                raise RuntimeError(f"{label}_RESPONSE_OBSERVATION_MISMATCH {check_id}:{key}")
+            else:
+                normalized[key]=actual
+        out[check_id]=normalized
+    return out
+
 def validate_evidence_only_source_lineage(root:Path,certified_sha:str,current_sha:str,label:str="MCP_EXTERNAL_INTEROP")->None:
     certified_sha=str(certified_sha or "").strip().lower()
     current_sha=str(current_sha or "").strip().lower()
@@ -427,6 +482,10 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     checks=row.get("checks")
     if not isinstance(checks,dict) or set(checks)!=set(required) or any(checks.get(k) is not True for k in required):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_REQUIRED_CHECKS_INVALID {client}")
+    response_observations=validate_response_observations(
+        row.get("responseObservations"),row.get("sourceCommitSHA"),row.get("runtimeVersion"),ep,
+        f"MCP_EXTERNAL_RECEIPT_{client.upper()}",
+    )
     if row.get("scopeLeakObserved") is not False or row.get("revokedGrantAccepted") is not False or row.get("selfApprovalAccepted") is not False:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_NEGATIVE_CONTROL_INVALID {client}")
     evidence=str(row.get("evidenceDigest") or "")
@@ -434,7 +493,7 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
     request_ids=validate_request_ids(row,client)
     trusted=campaign_trusted_client_bindings(campaign)[client]
-    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"sourceCommitSHA":row["sourceCommitSHA"],"runtimeVersion":row["runtimeVersion"],"executionId":run_id,"providerExecutionRef":provider_ref,"executedAt":utc_timestamp(executed),"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids,"campaignCreatedAt":utc_timestamp(created),"campaignExpiresAt":utc_timestamp(expires),"executionAuditWindowSeconds":audit_window}
+    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"sourceCommitSHA":row["sourceCommitSHA"],"runtimeVersion":row["runtimeVersion"],"executionId":run_id,"providerExecutionRef":provider_ref,"executedAt":utc_timestamp(executed),"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"responseObservations":response_observations,"requestIds":request_ids,"campaignCreatedAt":utc_timestamp(created),"campaignExpiresAt":utc_timestamp(expires),"executionAuditWindowSeconds":audit_window}
 
 def validate_audit_export(path:Path)->list[dict]:
     value=load(path,"SECURITY_AUDIT")
