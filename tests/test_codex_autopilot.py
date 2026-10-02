@@ -796,9 +796,9 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["ownerPythonDedupAuthority"], "AUTOPILOT_OWNER_PYTHON_DEDUP_V1")
             self.assertIn("outerRuntime", context)
             self.assertEqual(context["defaultAgentRepairBudget"], 8)
-            self.assertEqual(context["failureCapsuleMaxChars"], 3200)
+            self.assertEqual(context["failureCapsuleMaxChars"], AUTOPILOT.AGENT_FAILURE_CAPSULE_MAX_CHARS)
             self.assertEqual(context["failureCapsule"], "ERROR owner mismatch token=[REDACTED]")
-            self.assertLessEqual(len(context["failureCapsule"]), 3200)
+            self.assertLessEqual(len(context["failureCapsule"]), AUTOPILOT.AGENT_FAILURE_CAPSULE_MAX_CHARS)
             self.assertEqual(context["proofCommand"][:2], ["python3", "scripts/smoke_installer_remote.py"])
             self.assertEqual(context["proofTimeoutSeconds"], 900)
             self.assertEqual(context["resumeInvocation"][-1], "--repair")
@@ -999,6 +999,10 @@ class AutopilotAgentContextTests(unittest.TestCase):
                 context = AUTOPILOT._compact_agent_context(root)
             raw = json.dumps(context, sort_keys=True, separators=(",", ":"))
             self.assertEqual(context["authority"], "AUTOPILOT_AGENT_CONTEXT_COMPACT_V1")
+            self.assertEqual(context["lowTokenContextAuthority"], "AUTOPILOT_LOW_TOKEN_CONTEXT_V2")
+            self.assertEqual(context["repairProofDedupAuthority"], "AUTOPILOT_REPAIR_PROOF_DEDUP_V1")
+            self.assertEqual(context["deterministicEnvironmentTriageAuthority"], "AUTOPILOT_DETERMINISTIC_ENV_TRIAGE_V1")
+            self.assertLessEqual(AUTOPILOT.AGENT_CONTEXT_COMPACT_MAX_CHARS, 4800)
             self.assertLessEqual(len(raw), AUTOPILOT.AGENT_CONTEXT_COMPACT_MAX_CHARS)
             self.assertEqual(context["serializedChars"], len(raw))
             self.assertLessEqual(len(context["failureCapsule"]), AUTOPILOT.AGENT_CONTEXT_COMPACT_FAILURE_MAX_CHARS)
@@ -1494,6 +1498,14 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
         self.assertIn("Do not commit", prompt)
         self.assertIn("mutate Git refs/index/history", prompt)
 
+    def test_repair_worker_does_not_duplicate_controller_owned_proof(self):
+        stage = AUTOPILOT.Stage("installer-go-owner-tests", ("go", "test", "./cmd/platformctl"), 600)
+        result = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp-proof", "owner failure")
+        prompt = AUTOPILOT._repair_prompt(stage, result, 1, "CLASSIFICATION=CODE_DEFECT")
+        self.assertIn("Do not rerun the failing stage", prompt)
+        self.assertIn("Autopilot controller owns the exact post-repair owner proof", prompt)
+        self.assertIn("AUTOPILOT_REPAIR_PROOF_DEDUP_V1", prompt)
+
     def test_git_workspace_fingerprint_hashes_only_dirty_paths_when_available(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1642,6 +1654,32 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
             ok, detail = AUTOPILOT.invoke_codex(ROOT, stage, result, 1, 10)
         self.assertFalse(ok)
         self.assertIn("classification=ENVIRONMENT", detail)
+
+    def test_obvious_environment_failure_uses_zero_model_token_triage(self):
+        stage = AUTOPILOT.Stage("installer-entrypoint-contracts", ("bash", "install.sh"), 10)
+        result = AUTOPILOT.StageResult(
+            stage.name, "FAIL", 127, 0.1, "fp-missing-shell",
+            "bash: imaginary-helper: command not found",
+        )
+        with mock.patch.object(AUTOPILOT, "_ensure_browser_triage_for_stage", side_effect=AssertionError("browser/model triage entered")), \
+             mock.patch.object(AUTOPILOT, "_codex_command", side_effect=AssertionError("model command requested")):
+            ok, classification, detail = AUTOPILOT.invoke_codex_triage(ROOT, stage, result, 1, 10)
+        self.assertTrue(ok)
+        self.assertEqual(classification, "ENVIRONMENT")
+        self.assertIn("AUTOPILOT_DETERMINISTIC_ENV_TRIAGE_V1", detail)
+        self.assertEqual(AUTOPILOT.DETERMINISTIC_ENV_TRIAGE_AUTHORITY, "AUTOPILOT_DETERMINISTIC_ENV_TRIAGE_V1")
+
+    def test_missing_required_playwright_module_uses_zero_model_token_triage(self):
+        stage = AUTOPILOT.Stage("smoke-ui-quality", ("python3", "scripts/smoke_ui_quality.py"), 10)
+        result = AUTOPILOT.StageResult(
+            stage.name, "FAIL", 1, 0.1, "fp-playwright",
+            "ModuleNotFoundError: No module named 'playwright'",
+        )
+        with mock.patch.object(AUTOPILOT, "_codex_command", side_effect=AssertionError("model command requested")):
+            ok, classification, detail = AUTOPILOT.invoke_codex_triage(ROOT, stage, result, 1, 10)
+        self.assertTrue(ok)
+        self.assertEqual(classification, "ENVIRONMENT")
+        self.assertIn("AUTOPILOT_DETERMINISTIC_ENV_TRIAGE_V1", detail)
 
     def test_cached_exact_triage_avoids_second_model_call(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -2136,12 +2174,17 @@ class AgentEntrypointContractTests(unittest.TestCase):
         result = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "fp-budget", noisy)
         triage_prompt = AUTOPILOT._triage_prompt(stage, result, 1)
         repair_prompt = AUTOPILOT._repair_prompt(stage, result, 1, "CLASSIFICATION=CODE_DEFECT\n" + ("triage " * 1000))
-        self.assertLess(len(triage_prompt), 7000)
-        self.assertLess(len(repair_prompt), 9000)
+        self.assertLess(len(triage_prompt), 5000)
+        self.assertLess(len(repair_prompt), 6500)
         self.assertIn("Start with these owner paths", repair_prompt)
+        self.assertIn("Do not rerun the failing stage", repair_prompt)
+        self.assertIn("AUTOPILOT_REPAIR_PROOF_DEDUP_V1", repair_prompt)
         self.assertEqual(AUTOPILOT.PROMPT_BUDGET_AUTHORITY, "AUTOPILOT_PROMPT_BUDGET_V1")
-        self.assertLessEqual(AUTOPILOT.REPAIR_FAILURE_CAPSULE_MAX_CHARS, 3200)
-        self.assertLessEqual(AUTOPILOT.REPAIR_TRIAGE_MAX_CHARS, 2400)
+        self.assertEqual(AUTOPILOT.LOW_TOKEN_CONTEXT_AUTHORITY, "AUTOPILOT_LOW_TOKEN_CONTEXT_V2")
+        self.assertLessEqual(AUTOPILOT.REPAIR_FAILURE_CAPSULE_MAX_CHARS, 1800)
+        self.assertLessEqual(AUTOPILOT.REPAIR_TRIAGE_MAX_CHARS, 1200)
+        self.assertLessEqual(AUTOPILOT.TRIAGE_FAILURE_CAPSULE_MAX_CHARS, 1800)
+        self.assertLessEqual(AUTOPILOT.TRIAGE_RESULT_MAX_CHARS, 1200)
 
 if __name__ == "__main__":
     unittest.main()
