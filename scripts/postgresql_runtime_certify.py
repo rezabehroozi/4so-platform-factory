@@ -401,30 +401,56 @@ def check_tools(names: list[str]) -> list[str]:
     return [name for name in names if shutil.which(name) is None]
 
 
+def process_group_kwargs() -> dict:
+    if os.name=="nt":
+        return {"creationflags":getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0)}
+    return {"start_new_session":True}
+
+
 def terminate_process_group(process: subprocess.Popen[str], grace_seconds: float = 2.0) -> None:
     if process.poll() is not None:
         return
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        return
-    deadline = time.monotonic() + grace_seconds
-    while process.poll() is None and time.monotonic() < deadline:
+    if os.name=="posix":
+        try:
+            os.killpg(process.pid,signal.SIGTERM)
+        except ProcessLookupError:
+            return
+    else:
+        taskkill=shutil.which("taskkill")
+        if taskkill:
+            subprocess.run([taskkill,"/PID",str(process.pid),"/T"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False)
+        if process.poll() is None:
+            try:
+                process.terminate()
+            except OSError:
+                pass
+    deadline=time.monotonic()+grace_seconds
+    while process.poll() is None and time.monotonic()<deadline:
         time.sleep(0.05)
     if process.poll() is None:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+        if os.name=="posix":
+            try:
+                os.killpg(process.pid,signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        else:
+            taskkill=shutil.which("taskkill")
+            if taskkill:
+                subprocess.run([taskkill,"/PID",str(process.pid),"/T","/F"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False)
+            if process.poll() is None:
+                try:
+                    process.kill()
+                except OSError:
+                    pass
     try:
-        process.wait(timeout=max(1.0, grace_seconds))
+        process.wait(timeout=max(1.0,grace_seconds))
     except subprocess.TimeoutExpired:
         pass
 
 
 def run_shell_command(command: str, timeout: int) -> subprocess.CompletedProcess[str]:
     process = subprocess.Popen(
-        command, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+        command, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **process_group_kwargs()
     )
     try:
         stdout, stderr = process.communicate(timeout=timeout)
@@ -457,7 +483,7 @@ def run_concurrent(commands: list[list[str]], env: dict[str, str], timeout: int 
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     env=env,
-                    start_new_session=True,
+                    **process_group_kwargs(),
                 )
             )
     except OSError as exc:
