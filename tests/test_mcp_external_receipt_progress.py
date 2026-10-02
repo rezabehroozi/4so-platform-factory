@@ -62,6 +62,23 @@ class IncrementalMCPInteropTests(unittest.TestCase):
             bad=json.loads(json.dumps(out)); bad["clients"][0]["trustedClientRevision"]=2
             with self.assertRaisesRegex(RuntimeError,"TRUSTED_CLIENT_DRIFT"): mod.validate_existing(bad,out)
 
+    def test_resumed_progress_rebinds_rows_to_current_campaign_window_and_endpoint(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); campaign=self.campaign(matrix); cp=root/"campaign.json"; cp.write_text(json.dumps(campaign)); progress=root/"progress.json"
+            first=self.receipt("chatgpt",checks,campaign); rp=root/"chatgpt.json"; ap=root/"chatgpt-audit.json"; rp.write_text(json.dumps(first)); ap.write_text(json.dumps(self.audit(first)))
+            out=mod.merge(matrix,cp,rp,ap,"chatgpt",None)
+
+            second=self.receipt("claude",checks,campaign); rp2=root/"claude.json"; ap2=root/"claude-audit.json"; rp2.write_text(json.dumps(second)); ap2.write_text(json.dumps(self.audit(second)))
+
+            bad=json.loads(json.dumps(out)); bad["clients"][0]["endpoint"]="https://other.example.test/mcp"; progress.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"ENDPOINT_DRIFT"):
+                mod.merge(matrix,cp,rp2,ap2,"claude",progress)
+
+            bad=json.loads(json.dumps(out)); bad["clients"][0]["campaignCreatedAt"]="2026-09-28T00:00:00Z"; progress.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_WINDOW_DRIFT"):
+                mod.merge(matrix,cp,rp2,ap2,"claude",progress)
+
     def test_cross_client_execution_or_evidence_reuse_rejects_incrementally(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
         with tempfile.TemporaryDirectory() as td:
