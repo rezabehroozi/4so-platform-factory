@@ -169,7 +169,7 @@ def canonical_stages(root: Path) -> list[Stage]:
         Stage("go-unit-2", ("python3", "scripts/run_go_package_shard.py", "--shard", "2", "--exclude-installer-owner"), 900),
         Stage("go-unit-3", ("python3", "scripts/run_go_package_shard.py", "--shard", "3", "--exclude-installer-owner"), 900),
         Stage("go-unit-4", ("python3", "scripts/run_go_package_shard.py", "--shard", "4", "--exclude-installer-owner"), 900),
-        Stage("python-tests", ("python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"), 300),
+        Stage("python-tests", ("python3", "-c", _broad_python_test_program()), 300),
         Stage("lab-runner-tests", ("python3", "scripts/test_lab_runner.py"), 300),
         Stage("lab-runner-self-test", ("python3", "scripts/lab_runner.py", "self-test"), 300),
         Stage("derived-agent-knowledge", ("python3", "scripts/generate_agent_knowledge.py", "--check"), 180),
@@ -201,6 +201,34 @@ Stage("go-vet-1", ("python3", "scripts/run_go_package_shard.py", "--vet", "--sha
         Stage("package", ("python3", "scripts/build_release.py", "."), 900),
         Stage("artifact-quick-verify", ("python3", "-c", _artifact_verify_program(version, full=False)), 600),
     ]
+
+
+def _broad_python_test_program() -> str:
+    """Run all Python unit tests except owner suites already proven earlier."""
+    return textwrap.dedent("""
+        import unittest
+        excluded = (
+            "test_install_entrypoint.",
+            "tests.test_install_entrypoint.",
+            "test_codex_autopilot.",
+            "tests.test_codex_autopilot.",
+        )
+        def flatten(suite):
+            for item in suite:
+                if isinstance(item, unittest.TestSuite):
+                    yield from flatten(item)
+                else:
+                    yield item
+        loader = unittest.TestLoader()
+        discovered = loader.discover("tests", pattern="test_*.py")
+        selected = unittest.TestSuite(
+            test for test in flatten(discovered)
+            if not test.id().startswith(excluded)
+        )
+        print("PYTHON_OWNER_DEDUP authority=AUTOPILOT_OWNER_PYTHON_DEDUP_V1 excluded=test_install_entrypoint,test_codex_autopilot")
+        result = unittest.TextTestRunner(verbosity=2).run(selected)
+        raise SystemExit(0 if result.wasSuccessful() else 1)
+    """).strip()
 
 
 def _version_check_program(version: str) -> str:
@@ -450,6 +478,7 @@ TRIAGE_CACHE_AUTHORITY = "AUTOPILOT_TRIAGE_CACHE_V1"
 AGENT_NEXT_ACTION_AUTHORITY = "AUTOPILOT_AGENT_NEXT_ACTION_V1"
 OWNER_FIRST_STAGE_ORDER_AUTHORITY = "AUTOPILOT_OWNER_FIRST_STAGE_ORDER_V1"
 OWNER_UNIT_DEDUP_AUTHORITY = "AUTOPILOT_OWNER_UNIT_DEDUP_V1"
+OWNER_PYTHON_DEDUP_AUTHORITY = "AUTOPILOT_OWNER_PYTHON_DEDUP_V1"
 LIVE_RUN_REJOIN_FENCE_AUTHORITY = "AUTOPILOT_LIVE_RUN_REJOIN_FENCE_V1"
 CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1"
 AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY = "AUTOPILOT_OWNER_TEST_STAGE_V1"
@@ -629,7 +658,7 @@ def _repair_prompt(stage: Stage, result: StageResult, iteration: int, triage: st
 
 def run_stage(root: Path, stage: Stage) -> StageResult:
     started = time.monotonic()
-    env = {"CGO_ENABLED": "1"} if stage.name.startswith(("go-unit-", "go-vet-", "go-race-")) else None
+    env = {"CGO_ENABLED": "1"} if stage.name.startswith(("go-unit-", "go-vet-", "go-race-")) or stage.name == "installer-go-owner-tests" else None
     try:
         p = _run(stage.command, cwd=root, timeout=stage.timeout, env=env, track_state_root=root, active_label="stage:" + stage.name)
         elapsed = time.monotonic() - started
@@ -1225,6 +1254,7 @@ def _agent_context(root: Path) -> dict:
         "agentNextActionAuthority": AGENT_NEXT_ACTION_AUTHORITY,
         "ownerFirstStageOrderAuthority": OWNER_FIRST_STAGE_ORDER_AUTHORITY,
         "ownerUnitDedupAuthority": OWNER_UNIT_DEDUP_AUTHORITY,
+        "ownerPythonDedupAuthority": OWNER_PYTHON_DEDUP_AUTHORITY,
         "liveRunRejoinFenceAuthority": LIVE_RUN_REJOIN_FENCE_AUTHORITY,
         "crossSurfaceOwnerContextAuthority": CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY,
         "autopilotOwnerTestStageAuthority": AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY,
