@@ -223,10 +223,11 @@ while (($#)); do
       if [[ "${mode}" == "prepare-bundle" ]]; then
         [[ $# -ge 2 && -n "$2" ]] || { echo "ERROR --state-dir requires a value" >&2; exit 2; }
         prepare_state_dir="$2"
+        shift 2
       else
-        passthrough+=("$1" "$2")
+        passthrough+=("$1")
+        shift
       fi
-      shift 2
       ;;
     --state-dir=*)
       if [[ "${mode}" == "prepare-bundle" ]]; then
@@ -330,7 +331,9 @@ if [[ "${mode}" == "doctor" ]]; then
   fi
   [[ -n "${bundle_dir}" && -d "${bundle_dir}" && ! -L "${bundle_dir}" && -r "${bundle_dir}/bundle.json" && -r "${bundle_dir}/bundle.lock.json" ]] && bundle_inputs_ready=true || ready=false
   [[ -n "${release_artifact}" && -f "${release_artifact}" && ! -L "${release_artifact}" && -r "${release_artifact}" ]] && release_artifact_ready=true || ready=false
-  [[ -f "${LAB_RUNNER}" && ! -L "${LAB_RUNNER}" && -r "${LAB_RUNNER}" ]] && command -v python3 >/dev/null 2>&1 && bundle_preparation_available=true
+  if [[ -f "${LAB_RUNNER}" && ! -L "${LAB_RUNNER}" && -r "${LAB_RUNNER}" ]] && command -v python3 >/dev/null 2>&1; then
+    bundle_preparation_available=true
+  fi
   printf '%s\n' \
     "authority=INSTALLER_MANUAL_DOCTOR_V1" \
     "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
