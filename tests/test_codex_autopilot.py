@@ -411,6 +411,77 @@ class LiveCheckpointProcessResumeTests(unittest.TestCase):
                     pass
                 proc.wait(timeout=5)
 
+class ResumePreflightCursorTests(unittest.TestCase):
+    def _write_checkpoint(self, root, stages, *, repair=True, phase="forward", next_index=0, workspace="workspace", convergence=None, active=None):
+        state = {
+            "schemaVersion": AUTOPILOT._AUTOPILOT_STATE_SCHEMA,
+            "graphSignature": AUTOPILOT._stage_graph_signature(stages, repair=repair),
+            "repair": repair,
+            "phase": phase,
+            "nextIndex": next_index,
+            "workspaceFingerprint": workspace,
+        }
+        if convergence is not None:
+            state["convergenceStages"] = convergence
+        if active is not None:
+            state["activeProcess"] = active
+        AUTOPILOT._checkpoint_path(root).parent.mkdir(parents=True, exist_ok=True)
+        AUTOPILOT._checkpoint_path(root).write_text(json.dumps(state), encoding="utf-8")
+
+    def test_full_resume_preflight_uses_only_remaining_forward_cursor_requirements(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stages = [
+                AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 10),
+                AUTOPILOT.Stage("go-unit-1", ("python3", "scripts/run_go_package_shard.py", "--shard", "1"), 10),
+            ]
+            self._write_checkpoint(root, stages, next_index=1)
+            with mock.patch.object(AUTOPILOT, "_workspace_fingerprint", return_value="workspace"):
+                selected, reason = AUTOPILOT._resume_preflight_stage_scope(root, stages, repair=True)
+            self.assertEqual(reason, "FORWARD_CURSOR")
+            self.assertEqual([stage.name for stage in selected], ["go-unit-1"])
+            requirements = AUTOPILOT._environment_requirements(selected)
+            self.assertIn("go", requirements)
+            self.assertNotIn("browser", requirements)
+            self.assertNotIn("playwright", requirements)
+            self.assertEqual(AUTOPILOT.RESUME_PREFLIGHT_CURSOR_AUTHORITY, "AUTOPILOT_RESUME_PREFLIGHT_CURSOR_V1")
+
+    def test_convergence_resume_preflight_uses_remaining_selective_graph(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stages = [
+                AUTOPILOT.Stage("repository-validation", ("python3", "scripts/validate_repository.py", "."), 10),
+                AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 10),
+                AUTOPILOT.Stage("go-unit-1", ("python3", "scripts/run_go_package_shard.py", "--shard", "1"), 10),
+            ]
+            self._write_checkpoint(
+                root, stages, phase="convergence", next_index=1,
+                convergence=["repository-validation", "go-unit-1"],
+            )
+            with mock.patch.object(AUTOPILOT, "_workspace_fingerprint", return_value="workspace"):
+                selected, reason = AUTOPILOT._resume_preflight_stage_scope(root, stages, repair=True)
+            self.assertEqual(reason, "CONVERGENCE_CURSOR")
+            self.assertEqual([stage.name for stage in selected], ["go-unit-1"])
+            self.assertNotIn("browser", AUTOPILOT._environment_requirements(selected))
+
+    def test_live_checkpoint_rejoin_skips_unrelated_preflight_before_graph_or_workspace_reset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stages = [AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 10)]
+            self._write_checkpoint(
+                root, stages, workspace="stale",
+                active={"pid": 4242, "startTicks": "live-ticks", "label": "stage:smoke-ui-live"},
+            )
+            state_path = AUTOPILOT._checkpoint_path(root)
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["graphSignature"] = "different-observer-graph"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            with mock.patch.object(AUTOPILOT, "_process_start_ticks", return_value="live-ticks"),                  mock.patch.object(AUTOPILOT, "_workspace_fingerprint", return_value="changed"):
+                selected, reason = AUTOPILOT._resume_preflight_stage_scope(root, stages, repair=False)
+            self.assertEqual(reason, "LIVE_REJOIN")
+            self.assertEqual(selected, [])
+
+
 class ProcessTreeTimeoutTests(unittest.TestCase):
     def test_timeout_terminates_descendant_process_tree(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -560,6 +631,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["autopilotOwnerTestStageAuthority"], "AUTOPILOT_OWNER_TEST_STAGE_V1")
             self.assertEqual(context["convergenceRepairAuthority"], "AUTOPILOT_CONVERGENCE_REPAIR_V1")
             self.assertEqual(context["outerRuntimeContextAuthority"], "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1")
+            self.assertEqual(context["resumePreflightCursorAuthority"], "AUTOPILOT_RESUME_PREFLIGHT_CURSOR_V1")
             self.assertEqual(context["triageCacheAuthority"], "AUTOPILOT_TRIAGE_CACHE_V1")
             self.assertEqual(context["agentNextActionAuthority"], "AUTOPILOT_AGENT_NEXT_ACTION_V1")
             self.assertEqual(context["ownerFirstStageOrderAuthority"], "AUTOPILOT_OWNER_FIRST_STAGE_ORDER_V1")
