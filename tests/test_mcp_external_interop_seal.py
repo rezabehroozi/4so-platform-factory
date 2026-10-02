@@ -144,6 +144,15 @@ class MCPExternalSealTests(unittest.TestCase):
                     row["oauthClientId"],row["requestIds"],
                 )
 
+    def test_receipt_response_observation_tamper_rejects(self):
+        with tempfile.TemporaryDirectory() as td:
+            matrix,campaign_path,receipts,audits,_,_=self.fixture(Path(td))
+            bad=json.loads((receipts/"chatgpt.json").read_text())
+            bad["responseObservations"]["authorization-filtered-tools-list"]["sourceCommitSHA"]="2"*40
+            (receipts/"chatgpt.json").write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"RESPONSE_OBSERVATION_MISMATCH"):
+                mod.seal(matrix,campaign_path,receipts,audits)
+
     def test_receipt_or_server_audit_binding_tamper_rejects(self):
         with tempfile.TemporaryDirectory() as td:
             matrix,campaign_path,receipts,audits,campaign,checks=self.fixture(Path(td))
