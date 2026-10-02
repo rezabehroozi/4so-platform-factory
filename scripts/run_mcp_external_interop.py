@@ -208,7 +208,11 @@ def status(args:argparse.Namespace)->dict:
     if state.exists() or state.is_symlink():
         if state.is_symlink() or not state.is_dir():
             raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID")
+        if (args.evidence_out.exists() or args.evidence_out.is_symlink()) and not args.progress_out.exists():
+            raise RuntimeError("MCP_EXTERNAL_LOCAL_EVIDENCE_WITHOUT_PROGRESS")
         value=progress_status(args.matrix,state,args.progress_out)
+        if (args.evidence_out.exists() or args.evidence_out.is_symlink()) and not value["complete"]:
+            raise RuntimeError("MCP_EXTERNAL_LOCAL_EVIDENCE_WITH_INCOMPLETE_PROGRESS")
     else:
         if args.progress_out.exists() or args.progress_out.is_symlink() or args.evidence_out.exists() or args.evidence_out.is_symlink():
             raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_MISSING_WITH_CANONICAL_EVIDENCE")
