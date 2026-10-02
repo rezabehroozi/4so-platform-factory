@@ -37,6 +37,19 @@ class CampaignResumeTests(unittest.TestCase):
             "clients":rows,"externalExecutionRequired":True,
         }
 
+    def test_invalid_matrix_fails_before_registry_or_live_preflight(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
+        with tempfile.TemporaryDirectory() as td:
+            bad=Path(td)/"matrix.json"
+            value=json.loads(matrix.read_text())
+            value["spec"]["transport"]="legacy-http"
+            bad.write_text(json.dumps(value))
+            out=Path(td)/"campaign.json"
+            argv=["prepare_mcp_external_interop_campaign.py","--matrix",str(bad),"--endpoint","https://mcp.example.test/mcp","--out",str(out),"--oauth-client-map",str(Path(td)/"oauth.json")]
+            with mock.patch.object(sys,"argv",argv), mock.patch.object(mod,"trusted_client_readback",side_effect=AssertionError("registry readback must not run")), mock.patch.object(mod,"live_preflight",side_effect=AssertionError("live preflight must not run")):
+                with self.assertRaisesRegex(RuntimeError,"MATRIX_PROTOCOL_INVALID"):
+                    mod.main()
+
     def test_live_preflight_http_opener_refuses_redirects(self):
         opener=mod.exact_https_opener(mod.ssl.create_default_context())
         self.assertTrue(any(isinstance(handler,mod.RejectRedirects) for handler in opener.handlers))
