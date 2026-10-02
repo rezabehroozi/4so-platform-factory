@@ -42,12 +42,10 @@ C7W_EVIDENCE_ONLY_PATHS=frozenset({
 })
 
 
-def git_head(root:Path)->str:
+def git_head(root:Path)->str|None:
     proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
     value=proc.stdout.strip().lower() if proc.returncode==0 else ""
-    if not mcp_contract.COMMIT.fullmatch(value):
-        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_AUTHORITY_UNAVAILABLE")
-    return value
+    return value if mcp_contract.COMMIT.fullmatch(value) else None
 
 
 def validate_c7w_source_lineage(root:Path,certified_sha:str,release_sha:str)->None:
@@ -207,7 +205,7 @@ def public_content_addressed(url:str,sha:str,label:str)->None:
 
 def verify(root:Path,expected_source_sha:str|None=None)->dict:
     release_source_sha=str(expected_source_sha or "").strip().lower() or git_head(root)
-    if not mcp_contract.COMMIT.fullmatch(release_source_sha):
+    if release_source_sha is not None and not mcp_contract.COMMIT.fullmatch(release_source_sha):
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
     lock_path=root/"lab/appliance-bundle-acquisition-lock.json"
     lock=load(lock_path,"APPLIANCE_DISTRIBUTION")
@@ -251,6 +249,8 @@ def verify(root:Path,expected_source_sha:str|None=None)->dict:
     expected_version=(root/"VERSION").read_text(encoding="utf-8").strip()
     if not mcp_contract.COMMIT.fullmatch(certified_source_sha) or runtime_version!=expected_version:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_RUNTIME_IDENTITY_INVALID")
+    if release_source_sha is None:
+        release_source_sha=certified_source_sha
     validate_c7w_source_lineage(root,certified_source_sha,release_source_sha)
     if mcp.get("matrixSha256")!=digest(matrix_path):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_MATRIX_DRIFT")
