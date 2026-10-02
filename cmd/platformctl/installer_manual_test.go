@@ -113,6 +113,46 @@ func TestManualInstallerPreflightResultBlocksMachineProgressWhenAdmissionIsNotRe
 	}
 }
 
+func TestManualInstallerContinuationCommandPreservesNonSecretInputsWithoutImmutableOutSpec(t *testing.T) {
+	input := manualInstallerInputs{
+		InstallerBinary:   "/opt/4so/bin/platform-installer",
+		BundleDirectory:   "/srv/4so/bundle",
+		ReleaseArtifact:   "/srv/4so/release.zip",
+		Listen:            "0.0.0.0:9443",
+		TLSCertificate:    "/etc/4so/tls.crt",
+		TLSPrivateKey:     "/etc/4so/tls.key",
+		AllowInsecureHTTP: true,
+		AllowDowngrade:    true,
+		Root:              "/staged-root",
+		OutputSpec:        "/var/tmp/immutable-spec.json",
+		Timeout:           7 * time.Minute,
+	}
+	command := manualInstallerContinuationCommand(input, "install", true)
+	joined := strings.Join(command, " ")
+	for _, want := range []string{
+		"installer-manual install",
+		"--installer-binary /opt/4so/bin/platform-installer",
+		"--bundle-dir /srv/4so/bundle",
+		"--release-artifact /srv/4so/release.zip",
+		"--listen 0.0.0.0:9443",
+		"--tls-cert /etc/4so/tls.crt",
+		"--tls-key /etc/4so/tls.key",
+		"--allow-insecure-http",
+		"--allow-downgrade",
+		"--root /staged-root",
+		"--timeout 7m0s",
+		"--enable-execution",
+		"--confirmation DEPLOY",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("continuation command missing %q: %#v", want, command)
+		}
+	}
+	if strings.Contains(joined, "--out-spec") || strings.Contains(joined, input.OutputSpec) {
+		t.Fatalf("immutable out-spec must not be replayed by continuation: %#v", command)
+	}
+}
+
 func TestManualInstallerConsoleURL(t *testing.T) {
 	if got := manualInstallerConsoleURL("https://installer.example:9443/healthz"); got != "https://installer.example:9443" {
 		t.Fatalf("console URL %q", got)
