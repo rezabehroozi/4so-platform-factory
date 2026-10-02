@@ -154,6 +154,24 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,"EVIDENCE_WITH_INCOMPLETE_PROGRESS"):
                     mod.status(args)
 
+    def test_source_freeze_allows_only_canonical_c7w_evidence_dirty_paths(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init"],cwd=root,check=True,capture_output=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/"tracked.txt").write_text("base\n")
+            subprocess.run(["git","add","tracked.txt"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","base"],cwd=root,check=True,capture_output=True)
+
+            lab=root/"lab"; lab.mkdir()
+            (lab/"mcp-external-client-interop-progress.json").write_text("{}\n")
+            mod.require_c7w_source_freeze(root)
+
+            (root/"tracked.txt").write_text("changed\n")
+            with self.assertRaisesRegex(RuntimeError,"SOURCE_NOT_FROZEN"):
+                mod.require_c7w_source_freeze(root)
+
     def test_git_handoff_requires_committed_c7w_evidence_before_c9(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
