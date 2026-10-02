@@ -817,7 +817,20 @@ def execute(root: Path, out: Path) -> dict:
                 root=worktree,
                 env=env,
             )
-            run(["make", "build-release", f"GO={go}", f"PYTHON={sys.executable}"], root=worktree, env=env)
+            run(
+                [
+                    sys.executable,
+                    "scripts/build_release_binaries.py",
+                    "--root",
+                    ".",
+                    "--go",
+                    str(go),
+                    "--source-commit",
+                    source_sha,
+                ],
+                root=worktree,
+                env=env,
+            )
             run([sys.executable, "scripts/build_release.py", "."], root=worktree, env=env)
 
             release, stage, version, release_name = expected_release(worktree)
