@@ -709,7 +709,17 @@ def validate_release_recipes(root: Path, errors: list[tuple[str,str]]) -> None:
         if dockerfile.name in {'Dockerfile','Dockerfile.agent','Dockerfile.probe'}:
             if 'internal/buildinfo.Version=$VERSION' not in docker:
                 errors.append(('CONTAINER_BINARY_VERSION_INJECTION_MISSING', rel))
-            if 'ARG SOURCE_COMMIT' not in docker or "grep -Eq '^[0-9a-f]{40}$'" not in docker or 'internal/buildinfo.SourceCommit=$SOURCE_COMMIT' not in docker:
+            source_regex="grep -Eq '^[0-9a-f]{40}$'"
+            source_ldflag='internal/buildinfo.SourceCommit=$SOURCE_COMMIT'
+            from_rows=[line.strip() for line in docker.splitlines() if line.strip().startswith('FROM ')]
+            if (
+                'ARG SOURCE_COMMIT' not in docker
+                or docker.count(source_regex)!=1
+                or docker.count(source_ldflag)!=1
+                or len(from_rows)!=2
+                or from_rows[0]!='FROM ${GO_BUILD_IMAGE} AS build'
+                or from_rows[1]!='FROM ${RUNTIME_IMAGE}'
+            ):
                 errors.append(('CONTAINER_BINARY_SOURCE_COMMIT_INJECTION_MISSING', rel))
         for line in docker.splitlines():
             row = line.strip()
