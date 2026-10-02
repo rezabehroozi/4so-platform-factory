@@ -15,7 +15,6 @@ jobs:
         run: |
           set -euo pipefail
           echo "This workflow is intentionally non-authoritative and performs no exact build, seal, evidence generation, or Git persistence."
-          echo "Use the canonical local path:"
-          echo "  make c9-admission"
-          echo "  make c9-seal"
-          echo "The local sealer binds a detached exact-SHA worktree, admitted toolchain, full verifier, exact release snapshot, and machine-actionable post-seal evidence handoff."
+          echo "Run C7W status first and follow RUN_C9_SEAL only after canonical C7W evidence is committed."
+          echo "Canonical C9 entrypoint: <python> scripts/seal_final_exact_release.py --root . --out lab/final-exact-release-evidence.json"
+          echo "The local sealer requires the admitted exact Linux/amd64 Go+CGO toolchain, binds a detached exact-SHA worktree, runs the native binary builder and full verifier, and returns a machine-actionable post-seal evidence handoff."
