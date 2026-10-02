@@ -36,7 +36,7 @@ def secure_state_dir(path:Path)->Path:
     if path.is_symlink() or not path.is_dir():
         raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID")
     path.chmod(0o700)
-    for name in ("packets","capture-templates","receipts","audits"):
+    for name in ("packets","capture-templates","captures","receipts","audits"):
         child=path/name
         child.mkdir(exist_ok=True)
         if child.is_symlink() or not child.is_dir():
@@ -50,6 +50,7 @@ def paths(state:Path)->dict[str,Path]:
         "campaign":state/"campaign.json",
         "packets":state/"packets",
         "templates":state/"capture-templates",
+        "captures":state/"captures",
         "receipts":state/"receipts",
         "audits":state/"audits",
     }
@@ -166,7 +167,7 @@ def client_execution_handoff(state:Path,client:str)->dict:
     if client not in core.CLIENTS:
         raise RuntimeError("MCP_EXTERNAL_LOCAL_CLIENT_HANDOFF_INVALID")
     p=paths(state)
-    capture=f"/secure/{client}.capture.json"
+    capture=str(p["captures"]/(client+".capture.json"))
     return {
         "clientId":client,
         "packetPath":str(p["packets"]/(client+".json")),
