@@ -408,12 +408,7 @@ func installerManualPrepare(mode string, args []string) {
 		installerURL = manualInstallerConsoleURL(plan.Health.URL)
 		bootstrapTokenFile = tokenFile
 		access = manualInstallerAccessPlan(plan)
-		nextActions = []string{
-			"read the private bootstrap token from bootstrapTokenFile",
-			"open installerUrl and authenticate with that token",
-			"create or load the installation request, run preflight, review the plan, then explicitly start installation",
-			"from the extracted exact release, use install.sh status/verify/recover/rollback (or platformctl installer-manual directly) for host-deployment continuation",
-		}
+		nextActions = manualInstallerLiveNextActions()
 		if !input.ExecutionEnabled {
 			nextActionCode = "ENABLE_EXECUTION"
 			nextCommand = manualInstallerContinuationCommand(input, "install", true)
@@ -441,6 +436,16 @@ func installerManualPrepare(mode string, args []string) {
 		"nextCommand":        nextCommand,
 		"nextActions":        nextActions,
 	})
+}
+
+func manualInstallerLiveNextActions() []string {
+	return []string{
+		"read the private bootstrap token from bootstrapTokenFile",
+		"open installerUrl and authenticate with that token",
+		"create or load the installation request, run preflight, review the plan, then explicitly start installation",
+		"after any disconnect or reboot, run sudo bash install.sh next from the same extracted exact release; it reads durable host state before suggesting bootstrap status, recovery or verification",
+		"status/verify/bootstrap-status/recover/rollback remain lower-level inspection and recovery commands; do not guess or replay a mutation from raw state",
+	}
 }
 
 func verifyManualInstallerExactRelease(path string, plan hostdeployment.Plan) (string, error) {
