@@ -21,13 +21,14 @@ class IncrementalMCPInteropTests(unittest.TestCase):
         expires=created+seal.timedelta(seconds=spec["campaignMaxAgeSeconds"])
         return {"authority":seal.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-incremental","createdAt":seal.utc_timestamp(created),"expiresAt":seal.utc_timestamp(expires),"matrixAuthority":seal.MATRIX_AUTHORITY,"matrixSha256":seal.sha256(matrix),
                 "oauthClientBindingAuthority":seal.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"incremental-oauth-bindings").hexdigest(),
+                "sourceCommitSHA":"1"*40,"runtimeVersion":"0.0.test",
                 "protocol":"2026-07-28","transport":"streamable-http","endpoint":endpoint,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
     def receipt(self,client,checks,campaign,execution=None):
         challenge=next(x for x in campaign["clients"] if x["clientId"]==client)
         binding=seal.interop_binding_digest(campaign["campaignId"],client,challenge["challengeSha256"])
         ids={name:f"{client}-{idx:02d}-request" for idx,name in enumerate(seal.AUDITED_CHECKS,1)}
         executed=seal.parse_utc_timestamp(campaign["createdAt"],"TEST_CREATED")+seal.timedelta(seconds=30)
-        return {"authority":seal.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":seal.CLIENT_SURFACES[client],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"oauthClientId":challenge["oauthClientId"],"interopBindingAuthority":seal.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":campaign["endpoint"],"executionId":execution or "run-"+client,"providerExecutionRef":"provider-execution-"+client,"executedAt":seal.utc_timestamp(executed),"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":ids,"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
+        return {"authority":seal.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":seal.CLIENT_SURFACES[client],"sourceCommitSHA":campaign["sourceCommitSHA"],"runtimeVersion":campaign["runtimeVersion"],"campaignId":campaign["campaignId"],"challengeSha256":challenge["challengeSha256"],"oauthClientId":challenge["oauthClientId"],"interopBindingAuthority":seal.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"protocol":"2026-07-28","transport":"streamable-http","endpoint":campaign["endpoint"],"executionId":execution or "run-"+client,"providerExecutionRef":"provider-execution-"+client,"executedAt":seal.utc_timestamp(executed),"externalExecution":True,"credentialedExecution":True,"checks":{x:True for x in checks},"requestIds":ids,"scopeLeakObserved":False,"revokedGrantAccepted":False,"selfApprovalAccepted":False,"evidenceDigest":"sha256:"+hashlib.sha256(client.encode()).hexdigest()}
     def audit(self,row):
         out=[]; prev=""
         for seq,check in enumerate(seal.AUDITED_CHECKS,1):
@@ -48,6 +49,7 @@ class IncrementalMCPInteropTests(unittest.TestCase):
                 out=mod.merge(matrix,cp,rp,ap,client,progress if progress.exists() else None); progress.write_text(json.dumps(out))
                 self.assertEqual(idx,out["certifiedClientCount"]); self.assertEqual(idx==4,out["complete"])
             evidence=mod.final_evidence(out,progress); self.assertEqual(4,evidence["certifiedClientCount"]); self.assertTrue(evidence["serverAuditWitnessPass"]); self.assertEqual(24,evidence["serverAuditWitnessedCheckCount"]); self.assertFalse(evidence["physicalCertified"])
+            self.assertEqual(campaign["sourceCommitSHA"],evidence["sourceCommitSHA"]); self.assertEqual(campaign["runtimeVersion"],evidence["runtimeVersion"])
             self.assertEqual(seal.seal(matrix,cp,receipts,audits),evidence)
     def test_existing_progress_rejects_interop_binding_or_witness_binding_drift(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
@@ -61,6 +63,8 @@ class IncrementalMCPInteropTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"INTEROP_BINDING_INVALID"): mod.validate_existing(bad,out)
             bad=json.loads(json.dumps(out)); bad["clients"][0]["trustedClientRevision"]=2
             with self.assertRaisesRegex(RuntimeError,"TRUSTED_CLIENT_DRIFT"): mod.validate_existing(bad,out)
+            bad=json.loads(json.dumps(out)); bad["clients"][0]["sourceCommitSHA"]="2"*40
+            with self.assertRaisesRegex(RuntimeError,"RUNTIME_IDENTITY_DRIFT"): mod.validate_existing(bad,out)
 
     def test_resumed_progress_rebinds_rows_to_current_campaign_window_and_endpoint(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
