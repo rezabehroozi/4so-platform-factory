@@ -575,6 +575,39 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["resumeInvocation"][-1], "--repair")
             self.assertIn("AGENTS.md", context["sourceContext"]["agentInstructions"])
 
+    def test_agent_context_never_emits_empty_executable_resume_command(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = {
+                "schemaVersion": 1,
+                "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+                "status": "CODE_DEFECT",
+                "phase": "forward",
+                "currentStage": "installer-go-owner-tests",
+                "currentCommand": ["go", "test", "./cmd/platformctl"],
+                "currentTimeoutSeconds": 600,
+                "resumeEligible": True,
+                "lastFailure": {
+                    "stage": "installer-go-owner-tests",
+                    "specialist": "installer-runtime",
+                    "status": "FAIL",
+                    "fingerprint": "fp-no-invocation",
+                    "reason": "legacy report missing invocation",
+                },
+            }
+            AUTOPILOT._report_path(root).write_text(json.dumps(report), encoding="utf-8")
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_outer_runtime_context", return_value={
+                     "authority":"AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1","available":False,
+                     "status":"UNKNOWN","runId":"","activeRun":False,
+                     "recoveryRequired":False,"safeToRetry":False,"action":"STATUS_UNAVAILABLE",
+                 }):
+                context = AUTOPILOT._agent_context(root)
+            self.assertEqual(context["nextActionCode"], "INSPECT_AUTOPILOT_STATE")
+            self.assertEqual(context["nextCommand"], ["make", "autopilot-status"])
+            self.assertEqual(context["resumeInvocation"], [])
+            self.assertIn("do not reconstruct or guess", context["nextAction"])
+
     def test_checkpoint_failure_capsule_is_redacted_before_agent_handoff(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
