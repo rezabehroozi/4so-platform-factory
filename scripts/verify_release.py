@@ -34,6 +34,7 @@ FORBIDDEN = (
 
 FULL_VERIFIER_AUTHORITY = "CHECKPOINT_SAFE_FULL_VERIFIER_V2"
 SHARD_AUTHORITY = "AUTOPILOT_STAGE_SHARD_AUTHORITY_V2"
+MANUAL_INSTALL_RELEASE_PAYLOAD_AUTHORITY = "INSTALLER_MANUAL_RELEASE_PAYLOAD_V1"
 
 RELEASE_BINARIES = (
     "platform-api",
@@ -275,6 +276,66 @@ def elf_metadata(path: Path) -> tuple[str, list[str]]:
     return build_id, needed
 
 
+def validate_manual_install_release_payload(root: Path) -> None:
+    """Fail closed when the exact release cannot drive the documented manual path.
+
+    The manual installer must be usable from extracted release bytes alone up
+    to the external immutable bundle/source boundary. This is a packaging
+    contract only; it never proves bundle acquisition, Runtime or Physical PASS.
+    """
+    required_regular = (
+        "VERSION",
+        "RELEASE-NAME",
+        "scripts/lab_runner.py",
+        "scripts/distribution_transport.py",
+        "internal/labmodel/certification-matrix.json",
+        "lab/appliance-bundle-acquisition-lock.json",
+    )
+    required_executable = (
+        "install.sh",
+        "bin/linux-amd64/platformctl",
+        "bin/linux-amd64/platform-installer",
+    )
+    missing: list[str] = []
+    invalid: list[str] = []
+    for rel in required_regular:
+        path = root / rel
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            missing.append(rel)
+            continue
+        if path.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_size <= 0:
+            invalid.append(rel)
+    for rel in required_executable:
+        path = root / rel
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            missing.append(rel)
+            continue
+        if (
+            path.is_symlink()
+            or not stat.S_ISREG(info.st_mode)
+            or info.st_size <= 0
+            or stat.S_IMODE(info.st_mode) & 0o111 == 0
+        ):
+            invalid.append(rel)
+    if missing or invalid:
+        raise SystemExit(
+            "INSTALLER_MANUAL_RELEASE_PAYLOAD_INVALID "
+            f"authority={MANUAL_INSTALL_RELEASE_PAYLOAD_AUTHORITY} "
+            f"missing={','.join(sorted(missing)) or '-'} "
+            f"invalid={','.join(sorted(invalid)) or '-'}"
+        )
+    print(
+        "INSTALLER_MANUAL_RELEASE_PAYLOAD_GATE_PASS",
+        f"authority={MANUAL_INSTALL_RELEASE_PAYLOAD_AUTHORITY}",
+        f"regular={len(required_regular)}",
+        f"executable={len(required_executable)}",
+    )
+
+
 def validate_generated_metadata(root: Path, version: str, release_name: str) -> None:
     provenance_path = root / "BUILD-PROVENANCE.json"
     sbom_path = root / "SBOM.spdx.json"
@@ -435,6 +496,7 @@ def main() -> int:
         if manifest.get("fileCount") != len(actual):
             raise SystemExit("MANIFEST_FILE_COUNT_INVALID")
         print("ARTIFACT_INTEGRITY_GATE_PASS", len(actual) + 1, archive_digest)
+        validate_manual_install_release_payload(root)
         validate_generated_metadata(root, version, release_name)
         validate_brand_independence(root)
 
