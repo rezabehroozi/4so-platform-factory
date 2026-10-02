@@ -86,30 +86,35 @@ type installerBootstrapRuntimeStatus struct {
 	ResetRuns       []installerRuntimeRunStatus `json:"resetRuns"`
 }
 
-func installerBootstrapNextAction(status installerBootstrapRuntimeStatus) string {
+func installerBootstrapNextActionGuidance(status installerBootstrapRuntimeStatus) (string, string) {
 	if !status.ExecutionEnabled {
-		return "redeploy the reviewed Bootstrap Installer with execution enabled before attempting install/resume/reset"
+		return "REDEPLOY_EXECUTION_ENABLED", "redeploy the reviewed Bootstrap Installer with execution enabled before attempting install/resume/reset"
 	}
 	if status.ResetActive {
-		return "monitor bootstrap-status until the active reset is terminal; do not replay reset or reset-resume"
+		return "MONITOR_RESET", "monitor bootstrap-status until the active reset is terminal; do not replay reset or reset-resume"
 	}
 	if reset := latestIncompleteInstallerReset(status); reset != nil {
-		return "review the interrupted reset, then run reset-resume --confirmation RESUME-RESET; do not start another reset"
+		return "RESUME_RESET", "review the interrupted reset, then run reset-resume --confirmation RESUME-RESET; do not start another reset"
 	}
 	if status.BootstrapActive {
-		return "monitor bootstrap-status until the active installation is terminal; do not submit another resume"
+		return "MONITOR_INSTALL", "monitor bootstrap-status until the active installation is terminal; do not submit another resume"
 	}
 	if status.Run == nil {
-		return "open the Browser Installer, complete request/preflight review, and start installation explicitly"
+		return "START_BROWSER_INSTALL", "open the Browser Installer, complete request/preflight review, and start installation explicitly"
 	}
 	switch strings.ToUpper(strings.TrimSpace(status.Run.State)) {
 	case "SUCCEEDED":
-		return "installation succeeded; verify evidence/status and continue platform onboarding instead of resuming"
+		return "VERIFY_INSTALL", "installation succeeded; verify evidence/status and continue platform onboarding instead of resuming"
 	case "FAILED", "PENDING", "RUNNING":
-		return "review the durable run/error, then run resume --confirmation RESUME if recovery is intended"
+		return "RESUME_INSTALL", "review the durable run/error, then run resume --confirmation RESUME if recovery is intended"
 	default:
-		return "review the durable bootstrap state before selecting any mutation; automatic replay is forbidden"
+		return "REVIEW_STATE", "review the durable bootstrap state before selecting any mutation; automatic replay is forbidden"
 	}
+}
+
+func installerBootstrapNextAction(status installerBootstrapRuntimeStatus) string {
+	_, action := installerBootstrapNextActionGuidance(status)
+	return action
 }
 
 func installerAccessRunStatusCommand(args []string) {
@@ -126,6 +131,7 @@ func installerAccessRunStatusCommand(args []string) {
 	base, token, client := installerAccessClient(*installerURL, *tokenFile, *caFile)
 	status, err := fetchInstallerBootstrapRuntimeStatus(client, base, token)
 	if err != nil { fatal(err) }
+	nextActionCode, nextAction := installerBootstrapNextActionGuidance(status)
 	printJSON(map[string]any{
 		"authority": "INSTALLER_BOOTSTRAP_RUNTIME_STATUS_V1",
 		"actionGuidanceAuthority": installerBootstrapActionGuidanceAuthority,
@@ -135,7 +141,8 @@ func installerAccessRunStatusCommand(args []string) {
 		"run": status.Run,
 		"resetRuns": status.ResetRuns,
 		"automaticReplay": false,
-		"nextAction": installerBootstrapNextAction(status),
+		"nextActionCode": nextActionCode,
+		"nextAction": nextAction,
 	})
 }
 
@@ -223,6 +230,7 @@ func installerAccessResumeCommand(args []string) {
 			"status": "ALREADY_RUNNING",
 			"run": before.Run,
 			"automaticReplay": false,
+			"nextActionCode": "MONITOR_INSTALL",
 			"nextAction": "monitor the existing durable bootstrap run; do not submit another resume",
 		})
 		return
@@ -236,6 +244,7 @@ func installerAccessResumeCommand(args []string) {
 			"status": "ALREADY_SUCCEEDED",
 			"run": before.Run,
 			"automaticReplay": false,
+			"nextActionCode": "VERIFY_INSTALL",
 			"nextAction": "installation already succeeded; verify evidence instead of resuming",
 		})
 		return
@@ -248,6 +257,7 @@ func installerAccessResumeCommand(args []string) {
 			"status": "ACCEPTED_STATUS_PENDING",
 			"runId": before.Run.ID,
 			"automaticReplay": false,
+			"nextActionCode": "MONITOR_INSTALL",
 			"nextAction": "resume was accepted; retry installer-access run-status instead of replaying the mutation",
 		})
 		return
@@ -259,6 +269,7 @@ func installerAccessResumeCommand(args []string) {
 		"run": after.Run,
 		"bootstrapActive": after.BootstrapActive,
 		"automaticReplay": false,
+		"nextActionCode": "MONITOR_INSTALL",
 		"nextAction": "monitor durable status until terminal; if interrupted again, read status before another explicit RESUME",
 	})
 }
@@ -311,7 +322,7 @@ func installerAccessResetCommand(args []string) {
 	if !before.ExecutionEnabled { fatal(errors.New("Bootstrap Installer execution is disabled")) }
 	if before.BootstrapActive { fatal(errors.New("bootstrap mutation is active; reset is fenced")) }
 	if before.ResetActive {
-		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ALREADY_RUNNING","reset":latestIncompleteInstallerReset(before),"automaticReplay":false})
+		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ALREADY_RUNNING","reset":latestIncompleteInstallerReset(before),"automaticReplay":false,"nextActionCode":"MONITOR_RESET","nextAction":"monitor run-status until the active reset is terminal; do not submit another reset"})
 		return
 	}
 	if before.Run == nil { fatal(errors.New("no installation authority exists to reset")) }
@@ -319,11 +330,11 @@ func installerAccessResetCommand(args []string) {
 	outcome, err := performInstallerMutationWithReadback(client, base, token, "/api/v1/reset/start", headers, before, installerResetReadbackChanged, "reset")
 	if err != nil { fatal(err) }
 	if outcome.StatusPending {
-		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED_STATUS_PENDING","sourceRunId":before.Run.ID,"automaticReplay":false,"nextAction":"retry run-status; do not replay reset"})
+		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED_STATUS_PENDING","sourceRunId":before.Run.ID,"automaticReplay":false,"nextActionCode":"MONITOR_RESET","nextAction":"retry run-status; do not replay reset"})
 		return
 	}
 	after := outcome.After
-	printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED","resetActive":after.ResetActive,"reset":latestIncompleteInstallerReset(after),"automaticReplay":false,"nextAction":"monitor run-status until reset is terminal; use reset-resume only after interruption/failure"})
+	printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED","resetActive":after.ResetActive,"reset":latestIncompleteInstallerReset(after),"automaticReplay":false,"nextActionCode":"MONITOR_RESET","nextAction":"monitor run-status until reset is terminal; use reset-resume only after interruption/failure"})
 }
 
 func installerAccessResetResumeCommand(args []string) {
@@ -346,18 +357,18 @@ func installerAccessResetResumeCommand(args []string) {
 	reset := latestIncompleteInstallerReset(before)
 	if reset == nil { fatal(errors.New("no reset run requires resume")) }
 	if before.ResetActive {
-		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ALREADY_RUNNING","reset":reset,"automaticReplay":false})
+		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ALREADY_RUNNING","reset":reset,"automaticReplay":false,"nextActionCode":"MONITOR_RESET","nextAction":"monitor run-status until the active reset is terminal; do not submit another reset-resume"})
 		return
 	}
 	headers := map[string]string{"X-Confirm-Reset-Resume": "resume:" + reset.ID}
 	outcome, err := performInstallerMutationWithReadback(client, base, token, "/api/v1/reset/resume", headers, before, installerResetReadbackChanged, "reset-resume")
 	if err != nil { fatal(err) }
 	if outcome.StatusPending {
-		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED_STATUS_PENDING","resetId":reset.ID,"automaticReplay":false,"nextAction":"retry run-status; do not replay reset-resume"})
+		printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED_STATUS_PENDING","resetId":reset.ID,"automaticReplay":false,"nextActionCode":"MONITOR_RESET","nextAction":"retry run-status; do not replay reset-resume"})
 		return
 	}
 	after := outcome.After
-	printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED","resetActive":after.ResetActive,"reset":latestIncompleteInstallerReset(after),"automaticReplay":false,"nextAction":"monitor run-status until reset is terminal"})
+	printJSON(map[string]any{"authority":"INSTALLER_MANUAL_BOOTSTRAP_RESET_V1","status":"ACCEPTED","resetActive":after.ResetActive,"reset":latestIncompleteInstallerReset(after),"automaticReplay":false,"nextActionCode":"MONITOR_RESET","nextAction":"monitor run-status until reset is terminal"})
 }
 
 func installerAccessRotateCommand(args []string) {
