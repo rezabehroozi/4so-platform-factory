@@ -2736,16 +2736,16 @@ def _run_autopilot_locked(root: Path, *, repair: bool, max_repairs: int, codex_t
     # prerequisites to its remaining forward/convergence cursor. Invalid/stale
     # checkpoints fail safe to the full toolchain. A still-live child requires
     # only rejoin/observe, so unrelated toolchains and Codex must not block it.
-    selected_for_preflight = None if start_stage is None and stop_stage is None else stages
-    preflight_scope = "FULL_INVOCATION" if selected_for_preflight is None else "EXPLICIT_STAGE_SLICE"
+    explicit_slice = start_stage is not None or stop_stage is not None
+    selected_for_preflight = stages if explicit_slice else None
+    preflight_scope = "EXPLICIT_STAGE_SLICE" if explicit_slice else "FULL_INVOCATION"
     require_codex_preflight = repair
-    if selected_for_preflight is None:
-        resumed_scope, resume_reason = _resume_preflight_stage_scope(root, stages, repair=repair)
-        if resumed_scope is not None:
-            selected_for_preflight = resumed_scope
-            preflight_scope = resume_reason
-            if resume_reason == "LIVE_REJOIN":
-                require_codex_preflight = False
+    resumed_scope, resume_reason = _resume_preflight_stage_scope(root, stages, repair=repair)
+    if resumed_scope is not None:
+        selected_for_preflight = resumed_scope
+        preflight_scope = resume_reason
+        if resume_reason == "LIVE_REJOIN":
+            require_codex_preflight = False
     print(
         "AUTOPILOT_PREFLIGHT_SCOPE authority=" + RESUME_PREFLIGHT_CURSOR_AUTHORITY
         + " mode=" + preflight_scope
