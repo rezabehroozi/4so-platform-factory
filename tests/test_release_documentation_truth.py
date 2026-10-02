@@ -56,6 +56,26 @@ class ReleaseDocumentationTruthTest(unittest.TestCase):
             (root / 'docs/PROGRAM_STATUS.md').write_text('# wrong\nRelease **0.0.351**\n', encoding='utf-8')
             self.assertIn('CURRENT_PROGRAM_STATUS_AUTHORITY_MISMATCH', [code for code, _ in self.validate(root)])
 
+    def test_core_closure_workflow_mutation_authority_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            for rel in VALIDATE.CORE_LOCAL_ONLY_WORKFLOWS:
+                path=root/rel
+                path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_text(
+                    "name: local-only\n\non:\n  workflow_dispatch:\n\npermissions:\n  contents: read\n\njobs:\n  local-only-authority-notice:\n    runs-on: ubuntu-latest\n",
+                    encoding="utf-8",
+                )
+            errors=[]
+            VALIDATE.validate_core_local_only_workflows(root,errors)
+            self.assertEqual([],errors)
+
+            drift=root/VALIDATE.CORE_LOCAL_ONLY_WORKFLOWS[0]
+            drift.write_text(drift.read_text(encoding="utf-8")+"\n# regression\npermissions:\n  contents: write\n",encoding="utf-8")
+            errors=[]
+            VALIDATE.validate_core_local_only_workflows(root,errors)
+            self.assertIn("CORE_LOCAL_ONLY_WORKFLOW_MUTATION_FORBIDDEN",[code for code,_ in errors])
+
     def test_program_status_version_mismatch_is_rejected(self):
         temp, root = self.fixture()
         with temp:
