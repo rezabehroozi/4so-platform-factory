@@ -404,6 +404,29 @@ def require_published_read_only(path:Path,label:str)->None:
         raise RuntimeError(f"{label}_WRITABLE {path}")
 
 
+def require_publication_directory_read_only(path:Path,label:str)->None:
+    try:
+        info=path.lstat()
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"{label}_MISSING {path}") from exc
+    if path.is_symlink() or not stat.S_ISDIR(info.st_mode):
+        raise RuntimeError(f"{label}_INVALID {path}")
+    if info.st_mode & 0o222:
+        raise RuntimeError(f"{label}_WRITABLE {path}")
+
+
+def seal_publication_directory(path:Path)->None:
+    if path.is_symlink() or not path.is_dir():
+        raise RuntimeError(f"FINAL_EXACT_RELEASE_PUBLICATION_DIRECTORY_INVALID {path}")
+    path.chmod(0o555)
+    require_publication_directory_read_only(path,"FINAL_EXACT_RELEASE_PUBLICATION_DIRECTORY")
+    parent_fd=os.open(path.parent,os.O_RDONLY)
+    try:
+        os.fsync(parent_fd)
+    finally:
+        os.close(parent_fd)
+
+
 def publish_verified_file(source: Path, target: Path) -> Path:
     try:
         source_info=source.lstat()
@@ -487,6 +510,7 @@ def build_evidence(
     if release.parent!=expected_parent or release.name!=expected_name+".zip" or stage.name!=expected_name:
         raise RuntimeError("FINAL_EXACT_RELEASE_PATH_INVALID")
     require_published_read_only(release,"FINAL_EXACT_RELEASE_ARTIFACT")
+    require_publication_directory_read_only(release.parent,"FINAL_EXACT_RELEASE_PUBLICATION_DIRECTORY")
     prefix=expected_name+"/"
     metadata_files=("ARTIFACT-MANIFEST.json","BUILD-PROVENANCE.json","SBOM.spdx.json")
     stage_digests={name:sha256(stage/name) for name in metadata_files}
@@ -725,6 +749,7 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
     if type(evidence.get("releaseArchiveBytes")) is not int or evidence["releaseArchiveBytes"]<=0:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_SIZE_INVALID")
     release=root.joinpath(*expected_rel.parts)
+    require_publication_directory_read_only(release.parent,"FINAL_EXACT_RELEASE_EXISTING_PUBLICATION_DIRECTORY")
     require_published_read_only(release,"FINAL_EXACT_RELEASE_EXISTING_ARCHIVE")
     digest=sha256(release)
     if evidence.get("releaseArchiveSha256")!=digest or evidence.get("releaseArchiveBytes")!=release.stat().st_size:
@@ -814,6 +839,7 @@ def execute(root: Path, out: Path) -> dict:
             published_release = publish_verified_file(release, published_release_path)
             published_checksum=publish_verified_file(release.with_name(release.name + ".sha256"), published_checksum_path)
             verify_release_checksum(published_release,published_checksum,"FINAL_EXACT_RELEASE_PUBLISHED")
+            seal_publication_directory(published_release.parent)
             evidence = build_evidence(
                 root, published_release, stage, admitted, source_sha, version, release_name
             )
