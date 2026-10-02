@@ -384,6 +384,16 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             evidence_path.write_text(json.dumps(evidence))
             with self.assertRaisesRegex(RuntimeError,"INTEROP_BINDING_INVALID"): mod.verify(root)
 
+    def test_final_evidence_rejects_response_observation_drift(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            p=root/"lab/mcp-external-client-interoperability-evidence.json"
+            evidence=json.loads(p.read_text())
+            evidence["clients"][0]["responseObservations"]["read-only-client-mutation-negative-control"]["mutationObserved"]=True
+            p.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(RuntimeError,"RESPONSE_OBSERVATION_MISMATCH"):
+                mod.verify(root)
+
     def test_final_evidence_rejects_trusted_client_provenance_drift(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root)
