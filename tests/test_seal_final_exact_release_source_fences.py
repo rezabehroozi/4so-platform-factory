@@ -59,6 +59,23 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             finally:
                 mod.remove_exact_worktree(root.resolve(),worktree)
 
+    def test_staged_toolchain_archive_is_bound_to_locked_digest_not_current_source_equality(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); source=root/"go.tgz"; source.write_bytes(b"trusted-toolchain-bytes")
+            exact={
+                "localArchivePath":"vendor/toolchains/go.tgz",
+                "archiveSize":source.stat().st_size,
+                "archiveSha256":hashlib.sha256(source.read_bytes()).hexdigest(),
+            }
+            worktree=root/"worktree"; worktree.mkdir()
+            staged=mod.stage_toolchain_archive(source,exact,worktree)
+            self.assertEqual(source.read_bytes(),staged.read_bytes())
+
+            source.write_bytes(b"mutated-toolchain-byte")
+            other=root/"other"; other.mkdir()
+            with self.assertRaisesRegex(RuntimeError,"WORKTREE_TOOLCHAIN_MISMATCH"):
+                mod.stage_toolchain_archive(source,exact,other)
+
     def test_exact_release_publication_is_source_sha_scoped(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td).resolve()
