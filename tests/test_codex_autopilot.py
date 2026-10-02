@@ -524,7 +524,8 @@ class ResumePreflightCursorTests(unittest.TestCase):
             self.assertEqual(rc, 3)
             cursor.assert_called_once_with(root, stages, repair=True)
             self.assertEqual(preflight.call_args.kwargs["stages"], remaining)
-            self.assertTrue(preflight.call_args.kwargs["require_codex"])
+            self.assertFalse(preflight.call_args.kwargs["require_codex"])
+            self.assertEqual(AUTOPILOT.LAZY_REPAIR_CAPABILITY_AUTHORITY, "AUTOPILOT_LAZY_REPAIR_CAPABILITY_V1")
 
     def test_live_checkpoint_rejoin_skips_unrelated_preflight_before_graph_or_workspace_reset(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1119,6 +1120,46 @@ class StageAwareEnvironmentPreflightTests(unittest.TestCase):
             "go", "make", "c-compiler", "libpq-dev", "chromium-or-chrome",
             "python-module:yaml", "python-module:playwright",
         })
+    def test_repair_run_defers_codex_requirement_until_a_real_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = AUTOPILOT.Stage("repository-validation", ("true",), 10)
+            passed = AUTOPILOT.StageResult(stage.name, "PASS", 0, 0.01, "fp-pass", "ok")
+            readiness = {
+                "planId":"plan","deploymentExecutable":False,"productReleaseReady":False,
+                "productReleaseBlockers":1,"roadmapFeatureBlockers":1,"deploymentContextBlockers":0,
+                "productBlockerCodes":{"EXTERNAL":1},"roadmapFeatureBlockerCodes":{"EXTERNAL":1},
+                "deploymentContextBlockerCodes":{},"physicalRuntimeStatus":"not-evaluated",
+                "programRoadmap":{},"phases":[],
+            }
+            with mock.patch.object(AUTOPILOT, "_select_stages", return_value=[stage]), \
+                 mock.patch.object(AUTOPILOT, "_resume_preflight_stage_scope", return_value=(None, "NO_CHECKPOINT")), \
+                 mock.patch.object(AUTOPILOT, "environment_preflight", return_value=([], {"codex":"not-required"})) as preflight, \
+                 mock.patch.object(AUTOPILOT, "run_stage", return_value=passed), \
+                 mock.patch.object(AUTOPILOT, "_release_readiness", return_value=(readiness, None)), \
+                 mock.patch.object(AUTOPILOT, "unresolved_components", return_value=[]):
+                rc = AUTOPILOT._run_autopilot_locked(root, repair=True, max_repairs=1, codex_timeout=10)
+            self.assertEqual(rc, 0)
+            self.assertFalse(preflight.call_args.kwargs["require_codex"])
+
+    def test_failed_stage_without_repair_agent_blocks_only_at_failure_cursor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = AUTOPILOT.Stage("repository-validation", ("false",), 10)
+            failed = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.01, "fp-fail", "deterministic owner failure")
+            with mock.patch.object(AUTOPILOT, "_select_stages", return_value=[stage]), \
+                 mock.patch.object(AUTOPILOT, "_resume_preflight_stage_scope", return_value=(None, "NO_CHECKPOINT")), \
+                 mock.patch.object(AUTOPILOT, "environment_preflight", return_value=([], {"codex":"lazy"})) as preflight, \
+                 mock.patch.object(AUTOPILOT, "run_stage", return_value=failed), \
+                 mock.patch.object(AUTOPILOT, "invoke_codex", return_value=(False, "CODEX_CLI_UNAVAILABLE")) as repair:
+                rc = AUTOPILOT._run_autopilot_locked(root, repair=True, max_repairs=1, codex_timeout=10)
+            self.assertEqual(rc, 3)
+            self.assertFalse(preflight.call_args.kwargs["require_codex"])
+            repair.assert_called_once()
+            report = json.loads(AUTOPILOT._report_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(report["status"], "ENVIRONMENT_BLOCKED")
+            self.assertEqual(report["currentStage"], stage.name)
+
     def test_custom_codex_command_arguments_are_not_exposed_by_preflight(self):
         stage = AUTOPILOT.Stage("repository-validation", ("python3", "scripts/validate_repository.py", "."), 180)
         command = ["codex", "exec", "--token", "super-secret-token", "--sandbox", "workspace-write"]
