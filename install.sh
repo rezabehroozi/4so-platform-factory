@@ -7,6 +7,7 @@ ACTIONABLE_AUTHORITY="INSTALLER_MANUAL_ACTIONABLE_ENTRYPOINT_V1"
 DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"
 HOST_RUNTIME_DOCTOR_AUTHORITY="INSTALLER_MANUAL_HOST_RUNTIME_DOCTOR_V1"
 MACHINE_NEXT_ACTION_AUTHORITY="INSTALLER_MANUAL_MACHINE_NEXT_ACTION_V1"
+DOCTOR_OUTCOME_AUTHORITY="INSTALLER_MANUAL_DOCTOR_ACTION_OUTCOME_V1"
 BUNDLE_PREPARATION_AUTHORITY="INSTALLER_MANUAL_BUNDLE_PREPARATION_V1"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLATFORMCTL="${ROOT_DIR}/bin/linux-amd64/platformctl"
@@ -63,8 +64,9 @@ Start / Doctor:
   packaged binaries, bundle files and the exact release ZIP. It does not claim
   bundle admission; canonical digest/exact-release verification starts at preflight.
   When the exact release is ready but the appliance bundle is missing, Doctor
-  emits PREPARE_BUNDLE with one exact command. prepare-bundle is a thin adapter
-  over the release-shipped immutable acquisition authority; it never downloads
+  emits PREPARE_BUNDLE with one exact command and returns an actionable Doctor
+  outcome instead of misclassifying missing prepared bytes as a product defect.
+  prepare-bundle is a thin adapter over the release-shipped immutable acquisition authority; it never downloads
   moving upstream content and preserves future installer options for the next
   Doctor/preflight handoff. Its default durable state is under /var/lib and thus
   normally uses sudo; a writable custom --state-dir may be used without root.
@@ -322,6 +324,9 @@ if [[ "${mode}" == "doctor" ]]; then
   bundle_inputs_ready=false
   release_artifact_ready=false
   bundle_preparation_available=false
+  bundle_prepare_actionable=false
+  doctor_outcome="BLOCKED"
+  doctor_actionable=false
   host_os="$(uname -s 2>/dev/null || true)"
   host_arch="$(uname -m 2>/dev/null || true)"
   if [[ "${host_os}" == "Linux" && ("${host_arch}" == "x86_64" || "${host_arch}" == "amd64") ]]; then
@@ -344,8 +349,19 @@ if [[ "${mode}" == "doctor" ]]; then
   if [[ -f "${LAB_RUNNER}" && ! -L "${LAB_RUNNER}" && -r "${LAB_RUNNER}" ]] && command -v python3 >/dev/null 2>&1; then
     bundle_preparation_available=true
   fi
+  if [[ "${ready}" == true ]]; then
+    doctor_outcome="READY"
+    doctor_actionable=true
+  elif [[ "${host_platform_ready}" == true && "${platformctl_ready}" == true && "${platformctl_runnable}" == true && "${installer_ready}" == true && "${installer_runnable}" == true && "${release_artifact_ready}" == true && "${bundle_inputs_ready}" != true && "${bundle_preparation_available}" == true ]]; then
+    bundle_prepare_actionable=true
+    doctor_outcome="ACTION_REQUIRED"
+    doctor_actionable=true
+  fi
   printf '%s\n' \
     "authority=INSTALLER_MANUAL_DOCTOR_V1" \
+    "outcomeAuthority=${DOCTOR_OUTCOME_AUTHORITY}" \
+    "doctorOutcome=${doctor_outcome}" \
+    "actionable=${doctor_actionable}" \
     "handoffAuthority=${DOCTOR_HANDOFF_AUTHORITY}" \
     "hostRuntimeAuthority=${HOST_RUNTIME_DOCTOR_AUTHORITY}" \
     "machineNextActionAuthority=${MACHINE_NEXT_ACTION_AUTHORITY}" \
@@ -379,7 +395,7 @@ if [[ "${mode}" == "doctor" ]]; then
       printf ' %q' "${passthrough[@]}"
     fi
     printf '\n'
-  elif [[ "${host_platform_ready}" == true && "${platformctl_ready}" == true && "${platformctl_runnable}" == true && "${installer_ready}" == true && "${installer_runnable}" == true && "${release_artifact_ready}" == true && "${bundle_inputs_ready}" != true && "${bundle_preparation_available}" == true ]]; then
+  elif [[ "${bundle_prepare_actionable}" == true ]]; then
     printf '%s\n' "nextActionCode=PREPARE_BUNDLE"
     printf '%s\n' "nextAction=prepare the exact-release-bound appliance bundle through the release-shipped immutable acquisition authority; this is preparation only and does not imply Runtime or Physical PASS"
     printf 'nextCommand=sudo bash %q prepare-bundle --release-artifact %q --state-dir %q' \
@@ -393,8 +409,10 @@ if [[ "${mode}" == "doctor" ]]; then
     printf '%s\n' "nextAction=resolve the false readiness fields above (including host platform, binary runtime/version compatibility, exact release input and bundle-preparation availability), then rerun this doctor command; do not start preflight yet"
     printf '%s\n' "nextCommand="
   fi
-  [[ "${ready}" == true ]]
-  exit
+  if [[ "${doctor_actionable}" == true ]]; then
+    exit 0
+  fi
+  exit 1
 fi
 
 if [[ ! -f "${PLATFORMCTL}" || -L "${PLATFORMCTL}" || ! -x "${PLATFORMCTL}" ]]; then
