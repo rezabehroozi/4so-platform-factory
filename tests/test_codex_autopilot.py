@@ -832,10 +832,39 @@ class AutopilotAgentContextTests(unittest.TestCase):
                      "recoveryRequired":False,"safeToRetry":False,"action":"STATUS_UNAVAILABLE",
                  }):
                 context = AUTOPILOT._agent_context(root)
-            self.assertEqual(context["nextActionCode"], "INSPECT_AUTOPILOT_STATE")
-            self.assertEqual(context["nextCommand"], ["make", "autopilot-status"])
+            self.assertEqual(context["nextActionCode"], "INSPECT_OUTER_RUNTIME_STATUS")
+            self.assertEqual(context["nextCommand"], ["make", "runtime-status"])
             self.assertEqual(context["resumeInvocation"], [])
-            self.assertIn("do not reconstruct or guess", context["nextAction"])
+            self.assertIn("outer-runtime status is unavailable", context["nextAction"])
+            self.assertIn("do not start or resume inner Autopilot", context["nextAction"])
+
+    def test_outer_status_failure_never_falls_back_to_direct_inner_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = {
+                "schemaVersion": 1,
+                "authority": "AUTOPILOT_CAMPAIGN_REPORT_V1",
+                "status": "RUNNING",
+                "phase": "forward",
+                "currentStage": "installer-go-owner-tests",
+                "currentCommand": ["go", "test", "./cmd/platformctl"],
+                "currentTimeoutSeconds": 600,
+                "resumeEligible": True,
+                "invocation": ["python3", "scripts/codex_autopilot.py", "--agent-run"],
+            }
+            AUTOPILOT._report_path(root).write_text(json.dumps(report), encoding="utf-8")
+            unavailable = {
+                "authority":"AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1","available":False,
+                "status":"UNKNOWN","runId":"","activeRun":False,
+                "recoveryRequired":False,"safeToRetry":False,"action":"STATUS_UNAVAILABLE",
+            }
+            with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40), \
+                 mock.patch.object(AUTOPILOT, "_outer_runtime_context", return_value=unavailable):
+                context = AUTOPILOT._agent_context(root)
+            self.assertEqual(context["nextActionCode"], "INSPECT_OUTER_RUNTIME_STATUS")
+            self.assertEqual(context["nextCommand"], ["make", "runtime-status"])
+            self.assertNotEqual(context["nextCommand"], context["resumeInvocation"])
+            self.assertIn("do not start or resume inner Autopilot", context["nextAction"])
 
     def test_checkpoint_failure_capsule_is_redacted_before_agent_handoff(self):
         with tempfile.TemporaryDirectory() as directory:
