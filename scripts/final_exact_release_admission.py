@@ -142,6 +142,10 @@ def external_client_progress(root:Path)->dict:
         checks=row.get("checks")
         if not isinstance(checks,dict) or set(checks)!=set(MCP_REQUIRED_CHECKS) or any(v is not True for v in checks.values()):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_CHECKS_INVALID")
+        mcp_contract.validate_response_observations(
+            row.get("responseObservations"),row.get("sourceCommitSHA"),row.get("runtimeVersion"),row.get("endpoint"),
+            "MCP_EXTERNAL_PROGRESS_"+client.upper(),
+        )
         request_ids=row.get("requestIds")
         if not isinstance(request_ids,dict) or set(request_ids)!=set(MCP_AUDITED_CHECKS) or len(set(str(v or "").strip() for v in request_ids.values()))!=len(MCP_AUDITED_CHECKS) or any(not re.fullmatch(r"[A-Za-z0-9._:-]{8,200}",str(v or "").strip()) for v in request_ids.values()):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_REQUEST_IDS_INVALID")
@@ -271,6 +275,10 @@ def verify(root:Path,expected_source_sha:str|None=None)->dict:
         checks=row.get("checks")
         if not isinstance(checks,dict) or set(checks)!=set(MCP_REQUIRED_CHECKS) or any(v is not True for v in checks.values()):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_CHECKS_INVALID")
+        mcp_contract.validate_response_observations(
+            row.get("responseObservations"),row.get("sourceCommitSHA"),row.get("runtimeVersion"),row.get("endpoint"),
+            "MCP_EXTERNAL_INTEROP_"+client.upper(),
+        )
         request_ids=row.get("requestIds")
         if not isinstance(request_ids,dict) or set(request_ids)!=set(MCP_AUDITED_CHECKS) or len(set(str(v or "").strip() for v in request_ids.values()))!=len(MCP_AUDITED_CHECKS):
             raise RuntimeError("MCP_EXTERNAL_INTEROP_REQUEST_IDS_INVALID")
