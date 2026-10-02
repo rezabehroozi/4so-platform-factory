@@ -1350,6 +1350,47 @@ def validate_release_build_toolchain(root: Path, version: str, errors: list[tupl
             if marker not in builder_text:
                 errors.append(('RELEASE_BINARY_BUILDER_INVALID',marker))
 
+    def literal_assignment(path: Path, name: str):
+        try:
+            tree=ast.parse(path.read_text(encoding='utf-8',errors='strict'),filename=str(path))
+        except (OSError,SyntaxError,ValueError):
+            return None
+        for node in tree.body:
+            if isinstance(node,(ast.Assign,ast.AnnAssign)):
+                targets=node.targets if isinstance(node,ast.Assign) else [node.target]
+                if any(isinstance(target,ast.Name) and target.id==name for target in targets):
+                    try:
+                        return ast.literal_eval(node.value)
+                    except (ValueError,TypeError):
+                        return None
+        return None
+
+    expected_release_binaries=(
+        'platform-api','platformctl','platform-installer','platform-agent',
+        'platform-probe','virtual-cluster-renderer','openchoreo-runtime','dapr-runtime',
+    )
+    expected_build_targets=(
+        ('platform-api','./cmd/platform-api','1'),
+        ('platformctl','./cmd/platformctl','0'),
+        ('platform-installer','./cmd/platform-installer','0'),
+        ('platform-agent','./cmd/platform-agent','0'),
+        ('platform-probe','./cmd/platform-probe','0'),
+        ('virtual-cluster-renderer','./cmd/virtual-cluster-renderer','0'),
+        ('openchoreo-runtime','./cmd/openchoreo-runtime','0'),
+        ('dapr-runtime','./cmd/dapr-runtime','0'),
+    )
+    builder_targets=literal_assignment(binary_builder,'TARGETS') if binary_builder.is_file() else None
+    packager_path=root/'scripts/build_release.py'
+    verifier_path=root/'scripts/verify_release.py'
+    packager_binaries=literal_assignment(packager_path,'BINARIES') if packager_path.is_file() else None
+    verifier_binaries=literal_assignment(verifier_path,'RELEASE_BINARIES') if verifier_path.is_file() else None
+    if builder_targets!=expected_build_targets:
+        errors.append(('RELEASE_BINARY_BUILDER_TARGET_SET_INVALID',str(builder_targets)))
+    if packager_binaries!=expected_release_binaries:
+        errors.append(('RELEASE_PACKAGER_BINARY_SET_INVALID',str(packager_binaries)))
+    if verifier_binaries!=expected_release_binaries:
+        errors.append(('RELEASE_VERIFIER_BINARY_SET_INVALID',str(verifier_binaries)))
+
     final_sealer = root/'scripts/seal_final_exact_release.py'
     if not final_sealer.is_file():
         errors.append(('FINAL_EXACT_RELEASE_SEALER_MISSING','scripts/seal_final_exact_release.py'))
