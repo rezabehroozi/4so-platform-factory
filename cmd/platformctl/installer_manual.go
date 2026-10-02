@@ -75,6 +75,12 @@ type manualInstallerPreflightResult struct {
 }
 
 func newManualInstallerPreflightResult(admission hostdeployment.HostAdmissionReport, releaseDigest string) manualInstallerPreflightResult {
+	nextActionCode := "RESOLVE_HOST_ADMISSION"
+	nextAction := "resolve the reported host admission blockers, then rerun preflight; no host mutation has occurred"
+	if admission.Ready {
+		nextActionCode = "REVIEW_PLAN"
+		nextAction = "review installer-manual plan next; no host mutation has occurred"
+	}
 	return manualInstallerPreflightResult{
 		HostAdmissionReport:        admission,
 		Authority:                  installerGuidedManualWorkflowAuthority,
@@ -83,8 +89,8 @@ func newManualInstallerPreflightResult(admission hostdeployment.HostAdmissionRep
 		ManualInstall:              true,
 		SourceReleaseDigest:        releaseDigest,
 		MachineNextActionAuthority: installerManualMachineNextActionAuthority,
-		NextActionCode:             map[bool]string{true: "REVIEW_PLAN", false: "RESOLVE_HOST_ADMISSION"}[admission.Ready],
-		NextAction:                 "if ready=true, review installer-manual plan next; no host mutation has occurred",
+		NextActionCode:             nextActionCode,
+		NextAction:                 nextAction,
 	}
 }
 
@@ -168,8 +174,10 @@ func installerManualPrepare(mode string, args []string) {
 	}
 	if mode == "plan" {
 		nextActionCode := "RUN_INSTALL"
+		nextAction := "review admission/actions; rerun installer-manual install with --enable-execution --confirmation DEPLOY to enable browser appliance mutation"
 		if !plan.Admission.Ready {
 			nextActionCode = "RESOLVE_HOST_ADMISSION"
+			nextAction = "resolve the reported host admission blockers, then rerun preflight before install"
 		}
 		printJSON(map[string]any{
 			"authority":     installerGuidedManualWorkflowAuthority,
@@ -180,7 +188,7 @@ func installerManualPrepare(mode string, args []string) {
 			"specPath":      retainedSpecPath(input.OutputSpec),
 			"sourceReleaseDigest": releaseDigest,
 			"nextActionCode": nextActionCode,
-			"nextAction":    "review admission/actions; rerun installer-manual install with --enable-execution --confirmation DEPLOY to enable browser appliance mutation",
+			"nextAction":    nextAction,
 		})
 		if !plan.Admission.Ready {
 			os.Exit(1)
@@ -188,7 +196,7 @@ func installerManualPrepare(mode string, args []string) {
 		return
 	}
 	if !plan.Admission.Ready {
-		printJSON(map[string]any{"authority": installerGuidedManualWorkflowAuthority, "exactReleaseAuthority": installerManualExactReleaseAuthority, "remoteHandoffAuthority": installerManualRemoteHandoffAuthority, "machineNextActionAuthority": installerManualMachineNextActionAuthority, "manualInstall": true, "plan": plan, "status": "BLOCKED", "nextActionCode": "RUN_PREFLIGHT", "nextAction": "resolve host admission blockers and rerun preflight"})
+		printJSON(map[string]any{"authority": installerGuidedManualWorkflowAuthority, "exactReleaseAuthority": installerManualExactReleaseAuthority, "remoteHandoffAuthority": installerManualRemoteHandoffAuthority, "machineNextActionAuthority": installerManualMachineNextActionAuthority, "manualInstall": true, "plan": plan, "status": "BLOCKED", "nextActionCode": "RESOLVE_HOST_ADMISSION", "nextAction": "resolve host admission blockers and rerun preflight"})
 		os.Exit(1)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), input.Timeout)
