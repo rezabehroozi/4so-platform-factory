@@ -701,6 +701,7 @@ def _safe_extract(archive: Path, dest: Path, *, expected_sha256: str | None = No
 
 BUNDLE_ACQUISITION_AUTHORITY = "LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8"
 BUNDLE_ACQUISITION_EXACT_RELEASE_AUTHORITY = "LAB_APPLIANCE_BUNDLE_ACQUISITION_EXACT_RELEASE_BINDING_V1"
+INSTALLER_MANUAL_BUNDLE_PREPARATION_AUTHORITY = "INSTALLER_MANUAL_BUNDLE_PREPARATION_V1"
 BUNDLE_ACQUISITION_LOCK_REL = "lab/appliance-bundle-acquisition-lock.json"
 MANAGEMENT_WORKLOAD_IMAGE_PLAN_AUTHORITY = "MANAGEMENT_WORKLOAD_IMAGE_BUILD_PLAN_V5"
 MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_AUTHORITY = "MANAGEMENT_WORKLOAD_PRODUCT_IMAGE_CERTIFICATION_V1"
@@ -2404,6 +2405,152 @@ def _auto_acquire_bundle(body: dict[str, Any], artifact: Path, release_root: Pat
             "acquisitionLockDigest": lock_digest,
         }
 
+def _manual_bundle_prepare(
+    release_artifact: Path,
+    state_dir: Path,
+    *,
+    doctor_args: list[str] | None = None,
+) -> dict[str, Any]:
+    """Prepare one exact-release-bound appliance bundle for guided manual install.
+
+    The command is intentionally only an adapter over the canonical Lab bundle
+    acquisition authority. It snapshots and extracts the exact release first so
+    bundle construction runs with the platformctl shipped by those exact bytes.
+    """
+    source = release_artifact.expanduser().absolute()
+    requested_state = state_dir.expanduser().absolute()
+    try:
+        info = requested_state.lstat()
+    except FileNotFoundError:
+        info = None
+    if info is not None and (requested_state.is_symlink() or not stat.S_ISDIR(info.st_mode)):
+        raise SystemExit("--state-dir must be a real directory, not a symlink or non-directory")
+    requested_state.mkdir(parents=True, exist_ok=True)
+    requested_state.chmod(0o700)
+    state = requested_state.resolve()
+    doctor_args = list(doctor_args or [])
+
+    with _exclusive_run_state(state):
+        wrapper = {"spec": {"releaseArtifact": str(source)}}
+        snap_spec, (_root_name, version, artifact_sha) = _spec_with_persistent_release_snapshot(
+            wrapper, state / "release-artifact.zip"
+        )
+        snapshot = Path(str(snap_spec["spec"]["releaseArtifact"]))
+        release_root = _safe_extract(snapshot, state / "release", expected_sha256=artifact_sha)
+        platformctl = release_root / "bin" / "linux-amd64" / "platformctl"
+        if (
+            platformctl.is_symlink()
+            or not platformctl.is_file()
+            or not os.access(platformctl, os.X_OK)
+        ):
+            raise SystemExit("exact release does not contain an executable packaged platformctl")
+
+        acquisition_state = state / "bundle-acquisition"
+        bundle = acquisition_state / "bundle"
+        acquisition: dict[str, Any] | None = None
+        reuse_status = "BUILT"
+        try:
+            bundle_info = bundle.lstat()
+        except FileNotFoundError:
+            bundle_info = None
+        if bundle_info is not None:
+            if bundle.is_symlink() or not stat.S_ISDIR(bundle_info.st_mode):
+                raise SystemExit("prepared bundle path must be a real non-symlink directory")
+            verify = _run(
+                "manual-bundle-reuse-verify",
+                [str(platformctl), "appliance-bundle", "verify", "--dir", str(bundle)],
+                cwd=release_root,
+                timeout=300,
+            )
+            binding_ok, binding_detail = _bundle_verify_binding(
+                verify, version=version, artifact_sha=artifact_sha
+            )
+            if verify["status"] == "PASS" and binding_ok:
+                details = _bundle_verify_details(verify)
+                lock, lock_digest = _load_exact_bundle_acquisition_lock(
+                    snapshot, version, artifact_sha
+                )
+                acquisition = {
+                    "stage": "manual-bundle-reuse",
+                    "status": "PASS",
+                    "returnCode": 0,
+                    "durationSeconds": verify.get("durationSeconds", 0),
+                    "outputTail": "existing prepared bundle reverified against exact release",
+                    "fingerprint": _fingerprint(
+                        "manual-bundle-reuse",
+                        0,
+                        lock_digest
+                        + ":"
+                        + str(details["bundleDigest"])
+                        + ":"
+                        + artifact_sha,
+                    ),
+                    "exactReleaseBindingAuthority": BUNDLE_ACQUISITION_EXACT_RELEASE_AUTHORITY,
+                    "acquisitionLockDigest": lock_digest,
+                    "bundleDigest": str(details["bundleDigest"]),
+                    "bundleLockDigest": str(details["lockDigest"]),
+                    "releaseArtifactDigest": "sha256:" + artifact_sha,
+                    "inputPackDigest": "sha256:" + str(lock["inputPack"]["sha256"]),
+                    "cacheHit": True,
+                }
+                reuse_status = "REUSED"
+            else:
+                shutil.rmtree(bundle)
+        if acquisition is None:
+            prepared, acquisition = _auto_acquire_bundle(
+                {}, snapshot, release_root, acquisition_state
+            )
+            if prepared is None:
+                result = {
+                    "authority": INSTALLER_MANUAL_BUNDLE_PREPARATION_AUTHORITY,
+                    "status": "BLOCKED",
+                    "releaseVersion": version,
+                    "releaseArtifact": str(snapshot),
+                    "releaseArtifactDigest": "sha256:" + artifact_sha,
+                    "stateDirectory": str(state),
+                    "bundleDirectory": "",
+                    "acquisition": acquisition,
+                    "nextActionCode": "RESOLVE_BUNDLE_SOURCE_AUTHORITY",
+                    "nextCommandArgv": [],
+                    "nextCommand": "",
+                    "runtimeCertified": False,
+                    "physicalCertified": False,
+                }
+                _write_json(state / "manual-bundle-preparation.json", result)
+                return result
+            bundle = prepared
+
+        next_argv = [
+            "sudo",
+            "bash",
+            str(release_root / "install.sh"),
+            "doctor",
+            "--bundle-dir",
+            str(bundle),
+            "--release-artifact",
+            str(snapshot),
+            *doctor_args,
+        ]
+        result = {
+            "authority": INSTALLER_MANUAL_BUNDLE_PREPARATION_AUTHORITY,
+            "status": "READY",
+            "preparation": reuse_status,
+            "releaseVersion": version,
+            "releaseArtifact": str(snapshot),
+            "releaseArtifactDigest": "sha256:" + artifact_sha,
+            "stateDirectory": str(state),
+            "bundleDirectory": str(bundle),
+            "acquisition": acquisition,
+            "nextActionCode": "RUN_DOCTOR",
+            "nextCommandArgv": next_argv,
+            "nextCommand": shlex.join(next_argv),
+            "runtimeCertified": False,
+            "physicalCertified": False,
+        }
+        _write_json(state / "manual-bundle-preparation.json", result)
+        return result
+
+
 def _roles_for_tier(tier: str) -> list[str]:
     for row in guide()["serverTiers"]:
         if row["id"] == tier:
@@ -3771,6 +3918,10 @@ def main() -> int:
     sub=ap.add_subparsers(dest="command",required=True)
     sub.add_parser("guide")
     sub.add_parser("self-test")
+    prepare_bundle = sub.add_parser("prepare-bundle")
+    prepare_bundle.add_argument("--release-artifact", required=True)
+    prepare_bundle.add_argument("--state-dir", required=True)
+    prepare_bundle.add_argument("--doctor-arg", action="append", default=[])
     for name in ("plan","preflight","run"):
         p=sub.add_parser(name); p.add_argument("--spec",required=True)
         if name=="run":
@@ -3778,6 +3929,14 @@ def main() -> int:
     args=ap.parse_args()
     if args.command=="guide": print(json.dumps(guide(),indent=2)); return 0
     if args.command=="self-test": return self_test()
+    if args.command=="prepare-bundle":
+        result = _manual_bundle_prepare(
+            Path(args.release_artifact),
+            Path(args.state_dir),
+            doctor_args=list(args.doctor_arg or []),
+        )
+        print(json.dumps(result, indent=2))
+        return 0 if result["status"] == "READY" else 2
     spec=_load_json(Path(args.spec).expanduser())
     if args.command=="plan": print(json.dumps(plan_document(spec),indent=2)); return 0
     if args.command=="preflight":
