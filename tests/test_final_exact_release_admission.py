@@ -148,6 +148,54 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             self.assertIsNone(progress["nextClient"])
             self.assertTrue(progress["evidenceSealPending"])
 
+    def test_final_admission_revalidates_mcp_projection_identity_and_timing(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            evidence_path=root/"lab/mcp-external-client-interoperability-evidence.json"
+
+            evidence=json.loads(evidence_path.read_text())
+            evidence["protocol"]="future-protocol"
+            evidence_path.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(RuntimeError,"PROTOCOL_INVALID"):
+                mod.verify(root)
+
+            self.fixture(root)
+            evidence=json.loads(evidence_path.read_text())
+            evidence["clients"][0]["endpoint"]="https://other.example.test/mcp"
+            evidence_path.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(RuntimeError,"ENDPOINT_DRIFT"):
+                mod.verify(root)
+
+            self.fixture(root)
+            evidence=json.loads(evidence_path.read_text())
+            evidence["clients"][0]["serverAuditWitness"]["executionObservedAt"]="2026-09-29T01:02:04Z"
+            evidence_path.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(RuntimeError,"SERVER_WITNESS_TIME_DRIFT"):
+                mod.verify(root)
+
+            self.fixture(root)
+            evidence=json.loads(evidence_path.read_text())
+            evidence["clients"][0]["campaignCreatedAt"]="2026-09-28T00:00:00Z"
+            evidence_path.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_WINDOW_DRIFT"):
+                mod.verify(root)
+
+    def test_progress_revalidates_projection_identity_and_timing(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
+            row=self.progress_row("chatgpt")
+            base={"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropProgress","authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","matrixAuthority":mod.mcp_contract.MATRIX_AUTHORITY,"matrixSha256":"sha256:"+hashlib.sha256(b"matrix").hexdigest(),"campaignAuthority":mod.mcp_contract.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"protocol":"2026-07-28","transport":"streamable-http","endpoint":"https://mcp.example.test/mcp","allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}
+            p=root/"lab/mcp-external-client-interop-progress.json"
+
+            invalid=json.loads(json.dumps(base)); invalid["matrixSha256"]="not-a-digest"; p.write_text(json.dumps(invalid))
+            with self.assertRaisesRegex(RuntimeError,"MATRIX_BINDING_INVALID"):
+                mod.external_client_progress(root)
+
+            invalid=json.loads(json.dumps(base)); invalid["clients"][0]["executionAuditWindowSeconds"]=0; p.write_text(json.dumps(invalid))
+            with self.assertRaisesRegex(RuntimeError,"AUDIT_WINDOW_INVALID"):
+                mod.external_client_progress(root)
+
     def test_unwitnessed_external_evidence_remains_pending(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root)
