@@ -393,6 +393,17 @@ def verify_worktree_source_unchanged(worktree: Path, source_sha: str, allowed_un
         raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_SOURCE_CHANGED")
 
 
+def require_published_read_only(path:Path,label:str)->None:
+    try:
+        info=path.lstat()
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"{label}_MISSING {path}") from exc
+    if path.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_size<=0:
+        raise RuntimeError(f"{label}_INVALID {path}")
+    if info.st_mode & 0o222:
+        raise RuntimeError(f"{label}_WRITABLE {path}")
+
+
 def publish_verified_file(source: Path, target: Path) -> Path:
     try:
         source_info=source.lstat()
@@ -406,6 +417,7 @@ def publish_verified_file(source: Path, target: Path) -> Path:
     if target.exists() or target.is_symlink():
         if target.is_symlink() or not target.is_file() or target.stat().st_size!=wanted_size or sha256(target)!=wanted:
             raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_CONFLICT {target}")
+        require_published_read_only(target,"FINAL_EXACT_RELEASE_ARTIFACT")
         return target
 
     fd,temp_name=tempfile.mkstemp(prefix="."+target.name+".publish.",dir=target.parent)
@@ -425,6 +437,7 @@ def publish_verified_file(source: Path, target: Path) -> Path:
                 raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_CONFLICT {target}")
         if target.stat().st_size!=wanted_size or sha256(target)!=wanted:
             raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_PUBLICATION_DRIFT {target}")
+        require_published_read_only(target,"FINAL_EXACT_RELEASE_ARTIFACT")
         directory_fd=os.open(target.parent,os.O_RDONLY)
         try:
             os.fsync(directory_fd)
@@ -473,6 +486,7 @@ def build_evidence(
     expected_parent=root/"release"/"exact-sha"/source_sha
     if release.parent!=expected_parent or release.name!=expected_name+".zip" or stage.name!=expected_name:
         raise RuntimeError("FINAL_EXACT_RELEASE_PATH_INVALID")
+    require_published_read_only(release,"FINAL_EXACT_RELEASE_ARTIFACT")
     prefix=expected_name+"/"
     metadata_files=("ARTIFACT-MANIFEST.json","BUILD-PROVENANCE.json","SBOM.spdx.json")
     stage_digests={name:sha256(stage/name) for name in metadata_files}
@@ -711,10 +725,12 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
     if type(evidence.get("releaseArchiveBytes")) is not int or evidence["releaseArchiveBytes"]<=0:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_SIZE_INVALID")
     release=root.joinpath(*expected_rel.parts)
+    require_published_read_only(release,"FINAL_EXACT_RELEASE_EXISTING_ARCHIVE")
     digest=sha256(release)
     if evidence.get("releaseArchiveSha256")!=digest or evidence.get("releaseArchiveBytes")!=release.stat().st_size:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_DRIFT")
     checksum=release.with_name(release.name+".sha256")
+    require_published_read_only(checksum,"FINAL_EXACT_RELEASE_EXISTING_CHECKSUM")
     try:
         verify_release_checksum(release,checksum,"FINAL_EXACT_RELEASE_EXISTING")
     except RuntimeError as exc:
