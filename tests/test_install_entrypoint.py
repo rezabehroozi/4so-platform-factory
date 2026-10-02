@@ -184,6 +184,27 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         self.assertIn("exit 1", source)
         self.assertIn("missing prepared bytes as a product defect", source)
 
+    def test_doctor_emits_bounded_machine_readable_blocker_remediation(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        for marker in (
+            'DOCTOR_REMEDIATION_AUTHORITY="INSTALLER_MANUAL_DOCTOR_REMEDIATION_V1"',
+            '"remediationAuthority=${DOCTOR_REMEDIATION_AUTHORITY}"',
+            'doctor_blocker_codes+=("UNSUPPORTED_HOST_PLATFORM")',
+            'doctor_blocker_codes+=("PACKAGED_PLATFORMCTL_MISSING")',
+            'doctor_blocker_codes+=("PLATFORMCTL_RUNTIME_OR_VERSION_MISMATCH")',
+            'doctor_blocker_codes+=("PACKAGED_INSTALLER_MISSING")',
+            'doctor_blocker_codes+=("INSTALLER_RUNTIME_OR_VERSION_MISMATCH")',
+            'doctor_blocker_codes+=("EXACT_RELEASE_ARTIFACT_REQUIRED")',
+            'doctor_blocker_codes+=("BUNDLE_PREPARATION_UNAVAILABLE")',
+            "blockerCodes=%s",
+            "remediation.%s=%s",
+            "resolve only the blockerCodes",
+        ):
+            self.assertIn(marker, source)
+        self.assertNotIn("apt-get install", source)
+        self.assertNotIn("dnf install", source)
+        self.assertNotIn("yum install", source)
+
     def test_doctor_emits_shell_escaped_exact_preflight_command_with_resolved_inputs(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"', source)
