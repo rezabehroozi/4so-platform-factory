@@ -47,6 +47,34 @@ RELEASE_BINARIES = (
 )
 
 
+def _process_group_kwargs() -> dict:
+    if os.name=="nt":
+        return {"creationflags":getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0)}
+    return {"start_new_session":True}
+
+
+def _terminate_tree(process: subprocess.Popen[str], *, force: bool) -> None:
+    if process.poll() is not None:
+        return
+    if os.name=="posix":
+        try:
+            os.killpg(process.pid,signal.SIGKILL if force else signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        return
+    taskkill=shutil.which("taskkill")
+    if taskkill:
+        args=[taskkill,"/PID",str(process.pid),"/T"]
+        if force:
+            args.append("/F")
+        subprocess.run(args,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False)
+    if process.poll() is None:
+        try:
+            process.kill() if force else process.terminate()
+        except OSError:
+            pass
+
+
 def run_bounded_command(
     command: list[str],
     *,
@@ -62,29 +90,17 @@ def run_bounded_command(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=subprocess.DEVNULL,
-        start_new_session=(os.name == "posix"),
+        **_process_group_kwargs(),
     )
     try:
         stdout, stderr = process.communicate(timeout=timeout_seconds)
         return process.returncode, stdout or "", stderr or ""
     except subprocess.TimeoutExpired:
-        if os.name == "posix":
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        else:
-            process.terminate()
+        _terminate_tree(process,force=False)
         try:
             stdout, stderr = process.communicate(timeout=2)
         except subprocess.TimeoutExpired:
-            if os.name == "posix":
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            else:
-                process.kill()
+            _terminate_tree(process,force=True)
             stdout, stderr = process.communicate()
         stderr = (stderr or "") + (
             f"\nCOMMAND_TIMEOUT timeout={timeout_seconds} command={' '.join(command)}\n"
