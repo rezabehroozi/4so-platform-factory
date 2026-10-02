@@ -641,7 +641,8 @@ class AutopilotAgentContextTests(unittest.TestCase):
             cases = [
                 ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"RUNNING","runId":"run-1","activeRun":True}, "OBSERVE_ACTIVE"),
                 ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"INTERRUPTED","runId":"run-2","activeRun":False,"safeToRetry":True}, "RESUME_RUNTIME"),
-                ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"INTERRUPTED","runId":"run-3","activeRun":False,"recoveryRequired":True,"safeToRetry":False}, "RECOVERY_REQUIRED"),
+                ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"FAILED","runId":"run-2b","activeRun":False,"replaySafe":True,"safeToRetry":False}, "RESUME_RUNTIME"),
+                ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"INTERRUPTED","runId":"run-3","activeRun":False,"recoveryRequired":True,"replaySafe":True,"safeToRetry":False}, "RECOVERY_REQUIRED"),
                 ({"authority":"PROJECT_RUNTIME_STATE_V1","status":"COMPLETED","runId":"run-4","activeRun":False}, "NO_ACTIVE_RUNTIME"),
             ]
             for payload, expected_action in cases:
@@ -672,7 +673,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["nextCommand"], ["make", "runtime-status"])
             self.assertIn("do not start a duplicate", context["nextAction"])
 
-            resumable = {**active, "status":"INTERRUPTED", "activeRun":False, "safeToRetry":True, "action":"RESUME_RUNTIME"}
+            resumable = {**active, "status":"FAILED", "activeRun":False, "safeToRetry":False, "replaySafe":True, "action":"RESUME_RUNTIME"}
             with mock.patch.object(AUTOPILOT, "_outer_runtime_context", return_value=resumable), \
                  mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
                 context = AUTOPILOT._agent_context(root)
