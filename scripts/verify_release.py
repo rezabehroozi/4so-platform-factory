@@ -276,6 +276,15 @@ def elf_metadata(path: Path) -> tuple[str, list[str]]:
     return build_id, needed
 
 
+def verify_go_binary_build_identity(go_binary:str,path:Path,version:str,source_commit_sha:str)->None:
+    proc=subprocess.run([go_binary,"version","-m",str(path)],capture_output=True,text=True,check=False)
+    output=(proc.stdout or "")+(proc.stderr or "")
+    version_token="platform.4so.io/factory/internal/buildinfo.Version="+version
+    source_token="platform.4so.io/factory/internal/buildinfo.SourceCommit="+source_commit_sha
+    if proc.returncode!=0 or version_token not in output or source_token not in output:
+        raise SystemExit(f"BINARY_BUILD_IDENTITY_MISMATCH {path}")
+
+
 def validate_manual_install_release_payload(root: Path) -> None:
     """Fail closed when the exact release cannot drive the documented manual path.
 
@@ -510,6 +519,15 @@ def main() -> int:
             verify_environment = os.environ.copy()
             verify_environment["PLATFORM_FACTORY_DEVELOPMENT_MODE"] = "true"
             verify_environment["SOURCE_COMMIT"] = str(provenance["sourceCommitSHA"])
+            go_binary=str(verify_environment.get("GO") or "go").strip() or "go"
+            for name in RELEASE_BINARIES:
+                verify_go_binary_build_identity(
+                    go_binary,
+                    root/"bin"/"linux-amd64"/name,
+                    version,
+                    str(provenance["sourceCommitSHA"]),
+                )
+            print("PACKAGED_BINARY_BUILD_IDENTITY_GATE_PASS",version,len(RELEASE_BINARIES))
             try:
                 browser_executable, browser_authority = prepare_full_verifier_browser(verify_environment)
             except ValueError as exc:
@@ -612,7 +630,11 @@ def main() -> int:
                         file=sys.stderr,
                     )
                     return 1
+                verify_go_binary_build_identity(
+                    go_binary,binary,version,str(provenance["sourceCommitSHA"])
+                )
             print("EXTRACTED_BINARY_VERSION_GATE_PASS", version, 5)
+            print("EXTRACTED_BINARY_BUILD_IDENTITY_GATE_PASS",version,5)
 
             ctl_binary = root / "bin" / "platformctl"
             cli_help_commands = [
