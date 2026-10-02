@@ -1138,6 +1138,7 @@ def _outer_runtime_context(root: Path) -> dict:
         "activeRun": False,
         "recoveryRequired": False,
         "safeToRetry": False,
+        "replaySafe": False,
         "action": "STATUS_UNAVAILABLE",
     }
     if not runtime.is_file() or runtime.is_symlink():
@@ -1165,11 +1166,12 @@ def _outer_runtime_context(root: Path) -> dict:
     active = bool(payload.get("activeRun")) or status in {"REQUESTED", "RUNNING", "WAITING"}
     recovery = bool(payload.get("recoveryRequired"))
     safe = bool(payload.get("safeToRetry"))
+    replay_safe = bool(payload.get("replaySafe"))
     if active:
         action = "OBSERVE_ACTIVE"
     elif recovery:
         action = "RECOVERY_REQUIRED"
-    elif status == "INTERRUPTED" and safe:
+    elif status in {"FAILED","INTERRUPTED","WAITING"} and (safe or replay_safe):
         action = "RESUME_RUNTIME"
     else:
         action = "NO_ACTIVE_RUNTIME"
@@ -1184,6 +1186,7 @@ def _outer_runtime_context(root: Path) -> dict:
         "activeRun": active,
         "recoveryRequired": recovery,
         "safeToRetry": safe,
+        "replaySafe": replay_safe,
         "latestError": str(payload.get("latestError") or "")[:600],
         "action": action,
     }
