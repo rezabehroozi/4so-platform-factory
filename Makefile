@@ -7,7 +7,7 @@ export PLATFORM_FACTORY_DEVELOPMENT_MODE
 
 BUILD_LDFLAGS := -s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version=$(VERSION)
 
-.PHONY: runtime-status runtime-resume runtime-watchdog runtime-self-test autopilot-durable autopilot-agent validate test test-postgres-integration vet race build build-release run smoke smoke-ui agent-evidence browser-triage-profile persian-ui-lint release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
+.PHONY: runtime-status runtime-resume runtime-watchdog runtime-self-test autopilot-durable autopilot-agent autopilot-context autopilot-context-full validate test test-postgres-integration vet race build build-release run smoke smoke-ui agent-evidence browser-triage-profile persian-ui-lint release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
 
 validate:
 	$(PYTHON) scripts/validate_repository.py .
@@ -165,6 +165,9 @@ autopilot-status:
 	$(PYTHON) scripts/codex_autopilot.py --event-summary
 
 autopilot-context:
+	$(PYTHON) scripts/codex_autopilot.py --agent-context-compact
+
+autopilot-context-full:
 	$(PYTHON) scripts/codex_autopilot.py --agent-context
 
 autopilot-agent:
