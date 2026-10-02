@@ -719,7 +719,7 @@ def _deterministic_failure_classification(stage: Stage, result: StageResult) -> 
         detail = _failure_capsule(text, max_lines=8, max_chars=900)
         return "ENVIRONMENT", f"{DETERMINISTIC_ENV_TRIAGE_AUTHORITY}\n{detail}"
     required = _environment_requirements([stage])
-    missing_module = re.search(r"ModuleNotFoundError:\\s+No module named ['\\\"]([^'\\\"]+)['\\\"]", text)
+    missing_module = re.search(r"ModuleNotFoundError:\s+No module named ['\"]([^'\"]+)['\"]", text)
     if missing_module:
         module = missing_module.group(1).split(".", 1)[0]
         requirement = {"yaml": "yaml", "playwright": "playwright"}.get(module)
