@@ -354,12 +354,14 @@ if [[ "${mode}" == "plan" ]]; then
     declare -a install_passthrough=()
     for ((i=0; i<${#handoff_passthrough[@]}; i++)); do
       case "${handoff_passthrough[i]}" in
-        --enable-execution)
+        --enable-execution|--enable-execution=*)
           ;;
         --confirmation)
           if [[ $((i + 1)) -lt ${#handoff_passthrough[@]} ]]; then
             ((i+=1))
           fi
+          ;;
+        --confirmation=*)
           ;;
         *)
           install_passthrough+=("${handoff_passthrough[i]}")
