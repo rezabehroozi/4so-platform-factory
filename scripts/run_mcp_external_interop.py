@@ -55,6 +55,9 @@ def paths(state:Path)->dict[str,Path]:
 
 def require_c7w_source_freeze(root:Path)->None:
     root=root.resolve()
+    branch=subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    if branch.returncode!=0 or branch.stdout.strip()!="main":
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_BRANCH_NOT_MAIN")
     allowed=sorted(core.C7W_EVIDENCE_ONLY_PATHS)
     command=["git","status","--porcelain=v1","-z","--untracked-files=all"]
     all_status=subprocess.run(command,cwd=root,capture_output=True,check=False)
