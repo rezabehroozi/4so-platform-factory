@@ -35,6 +35,20 @@ class PacketTests(unittest.TestCase):
             audited=[x for x in out["checks"] if x.get("serverAudit")]
             self.assertEqual(set(core.AUDITED_CHECKS),{x["id"] for x in audited})
             self.assertTrue(all("X-Request-ID" in x["request"]["captureRequestIdFrom"][0] for x in audited))
+            self.assertTrue(all(x["request"]["headers"]["MCP-Protocol-Version"]=="2026-07-28" for x in audited))
+            self.assertTrue(all(x["request"]["headers"]["Mcp-Method"]==x["request"]["jsonRpc"]["method"] for x in audited))
+            self.assertTrue(all(x["request"]["headers"]["Mcp-Interop-Binding"]==out["interopBindingDigest"] for x in audited))
+            self.assertTrue(all(x["request"]["jsonRpc"]["params"]["_meta"]["io.modelcontextprotocol/protocolVersion"]=="2026-07-28" for x in audited))
+            self.assertTrue(all(isinstance(x["request"]["jsonRpc"]["params"]["_meta"]["io.modelcontextprotocol/clientCapabilities"],dict) for x in audited))
+            self.assertTrue(all(x["request"]["jsonRpc"]["params"]["_meta"]["io.4so/interopCampaignId"]==out["campaignId"] for x in audited))
+            for row in audited:
+                request=row["request"]; rpc=request["jsonRpc"]
+                self.assertEqual("2.0",rpc["jsonrpc"])
+                self.assertEqual("<unique-jsonrpc-id>",rpc["id"])
+                if rpc["method"]=="tools/call":
+                    self.assertEqual(rpc["params"]["name"],request["headers"]["Mcp-Name"])
+                else:
+                    self.assertNotIn("Mcp-Name",request["headers"])
             audit_by_id={x["id"]:x["serverAudit"] for x in audited}
             self.assertEqual({"category":"DELEGATION_AUTHORIZATION","decision":"DENY","reasonCode":"MCP_DELEGATION_INACTIVE"},audit_by_id["revoked-delegation-negative-control"])
             self.assertEqual({"category":"CAPABILITY_AUTHORIZATION","decision":"DENY","reasonCode":"CAPABILITY_PERMISSION_REQUIRED"},audit_by_id["read-only-client-mutation-negative-control"])
