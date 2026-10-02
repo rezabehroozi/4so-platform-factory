@@ -108,6 +108,7 @@ type manualInstallerNextResult struct {
 	RecoveryRequired           bool     `json:"recoveryRequired,omitempty"`
 	InstallerURL               string   `json:"installerUrl,omitempty"`
 	BootstrapTokenFile         string   `json:"bootstrapTokenFile,omitempty"`
+	Access                     *manualInstallerAccess `json:"access,omitempty"`
 	NextActionCode             string   `json:"nextActionCode"`
 	NextCommand                []string `json:"nextCommand,omitempty"`
 	NextAction                 string   `json:"nextAction"`
@@ -173,6 +174,8 @@ func manualInstallerNextGuidance(state hostdeployment.State, statePath, root str
 	case "APPLIED":
 		result.InstallerURL = manualInstallerConsoleURL(state.Plan.Health.URL)
 		result.BootstrapTokenFile = filepath.Join(filepath.Dir(state.Plan.Paths.State), "bootstrap-token")
+		access := manualInstallerAccessPlan(state.Plan)
+		result.Access = &access
 		result.NextActionCode = "CHECK_BOOTSTRAP_STATUS"
 		result.NextCommand = manualInstallerBootstrapStatusCommand(state)
 		result.NextAction = "host deployment is applied; read Bootstrap Installer durable status before selecting install/resume/reset actions"
