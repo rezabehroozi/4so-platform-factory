@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import subprocess
 
 import admit_mcp_external_receipt as admission
 import fetch_mcp_external_audit_window as audit_fetch
@@ -49,6 +50,51 @@ def paths(state:Path)->dict[str,Path]:
         "templates":state/"capture-templates",
         "receipts":state/"receipts",
         "audits":state/"audits",
+    }
+
+
+def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
+    root=root.resolve()
+    def run_git(*args:str)->subprocess.CompletedProcess:
+        return subprocess.run(["git",*args],cwd=root,text=True,capture_output=True,check=False)
+    head=run_git("rev-parse","HEAD")
+    if head.returncode!=0 or not core.COMMIT.fullmatch(head.stdout.strip().lower()):
+        return {
+            "nextActionCode":"INSPECT_GIT_SOURCE_AUTHORITY",
+            "nextCommand":["git","status","--short"],
+            "detail":"canonical Git HEAD is unavailable; do not run C9 until C7W evidence is committed to an exact source SHA",
+        }
+    rels=[]
+    for path in (progress_path,evidence_path):
+        try:
+            rel=path.resolve().relative_to(root).as_posix()
+        except ValueError:
+            return {
+                "nextActionCode":"PERSIST_C7W_EVIDENCE_IN_REPOSITORY",
+                "nextCommand":["git","status","--short"],
+                "detail":"canonical C7W progress/evidence is outside the repository; copy it into the configured tracked paths before C9",
+            }
+        rels.append(rel)
+    tracked=run_git("ls-files","--error-unmatch",*rels)
+    diff=run_git("status","--porcelain=v1","--",*rels)
+    if diff.returncode!=0:
+        return {
+            "nextActionCode":"INSPECT_C7W_EVIDENCE_GIT_STATE",
+            "nextCommand":["git","status","--short","--",*rels],
+            "detail":"unable to establish Git state for canonical C7W evidence",
+        }
+    if tracked.returncode!=0 or diff.stdout.strip():
+        return {
+            "nextActionCode":"COMMIT_C7W_EVIDENCE",
+            "nextCommand":["git","add",*rels],
+            "followupCommand":["git","commit","-m","evidence: seal external MCP interoperability"],
+            "detail":"C7W is complete but evidence is not yet part of the exact Git SHA required by C9",
+        }
+    return {
+        "nextActionCode":"RUN_C9_SEAL",
+        "nextCommand":["make","c9-seal"],
+        "sourceCommitSHA":head.stdout.strip().lower(),
+        "detail":"C7W evidence is committed in the current exact source SHA; C9 may run",
     }
 
 
@@ -191,7 +237,7 @@ def seal(args:argparse.Namespace)->dict:
     p=paths(state)
     value=core.seal(args.matrix,p["campaign"],p["receipts"],p["audits"])
     core.write_json_once_or_identical(args.evidence_out,value,"MCP_EXTERNAL_INTEROP_EVIDENCE")
-    return {
+    out={
         "authority":AUTHORITY,
         "action":"SEALED",
         "campaignId":value["campaignId"],
@@ -201,6 +247,8 @@ def seal(args:argparse.Namespace)->dict:
         "externalCertificationPass":value["externalCertificationPass"],
         "physicalCertified":False,
     }
+    out.update(git_handoff(Path.cwd(),args.evidence_out,args.progress_out))
+    return out
 
 
 def status(args:argparse.Namespace)->dict:
@@ -226,6 +274,21 @@ def status(args:argparse.Namespace)->dict:
         persisted=core.load(args.evidence_out,"EVIDENCE")
         if rebuilt!=persisted:
             raise RuntimeError("MCP_EXTERNAL_LOCAL_EVIDENCE_DRIFT")
+        value.update(git_handoff(Path.cwd(),args.evidence_out,args.progress_out))
+    else:
+        if value.get("campaignPrepared"):
+            next_client=value.get("nextClient")
+            value.update({
+                "nextActionCode":"RUN_EXTERNAL_CLIENT",
+                "nextCommand":["make","c7w-admit",f"C7W_CLIENT={next_client}","C7W_CAPTURE=/secure/"+str(next_client)+".capture.json"],
+                "detail":"execute the named external client with its prepared packet, then admit the resulting capture",
+            })
+        else:
+            value.update({
+                "nextActionCode":"PREPARE_C7W_CAMPAIGN",
+                "nextCommand":["make","c7w-prepare"],
+                "detail":"prepare a live source-bound C7W campaign before external client execution",
+            })
     return value
 
 
