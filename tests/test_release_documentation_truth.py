@@ -98,6 +98,27 @@ class ReleaseDocumentationTruthTest(unittest.TestCase):
             self.assertTrue(any(detail.endswith(':git-push') for detail in blocked))
             self.assertTrue(any(detail.endswith(':write-all') for detail in blocked))
 
+    def test_windows_local_execution_contract_gate_rejects_drift(self):
+        errors=[]
+        VALIDATE.validate_windows_local_execution_contract(ROOT,errors)
+        self.assertEqual([],errors)
+
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            for rel,required in VALIDATE.WINDOWS_LOCAL_EXECUTION_CONTRACTS.items():
+                path=root/rel
+                path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_text("\n".join(required)+"\n",encoding="utf-8")
+            errors=[]
+            VALIDATE.validate_windows_local_execution_contract(root,errors)
+            self.assertEqual([],errors)
+
+            broken=root/"scripts/run_smoke_shard.py"
+            broken.write_text("CREATE_NEW_PROCESS_GROUP\n",encoding="utf-8")
+            errors=[]
+            VALIDATE.validate_windows_local_execution_contract(root,errors)
+            self.assertIn("WINDOWS_LOCAL_EXECUTION_CONTRACT_DRIFT",[code for code,_ in errors])
+
     def test_program_status_version_mismatch_is_rejected(self):
         temp, root = self.fixture()
         with temp:
