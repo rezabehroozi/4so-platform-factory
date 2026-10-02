@@ -16,5 +16,5 @@ jobs:
           set -euo pipefail
           echo "This workflow is intentionally non-authoritative and performs no receipt recovery or Git persistence."
           echo "Recovery is owned by the local C7W state and runner."
-          echo "Inspect with: make c7w-status"
-          echo "For an expired or explicitly replaced incomplete campaign, prepare a new state directory and use the fenced C7W_ALLOW_CAMPAIGN_SUPERSEDE=true path."
+          echo "Inspect with: <python> scripts/run_mcp_external_interop.py --state-dir <state-dir> status"
+          echo "For an expired campaign, follow PREPARE_REPLACEMENT_C7W_CAMPAIGN and use --allow-campaign-supersede only on the first admission when the returned handoff requires it."
