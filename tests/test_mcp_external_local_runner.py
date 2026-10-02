@@ -158,10 +158,11 @@ class LocalC7WRunnerTests(unittest.TestCase):
             subprocess.run(["git","add","seed.txt"],cwd=root,check=True)
             subprocess.run(["git","commit","-m","seed"],cwd=root,check=True,capture_output=True)
 
+            certified=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,check=True,capture_output=True).stdout.strip()
             lab=root/"lab"; lab.mkdir()
             progress=lab/"mcp-external-client-interop-progress.json"
             evidence=lab/"mcp-external-client-interoperability-evidence.json"
-            progress.write_text("{}\n"); evidence.write_text("{}\n")
+            progress.write_text("{}\n"); evidence.write_text(json.dumps({"sourceCommitSHA":certified})+"\n")
             pending=mod.git_handoff(root,evidence,progress)
             self.assertEqual("COMMIT_C7W_EVIDENCE",pending["nextActionCode"])
             self.assertEqual(["git","add","lab/mcp-external-client-interop-progress.json","lab/mcp-external-client-interoperability-evidence.json"],pending["nextCommand"])
