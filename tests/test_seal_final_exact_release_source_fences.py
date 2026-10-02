@@ -94,6 +94,16 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"ARTIFACT_CONFLICT"):
                 mod.publish_verified_file(source,target)
 
+    def test_published_checksum_must_match_exact_snapshot_bytes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); release=root/"release.zip"; release.write_bytes(b"exact-release")
+            checksum=root/"release.zip.sha256"
+            checksum.write_text(f"{mod.sha256(release).removeprefix('sha256:')}  {release.name}\n",encoding="utf-8")
+            mod.verify_release_checksum(release,checksum,"TEST_RELEASE")
+            checksum.write_text("0"*64+f"  {release.name}\n",encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError,"CHECKSUM_INVALID"):
+                mod.verify_release_checksum(release,checksum,"TEST_RELEASE")
+
     def test_exact_release_publication_is_source_sha_scoped(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td).resolve()
