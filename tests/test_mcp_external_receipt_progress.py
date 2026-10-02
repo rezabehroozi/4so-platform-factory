@@ -1,4 +1,5 @@
-import hashlib,importlib.util,json,tempfile,unittest,sys
+import hashlib,importlib.util,json,os,tempfile,unittest,sys
+from unittest import mock
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 SEAL_SPEC=importlib.util.spec_from_file_location("seal_mcp_external_interop",ROOT/"scripts"/"seal_mcp_external_interop.py")
@@ -39,6 +40,33 @@ class IncrementalMCPInteropTests(unittest.TestCase):
             event["digest"]=seal.audit_event_digest(event)
             out.append(event); prev=event["digest"]
         return out
+    def test_progress_lock_rejects_symlink_precreation(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            progress=root/"progress.json"
+            lock_root=root/"locks"; lock_root.mkdir()
+            key=hashlib.sha256(os.fsencode(str(progress.resolve()))).hexdigest()
+            lock_path=lock_root/f"4so-c7w-progress-{key}.lock"
+            target=lock_root/"target"; target.write_text("attacker\n")
+            lock_path.symlink_to(target.name)
+            with mock.patch.object(mod.tempfile,"gettempdir",return_value=str(lock_root)):
+                with self.assertRaisesRegex(RuntimeError,"LOCK_OPEN_FAILED|LOCK_IDENTITY_INVALID"):
+                    with mod.progress_lock(progress):
+                        pass
+
+    def test_progress_lock_rejects_permissive_existing_file(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            progress=root/"progress.json"
+            lock_root=root/"locks"; lock_root.mkdir()
+            key=hashlib.sha256(os.fsencode(str(progress.resolve()))).hexdigest()
+            lock_path=lock_root/f"4so-c7w-progress-{key}.lock"
+            lock_path.write_text("stale\n"); lock_path.chmod(0o644)
+            with mock.patch.object(mod.tempfile,"gettempdir",return_value=str(lock_root)):
+                with self.assertRaisesRegex(RuntimeError,"LOCK_IDENTITY_INVALID"):
+                    with mod.progress_lock(progress):
+                        pass
+
     def test_receipts_merge_incrementally_and_fourth_seals(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
         with tempfile.TemporaryDirectory() as td:
