@@ -48,13 +48,18 @@ class IncrementalMCPInteropTests(unittest.TestCase):
             key=hashlib.sha256(os.fsencode(str(progress.resolve()))).hexdigest()
             lock_path=lock_root/f"4so-c7w-progress-{key}.lock"
             target=lock_root/"target"; target.write_text("attacker\n")
-            lock_path.symlink_to(target.name)
+            try:
+                lock_path.symlink_to(target.name)
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
             with mock.patch.object(mod.tempfile,"gettempdir",return_value=str(lock_root)):
                 with self.assertRaisesRegex(RuntimeError,"LOCK_OPEN_FAILED|LOCK_IDENTITY_INVALID"):
                     with mod.progress_lock(progress):
                         pass
 
     def test_progress_lock_rejects_permissive_existing_file(self):
+        if os.name=="nt":
+            self.skipTest("Windows does not expose POSIX mode ownership semantics")
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
             progress=root/"progress.json"
@@ -66,6 +71,14 @@ class IncrementalMCPInteropTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,"LOCK_IDENTITY_INVALID"):
                     with mod.progress_lock(progress):
                         pass
+
+    def test_progress_lock_source_is_cross_platform(self):
+        source=(ROOT/"scripts"/"admit_mcp_external_receipt.py").read_text(encoding="utf-8")
+        self.assertIn('if os.name=="nt":',source)
+        self.assertIn('import msvcrt',source)
+        self.assertIn('import fcntl',source)
+        self.assertIn('msvcrt.LK_LOCK',source)
+        self.assertIn('fcntl.LOCK_EX',source)
 
     def test_receipts_merge_incrementally_and_fourth_seals(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"; checks=json.loads(matrix.read_text())["spec"]["sharedRequiredChecks"]
