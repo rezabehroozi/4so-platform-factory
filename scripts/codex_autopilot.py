@@ -1374,6 +1374,44 @@ def _agent_context(root: Path) -> dict:
     return context
 
 
+
+def _compact_budget_fallback(full: dict, outer: dict) -> tuple[str, list[str], str, bool]:
+    """Keep only fixed canonical outer-runtime commands when a compact packet overflows.
+
+    Arbitrary/inner argv never survives the budget fallback. Recovery remains
+    inspection-only, and environment-repair handoffs intentionally do not
+    preserve runtime-resume because the missing prerequisite must be repaired
+    before replay.
+    """
+    recovery_required = bool(outer.get("recoveryRequired")) or str(outer.get("action") or "") == "RECOVERY_REQUIRED"
+    if recovery_required:
+        return (
+            "INSPECT_OUTER_RUNTIME_RECOVERY",
+            ["make", "runtime-status"],
+            "the compact handoff exceeded its safe budget; inspect durable outer-runtime recovery state and do not reconstruct or replay a mutation",
+            True,
+        )
+    code = str(full.get("nextActionCode") or "")
+    command = full.get("nextCommand") if isinstance(full.get("nextCommand"), list) else []
+    fixed = {
+        "OBSERVE_OUTER_RUNTIME": ["make", "runtime-status"],
+        "RESUME_OUTER_RUNTIME": ["make", "runtime-resume"],
+    }
+    expected = fixed.get(code)
+    if expected is not None and command == expected:
+        return (
+            code,
+            list(expected),
+            "the compact handoff exceeded its safe budget, but this fixed canonical outer-runtime command is preserved exactly; execute it and then re-read make autopilot-context",
+            True,
+        )
+    return (
+        "INSPECT_AUTOPILOT_STATE",
+        ["make", "autopilot-status"],
+        "the exact continuation argv exceeded the compact handoff budget; inspect durable Autopilot state and do not reconstruct or guess the omitted command",
+        False,
+    )
+
 def _compact_agent_context(root: Path) -> dict:
     """Return only the actionable continuation packet needed by the next agent.
 
@@ -1487,7 +1525,7 @@ def _compact_agent_context(root: Path) -> dict:
         }
         raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
     if len(raw) > payload_budget:
-        recovery_required = bool(outer.get("recoveryRequired")) or str(outer.get("action") or "") == "RECOVERY_REQUIRED"
+        fallback_code, fallback_command, fallback_action, canonical_outer = _compact_budget_fallback(full, outer)
         compact["contextTruncated"] = True
         compact["contextFallbackAuthority"] = AGENT_CONTEXT_BUDGET_FALLBACK_AUTHORITY
         compact["failureCapsule"] = ""
@@ -1497,14 +1535,11 @@ def _compact_agent_context(root: Path) -> dict:
         compact["proofTimeoutSeconds"] = 0
         compact["resumeInvocation"] = []
         compact["environmentPreflight"] = {}
-        if recovery_required:
-            compact["nextActionCode"] = "INSPECT_OUTER_RUNTIME_RECOVERY"
-            compact["nextCommand"] = ["make", "runtime-status"]
-            compact["nextAction"] = "the exact continuation argv exceeded the compact handoff budget; inspect durable outer-runtime recovery state and do not reconstruct or replay a mutation"
-        else:
-            compact["nextActionCode"] = "INSPECT_AUTOPILOT_STATE"
-            compact["nextCommand"] = ["make", "autopilot-status"]
-            compact["nextAction"] = "the exact continuation argv exceeded the compact handoff budget; inspect durable Autopilot state and do not reconstruct or guess the omitted command"
+        compact["nextActionCode"] = fallback_code
+        compact["nextCommand"] = fallback_command
+        compact["nextAction"] = fallback_action
+        if canonical_outer:
+            compact["canonicalOuterCommandPreserved"] = True
         compact["rules"] = [
             "execute only the emitted read-only inspection command",
             "never reconstruct omitted argv from prose",
@@ -1527,9 +1562,10 @@ def _compact_agent_context(root: Path) -> dict:
             "runId": str(full.get("runId") or "")[:160],
             "status": str(full.get("status") or "UNKNOWN")[:64],
             "currentStage": str(full.get("currentStage") or "")[:160],
-            "nextActionCode": "INSPECT_OUTER_RUNTIME_RECOVERY" if (bool(outer.get("recoveryRequired")) or str(outer.get("action") or "") == "RECOVERY_REQUIRED") else "INSPECT_AUTOPILOT_STATE",
-            "nextCommand": ["make", "runtime-status"] if (bool(outer.get("recoveryRequired")) or str(outer.get("action") or "") == "RECOVERY_REQUIRED") else ["make", "autopilot-status"],
-            "nextAction": "compact context exceeded its safe budget; inspect durable status only and do not reconstruct omitted commands",
+            "nextActionCode": _compact_budget_fallback(full, outer)[0],
+            "nextCommand": _compact_budget_fallback(full, outer)[1],
+            "nextAction": _compact_budget_fallback(full, outer)[2],
+            "canonicalOuterCommandPreserved": _compact_budget_fallback(full, outer)[3],
             "rules": ["inspection only", "do not reconstruct omitted argv", "no Runtime/Lab/Physical inference"],
         }
 
