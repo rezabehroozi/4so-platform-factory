@@ -53,6 +53,41 @@ def load(path:Path,label:str)->dict:
     return value
 
 
+def validate_mcp_projection_identity(value:dict,label:str)->str:
+    if value.get("matrixAuthority")!=mcp_contract.MATRIX_AUTHORITY or not SHA.fullmatch(str(value.get("matrixSha256") or "")):
+        raise RuntimeError(f"{label}_MATRIX_BINDING_INVALID")
+    if value.get("campaignAuthority")!=mcp_contract.CAMPAIGN_AUTHORITY or not str(value.get("campaignId") or "").startswith("mcp-interop-") or not SHA.fullmatch(str(value.get("campaignSha256") or "")):
+        raise RuntimeError(f"{label}_CAMPAIGN_BINDING_INVALID")
+    if value.get("protocol")!="2026-07-28" or value.get("transport")!="streamable-http":
+        raise RuntimeError(f"{label}_PROTOCOL_INVALID")
+    try:
+        return mcp_contract.endpoint(value.get("endpoint",""))
+    except RuntimeError as exc:
+        raise RuntimeError(f"{label}_ENDPOINT_INVALID") from exc
+
+
+def validate_mcp_client_timing(row:dict,endpoint_value:str,label:str)->tuple[str,str,int]:
+    try:
+        row_endpoint=mcp_contract.endpoint(row.get("endpoint",""))
+    except RuntimeError as exc:
+        raise RuntimeError(f"{label}_ENDPOINT_INVALID") from exc
+    if row_endpoint!=endpoint_value:
+        raise RuntimeError(f"{label}_ENDPOINT_DRIFT")
+    executed=mcp_contract.parse_utc_timestamp(row.get("executedAt"),label+"_EXECUTED_AT")
+    created=mcp_contract.parse_utc_timestamp(row.get("campaignCreatedAt"),label+"_CAMPAIGN_CREATED_AT")
+    expires=mcp_contract.parse_utc_timestamp(row.get("campaignExpiresAt"),label+"_CAMPAIGN_EXPIRES_AT")
+    audit_window=row.get("executionAuditWindowSeconds")
+    campaign_seconds=(expires-created).total_seconds()
+    if created>executed or executed>expires or campaign_seconds<3600 or campaign_seconds>14*24*3600:
+        raise RuntimeError(f"{label}_CAMPAIGN_WINDOW_INVALID")
+    if type(audit_window) is not int or audit_window<60 or audit_window>24*3600 or audit_window>campaign_seconds:
+        raise RuntimeError(f"{label}_AUDIT_WINDOW_INVALID")
+    witness=row.get("serverAuditWitness") or {}
+    if witness.get("executionObservedAt")!=mcp_contract.utc_timestamp(executed) or witness.get("executionAuditWindowSeconds")!=audit_window:
+        raise RuntimeError(f"{label}_SERVER_WITNESS_TIME_DRIFT")
+    return mcp_contract.utc_timestamp(created),mcp_contract.utc_timestamp(expires),audit_window
+
+
 def external_client_progress(root:Path)->dict:
     path=root/"lab/mcp-external-client-interop-progress.json"
     if not path.exists():
@@ -62,6 +97,7 @@ def external_client_progress(root:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_FIELDS_INVALID")
     if progress.get("authority")!="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1" or progress.get("kind")!="MCPExternalClientInteropProgress":
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_AUTHORITY_INVALID")
+    endpoint_value=validate_mcp_projection_identity(progress,"MCP_EXTERNAL_PROGRESS")
     if progress.get("runtimeCertified") is not False or progress.get("physicalCertified") is not False:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_SCOPE_INFLATED")
     bindings=progress.get("oauthClientBindings")
@@ -72,7 +108,7 @@ def external_client_progress(root:Path)->dict:
     rows=progress.get("clients")
     if not isinstance(rows,list):
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
-    seen=set(); provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); challenge_digests=set(); request_id_owners={}
+    seen=set(); provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); challenge_digests=set(); request_id_owners={}; campaign_windows=set()
     for row in rows:
         if not isinstance(row,dict):
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
@@ -111,8 +147,12 @@ def external_client_progress(root:Path)->dict:
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_PROGRESS_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
+        timing=validate_mcp_client_timing(row,endpoint_value,"MCP_EXTERNAL_PROGRESS_"+client.upper())
+        campaign_windows.add(timing[:2])
         mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_PROGRESS_SERVER_WITNESS",oauth_client_id,request_ids)
         seen.add(client); provider_refs.add(provider_ref); execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest); challenge_digests.add(challenge_digest)
+    if len(campaign_windows)>1:
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_CAMPAIGN_WINDOW_DRIFT")
     certified=[c for c in CLIENTS if c in seen]
     missing=[c for c in CLIENTS if c not in seen]
     complete=len(missing)==0
@@ -163,6 +203,7 @@ def verify(root:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_FIELDS_INVALID")
     if mcp.get("authority")!=MCP_AUTHORITY or mcp.get("externalCertificationPass") is not True or mcp.get("allRequiredChecksPass") is not True or mcp.get("certifiedClientCount")!=4:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_AUTHORITY_INVALID")
+    endpoint_value=validate_mcp_projection_identity(mcp,"MCP_EXTERNAL_INTEROP")
     if mcp.get("serverAuditWitnessPass") is not True or mcp.get("serverAuditWitnessedCheckCount") != 24:
         raise Pending("MCP_EXTERNAL_SERVER_AUDIT_WITNESS_PENDING")
     if mcp.get("runtimeCertified") is not False or mcp.get("physicalCertified") is not False:
@@ -176,7 +217,7 @@ def verify(root:Path)->dict:
     clients=mcp.get("clients")
     if not isinstance(clients,list) or [x.get("clientId") for x in clients if isinstance(x,dict)]!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_SET_INVALID")
-    provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); challenge_digests=set(); request_id_owners={}
+    provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); challenge_digests=set(); request_id_owners={}; campaign_windows=set()
     for row in clients:
         client=str(row.get("clientId") or "")
         if row.get("clientSurface")!=CLIENT_SURFACES.get(client):
@@ -218,9 +259,13 @@ def verify(root:Path)->dict:
         if evidence_digest in evidence_digests or receipt_digest in receipt_digests or challenge_digest in challenge_digests:
             raise RuntimeError("MCP_EXTERNAL_INTEROP_EVIDENCE_REUSE")
         witness=row.get("serverAuditWitness") or {}
+        timing=validate_mcp_client_timing(row,endpoint_value,"MCP_EXTERNAL_INTEROP_"+client.upper())
+        campaign_windows.add(timing[:2])
         mcp_contract.validate_server_audit_witness(witness,binding,client,"MCP_EXTERNAL_INTEROP_SERVER_WITNESS",oauth_client_id,request_ids)
         execution_ids.add(execution_id); evidence_digests.add(evidence_digest); receipt_digests.add(receipt_digest); challenge_digests.add(challenge_digest)
 
+    if len(campaign_windows)!=1:
+        raise RuntimeError("MCP_EXTERNAL_INTEROP_CAMPAIGN_WINDOW_DRIFT")
     return {
       "apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseAdmission",
       "authority":AUTHORITY,"admitted":True,
