@@ -39,7 +39,7 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
 
     def fixture(self,root:Path):
         (root/"lab").mkdir(exist_ok=True)
-        matrix={"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropMatrix","authority":mod.mcp_contract.MATRIX_AUTHORITY,"spec":{"protocol":"2026-07-28","transport":"streamable-http","externalCertificationStatus":"pending"}}
+        matrix=json.loads((ROOT/"lab/mcp-external-client-interop-matrix.json").read_text())
         matrix_path=root/"lab/mcp-external-client-interop-matrix.json"; matrix_path.write_text(json.dumps(matrix,sort_keys=True))
         matrix_sha=mod.digest(matrix_path)
         pack="a"*64; archive="b"*64
