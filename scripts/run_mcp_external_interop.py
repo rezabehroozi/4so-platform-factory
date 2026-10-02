@@ -250,7 +250,14 @@ def admit(args:argparse.Namespace)->dict:
 def seal(args:argparse.Namespace)->dict:
     state=secure_state_dir(args.state_dir)
     p=paths(state)
+    progress=progress_status(args.matrix,state,args.progress_out)
+    if not progress["complete"]:
+        raise RuntimeError(f"MCP_EXTERNAL_LOCAL_SEAL_PROGRESS_INCOMPLETE next={progress.get('nextClient') or 'unknown'}")
+    persisted_progress=core.load(args.progress_out,"PROGRESS")
+    projected=admission.final_evidence(persisted_progress,args.progress_out)
     value=core.seal(args.matrix,p["campaign"],p["receipts"],p["audits"])
+    if value!=projected:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_SEAL_PROGRESS_BULK_DRIFT")
     core.write_json_once_or_identical(args.evidence_out,value,"MCP_EXTERNAL_INTEROP_EVIDENCE")
     out={
         "authority":AUTHORITY,
