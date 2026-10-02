@@ -177,6 +177,25 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     expected_packet_meta=expected_meta
     if packet_meta!=expected_packet_meta:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_META_INVALID")
+    parsed_endpoint=core.urlsplit(packet_endpoint)
+    metadata_url=f"{parsed_endpoint.scheme}://{parsed_endpoint.netloc}/.well-known/oauth-protected-resource"
+    canonical_expectations={
+        "oauth-protected-resource-discovery":{"httpStatus":200,"resource":packet_endpoint,"scopesContain":["mcp.read","mcp.operate"]},
+        "dedicated-audience-validation":{"httpStatus":401,"accepted":False},
+        "authorization-filtered-tools-list":{"httpStatus":200,"toolListFilteredByDelegation":True,"sourceCommitSHA":packet["sourceCommitSHA"],"runtimeVersion":packet["runtimeVersion"]},
+        "project-resource-scope-negative-control":{"accepted":False,"foreignProjectDataReturned":False},
+        "revoked-delegation-negative-control":{"accepted":False},
+        "read-only-client-mutation-negative-control":{"accepted":False,"mutationObserved":False},
+        "administration-approval-self-approval-negative-control":{"accepted":False,"selfApprovalObserved":False},
+    }
+    canonical_requests={
+        "dedicated-audience-validation":("valid-user-token-wrong-resource-audience","tools/list",None,None),
+        "authorization-filtered-tools-list":("campaign-delegated-user","tools/list",None,None),
+        "project-resource-scope-negative-control":("project-scoped-delegation","tools/call","ops_search",{"projectId":"<foreign-project-id>","query":"scope-negative-control"}),
+        "revoked-delegation-negative-control":("revoked-campaign-delegation","tools/list",None,None),
+        "read-only-client-mutation-negative-control":("view-delegation","tools/call","operation_cancel",{"id":"<same-project-operation-id>","expectedRevision":1,"reason":"interop negative control"}),
+        "administration-approval-self-approval-negative-control":("administration-delegation-requester","tools/call","managed_okd_install_approve",{"id":"<request-created-by-same-subject>","expectedRevision":1}),
+    }
     for row in packet_checks:
         check_id=row["id"]
         if check_id=="authorization-filtered-tools-list":
@@ -185,16 +204,29 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
             expect=row.get("expect") or {}
             if capture_runtime!=expected_capture_runtime or expect.get("sourceCommitSHA")!=packet["sourceCommitSHA"] or expect.get("runtimeVersion")!=packet["runtimeVersion"]:
                 raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_RUNTIME_WITNESS_INVALID {check_id}")
+        expected_row_fields={"id","request","expect","serverAuditWitnessRequired"} if check_id=="oauth-protected-resource-discovery" else ({"id","request","expect","captureRuntimeIdentityFrom","serverAudit"} if check_id=="authorization-filtered-tools-list" else {"id","request","expect","serverAudit"})
+        if set(row)!=expected_row_fields or row.get("expect")!=canonical_expectations[check_id]:
+            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_SEMANTICS_INVALID {check_id}")
         if check_id not in core.AUDITED_CHECKS:
             request=row.get("request") or {}
-            if check_id!="oauth-protected-resource-discovery" or request.get("httpMethod")!="GET" or request.get("credentialProfile")!="none":
+            if (
+                check_id!="oauth-protected-resource-discovery"
+                or row.get("serverAuditWitnessRequired") is not False
+                or request!={"httpMethod":"GET","url":metadata_url,"credentialProfile":"none","headers":{"Accept":"application/json"}}
+            ):
                 raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
             continue
         request=row.get("request") or {}
+        credential_profile,canonical_method,canonical_tool,canonical_arguments=canonical_requests[check_id]
+        expected_audit=core.AUDIT_REQUIREMENTS[check_id]
+        if row.get("serverAudit")!={"category":expected_audit[0],"decision":expected_audit[1],"reasonCode":expected_audit[2]} or request.get("credentialProfile")!=credential_profile:
+            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_SEMANTICS_INVALID {check_id}")
         headers=request.get("headers") or {}
         rpc=request.get("jsonRpc") or {}
         params=rpc.get("params") or {}
         method=rpc.get("method")
+        if method!=canonical_method:
+            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_SEMANTICS_INVALID {check_id}")
         expected_header_keys={"Content-Type","Accept","MCP-Protocol-Version","Mcp-Method","Mcp-Interop-Binding"}
         if method=="tools/call":
             expected_header_keys.add("Mcp-Name")
@@ -213,10 +245,10 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
         ):
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
         if method=="tools/call":
-            if not isinstance(params.get("arguments"),dict) or not str(params.get("name") or "") or headers.get("Mcp-Name")!=params.get("name"):
+            if params.get("name")!=canonical_tool or params.get("arguments")!=canonical_arguments or headers.get("Mcp-Name")!=canonical_tool:
                 raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
         elif method=="tools/list":
-            if set(params)!={"_meta"} or "Mcp-Name" in headers:
+            if canonical_tool is not None or canonical_arguments is not None or set(params)!={"_meta"} or "Mcp-Name" in headers:
                 raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
         else:
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
