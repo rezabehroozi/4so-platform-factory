@@ -11,6 +11,15 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
     def git(self,root,*args):
         return subprocess.run(["git",*args],cwd=root,text=True,capture_output=True,check=True).stdout.strip()
 
+    def test_c9_fails_fast_outside_exact_linux_build_host(self):
+        with mock.patch.object(mod.sys,"platform","win32"):
+            with self.assertRaisesRegex(RuntimeError,"LINUX_AMD64_HOST_REQUIRED"):
+                mod.execute(Path("."),Path("lab/final-exact-release-evidence.json"))
+
+    def test_c9_host_gate_accepts_linux(self):
+        with mock.patch.object(mod.sys,"platform","linux"):
+            mod.require_exact_release_host()
+
     def test_git_source_rejects_non_main_branch(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
