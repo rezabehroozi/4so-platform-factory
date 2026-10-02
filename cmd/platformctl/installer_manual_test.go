@@ -100,6 +100,17 @@ func TestManualInstallerPreflightResultPreservesAdmissionAndGuidance(t *testing.
 	if decoded["sourceReleaseDigest"] == "" || decoded["nextAction"] == "" {
 		t.Fatalf("exact release guidance incomplete: %s", raw)
 	}
+	if decoded["machineNextActionAuthority"] != installerManualMachineNextActionAuthority || decoded["nextActionCode"] != "REVIEW_PLAN" {
+		t.Fatalf("machine next-action guidance drift: %s", raw)
+	}
+}
+
+func TestManualInstallerPreflightResultBlocksMachineProgressWhenAdmissionIsNotReady(t *testing.T) {
+	admission := hostdeployment.HostAdmissionReport{SchemaVersion: 1, Ready: false, Mode: "live", TargetVersion: version}
+	result := newManualInstallerPreflightResult(admission, "sha256:"+strings.Repeat("b", 64))
+	if result.NextActionCode != "RESOLVE_HOST_ADMISSION" || result.MachineNextActionAuthority != installerManualMachineNextActionAuthority {
+		t.Fatalf("blocked preflight machine guidance %#v", result)
+	}
 }
 
 func TestManualInstallerConsoleURL(t *testing.T) {
