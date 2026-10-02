@@ -438,6 +438,7 @@ INSTALLER_OWNER_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_STAGE_V1"
 INSTALLER_OWNER_CONTRACT_STAGE_AUTHORITY = "AUTOPILOT_INSTALLER_OWNER_CONTRACT_STAGE_V1"
 AGENT_OWNER_PROOF_AUTHORITY = "AUTOPILOT_AGENT_OWNER_PROOF_V1"
 ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY = "AUTOPILOT_ENVIRONMENT_PREFLIGHT_HANDOFF_V1"
+ENVIRONMENT_REMEDIATION_HINTS_AUTHORITY = "AUTOPILOT_ENVIRONMENT_REMEDIATION_HINTS_V1"
 OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_OWNER_CONTEXT_PATHS_V1"
 PROMPT_BUDGET_AUTHORITY = "AUTOPILOT_PROMPT_BUDGET_V1"
 AGENT_REPAIR_BUDGET_AUTHORITY = "AUTOPILOT_AGENT_REPAIR_BUDGET_V1"
@@ -554,12 +555,26 @@ def environment_preflight(*, require_codex: bool, stages: list[Stage] | None = N
         missing.append("codex-cli-or-PLATFORM_FACTORY_CODEX_COMMAND")
     return missing, details
 
+_ENVIRONMENT_REMEDIATION_HINTS = {
+    "bash": "install or expose a Bash executable, then rerun the same Autopilot invocation",
+    "go": "install or expose the repository-supported Go toolchain and confirm go version before rerunning",
+    "make": "install or expose GNU Make before rerunning",
+    "c-compiler": "install or expose a C compiler toolchain required by CGO/race stages",
+    "libpq-dev": "install PostgreSQL/libpq development headers so pg_config or pkg-config libpq succeeds",
+    "chromium-or-chrome": "install Chromium/Chrome or provision the Playwright Chromium browser used by UI stages",
+    "python-module:yaml": "install the repository test requirements so the yaml module is importable",
+    "python-module:playwright": "install the repository test requirements and provision Playwright Chromium",
+    "codex-cli-or-PLATFORM_FACTORY_CODEX_COMMAND": "install/connect Codex CLI or set PLATFORM_FACTORY_CODEX_COMMAND to an executable wrapper",
+    "codex-command-executable": "fix the executable referenced by PLATFORM_FACTORY_CODEX_COMMAND or restore the default Codex CLI",
+}
+
 def _environment_preflight_handoff(missing: list[str], stages: list[Stage] | None) -> dict:
     requirements = sorted(_environment_requirements(stages))
     normalized_missing = sorted({str(item) for item in missing if str(item).strip()})
-    payload = {"missing": normalized_missing, "requirements": requirements}
+    remediation = {item: _ENVIRONMENT_REMEDIATION_HINTS.get(item, "provide this prerequisite, then rerun the same Autopilot invocation") for item in normalized_missing}
+    payload = {"missing": normalized_missing, "requirements": requirements, "remediationHints": remediation}
     fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    return {**payload, "fingerprint": fingerprint}
+    return {**payload, "remediationAuthority": ENVIRONMENT_REMEDIATION_HINTS_AUTHORITY, "fingerprint": fingerprint}
 
 
 def print_environment_preflight(*, require_codex: bool, stages: list[Stage] | None = None) -> int:
@@ -1122,6 +1137,7 @@ def _agent_context(root: Path) -> dict:
         "proofTimeoutSeconds": int(report.get("currentTimeoutSeconds") or 0),
         "resumeInvocation": resume_invocation,
         "environmentPreflight": report.get("environmentPreflight") if isinstance(report.get("environmentPreflight"), dict) else {},
+        "environmentRemediationHintsAuthority": ENVIRONMENT_REMEDIATION_HINTS_AUTHORITY,
         "sourceContext": {
             "agentInstructions": "AGENTS.md",
             "derivedKnowledge": "DERIVED-AGENT-KNOWLEDGE.json",
@@ -1137,7 +1153,7 @@ def _agent_context(root: Path) -> dict:
         ],
     }
     if status == "ENVIRONMENT_BLOCKED" and context["environmentPreflight"]:
-        context["nextAction"] = "install/fix only the missing environment prerequisites, then rerun resumeInvocation; do not edit product source for an environment blocker"
+        context["nextAction"] = "apply only the environmentPreflight.remediationHints for missing prerequisites, then rerun resumeInvocation; do not edit product source for an environment blocker"
     elif status in {"ENVIRONMENT_BLOCKED", "CODE_DEFECT", "FAIL", "TIMEOUT"}:
         context["nextAction"] = "inspect lastFailure and rerun the recorded invocation after fixing only the owning cause"
     elif status in {"RUNNING", "REPAIRING"} and context["resumeEligible"]:
@@ -1291,6 +1307,12 @@ def _write_autopilot_report(root: Path, *, stages: list[Stage], graph_signature:
             "authority": ENVIRONMENT_PREFLIGHT_HANDOFF_AUTHORITY,
             "missing": sorted({str(item) for item in environment_preflight.get("missing", []) if str(item).strip()}),
             "requirements": sorted({str(item) for item in environment_preflight.get("requirements", []) if str(item).strip()}),
+            "remediationAuthority": str(environment_preflight.get("remediationAuthority") or ENVIRONMENT_REMEDIATION_HINTS_AUTHORITY),
+            "remediationHints": {
+                str(key): str(value)
+                for key, value in (environment_preflight.get("remediationHints") or {}).items()
+                if str(key).strip() and str(value).strip()
+            } if isinstance(environment_preflight.get("remediationHints"), dict) else {},
             "fingerprint": str(environment_preflight.get("fingerprint") or ""),
         }
     _write_state_raw(_report_path(root), body)
