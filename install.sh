@@ -236,7 +236,7 @@ while (($#)); do
       shift
       ;;
     --state-dir)
-      if [[ "${mode}" == "prepare-bundle" ]]; then
+      if [[ "${mode}" == "prepare-bundle" || "${mode}" == "doctor" ]]; then
         [[ $# -ge 2 && -n "$2" ]] || { echo "ERROR --state-dir requires a value" >&2; exit 2; }
         prepare_state_dir="$2"
         shift 2
@@ -246,7 +246,7 @@ while (($#)); do
       fi
       ;;
     --state-dir=*)
-      if [[ "${mode}" == "prepare-bundle" ]]; then
+      if [[ "${mode}" == "prepare-bundle" || "${mode}" == "doctor" ]]; then
         prepare_state_dir="${1#--state-dir=}"
         [[ -n "${prepare_state_dir}" ]] || { echo "ERROR --state-dir requires a value" >&2; exit 2; }
       else
@@ -410,7 +410,12 @@ if [[ "${mode}" == "doctor" ]]; then
   elif [[ "${bundle_prepare_actionable}" == true ]]; then
     doctor_next_action_code="PREPARE_BUNDLE"
     doctor_next_action="prepare the exact-release-bound appliance bundle through the release-shipped immutable acquisition authority; this is preparation only and does not imply Runtime or Physical PASS"
-    declare -a doctor_next_argv=(sudo bash "${ROOT_DIR}/install.sh" prepare-bundle --release-artifact "${release_artifact}" --state-dir "${prepare_state_dir}")
+    declare -a doctor_next_argv=()
+    if [[ "${EUID}" -ne 0 && "${prepare_state_dir}" == /var/lib/* ]]; then
+      doctor_next_argv=(sudo bash "${ROOT_DIR}/install.sh" prepare-bundle --release-artifact "${release_artifact}" --state-dir "${prepare_state_dir}")
+    else
+      doctor_next_argv=(bash "${ROOT_DIR}/install.sh" prepare-bundle --release-artifact "${release_artifact}" --state-dir "${prepare_state_dir}")
+    fi
     if [[ "${doctor_compact}" == true ]]; then
       doctor_next_argv+=(--compact)
     fi
