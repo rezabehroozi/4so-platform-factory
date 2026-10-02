@@ -15,6 +15,6 @@ jobs:
         run: |
           set -euo pipefail
           echo "This workflow is intentionally non-authoritative and cannot seal or persist C7W evidence."
-          echo "Use: make c7w-status"
-          echo "After all four real external clients are admitted, use: make c7w-seal"
+          echo "Use: <python> scripts/run_mcp_external_interop.py --state-dir <state-dir> status"
+          echo "After all four real external clients are admitted, follow the returned RUN_C7W_SEAL nextCommand."
           echo "Persist only the canonical progress/evidence files using the machine-actionable handoff returned by the local runner."
