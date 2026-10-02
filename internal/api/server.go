@@ -13,6 +13,7 @@ import (
 	"platform.4so.io/factory/internal/agentpki"
 	"platform.4so.io/factory/internal/airuntime"
 	"platform.4so.io/factory/internal/auth"
+	"platform.4so.io/factory/internal/buildinfo"
 	bp "platform.4so.io/factory/internal/blueprint"
 	"platform.4so.io/factory/internal/controlplane"
 	daprruntime "platform.4so.io/factory/internal/dapr"
@@ -296,7 +297,7 @@ func (s *Server) routes() {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ready", "backend": s.store.Backend(), "catalogComponents": len(s.components), "catalogDigest": catalog.Digest(s.components), "organizations": organizations, "operations": operations})
 	})
 	s.mux.HandleFunc("GET /api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"product": "4SO Platform Factory", "version": s.version})
+		writeJSON(w, http.StatusOK, map[string]string{"product": "4SO Platform Factory", "version": s.version, "sourceCommitSHA": buildinfo.SourceCommit})
 	})
 	s.mux.HandleFunc("GET /api/v1/access/context", s.accessContext)
 	s.mux.HandleFunc("GET /api/v1/access/resource-scopes", s.resourceScopeRegistry)
