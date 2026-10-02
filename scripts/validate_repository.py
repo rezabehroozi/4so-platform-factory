@@ -1400,6 +1400,16 @@ def validate_release_build_toolchain(root: Path, version: str, errors: list[tupl
             errors.append(('FINAL_EXACT_RELEASE_NATIVE_BUILDER_MISSING','scripts/build_release_binaries.py'))
         if '["make", "build-release"' in seal_text:
             errors.append(('FINAL_EXACT_RELEASE_MAKE_AUTHORITY_FORBIDDEN','make build-release'))
+        for marker in (
+            'FINAL_EXACT_RELEASE_ENVIRONMENT_PREFLIGHT_V1',
+            'require_exact_release_environment(root)',
+            'UI_BROWSER_AUTHORITY_MISSING',
+            'toolchainArchiveReady',
+            'browserAuthorityReady',
+            '--preflight',
+        ):
+            if marker not in seal_text:
+                errors.append(('FINAL_EXACT_RELEASE_ENVIRONMENT_PREFLIGHT_INVALID',marker))
 
     release_verifier = root/'scripts/verify_release.py'
     if not release_verifier.is_file():
@@ -2221,6 +2231,7 @@ WINDOWS_LOCAL_EXECUTION_CONTRACTS = {
         'capture=str(p["captures"]/(client+".capture.json"))',
         'runner_command(state,"admit"',
         'def c9_handoff(source_sha:str)->dict:',
+        'def c9_preflight_command()->list[str]:',
         'RUN_C9_ON_EXACT_LINUX_HOST',
     ),
     'scripts/run_go_package_shard.py': (
