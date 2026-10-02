@@ -2100,12 +2100,235 @@ def validate_no_remote_ci_mutation_authority(root: Path, errors: list[tuple[str,
     workflow_root = root / '.github' / 'workflows'
     if not workflow_root.is_dir():
         return
+    forbidden_patterns = (
+        ('contents-write', re.compile(r'(?mi)^\\s*contents\\s*:\\s*write\\s*(?:#.*)?
+
+def main() -> int:
+    # The canonical control host is Windows. Validation details can contain
+    # Persian text, so never let the active legacy console code page hide the
+    # actual invariant failure behind UnicodeEncodeError.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+            except (AttributeError, OSError):
+                pass
+    parser = argparse.ArgumentParser()
+    parser.add_argument('root', nargs='?', default='.')
+    args = parser.parse_args()
+    root = Path(args.root).resolve()
+    errors: list[tuple[str,str]] = []
+    files = repository_source_files(root, errors)
+
+    validate_repository_hygiene(root, files, errors)
+    validate_core_local_only_workflows(root, errors)
+    validate_no_remote_ci_mutation_authority(root, errors)
+
+    required_root = ('VERSION','RELEASE-NAME','go.mod','Makefile','Dockerfile','THIRD_PARTY_COMPONENTS.md','LICENSE.txt')
+    for rel in required_root:
+        if not (root/rel).is_file():
+            errors.append(('REQUIRED_ROOT_FILE_MISSING', rel))
+    version = (root/'VERSION').read_text().strip() if (root/'VERSION').exists() else ''
+    release_name = (root/'RELEASE-NAME').read_text().strip() if (root/'RELEASE-NAME').exists() else ''
+    if not re.fullmatch(r'\d+\.\d+\.\d+', version):
+        errors.append(('VERSION_FORMAT_INVALID', version))
+    if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', release_name):
+        errors.append(('RELEASE_NAME_FORMAT_INVALID', release_name))
+    installer_example = root/'examples'/'installer-host'/'deployment.example.json'
+    if installer_example.is_file():
+        example_doc = load_json(installer_example, errors)
+        example_version = str(((example_doc or {}).get('metadata') or {}).get('version') or '') if isinstance(example_doc, dict) else ''
+        if example_version != version:
+            errors.append(('INSTALLER_EXAMPLE_VERSION_DRIFT', f'{example_version} != {version}'))
+    current_program_authority, current_phase_doc = validate_release_documentation_truth(root, version, release_name, errors)
+    if (root/'go.mod').exists() and (root/'go.mod').read_text().splitlines()[0].strip() != 'module platform.4so.io/factory':
+        errors.append(('GO_MODULE_IDENTITY','go.mod'))
+
+    persian_string_count = validate_persian_writing_integration(root, errors)
+    mcp_route_count = validate_mcp_route_parity(root, errors)
+    mcp_family_count = validate_mcp_action_registry(root, errors)
+    product_api_route_count = validate_product_api_contract(root, errors, mcp_route_count)
+    resource_scope_family_count, resource_scope_classified_count = validate_resource_scope_registry(root, errors)
+
+    # Deployment, image-build and machine-schema contracts.
+    validate_release_recipes(root, errors)
+    validate_management_workload_image_plan(root, version, errors)
+    validate_management_maintenance_toolset(root, errors)
+    validate_deployment_surface(root, errors)
+    schema_files = validate_schema_set(root, errors)
+
+    # Catalog, component lifecycle and boot-media authorities.
+    components = validate_component_catalog(root, errors)
+    validate_component_runtime_certification(root, components, errors)
+    validate_component_runtime_upgrade_matrix(root, components, errors)
+    try:
+        verify_runtime_evidence_registry(root)
+    except Exception as exc:
+        errors.append(('RUNTIME_EVIDENCE_REGISTRY_INVALID', str(exc)))
+    validate_boot_media_contract(root, errors)
+
+    # Supply-chain acquisition, admission and handoff authorities.
+    acquisition_toolchain_count = validate_upstream_acquisition_toolchain(root, errors)
+    validate_release_build_toolchain(root, version, errors)
+    validate_upstream_admission(root, components, errors)
+    validate_lab_bundle_acquisition_lock(root, errors)
+    validate_supply_chain_handoff(root, version, components, errors)
+
+    # Source-runtime, roadmap and product-surface parity.
+    validate_source_runtime_surfaces(root, version, current_program_authority, current_phase_doc, errors)
+    blueprint_files = validate_blueprint_set(root, components, errors)
+    plan_count = validate_tenant_plan_catalog(root, errors)
+    policy_files = validate_policy_templates(root, errors)
+    validate_migration_sequence(root, errors)
+    owner_test_count = validate_test_suite_authority(root, errors)
+    action_state_guard_count = validate_console_action_state_contract(root, errors)
+
+    if errors:
+        print('REPOSITORY_VALIDATION_FAIL')
+        for code, detail in sorted(errors):
+            print(code, detail)
+        print('ERROR_COUNT', len(errors))
+        return 1
+    print('BRAND_INDEPENDENCE_GATE_PASS')
+    print('CATALOG_CONTRACT_GATE_PASS', len(components))
+    print('BLUEPRINT_CONTRACT_GATE_PASS', len(blueprint_files))
+    print('SCHEMA_PARSE_GATE_PASS', len(schema_files))
+    print('TENANT_PLAN_GATE_PASS', plan_count)
+    print('POLICY_TEMPLATE_GATE_PASS', len(policy_files))
+    print('SUPPLY_CHAIN_DIGEST_GATE_PASS', sum(1 for o in components.values() if (o.get('spec') or {}).get('source',{}).get('resolved') is True))
+    print('SECRET_AND_PLACEHOLDER_GATE_PASS')
+    print('MCP_ACTION_REGISTRY_GATE_PASS', mcp_family_count)
+    print('PRODUCT_API_CONTRACT_GATE_PASS', product_api_route_count)
+    print('RESOURCE_SCOPE_REGISTRY_GATE_PASS', resource_scope_family_count, resource_scope_classified_count)
+    print('PERSIAN_WRITING_GATE_PASS', persian_string_count)
+    print('UPSTREAM_ACQUISITION_TOOLCHAIN_GATE_PASS', acquisition_toolchain_count)
+    print('TEST_SUITE_AUTHORITY_GATE_PASS', owner_test_count)
+    print('CONSOLE_ACTION_STATE_GATE_PASS', action_state_guard_count)
+    print('REPOSITORY_VALIDATION_PASS', len(files))
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
+)),
+        ('write-all', re.compile(r'(?mi)^\\s*permissions\\s*:\\s*write-all\\s*(?:#.*)?
+
+def main() -> int:
+    # The canonical control host is Windows. Validation details can contain
+    # Persian text, so never let the active legacy console code page hide the
+    # actual invariant failure behind UnicodeEncodeError.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+            except (AttributeError, OSError):
+                pass
+    parser = argparse.ArgumentParser()
+    parser.add_argument('root', nargs='?', default='.')
+    args = parser.parse_args()
+    root = Path(args.root).resolve()
+    errors: list[tuple[str,str]] = []
+    files = repository_source_files(root, errors)
+
+    validate_repository_hygiene(root, files, errors)
+    validate_core_local_only_workflows(root, errors)
+    validate_no_remote_ci_mutation_authority(root, errors)
+
+    required_root = ('VERSION','RELEASE-NAME','go.mod','Makefile','Dockerfile','THIRD_PARTY_COMPONENTS.md','LICENSE.txt')
+    for rel in required_root:
+        if not (root/rel).is_file():
+            errors.append(('REQUIRED_ROOT_FILE_MISSING', rel))
+    version = (root/'VERSION').read_text().strip() if (root/'VERSION').exists() else ''
+    release_name = (root/'RELEASE-NAME').read_text().strip() if (root/'RELEASE-NAME').exists() else ''
+    if not re.fullmatch(r'\d+\.\d+\.\d+', version):
+        errors.append(('VERSION_FORMAT_INVALID', version))
+    if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', release_name):
+        errors.append(('RELEASE_NAME_FORMAT_INVALID', release_name))
+    installer_example = root/'examples'/'installer-host'/'deployment.example.json'
+    if installer_example.is_file():
+        example_doc = load_json(installer_example, errors)
+        example_version = str(((example_doc or {}).get('metadata') or {}).get('version') or '') if isinstance(example_doc, dict) else ''
+        if example_version != version:
+            errors.append(('INSTALLER_EXAMPLE_VERSION_DRIFT', f'{example_version} != {version}'))
+    current_program_authority, current_phase_doc = validate_release_documentation_truth(root, version, release_name, errors)
+    if (root/'go.mod').exists() and (root/'go.mod').read_text().splitlines()[0].strip() != 'module platform.4so.io/factory':
+        errors.append(('GO_MODULE_IDENTITY','go.mod'))
+
+    persian_string_count = validate_persian_writing_integration(root, errors)
+    mcp_route_count = validate_mcp_route_parity(root, errors)
+    mcp_family_count = validate_mcp_action_registry(root, errors)
+    product_api_route_count = validate_product_api_contract(root, errors, mcp_route_count)
+    resource_scope_family_count, resource_scope_classified_count = validate_resource_scope_registry(root, errors)
+
+    # Deployment, image-build and machine-schema contracts.
+    validate_release_recipes(root, errors)
+    validate_management_workload_image_plan(root, version, errors)
+    validate_management_maintenance_toolset(root, errors)
+    validate_deployment_surface(root, errors)
+    schema_files = validate_schema_set(root, errors)
+
+    # Catalog, component lifecycle and boot-media authorities.
+    components = validate_component_catalog(root, errors)
+    validate_component_runtime_certification(root, components, errors)
+    validate_component_runtime_upgrade_matrix(root, components, errors)
+    try:
+        verify_runtime_evidence_registry(root)
+    except Exception as exc:
+        errors.append(('RUNTIME_EVIDENCE_REGISTRY_INVALID', str(exc)))
+    validate_boot_media_contract(root, errors)
+
+    # Supply-chain acquisition, admission and handoff authorities.
+    acquisition_toolchain_count = validate_upstream_acquisition_toolchain(root, errors)
+    validate_release_build_toolchain(root, version, errors)
+    validate_upstream_admission(root, components, errors)
+    validate_lab_bundle_acquisition_lock(root, errors)
+    validate_supply_chain_handoff(root, version, components, errors)
+
+    # Source-runtime, roadmap and product-surface parity.
+    validate_source_runtime_surfaces(root, version, current_program_authority, current_phase_doc, errors)
+    blueprint_files = validate_blueprint_set(root, components, errors)
+    plan_count = validate_tenant_plan_catalog(root, errors)
+    policy_files = validate_policy_templates(root, errors)
+    validate_migration_sequence(root, errors)
+    owner_test_count = validate_test_suite_authority(root, errors)
+    action_state_guard_count = validate_console_action_state_contract(root, errors)
+
+    if errors:
+        print('REPOSITORY_VALIDATION_FAIL')
+        for code, detail in sorted(errors):
+            print(code, detail)
+        print('ERROR_COUNT', len(errors))
+        return 1
+    print('BRAND_INDEPENDENCE_GATE_PASS')
+    print('CATALOG_CONTRACT_GATE_PASS', len(components))
+    print('BLUEPRINT_CONTRACT_GATE_PASS', len(blueprint_files))
+    print('SCHEMA_PARSE_GATE_PASS', len(schema_files))
+    print('TENANT_PLAN_GATE_PASS', plan_count)
+    print('POLICY_TEMPLATE_GATE_PASS', len(policy_files))
+    print('SUPPLY_CHAIN_DIGEST_GATE_PASS', sum(1 for o in components.values() if (o.get('spec') or {}).get('source',{}).get('resolved') is True))
+    print('SECRET_AND_PLACEHOLDER_GATE_PASS')
+    print('MCP_ACTION_REGISTRY_GATE_PASS', mcp_family_count)
+    print('PRODUCT_API_CONTRACT_GATE_PASS', product_api_route_count)
+    print('RESOURCE_SCOPE_REGISTRY_GATE_PASS', resource_scope_family_count, resource_scope_classified_count)
+    print('PERSIAN_WRITING_GATE_PASS', persian_string_count)
+    print('UPSTREAM_ACQUISITION_TOOLCHAIN_GATE_PASS', acquisition_toolchain_count)
+    print('TEST_SUITE_AUTHORITY_GATE_PASS', owner_test_count)
+    print('CONSOLE_ACTION_STATE_GATE_PASS', action_state_guard_count)
+    print('REPOSITORY_VALIDATION_PASS', len(files))
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
+)),
+        ('git-push', re.compile(r'(?i)(?<![A-Za-z0-9_-])git\\s+push(?=\\s|$)')),
+    )
     for path in sorted(list(workflow_root.glob('*.yml')) + list(workflow_root.glob('*.yaml'))):
         text = path.read_text(encoding='utf-8', errors='strict')
         rel = path.relative_to(root).as_posix()
-        for forbidden in ('contents: write', 'git push'):
-            if forbidden in text:
-                errors.append(('REMOTE_CI_MUTATION_AUTHORITY_FORBIDDEN', f'{rel}:{forbidden}'))
+        for label, pattern in forbidden_patterns:
+            if pattern.search(text):
+                errors.append(('REMOTE_CI_MUTATION_AUTHORITY_FORBIDDEN', f'{rel}:{label}'))
 
 
 def main() -> int:
