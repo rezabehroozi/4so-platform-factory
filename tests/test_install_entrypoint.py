@@ -61,12 +61,16 @@ class GuidedInstallEntrypointTests(unittest.TestCase):
     def test_bootstrap_continuation_rejects_missing_option_values_before_transport(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('--installer-url|--token-file|--ca-file|--confirmation)', source)
+        self.assertIn('--installer-url=|--token-file=|--ca-file=|--confirmation=)', source)
         self.assertIn('requires a value', source)
 
     def test_remote_bootstrap_continuation_only_requires_root_for_effective_private_token(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('DEFAULT_BOOTSTRAP_TOKEN_FILE="/var/lib/4so-platform-installer/bootstrap-token"', source)
         self.assertIn('access_token_file="${access_args[i+1]}"', source)
+        self.assertIn('access_token_file="${access_args[i]#--token-file=}"', source)
+        self.assertIn('--installer-url=*)', source)
+        self.assertIn('--token-file=*)', source)
         self.assertIn('access_token_file="${PLATFORM_INSTALLER_TOKEN_FILE:-${DEFAULT_BOOTSTRAP_TOKEN_FILE}}"', source)
         self.assertIn('[[ "${EUID}" -ne 0 && -z "${PLATFORM_INSTALLER_TOKEN:-}" && "${access_token_file}" == "${DEFAULT_BOOTSTRAP_TOKEN_FILE}" ]]', source)
         self.assertIn("Remote/custom authenticated continuation does not require local root", source)
@@ -86,6 +90,20 @@ class GuidedInstallEntrypointTests(unittest.TestCase):
         for forbidden in ("curl ", "wget ", "systemctl ", "apt-get ", "dnf ", "yum "):
             self.assertNotIn(forbidden, source)
         self.assertNotIn("PLATFORM_INSTALLER_ALLOW_EXECUTION=", source)
+
+
+class InstallerOptionFormParityTests(unittest.TestCase):
+    def test_bundle_release_and_action_flags_accept_equals_form_without_ambiguous_handoff(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('--bundle-dir=*)', source)
+        self.assertIn('bundle_dir="${1#--bundle-dir=}"', source)
+        self.assertIn('--release-artifact=*)', source)
+        self.assertIn('release_artifact="${1#--release-artifact=}"', source)
+        self.assertIn('--enable-execution=true|--enable-execution=TRUE|--enable-execution=True|--enable-execution=1)', source)
+        self.assertIn('elif [[ "${passthrough[i]}" == "--confirmation=DEPLOY" ]]', source)
+        plan = source.index('if [[ "${mode}" == "plan" ]]')
+        self.assertIn('--enable-execution|--enable-execution=*)', source[plan:])
+        self.assertIn('--confirmation=*)', source[plan:])
 
 
 class GuidedInstallDoctorContractTests(unittest.TestCase):
