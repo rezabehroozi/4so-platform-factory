@@ -25,6 +25,7 @@ CAMPAIGN_PREFLIGHT_AUTHORITY="MCP_EXTERNAL_CAMPAIGN_LIVE_PREFLIGHT_V1"
 CLIENTS=("chatgpt","claude","gemini","grok")
 CLIENT_SURFACES={"chatgpt":"ChatGPT custom MCP","claude":"Claude remote MCP","gemini":"Gemini remote MCP","grok":"Grok custom MCP"}
 SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
+COMMIT=re.compile(r"^[0-9a-f]{40}$")
 REQUEST_ID=re.compile(r"^[A-Za-z0-9._:-]{8,200}$")
 AUDITED_CHECKS=(
     "dedicated-audience-validation",
@@ -39,13 +40,13 @@ OAUTH_CLIENT_AUDITED_CHECKS=tuple(x for x in AUDITED_CHECKS if x!="dedicated-aud
 INTEROP_EVIDENCE_KEYS=frozenset({
     "apiVersion","kind","authority","matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256",
     "oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","trustedClientBindings",
-    "protocol","transport","endpoint","clients","certifiedClientCount","allRequiredChecksPass",
+    "sourceCommitSHA","runtimeVersion","protocol","transport","endpoint","clients","certifiedClientCount","allRequiredChecksPass",
     "serverAuditWitnessPass","serverAuditWitnessedCheckCount","externalCertificationPass","runtimeCertified","physicalCertified",
 })
 PROGRESS_EVIDENCE_KEYS=frozenset({
     "apiVersion","kind","authority","matrixAuthority","matrixSha256","campaignAuthority","campaignId","campaignSha256",
     "oauthClientBindingAuthority","oauthClientBindingsSha256","oauthClientBindings","trustedClientBindings",
-    "protocol","transport","endpoint","clients","certifiedClientCount","complete","allAdmittedReceiptsPass",
+    "sourceCommitSHA","runtimeVersion","protocol","transport","endpoint","clients","certifiedClientCount","complete","allAdmittedReceiptsPass",
     "serverAuditWitnessPass","externalCertificationPass","runtimeCertified","physicalCertified",
 })
 AUDIT_REQUIREMENTS={
@@ -362,6 +363,8 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
         raise RuntimeError(f"MCP_EXTERNAL_CAMPAIGN_CLIENT_MISSING {client}")
     if row.get("campaignId")!=campaign.get("campaignId") or row.get("challengeSha256")!=challenge.get("challengeSha256"):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_CAMPAIGN_BINDING_INVALID {client}")
+    if row.get("sourceCommitSHA")!=campaign.get("sourceCommitSHA") or row.get("runtimeVersion")!=campaign.get("runtimeVersion"):
+        raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_RUNTIME_IDENTITY_INVALID {client}")
     oauth_client_id=validate_oauth_client_id(row.get("oauthClientId"),"MCP_EXTERNAL_RECEIPT")
     if oauth_client_id!=validate_oauth_client_id(challenge.get("oauthClientId"),"MCP_EXTERNAL_CAMPAIGN"):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_OAUTH_CLIENT_INVALID {client}")
@@ -394,7 +397,7 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
     request_ids=validate_request_ids(row,client)
     trusted=campaign_trusted_client_bindings(campaign)[client]
-    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"executionId":run_id,"providerExecutionRef":provider_ref,"executedAt":utc_timestamp(executed),"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids,"campaignCreatedAt":utc_timestamp(created),"campaignExpiresAt":utc_timestamp(expires),"executionAuditWindowSeconds":audit_window}
+    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"sourceCommitSHA":row["sourceCommitSHA"],"runtimeVersion":row["runtimeVersion"],"executionId":run_id,"providerExecutionRef":provider_ref,"executedAt":utc_timestamp(executed),"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":sha256(path),"checks":checks,"requestIds":request_ids,"campaignCreatedAt":utc_timestamp(created),"campaignExpiresAt":utc_timestamp(expires),"executionAuditWindowSeconds":audit_window}
 
 def validate_audit_export(path:Path)->list[dict]:
     value=load(path,"SECURITY_AUDIT")
@@ -490,6 +493,9 @@ def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_AUTHORITY_INVALID")
     if campaign.get("matrixSha256")!=sha256(matrix_path) or campaign.get("protocol")!=spec.get("protocol") or campaign.get("transport")!=spec.get("transport") or campaign.get("externalExecutionRequired") is not True:
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_MATRIX_BINDING_INVALID")
+    source_commit=str(campaign.get("sourceCommitSHA") or "").strip(); runtime_version=str(campaign.get("runtimeVersion") or "").strip()
+    if not COMMIT.fullmatch(source_commit) or not runtime_version or len(runtime_version)>128 or any(ch in runtime_version for ch in "\r\n\t"):
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_RUNTIME_IDENTITY_INVALID")
     if not str(campaign.get("campaignId") or "").startswith("mcp-interop-"):
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_ID_INVALID")
     campaign["endpoint"]=endpoint(campaign.get("endpoint",""))
@@ -518,11 +524,14 @@ def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
     campaign_trusted_client_bindings(campaign)
     return campaign
 
-def build_interop_evidence(matrix_sha256:str,campaign_id:str,campaign_sha256:str,oauth_binding_sha256:str,protocol:str,transport:str,endpoint_value:str,rows:list[dict])->dict:
+def build_interop_evidence(matrix_sha256:str,campaign_id:str,campaign_sha256:str,oauth_binding_sha256:str,source_commit_sha:str,runtime_version:str,protocol:str,transport:str,endpoint_value:str,rows:list[dict])->dict:
     if not SHA.fullmatch(str(matrix_sha256 or "")) or not SHA.fullmatch(str(campaign_sha256 or "")) or not SHA.fullmatch(str(oauth_binding_sha256 or "")):
         raise RuntimeError("MCP_EXTERNAL_EVIDENCE_BINDING_INVALID")
     if not str(campaign_id or "").startswith("mcp-interop-") or protocol!="2026-07-28" or transport!="streamable-http":
         raise RuntimeError("MCP_EXTERNAL_EVIDENCE_BINDING_INVALID")
+    source_commit_sha=str(source_commit_sha or "").strip(); runtime_version=str(runtime_version or "").strip()
+    if not COMMIT.fullmatch(source_commit_sha) or not runtime_version or len(runtime_version)>128:
+        raise RuntimeError("MCP_EXTERNAL_EVIDENCE_RUNTIME_IDENTITY_INVALID")
     if not isinstance(rows,list) or [row.get("clientId") for row in rows if isinstance(row,dict)]!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_EVIDENCE_CLIENT_SET_INVALID")
     ep=endpoint(endpoint_value)
@@ -533,6 +542,7 @@ def build_interop_evidence(matrix_sha256:str,campaign_id:str,campaign_sha256:str
       "oauthClientBindingAuthority":OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":oauth_binding_sha256,
       "oauthClientBindings":validate_oauth_client_bindings({row["clientId"]:row.get("oauthClientId") for row in rows},"MCP_EXTERNAL_EVIDENCE"),
       "trustedClientBindings":validate_trusted_client_bindings({row["clientId"]:{"trustedClientId":row.get("trustedClientId"),"trustedClientRevision":row.get("trustedClientRevision"),"trustedClientProvider":row.get("trustedClientProvider")} for row in rows},"MCP_EXTERNAL_EVIDENCE"),
+      "sourceCommitSHA":source_commit_sha,"runtimeVersion":runtime_version,
       "protocol":protocol,"transport":transport,"endpoint":ep,
       "clients":rows,"certifiedClientCount":len(CLIENTS),"allRequiredChecksPass":True,
       "serverAuditWitnessPass":True,"serverAuditWitnessedCheckCount":len(AUDITED_CHECKS)*len(CLIENTS),
@@ -568,7 +578,7 @@ def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->d
         raise RuntimeError("MCP_EXTERNAL_RECEIPT_ENDPOINT_DRIFT")
     return build_interop_evidence(
         sha256(matrix_path),campaign["campaignId"],sha256(campaign_path),campaign["oauthClientBindingsSha256"],
-        protocol,"streamable-http",next(iter(endpoints)),rows,
+        campaign["sourceCommitSHA"],campaign["runtimeVersion"],protocol,"streamable-http",next(iter(endpoints)),rows,
     )
 
 def main()->int:
