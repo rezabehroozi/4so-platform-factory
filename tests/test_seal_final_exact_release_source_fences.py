@@ -214,6 +214,43 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,"CHECKSUM_DRIFT"):
                     mod.execute(root,out)
 
+    def test_completed_c9_resume_accepts_committed_evidence_only_descendant(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            self.git(root,"init")
+            self.git(root,"config","user.email","test@example.invalid")
+            self.git(root,"config","user.name","Test")
+            out,release,evidence,admitted=self.final_evidence_fixture(root)
+            sealed_sha=evidence["sourceCommitSHA"]
+            self.git(root,"add",out.relative_to(root).as_posix())
+            self.git(root,"commit","-m","evidence only")
+            evidence_commit=self.git(root,"rev-parse","HEAD")
+            self.assertNotEqual(sealed_sha,evidence_commit)
+            with mock.patch.object(mod.admission,"verify",return_value=admitted), mock.patch.object(mod,"verify_existing_release_full") as full_verify:
+                resumed=mod.execute(root,out)
+            self.assertEqual(evidence,resumed)
+            full_verify.assert_called_once_with(root.resolve(),sealed_sha,release)
+            handoff=mod.final_git_handoff(root.resolve(),out,evidence)
+            self.assertEqual("C9_SEALED",handoff["nextActionCode"])
+            self.assertEqual(sealed_sha,handoff["releaseSourceCommitSHA"])
+            self.assertEqual(evidence_commit,handoff["evidenceCommitSHA"])
+
+    def test_completed_c9_resume_rejects_evidence_commit_plus_source_delta(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            self.git(root,"init")
+            self.git(root,"config","user.email","test@example.invalid")
+            self.git(root,"config","user.name","Test")
+            out,_,evidence,admitted=self.final_evidence_fixture(root)
+            self.git(root,"add",out.relative_to(root).as_posix())
+            self.git(root,"commit","-m","evidence only")
+            extra=root/"extra.txt"; extra.write_text("source drift\n")
+            self.git(root,"add","extra.txt")
+            self.git(root,"commit","-m","source drift")
+            with mock.patch.object(mod.admission,"verify",return_value=admitted):
+                with self.assertRaisesRegex(RuntimeError,"DELTA_NOT_EVIDENCE_ONLY"):
+                    mod.execute(root,out)
+
     def test_completed_c9_seal_resume_rejects_unrelated_source_drift(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.git(root,"init"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
