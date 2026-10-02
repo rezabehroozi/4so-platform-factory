@@ -161,14 +161,15 @@ def canonical_stages(root: Path) -> list[Stage]:
     version = (root / "VERSION").read_text().strip()
     return [
         Stage("repository-validation", ("python3", "scripts/validate_repository.py", "."), 180),
-Stage("go-unit-1", ("python3", "scripts/run_go_package_shard.py", "--shard", "1"), 900),
-        Stage("go-unit-2", ("python3", "scripts/run_go_package_shard.py", "--shard", "2"), 900),
-        Stage("go-unit-3", ("python3", "scripts/run_go_package_shard.py", "--shard", "3"), 900),
-        Stage("go-unit-4", ("python3", "scripts/run_go_package_shard.py", "--shard", "4"), 900),
+        # Fail narrow owner defects before broad discovery spends test or agent budget.
         Stage("installer-entrypoint-contracts", ("python3", "-m", "unittest", "tests.test_install_entrypoint", "-v"), 120),
-        Stage("autopilot-owner-tests", ("python3", "-m", "unittest", "tests.test_codex_autopilot", "-v"), 240),
-        Stage("python-tests", ("python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"), 300),
         Stage("installer-go-owner-tests", ("go", "test", "./cmd/platformctl", "./cmd/platform-installer", "./internal/bootstrap", "./internal/hostdeployment", "./internal/remotebootstrap", "-count=1"), 600),
+        Stage("autopilot-owner-tests", ("python3", "-m", "unittest", "tests.test_codex_autopilot", "-v"), 240),
+        Stage("go-unit-1", ("python3", "scripts/run_go_package_shard.py", "--shard", "1", "--exclude-installer-owner"), 900),
+        Stage("go-unit-2", ("python3", "scripts/run_go_package_shard.py", "--shard", "2", "--exclude-installer-owner"), 900),
+        Stage("go-unit-3", ("python3", "scripts/run_go_package_shard.py", "--shard", "3", "--exclude-installer-owner"), 900),
+        Stage("go-unit-4", ("python3", "scripts/run_go_package_shard.py", "--shard", "4", "--exclude-installer-owner"), 900),
+        Stage("python-tests", ("python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"), 300),
         Stage("lab-runner-tests", ("python3", "scripts/test_lab_runner.py"), 300),
         Stage("lab-runner-self-test", ("python3", "scripts/lab_runner.py", "self-test"), 300),
         Stage("derived-agent-knowledge", ("python3", "scripts/generate_agent_knowledge.py", "--check"), 180),
