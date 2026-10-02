@@ -72,6 +72,18 @@ def require_c7w_source_freeze(root:Path)->None:
         raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")
 
 
+def require_active_campaign_source(root:Path,campaign:dict)->str:
+    root=root.resolve()
+    require_c7w_source_freeze(root)
+    head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    current_sha=head.stdout.strip().lower() if head.returncode==0 else ""
+    certified_sha=str((campaign or {}).get("sourceCommitSHA") or "").strip().lower()
+    if not core.COMMIT.fullmatch(current_sha) or not core.COMMIT.fullmatch(certified_sha):
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_ACTIVE_CAMPAIGN_SOURCE_INVALID")
+    core.validate_evidence_only_source_lineage(root,certified_sha,current_sha,"MCP_EXTERNAL_LOCAL_ACTIVE_CAMPAIGN")
+    return current_sha
+
+
 def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
     root=root.resolve()
     def run_git(*args:str)->subprocess.CompletedProcess:
@@ -234,6 +246,8 @@ def progress_status(matrix:Path,state:Path,progress_path:Path)->dict:
 def admit(args:argparse.Namespace)->dict:
     state=secure_state_dir(args.state_dir)
     p=paths(state)
+    campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
+    require_active_campaign_source(Path.cwd(),campaign)
     client=str(args.client).strip().lower()
     packet_path=p["packets"]/(client+".json")
     if not packet_path.is_file() or packet_path.is_symlink():
@@ -272,6 +286,8 @@ def admit(args:argparse.Namespace)->dict:
 def seal(args:argparse.Namespace)->dict:
     state=secure_state_dir(args.state_dir)
     p=paths(state)
+    campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
+    require_active_campaign_source(Path.cwd(),campaign)
     progress=progress_status(args.matrix,state,args.progress_out)
     if not progress["complete"]:
         raise RuntimeError(f"MCP_EXTERNAL_LOCAL_SEAL_PROGRESS_INCOMPLETE next={progress.get('nextClient') or 'unknown'}")
@@ -346,6 +362,20 @@ def status(args:argparse.Namespace)->dict:
         value.update(git_handoff(Path.cwd(),args.evidence_out,args.progress_out))
     else:
         if value.get("campaignPrepared"):
+            p=paths(state)
+            campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
+            try:
+                require_active_campaign_source(Path.cwd(),campaign)
+            except RuntimeError as exc:
+                head=subprocess.run(["git","rev-parse","HEAD"],cwd=Path.cwd(),text=True,capture_output=True,check=False)
+                current_sha=head.stdout.strip().lower() if head.returncode==0 else ""
+                value.update({
+                    "nextActionCode":"RERUN_C7W_ON_CURRENT_SOURCE",
+                    "nextCommand":["env",f"C7W_STATE_DIR=.state/c7w-external-interop-{current_sha[:12] or 'current'}","make","c7w-prepare"],
+                    "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
+                    "detail":str(exc)+"; active campaign source is stale before the next external client execution",
+                })
+                return value
             next_client=value.get("nextClient")
             value.update({
                 "nextActionCode":"RUN_EXTERNAL_CLIENT",
