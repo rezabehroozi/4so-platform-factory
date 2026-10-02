@@ -111,9 +111,54 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     expected_ids=[str(x.get("id") or "") for x in packet_checks if isinstance(x,dict)]
     if expected_ids!=list(core.REQUIRED_CHECKS):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CHECKS_INVALID")
+    packet_meta=packet.get("requestMeta")
+    expected_packet_meta={
+      "io.modelcontextprotocol/protocolVersion":"2026-07-28",
+      "io.modelcontextprotocol/clientInfo":{"name":packet["clientSurface"],"version":"external-c7w"},
+      "io.modelcontextprotocol/clientCapabilities":{"tools":{}},
+      "io.4so/interopCampaignId":packet["campaignId"],
+      "io.4so/interopClientId":client,
+      "io.4so/interopChallengeSha256":packet["challengeSha256"],
+    }
+    if packet_meta!=expected_packet_meta:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_META_INVALID")
     for row in packet_checks:
-        if row["id"] in core.AUDITED_CHECKS and ((row.get("request") or {}).get("headers") or {}).get("Mcp-Interop-Binding")!=binding:
-            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_SERVER_BINDING_MISSING {row['id']}")
+        check_id=row["id"]
+        if check_id not in core.AUDITED_CHECKS:
+            request=row.get("request") or {}
+            if check_id!="oauth-protected-resource-discovery" or request.get("httpMethod")!="GET" or request.get("credentialProfile")!="none":
+                raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
+            continue
+        request=row.get("request") or {}
+        headers=request.get("headers") or {}
+        rpc=request.get("jsonRpc") or {}
+        params=rpc.get("params") or {}
+        method=rpc.get("method")
+        expected_header_keys={"Content-Type","Accept","MCP-Protocol-Version","Mcp-Method","Mcp-Interop-Binding"}
+        if method=="tools/call":
+            expected_header_keys.add("Mcp-Name")
+        if (
+            request.get("httpMethod")!="POST" or request.get("url")!=packet_endpoint
+            or request.get("protocol")!="2026-07-28" or request.get("transport")!="streamable-http"
+            or request.get("contentType")!="application/json"
+            or set(headers)!=expected_header_keys
+            or headers.get("Content-Type")!="application/json"
+            or headers.get("Accept")!="application/json, text/event-stream"
+            or headers.get("MCP-Protocol-Version")!="2026-07-28"
+            or headers.get("Mcp-Method")!=method
+            or headers.get("Mcp-Interop-Binding")!=binding
+            or rpc.get("jsonrpc")!="2.0" or rpc.get("id")!="<unique-jsonrpc-id>"
+            or params.get("_meta")!=expected_packet_meta
+        ):
+            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
+        if method=="tools/call":
+            if not isinstance(params.get("arguments"),dict) or not str(params.get("name") or "") or headers.get("Mcp-Name")!=params.get("name"):
+                raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
+        elif method=="tools/list":
+            if set(params)!={"_meta"} or "Mcp-Name" in headers:
+                raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
+        else:
+            raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
     observed=capture.get("checks")
     if not isinstance(observed,dict) or set(observed)!=set(expected_ids):
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_CHECK_COVERAGE_INVALID")
