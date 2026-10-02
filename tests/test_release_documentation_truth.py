@@ -86,10 +86,15 @@ class ReleaseDocumentationTruthTest(unittest.TestCase):
             VALIDATE.validate_no_remote_ci_mutation_authority(root,errors)
             self.assertEqual([],errors)
 
-            (workflows/'writer.yml').write_text("permissions:\n  contents: write\njobs:\n  writer:\n    steps:\n      - run: git push\n",encoding='utf-8')
+            (workflows/'writer.yml').write_text("permissions:\n  contents :   write   # forbidden\njobs:\n  writer:\n    steps:\n      - run: git   push origin HEAD:main\n",encoding='utf-8')
+            (workflows/'write-all.yml').write_text("permissions: write-all\n",encoding='utf-8')
             errors=[]
             VALIDATE.validate_no_remote_ci_mutation_authority(root,errors)
-            self.assertEqual(2,len([row for row in errors if row[0]=='REMOTE_CI_MUTATION_AUTHORITY_FORBIDDEN']))
+            blocked=[detail for code,detail in errors if code=='REMOTE_CI_MUTATION_AUTHORITY_FORBIDDEN']
+            self.assertEqual(3,len(blocked))
+            self.assertTrue(any(detail.endswith(':contents-write') for detail in blocked))
+            self.assertTrue(any(detail.endswith(':git-push') for detail in blocked))
+            self.assertTrue(any(detail.endswith(':write-all') for detail in blocked))
 
     def test_program_status_version_mismatch_is_rejected(self):
         temp, root = self.fixture()
