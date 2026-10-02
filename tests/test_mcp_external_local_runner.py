@@ -241,6 +241,28 @@ class LocalC7WRunnerTests(unittest.TestCase):
             self.assertEqual(["make","c9-seal"],ready["nextCommand"])
             self.assertRegex(ready["sourceCommitSHA"],r"^[0-9a-f]{40}$")
 
+    def test_git_handoff_never_recommends_c9_with_unrelated_dirty_source(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-b","main"],cwd=root,check=True,capture_output=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/"seed.txt").write_text("seed\n")
+            subprocess.run(["git","add","seed.txt"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","seed"],cwd=root,check=True,capture_output=True)
+            certified=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,check=True,capture_output=True).stdout.strip()
+            lab=root/"lab"; lab.mkdir()
+            progress=lab/"mcp-external-client-interop-progress.json"
+            evidence=lab/"mcp-external-client-interoperability-evidence.json"
+            progress.write_text("{}\n"); evidence.write_text(json.dumps({"sourceCommitSHA":certified})+"\n")
+            subprocess.run(["git","add","lab"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","evidence"],cwd=root,check=True,capture_output=True)
+            (root/"seed.txt").write_text("dirty source\n")
+            handoff=mod.git_handoff(root,evidence,progress)
+            self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",handoff["nextActionCode"])
+            self.assertEqual(["git","status","--short"],handoff["nextCommand"])
+            self.assertNotIn("RUN_C9_SEAL",json.dumps(handoff))
+
     def test_incomplete_status_emits_executable_external_client_handoff(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); state=mod.secure_state_dir(root/"state")
