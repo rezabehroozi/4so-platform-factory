@@ -124,6 +124,20 @@ class ReceiptFinalizerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"BINDING_INVALID runtimeVersion"):
                 mod.finalize(pp,cap)
 
+    def test_response_observation_runtime_identity_drift_is_rejected(self):
+        with tempfile.TemporaryDirectory() as raw:
+            pp,cap,capture=self.fixture(Path(raw))
+            bad=copy.deepcopy(capture)
+            bad["checks"]["authorization-filtered-tools-list"]["observed"]["sourceCommitSHA"]="2"*40
+            cap.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"OBSERVATION_MISMATCH"):
+                mod.finalize(pp,cap)
+            bad=copy.deepcopy(capture)
+            bad["checks"]["authorization-filtered-tools-list"]["observed"]["runtimeVersion"]="0.0.other"
+            cap.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(RuntimeError,"OBSERVATION_MISMATCH"):
+                mod.finalize(pp,cap)
+
     def test_capture_execution_time_outside_campaign_is_rejected(self):
         with tempfile.TemporaryDirectory() as raw:
             pp,cap,capture=self.fixture(Path(raw))
