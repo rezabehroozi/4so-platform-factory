@@ -322,11 +322,26 @@ print_exact_next_command() {
 }
 
 declare -a manual_args=(installer-manual "${mode}" --installer-binary "${INSTALLER}" --bundle-dir "${bundle_dir}" --release-artifact "${release_artifact}" "${passthrough[@]}")
+declare -a handoff_passthrough=()
+for ((i=0; i<${#passthrough[@]}; i++)); do
+  case "${passthrough[i]}" in
+    --out-spec)
+      if [[ $((i + 1)) -lt ${#passthrough[@]} ]]; then
+        ((i+=1))
+      fi
+      ;;
+    --out-spec=*)
+      ;;
+    *)
+      handoff_passthrough+=("${passthrough[i]}")
+      ;;
+  esac
+done
 echo "${AUTHORITY} mode=${mode} bundle=${bundle_dir} release=${release_artifact}" >&2
 
 if [[ "${mode}" == "preflight" ]]; then
   if "${PLATFORMCTL}" "${manual_args[@]}"; then
-    print_exact_next_command plan "${passthrough[@]}"
+    print_exact_next_command plan "${handoff_passthrough[@]}"
     exit 0
   else
     rc=$?
@@ -337,15 +352,17 @@ fi
 if [[ "${mode}" == "plan" ]]; then
   if "${PLATFORMCTL}" "${manual_args[@]}"; then
     declare -a install_passthrough=()
-    for ((i=0; i<${#passthrough[@]}; i++)); do
-      case "${passthrough[i]}" in
+    for ((i=0; i<${#handoff_passthrough[@]}; i++)); do
+      case "${handoff_passthrough[i]}" in
         --enable-execution)
           ;;
         --confirmation)
-          ((i+=1))
+          if [[ $((i + 1)) -lt ${#handoff_passthrough[@]} ]]; then
+            ((i+=1))
+          fi
           ;;
         *)
-          install_passthrough+=("${passthrough[i]}")
+          install_passthrough+=("${handoff_passthrough[i]}")
           ;;
       esac
     done
