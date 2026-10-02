@@ -1,3 +1,4 @@
+import ast
 import unittest
 from pathlib import Path
 
@@ -111,13 +112,24 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         packager=self.read("scripts/build_release.py")
         verifier=self.read("scripts/verify_release.py")
         makefile=self.read("Makefile")
-        for name in (
+        def literal(source,name):
+            tree=ast.parse(source)
+            for node in tree.body:
+                if isinstance(node,(ast.Assign,ast.AnnAssign)):
+                    targets=node.targets if isinstance(node,ast.Assign) else [node.target]
+                    if any(isinstance(target,ast.Name) and target.id==name for target in targets):
+                        return ast.literal_eval(node.value)
+            self.fail(f"missing literal assignment {name}")
+        expected=(
             "platform-api","platformctl","platform-installer","platform-agent",
             "platform-probe","virtual-cluster-renderer","openchoreo-runtime","dapr-runtime",
-        ):
-            self.assertIn(f'"{name}"',builder)
-            self.assertIn(f'"{name}"',packager)
-            self.assertIn(f'"{name}"',verifier)
+        )
+        build_targets=literal(builder,"TARGETS")
+        self.assertEqual(expected,tuple(row[0] for row in build_targets))
+        self.assertEqual(expected,literal(packager,"BINARIES"))
+        self.assertEqual(expected,literal(verifier,"RELEASE_BINARIES"))
+        self.assertEqual("1",build_targets[0][2])
+        self.assertTrue(all(row[2]=="0" for row in build_targets[1:]))
         self.assertIn("scripts/build_release_binaries.py",makefile)
         self.assertIn('AUTHORITY="NATIVE_RELEASE_BINARY_BUILD_AUTHORITY_V1"',builder)
         self.assertIn('RELEASE_BINARY_BUILD_LINUX_HOST_REQUIRED',builder)
