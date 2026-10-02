@@ -95,20 +95,27 @@ func TestInstallerBootstrapNextActionIsStateSpecificAndNeverSuggestsReplay(t *te
 	tests := []struct {
 		name   string
 		status installerBootstrapRuntimeStatus
+		code   string
 		want   string
 	}{
-		{"execution disabled", installerBootstrapRuntimeStatus{}, "execution enabled"},
-		{"reset active", installerBootstrapRuntimeStatus{ExecutionEnabled:true, ResetActive:true}, "monitor bootstrap-status"},
-		{"reset interrupted", installerBootstrapRuntimeStatus{ExecutionEnabled:true, ResetRuns:[]installerRuntimeRunStatus{{ID:"reset-1", State:"FAILED"}}}, "reset-resume --confirmation RESUME-RESET"},
-		{"install active", installerBootstrapRuntimeStatus{ExecutionEnabled:true, BootstrapActive:true, Run:&installerRuntimeRunStatus{ID:"run-1", State:"RUNNING"}}, "monitor bootstrap-status"},
-		{"not started", installerBootstrapRuntimeStatus{ExecutionEnabled:true}, "Browser Installer"},
-		{"succeeded", installerBootstrapRuntimeStatus{ExecutionEnabled:true, Run:&installerRuntimeRunStatus{ID:"run-1", State:"SUCCEEDED"}}, "verify evidence/status"},
-		{"failed", installerBootstrapRuntimeStatus{ExecutionEnabled:true, Run:&installerRuntimeRunStatus{ID:"run-1", State:"FAILED"}}, "resume --confirmation RESUME"},
-		{"interrupted running", installerBootstrapRuntimeStatus{ExecutionEnabled:true, Run:&installerRuntimeRunStatus{ID:"run-1", State:"RUNNING"}}, "resume --confirmation RESUME"},
+		{"execution disabled", installerBootstrapRuntimeStatus{}, "REDEPLOY_EXECUTION_ENABLED", "execution enabled"},
+		{"reset active", installerBootstrapRuntimeStatus{ExecutionEnabled:true, ResetActive:true}, "MONITOR_RESET", "monitor bootstrap-status"},
+		{"reset interrupted", installerBootstrapRuntimeStatus{ExecutionEnabled:true, ResetRuns:[]installerRuntimeRunStatus{{ID:"reset-1", State:"FAILED"}}}, "RESUME_RESET", "reset-resume --confirmation RESUME-RESET"},
+		{"install active", installerBootstrapRuntimeStatus{ExecutionEnabled:true, BootstrapActive:true, Run:&installerRuntimeRunStatus{ID:"run-1", State:"RUNNING"}}, "MONITOR_INSTALL", "monitor bootstrap-status"},
+		{"not started", installerBootstrapRuntimeStatus{ExecutionEnabled:true}, "START_BROWSER_INSTALL", "Browser Installer"},
+		{"succeeded", installerBootstrapRuntimeStatus{ExecutionEnabled:true, Run:&installerRuntimeRunStatus{ID:"run-1", State:"SUCCEEDED"}}, "VERIFY_INSTALL", "verify evidence/status"},
+		{"failed", installerBootstrapRuntimeStatus{ExecutionEnabled:true, Run:&installerRuntimeRunStatus{ID:"run-1", State:"FAILED"}}, "RESUME_INSTALL", "resume --confirmation RESUME"},
+		{"interrupted running", installerBootstrapRuntimeStatus{ExecutionEnabled:true, Run:&installerRuntimeRunStatus{ID:"run-1", State:"RUNNING"}}, "RESUME_INSTALL", "resume --confirmation RESUME"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := installerBootstrapNextAction(test.status)
+			code, got := installerBootstrapNextActionGuidance(test.status)
+			if code != test.code {
+				t.Fatalf("nextActionCode=%q want=%q", code, test.code)
+			}
+			if installerBootstrapNextAction(test.status) != got {
+				t.Fatalf("legacy nextAction wrapper drift: %q", installerBootstrapNextAction(test.status))
+			}
 			if !strings.Contains(got, test.want) {
 				t.Fatalf("nextAction=%q want substring %q", got, test.want)
 			}
