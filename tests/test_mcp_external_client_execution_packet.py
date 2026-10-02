@@ -30,6 +30,7 @@ class PacketTests(unittest.TestCase):
             self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",out["receiptRequirements"]["captureAuthority"])
             self.assertTrue(out["receiptRequirements"]["executedAtRequired"])
             self.assertTrue(out["receiptRequirements"]["observedRuntimeIdentityRequired"])
+            self.assertTrue(out["receiptRequirements"]["structuredResponseObservationRequired"])
             self.assertEqual(campaign["sourceCommitSHA"],out["sourceCommitSHA"])
             self.assertEqual(campaign["runtimeVersion"],out["runtimeVersion"])
             self.assertEqual(campaign["sourceCommitSHA"],out["requestMeta"]["io.4so/sourceCommitSHA"])
