@@ -1333,6 +1333,41 @@ def validate_release_build_toolchain(root: Path, version: str, errors: list[tupl
         if rt_policy.get('networkAutoDownloadDuringReleaseBuildAllowed') is not False or rt_policy.get('physicalPassFromSourceBuildAllowed') is not False:
             errors.append(('RELEASE_BUILD_TOOLCHAIN_POLICY_INVALID','unsafe-release-policy'))
 
+    binary_builder = root/'scripts/build_release_binaries.py'
+    if not binary_builder.is_file():
+        errors.append(('RELEASE_BINARY_BUILDER_MISSING','scripts/build_release_binaries.py'))
+    else:
+        builder_text = binary_builder.read_text(encoding='utf-8',errors='strict')
+        for marker in (
+            'NATIVE_RELEASE_BINARY_BUILD_AUTHORITY_V1',
+            'RELEASE_BINARY_BUILD_LINUX_HOST_REQUIRED',
+            'GOOS',
+            'GOARCH',
+            'CGO_ENABLED',
+            '"platform-api"',
+            '"dapr-runtime"',
+        ):
+            if marker not in builder_text:
+                errors.append(('RELEASE_BINARY_BUILDER_INVALID',marker))
+
+    final_sealer = root/'scripts/seal_final_exact_release.py'
+    if not final_sealer.is_file():
+        errors.append(('FINAL_EXACT_RELEASE_SEALER_MISSING','scripts/seal_final_exact_release.py'))
+    else:
+        seal_text = final_sealer.read_text(encoding='utf-8',errors='strict')
+        if 'scripts/build_release_binaries.py' not in seal_text:
+            errors.append(('FINAL_EXACT_RELEASE_NATIVE_BUILDER_MISSING','scripts/build_release_binaries.py'))
+        if '["make", "build-release"' in seal_text:
+            errors.append(('FINAL_EXACT_RELEASE_MAKE_AUTHORITY_FORBIDDEN','make build-release'))
+
+    release_verifier = root/'scripts/verify_release.py'
+    if not release_verifier.is_file():
+        errors.append(('RELEASE_VERIFIER_MISSING','scripts/verify_release.py'))
+    else:
+        release_verifier_text = release_verifier.read_text(encoding='utf-8',errors='strict')
+        if '"dapr-runtime"' not in release_verifier_text:
+            errors.append(('RELEASE_VERIFIER_BINARY_COVERAGE_INVALID','dapr-runtime'))
+
     toolchain_verifier = root/'scripts/verify_release_build_toolchain.py'
     if not toolchain_verifier.is_file():
         errors.append(('RELEASE_BUILD_TOOLCHAIN_VERIFIER_MISSING','scripts/verify_release_build_toolchain.py'))
