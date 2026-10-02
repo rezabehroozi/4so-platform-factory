@@ -168,7 +168,7 @@ autopilot-context:
 	$(PYTHON) scripts/codex_autopilot.py --agent-context
 
 autopilot-agent:
-	$(PYTHON) scripts/project_runtime.py start --phase C6-multi-agent-test-autopilot --task codex-autopilot-agent --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json --replay-safe -- $(PYTHON) scripts/codex_autopilot.py --agent-run
+	$(PYTHON) scripts/project_runtime.py start --phase C6-multi-agent-test-autopilot --task codex-autopilot-agent --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json --replay-safe --allow-owned-worktree-mutation -- $(PYTHON) scripts/codex_autopilot.py --agent-run
 
 autopilot-test:
 	$(PYTHON) scripts/codex_autopilot.py
@@ -180,7 +180,7 @@ autopilot-real-test:
 	$(PYTHON) scripts/project_runtime.py start --phase D-exact-sha-physical-runtime --task autopilot-real-test --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json -- $(PYTHON) scripts/codex_autopilot.py --real-test
 
 autopilot:
-	$(PYTHON) scripts/project_runtime.py start --phase C6-multi-agent-test-autopilot --task codex-autopilot --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json --replay-safe -- $(PYTHON) scripts/codex_autopilot.py --repair
+	$(PYTHON) scripts/project_runtime.py start --phase C6-multi-agent-test-autopilot --task codex-autopilot --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json --replay-safe --allow-owned-worktree-mutation -- $(PYTHON) scripts/codex_autopilot.py --repair
 
 clean:
 	rm -rf bin dist release .state
@@ -200,4 +200,4 @@ runtime-self-test:
 	$(PYTHON) scripts/project_runtime.py self-test
 
 autopilot-durable:
-	$(PYTHON) scripts/project_runtime.py start --phase C6-multi-agent-test-autopilot --task codex-autopilot --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json --replay-safe -- $(PYTHON) scripts/codex_autopilot.py --repair
+	$(PYTHON) scripts/project_runtime.py start --phase C6-multi-agent-test-autopilot --task codex-autopilot --heartbeat-seconds 30 --checkpoint-file .state/codex-autopilot-run.json --replay-safe --allow-owned-worktree-mutation -- $(PYTHON) scripts/codex_autopilot.py --repair
