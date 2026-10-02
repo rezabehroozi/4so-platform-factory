@@ -15,6 +15,6 @@ jobs:
         run: |
           set -euo pipefail
           echo "This workflow is intentionally non-authoritative and performs no receipt admission or Git persistence."
-          echo "Use the canonical local runner:"
-          echo "  C7W_CLIENT=<chatgpt|claude|gemini|grok> C7W_CAPTURE=/secure/<client>.capture.json make c7w-admit"
-          echo "Use C7W_ALLOW_CAMPAIGN_SUPERSEDE=true only for an explicitly superseded incomplete campaign."
+          echo "Use the canonical local runner status output and its nextClientHandoff."
+          echo "Execute the exact packetPath, fill captureTemplatePath at expectedCapturePath under the private state directory, then execute the returned admitCommand."
+          echo "Use --allow-campaign-supersede only for an explicitly superseded structurally valid incomplete campaign."
