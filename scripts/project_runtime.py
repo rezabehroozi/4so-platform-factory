@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, datetime, fcntl, hashlib, json, os, secrets, signal, socket, stat, subprocess, sys, tempfile, time
+import argparse, datetime, hashlib, json, os, secrets, signal, socket, stat, subprocess, sys, tempfile, time
 from contextlib import contextmanager
 from pathlib import Path
+if os.name=="nt":
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+else:
+    import fcntl
 
 AUTHORITY="PROJECT_RUNTIME_STATE_V1"
 LOCK_AUTHORITY="PROJECT_RUNTIME_SINGLE_WRITER_LOCK_V1"
@@ -19,7 +25,38 @@ def now():
 
 def ticks(pid):
     try:
-        raw=Path(f"/proc/{int(pid)}/stat").read_text()
+        pid=int(pid)
+        if pid<=0:
+            return None
+    except (TypeError,ValueError):
+        return None
+    if os.name=="nt":
+        PROCESS_QUERY_LIMITED_INFORMATION=0x1000
+        kernel32=ctypes.WinDLL("kernel32",use_last_error=True)
+        kernel32.OpenProcess.argtypes=[wintypes.DWORD,wintypes.BOOL,wintypes.DWORD]
+        kernel32.OpenProcess.restype=wintypes.HANDLE
+        kernel32.GetProcessTimes.argtypes=[
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+        ]
+        kernel32.GetProcessTimes.restype=wintypes.BOOL
+        kernel32.CloseHandle.argtypes=[wintypes.HANDLE]
+        kernel32.CloseHandle.restype=wintypes.BOOL
+        handle=kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,False,pid)
+        if not handle:
+            return None
+        try:
+            creation=wintypes.FILETIME(); exit_time=wintypes.FILETIME(); kernel=wintypes.FILETIME(); user=wintypes.FILETIME()
+            if not kernel32.GetProcessTimes(handle,ctypes.byref(creation),ctypes.byref(exit_time),ctypes.byref(kernel),ctypes.byref(user)):
+                return None
+            return str((int(creation.dwHighDateTime)<<32)|int(creation.dwLowDateTime))
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        raw=Path(f"/proc/{pid}/stat").read_text()
         return raw[raw.rfind(")")+2:].split()[19]
     except (OSError,TypeError,ValueError,IndexError):
         return None
@@ -27,6 +64,30 @@ def ticks(pid):
 def alive(pid,start):
     cur=ticks(pid)
     return bool(cur and str(cur)==str(start or ""))
+
+def detached_process_kwargs():
+    if os.name=="nt":
+        return {"creationflags":getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0)}
+    return {"start_new_session":True}
+
+def terminate_process_tree(child,force=False):
+    if child is None or child.poll() is not None:
+        return
+    if os.name=="nt":
+        args=["taskkill","/PID",str(child.pid),"/T"]
+        if force:
+            args.append("/F")
+        result=subprocess.run(args,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False)
+        if result.returncode!=0 and child.poll() is None:
+            try:
+                child.kill() if force else child.terminate()
+            except OSError:
+                pass
+        return
+    try:
+        os.killpg(child.pid,signal.SIGKILL if force else signal.SIGTERM)
+    except ProcessLookupError:
+        pass
 
 def fsync_dir(path):
     if os.name!="posix": return
@@ -164,18 +225,37 @@ def read_state(root,override=None):
 def state_guard(root,override=None):
     ensure_runtime_dir(root,override)
     p=state_mutex_file(root,override)
-    flags=os.O_CREAT|os.O_RDWR|os.O_CLOEXEC
+    if p.is_symlink():
+        raise RuntimeError("PROJECT_RUNTIME_STATE_MUTEX_INVALID")
+    flags=os.O_CREAT|os.O_RDWR|getattr(os,"O_CLOEXEC",0)
     if hasattr(os,"O_NOFOLLOW"): flags|=os.O_NOFOLLOW
     fd=os.open(p,flags,0o600)
+    locked=False
     try:
-        info=os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode):
+        info=os.fstat(fd); named=os.stat(p,follow_symlinks=False)
+        if not stat.S_ISREG(info.st_mode) or not stat.S_ISREG(named.st_mode) or not os.path.samestat(info,named):
             raise RuntimeError("PROJECT_RUNTIME_STATE_MUTEX_INVALID")
-        fcntl.flock(fd,fcntl.LOCK_EX)
+        if os.name=="nt":
+            if info.st_size==0:
+                os.write(fd,b"\0"); os.fsync(fd)
+            os.lseek(fd,0,os.SEEK_SET)
+            msvcrt.locking(fd,msvcrt.LK_LOCK,1)
+        else:
+            if info.st_uid!=os.geteuid() or (stat.S_IMODE(info.st_mode)&0o077):
+                raise RuntimeError("PROJECT_RUNTIME_STATE_MUTEX_INVALID")
+            fcntl.flock(fd,fcntl.LOCK_EX)
+        locked=True
         yield
     finally:
-        try: fcntl.flock(fd,fcntl.LOCK_UN)
-        finally: os.close(fd)
+        if locked:
+            try:
+                if os.name=="nt":
+                    os.lseek(fd,0,os.SEEK_SET); msvcrt.locking(fd,msvcrt.LK_UNLCK,1)
+                else:
+                    fcntl.flock(fd,fcntl.LOCK_UN)
+            except OSError:
+                pass
+        os.close(fd)
 
 def write_state(root,state,override=None,expected_revision=None):
     with state_guard(root,override):
@@ -396,7 +476,7 @@ def spawn_waiting_worker(root,run_id,state,log_path,override=None,resume_attempt
         with log_path.open("a",buffering=1) as log:
             if resume_attempt is not None:
                 log.write(json.dumps({"event":"run-resume-launch","runId":run_id,"attempt":resume_attempt,"at":now()},sort_keys=True)+"\n")
-            worker=subprocess.Popen(args,cwd=root,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
+            worker=subprocess.Popen(args,cwd=root,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,close_fds=True,**detached_process_kwargs())
         wt=None
         for _ in range(50):
             wt=ticks(worker.pid)
@@ -680,15 +760,14 @@ def worker(root,run_id,override=None):
         nonlocal interrupted
         interrupted=True
         if child and child.poll() is None:
-            try: os.killpg(child.pid,signal.SIGTERM)
-            except ProcessLookupError: pass
+            terminate_process_tree(child,force=False)
     signal.signal(signal.SIGTERM,stop); signal.signal(signal.SIGINT,stop)
     with log.open("a",buffering=1) as out:
         out.write(json.dumps({"event":"run-start","runId":run_id,"at":now(),"command":command},sort_keys=True)+"\n")
         wrapper=[sys.executable,str(Path(__file__).resolve()),"_command","--root",str(root),"--run-id",run_id]
         if override: wrapper+=["--runtime-root",override]
         try:
-            child=subprocess.Popen(wrapper,cwd=root,stdin=subprocess.DEVNULL,stdout=out,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
+            child=subprocess.Popen(wrapper,cwd=root,stdin=subprocess.DEVNULL,stdout=out,stderr=subprocess.STDOUT,close_fds=True,**detached_process_kwargs())
         except Exception:
             s=read_state(root,override) or s
             s=preexecution_failure(root,s,"COMMAND_WRAPPER_LAUNCH_FAILED_BEFORE_EXECUTION",override)
@@ -718,8 +797,7 @@ def worker(root,run_id,override=None):
         if interrupted and child.poll() is None:
             try: child.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                try: os.killpg(child.pid,signal.SIGKILL)
-                except ProcessLookupError: pass
+                terminate_process_tree(child,force=True)
         rc=child.wait(); s=read_state(root,override) or s; cp=checkpoint(root,s.get("checkpointFile"))
         preexec_path=command_exec_failure_file(root,run_id,s.get("attempt"),override)
         if preexec_path.exists():
