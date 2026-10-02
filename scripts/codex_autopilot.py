@@ -1223,7 +1223,10 @@ def _outer_runtime_context(root: Path) -> dict:
     if not isinstance(payload, dict) or payload.get("authority") != "PROJECT_RUNTIME_STATE_V1":
         return base
     status = str(payload.get("status") or "UNKNOWN").upper()
-    active = bool(payload.get("activeRun")) or status in {"REQUESTED", "RUNNING", "WAITING"}
+    # project_runtime status already reconciles PID/start-time/lock identity and
+    # publishes activeRun. In particular, WAITING may be a durable inactive
+    # recovery/readback state, so status alone must never manufacture liveness.
+    active = bool(payload.get("activeRun"))
     recovery = bool(payload.get("recoveryRequired"))
     safe = bool(payload.get("safeToRetry"))
     replay_safe = bool(payload.get("replaySafe"))
