@@ -84,11 +84,19 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 out=mod.prepare(args)
             self.assertTrue(out["resumed"])
             self.assertEqual(source_sha,out["sourceCommitSHA"])
+            self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
+            self.assertEqual("chatgpt",out["nextClient"])
+            self.assertEqual(set(mod.core.CLIENTS),set(out["clientHandoff"]))
             for client in mod.core.CLIENTS:
                 self.assertTrue((state/"packets"/f"{client}.json").is_file())
                 capture=json.loads((state/"capture-templates"/f"{client}.json").read_text())
                 self.assertEqual(source_sha,capture["sourceCommitSHA"])
                 self.assertEqual("0.0.unit",capture["runtimeVersion"])
+                handoff=out["clientHandoff"][client]
+                self.assertEqual(str(state/"packets"/f"{client}.json"),handoff["packetPath"])
+                self.assertEqual(str(state/"capture-templates"/f"{client}.json"),handoff["captureTemplatePath"])
+                self.assertEqual(f"/secure/{client}.capture.json",handoff["expectedCapturePath"])
+                self.assertEqual(["env",f"C7W_CLIENT={client}",f"C7W_CAPTURE=/secure/{client}.capture.json","make","c7w-admit"],handoff["admitCommand"])
 
     def test_admit_revalidates_existing_audit_with_normalized_receipt(self):
         with tempfile.TemporaryDirectory() as td:
@@ -272,6 +280,12 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 out=mod.status(args)
             self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
             self.assertEqual(["env","C7W_CLIENT=chatgpt","C7W_CAPTURE=/secure/chatgpt.capture.json","make","c7w-admit"],out["nextCommand"])
+            handoff=out["nextClientHandoff"]
+            self.assertEqual("chatgpt",handoff["clientId"])
+            self.assertEqual(str(state/"packets"/"chatgpt.json"),handoff["packetPath"])
+            self.assertEqual(str(state/"capture-templates"/"chatgpt.json"),handoff["captureTemplatePath"])
+            self.assertEqual("/secure/chatgpt.capture.json",handoff["expectedCapturePath"])
+            self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",handoff["requiredCaptureAuthority"])
 
     def test_status_never_sends_next_client_on_stale_campaign_source(self):
         with tempfile.TemporaryDirectory() as td:
@@ -338,6 +352,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
             self.assertFalse(out["complete"])
             self.assertEqual("chatgpt",out["nextClient"])
             self.assertEqual(list(mod.core.CLIENTS),out["missing"])
+            self.assertEqual("PREPARE_C7W_CAMPAIGN",out["nextActionCode"])
+            self.assertEqual(["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],out["requiredInputs"])
 
 
 if __name__=="__main__":
