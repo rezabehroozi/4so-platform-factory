@@ -121,6 +121,23 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1", program)
         self.assertIn("scripts/run_mcp_external_interop.py", program)
 
+    def test_core_closure_github_workflows_are_read_only_non_authoritative_notices(self):
+        for rel in (
+            ".github/workflows/mcp-external-interop-campaign.yml",
+            ".github/workflows/mcp-external-interop-seal.yml",
+            ".github/workflows/mcp-external-receipt-admission.yml",
+            ".github/workflows/mcp-external-receipt-recovery.yml",
+            ".github/workflows/final-exact-release-seal.yml",
+        ):
+            workflow=self.read(rel)
+            self.assertIn("local-only-authority-notice:",workflow,rel)
+            self.assertIn("contents: read",workflow,rel)
+            self.assertNotIn("contents: write",workflow,rel)
+            self.assertNotIn("git push",workflow,rel)
+            self.assertNotIn("actions/checkout",workflow,rel)
+            self.assertNotIn("secrets.",workflow,rel)
+            self.assertNotIn("gh run",workflow,rel)
+
     def test_roadmap_never_treats_github_workflows_as_evidence_authority(self):
         program = self.read("internal/targetmodel/program.go")
         self.assertIn("MCP_EXTERNAL_CLIENT_INTEROP_EVIDENCE_PENDING", program)
