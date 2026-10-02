@@ -56,6 +56,19 @@ class ReceiptFinalizerTests(unittest.TestCase):
             self.assertEqual(set(core.REQUIRED_CHECKS),set(out["responseObservations"]))
             self.assertEqual("1"*40,out["responseObservations"]["authorization-filtered-tools-list"]["sourceCommitSHA"])
             self.assertFalse(out["scopeLeakObserved"]); self.assertFalse(out["revokedGrantAccepted"]); self.assertFalse(out["selfApprovalAccepted"])
+    def test_receipt_digest_comes_from_same_validated_capture_snapshot(self):
+        with tempfile.TemporaryDirectory() as raw:
+            pp,cap,_=self.fixture(Path(raw))
+            wanted="sha256:"+hashlib.sha256(cap.read_bytes()).hexdigest()
+            original=core.sha256
+            try:
+                core.sha256=lambda path:"sha256:"+"f"*64
+                out=mod.finalize(pp,cap)
+            finally:
+                core.sha256=original
+            self.assertEqual(wanted,out["evidenceDigest"])
+            self.assertNotEqual("sha256:"+"f"*64,out["evidenceDigest"])
+
     def test_false_check_missing_request_id_and_binding_drift_fail_closed(self):
         with tempfile.TemporaryDirectory() as raw:
             pp,cap,capture=self.fixture(Path(raw))
