@@ -115,6 +115,20 @@ class LocalC7WRunnerTests(unittest.TestCase):
             verify_receipt.assert_called_once()
             verify_audit.assert_called_once_with(audit_path,normalized,client)
 
+    def test_status_fails_closed_when_canonical_progress_survives_lost_local_state(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=root/"missing-state"; progress=root/"progress.json"; progress.write_text("{}")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=progress,evidence_out=root/"evidence.json")
+            with self.assertRaisesRegex(RuntimeError,"STATE_MISSING_WITH_CANONICAL_EVIDENCE"):
+                mod.status(args)
+            self.assertFalse(state.exists())
+
+    def test_progress_status_fails_closed_when_campaign_is_missing(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=mod.secure_state_dir(root/"state"); progress=root/"progress.json"; progress.write_text("{}")
+            with self.assertRaisesRegex(RuntimeError,"CAMPAIGN_MISSING_WITH_CANONICAL_PROGRESS"):
+                mod.progress_status(ROOT/"lab/mcp-external-client-interop-matrix.json",state,progress)
+
     def test_status_without_state_is_explicitly_pending_and_read_only(self):
         with tempfile.TemporaryDirectory() as td:
             state=Path(td)/"missing-state"
