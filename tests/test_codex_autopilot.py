@@ -681,6 +681,10 @@ class CheckpointSafeStageTests(unittest.TestCase):
         source = (ROOT / "scripts" / "run_go_package_shard.py").read_text(encoding="utf-8")
         self.assertIn("AUTOPILOT_STAGE_SHARD_AUTHORITY_V2", source)
         self.assertIn("AUTOPILOT_OWNER_UNIT_DEDUP_V1", source)
+        self.assertIn('go_command = str(os.environ.get("GO") or "go").strip() or "go"', source)
+        self.assertIn('[go_command, "list", "./..."]', source)
+        self.assertIn('[go_command, "vet", pkg]', source)
+        self.assertIn('[go_command, "test"]', source)
         self.assertIn("--exclude-installer-owner", source)
         unit_stages = [stage for stage in stages if stage.name.startswith("go-unit-")]
         self.assertTrue(all("--exclude-installer-owner" in stage.command for stage in unit_stages))
