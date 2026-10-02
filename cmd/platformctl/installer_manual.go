@@ -154,7 +154,7 @@ func manualInstallerBootstrapStatusCommand(state hostdeployment.State) []string 
 	}
 	tokenFile := filepath.Join(filepath.Dir(state.Plan.Paths.State), "bootstrap-token")
 	return []string{
-		platformctlExecutable(), "installer-access", "run-status",
+		"sudo", "bash", manualInstallerEntrypointPath(), "bootstrap-status",
 		"--installer-url", installerURL,
 		"--token-file", tokenFile,
 	}
