@@ -1,4 +1,5 @@
 import hashlib, importlib.util, json, os, subprocess, tempfile, unittest, zipfile
+from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
 
@@ -71,6 +72,31 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
                     mod.verify_worktree_source_unchanged(worktree,head)
             finally:
                 mod.remove_exact_worktree(root.resolve(),worktree)
+
+    def test_toolchain_extraction_rejects_member_count_bomb_before_extracting(self):
+        fake=mock.MagicMock()
+        fake.__enter__.return_value=fake
+        fake.__exit__.return_value=False
+        fake.getmembers.return_value=[object()]*65537
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(mod.tarfile,"open",return_value=fake):
+            with self.assertRaisesRegex(RuntimeError,"MEMBER_COUNT_INVALID"):
+                mod.extract_toolchain(Path(td)/"archive.tgz",{"archiveSize":1024},Path(td)/"out")
+
+    def test_toolchain_extraction_rejects_oversized_regular_member(self):
+        member=SimpleNamespace(
+            name="go/oversized.bin",
+            size=256*1024*1024+1,
+            mode=0o644,
+            isdir=lambda:False,
+            isreg=lambda:True,
+        )
+        fake=mock.MagicMock()
+        fake.__enter__.return_value=fake
+        fake.__exit__.return_value=False
+        fake.getmembers.return_value=[member]
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(mod.tarfile,"open",return_value=fake):
+            with self.assertRaisesRegex(RuntimeError,"MEMBER_SIZE_INVALID"):
+                mod.extract_toolchain(Path(td)/"archive.tgz",{"archiveSize":1024},Path(td)/"out")
 
     def test_staged_toolchain_archive_is_bound_to_locked_digest_not_current_source_equality(self):
         with tempfile.TemporaryDirectory() as td:
