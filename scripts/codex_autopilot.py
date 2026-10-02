@@ -445,6 +445,10 @@ AGENT_REPAIR_BUDGET_AUTHORITY = "AUTOPILOT_AGENT_REPAIR_BUDGET_V1"
 FAILURE_PATH_HINTS_AUTHORITY = "AUTOPILOT_FAILURE_PATH_HINTS_V1"
 EXTERNAL_OWNER_FIX_ADOPTION_AUTHORITY = "AUTOPILOT_EXTERNAL_OWNER_FIX_ADOPTION_V1"
 DURABLE_TRIAGE_CLASSIFICATION_AUTHORITY = "AUTOPILOT_DURABLE_TRIAGE_CLASSIFICATION_V1"
+TRIAGE_CACHE_AUTHORITY = "AUTOPILOT_TRIAGE_CACHE_V1"
+AGENT_NEXT_ACTION_AUTHORITY = "AUTOPILOT_AGENT_NEXT_ACTION_V1"
+OWNER_FIRST_STAGE_ORDER_AUTHORITY = "AUTOPILOT_OWNER_FIRST_STAGE_ORDER_V1"
+OWNER_UNIT_DEDUP_AUTHORITY = "AUTOPILOT_OWNER_UNIT_DEDUP_V1"
 LIVE_RUN_REJOIN_FENCE_AUTHORITY = "AUTOPILOT_LIVE_RUN_REJOIN_FENCE_V1"
 CROSS_SURFACE_OWNER_CONTEXT_AUTHORITY = "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1"
 AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY = "AUTOPILOT_OWNER_TEST_STAGE_V1"
@@ -669,8 +673,8 @@ def _parse_triage_classification(text: str) -> str:
     return next(iter(unique))
 
 
-def _record_triage_classification(root: Path, stage: Stage, result: StageResult, classification: str) -> None:
-    """Persist read-only diagnosis separately from terminal/transport status."""
+def _record_triage_classification(root: Path, stage: Stage, result: StageResult, classification: str, triage_capsule: str = "") -> None:
+    """Persist bounded read-only diagnosis for exact-fingerprint crash/resume reuse."""
     if classification not in _TRIAGE_CLASSIFICATIONS:
         classification = "UNKNOWN"
     checkpoint = _checkpoint_path(root)
@@ -685,8 +689,31 @@ def _record_triage_classification(root: Path, stage: Stage, result: StageResult,
     state["lastFailureClassification"] = classification
     state["lastFailureStage"] = stage.name
     state["lastFailureFingerprint"] = result.fingerprint
+    state["lastTriageCapsule"] = _failure_capsule(triage_capsule, max_lines=20, max_chars=TRIAGE_RESULT_MAX_CHARS)
+    state["lastTriageAuthority"] = TRIAGE_CACHE_AUTHORITY
     state["updatedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     _write_state_raw(checkpoint, state)
+
+
+def _cached_triage(root: Path, stage: Stage, result: StageResult) -> tuple[str, str] | None:
+    """Reuse only diagnosis sealed to the exact current stage/failure fingerprint."""
+    checkpoint = _checkpoint_path(root)
+    if not checkpoint.is_file() or checkpoint.is_symlink():
+        return None
+    try:
+        state = json.loads(checkpoint.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    classification = str(state.get("lastFailureClassification") or "")
+    if (
+        state.get("lastTriageAuthority") != TRIAGE_CACHE_AUTHORITY
+        or str(state.get("lastFailureStage") or "") != stage.name
+        or str(state.get("lastFailureFingerprint") or "") != result.fingerprint
+        or classification not in _TRIAGE_CLASSIFICATIONS
+    ):
+        return None
+    capsule = str(state.get("lastTriageCapsule") or "")[:TRIAGE_RESULT_MAX_CHARS]
+    return classification, capsule
 
 
 def invoke_codex_triage(root: Path, stage: Stage, result: StageResult, iteration: int, timeout: int) -> tuple[bool, str, str]:
@@ -704,12 +731,18 @@ def invoke_codex_triage(root: Path, stage: Stage, result: StageResult, iteration
     if triage_run.returncode != 0:
         return False, "ENVIRONMENT", f"CODEX_TRIAGE_FAILED rc={triage_run.returncode}\n{triage_tail}"
     classification = _parse_triage_classification(triage_run.stdout)
-    _record_triage_classification(root, stage, result, classification)
+    _record_triage_classification(root, stage, result, classification, triage_tail)
     return True, classification, triage_tail
 
 
 def invoke_codex(root: Path, stage: Stage, result: StageResult, iteration: int, timeout: int) -> tuple[bool, str]:
-    triage_ok, classification, triage_tail = invoke_codex_triage(root, stage, result, iteration, timeout)
+    cached = _cached_triage(root, stage, result)
+    if cached is not None:
+        classification, triage_tail = cached
+        triage_ok = True
+        print(f"AUTOPILOT_TRIAGE=CACHED authority={TRIAGE_CACHE_AUTHORITY} stage={stage.name} fingerprint={result.fingerprint}", flush=True)
+    else:
+        triage_ok, classification, triage_tail = invoke_codex_triage(root, stage, result, iteration, timeout)
     if not triage_ok:
         return False, triage_tail
     if classification not in {"CODE_DEFECT", "TEST_DEFECT"}:
@@ -1581,7 +1614,7 @@ def _write_checkpoint(root: Path, payload: dict) -> None:
         except (OSError, json.JSONDecodeError):
             previous = {}
         if str(previous.get("lastFailureStage") or "") == current_stage:
-            for key in ("lastFailureClassification", "lastFailureStage", "lastFailureFingerprint"):
+            for key in ("lastFailureClassification", "lastFailureStage", "lastFailureFingerprint", "lastTriageCapsule", "lastTriageAuthority"):
                 if previous.get(key) not in (None, ""):
                     body[key] = previous[key]
     body["schemaVersion"] = _AUTOPILOT_STATE_SCHEMA
