@@ -73,6 +73,29 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             finally:
                 mod.remove_exact_worktree(root.resolve(),worktree)
 
+    def test_exact_worktree_rejects_untracked_source_but_allows_exact_staged_toolchain(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir()
+            self.git(root,"init","-b","main")
+            self.git(root,"config","user.email","test@example.invalid")
+            self.git(root,"config","user.name","Test")
+            tracked=root/"tracked.txt"; tracked.write_text("v1\n")
+            self.git(root,"add","tracked.txt"); self.git(root,"commit","-m","initial")
+            head=self.git(root,"rev-parse","HEAD")
+            workspace=Path(td)/"workspace"; workspace.mkdir()
+            worktree=mod.prepare_exact_worktree(root.resolve(),head,workspace)
+            try:
+                rogue=worktree/"cmd"/"rogue.go"; rogue.parent.mkdir(); rogue.write_text("package cmd\n")
+                with self.assertRaisesRegex(RuntimeError,"WORKTREE_SOURCE_CHANGED"):
+                    mod.verify_worktree_source_unchanged(worktree,head)
+                rogue.unlink()
+                staged=worktree/"vendor"/"toolchains"/"go.tgz"; staged.parent.mkdir(parents=True); staged.write_bytes(b"toolchain")
+                mod.verify_worktree_source_unchanged(worktree,head,{"vendor/toolchains/go.tgz"})
+                with self.assertRaisesRegex(RuntimeError,"WORKTREE_SOURCE_CHANGED"):
+                    mod.verify_worktree_source_unchanged(worktree,head,{"vendor/toolchains/other.tgz"})
+            finally:
+                mod.remove_exact_worktree(root.resolve(),worktree)
+
     def test_toolchain_extraction_rejects_member_count_bomb_before_extracting(self):
         fake=mock.MagicMock()
         fake.__enter__.return_value=fake
