@@ -169,6 +169,21 @@ class GuidedInstallDoctorContractTests(unittest.TestCase):
         self.assertIn('expectedVersion=${EXPECTED_VERSION}', source)
         self.assertIn('runtime/version compatibility', source)
 
+    def test_doctor_distinguishes_action_required_from_hard_blocker(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('DOCTOR_OUTCOME_AUTHORITY="INSTALLER_MANUAL_DOCTOR_ACTION_OUTCOME_V1"', source)
+        self.assertIn('"outcomeAuthority=${DOCTOR_OUTCOME_AUTHORITY}"', source)
+        self.assertIn('"doctorOutcome=${doctor_outcome}"', source)
+        self.assertIn('"actionable=${doctor_actionable}"', source)
+        self.assertIn('doctor_outcome="READY"', source)
+        self.assertIn('doctor_outcome="ACTION_REQUIRED"', source)
+        self.assertIn('doctor_outcome="BLOCKED"', source)
+        self.assertIn('bundle_prepare_actionable=true', source)
+        self.assertIn('if [[ "${doctor_actionable}" == true ]]; then', source)
+        self.assertIn("exit 0", source)
+        self.assertIn("exit 1", source)
+        self.assertIn("missing prepared bytes as a product defect", source)
+
     def test_doctor_emits_shell_escaped_exact_preflight_command_with_resolved_inputs(self):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('DOCTOR_HANDOFF_AUTHORITY="INSTALLER_MANUAL_EXACT_NEXT_COMMAND_V1"', source)
