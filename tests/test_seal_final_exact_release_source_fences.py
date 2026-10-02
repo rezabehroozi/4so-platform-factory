@@ -11,6 +11,38 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
     def git(self,root,*args):
         return subprocess.run(["git",*args],cwd=root,text=True,capture_output=True,check=True).stdout.strip()
 
+    def test_c9_environment_preflight_reports_external_inputs_without_claiming_physical(self):
+        fake_lock={"authority":mod.TOOLCHAIN_AUTHORITY,"spec":{"admissionStatus":"admitted","exactCompiler":{}}}
+        browser_doc={"version":"unit-browser"}
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(mod.sys,"platform","linux"), \
+             mock.patch.object(mod.json,"loads",return_value=fake_lock), \
+             mock.patch.object(mod,"safe_toolchain_archive",return_value=(Path(td)/"go.tgz",{})), \
+             mock.patch.object(mod.browser_authority,"validate_ui_browser_authority",return_value=(Path(td)/"chrome",browser_doc)), \
+             mock.patch.dict(os.environ,{mod.browser_authority.ENV_AUTHORITY:str(Path(td)/"authority.json")},clear=False), \
+             mock.patch.object(mod.shutil,"which",return_value="/usr/bin/tool"):
+            result=mod.exact_release_environment_preflight(Path(td))
+        self.assertTrue(result["ready"])
+        self.assertEqual(mod.ENVIRONMENT_PREFLIGHT_AUTHORITY,result["authority"])
+        self.assertTrue(result["toolchainArchiveReady"])
+        self.assertTrue(result["browserAuthorityReady"])
+        self.assertEqual([],result["blockers"])
+        self.assertFalse(result["physicalCertified"])
+
+    def test_c9_environment_preflight_reports_missing_browser_and_host_tools(self):
+        fake_lock={"authority":mod.TOOLCHAIN_AUTHORITY,"spec":{"admissionStatus":"admitted","exactCompiler":{}}}
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(mod.sys,"platform","linux"), \
+             mock.patch.object(mod.json,"loads",return_value=fake_lock), \
+             mock.patch.object(mod,"safe_toolchain_archive",return_value=(Path(td)/"go.tgz",{})), \
+             mock.patch.dict(os.environ,{mod.browser_authority.ENV_AUTHORITY:""},clear=False), \
+             mock.patch.object(mod.shutil,"which",return_value=None):
+            result=mod.exact_release_environment_preflight(Path(td))
+        self.assertFalse(result["ready"])
+        self.assertIn("UI_BROWSER_AUTHORITY_MISSING",result["blockers"])
+        self.assertIn("FINAL_EXACT_RELEASE_HOST_TOOL_MISSING_GCC",result["blockers"])
+        self.assertIn("readelf",result["missingHostTools"])
+
     def test_c9_fails_fast_outside_exact_linux_build_host(self):
         with mock.patch.object(mod.sys,"platform","win32"):
             with self.assertRaisesRegex(RuntimeError,"LINUX_AMD64_HOST_REQUIRED"):
