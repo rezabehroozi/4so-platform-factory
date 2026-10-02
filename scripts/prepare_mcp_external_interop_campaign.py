@@ -38,12 +38,17 @@ def file_sha(path:Path)->str:
 
 def source_commit_sha(explicit:str="")->str:
     value=str(explicit or "").strip().lower()
-    if not value:
-        proc=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,text=True,capture_output=True,check=False)
-        value=proc.stdout.strip().lower() if proc.returncode==0 else ""
-    if not core.COMMIT.fullmatch(value):
+    if value and not core.COMMIT.fullmatch(value):
         raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_UNAVAILABLE")
-    return value
+    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,text=True,capture_output=True,check=False)
+    observed=proc.stdout.strip().lower() if proc.returncode==0 else ""
+    if core.COMMIT.fullmatch(observed):
+        if value and value!=observed:
+            raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_OVERRIDE_MISMATCH")
+        return observed
+    if value:
+        return value
+    raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_UNAVAILABLE")
 
 
 def runtime_identity_readback(endpoint_url:str,token_env:str,expected_source_sha:str)->dict:
