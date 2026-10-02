@@ -108,7 +108,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 self.assertEqual(str(state/"packets"/f"{client}.json"),handoff["packetPath"])
                 self.assertEqual(str(state/"capture-templates"/f"{client}.json"),handoff["captureTemplatePath"])
                 self.assertEqual(f"/secure/{client}.capture.json",handoff["expectedCapturePath"])
-                self.assertEqual(["env",f"C7W_CLIENT={client}",f"C7W_CAPTURE=/secure/{client}.capture.json","make","c7w-admit"],handoff["admitCommand"])
+                self.assertEqual([sys.executable,"scripts/run_mcp_external_interop.py","--state-dir",str(state),"admit","--client",client,"--capture",f"/secure/{client}.capture.json"],handoff["admitCommand"])
 
     def test_admit_revalidates_existing_audit_with_normalized_receipt(self):
         with tempfile.TemporaryDirectory() as td:
@@ -165,7 +165,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
             ):
                 out=mod.admit(args)
             self.assertEqual("RUN_C7W_SEAL",out["nextActionCode"])
-            self.assertEqual(["make","c7w-seal"],out["nextCommand"])
+            self.assertEqual([sys.executable,"scripts/run_mcp_external_interop.py","--state-dir",str(state),"seal"],out["nextCommand"])
             self.assertTrue(out["complete"])
 
     def test_admit_forwards_explicit_partial_campaign_supersede(self):
@@ -287,7 +287,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
             subprocess.run(["git","commit","-m","evidence"],cwd=root,check=True,capture_output=True)
             ready=mod.git_handoff(root,evidence,progress)
             self.assertEqual("RUN_C9_SEAL",ready["nextActionCode"])
-            self.assertEqual(["make","c9-seal"],ready["nextCommand"])
+            self.assertEqual([sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"],ready["nextCommand"])
             self.assertRegex(ready["sourceCommitSHA"],r"^[0-9a-f]{40}$")
 
     def test_git_handoff_never_recommends_c9_with_unrelated_dirty_source(self):
@@ -320,7 +320,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
             with mock.patch.object(mod,"progress_status",return_value={"complete":False,"certified":[],"missing":["chatgpt","claude","gemini","grok"],"nextClient":"chatgpt","campaignPrepared":True}):
                 out=mod.status(args)
             self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
-            self.assertEqual(["env","C7W_CLIENT=chatgpt","C7W_CAPTURE=/secure/chatgpt.capture.json","make","c7w-admit"],out["nextCommand"])
+            self.assertEqual([sys.executable,"scripts/run_mcp_external_interop.py","--state-dir",str(state),"admit","--client","chatgpt","--capture","/secure/chatgpt.capture.json"],out["nextCommand"])
             handoff=out["nextClientHandoff"]
             self.assertEqual("chatgpt",handoff["clientId"])
             self.assertEqual(str(state/"packets"/"chatgpt.json"),handoff["packetPath"])
@@ -380,8 +380,9 @@ class LocalC7WRunnerTests(unittest.TestCase):
             self.assertEqual("CAMPAIGN_EXPIRED",out["recoveryReason"])
             self.assertTrue(out["replacementAdmitRequiresCampaignSupersede"])
             self.assertEqual({"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"},out["followupAdmitEnvironment"])
-            self.assertEqual("make",out["nextCommand"][-2])
-            self.assertEqual("c7w-prepare",out["nextCommand"][-1])
+            self.assertEqual(sys.executable,out["nextCommand"][0])
+            self.assertEqual("scripts/run_mcp_external_interop.py",out["nextCommand"][1])
+            self.assertEqual("prepare",out["nextCommand"][-1])
 
     def test_status_without_state_is_explicitly_pending_and_read_only(self):
         with tempfile.TemporaryDirectory() as td:
