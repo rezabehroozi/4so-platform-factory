@@ -158,6 +158,8 @@ func TestManualInstallerNextGuidanceRoutesAppliedHostToBootstrapReadback(t *test
 	state.Plan.DeploymentID = "deploy-1"
 	state.Plan.Root = "/"
 	state.Plan.Health.URL = "http://127.0.0.1:9080/healthz"
+	state.Plan.Transport.Mode = "http-loopback"
+	state.Plan.Transport.LoopbackOnly = true
 	state.Plan.Paths.State = "/var/lib/4so-platform-installer/host-deployment.json"
 	result := manualInstallerNextGuidance(state, state.Plan.Paths.State, "/")
 	if result.Authority != installerManualContinuationResolverAuthority || result.AutomaticReplay {
@@ -165,6 +167,9 @@ func TestManualInstallerNextGuidanceRoutesAppliedHostToBootstrapReadback(t *test
 	}
 	if result.NextActionCode != "CHECK_BOOTSTRAP_STATUS" {
 		t.Fatalf("nextActionCode=%q", result.NextActionCode)
+	}
+	if result.Access == nil || result.Access.SSHForwardCommand != "ssh -N -L 9080:127.0.0.1:9080 <user>@<installer-host>" {
+		t.Fatalf("reconnect access handoff missing: %#v", result.Access)
 	}
 	joined := strings.Join(result.NextCommand, " ")
 	for _, want := range []string{"installer-access run-status", "--installer-url http://127.0.0.1:9080", "--token-file /var/lib/4so-platform-installer/bootstrap-token"} {
