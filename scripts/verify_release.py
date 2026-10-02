@@ -526,31 +526,31 @@ def main() -> int:
             # but each package has its own Go timeout and each shard is an
             # independently replayable Autopilot checkpoint.
             unit_shards = [
-                ["python3", "scripts/run_go_package_shard.py", "--shard", str(shard)]
+                [sys.executable, "scripts/run_go_package_shard.py", "--shard", str(shard)]
                 for shard in range(1, 5)
             ]
             vet_shards = [
-                ["python3", "scripts/run_go_package_shard.py", "--vet", "--shard", str(shard)]
+                [sys.executable, "scripts/run_go_package_shard.py", "--vet", "--shard", str(shard)]
                 for shard in range(1, 5)
             ]
             race_shards = [
-                ["python3", "scripts/run_go_package_shard.py", "--race", "--shard", str(shard)]
+                [sys.executable, "scripts/run_go_package_shard.py", "--race", "--shard", str(shard)]
                 for shard in range(1, 5)
             ]
 
             source_gate_commands: list[tuple[list[str], int]] = [
-                (["python3", "scripts/validate_repository.py", "."], 240),
-                (["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"], 420),
-                (["python3", "scripts/test_lab_runner.py"], 300),
-                (["python3", "scripts/lab_runner.py", "self-test"], 300),
-                (["python3", "scripts/catalog_upstream_admission.py"], 180),
-                (["python3", "scripts/acquire_upstream_helm.py", "--self-test"], 180),
-                (["python3", "scripts/acquire_virtual_cluster_runtime.py", "--self-test"], 180),
-                (["python3", "scripts/acquire_upstream_tagged_source.py", "--self-test"], 180),
-                (["python3", "scripts/acquire_historical_upgrade_batch.py", "--self-test"], 180),
-                (["python3", "scripts/generate_agent_knowledge.py", "--check"], 180),
-                (["python3", "scripts/browser_triage_profile.py", "--check"], 120),
-                (["python3", "scripts/browser_triage_bootstrap.py", "--self-test"], 120),
+                ([sys.executable, "scripts/validate_repository.py", "."], 240),
+                ([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"], 420),
+                ([sys.executable, "scripts/test_lab_runner.py"], 300),
+                ([sys.executable, "scripts/lab_runner.py", "self-test"], 300),
+                ([sys.executable, "scripts/catalog_upstream_admission.py"], 180),
+                ([sys.executable, "scripts/acquire_upstream_helm.py", "--self-test"], 180),
+                ([sys.executable, "scripts/acquire_virtual_cluster_runtime.py", "--self-test"], 180),
+                ([sys.executable, "scripts/acquire_upstream_tagged_source.py", "--self-test"], 180),
+                ([sys.executable, "scripts/acquire_historical_upgrade_batch.py", "--self-test"], 180),
+                ([sys.executable, "scripts/generate_agent_knowledge.py", "--check"], 180),
+                ([sys.executable, "scripts/browser_triage_profile.py", "--check"], 120),
+                ([sys.executable, "scripts/browser_triage_bootstrap.py", "--self-test"], 120),
             ]
             for command, timeout_seconds in source_gate_commands:
                 print("+", " ".join(command), flush=True)
@@ -651,7 +651,7 @@ def main() -> int:
             # independent API/control-plane smoke; installer lifecycle remains a
             # separate checkpoint because it owns destructive/recovery semantics.
             regular_smoke_shards = [
-                ["python3", "scripts/run_smoke_shard.py", "--shard", str(shard)]
+                [sys.executable, "scripts/run_smoke_shard.py", "--shard", str(shard)]
                 for shard in range(1, 4)
             ]
             rc = run_parallel_commands(
@@ -664,7 +664,7 @@ def main() -> int:
             )
             if rc:
                 return rc
-            installer_smoke = ["python3", "scripts/run_smoke_shard.py", "--shard", "4"]
+            installer_smoke = [sys.executable, "scripts/run_smoke_shard.py", "--shard", "4"]
             print("+", " ".join(installer_smoke), flush=True)
             returncode, stdout, stderr = run_bounded_command(
                 installer_smoke, cwd=root, env=verify_environment, timeout_seconds=1800
@@ -679,14 +679,14 @@ def main() -> int:
             # UI/full-product parity: rendered/headless, quality/accessibility,
             # Persian coverage, live API authority and the C4 workflow E2E.
             ui_commands: list[tuple[list[str], int]] = [
-                (["python3", "scripts/smoke_ui.py", "."], 900),
-                (["python3", "scripts/smoke_ui_quality.py"], 900),
-                (["python3", "scripts/persian_ui_lint.py", "--root", "."], 180),
-                (["python3", "scripts/console_localization_coverage.py", "--root", "."], 180),
-                (["python3", "scripts/smoke_ui_localization_runtime.py", "."], 300),
-                (["python3", "scripts/smoke_ui_live.py", "./bin/platform-api", "."], 900),
+                ([sys.executable, "scripts/smoke_ui.py", "."], 900),
+                ([sys.executable, "scripts/smoke_ui_quality.py"], 900),
+                ([sys.executable, "scripts/persian_ui_lint.py", "--root", "."], 180),
+                ([sys.executable, "scripts/console_localization_coverage.py", "--root", "."], 180),
+                ([sys.executable, "scripts/smoke_ui_localization_runtime.py", "."], 300),
+                ([sys.executable, "scripts/smoke_ui_live.py", "./bin/platform-api", "."], 900),
                 (
-                    ["python3", "scripts/smoke_ui_workflow_e2e.py", "./bin/platform-api", "./bin/platform-installer"],
+                    [sys.executable, "scripts/smoke_ui_workflow_e2e.py", "./bin/platform-api", "./bin/platform-installer"],
                     1200,
                 ),
             ]
