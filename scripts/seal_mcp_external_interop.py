@@ -293,12 +293,12 @@ def validate_matrix_contract(matrix:object,label:str="MCP_EXTERNAL_MATRIX")->dic
         raise RuntimeError(f"{label}_PROTOCOL_INVALID")
     execution_contract={
         "executionRunnerAuthority":LOCAL_EXECUTION_RUNNER_AUTHORITY,
-        "campaignPreparation":"C7W_MCP_ENDPOINT=https://<api>/mcp C7W_OAUTH_CLIENT_MAP=/secure/oauth-client-bindings.json make c7w-prepare",
-        "receiptAdmissionCommand":"C7W_CLIENT=<client> C7W_CAPTURE=/secure/<client>.capture.json make c7w-admit",
-        "statusCommand":"make c7w-status",
-        "sealCommand":"make c7w-seal",
-        "auditFetchCommand":"integrated: make c7w-admit -> scripts/fetch_mcp_external_audit_window.py",
-        "finalReleaseSealCommand":"make c9-seal",
+        "campaignPreparation":"<python> scripts/run_mcp_external_interop.py --state-dir <state-dir> prepare --endpoint <https-mcp-endpoint> --oauth-client-map <private-oauth-client-bindings.json>",
+        "receiptAdmissionCommand":"<python> scripts/run_mcp_external_interop.py --state-dir <state-dir> admit --client <client> --capture <state-dir>/captures/<client>.capture.json",
+        "statusCommand":"<python> scripts/run_mcp_external_interop.py --state-dir <state-dir> status",
+        "sealCommand":"<python> scripts/run_mcp_external_interop.py --state-dir <state-dir> seal",
+        "auditFetchCommand":"integrated: local runner admit -> scripts/fetch_mcp_external_audit_window.py",
+        "finalReleaseSealCommand":"<python> scripts/seal_final_exact_release.py --root . --out lab/final-exact-release-evidence.json",
     }
     if any(spec.get(key)!=value for key,value in execution_contract.items()):
         raise RuntimeError(f"{label}_LOCAL_EXECUTION_CONTRACT_INVALID")
