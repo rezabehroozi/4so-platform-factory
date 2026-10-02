@@ -159,9 +159,11 @@ def admit(args:argparse.Namespace)->dict:
     receipt=finalizer.finalize(packet_path,args.capture)
     core.write_json_once_or_identical(receipt_path,receipt,"MCP_EXTERNAL_CLIENT_RECEIPT")
 
+    spec,required,campaign=admission.matrix_contract(args.matrix,p["campaign"])
+    normalized_receipt=core.verify_receipt(receipt_path,client,required,str(spec["protocol"]),campaign)
     audit_path=p["audits"]/(client+".json")
     if audit_path.exists() or audit_path.is_symlink():
-        core.verify_server_audit(audit_path,receipt,client)
+        core.verify_server_audit(audit_path,normalized_receipt,client)
     else:
         audit_fetch.fetch(args.matrix,p["campaign"],receipt_path,client,args.token_env,audit_path,args.attempts,args.interval_seconds)
 
@@ -202,8 +204,13 @@ def seal(args:argparse.Namespace)->dict:
 
 
 def status(args:argparse.Namespace)->dict:
-    state=secure_state_dir(args.state_dir)
-    value=progress_status(args.matrix,state)
+    state=Path(os.path.abspath(args.state_dir))
+    if state.exists() or state.is_symlink():
+        if state.is_symlink() or not state.is_dir():
+            raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID")
+        value=progress_status(args.matrix,state)
+    else:
+        value={"certified":[],"missing":list(core.CLIENTS),"complete":False,"nextClient":core.CLIENTS[0],"campaignPrepared":False}
     value.update({"authority":AUTHORITY,"action":"STATUS","stateDir":str(state),"physicalCertified":False})
     if value["complete"]:
         p=paths(state)
