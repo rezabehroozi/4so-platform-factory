@@ -320,10 +320,17 @@ def stage_toolchain_archive(archive: Path, exact: dict, worktree: Path) -> Path:
 def verify_worktree_source_unchanged(worktree: Path, source_sha: str, allowed_untracked: set[str] | None = None) -> None:
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=worktree, text=True, capture_output=True, check=False)
     indexed = subprocess.run(["git", "ls-files", "-v", "-z"], cwd=worktree, capture_output=True, check=False)
+    tracked_raw = subprocess.run(["git", "ls-files", "-z"], cwd=worktree, capture_output=True, check=False)
     status = subprocess.run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd=worktree, capture_output=True, check=False)
     index_valid = indexed.returncode == 0 and all(not raw or raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00"))
     allowed=set(allowed_untracked or ())
-    status_valid=status.returncode==0
+    status_valid=status.returncode==0 and tracked_raw.returncode==0
+    tracked=set()
+    if status_valid:
+        try:
+            tracked={raw.decode("utf-8",errors="strict") for raw in tracked_raw.stdout.split(b"\x00") if raw}
+        except UnicodeDecodeError:
+            status_valid=False
     if status_valid:
         for raw in status.stdout.split(b"\x00"):
             if not raw:
@@ -336,6 +343,16 @@ def verify_worktree_source_unchanged(worktree: Path, source_sha: str, allowed_un
                     break
                 if rel in allowed:
                     continue
+            status_valid=False
+            break
+    if status_valid:
+        generated_prefixes=("bin/","release/",".state/")
+        for candidate in worktree.rglob("*"):
+            if candidate==worktree/".git" or not (candidate.is_file() or candidate.is_symlink()):
+                continue
+            rel=candidate.relative_to(worktree).as_posix()
+            if rel in tracked or rel in allowed or any(rel.startswith(prefix) for prefix in generated_prefixes):
+                continue
             status_valid=False
             break
     if head.returncode != 0 or head.stdout.strip() != source_sha or not index_valid or not status_valid:
@@ -617,6 +634,7 @@ def verify_existing_release_full(root: Path, source_sha: str, release: Path) -> 
             env["GO"]=str(go)
             env["GOTOOLCHAIN"]="local"
             env["PYTHON"]=sys.executable
+            env["PYTHONDONTWRITEBYTECODE"]="1"
             run([sys.executable,"scripts/verify_release_build_toolchain.py","--require-admitted","--archive",str(staged_archive)],root=worktree,env=env)
             run([sys.executable,"scripts/verify_release.py",str(release),"--full"],root=worktree,env=env)
             verify_worktree_source_unchanged(worktree,source_sha,{staged_archive.relative_to(worktree).as_posix()})
@@ -725,6 +743,7 @@ def execute(root: Path, out: Path) -> dict:
             env["GO"] = str(go)
             env["GOTOOLCHAIN"] = "local"
             env["PYTHON"] = sys.executable
+            env["PYTHONDONTWRITEBYTECODE"] = "1"
 
             run(
                 [sys.executable, "scripts/verify_release_build_toolchain.py", "--require-admitted", "--archive", str(staged_archive)],
