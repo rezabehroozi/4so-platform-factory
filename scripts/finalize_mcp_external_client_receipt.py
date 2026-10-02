@@ -116,7 +116,7 @@ def validate_packet(packet:dict)->tuple[str,str]:
 
 def finalize(packet_path:Path,capture_path:Path)->dict:
     packet=core.load(packet_path,"EXECUTION_PACKET")
-    capture=core.load(capture_path,"EXTERNAL_CAPTURE")
+    capture,capture_digest=core.load_with_sha256(capture_path,"EXTERNAL_CAPTURE")
     client,packet_endpoint=validate_packet(packet)
     if not isinstance(capture,dict) or capture.get("authority")!=AUTHORITY or capture.get("clientId")!=client:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_IDENTITY_INVALID")
@@ -300,7 +300,7 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
       "scopeLeakObserved":False,
       "revokedGrantAccepted":False,
       "selfApprovalAccepted":False,
-      "evidenceDigest":core.sha256(capture_path),
+      "evidenceDigest":capture_digest,
     }
 
 def main()->int:
