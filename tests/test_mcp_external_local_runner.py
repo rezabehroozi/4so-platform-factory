@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -13,6 +14,44 @@ import run_mcp_external_interop as mod
 
 
 class LocalC7WRunnerTests(unittest.TestCase):
+    def test_campaign_inputs_use_same_validated_snapshot_for_semantics_and_digest(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
+        expected_matrix="sha256:"+hashlib.sha256(matrix.read_bytes()).hexdigest()
+        with tempfile.TemporaryDirectory() as td:
+            oauth=Path(td)/"oauth.json"
+            oauth.write_text(json.dumps({
+                "authority":mod.core.OAUTH_BINDING_AUTHORITY,
+                "clients":{client:f"{client}-oauth" for client in mod.core.CLIENTS},
+            }),encoding="utf-8")
+            expected_oauth="sha256:"+hashlib.sha256(oauth.read_bytes()).hexdigest()
+            with mock.patch.object(mod.campaign_builder,"file_sha",return_value="sha256:"+"f"*64):
+                bindings,digest=mod.campaign_builder.load_oauth_bindings(oauth)
+                self.assertEqual(expected_oauth,digest)
+                trusted={
+                    client:{
+                        "oauthClientId":bindings[client],
+                        "trustedClientId":"trusted-"+client,
+                        "trustedClientRevision":1,
+                        "trustedClientProvider":client,
+                    }
+                    for client in mod.core.CLIENTS
+                }
+                campaign=mod.campaign_builder.prepare(
+                    matrix,
+                    "https://mcp.example.test/mcp",
+                    {"authority":mod.core.CAMPAIGN_PREFLIGHT_AUTHORITY},
+                    digest,
+                    trusted,
+                    {
+                        "authority":"MCP_EXTERNAL_RUNTIME_SOURCE_IDENTITY_V1",
+                        "product":"4SO Platform Factory",
+                        "version":"0.0.unit",
+                        "sourceCommitSHA":"a"*40,
+                    },
+                )
+            self.assertEqual(expected_matrix,campaign["matrixSha256"])
+            self.assertEqual(expected_oauth,campaign["oauthClientBindingsSha256"])
+
     def test_secure_state_owns_portable_capture_directory(self):
         with tempfile.TemporaryDirectory() as td:
             state=mod.secure_state_dir(Path(td)/"state")
