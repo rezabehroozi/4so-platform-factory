@@ -497,6 +497,7 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["agentRepairBudgetAuthority"], "AUTOPILOT_AGENT_REPAIR_BUDGET_V1")
             self.assertEqual(context["failurePathHintsAuthority"], "AUTOPILOT_FAILURE_PATH_HINTS_V1")
             self.assertEqual(context["crossSurfaceOwnerContextAuthority"], "AUTOPILOT_CROSS_SURFACE_OWNER_CONTEXT_V1")
+            self.assertEqual(context["autopilotOwnerTestStageAuthority"], "AUTOPILOT_OWNER_TEST_STAGE_V1")
             self.assertEqual(context["defaultAgentRepairBudget"], 8)
             self.assertEqual(context["failureCapsuleMaxChars"], 3200)
             self.assertEqual(context["failureCapsule"], "ERROR owner mismatch token=[REDACTED]")
@@ -840,6 +841,17 @@ class TokenEfficientAutopilotTests(unittest.TestCase):
         self.assertLess(names.index("installer-go-owner-tests"), names.index("installer-core-smoke"))
         self.assertLess(names.index("installer-core-smoke"), names.index("installer-host-smoke"))
         self.assertLess(names.index("installer-host-smoke"), names.index("installer-remote-smoke"))
+
+    def test_owner_proofs_run_before_broad_python_discovery(self):
+        stages = AUTOPILOT.canonical_stages(ROOT)
+        names = [stage.name for stage in stages]
+        self.assertLess(names.index("installer-entrypoint-contracts"), names.index("python-tests"))
+        self.assertLess(names.index("autopilot-owner-tests"), names.index("python-tests"))
+        stage = next(item for item in stages if item.name == "autopilot-owner-tests")
+        self.assertEqual(AUTOPILOT._stage_specialist(stage), "developer-agent-experience")
+        self.assertEqual(AUTOPILOT.AUTOPILOT_OWNER_TEST_STAGE_AUTHORITY, "AUTOPILOT_OWNER_TEST_STAGE_V1")
+        self.assertIn("scripts/codex_autopilot.py", AUTOPILOT._owner_context_paths(stage))
+        self.assertIn("tests/test_codex_autopilot.py", AUTOPILOT._owner_context_paths(stage))
 
     def test_installer_repair_uses_installer_and_package_convergence(self):
         stages = AUTOPILOT.canonical_stages(ROOT)
