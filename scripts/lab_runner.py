@@ -1534,6 +1534,16 @@ def _download_locked_input_pack(pack: dict[str, Any], output: Path) -> tuple[str
     expected_sha = str(pack["sha256"])
     expected_size = int(pack["sizeBytes"])
     output.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        cached = output.lstat()
+    except FileNotFoundError:
+        cached = None
+    if cached is not None:
+        if output.is_symlink() or not stat.S_ISREG(cached.st_mode):
+            raise RuntimeError("cached acquisition input pack must be a regular non-symlink file")
+        if cached.st_size == expected_size and _sha256(output) == expected_sha:
+            return "cache:" + expected_sha, "sha256:" + expected_sha
+        output.unlink()
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _PublicHTTPSRedirectHandler(), _PinnedPublicHTTPSHandler())
 
     def stream_url(raw_url: str, dst, *, part_sha: str | None = None, part_size: int | None = None, accept: str = "application/zip") -> str:
