@@ -185,6 +185,28 @@ class LocalC7WRunnerTests(unittest.TestCase):
             self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
             self.assertEqual(["env","C7W_CLIENT=chatgpt","C7W_CAPTURE=/secure/chatgpt.capture.json","make","c7w-admit"],out["nextCommand"])
 
+    def test_seal_requires_complete_canonical_progress(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=mod.secure_state_dir(root/"state")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=root/"progress.json",evidence_out=root/"evidence.json")
+            with mock.patch.object(mod,"progress_status",return_value={"complete":False,"nextClient":"claude"}):
+                with self.assertRaisesRegex(RuntimeError,"SEAL_PROGRESS_INCOMPLETE next=claude"):
+                    mod.seal(args)
+
+    def test_seal_requires_incremental_and_bulk_evidence_to_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=mod.secure_state_dir(root/"state")
+            progress=root/"progress.json"; progress.write_text("{}")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=progress,evidence_out=root/"evidence.json")
+            with (
+                mock.patch.object(mod,"progress_status",return_value={"complete":True,"nextClient":None}),
+                mock.patch.object(mod.core,"load",return_value={}),
+                mock.patch.object(mod.admission,"final_evidence",return_value={"authority":"progress"}),
+                mock.patch.object(mod.core,"seal",return_value={"authority":"bulk"}),
+            ):
+                with self.assertRaisesRegex(RuntimeError,"SEAL_PROGRESS_BULK_DRIFT"):
+                    mod.seal(args)
+
     def test_status_without_state_is_explicitly_pending_and_read_only(self):
         with tempfile.TemporaryDirectory() as td:
             state=Path(td)/"missing-state"
