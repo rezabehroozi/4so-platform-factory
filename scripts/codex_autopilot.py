@@ -463,6 +463,7 @@ DIRTY_DELTA_AUTHORITY = "AUTOPILOT_DIRTY_DELTA_V1"
 WORKSPACE_FINGERPRINT_AUTHORITY = "AUTOPILOT_GIT_WORKSPACE_FINGERPRINT_V1"
 AGENT_CONTEXT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_V1"
 AGENT_CONTEXT_COMPACT_AUTHORITY = "AUTOPILOT_AGENT_CONTEXT_COMPACT_V1"
+AGENT_CONTEXT_BUDGET_FALLBACK_AUTHORITY = "AUTOPILOT_CONTEXT_BUDGET_FALLBACK_V1"
 AGENT_CONTEXT_COMPACT_MAX_CHARS = 7000
 AGENT_CONTEXT_COMPACT_FAILURE_MAX_CHARS = 1600
 AGENT_CONTEXT_COMPACT_OWNER_PATH_LIMIT = 6
@@ -1417,10 +1418,10 @@ def _compact_agent_context(root: Path) -> dict:
             "never infer Runtime/Lab/Exact-SHA Physical PASS from local/source success",
         ],
     }
-    # Reserve a small fixed envelope for the serializedChars field itself so
-    # the final emitted JSON, not merely its pre-metadata payload, stays below
-    # the advertised hard handoff budget.
-    payload_budget = AGENT_CONTEXT_COMPACT_MAX_CHARS - 64
+    # Keep the common packet rich, but never truncate executable argv. If exact
+    # commands themselves make the packet too large, degrade to a tiny read-only
+    # status action so the next agent cannot execute a partial/guessed command.
+    payload_budget = AGENT_CONTEXT_COMPACT_MAX_CHARS - 96
     raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
     if len(raw) > payload_budget:
         compact["failureCapsule"] = failure[-800:]
@@ -1431,16 +1432,71 @@ def _compact_agent_context(root: Path) -> dict:
     if len(raw) > payload_budget:
         compact["nextAction"] = compact["nextAction"][:480]
         compact["environmentPreflight"] = {
-            "missing": compact.get("environmentPreflight", {}).get("missing", []),
+            "missing": [str(item)[:96] for item in compact.get("environmentPreflight", {}).get("missing", [])[:8]],
         }
         raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
     if len(raw) > payload_budget:
-        raise RuntimeError("AUTOPILOT_COMPACT_AGENT_CONTEXT_BUDGET_EXCEEDED")
-    compact["serializedChars"] = len(raw)
+        recovery_required = bool(outer.get("recoveryRequired")) or str(outer.get("action") or "") == "RECOVERY_REQUIRED"
+        compact["contextTruncated"] = True
+        compact["contextFallbackAuthority"] = AGENT_CONTEXT_BUDGET_FALLBACK_AUTHORITY
+        compact["failureCapsule"] = ""
+        compact["failurePathHints"] = []
+        compact["ownerContextPaths"] = []
+        compact["proofCommand"] = []
+        compact["proofTimeoutSeconds"] = 0
+        compact["resumeInvocation"] = []
+        compact["environmentPreflight"] = {}
+        if recovery_required:
+            compact["nextActionCode"] = "INSPECT_OUTER_RUNTIME_RECOVERY"
+            compact["nextCommand"] = ["make", "runtime-status"]
+            compact["nextAction"] = "the exact continuation argv exceeded the compact handoff budget; inspect durable outer-runtime recovery state and do not reconstruct or replay a mutation"
+        else:
+            compact["nextActionCode"] = "INSPECT_AUTOPILOT_STATE"
+            compact["nextCommand"] = ["make", "autopilot-status"]
+            compact["nextAction"] = "the exact continuation argv exceeded the compact handoff budget; inspect durable Autopilot state and do not reconstruct or guess the omitted command"
+        compact["rules"] = [
+            "execute only the emitted read-only inspection command",
+            "never reconstruct omitted argv from prose",
+            "never infer Runtime/Lab/Exact-SHA Physical PASS from local/source success",
+        ]
+        raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
+    if len(raw) > payload_budget:
+        # Pathological report fields must not make the normal agent handoff
+        # unusable. Collapse to the smallest safe non-authoritative inspection
+        # capsule while preserving enough identity to find the durable state.
+        compact = {
+            "schemaVersion": 1,
+            "authority": AGENT_CONTEXT_COMPACT_AUTHORITY,
+            "derived": True,
+            "notProductAuthority": True,
+            "contextBudgetChars": AGENT_CONTEXT_COMPACT_MAX_CHARS,
+            "contextTruncated": True,
+            "contextFallbackAuthority": AGENT_CONTEXT_BUDGET_FALLBACK_AUTHORITY,
+            "gitHead": str(full.get("gitHead") or "")[:80],
+            "runId": str(full.get("runId") or "")[:160],
+            "status": str(full.get("status") or "UNKNOWN")[:64],
+            "currentStage": str(full.get("currentStage") or "")[:160],
+            "nextActionCode": "INSPECT_OUTER_RUNTIME_RECOVERY" if (bool(outer.get("recoveryRequired")) or str(outer.get("action") or "") == "RECOVERY_REQUIRED") else "INSPECT_AUTOPILOT_STATE",
+            "nextCommand": ["make", "runtime-status"] if (bool(outer.get("recoveryRequired")) or str(outer.get("action") or "") == "RECOVERY_REQUIRED") else ["make", "autopilot-status"],
+            "nextAction": "compact context exceeded its safe budget; inspect durable status only and do not reconstruct omitted commands",
+            "rules": ["inspection only", "do not reconstruct omitted argv", "no Runtime/Lab/Physical inference"],
+        }
+
+    # Seal serializedChars to the exact final JSON length rather than the
+    # pre-field payload length. Integer width changes converge in a few rounds.
+    compact["serializedChars"] = 0
+    for _ in range(8):
+        final_raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
+        final_size = len(final_raw)
+        if compact["serializedChars"] == final_size:
+            break
+        compact["serializedChars"] = final_size
     final_raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
+    if compact["serializedChars"] != len(final_raw):
+        compact["serializedChars"] = len(final_raw)
+        final_raw = json.dumps(compact, sort_keys=True, separators=(",", ":"))
     if len(final_raw) > AGENT_CONTEXT_COMPACT_MAX_CHARS:
         raise RuntimeError("AUTOPILOT_COMPACT_AGENT_CONTEXT_BUDGET_EXCEEDED")
-    compact["serializedChars"] = len(final_raw)
     return compact
 
 
