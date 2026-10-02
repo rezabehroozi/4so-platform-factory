@@ -191,6 +191,15 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"ARTIFACT_WRITABLE"):
                 mod.publish_verified_file(source,target)
 
+    def test_resume_rejects_writable_exact_publication_directory(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
+            out,release,evidence,admitted=self.final_evidence_fixture(root)
+            release.parent.chmod(0o755)
+            with mock.patch.object(mod.admission,"verify",return_value=admitted):
+                with self.assertRaisesRegex(RuntimeError,"EXISTING_PUBLICATION_DIRECTORY_WRITABLE"):
+                    mod.execute(root,out)
+
     def test_resume_rejects_writable_exact_archive_or_checksum(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test")
@@ -255,7 +264,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
         digest=mod.sha256(release)
         checksum=release.with_name(release.name+".sha256")
         checksum.write_text(f"{digest.removeprefix('sha256:')}  {release.name}\n",encoding="utf-8")
-        release.chmod(0o444); checksum.chmod(0o444)
+        release.chmod(0o444); checksum.chmod(0o444); release.parent.chmod(0o555)
         evidence={
             "apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseEvidence",
             "authority":mod.AUTHORITY,"sourceExecutionAuthority":mod.EXECUTION_AUTHORITY,
