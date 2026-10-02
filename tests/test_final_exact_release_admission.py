@@ -8,12 +8,28 @@ from scripts import seal_final_exact_release as local_seal
 class FinalExactReleaseAdmissionTests(unittest.TestCase):
     def progress_row(self,c):
         checks={name:True for name in ("oauth-protected-resource-discovery","dedicated-audience-validation","authorization-filtered-tools-list","project-resource-scope-negative-control","revoked-delegation-negative-control","read-only-client-mutation-negative-control","administration-approval-self-approval-negative-control")}
-        request_ids={name:f"{c}-{idx:02d}-request" for idx,name in enumerate(("dedicated-audience-validation","authorization-filtered-tools-list","project-resource-scope-negative-control","revoked-delegation-negative-control","read-only-client-mutation-negative-control","administration-approval-self-approval-negative-control"),1)}
+        request_ids={name:f"{c}-{idx:02d}-request" for idx,name in enumerate(mod.MCP_AUDITED_CHECKS,1)}
         challenge="sha256:"+hashlib.sha256((c+"-challenge").encode()).hexdigest()
         binding=mod.mcp_contract.interop_binding_digest("mcp-interop-testcampaign",c,challenge)
         oauth_client_id=c+"-oauth-client"
         trusted={"trustedClientId":"mcpcli-"+c,"trustedClientRevision":1,"trustedClientProvider":c}
-        return {"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c],"campaignId":"mcp-interop-testcampaign","executionId":"run-"+c,"providerExecutionRef":"provider-execution-"+c,"checks":checks,"requestIds":request_ids,"challengeSha256":challenge,"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":mod.mcp_contract.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"serverAuditWitness":{"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","clientId":c,"oauthClientId":oauth_client_id,"interopBindingAuthority":mod.mcp_contract.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"auditMethodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","auditChainDigestVerified":True,"oauthClientWitnessPass":True,"oauthClientWitnessedCheckCount":5,"auditWindowStartSequence":1,"auditWindowPreviousDigest":"","auditHeadSequence":6,"serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest()}}
+        executed_at="2026-09-29T01:02:03Z"
+        matched={}
+        for sequence,check in enumerate(mod.MCP_AUDITED_CHECKS,1):
+            category,decision,reason=mod.mcp_contract.AUDIT_REQUIREMENTS[check]
+            matched[check]={
+                "requestId":request_ids[check],
+                "sequence":sequence,
+                "digest":"sha256:"+hashlib.sha256(f"{c}-{check}-audit".encode()).hexdigest(),
+                "occurredAt":executed_at,
+                "category":category,
+                "decision":decision,
+                "reasonCode":reason,
+                "oauthClientId":oauth_client_id if check in mod.mcp_contract.OAUTH_CLIENT_AUDITED_CHECKS else "",
+                "interopBindingDigest":binding,
+            }
+        witness={"authority":"MCP_EXTERNAL_SERVER_AUDIT_WITNESS_V1","clientId":c,"oauthClientId":oauth_client_id,"interopBindingAuthority":mod.mcp_contract.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"auditMethodVersion":"IMMUTABLE_AUTHN_AUTHZ_AUDIT_V1","auditChainDigestVerified":True,"oauthClientWitnessPass":True,"oauthClientWitnessedCheckCount":5,"auditWindowStartSequence":1,"auditWindowPreviousDigest":"","auditHeadSequence":6,"serverAuditWitnessPass":True,"witnessedCheckCount":6,"auditHeadDigest":"sha256:"+hashlib.sha256((c+"-audit-head").encode()).hexdigest(),"auditExportSha256":"sha256:"+hashlib.sha256((c+"-audit-export").encode()).hexdigest(),"executionObservedAt":executed_at,"executionAuditWindowSeconds":3600,"matchedEvents":matched}
+        return {"clientId":c,"clientSurface":mod.CLIENT_SURFACES[c],"endpoint":"https://mcp.example.test/mcp","executionId":"run-"+c,"providerExecutionRef":"provider-execution-"+c,"executedAt":executed_at,"campaignId":"mcp-interop-testcampaign","challengeSha256":challenge,"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":mod.mcp_contract.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":"sha256:"+hashlib.sha256((c+"-evidence").encode()).hexdigest(),"externalReceiptSha256":"sha256:"+hashlib.sha256((c+"-receipt").encode()).hexdigest(),"checks":checks,"requestIds":request_ids,"campaignCreatedAt":"2026-09-29T00:00:00Z","campaignExpiresAt":"2026-10-06T00:00:00Z","executionAuditWindowSeconds":3600,"serverAuditWitness":witness}
 
     def oauth_bindings(self):
         return {c:c+"-oauth-client" for c in mod.CLIENTS}
@@ -183,6 +199,27 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             p.write_text(json.dumps({"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropProgress","authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","matrixAuthority":mod.mcp_contract.MATRIX_AUTHORITY,"matrixSha256":"sha256:"+hashlib.sha256(b"matrix").hexdigest(),"campaignAuthority":mod.mcp_contract.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"protocol":"2026-07-28","transport":"streamable-http","endpoint":"https://mcp.example.test/mcp","allAdmittedReceiptsPass":True,"clients":mutated,"certifiedClientCount":2,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             with self.assertRaisesRegex(RuntimeError,"REQUEST_ID_REUSE"): mod.external_client_progress(root)
 
+    def test_final_and_progress_reject_tampered_matched_audit_event_semantics(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.fixture(root)
+            evidence_path=root/"lab/mcp-external-client-interoperability-evidence.json"
+            evidence=json.loads(evidence_path.read_text())
+            event=evidence["clients"][0]["serverAuditWitness"]["matchedEvents"]["authorization-filtered-tools-list"]
+            event["category"]="WRONG"
+            evidence_path.write_text(json.dumps(evidence))
+            with self.assertRaisesRegex(RuntimeError,"MATCHED_EVENT_SEMANTICS_INVALID"):
+                mod.verify(root)
+
+            self.fixture(root)
+            (root/"lab/mcp-external-client-interoperability-evidence.json").unlink()
+            row=self.progress_row("chatgpt")
+            event=row["serverAuditWitness"]["matchedEvents"]["project-resource-scope-negative-control"]
+            event["requestId"]="different-request-id"
+            progress={"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropProgress","authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","matrixAuthority":mod.mcp_contract.MATRIX_AUTHORITY,"matrixSha256":"sha256:"+hashlib.sha256(b"matrix").hexdigest(),"campaignAuthority":mod.mcp_contract.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"protocol":"2026-07-28","transport":"streamable-http","endpoint":"https://mcp.example.test/mcp","allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}
+            (root/"lab/mcp-external-client-interop-progress.json").write_text(json.dumps(progress))
+            with self.assertRaisesRegex(RuntimeError,"MATCHED_EVENT_REQUEST_ID_MISMATCH"):
+                mod.external_client_progress(root)
+
     def test_progress_and_final_evidence_require_exact_check_names(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.fixture(root)
@@ -218,6 +255,8 @@ class FinalExactReleaseAdmissionTests(unittest.TestCase):
             row["serverAuditWitness"]["auditWindowStartSequence"]=101
             row["serverAuditWitness"]["auditWindowPreviousDigest"]="sha256:"+hashlib.sha256(b"prior-head").hexdigest()
             row["serverAuditWitness"]["auditHeadSequence"]=106
+            for offset,event in enumerate(row["serverAuditWitness"]["matchedEvents"].values(),101):
+                event["sequence"]=offset
             p.write_text(json.dumps({"apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteropProgress","authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1","matrixAuthority":mod.mcp_contract.MATRIX_AUTHORITY,"matrixSha256":"sha256:"+hashlib.sha256(b"matrix").hexdigest(),"campaignAuthority":mod.mcp_contract.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-testcampaign","campaignSha256":"sha256:"+hashlib.sha256(b"campaign").hexdigest(),"oauthClientBindingAuthority":mod.mcp_contract.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"progress-oauth-bindings").hexdigest(),"oauthClientBindings":self.oauth_bindings(),"trustedClientBindings":self.trusted_bindings(),"protocol":"2026-07-28","transport":"streamable-http","endpoint":"https://mcp.example.test/mcp","allAdmittedReceiptsPass":True,"clients":[row],"certifiedClientCount":1,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False,"runtimeCertified":False,"physicalCertified":False}))
             self.assertEqual(1,mod.external_client_progress(root)["certifiedClientCount"])
             row["serverAuditWitness"]["auditWindowPreviousDigest"]="not-a-digest"
