@@ -462,13 +462,30 @@ class CheckpointSafeStageTests(unittest.TestCase):
         self.assertNotIn("go-tests", names)
         source = (ROOT / "scripts" / "run_go_package_shard.py").read_text(encoding="utf-8")
         self.assertIn("AUTOPILOT_STAGE_SHARD_AUTHORITY_V2", source)
+        self.assertIn("AUTOPILOT_OWNER_UNIT_DEDUP_V1", source)
+        self.assertIn("--exclude-installer-owner", source)
+        unit_stages = [stage for stage in stages if stage.name.startswith("go-unit-")]
+        self.assertTrue(all("--exclude-installer-owner" in stage.command for stage in unit_stages))
+        vet_race = [stage for stage in stages if stage.name.startswith(("go-vet-", "go-race-"))]
+        self.assertTrue(all("--exclude-installer-owner" not in stage.command for stage in vet_race))
+
+    def test_owner_proofs_precede_generic_go_and_python_suites(self):
+        stages = AUTOPILOT.canonical_stages(ROOT)
+        names = [stage.name for stage in stages]
+        first_go_unit = min(names.index(f"go-unit-{i}") for i in range(1, 5))
+        self.assertLess(names.index("installer-entrypoint-contracts"), first_go_unit)
+        self.assertLess(names.index("installer-go-owner-tests"), first_go_unit)
+        self.assertLess(names.index("autopilot-owner-tests"), first_go_unit)
+        self.assertLess(names.index("autopilot-owner-tests"), names.index("python-tests"))
+        self.assertEqual(AUTOPILOT.OWNER_FIRST_STAGE_ORDER_AUTHORITY, "AUTOPILOT_OWNER_FIRST_STAGE_ORDER_V1")
+        self.assertEqual(AUTOPILOT.OWNER_UNIT_DEDUP_AUTHORITY, "AUTOPILOT_OWNER_UNIT_DEDUP_V1")
 
 
 class AutopilotAgentContextTests(unittest.TestCase):
     def test_agent_repository_contract_uses_one_context_probe_and_real_field_names(self):
         instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("Run `make autopilot-context` first", instructions)
-        for field in ("outerRuntime.action", "environmentPreflight.remediationHints", "failurePathHints", "ownerContextPaths", "proofCommand", "proofTimeoutSeconds", "resumeInvocation", "nextAction"):
+        for field in ("outerRuntime.action", "environmentPreflight.remediationHints", "failurePathHints", "ownerContextPaths", "proofCommand", "proofTimeoutSeconds", "resumeInvocation", "nextActionCode", "nextCommand", "nextAction"):
             self.assertIn(field, instructions)
         self.assertNotIn("ownerProofCommand", instructions)
         self.assertNotIn("ownerProofTimeoutSeconds", instructions)
@@ -523,6 +540,10 @@ class AutopilotAgentContextTests(unittest.TestCase):
             self.assertEqual(context["autopilotOwnerTestStageAuthority"], "AUTOPILOT_OWNER_TEST_STAGE_V1")
             self.assertEqual(context["convergenceRepairAuthority"], "AUTOPILOT_CONVERGENCE_REPAIR_V1")
             self.assertEqual(context["outerRuntimeContextAuthority"], "AUTOPILOT_OUTER_RUNTIME_CONTEXT_V1")
+            self.assertEqual(context["triageCacheAuthority"], "AUTOPILOT_TRIAGE_CACHE_V1")
+            self.assertEqual(context["agentNextActionAuthority"], "AUTOPILOT_AGENT_NEXT_ACTION_V1")
+            self.assertEqual(context["ownerFirstStageOrderAuthority"], "AUTOPILOT_OWNER_FIRST_STAGE_ORDER_V1")
+            self.assertEqual(context["ownerUnitDedupAuthority"], "AUTOPILOT_OWNER_UNIT_DEDUP_V1")
             self.assertIn("outerRuntime", context)
             self.assertEqual(context["defaultAgentRepairBudget"], 8)
             self.assertEqual(context["failureCapsuleMaxChars"], 3200)
@@ -1358,11 +1379,18 @@ class AgentEntrypointContractTests(unittest.TestCase):
                 "repairCount": 0,
                 "seenFailures": [],
             })
-            AUTOPILOT._record_triage_classification(root, stage, result, "CODE_DEFECT")
+            AUTOPILOT._record_triage_classification(root, stage, result, "CODE_DEFECT", "CLASSIFICATION=CODE_DEFECT\nowner=internal/hostdeployment")
             state = json.loads(AUTOPILOT._checkpoint_path(root).read_text(encoding="utf-8"))
             self.assertEqual(state["lastFailureClassification"], "CODE_DEFECT")
             self.assertEqual(state["lastFailureStage"], stage.name)
             self.assertEqual(state["lastFailureFingerprint"], result.fingerprint)
+            self.assertEqual(state["lastTriageAuthority"], "AUTOPILOT_TRIAGE_CACHE_V1")
+            cached = AUTOPILOT._cached_triage(root, stage, result)
+            self.assertIsNotNone(cached)
+            self.assertEqual(cached[0], "CODE_DEFECT")
+            self.assertIn("owner=internal/hostdeployment", cached[1])
+            mismatch = AUTOPILOT.StageResult(stage.name, "FAIL", 1, 0.1, "different-fingerprint", "failure")
+            self.assertIsNone(AUTOPILOT._cached_triage(root, stage, mismatch))
 
     def test_agent_context_recommends_single_durable_entrypoint_when_idle(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1370,6 +1398,8 @@ class AgentEntrypointContractTests(unittest.TestCase):
             with mock.patch.object(AUTOPILOT, "_git_head", return_value="a" * 40):
                 context = AUTOPILOT._agent_context(root)
         self.assertEqual(context["authority"], "AUTOPILOT_AGENT_CONTEXT_V1")
+        self.assertEqual(context["nextActionCode"], "START_AUTOPILOT_AGENT")
+        self.assertEqual(context["nextCommand"], ["make", "autopilot-agent"])
         self.assertIn("make autopilot-agent", context["nextAction"])
         self.assertTrue(any("owner-scoped convergence" in rule for rule in context["continuationRules"]))
         self.assertTrue(any("final convergence" in rule for rule in context["continuationRules"]))
