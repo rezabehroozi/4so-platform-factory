@@ -76,6 +76,24 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"WORKTREE_TOOLCHAIN_MISMATCH"):
                 mod.stage_toolchain_archive(source,exact,other)
 
+    def test_verified_publication_is_independent_snapshot_not_source_hardlink(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); source=root/"verified.zip"; source.write_bytes(b"verified-release-bytes")
+            target=root/"release"/"exact.zip"
+            published=mod.publish_verified_file(source,target)
+            self.assertEqual(b"verified-release-bytes",published.read_bytes())
+            self.assertNotEqual(source.stat().st_ino,published.stat().st_ino)
+            source.chmod(0o644); source.write_bytes(b"mutated-after-publication")
+            self.assertEqual(b"verified-release-bytes",published.read_bytes())
+            self.assertEqual(0o444,published.stat().st_mode & 0o777)
+
+    def test_verified_publication_rejects_existing_conflicting_bytes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); source=root/"verified.zip"; source.write_bytes(b"verified-release-bytes")
+            target=root/"release"/"exact.zip"; target.parent.mkdir(); target.write_bytes(b"other")
+            with self.assertRaisesRegex(RuntimeError,"ARTIFACT_CONFLICT"):
+                mod.publish_verified_file(source,target)
+
     def test_exact_release_publication_is_source_sha_scoped(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td).resolve()
