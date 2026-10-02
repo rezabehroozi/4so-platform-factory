@@ -52,7 +52,10 @@ class ReceiptFinalizerTests(unittest.TestCase):
             self.assertEqual("1"*40,out["sourceCommitSHA"])
             self.assertEqual("0.0.test",out["runtimeVersion"])
             self.assertEqual(capture_time:=json.loads(cap.read_text())["executedAt"],out["executedAt"])
-            self.assertTrue(all(out["checks"].values())); self.assertFalse(out["scopeLeakObserved"]); self.assertFalse(out["revokedGrantAccepted"]); self.assertFalse(out["selfApprovalAccepted"])
+            self.assertTrue(all(out["checks"].values()))
+            self.assertEqual(set(core.REQUIRED_CHECKS),set(out["responseObservations"]))
+            self.assertEqual("1"*40,out["responseObservations"]["authorization-filtered-tools-list"]["sourceCommitSHA"])
+            self.assertFalse(out["scopeLeakObserved"]); self.assertFalse(out["revokedGrantAccepted"]); self.assertFalse(out["selfApprovalAccepted"])
     def test_false_check_missing_request_id_and_binding_drift_fail_closed(self):
         with tempfile.TemporaryDirectory() as raw:
             pp,cap,capture=self.fixture(Path(raw))
