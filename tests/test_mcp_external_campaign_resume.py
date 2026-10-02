@@ -84,6 +84,28 @@ class CampaignResumeTests(unittest.TestCase):
             self.assertTrue(emitted["resumed"])
             self.assertEqual(original,core.load(out,"CAMPAIGN"))
 
+    def test_existing_campaign_can_resume_across_evidence_only_head(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
+        with tempfile.TemporaryDirectory() as td:
+            out=Path(td)/"campaign.json"
+            original=self.campaign(matrix)
+            core.write_json_once_or_identical(out,original,"TEST_CAMPAIGN")
+            newer="2"*40
+            with mock.patch.object(core,"validate_evidence_only_source_lineage") as lineage:
+                resumed=mod.resume_existing(matrix,original["endpoint"],out,newer)
+            self.assertEqual(original["campaignId"],resumed["campaignId"])
+            lineage.assert_called_once_with(ROOT,original["sourceCommitSHA"],newer,"MCP_EXTERNAL_CAMPAIGN_RESUME")
+
+    def test_existing_campaign_rejects_non_evidence_source_delta(self):
+        matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
+        with tempfile.TemporaryDirectory() as td:
+            out=Path(td)/"campaign.json"
+            original=self.campaign(matrix)
+            core.write_json_once_or_identical(out,original,"TEST_CAMPAIGN")
+            with mock.patch.object(core,"validate_evidence_only_source_lineage",side_effect=RuntimeError("MCP_EXTERNAL_CAMPAIGN_RESUME_SOURCE_DELTA_NOT_EVIDENCE_ONLY")):
+                with self.assertRaisesRegex(RuntimeError,"RESUME_SOURCE_DRIFT"):
+                    mod.resume_existing(matrix,original["endpoint"],out,"2"*40)
+
     def test_expired_campaign_cannot_resume(self):
         matrix=ROOT/"lab"/"mcp-external-client-interop-matrix.json"
         with tempfile.TemporaryDirectory() as td:
