@@ -1306,17 +1306,32 @@ def _agent_context(root: Path) -> dict:
         context["nextCommand"] = ["make", "runtime-resume"]
         context["nextAction"] = "outer project runtime is safely resumable; run make runtime-resume, then re-read make autopilot-context"
     elif status == "ENVIRONMENT_BLOCKED" and context["environmentPreflight"]:
-        context["nextActionCode"] = "REPAIR_ENVIRONMENT_AND_RESUME"
-        context["nextCommand"] = resume_invocation
-        context["nextAction"] = "apply only the environmentPreflight.remediationHints for missing prerequisites, then rerun resumeInvocation; do not edit product source for an environment blocker"
+        if resume_invocation:
+            context["nextActionCode"] = "REPAIR_ENVIRONMENT_AND_RESUME"
+            context["nextCommand"] = resume_invocation
+            context["nextAction"] = "apply only the environmentPreflight.remediationHints for missing prerequisites, then rerun resumeInvocation; do not edit product source for an environment blocker"
+        else:
+            context["nextActionCode"] = "INSPECT_AUTOPILOT_STATE"
+            context["nextCommand"] = ["make", "autopilot-status"]
+            context["nextAction"] = "the durable report does not contain an exact resume invocation; inspect autopilot-status and do not reconstruct or guess a command"
     elif status in {"ENVIRONMENT_BLOCKED", "CODE_DEFECT", "FAIL", "TIMEOUT"}:
-        context["nextActionCode"] = "FIX_OWNER_AND_RESUME"
-        context["nextCommand"] = resume_invocation
-        context["nextAction"] = "inspect lastFailure and rerun the recorded invocation after fixing only the owning cause"
+        if resume_invocation:
+            context["nextActionCode"] = "FIX_OWNER_AND_RESUME"
+            context["nextCommand"] = resume_invocation
+            context["nextAction"] = "inspect lastFailure and rerun the recorded invocation after fixing only the owning cause"
+        else:
+            context["nextActionCode"] = "INSPECT_AUTOPILOT_STATE"
+            context["nextCommand"] = ["make", "autopilot-status"]
+            context["nextAction"] = "the durable report does not contain an exact resume invocation; inspect autopilot-status and do not reconstruct or guess a command"
     elif status in {"RUNNING", "REPAIRING"} and context["resumeEligible"]:
-        context["nextActionCode"] = "REJOIN_AUTOPILOT"
-        context["nextCommand"] = resume_invocation
-        context["nextAction"] = "rerun resumeInvocation; the durable checkpoint will rejoin/resume the exact graph cursor"
+        if resume_invocation:
+            context["nextActionCode"] = "REJOIN_AUTOPILOT"
+            context["nextCommand"] = resume_invocation
+            context["nextAction"] = "rerun resumeInvocation; the durable checkpoint will rejoin/resume the exact graph cursor"
+        else:
+            context["nextActionCode"] = "INSPECT_AUTOPILOT_STATE"
+            context["nextCommand"] = ["make", "autopilot-status"]
+            context["nextAction"] = "resume metadata is incomplete; inspect autopilot-status and do not guess a replacement invocation"
     elif status == "PASS":
         context["nextActionCode"] = "CHECK_RELEASE_READINESS"
         context["nextCommand"] = ["make", "release-readiness"]
