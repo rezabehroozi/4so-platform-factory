@@ -464,6 +464,31 @@ class ResumePreflightCursorTests(unittest.TestCase):
             self.assertEqual([stage.name for stage in selected], ["go-unit-1"])
             self.assertNotIn("browser", AUTOPILOT._environment_requirements(selected))
 
+    def test_explicit_stage_slice_resume_is_still_cursor_scoped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stages = [
+                AUTOPILOT.Stage("smoke-ui-live", ("python3", "scripts/smoke_ui_live.py"), 10),
+                AUTOPILOT.Stage("go-unit-1", ("python3", "scripts/run_go_package_shard.py", "--shard", "1"), 10),
+            ]
+            remaining = [stages[1]]
+            with mock.patch.object(AUTOPILOT, "_select_stages", return_value=stages), \
+                 mock.patch.object(AUTOPILOT, "_resume_preflight_stage_scope", return_value=(remaining, "FORWARD_CURSOR")) as cursor, \
+                 mock.patch.object(AUTOPILOT, "environment_preflight", return_value=(["go"], {"go":"missing"})) as preflight, \
+                 mock.patch.object(AUTOPILOT, "_write_autopilot_report"):
+                rc = AUTOPILOT._run_autopilot_locked(
+                    root,
+                    repair=True,
+                    max_repairs=1,
+                    codex_timeout=10,
+                    start_stage="smoke-ui-live",
+                    stop_stage="go-unit-1",
+                )
+            self.assertEqual(rc, 3)
+            cursor.assert_called_once_with(root, stages, repair=True)
+            self.assertEqual(preflight.call_args.kwargs["stages"], remaining)
+            self.assertTrue(preflight.call_args.kwargs["require_codex"])
+
     def test_live_checkpoint_rejoin_skips_unrelated_preflight_before_graph_or_workspace_reset(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
