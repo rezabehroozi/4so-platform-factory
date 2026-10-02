@@ -13,6 +13,16 @@ import run_mcp_external_interop as mod
 
 
 class LocalC7WRunnerTests(unittest.TestCase):
+    def test_secure_state_owns_portable_capture_directory(self):
+        with tempfile.TemporaryDirectory() as td:
+            state=mod.secure_state_dir(Path(td)/"state")
+            p=mod.paths(state)
+            self.assertEqual(state/"captures",p["captures"])
+            self.assertTrue(p["captures"].is_dir())
+            handoff=mod.client_execution_handoff(state,"chatgpt")
+            self.assertEqual(str(p["captures"]/"chatgpt.capture.json"),handoff["expectedCapturePath"])
+            self.assertNotIn("/secure/",json.dumps(handoff))
+
     def test_capture_template_preserves_runtime_identity_and_exact_check_shape(self):
         packet={
             "clientId":"chatgpt",
@@ -107,8 +117,9 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 handoff=out["clientHandoff"][client]
                 self.assertEqual(str(state/"packets"/f"{client}.json"),handoff["packetPath"])
                 self.assertEqual(str(state/"capture-templates"/f"{client}.json"),handoff["captureTemplatePath"])
-                self.assertEqual(f"/secure/{client}.capture.json",handoff["expectedCapturePath"])
-                self.assertEqual([sys.executable,"scripts/run_mcp_external_interop.py","--state-dir",str(state),"admit","--client",client,"--capture",f"/secure/{client}.capture.json"],handoff["admitCommand"])
+                expected_capture=str(state/"captures"/f"{client}.capture.json")
+                self.assertEqual(expected_capture,handoff["expectedCapturePath"])
+                self.assertEqual([sys.executable,"scripts/run_mcp_external_interop.py","--state-dir",str(state),"admit","--client",client,"--capture",expected_capture],handoff["admitCommand"])
 
     def test_admit_revalidates_existing_audit_with_normalized_receipt(self):
         with tempfile.TemporaryDirectory() as td:
@@ -170,7 +181,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
 
     def test_admit_forwards_explicit_partial_campaign_supersede(self):
         parser=mod.parser()
-        args=parser.parse_args(["--state-dir",".state/new-campaign","admit","--client","chatgpt","--capture","/secure/chatgpt.json","--allow-campaign-supersede"])
+        args=parser.parse_args(["--state-dir",".state/new-campaign","admit","--client","chatgpt","--capture",".state/new-campaign/captures/chatgpt.json","--allow-campaign-supersede"])
         self.assertTrue(args.allow_campaign_supersede)
 
     def test_status_fails_closed_when_canonical_progress_survives_lost_local_state(self):
@@ -320,13 +331,15 @@ class LocalC7WRunnerTests(unittest.TestCase):
             with mock.patch.object(mod,"progress_status",return_value={"complete":False,"certified":[],"missing":["chatgpt","claude","gemini","grok"],"nextClient":"chatgpt","campaignPrepared":True}):
                 out=mod.status(args)
             self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
-            self.assertEqual([sys.executable,"scripts/run_mcp_external_interop.py","--state-dir",str(state),"admit","--client","chatgpt","--capture","/secure/chatgpt.capture.json"],out["nextCommand"])
+            expected_capture=str(state/"captures"/"chatgpt.capture.json")
+            self.assertEqual([sys.executable,"scripts/run_mcp_external_interop.py","--state-dir",str(state),"admit","--client","chatgpt","--capture",expected_capture],out["nextCommand"])
             handoff=out["nextClientHandoff"]
             self.assertEqual("chatgpt",handoff["clientId"])
             self.assertEqual(str(state/"packets"/"chatgpt.json"),handoff["packetPath"])
             self.assertEqual(str(state/"capture-templates"/"chatgpt.json"),handoff["captureTemplatePath"])
-            self.assertEqual("/secure/chatgpt.capture.json",handoff["expectedCapturePath"])
+            self.assertEqual(expected_capture,handoff["expectedCapturePath"])
             self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",handoff["requiredCaptureAuthority"])
+            self.assertNotIn("/secure/",json.dumps(handoff))
 
     def test_status_never_sends_next_client_on_stale_campaign_source(self):
         with tempfile.TemporaryDirectory() as td:
