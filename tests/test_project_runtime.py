@@ -6,6 +6,39 @@ SPEC=importlib.util.spec_from_file_location("project_runtime",ROOT/"scripts"/"pr
 R=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(R)
 
 class ProjectRuntimeTests(unittest.TestCase):
+    def test_runtime_process_and_mutex_authority_is_cross_platform(self):
+        source=(ROOT/"scripts"/"project_runtime.py").read_text(encoding="utf-8")
+        self.assertIn('if os.name=="nt":',source)
+        self.assertIn('GetProcessTimes',source)
+        self.assertIn('msvcrt.locking',source)
+        self.assertIn('CREATE_NEW_PROCESS_GROUP',source)
+        self.assertIn('taskkill',source)
+        self.assertNotIn('import argparse, datetime, fcntl',source)
+        self.assertIsNotNone(R.ticks(R.os.getpid()))
+        self.assertTrue(R.alive(R.os.getpid(),R.ticks(R.os.getpid())))
+        kwargs=R.detached_process_kwargs()
+        if R.os.name=="nt":
+            self.assertIn("creationflags",kwargs)
+            self.assertNotIn("start_new_session",kwargs)
+        else:
+            self.assertEqual({"start_new_session":True},kwargs)
+
+    def test_state_mutex_rejects_symlink_precreation(self):
+        if not hasattr(Path,"symlink_to"):
+            self.skipTest("symlink support unavailable")
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            runtime=R.ensure_runtime_dir(root)
+            target=runtime/"mutex-target"; target.write_text("x")
+            mutex=R.state_mutex_file(root)
+            try:
+                mutex.symlink_to(target.name)
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
+            with self.assertRaisesRegex(RuntimeError,"STATE_MUTEX_INVALID"):
+                with R.state_guard(root):
+                    pass
+
     def test_stream_independence_self_test(self):
         self.assertEqual(0,R.self_test())
 
