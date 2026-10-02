@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import hashlib
 from pathlib import Path
 import subprocess
 
@@ -299,7 +300,32 @@ def status(args:argparse.Namespace)->dict:
             raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID")
         if (args.evidence_out.exists() or args.evidence_out.is_symlink()) and not args.progress_out.exists():
             raise RuntimeError("MCP_EXTERNAL_LOCAL_EVIDENCE_WITHOUT_PROGRESS")
-        value=progress_status(args.matrix,state,args.progress_out)
+        try:
+            value=progress_status(args.matrix,state,args.progress_out)
+        except RuntimeError as exc:
+            if "MCP_EXTERNAL_CAMPAIGN_EXPIRED" not in str(exc):
+                raise
+            p=paths(state)
+            campaign=core.load(p["campaign"],"EXPIRED_CAMPAIGN")
+            campaign_id=str(campaign.get("campaignId") or "").strip()
+            suffix=hashlib.sha256(campaign_id.encode("utf-8")).hexdigest()[:12] if campaign_id else "expired"
+            replacement=f".state/c7w-external-interop-replacement-{suffix}"
+            return {
+                "authority":AUTHORITY,
+                "action":"STATUS",
+                "stateDir":str(state),
+                "campaignPrepared":False,
+                "complete":False,
+                "recoveryRequired":True,
+                "recoveryReason":"CAMPAIGN_EXPIRED",
+                "nextActionCode":"PREPARE_REPLACEMENT_C7W_CAMPAIGN",
+                "nextCommand":["env",f"C7W_STATE_DIR={replacement}","make","c7w-prepare"],
+                "replacementStateDir":replacement,
+                "replacementAdmitRequiresCampaignSupersede":args.progress_out.exists(),
+                "followupAdmitEnvironment":{"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"} if args.progress_out.exists() else {},
+                "detail":"the source-bound C7W campaign expired; prepare a fresh campaign and explicitly supersede only the incomplete canonical progress on the first admission",
+                "physicalCertified":False,
+            }
         if (args.evidence_out.exists() or args.evidence_out.is_symlink()) and not value["complete"]:
             raise RuntimeError("MCP_EXTERNAL_LOCAL_EVIDENCE_WITH_INCOMPLETE_PROGRESS")
     else:
