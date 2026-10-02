@@ -5,6 +5,7 @@ import argparse
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 
@@ -51,6 +52,34 @@ SMOKES = [
 ]
 
 
+def _process_group_kwargs() -> dict:
+    if os.name=="nt":
+        return {"creationflags":getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0)}
+    return {"start_new_session":True}
+
+
+def _terminate_tree(process: subprocess.Popen[str], *, force: bool) -> None:
+    if process.poll() is not None:
+        return
+    if os.name=="posix":
+        try:
+            os.killpg(process.pid,signal.SIGKILL if force else signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        return
+    taskkill=shutil.which("taskkill")
+    if taskkill:
+        args=[taskkill,"/PID",str(process.pid),"/T"]
+        if force:
+            args.append("/F")
+        subprocess.run(args,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False)
+    if process.poll() is None:
+        try:
+            process.kill() if force else process.terminate()
+        except OSError:
+            pass
+
+
 def run_bounded(command: list[str], *, env: dict[str, str], timeout: int) -> int:
     process = subprocess.Popen(
         command,
@@ -59,28 +88,16 @@ def run_bounded(command: list[str], *, env: dict[str, str], timeout: int) -> int
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         stdin=subprocess.DEVNULL,
-        start_new_session=(os.name == "posix"),
+        **_process_group_kwargs(),
     )
     try:
         output, _ = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        if os.name == "posix":
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        else:
-            process.terminate()
+        _terminate_tree(process,force=False)
         try:
             output, _ = process.communicate(timeout=2)
         except subprocess.TimeoutExpired:
-            if os.name == "posix":
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            else:
-                process.kill()
+            _terminate_tree(process,force=True)
             output, _ = process.communicate()
         if output:
             sys.stdout.write(output)
