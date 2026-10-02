@@ -152,6 +152,22 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
     }
 
 
+def client_execution_handoff(state:Path,client:str)->dict:
+    client=str(client or "").strip().lower()
+    if client not in core.CLIENTS:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_CLIENT_HANDOFF_INVALID")
+    p=paths(state)
+    capture=f"/secure/{client}.capture.json"
+    return {
+        "clientId":client,
+        "packetPath":str(p["packets"]/(client+".json")),
+        "captureTemplatePath":str(p["templates"]/(client+".json")),
+        "expectedCapturePath":capture,
+        "requiredCaptureAuthority":"MCP_EXTERNAL_CLIENT_CAPTURE_V1",
+        "admitCommand":["env",f"C7W_CLIENT={client}",f"C7W_CAPTURE={capture}","make","c7w-admit"],
+    }
+
+
 def capture_template(packet:dict)->dict:
     requirements=packet.get("receiptRequirements") or {}
     if requirements.get("structuredResponseObservationRequired") is not True:
@@ -209,16 +225,19 @@ def prepare(args:argparse.Namespace)->dict:
         core.write_json_once_or_identical(packet_path,packet,"MCP_EXTERNAL_EXECUTION_PACKET")
         template_path=p["templates"]/(client+".json")
         core.write_json_once_or_identical(template_path,capture_template(packet),"MCP_EXTERNAL_CAPTURE_TEMPLATE")
-    client_handoff={
-        client:{
-            "packetPath":str(p["packets"]/(client+".json")),
-            "captureTemplatePath":str(p["templates"]/(client+".json")),
-            "expectedCapturePath":f"/secure/{client}.capture.json",
-            "admitCommand":["env",f"C7W_CLIENT={client}",f"C7W_CAPTURE=/secure/{client}.capture.json","make","c7w-admit"],
-        }
-        for client in core.CLIENTS
-    }
-    return {
+    if resumed:
+        current=progress_status(args.matrix,state,args.progress_out)
+        certified=current["certified"]
+        missing=current["missing"]
+        complete=current["complete"]
+        next_client=current["nextClient"]
+    else:
+        certified=[]
+        missing=list(core.CLIENTS)
+        complete=False
+        next_client=core.CLIENTS[0]
+    client_handoff={client:client_execution_handoff(state,client) for client in core.CLIENTS}
+    result={
         "authority":AUTHORITY,
         "action":"PREPARED",
         "resumed":resumed,
@@ -229,10 +248,21 @@ def prepare(args:argparse.Namespace)->dict:
         "externalExecutionRequired":True,
         "clients":list(core.CLIENTS),
         "clientHandoff":client_handoff,
-        "nextClient":core.CLIENTS[0],
-        "nextActionCode":"RUN_EXTERNAL_CLIENT",
+        "certified":certified,
+        "missing":missing,
+        "complete":complete,
+        "nextClient":next_client,
         "physicalCertified":False,
     }
+    if complete:
+        result.update({"nextActionCode":"RUN_C7W_SEAL","nextCommand":["make","c7w-seal"]})
+    else:
+        result.update({
+            "nextActionCode":"RUN_EXTERNAL_CLIENT",
+            "nextCommand":client_handoff[next_client]["admitCommand"],
+            "nextClientHandoff":client_handoff[next_client],
+        })
+    return result
 
 
 def progress_status(matrix:Path,state:Path,progress_path:Path)->dict:
@@ -291,7 +321,7 @@ def admit(args:argparse.Namespace)->dict:
             evidence=admission.final_evidence(merged,args.progress_out)
             core.write_json_once_or_identical(args.evidence_out,evidence,"MCP_EXTERNAL_INTEROP_EVIDENCE")
     status=progress_status(args.matrix,state,args.progress_out)
-    return {
+    result={
         "authority":AUTHORITY,
         "action":"ADMITTED",
         "clientId":client,
@@ -301,6 +331,22 @@ def admit(args:argparse.Namespace)->dict:
         "evidencePath":str(args.evidence_out) if status["complete"] else None,
         "physicalCertified":False,
     }
+    if status["complete"]:
+        result.update({
+            "nextActionCode":"RUN_C7W_SEAL",
+            "nextCommand":["make","c7w-seal"],
+            "detail":"all four named clients are admitted; run the independent bulk seal before Git/C9 handoff",
+        })
+    else:
+        next_client=status["nextClient"]
+        handoff=client_execution_handoff(state,next_client)
+        result.update({
+            "nextActionCode":"RUN_EXTERNAL_CLIENT",
+            "nextCommand":handoff["admitCommand"],
+            "nextClientHandoff":handoff,
+            "detail":"execute the next named external client with its exact prepared packet and capture template",
+        })
+    return result
 
 
 def seal(args:argparse.Namespace)->dict:
@@ -397,19 +443,11 @@ def status(args:argparse.Namespace)->dict:
                 })
                 return value
             next_client=value.get("nextClient")
-            packet_path=p["packets"]/(str(next_client)+".json")
-            template_path=p["templates"]/(str(next_client)+".json")
-            capture_path="/secure/"+str(next_client)+".capture.json"
+            handoff=client_execution_handoff(state,next_client)
             value.update({
                 "nextActionCode":"RUN_EXTERNAL_CLIENT",
-                "nextCommand":["env",f"C7W_CLIENT={next_client}",f"C7W_CAPTURE={capture_path}","make","c7w-admit"],
-                "nextClientHandoff":{
-                    "clientId":next_client,
-                    "packetPath":str(packet_path),
-                    "captureTemplatePath":str(template_path),
-                    "expectedCapturePath":capture_path,
-                    "requiredCaptureAuthority":"MCP_EXTERNAL_CLIENT_CAPTURE_V1",
-                },
+                "nextCommand":handoff["admitCommand"],
+                "nextClientHandoff":handoff,
                 "detail":"execute the named external client with the exact prepared packet and fill the matching capture template; then admit that capture",
             })
         else:
