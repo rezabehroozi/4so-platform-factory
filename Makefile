@@ -7,6 +7,7 @@ PLATFORM_FACTORY_DEVELOPMENT_MODE ?= true
 export PLATFORM_FACTORY_DEVELOPMENT_MODE
 C7W_STATE_DIR ?= .state/c7w-external-interop
 C7W_PLATFORM_ADMIN_TOKEN_ENV ?= C7W_PLATFORM_ADMIN_TOKEN
+C7W_ALLOW_CAMPAIGN_SUPERSEDE ?= false
 C9_ADMISSION_OUT ?= .state/final-exact-release-admission.json
 
 BUILD_LDFLAGS := -s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version=$(VERSION) -X platform.4so.io/factory/internal/buildinfo.SourceCommit=$(SOURCE_COMMIT)
@@ -166,7 +167,7 @@ c7w-prepare:
 c7w-admit:
 	@test -n "$(C7W_CLIENT)" || (echo "C7W_CLIENT is required" >&2; exit 2)
 	@test -n "$(C7W_CAPTURE)" || (echo "C7W_CAPTURE is required" >&2; exit 2)
-	$(PYTHON) scripts/run_mcp_external_interop.py --state-dir "$(C7W_STATE_DIR)" admit --client "$(C7W_CLIENT)" --capture "$(C7W_CAPTURE)" --token-env "$(C7W_PLATFORM_ADMIN_TOKEN_ENV)"
+	$(PYTHON) scripts/run_mcp_external_interop.py --state-dir "$(C7W_STATE_DIR)" admit --client "$(C7W_CLIENT)" --capture "$(C7W_CAPTURE)" --token-env "$(C7W_PLATFORM_ADMIN_TOKEN_ENV)" $(if $(filter true 1 yes,$(C7W_ALLOW_CAMPAIGN_SUPERSEDE)),--allow-campaign-supersede,)
 
 c7w-status:
 	$(PYTHON) scripts/run_mcp_external_interop.py --state-dir "$(C7W_STATE_DIR)" status
