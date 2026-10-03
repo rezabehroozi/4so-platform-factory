@@ -109,6 +109,16 @@ def validate_document(value:object,expected_source_sha:str)->dict:
     }
 
 
+def canonical_output_path(root:Path,output:Path)->Path:
+    root=Path(os.path.abspath(root))
+    raw=Path(output)
+    absolute=Path(os.path.abspath(raw if raw.is_absolute() else root/raw))
+    expected=Path(os.path.abspath(root/DEFAULT_OUTPUT))
+    if absolute!=expected:
+        raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_OUTPUT_PATH_INVALID")
+    return absolute
+
+
 def _private_output(root:Path,output:Path)->Path:
     root=Path(os.path.abspath(root))
     boundary=Path(os.path.abspath(root/".state"/"private"))
@@ -239,7 +249,7 @@ def main()->int:
     args=p.parse_args()
     root=Path(os.path.abspath(args.root))
     source=str(args.source_commit or "").strip().lower() or git_head(root)
-    output=args.out if args.out.is_absolute() else root/args.out
+    output=canonical_output_path(root,args.out)
     resources={key:getattr(args,key) for key in RESOURCE_KEYS}
     result=materialize(output,resources,source,root=root)
     result["nextActionCode"]="RUN_C7W_PREFLIGHT"
