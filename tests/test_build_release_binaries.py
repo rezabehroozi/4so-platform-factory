@@ -1,6 +1,5 @@
 import hashlib
 import importlib.util
-import json
 import os
 import subprocess
 import tempfile
@@ -78,28 +77,17 @@ class NativeReleaseBinaryBuilderTests(unittest.TestCase):
     def test_go_binary_identity_is_bound_to_exact_lock(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            lock = root / "lab" / "release-build-toolchain-lock.json"
-            lock.parent.mkdir()
-            lock.write_text(
-                json.dumps(
-                    {
-                        "authority": "RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1",
-                        "spec": {
-                            "admissionStatus": "admitted",
-                            "exactCompiler": {
-                                "version": "go1.27.1",
-                                "goos": "linux",
-                                "goarch": "amd64",
-                            },
-                        },
-                    }
-                ),
-                encoding="utf-8",
-            )
+            spec = {
+                "exactCompiler": {
+                    "version": "go1.27.1",
+                    "goos": "linux",
+                    "goarch": "amd64",
+                }
+            }
             env = {"PATH": "/safe"}
             good = mock.Mock(returncode=0, stdout="go version go1.27.1 linux/amd64\n", stderr="")
             with mock.patch.object(mod.subprocess, "run", return_value=good) as run:
-                mod.require_go_binary_identity(root, "/opt/exact-go/bin/go", env)
+                mod.require_go_binary_identity(root, "/opt/exact-go/bin/go", env, spec)
             run.assert_called_once_with(
                 ["/opt/exact-go/bin/go", "version"],
                 cwd=root,
@@ -113,7 +101,7 @@ class NativeReleaseBinaryBuilderTests(unittest.TestCase):
             bad = mock.Mock(returncode=0, stdout="go version go1.26.0 linux/amd64\n", stderr="")
             with mock.patch.object(mod.subprocess, "run", return_value=bad):
                 with self.assertRaisesRegex(RuntimeError, "GO_IDENTITY_MISMATCH"):
-                    mod.require_go_binary_identity(root, "/opt/exact-go/bin/go", env)
+                    mod.require_go_binary_identity(root, "/opt/exact-go/bin/go", env, spec)
 
     def test_cgo_identity_is_bound_to_same_sanitized_environment_as_build(self):
         with tempfile.TemporaryDirectory() as td:
@@ -122,8 +110,6 @@ class NativeReleaseBinaryBuilderTests(unittest.TestCase):
             library = root / "libpq.so.5.18"
             header.write_bytes(b"header")
             library.write_bytes(b"library")
-            lock = root / "lab" / "release-build-toolchain-lock.json"
-            lock.parent.mkdir()
             expected = {
                 "ccVersion": "gcc exact 1.0",
                 "ldVersion": "GNU ld exact 1.0",
@@ -133,18 +119,7 @@ class NativeReleaseBinaryBuilderTests(unittest.TestCase):
                 "libpqLibraryPath": str(library),
                 "libpqLibrarySha256": hashlib.sha256(library.read_bytes()).hexdigest(),
             }
-            lock.write_text(
-                json.dumps(
-                    {
-                        "authority": "RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1",
-                        "spec": {
-                            "admissionStatus": "admitted",
-                            "exactCGOToolchain": expected,
-                        },
-                    }
-                ),
-                encoding="utf-8",
-            )
+            spec = {"exactCGOToolchain": expected}
             env = {"PATH": "/safe"}
             outputs = {
                 "gcc": "gcc exact 1.0\n",
@@ -158,20 +133,21 @@ class NativeReleaseBinaryBuilderTests(unittest.TestCase):
                 return mock.Mock(returncode=0, stdout=outputs[argv[0]], stderr="")
 
             with mock.patch.object(mod.subprocess, "run", side_effect=fake_run):
-                mod.require_cgo_toolchain_identity(root, env)
+                mod.require_cgo_toolchain_identity(root, env, spec)
             self.assertEqual(["gcc", "ld", "ldd"], [argv[0] for argv, _ in calls])
             self.assertTrue(all(call_env is env for _, call_env in calls))
 
             outputs["gcc"] = "gcc drifted\n"
             with mock.patch.object(mod.subprocess, "run", side_effect=fake_run):
                 with self.assertRaisesRegex(RuntimeError, "CGO_IDENTITY_MISMATCH"):
-                    mod.require_cgo_toolchain_identity(root, env)
+                    mod.require_cgo_toolchain_identity(root, env, spec)
 
-    def test_build_uses_sanitized_environment_for_every_go_invocation(self):
+    def test_build_uses_one_admitted_snapshot_and_sanitized_environment_for_every_go_invocation(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / "bin" / "linux-amd64").mkdir(parents=True)
             clean_env = {"PATH": "/safe", "GOWORK": "off", "GOFLAGS": ""}
+            toolchain_spec={"exactCompiler":{},"exactCGOToolchain":{}}
             calls = []
 
             def fake_run(argv, **kwargs):
@@ -182,8 +158,10 @@ class NativeReleaseBinaryBuilderTests(unittest.TestCase):
 
             with (
                 mock.patch.object(mod.sys, "platform", "linux"),
+                mock.patch.object(mod.platform,"machine",return_value="x86_64"),
                 mock.patch.object(mod, "release_identity", return_value=("a" * 40, "0.0.363")),
                 mock.patch.object(mod, "release_build_environment", return_value=clean_env.copy()) as build_env,
+                mock.patch.object(mod, "admitted_toolchain_spec", return_value=toolchain_spec) as admitted,
                 mock.patch.object(mod, "require_go_binary_identity") as go_identity,
                 mock.patch.object(mod, "require_cgo_toolchain_identity") as cgo_identity,
                 mock.patch.object(mod.subprocess, "run", side_effect=fake_run),
@@ -191,8 +169,9 @@ class NativeReleaseBinaryBuilderTests(unittest.TestCase):
                 mod.build(root, "/opt/exact-go/bin/go")
 
             build_env.assert_called_once_with()
-            go_identity.assert_called_once_with(root.resolve(), "/opt/exact-go/bin/go", clean_env)
-            cgo_identity.assert_called_once_with(root.resolve(), clean_env)
+            admitted.assert_called_once_with(root.resolve())
+            go_identity.assert_called_once_with(root.resolve(), "/opt/exact-go/bin/go", clean_env, toolchain_spec)
+            cgo_identity.assert_called_once_with(root.resolve(), clean_env, toolchain_spec)
             self.assertEqual(len(mod.TARGETS), len(calls))
             for (_, _, cgo), (_, env) in zip(mod.TARGETS, calls, strict=True):
                 self.assertEqual("/safe", env["PATH"])
