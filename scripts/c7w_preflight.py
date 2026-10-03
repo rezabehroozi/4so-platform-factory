@@ -28,7 +28,7 @@ EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")
 
 def git_source_commit(root:Path)->str:
     root=Path(os.path.abspath(root))
-    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=runner.clean_git_env(),text=True,capture_output=True,check=False)
     value=proc.stdout.strip().lower() if proc.returncode==0 else ""
     if not core.COMMIT.fullmatch(value): raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_UNAVAILABLE")
     return value
