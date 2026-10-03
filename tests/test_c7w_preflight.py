@@ -36,9 +36,11 @@ class C7WPreflightTests(unittest.TestCase):
     def test_runtime_source_drift_gets_deployment_action_not_generic_failure(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); oauth=root/"oauth.json"; oauth.write_text("{}")
+            canonical=ROOT/"lab/mcp-external-client-interop-matrix.json"
             with (
                 mock.patch.dict(os.environ,{"TOKEN":"secret"},clear=False),
                 mock.patch.object(mod.runner,"require_c7w_source_freeze"),
+                mock.patch.object(mod.runner,"require_canonical_matrix",return_value=canonical),
                 mock.patch.object(mod.campaign,"source_commit_sha",return_value="a"*40),
                 mock.patch.object(mod.core,"load",return_value={"authority":mod.core.MATRIX_AUTHORITY,"spec":{}}),
                 mock.patch.object(mod.core,"validate_matrix_contract",return_value={}),
@@ -47,7 +49,7 @@ class C7WPreflightTests(unittest.TestCase):
                 mock.patch.object(mod.campaign,"live_preflight",return_value={"authority":mod.core.CAMPAIGN_PREFLIGHT_AUTHORITY}),
                 mock.patch.object(mod.campaign,"runtime_identity_readback",side_effect=RuntimeError("MCP_EXTERNAL_RUNTIME_SOURCE_DRIFT expected=a observed=b")),
             ):
-                out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","https://mcp.example.test/mcp",oauth,"TOKEN")
+                out=mod.preflight(root,canonical,"https://mcp.example.test/mcp",oauth,"TOKEN")
         self.assertEqual("DEPLOY_C7W_CURRENT_SOURCE",out["nextActionCode"])
         self.assertEqual("a"*40,out["requiredSourceCommitSHA"])
         self.assertNotIn("secret",str(out))
@@ -55,6 +57,7 @@ class C7WPreflightTests(unittest.TestCase):
     def test_ready_preflight_returns_exact_prepare_command_without_secret(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); oauth=root/"oauth.json"; oauth.write_text("{}")
+            canonical=ROOT/"lab/mcp-external-client-interop-matrix.json"
             bindings={c:c+"-oauth" for c in mod.core.CLIENTS}
             trusted={c:{"trustedClientId":"trusted-"+c} for c in mod.core.CLIENTS}
             runtime={"authority":"MCP_EXTERNAL_RUNTIME_SOURCE_IDENTITY_V1","product":"4SO Platform Factory","version":"0.0.unit","sourceCommitSHA":"a"*40}
@@ -62,6 +65,7 @@ class C7WPreflightTests(unittest.TestCase):
             with (
                 mock.patch.dict(os.environ,{"TOKEN":"super-secret"},clear=False),
                 mock.patch.object(mod.runner,"require_c7w_source_freeze"),
+                mock.patch.object(mod.runner,"require_canonical_matrix",return_value=canonical),
                 mock.patch.object(mod.campaign,"source_commit_sha",return_value="a"*40),
                 mock.patch.object(mod.core,"load",return_value={"authority":mod.core.MATRIX_AUTHORITY,"spec":{}}),
                 mock.patch.object(mod.core,"validate_matrix_contract",return_value={}),
@@ -71,13 +75,16 @@ class C7WPreflightTests(unittest.TestCase):
                 mock.patch.object(mod.campaign,"runtime_identity_readback",return_value=runtime),
                 mock.patch.object(mod.campaign,"trusted_client_readback",return_value=trusted),
             ):
-                out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","https://mcp.example.test/mcp",oauth,"TOKEN")
+                out=mod.preflight(root,canonical,"https://mcp.example.test/mcp",oauth,"TOKEN")
         self.assertTrue(out["ready"])
         self.assertEqual("RUN_C7W_PREPARE",out["nextActionCode"])
         self.assertEqual("a"*40,out["sourceCommitSHA"])
         self.assertEqual(4,out["trustedClientCount"])
         self.assertEqual("sha256:"+"b"*64,out["oauthClientBindingsSha256"])
+        self.assertEqual(str(canonical),out["matrixPath"])
         self.assertIn("scripts/run_mcp_external_interop.py",out["nextCommand"])
+        self.assertIn("--matrix",out["nextCommand"])
+        self.assertIn(str(canonical),out["nextCommand"])
         self.assertIn("--endpoint",out["nextCommand"])
         self.assertIn("--oauth-client-map",out["nextCommand"])
         self.assertIn("--token-env",out["nextCommand"])
