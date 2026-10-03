@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import stat
@@ -11,6 +12,7 @@ import sys
 from pathlib import Path
 
 AUTHORITY="NATIVE_RELEASE_BINARY_BUILD_AUTHORITY_V1"
+TOOLCHAIN_AUTHORITY="RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1"
 COMMIT=re.compile(r"^[0-9a-f]{40}$")
 VERSION=re.compile(r"^\d+\.\d+\.\d+$")
 TARGETS=(
@@ -52,6 +54,42 @@ def release_build_environment()->dict[str,str]:
     env["GONOPROXY"]=""
     env["GONOSUMDB"]=""
     return env
+
+
+def require_go_binary_identity(root:Path,go_binary:str,env:dict[str,str])->None:
+    lock_path=root/"lab"/"release-build-toolchain-lock.json"
+    try:
+        if lock_path.is_symlink() or not lock_path.is_file() or lock_path.stat().st_size<=0 or lock_path.stat().st_size>1024*1024:
+            raise RuntimeError("invalid lock")
+        lock=json.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError,UnicodeDecodeError,json.JSONDecodeError,RuntimeError) as exc:
+        raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID") from exc
+    spec=lock.get("spec") if isinstance(lock,dict) else None
+    exact=(spec or {}).get("exactCompiler") if isinstance(spec,dict) else None
+    if (
+        not isinstance(lock,dict)
+        or lock.get("authority")!=TOOLCHAIN_AUTHORITY
+        or not isinstance(spec,dict)
+        or spec.get("admissionStatus")!="admitted"
+        or not isinstance(exact,dict)
+    ):
+        raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID")
+    version=str(exact.get("version") or "").strip()
+    goos=str(exact.get("goos") or "").strip()
+    goarch=str(exact.get("goarch") or "").strip()
+    if not version.startswith("go1.") or goos!="linux" or goarch!="amd64":
+        raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID")
+    try:
+        proc=subprocess.run(
+            [go_binary,"version"],cwd=root,env=env,text=True,
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,
+        )
+    except OSError as exc:
+        raise RuntimeError("RELEASE_BINARY_BUILD_GO_IDENTITY_UNAVAILABLE") from exc
+    expected=f"go version {version} {goos}/{goarch}"
+    actual=(proc.stdout or proc.stderr or "").strip()
+    if proc.returncode!=0 or actual!=expected:
+        raise RuntimeError(f"RELEASE_BINARY_BUILD_GO_IDENTITY_MISMATCH expected={expected} actual={actual}")
 
 
 def git_head(root:Path)->str:
@@ -100,11 +138,12 @@ def build(root:Path,go_binary:str,source_commit:str="",version:str="")->dict:
     go_binary=str(go_binary or "").strip()
     if not go_binary:
         raise RuntimeError("RELEASE_BINARY_BUILD_GO_INVALID")
+    base_env=release_build_environment()
+    require_go_binary_identity(root,go_binary,base_env)
     out_dir=root/"bin"/"linux-amd64"
     if out_dir.is_symlink() or (out_dir.exists() and not out_dir.is_dir()):
         raise RuntimeError("RELEASE_BINARY_BUILD_OUTPUT_DIR_INVALID")
     out_dir.mkdir(parents=True,exist_ok=True)
-    base_env=release_build_environment()
     for name,extra_env,argv in build_plan(root,go_binary,source_commit,version):
         target=out_dir/name
         if target.is_symlink():
