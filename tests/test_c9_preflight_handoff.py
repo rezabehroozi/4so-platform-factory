@@ -20,6 +20,21 @@ PRE_SPEC.loader.exec_module(mod)
 
 
 class C9PreflightHandoffTests(unittest.TestCase):
+    def setUp(self):
+        self._admission_patch = mock.patch.object(
+            sealer,
+            "exact_source_admission",
+            return_value={
+                "authority": sealer.admission.AUTHORITY,
+                "admitted": True,
+                "physicalCertified": False,
+            },
+        )
+        self._admission_patch.start()
+
+    def tearDown(self):
+        self._admission_patch.stop()
+
     def ready_context(self):
         fake_lock = {
             "authority": sealer.TOOLCHAIN_AUTHORITY,
@@ -180,6 +195,8 @@ class C9PreflightHandoffTests(unittest.TestCase):
         self.assertEqual(source_sha, result["sourceCommitSHA"])
         self.assertFalse(result["resumeExistingEvidence"])
         self.assertEqual("RUN_C9_SEAL", result["nextActionCode"])
+        self.assertEqual(sealer.admission.AUTHORITY,result["admissionAuthority"])
+        self.assertTrue(result["admissionReady"])
 
     def test_preflight_uses_resume_source_boundary_when_final_evidence_exists(self):
         source_sha = "b" * 40
@@ -202,6 +219,7 @@ class C9PreflightHandoffTests(unittest.TestCase):
         self.assertTrue(result["resumeExistingEvidence"])
         self.assertEqual(source_sha,result["sourceCommitSHA"])
         self.assertEqual("RUN_C9_SEAL",result["nextActionCode"])
+        self.assertTrue(result["admissionReady"])
 
     def test_preflight_rejects_malformed_existing_evidence_before_environment(self):
         source_sha="c"*40
