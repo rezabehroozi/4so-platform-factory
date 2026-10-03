@@ -48,8 +48,16 @@ def credential_contract_digest()->str:
     return "sha256:"+hashlib.sha256(raw).hexdigest()
 
 
+def _clean_git_env()->dict[str,str]:
+    env=os.environ.copy()
+    for key in list(env):
+        if key.startswith("GIT_"):
+            env.pop(key,None)
+    return env
+
+
 def git_head(root:Path)->str:
-    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=_clean_git_env(),text=True,capture_output=True,check=False)
     value=proc.stdout.strip().lower() if proc.returncode==0 else ""
     if not core.COMMIT.fullmatch(value):
         raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_UNAVAILABLE")
