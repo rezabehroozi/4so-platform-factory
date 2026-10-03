@@ -51,6 +51,33 @@ def literal_assignment(source:str,name:str):
     return None
 
 
+def direct_git_calls_without_env(source:str)->list[int]:
+    try:
+        tree=ast.parse(source)
+    except (SyntaxError,ValueError):
+        return [0]
+    missing=[]
+    for node in ast.walk(tree):
+        if not isinstance(node,ast.Call) or not node.args:
+            continue
+        func=node.func
+        command=node.args[0]
+        if not (
+            isinstance(func,ast.Attribute)
+            and func.attr=="run"
+            and isinstance(func.value,ast.Name)
+            and func.value.id=="subprocess"
+            and isinstance(command,ast.List)
+            and command.elts
+            and isinstance(command.elts[0],ast.Constant)
+            and command.elts[0].value=="git"
+        ):
+            continue
+        if not any(keyword.arg=="env" for keyword in node.keywords):
+            missing.append(getattr(node,"lineno",0))
+    return missing
+
+
 def function_call_lines(source:str,function_name:str)->dict[str,int]:
     try:
         tree=ast.parse(source)
@@ -110,8 +137,22 @@ def validate(root:Path)->list[tuple[str,str]]:
     release_verifier=read_required(root,"scripts/verify_release.py",errors)
     exact_packager=read_required(root,"scripts/package_release_exact.py",errors)
     sealer=read_required(root,"scripts/seal_final_exact_release.py",errors)
+    admission=read_required(root,"scripts/final_exact_release_admission.py",errors)
+    stable_snapshot=read_required(root,"scripts/c9_stable_snapshot.py",errors)
     preflight=read_required(root,"scripts/c9_preflight.py",errors)
     makefile=read_required(root,"Makefile",errors)
+
+    git_authority_sources=(
+        ("scripts/build_release_binaries.py",builder),
+        ("scripts/package_release_exact.py",exact_packager),
+        ("scripts/seal_final_exact_release.py",sealer),
+        ("scripts/final_exact_release_admission.py",admission),
+        ("scripts/c9_stable_snapshot.py",stable_snapshot),
+    )
+    for rel,text in git_authority_sources:
+        missing_env=direct_git_calls_without_env(text)
+        if missing_env:
+            errors.append(("RELEASE_GIT_ENVIRONMENT_AUTHORITY_INVALID",f"{rel}:lines={','.join(str(x) for x in missing_env)}"))
 
     builder_markers=(
         'AUTHORITY="NATIVE_RELEASE_BINARY_BUILD_AUTHORITY_V1"',"release_build_environment","require_go_binary_identity",
