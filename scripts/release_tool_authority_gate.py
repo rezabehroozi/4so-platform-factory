@@ -24,6 +24,7 @@ def validate(root:Path)->list[tuple[str,str]]:
     root=root.resolve()
     errors:list[tuple[str,str]]=[]
     builder=read_required(root,"scripts/build_release_binaries.py",errors)
+    verifier=read_required(root,"scripts/verify_release_build_toolchain.py",errors)
     exact_packager=read_required(root,"scripts/package_release_exact.py",errors)
     sealer=read_required(root,"scripts/seal_final_exact_release.py",errors)
     makefile=read_required(root,"Makefile",errors)
@@ -33,6 +34,8 @@ def validate(root:Path)->list[tuple[str,str]]:
         "release_build_environment",
         "require_go_binary_identity",
         "require_cgo_toolchain_identity",
+        "require_release_build_host",
+        "normalized_machine",
         'env["GOPROXY"]="off"',
         'env["GOSUMDB"]="off"',
         'env["GOWORK"]="off"',
@@ -44,6 +47,16 @@ def validate(root:Path)->list[tuple[str,str]]:
     missing=[marker for marker in builder_markers if marker not in builder]
     if missing:
         errors.append(("RELEASE_BINARY_BUILDER_ENVIRONMENT_INVALID",",".join(missing)))
+
+    verifier_markers=(
+        "verification_environment",
+        "release_binary_builder.release_build_environment()",
+        "current_go(env)",
+        "validate_active_cgo(lock,env)",
+    )
+    missing=[marker for marker in verifier_markers if marker not in verifier]
+    if missing:
+        errors.append(("RELEASE_TOOLCHAIN_VERIFIER_ENVIRONMENT_INVALID",",".join(missing)))
 
     verifier_line='GO="$(GO)" $(PYTHON) scripts/verify_release_build_toolchain.py --require-admitted'
     builder_line='$(PYTHON) scripts/build_release_binaries.py --root . --go "$(GO)"'
@@ -68,6 +81,15 @@ def validate(root:Path)->list[tuple[str,str]]:
 
     if '"scripts/package_release_exact.py"' not in sealer or '[sys.executable, "scripts/build_release.py", "."]' in sealer:
         errors.append(("FINAL_EXACT_RELEASE_PACKAGER_OWNER_INVALID","C9 must route packaging only through scripts/package_release_exact.py"))
+
+    host_markers=(
+        "normalized_machine",
+        "FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED",
+        '"observedArchitecture"',
+        '"requiredArchitecture"',
+    )
+    if any(marker not in sealer for marker in host_markers) or "require_release_build_host" not in builder:
+        errors.append(("RELEASE_HOST_ARCHITECTURE_GUARD_INVALID","exact release must fail closed outside linux/amd64 in both builder and C9"))
 
     return errors
 
