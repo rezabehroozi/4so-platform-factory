@@ -16,15 +16,20 @@ except ModuleNotFoundError:
 AUTHORITY="EXACT_RELEASE_PACKAGER_EXECUTION_V1"
 
 
-def release_tool_authority(root:Path)->tuple[str,dict[str,str]]:
+def require_exact_toolchain(root:Path)->tuple[str,dict[str,str]]:
     root=root.resolve()
     release_binary_builder.require_release_build_host()
     go_binary=str(os.environ.get("GO") or "go").strip() or "go"
     env=release_binary_builder.release_build_environment()
-    release_binary_builder.require_go_binary_identity(root,go_binary,env)
-    release_binary_builder.require_cgo_toolchain_identity(root,env)
+    toolchain_spec=release_binary_builder.admitted_toolchain_spec(root)
+    release_binary_builder.require_go_binary_identity(root,go_binary,env,toolchain_spec)
+    release_binary_builder.require_cgo_toolchain_identity(root,env,toolchain_spec)
     env["GO"]=go_binary
     return go_binary,env
+
+
+def release_tool_authority(root:Path)->tuple[str,dict[str,str]]:
+    return require_exact_toolchain(root)
 
 
 def run_packager(root:Path)->int:
