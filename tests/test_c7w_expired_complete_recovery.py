@@ -106,6 +106,53 @@ class C7WExpiredCompleteRecoveryTests(unittest.TestCase):
         self.assertEqual("PREPARE_REPLACEMENT_C7W_CAMPAIGN",out["nextActionCode"])
         self.assertNotIn("RUN_EXTERNAL_CLIENT",str(out))
 
+    def test_expired_incomplete_progress_with_all_captured_artifacts_resumes_seal(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=runner.secure_state_dir(root/"state"); p=runner.paths(state)
+            (p["campaign"]).write_text('{"campaignId":"mcp-interop-expired-captured"}',encoding="utf-8")
+            for client in core.CLIENTS:
+                (p["receipts"]/(client+".json")).write_text("{}",encoding="utf-8")
+                (p["audits"]/(client+".json")).write_text("{}",encoding="utf-8")
+            progress=root/"progress.json"; progress.write_text("{}",encoding="utf-8")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=progress,evidence_out=root/"evidence.json")
+            def progress_status(*a,**kw):
+                if kw.get("require_live",True):
+                    raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXPIRED")
+                return {"certified":["chatgpt","claude","gemini"],"missing":["grok"],"complete":False,"nextClient":"grok","campaignPrepared":True}
+            with (
+                mock.patch.object(runner,"require_canonical_matrix",side_effect=lambda root,path:path),
+                mock.patch.object(runner,"progress_status",side_effect=progress_status),
+            ):
+                out=runner.status(args)
+        self.assertEqual("RUN_C7W_SEAL",out["nextActionCode"])
+        self.assertEqual(runner.runner_command(state,"seal"),out["nextCommand"])
+        self.assertTrue(out["recoveryRequired"])
+        self.assertEqual("CAPTURED_ARTIFACT_PROGRESS_RECONCILIATION",out["recoveryReason"])
+        self.assertNotIn("RUN_EXTERNAL_CLIENT",str(out))
+
+    def test_recovered_progress_preserves_and_matches_existing_admitted_rows(self):
+        bulk_rows=[{"clientId":client,"marker":client} for client in core.CLIENTS]
+        bulk={"authority":core.AUTHORITY,"clients":bulk_rows,"certifiedClientCount":4,"externalCertificationPass":True}
+        campaign={"campaignId":"mcp-interop-recover","sourceCommitSHA":"a"*40,"runtimeVersion":"0.0.test"}
+        expected={"clients":[],"certifiedClientCount":0,"complete":False,"externalCertificationPass":False,"serverAuditWitnessPass":False}
+        with tempfile.TemporaryDirectory() as td:
+            progress=Path(td)/"progress.json"; progress.write_text("{}",encoding="utf-8")
+            with (
+                mock.patch.object(runner.core,"load",side_effect=[{},{}]),
+                mock.patch.object(runner.core,"validate_matrix_contract",return_value={}),
+                mock.patch.object(runner.core,"verify_campaign",return_value=campaign),
+                mock.patch.object(runner.admission,"base_progress",return_value=expected),
+                mock.patch.object(runner.admission,"validate_existing",side_effect=[{"chatgpt":bulk_rows[0]}, {client:row for client,row in zip(core.CLIENTS,bulk_rows)}]),
+                mock.patch.object(runner.admission,"validate_existing_campaign_rows") as validate_rows,
+            ):
+                recovered=runner.recover_complete_progress_from_bulk(Path("matrix.json"),Path("campaign.json"),bulk,progress)
+        self.assertTrue(recovered["complete"])
+        self.assertEqual(4,recovered["certifiedClientCount"])
+        self.assertEqual(bulk_rows,recovered["clients"])
+        self.assertTrue(recovered["externalCertificationPass"])
+        self.assertTrue(recovered["serverAuditWitnessPass"])
+        self.assertEqual(2,validate_rows.call_count)
+
 
 if __name__=="__main__":
     unittest.main()
