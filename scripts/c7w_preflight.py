@@ -20,6 +20,8 @@ except ModuleNotFoundError:
 
 AUTHORITY="MCP_EXTERNAL_PREFLIGHT_HANDOFF_V1"
 PRIVATE_INPUT_REL=Path(".state/private")
+PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")
+EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")
 
 
 def git_source_commit(root:Path)->str:
@@ -83,8 +85,22 @@ def _existing_state_handoff(root:Path)->dict|None:
         return None
     state=Path(f".state/c7w-external-interop-{source_sha[:12]}")
     absolute=Path(os.path.abspath(root/state))
+    progress=root/PROGRESS_REL
+    evidence=root/EVIDENCE_REL
+    artifacts=[rel for rel,path in ((PROGRESS_REL,progress),(EVIDENCE_REL,evidence)) if path.exists() or path.is_symlink()]
     if not absolute.exists() and not absolute.is_symlink():
-        return None
+        if not artifacts:
+            return None
+        out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_MISSING_WITH_CANONICAL_EVIDENCE"])
+        out.update({
+            "sourceCommitSHA":source_sha,
+            "stateDir":str(state),
+            "workingDirectory":str(root),
+            "nextActionCode":"RESTORE_C7W_LOCAL_STATE",
+            "nextCommand":["git","status","--short","--",*[str(rel) for rel in artifacts]],
+            "detail":"canonical C7W progress/evidence exists but the source-bound private state directory is missing; restore or inspect local state before any new campaign",
+        })
+        return out
     if absolute.is_symlink() or not absolute.is_dir():
         out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"])
         out.update({
