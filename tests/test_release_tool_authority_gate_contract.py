@@ -10,6 +10,9 @@ class ReleaseToolAuthorityGateContractTests(unittest.TestCase):
         for code in (
             "RELEASE_TOOLCHAIN_VERIFIER_ENVIRONMENT_INVALID",
             "RELEASE_HOST_ARCHITECTURE_GUARD_INVALID",
+            "RELEASE_BINARY_TARGET_SET_INVALID",
+            "RELEASE_PACKAGER_BINARY_SET_INVALID",
+            "RELEASE_VERIFIER_BINARY_SET_INVALID",
         ):
             self.assertIn(code,gate)
         for marker in (
@@ -19,6 +22,10 @@ class ReleaseToolAuthorityGateContractTests(unittest.TestCase):
             "normalized_machine",
             "observedArchitecture",
             "requiredArchitecture",
+            "TARGETS",
+            "BINARIES",
+            "RELEASE_BINARIES",
+            "dapr-runtime",
         ):
             self.assertIn(marker,gate)
 
