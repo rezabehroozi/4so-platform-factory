@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Machine-actionable C9 environment preflight handoff.
+"""Machine-actionable C9 environment and admission preflight handoff.
 
-The final exact sealer remains the validation authority. This wrapper only
-translates its blocker set into the next executable local action so agents do
-not need to interpret free-form errors.
+The final exact sealer remains the validation authority. This wrapper translates
+source, final-admission and environment blockers into the next executable local
+action so agents do not need to interpret free-form errors.
 """
 from __future__ import annotations
 
@@ -21,6 +21,14 @@ except ModuleNotFoundError:
 
 AUTHORITY = "FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_V1"
 FINAL_EVIDENCE_REL = Path("lab/final-exact-release-evidence.json")
+C7W_PREFLIGHT_COMMAND = [sys.executable, "scripts/c7w_preflight.py", "--root", "."]
+ADMISSION_STATUS_COMMAND = [
+    sys.executable,
+    "scripts/final_exact_release_admission.py",
+    "--root",
+    ".",
+    "--allow-pending",
+]
 C9_COMMAND = [
     sys.executable,
     "scripts/seal_final_exact_release.py",
@@ -157,7 +165,7 @@ def enrich(result: dict) -> dict:
             {
                 "nextActionCode": "RUN_C9_SEAL",
                 "nextCommand": list(C9_COMMAND),
-                "detail": "C9 environment is ready for the local exact release seal",
+                "detail": "C9 final admission and environment are ready for the local exact release seal",
             }
         )
     out["physicalCertified"] = False
@@ -183,7 +191,8 @@ def _source_failure(root: Path, exc: RuntimeError) -> dict:
             "requiredInputs": [],
             "sourceCommitSHA": "",
             "resumeExistingEvidence": False,
-            "detail": f"{code}; restore canonical clean main at the exact repository root before evaluating C9 environment readiness",
+            "admissionReady": False,
+            "detail": f"{code}; restore canonical clean main at the exact repository root before evaluating C9 admission/environment readiness",
         }
     )
     return out
@@ -207,6 +216,7 @@ def _existing_evidence_failure(code: str, source_sha: str) -> dict:
             "requiredInputs": [],
             "sourceCommitSHA": source_sha,
             "resumeExistingEvidence": True,
+            "admissionReady": False,
             "detail": f"{code}; the canonical final evidence exists but is not safe to resume; inspect or restore that exact evidence rather than starting a new C9 run",
         }
     )
@@ -226,6 +236,73 @@ def validate_existing_evidence(root: Path, evidence: Path, current_sha: str) -> 
     return value
 
 
+def _admission_failure(root:Path,source_sha:str,exc:BaseException)->dict:
+    code=str(exc).split()[0] if str(exc).strip() else "FINAL_EXACT_RELEASE_ADMISSION_INVALID"
+    out=enhance={
+        "authority":sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
+        "ready":False,
+        "requiredHost":"linux-amd64-exact-toolchain",
+        "missingHostTools":[],
+        "blockers":[code],
+        "physicalCertified":False,
+    }
+    out=enrich(out)
+    out.update({
+        "sourceCommitSHA":source_sha,
+        "resumeExistingEvidence":False,
+        "admissionAuthority":sealer.admission.AUTHORITY,
+        "admissionReady":False,
+        "requiredInputs":[],
+    })
+    if isinstance(exc,sealer.admission.Pending) and code=="MCP_EXTERNAL_INTEROP_PENDING":
+        try:
+            progress=sealer.admission.external_client_progress(root)
+        except RuntimeError:
+            progress={
+                "authority":"MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1",
+                "certifiedClientCount":0,
+                "certifiedClients":[],
+                "missingClients":list(sealer.admission.CLIENTS),
+                "nextClient":sealer.admission.CLIENTS[0],
+                "complete":False,
+                "evidenceSealPending":False,
+            }
+        out.update({
+            "nextActionCode":"RUN_C7W_PREFLIGHT",
+            "nextCommand":list(C7W_PREFLIGHT_COMMAND),
+            "externalClientProgress":progress,
+            "detail":"C9 is blocked by unsealed external MCP interoperability evidence; continue the canonical C7W preflight/status flow before any C9 environment work",
+        })
+    elif isinstance(exc,sealer.admission.Pending) and code=="APPLIANCE_DISTRIBUTION_PENDING":
+        out.update({
+            "nextActionCode":"COMPLETE_S1_APPLIANCE_DISTRIBUTION",
+            "nextCommand":list(ADMISSION_STATUS_COMMAND),
+            "detail":"C9 is blocked by the canonical appliance distribution authority; complete S1 before C9 environment work",
+        })
+    else:
+        out.update({
+            "nextActionCode":"INSPECT_C9_ADMISSION_AUTHORITY",
+            "nextCommand":list(ADMISSION_STATUS_COMMAND),
+            "detail":f"{code}; final exact release admission is invalid for the exact source SHA",
+        })
+    return out
+
+
+def _admission_preflight(root:Path,source_sha:str)->tuple[dict|None,dict|None]:
+    try:
+        admitted=sealer.exact_source_admission(root,source_sha)
+    except (sealer.admission.Pending,RuntimeError) as exc:
+        return _admission_failure(root,source_sha,exc),None
+    if (
+        not isinstance(admitted,dict)
+        or admitted.get("authority")!=sealer.admission.AUTHORITY
+        or admitted.get("admitted") is not True
+        or admitted.get("physicalCertified") is not False
+    ):
+        return _admission_failure(root,source_sha,RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_INVALID")),None
+    return None,admitted
+
+
 def preflight(root: Path) -> dict:
     root = root.resolve()
     evidence = root / FINAL_EVIDENCE_REL
@@ -237,17 +314,34 @@ def preflight(root: Path) -> dict:
         source_sha = sealer.git_source_for_resume(root, evidence) if resume else sealer.git_source(root)
     except RuntimeError as exc:
         return _source_failure(root, exc)
+
+    sealed_evidence=None
+    admission_source_sha=source_sha
     if resume:
         try:
-            validate_existing_evidence(root, evidence, source_sha)
+            sealed_evidence=validate_existing_evidence(root, evidence, source_sha)
+            admission_source_sha=str(sealed_evidence.get("sourceCommitSHA") or "").strip().lower()
         except RuntimeError as exc:
             code = str(exc).split()[0] if str(exc).strip() else "FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID"
             return _existing_evidence_failure(code, source_sha)
+
+    admission_failure,admitted=_admission_preflight(root,admission_source_sha)
+    if admission_failure is not None:
+        admission_failure["sourceCommitSHA"]=source_sha
+        admission_failure["resumeExistingEvidence"]=resume
+        if admission_source_sha!=source_sha:
+            admission_failure["sealedSourceCommitSHA"]=admission_source_sha
+        return admission_failure
+
     out = enrich(sealer.exact_release_environment_preflight(root))
     out["sourceCommitSHA"] = source_sha
     out["resumeExistingEvidence"] = resume
+    out["admissionAuthority"] = admitted["authority"]
+    out["admissionReady"] = True
+    if admission_source_sha!=source_sha:
+        out["sealedSourceCommitSHA"]=admission_source_sha
     if resume and out.get("ready") is True:
-        out["detail"] = "existing final evidence is present at the canonical path; rerun the exact sealer to perform full resume revalidation before post-seal Git handoff"
+        out["detail"] = "existing final evidence is present at the canonical path; final admission remains valid and the exact sealer must perform full resume revalidation before post-seal Git handoff"
     return out
 
 
