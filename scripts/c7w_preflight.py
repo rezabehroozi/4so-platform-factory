@@ -71,12 +71,12 @@ def _failure(code:str,source_sha:str="")->dict:
         out.update({
             "nextActionCode":"RESTORE_C7W_SOURCE_FREEZE",
             "nextCommand":["git","status","--short"],
-            "detail":"restore canonical main and the C7W evidence-only source boundary before live interoperability work",
+            "detail":"restore canonical main, repository-root authority and the C7W canonical matrix/evidence-only source boundary before live interoperability work",
         })
     elif code.startswith("MCP_EXTERNAL_PREFLIGHT_INPUT_PATH_"):
         out.update({
             "nextActionCode":"REPAIR_C7W_INPUT_PATHS",
-            "detail":"keep matrix and private OAuth binding inputs inside the explicit repository root",
+            "detail":"keep private OAuth binding inputs inside the explicit repository root",
         })
     elif code.startswith("MCP_EXTERNAL_OAUTH_BINDINGS_"):
         out.update({
@@ -116,9 +116,9 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
 
     source_sha=""
     try:
-        matrix_path=root_input_path(root,matrix)
-        oauth_path=root_input_path(root,oauth_client_map)
         runner.require_c7w_source_freeze(root)
+        matrix_path=runner.require_canonical_matrix(root,matrix)
+        oauth_path=root_input_path(root,oauth_client_map)
         source_sha=git_source_commit(root)
         endpoint_value=campaign.endpoint(endpoint)
         matrix_doc=core.load(matrix_path,"MATRIX")
@@ -163,7 +163,7 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
         "workingDirectory":str(root),
         "nextActionCode":"RUN_C7W_PREPARE",
         "nextCommand":command,
-        "detail":"C7W source, live endpoint, runtime identity and four trusted-client bindings are ready; create the source-bound campaign from workingDirectory",
+        "detail":"C7W exact source, canonical matrix, live endpoint, runtime identity and four trusted-client bindings are ready; create the source-bound campaign from workingDirectory",
     })
     return out
 
@@ -171,7 +171,7 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
 def main()->int:
     parser=argparse.ArgumentParser()
     parser.add_argument("--root",type=Path,default=Path("."))
-    parser.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json"))
+    parser.add_argument("--matrix",type=Path,default=runner.CANONICAL_MATRIX_REL)
     parser.add_argument("--endpoint",default=os.environ.get("C7W_MCP_ENDPOINT",""))
     raw_map=os.environ.get("C7W_OAUTH_CLIENT_MAP","").strip()
     parser.add_argument("--oauth-client-map",type=Path,default=Path(raw_map) if raw_map else None)
