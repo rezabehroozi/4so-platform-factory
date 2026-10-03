@@ -13,6 +13,10 @@ import zipfile
 
 C9_SOURCE_EXCLUDE=frozenset({".git","bin","dist","release","__pycache__",".pytest_cache",".state",".tmpbin"})
 C9_GENERATED_METADATA=frozenset({"ARTIFACT-MANIFEST.json","BUILD-PROVENANCE.json","SBOM.spdx.json","DERIVED-AGENT-KNOWLEDGE.json"})
+C9_RELEASE_BINARIES=frozenset({
+    "platform-api","platformctl","platform-installer","platform-agent","platform-probe",
+    "virtual-cluster-renderer","openchoreo-runtime","dapr-runtime",
+})
 C9_EXACT_PUBLICATION_LABELS=frozenset({
     "FINAL_EXACT_RELEASE_EXISTING_ARCHIVE",
     "FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION_ARCHIVE",
@@ -212,11 +216,20 @@ def verify_release_archive_exact_source(
             expected_digest=expected_digest,
             expected_size=expected_size,
         ) as raw, zipfile.ZipFile(raw,"r") as archive:
-            names=set(archive.namelist())
+            raw_names=archive.namelist()
+            if len(raw_names)!=len(set(raw_names)):
+                raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_ARCHIVE_DUPLICATE_PATH")
+            names=set(raw_names)
             roots={name.split("/",1)[0] for name in names if "/" in name and name.split("/",1)[0]}
             if len(roots)!=1:
                 raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_ARCHIVE_ROOT_INVALID")
             prefix=next(iter(roots))+"/"
+            expected_source_names={prefix+rel for rel in tree}
+            allowed_generated={prefix+name for name in C9_GENERATED_METADATA}
+            allowed_binaries={prefix+"bin/linux-amd64/"+name for name in C9_RELEASE_BINARIES}
+            unexpected=sorted(names-expected_source_names-allowed_generated-allowed_binaries)
+            if unexpected:
+                raise RuntimeError(f"FINAL_EXACT_RELEASE_SOURCE_EXTRA_FILE {unexpected[0]}")
             for rel,(wanted_oid,wanted_mode) in tree.items():
                 archive_name=prefix+rel
                 if archive_name not in names:
@@ -225,7 +238,10 @@ def verify_release_archive_exact_source(
                 payload=archive.read(archive_name)
                 if _git_blob_oid(payload,object_format)!=wanted_oid:
                     raise RuntimeError(f"FINAL_EXACT_RELEASE_SOURCE_BLOB_DRIFT {rel}")
-                actual_mode=stat.S_IMODE((info.external_attr>>16)&0xFFFF)
+                unix_mode=(info.external_attr>>16)&0xFFFF
+                if info.create_system!=3 or stat.S_IFMT(unix_mode) not in (0,stat.S_IFREG):
+                    raise RuntimeError(f"FINAL_EXACT_RELEASE_SOURCE_TYPE_DRIFT {rel}")
+                actual_mode=stat.S_IMODE(unix_mode)
                 expected_mode=0o755 if wanted_mode=="100755" else 0o644
                 if actual_mode!=expected_mode:
                     raise RuntimeError(f"FINAL_EXACT_RELEASE_SOURCE_MODE_DRIFT {rel}")
