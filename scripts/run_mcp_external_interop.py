@@ -163,7 +163,7 @@ def c9_seal_command()->list[str]:
     return [sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"]
 
 def c9_preflight_command()->list[str]:
-    return [sys.executable,"scripts/c9_preflight.py","--root","."]
+    return [sys.executable,"scripts/c9_preflight.py","--root",".","--preflight"]
 
 def c9_handoff(source_sha:str)->dict:
     command=c9_seal_command()
@@ -178,7 +178,7 @@ def c9_handoff(source_sha:str)->dict:
     return {
         "nextActionCode":"RUN_C9_ON_EXACT_LINUX_HOST",
         "nextCommand":[],
-        "preflightCommandTemplate":["<python>","scripts/c9_preflight.py","--root","."],
+        "preflightCommandTemplate":["<python>","scripts/c9_preflight.py","--root",".","--preflight"],
         "nextCommandTemplate":["<python>","scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"],
         "requiredHost":"linux-amd64-exact-toolchain",
         "requiredSourceCommitSHA":source_sha,
