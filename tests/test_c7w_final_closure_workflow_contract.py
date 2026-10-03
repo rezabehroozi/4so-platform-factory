@@ -98,11 +98,12 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertNotIn("admission.verify(root)", seal)
         self.assertIn('(worktree / "lab" / "release-build-toolchain-lock.json")', seal)
         self.assertIn('"scripts/build_release_binaries.py"', seal)
+        self.assertIn('"scripts/package_release_exact.py"', seal)
         self.assertIn('FINAL_EXACT_RELEASE_ENVIRONMENT_PREFLIGHT_V1',seal)
         self.assertIn('require_exact_release_environment(root)',seal)
         self.assertIn('"--preflight"',seal)
         self.assertNotIn('["make", "build-release"', seal)
-        self.assertIn('"scripts/build_release.py"', seal)
+        self.assertNotIn('[sys.executable, "scripts/build_release.py", "."]', seal)
         self.assertIn('"scripts/verify_release.py"', seal)
         self.assertIn('"--full"', seal)
         self.assertIn("git_source(root)", seal)
@@ -113,7 +114,9 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
     def test_exact_release_binary_builder_and_verifier_share_complete_binary_set(self):
         builder=self.read("scripts/build_release_binaries.py")
         packager=self.read("scripts/build_release.py")
+        exact_packager=self.read("scripts/package_release_exact.py")
         verifier=self.read("scripts/verify_release.py")
+        validator=self.read("scripts/validate_repository.py")
         makefile=self.read("Makefile")
         def literal(source,name):
             tree=ast.parse(source)
@@ -136,6 +139,28 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn("scripts/build_release_binaries.py",makefile)
         self.assertIn('AUTHORITY="NATIVE_RELEASE_BINARY_BUILD_AUTHORITY_V1"',builder)
         self.assertIn('RELEASE_BINARY_BUILD_LINUX_HOST_REQUIRED',builder)
+        for marker in (
+            "release_build_environment",
+            "require_go_binary_identity",
+            "require_cgo_toolchain_identity",
+            "PYTHONNOUSERSITE",
+            'env["GOPROXY"]="off"',
+        ):
+            self.assertIn(marker,builder)
+        self.assertIn('AUTHORITY="EXACT_RELEASE_PACKAGER_EXECUTION_V1"',exact_packager)
+        self.assertIn("release_binary_builder.release_build_environment()",exact_packager)
+        self.assertIn("release_binary_builder.require_go_binary_identity",exact_packager)
+        self.assertIn("release_binary_builder.require_cgo_toolchain_identity",exact_packager)
+        self.assertIn('[sys.executable,"scripts/build_release.py","."]',exact_packager)
+        self.assertIn('GO="$(GO)" $(PYTHON) scripts/verify_release_build_toolchain.py --require-admitted',makefile)
+        self.assertIn('GO="$(GO)" $(PYTHON) scripts/package_release_exact.py --root .',makefile)
+        for code in (
+            "RELEASE_BINARY_BUILDER_ENVIRONMENT_INVALID",
+            "RELEASE_TOOLCHAIN_GO_SELECTOR_DRIFT",
+            "EXACT_RELEASE_PACKAGER_OWNER_INVALID",
+            "FINAL_EXACT_RELEASE_PACKAGER_OWNER_INVALID",
+        ):
+            self.assertIn(code,validator)
 
     def test_local_runner_is_canonical_execution_entrypoint(self):
         runner = self.read("scripts/run_mcp_external_interop.py")
