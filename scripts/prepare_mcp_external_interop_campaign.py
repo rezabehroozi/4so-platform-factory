@@ -36,11 +36,19 @@ def file_sha(path:Path)->str:
     return "sha256:"+h.hexdigest()
 
 
+def clean_git_env()->dict[str,str]:
+    env=os.environ.copy()
+    for key in list(env):
+        if key.startswith("GIT_"):
+            env.pop(key,None)
+    return env
+
+
 def source_commit_sha(explicit:str="")->str:
     value=str(explicit or "").strip().lower()
     if value and not core.COMMIT.fullmatch(value):
         raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_UNAVAILABLE")
-    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,text=True,capture_output=True,check=False)
+    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,env=clean_git_env(),text=True,capture_output=True,check=False)
     observed=proc.stdout.strip().lower() if proc.returncode==0 else ""
     if core.COMMIT.fullmatch(observed):
         if value and value!=observed:
