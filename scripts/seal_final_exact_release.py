@@ -178,6 +178,52 @@ def git_source(root: Path) -> str:
     return head.stdout.strip()
 
 
+def exact_source_json(root:Path,source_sha:str,relpath:str,label:str,*,max_bytes:int=1024*1024)->tuple[dict,str]:
+    root=root.resolve()
+    source_sha=str(source_sha or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}",source_sha):
+        raise RuntimeError(f"{label}_SOURCE_SHA_INVALID")
+    pure=PurePosixPath(str(relpath or ""))
+    if pure.is_absolute() or not pure.parts or ".." in pure.parts or any(part in {"","."} for part in pure.parts):
+        raise RuntimeError(f"{label}_SOURCE_PATH_INVALID")
+    git_env=os.environ.copy()
+    for key in list(git_env):
+        if key.startswith("GIT_"):
+            git_env.pop(key,None)
+    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root:
+        raise RuntimeError(f"{label}_SOURCE_REPOSITORY_INVALID")
+    proc=subprocess.run(
+        ["git","cat-file","blob",f"{source_sha}:{pure.as_posix()}"],
+        cwd=root,
+        env=git_env,
+        capture_output=True,
+        check=False,
+    )
+    raw=proc.stdout if proc.returncode==0 else b""
+    if proc.returncode!=0 or not raw or len(raw)>max_bytes:
+        raise RuntimeError(f"{label}_SOURCE_OBJECT_INVALID")
+    try:
+        value=json.loads(raw.decode("utf-8",errors="strict"))
+    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+        raise RuntimeError(f"{label}_SOURCE_OBJECT_INVALID") from exc
+    if not isinstance(value,dict):
+        raise RuntimeError(f"{label}_SOURCE_OBJECT_INVALID")
+    return value,"sha256:"+hashlib.sha256(raw).hexdigest()
+
+
+def exact_source_toolchain_lock(root:Path,source_sha:str)->tuple[dict,str]:
+    source_sha=str(source_sha or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}",source_sha):
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
+    return exact_source_json(
+        root,
+        source_sha,
+        "lab/release-build-toolchain-lock.json",
+        "FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK",
+    )
+
+
 def safe_toolchain_archive(root: Path, lock: dict) -> tuple[Path, dict]:
     if lock.get("authority") != TOOLCHAIN_AUTHORITY:
         raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_AUTHORITY_INVALID")
@@ -209,7 +255,7 @@ def safe_toolchain_archive(root: Path, lock: dict) -> tuple[Path, dict]:
     return archive, exact
 
 
-def exact_release_environment_preflight(root:Path)->dict:
+def exact_release_environment_preflight(root:Path,toolchain_lock:dict|None=None)->dict:
     root=root.resolve()
     blockers=[]
     required_host="linux-amd64-exact-toolchain"
@@ -222,7 +268,7 @@ def exact_release_environment_preflight(root:Path)->dict:
     archive_path=""
     archive_ready=False
     try:
-        lock=json.loads(lock_path.read_text(encoding="utf-8"))
+        lock=toolchain_lock if toolchain_lock is not None else json.loads(lock_path.read_text(encoding="utf-8"))
         archive,_=safe_toolchain_archive(root,lock)
         archive_path=str(archive)
         archive_ready=True
@@ -265,8 +311,8 @@ def exact_release_environment_preflight(root:Path)->dict:
     }
 
 
-def require_exact_release_environment(root:Path)->dict:
-    result=exact_release_environment_preflight(root)
+def require_exact_release_environment(root:Path,toolchain_lock:dict|None=None)->dict:
+    result=exact_release_environment_preflight(root,toolchain_lock=toolchain_lock)
     if not result["ready"]:
         raise RuntimeError("FINAL_EXACT_RELEASE_ENVIRONMENT_BLOCKED "+",".join(result["blockers"]))
     return result
@@ -771,7 +817,7 @@ def verify_existing_release_full(root: Path, source_sha: str, release: Path) -> 
     with tempfile.TemporaryDirectory(prefix="4so-final-release-resume-toolchain-",dir=state_dir) as tool_td, tempfile.TemporaryDirectory(prefix="4so-final-release-resume-source-",dir=state_dir) as source_td:
         worktree=prepare_exact_worktree(root,source_sha,Path(source_td))
         try:
-            lock=json.loads((worktree/"lab"/"release-build-toolchain-lock.json").read_text(encoding="utf-8"))
+            lock,_=exact_source_toolchain_lock(root,source_sha)
             archive,exact=safe_toolchain_archive(root,lock)
             staged_archive=stage_toolchain_archive(archive,exact,worktree)
             go=extract_toolchain(staged_archive,exact,Path(tool_td))
@@ -813,8 +859,9 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
     for key in ("applianceDistributionSha256","mcpExternalInteropSha256"):
         if evidence.get(key)!=admitted.get(key):
             raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ADMISSION_DRIFT")
+    toolchain_lock,_=exact_source_toolchain_lock(root,source_sha)
     require_exact_release_host()
-    require_exact_release_environment(root)
+    require_exact_release_environment(root,toolchain_lock=toolchain_lock)
     for key in ("releaseArchiveSha256","artifactManifestSha256","buildProvenanceSha256","sbomSha256","applianceDistributionSha256","mcpExternalInteropSha256"):
         value=evidence.get(key)
         if not isinstance(value,str) or len(value)!=71 or not value.startswith("sha256:") or any(ch not in "0123456789abcdef" for ch in value[7:]):
@@ -878,8 +925,9 @@ def execute(root: Path, out: Path) -> dict:
 
     source_sha = git_source(root)
     initial_admitted=require_valid_final_admission(exact_source_admission(root,source_sha))
+    toolchain_lock,_=exact_source_toolchain_lock(root,source_sha)
     require_exact_release_host()
-    require_exact_release_environment(root)
+    require_exact_release_environment(root,toolchain_lock=toolchain_lock)
 
     state_dir = root / ".state"
     if state_dir.is_symlink() or (state_dir.exists() and not state_dir.is_dir()):
@@ -893,11 +941,7 @@ def execute(root: Path, out: Path) -> dict:
             admitted=require_valid_final_admission(admission.verify(worktree,expected_source_sha=source_sha))
             if admitted!=initial_admitted:
                 raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_DRIFT")
-            lock = json.loads(
-                (worktree / "lab" / "release-build-toolchain-lock.json").read_text(
-                    encoding="utf-8"
-                )
-            )
+            lock=toolchain_lock
             archive, exact = safe_toolchain_archive(root, lock)
             staged_archive = stage_toolchain_archive(archive, exact, worktree)
             go = extract_toolchain(staged_archive, exact, Path(tool_td))
