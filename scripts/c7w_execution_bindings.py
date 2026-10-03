@@ -57,7 +57,12 @@ def _clean_git_env()->dict[str,str]:
 
 
 def git_head(root:Path)->str:
-    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=_clean_git_env(),text=True,capture_output=True,check=False)
+    root=Path(os.path.abspath(root))
+    git_env=_clean_git_env()
+    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root.resolve():
+        raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_GIT_ROOT_INVALID")
+    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
     value=proc.stdout.strip().lower() if proc.returncode==0 else ""
     if not core.COMMIT.fullmatch(value):
         raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_UNAVAILABLE")
