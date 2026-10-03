@@ -128,9 +128,9 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
 
     source_sha=""
     try:
-        runner.require_c7w_source_freeze(root)
         matrix_path=runner.require_canonical_matrix(root,matrix)
         oauth_path=private_input_path(root,oauth_client_map)
+        runner.require_c7w_source_freeze(root)
         source_sha=git_source_commit(root)
         endpoint_value=campaign.endpoint(endpoint)
         matrix_doc=core.load(matrix_path,"MATRIX")
