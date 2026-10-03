@@ -481,6 +481,10 @@ def seal(args:argparse.Namespace)->dict:
             current=progress_status(args.matrix,state,args.progress_out,require_live=False)
             if not current["complete"]:
                 recovered=recover_complete_progress_from_bulk(args.matrix,p["campaign"],value,args.progress_out)
+                revalidated=core.seal(args.matrix,p["campaign"],p["receipts"],p["audits"])
+                if revalidated!=value:
+                    raise RuntimeError("MCP_EXTERNAL_LOCAL_RECOVERY_BULK_CHANGED_DURING_RECONCILIATION")
+                value=revalidated
                 core.write_json_atomic_replace(args.progress_out,recovered,"MCP_EXTERNAL_INTEROP_PROGRESS")
         progress=progress_status(args.matrix,state,args.progress_out,require_live=False)
         if not progress["complete"]:
