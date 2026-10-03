@@ -12,6 +12,7 @@ import argparse,hashlib,json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import c7w_execution_bindings as execution_bindings
+import c7w_request_identity as request_identity
 import seal_mcp_external_interop as core
 
 AUTHORITY="MCP_EXTERNAL_CLIENT_CAPTURE_V1"
@@ -94,6 +95,8 @@ def validate_packet(packet:dict)->tuple[str,str,dict,dict]:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CLIENT_INVALID")
     if packet.get("runtimeCertified") is not False or packet.get("physicalCertified") is not False:
         raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_SCOPE_INFLATED")
+    if packet.get("requestIdentityAuthority")!=request_identity.AUTHORITY:
+        raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_REQUEST_IDENTITY_INVALID")
     resources,credential_contract=_packet_execution_bindings(packet,source_commit)
     requirements=packet.get("receiptRequirements")
     expected_requirements={
@@ -102,6 +105,7 @@ def validate_packet(packet:dict)->tuple[str,str,dict,dict]:
         "oauthClientId":packet.get("oauthClientId"),"oauthClientWitnessedChecks":list(core.OAUTH_CLIENT_AUDITED_CHECKS),
         "executionBindingAuthority":execution_bindings.AUTHORITY,"executionBindingsSha256":packet.get("executionBindingsSha256"),
         "credentialProfileContractAuthority":credential_contract["authority"],"credentialProfileContractSha256":execution_bindings.credential_contract_digest(),
+        "requestIdentityAuthority":request_identity.AUTHORITY,
         "executedAtRequired":True,"observedRuntimeIdentityRequired":True,"structuredResponseObservationRequired":True,
         "allSevenChecksMustPass":True,"externalExecution":True,"credentialedExecution":True,
     }
@@ -151,6 +155,7 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     if not isinstance(packet_checks,list): raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CHECKS_INVALID")
     expected_ids=[str(x.get("id") or "") for x in packet_checks if isinstance(x,dict)]
     if expected_ids!=list(core.REQUIRED_CHECKS): raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CHECKS_INVALID")
+    request_identity.validate_packet_ids(packet)
     profiles={str((row.get("request") or {}).get("credentialProfile") or "") for row in packet_checks if isinstance(row,dict)}
     if profiles!=set(credential_contract["profiles"]): raise RuntimeError("MCP_EXTERNAL_CAPTURE_PACKET_CREDENTIAL_PROFILE_SET_INVALID")
     parsed_endpoint=core.urlsplit(packet_endpoint); metadata_url=f"{parsed_endpoint.scheme}://{parsed_endpoint.netloc}/.well-known/oauth-protected-resource"
@@ -186,7 +191,7 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
         if method!=canonical_method: raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_SEMANTICS_INVALID {check_id}")
         expected_header_keys={"Content-Type","Accept","MCP-Protocol-Version","Mcp-Method","Mcp-Interop-Binding"}
         if method=="tools/call": expected_header_keys.add("Mcp-Name")
-        if (request.get("httpMethod")!="POST" or request.get("url")!=packet_endpoint or request.get("protocol")!="2026-07-28" or request.get("transport")!="streamable-http" or request.get("contentType")!="application/json" or set(headers)!=expected_header_keys or headers.get("Content-Type")!="application/json" or headers.get("Accept")!="application/json, text/event-stream" or headers.get("MCP-Protocol-Version")!="2026-07-28" or headers.get("Mcp-Method")!=method or headers.get("Mcp-Interop-Binding")!=binding or rpc.get("jsonrpc")!="2.0" or rpc.get("id")!="<unique-jsonrpc-id>" or params.get("_meta")!=expected_meta):
+        if (request.get("httpMethod")!="POST" or request.get("url")!=packet_endpoint or request.get("protocol")!="2026-07-28" or request.get("transport")!="streamable-http" or request.get("contentType")!="application/json" or set(headers)!=expected_header_keys or headers.get("Content-Type")!="application/json" or headers.get("Accept")!="application/json, text/event-stream" or headers.get("MCP-Protocol-Version")!="2026-07-28" or headers.get("Mcp-Method")!=method or headers.get("Mcp-Interop-Binding")!=binding or rpc.get("jsonrpc")!="2.0" or rpc.get("id")!=request_identity.jsonrpc_id(packet.get("campaignId"),client,packet.get("challengeSha256"),check_id) or params.get("_meta")!=expected_meta):
             raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
         if method=="tools/call":
             if params.get("name")!=canonical_tool or params.get("arguments")!=canonical_arguments or headers.get("Mcp-Name")!=canonical_tool: raise RuntimeError(f"MCP_EXTERNAL_CAPTURE_PACKET_WIRE_INVALID {check_id}")
