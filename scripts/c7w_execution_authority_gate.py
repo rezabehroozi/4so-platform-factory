@@ -97,6 +97,7 @@ def validate(root:Path)->list[tuple[str,str]]:
         'AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"',
         'DEFAULT_OUTPUT=Path(".state/private/c7w-execution-bindings.json")',
         "def validate_document",
+        "def canonical_output_path",
         "def materialize",
         "credentialProfileContractSha256",
     )
@@ -108,6 +109,8 @@ def validate(root:Path)->list[tuple[str,str]]:
         "PREPARE_C7W_EXECUTION_BINDINGS" not in preflight
         or "scripts/c7w_execution_bindings.py" not in preflight
         or "executionBindingsSha256" not in preflight
+        or "DEFAULT_EXECUTION_BINDING_REL" not in preflight
+        or "MCP_EXTERNAL_EXECUTION_BINDINGS_PATH_INVALID" not in preflight
     ):
         errors.append(("C7W_EXECUTION_BINDINGS_WIRING_INVALID","scripts/c7w_preflight.py"))
     if 'AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"' not in runner or "def runner_command" not in runner:
