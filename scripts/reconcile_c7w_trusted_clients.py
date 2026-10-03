@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import ssl
+import sys
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -48,8 +49,8 @@ def _registry_url(endpoint_url:str)->str:
     return f"{parsed.scheme}://{parsed.netloc}/api/v1/mcp/trusted-clients"
 
 
-def _json_response(response,label:str,max_bytes:int=2*1024*1024):
-    if response.geturl()!=response.url:
+def _json_response(response,expected_url:str,label:str,max_bytes:int=2*1024*1024):
+    if response.geturl()!=expected_url:
         raise RuntimeError(f"{label}_REDIRECT_FORBIDDEN")
     raw=response.read(max_bytes+1)
     if len(raw)>max_bytes:
@@ -76,7 +77,7 @@ def fetch_rows(endpoint_url:str,token_env:str)->list[dict]:
         with opener.open(req,timeout=20) as response:
             if response.status!=200 or response.geturl()!=url:
                 raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_LIST_HTTP_INVALID")
-            value=_json_response(response,"MCP_EXTERNAL_TRUSTED_CLIENT_LIST")
+            value=_json_response(response,url,"MCP_EXTERNAL_TRUSTED_CLIENT_LIST")
     except HTTPError as exc:
         raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_LIST_HTTP_INVALID status={exc.code}") from exc
     except URLError as exc:
@@ -105,7 +106,7 @@ def create_row(endpoint_url:str,row:dict,token_env:str)->dict:
         with opener.open(req,timeout=20) as response:
             if response.status!=201 or response.geturl()!=url:
                 raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_CREATE_HTTP_INVALID")
-            value=_json_response(response,"MCP_EXTERNAL_TRUSTED_CLIENT_CREATE",max_bytes=256*1024)
+            value=_json_response(response,url,"MCP_EXTERNAL_TRUSTED_CLIENT_CREATE",max_bytes=256*1024)
     except HTTPError as exc:
         raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_CREATE_HTTP_INVALID status={exc.code}") from exc
     except URLError as exc:
@@ -122,14 +123,14 @@ def reconcile_plan(rows:list[dict],bindings:dict[str,str])->dict:
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_CLIENT_SET_INVALID")
 
     create=[]; ready=[]
+    active_rows=[row for row in rows if str(row.get("state") or "").strip().upper()=="ACTIVE"]
     for client in CLIENTS:
         wanted=str(bindings.get(client) or "").strip()
         if not wanted:
             raise RuntimeError(f"MCP_EXTERNAL_OAUTH_BINDINGS_CLIENT_ID_INVALID {client}")
 
-        active=[row for row in rows if str(row.get("state") or "").strip().upper()=="ACTIVE"]
-        exact=[row for row in active if str(row.get("clientId") or "").strip()==wanted]
-        provider_active=[row for row in active if str(row.get("provider") or "").strip().lower()==client]
+        exact=[row for row in active_rows if str(row.get("clientId") or "").strip()==wanted]
+        provider_active=[row for row in active_rows if str(row.get("provider") or "").strip().lower()==client]
 
         # One OAuth client ID must resolve to one ACTIVE Product trust authority row,
         # and one named provider must not retain another ACTIVE OAuth identity.
@@ -142,7 +143,7 @@ def reconcile_plan(rows:list[dict],bindings:dict[str,str])->dict:
             revision=row.get("revision")
             if provider!=client or not trusted_id or type(revision) is not int or revision<=0:
                 raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_CONFLICT {client}")
-            if provider_active and provider_active[0] is not row and str(provider_active[0].get("clientId") or "").strip()!=wanted:
+            if provider_active and str(provider_active[0].get("clientId") or "").strip()!=wanted:
                 raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_CONFLICT {client}")
             ready.append(client)
             continue
@@ -180,10 +181,7 @@ def reconcile(endpoint_url:str,bindings:dict[str,str],token_env:str)->dict:
         "createdProviders":created,
         "readyProviders":list(CLIENTS),
         "nextActionCode":"RUN_C7W_PREFLIGHT",
-        "nextCommand":[
-            os.fspath(Path(os.sys.executable)),
-            "scripts/c7w_preflight.py",
-        ],
+        "nextCommand":[sys.executable,"scripts/c7w_preflight.py"],
         "physicalCertified":False,
     }
 
