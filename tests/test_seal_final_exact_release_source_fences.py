@@ -176,9 +176,18 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
         fake.__enter__.return_value=fake
         fake.__exit__.return_value=False
         fake.getmembers.return_value=[object()]*65537
-        with tempfile.TemporaryDirectory() as td, mock.patch.object(mod.tarfile,"open",return_value=fake):
+        verified=mock.MagicMock()
+        verified.__enter__.return_value=object()
+        verified.__exit__.return_value=False
+        exact={"archiveSize":1024,"archiveSha256":"a"*64}
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(mod.stable_snapshot,"verified_open",return_value=verified) as verified_open, \
+             mock.patch.object(mod.tarfile,"open",return_value=fake):
             with self.assertRaisesRegex(RuntimeError,"MEMBER_COUNT_INVALID"):
-                mod.extract_toolchain(Path(td)/"archive.tgz",{"archiveSize":1024},Path(td)/"out")
+                mod.extract_toolchain(Path(td)/"archive.tgz",exact,Path(td)/"out")
+        verified_open.assert_called_once()
+        self.assertEqual("sha256:"+"a"*64,verified_open.call_args.kwargs["expected_digest"])
+        self.assertEqual(1024,verified_open.call_args.kwargs["expected_size"])
 
     def test_toolchain_extraction_rejects_oversized_regular_member(self):
         member=SimpleNamespace(
@@ -192,9 +201,18 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
         fake.__enter__.return_value=fake
         fake.__exit__.return_value=False
         fake.getmembers.return_value=[member]
-        with tempfile.TemporaryDirectory() as td, mock.patch.object(mod.tarfile,"open",return_value=fake):
+        verified=mock.MagicMock()
+        verified.__enter__.return_value=object()
+        verified.__exit__.return_value=False
+        exact={"archiveSize":1024,"archiveSha256":"b"*64}
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(mod.stable_snapshot,"verified_open",return_value=verified) as verified_open, \
+             mock.patch.object(mod.tarfile,"open",return_value=fake):
             with self.assertRaisesRegex(RuntimeError,"MEMBER_SIZE_INVALID"):
-                mod.extract_toolchain(Path(td)/"archive.tgz",{"archiveSize":1024},Path(td)/"out")
+                mod.extract_toolchain(Path(td)/"archive.tgz",exact,Path(td)/"out")
+        verified_open.assert_called_once()
+        self.assertEqual("sha256:"+"b"*64,verified_open.call_args.kwargs["expected_digest"])
+        self.assertEqual(1024,verified_open.call_args.kwargs["expected_size"])
 
     def test_staged_toolchain_archive_is_bound_to_locked_digest_not_current_source_equality(self):
         with tempfile.TemporaryDirectory() as td:
