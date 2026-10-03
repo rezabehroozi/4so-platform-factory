@@ -53,6 +53,7 @@ class ReleasePackagerEnvironmentTests(unittest.TestCase):
         completed = mock.Mock(returncode=0, stdout="RELEASE_BUILD_PASS archive sha count\n", stderr="")
         with (
             mock.patch.object(mod, "release_tool_authority", return_value=(env["GO"], env)) as authority,
+            mock.patch.object(mod, "verify_packaged_exact_source", return_value=root/"release"/"exact.zip") as source_gate,
             mock.patch.object(mod.subprocess, "run", return_value=completed) as run,
         ):
             result = mod.run_packager(root)
@@ -67,6 +68,7 @@ class ReleasePackagerEnvironmentTests(unittest.TestCase):
             stderr=subprocess.STDOUT,
             check=False,
         )
+        source_gate.assert_called_once_with(root.resolve())
 
     def test_make_and_c9_use_exact_packager_wrapper(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
