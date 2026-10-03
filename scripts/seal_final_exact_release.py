@@ -100,6 +100,14 @@ def exact_release_environment(go: Path) -> dict[str, str]:
     return env
 
 
+def clean_git_env()->dict[str,str]:
+    env=os.environ.copy()
+    for key in list(env):
+        if key.startswith("GIT_"):
+            env.pop(key,None)
+    return env
+
+
 def stable_file_fingerprint(path:Path,label:str)->tuple[str,int]:
     return stable_snapshot.stable_file_fingerprint(path,label)
 
@@ -145,9 +153,11 @@ def run(command: list[str], *, root: Path, env: dict[str, str]) -> str:
 
 
 def git_source(root: Path) -> str:
+    git_env=clean_git_env()
     top = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         cwd=root,
+        env=git_env,
         text=True,
         capture_output=True,
         check=False,
@@ -157,6 +167,7 @@ def git_source(root: Path) -> str:
     branch = subprocess.run(
         ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
         cwd=root,
+        env=git_env,
         text=True,
         capture_output=True,
         check=False,
@@ -166,6 +177,7 @@ def git_source(root: Path) -> str:
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=root,
+        env=git_env,
         text=True,
         capture_output=True,
         check=False,
@@ -175,6 +187,7 @@ def git_source(root: Path) -> str:
     indexed = subprocess.run(
         ["git", "ls-files", "-v", "-z"],
         cwd=root,
+        env=git_env,
         capture_output=True,
         check=False,
     )
@@ -186,6 +199,7 @@ def git_source(root: Path) -> str:
     dirty = subprocess.run(
         ["git", "status", "--porcelain", "--untracked-files=all"],
         cwd=root,
+        env=git_env,
         text=True,
         capture_output=True,
         check=False,
@@ -203,10 +217,7 @@ def exact_source_json(root:Path,source_sha:str,relpath:str,label:str,*,max_bytes
     pure=PurePosixPath(str(relpath or ""))
     if pure.is_absolute() or not pure.parts or ".." in pure.parts or any(part in {"","."} for part in pure.parts):
         raise RuntimeError(f"{label}_SOURCE_PATH_INVALID")
-    git_env=os.environ.copy()
-    for key in list(git_env):
-        if key.startswith("GIT_"):
-            git_env.pop(key,None)
+    git_env=clean_git_env()
     top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
     if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root:
         raise RuntimeError(f"{label}_SOURCE_REPOSITORY_INVALID")
@@ -429,10 +440,12 @@ def expected_release(root: Path) -> tuple[Path, Path, str, str]:
 
 
 def prepare_exact_worktree(root: Path, source_sha: str, parent: Path) -> Path:
+    git_env=clean_git_env()
     target = parent / "source"
     proc = subprocess.run(
         ["git", "worktree", "add", "--detach", str(target), source_sha],
         cwd=root,
+        env=git_env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -444,6 +457,7 @@ def prepare_exact_worktree(root: Path, source_sha: str, parent: Path) -> Path:
         head = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=target,
+            env=git_env,
             text=True,
             capture_output=True,
             check=False,
@@ -451,12 +465,14 @@ def prepare_exact_worktree(root: Path, source_sha: str, parent: Path) -> Path:
         indexed = subprocess.run(
             ["git", "ls-files", "-v", "-z"],
             cwd=target,
+            env=git_env,
             capture_output=True,
             check=False,
         )
         dirty = subprocess.run(
             ["git", "status", "--porcelain", "--untracked-files=all"],
             cwd=target,
+            env=git_env,
             text=True,
             capture_output=True,
             check=False,
@@ -469,14 +485,16 @@ def prepare_exact_worktree(root: Path, source_sha: str, parent: Path) -> Path:
             raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_NOT_CLEAN")
         return target
     except Exception:
-        subprocess.run(["git", "worktree", "remove", "--force", str(target)], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        subprocess.run(["git", "worktree", "remove", "--force", str(target)], cwd=root,env=git_env,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         raise
 
 
 def remove_exact_worktree(root: Path, target: Path) -> None:
+    git_env=clean_git_env()
     proc = subprocess.run(
         ["git", "worktree", "remove", "--force", str(target)],
         cwd=root,
+        env=git_env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -484,7 +502,7 @@ def remove_exact_worktree(root: Path, target: Path) -> None:
     )
     if proc.returncode != 0:
         raise RuntimeError(f"FINAL_EXACT_RELEASE_WORKTREE_CLEANUP_FAILED {proc.stdout.strip()}")
-    subprocess.run(["git", "worktree", "prune"], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    subprocess.run(["git", "worktree", "prune"], cwd=root,env=git_env,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 
 def stage_toolchain_archive(archive: Path, exact: dict, worktree: Path) -> Path:
@@ -511,10 +529,11 @@ def stage_toolchain_archive(archive: Path, exact: dict, worktree: Path) -> Path:
 
 
 def verify_worktree_source_unchanged(worktree: Path, source_sha: str, allowed_untracked: set[str] | None = None) -> None:
-    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=worktree, text=True, capture_output=True, check=False)
-    indexed = subprocess.run(["git", "ls-files", "-v", "-z"], cwd=worktree, capture_output=True, check=False)
-    tracked_raw = subprocess.run(["git", "ls-files", "-z"], cwd=worktree, capture_output=True, check=False)
-    status = subprocess.run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd=worktree, capture_output=True, check=False)
+    git_env=clean_git_env()
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=worktree,env=git_env,text=True,capture_output=True,check=False)
+    indexed = subprocess.run(["git", "ls-files", "-v", "-z"], cwd=worktree,env=git_env,capture_output=True,check=False)
+    tracked_raw = subprocess.run(["git", "ls-files", "-z"], cwd=worktree,env=git_env,capture_output=True,check=False)
+    status = subprocess.run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd=worktree,env=git_env,capture_output=True,check=False)
     index_valid = indexed.returncode == 0 and all(not raw or raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00"))
     allowed=set(allowed_untracked or ())
     try:
@@ -723,10 +742,11 @@ def validate_final_evidence_lineage(root:Path,sealed_sha:str,current_sha:str,out
         raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_INVALID")
     if sealed_sha==current_sha:
         return
-    ancestor=subprocess.run(["git","merge-base","--is-ancestor",sealed_sha,current_sha],cwd=root,capture_output=True,check=False)
+    git_env=clean_git_env()
+    ancestor=subprocess.run(["git","merge-base","--is-ancestor",sealed_sha,current_sha],cwd=root,env=git_env,capture_output=True,check=False)
     if ancestor.returncode!=0:
         raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_NOT_ANCESTOR")
-    diff=subprocess.run(["git","diff","--name-only","-z",sealed_sha+".."+current_sha],cwd=root,capture_output=True,check=False)
+    diff=subprocess.run(["git","diff","--name-only","-z",sealed_sha+".."+current_sha],cwd=root,env=git_env,capture_output=True,check=False)
     if diff.returncode!=0:
         raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_DELTA_UNAVAILABLE")
     changed={raw.decode("utf-8",errors="strict") for raw in diff.stdout.split(b"\x00") if raw}
@@ -739,10 +759,11 @@ def validate_final_evidence_lineage(root:Path,sealed_sha:str,current_sha:str,out
 
 
 def git_source_for_resume(root: Path, out: Path) -> str:
-    top = subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,text=True,capture_output=True,check=False)
-    branch = subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,text=True,capture_output=True,check=False)
-    head = subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
-    indexed = subprocess.run(["git","ls-files","-v","-z"],cwd=root,capture_output=True,check=False)
+    git_env=clean_git_env()
+    top = subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    branch = subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    head = subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    indexed = subprocess.run(["git","ls-files","-v","-z"],cwd=root,env=git_env,capture_output=True,check=False)
     if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root or branch.returncode!=0 or branch.stdout.strip()!="main" or head.returncode!=0 or not re.fullmatch(r"[0-9a-f]{40}",head.stdout.strip()):
         raise RuntimeError("FINAL_EXACT_RELEASE_GIT_SOURCE_INVALID")
     if indexed.returncode!=0 or any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
@@ -751,7 +772,7 @@ def git_source_for_resume(root: Path, out: Path) -> str:
         out_rel=out.resolve().relative_to(root).as_posix()
     except ValueError as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_OUTSIDE_REPOSITORY") from exc
-    status=subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,capture_output=True,check=False)
+    status=subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,env=git_env,capture_output=True,check=False)
     if status.returncode!=0:
         raise RuntimeError("FINAL_EXACT_RELEASE_GIT_STATUS_UNAVAILABLE")
     dirty=[]
@@ -778,8 +799,9 @@ def final_git_handoff(root:Path,out:Path,evidence:dict)->dict:
     sealed_sha=str(evidence.get("sourceCommitSHA") or "").strip().lower()
     validate_final_evidence_lineage(root,sealed_sha,current_sha,out)
     rel=out.resolve().relative_to(root).as_posix()
-    tracked=subprocess.run(["git","ls-files","--error-unmatch",rel],cwd=root,text=True,capture_output=True,check=False)
-    status=subprocess.run(["git","status","--porcelain=v1","--",rel],cwd=root,text=True,capture_output=True,check=False)
+    git_env=clean_git_env()
+    tracked=subprocess.run(["git","ls-files","--error-unmatch",rel],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    status=subprocess.run(["git","status","--porcelain=v1","--",rel],cwd=root,env=git_env,text=True,capture_output=True,check=False)
     if status.returncode!=0:
         return {
             "nextActionCode":"INSPECT_C9_EVIDENCE_GIT_STATE",
