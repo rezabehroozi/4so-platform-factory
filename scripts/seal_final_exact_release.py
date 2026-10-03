@@ -685,6 +685,12 @@ def git_source_for_resume(root: Path, out: Path) -> str:
 
 def final_git_handoff(root:Path,out:Path,evidence:dict)->dict:
     root=root.resolve()
+    try:
+        persisted,_=admission.mcp_contract.load_with_sha256(out,"FINAL_EXACT_RELEASE_EXISTING_EVIDENCE",max_bytes=1024*1024)
+    except RuntimeError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_HANDOFF_INVALID") from exc
+    if persisted!=evidence:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_HANDOFF_DRIFT")
     current_sha=git_source_for_resume(root,out)
     sealed_sha=str(evidence.get("sourceCommitSHA") or "").strip().lower()
     validate_final_evidence_lineage(root,sealed_sha,current_sha,out)
@@ -762,8 +768,8 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
     current_sha=git_source_for_resume(root,out)
     try:
-        evidence=json.loads(out.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+        evidence,evidence_snapshot_sha256=admission.mcp_contract.load_with_sha256(out,"FINAL_EXACT_RELEASE_EXISTING_EVIDENCE",max_bytes=1024*1024)
+    except RuntimeError as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
     if not isinstance(evidence,dict) or set(evidence)!=FINAL_EVIDENCE_KEYS:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_FIELDS_INVALID")
@@ -825,6 +831,12 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
     except (zipfile.BadZipFile,KeyError,OSError) as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_INVALID") from exc
     verify_existing_release_full(root,source_sha,release)
+    try:
+        _,evidence_after_sha256=admission.mcp_contract.load_with_sha256(out,"FINAL_EXACT_RELEASE_EXISTING_EVIDENCE",max_bytes=1024*1024)
+    except RuntimeError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_CHANGED_DURING_RESUME") from exc
+    if evidence_after_sha256!=evidence_snapshot_sha256:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_CHANGED_DURING_RESUME")
     if git_source_for_resume(root,out)!=current_sha:
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_RESUME")
     validate_final_evidence_lineage(root,source_sha,current_sha,out)
