@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -14,6 +15,9 @@ SPEC.loader.exec_module(mod)
 
 
 class C7WPreflightTests(unittest.TestCase):
+    def git(self,root,*args):
+        return subprocess.run(["git",*args],cwd=root,text=True,capture_output=True,check=True).stdout.strip()
+
     def test_missing_inputs_are_machine_actionable_without_network(self):
         with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
             out=mod.preflight(Path(td),ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
@@ -22,6 +26,26 @@ class C7WPreflightTests(unittest.TestCase):
         self.assertEqual(["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],out["requiredInputs"])
         self.assertEqual([],out["nextCommand"])
         self.assertFalse(out["physicalCertified"])
+
+    def test_existing_source_state_routes_to_status_without_secrets_or_network(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
+            root=Path(td)
+            self.git(root,"init","-b","main")
+            self.git(root,"config","user.email","test@example.invalid")
+            self.git(root,"config","user.name","Test")
+            (root/"seed.txt").write_text("seed\n")
+            self.git(root,"add","seed.txt"); self.git(root,"commit","-m","seed")
+            source_sha=self.git(root,"rev-parse","HEAD")
+            state=root/f".state/c7w-external-interop-{source_sha[:12]}"; state.mkdir(parents=True)
+            with mock.patch.object(mod.campaign,"live_preflight",side_effect=AssertionError("network must not run before status recovery")):
+                out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
+        self.assertFalse(out["ready"])
+        self.assertEqual("RUN_C7W_STATUS",out["nextActionCode"])
+        self.assertEqual([],out["requiredInputs"])
+        self.assertEqual(source_sha,out["sourceCommitSHA"])
+        self.assertEqual(str(Path(f".state/c7w-external-interop-{source_sha[:12]}")),out["stateDir"])
+        self.assertEqual("status",out["nextCommand"][-1])
+        self.assertNotIn("C7W_PLATFORM_ADMIN_TOKEN",str(out))
 
     def test_source_freeze_failure_is_not_misclassified_as_environment_input(self):
         with tempfile.TemporaryDirectory() as td:
@@ -66,7 +90,7 @@ class C7WPreflightTests(unittest.TestCase):
                 mock.patch.dict(os.environ,{"TOKEN":"super-secret"},clear=False),
                 mock.patch.object(mod.runner,"require_c7w_source_freeze"),
                 mock.patch.object(mod.runner,"require_canonical_matrix",return_value=canonical),
-                mock.patch.object(mod.campaign,"source_commit_sha",return_value="a"*40),
+                mock.patch.object(mod,"git_source_commit",return_value="a"*40),
                 mock.patch.object(mod.core,"load",return_value={"authority":mod.core.MATRIX_AUTHORITY,"spec":{}}),
                 mock.patch.object(mod.core,"validate_matrix_contract",return_value={}),
                 mock.patch.object(mod.campaign,"endpoint",return_value="https://mcp.example.test/mcp"),
