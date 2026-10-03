@@ -104,6 +104,23 @@ def stable_file_fingerprint(path:Path,label:str)->tuple[str,int]:
     return stable_snapshot.stable_file_fingerprint(path,label)
 
 
+def verify_release_archive_exact_source(
+    root:Path,
+    release:Path,
+    source_sha:str,
+    *,
+    expected_digest:str,
+    expected_size:int,
+)->None:
+    stable_snapshot.verify_release_archive_exact_source(
+        root,
+        release,
+        source_sha,
+        expected_digest=expected_digest,
+        expected_size=expected_size,
+    )
+
+
 def sha256(path: Path) -> str:
     return stable_file_fingerprint(path,"FINAL_EXACT_RELEASE")[0]
 
@@ -822,8 +839,19 @@ def verify_existing_release_full(root: Path, source_sha: str, release: Path) -> 
             staged_archive=stage_toolchain_archive(archive,exact,worktree)
             go=extract_toolchain(staged_archive,exact,Path(tool_td))
             env=exact_release_environment(go)
+            release_snapshot=stable_file_fingerprint(release,"FINAL_EXACT_RELEASE_RESUME_SOURCE_ARCHIVE")
+            verify_release_archive_exact_source(
+                worktree,
+                release,
+                source_sha,
+                expected_digest=release_snapshot[0],
+                expected_size=release_snapshot[1],
+            )
             run([sys.executable,"scripts/verify_release_build_toolchain.py","--require-admitted","--archive",str(staged_archive)],root=worktree,env=env)
             run([sys.executable,"scripts/verify_release.py",str(release),"--full"],root=worktree,env=env)
+            release_after=stable_file_fingerprint(release,"FINAL_EXACT_RELEASE_RESUME_SOURCE_ARCHIVE")
+            if release_after!=release_snapshot:
+                raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_CHANGED_DURING_FULL_VERIFY")
             verify_worktree_source_unchanged(worktree,source_sha,{staged_archive.relative_to(worktree).as_posix()})
         finally:
             remove_exact_worktree(root,worktree)
@@ -969,7 +997,14 @@ def execute(root: Path, out: Path) -> dict:
             run([sys.executable, "scripts/package_release_exact.py", "--root", "."], root=worktree, env=env)
 
             release, stage, version, release_name = expected_release(worktree)
-            sha256(release)
+            packaged_snapshot=stable_file_fingerprint(release,"FINAL_EXACT_RELEASE_PACKAGED_SOURCE_ARCHIVE")
+            verify_release_archive_exact_source(
+                worktree,
+                release,
+                source_sha,
+                expected_digest=packaged_snapshot[0],
+                expected_size=packaged_snapshot[1],
+            )
             if not stage.is_dir() or stage.is_symlink():
                 raise RuntimeError("FINAL_EXACT_RELEASE_STAGE_INVALID")
 
@@ -979,6 +1014,8 @@ def execute(root: Path, out: Path) -> dict:
                 env=env,
             )
             verified_release_digest,verified_release_size=stable_file_fingerprint(release,"FINAL_EXACT_RELEASE_VERIFIED_ARCHIVE")
+            if (verified_release_digest,verified_release_size)!=packaged_snapshot:
+                raise RuntimeError("FINAL_EXACT_RELEASE_ARCHIVE_CHANGED_DURING_FULL_VERIFY")
             checksum_source=release.with_name(release.name+".sha256")
             verify_release_checksum(release,checksum_source,"FINAL_EXACT_RELEASE_VERIFIED")
             verified_checksum_digest,verified_checksum_size=stable_file_fingerprint(checksum_source,"FINAL_EXACT_RELEASE_VERIFIED_CHECKSUM")
