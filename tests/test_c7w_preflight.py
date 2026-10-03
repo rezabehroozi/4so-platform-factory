@@ -25,9 +25,9 @@ class C7WPreflightTests(unittest.TestCase):
 
     def test_source_freeze_failure_is_not_misclassified_as_environment_input(self):
         with tempfile.TemporaryDirectory() as td:
-            oauth=Path(td)/"oauth.json"; oauth.write_text("{}")
+            root=Path(td); private=root/".state"/"private"; private.mkdir(parents=True); oauth=private/"oauth.json"; oauth.write_text("{}")
             with mock.patch.dict(os.environ,{"TOKEN":"secret"},clear=False), mock.patch.object(mod.runner,"require_c7w_source_freeze",side_effect=RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")):
-                out=mod.preflight(Path(td),ROOT/"lab/mcp-external-client-interop-matrix.json","https://mcp.example.test/mcp",oauth,"TOKEN")
+                out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","https://mcp.example.test/mcp",oauth,"TOKEN")
         self.assertFalse(out["ready"])
         self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",out["nextActionCode"])
         self.assertEqual(["git","status","--short"],out["nextCommand"])
@@ -35,7 +35,7 @@ class C7WPreflightTests(unittest.TestCase):
 
     def test_runtime_source_drift_gets_deployment_action_not_generic_failure(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); oauth=root/"oauth.json"; oauth.write_text("{}")
+            root=Path(td); private=root/".state"/"private"; private.mkdir(parents=True); oauth=private/"oauth.json"; oauth.write_text("{}")
             canonical=ROOT/"lab/mcp-external-client-interop-matrix.json"
             with (
                 mock.patch.dict(os.environ,{"TOKEN":"secret"},clear=False),
@@ -56,7 +56,7 @@ class C7WPreflightTests(unittest.TestCase):
 
     def test_ready_preflight_returns_exact_prepare_command_without_secret(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); oauth=root/"oauth.json"; oauth.write_text("{}")
+            root=Path(td); private=root/".state"/"private"; private.mkdir(parents=True); oauth=private/"oauth.json"; oauth.write_text("{}")
             canonical=ROOT/"lab/mcp-external-client-interop-matrix.json"
             bindings={c:c+"-oauth" for c in mod.core.CLIENTS}
             trusted={c:{"trustedClientId":"trusted-"+c} for c in mod.core.CLIENTS}
@@ -82,11 +82,13 @@ class C7WPreflightTests(unittest.TestCase):
         self.assertEqual(4,out["trustedClientCount"])
         self.assertEqual("sha256:"+"b"*64,out["oauthClientBindingsSha256"])
         self.assertEqual(str(canonical),out["matrixPath"])
+        self.assertEqual(str(oauth),out["oauthClientMapPath"])
         self.assertIn("scripts/run_mcp_external_interop.py",out["nextCommand"])
         self.assertIn("--matrix",out["nextCommand"])
         self.assertIn(str(canonical),out["nextCommand"])
         self.assertIn("--endpoint",out["nextCommand"])
         self.assertIn("--oauth-client-map",out["nextCommand"])
+        self.assertIn(str(oauth),out["nextCommand"])
         self.assertIn("--token-env",out["nextCommand"])
         self.assertNotIn("super-secret",str(out))
         self.assertFalse(out["physicalCertified"])
