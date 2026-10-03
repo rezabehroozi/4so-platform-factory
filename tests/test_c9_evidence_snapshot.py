@@ -1,5 +1,4 @@
 import importlib.util
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,14 +9,7 @@ mod=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(mod)
 
 
 class C9EvidenceSnapshotTests(unittest.TestCase):
-    def test_existing_evidence_snapshot_reads_one_regular_json_file(self):
-        with tempfile.TemporaryDirectory() as td:
-            path=Path(td)/"evidence.json"
-            expected={"authority":"unit","sourceCommitSHA":"a"*40}
-            path.write_text(json.dumps(expected)+"\n",encoding="utf-8")
-            self.assertEqual(expected,mod.load_existing_evidence_snapshot(path))
-
-    def test_existing_evidence_snapshot_rejects_symlink(self):
+    def test_existing_evidence_resume_rejects_symlink(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
             target=root/"target.json"; target.write_text("{}\n",encoding="utf-8")
@@ -27,15 +19,16 @@ class C9EvidenceSnapshotTests(unittest.TestCase):
             except OSError as exc:
                 self.skipTest(f"symlink creation unavailable: {exc}")
             with self.assertRaisesRegex(RuntimeError,"EXISTING_EVIDENCE_INVALID"):
-                mod.load_existing_evidence_snapshot(link)
+                mod.resume_existing_evidence(root,link)
 
-    def test_resume_source_uses_snapshot_loader_not_path_read_text(self):
+    def test_resume_path_keeps_full_release_revalidation(self):
         source=(ROOT/"scripts"/"seal_final_exact_release.py").read_text(encoding="utf-8")
         start=source.index("def resume_existing_evidence")
         end=source.index("\ndef execute",start)
         block=source[start:end]
-        self.assertIn("load_existing_evidence_snapshot(out)",block)
-        self.assertNotIn("out.read_text",block)
+        self.assertIn("verify_existing_release_full(root,source_sha,release)",block)
+        self.assertIn("validate_final_evidence_lineage(root,source_sha,current_sha,out)",block)
+        self.assertIn("FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_RESUME",block)
 
 
 if __name__=="__main__":
