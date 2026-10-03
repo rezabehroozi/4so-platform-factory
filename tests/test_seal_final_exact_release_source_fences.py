@@ -46,7 +46,7 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
     def test_c9_fails_fast_outside_exact_linux_build_host(self):
         with mock.patch.object(mod.sys,"platform","win32"):
             with self.assertRaisesRegex(RuntimeError,"LINUX_AMD64_HOST_REQUIRED"):
-                mod.execute(Path("."),Path("lab/final-exact-release-evidence.json"))
+                mod.require_exact_release_host()
 
     def test_c9_host_gate_accepts_linux(self):
         with mock.patch.object(mod.sys,"platform","linux"):
