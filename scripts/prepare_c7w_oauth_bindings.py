@@ -8,7 +8,6 @@ private binding document consumed by C7W preflight.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import stat
@@ -61,26 +60,29 @@ def _validate_clients(clients:dict[str,str])->dict[str,str]:
     return normalized
 
 
+def _ensure_private_directory(root:Path,relative:Path)->Path:
+    current=root
+    for part in relative.parts:
+        current=current/part
+        if current.exists() or current.is_symlink():
+            if current.is_symlink() or not current.is_dir():
+                raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_PATH_INVALID")
+        else:
+            current.mkdir(mode=0o700)
+        if os.name!="nt":
+            current.chmod(0o700)
+    return current
+
+
 def _safe_private_parent(output:Path,root:Path)->None:
-    boundary=root/".state"/"private"
-    boundary.mkdir(parents=True,exist_ok=True)
-    candidate=root
-    for part in Path(".state/private").parts:
-        candidate=candidate/part
-        if candidate.is_symlink() or not candidate.is_dir():
-            raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_PATH_INVALID")
-    parent=output.parent
-    parent.mkdir(parents=True,exist_ok=True)
+    boundary=_ensure_private_directory(root,Path(".state/private"))
     try:
-        parent.resolve().relative_to(boundary.resolve())
+        relative=output.parent.relative_to(boundary)
     except ValueError as exc:
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_PATH_INVALID") from exc
-    cursor=boundary
-    relative=parent.relative_to(boundary)
-    for part in relative.parts:
-        cursor=cursor/part
-        if cursor.is_symlink() or not cursor.is_dir():
-            raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_PATH_INVALID")
+    parent=_ensure_private_directory(boundary,relative)
+    if parent.is_symlink() or not parent.is_dir():
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_PATH_INVALID")
 
 
 def _existing_bytes(output:Path)->bytes|None:
@@ -89,7 +91,12 @@ def _existing_bytes(output:Path)->bytes|None:
     if output.is_symlink():
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT")
     info=output.lstat()
-    if not stat.S_ISREG(info.st_mode) or info.st_size<=0 or info.st_size>64*1024:
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_size<=0
+        or info.st_size>64*1024
+        or (os.name!="nt" and stat.S_IMODE(info.st_mode)&0o077)
+    ):
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT")
     return output.read_bytes()
 
@@ -121,11 +128,11 @@ def materialize(output:Path,clients:dict[str,str],*,root:Path|None=None)->dict:
                     raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT")
             if os.name!="nt":
                 output.chmod(0o600)
-            directory_fd=os.open(output.parent,os.O_RDONLY)
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+                directory_fd=os.open(output.parent,os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
         finally:
             if temp.exists():
                 temp.unlink()
