@@ -24,10 +24,12 @@ class ReleasePackagerEnvironmentTests(unittest.TestCase):
         mod = load_wrapper()
         root = Path("/repo")
         clean_env = {"PATH": "/safe", "GOWORK": "off", "GOFLAGS": ""}
+        toolchain_spec={"exactCompiler":{},"exactCGOToolchain":{}}
         with (
             mock.patch.dict(os.environ, {"GO": "/opt/exact-go/bin/go"}, clear=True),
             mock.patch.object(mod.release_binary_builder, "require_release_build_host") as host_gate,
             mock.patch.object(mod.release_binary_builder, "release_build_environment", return_value=clean_env.copy()) as build_env,
+            mock.patch.object(mod.release_binary_builder, "admitted_toolchain_spec", return_value=toolchain_spec) as admitted,
             mock.patch.object(mod.release_binary_builder, "require_go_binary_identity") as go_identity,
             mock.patch.object(mod.release_binary_builder, "require_cgo_toolchain_identity") as cgo_identity,
         ):
@@ -38,9 +40,11 @@ class ReleasePackagerEnvironmentTests(unittest.TestCase):
         self.assertEqual("/opt/exact-go/bin/go", env["GO"])
         host_gate.assert_called_once_with()
         build_env.assert_called_once_with()
-        go_identity.assert_called_once_with(root, "/opt/exact-go/bin/go", mock.ANY)
-        cgo_identity.assert_called_once_with(root, mock.ANY)
+        admitted.assert_called_once_with(root)
+        go_identity.assert_called_once_with(root, "/opt/exact-go/bin/go", mock.ANY, toolchain_spec)
+        cgo_identity.assert_called_once_with(root, mock.ANY, toolchain_spec)
         self.assertIs(go_identity.call_args.args[2], cgo_identity.call_args.args[1])
+        self.assertIs(go_identity.call_args.args[3], cgo_identity.call_args.args[2])
 
     def test_packager_runs_legacy_packager_only_inside_exact_environment(self):
         mod = load_wrapper()
