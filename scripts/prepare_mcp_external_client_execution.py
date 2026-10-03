@@ -5,6 +5,7 @@ import argparse,hashlib,json
 from pathlib import Path
 from urllib.parse import urlsplit
 import c7w_execution_bindings as execution_bindings
+import c7w_request_identity as request_identity
 import seal_mcp_external_interop as core
 
 AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_PACKET_V1"
@@ -65,9 +66,10 @@ def packet(matrix_path:Path,campaign_path:Path,client:str)->dict:
       "io.4so/sourceCommitSHA":campaign["sourceCommitSHA"],
       "io.4so/runtimeVersion":campaign["runtimeVersion"],
     }
-    def mcp_request(method:str,credential_profile:str,*,tool:str|None=None,arguments:dict|None=None)->dict:
+    def mcp_request(check_id:str,method:str,credential_profile:str,*,tool:str|None=None,arguments:dict|None=None)->dict:
         if credential_profile not in credential_contract["profiles"]:
             raise RuntimeError("MCP_EXTERNAL_EXECUTION_PACKET_CREDENTIAL_PROFILE_INVALID")
+        rpc_id=request_identity.jsonrpc_id(campaign["campaignId"],client,challenge["challengeSha256"],check_id)
         headers={
           "Content-Type":"application/json",
           "Accept":"application/json, text/event-stream",
@@ -83,22 +85,22 @@ def packet(matrix_path:Path,campaign_path:Path,client:str)->dict:
         return {
           "httpMethod":"POST","url":ep,"protocol":spec["protocol"],"transport":spec["transport"],
           "contentType":"application/json","credentialProfile":credential_profile,"headers":headers,
-          "jsonRpc":{"jsonrpc":"2.0","id":"<unique-jsonrpc-id>","method":method,"params":params},
+          "jsonRpc":{"jsonrpc":"2.0","id":rpc_id,"method":method,"params":params},
           "captureRequestIdFrom":["response-header:X-Request-ID","success-json:result._meta.io.4so/requestId"],
         }
     checks=[
       {"id":"oauth-protected-resource-discovery","request":{"httpMethod":"GET","url":base+"/.well-known/oauth-protected-resource","credentialProfile":"none","headers":{"Accept":"application/json"}},"expect":{"httpStatus":200,"resource":ep,"scopesContain":["mcp.read","mcp.operate"]},"serverAuditWitnessRequired":False},
-      {"id":"dedicated-audience-validation","request":mcp_request("tools/list","valid-user-token-wrong-resource-audience"),"expect":{"httpStatus":401,"accepted":False},"serverAudit":{"category":"AUTHENTICATION","decision":"DENY","reasonCode":"OIDC_AUTHENTICATION_REJECTED"}},
-      {"id":"authorization-filtered-tools-list","request":mcp_request("tools/list","campaign-delegated-user"),"expect":{"httpStatus":200,"toolListFilteredByDelegation":True,"sourceCommitSHA":campaign["sourceCommitSHA"],"runtimeVersion":campaign["runtimeVersion"]},"captureRuntimeIdentityFrom":{"sourceCommitSHA":"success-json:result._meta.io.modelcontextprotocol/serverInfo.sourceCommitSHA","runtimeVersion":"success-json:result._meta.io.modelcontextprotocol/serverInfo.version"},"serverAudit":{"category":"CAPABILITY_AUTHORIZATION","decision":"ALLOW","reasonCode":"CAPABILITY_AUTHORIZED"}},
-      {"id":"project-resource-scope-negative-control","request":mcp_request("tools/call","project-scoped-delegation",tool="ops_search",arguments={"projectId":resources["foreignProjectId"],"query":"scope-negative-control"}),"expect":{"accepted":False,"foreignProjectDataReturned":False},"serverAudit":{"category":"SCOPE_AUTHORIZATION","decision":"DENY","reasonCode":"PROJECT_ACCESS_DENIED"}},
-      {"id":"revoked-delegation-negative-control","request":mcp_request("tools/list","revoked-campaign-delegation"),"expect":{"accepted":False},"serverAudit":{"category":"DELEGATION_AUTHORIZATION","decision":"DENY","reasonCode":"MCP_DELEGATION_INACTIVE"}},
-      {"id":"read-only-client-mutation-negative-control","request":mcp_request("tools/call","view-delegation",tool="operation_cancel",arguments={"id":resources["sameProjectOperationId"],"expectedRevision":1,"reason":"interop negative control"}),"expect":{"accepted":False,"mutationObserved":False},"serverAudit":{"category":"CAPABILITY_AUTHORIZATION","decision":"DENY","reasonCode":"CAPABILITY_PERMISSION_REQUIRED"}},
-      {"id":"administration-approval-self-approval-negative-control","request":mcp_request("tools/call","administration-delegation-requester",tool="managed_okd_install_approve",arguments={"id":resources["selfApprovalRequestId"],"expectedRevision":1}),"expect":{"accepted":False,"selfApprovalObserved":False},"serverAudit":{"category":"APPROVAL_AUTHORIZATION","decision":"DENY","reasonCode":"SEPARATION_OF_DUTIES_REQUIRED"}},
+      {"id":"dedicated-audience-validation","request":mcp_request("dedicated-audience-validation","tools/list","valid-user-token-wrong-resource-audience"),"expect":{"httpStatus":401,"accepted":False},"serverAudit":{"category":"AUTHENTICATION","decision":"DENY","reasonCode":"OIDC_AUTHENTICATION_REJECTED"}},
+      {"id":"authorization-filtered-tools-list","request":mcp_request("authorization-filtered-tools-list","tools/list","campaign-delegated-user"),"expect":{"httpStatus":200,"toolListFilteredByDelegation":True,"sourceCommitSHA":campaign["sourceCommitSHA"],"runtimeVersion":campaign["runtimeVersion"]},"captureRuntimeIdentityFrom":{"sourceCommitSHA":"success-json:result._meta.io.modelcontextprotocol/serverInfo.sourceCommitSHA","runtimeVersion":"success-json:result._meta.io.modelcontextprotocol/serverInfo.version"},"serverAudit":{"category":"CAPABILITY_AUTHORIZATION","decision":"ALLOW","reasonCode":"CAPABILITY_AUTHORIZED"}},
+      {"id":"project-resource-scope-negative-control","request":mcp_request("project-resource-scope-negative-control","tools/call","project-scoped-delegation",tool="ops_search",arguments={"projectId":resources["foreignProjectId"],"query":"scope-negative-control"}),"expect":{"accepted":False,"foreignProjectDataReturned":False},"serverAudit":{"category":"SCOPE_AUTHORIZATION","decision":"DENY","reasonCode":"PROJECT_ACCESS_DENIED"}},
+      {"id":"revoked-delegation-negative-control","request":mcp_request("revoked-delegation-negative-control","tools/list","revoked-campaign-delegation"),"expect":{"accepted":False},"serverAudit":{"category":"DELEGATION_AUTHORIZATION","decision":"DENY","reasonCode":"MCP_DELEGATION_INACTIVE"}},
+      {"id":"read-only-client-mutation-negative-control","request":mcp_request("read-only-client-mutation-negative-control","tools/call","view-delegation",tool="operation_cancel",arguments={"id":resources["sameProjectOperationId"],"expectedRevision":1,"reason":"interop negative control"}),"expect":{"accepted":False,"mutationObserved":False},"serverAudit":{"category":"CAPABILITY_AUTHORIZATION","decision":"DENY","reasonCode":"CAPABILITY_PERMISSION_REQUIRED"}},
+      {"id":"administration-approval-self-approval-negative-control","request":mcp_request("administration-approval-self-approval-negative-control","tools/call","administration-delegation-requester",tool="managed_okd_install_approve",arguments={"id":resources["selfApprovalRequestId"],"expectedRevision":1}),"expect":{"accepted":False,"selfApprovalObserved":False},"serverAudit":{"category":"APPROVAL_AUTHORIZATION","decision":"DENY","reasonCode":"SEPARATION_OF_DUTIES_REQUIRED"}},
     ]
     profiles={row["request"]["credentialProfile"] for row in checks}
     if profiles!=set(credential_contract["profiles"]):
         raise RuntimeError("MCP_EXTERNAL_EXECUTION_PACKET_CREDENTIAL_PROFILE_SET_INVALID")
-    return {
+    out={
       "apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientExecutionPacket","authority":AUTHORITY,
       "matrixAuthority":core.MATRIX_AUTHORITY,"campaignAuthority":core.CAMPAIGN_AUTHORITY,
       "campaignId":campaign["campaignId"],"campaignCreatedAt":campaign["createdAt"],"campaignExpiresAt":campaign["expiresAt"],
@@ -109,7 +111,7 @@ def packet(matrix_path:Path,campaign_path:Path,client:str)->dict:
       "executionBindingAuthority":execution_bindings.AUTHORITY,"executionBindingsSha256":binding_sha,"executionBindings":resources,
       "credentialProfileContractAuthority":credential_contract["authority"],"credentialProfileContractSha256":credential_digest,
       "credentialProfileContract":credential_contract,
-      "requestMeta":request_meta,"checks":checks,
+      "requestIdentityAuthority":request_identity.AUTHORITY,"requestMeta":request_meta,"checks":checks,
       "receiptRequirements":{
         "authority":core.RECEIPT_AUTHORITY,"captureAuthority":"MCP_EXTERNAL_CLIENT_CAPTURE_V1",
         "finalizer":"python3 scripts/finalize_mcp_external_client_receipt.py --packet <packet.json> --capture <capture.json> --out <receipt.json>",
@@ -118,11 +120,14 @@ def packet(matrix_path:Path,campaign_path:Path,client:str)->dict:
         "oauthClientWitnessedChecks":list(core.OAUTH_CLIENT_AUDITED_CHECKS),
         "executionBindingAuthority":execution_bindings.AUTHORITY,"executionBindingsSha256":binding_sha,
         "credentialProfileContractAuthority":credential_contract["authority"],"credentialProfileContractSha256":credential_digest,
+        "requestIdentityAuthority":request_identity.AUTHORITY,
         "executedAtRequired":True,"observedRuntimeIdentityRequired":True,"structuredResponseObservationRequired":True,
         "allSevenChecksMustPass":True,"externalExecution":True,"credentialedExecution":True,
       },
       "secretsIncluded":False,"runtimeCertified":False,"physicalCertified":False,
     }
+    request_identity.validate_packet_ids(out)
+    return out
 
 def main()->int:
     p=argparse.ArgumentParser(); p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json")); p.add_argument("--campaign",type=Path,required=True); p.add_argument("--client",choices=core.CLIENTS,required=True); p.add_argument("--out",type=Path,required=True)
