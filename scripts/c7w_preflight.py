@@ -19,6 +19,7 @@ except ModuleNotFoundError:
     from scripts import seal_mcp_external_interop as core
 
 AUTHORITY="MCP_EXTERNAL_PREFLIGHT_HANDOFF_V1"
+PRIVATE_INPUT_REL=Path(".state/private")
 
 
 def git_source_commit(root:Path)->str:
@@ -30,14 +31,24 @@ def git_source_commit(root:Path)->str:
     return value
 
 
-def root_input_path(root:Path,path:Path)->Path:
+def private_input_path(root:Path,path:Path)->Path:
     root=Path(os.path.abspath(root))
+    boundary=Path(os.path.abspath(root/PRIVATE_INPUT_REL))
     raw=Path(path)
     absolute=Path(os.path.abspath(raw if raw.is_absolute() else root/raw))
     try:
-        absolute.relative_to(root)
+        absolute.relative_to(boundary)
     except ValueError as exc:
-        raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_INPUT_PATH_OUTSIDE_ROOT") from exc
+        raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID") from exc
+    for candidate in (absolute,*absolute.parents):
+        if candidate==root:
+            break
+        if candidate.exists() and candidate.is_symlink():
+            raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
+        if candidate==boundary:
+            break
+    if absolute.is_symlink() or not absolute.is_file():
+        raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
     return absolute
 
 
@@ -73,10 +84,11 @@ def _failure(code:str,source_sha:str="")->dict:
             "nextCommand":["git","status","--short"],
             "detail":"restore canonical main, repository-root authority and the C7W canonical matrix/evidence-only source boundary before live interoperability work",
         })
-    elif code.startswith("MCP_EXTERNAL_PREFLIGHT_INPUT_PATH_"):
+    elif code.startswith("MCP_EXTERNAL_PRIVATE_INPUT_"):
         out.update({
             "nextActionCode":"REPAIR_C7W_INPUT_PATHS",
-            "detail":"keep private OAuth binding inputs inside the explicit repository root",
+            "requiredInputs":["C7W_OAUTH_CLIENT_MAP"],
+            "detail":"place the private OAuth binding file under .state/private inside the exact repository root; never track it in Git",
         })
     elif code.startswith("MCP_EXTERNAL_OAUTH_BINDINGS_"):
         out.update({
@@ -118,7 +130,7 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
     try:
         runner.require_c7w_source_freeze(root)
         matrix_path=runner.require_canonical_matrix(root,matrix)
-        oauth_path=root_input_path(root,oauth_client_map)
+        oauth_path=private_input_path(root,oauth_client_map)
         source_sha=git_source_commit(root)
         endpoint_value=campaign.endpoint(endpoint)
         matrix_doc=core.load(matrix_path,"MATRIX")
@@ -163,7 +175,7 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
         "workingDirectory":str(root),
         "nextActionCode":"RUN_C7W_PREPARE",
         "nextCommand":command,
-        "detail":"C7W exact source, canonical matrix, live endpoint, runtime identity and four trusted-client bindings are ready; create the source-bound campaign from workingDirectory",
+        "detail":"C7W exact source, canonical matrix, private OAuth bindings, live endpoint, runtime identity and four trusted-client registrations are ready; create the source-bound campaign from workingDirectory",
     })
     return out
 
