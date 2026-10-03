@@ -251,6 +251,7 @@ def exact_release_environment_preflight(root:Path)->dict:
         "physicalCertified":False,
     }
 
+
 def require_exact_release_environment(root:Path)->dict:
     result=exact_release_environment_preflight(root)
     if not result["ready"]:
@@ -424,175 +425,142 @@ def verify_worktree_source_unchanged(worktree: Path, source_sha: str, allowed_un
     status = subprocess.run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd=worktree, capture_output=True, check=False)
     index_valid = indexed.returncode == 0 and all(not raw or raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00"))
     allowed=set(allowed_untracked or ())
-    status_valid=status.returncode==0 and tracked_raw.returncode==0
-    tracked=set()
-    if status_valid:
-        try:
-            tracked={raw.decode("utf-8",errors="strict") for raw in tracked_raw.stdout.split(b"\x00") if raw}
-        except UnicodeDecodeError:
-            status_valid=False
-    if status_valid:
+    try:
+        tracked={raw.decode("utf-8",errors="strict") for raw in tracked_raw.stdout.split(b"\x00") if raw}
+        dirty=set()
         for raw in status.stdout.split(b"\x00"):
             if not raw:
                 continue
-            if len(raw)>=4 and raw[:2]==b"??" and raw[2:3]==b" ":
-                try:
-                    rel=raw[3:].decode("utf-8",errors="strict")
-                except UnicodeDecodeError:
-                    status_valid=False
-                    break
-                if rel in allowed:
-                    continue
-            status_valid=False
-            break
-    if status_valid:
-        generated_prefixes=("bin/","release/",".state/")
-        for candidate in worktree.rglob("*"):
-            if candidate==worktree/".git" or not (candidate.is_file() or candidate.is_symlink()):
+            if len(raw)<4 or raw[2:3]!=b" ":
+                dirty.add("<invalid-status>")
                 continue
-            rel=candidate.relative_to(worktree).as_posix()
-            if rel in tracked or rel in allowed or any(rel.startswith(prefix) for prefix in generated_prefixes):
-                continue
-            status_valid=False
-            break
-    if head.returncode != 0 or head.stdout.strip() != source_sha or not index_valid or not status_valid:
+            dirty.add(raw[3:].decode("utf-8",errors="strict"))
+    except UnicodeDecodeError:
+        dirty={"<invalid-utf8-status>"}
+    unexpected={path for path in dirty if path not in allowed}
+    allowed_valid=all(path not in tracked for path in allowed)
+    if (
+        head.returncode != 0
+        or head.stdout.strip() != source_sha
+        or not index_valid
+        or tracked_raw.returncode != 0
+        or status.returncode != 0
+        or unexpected
+        or not allowed_valid
+    ):
         raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_SOURCE_CHANGED")
 
 
-def require_published_read_only(path:Path,label:str)->None:
-    try:
-        info=path.lstat()
-    except FileNotFoundError as exc:
-        raise RuntimeError(f"{label}_MISSING {path}") from exc
-    if path.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_size<=0:
-        raise RuntimeError(f"{label}_INVALID {path}")
-    if info.st_mode & 0o222:
-        raise RuntimeError(f"{label}_WRITABLE {path}")
-
-
-def require_publication_directory_read_only(path:Path,label:str)->None:
-    try:
-        info=path.lstat()
-    except FileNotFoundError as exc:
-        raise RuntimeError(f"{label}_MISSING {path}") from exc
-    if path.is_symlink() or not stat.S_ISDIR(info.st_mode):
-        raise RuntimeError(f"{label}_INVALID {path}")
-    if info.st_mode & 0o222:
-        raise RuntimeError(f"{label}_WRITABLE {path}")
-
-
-def seal_publication_directory(path:Path)->None:
-    if path.is_symlink() or not path.is_dir():
-        raise RuntimeError(f"FINAL_EXACT_RELEASE_PUBLICATION_DIRECTORY_INVALID {path}")
-    path.chmod(0o555)
-    require_publication_directory_read_only(path,"FINAL_EXACT_RELEASE_PUBLICATION_DIRECTORY")
-    parent_fd=os.open(path.parent,os.O_RDONLY)
-    try:
-        os.fsync(parent_fd)
-    finally:
-        os.close(parent_fd)
+def exact_release_publication_path(root: Path, source_sha: str, filename: str) -> Path:
+    if not re.fullmatch(r"[0-9a-f]{40}",source_sha):
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_SOURCE_SHA_INVALID")
+    if not filename or Path(filename).name!=filename:
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_FILENAME_INVALID")
+    return root/"release"/"exact-sha"/source_sha/filename
 
 
 def publish_verified_file(source: Path, target: Path) -> Path:
-    try:
-        source_info=source.lstat()
-    except FileNotFoundError as exc:
-        raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_SOURCE_MISSING {source}") from exc
+    source_info=source.lstat()
     if not stat.S_ISREG(source_info.st_mode) or source.is_symlink() or source_info.st_size<=0:
-        raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_SOURCE_INVALID {source}")
-    wanted_size=source_info.st_size
-    wanted=sha256(source)
-    target.parent.mkdir(parents=True, exist_ok=True)
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_SOURCE_INVALID")
+    wanted_digest=sha256(source)
+    target_parent=target.parent
+    for parent in reversed(target_parent.parents):
+        if parent.exists() and (parent.is_symlink() or not parent.is_dir()):
+            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID")
+    target_parent.mkdir(parents=True,exist_ok=True)
+    if target_parent.is_symlink() or not target_parent.is_dir():
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID")
     if target.exists() or target.is_symlink():
-        if target.is_symlink() or not target.is_file() or target.stat().st_size!=wanted_size or sha256(target)!=wanted:
-            raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_CONFLICT {target}")
-        require_published_read_only(target,"FINAL_EXACT_RELEASE_ARTIFACT")
+        if target.is_symlink() or not target.is_file():
+            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_TARGET_INVALID")
+        if target.stat().st_mode & 0o222:
+            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_WRITABLE")
+        if sha256(target)!=wanted_digest or target.stat().st_size!=source_info.st_size:
+            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
         return target
-
-    fd,temp_name=tempfile.mkstemp(prefix="."+target.name+".publish.",dir=target.parent)
+    fd,temp_name=tempfile.mkstemp(prefix="."+target.name+".tmp.",dir=target_parent)
     temp=Path(temp_name)
     try:
-        with source.open("rb") as input_fh, os.fdopen(fd,"wb") as output_fh:
-            shutil.copyfileobj(input_fh,output_fh,length=1024*1024)
-            output_fh.flush()
-            os.fsync(output_fh.fileno())
-        if temp.stat().st_size!=wanted_size or sha256(temp)!=wanted:
-            raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_SOURCE_CHANGED {source}")
+        with os.fdopen(fd,"wb") as out, source.open("rb") as inp:
+            shutil.copyfileobj(inp,out,length=1024*1024)
+            out.flush(); os.fsync(out.fileno())
+        if sha256(temp)!=wanted_digest or temp.stat().st_size!=source_info.st_size:
+            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT")
         temp.chmod(0o444)
         try:
             os.link(temp,target,follow_symlinks=False)
         except FileExistsError:
-            if target.is_symlink() or not target.is_file() or target.stat().st_size!=wanted_size or sha256(target)!=wanted:
-                raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_CONFLICT {target}")
-        if target.stat().st_size!=wanted_size or sha256(target)!=wanted:
-            raise RuntimeError(f"FINAL_EXACT_RELEASE_ARTIFACT_PUBLICATION_DRIFT {target}")
-        require_published_read_only(target,"FINAL_EXACT_RELEASE_ARTIFACT")
-        directory_fd=os.open(target.parent,os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+            if target.is_symlink() or not target.is_file() or target.stat().st_mode&0o222 or sha256(target)!=wanted_digest or target.stat().st_size!=source_info.st_size:
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
+        directory_fd=os.open(target_parent,os.O_RDONLY)
+        try: os.fsync(directory_fd)
+        finally: os.close(directory_fd)
         return target
     finally:
-        if temp.exists():
-            temp.unlink()
+        if temp.exists(): temp.unlink()
+
+
+def seal_publication_directory(path:Path)->None:
+    if path.is_symlink() or not path.is_dir():
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_DIRECTORY_INVALID")
+    path.chmod(0o555)
+    if path.stat().st_mode&0o222:
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_DIRECTORY_WRITABLE")
+
+
+def require_publication_directory_read_only(path:Path,label:str)->None:
+    if path.is_symlink() or not path.is_dir():
+        raise RuntimeError(f"{label}_INVALID")
+    if path.stat().st_mode&0o222:
+        raise RuntimeError(f"{label}_WRITABLE")
+
+
+def require_published_read_only(path:Path,label:str)->None:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size<=0:
+        raise RuntimeError(f"{label}_INVALID")
+    if path.stat().st_mode&0o222:
+        raise RuntimeError(f"{label}_WRITABLE")
 
 
 def verify_release_checksum(release:Path,checksum:Path,label:str)->None:
-    digest=sha256(release)
-    try:
-        checksum_info=checksum.lstat()
-        checksum_text=checksum.read_text(encoding="utf-8")
-    except (FileNotFoundError,UnicodeDecodeError,OSError) as exc:
-        raise RuntimeError(f"{label}_CHECKSUM_INVALID") from exc
-    wanted=f"{digest.removeprefix('sha256:')}  {release.name}\n"
-    if not stat.S_ISREG(checksum_info.st_mode) or checksum.is_symlink() or checksum_text!=wanted:
+    if checksum.is_symlink() or not checksum.is_file():
+        raise RuntimeError(f"{label}_CHECKSUM_INVALID")
+    raw=checksum.read_text(encoding="utf-8",errors="strict")
+    expected=sha256(release).removeprefix("sha256:")
+    if raw!=f"{expected}  {release.name}\n":
         raise RuntimeError(f"{label}_CHECKSUM_INVALID")
 
 
-def exact_release_publication_path(root: Path, source_sha: str, filename: str) -> Path:
-    if len(source_sha) != 40 or any(ch not in "0123456789abcdef" for ch in source_sha):
-        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
-    if not filename or "/" in filename or "\\" in filename or filename in {".", ".."}:
-        raise RuntimeError("FINAL_EXACT_RELEASE_ARTIFACT_NAME_INVALID")
-    return admit_output_path(root, root / "release" / "exact-sha" / source_sha / filename)
-
-
-def build_evidence(
-    root: Path,
-    release: Path,
-    stage: Path,
-    admission_row: dict,
-    source_sha: str,
-    version: str,
-    release_name: str,
-) -> dict:
-    if admission_row.get("authority") != admission.AUTHORITY or admission_row.get("admitted") is not True:
-        raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_INVALID")
-    if admission_row.get("physicalCertified") is not False:
-        raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_SCOPE_INFLATED")
-    expected_name = f"4so-platform-factory-{version}-{release_name}"
-    expected_parent=root/"release"/"exact-sha"/source_sha
-    if release.parent!=expected_parent or release.name!=expected_name+".zip" or stage.name!=expected_name:
-        raise RuntimeError("FINAL_EXACT_RELEASE_PATH_INVALID")
+def build_evidence(root: Path, release: Path, stage: Path, admitted: dict, source_sha: str, version: str, release_name: str) -> dict:
+    manifest = stage / "ARTIFACT-MANIFEST.json"
+    provenance = stage / "BUILD-PROVENANCE.json"
+    sbom = stage / "SBOM.spdx.json"
+    for path in (manifest, provenance, sbom):
+        if not path.is_file() or path.is_symlink():
+            raise RuntimeError(f"FINAL_EXACT_RELEASE_METADATA_MISSING {path.name}")
+    published=exact_release_publication_path(root,source_sha,release.name)
+    if release.resolve()!=published.resolve():
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PATH_INVALID")
     require_published_read_only(release,"FINAL_EXACT_RELEASE_ARTIFACT")
     require_publication_directory_read_only(release.parent,"FINAL_EXACT_RELEASE_PUBLICATION_DIRECTORY")
-    prefix=expected_name+"/"
-    metadata_files=("ARTIFACT-MANIFEST.json","BUILD-PROVENANCE.json","SBOM.spdx.json")
-    stage_digests={name:sha256(stage/name) for name in metadata_files}
+    prefix=f"4so-platform-factory-{version}-{release_name}/"
+    expected_embedded={
+        prefix+"ARTIFACT-MANIFEST.json":sha256(manifest),
+        prefix+"BUILD-PROVENANCE.json":sha256(provenance),
+        prefix+"SBOM.spdx.json":sha256(sbom),
+    }
     try:
         with zipfile.ZipFile(release,"r") as archive:
-            names=archive.namelist()
-            embedded={}
-            for name in metadata_files:
-                member=prefix+name
-                if names.count(member)!=1:
-                    raise RuntimeError(f"FINAL_EXACT_RELEASE_METADATA_MEMBER_INVALID {member}")
-                embedded[name]="sha256:"+hashlib.sha256(archive.read(member)).hexdigest()
+            names=set(archive.namelist())
+            for name,wanted in expected_embedded.items():
+                if name not in names:
+                    raise RuntimeError("FINAL_EXACT_RELEASE_ARCHIVE_METADATA_MISSING")
+                got="sha256:"+hashlib.sha256(archive.read(name)).hexdigest()
+                if got!=wanted:
+                    raise RuntimeError("FINAL_EXACT_RELEASE_ARCHIVE_METADATA_DRIFT")
     except (zipfile.BadZipFile,KeyError,OSError) as exc:
-        raise RuntimeError("FINAL_EXACT_RELEASE_ARCHIVE_METADATA_INVALID") from exc
-    if embedded!=stage_digests:
-        raise RuntimeError("FINAL_EXACT_RELEASE_STAGE_ARCHIVE_METADATA_DRIFT")
+        raise RuntimeError("FINAL_EXACT_RELEASE_ARCHIVE_INVALID") from exc
     return {
         "apiVersion": "platform.4so.io/v1alpha1",
         "kind": "FinalExactReleaseEvidence",
@@ -606,111 +574,99 @@ def build_evidence(
         "releaseArchivePath": release.relative_to(root).as_posix(),
         "releaseArchiveSha256": sha256(release),
         "releaseArchiveBytes": release.stat().st_size,
-        "artifactManifestSha256": embedded["ARTIFACT-MANIFEST.json"],
-        "buildProvenanceSha256": embedded["BUILD-PROVENANCE.json"],
-        "sbomSha256": embedded["SBOM.spdx.json"],
-        "admissionAuthority": admission_row["authority"],
-        "applianceDistributionSha256": admission_row["applianceDistributionSha256"],
-        "mcpExternalInteropSha256": admission_row["mcpExternalInteropSha256"],
+        "artifactManifestSha256": expected_embedded[prefix+"ARTIFACT-MANIFEST.json"],
+        "buildProvenanceSha256": expected_embedded[prefix+"BUILD-PROVENANCE.json"],
+        "sbomSha256": expected_embedded[prefix+"SBOM.spdx.json"],
+        "admissionAuthority": admission.AUTHORITY,
+        "applianceDistributionSha256": admitted["applianceDistributionSha256"],
+        "mcpExternalInteropSha256": admitted["mcpExternalInteropSha256"],
         "fullVerifierAuthority": FULL_VERIFIER_AUTHORITY,
         "fullVerifierPass": True,
         "physicalCertified": False,
     }
 
 
+def admit_output_path(root:Path,out:Path)->Path:
+    root=root.resolve(); raw=out if out.is_absolute() else root/out
+    raw=Path(os.path.abspath(raw))
+    for parent in reversed(raw.parents):
+        if parent.exists() and (parent.is_symlink() or not parent.is_dir()):
+            raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_PARENT_SYMLINK_FORBIDDEN")
+    if raw.exists() and raw.is_symlink():
+        raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_SYMLINK_FORBIDDEN")
+    raw.parent.mkdir(parents=True,exist_ok=True)
+    if raw.parent.is_symlink() or not raw.parent.is_dir():
+        raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_PARENT_INVALID")
+    return raw
+
+
 def atomic_write_json(path: Path, value: dict) -> None:
+    path=admit_output_path(path.parent.resolve(),path.name)
     if path.exists() or path.is_symlink():
         raise RuntimeError("FINAL_EXACT_RELEASE_ALREADY_SEALED")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name("." + path.name + ".tmp")
-    if temp.exists():
-        if temp.is_symlink() or not temp.is_file():
-            raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_TEMP_INVALID")
-        temp.unlink()
+    raw=(json.dumps(value,indent=2,sort_keys=True)+"\n").encode("utf-8")
+    fd,temp_name=tempfile.mkstemp(prefix="."+path.name+".tmp.",dir=path.parent)
+    temp=Path(temp_name)
     try:
-        with temp.open("x", encoding="utf-8") as fh:
-            fh.write(json.dumps(value, indent=2, sort_keys=True) + "\n")
-            fh.flush()
-            os.fsync(fh.fileno())
+        with os.fdopen(fd,"wb") as fh:
+            fh.write(raw); fh.flush(); os.fsync(fh.fileno())
         try:
-            os.link(temp, path, follow_symlinks=False)
+            os.link(temp,path,follow_symlinks=False)
         except FileExistsError as exc:
             raise RuntimeError("FINAL_EXACT_RELEASE_ALREADY_SEALED") from exc
         directory_fd=os.open(path.parent,os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        try: os.fsync(directory_fd)
+        finally: os.close(directory_fd)
     finally:
-        if temp.exists():
-            temp.unlink()
-
-
-def admit_output_path(root: Path, out: Path) -> Path:
-    candidate = out if out.is_absolute() else root / out
-    candidate = Path(os.path.abspath(candidate))
-    try:
-        rel = candidate.relative_to(root)
-    except ValueError as exc:
-        raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_OUTSIDE_ROOT") from exc
-    cursor = root
-    for part in rel.parts[:-1]:
-        cursor = cursor / part
-        if cursor.is_symlink():
-            raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_PARENT_SYMLINK_FORBIDDEN")
-        if cursor.exists() and not cursor.is_dir():
-            raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_PARENT_INVALID")
-    if candidate.is_symlink():
-        raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_SYMLINK_FORBIDDEN")
-    return candidate
-
-
-def git_source_for_resume(root: Path, out: Path) -> str:
-    top = subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,text=True,capture_output=True,check=False)
-    branch = subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,text=True,capture_output=True,check=False)
-    if branch.returncode!=0 or branch.stdout.strip()!="main":
-        raise RuntimeError("FINAL_EXACT_RELEASE_BRANCH_NOT_MAIN")
-    head = subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
-    indexed = subprocess.run(["git","ls-files","-v","-z"],cwd=root,capture_output=True,check=False)
-    status = subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,capture_output=True,check=False)
-    if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root or head.returncode!=0 or len(head.stdout.strip())!=40 or indexed.returncode!=0 or status.returncode!=0:
-        raise RuntimeError("FINAL_EXACT_RELEASE_RESUME_GIT_STATE_INVALID")
-    if any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
-        raise RuntimeError("FINAL_EXACT_RELEASE_GIT_INDEX_FLAGS_FORBIDDEN")
-    allowed=os.fsencode(out.relative_to(root).as_posix())
-    for record in status.stdout.split(b"\x00"):
-        if not record:
-            continue
-        status_code=record[:2]
-        if len(record)>=4 and record[2:3]==b" " and record[3:]==allowed and b"R" not in status_code and b"C" not in status_code:
-            continue
-        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_NOT_EXACT_HEAD")
-    return head.stdout.strip()
+        if temp.exists(): temp.unlink()
 
 
 def validate_final_evidence_lineage(root:Path,sealed_sha:str,current_sha:str,out:Path)->None:
-    sealed_sha=str(sealed_sha or "").strip().lower()
-    current_sha=str(current_sha or "").strip().lower()
+    sealed_sha=str(sealed_sha or "").strip().lower(); current_sha=str(current_sha or "").strip().lower()
     if not re.fullmatch(r"[0-9a-f]{40}",sealed_sha) or not re.fullmatch(r"[0-9a-f]{40}",current_sha):
-        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_IDENTITY_INVALID")
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_INVALID")
     if sealed_sha==current_sha:
         return
     ancestor=subprocess.run(["git","merge-base","--is-ancestor",sealed_sha,current_sha],cwd=root,capture_output=True,check=False)
     if ancestor.returncode!=0:
         raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_NOT_ANCESTOR")
-    try:
-        allowed=out.resolve().relative_to(root.resolve()).as_posix()
-    except ValueError as exc:
-        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_PATH_INVALID") from exc
     diff=subprocess.run(["git","diff","--name-only","-z",sealed_sha+".."+current_sha],cwd=root,capture_output=True,check=False)
     if diff.returncode!=0:
         raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_DELTA_UNAVAILABLE")
+    changed={raw.decode("utf-8",errors="strict") for raw in diff.stdout.split(b"\x00") if raw}
     try:
-        changed={raw.decode("utf-8",errors="strict") for raw in diff.stdout.split(b"\x00") if raw}
-    except UnicodeDecodeError as exc:
-        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_DELTA_INVALID") from exc
-    if changed!={allowed}:
+        rel=out.resolve().relative_to(root).as_posix()
+    except ValueError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_PATH_OUTSIDE_REPOSITORY") from exc
+    if changed!={rel}:
         raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_SOURCE_DELTA_NOT_EVIDENCE_ONLY")
+
+
+def git_source_for_resume(root: Path, out: Path) -> str:
+    top = subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,text=True,capture_output=True,check=False)
+    branch = subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    head = subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    indexed = subprocess.run(["git","ls-files","-v","-z"],cwd=root,capture_output=True,check=False)
+    if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root or branch.returncode!=0 or branch.stdout.strip()!="main" or head.returncode!=0 or not re.fullmatch(r"[0-9a-f]{40}",head.stdout.strip()):
+        raise RuntimeError("FINAL_EXACT_RELEASE_GIT_SOURCE_INVALID")
+    if indexed.returncode!=0 or any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
+        raise RuntimeError("FINAL_EXACT_RELEASE_GIT_INDEX_FLAGS_FORBIDDEN")
+    try:
+        out_rel=out.resolve().relative_to(root).as_posix()
+    except ValueError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_OUTSIDE_REPOSITORY") from exc
+    status=subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,capture_output=True,check=False)
+    if status.returncode!=0:
+        raise RuntimeError("FINAL_EXACT_RELEASE_GIT_STATUS_UNAVAILABLE")
+    dirty=[]
+    for raw in status.stdout.split(b"\x00"):
+        if not raw: continue
+        if len(raw)<4 or raw[2:3]!=b" ":
+            raise RuntimeError("FINAL_EXACT_RELEASE_GIT_STATUS_INVALID")
+        dirty.append(raw[3:].decode("utf-8",errors="strict"))
+    if set(dirty)-{out_rel}:
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_NOT_EXACT_HEAD")
+    return head.stdout.strip()
 
 
 def final_git_handoff(root:Path,out:Path,evidence:dict)->dict:
@@ -899,7 +855,7 @@ def execute(root: Path, out: Path) -> dict:
                 root=worktree,
                 env=env,
             )
-            run([sys.executable, "scripts/build_release.py", "."], root=worktree, env=env)
+            run([sys.executable, "scripts/package_release_exact.py", "--root", "."], root=worktree, env=env)
 
             release, stage, version, release_name = expected_release(worktree)
             sha256(release)
