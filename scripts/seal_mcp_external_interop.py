@@ -331,7 +331,7 @@ def validate_matrix_contract(matrix:object,label:str="MCP_EXTERNAL_MATRIX")->dic
     return spec
 
 
-def campaign_time_window(campaign:dict,spec:dict,*,now:datetime|None=None)->tuple[datetime,datetime,int]:
+def campaign_time_window(campaign:dict,spec:dict,*,now:datetime|None=None,require_live:bool=True)->tuple[datetime,datetime,int]:
     max_age=spec.get("campaignMaxAgeSeconds")
     audit_window=spec.get("executionAuditWindowSeconds")
     if type(max_age) is not int or max_age<3600 or max_age>14*24*3600:
@@ -345,7 +345,7 @@ def campaign_time_window(campaign:dict,spec:dict,*,now:datetime|None=None)->tupl
     current=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     if created>current+timedelta(minutes=5):
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_CREATED_IN_FUTURE")
-    if current>=expires:
+    if require_live and current>=expires:
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXPIRED")
     return created,expires,audit_window
 
@@ -498,10 +498,10 @@ def validate_request_ids(row:dict,client:str)->dict[str,str]:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_REQUEST_IDS_INVALID {client}")
     out={str(k):str(v or "").strip() for k,v in values.items()}
     if any(not REQUEST_ID.fullmatch(v) for v in out.values()) or len(set(out.values()))!=len(AUDITED_CHECKS):
-        raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_REQUEST_IDS_INVALID {client}")
+        raise RuntimeError(f"{label}_REQUEST_IDS_INVALID {client}")
     return out
 
-def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign:dict)->dict:
+def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign:dict,*,require_live:bool=True)->dict:
     row,receipt_sha256=load_with_sha256(path,client.upper()+"_RECEIPT")
     if not isinstance(row,dict) or row.get("authority")!=RECEIPT_AUTHORITY or row.get("clientId")!=client:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_IDENTITY_INVALID {client}")
@@ -529,7 +529,7 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     spec=campaign.get("_matrixSpec")
     if not isinstance(spec,dict):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_CAMPAIGN_WINDOW_INVALID {client}")
-    created,expires,audit_window=campaign_time_window(campaign,spec)
+    created,expires,audit_window=campaign_time_window(campaign,spec,require_live=require_live)
     executed=parse_utc_timestamp(row.get("executedAt"),"MCP_EXTERNAL_RECEIPT_EXECUTED_AT")
     if executed<created or executed>expires or executed>datetime.now(timezone.utc)+timedelta(minutes=5):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EXECUTION_TIME_INVALID {client}")
@@ -638,7 +638,7 @@ def validate_campaign_live_preflight(campaign:dict)->None:
     if row.get("endpoint")!=ep or row.get("protectedResourceMetadata")!=metadata_url or row.get("resource")!=ep or row.get("scopes")!=["mcp.read","mcp.operate"] or row.get("unauthenticatedStatus")!=401 or row.get("challenge")!=expected_challenge or row.get("protocol")!="2026-07-28":
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_PREFLIGHT_INVALID")
 
-def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
+def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict,*,require_live:bool=True)->dict:
     matrix,matrix_sha256=load_with_sha256(matrix_path,"MATRIX")
     canonical_spec=validate_matrix_contract(matrix)
     if spec!=canonical_spec:
@@ -654,7 +654,7 @@ def verify_campaign(campaign_path:Path,matrix_path:Path,spec:dict)->dict:
     if not str(campaign.get("campaignId") or "").startswith("mcp-interop-"):
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_ID_INVALID")
     campaign["endpoint"]=endpoint(campaign.get("endpoint",""))
-    campaign_time_window(campaign,spec)
+    campaign_time_window(campaign,spec,require_live=require_live)
     campaign["_matrixSpec"]=spec
     campaign["_matrixSha256"]=matrix_sha256
     campaign["_campaignSha256"]=campaign_sha256
@@ -711,10 +711,10 @@ def seal(matrix_path:Path,campaign_path:Path,receipt_dir:Path,audit_dir:Path)->d
     spec=validate_matrix_contract(matrix)
     protocol=str(spec["protocol"])
     required=list(spec["sharedRequiredChecks"])
-    campaign=verify_campaign(campaign_path,matrix_path,spec)
+    campaign=verify_campaign(campaign_path,matrix_path,spec,require_live=False)
     rows=[]; used_request_ids={}; used_execution_ids={}; used_evidence_digests={}; used_provider_execution_refs={}
     for client in CLIENTS:
-        row=verify_receipt(receipt_dir/(client+".json"),client,required,protocol,campaign)
+        row=verify_receipt(receipt_dir/(client+".json"),client,required,protocol,campaign,require_live=False)
         execution_id=row["executionId"]; evidence_digest=row["evidenceDigest"]; provider_ref=row["providerExecutionRef"]
         if execution_id in used_execution_ids:
             raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EXECUTION_REUSE {client}:{used_execution_ids[execution_id]}")
