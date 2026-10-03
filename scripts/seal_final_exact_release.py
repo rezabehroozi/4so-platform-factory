@@ -583,6 +583,30 @@ def build_evidence(root: Path, release: Path, stage: Path, admitted: dict, sourc
     }
 
 
+def verify_evidence_publication_binding(root:Path,evidence:dict)->Path:
+    root=root.resolve()
+    source_sha=str(evidence.get("sourceCommitSHA") or "").strip().lower()
+    archive_name=str(evidence.get("releaseArchive") or "").strip()
+    if not re.fullmatch(r"[0-9a-f]{40}",source_sha) or not archive_name or Path(archive_name).name!=archive_name:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION_PATH_INVALID")
+    expected_rel=PurePosixPath("release")/"exact-sha"/source_sha/archive_name
+    if evidence.get("releaseArchivePath")!=expected_rel.as_posix():
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION_PATH_INVALID")
+    release=root.joinpath(*expected_rel.parts)
+    require_publication_directory_read_only(release.parent,"FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION_DIRECTORY")
+    require_published_read_only(release,"FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION_ARCHIVE")
+    digest,size=stable_file_fingerprint(release,"FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION_ARCHIVE")
+    if evidence.get("releaseArchiveSha256")!=digest or evidence.get("releaseArchiveBytes")!=size:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION_DRIFT")
+    checksum=release.with_name(release.name+".sha256")
+    require_published_read_only(checksum,"FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION_CHECKSUM")
+    try:
+        verify_release_checksum(release,checksum,"FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION")
+    except RuntimeError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION_DRIFT") from exc
+    return release
+
+
 def admit_output_path(root:Path,out:Path)->Path:
     root=root.resolve(); raw=out if out.is_absolute() else root/out
     raw=Path(os.path.abspath(raw))
@@ -674,6 +698,7 @@ def final_git_handoff(root:Path,out:Path,evidence:dict)->dict:
         raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_HANDOFF_INVALID") from exc
     if persisted!=evidence:
         raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_HANDOFF_DRIFT")
+    verify_evidence_publication_binding(root,evidence)
     current_sha=git_source_for_resume(root,out)
     sealed_sha=str(evidence.get("sourceCommitSHA") or "").strip().lower()
     validate_final_evidence_lineage(root,sealed_sha,current_sha,out)
@@ -943,6 +968,7 @@ def execute(root: Path, out: Path) -> dict:
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_BUILD")
     if evidence is None:
         raise RuntimeError("FINAL_EXACT_RELEASE_EVIDENCE_NOT_BUILT")
+    verify_evidence_publication_binding(root,evidence)
     atomic_write_json(out, evidence)
     return evidence
 
