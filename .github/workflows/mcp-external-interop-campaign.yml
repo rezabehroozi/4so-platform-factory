@@ -15,7 +15,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "This workflow is intentionally non-authoritative and performs no C7W execution."
-          echo "Use the canonical local runner on the control host:"
-          echo "  <python> scripts/run_mcp_external_interop.py --state-dir <state-dir> status"
-          echo "Follow its machine-readable nextCommand. Provide C7W_MCP_ENDPOINT, C7W_OAUTH_CLIENT_MAP and C7W_PLATFORM_ADMIN_TOKEN only when requiredInputs requests them."
+          echo "Start with the read-only local preflight on the canonical main checkout:"
+          echo "  <python> scripts/c7w_preflight.py --root ."
+          echo "Follow its machine-readable nextActionCode/nextCommand. It verifies source freeze, HTTPS MCP metadata/challenge, exact runtime source SHA and all four trusted-client bindings before campaign creation."
           echo "External clients must execute the exact packetPath and fill the returned captureTemplatePath at expectedCapturePath; never fabricate named-client evidence."
