@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from pathlib import Path
 
 AUTHORITY="C7W_EXECUTION_AUTHORITY_GATE_V1"
@@ -13,6 +14,8 @@ REQUIRED_FILES=(
     "scripts/c7w_execution_bindings.py",
     "scripts/c7w_credential_profiles.py",
     "scripts/run_mcp_external_interop.py",
+    "scripts/prepare_mcp_external_interop_campaign.py",
+    "scripts/seal_mcp_external_interop.py",
     "scripts/prepare_mcp_external_client_execution.py",
     "scripts/finalize_mcp_external_client_receipt.py",
 )
@@ -28,6 +31,33 @@ def read(root:Path,rel:str,errors:list[tuple[str,str]])->str:
         errors.append(("C7W_EXECUTION_OWNER_INVALID",f"{rel}:{exc}")); return ""
 
 
+def direct_git_calls_without_env(source:str)->list[int]:
+    try:
+        tree=ast.parse(source)
+    except (SyntaxError,ValueError):
+        return [0]
+    missing=[]
+    for node in ast.walk(tree):
+        if not isinstance(node,ast.Call) or not node.args:
+            continue
+        func=node.func
+        command=node.args[0]
+        if not (
+            isinstance(func,ast.Attribute)
+            and func.attr=="run"
+            and isinstance(func.value,ast.Name)
+            and func.value.id=="subprocess"
+            and isinstance(command,ast.List)
+            and command.elts
+            and isinstance(command.elts[0],ast.Constant)
+            and command.elts[0].value=="git"
+        ):
+            continue
+        if not any(keyword.arg=="env" for keyword in node.keywords):
+            missing.append(getattr(node,"lineno",0))
+    return missing
+
+
 def validate(root:Path)->list[tuple[str,str]]:
     root=root.resolve(); errors:list[tuple[str,str]]=[]
     source={rel:read(root,rel,errors) for rel in REQUIRED_FILES}
@@ -37,8 +67,21 @@ def validate(root:Path)->list[tuple[str,str]]:
     execution=source["scripts/c7w_execution_bindings.py"]
     profiles=source["scripts/c7w_credential_profiles.py"]
     runner=source["scripts/run_mcp_external_interop.py"]
+    campaign=source["scripts/prepare_mcp_external_interop_campaign.py"]
+    seal=source["scripts/seal_mcp_external_interop.py"]
     packet=source["scripts/prepare_mcp_external_client_execution.py"]
     finalizer=source["scripts/finalize_mcp_external_client_receipt.py"]
+
+    for rel,text in (
+        ("scripts/c7w_preflight.py",preflight),
+        ("scripts/c7w_execution_bindings.py",execution),
+        ("scripts/run_mcp_external_interop.py",runner),
+        ("scripts/prepare_mcp_external_interop_campaign.py",campaign),
+        ("scripts/seal_mcp_external_interop.py",seal),
+    ):
+        missing_env=direct_git_calls_without_env(text)
+        if missing_env:
+            errors.append(("C7W_GIT_ENVIRONMENT_AUTHORITY_INVALID",f"{rel}:lines={','.join(str(x) for x in missing_env)}"))
 
     reconciliation_markers=(
         'AUTHORITY="MCP_EXTERNAL_TRUSTED_CLIENT_RECONCILIATION_V1"',"def reconcile_plan","def reconcile(","before=fetch_rows","create_row(","after=fetch_rows",'"status=409"',"def preflight_command",
@@ -69,6 +112,10 @@ def validate(root:Path)->list[tuple[str,str]]:
         errors.append(("C7W_EXECUTION_BINDINGS_WIRING_INVALID","scripts/c7w_preflight.py"))
     if 'AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"' not in runner or "def runner_command" not in runner:
         errors.append(("C7W_LOCAL_RUNNER_OWNER_INVALID","scripts/run_mcp_external_interop.py"))
+    if 'AUTHORITY=core.CAMPAIGN_AUTHORITY' not in campaign or "def source_commit_sha" not in campaign:
+        errors.append(("C7W_CAMPAIGN_OWNER_INVALID","scripts/prepare_mcp_external_interop_campaign.py"))
+    if 'AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"' not in seal or "def validate_evidence_only_source_lineage" not in seal:
+        errors.append(("C7W_SEAL_OWNER_INVALID","scripts/seal_mcp_external_interop.py"))
     if (
         'AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_PACKET_V1"' not in packet
         or "executionBindingsSha256" not in packet
