@@ -33,6 +33,10 @@ class NativeReleaseBinaryBuilderTests(unittest.TestCase):
             "LD_LIBRARY_PATH": "/tmp/evil-lib",
             "GIT_DIR": "/tmp/other.git",
             "GIT_WORK_TREE": "/tmp/other-tree",
+            "PYTHONHOME": "/tmp/evil-python-home",
+            "PYTHONPATH": "/tmp/evil-python-path",
+            "PYTHONSTARTUP": "/tmp/evil-python-startup.py",
+            "PYTHONINSPECT": "1",
             "SOURCE_COMMIT": "f" * 40,
         }
         with mock.patch.dict(os.environ, injected, clear=True):
@@ -51,9 +55,12 @@ class NativeReleaseBinaryBuilderTests(unittest.TestCase):
         self.assertEqual("", env["GOFLAGS"])
         self.assertEqual("off", env["GOPROXY"])
         self.assertEqual("off", env["GOSUMDB"])
+        self.assertEqual("1", env["PYTHONDONTWRITEBYTECODE"])
+        self.assertEqual("1", env["PYTHONNOUSERSITE"])
         for key in (
             "GOROOT", "GOTOOLDIR", "CGO_CFLAGS", "CGO_LDFLAGS", "CC", "CXX",
-            "LD_PRELOAD", "LD_LIBRARY_PATH", "GIT_DIR", "GIT_WORK_TREE", "SOURCE_COMMIT",
+            "LD_PRELOAD", "LD_LIBRARY_PATH", "GIT_DIR", "GIT_WORK_TREE",
+            "PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONINSPECT", "SOURCE_COMMIT",
         ):
             self.assertNotIn(key, env)
 
