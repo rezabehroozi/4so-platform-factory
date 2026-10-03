@@ -7,22 +7,32 @@ active compiler/provenance match. No network download is performed here.
 """
 from __future__ import annotations
 import argparse, hashlib, json, os, pathlib, re, subprocess, sys
+try:
+    import build_release_binaries as release_binary_builder
+except ModuleNotFoundError:
+    from scripts import build_release_binaries as release_binary_builder
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 LOCK=ROOT/'lab'/'release-build-toolchain-lock.json'
 AUTH='RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1'
 HEX=re.compile(r'^[0-9a-f]{64}$')
 
-def current_go():
-    go_binary=os.environ.get('GO','go').strip() or 'go'
+def verification_environment():
+    go_binary=str(os.environ.get('GO') or 'go').strip() or 'go'
+    env=release_binary_builder.release_build_environment()
+    env['GO']=go_binary
+    return go_binary,env
+
+def current_go(env):
+    go_binary=str(env.get('GO') or 'go').strip() or 'go'
     try:
-        p=subprocess.run([go_binary,'version'],text=True,capture_output=True)
+        p=subprocess.run([go_binary,'version'],env=env,text=True,capture_output=True)
     except OSError as exc:
         return 127,f'go unavailable: {exc}'
     return p.returncode,(p.stdout or p.stderr).strip()
 
-def command_first_line(command):
+def command_first_line(command,env):
     try:
-        p=subprocess.run(command,text=True,capture_output=True)
+        p=subprocess.run(command,env=env,text=True,capture_output=True)
     except OSError as exc:
         return 127,f'{command[0]} unavailable: {exc}'
     lines=[x.strip() for x in (p.stdout or p.stderr).splitlines() if x.strip()]
@@ -38,7 +48,7 @@ def file_sha256(path):
             h.update(chunk)
     return h.hexdigest()
 
-def validate_active_cgo(lock):
+def validate_active_cgo(lock,env):
     spec=lock.get('spec',{})
     expected=spec.get('exactCGOToolchain') or {}
     if spec.get('admissionStatus')!='admitted':
@@ -50,7 +60,7 @@ def validate_active_cgo(lock):
         'libcVersion':['ldd','--version'],
     }
     for key,cmd in commands.items():
-        rc,actual=command_first_line(cmd)
+        rc,actual=command_first_line(cmd,env)
         if rc!=0 or actual!=str(expected.get(key) or ''):
             errs.append(f'active CGO {key} mismatch: lock={expected.get(key)} active={actual}')
     for path_key,digest_key in (('libpqHeaderPath','libpqHeaderSha256'),('libpqLibraryPath','libpqLibrarySha256')):
@@ -120,7 +130,7 @@ def main():
     if args.self_test:
         if not self_test(): print('RELEASE_BUILD_TOOLCHAIN_SELF_TEST_FAIL'); return 1
         print('RELEASE_BUILD_TOOLCHAIN_SELF_TEST_PASS'); return 0
-    lock=json.loads(LOCK.read_text()); rc,active=current_go(); errs=[] if rc==0 else ['go version unavailable']
+    lock=json.loads(LOCK.read_text()); _,env=verification_environment(); rc,active=current_go(env); errs=[] if rc==0 else ['go version unavailable']
     status=lock.get('spec',{}).get('admissionStatus')
     archive_path=args.archive
     if status=='admitted' and not archive_path:
@@ -132,7 +142,7 @@ def main():
             archive_path=str(ROOT.joinpath(*rel_path.parts))
     errs += validate(lock,active=active if rc==0 else None,archive_path=archive_path)
     if status=='admitted':
-        errs += validate_active_cgo(lock)
+        errs += validate_active_cgo(lock,env)
     if args.require_admitted and status!='admitted': errs.append('release toolchain lock is not admitted')
     if errs:
         print('RELEASE_BUILD_TOOLCHAIN_BLOCKED ' + '; '.join(errs)); return 2 if status=='blocked' else 1
