@@ -62,7 +62,7 @@ build:
 	CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags '$(BUILD_LDFLAGS)' -o bin/dapr-runtime ./cmd/dapr-runtime
 
 build-release:
-	$(PYTHON) scripts/verify_release_build_toolchain.py --require-admitted
+	GO="$(GO)" $(PYTHON) scripts/verify_release_build_toolchain.py --require-admitted
 	$(PYTHON) scripts/build_release_binaries.py --root . --go "$(GO)" --source-commit "$(SOURCE_COMMIT)" --version "$(VERSION)"
 
 run: build
