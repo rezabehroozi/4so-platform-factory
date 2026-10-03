@@ -56,7 +56,7 @@ def private_input_path(root:Path,path:Path)->Path:
     return absolute
 
 
-def oauth_binding_materializer_command()->list[str]:
+def oauth_binding_materializer_command(endpoint:str,token_env:str)->list[str]:
     return [
         sys.executable,
         "scripts/prepare_c7w_oauth_bindings.py",
@@ -64,6 +64,10 @@ def oauth_binding_materializer_command()->list[str]:
         ".",
         "--out",
         str(DEFAULT_OAUTH_BINDING_REL),
+        "--preflight-endpoint",
+        str(endpoint),
+        "--preflight-token-env",
+        str(token_env),
     ]
 
 
@@ -222,7 +226,7 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
             out.update({
                 "nextActionCode":"PREPARE_C7W_OAUTH_BINDINGS",
                 "requiredInputs":list(OAUTH_CLIENT_ID_INPUTS),
-                "nextCommand":oauth_binding_materializer_command(),
+                "nextCommand":oauth_binding_materializer_command(endpoint,token_env),
                 "outputPath":str(DEFAULT_OAUTH_BINDING_REL),
                 "detail":"materialize the private four-client OAuth binding document from the already-provisioned client IDs; values stay in environment/private state and are never emitted",
             })
