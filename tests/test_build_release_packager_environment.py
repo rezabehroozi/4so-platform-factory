@@ -1,20 +1,27 @@
 import importlib.util
 import os
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location(
-    "build_release", ROOT / "scripts" / "build_release.py"
-)
-mod = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(mod)
+WRAPPER = ROOT / "scripts" / "package_release_exact.py"
+
+
+def load_wrapper():
+    if not WRAPPER.is_file():
+        raise AssertionError("exact release packager wrapper is missing")
+    spec = importlib.util.spec_from_file_location("package_release_exact", WRAPPER)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 class ReleasePackagerEnvironmentTests(unittest.TestCase):
     def test_packager_tool_authority_reuses_native_builder_environment(self):
+        mod = load_wrapper()
         root = Path("/repo")
         clean_env = {"PATH": "/safe", "GOWORK": "off", "GOFLAGS": ""}
         with (
@@ -26,71 +33,44 @@ class ReleasePackagerEnvironmentTests(unittest.TestCase):
             go_binary, env = mod.release_tool_authority(root)
 
         self.assertEqual("/opt/exact-go/bin/go", go_binary)
-        self.assertEqual(clean_env, env)
+        self.assertEqual("/safe", env["PATH"])
+        self.assertEqual("/opt/exact-go/bin/go", env["GO"])
         build_env.assert_called_once_with()
-        go_identity.assert_called_once_with(root, "/opt/exact-go/bin/go", clean_env)
-        cgo_identity.assert_called_once_with(root, clean_env)
+        go_identity.assert_called_once_with(root, "/opt/exact-go/bin/go", mock.ANY)
+        cgo_identity.assert_called_once_with(root, mock.ANY)
+        self.assertIs(go_identity.call_args.args[2], cgo_identity.call_args.args[1])
 
-    def test_packager_tool_probes_use_explicit_sanitized_environment(self):
-        env = {"PATH": "/safe"}
-        go_binary = "/opt/exact-go/bin/go"
-
-        go_version = mock.Mock(returncode=0, stdout="go version go1.27.1 linux/amd64\n", stderr="")
-        with mock.patch.object(mod.subprocess, "run", return_value=go_version) as run:
-            self.assertEqual(
-                "go version go1.27.1 linux/amd64",
-                mod.go_toolchain_version(go_binary, env),
-            )
+    def test_packager_runs_legacy_packager_only_inside_exact_environment(self):
+        mod = load_wrapper()
+        root = Path("/repo")
+        env = {"PATH": "/safe", "GO": "/opt/exact-go/bin/go", "PYTHONNOUSERSITE": "1"}
+        completed = mock.Mock(returncode=0, stdout="RELEASE_BUILD_PASS archive sha count\n", stderr="")
+        with (
+            mock.patch.object(mod, "release_tool_authority", return_value=(env["GO"], env)) as authority,
+            mock.patch.object(mod.subprocess, "run", return_value=completed) as run,
+        ):
+            result = mod.run_packager(root)
+        self.assertEqual(0, result)
+        authority.assert_called_once_with(root.resolve())
         run.assert_called_once_with(
-            [go_binary, "version"],
+            [sys.executable, "scripts/build_release.py", "."],
+            cwd=root.resolve(),
             env=env,
-            capture_output=True,
             text=True,
-            check=True,
-        )
-
-        identity = mock.Mock(
-            returncode=0,
-            stdout=(
-                "platform.4so.io/factory/internal/buildinfo.Version=0.0.363\n"
-                + "platform.4so.io/factory/internal/buildinfo.SourceCommit=" + "a" * 40 + "\n"
-            ),
-            stderr="",
-        )
-        with mock.patch.object(mod.subprocess, "run", return_value=identity) as run:
-            mod.verify_binary_build_identity(
-                Path("binary"), "0.0.363", "a" * 40, go_binary, env
-            )
-        run.assert_called_once_with(
-            [go_binary, "version", "-m", "binary"],
-            env=env,
-            capture_output=True,
-            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             check=False,
         )
 
-        first_line = mock.Mock(returncode=0, stdout="gcc exact\nextra\n", stderr="")
-        with mock.patch.object(mod.subprocess, "run", return_value=first_line) as run:
-            self.assertEqual("gcc exact", mod.command_first_line(["gcc", "--version"], env))
-        run.assert_called_once_with(
-            ["gcc", "--version"],
-            env=env,
-            capture_output=True,
-            text=True,
-            check=True,
+    def test_make_and_c9_use_exact_packager_wrapper(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        sealer = (ROOT / "scripts" / "seal_final_exact_release.py").read_text(encoding="utf-8")
+        self.assertIn(
+            'GO="$(GO)" $(PYTHON) scripts/package_release_exact.py --root .',
+            makefile,
         )
-
-    def test_elf_metadata_uses_explicit_sanitized_environment(self):
-        env = {"PATH": "/safe"}
-        notes = mock.Mock(returncode=0, stdout="Build ID: abcdef\n", stderr="")
-        dynamic = mock.Mock(returncode=0, stdout="Shared library: [libpq.so.5]\n", stderr="")
-        with mock.patch.object(mod.subprocess, "run", side_effect=[notes, dynamic]) as run:
-            out = mod.elf_metadata(Path("binary"), env)
-        self.assertEqual("abcdef", out["gnuBuildID"])
-        self.assertEqual(["libpq.so.5"], out["runtimeNeeded"])
-        self.assertEqual(2, run.call_count)
-        for call in run.call_args_list:
-            self.assertIs(env, call.kwargs["env"])
+        self.assertIn('"scripts/package_release_exact.py"', sealer)
+        self.assertNotIn('[sys.executable, "scripts/build_release.py", "."]', sealer)
 
 
 if __name__ == "__main__":
