@@ -64,6 +64,16 @@ def git_head(root:Path)->str:
     return value
 
 
+def source_commit_sha(root:Path,explicit:str="")->str:
+    value=str(explicit or "").strip().lower()
+    if value and not core.COMMIT.fullmatch(value):
+        raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_UNAVAILABLE")
+    observed=git_head(root)
+    if value and value!=observed:
+        raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_MISMATCH")
+    return observed
+
+
 def validate_resources(value:object)->dict[str,str]:
     if not isinstance(value,dict) or set(value)!=set(RESOURCE_KEYS):
         raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_RESOURCE_SET_INVALID")
@@ -167,11 +177,9 @@ def _existing_bytes(path:Path)->bytes|None:
     return path.read_bytes()
 
 
-def materialize(output:Path,resources:dict[str,str],source_commit_sha:str,*,root:Path|None=None)->dict:
+def materialize(output:Path,resources:dict[str,str],source_commit_sha_value:str,*,root:Path|None=None)->dict:
     root=Path(os.path.abspath(root or Path(".")))
-    source=str(source_commit_sha or "").strip().lower()
-    if not core.COMMIT.fullmatch(source):
-        raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_UNAVAILABLE")
+    source=source_commit_sha(root,source_commit_sha_value)
     output=_private_output(root,output)
     document={
         "authority":AUTHORITY,
@@ -248,7 +256,7 @@ def main()->int:
         p.add_argument("--"+re.sub(r"(?<!^)(?=[A-Z])","-",key).lower(),dest=key,default=os.environ.get(env_name,""))
     args=p.parse_args()
     root=Path(os.path.abspath(args.root))
-    source=str(args.source_commit or "").strip().lower() or git_head(root)
+    source=source_commit_sha(root,args.source_commit)
     output=canonical_output_path(root,args.out)
     resources={key:getattr(args,key) for key in RESOURCE_KEYS}
     result=materialize(output,resources,source,root=root)
