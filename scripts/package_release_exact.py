@@ -8,7 +8,10 @@ from pathlib import Path
 import subprocess
 import sys
 
-import build_release_binaries as release_binary_builder
+try:
+    import build_release_binaries as release_binary_builder
+except ModuleNotFoundError:
+    from scripts import build_release_binaries as release_binary_builder
 
 AUTHORITY="EXACT_RELEASE_PACKAGER_EXECUTION_V1"
 
