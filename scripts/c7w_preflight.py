@@ -76,6 +76,38 @@ def _base(*,ready:bool,blockers:list[str])->dict:
     }
 
 
+def _existing_state_handoff(root:Path)->dict|None:
+    try:
+        source_sha=git_source_commit(root)
+    except RuntimeError:
+        return None
+    state=Path(f".state/c7w-external-interop-{source_sha[:12]}")
+    absolute=Path(os.path.abspath(root/state))
+    if not absolute.exists() and not absolute.is_symlink():
+        return None
+    if absolute.is_symlink() or not absolute.is_dir():
+        out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"])
+        out.update({
+            "sourceCommitSHA":source_sha,
+            "stateDir":str(state),
+            "workingDirectory":str(root),
+            "nextActionCode":"INSPECT_C7W_LOCAL_STATE",
+            "nextCommand":[],
+            "detail":"the source-bound C7W state path exists but is not a safe directory; repair the local state path before campaign recovery",
+        })
+        return out
+    out=_base(ready=False,blockers=["MCP_EXTERNAL_EXISTING_STATE_REQUIRES_STATUS"])
+    out.update({
+        "sourceCommitSHA":source_sha,
+        "stateDir":str(state),
+        "workingDirectory":str(root),
+        "nextActionCode":"RUN_C7W_STATUS",
+        "nextCommand":runner.runner_command(state,"status"),
+        "detail":"source-bound C7W state already exists; inspect canonical status/recovery first without re-requesting endpoint, OAuth or token inputs",
+    })
+    return out
+
+
 def _failure(code:str,source_sha:str="")->dict:
     out=_base(ready=False,blockers=[code])
     if code.startswith("MCP_EXTERNAL_LOCAL_"):
@@ -116,6 +148,10 @@ def _failure(code:str,source_sha:str="")->dict:
 
 def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,token_env:str)->dict:
     root=Path(os.path.abspath(root))
+    existing=_existing_state_handoff(root)
+    if existing is not None:
+        return existing
+
     missing=_missing_inputs(endpoint,oauth_client_map,token_env)
     if missing:
         out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_INPUTS_MISSING"])
