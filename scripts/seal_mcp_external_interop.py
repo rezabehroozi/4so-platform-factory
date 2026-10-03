@@ -105,10 +105,11 @@ def validate_evidence_only_source_lineage(root:Path,certified_sha:str,current_sh
         raise RuntimeError(f"{label}_SOURCE_IDENTITY_INVALID")
     if certified_sha==current_sha:
         return
-    ancestor=subprocess.run(["git","merge-base","--is-ancestor",certified_sha,current_sha],cwd=root,capture_output=True,check=False)
+    git_env={key:value for key,value in os.environ.items() if not key.startswith("GIT_")}
+    ancestor=subprocess.run(["git","merge-base","--is-ancestor",certified_sha,current_sha],cwd=root,env=git_env,capture_output=True,check=False)
     if ancestor.returncode!=0:
         raise RuntimeError(f"{label}_SOURCE_NOT_ANCESTOR")
-    diff=subprocess.run(["git","diff","--name-only","-z",certified_sha+".."+current_sha],cwd=root,capture_output=True,check=False)
+    diff=subprocess.run(["git","diff","--name-only","-z",certified_sha+".."+current_sha],cwd=root,env=git_env,capture_output=True,check=False)
     if diff.returncode!=0:
         raise RuntimeError(f"{label}_SOURCE_DELTA_UNAVAILABLE")
     try:
