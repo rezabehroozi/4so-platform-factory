@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path, PurePosixPath
 import re
 import shutil
@@ -49,8 +50,17 @@ FINAL_EVIDENCE_KEYS = {
 }
 
 
+def normalized_machine()->str:
+    raw=str(platform.machine() or "").strip().lower()
+    if raw in {"x86_64","amd64"}:
+        return "amd64"
+    if raw in {"aarch64","arm64"}:
+        return "arm64"
+    return raw or "unknown"
+
+
 def require_exact_release_host()->None:
-    if not sys.platform.startswith("linux"):
+    if not sys.platform.startswith("linux") or normalized_machine()!="amd64":
         raise RuntimeError("FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED")
 
 
@@ -204,7 +214,9 @@ def exact_release_environment_preflight(root:Path)->dict:
     root=root.resolve()
     blockers=[]
     required_host="linux-amd64-exact-toolchain"
-    if not sys.platform.startswith("linux"):
+    observed_architecture=normalized_machine()
+    required_architecture="amd64"
+    if not sys.platform.startswith("linux") or observed_architecture!=required_architecture:
         blockers.append("FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED")
 
     lock_path=root/"lab"/"release-build-toolchain-lock.json"
@@ -241,6 +253,8 @@ def exact_release_environment_preflight(root:Path)->dict:
         "authority":ENVIRONMENT_PREFLIGHT_AUTHORITY,
         "ready":not blockers,
         "requiredHost":required_host,
+        "observedArchitecture":observed_architecture,
+        "requiredArchitecture":required_architecture,
         "toolchainArchiveReady":archive_ready,
         "toolchainArchivePath":archive_path,
         "browserAuthorityReady":browser_ready,
