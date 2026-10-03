@@ -13,6 +13,12 @@ import zipfile
 
 C9_SOURCE_EXCLUDE=frozenset({".git","bin","dist","release","__pycache__",".pytest_cache",".state",".tmpbin"})
 C9_GENERATED_METADATA=frozenset({"ARTIFACT-MANIFEST.json","BUILD-PROVENANCE.json","SBOM.spdx.json","DERIVED-AGENT-KNOWLEDGE.json"})
+C9_EXACT_PUBLICATION_LABELS=frozenset({
+    "FINAL_EXACT_RELEASE_EXISTING_ARCHIVE",
+    "FINAL_EXACT_RELEASE_EVIDENCE_PUBLICATION_ARCHIVE",
+    "FINAL_EXACT_RELEASE_PUBLISHED_ARCHIVE",
+    "FINAL_EXACT_RELEASE_ARTIFACT",
+})
 
 
 def _open_stable_regular(path:Path,label:str)->tuple[Path,int,os.stat_result]:
@@ -78,9 +84,10 @@ def stable_file_fingerprint(path:Path,label:str)->tuple[str,int]:
         _require_same_file(absolute,fd,before,label)
         if total!=before.st_size:
             raise RuntimeError(f"{label}_FILE_CHANGED_DURING_READ")
-        return digest,total
     finally:
         os.close(fd)
+    _maybe_verify_exact_publication(path,label,digest,total)
+    return digest,total
 
 
 @contextmanager
@@ -226,6 +233,37 @@ def verify_release_archive_exact_source(
         raise
     except (zipfile.BadZipFile,KeyError,OSError) as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_ARCHIVE_INVALID") from exc
+
+
+def _exact_publication_context(path:Path)->tuple[Path,str]|None:
+    absolute=Path(os.path.abspath(path))
+    if absolute.suffix!=".zip":
+        return None
+    source_dir=absolute.parent
+    exact_dir=source_dir.parent
+    release_dir=exact_dir.parent
+    if exact_dir.name!="exact-sha" or release_dir.name!="release":
+        return None
+    source_sha=source_dir.name.lower()
+    if len(source_sha)!=40 or any(ch not in "0123456789abcdef" for ch in source_sha):
+        return None
+    return release_dir.parent.resolve(),source_sha
+
+
+def _maybe_verify_exact_publication(path:Path,label:str,digest:str,size:int)->None:
+    if label not in C9_EXACT_PUBLICATION_LABELS:
+        return
+    context=_exact_publication_context(path)
+    if context is None:
+        return
+    root,source_sha=context
+    verify_release_archive_exact_source(
+        root,
+        Path(path),
+        source_sha,
+        expected_digest=digest,
+        expected_size=size,
+    )
 
 
 def _source_drift_error(target:Path)->str:
