@@ -71,6 +71,19 @@ def oauth_binding_materializer_command(endpoint:str,token_env:str)->list[str]:
     ]
 
 
+def trusted_client_reconcile_command(endpoint:str,oauth_client_map:Path,token_env:str)->list[str]:
+    return [
+        sys.executable,
+        "scripts/reconcile_c7w_trusted_clients.py",
+        "--endpoint",
+        str(endpoint),
+        "--oauth-client-map",
+        str(oauth_client_map),
+        "--token-env",
+        str(token_env),
+    ]
+
+
 def _missing_inputs(endpoint:str,oauth_client_map:Path|None,token_env:str)->list[str]:
     missing=[]
     if not str(endpoint or "").strip():
@@ -254,7 +267,13 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
         trusted=campaign.trusted_client_readback(endpoint_value,bindings,token_env)
     except RuntimeError as exc:
         code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_PREFLIGHT_UNKNOWN"
-        return _failure(code,source_sha)
+        out=_failure(code,source_sha)
+        if code.startswith("MCP_EXTERNAL_TRUSTED_CLIENT_"):
+            out.update({
+                "workingDirectory":str(root),
+                "nextCommand":trusted_client_reconcile_command(endpoint_value,oauth_path,token_env),
+            })
+        return out
 
     state=Path(f".state/c7w-external-interop-{source_sha[:12]}")
     command=[
