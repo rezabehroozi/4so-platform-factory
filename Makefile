@@ -130,7 +130,7 @@ persian-ui-lint:
 	$(PYTHON) scripts/persian_writing_gate.py --root . --write-report
 
 release: clean validate test vet race build-release smoke smoke-ui
-	$(PYTHON) scripts/build_release.py .
+	GO="$(GO)" $(PYTHON) scripts/package_release_exact.py --root .
 
 verify-release:
 	$(PYTHON) scripts/verify_release.py release/4so-platform-factory-$$(cat VERSION)-$$(cat RELEASE-NAME).zip --full
