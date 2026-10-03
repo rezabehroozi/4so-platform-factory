@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Run the release packager inside the exact native release tool environment."""
+from __future__ import annotations
+
+import argparse
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+import build_release_binaries as release_binary_builder
+
+AUTHORITY="EXACT_RELEASE_PACKAGER_EXECUTION_V1"
+
+
+def release_tool_authority(root:Path)->tuple[str,dict[str,str]]:
+    root=root.resolve()
+    go_binary=str(os.environ.get("GO") or "go").strip() or "go"
+    env=release_binary_builder.release_build_environment()
+    release_binary_builder.require_go_binary_identity(root,go_binary,env)
+    release_binary_builder.require_cgo_toolchain_identity(root,env)
+    env["GO"]=go_binary
+    return go_binary,env
+
+
+def run_packager(root:Path)->int:
+    root=root.resolve()
+    _,env=release_tool_authority(root)
+    proc=subprocess.run(
+        [sys.executable,"scripts/build_release.py","."],
+        cwd=root,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if proc.stdout:
+        sys.stdout.write(proc.stdout)
+    if proc.returncode:
+        raise RuntimeError(f"EXACT_RELEASE_PACKAGER_FAILED rc={proc.returncode}")
+    return 0
+
+
+def main()->int:
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--root",type=Path,default=Path("."))
+    args=parser.parse_args()
+    rc=run_packager(args.root)
+    print(f"EXACT_RELEASE_PACKAGER_PASS authority={AUTHORITY}")
+    return rc
+
+
+if __name__=="__main__":
+    raise SystemExit(main())
