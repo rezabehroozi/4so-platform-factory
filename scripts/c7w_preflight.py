@@ -83,11 +83,45 @@ def _existing_state_handoff(root:Path)->dict|None:
         source_sha=git_source_commit(root)
     except RuntimeError:
         return None
-    state=Path(f".state/c7w-external-interop-{source_sha[:12]}")
-    absolute=Path(os.path.abspath(root/state))
     progress=root/PROGRESS_REL
     evidence=root/EVIDENCE_REL
-    artifacts=[rel for rel,path in ((PROGRESS_REL,progress),(EVIDENCE_REL,evidence)) if path.exists() or path.is_symlink()]
+
+    if evidence.exists() or evidence.is_symlink():
+        if evidence.is_symlink() or not evidence.is_file():
+            out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"])
+            out.update({
+                "sourceCommitSHA":source_sha,
+                "workingDirectory":str(root),
+                "nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE",
+                "nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],
+                "detail":"canonical final C7W evidence exists at an unsafe path; restore that evidence before any state recovery or new campaign",
+            })
+            return out
+        try:
+            handoff=runner.git_handoff(root,evidence,progress)
+        except RuntimeError as exc:
+            code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"
+            out=_base(ready=False,blockers=[code])
+            out.update({
+                "sourceCommitSHA":source_sha,
+                "workingDirectory":str(root),
+                "nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE",
+                "nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],
+                "detail":f"{code}; final C7W evidence exists but cannot produce a safe Git/C9 handoff",
+            })
+            return out
+        action=str(handoff.get("nextActionCode") or "")
+        ready=action in {"RUN_C9_SEAL","RUN_C9_ON_EXACT_LINUX_HOST","C9_SEALED"}
+        out=_base(ready=ready,blockers=[] if ready else ["MCP_EXTERNAL_CANONICAL_EVIDENCE_REQUIRES_HANDOFF"])
+        out.update(handoff)
+        out.setdefault("sourceCommitSHA",source_sha)
+        out["workingDirectory"]=str(root)
+        out["physicalCertified"]=False
+        return out
+
+    state=Path(f".state/c7w-external-interop-{source_sha[:12]}")
+    absolute=Path(os.path.abspath(root/state))
+    artifacts=[rel for rel,path in ((PROGRESS_REL,progress),) if path.exists() or path.is_symlink()]
     if not absolute.exists() and not absolute.is_symlink():
         if not artifacts:
             return None
@@ -98,7 +132,7 @@ def _existing_state_handoff(root:Path)->dict|None:
             "workingDirectory":str(root),
             "nextActionCode":"RESTORE_C7W_LOCAL_STATE",
             "nextCommand":["git","status","--short","--",*[str(rel) for rel in artifacts]],
-            "detail":"canonical C7W progress/evidence exists but the source-bound private state directory is missing; restore or inspect local state before any new campaign",
+            "detail":"canonical C7W progress exists but the source-bound private state directory is missing; restore or inspect local state before any new campaign",
         })
         return out
     if absolute.is_symlink() or not absolute.is_dir():
