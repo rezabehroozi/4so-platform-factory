@@ -274,56 +274,68 @@ def require_exact_release_environment(root:Path)->dict:
 
 def extract_toolchain(archive: Path, exact: dict, workspace: Path) -> Path:
     admitted_archive_size=int(exact.get("archiveSize") or 0)
-    if admitted_archive_size<=0:
+    admitted_archive_sha=str(exact.get("archiveSha256") or "")
+    if admitted_archive_size<=0 or not re.fullmatch(r"[0-9a-f]{64}",admitted_archive_sha):
         raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_INVALID")
     max_members=65536
     max_member_size=256*1024*1024
     max_total_size=max(512*1024*1024,admitted_archive_size*8)
-    with tarfile.open(archive, mode="r:gz") as tf:
-        members=tf.getmembers()
-        if not members or len(members)>max_members:
-            raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_COUNT_INVALID")
-        seen=set()
-        total_size=0
-        for member in members:
-            pure = PurePosixPath(member.name)
-            canonical=pure.as_posix()
-            if (
-                pure.is_absolute()
-                or ".." in pure.parts
-                or not pure.parts
-                or pure.parts[0] != "go"
-                or len(canonical.encode("utf-8"))>1024
-                or not (member.isdir() or member.isreg())
-                or canonical in seen
-            ):
-                raise RuntimeError(
-                    f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_INVALID {member.name}"
-                )
-            seen.add(canonical)
-            if member.isreg():
-                if member.size<0 or member.size>max_member_size:
-                    raise RuntimeError(f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_SIZE_INVALID {member.name}")
-                total_size+=member.size
-                if total_size>max_total_size:
-                    raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_UNCOMPRESSED_SIZE_INVALID")
-            target = workspace.joinpath(*pure.parts)
-            if member.isdir():
-                target.mkdir(parents=True, exist_ok=True)
-                continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            source = tf.extractfile(member)
-            if source is None:
-                raise RuntimeError(
-                    f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_UNREADABLE {member.name}"
-                )
-            with source, target.open("xb") as out:
-                shutil.copyfileobj(source, out, length=1024 * 1024)
-                out.flush()
-                os.fsync(out.fileno())
-            if target.stat().st_size!=member.size:
-                raise RuntimeError(f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_SIZE_DRIFT {member.name}")
-            target.chmod(member.mode & 0o777)
+    try:
+        verified=stable_snapshot.verified_open(
+            archive,
+            "FINAL_EXACT_RELEASE_TOOLCHAIN_EXTRACTION_ARCHIVE",
+            expected_digest="sha256:"+admitted_archive_sha,
+            expected_size=admitted_archive_size,
+        )
+        with verified as archive_file, tarfile.open(fileobj=archive_file,mode="r:gz") as tf:
+            members=tf.getmembers()
+            if not members or len(members)>max_members:
+                raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_COUNT_INVALID")
+            seen=set()
+            total_size=0
+            for member in members:
+                pure = PurePosixPath(member.name)
+                canonical=pure.as_posix()
+                if (
+                    pure.is_absolute()
+                    or ".." in pure.parts
+                    or not pure.parts
+                    or pure.parts[0] != "go"
+                    or len(canonical.encode("utf-8"))>1024
+                    or not (member.isdir() or member.isreg())
+                    or canonical in seen
+                ):
+                    raise RuntimeError(
+                        f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_INVALID {member.name}"
+                    )
+                seen.add(canonical)
+                if member.isreg():
+                    if member.size<0 or member.size>max_member_size:
+                        raise RuntimeError(f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_SIZE_INVALID {member.name}")
+                    total_size+=member.size
+                    if total_size>max_total_size:
+                        raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_UNCOMPRESSED_SIZE_INVALID")
+                target = workspace.joinpath(*pure.parts)
+                if member.isdir():
+                    target.mkdir(parents=True, exist_ok=True)
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source = tf.extractfile(member)
+                if source is None:
+                    raise RuntimeError(
+                        f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_UNREADABLE {member.name}"
+                    )
+                with source, target.open("xb") as out:
+                    shutil.copyfileobj(source, out, length=1024 * 1024)
+                    out.flush()
+                    os.fsync(out.fileno())
+                if target.stat().st_size!=member.size:
+                    raise RuntimeError(f"FINAL_EXACT_RELEASE_TOOLCHAIN_MEMBER_SIZE_DRIFT {member.name}")
+                target.chmod(member.mode & 0o777)
+    except RuntimeError:
+        raise
+    except (OSError,tarfile.TarError) as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE_INVALID") from exc
 
     go = workspace / "go" / "bin" / "go"
     info = go.lstat()
