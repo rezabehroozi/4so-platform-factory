@@ -153,6 +153,35 @@ class C7WExpiredCompleteRecoveryTests(unittest.TestCase):
         self.assertTrue(recovered["serverAuditWitnessPass"])
         self.assertEqual(2,validate_rows.call_count)
 
+    def test_recovery_revalidates_bulk_artifacts_inside_progress_lock_before_write(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=runner.secure_state_dir(root/"state"); p=runner.paths(state)
+            p["campaign"].write_text("{}",encoding="utf-8")
+            for client in core.CLIENTS:
+                (p["receipts"]/(client+".json")).write_text("{}",encoding="utf-8")
+                (p["audits"]/(client+".json")).write_text("{}",encoding="utf-8")
+            progress=root/"progress.json"; progress.write_text("{}",encoding="utf-8")
+            args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=progress,evidence_out=root/"evidence.json")
+            bulk={"campaignId":"mcp-interop-recover","sourceCommitSHA":"a"*40,"certifiedClientCount":4,"externalCertificationPass":True}
+            statuses=[{"complete":False,"nextClient":"grok"},{"complete":False,"nextClient":"grok"},{"complete":True,"nextClient":None}]
+            with (
+                mock.patch.object(runner,"require_canonical_matrix",side_effect=lambda root,path:path),
+                mock.patch.object(runner.core,"load",return_value={"sourceCommitSHA":"a"*40}),
+                mock.patch.object(runner,"require_active_campaign_source",return_value="a"*40),
+                mock.patch.object(runner,"progress_status",side_effect=statuses),
+                mock.patch.object(runner.core,"seal",side_effect=[bulk,bulk]) as bulk_seal,
+                mock.patch.object(runner,"recover_complete_progress_from_bulk",return_value={"complete":True}) as recover,
+                mock.patch.object(runner.admission,"progress_lock"),
+                mock.patch.object(runner.core,"write_json_atomic_replace") as write_progress,
+                mock.patch.object(runner.admission,"final_evidence",return_value=bulk),
+                mock.patch.object(runner.core,"write_json_once_or_identical"),
+                mock.patch.object(runner,"git_handoff",return_value={"nextActionCode":"COMMIT_C7W_EVIDENCE"}),
+            ):
+                runner.seal(args)
+        self.assertEqual(2,bulk_seal.call_count)
+        recover.assert_called_once()
+        write_progress.assert_called_once()
+
 
 if __name__=="__main__":
     unittest.main()
