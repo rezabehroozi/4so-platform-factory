@@ -726,6 +726,17 @@ def exact_source_admission(root: Path, source_sha: str) -> dict:
             remove_exact_worktree(root,worktree)
 
 
+def require_valid_final_admission(admitted:dict)->dict:
+    if (
+        not isinstance(admitted,dict)
+        or admitted.get("authority")!=admission.AUTHORITY
+        or admitted.get("admitted") is not True
+        or admitted.get("physicalCertified") is not False
+    ):
+        raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_INVALID")
+    return admitted
+
+
 def verify_existing_release_full(root: Path, source_sha: str, release: Path) -> None:
     state_dir=root/".state"
     if state_dir.is_symlink() or (state_dir.exists() and not state_dir.is_dir()):
@@ -772,12 +783,12 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
     }
     if any(evidence.get(k)!=v for k,v in fixed.items()):
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_DRIFT")
-    admitted=exact_source_admission(root,source_sha)
-    if admitted.get("admitted") is not True or admitted.get("physicalCertified") is not False:
-        raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_INVALID")
+    admitted=require_valid_final_admission(exact_source_admission(root,source_sha))
     for key in ("applianceDistributionSha256","mcpExternalInteropSha256"):
         if evidence.get(key)!=admitted.get(key):
             raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ADMISSION_DRIFT")
+    require_exact_release_host()
+    require_exact_release_environment(root)
     for key in ("releaseArchiveSha256","artifactManifestSha256","buildProvenanceSha256","sbomSha256","applianceDistributionSha256","mcpExternalInteropSha256"):
         value=evidence.get(key)
         if not isinstance(value,str) or len(value)!=71 or not value.startswith("sha256:") or any(ch not in "0123456789abcdef" for ch in value[7:]):
@@ -821,14 +832,15 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
 
 
 def execute(root: Path, out: Path) -> dict:
-    require_exact_release_host()
     root = root.resolve()
-    require_exact_release_environment(root)
     out = admit_output_path(root,out)
     if out.exists():
         return resume_existing_evidence(root,out)
 
     source_sha = git_source(root)
+    initial_admitted=require_valid_final_admission(exact_source_admission(root,source_sha))
+    require_exact_release_host()
+    require_exact_release_environment(root)
 
     state_dir = root / ".state"
     if state_dir.is_symlink() or (state_dir.exists() and not state_dir.is_dir()):
@@ -839,6 +851,9 @@ def execute(root: Path, out: Path) -> dict:
     with tempfile.TemporaryDirectory(prefix="4so-final-release-toolchain-", dir=state_dir) as tool_td, tempfile.TemporaryDirectory(prefix="4so-final-release-source-", dir=state_dir) as source_td:
         worktree = prepare_exact_worktree(root, source_sha, Path(source_td))
         try:
+            admitted=require_valid_final_admission(admission.verify(worktree,expected_source_sha=source_sha))
+            if admitted!=initial_admitted:
+                raise RuntimeError("FINAL_EXACT_RELEASE_ADMISSION_DRIFT")
             lock = json.loads(
                 (worktree / "lab" / "release-build-toolchain-lock.json").read_text(
                     encoding="utf-8"
@@ -847,7 +862,6 @@ def execute(root: Path, out: Path) -> dict:
             archive, exact = safe_toolchain_archive(root, lock)
             staged_archive = stage_toolchain_archive(archive, exact, worktree)
             go = extract_toolchain(staged_archive, exact, Path(tool_td))
-            admitted = admission.verify(worktree,expected_source_sha=source_sha)
             env = exact_release_environment(go)
 
             run(
