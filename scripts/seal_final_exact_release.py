@@ -30,9 +30,11 @@ import zipfile
 try:
     import final_exact_release_admission as admission
     import ui_browser_authority as browser_authority
+    import c9_stable_snapshot as stable_snapshot
 except ModuleNotFoundError:
     from scripts import final_exact_release_admission as admission
     from scripts import ui_browser_authority as browser_authority
+    from scripts import c9_stable_snapshot as stable_snapshot
 
 AUTHORITY = "FINAL_EXACT_RELEASE_SEAL_V1"
 EXECUTION_AUTHORITY = "LOCAL_EXACT_RELEASE_SEAL_V1"
@@ -98,15 +100,12 @@ def exact_release_environment(go: Path) -> dict[str, str]:
     return env
 
 
+def stable_file_fingerprint(path:Path,label:str)->tuple[str,int]:
+    return stable_snapshot.stable_file_fingerprint(path,label)
+
+
 def sha256(path: Path) -> str:
-    info = path.lstat()
-    if not stat.S_ISREG(info.st_mode) or path.is_symlink() or info.st_size <= 0:
-        raise RuntimeError(f"FINAL_EXACT_RELEASE_FILE_INVALID {path}")
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for block in iter(lambda: fh.read(1024 * 1024), b""):
-            h.update(block)
-    return "sha256:" + h.hexdigest()
+    return stable_file_fingerprint(path,"FINAL_EXACT_RELEASE")[0]
 
 
 def run(command: list[str], *, root: Path, env: dict[str, str]) -> str:
@@ -204,8 +203,8 @@ def safe_toolchain_archive(root: Path, lock: dict) -> tuple[Path, dict]:
         raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE_INVALID")
     wanted_size = int(exact.get("archiveSize") or 0)
     wanted_sha = str(exact.get("archiveSha256") or "")
-    got_sha = sha256(archive).removeprefix("sha256:")
-    if info.st_size != wanted_size or got_sha != wanted_sha:
+    got_digest,got_size=stable_file_fingerprint(archive,"FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE")
+    if got_size != wanted_size or got_digest.removeprefix("sha256:") != wanted_sha:
         raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE_MISMATCH")
     return archive, exact
 
@@ -423,11 +422,15 @@ def stage_toolchain_archive(archive: Path, exact: dict, worktree: Path) -> Path:
     if wanted_size<=0 or not re.fullmatch(r"[0-9a-f]{64}",wanted_sha):
         raise RuntimeError("FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_INVALID")
     target.parent.mkdir(parents=True, exist_ok=True)
-    with archive.open("rb") as source, target.open("xb") as output:
-        shutil.copyfileobj(source, output, length=1024 * 1024)
-        output.flush()
-        os.fsync(output.fileno())
-    if target.stat().st_size!=wanted_size or sha256(target)!="sha256:"+wanted_sha:
+    stable_snapshot.publish_verified_file(
+        archive,
+        target,
+        expected_digest="sha256:"+wanted_sha,
+        expected_size=wanted_size,
+    )
+    target.chmod(0o644)
+    target_digest,target_size=stable_file_fingerprint(target,"FINAL_EXACT_RELEASE_WORKTREE_TOOLCHAIN")
+    if target_size!=wanted_size or target_digest!="sha256:"+wanted_sha:
         raise RuntimeError("FINAL_EXACT_RELEASE_WORKTREE_TOOLCHAIN_MISMATCH")
     return target
 
@@ -473,46 +476,19 @@ def exact_release_publication_path(root: Path, source_sha: str, filename: str) -
     return root/"release"/"exact-sha"/source_sha/filename
 
 
-def publish_verified_file(source: Path, target: Path) -> Path:
-    source_info=source.lstat()
-    if not stat.S_ISREG(source_info.st_mode) or source.is_symlink() or source_info.st_size<=0:
-        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_SOURCE_INVALID")
-    wanted_digest=sha256(source)
-    target_parent=target.parent
-    for parent in reversed(target_parent.parents):
-        if parent.exists() and (parent.is_symlink() or not parent.is_dir()):
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID")
-    target_parent.mkdir(parents=True,exist_ok=True)
-    if target_parent.is_symlink() or not target_parent.is_dir():
-        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID")
-    if target.exists() or target.is_symlink():
-        if target.is_symlink() or not target.is_file():
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_TARGET_INVALID")
-        if target.stat().st_mode & 0o222:
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_WRITABLE")
-        if sha256(target)!=wanted_digest or target.stat().st_size!=source_info.st_size:
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
-        return target
-    fd,temp_name=tempfile.mkstemp(prefix="."+target.name+".tmp.",dir=target_parent)
-    temp=Path(temp_name)
-    try:
-        with os.fdopen(fd,"wb") as out, source.open("rb") as inp:
-            shutil.copyfileobj(inp,out,length=1024*1024)
-            out.flush(); os.fsync(out.fileno())
-        if sha256(temp)!=wanted_digest or temp.stat().st_size!=source_info.st_size:
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT")
-        temp.chmod(0o444)
-        try:
-            os.link(temp,target,follow_symlinks=False)
-        except FileExistsError:
-            if target.is_symlink() or not target.is_file() or target.stat().st_mode&0o222 or sha256(target)!=wanted_digest or target.stat().st_size!=source_info.st_size:
-                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
-        directory_fd=os.open(target_parent,os.O_RDONLY)
-        try: os.fsync(directory_fd)
-        finally: os.close(directory_fd)
-        return target
-    finally:
-        if temp.exists(): temp.unlink()
+def publish_verified_file(
+    source:Path,
+    target:Path,
+    *,
+    expected_digest:str|None=None,
+    expected_size:int|None=None,
+)->Path:
+    return stable_snapshot.publish_verified_file(
+        source,
+        target,
+        expected_digest=expected_digest,
+        expected_size=expected_size,
+    )
 
 
 def seal_publication_directory(path:Path)->None:
@@ -540,7 +516,10 @@ def require_published_read_only(path:Path,label:str)->None:
 def verify_release_checksum(release:Path,checksum:Path,label:str)->None:
     if checksum.is_symlink() or not checksum.is_file():
         raise RuntimeError(f"{label}_CHECKSUM_INVALID")
-    raw=checksum.read_text(encoding="utf-8",errors="strict")
+    try:
+        raw=stable_snapshot.stable_file_bytes(checksum,label+"_CHECKSUM",max_bytes=4096).decode("utf-8",errors="strict")
+    except (RuntimeError,UnicodeDecodeError) as exc:
+        raise RuntimeError(f"{label}_CHECKSUM_INVALID") from exc
     expected=sha256(release).removeprefix("sha256:")
     if raw!=f"{expected}  {release.name}\n":
         raise RuntimeError(f"{label}_CHECKSUM_INVALID")
@@ -558,6 +537,7 @@ def build_evidence(root: Path, release: Path, stage: Path, admitted: dict, sourc
         raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PATH_INVALID")
     require_published_read_only(release,"FINAL_EXACT_RELEASE_ARTIFACT")
     require_publication_directory_read_only(release.parent,"FINAL_EXACT_RELEASE_PUBLICATION_DIRECTORY")
+    release_digest,release_size=stable_file_fingerprint(release,"FINAL_EXACT_RELEASE_ARTIFACT")
     prefix=f"4so-platform-factory-{version}-{release_name}/"
     expected_embedded={
         prefix+"ARTIFACT-MANIFEST.json":sha256(manifest),
@@ -575,6 +555,9 @@ def build_evidence(root: Path, release: Path, stage: Path, admitted: dict, sourc
                     raise RuntimeError("FINAL_EXACT_RELEASE_ARCHIVE_METADATA_DRIFT")
     except (zipfile.BadZipFile,KeyError,OSError) as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_ARCHIVE_INVALID") from exc
+    release_after_digest,release_after_size=stable_file_fingerprint(release,"FINAL_EXACT_RELEASE_ARTIFACT")
+    if (release_after_digest,release_after_size)!=(release_digest,release_size):
+        raise RuntimeError("FINAL_EXACT_RELEASE_ARCHIVE_CHANGED_DURING_EVIDENCE")
     return {
         "apiVersion": "platform.4so.io/v1alpha1",
         "kind": "FinalExactReleaseEvidence",
@@ -586,8 +569,8 @@ def build_evidence(root: Path, release: Path, stage: Path, admitted: dict, sourc
         "releaseName": release_name,
         "releaseArchive": release.name,
         "releaseArchivePath": release.relative_to(root).as_posix(),
-        "releaseArchiveSha256": sha256(release),
-        "releaseArchiveBytes": release.stat().st_size,
+        "releaseArchiveSha256": release_digest,
+        "releaseArchiveBytes": release_size,
         "artifactManifestSha256": expected_embedded[prefix+"ARTIFACT-MANIFEST.json"],
         "buildProvenanceSha256": expected_embedded[prefix+"BUILD-PROVENANCE.json"],
         "sbomSha256": expected_embedded[prefix+"SBOM.spdx.json"],
@@ -804,8 +787,8 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
     release=root.joinpath(*expected_rel.parts)
     require_publication_directory_read_only(release.parent,"FINAL_EXACT_RELEASE_EXISTING_PUBLICATION_DIRECTORY")
     require_published_read_only(release,"FINAL_EXACT_RELEASE_EXISTING_ARCHIVE")
-    digest=sha256(release)
-    if evidence.get("releaseArchiveSha256")!=digest or evidence.get("releaseArchiveBytes")!=release.stat().st_size:
+    digest,size=stable_file_fingerprint(release,"FINAL_EXACT_RELEASE_EXISTING_ARCHIVE")
+    if evidence.get("releaseArchiveSha256")!=digest or evidence.get("releaseArchiveBytes")!=size:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_DRIFT")
     checksum=release.with_name(release.name+".sha256")
     require_published_read_only(checksum,"FINAL_EXACT_RELEASE_EXISTING_CHECKSUM")
@@ -831,6 +814,13 @@ def resume_existing_evidence(root: Path, out: Path) -> dict:
     except (zipfile.BadZipFile,KeyError,OSError) as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_INVALID") from exc
     verify_existing_release_full(root,source_sha,release)
+    digest_after,size_after=stable_file_fingerprint(release,"FINAL_EXACT_RELEASE_EXISTING_ARCHIVE")
+    if (digest_after,size_after)!=(digest,size):
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_ARCHIVE_CHANGED_DURING_RESUME")
+    try:
+        verify_release_checksum(release,checksum,"FINAL_EXACT_RELEASE_EXISTING")
+    except RuntimeError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_CHECKSUM_DRIFT") from exc
     try:
         _,evidence_after_sha256=admission.mcp_contract.load_with_sha256(out,"FINAL_EXACT_RELEASE_EXISTING_EVIDENCE",max_bytes=1024*1024)
     except RuntimeError as exc:
@@ -907,14 +897,40 @@ def execute(root: Path, out: Path) -> dict:
                 root=worktree,
                 env=env,
             )
+            verified_release_digest,verified_release_size=stable_file_fingerprint(release,"FINAL_EXACT_RELEASE_VERIFIED_ARCHIVE")
+            checksum_source=release.with_name(release.name+".sha256")
+            verify_release_checksum(release,checksum_source,"FINAL_EXACT_RELEASE_VERIFIED")
+            verified_checksum_digest,verified_checksum_size=stable_file_fingerprint(checksum_source,"FINAL_EXACT_RELEASE_VERIFIED_CHECKSUM")
             verify_worktree_source_unchanged(worktree, source_sha, {staged_archive.relative_to(worktree).as_posix()})
             if git_source(root) != source_sha:
                 raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_BUILD")
 
             published_release_path = exact_release_publication_path(root, source_sha, release.name)
             published_checksum_path = exact_release_publication_path(root, source_sha, release.name + ".sha256")
-            published_release = publish_verified_file(release, published_release_path)
-            published_checksum=publish_verified_file(release.with_name(release.name + ".sha256"), published_checksum_path)
+            published_release = publish_verified_file(
+                release,
+                published_release_path,
+                expected_digest=verified_release_digest,
+                expected_size=verified_release_size,
+            )
+            published_checksum=publish_verified_file(
+                checksum_source,
+                published_checksum_path,
+                expected_digest=verified_checksum_digest,
+                expected_size=verified_checksum_size,
+            )
+            published_before=stable_file_fingerprint(published_release,"FINAL_EXACT_RELEASE_PUBLISHED_ARCHIVE")
+            if published_before!=(verified_release_digest,verified_release_size):
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLISHED_ARCHIVE_DRIFT")
+            verify_release_checksum(published_release,published_checksum,"FINAL_EXACT_RELEASE_PUBLISHED")
+            run(
+                [sys.executable,"scripts/verify_release.py",str(published_release),"--full"],
+                root=worktree,
+                env=env,
+            )
+            published_after=stable_file_fingerprint(published_release,"FINAL_EXACT_RELEASE_PUBLISHED_ARCHIVE")
+            if published_after!=published_before:
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLISHED_ARCHIVE_CHANGED_DURING_VERIFY")
             verify_release_checksum(published_release,published_checksum,"FINAL_EXACT_RELEASE_PUBLISHED")
             seal_publication_directory(published_release.parent)
             evidence = build_evidence(
@@ -940,7 +956,7 @@ def main() -> int:
         default=Path("lab/final-exact-release-evidence.json"),
     )
     parser.add_argument("--preflight",action="store_true")
-    args = parser.parse_args()
+    args=parser.parse_args()
     if args.preflight:
         result=exact_release_environment_preflight(args.root)
         print(json.dumps(result,sort_keys=True))
