@@ -104,8 +104,39 @@ def enrich(result: dict) -> dict:
     return out
 
 
+def _source_failure(root: Path, exc: RuntimeError) -> dict:
+    code = str(exc).split()[0] if str(exc).strip() else "FINAL_EXACT_RELEASE_GIT_SOURCE_INVALID"
+    out = enrich(
+        {
+            "authority": sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
+            "ready": False,
+            "requiredHost": "linux-amd64-exact-toolchain",
+            "missingHostTools": [],
+            "blockers": [code],
+            "physicalCertified": False,
+        }
+    )
+    out.update(
+        {
+            "nextActionCode": "RESTORE_C9_SOURCE_AUTHORITY",
+            "nextCommand": ["git", "status", "--short"],
+            "requiredInputs": [],
+            "sourceCommitSHA": "",
+            "detail": f"{code}; restore canonical clean main at the exact repository root before evaluating C9 environment readiness",
+        }
+    )
+    return out
+
+
 def preflight(root: Path) -> dict:
-    return enrich(sealer.exact_release_environment_preflight(root.resolve()))
+    root = root.resolve()
+    try:
+        source_sha = sealer.git_source(root)
+    except RuntimeError as exc:
+        return _source_failure(root, exc)
+    out = enrich(sealer.exact_release_environment_preflight(root))
+    out["sourceCommitSHA"] = source_sha
+    return out
 
 
 def main() -> int:
