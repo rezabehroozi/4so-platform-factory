@@ -139,6 +139,35 @@ class C9PreflightHandoffTests(unittest.TestCase):
                     result["nextCommand"],
                 )
 
+    def test_preflight_rejects_dirty_source_before_environment_handoff(self):
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(sealer, "git_source", side_effect=RuntimeError("FINAL_EXACT_RELEASE_SOURCE_NOT_EXACT_HEAD")), \
+             mock.patch.object(sealer, "exact_release_environment_preflight", side_effect=AssertionError("environment preflight must not run before source authority")):
+            result = mod.preflight(Path(td))
+        self.assertFalse(result["ready"])
+        self.assertEqual(["FINAL_EXACT_RELEASE_SOURCE_NOT_EXACT_HEAD"], result["blockers"])
+        self.assertEqual("RESTORE_C9_SOURCE_AUTHORITY", result["nextActionCode"])
+        self.assertEqual(["git", "status", "--short"], result["nextCommand"])
+        self.assertEqual([], result["requiredInputs"])
+
+    def test_preflight_binds_ready_environment_to_exact_source_sha(self):
+        source_sha = "a" * 40
+        env = {
+            "authority": sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
+            "ready": True,
+            "requiredHost": "linux-amd64-exact-toolchain",
+            "missingHostTools": [],
+            "blockers": [],
+            "physicalCertified": False,
+        }
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(sealer, "git_source", return_value=source_sha), \
+             mock.patch.object(sealer, "exact_release_environment_preflight", return_value=env):
+            result = mod.preflight(Path(td))
+        self.assertTrue(result["ready"])
+        self.assertEqual(source_sha, result["sourceCommitSHA"])
+        self.assertEqual("RUN_C9_SEAL", result["nextActionCode"])
+
 
 if __name__ == "__main__":
     unittest.main()
