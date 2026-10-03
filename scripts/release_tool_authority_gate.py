@@ -120,7 +120,22 @@ def validate(root:Path)->list[tuple[str,str]]:
     if any(marker not in sealer for marker in host_markers) or "require_release_build_host" not in builder:
         errors.append(("RELEASE_HOST_ARCHITECTURE_GUARD_INVALID","exact release must fail closed outside linux/amd64 in both builder and C9"))
 
-    preflight_markers=('AUTHORITY = "FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_V1"',"sealer.exact_release_environment_preflight","validate_existing_evidence",'"INSPECT_C9_EXISTING_EVIDENCE"','"FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_FIELDS_INVALID"','"RUN_C9_ON_EXACT_LINUX_HOST"','"PROVIDE_C9_ENVIRONMENT_INPUTS"','"RUN_C9_SEAL"','"requiredInputs"','"physicalCertified"')
+    preflight_markers=(
+        'AUTHORITY = "FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_V1"',
+        "sealer.exact_release_environment_preflight",
+        "sealer.exact_source_admission",
+        "validate_existing_evidence",
+        '"INSPECT_C9_EXISTING_EVIDENCE"',
+        '"FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_FIELDS_INVALID"',
+        '"MCP_EXTERNAL_INTEROP_PENDING"',
+        '"RUN_C7W_PREFLIGHT"',
+        '"RUN_C9_ON_EXACT_LINUX_HOST"',
+        '"PROVIDE_C9_ENVIRONMENT_INPUTS"',
+        '"RUN_C9_SEAL"',
+        '"admissionReady"',
+        '"requiredInputs"',
+        '"physicalCertified"',
+    )
     missing=[marker for marker in preflight_markers if marker not in preflight]
     if missing: errors.append(("FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_INVALID",",".join(missing)))
     if 'c9-preflight:' not in makefile or 'scripts/c9_preflight.py --root .' not in makefile:
