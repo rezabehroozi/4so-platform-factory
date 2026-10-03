@@ -36,6 +36,7 @@ def release_build_environment()->dict[str,str]:
         "LD_PRELOAD","LD_LIBRARY_PATH","LIBRARY_PATH","COMPILER_PATH",
         "CPATH","C_INCLUDE_PATH","CPLUS_INCLUDE_PATH",
         "PKG_CONFIG","PKG_CONFIG_PATH","PKG_CONFIG_LIBDIR","PKG_CONFIG_SYSROOT_DIR",
+        "PYTHONHOME","PYTHONPATH","PYTHONSTARTUP","PYTHONINSPECT",
         "BASH_ENV","ENV","MAKEFLAGS","MFLAGS","MAKELEVEL","MAKEFILES","MAKEOVERRIDES",
         "SOURCE_COMMIT","AR","NM","RANLIB","STRIP","GCC_EXEC_PREFIX","DEPENDENCIES_OUTPUT",
     }
@@ -55,6 +56,8 @@ def release_build_environment()->dict[str,str]:
     env["GOPRIVATE"]=""
     env["GONOPROXY"]=""
     env["GONOSUMDB"]=""
+    env["PYTHONDONTWRITEBYTECODE"]="1"
+    env["PYTHONNOUSERSITE"]="1"
     return env
 
 
