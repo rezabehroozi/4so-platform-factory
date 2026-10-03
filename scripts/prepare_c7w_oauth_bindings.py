@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import stat
+import sys
 import tempfile
 from pathlib import Path
 
@@ -148,10 +149,30 @@ def materialize(output:Path,clients:dict[str,str],*,root:Path|None=None)->dict:
     }
 
 
+def followup_preflight_command(output:Path,endpoint:str,token_env:str)->list[str]:
+    command=[
+        sys.executable,
+        "scripts/c7w_preflight.py",
+        "--root",
+        ".",
+        "--oauth-client-map",
+        str(output),
+    ]
+    endpoint=str(endpoint or "").strip()
+    token_env=str(token_env or "").strip()
+    if endpoint:
+        command.extend(["--endpoint",endpoint])
+    if token_env:
+        command.extend(["--token-env",token_env])
+    return command
+
+
 def main()->int:
     parser=argparse.ArgumentParser()
     parser.add_argument("--root",type=Path,default=Path("."))
     parser.add_argument("--out",type=Path,default=DEFAULT_OUTPUT)
+    parser.add_argument("--preflight-endpoint",default="")
+    parser.add_argument("--preflight-token-env",default="C7W_PLATFORM_ADMIN_TOKEN")
     for client in CLIENTS:
         parser.add_argument(f"--{client}-client-id",default=os.environ.get(ENV_IDS[client],""))
     args=parser.parse_args()
@@ -160,10 +181,7 @@ def main()->int:
     output=args.out if args.out.is_absolute() else root/args.out
     result=materialize(output,clients,root=root)
     result["nextActionCode"]="RUN_C7W_PREFLIGHT"
-    result["nextCommand"]=[
-        os.environ.get("PYTHON","python3"),"scripts/c7w_preflight.py","--root",".",
-        "--oauth-client-map",str(output),
-    ]
+    result["nextCommand"]=followup_preflight_command(output,args.preflight_endpoint,args.preflight_token_env)
     print(json.dumps(result,sort_keys=True))
     return 0
 
