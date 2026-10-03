@@ -132,8 +132,6 @@ def reconcile_plan(rows:list[dict],bindings:dict[str,str])->dict:
         exact=[row for row in active_rows if str(row.get("clientId") or "").strip()==wanted]
         provider_active=[row for row in active_rows if str(row.get("provider") or "").strip().lower()==client]
 
-        # One OAuth client ID must resolve to one ACTIVE Product trust authority row,
-        # and one named provider must not retain another ACTIVE OAuth identity.
         if len(exact)>1 or len(provider_active)>1:
             raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_CONFLICT {client}")
         if exact:
@@ -148,8 +146,6 @@ def reconcile_plan(rows:list[dict],bindings:dict[str,str])->dict:
             ready.append(client)
             continue
         if provider_active:
-            # An ACTIVE named-provider registration already exists under another
-            # OAuth identity. Never rotate it implicitly.
             raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_CONFLICT {client}")
         create.append({
             "clientId":wanted,
@@ -160,6 +156,19 @@ def reconcile_plan(rows:list[dict],bindings:dict[str,str])->dict:
     return {"create":create,"ready":ready}
 
 
+def preflight_command(endpoint_url:str,oauth_client_map:Path,token_env:str)->list[str]:
+    return [
+        sys.executable,
+        "scripts/c7w_preflight.py",
+        "--endpoint",
+        str(endpoint_url),
+        "--oauth-client-map",
+        str(oauth_client_map),
+        "--token-env",
+        str(token_env),
+    ]
+
+
 def reconcile(endpoint_url:str,bindings:dict[str,str],token_env:str)->dict:
     before=fetch_rows(endpoint_url,token_env)
     plan=reconcile_plan(before,bindings)
@@ -168,8 +177,6 @@ def reconcile(endpoint_url:str,bindings:dict[str,str],token_env:str)->dict:
         created_row=create_row(endpoint_url,row,token_env)
         created.append(str(created_row.get("provider") or row["provider"]).strip().lower())
 
-    # Final live readback is the authority. Create responses are not enough to
-    # prove that all four registrations are ACTIVE and uniquely bound.
     after=fetch_rows(endpoint_url,token_env)
     final=reconcile_plan(after,bindings)
     if final["create"] or set(final["ready"])!=set(CLIENTS):
@@ -181,7 +188,7 @@ def reconcile(endpoint_url:str,bindings:dict[str,str],token_env:str)->dict:
         "createdProviders":created,
         "readyProviders":list(CLIENTS),
         "nextActionCode":"RUN_C7W_PREFLIGHT",
-        "nextCommand":[sys.executable,"scripts/c7w_preflight.py"],
+        "nextCommand":[],
         "physicalCertified":False,
     }
 
@@ -197,6 +204,7 @@ def main()->int:
         raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_RECONCILIATION_INPUTS_MISSING")
     bindings,_=campaign.load_oauth_bindings(args.oauth_client_map)
     result=reconcile(args.endpoint,bindings,args.token_env)
+    result["nextCommand"]=preflight_command(args.endpoint,args.oauth_client_map,args.token_env)
     print(json.dumps(result,sort_keys=True))
     return 0
 
