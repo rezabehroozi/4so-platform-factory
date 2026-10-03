@@ -116,7 +116,7 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         packager=self.read("scripts/build_release.py")
         exact_packager=self.read("scripts/package_release_exact.py")
         verifier=self.read("scripts/verify_release.py")
-        validator=self.read("scripts/validate_repository.py")
+        release_gate=self.read("scripts/release_tool_authority_gate.py")
         makefile=self.read("Makefile")
         def literal(source,name):
             tree=ast.parse(source)
@@ -154,13 +154,14 @@ class C7WFinalClosureGitContractTests(unittest.TestCase):
         self.assertIn('[sys.executable,"scripts/build_release.py","."]',exact_packager)
         self.assertIn('GO="$(GO)" $(PYTHON) scripts/verify_release_build_toolchain.py --require-admitted',makefile)
         self.assertIn('GO="$(GO)" $(PYTHON) scripts/package_release_exact.py --root .',makefile)
+        self.assertIn('$(PYTHON) scripts/release_tool_authority_gate.py --root .',makefile)
         for code in (
             "RELEASE_BINARY_BUILDER_ENVIRONMENT_INVALID",
             "RELEASE_TOOLCHAIN_GO_SELECTOR_DRIFT",
             "EXACT_RELEASE_PACKAGER_OWNER_INVALID",
             "FINAL_EXACT_RELEASE_PACKAGER_OWNER_INVALID",
         ):
-            self.assertIn(code,validator)
+            self.assertIn(code,release_gate)
 
     def test_local_runner_is_canonical_execution_entrypoint(self):
         runner = self.read("scripts/run_mcp_external_interop.py")
