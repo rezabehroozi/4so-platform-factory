@@ -26,6 +26,8 @@ class ReleaseToolAuthorityGateContractTests(unittest.TestCase):
             "BINARIES",
             "RELEASE_BINARIES",
             "dapr-runtime",
+            "validate_existing_evidence",
+            "INSPECT_C9_EXISTING_EVIDENCE",
         ):
             self.assertIn(marker,gate)
 
