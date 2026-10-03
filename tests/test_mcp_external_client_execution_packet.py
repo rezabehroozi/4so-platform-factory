@@ -27,5 +27,13 @@ class PacketTests(unittest.TestCase):
         runtime_check=next(x for x in out["checks"] if x["id"]=="authorization-filtered-tools-list"); self.assertEqual(campaign["sourceCommitSHA"],runtime_check["expect"]["sourceCommitSHA"]); self.assertIn("serverInfo.sourceCommitSHA",runtime_check["captureRuntimeIdentityFrom"]["sourceCommitSHA"])
         audited=[x for x in out["checks"] if x.get("serverAudit")]; self.assertEqual(set(core.AUDITED_CHECKS),{x["id"] for x in audited}); self.assertTrue(all("X-Request-ID" in x["request"]["captureRequestIdFrom"][0] for x in audited)); self.assertTrue(all(x["request"]["headers"]["MCP-Protocol-Version"]=="2026-07-28" for x in audited)); self.assertTrue(all(x["request"]["headers"]["Mcp-Interop-Binding"]==out["interopBindingDigest"] for x in audited))
         by_id={x["id"]:x for x in out["checks"]}; self.assertEqual("project-foreign-001",by_id["project-resource-scope-negative-control"]["request"]["jsonRpc"]["params"]["arguments"]["projectId"]); self.assertEqual("operation-cancellable-001",by_id["read-only-client-mutation-negative-control"]["request"]["jsonRpc"]["params"]["arguments"]["id"]); self.assertEqual("approval-request-001",by_id["administration-approval-self-approval-negative-control"]["request"]["jsonRpc"]["params"]["arguments"]["id"])
+        rpc_rows=[row for row in out["checks"] if "jsonRpc" in row.get("request",{})]
+        rpc_ids=[row["request"]["jsonRpc"]["id"] for row in rpc_rows]
+        self.assertEqual(len(rpc_ids),len(set(rpc_ids)))
+        self.assertTrue(all(isinstance(value,str) and value.startswith("c7w-") and len(value)==36 for value in rpc_ids))
+        self.assertNotIn("<unique-jsonrpc-id>",json.dumps(out))
+        challenge_sha=next(x for x in campaign["clients"] if x["clientId"]=="chatgpt")["challengeSha256"]
+        for row in rpc_rows:
+            self.assertEqual(bindings.jsonrpc_id(campaign["campaignId"],"chatgpt",challenge_sha,row["id"]),row["request"]["jsonRpc"]["id"])
         text=json.dumps(out); self.assertNotIn("<foreign-project-id>",text); self.assertNotIn("<same-project-operation-id>",text); self.assertNotIn("<request-created-by-same-subject>",text)
 if __name__=="__main__": unittest.main()
