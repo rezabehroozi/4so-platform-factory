@@ -25,6 +25,7 @@ import seal_mcp_external_interop as core
 
 AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"
 DEFAULT_STATE=Path(".state/c7w-external-interop")
+CANONICAL_MATRIX_REL=Path("lab/mcp-external-client-interop-matrix.json")
 
 
 def secure_state_dir(path:Path)->Path:
@@ -54,6 +55,16 @@ def paths(state:Path)->dict[str,Path]:
         "receipts":state/"receipts",
         "audits":state/"audits",
     }
+
+
+def require_canonical_matrix(root:Path,candidate:Path)->Path:
+    root=root.resolve()
+    raw=Path(candidate)
+    actual=Path(os.path.abspath(raw if raw.is_absolute() else root/raw))
+    expected=Path(os.path.abspath(root/CANONICAL_MATRIX_REL))
+    if actual!=expected or actual.is_symlink() or expected.is_symlink() or not expected.is_file():
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_MATRIX_PATH_INVALID")
+    return expected
 
 
 def require_c7w_source_freeze(root:Path)->None:
@@ -237,7 +248,9 @@ def capture_template(packet:dict)->dict:
 
 
 def prepare(args:argparse.Namespace)->dict:
-    require_c7w_source_freeze(Path.cwd())
+    root=Path.cwd().resolve()
+    require_c7w_source_freeze(root)
+    args.matrix=require_canonical_matrix(root,args.matrix)
     state=secure_state_dir(args.state_dir)
     p=paths(state)
     source_sha=campaign_builder.source_commit_sha(args.source_commit_sha)
@@ -303,6 +316,7 @@ def prepare(args:argparse.Namespace)->dict:
 
 
 def progress_status(matrix:Path,state:Path,progress_path:Path)->dict:
+    matrix=require_canonical_matrix(Path.cwd(),matrix)
     p=paths(state)
     if not p["campaign"].is_file() or p["campaign"].is_symlink():
         if progress_path.exists() or progress_path.is_symlink():
@@ -331,10 +345,12 @@ def progress_status(matrix:Path,state:Path,progress_path:Path)->dict:
 
 
 def admit(args:argparse.Namespace)->dict:
+    root=Path.cwd().resolve()
+    args.matrix=require_canonical_matrix(root,args.matrix)
     state=secure_state_dir(args.state_dir)
     p=paths(state)
     campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
-    require_active_campaign_source(Path.cwd(),campaign)
+    require_active_campaign_source(root,campaign)
     client=str(args.client).strip().lower()
     packet_path=p["packets"]/(client+".json")
     if not packet_path.is_file() or packet_path.is_symlink():
@@ -387,10 +403,12 @@ def admit(args:argparse.Namespace)->dict:
 
 
 def seal(args:argparse.Namespace)->dict:
+    root=Path.cwd().resolve()
+    args.matrix=require_canonical_matrix(root,args.matrix)
     state=secure_state_dir(args.state_dir)
     p=paths(state)
     campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
-    require_active_campaign_source(Path.cwd(),campaign)
+    require_active_campaign_source(root,campaign)
     progress=progress_status(args.matrix,state,args.progress_out)
     if not progress["complete"]:
         raise RuntimeError(f"MCP_EXTERNAL_LOCAL_SEAL_PROGRESS_INCOMPLETE next={progress.get('nextClient') or 'unknown'}")
@@ -410,11 +428,13 @@ def seal(args:argparse.Namespace)->dict:
         "externalCertificationPass":value["externalCertificationPass"],
         "physicalCertified":False,
     }
-    out.update(git_handoff(Path.cwd(),args.evidence_out,args.progress_out))
+    out.update(git_handoff(root,args.evidence_out,args.progress_out))
     return out
 
 
 def status(args:argparse.Namespace)->dict:
+    root=Path.cwd().resolve()
+    args.matrix=require_canonical_matrix(root,args.matrix)
     state=Path(os.path.abspath(args.state_dir))
     if state.exists() or state.is_symlink():
         if state.is_symlink() or not state.is_dir():
@@ -462,15 +482,15 @@ def status(args:argparse.Namespace)->dict:
         persisted=core.load(args.evidence_out,"EVIDENCE")
         if rebuilt!=persisted:
             raise RuntimeError("MCP_EXTERNAL_LOCAL_EVIDENCE_DRIFT")
-        value.update(git_handoff(Path.cwd(),args.evidence_out,args.progress_out))
+        value.update(git_handoff(root,args.evidence_out,args.progress_out))
     else:
         if value.get("campaignPrepared"):
             p=paths(state)
             campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
             try:
-                require_active_campaign_source(Path.cwd(),campaign)
+                require_active_campaign_source(root,campaign)
             except RuntimeError as exc:
-                head=subprocess.run(["git","rev-parse","HEAD"],cwd=Path.cwd(),text=True,capture_output=True,check=False)
+                head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
                 current_sha=head.stdout.strip().lower() if head.returncode==0 else ""
                 value.update({
                     "nextActionCode":"RERUN_C7W_ON_CURRENT_SOURCE",
@@ -499,7 +519,7 @@ def status(args:argparse.Namespace)->dict:
 
 def parser()->argparse.ArgumentParser:
     p=argparse.ArgumentParser()
-    p.add_argument("--matrix",type=Path,default=Path("lab/mcp-external-client-interop-matrix.json"))
+    p.add_argument("--matrix",type=Path,default=CANONICAL_MATRIX_REL)
     p.add_argument("--state-dir",type=Path,default=Path(os.environ.get("C7W_STATE_DIR",str(DEFAULT_STATE))))
     p.add_argument("--progress-out",type=Path,default=Path("lab/mcp-external-client-interop-progress.json"))
     p.add_argument("--evidence-out",type=Path,default=Path("lab/mcp-external-client-interoperability-evidence.json"))
