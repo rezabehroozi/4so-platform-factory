@@ -198,7 +198,6 @@ def verify_release_archive_exact_source(
     expected_size:int,
 )->None:
     tree,object_format=_exact_git_tree(root,source_sha)
-    prefix=release.stem+"/"
     try:
         with verified_open(
             release,
@@ -207,6 +206,10 @@ def verify_release_archive_exact_source(
             expected_size=expected_size,
         ) as raw, zipfile.ZipFile(raw,"r") as archive:
             names=set(archive.namelist())
+            roots={name.split("/",1)[0] for name in names if "/" in name and name.split("/",1)[0]}
+            if len(roots)!=1:
+                raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_ARCHIVE_ROOT_INVALID")
+            prefix=next(iter(roots))+"/"
             for rel,(wanted_oid,wanted_mode) in tree.items():
                 archive_name=prefix+rel
                 if archive_name not in names:
