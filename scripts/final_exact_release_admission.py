@@ -8,7 +8,7 @@ This gate consumes only already-sealed external authorities:
 It never infers or records Physical PASS.
 """
 from __future__ import annotations
-import argparse, json, re, subprocess
+import argparse, json, os, re, subprocess
 from pathlib import Path
 from urllib.parse import urlsplit
 try:
@@ -39,8 +39,16 @@ class Pending(RuntimeError):
 C7W_EVIDENCE_ONLY_PATHS=mcp_contract.C7W_EVIDENCE_ONLY_PATHS
 
 
+def _clean_git_env()->dict[str,str]:
+    env=os.environ.copy()
+    for key in list(env):
+        if key.startswith("GIT_"):
+            env.pop(key,None)
+    return env
+
+
 def git_head(root:Path)->str|None:
-    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=_clean_git_env(),text=True,capture_output=True,check=False)
     value=proc.stdout.strip().lower() if proc.returncode==0 else ""
     return value if mcp_contract.COMMIT.fullmatch(value) else None
 
@@ -50,10 +58,11 @@ def require_exact_source_workspace(root:Path,expected_source_sha:str)->str:
     wanted=str(expected_source_sha or "").strip().lower()
     if not mcp_contract.COMMIT.fullmatch(wanted):
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
-    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,text=True,capture_output=True,check=False)
-    head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
-    indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,capture_output=True,check=False)
-    status=subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,capture_output=True,check=False)
+    git_env=_clean_git_env()
+    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,env=git_env,capture_output=True,check=False)
+    status=subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,env=git_env,capture_output=True,check=False)
     if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root or head.returncode!=0:
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_WORKSPACE_INVALID")
     observed=head.stdout.strip().lower()
