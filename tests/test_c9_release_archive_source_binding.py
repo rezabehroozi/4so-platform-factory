@@ -26,7 +26,7 @@ class C9ReleaseArchiveSourceBindingTests(unittest.TestCase):
         self.git(root,"commit","-m","source")
         return self.git(root,"rev-parse","HEAD")
 
-    def archive(self,root:Path,tracked:bytes,*,tracked_mode:int=0o644)->Path:
+    def archive(self,root:Path,tracked:bytes,*,tracked_mode:int=0o644,extras:dict[str,bytes]|None=None)->Path:
         release=root/"4so-platform-factory-0.0.1-unit.zip"
         prefix=release.stem+"/"
         rows={
@@ -34,6 +34,7 @@ class C9ReleaseArchiveSourceBindingTests(unittest.TestCase):
             "RELEASE-NAME":(b"unit\n",0o644),
             "tracked.txt":(tracked,tracked_mode),
         }
+        rows.update({rel:(raw,0o644) for rel,raw in (extras or {}).items()})
         with zipfile.ZipFile(release,"w",compression=zipfile.ZIP_STORED) as zf:
             for rel,(raw,mode) in rows.items():
                 info=zipfile.ZipInfo(prefix+rel)
@@ -73,6 +74,21 @@ class C9ReleaseArchiveSourceBindingTests(unittest.TestCase):
             release=self.archive(root,b"committed-source\n",tracked_mode=0o755)
             digest,size=mod.stable_file_fingerprint(release,"TEST_ARCHIVE")
             with self.assertRaisesRegex(RuntimeError,"SOURCE_MODE_DRIFT"):
+                mod.verify_release_archive_exact_source(
+                    root.resolve(),release,source_sha,
+                    expected_digest=digest,expected_size=size,
+                )
+
+    def test_exact_source_archive_rejects_unexpected_non_generated_payload(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            source_sha=self.repo(root)
+            release=self.archive(
+                root,b"committed-source\n",
+                extras={"rogue-source.txt":b"not in git tree\n"},
+            )
+            digest,size=mod.stable_file_fingerprint(release,"TEST_ARCHIVE")
+            with self.assertRaisesRegex(RuntimeError,"SOURCE_EXTRA_FILE"):
                 mod.verify_release_archive_exact_source(
                     root.resolve(),release,source_sha,
                     expected_digest=digest,expected_size=size,
