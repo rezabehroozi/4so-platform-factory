@@ -142,6 +142,9 @@ def validate(root:Path)->list[tuple[str,str]]:
     preflight_markers=(
         'AUTHORITY = "FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_V1"',
         "sealer.exact_release_environment_preflight",
+        "validate_existing_evidence",
+        '"INSPECT_C9_EXISTING_EVIDENCE"',
+        '"FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_FIELDS_INVALID"',
         '"RUN_C9_ON_EXACT_LINUX_HOST"',
         '"PROVIDE_C9_ENVIRONMENT_INPUTS"',
         '"RUN_C9_SEAL"',
