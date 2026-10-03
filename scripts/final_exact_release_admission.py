@@ -45,6 +45,29 @@ def git_head(root:Path)->str|None:
     return value if mcp_contract.COMMIT.fullmatch(value) else None
 
 
+def require_exact_source_workspace(root:Path,expected_source_sha:str)->str:
+    root=root.resolve()
+    wanted=str(expected_source_sha or "").strip().lower()
+    if not mcp_contract.COMMIT.fullmatch(wanted):
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
+    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,text=True,capture_output=True,check=False)
+    head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,capture_output=True,check=False)
+    status=subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,capture_output=True,check=False)
+    if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root or head.returncode!=0:
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_WORKSPACE_INVALID")
+    observed=head.stdout.strip().lower()
+    if observed!=wanted:
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_WORKSPACE_HEAD_MISMATCH")
+    if indexed.returncode!=0 or any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_WORKSPACE_INDEX_FLAGS_FORBIDDEN")
+    if status.returncode!=0:
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_WORKSPACE_STATUS_UNAVAILABLE")
+    if any(raw for raw in status.stdout.split(b"\x00")):
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_WORKSPACE_NOT_CLEAN")
+    return observed
+
+
 def validate_c7w_source_lineage(root:Path,certified_sha:str,release_sha:str)->None:
     mcp_contract.validate_evidence_only_source_lineage(root,certified_sha,release_sha,"MCP_EXTERNAL_INTEROP")
 
@@ -184,9 +207,14 @@ def public_content_addressed(url:str,sha:str,label:str)->None:
 
 
 def verify(root:Path,expected_source_sha:str|None=None)->dict:
-    release_source_sha=str(expected_source_sha or "").strip().lower() or git_head(root)
-    if release_source_sha is not None and not mcp_contract.COMMIT.fullmatch(release_source_sha):
+    explicit_source_sha=str(expected_source_sha or "").strip().lower()
+    observed_source_sha=git_head(root)
+    if observed_source_sha is None:
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
+    release_source_sha=explicit_source_sha or observed_source_sha
+    if not mcp_contract.COMMIT.fullmatch(release_source_sha):
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
+    require_exact_source_workspace(root,release_source_sha)
     lock_path=root/"lab/appliance-bundle-acquisition-lock.json"
     lock,lock_sha256=load_snapshot(lock_path,"APPLIANCE_DISTRIBUTION")
     if lock.get("authority")!=S1_AUTHORITY or lock.get("schemaVersion")!=8:
@@ -229,8 +257,6 @@ def verify(root:Path,expected_source_sha:str|None=None)->dict:
     expected_version=(root/"VERSION").read_text(encoding="utf-8").strip()
     if not mcp_contract.COMMIT.fullmatch(certified_source_sha) or runtime_version!=expected_version:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_RUNTIME_IDENTITY_INVALID")
-    if release_source_sha is None:
-        release_source_sha=certified_source_sha
     validate_c7w_source_lineage(root,certified_source_sha,release_source_sha)
     if mcp.get("matrixSha256")!=matrix_sha256:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_MATRIX_DRIFT")
@@ -302,6 +328,7 @@ def verify(root:Path,expected_source_sha:str|None=None)->dict:
 
     if len(campaign_windows)!=1:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_CAMPAIGN_WINDOW_DRIFT")
+    require_exact_source_workspace(root,release_source_sha)
     return {
       "apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseAdmission",
       "authority":AUTHORITY,"admitted":True,
