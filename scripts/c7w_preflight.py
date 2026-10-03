@@ -2,18 +2,16 @@
 """Read-only, machine-actionable preflight for real C7W named-client execution."""
 from __future__ import annotations
 
-import argparse
-import json
-import os
-import subprocess
-import sys
+import argparse,json,os,subprocess,sys
 from pathlib import Path
 
 try:
+    import c7w_execution_bindings as execution_bindings
     import prepare_mcp_external_interop_campaign as campaign
     import run_mcp_external_interop as runner
     import seal_mcp_external_interop as core
 except ModuleNotFoundError:
+    from scripts import c7w_execution_bindings as execution_bindings
     from scripts import prepare_mcp_external_interop_campaign as campaign
     from scripts import run_mcp_external_interop as runner
     from scripts import seal_mcp_external_interop as core
@@ -21,7 +19,9 @@ except ModuleNotFoundError:
 AUTHORITY="MCP_EXTERNAL_PREFLIGHT_HANDOFF_V1"
 PRIVATE_INPUT_REL=Path(".state/private")
 DEFAULT_OAUTH_BINDING_REL=PRIVATE_INPUT_REL/"c7w-oauth-client-bindings.json"
+DEFAULT_EXECUTION_BINDING_REL=execution_bindings.DEFAULT_OUTPUT
 OAUTH_CLIENT_ID_INPUTS=[f"C7W_{client.upper()}_OAUTH_CLIENT_ID" for client in core.CLIENTS]
+EXECUTION_BINDING_INPUTS=[execution_bindings.ENV_RESOURCES[key] for key in execution_bindings.RESOURCE_KEYS]
 PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")
 EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")
 
@@ -30,29 +30,20 @@ def git_source_commit(root:Path)->str:
     root=Path(os.path.abspath(root))
     proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
     value=proc.stdout.strip().lower() if proc.returncode==0 else ""
-    if not core.COMMIT.fullmatch(value):
-        raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_UNAVAILABLE")
+    if not core.COMMIT.fullmatch(value): raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_UNAVAILABLE")
     return value
 
 
 def private_input_path(root:Path,path:Path)->Path:
-    root=Path(os.path.abspath(root))
-    boundary=Path(os.path.abspath(root/PRIVATE_INPUT_REL))
-    raw=Path(path)
+    root=Path(os.path.abspath(root)); boundary=Path(os.path.abspath(root/PRIVATE_INPUT_REL)); raw=Path(path)
     absolute=Path(os.path.abspath(raw if raw.is_absolute() else root/raw))
-    try:
-        absolute.relative_to(boundary)
-    except ValueError as exc:
-        raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID") from exc
+    try: absolute.relative_to(boundary)
+    except ValueError as exc: raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID") from exc
     for candidate in (absolute,*absolute.parents):
-        if candidate==root:
-            break
-        if candidate.exists() and candidate.is_symlink():
-            raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
-        if candidate==boundary:
-            break
-    if absolute.is_symlink() or not absolute.is_file():
-        raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
+        if candidate==root: break
+        if candidate.exists() and candidate.is_symlink(): raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
+        if candidate==boundary: break
+    if absolute.is_symlink() or not absolute.is_file(): raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
     return absolute
 
 
@@ -60,14 +51,15 @@ def oauth_binding_materializer_command(endpoint:str,token_env:str)->list[str]:
     return [sys.executable,"scripts/prepare_c7w_oauth_bindings.py","--root",".","--out",str(DEFAULT_OAUTH_BINDING_REL),"--preflight-endpoint",str(endpoint),"--preflight-token-env",str(token_env)]
 
 
-def trusted_client_reconcile_command(root:Path,endpoint:str,oauth_client_map:Path,token_env:str)->list[str]:
+def execution_binding_materializer_command(root:Path,source_sha:str,endpoint:str,oauth_client_map:Path,token_env:str)->list[str]:
     return [
-        sys.executable,"scripts/reconcile_c7w_trusted_clients.py",
-        "--root",str(Path(root).resolve()),
-        "--endpoint",str(endpoint),
-        "--oauth-client-map",str(oauth_client_map),
-        "--token-env",str(token_env),
+        sys.executable,"scripts/c7w_execution_bindings.py","--root",str(root),"--out",str(DEFAULT_EXECUTION_BINDING_REL),
+        "--source-commit",source_sha,"--preflight-endpoint",str(endpoint),"--preflight-oauth-client-map",str(oauth_client_map),"--preflight-token-env",str(token_env),
     ]
+
+
+def trusted_client_reconcile_command(root:Path,endpoint:str,oauth_client_map:Path,token_env:str)->list[str]:
+    return [sys.executable,"scripts/reconcile_c7w_trusted_clients.py","--root",str(Path(root).resolve()),"--endpoint",str(endpoint),"--oauth-client-map",str(oauth_client_map),"--token-env",str(token_env)]
 
 
 def _missing_inputs(endpoint:str,oauth_client_map:Path|None,token_env:str)->list[str]:
@@ -75,8 +67,7 @@ def _missing_inputs(endpoint:str,oauth_client_map:Path|None,token_env:str)->list
     if not str(endpoint or "").strip(): missing.append("C7W_MCP_ENDPOINT")
     if oauth_client_map is None: missing.append("C7W_OAUTH_CLIENT_MAP")
     token=str(os.getenv(str(token_env or "")) or "").strip()
-    if not token or any(ch in token for ch in "\r\n"):
-        missing.append(str(token_env or "C7W_PLATFORM_ADMIN_TOKEN"))
+    if not token or any(ch in token for ch in "\r\n"): missing.append(str(token_env or "C7W_PLATFORM_ADMIN_TOKEN"))
     return missing
 
 
@@ -93,10 +84,8 @@ def _existing_state_handoff(root:Path)->dict|None:
             out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"]); out.update({"sourceCommitSHA":source_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical final C7W evidence exists at an unsafe path; restore that evidence before any state recovery or new campaign"}); return out
         try: handoff=runner.git_handoff(root,evidence,progress)
         except RuntimeError as exc:
-            code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"
-            out=_base(ready=False,blockers=[code]); out.update({"sourceCommitSHA":source_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":f"{code}; final C7W evidence exists but cannot produce a safe Git/C9 handoff"}); return out
-        action=str(handoff.get("nextActionCode") or ""); ready=action in {"RUN_C9_SEAL","RUN_C9_ON_EXACT_LINUX_HOST","C9_SEALED"}
-        out=_base(ready=ready,blockers=[] if ready else ["MCP_EXTERNAL_CANONICAL_EVIDENCE_REQUIRES_HANDOFF"]); out.update(handoff); out.setdefault("sourceCommitSHA",source_sha); out["workingDirectory"]=str(root); out["physicalCertified"]=False; return out
+            code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"; out=_base(ready=False,blockers=[code]); out.update({"sourceCommitSHA":source_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":f"{code}; final C7W evidence exists but cannot produce a safe Git/C9 handoff"}); return out
+        action=str(handoff.get("nextActionCode") or ""); ready=action in {"RUN_C9_SEAL","RUN_C9_ON_EXACT_LINUX_HOST","C9_SEALED"}; out=_base(ready=ready,blockers=[] if ready else ["MCP_EXTERNAL_CANONICAL_EVIDENCE_REQUIRES_HANDOFF"]); out.update(handoff); out.setdefault("sourceCommitSHA",source_sha); out["workingDirectory"]=str(root); out["physicalCertified"]=False; return out
     state=Path(f".state/c7w-external-interop-{source_sha[:12]}"); absolute=Path(os.path.abspath(root/state)); artifacts=[rel for rel,path in ((PROGRESS_REL,progress),) if path.exists() or path.is_symlink()]
     if not absolute.exists() and not absolute.is_symlink():
         if not artifacts: return None
@@ -109,8 +98,9 @@ def _existing_state_handoff(root:Path)->dict|None:
 def _failure(code:str,source_sha:str="")->dict:
     out=_base(ready=False,blockers=[code])
     if code.startswith("MCP_EXTERNAL_LOCAL_"): out.update({"nextActionCode":"RESTORE_C7W_SOURCE_FREEZE","nextCommand":["git","status","--short"],"detail":"restore canonical main, repository-root authority and the C7W canonical matrix/evidence-only source boundary before live interoperability work"})
-    elif code.startswith("MCP_EXTERNAL_PRIVATE_INPUT_"): out.update({"nextActionCode":"REPAIR_C7W_INPUT_PATHS","requiredInputs":["C7W_OAUTH_CLIENT_MAP"],"detail":"place the private OAuth binding file under .state/private inside the exact repository root; never track it in Git"})
+    elif code.startswith("MCP_EXTERNAL_PRIVATE_INPUT_"): out.update({"nextActionCode":"REPAIR_C7W_INPUT_PATHS","requiredInputs":["C7W_OAUTH_CLIENT_MAP"],"detail":"place private C7W inputs under .state/private inside the exact repository root; never track them in Git"})
     elif code.startswith("MCP_EXTERNAL_OAUTH_BINDINGS_"): out.update({"nextActionCode":"REPAIR_C7W_OAUTH_BINDINGS","detail":"repair the private four-client OAuth binding document, then rerun C7W preflight"})
+    elif code.startswith("MCP_EXTERNAL_EXECUTION_BINDINGS_"): out.update({"nextActionCode":"REPAIR_C7W_EXECUTION_BINDINGS","requiredInputs":list(EXECUTION_BINDING_INPUTS),"detail":"repair the source-bound non-secret C7W execution binding document under .state/private, then rerun preflight"})
     elif code=="MCP_EXTERNAL_RUNTIME_SOURCE_DRIFT": out.update({"nextActionCode":"DEPLOY_C7W_CURRENT_SOURCE","requiredSourceCommitSHA":source_sha,"detail":"deploy the exact current main source before external named-client execution"})
     elif code.startswith("MCP_EXTERNAL_TRUSTED_CLIENT_"): out.update({"nextActionCode":"RECONCILE_C7W_TRUSTED_CLIENTS","detail":"make all four Product trusted-client registrations ACTIVE with provider/client identity matching the private OAuth binding document"})
     else: out.update({"nextActionCode":"INSPECT_C7W_LIVE_ENDPOINT","detail":"repair the HTTPS MCP/Product API endpoint or its runtime identity/challenge contract, then rerun C7W preflight"})
@@ -125,22 +115,30 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
         if missing==["C7W_OAUTH_CLIENT_MAP"]:
             out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_OAUTH_BINDINGS_MISSING"]); out.update({"nextActionCode":"PREPARE_C7W_OAUTH_BINDINGS","requiredInputs":list(OAUTH_CLIENT_ID_INPUTS),"nextCommand":oauth_binding_materializer_command(endpoint,token_env),"outputPath":str(DEFAULT_OAUTH_BINDING_REL),"detail":"materialize the private four-client OAuth binding document from the already-provisioned client IDs; values stay in environment/private state and are never emitted"}); return out
         out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_INPUTS_MISSING"]); out.update({"nextActionCode":"PROVIDE_C7W_INPUTS","requiredInputs":missing,"detail":"provide only the missing C7W endpoint/OAuth/admin-token inputs; token values are never emitted"}); return out
-    source_sha=""; endpoint_value=""; oauth_path=None
+    source_sha=""; endpoint_value=""; oauth_path=None; execution_path=root/DEFAULT_EXECUTION_BINDING_REL
     try:
         matrix_path=runner.require_canonical_matrix(root,matrix); oauth_path=private_input_path(root,oauth_client_map); runner.require_c7w_source_freeze(root); source_sha=git_source_commit(root); endpoint_value=campaign.endpoint(endpoint)
-        matrix_doc=core.load(matrix_path,"MATRIX"); core.validate_matrix_contract(matrix_doc,"MCP_EXTERNAL_MATRIX"); bindings,binding_sha=campaign.load_oauth_bindings(oauth_path); live=campaign.live_preflight(endpoint_value); runtime=campaign.runtime_identity_readback(endpoint_value,token_env,source_sha); trusted=campaign.trusted_client_readback(endpoint_value,bindings,token_env)
+        matrix_doc=core.load(matrix_path,"MATRIX"); core.validate_matrix_contract(matrix_doc,"MCP_EXTERNAL_MATRIX"); bindings,binding_sha=campaign.load_oauth_bindings(oauth_path)
+    except RuntimeError as exc:
+        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_PREFLIGHT_UNKNOWN"; return _failure(code,source_sha)
+    if not execution_path.exists() and not execution_path.is_symlink():
+        out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_EXECUTION_BINDINGS_MISSING"]); out.update({"sourceCommitSHA":source_sha,"workingDirectory":str(root),"nextActionCode":"PREPARE_C7W_EXECUTION_BINDINGS","requiredInputs":list(EXECUTION_BINDING_INPUTS),"nextCommand":execution_binding_materializer_command(root,source_sha,endpoint_value,oauth_path,token_env),"outputPath":str(DEFAULT_EXECUTION_BINDING_REL),"detail":"materialize the three non-secret runtime resource IDs required to replace C7W packet placeholders before any live endpoint execution"}); return out
+    try:
+        execution_doc,execution_sha=execution_bindings.load(execution_path,source_sha)
+    except RuntimeError as exc:
+        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_EXECUTION_BINDINGS_INVALID"; out=_failure(code,source_sha); out.update({"workingDirectory":str(root),"nextCommand":execution_binding_materializer_command(root,source_sha,endpoint_value,oauth_path,token_env),"outputPath":str(DEFAULT_EXECUTION_BINDING_REL)}); return out
+    try:
+        live=campaign.live_preflight(endpoint_value); runtime=campaign.runtime_identity_readback(endpoint_value,token_env,source_sha); trusted=campaign.trusted_client_readback(endpoint_value,bindings,token_env)
     except RuntimeError as exc:
         code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_PREFLIGHT_UNKNOWN"; out=_failure(code,source_sha)
-        if code.startswith("MCP_EXTERNAL_TRUSTED_CLIENT_") and endpoint_value and oauth_path is not None:
-            out.update({"workingDirectory":str(root),"nextCommand":trusted_client_reconcile_command(root,endpoint_value,oauth_path,token_env)})
+        if code.startswith("MCP_EXTERNAL_TRUSTED_CLIENT_") and endpoint_value and oauth_path is not None: out.update({"workingDirectory":str(root),"nextCommand":trusted_client_reconcile_command(root,endpoint_value,oauth_path,token_env)})
         return out
     state=Path(f".state/c7w-external-interop-{source_sha[:12]}")
     command=[sys.executable,"scripts/run_mcp_external_interop.py","--matrix",str(matrix_path),"--state-dir",str(state),"prepare","--endpoint",endpoint_value,"--oauth-client-map",str(oauth_path),"--token-env",str(token_env),"--source-commit-sha",source_sha]
-    out=_base(ready=True,blockers=[]); out.update({"sourceCommitSHA":source_sha,"runtimeVersion":runtime["version"],"endpoint":endpoint_value,"matrixPath":str(matrix_path),"oauthClientMapPath":str(oauth_path),"oauthClientBindingsSha256":binding_sha,"trustedClientCount":len(trusted),"livePreflightAuthority":live.get("authority"),"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RUN_C7W_PREPARE","nextCommand":command,"detail":"C7W exact source, canonical matrix, private OAuth bindings, live endpoint, runtime identity and four trusted-client registrations are ready; create the source-bound campaign from workingDirectory"}); return out
+    out=_base(ready=True,blockers=[]); out.update({"sourceCommitSHA":source_sha,"runtimeVersion":runtime["version"],"endpoint":endpoint_value,"matrixPath":str(matrix_path),"oauthClientMapPath":str(oauth_path),"oauthClientBindingsSha256":binding_sha,"executionBindingsPath":str(execution_path),"executionBindingsSha256":execution_sha,"credentialProfileContractAuthority":execution_doc["credentialProfileContractAuthority"],"credentialProfileContractSha256":execution_doc["credentialProfileContractSha256"],"trustedClientCount":len(trusted),"livePreflightAuthority":live.get("authority"),"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RUN_C7W_PREPARE","nextCommand":command,"detail":"C7W exact source, canonical matrix, private OAuth bindings, source-bound execution resources, credential-profile contract, live endpoint, runtime identity and four trusted-client registrations are ready; create the source-bound campaign from workingDirectory"}); return out
 
 
 def main()->int:
     parser=argparse.ArgumentParser(); parser.add_argument("--root",type=Path,default=Path(".")); parser.add_argument("--matrix",type=Path,default=runner.CANONICAL_MATRIX_REL); parser.add_argument("--endpoint",default=os.environ.get("C7W_MCP_ENDPOINT","")); raw_map=os.environ.get("C7W_OAUTH_CLIENT_MAP","").strip(); parser.add_argument("--oauth-client-map",type=Path,default=Path(raw_map) if raw_map else None); parser.add_argument("--token-env",default=os.environ.get("C7W_PLATFORM_ADMIN_TOKEN_ENV","C7W_PLATFORM_ADMIN_TOKEN")); args=parser.parse_args(); result=preflight(args.root,args.matrix,args.endpoint,args.oauth_client_map,args.token_env); print(json.dumps(result,sort_keys=True)); return 0 if result.get("ready") is True else 2
-
 
 if __name__=="__main__": raise SystemExit(main())
