@@ -93,6 +93,13 @@ def stable_file_bytes(path:Path,label:str,*,max_bytes:int)->bytes:
         os.close(fd)
 
 
+def _source_drift_error(target:Path)->str:
+    target_posix=target.as_posix()
+    if "/vendor/toolchains/" in "/"+target_posix.lstrip("/"):
+        return "FINAL_EXACT_RELEASE_WORKTREE_TOOLCHAIN_MISMATCH"
+    return "FINAL_EXACT_RELEASE_PUBLICATION_SOURCE_DRIFT"
+
+
 def publish_verified_file(
     source:Path,
     target:Path,
@@ -105,7 +112,7 @@ def publish_verified_file(
         raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_EXPECTED_SNAPSHOT_INVALID")
     if expected_digest is not None:
         if expected_digest!=source_digest or expected_size!=source_size:
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_SOURCE_DRIFT")
+            raise RuntimeError(_source_drift_error(target))
     wanted_digest=source_digest
     wanted_size=source_size
 
@@ -127,12 +134,12 @@ def publish_verified_file(
             raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
         return target
 
-    fd,temp_name=tempfile.mkstemp(prefix="."+target.name+".tmp.",dir=target_parent)
-    temp=Path(temp_name)
+    absolute,source_fd,before=_open_stable_regular(source,"FINAL_EXACT_RELEASE_PUBLICATION_SOURCE")
     try:
-        h=hashlib.sha256(); copied=0
-        absolute,source_fd,before=_open_stable_regular(source,"FINAL_EXACT_RELEASE_PUBLICATION_SOURCE")
+        fd,temp_name=tempfile.mkstemp(prefix="."+target.name+".tmp.",dir=target_parent)
+        temp=Path(temp_name)
         try:
+            h=hashlib.sha256(); copied=0
             with os.fdopen(fd,"wb") as out:
                 while True:
                     block=os.read(source_fd,1024*1024)
@@ -141,29 +148,29 @@ def publish_verified_file(
                     copied+=len(block); h.update(block); out.write(block)
                 out.flush(); os.fsync(out.fileno())
             _require_same_file(absolute,source_fd,before,"FINAL_EXACT_RELEASE_PUBLICATION_SOURCE")
+            copied_digest="sha256:"+h.hexdigest()
+            if copied!=wanted_size or copied_digest!=wanted_digest:
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT")
+            temp_digest,temp_size=stable_file_fingerprint(temp,"FINAL_EXACT_RELEASE_PUBLICATION_TEMP")
+            if temp_digest!=wanted_digest or temp_size!=wanted_size:
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT")
+            temp.chmod(0o444)
+            try:
+                os.link(temp,target,follow_symlinks=False)
+            except FileExistsError:
+                if target.is_symlink() or not target.is_file() or target.stat().st_mode&0o222:
+                    raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
+                target_digest,target_size=stable_file_fingerprint(target,"FINAL_EXACT_RELEASE_PUBLICATION_TARGET")
+                if target_digest!=wanted_digest or target_size!=wanted_size:
+                    raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
+            directory_fd=os.open(target_parent,os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+            return target
         finally:
-            os.close(source_fd)
-        copied_digest="sha256:"+h.hexdigest()
-        if copied!=wanted_size or copied_digest!=wanted_digest:
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT")
-        temp_digest,temp_size=stable_file_fingerprint(temp,"FINAL_EXACT_RELEASE_PUBLICATION_TEMP")
-        if temp_digest!=wanted_digest or temp_size!=wanted_size:
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT")
-        temp.chmod(0o444)
-        try:
-            os.link(temp,target,follow_symlinks=False)
-        except FileExistsError:
-            if target.is_symlink() or not target.is_file() or target.stat().st_mode&0o222:
-                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
-            target_digest,target_size=stable_file_fingerprint(target,"FINAL_EXACT_RELEASE_PUBLICATION_TARGET")
-            if target_digest!=wanted_digest or target_size!=wanted_size:
-                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
-        directory_fd=os.open(target_parent,os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-        return target
+            if temp.exists():
+                temp.unlink()
     finally:
-        if temp.exists():
-            temp.unlink()
+        os.close(source_fd)
