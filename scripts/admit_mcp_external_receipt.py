@@ -196,7 +196,7 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
     return by_id
 
 def validate_existing_campaign_rows(by_id:dict[str,dict],expected:dict,campaign:dict,spec:dict)->None:
-    created,expires,audit_window=core.campaign_time_window(campaign,spec)
+    created,expires,audit_window=core.campaign_time_window(campaign,spec,require_live=False)
     expected_created=core.utc_timestamp(created); expected_expires=core.utc_timestamp(expires)
     expected_endpoint=core.endpoint(expected.get("endpoint",""))
     for client,row in by_id.items():
