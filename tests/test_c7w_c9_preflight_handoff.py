@@ -15,16 +15,16 @@ class C7WToC9PreflightHandoffTests(unittest.TestCase):
         with mock.patch.object(mod.sys,"platform","linux"):
             out=mod.c9_handoff("a"*40)
         self.assertEqual("RUN_C9_SEAL",out["nextActionCode"])
-        self.assertEqual([sys.executable,"scripts/c9_preflight.py","--root","."],out["preflightCommand"])
-        self.assertNotIn("--preflight",out["preflightCommand"])
+        self.assertEqual([sys.executable,"scripts/c9_preflight.py","--root",".","--preflight"],out["preflightCommand"])
+        self.assertEqual("--preflight",out["preflightCommand"][-1])
         self.assertEqual(mod.c9_seal_command(),out["nextCommand"])
 
     def test_windows_handoff_templates_machine_actionable_c9_preflight_owner(self):
         with mock.patch.object(mod.sys,"platform","win32"):
             out=mod.c9_handoff("b"*40)
         self.assertEqual("RUN_C9_ON_EXACT_LINUX_HOST",out["nextActionCode"])
-        self.assertEqual(["<python>","scripts/c9_preflight.py","--root","."],out["preflightCommandTemplate"])
-        self.assertNotIn("--preflight",out["preflightCommandTemplate"])
+        self.assertEqual(["<python>","scripts/c9_preflight.py","--root",".","--preflight"],out["preflightCommandTemplate"])
+        self.assertEqual("--preflight",out["preflightCommandTemplate"][-1])
         self.assertEqual("b"*40,out["requiredSourceCommitSHA"])
 
 
