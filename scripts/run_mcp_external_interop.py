@@ -28,6 +28,14 @@ DEFAULT_STATE=Path(".state/c7w-external-interop")
 CANONICAL_MATRIX_REL=Path("lab/mcp-external-client-interop-matrix.json")
 
 
+def clean_git_env()->dict[str,str]:
+    env=os.environ.copy()
+    for key in list(env):
+        if key.startswith("GIT_"):
+            env.pop(key,None)
+    return env
+
+
 def secure_state_dir(path:Path)->Path:
     path=Path(os.path.abspath(path))
     for parent in reversed(path.parents):
@@ -95,19 +103,20 @@ def require_canonical_matrix(root:Path,candidate:Path)->Path:
 
 def require_c7w_source_freeze(root:Path)->None:
     root=root.resolve()
-    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,text=True,capture_output=True,check=False)
+    git_env=clean_git_env()
+    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
     if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root:
         raise RuntimeError("MCP_EXTERNAL_LOCAL_GIT_ROOT_INVALID")
-    branch=subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    branch=subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
     if branch.returncode!=0 or branch.stdout.strip()!="main":
         raise RuntimeError("MCP_EXTERNAL_LOCAL_BRANCH_NOT_MAIN")
-    indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,capture_output=True,check=False)
+    indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,env=git_env,capture_output=True,check=False)
     if indexed.returncode!=0 or any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
         raise RuntimeError("MCP_EXTERNAL_LOCAL_GIT_INDEX_FLAGS_FORBIDDEN")
     allowed=sorted(core.C7W_EVIDENCE_ONLY_PATHS)
     command=["git","status","--porcelain=v1","-z","--untracked-files=all"]
-    all_status=subprocess.run(command,cwd=root,capture_output=True,check=False)
-    allowed_status=subprocess.run(command+["--",*allowed],cwd=root,capture_output=True,check=False)
+    all_status=subprocess.run(command,cwd=root,env=git_env,capture_output=True,check=False)
+    allowed_status=subprocess.run(command+["--",*allowed],cwd=root,env=git_env,capture_output=True,check=False)
     if all_status.returncode!=0 or allowed_status.returncode!=0:
         raise RuntimeError("MCP_EXTERNAL_LOCAL_GIT_STATUS_UNAVAILABLE")
     all_records={row for row in all_status.stdout.split(b"\x00") if row}
@@ -120,7 +129,7 @@ def require_c7w_source_freeze(root:Path)->None:
 def require_active_campaign_source(root:Path,campaign:dict)->str:
     root=root.resolve()
     require_c7w_source_freeze(root)
-    head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=clean_git_env(),text=True,capture_output=True,check=False)
     current_sha=head.stdout.strip().lower() if head.returncode==0 else ""
     certified_sha=str((campaign or {}).get("sourceCommitSHA") or "").strip().lower()
     if not core.COMMIT.fullmatch(current_sha) or not core.COMMIT.fullmatch(certified_sha):
@@ -131,8 +140,9 @@ def require_active_campaign_source(root:Path,campaign:dict)->str:
 
 def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
     root=root.resolve()
+    git_env=clean_git_env()
     def run_git(*args:str)->subprocess.CompletedProcess:
-        return subprocess.run(["git",*args],cwd=root,text=True,capture_output=True,check=False)
+        return subprocess.run(["git",*args],cwd=root,env=git_env,text=True,capture_output=True,check=False)
     try:
         require_c7w_source_freeze(root)
     except RuntimeError as exc:
@@ -585,7 +595,7 @@ def status(args:argparse.Namespace)->dict:
             try:
                 require_active_campaign_source(root,campaign)
             except RuntimeError as exc:
-                head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+                head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=clean_git_env(),text=True,capture_output=True,check=False)
                 current_sha=head.stdout.strip().lower() if head.returncode==0 else ""
                 value.update({
                     "nextActionCode":"RERUN_C7W_ON_CURRENT_SOURCE",
