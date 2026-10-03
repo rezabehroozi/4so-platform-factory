@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -15,6 +16,7 @@ AUTHORITY="NATIVE_RELEASE_BINARY_BUILD_AUTHORITY_V1"
 TOOLCHAIN_AUTHORITY="RELEASE_BUILD_TOOLCHAIN_AUTHORITY_V1"
 COMMIT=re.compile(r"^[0-9a-f]{40}$")
 VERSION=re.compile(r"^\d+\.\d+\.\d+$")
+HEX=re.compile(r"^[0-9a-f]{64}$")
 TARGETS=(
     ("platform-api","./cmd/platform-api","1"),
     ("platformctl","./cmd/platformctl","0"),
@@ -56,7 +58,7 @@ def release_build_environment()->dict[str,str]:
     return env
 
 
-def require_go_binary_identity(root:Path,go_binary:str,env:dict[str,str])->None:
+def admitted_toolchain_spec(root:Path)->dict:
     lock_path=root/"lab"/"release-build-toolchain-lock.json"
     try:
         if lock_path.is_symlink() or not lock_path.is_file() or lock_path.stat().st_size<=0 or lock_path.stat().st_size>1024*1024:
@@ -65,14 +67,19 @@ def require_go_binary_identity(root:Path,go_binary:str,env:dict[str,str])->None:
     except (OSError,UnicodeDecodeError,json.JSONDecodeError,RuntimeError) as exc:
         raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID") from exc
     spec=lock.get("spec") if isinstance(lock,dict) else None
-    exact=(spec or {}).get("exactCompiler") if isinstance(spec,dict) else None
     if (
         not isinstance(lock,dict)
         or lock.get("authority")!=TOOLCHAIN_AUTHORITY
         or not isinstance(spec,dict)
         or spec.get("admissionStatus")!="admitted"
-        or not isinstance(exact,dict)
     ):
+        raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID")
+    return spec
+
+
+def require_go_binary_identity(root:Path,go_binary:str,env:dict[str,str])->None:
+    exact=admitted_toolchain_spec(root).get("exactCompiler")
+    if not isinstance(exact,dict):
         raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID")
     version=str(exact.get("version") or "").strip()
     goos=str(exact.get("goos") or "").strip()
@@ -90,6 +97,57 @@ def require_go_binary_identity(root:Path,go_binary:str,env:dict[str,str])->None:
     actual=(proc.stdout or proc.stderr or "").strip()
     if proc.returncode!=0 or actual!=expected:
         raise RuntimeError(f"RELEASE_BINARY_BUILD_GO_IDENTITY_MISMATCH expected={expected} actual={actual}")
+
+
+def file_sha256(path:Path)->str:
+    try:
+        info=path.lstat()
+    except OSError as exc:
+        raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_FILE_INVALID {path}") from exc
+    if not stat.S_ISREG(info.st_mode) or path.is_symlink() or info.st_size<=0:
+        raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_FILE_INVALID {path}")
+    h=hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda:fh.read(1024*1024),b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def command_first_line(command:list[str],root:Path,env:dict[str,str])->str:
+    try:
+        proc=subprocess.run(
+            command,cwd=root,env=env,text=True,
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,
+        )
+    except OSError as exc:
+        raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_IDENTITY_UNAVAILABLE {command[0]}") from exc
+    lines=[line.strip() for line in ((proc.stdout or "")+"\n"+(proc.stderr or "")).splitlines() if line.strip()]
+    if proc.returncode!=0 or not lines:
+        raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_IDENTITY_UNAVAILABLE {command[0]}")
+    return lines[0]
+
+
+def require_cgo_toolchain_identity(root:Path,env:dict[str,str])->None:
+    exact=admitted_toolchain_spec(root).get("exactCGOToolchain")
+    if not isinstance(exact,dict):
+        raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID")
+    observed={
+        "ccVersion":command_first_line(["gcc","--version"],root,env),
+        "ldVersion":command_first_line(["ld","--version"],root,env),
+        "libcVersion":command_first_line(["ldd","--version"],root,env),
+    }
+    for key in ("ccVersion","ldVersion","libcVersion"):
+        wanted=str(exact.get(key) or "")
+        if not wanted or observed[key]!=wanted:
+            raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_IDENTITY_MISMATCH {key} expected={wanted} actual={observed[key]}")
+    for path_key,digest_key in (("libpqHeaderPath","libpqHeaderSha256"),("libpqLibraryPath","libpqLibrarySha256")):
+        raw_path=str(exact.get(path_key) or "").strip()
+        wanted=str(exact.get(digest_key) or "").strip()
+        if not raw_path or not HEX.fullmatch(wanted):
+            raise RuntimeError(f"RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID {digest_key}")
+        actual=file_sha256(Path(raw_path))
+        if actual!=wanted:
+            raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_IDENTITY_MISMATCH {digest_key} expected={wanted} actual={actual}")
 
 
 def git_head(root:Path)->str:
@@ -140,6 +198,7 @@ def build(root:Path,go_binary:str,source_commit:str="",version:str="")->dict:
         raise RuntimeError("RELEASE_BINARY_BUILD_GO_INVALID")
     base_env=release_build_environment()
     require_go_binary_identity(root,go_binary,base_env)
+    require_cgo_toolchain_identity(root,base_env)
     out_dir=root/"bin"/"linux-amd64"
     if out_dir.is_symlink() or (out_dir.exists() and not out_dir.is_dir()):
         raise RuntimeError("RELEASE_BINARY_BUILD_OUTPUT_DIR_INVALID")
