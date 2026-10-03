@@ -21,6 +21,7 @@ BUILD_LDFLAGS := -s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.V
 
 validate:
 	$(PYTHON) scripts/validate_repository.py .
+	$(PYTHON) scripts/release_tool_authority_gate.py --root .
 
 test:
 	@set -euo pipefail; packages="$$( $(GO) list ./... )"; while IFS= read -r pkg; do [[ -z "$$pkg" ]] || CGO_ENABLED=1 $(GO) test -count=1 "$$pkg"; done <<< "$$packages"
