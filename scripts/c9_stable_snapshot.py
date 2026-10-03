@@ -2,6 +2,7 @@
 """Stable file snapshot primitives for the C9 exact-release owner."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 import hashlib
 import os
 from pathlib import Path
@@ -54,20 +55,56 @@ def _require_same_file(absolute:Path,fd:int,before:os.stat_result,label:str)->os
     return after
 
 
+def _fingerprint_fd(fd:int)->tuple[str,int]:
+    os.lseek(fd,0,os.SEEK_SET)
+    h=hashlib.sha256(); total=0
+    while True:
+        block=os.read(fd,1024*1024)
+        if not block:
+            break
+        total+=len(block); h.update(block)
+    return "sha256:"+h.hexdigest(),total
+
+
 def stable_file_fingerprint(path:Path,label:str)->tuple[str,int]:
     absolute,fd,before=_open_stable_regular(path,label)
-    h=hashlib.sha256(); total=0
     try:
-        while True:
-            block=os.read(fd,1024*1024)
-            if not block:
-                break
-            total+=len(block); h.update(block)
+        digest,total=_fingerprint_fd(fd)
         _require_same_file(absolute,fd,before,label)
         if total!=before.st_size:
             raise RuntimeError(f"{label}_FILE_CHANGED_DURING_READ")
-        return "sha256:"+h.hexdigest(),total
+        return digest,total
     finally:
+        os.close(fd)
+
+
+@contextmanager
+def verified_open(
+    path:Path,
+    label:str,
+    *,
+    expected_digest:str,
+    expected_size:int,
+):
+    absolute,fd,before=_open_stable_regular(path,label)
+    raw=None
+    try:
+        digest,size=_fingerprint_fd(fd)
+        _require_same_file(absolute,fd,before,label)
+        if digest!=expected_digest or size!=expected_size:
+            raise RuntimeError(f"{label}_SNAPSHOT_MISMATCH")
+        os.lseek(fd,0,os.SEEK_SET)
+        raw=os.fdopen(fd,"rb",buffering=0,closefd=False)
+        yield raw
+        raw.seek(0)
+        after_digest,after_size=_fingerprint_fd(fd)
+        _require_same_file(absolute,fd,before,label)
+        if after_digest!=expected_digest or after_size!=expected_size:
+            raise RuntimeError(f"{label}_SNAPSHOT_MISMATCH")
+        os.lseek(fd,0,os.SEEK_SET)
+    finally:
+        if raw is not None:
+            raw.close()
         os.close(fd)
 
 
