@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import stat
 import sys
 from pathlib import Path
 
@@ -46,6 +48,63 @@ TOOLCHAIN_SOURCE_BLOCKERS = {
     "FINAL_EXACT_RELEASE_TOOLCHAIN_PATH_INVALID",
     "FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_INVALID",
 }
+
+
+def load_existing_evidence_snapshot(path:Path)->dict:
+    absolute=Path(os.path.abspath(path))
+    if absolute.is_symlink():
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
+    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_BINARY",0)|getattr(os,"O_NOFOLLOW",0)
+    try:
+        fd=os.open(absolute,flags)
+    except OSError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
+    try:
+        before=os.fstat(fd)
+        try:
+            named=os.stat(absolute,follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or not stat.S_ISREG(named.st_mode)
+            or not os.path.samestat(before,named)
+            or before.st_size<=0
+            or before.st_size>1024*1024
+        ):
+            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
+
+        def read_once()->bytes:
+            chunks=[]; total=0
+            while True:
+                chunk=os.read(fd,min(1024*1024,1024*1024+1-total))
+                if not chunk:
+                    break
+                chunks.append(chunk); total+=len(chunk)
+                if total>1024*1024:
+                    raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
+            return b"".join(chunks)
+
+        first=read_once()
+        middle=os.fstat(fd)
+        os.lseek(fd,0,os.SEEK_SET)
+        second=read_once()
+        after=os.fstat(fd)
+        try:
+            named_after=os.stat(absolute,follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_CHANGED_DURING_READ") from exc
+        stable_identity=os.path.samestat(before,middle) and os.path.samestat(before,after) and os.path.samestat(before,named_after)
+        stable_meta=(before.st_size,before.st_mtime_ns,before.st_ctime_ns)==(middle.st_size,middle.st_mtime_ns,middle.st_ctime_ns)==(after.st_size,after.st_mtime_ns,after.st_ctime_ns)
+        if not stat.S_ISREG(named_after.st_mode) or not stable_identity or not stable_meta or first!=second or len(first)!=before.st_size:
+            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_CHANGED_DURING_READ")
+        try:
+            value=json.loads(first.decode("utf-8"))
+        except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
+        return value
+    finally:
+        os.close(fd)
 
 
 def enrich(result: dict) -> dict:
@@ -155,17 +214,7 @@ def _existing_evidence_failure(code: str, source_sha: str) -> dict:
 
 
 def validate_existing_evidence(root: Path, evidence: Path, current_sha: str) -> dict:
-    try:
-        if evidence.is_symlink() or not evidence.is_file():
-            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
-        info = evidence.stat()
-        if info.st_size <= 0 or info.st_size > 1024 * 1024:
-            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
-        value = json.loads(evidence.read_text(encoding="utf-8"))
-    except RuntimeError:
-        raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
+    value=load_existing_evidence_snapshot(evidence)
     if not isinstance(value, dict) or set(value) != sealer.FINAL_EVIDENCE_KEYS:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_FIELDS_INVALID")
     sealed_sha = str(value.get("sourceCommitSHA") or "").strip().lower()
@@ -180,7 +229,10 @@ def validate_existing_evidence(root: Path, evidence: Path, current_sha: str) -> 
 def preflight(root: Path) -> dict:
     root = root.resolve()
     evidence = root / FINAL_EVIDENCE_REL
-    resume = evidence.is_file() and not evidence.is_symlink()
+    evidence_present=evidence.exists() or evidence.is_symlink()
+    if evidence_present and (evidence.is_symlink() or not evidence.is_file()):
+        return _existing_evidence_failure("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID", "")
+    resume = evidence_present
     try:
         source_sha = sealer.git_source_for_resume(root, evidence) if resume else sealer.git_source(root)
     except RuntimeError as exc:
