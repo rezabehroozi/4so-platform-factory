@@ -1,4 +1,4 @@
-import hashlib, importlib.util, json, os, subprocess, tempfile, unittest, zipfile
+import hashlib, importlib.util, json, os, stat, subprocess, tempfile, unittest, zipfile
 from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
@@ -303,23 +303,35 @@ class FinalExactReleaseSourceFenceTests(unittest.TestCase):
                 mod.exact_release_publication_path(root,"bad",name)
 
     def final_evidence_fixture(self,root):
-        (root/".gitignore").write_text("/release/\n/.state/\n",encoding="utf-8")
-        (root/"VERSION").write_text("0.0.363\n",encoding="utf-8")
-        (root/"RELEASE-NAME").write_text("resume-test\n",encoding="utf-8")
+        gitignore=b"/release/\n/.state/\n"
+        version=b"0.0.363\n"
+        release_name_bytes=b"resume-test\n"
+        (root/".gitignore").write_bytes(gitignore)
+        (root/"VERSION").write_bytes(version)
+        (root/"RELEASE-NAME").write_bytes(release_name_bytes)
         self.git(root,"add",".gitignore","VERSION","RELEASE-NAME")
         self.git(root,"commit","-m","initial")
         head=self.git(root,"rev-parse","HEAD")
         name="4so-platform-factory-0.0.363-resume-test"
         release=root/"release"/"exact-sha"/head/(name+".zip")
         release.parent.mkdir(parents=True)
+        tracked={
+            ".gitignore":gitignore,
+            "VERSION":version,
+            "RELEASE-NAME":release_name_bytes,
+        }
         embedded={
             "ARTIFACT-MANIFEST.json":b"{\"schemaVersion\":2}\n",
             "BUILD-PROVENANCE.json":b"{\"schemaVersion\":1}\n",
             "SBOM.spdx.json":b"{\"spdxVersion\":\"SPDX-2.3\"}\n",
         }
         with zipfile.ZipFile(release,"w",zipfile.ZIP_STORED) as archive:
-            for filename,data in embedded.items():
-                archive.writestr(name+"/"+filename,data)
+            for filename,data in {**tracked,**embedded}.items():
+                info=zipfile.ZipInfo(name+"/"+filename)
+                info.create_system=3
+                info.external_attr=((stat.S_IFREG|0o644)&0xFFFF)<<16
+                info.compress_type=zipfile.ZIP_STORED
+                archive.writestr(info,data)
         digest=mod.sha256(release)
         checksum=release.with_name(release.name+".sha256")
         checksum.write_text(f"{digest.removeprefix('sha256:')}  {release.name}\n",encoding="utf-8")
