@@ -18,13 +18,14 @@ except ModuleNotFoundError:
     from scripts import seal_final_exact_release as sealer
 
 AUTHORITY = "FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_V1"
+FINAL_EVIDENCE_REL = Path("lab/final-exact-release-evidence.json")
 C9_COMMAND = [
     sys.executable,
     "scripts/seal_final_exact_release.py",
     "--root",
     ".",
     "--out",
-    "lab/final-exact-release-evidence.json",
+    str(FINAL_EVIDENCE_REL),
 ]
 C9_COMMAND_TEMPLATE = [
     "<python>",
@@ -32,7 +33,7 @@ C9_COMMAND_TEMPLATE = [
     "--root",
     ".",
     "--out",
-    "lab/final-exact-release-evidence.json",
+    str(FINAL_EVIDENCE_REL),
 ]
 TOOLCHAIN_ARCHIVE_BLOCKERS = {
     "FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE_MISSING",
@@ -122,6 +123,7 @@ def _source_failure(root: Path, exc: RuntimeError) -> dict:
             "nextCommand": ["git", "status", "--short"],
             "requiredInputs": [],
             "sourceCommitSHA": "",
+            "resumeExistingEvidence": False,
             "detail": f"{code}; restore canonical clean main at the exact repository root before evaluating C9 environment readiness",
         }
     )
@@ -130,12 +132,17 @@ def _source_failure(root: Path, exc: RuntimeError) -> dict:
 
 def preflight(root: Path) -> dict:
     root = root.resolve()
+    evidence = root / FINAL_EVIDENCE_REL
+    resume = evidence.is_file() and not evidence.is_symlink()
     try:
-        source_sha = sealer.git_source(root)
+        source_sha = sealer.git_source_for_resume(root, evidence) if resume else sealer.git_source(root)
     except RuntimeError as exc:
         return _source_failure(root, exc)
     out = enrich(sealer.exact_release_environment_preflight(root))
     out["sourceCommitSHA"] = source_sha
+    out["resumeExistingEvidence"] = resume
+    if resume and out.get("ready") is True:
+        out["detail"] = "existing final evidence is present at the canonical path; rerun the exact sealer to perform full resume revalidation before post-seal Git handoff"
     return out
 
 
