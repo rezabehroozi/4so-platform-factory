@@ -111,6 +111,7 @@ def preflight(root: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path("."))
+    parser.add_argument("--preflight", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     result = preflight(args.root)
     print(json.dumps(result, sort_keys=True))
