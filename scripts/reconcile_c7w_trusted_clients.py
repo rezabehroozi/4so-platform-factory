@@ -61,6 +61,27 @@ def _json_response(response,expected_url:str,label:str,max_bytes:int=2*1024*1024
         raise RuntimeError(f"{label}_JSON_INVALID") from exc
 
 
+def _private_oauth_map(root:Path,path:Path)->Path:
+    root=Path(os.path.abspath(root))
+    boundary=Path(os.path.abspath(root/".state"/"private"))
+    raw=Path(path)
+    absolute=Path(os.path.abspath(raw if raw.is_absolute() else root/raw))
+    try:
+        absolute.relative_to(boundary)
+    except ValueError as exc:
+        raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID") from exc
+    for candidate in (absolute,*absolute.parents):
+        if candidate==root:
+            break
+        if candidate.exists() and candidate.is_symlink():
+            raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
+        if candidate==boundary:
+            break
+    if absolute.is_symlink() or not absolute.is_file():
+        raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
+    return absolute
+
+
 def fetch_rows(endpoint_url:str,token_env:str)->list[dict]:
     url=_registry_url(endpoint_url)
     req=Request(
@@ -131,7 +152,6 @@ def reconcile_plan(rows:list[dict],bindings:dict[str,str])->dict:
 
         exact=[row for row in active_rows if str(row.get("clientId") or "").strip()==wanted]
         provider_active=[row for row in active_rows if str(row.get("provider") or "").strip().lower()==client]
-
         if len(exact)>1 or len(provider_active)>1:
             raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_CONFLICT {client}")
         if exact:
@@ -156,16 +176,29 @@ def reconcile_plan(rows:list[dict],bindings:dict[str,str])->dict:
     return {"create":create,"ready":ready}
 
 
-def preflight_command(endpoint_url:str,oauth_client_map:Path,token_env:str)->list[str]:
+def preflight_command(root_or_endpoint,endpoint_or_map,oauth_or_token,token_env=None)->list[str]:
+    # Backward-compatible three-argument API plus root-bound four-argument API.
+    if token_env is None:
+        root=Path(".")
+        endpoint_url=str(root_or_endpoint)
+        oauth_client_map=Path(endpoint_or_map)
+        token_name=str(oauth_or_token)
+    else:
+        root=Path(root_or_endpoint).resolve()
+        endpoint_url=str(endpoint_or_map)
+        oauth_client_map=Path(oauth_or_token)
+        token_name=str(token_env)
     return [
         sys.executable,
         "scripts/c7w_preflight.py",
+        "--root",
+        str(root),
         "--endpoint",
-        str(endpoint_url),
+        endpoint_url,
         "--oauth-client-map",
         str(oauth_client_map),
         "--token-env",
-        str(token_env),
+        token_name,
     ]
 
 
@@ -177,9 +210,6 @@ def reconcile(endpoint_url:str,bindings:dict[str,str],token_env:str)->dict:
         try:
             created_row=create_row(endpoint_url,row,token_env)
         except RuntimeError as exc:
-            # A concurrent reconciler may have created the exact ACTIVE client
-            # after our initial read. Only API conflict is recoverable, and the
-            # final live readback below must independently prove the desired row.
             if "status=409" not in str(exc):
                 raise
             continue
@@ -203,6 +233,7 @@ def reconcile(endpoint_url:str,bindings:dict[str,str],token_env:str)->dict:
 
 def main()->int:
     parser=argparse.ArgumentParser()
+    parser.add_argument("--root",type=Path,default=Path("."))
     parser.add_argument("--endpoint",default=os.environ.get("C7W_MCP_ENDPOINT",""),required=False)
     raw_map=os.environ.get("C7W_OAUTH_CLIENT_MAP","").strip()
     parser.add_argument("--oauth-client-map",type=Path,default=Path(raw_map) if raw_map else None)
@@ -210,9 +241,13 @@ def main()->int:
     args=parser.parse_args()
     if not str(args.endpoint or "").strip() or args.oauth_client_map is None:
         raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_RECONCILIATION_INPUTS_MISSING")
-    bindings,_=campaign.load_oauth_bindings(args.oauth_client_map)
+    root=Path(os.path.abspath(args.root))
+    oauth_path=_private_oauth_map(root,args.oauth_client_map)
+    bindings,_=campaign.load_oauth_bindings(oauth_path)
     result=reconcile(args.endpoint,bindings,args.token_env)
-    result["nextCommand"]=preflight_command(args.endpoint,args.oauth_client_map,args.token_env)
+    result["workingDirectory"]=str(root)
+    result["oauthClientMapPath"]=str(oauth_path)
+    result["nextCommand"]=preflight_command(root,args.endpoint,oauth_path,args.token_env)
     print(json.dumps(result,sort_keys=True))
     return 0
 
