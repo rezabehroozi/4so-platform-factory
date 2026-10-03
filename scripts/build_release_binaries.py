@@ -175,17 +175,55 @@ def require_go_binary_identity(root:Path,go_binary:str,env:dict[str,str])->None:
 
 
 def file_sha256(path:Path)->str:
+    absolute=Path(os.path.abspath(path))
+    if absolute.is_symlink():
+        raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_FILE_INVALID {path}")
+    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_BINARY",0)|getattr(os,"O_NOFOLLOW",0)
     try:
-        info=path.lstat()
+        fd=os.open(absolute,flags)
     except OSError as exc:
         raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_FILE_INVALID {path}") from exc
-    if not stat.S_ISREG(info.st_mode) or path.is_symlink() or info.st_size<=0:
-        raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_FILE_INVALID {path}")
-    h=hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda:fh.read(1024*1024),b""):
-            h.update(chunk)
-    return h.hexdigest()
+    try:
+        before=os.fstat(fd)
+        try:
+            named=os.stat(absolute,follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_FILE_INVALID {path}") from exc
+        if not stat.S_ISREG(before.st_mode) or not stat.S_ISREG(named.st_mode) or not os.path.samestat(before,named) or before.st_size<=0:
+            raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_FILE_INVALID {path}")
+
+        def hash_once()->tuple[str,int]:
+            h=hashlib.sha256(); total=0
+            while True:
+                chunk=os.read(fd,1024*1024)
+                if not chunk:
+                    break
+                total+=len(chunk); h.update(chunk)
+            return h.hexdigest(),total
+
+        first_digest,first_bytes=hash_once()
+        middle=os.fstat(fd)
+        os.lseek(fd,0,os.SEEK_SET)
+        second_digest,second_bytes=hash_once()
+        after=os.fstat(fd)
+        try:
+            named_after=os.stat(absolute,follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_FILE_CHANGED_DURING_READ {path}") from exc
+        stable_identity=os.path.samestat(before,middle) and os.path.samestat(before,after) and os.path.samestat(before,named_after)
+        stable_meta=(before.st_size,before.st_mtime_ns,before.st_ctime_ns)==(middle.st_size,middle.st_mtime_ns,middle.st_ctime_ns)==(after.st_size,after.st_mtime_ns,after.st_ctime_ns)
+        if (
+            not stat.S_ISREG(named_after.st_mode)
+            or not stable_identity
+            or not stable_meta
+            or first_digest!=second_digest
+            or first_bytes!=before.st_size
+            or second_bytes!=before.st_size
+        ):
+            raise RuntimeError(f"RELEASE_BINARY_BUILD_CGO_FILE_CHANGED_DURING_READ {path}")
+        return first_digest
+    finally:
+        os.close(fd)
 
 
 def command_first_line(command:list[str],root:Path,env:dict[str,str])->str:
