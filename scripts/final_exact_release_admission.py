@@ -8,7 +8,7 @@ This gate consumes only already-sealed external authorities:
 It never infers or records Physical PASS.
 """
 from __future__ import annotations
-import argparse, hashlib, json, re, subprocess
+import argparse, json, re, subprocess
 from pathlib import Path
 from urllib.parse import urlsplit
 try:
@@ -48,21 +48,18 @@ def git_head(root:Path)->str|None:
 def validate_c7w_source_lineage(root:Path,certified_sha:str,release_sha:str)->None:
     mcp_contract.validate_evidence_only_source_lineage(root,certified_sha,release_sha,"MCP_EXTERNAL_INTEROP")
 
-def digest(path:Path)->str:
-    h=hashlib.sha256()
-    with path.open("rb") as f:
-        for block in iter(lambda:f.read(1024*1024),b""): h.update(block)
-    return "sha256:"+h.hexdigest()
+
+def load_snapshot(path:Path,label:str)->tuple[dict,str]:
+    if not path.exists():
+        raise Pending(f"{label}_PENDING")
+    value,digest=mcp_contract.load_with_sha256(path,label,max_bytes=2*1024*1024)
+    if not isinstance(value,dict):
+        raise RuntimeError(f"{label}_NOT_OBJECT")
+    return value,digest
 
 
 def load(path:Path,label:str)->dict:
-    if not path.exists():
-        raise Pending(f"{label}_PENDING")
-    if path.is_symlink() or not path.is_file() or path.stat().st_size<=0 or path.stat().st_size>2*1024*1024:
-        raise RuntimeError(f"{label}_FILE_INVALID")
-    value=json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value,dict): raise RuntimeError(f"{label}_NOT_OBJECT")
-    return value
+    return load_snapshot(path,label)[0]
 
 
 def validate_mcp_projection_identity(value:dict,label:str)->str:
@@ -191,7 +188,7 @@ def verify(root:Path,expected_source_sha:str|None=None)->dict:
     if release_source_sha is not None and not mcp_contract.COMMIT.fullmatch(release_source_sha):
         raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
     lock_path=root/"lab/appliance-bundle-acquisition-lock.json"
-    lock=load(lock_path,"APPLIANCE_DISTRIBUTION")
+    lock,lock_sha256=load_snapshot(lock_path,"APPLIANCE_DISTRIBUTION")
     if lock.get("authority")!=S1_AUTHORITY or lock.get("schemaVersion")!=8:
         raise RuntimeError("APPLIANCE_DISTRIBUTION_AUTHORITY_INVALID")
     if lock.get("status")!="ready":
@@ -217,11 +214,11 @@ def verify(root:Path,expected_source_sha:str|None=None)->dict:
     transport.validate_locator(ar, expected_sha256=ar["sha256"], expected_size=ar["sizeBytes"], label="MANAGEMENT_ARCHIVE")
 
     matrix_path=root/"lab/mcp-external-client-interop-matrix.json"
-    matrix=load(matrix_path,"MCP_EXTERNAL_MATRIX")
+    matrix,matrix_sha256=load_snapshot(matrix_path,"MCP_EXTERNAL_MATRIX")
     mcp_contract.validate_matrix_contract(matrix,"MCP_EXTERNAL_MATRIX")
 
     mcp_path=root/"lab/mcp-external-client-interoperability-evidence.json"
-    mcp=load(mcp_path,"MCP_EXTERNAL_INTEROP")
+    mcp,mcp_sha256=load_snapshot(mcp_path,"MCP_EXTERNAL_INTEROP")
     if set(mcp)!=set(mcp_contract.INTEROP_EVIDENCE_KEYS):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_FIELDS_INVALID")
     if mcp.get("authority")!=MCP_AUTHORITY or mcp.get("externalCertificationPass") is not True or mcp.get("allRequiredChecksPass") is not True or mcp.get("certifiedClientCount")!=4:
@@ -235,7 +232,7 @@ def verify(root:Path,expected_source_sha:str|None=None)->dict:
     if release_source_sha is None:
         release_source_sha=certified_source_sha
     validate_c7w_source_lineage(root,certified_source_sha,release_source_sha)
-    if mcp.get("matrixSha256")!=digest(matrix_path):
+    if mcp.get("matrixSha256")!=matrix_sha256:
         raise RuntimeError("MCP_EXTERNAL_INTEROP_MATRIX_DRIFT")
     if mcp.get("serverAuditWitnessPass") is not True or mcp.get("serverAuditWitnessedCheckCount") != 24:
         raise Pending("MCP_EXTERNAL_SERVER_AUDIT_WITNESS_PENDING")
@@ -308,8 +305,8 @@ def verify(root:Path,expected_source_sha:str|None=None)->dict:
     return {
       "apiVersion":"platform.4so.io/v1alpha1","kind":"FinalExactReleaseAdmission",
       "authority":AUTHORITY,"admitted":True,
-      "applianceDistributionAuthority":S1_AUTHORITY,"applianceDistributionSha256":digest(lock_path),
-      "mcpExternalInteropAuthority":MCP_AUTHORITY,"mcpExternalInteropSha256":digest(mcp_path),
+      "applianceDistributionAuthority":S1_AUTHORITY,"applianceDistributionSha256":lock_sha256,
+      "mcpExternalInteropAuthority":MCP_AUTHORITY,"mcpExternalInteropSha256":mcp_sha256,
       "physicalCertified":False
     }
 
