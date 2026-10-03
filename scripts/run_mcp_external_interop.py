@@ -432,9 +432,6 @@ def admit(args:argparse.Namespace)->dict:
     with admission.progress_lock(args.progress_out):
         merged=admission.merge(args.matrix,p["campaign"],receipt_path,audit_path,client,args.progress_out,allow_campaign_supersede=args.allow_campaign_supersede)
         core.write_json_atomic_replace(args.progress_out,merged,"MCP_EXTERNAL_INTEROP_PROGRESS")
-        if merged["complete"]:
-            evidence=admission.final_evidence(merged,args.progress_out)
-            core.write_json_once_or_identical(args.evidence_out,evidence,"MCP_EXTERNAL_INTEROP_EVIDENCE")
     status=progress_status(args.matrix,state,args.progress_out)
     result={
         "authority":AUTHORITY,
@@ -443,7 +440,7 @@ def admit(args:argparse.Namespace)->dict:
         "certifiedClientCount":len(status["certified"]),
         "complete":status["complete"],
         "nextClient":status["nextClient"],
-        "evidencePath":str(args.evidence_out) if status["complete"] else None,
+        "evidencePath":None,
         "physicalCertified":False,
     }
     if status["complete"]:
